@@ -132,14 +132,14 @@ function ensembleBlockSlice(series, times, anchor, hours) {
  * slot reads its whole 3-hour block (ensembleBlockSlice).
  *
  * The weather condition now is the current block's WMO weather_code, beside its
- * temperature_2m (currentTemp), set only when it names a condition.
+ * temperature_2m (currentTemp).
  *
  * @param {Object} json Parsed Open-Meteo /v1/forecast response.
  * @param {number} nowEpoch Current time in epoch seconds.
  * @param {number} [hours] The window to map (hourly-window.js windowHours: 24, or
  *   emery's 26 or 68); FORECAST_HOURS when absent. Past the base 24 the window
  *   takes what the response holds.
- * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], cloudTrend: number[], startTime: number, currentTemp: number, currentCondition: (string|undefined)}|null}
+ * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], cloudTrend: number[], startTime: number, currentTemp: number, currentCondition: ?string}|null}
  *   Mapped fields, or null when the response is malformed or has fewer than
  *   FORECAST_HOURS buckets at/after the current hour. (The last slot's
  *   preceding-hour values sit in the bucket after the window; a response
@@ -170,7 +170,7 @@ function mapResponse(json, nowEpoch, hours) {
     // response holds (buildForecastUrl asks for a fourth day then).
     var count = hourlyWindow.hourlyRun(times, anchor, hours || FORECAST_HOURS);
     var end = anchor + count;
-    var mapped = {
+    return {
         tempTrend: hourly.temperature_2m.slice(anchor, end),
         // Preceding-hour fields: one bucket ahead (see the doc comment), the
         // chance by 3-hour block. forecast_days=3 at GMT is 72 buckets (4 and 96
@@ -199,13 +199,9 @@ function mapResponse(json, nowEpoch, hours) {
         // [] → the cloud line stays off.
         cloudTrend: Array.isArray(hourly.cloud_cover) ? cloudSlice(hourly, anchor, end) : [],
         startTime: times[anchor],
-        currentTemp: current.temperature_2m
+        currentTemp: current.temperature_2m,
+        currentCondition: condition.fromWmo(current.weather_code)
     };
-    var currentCondition = condition.fromWmo(current.weather_code);
-    if (currentCondition) {
-        mapped.currentCondition = currentCondition;
-    }
-    return mapped;
 }
 
 var OPEN_METEO_BASE = 'https://api.open-meteo.com/v1/forecast';

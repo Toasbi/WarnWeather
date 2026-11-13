@@ -450,12 +450,13 @@ test('mapFixtureWeather speaks the adapter vocabulary: keys within MAPPED_KEYS.a
     'no humidity: the fixture feels ship verbatim, never through the formula resolvers');
 });
 
-test('a bare fixture maps the core and feels keys only — core present even when undefined', () => {
+test('a bare fixture maps the core, feels and condition keys only — core present even when undefined', () => {
   const weather = makeFixture({}).weather;
   delete weather.startEpoch;
   const mapped = mapFixtureWeather(weather);
   assert.deepEqual(Object.keys(mapped).sort(),
-    ['currentFeels', 'currentTemp', 'feelsTrend', 'precipTrend', 'startTime', 'tempTrend']);
+    ['currentCondition', 'currentFeels', 'currentTemp', 'feelsTrend', 'precipTrend', 'startTime', 'tempTrend']);
+  assert.equal(mapped.currentCondition, undefined, 'no condition: adoptMapped makes it null');
   assert.equal(mapped.startTime, undefined, 'present, value undefined');
   assert.deepEqual(mapped.feelsTrend, [], 'always present: [] without feelsTemps');
   assert.equal(mapped.currentFeels, null);

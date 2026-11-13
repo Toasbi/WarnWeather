@@ -413,12 +413,12 @@ test('OWM names the condition now from current.weather[0].id', () => {
   assert.equal(p.getPayload().CURRENT_CONDITION, 'partly');
 });
 
-test('OWM leaves the condition out when current.weather names none, and a reused instance drops it', () => {
+test('OWM names no condition when current.weather names none, and a reused instance drops it', () => {
   [undefined, [], [null], 'x', [{ id: 900 }], [{ main: 'Clouds' }]].forEach((weather) => {
     const response = twoHourResponse();
     if (weather !== undefined) { response.current.weather = weather; }
     const mapped = OpenWeatherMapProvider.mapOneCall(response);
-    assert.equal('currentCondition' in mapped, false, 'weather ' + JSON.stringify(weather));
+    assert.equal(mapped.currentCondition, null, 'weather ' + JSON.stringify(weather));
     assert.deepEqual(mapped.tempTrend, [50, 60], 'the rest maps as before');
   });
   // Each cycle's One Call answer, as the chain's withSunEvents leaves it for withProviderData.

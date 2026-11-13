@@ -506,13 +506,22 @@
         statusBars.barSlots(S, env, bar, cx.fullDate, cx.now).forEach(function (c) {
             if (c.code === 'empty' || !(c.pos in at)) { return; }
             var glyph = c.code === 'battery' && !c.text;
-            var icon = glyph || c.iconless ? null : statusBars.slotIcon(c.code, env);
-            slots[at[c.pos]] = { label: c.text || '', glyph: glyph, icon: icon,
+            var icon = glyph ? null : c.icon;
+            slots[at[c.pos]] = { label: c.text || '', alt: c.alt, glyph: glyph, icon: icon,
                 iw: glyph ? BATTERY.w : (icon ? iconH : 0), tw: c.text ? WT.width(ch, false, c.text) : 0,
                 sw: c.arrow ? arrowW : 0 };
         });
-        var x0 = box.x + ROW_MARGIN;
-        placeSlots(box.w - 2 * ROW_MARGIN, slots).forEach(function (p, i) {
+        var cw = box.w - 2 * ROW_MARGIN, x0 = box.x + ROW_MARGIN;
+        // A slot that brought a short form draws it where the row would cut the full one
+        // (status_row.c swap_in_short_forms).
+        var placed = placeSlots(cw, slots), swapped = false;
+        slots.forEach(function (it, i) {
+            if (!it || !it.alt || (placed[i] && placed[i].tw >= it.tw)) { return; }
+            it.label = it.alt;
+            it.tw = WT.width(ch, false, it.alt);
+            swapped = true;
+        });
+        (swapped ? placeSlots(cw, slots) : placed).forEach(function (p, i) {
             if (!p) { return; }
             var it = slots[i], x = x0 + p.x;
             if (it.glyph) { e += batteryGlyph(x, mid, cx.fg); }

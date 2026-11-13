@@ -378,9 +378,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return copy.scale ? joinHint([hint, showAlertScale(S, env, args.metric)]) : hint;
     }
 
-    // The metrics the Wind graph scale row is about: the wind speed and gust lines.
-    var WIND_METRICS = { wind: true, gust: true };
-
     /**
      * The Wind graph scale row's hint while a drawn wind or gust line shows Alert. Such a
      * line runs from its warn level up to its band's top (line-alert.js alertBand): the
@@ -403,28 +400,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!S) { return null; }
         var drawn = lineAlert.drawnMetrics(S, env);
         var bands = lineAlert.alertBands(S, env);
-        var lines = [], alert = null, i, m;
+        var winds = 0, onAlert = [], i;
         for (i = 0; i < drawn.length; i += 1) {
-            m = drawn[i];
-            if (!Object.prototype.hasOwnProperty.call(WIND_METRICS, m)) { continue; }
-            lines.push({ metric: m, band: bands[m] || null });
-            // The line on Alert (the first, when both are: they share one band).
-            if (bands[m] && !alert) { alert = lines[lines.length - 1]; }
+            if (drawn[i] !== 'wind' && drawn[i] !== 'gust') { continue; }
+            winds += 1;
+            if (bands[drawn[i]]) { onAlert.push(drawn[i]); }
         }
-        if (!alert) { return null; }
-        var shared = lines.length === 2 && Boolean(lines[0].band) && Boolean(lines[1].band);
-        var subject = lines.length === 1 ? 'the line runs' : shared ? 'the lines run'
-            : 'the ' + alert.metric + ' line runs';
-        var from = lineAlert.levelText(S, alert.metric, alert.band.bottom);
+        if (!onAlert.length) { return null; }
+        // The line on Alert; both on Alert share one band, the first's.
+        var metric = onAlert[0], band = bands[metric], shared = onAlert.length === 2;
+        var lead = 'The scale goes up to ' + lineAlert.levelText(S, metric, lineAlert.scaleTop(S, metric))
+            + '. With Alert, ' + (winds === 1 ? 'the line' : shared ? 'the lines' : 'the ' + metric + ' line');
+        var s = shared ? '' : 's';
+        var from = lineAlert.levelText(S, metric, band.bottom);
         // A shared band starts at the lower warn level of the two.
         var start = shared ? from : 'your warn level, ' + from;
-        var lead = 'The scale goes up to '
-            + lineAlert.levelText(S, alert.metric, lineAlert.scaleTop(S, alert.metric)) + '. With Alert, ';
-        if (!alert.band.topDanger) {
-            return lead + subject.replace(/ runs?$/, shared ? ' start' : ' starts') + ' at ' + start + '.';
-        }
-        return lead + subject + ' from ' + start + (shared ? ' to your ' + alert.band.topDanger + ' ' : ', to your ')
-            + 'danger level, ' + lineAlert.levelText(S, alert.metric, alert.band.top) + '.';
+        if (!band.topDanger) { return lead + ' start' + s + ' at ' + start + '.'; }
+        return lead + ' run' + s + ' from ' + start + (shared ? ' to your ' + band.topDanger + ' ' : ', to your ')
+            + 'danger level, ' + lineAlert.levelText(S, metric, band.top) + '.';
     }
 
     PConf.hintResolvers.register('forecastMetricHint', function (S, env, args) {

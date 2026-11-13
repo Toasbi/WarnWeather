@@ -61,13 +61,12 @@ function currentConditionOf(current) {
  * object — withOwmResponse and withProviderData reject anything else first.
  *
  * @param {Object} json Parsed One Call response.
- * @returns {Object} The mapped forecast; carries every key of MAPPED_KEYS.all,
- *   currentCondition only when the current block names a condition.
+ * @returns {Object} The mapped forecast; carries every key of MAPPED_KEYS.all.
  */
 function mapOneCall(json) {
     var hourly = json.hourly;
     var current = json.current;
-    var mapped = {
+    return {
         tempTrend: hourly.map(function(entry) {
             return entry.temp;
         }),
@@ -120,13 +119,9 @@ function mapOneCall(json) {
         currentHumidity: current.humidity,
         currentWindKmh: typeof current.wind_speed === 'number' ? mphToKmh(current.wind_speed) : null,
         startTime: hourly[0].dt,
-        currentTemp: current.temp
+        currentTemp: current.temp,
+        currentCondition: currentConditionOf(current)
     };
-    var currentCondition = currentConditionOf(current);
-    if (currentCondition) {
-        mapped.currentCondition = currentCondition;
-    }
-    return mapped;
 }
 
 var OpenWeatherMapProvider = function(apiKey) {

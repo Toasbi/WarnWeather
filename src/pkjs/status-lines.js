@@ -62,6 +62,18 @@ function decodeFirstSunEvent(sunEvents) {
 }
 
 /**
+ * Whether it is night now: the next sun event is a sunrise (start type 0), or for a polar
+ * pair the other way round (polar night is a sunset then a sunrise). No events: day.
+ * @param {number[]} sunEvents packed SUN_EVENTS wire bytes
+ * @returns {boolean}
+ */
+function isNightNow(sunEvents) {
+  if (!sunEvents || sunEvents.length < 5) { return false; }
+  var polar = sunEvents.length >= 9 && isPolarSunPair(readInt32LE(sunEvents, 1), readInt32LE(sunEvents, 5));
+  return (sunEvents[0] === 1) === polar;
+}
+
+/**
  * Compact clock string for the sun slot (slot-text.js clockText, the settings
  * page's preview's too).
  * @param {number} epoch Unix epoch seconds
@@ -163,12 +175,12 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) 
       settings, cap);
   }
   if (code === 'city') { return payload.CITY || '--'; }
-  // The condition's full name (packLine bakes the slot through conditionSlot, which adds the
-  // short form and the glyph).
+  // The weather condition's name in the slot's Look ('' for the glyph alone), its short form
+  // after it where the slot has the bytes (slot-text.js conditionText); iconFor picks the glyph.
   if (code === 'condition') {
-    var n = condition.names(payload.CURRENT_CONDITION,
-      condition.isNight(payload.SUN_EVENTS, isPolarSunPair));
-    return n ? n.full : '--';
+    var cn = conditionNow(payload);
+    if (!cn) { return '--'; }
+    return slotText.conditionLook(settings, env) === 'icon' ? '' : slotText.conditionText(cn.names, cap, env);
   }
   if (code === 'sun') {
     var ev = decodeFirstSunEvent(payload.SUN_EVENTS);
@@ -262,58 +274,16 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) 
 }
 
 /**
- * The weather condition slot's look, its edit sheet's Look (conditionSlotLook): 'both' (icon
- * and text, the default), 'text' or 'icon'. aplite draws no condition glyph, so it prints the
- * text whatever is stored.
- * @param {Object} settings Clay settings blob
- * @param {?Object} env platform environment
- * @returns {string} 'both', 'text' or 'icon'
- */
-function conditionLook(settings, env) {
-  if (env && env.platform === 'aplite') { return 'text'; }
-  var look = settings && settings.conditionSlotLook;
-  return look === 'text' || look === 'icon' ? look : 'both';
-}
-
-/**
- * The condition's text for a slot of `cap` bytes: the full name with its short form after
- * catalog.ALT_SEP where both fit (the middle slot's 19 bytes always hold both), for the watch
- * to swap in where the row would cut the name short; else the full name where it fits (an
- * edge slot's 'Cloudy'), else the short form ('PCLD'). A short form no shorter than the name
- * ('RAIN' for 'Rain') rides with nothing. aplite's lean row reads no short form: it gets the
- * name where it fits an edge slot's 8 bytes, else the short form, in every slot.
- * @param {{full: string, short: string}} n condition.names()
- * @param {number} cap The slot's byte cap.
- * @param {?Object} env platform environment
- * @returns {string}
- */
-function conditionText(n, cap, env) {
-  if (env && env.platform === 'aplite') {
-    return utf8.byteLength(n.full) <= catalog.CAPS.EDGE_TEXT_MAX ? n.full : n.short;
-  }
-  var both = n.full + catalog.ALT_SEP + n.short;
-  if (n.short.length < n.full.length && utf8.byteLength(both) <= cap) { return both; }
-  return utf8.byteLength(n.full) <= cap ? n.full : n.short;
-}
-
-/**
- * The weather condition slot's text and icon (weather/condition.js): the condition now
- * (CURRENT_CONDITION), by day or by night (the next sun event, SUN_EVENTS), in the slot's
- * Look. Unknown: '--' with the text-only id, whatever the Look.
+ * The weather condition now (CURRENT_CONDITION), by day or by night (the next sun event,
+ * SUN_EVENTS): its id and names; null while no condition is known.
  * @param {Object} payload weather payload (pre-transform)
- * @param {Object} settings Clay settings blob
- * @param {?Object} env platform environment
- * @param {number} cap The slot's byte cap.
- * @returns {{text: string, icon: number}}
+ * @returns {?{id: string, night: boolean, names: {full: string, short: string}}}
  */
-function conditionSlot(payload, settings, env, cap) {
+function conditionNow(payload) {
   var id = payload && payload.CURRENT_CONDITION;
-  var night = condition.isNight(payload && payload.SUN_EVENTS, isPolarSunPair);
+  var night = isNightNow(payload && payload.SUN_EVENTS);
   var n = condition.names(id, night);
-  if (!n) { return { text: '--', icon: catalog.ICONS.COND_TEXT }; }
-  var look = conditionLook(settings, env);
-  var icon = look === 'text' ? catalog.ICONS.COND_TEXT : catalog.ICONS[condition.glyph(id, night)];
-  return { text: look === 'icon' ? '' : conditionText(n, cap, env), icon: icon };
+  return n ? { id: id, night: night, names: n } : null;
 }
 
 /**
@@ -390,25 +360,35 @@ function arrowSector(code, payload, settings, env, dayMax) {
 /**
  * The icon id to pack for one resolved item.
  *
- * Every other item packs the static `icon` off its catalog entry. 'phoneBattery'
- * is the single item whose icon is chosen PER BAKE: the phone swaps in the
- * charging glyph while it charges, so charging state reaches the watch as a
- * different id inside a byte the slot already pays for -- no wire field, no
- * watch-side logic, no C plumbing. 'phoneBatteryPlain' draws nothing in either
- * state, so its id never varies; it exists only so the no-icon variant does not
- * arrive as TEXT + NONE and inherit City's bold mode (status_threshold.h).
+ * Every other item packs the static `icon` off its catalog entry. Two items choose
+ * theirs PER BAKE, inside a byte the slot already pays for -- no wire field, no
+ * watch-side logic, no C plumbing: 'phoneBattery' swaps in the charging glyph while
+ * the phone charges, and 'condition' draws the glyph of the weather now, by day or
+ * night. 'phoneBatteryPlain' draws nothing in either state, so its id never varies;
+ * it exists only so the no-icon variant does not arrive as TEXT + NONE and inherit
+ * City's bold mode (status_threshold.h), as the condition's text-only id does.
  *
  * Resolved into a local exactly like `kind` is for the imperial distance slot --
  * the catalog entry itself is shared and must never be mutated.
  *
  * @param {string} code catalog item code
  * @param {Object} item the resolved catalog entry
+ * @param {Object} payload weather payload (pre-transform)
+ * @param {Object} settings Clay settings blob
+ * @param {?Object} env platform environment
  * @returns {number} STATUS_ICON_* id to pack
  */
-function iconFor(code, item) {
+function iconFor(code, item, payload, settings, env) {
   if (code === 'phoneBattery') {
     var pb = phoneBatteryReading();
     if (pb && pb.charging) { return catalog.ICONS.PHONE_BATTERY_CHG; }
+  }
+  // The weather condition's glyph; the text-only id while none is known and in the Text
+  // look (aplite's too).
+  if (code === 'condition') {
+    var cn = conditionNow(payload);
+    return cn && slotText.conditionLook(settings, env) !== 'text'
+      ? catalog.ICONS[condition.glyph(cn.id, cn.night)] : catalog.ICONS.COND_TEXT;
   }
   return item.icon;
 }
@@ -470,10 +450,8 @@ function packLine(line, payload, settings, env, alerts) {
       kind = catalog.KINDS.LIVE_DISTANCE_MI;
     }
     // Likewise resolved per bake rather than read straight off the entry: the charging
-    // phone-battery glyph (see iconFor) and the weather condition's (conditionSlot), whose
-    // text comes with it.
-    var cond = code === 'condition' ? conditionSlot(payload, settings, env, textCap(s)) : null;
-    var icon = cond ? cond.icon : iconFor(code, item);
+    // phone-battery glyph and the weather condition's (see iconFor).
+    var icon = iconFor(code, item, payload, settings, env);
     if (env.platform === 'aplite' && item.kind === catalog.KINDS.LIVE_WEEK) {
       // aplite has no watch-side iso_week() (reaped for image budget), so the
       // phone bakes the ISO week as an ordinary TEXT slot instead.
@@ -493,8 +471,7 @@ function packLine(line, payload, settings, env, alerts) {
       // The cap goes DOWN into formatValue so a per-kind unit can decline to
       // append itself rather than be silently chopped off again by utf8Truncate
       // below (see withUnit). The truncation still guards the value itself.
-      var text = cond ? cond.text
-        : formatValue(code, payload, settings, key, textCap(s), dayMax, alert, env);
+      var text = formatValue(code, payload, settings, key, textCap(s), dayMax, alert, env);
       // An edge slot's city walks the watch's word ladder before the cap cuts it: the
       // first form that fits ('B. Soden', not 'Bad Sode'), whose words the watch can
       // still shorten from there. A name no form fits whole is cut as before ('New
@@ -615,8 +592,6 @@ var SOURCE_KEYS = [
 
 module.exports = {
   buildStatusLines: buildStatusLines,
-  conditionSlot: conditionSlot,
-  conditionText: conditionText,
   SOURCE_KEYS: SOURCE_KEYS,
   packLine: packLine,
   formatValue: formatValue,

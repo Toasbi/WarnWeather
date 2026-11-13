@@ -65,9 +65,13 @@
 // Every number below is a taste value picked by eye on a real device, and each is
 // pinned exactly by test/c/status_icon_weight_test.c — editing one fails loudly.
 // The measured ink-height grid the values were solved against is ADR-0002 §2.
+// The table ends at the last id that has a weight: every later id (the weather condition's)
+// sits at the centre, so ids without one cost the image no bytes.
+#define STATUS_ICON_WEIGHT_IDS (STATUS_ICON_PHONE_BATTERY_CHG + 1)
+
 #ifdef PBL_PLATFORM_EMERY
 // emery: tiers 12 / 13 / 16 (Gothic 18 rows, Gothic 24 strip, Gothic 24 rows).
-static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
+static const uint8_t s_status_icon_weight_pct[STATUS_ICON_WEIGHT_IDS] = {
     [STATUS_ICON_TEMP]      = 50,   // thermometer     — 50: no single weight fits, see below
     [STATUS_ICON_UV]        = 53,   // sun/UV          — lifts 1 px at t16 only
     [STATUS_ICON_WIND]      = 60,   // wind flag       — 1 px at t12/t13, 2 px at t16
@@ -94,7 +98,7 @@ static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
 #else
 // basalt / diorite / flint: tiers 9 / 10 / 12 (Gothic 14 rows, Gothic 18 strip,
 // Gothic 18 rows). aplite never sees this file.
-static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
+static const uint8_t s_status_icon_weight_pct[STATUS_ICON_WEIGHT_IDS] = {
     [STATUS_ICON_TEMP]      = 50,   // thermometer     — 50 = ink-box centre
     [STATUS_ICON_UV]        = 50,   // sun/UV          — 50 = ink-box centre
     [STATUS_ICON_WIND]      = 54,   // wind flag       — lifts 1 px at t12 only
@@ -137,7 +141,7 @@ static inline int status_icon_div_round(int a, int b) {
 // Weight for an icon id; STATUS_ICON_WEIGHT_CENTRE for anything unlisted or out
 // of range (see the table comment).
 static inline int status_icon_weight_pct(uint8_t icon_id) {
-    if (icon_id > STATUS_ICON_MAX) { return STATUS_ICON_WEIGHT_CENTRE; }
+    if (icon_id >= STATUS_ICON_WEIGHT_IDS) { return STATUS_ICON_WEIGHT_CENTRE; }
     uint8_t w = s_status_icon_weight_pct[icon_id];
     return w == 0 ? STATUS_ICON_WEIGHT_CENTRE : w;
 }

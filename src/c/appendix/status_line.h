@@ -111,8 +111,6 @@ typedef enum {
 // Id 6 (STATUS_ICON_PRECIP, removed in 3dae9f4) is a retired hole: never reuse it —
 // a pre-3dae9f4 install can still hold a persisted blob referencing it.
 #define STATUS_ICON_MAX STATUS_ICON_COND_WIND
-#define STATUS_ICON_COND_FIRST STATUS_ICON_COND_TEXT
-#define STATUS_ICON_COND_LAST STATUS_ICON_COND_WIND
 
 // A SLOT_TEXT value may carry a short form after this byte: "full" SEP "short". The watch
 // draws the full form and swaps in the short one where the row would cut the full one

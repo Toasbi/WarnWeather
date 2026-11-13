@@ -2122,7 +2122,7 @@ module.exports = {
         // one mode packs into both cells. Android-only on the slot side; the dialog
         // needs no extra gate, because a slot that can't be chosen never opens it.
         boldSection('Phone battery', 'PhoneBattery'),
-        // The weather condition slot's dialog (status-lines.js conditionSlot): its Look, which
+        // The weather condition slot's dialog (slot-text.js conditionLook): its Look, which
         // every condition slot shares. No Bold row: the slot has no levels and no bold cell.
         // Opened by the slot's Edit button (blocks.js statusSlotEditSheet), not on aplite,
         // which draws no condition glyph and prints the text.

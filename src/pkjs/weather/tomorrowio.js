@@ -112,7 +112,7 @@ function anchorIndex(intervals, nowEpoch) {
  * dew point °C->°F; the bearing is already degrees and only gets normalized.
  * The anchor bucket's temperature doubles as currentTemp (metno.js precedent —
  * no separate "current conditions" call, keeping the cycle at one API call), and
- * its weatherCode as the weather condition now, set only when it names one.
+ * its weatherCode as the weather condition now.
  *
  * @param {Object} json Parsed Timelines response.
  * @param {number} nowEpoch Current time in epoch seconds.
@@ -185,7 +185,7 @@ function mapResponse(json, nowEpoch, hours) {
         }
     }
 
-    var mapped = {
+    return {
         tempTrend: tempTrend,
         precipTrend: precipTrend,
         rainTrend: rainTrend,
@@ -209,13 +209,9 @@ function mapResponse(json, nowEpoch, hours) {
         // The anchor bucket doubles as "now" for the Steadman inputs too, exactly
         // as it does for currentTemp above (the wind null-preserving, see above).
         currentHumidity: humidityTrend[0],
-        currentWindKmh: anchorWindKmh
+        currentWindKmh: anchorWindKmh,
+        currentCondition: condition.fromTomorrow((intervals[anchor].values || {}).weatherCode)
     };
-    var currentCondition = condition.fromTomorrow((intervals[anchor].values || {}).weatherCode);
-    if (currentCondition) {
-        mapped.currentCondition = currentCondition;
-    }
-    return mapped;
 }
 
 var TomorrowIoProvider = function(apiKey) {

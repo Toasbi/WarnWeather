@@ -790,7 +790,7 @@ WeatherProvider.prototype.getPayload = function() {
     // when the provider names none. Transient PKJS-only: buildStatusLines bakes it
     // into the condition slot's text and glyph, and forecast-series deletes it
     // before send.
-    if (condition.isCondition(this.currentCondition)) {
+    if (this.currentCondition) {
         payload.CURRENT_CONDITION = this.currentCondition; // a condition.js id, e.g. 'partly'
     }
     // Dew point and wind bearing follow the same conditional-emit rule as the
@@ -873,9 +873,7 @@ WeatherProvider.requestMapped = function(opts, onMapped, onFailure) {
  *            need (humidity + wind); only feelsTrend/currentFeels are stored.
  *   uv     — the UV series, adopted only when options.fetchUv is on.
  *   condition — the weather condition now (a condition.js id), read off the
- *            moment currentTemp describes. An adapter sets it only when its
- *            response names a condition, so a response without one maps as it
- *            always has.
+ *            moment currentTemp describes; null when the response names none.
  */
 WeatherProvider.MAPPED_KEYS = {
     core: ['tempTrend', 'precipTrend', 'startTime', 'currentTemp'],
@@ -987,8 +985,7 @@ WeatherProvider.prototype.adoptMapped = function(mapped) {
         this.currentFeels = null;
     }
     this.uvTrend = (options.fetchUv && hasKey(mapped, 'uvTrend')) ? mapped.uvTrend : [];
-    this.currentCondition = (hasKey(mapped, 'currentCondition') && condition.isCondition(mapped.currentCondition))
-        ? mapped.currentCondition : null;
+    this.currentCondition = condition.isCondition(mapped.currentCondition) ? mapped.currentCondition : null;
 };
 
 /**

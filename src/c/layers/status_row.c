@@ -680,27 +680,13 @@ static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int conte
     GColor fg = theme_fg();
     bool env_changed = target_h != row->glyph_h || !gcolor_equal(fg, row->glyph_fg);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        const StatusSlotView *slot = &views[i];
-        uint8_t wanted = STATUS_ICON_NONE;
-        if (slot->kind != SLOT_EMPTY
-                && slot->icon != STATUS_ICON_NONE
-                && slot->icon != STATUS_ICON_DRAWN_SUN
-                // PRESSURE is text-only by contract (status_line.h): no PDC
-                // exists, so never attempt a load and reserve no icon width.
-                && slot->icon != STATUS_ICON_PRESSURE
-                // Same contract for the no-icon phone-battery variant: the id
-                // exists only to keep it off THRESH_CITY's bold row, and no
-                // glyph may load for it.
-                && slot->icon != STATUS_ICON_PHONE_BATTERY_PLAIN
-                // And for the weather condition's Text look.
-                && slot->icon != STATUS_ICON_COND_TEXT) {
-            wanted = slot->icon;
-        }
+        // An id with no glyph (NONE, the drawn sun arrow, the text-only ids such as
+        // PRESSURE) loads as NULL (status_row_icons.c icon_resource), so its slot reserves
+        // no icon width and draws as bare text.
+        uint8_t wanted = views[i].kind != SLOT_EMPTY ? views[i].icon : STATUS_ICON_NONE;
         if (!env_changed && wanted == row->glyph_icons[i]) { continue; }
         status_row_icons_destroy(row->glyphs[i]);
-        row->glyphs[i] = wanted != STATUS_ICON_NONE
-            ? status_row_icons_load(wanted, target_h, top)
-            : NULL;
+        row->glyphs[i] = status_row_icons_load(wanted, target_h, top);
         row->glyph_icons[i] = wanted;
     }
     row->glyph_h = target_h;
@@ -774,11 +760,11 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
 // the middle slot has the bytes for both forms, so a row lays itself out once here at
 // most.
 static void swap_in_short_forms(const StatusRow *row, ResolvedSlot slots[STATUS_SLOT_COUNT],
-                                StatusSlotMeasure m[STATUS_SLOT_COUNT], int16_t content_w) {
+                                StatusSlotMeasure m[STATUS_SLOT_COUNT],
+                                StatusSlotPlace plain[STATUS_SLOT_COUNT], int16_t content_w) {
     bool any = false;
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) { any = any || slots[i].alt[0] != '\0'; }
     if (!any) { return; }
-    StatusSlotPlace plain[STATUS_SLOT_COUNT];
     status_row_layout(content_w, m, plain);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         ResolvedSlot *s = &slots[i];
@@ -786,7 +772,7 @@ static void swap_in_short_forms(const StatusRow *row, ResolvedSlot slots[STATUS_
                 || (plain[i].text_visible && plain[i].text_w >= m[i].text_w)) {
             continue;
         }
-        snprintf(s->text, sizeof(s->text), "%s", s->alt);
+        copy_text(s->text, sizeof(s->text), s->alt, strlen(s->alt));
         s->alt[0] = '\0';
         m[i].text_w = status_row_text_w(s->text, s->font, content_w, row->bounds.size.h);
     }
@@ -837,7 +823,9 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         measures[i] = measure_slot(row, i, slots[i].font, content_w,
                                    &slots[i].slot, slots[i].text, slots[i].dir);
     }
-    swap_in_short_forms(row, slots, measures, content_w);
+    // Its scratch is the layout's own places, which status_on_demand_layout overwrites.
+    StatusSlotPlace places[STATUS_SLOT_COUNT];
+    swap_in_short_forms(row, slots, measures, places, content_w);
 
     int text_y_rel = row_text_y(row, font);
     int text_y = row->bounds.origin.y + text_y_rel;
@@ -873,7 +861,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                                              slots[i].font, slots[i].text,
                                              sizeof(slots[i].text), slots[i].alt };
     }
-    StatusSlotPlace places[STATUS_SLOT_COUNT];
     status_on_demand_layout(&row->od, &s_od_pass, &od_env, od_slots, measures, places,
                             content_w);
 

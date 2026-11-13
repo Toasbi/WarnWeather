@@ -299,8 +299,7 @@ function hourlyTail(timeseries, anchor, hours) {
  * documents the scope). Rain and chance come from next_1_hours, the hour that
  * starts at the stamp, so slot i reads its own bucket; the gust is the peak of
  * the hour ending at the stamp, so it reads the next one (followingGust). The
- * weather condition now is the anchor bucket's next_1_hours symbol, set only
- * when the bucket names one.
+ * weather condition now is the anchor bucket's next_1_hours symbol.
  *
  * Met.no is hourly to about 60 h and 6-hourly after. The long span's window (past
  * PEAK_HOURS: 68) has the 6-hourly part made hourly first (hourlyTail); every
@@ -316,7 +315,7 @@ function hourlyTail(timeseries, anchor, hours) {
  *   windTrend: number[], gustTrend: number[], uvTrend: number[],
  *   pressureTrend: number[], feelsTrend: number[], dewTrend: Array.<?number>,
  *   windDirTrend: Array.<?number>, startTime: number, currentTemp: number,
- *   currentFeels: ?number, currentCondition: (string|undefined)}|null} Mapped
+ *   currentFeels: ?number, currentCondition: ?string}|null} Mapped
  *   fields, or null when the response is malformed or has fewer than
  *   FORECAST_HOURS hourly buckets at/after the current hour.
  */
@@ -400,7 +399,7 @@ function mapResponse(json, nowEpoch, hours) {
             ? next1.probability_of_precipitation / 100 : 0);
     }
 
-    var mapped = {
+    return {
         tempTrend: tempTrend,
         precipTrend: precipTrend,
         rainTrend: rainTrend,
@@ -421,14 +420,10 @@ function mapResponse(json, nowEpoch, hours) {
         windDirTrend: windDirTrend,
         startTime: entryEpoch(timeseries[anchor]),
         currentTemp: celsiusToFahrenheit(timeseries[anchor].data.instant.details.air_temperature),
-        currentFeels: currentFeels
+        currentFeels: currentFeels,
+        // The anchor bucket doubles as "now" here too: its next hour's symbol.
+        currentCondition: entryCondition(timeseries[anchor])
     };
-    // The anchor bucket doubles as "now" here too: its next hour's symbol.
-    var currentCondition = entryCondition(timeseries[anchor]);
-    if (currentCondition) {
-        mapped.currentCondition = currentCondition;
-    }
-    return mapped;
 }
 
 var MetnoProvider = function() {

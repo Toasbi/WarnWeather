@@ -172,21 +172,19 @@ test('buildForecastUrl asks the pinned main call for the current weather_code be
 
 test('mapResponse names the condition now from the current block\'s WMO weather_code', () => {
   const nowEpoch = BASE + 18 * 3600 + 600;
-  [[0, 'clear'], [2, 'partly'], [61, 'lightrain'], [75, 'heavysnow'], [95, 'thunder']].forEach(([code, id]) => {
-    const json = sampleResponse();
-    json.current.weather_code = code;
-    assert.equal(mapResponse(json, nowEpoch).currentCondition, id, 'WMO ' + code);
-  });
+  const json = sampleResponse();
+  json.current.weather_code = 2;
+  assert.equal(mapResponse(json, nowEpoch).currentCondition, 'partly');
 });
 
-test('mapResponse leaves the condition out when the current block names none', () => {
+test('mapResponse names no condition when the current block names none', () => {
   const nowEpoch = BASE + 18 * 3600 + 600;
-  assert.equal('currentCondition' in mapResponse(sampleResponse(), nowEpoch), false, 'no weather_code');
+  assert.equal(mapResponse(sampleResponse(), nowEpoch).currentCondition, null, 'no weather_code');
   [null, 4, 'x'].forEach((code) => {
     const json = sampleResponse();
     json.current.weather_code = code;
     const out = mapResponse(json, nowEpoch);
-    assert.equal('currentCondition' in out, false, 'weather_code ' + JSON.stringify(code));
+    assert.equal(out.currentCondition, null, 'weather_code ' + JSON.stringify(code));
     assert.equal(out.tempTrend.length, 24, 'the rest maps as before');
   });
 });

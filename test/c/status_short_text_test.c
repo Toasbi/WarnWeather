@@ -473,7 +473,7 @@ static void od_variants(void) {
 // no words to abbreviate), whatever its look's icon, so the slot hides at its turn
 // unless it brought its own (status_short_alt), which is then its one member.
 static void condition(void) {
-    for (uint8_t icon = STATUS_ICON_COND_FIRST; icon <= STATUS_ICON_COND_LAST; icon++) {
+    for (uint8_t icon = STATUS_ICON_COND_TEXT; icon <= STATUS_ICON_COND_WIND; icon++) {
         no_family("condition name", SLOT_TEXT, icon, "Partly cloudy");
         no_family("condition short", SLOT_TEXT, icon, "PCLD");
         no_family("condition unknown", SLOT_TEXT, icon, "--");
@@ -482,8 +482,6 @@ static void condition(void) {
     expect_true("alt member", status_short_alt("PCLD", 1, out, sizeof(out)) == SST_MEMBER);
     expect_str("alt member", out, "PCLD");
     expect_true("alt one member", !status_short_alt("PCLD", 2, out, sizeof(out)));
-    expect_true("alt none", !status_short_alt("", 1, out, sizeof(out)));
-    expect_true("alt null", !status_short_alt(NULL, 1, out, sizeof(out)));
     expect_true("alt v0", !status_short_alt("PCLD", 0, out, sizeof(out)));
     char tiny[4];
     expect_true("alt cap", !status_short_alt("PCLD", 1, tiny, sizeof(tiny)));

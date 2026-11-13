@@ -117,15 +117,15 @@ test('tomorrow.io names the condition now from the anchor interval\'s weatherCod
   });
 });
 
-test('tomorrow.io leaves the condition out when the anchor interval names none', () => {
+test('tomorrow.io names no condition when the anchor interval names none', () => {
   const nowEpoch = BASE + 3 * 3600 + 600;
-  assert.equal('currentCondition' in mapResponse(sampleResponse(), nowEpoch), false, 'no weatherCode');
+  assert.equal(mapResponse(sampleResponse(), nowEpoch).currentCondition, null, 'no weatherCode');
   [0, null, 'x', 9999].forEach((code) => {
     const json = sampleResponse();
     json.data.timelines[0].intervals[3].values.weatherCode = code;
     json.data.timelines[0].intervals[4].values.weatherCode = 1000;
     const out = mapResponse(json, nowEpoch);
-    assert.equal('currentCondition' in out, false, 'weatherCode ' + JSON.stringify(code));
+    assert.equal(out.currentCondition, null, 'weatherCode ' + JSON.stringify(code));
     assert.equal(out.tempTrend.length, 24, 'the rest maps as before');
   });
 });

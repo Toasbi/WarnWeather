@@ -347,7 +347,9 @@ function mapForecast(provider, hourly, observed) {
         feelsTrend: fetchFeels ? slots.map(hourFeels) : [],
         currentFeels: fetchFeels ? current.feelsF : null,
         startTime: startEpoch,
-        currentTemp: current.tempF
+        currentTemp: current.tempF,
+        // The observation's, or the forecast record standing in for it.
+        currentCondition: current.condition || null
     };
     // MOSMIX can omit the bearing on the hour we are inside (it already
     // omits relative_humidity there); the live observation carries it, so
@@ -356,11 +358,6 @@ function mapForecast(provider, hourly, observed) {
     // the direction it points must come from the same record.
     if (mapped.windDirTrend[0] === null && typeof current.bearing === 'number') {
         mapped.windDirTrend[0] = current.bearing;
-    }
-    // The weather condition now, set only when the observation (or the forecast
-    // standing in for it) names one.
-    if (current.condition) {
-        mapped.currentCondition = current.condition;
     }
     // The day-max series read on past the graph (hourly-window.js
     // PEAK_HOURS) while a wind or gust slot shows its day max (the

@@ -309,9 +309,7 @@ static inline uint8_t status_short_member(uint8_t kind, uint8_t icon, const char
 }
 
 // Member `v` of the family of a slot whose text came with its own short form `alt`
-// (the bytes after STATUS_TEXT_ALT_SEP): that form as member 1, and no other member.
-// 0 for an empty `alt`: the caller then asks status_short_member.
+// (the bytes after STATUS_TEXT_ALT_SEP, not empty): that form as member 1, and no other.
 static inline uint8_t status_short_alt(const char *alt, uint8_t v, char *out, size_t cap) {
-    if (!alt || alt[0] == '\0' || !out || v != 1) { return 0; }
-    return sst_copy(out, cap, alt, strlen(alt)) ? SST_MEMBER : 0;
+    return v == 1 && sst_copy(out, cap, alt, strlen(alt)) ? SST_MEMBER : 0;
 }

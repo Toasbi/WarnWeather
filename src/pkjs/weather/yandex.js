@@ -127,7 +127,7 @@ function anchorIndex(hours, nowEpoch) {
  * correct (server-side FAHRENHEIT/KILOMETERS_PER_HOUR), precProbability is
  * already [0,1], and prec is already mm/h, so every field passes through. A
  * missing/non-numeric optional field collapses to 0 (getPayload renders 0).
- * The weather condition now is now.condition, set only when it names one.
+ * The weather condition now is now.condition.
  *
  * @param {Object} json Parsed GraphQL response ({data:{weatherByPoint:...}}).
  * @param {number} nowEpoch Current time in epoch seconds.
@@ -170,7 +170,7 @@ function mapResponse(json, nowEpoch, want) {
         feelsTrend.push(typeof hr.feelsLike === 'number' ? hr.feelsLike : tempTrend[i]);
     }
 
-    var mapped = {
+    return {
         tempTrend: tempTrend,
         precipTrend: precipTrend,
         rainTrend: rainTrend,
@@ -185,13 +185,9 @@ function mapResponse(json, nowEpoch, want) {
         startTime: hourEpoch(hours[anchor]),
         currentTemp: now.temperature,
         // Missing → null so FEELS_CURRENT is omitted rather than echoing the temp.
-        currentFeels: typeof now.feelsLike === 'number' ? now.feelsLike : null
+        currentFeels: typeof now.feelsLike === 'number' ? now.feelsLike : null,
+        currentCondition: condition.fromYandex(now.condition)
     };
-    var currentCondition = condition.fromYandex(now.condition);
-    if (currentCondition) {
-        mapped.currentCondition = currentCondition;
-    }
-    return mapped;
 }
 
 var YandexProvider = function(apiKey) {

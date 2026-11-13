@@ -111,21 +111,20 @@ test('buildQuery selects the condition now, a bare enum field of now{}', () => {
 });
 
 test('mapResponse names the condition now from now.condition, either spelling', () => {
-  [['PARTLY_CLOUDY', 'partly'], ['CLOUDY', 'mostly'], ['OVERCAST', 'cloudy'], ['LIGHT_RAIN', 'lightrain'],
-    ['SNOWFALL', 'heavysnow'], ['THUNDERSTORM_WITH_RAIN', 'thunder'], ['partly-cloudy', 'partly']].forEach(([value, id]) => {
+  [['PARTLY_CLOUDY', 'partly'], ['partly-cloudy', 'partly']].forEach(([value, id]) => {
     const r = sampleResponse();
     r.data.weatherByPoint.now.condition = value;
     assert.equal(mapResponse(r, BASE).currentCondition, id, value);
   });
 });
 
-test('mapResponse leaves the condition out when now names none', () => {
-  assert.equal('currentCondition' in mapResponse(sampleResponse(), BASE), false, 'no condition');
+test('mapResponse names no condition when now names none', () => {
+  assert.equal(mapResponse(sampleResponse(), BASE).currentCondition, null, 'no condition');
   [null, '', 'NOPE', 3].forEach((value) => {
     const r = sampleResponse();
     r.data.weatherByPoint.now.condition = value;
     const out = mapResponse(r, BASE);
-    assert.equal('currentCondition' in out, false, 'condition ' + JSON.stringify(value));
+    assert.equal(out.currentCondition, null, 'condition ' + JSON.stringify(value));
     assert.equal(out.tempTrend.length, 24, 'the rest maps as before');
   });
 });

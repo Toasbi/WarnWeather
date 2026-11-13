@@ -97,11 +97,11 @@ test('the weather condition icon ids are 19..33 on both sides of the wire', () =
   }));
 });
 
-// Each condition glyph exists three times: the watch's PDC resource (declared in
-// package.template.json, mapped in status_row_icons.c) and the settings page's outline
-// (condition-glyphs.generated.js), all written by scripts/gen-condition-glyphs.py. A glyph
-// missing one of them draws on one side only, or as nothing, without an error.
-test('every condition glyph has its resource, its watch mapping and its page outline', () => {
+// Each condition glyph is the watch's PDC resource (declared in package.template.json, mapped in
+// status_row_icons.c), written by scripts/gen-condition-glyphs.py with the settings page's copy
+// of the one glyph the page draws (condition-glyphs.generated.js). A glyph missing one of them
+// draws as nothing, without an error.
+test('every condition glyph has its resource and its watch mapping; the page has the one it draws', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const ROOT = path.join(__dirname, '..');
@@ -110,7 +110,8 @@ test('every condition glyph has its resource, its watch mapping and its page out
   const icons = fs.readFileSync(path.join(ROOT, 'src/c/layers/status_row_icons.c'), 'utf8');
   const page = require('../src/pkjs/settings/condition-glyphs.generated.js');
   const drawn = Object.keys(catalog.ICONS).filter((k) => /^COND_/.test(k) && k !== 'COND_TEXT' && k !== 'COND_WIND');
-  assert.deepEqual(drawn.map((k) => k.slice(5)).sort(), Object.keys(page).sort(), 'the page draws every glyph, and no other');
+  assert.deepEqual(Object.keys(page), ['SUN_CLOUD'], 'the page carries the slot\'s picture alone (status-slot-icons.js)');
+  assert.ok(drawn.indexOf('COND_SUN_CLOUD') !== -1, 'a glyph the watch draws too');
   drawn.forEach((k) => {
     const name = 'STATUS_' + k;
     const res = media.find((m) => m.name === name);
@@ -122,7 +123,7 @@ test('every condition glyph has its resource, its watch mapping and its page out
       name + ': status_row_icons.c maps it');
   });
   assert.ok(icons.indexOf('case STATUS_ICON_COND_WIND: return RESOURCE_ID_STATUS_WIND;') !== -1, 'windy borrows the flag');
-  assert.ok(icons.indexOf('case STATUS_ICON_COND_TEXT: return 0;') !== -1, 'the Text look loads no glyph');
+  assert.equal(icons.indexOf('case STATUS_ICON_COND_TEXT'), -1, 'the Text look maps to no glyph (the default\'s 0)');
 });
 
 test('STATUS_ICON_MAX names the highest icon id in the enum', () => {

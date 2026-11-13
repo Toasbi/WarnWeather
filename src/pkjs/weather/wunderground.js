@@ -21,8 +21,7 @@ var INHG_TO_HPA = 33.8639;
  * feelsTrend/currentFeels are WU's raw values (null per missing reading) beside
  * humidityTrend/currentHumidity/currentWindKmh: adoptMapped applies the fetchFeels
  * gate and the Units tab's formula to them, and the fetchUv gate to uvTrend. The
- * weather condition now is the observation's (its iconCode), set only when it
- * names one.
+ * weather condition now is the observation's (its iconCode).
  *
  * @param {Object[]} forecast Anchored v1 hourly buckets (wuCache.anchorForecast); non-empty.
  * @param {{temp: number, feels: ?number, humidity: ?number, windKmh: ?number, condition: ?string}} current
@@ -30,7 +29,7 @@ var INHG_TO_HPA = 33.8639;
  * @returns {Object} The mapped forecast.
  */
 function mapForecast(forecast, current) {
-    var mapped = {
+    return {
         tempTrend: forecast.map(function(entry) {
             return entry.temp;
         }),
@@ -102,12 +101,9 @@ function mapForecast(forecast, current) {
         currentTemp: current.temp,
         currentFeels: current.feels,
         currentHumidity: current.humidity,
-        currentWindKmh: current.windKmh
+        currentWindKmh: current.windKmh,
+        currentCondition: current.condition || null
     };
-    if (current.condition) {
-        mapped.currentCondition = current.condition;
-    }
-    return mapped;
 }
 
 var WundergroundProvider = function() {

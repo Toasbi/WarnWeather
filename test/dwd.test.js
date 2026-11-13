@@ -883,7 +883,7 @@ test('DWD leaves the condition unknown when the observation names none, whatever
     { temperature: 15, icon: 42, condition: ['rain'] }].forEach((current) => {
     const { p, mapped, ok } = runSeam(recs, { current });
     assert.equal(ok, true, JSON.stringify(current));
-    assert.equal('currentCondition' in mapped[0], false, JSON.stringify(current));
+    assert.equal(mapped[0].currentCondition, null, JSON.stringify(current));
     assert.equal(p.currentCondition, null);
     assert.equal('CURRENT_CONDITION' in p.getPayload(), false);
   });

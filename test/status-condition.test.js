@@ -1,28 +1,36 @@
 'use strict';
-// The weather condition status slot's bake (status-lines.js conditionSlot / conditionText): the
-// condition now, by day or night, as its name with its short form after the separator where the
-// slot has the bytes (the watch swaps the short one in where the row would cut the name), the
-// name alone or the short form where it does not, with the condition's glyph per the slot's Look.
+// The weather condition status slot's bake (status-lines.js iconFor and formatValue, through
+// slot-text.js conditionLook and conditionText): the condition now, by day or night, as its
+// name with its short form after the separator where the slot has the bytes (the watch swaps
+// the short one in where the row would cut the name), the name alone or the short form where
+// it does not, with the condition's glyph per the slot's Look.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const catalog = require('../src/pkjs/status-line-catalog.js');
 const lines = require('../src/pkjs/status-lines.js');
+const C = require('../src/pkjs/weather/condition.js');
+const { encodeSunEvents } = require('../src/pkjs/weather/sun-events.js');
+const { decodeLine } = require('./helpers/status-line-bytes.js');
 
-const SEP = '\u001f';
+const SEP = catalog.ALT_SEP;
 const LINE = catalog.lineById('forecast');
 const BASALT = { platform: 'basalt', color: true };
 const APLITE = { platform: 'aplite', color: false };
 
 /**
- * SUN_EVENTS bytes for a pair starting on a sunset (day now) or a sunrise (night now).
- * @param {boolean} night Whether it is night.
+ * SUN_EVENTS bytes for a sun event pair: a sunset first (day now) or a sunrise first (night
+ * now), 11 hours apart, or a polar pair (6 days apart), which reads the other way round.
+ * @param {boolean} night Night now.
+ * @param {boolean} [polar] A polar pair.
  * @returns {number[]}
  */
-function sun(night) {
-  const t = 1780315200;
-  const bytes = [night ? 0 : 1];
-  [t, t + 40000].forEach((v) => { for (let i = 0; i < 4; i++) { bytes.push((v >> (8 * i)) & 0xff); } });
-  return bytes;
+function sun(night, polar) {
+  const t = 1780315200 * 1000;
+  const gap = polar ? 6 * 86400000 : 40000000;
+  // A polar night is a sunset then a sunrise; an ordinary night starts on the sunrise.
+  const first = (night !== Boolean(polar)) ? 'sunrise' : 'sunset';
+  const second = first === 'sunrise' ? 'sunset' : 'sunrise';
+  return encodeSunEvents([{ type: first, date: new Date(t) }, { type: second, date: new Date(t + gap) }]);
 }
 
 /**
@@ -31,21 +39,14 @@ function sun(night) {
  * @param {Object} [over] Settings over the three condition slots.
  * @param {Object} [env] Platform env.
  * @param {boolean} [night] Night now.
+ * @param {boolean} [polar] A polar sun event pair.
  * @returns {Array<{kind: number, icon: number, text: string}>}
  */
-function bake(cond, over, env, night) {
+function bake(cond, over, env, night, polar) {
   const settings = Object.assign({ statusForecastLeft: 'condition', statusForecastMid: 'condition',
     statusForecastRight: 'condition' }, over || {});
-  const payload = { CURRENT_CONDITION: cond, SUN_EVENTS: sun(Boolean(night)) };
-  const bytes = lines.packLine(LINE, payload, settings, env || BASALT, null);
-  const out = [];
-  let i = 0;
-  while (i < bytes.length) {
-    const len = bytes[i + 2];
-    out.push({ kind: bytes[i], icon: bytes[i + 1], text: Buffer.from(bytes.slice(i + 3, i + 3 + len)).toString('utf8') });
-    i += 3 + len;
-  }
-  return out;
+  const payload = { CURRENT_CONDITION: cond, SUN_EVENTS: sun(Boolean(night), polar) };
+  return decodeLine(lines.packLine(LINE, payload, settings, env || BASALT, null));
 }
 
 test('a sunny day: the middle slot carries the name and its short form, the edges the name', () => {
@@ -61,6 +62,15 @@ test('a clear night says Clear with the moon', () => {
   assert.equal(mid.icon, catalog.ICONS.COND_MOON);
   assert.equal(left.icon, catalog.ICONS.COND_MOON);
   assert.equal(bake('partly', {}, BASALT, true)[1].icon, catalog.ICONS.COND_MOON_CLOUD);
+});
+
+test('a polar pair reads the other way round: polar night has the moon, polar day the sun', () => {
+  assert.equal(bake('clear', {}, BASALT, true, true)[1].icon, catalog.ICONS.COND_MOON);
+  assert.equal(bake('clear', {}, BASALT, true, true)[1].text, 'Clear' + SEP + 'CLR');
+  assert.equal(bake('clear', {}, BASALT, false, true)[1].icon, catalog.ICONS.COND_SUN);
+  const noEvents = decodeLine(lines.packLine(LINE, { CURRENT_CONDITION: 'clear' },
+    { statusForecastMid: 'condition' }, BASALT, null))[1];
+  assert.equal(noEvents.icon, catalog.ICONS.COND_SUN, 'no sun events: day');
 });
 
 test('a name too long for an edge slot arrives there as its short form', () => {
@@ -109,19 +119,17 @@ test('aplite: text only, with no short form riding along (its lean row reads non
   assert.equal(bake('drizzle', {}, APLITE)[1].text, 'Drizzle');
 });
 
-test('every condition fits every slot, by day and by night', () => {
-  const C = require('../src/pkjs/weather/condition.js');
+test('every condition arrives whole in every slot, by day and by night', () => {
+  // packLine cuts a text to its slot's cap, so a form that did not fit would arrive cut.
   Object.keys(C.CONDITIONS).forEach((id) => [false, true].forEach((night) => {
+    const n = C.names(id, night);
     const [left, mid] = bake(id, {}, BASALT, night);
-    assert.ok(Buffer.byteLength(mid.text) <= catalog.CAPS.MID_TEXT_MAX, id);
-    assert.ok(Buffer.byteLength(left.text) <= catalog.CAPS.EDGE_TEXT_MAX, id);
-    assert.equal(left.text.indexOf(SEP), -1, id + ': an edge slot carries one form');
+    assert.ok([n.full + SEP + n.short, n.full].indexOf(mid.text) !== -1, id + ': ' + mid.text);
+    assert.ok([n.full, n.short].indexOf(left.text) !== -1, id + ': an edge slot carries one form, whole');
   }));
 });
 
-test('formatValue reads the full name, and the bake reads CURRENT_CONDITION through SOURCE_KEYS', () => {
-  assert.equal(lines.formatValue('condition', { CURRENT_CONDITION: 'hail', SUN_EVENTS: sun(false) }, {}), 'Hail');
-  assert.equal(lines.formatValue('condition', {}, {}), '--');
+test('the bake reads CURRENT_CONDITION and SUN_EVENTS through SOURCE_KEYS', () => {
   assert.ok(lines.SOURCE_KEYS.indexOf('CURRENT_CONDITION') !== -1);
   assert.ok(lines.SOURCE_KEYS.indexOf('SUN_EVENTS') !== -1);
 });

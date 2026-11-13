@@ -405,14 +405,14 @@ test('mapResponse names the condition now from the anchor bucket\'s next-hour sy
   assert.equal(stale.currentCondition, 'snowshowers');
 });
 
-test('mapResponse leaves the condition out when the anchor bucket names none', () => {
-  assert.equal('currentCondition' in metno.mapResponse(forecastBody(26, HOUR0), NOW), false, 'no summary');
-  assert.equal('currentCondition' in metno.mapResponse(symbolBody(26, HOUR0, { 0: 'nosuchsymbol_day', 1: 'rain' }), NOW),
-    false, 'an unknown symbol, and not the next bucket\'s');
+test('mapResponse names no condition when the anchor bucket names none', () => {
+  assert.equal(metno.mapResponse(forecastBody(26, HOUR0), NOW).currentCondition, null, 'no summary');
+  assert.equal(metno.mapResponse(symbolBody(26, HOUR0, { 0: 'nosuchsymbol_day', 1: 'rain' }), NOW).currentCondition,
+    null, 'an unknown symbol, and not the next bucket\'s');
   const noNext1 = symbolBody(26, HOUR0, { 1: 'rain' });
   delete noNext1.properties.timeseries[0].data.next_1_hours;
   const mapped = metno.mapResponse(noNext1, NOW);
-  assert.equal('currentCondition' in mapped, false, 'no next_1_hours');
+  assert.equal(mapped.currentCondition, null, 'no next_1_hours');
   assert.equal(mapped.tempTrend.length, 24, 'the rest maps as before');
 });
 

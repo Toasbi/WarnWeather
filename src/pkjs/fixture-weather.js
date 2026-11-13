@@ -62,7 +62,10 @@ function mapFixtureWeather(weather) {
         // current, each defaulting to empty ([] / null) so the line stays off and
         // the temp slot renders the actual temp alone (a live provider gap's shape).
         feelsTrend: Array.isArray(weather.feelsTemps) ? weather.feelsTemps.slice(0) : [],
-        currentFeels: (typeof weather.currentFeels === 'number') ? weather.currentFeels : null
+        currentFeels: (typeof weather.currentFeels === 'number') ? weather.currentFeels : null,
+        // The weather condition now (weather/condition.js id, e.g. 'partly'); adoptMapped
+        // keeps a known id and turns anything else into null, and the slot then shows '--'.
+        currentCondition: weather.condition
     };
     mapArrayIfPresent(mapped, 'rainTrend', weather.rainMm);
     mapArrayIfPresent(mapped, 'windTrend', weather.windKmh);
@@ -133,9 +136,6 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     // The chain-stage fields a live fetch fills after the adapter (city lookup,
     // sun events, the AQI and pollen aux fetches) are faked directly.
     provider.cityName = weather.city || 'Fixture City';
-    // The weather condition now (weather/condition.js id, e.g. 'partly'); absent -> the
-    // condition slot renders '--'.
-    provider.currentCondition = (typeof weather.condition === 'string') ? weather.condition : null;
     // AQI is a status-slot value, not a forecast line: accept a scalar current
     // index (weather.aqi) — wrapped as a one-element trend, like the WAQI source —
     // or an explicit array. Absent -> [] and the slot renders '--'.

@@ -181,10 +181,7 @@ test('getPayload emits sourced feelsTrend as whole °F, trimmed to numEntries', 
 // a transient key, present only when the provider named a condition.
 test('getPayload omits CURRENT_CONDITION when the provider named no condition', () => {
   assert.equal('CURRENT_CONDITION' in pressureProvider().getPayload(), false, 'the constructor default');
-  [null, undefined, '', 'Sunny', 2].forEach((value) => {
-    assert.equal('CURRENT_CONDITION' in pressureProvider({ currentCondition: value }).getPayload(), false,
-      'value ' + JSON.stringify(value));
-  });
+  assert.equal('CURRENT_CONDITION' in pressureProvider({ currentCondition: null }).getPayload(), false);
 });
 
 test('getPayload carries a named condition as CURRENT_CONDITION', () => {

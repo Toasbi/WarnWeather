@@ -32,11 +32,22 @@ var CONDITIONS = {
 };
 
 /**
+ * A table's value for a string key; null for any other key, or one the table lacks. The type
+ * check matters: a plain lookup would read ['rain'] as 'rain'.
+ * @param {Object} table The table.
+ * @param {*} key The key.
+ * @returns {*} the value, null for none
+ */
+function lookup(table, key) {
+    return typeof key === 'string' && Object.prototype.hasOwnProperty.call(table, key) ? table[key] : null;
+}
+
+/**
  * @param {*} id A condition id.
  * @returns {boolean} whether it is one of CONDITIONS
  */
 function isCondition(id) {
-    return typeof id === 'string' && Object.prototype.hasOwnProperty.call(CONDITIONS, id);
+    return lookup(CONDITIONS, id) !== null;
 }
 
 /**
@@ -62,33 +73,6 @@ function glyph(id, night) {
     if (!isCondition(id)) { return null; }
     var g = CONDITIONS[id].glyph;
     return (night && g.length > 1) ? g[1] : g[0];
-}
-
-/**
- * Whether it is night now, from the SUN_EVENTS wire bytes the forecast carries (sun-events.js
- * encodeSunEvents): its first byte says whether the next event is a sunrise (0: night now) or a
- * sunset (1: day now). A polar pair (sun-events.js polarSunEvents) reads the other way round: a
- * sunset then a sunrise is polar night. No events: day.
- * @param {?number[]} sunEvents SUN_EVENTS bytes.
- * @param {function(number, number): boolean} isPolarPair sun-events.js isPolarSunPair.
- * @returns {boolean}
- */
-function isNight(sunEvents, isPolarPair) {
-    if (!sunEvents || sunEvents.length < 5) { return false; }
-    var startsOnSunset = sunEvents[0] === 1;
-    if (sunEvents.length >= 9 && isPolarPair(readInt32LE(sunEvents, 1), readInt32LE(sunEvents, 5))) {
-        return startsOnSunset;
-    }
-    return !startsOnSunset;
-}
-
-/**
- * @param {number[]} bytes Little-endian bytes.
- * @param {number} off Offset.
- * @returns {number} the signed 32-bit integer there
- */
-function readInt32LE(bytes, off) {
-    return (bytes[off] | (bytes[off + 1] << 8) | (bytes[off + 2] << 16) | (bytes[off + 3] << 24));
 }
 
 // --- each provider's code into the list ---------------------------------------------------
@@ -153,17 +137,15 @@ function fromMetno(symbol) {
     if (typeof symbol !== 'string' || !symbol) { return null; }
     var base = symbol.replace(/_(day|night|polartwilight)$/, '');
     if (base.indexOf('thunder') !== -1) { return 'thunder'; }
-    return Object.prototype.hasOwnProperty.call(METNO, base) ? METNO[base] : null;
+    return lookup(METNO, base);
 }
 
-// Bright Sky (DWD) icons, then its conditions where the icon is missing.
-var BRIGHTSKY_ICONS = {
+// Bright Sky (DWD) icons. Its conditions (dry, fog, rain, sleet, snow, hail, thunderstorm) are
+// icon names too, so the one table reads both.
+var BRIGHTSKY = {
     'clear-day': 'clear', 'clear-night': 'clear', 'partly-cloudy-day': 'partly',
     'partly-cloudy-night': 'partly', cloudy: 'cloudy', fog: 'fog', wind: 'windy', rain: 'rain',
     sleet: 'sleet', snow: 'snow', hail: 'hail', thunderstorm: 'thunder'
-};
-var BRIGHTSKY_CONDITIONS = {
-    fog: 'fog', rain: 'rain', sleet: 'sleet', snow: 'snow', hail: 'hail', thunderstorm: 'thunder'
 };
 
 /**
@@ -175,13 +157,7 @@ var BRIGHTSKY_CONDITIONS = {
  * @returns {?string} a condition id, null for none
  */
 function fromBrightsky(icon, condition, precipMm) {
-    var id = null;
-    if (typeof icon === 'string' && Object.prototype.hasOwnProperty.call(BRIGHTSKY_ICONS, icon)) {
-        id = BRIGHTSKY_ICONS[icon];
-    } else if (typeof condition === 'string'
-            && Object.prototype.hasOwnProperty.call(BRIGHTSKY_CONDITIONS, condition)) {
-        id = BRIGHTSKY_CONDITIONS[condition];
-    }
+    var id = lookup(BRIGHTSKY, icon) || lookup(BRIGHTSKY, condition);
     if ((id === 'rain' || id === 'snow') && typeof precipMm === 'number' && isFinite(precipMm)) {
         if (precipMm < 0.5) { return id === 'rain' ? 'lightrain' : 'lightsnow'; }
         if (precipMm >= 4) { return id === 'rain' ? 'heavyrain' : 'heavysnow'; }
@@ -236,8 +212,7 @@ var TOMORROW = {
  */
 function fromTomorrow(code) {
     var c = codeOf(code);
-    if (c === null) { return null; }
-    return Object.prototype.hasOwnProperty.call(TOMORROW, String(c)) ? TOMORROW[String(c)] : null;
+    return c === null ? null : lookup(TOMORROW, String(c));
 }
 
 // The Weather Company icon codes (Weather Underground's iconCode), 0..47; null where none fits
@@ -279,9 +254,7 @@ var YANDEX = {
  * @returns {?string} a condition id, null for none
  */
 function fromYandex(condition) {
-    if (typeof condition !== 'string' || !condition) { return null; }
-    var key = condition.toLowerCase().replace(/_/g, '-');
-    return Object.prototype.hasOwnProperty.call(YANDEX, key) ? YANDEX[key] : null;
+    return typeof condition === 'string' ? lookup(YANDEX, condition.toLowerCase().replace(/_/g, '-')) : null;
 }
 
 module.exports = {
@@ -289,7 +262,6 @@ module.exports = {
     isCondition: isCondition,
     names: names,
     glyph: glyph,
-    isNight: isNight,
     fromWmo: fromWmo,
     fromMetno: fromMetno,
     fromBrightsky: fromBrightsky,

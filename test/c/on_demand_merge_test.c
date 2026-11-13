@@ -16,18 +16,7 @@ static void merge_at(OdSideIn *s, int index) {
     s->merged = (uint8_t)(index + 1);
 }
 
-// Whether side d draws its input item k.
-static int drawn(const OdLayout *out, int d, int k) {
-    return k >= out->first[d] && k < out->first[d] + out->n[d] && k + 1 != out->skip[d];
-}
-
-// The bar every pinned case starts from: W 144, a 30 px left slot, a 40 px middle and
-// a 30 px right slot, no short forms (plain: 0, 52, 114).
-static void three_slots(OdSlotIn slots[3]) {
-    slots[0] = slot_text(30, 0);
-    slots[1] = slot_text(40, 0);
-    slots[2] = slot_text(30, 0);
-}
+// The bar every pinned case starts from: on_demand_fixtures.h three_slots.
 
 // A bar whose only active item is the alert its slot merged has nothing else to show:
 // it is the plain layout, on either side, however wide the item.

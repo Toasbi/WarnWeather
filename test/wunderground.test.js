@@ -699,6 +699,6 @@ test('WU leaves the condition unknown when the observation names none, and a reu
 test('WU mapForecast carries the observation\'s condition only when it names one', () => {
   const forecast = [{ temp: 50, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR }];
   assert.equal(WundergroundProvider.mapForecast(forecast, { temp: 71, condition: 'haze' }).currentCondition, 'haze');
-  assert.equal('currentCondition' in WundergroundProvider.mapForecast(forecast, { temp: 71, condition: null }), false);
-  assert.equal('currentCondition' in WundergroundProvider.mapForecast(forecast, { temp: 71 }), false);
+  assert.equal(WundergroundProvider.mapForecast(forecast, { temp: 71, condition: null }).currentCondition, null);
+  assert.equal(WundergroundProvider.mapForecast(forecast, { temp: 71 }).currentCondition, null);
 });

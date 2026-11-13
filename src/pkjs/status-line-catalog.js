@@ -71,7 +71,7 @@
     // What the weather is like now (weather/condition.js): its name, or its short form where
     // the slot is short of room, with the condition's glyph; the edit sheet's Look picks icon
     // and text, text alone or the icon alone. The baked icon varies (status-lines.js
-    // conditionLook); COND_TEXT is the id of the text-only look.
+    // iconFor); COND_TEXT is the id of the text-only look.
     { code: 'condition', label: 'Weather condition', kind: KINDS.TEXT, icon: ICONS.COND_TEXT, category: 'weather' },
     // Any position since custom layouts: the calendar can sit anywhere or be absent
     // now, so the date is a first-class slot like City (the middle-only gate was a

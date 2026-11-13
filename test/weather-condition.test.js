@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const C = require('../src/pkjs/weather/condition.js');
-const { isPolarSunPair } = require('../src/pkjs/weather/sun-events.js');
+const catalog = require('../src/pkjs/status-line-catalog.js');
 
 test('the list: full names and short forms as approved, RAIN and SNOW for every intensity', () => {
   const rows = Object.keys(C.CONDITIONS).map((id) => [id, C.names(id, false).full, C.names(id, false).short]);
@@ -25,8 +25,8 @@ test('the list: full names and short forms as approved, RAIN and SNOW for every 
 test('every name fits the middle slot with its short form, and every short form an edge slot', () => {
   Object.keys(C.CONDITIONS).forEach((id) => [false, true].forEach((night) => {
     const n = C.names(id, night);
-    // The middle slot carries both: full, a separator byte, short (status-lines.js conditionText).
-    assert.ok(Buffer.byteLength(n.full + '\x1f' + n.short) <= 19, id + ' fits the middle slot');
+    // The middle slot carries both: full, a separator byte, short (slot-text.js conditionText).
+    assert.ok(Buffer.byteLength(n.full + catalog.ALT_SEP + n.short) <= catalog.CAPS.MID_TEXT_MAX, id + ' fits the middle slot');
     assert.ok(n.short.length <= 4 && /^[A-Z]+$/.test(n.short), id + ': ' + n.short);
   }));
 });
@@ -40,20 +40,6 @@ test('glyphs: sun and moon by day and night, a cloud for both cloudy kinds', () 
   assert.equal(C.glyph('mostly', false), 'COND_CLOUD');
   assert.equal(C.glyph('windy', false), 'COND_WIND');
   assert.equal(C.glyph('x', false), null);
-});
-
-test('isNight reads the next sun event: a sunrise ahead is night, and a polar pair the other way', () => {
-  const pair = (start, a, b) => {
-    const bytes = [start];
-    [a, b].forEach((v) => { for (let i = 0; i < 4; i++) { bytes.push((v >> (8 * i)) & 0xff); } });
-    return bytes;
-  };
-  const t = 1780315200;
-  assert.equal(C.isNight(pair(0, t, t + 50000), isPolarSunPair), true, 'next is a sunrise: night');
-  assert.equal(C.isNight(pair(1, t, t + 30000), isPolarSunPair), false, 'next is a sunset: day');
-  assert.equal(C.isNight(pair(1, t, t + 6 * 86400), isPolarSunPair), true, 'polar night: sunset then sunrise');
-  assert.equal(C.isNight(pair(0, t, t + 6 * 86400), isPolarSunPair), false, 'polar day');
-  assert.equal(C.isNight(null, isPolarSunPair), false, 'no events: day');
 });
 
 test('WMO (Open-Meteo)', () => {
