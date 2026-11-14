@@ -24,7 +24,7 @@
 // bucket for both jobs is what shipped first, and it threw away accuracy the
 // phone already had in hand for no saving whatsoever.
 //
-// The resend itself is status-rebake.js's job: forecast-series hands it the
+// The resend itself is status-rebake.js's job: render-payload.js hands it the
 // bake inputs before every bake, and this module only pulls the trigger
 // (statusRebake.resendStatus). The full why-a-restored-re-bake-is-byte-safe
 // rationale lives in that module's header now.
@@ -272,6 +272,20 @@ function read() {
         level: level,
         charging: load(KEYS.PHONE_BATTERY_CHARGING) === 'true'
     };
+}
+
+/**
+ * The phone's battery facts a status-line bake reads (status-lines.js
+ * buildStatusLines' `phone`): whether this host can read the battery at all,
+ * and, where it can, the cached reading. A host that cannot has no slot to
+ * show it in (the bake collapses those slots), so read() is not asked there.
+ *
+ * @returns {{supported: boolean, reading: ?{available: boolean, level: (number|null), charging: boolean}}}
+ *   The verdict and the cached reading (null where unsupported).
+ */
+function bakeFacts() {
+    var supported = Boolean(isSupported());
+    return { supported: supported, reading: supported ? read() : null };
 }
 
 /**
@@ -534,6 +548,7 @@ module.exports = {
     init: init,
     onTick: onTick,
     read: read,
+    bakeFacts: bakeFacts,
     isSupported: isSupported,
     levelBucket: levelBucket,
     levelPercent: levelPercent

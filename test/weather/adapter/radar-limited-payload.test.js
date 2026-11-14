@@ -9,6 +9,8 @@
 // notice or the radar arrays would pass them all.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+// The time every bake in this file runs at, where the test does not care which it is.
+const NOW = new Date(2026, 5, 15, 12, 0, 0);
 
 // AGENTS.md: the storage mock goes in BEFORE the watch modules load
 // (applyForecastSeries reaches phone-battery.js, the outbox its caches).
@@ -38,7 +40,7 @@ const N = 24;
 
 /** The fetch cycle's transform (fetch-cycle.js hands the provider this one). */
 function transform(payload) {
-  return forecastSeries.applyForecastSeries(payload, SETTINGS, WATCH);
+  return forecastSeries.applyForecastSeries(payload, SETTINGS, WATCH, NOW);
 }
 
 /** A provider whose data stages answer at once with a valid 24-hour forecast. */

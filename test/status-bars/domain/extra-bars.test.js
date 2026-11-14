@@ -146,7 +146,7 @@ test('the bake sends the line of a bar 4 to 6 a screen shows, on a Pebble Time 2
     statusTopLeft: 'city', statusTopMid: 'empty', statusTopRight: 'city' });
   const bake = (settings, p) => {
     const payload = { CITY: 'Bonn', CURRENT_TEMP: 20, SUN_EVENTS: [1, 0, 0, 0, 0] };
-    statusLines.buildStatusLines(payload, settings, { platform: p });
+    statusLines.buildStatusLines(payload, settings, { platform: p }, NOW);
     return payload;
   };
   const emery = bake(S, 'emery');

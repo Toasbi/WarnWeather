@@ -3,6 +3,8 @@
 // bakes, the highlight status-wire judges, and the peaks getPayload emits.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+// The time every bake in this file runs at, where the test does not care which it is.
+const NOW = new Date(2026, 5, 15, 12, 0, 0);
 
 const store = {};
 global.localStorage = {
@@ -112,7 +114,7 @@ test('the wind arrow stays in Both (its first reading is now) and leaves Day max
     const bytes = statusLines.packLine(radar,
       { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null], WIND_DIR_TREND: [270] },
       settings(Object.assign({ statusRadarLeft: 'wind', statusRadarMid: 'empty',
-        statusRadarRight: 'empty', windSlotDirection: true, windSlotUnit: false }, extra)), env);
+        statusRadarRight: 'empty', windSlotDirection: true, windSlotUnit: false }, extra)), env, null, statusLines.bakeEnv(NOW));
     return bytes.slice(3, 3 + bytes[2]);
   };
   const last = (b) => b[b.length - 1];
@@ -123,7 +125,7 @@ test('the wind arrow stays in Both (its first reading is now) and leaves Day max
   const noPeak = statusLines.packLine(radar,
     { WIND_TREND_UINT8: [12], WIND_DIR_TREND: [270] },
     settings({ statusRadarLeft: 'wind', statusRadarMid: 'empty', statusRadarRight: 'empty',
-      windSlotDirection: true, windSlotUnit: false, windSlotDisplay: 'max' }), env);
+      windSlotDirection: true, windSlotUnit: false, windSlotDisplay: 'max' }), env, null, statusLines.bakeEnv(NOW));
   assert.ok(noPeak[2] === 3 && noPeak[5] <= 0x10, 'current reading keeps its arrow');
 });
 
@@ -362,7 +364,7 @@ test('the dew line never draws above the air temperature', () => {
     TEMP_RAW_TREND: [49, 48, 47, 46], TEMP_MIN: 46, TEMP_MAX: 49,
     PRECIP_TREND_UINT8: [0, 0, 0, 0], RAIN_TREND_UINT8: [0, 0, 0, 0],
     CURRENT_TEMP: 49, CITY: 'X', DEW_TREND: [49.4, 48.2, 47.3, 46.4]
-  }, { secondaryLine: 'dew', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  }, { secondaryLine: 'dew', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' }, NOW);
   assert.deepEqual(out.TEMP_TREND_UINT8, [250, 167, 83, 0], 'the band stays the temperature\'s');
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [250, 167, 83, 1], 'fog: dew on the temp curve, floored off byte 0');
 });

@@ -7,6 +7,8 @@
 // test/weather/domain/radar/radar-sky.test.js and test/page/engine/radar-sky-preview.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+// The time every bake in this file runs at, where the test does not care which it is.
+const NOW = new Date(2026, 5, 15, 12, 0, 0);
 
 // applyForecastSeries reaches phone-battery.js, which reads localStorage: AGENTS.md,
 // install the mock BEFORE the watch modules load.
@@ -237,14 +239,14 @@ test('the watch draws the stripe: aplite keeps its exact bytes, a watch with sty
     { secondaryLineStyle: 'line', thirdLineStyle: 'dots', fourthLineStyle: 'x' });
   ['basalt', 'emery', 'diorite', null].forEach((platform) => {
     const info = platform ? { platform } : null;
-    const out = applyForecastSeries(payload(), striped, info);
+    const out = applyForecastSeries(payload(), striped, info, NOW);
     assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [NONE, L1, L3], String(platform));
     assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [NONE, L1, L2], String(platform));
     assert.deepEqual(out.FOURTH_LINE_TREND_UINT8, [NONE, L1, FULL], String(platform));
   });
   // aplite draws its frozen line and dots whatever is stored: the exact bytes.
-  const aplite = applyForecastSeries(payload(), striped, { platform: 'aplite' });
-  const apliteLine = applyForecastSeries(payload(), plain, { platform: 'aplite' });
+  const aplite = applyForecastSeries(payload(), striped, { platform: 'aplite' }, NOW);
+  const apliteLine = applyForecastSeries(payload(), plain, { platform: 'aplite' }, NOW);
   assert.deepEqual(aplite.SECONDARY_LINE_TREND_UINT8, [0, 13, 113]);
   assert.deepEqual(aplite.THIRD_LINE_TREND_UINT8, [0, 2, 75]);
   assert.deepEqual(aplite.SECONDARY_LINE_TREND_UINT8, apliteLine.SECONDARY_LINE_TREND_UINT8);

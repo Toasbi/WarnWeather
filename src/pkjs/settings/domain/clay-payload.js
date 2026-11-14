@@ -139,11 +139,10 @@ function graphOptionsWord(settings, env) {
  * Build the Clay settings AppMessage payload.
  * @param {Object} settings Clay settings (claySettings.read() shape).
  * @param {Object|null} watchInfo Active watch info (platform read for palette packing).
- * @param {Date} [now] Reference time for the holiday window; defaults to new Date().
+ * @param {Date} now Reference time for the holiday window (the caller's clock).
  * @returns {Object} AppMessage key→value payload.
  */
 function buildClayPayload(settings, watchInfo, now) {
-    now = now || new Date();
     var theme = settings.theme || 'dark';
 
     // Platform env up front: the custom-layout branch below folds for aplite, and the

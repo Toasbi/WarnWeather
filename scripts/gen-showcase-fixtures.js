@@ -97,8 +97,8 @@ const COLOUR_PLATFORMS = ['basalt', 'flint', 'emery'];
 
 /**
  * Target date for scene 4's date-countdown slot, 21 days out from TODAY.
- * The countdown TEXT is formatted phone-side against the real clock (status-lines.js
- * packLine → formatCountdown(new Date())), not the fixture's watch.now — so the target
+ * The countdown TEXT is formatted phone-side against the real clock (the bake's now:
+ * new Date() in weather/adapter/fixture-weather.js), not the fixture's watch.now — so the target
  * has to move with the generation day for the capture to render "21d".
  * @returns {string} YYYY-MM-DD
  */
