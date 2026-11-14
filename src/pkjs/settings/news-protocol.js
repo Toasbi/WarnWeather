@@ -1,5 +1,5 @@
 // src/pkjs/settings/news-protocol.js — ES5, WebView + Node. The news WIRE
-// protocol: the edge function's request payload shapes (list/seen/reply/vote)
+// protocol: the edge function's request payload shapes (list/seen/vote; the edge function still accepts replies from older versions)
 // and the cache parse + unread arithmetic both sides share. Split out of
 // news.js so the PHONE bundle (news-cache.js rides index.js's require graph)
 // stops parsing the ~500-line webview widget — markdown renderer, modal HTML,
@@ -87,22 +87,6 @@
     }
 
     /**
-     * @param {{appVersion: string, accountToken: string}} userData Injected userData.
-     * @param {number} newsId Target news item id.
-     * @param {string} message Reply text.
-     * @returns {Object} reply request body.
-     */
-    function buildReplyPayload(userData, newsId, message) {
-        return {
-            op: 'reply',
-            accountToken: (userData && userData.accountToken) || '',
-            version: (userData && userData.appVersion) || '',
-            newsId: newsId,
-            message: message
-        };
-    }
-
-    /**
      * @param {{accountToken: string}} userData Injected userData.
      * @param {number} newsId Target news item id.
      * @param {number} choiceIndex Index into the item's choices array.
@@ -123,7 +107,6 @@
         parseNewsCache: parseNewsCache,
         buildListPayload: buildListPayload,
         buildSeenPayload: buildSeenPayload,
-        buildReplyPayload: buildReplyPayload,
         buildVotePayload: buildVotePayload
     };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

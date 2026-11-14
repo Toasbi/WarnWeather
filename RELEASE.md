@@ -51,7 +51,7 @@ toast on the release that most wants one — add it by hand in that case.
 ### News row — every release
 
 A row in the `public.news` Supabase table with `target_version` left `NULL` — the
-short changelog shown in the settings screen's News & Feedback section. `NULL`
+short changelog shown in the settings screen's News popup (the bell). `NULL`
 shows the row to **every** watch regardless of version, so release news doubles as
 the nudge to update; an exact version string is reserved for version-specific
 notices. This has **no feature/patch exemption**, and **nothing in CI enforces

@@ -364,7 +364,7 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   one — add it by hand there. Preview the copy locally with
   `forceShowReleaseNotificationOnBoot` in `dev-config.js`. See `RELEASE.md`.
 - **Every release — patches included — needs a news entry in the `public.news`
-  Supabase table** (hosted news backend — the *News & Feedback* section of the settings
+  Supabase table** (hosted news backend — the *News* popup (the bell) of the settings
   screen, not the boot toast above). Unlike that toast, this one has no feature/patch
   exemption and **nothing in CI enforces it**, so it is on you at release time. Insert one row with `target_version` left **`NULL`** so every watch
   sees it, whatever version it runs — release news doubles as the nudge to update.
