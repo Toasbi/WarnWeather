@@ -310,7 +310,11 @@
     function slotCell(c, barName, env, tappable) {
         var arrow = c.arrow ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
         var empty = c.code === 'empty';
-        var lead = c.icon ? '<span class="sbp-ico" aria-hidden="true">' + c.icon + '</span>' : '';
+        // The weather icons (the condition's, the city's) are detailed: a size up from the
+        // other glyphs, so they read as well beside their text.
+        var wx = c.code === 'condition' || c.code === 'city';
+        var lead = c.icon ? '<span class="sbp-ico' + (wx ? ' sbp-wx' : '') + '" aria-hidden="true">' + c.icon
+            + '</span>' : '';
         var body = empty ? '' : lead + esc(c.text) + arrow;
         var cls = 'sbp-v sbp-' + c.pos;
         if (!tappable) { return '<span class="' + cls + '">' + body + '</span>'; }
@@ -428,6 +432,7 @@
         + '.sbp-left{text-align:left}.sbp-mid{text-align:center}.sbp-right{text-align:right}'
         + '.sbp-ico{display:inline-block;width:12px;height:12px;margin-right:2px;vertical-align:-1px}'
         + '.sbp-ico svg{display:block;width:100%;height:100%}'
+        + '.sbp-ico.sbp-wx{width:16px;height:16px;margin-right:3px;vertical-align:-3px}'
         + '.sbp-arr{margin-left:1px}'
         // On the tab each slot is a button: the row's height and a little to each side are
         // its tap area (the negative margins keep the watch's spacing), a press shades it,
@@ -455,6 +460,7 @@
         + '.sbp.big{padding:6px 14px;border-radius:12px}'
         + '.sbp.big .sbp-v{font-size:17px}'
         + '.sbp.big .sbp-ico{width:15px;height:15px}'
+        + '.sbp.big .sbp-ico.sbp-wx{width:20px;height:20px;vertical-align:-4px}'
         + '.sbp.dim{opacity:.55}';
     /**
      * Inject the preview's stylesheet (id 'sbp-style') once; nothing outside a DOM or when
