@@ -13,15 +13,18 @@ This folder holds the tools that make that work:
 | `build_editor.py` | Builds the pixel icon editor, one HTML page |
 | `editor.html` | The editor's page; `build_editor.py` fills in its data |
 | `import_pixels.py` | Brings edits from the editor, and picks from the picker, into `resources/pixel-icons.json` |
-| `variants.js` | The versions a size can be built in: pixel, half slant, slant, old (below) |
+| `variants.js` | The versions a size can be built in: pixel, half slant, slant, old, svg (below) |
 | `build_picker.py` | Builds the icon picker, one HTML page: every version of every size, drawn by the watch's renderer in the emulator |
-| `picker.html` | The picker's page; `build_picker.py` fills in its data |
+| `picker.html` | The picker's page; `build_picker.py` fills in its data and the two scripts below |
+| `svg-icon.js` | An SVG made into a status icon the old way: `svg2pdc.py`'s conversion and the watch's old scaling, in JavaScript (the picker's **Add SVG**, and `import_pixels.py`) |
+| `pebble-draw.js` | The watch's own line drawing, ported from PebbleOS: the picker draws its SVG versions with it, exactly as the watch draws them |
 | `gallery/` | The small watch app `build_picker.py` renders the versions with |
 | `gen_watch_icons.js` | Builds the drawings into the watch |
-| `THIRD_PARTY.md` | The licences of the two icon libraries the weather icons start from |
+| `THIRD_PARTY.md` | The licences of the two icon libraries the weather icons start from, and of the code `pebble-draw.js` and `svg-icon.js` port |
 
 `resources/pixel-icons.json` is the source of truth: every size of every icon, which icons you
 marked done, and the version you picked for each size. The watch draws these and nothing else.
+`resources/icon-svg/<ICON>.svg` keeps an SVG you added to an icon in the picker.
 **Mark as done** is your own checkmark; it does not decide what is built.
 
 The old icon files (`resources/data/STATUS_*.pdc`, `HEALTH_*.pdc`, `RAIN_*.pdc`) are no longer
@@ -51,12 +54,13 @@ built into the watch. **Keep them**: they are the editor's starting point (**Tod
 4. **Pick a version for each size.** `python3 scripts/pixel-icons/build_picker.py` writes
    `build/pixel-icons/picker.html`: every size of every icon in its four versions (below),
    drawn by the Pebble Time 2 emulator, dark and light, zoomed and at actual size. Tap the one you
-   like for each size, and mark **Redraw** where you want to draw the pixels again. Claude
-   publishes it as a claude.ai page (same link each time) whose storage it reads back, or
-   **Copy picks as JSON** takes the picks out. Import them with
+   like for each size, and mark **Redraw** where you want to draw the pixels again. **Add SVG**
+   on an icon gives it one more version (An icon from an SVG, below). Claude publishes it as a
+   claude.ai page (same link each time) whose storage it reads back, or **Copy picks as JSON**
+   takes the picks and SVGs out. Import them with
    `python3 scripts/pixel-icons/import_pixels.py --picks <dir>` (a dump of the page's storage,
-   ArtifactData `list picks ... out_dir`) or `--picks-export <file>`. Needs the Pebble SDK and
-   its emulator, and Pillow; `--skip-render` rebuilds the page from the last render.
+   ArtifactData `list picks` and `list svgs ... out_dir`) or `--picks-export <file>`. Needs the
+   Pebble SDK and its emulator, and Pillow; `--skip-render` rebuilds the page from the last render.
 5. **Build into the watch.** `node scripts/pixel-icons/gen_watch_icons.js` writes every drawing
    into the watch (below), then `mise build`. Check the icons in the emulator and commit
    `resources/pixel-icons.json` with the files the script wrote. `--check` fails while they are
@@ -82,11 +86,32 @@ pixel when there is none):
 | Half slant | Your drawing's 1 px strokes traced into lines, each pixel centre moved halfway towards the straight line through its stroke (a stroke strays from that line by half a pixel at most, or it is split at the corner). The watch's smoothing greys a few pixels along the steps |
 | Slant | The same, moved all the way: straight slanted lines between the corners, smoothed the most |
 | Old | The icon from before the pixel drawings (`resources/data/`), scaled to the size the way the watch scaled it (`watch_icons.py` `old_version`, from the first bar that drew it that tall). Its lines are kept in the size's entry (`old`), and it draws pixel for pixel as the scaled icon did |
+| SVG | An SVG you added in the picker, made into a PDC and scaled to the size the same old way (`svg-icon.js`). Its lines are kept in the size's entry (`svg`, with `at`, the height it was scaled to), its SVG in `resources/icon-svg/` |
 
 Smoothing needs grey pixels, which only the colour watches have: on the black and white ones
 (Pebble 2, Pebble 2 Duo) every size draws its pixel drawing, built as a resource of its own
 (`PX_<ICON>_<size>_BW`) wherever the pick is another version. **Redraw** (`redraw` in the entry)
 is your own mark, like Mark as done: it changes nothing in the build.
+
+### An icon from an SVG
+
+In the picker, **Add SVG** on an icon takes an `.svg` file or its pasted code. The page makes it
+into a PDC the way `scripts/svg2pdc.py` made the old icons (each stroke a 1 px line; curves cut
+into chords about 2.5 units long, at least 2; a circle a flat-top octagon; the ink fitted into the
+24-unit box with a 2-unit margin; points on the 1/8 grid), scales it to each size the way the
+watch scaled them (`watch_icons.py` `icon_load`, to the height `svg_h` gives: the first bar's
+that draws the icon that tall), and draws it there with `pebble-draw.js`, the watch's own line
+drawing, smoothed. Pick it like any other version; the page saves the SVG with the picks.
+Outline icons (Lucide, Tabler) work best. Fills, stroke widths and transforms are left out, as
+`svg2pdc.py` leaves them out.
+
+How exact it is: `pebble-draw.js` draws all 968 versions of the picker exactly as the Pebble Time 2
+emulator does, and as pdc_tool (https://pdc-tool.heikobehrens.com) does on a sample, and its
+colour blending matches the firmware's whole table. `svg-icon.js` makes the same PDC as
+`svg2pdc.py` for 4855 of 4856 Lucide and Tabler icons (the other one lands a single point on a
+half-unit tie, which the platform's cosine decides), the very PDCs `gen-condition-glyphs.py`
+made from Tabler's cloud, moon, fog and haze, and the old scaling's lines for every icon and bar
+(`test/svg-icon.test.js`, `test/pixel-draw.test.js`).
 
 A new icon id needs its drawings before it can show: add it to `watch_icons.py` `ICONS` and
 `gen_watch_icons.js` `ICON_IDS`, draw every size, and list the id in

@@ -10,6 +10,8 @@
  *   old    the icon the watch drew before the pixel drawings (resources/data/<res>.pdc),
  *          scaled to this size the way the watch scaled it (watch_icons.py old_version); its
  *          lines are kept in resources/pixel-icons.json with the pick.
+ *   svg    an SVG added in the icon picker (resources/icon-svg/<KEY>.svg), made into a PDC and
+ *          scaled to this size the same old way (svg-icon.js); its lines are kept the same way.
  *
  * The black and white watches have no grey pixels to smooth a line with: they always draw the
  * pixel version (gen_watch_icons.js).
@@ -23,7 +25,9 @@ const fs = require('fs');
 const path = require('path');
 
 const PU = 8;   // precise units per pixel (a PDC's precise paths)
-const VERSIONS = ['pixel', 'half', 'slant', 'old'];
+const VERSIONS = ['pixel', 'half', 'slant', 'old', 'svg'];
+// The versions whose lines are kept in resources/pixel-icons.json with the pick, under their name.
+const KEPT = ['old', 'svg'];
 // How far a pixel centre moves towards its stroke's straight line, per traced version.
 const BEND = { half: 0.5, slant: 1 };
 // How far (px) a stroke may stray from a straight line and still be drawn as one.
@@ -179,13 +183,14 @@ function pdc(lines, w, h) {
  * One version of a size as its lines and box.
  * @param {string} version One of VERSIONS other than pixel (gen_watch_icons.js draws that one).
  * @param {!Array<!Array<number>>} px The drawing's lit pixels, the ink at (0, 0).
- * @param {?{lines: !Array, w: number, h: number}} old The old version (watch_icons.py old_version).
+ * @param {?{lines: !Array, w: number, h: number}} kept An old or svg version's kept lines
+ *     (watch_icons.py old_version, svg-icon.js atSize); ignored for the others.
  * @returns {{lines: !Array<!Array<!Array<number>>>, w: number, h: number}}
  */
-function versionLines(version, px, old) {
-    if (version === 'old') {
-        if (!old) throw new Error('no old version for this size');
-        return { lines: old.lines.map((p) => (p.length === 1 ? [p[0], p[0]] : p)), w: old.w, h: old.h };
+function versionLines(version, px, kept) {
+    if (KEPT.includes(version)) {
+        if (!kept) throw new Error('no ' + version + ' version for this size');
+        return { lines: kept.lines.map((p) => (p.length === 1 ? [p[0], p[0]] : p)), w: kept.w, h: kept.h };
     }
     if (!(version in BEND)) throw new Error('unknown version ' + version);
     return { lines: bentLines(px, BEND[version]), w: Math.max(...px.map((p) => p[0])) + 1,
@@ -208,7 +213,7 @@ function main() {
             buf = gen.pdc(gen.paths(gen.runs(px)), Math.max(...px.map((p) => p[0])) + 1,
                 Math.max(...px.map((p) => p[1])) + 1);
         } else {
-            const v = versionLines(e.version, px, e.old);
+            const v = versionLines(e.version, px, e[e.version]);
             buf = pdc(v.lines, v.w, v.h);
         }
         fs.writeFileSync(path.join(outDir, e.name + '.pdc'), buf);
@@ -217,4 +222,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { VERSIONS, BEND, trace, corners, bend, bentLines, pdc, versionLines };
+module.exports = { VERSIONS, KEPT, BEND, trace, corners, bend, bentLines, pdc, versionLines };

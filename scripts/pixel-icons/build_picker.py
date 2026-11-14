@@ -2,7 +2,9 @@
 """Build the icon picker: every size of every status icon in each version the watch can draw
 it in (variants.js: pixel, half, slant, old), drawn by the watch's own renderer in the
 emulator, on one HTML page where you pick a version for each size and mark the sizes you want
-to draw again (README.md in this folder, "Versions").
+to draw again (README.md in this folder, "Versions"). On the page, Add SVG gives an icon one
+more version, svg: an SVG made into a PDC and scaled to each size the old way (svg-icon.js),
+drawn there as the watch draws it (pebble-draw.js).
 
     python3 scripts/pixel-icons/build_picker.py [--skip-render] [out.html]
         (default build/pixel-icons/picker.html)
@@ -34,7 +36,8 @@ OUT_DIR = os.path.join(ROOT, 'build', 'pixel-icons')
 GALLERY_DIR = os.path.join(OUT_DIR, 'gallery')
 PLATFORM = 'emery'
 SCREEN = (200, 228)
-VERSIONS = ['pixel', 'half', 'slant', 'old']
+VERSIONS = ['pixel', 'half', 'slant', 'old']   # baked here; svg is made on the page
+LIBS = ['pebble-draw.js', 'svg-icon.js']        # inlined into the page
 BATCH = 240            # drawings per gallery app (a Pebble app holds at most 256 resources)
 UUID = '5b0c8a3e-7d1f-4c55-9a62-2f4b8e0d9c17'
 
@@ -57,7 +60,7 @@ def sizes_to_pick():
             out.append({'key': key, 'id': sid, 'rows': rows, 'pixels': s['pixels'],
                         'plats': s.get('platforms', ['basalt', 'emery']), 'uses': where.get(rows, []),
                         'version': s.get('version', 'pixel'), 'redraw': bool(s.get('redraw')),
-                        'old': W.old_version(key, rows)})
+                        'old': W.old_version(key, rows), 'h': W.svg_h(key, rows)})
     return out
 
 
@@ -223,9 +226,13 @@ def page_data(sizes, cands, pics):
     for i, z in enumerate(sizes):
         it = W.icon(z['key'])
         if not icons or icons[-1]['key'] != z['key']:
-            icons.append({'key': z['key'], 'name': it['name'], 'group': it['group'], 'sizes': []})
+            # The SVG the icon was given in the picker, as imported (import_pixels.py).
+            src = os.path.join(ROOT, 'resources', 'icon-svg', z['key'] + '.svg')
+            icons.append({'key': z['key'], 'name': it['name'], 'group': it['group'], 'sizes': [],
+                          'svg': open(src).read() if os.path.exists(src) else None})
         icons[-1]['sizes'].append({'id': z['id'], 'rows': z['rows'], 'plats': z['plats'], 'uses': z['uses'],
-                                   'version': z['version'], 'redraw': z['redraw'], 'versions': by_size[i]})
+                                   'version': z['version'], 'redraw': z['redraw'], 'h': z['h'],
+                                   'versions': by_size[i]})
     return {'versions': VERSIONS, 'icons': icons}
 
 
@@ -243,8 +250,11 @@ def main():
             render(proj, batch['pages'])
             print('build_picker: rendered batch %d (%d pages)' % (n, batch['pages']))
     data = 'window.PICKER_DATA = ' + json.dumps(page_data(sizes, cands, crops(batches)), separators=(',', ':')) + ';'
-    assert '</script' not in data
-    page = open(os.path.join(HERE, 'picker.html')).read().replace('/*PICKER_DATA*/', data)
+    data = data.replace('</', '<\\/')   # an SVG's text can't end the script early
+    libs = '\n'.join(open(os.path.join(HERE, name)).read() for name in LIBS)
+    assert '</script' not in data and '</script' not in libs
+    page = open(os.path.join(HERE, 'picker.html')).read()
+    page = page.replace('/*PICKER_LIBS*/', libs).replace('/*PICKER_DATA*/', data)
     with open(out, 'w') as f:
         f.write(page)
     print('wrote %s (%d KB, %d sizes, %d drawings)' % (os.path.relpath(out, ROOT), len(page) // 1024,

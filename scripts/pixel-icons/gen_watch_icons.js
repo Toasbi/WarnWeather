@@ -11,7 +11,8 @@
  *                                        lines through pixel centres (level, upright and 45-degree
  *                                        runs, joined end to end, and single dots), which the
  *                                        watch draws exactly, smoothing on or off; or its slanted
- *                                        lines, or the old icon scaled the old way, smoothed;
+ *                                        lines, or the old icon or an SVG (svg-icon.js) scaled the
+ *                                        old way, smoothed;
  *   resources/data/PX_<KEY>_<rows>_BW.pdc   the pixel drawing again, for the black and white
  *                                        watches (Pebble 2, Pebble 2 Duo), where a size picked in
  *                                        another version: they have no grey pixels to smooth with;
@@ -225,7 +226,7 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
                 drawn.push([name, pixel, [].concat(...plats.map(p => TARGETS[p] || [])),
                     [].concat(...plats.map(p => FAMILIES[p] || []))]);
             } else {
-                const v = variants.versionLines(version, px, s.old);
+                const v = variants.versionLines(version, px, s[version]);
                 drawn.push([name, variants.pdc(v.lines, v.w, v.h), [].concat(...plats.map(p => COLOUR_TARGETS[p] || [])),
                     plats.filter(p => FAMILIES[p])]);
                 if (plats.includes('basalt')) {

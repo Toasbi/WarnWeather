@@ -11,9 +11,11 @@ resources/pixel-icons.json (README.md here).
 of the published editor's database (one JSON file per document under <dir>/glyphs and
 <dir>/icons): edited sizes and done marks only; an icon marked done gets its unedited sizes
 from the editor's own starting pixels (build_editor.py), so a done icon always has every size.
---picks reads a dump of the published picker's database (<dir>/picks), --picks-export its
-"Copy picks as JSON": each size's version and Redraw mark (build_picker.py). An old version
-keeps its lines in the file (watch_icons.py old_version), since the old icon is no drawing.
+--picks reads a dump of the published picker's database (<dir>/picks and <dir>/svgs),
+--picks-export its "Copy picks as JSON": each size's version and Redraw mark, and the SVGs added
+there (build_picker.py). An SVG is kept as resources/icon-svg/<KEY>.svg. An old or svg version
+keeps its lines in the file (watch_icons.py old_version, svg-icon.js atSize), since neither is
+a drawing.
 
 The file keeps every edited size, done or not, so the editor can be rebuilt where you left off;
 only done icons go to the watch (gen_watch_icons.js).
@@ -22,6 +24,7 @@ import argparse
 import glob
 import json
 import os
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -58,7 +61,42 @@ def save(doc):
 
 
 # What a size keeps from the picker when its pixels are edited again.
-PICKED = ('version', 'redraw', 'old')
+PICKED = ('version', 'redraw', 'old', 'svg')
+VERSIONS = ('pixel', 'half', 'slant', 'old', 'svg')
+SVG_DIR = os.path.join(W.ROOT, 'resources', 'icon-svg')
+SVG_MAX = 256 * 1024
+
+
+def svg_path(key):
+    return os.path.join(SVG_DIR, key + '.svg')
+
+
+def keep_svgs(svgs):
+    """The picker's SVGs ({KEY: text}) as resources/icon-svg/<KEY>.svg; the keys written."""
+    out = []
+    for key, text in sorted((svgs or {}).items()):
+        if key not in W.KEYS or not isinstance(text, str) or not text.strip():
+            print('skipped the SVG for %s: no such icon, or empty' % key)
+            continue
+        if len(text.encode('utf-8')) > SVG_MAX:
+            raise SystemExit('%s: the SVG is larger than %d KB' % (key, SVG_MAX // 1024))
+        os.makedirs(SVG_DIR, exist_ok=True)
+        with open(svg_path(key), 'w') as f:
+            f.write(text if text.endswith('\n') else text + '\n')
+        out.append(key)
+    return out
+
+
+def svg_version(key, rows):
+    """The icon's SVG at a size, scaled the old way (svg-icon.js atSize): {'lines', 'w', 'h',
+    'at'}, `at` the height it was scaled to (watch_icons.svg_h)."""
+    src = svg_path(key)
+    if not os.path.exists(src):
+        raise SystemExit('%s %s: picked svg, but there is no %s' % (key, rows, os.path.relpath(src, W.ROOT)))
+    at = W.svg_h(key, rows)
+    out = json.loads(subprocess.check_output(['node', os.path.join(HERE, 'svg-icon.js'), 'bake', src, str(at)]))
+    out['at'] = at
+    return out
 
 
 def put(doc, key, size_id, pixels, source):
@@ -74,7 +112,7 @@ def put(doc, key, size_id, pixels, source):
 def pick(doc, key, size_id, version, redraw):
     """One size's pick: its version (pixel by default) and its Redraw mark."""
     s = doc['icons'].get(key, {}).get('sizes', {}).get(size_id)
-    if s is None or size_id == 'A' or version not in ('pixel', 'half', 'slant', 'old'):
+    if s is None or size_id == 'A' or version not in VERSIONS:
         print('skipped the pick for %s %s (%s): no such drawing' % (key, size_id, version))
         return False
     for k in PICKED:
@@ -86,13 +124,17 @@ def pick(doc, key, size_id, version, redraw):
         if not old:
             raise SystemExit('%s %s: no bar drew the old icon that tall' % (key, size_id))
         s['old'] = old
+    if version == 'svg':
+        s['svg'] = svg_version(key, int(size_id))
     if redraw:
         s['redraw'] = True
     return True
 
 
-def from_picks(doc, picks):
-    """[{icon, size, version, redraw}] into the file."""
+def from_picks(doc, picks, svgs=None):
+    """The picker's SVGs ({KEY: text}) into resources/icon-svg/, then its picks
+    ([{icon, size, version, redraw}]) into the file."""
+    keep_svgs(svgs)
     return sum(pick(doc, p.get('icon'), str(p.get('size')), p.get('version') or 'pixel', bool(p.get('redraw')))
                for p in picks)
 
@@ -155,13 +197,18 @@ def main():
     doc = load()
     if a.picks or a.picks_export:
         if a.picks:
-            picks = []
+            picks, svgs = [], {}
             for f in sorted(glob.glob(os.path.join(a.picks, 'picks', '*.json'))):
                 g = json.load(open(f))
                 picks.append(g.get('data', g))
+            for f in sorted(glob.glob(os.path.join(a.picks, 'svgs', '*.json'))):
+                g = json.load(open(f))
+                g = g.get('data', g)
+                svgs[g.get('icon') or os.path.splitext(os.path.basename(f))[0]] = g.get('svg')
         else:
-            picks = list(json.load(open(a.picks_export)).get('picks', {}).values())
-        n = from_picks(doc, picks)
+            ex = json.load(open(a.picks_export))
+            picks, svgs = list(ex.get('picks', {}).values()), ex.get('svgs', {})
+        n = from_picks(doc, picks, svgs)
         save(doc)
         kinds = {}
         for e in doc['icons'].values():

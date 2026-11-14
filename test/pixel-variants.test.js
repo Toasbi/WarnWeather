@@ -135,10 +135,14 @@ test('every version stays inside the drawing\'s box, and its PDC is precise 1 px
   assert.deepEqual([buf.readInt16LE(25), buf.readInt16LE(27), buf.readInt16LE(29), buf.readInt16LE(31)], [4, 4, 24, 14]);
 });
 
-test('the old version draws its kept lines; a size without them, or an unknown version, is refused', () => {
-  const old = { lines: [[[0, 0], [3, 1], [3, 4], [0, 0]], [[1, 2]]], w: 4, h: 5 };
-  assert.deepEqual(V.versionLines('old', [], old), { lines: [[[0, 0], [3, 1], [3, 4], [0, 0]], [[1, 2], [1, 2]]], w: 4, h: 5 });
+test('the old and svg versions draw their kept lines; a size without them, or an unknown version, is refused', () => {
+  const kept = { lines: [[[0, 0], [3, 1], [3, 4], [0, 0]], [[1, 2]]], w: 4, h: 5 };
+  const drawn = { lines: [[[0, 0], [3, 1], [3, 4], [0, 0]], [[1, 2], [1, 2]]], w: 4, h: 5 };
+  assert.deepEqual(V.versionLines('old', [], kept), drawn);
+  assert.deepEqual(V.versionLines('svg', [], kept), drawn, 'an SVG scaled the old way: the same');
   assert.throws(() => V.versionLines('old', [[0, 0]], null), /no old version/);
+  assert.throws(() => V.versionLines('svg', [[0, 0]], null), /no svg version/);
   assert.throws(() => V.versionLines('smooth', [[0, 0]], null), /unknown version smooth/);
-  assert.deepEqual(V.VERSIONS, ['pixel', 'half', 'slant', 'old']);
+  assert.deepEqual(V.VERSIONS, ['pixel', 'half', 'slant', 'old', 'svg']);
+  assert.deepEqual(V.KEPT, ['old', 'svg']);
 });

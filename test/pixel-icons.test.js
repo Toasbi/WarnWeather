@@ -293,6 +293,32 @@ test('a size picked in another version: that version on the colour watches, the 
     version: 'smooth' } } } } }), /unknown version smooth/);
   assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { '11': { platforms: ['basalt'], pixels: stairs,
     version: 'old' } } } } }), /no old version/);
+  // A size picked svg: its kept lines (an SVG scaled the old way), like old.
+  const svg = { lines: [[[0, 0], [4, 2], [0, 4], [0, 0]]], w: 5, h: 5 };
+  const picked = gen.outputs({ icons: { SUN: { sizes: { '13': { platforms: ['basalt', 'emery'], pixels: stairs,
+    version: 'svg', svg } } } } });
+  assert.deepEqual(picked[path.join(gen.DATA_DIR, 'PX_SUN_13.pdc')], variants.pdc(svg.lines, 5, 5), 'svg: its kept lines');
+  assert.deepEqual(picked[path.join(gen.DATA_DIR, 'PX_SUN_13_BW.pdc')], pixel, 'the black and white watches: the pixel drawing');
+  assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { '11': { platforms: ['basalt'], pixels: stairs,
+    version: 'svg' } } } } }), /no svg version/);
+});
+
+// A size picked svg in the icon picker keeps the lines its icon's SVG (resources/icon-svg/<KEY>.svg)
+// makes at that size (import_pixels.py, svg-icon.js): the SVG and the lines the watch draws agree.
+test('every size picked svg holds the lines its icon\'s SVG makes at that size', () => {
+  const SI = require('../scripts/pixel-icons/svg-icon.js');
+  const doc = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources', 'pixel-icons.json'), 'utf8'));
+  for (const [key, icon] of Object.entries(doc.icons)) {
+    for (const [id, s] of Object.entries(icon.sizes)) {
+      if (s.version !== 'svg') continue;
+      const file = path.join(ROOT, 'resources', 'icon-svg', key + '.svg');
+      assert.ok(fs.existsSync(file), key + ' ' + id + ': picked svg, so ' + path.relative(ROOT, file) + ' is there');
+      // `at`: the height the old scaling took it to (watch_icons.py svg_h), which paints `id` rows.
+      const { at, ...lines } = s.svg;
+      assert.equal(at % 2 === 0 ? at + 1 : at + 2, Number(id), key + ' ' + id + ': scaled to a height that paints ' + id + ' rows');
+      assert.deepEqual(lines, SI.atSize(fs.readFileSync(file, 'utf8'), at), key + ' ' + id + ': its SVG at that size');
+    }
+  }
 });
 
 test('a done Pebble Classic mask is written as its ink, and a mask that is only ink as it was', () => {

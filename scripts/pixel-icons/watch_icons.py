@@ -126,6 +126,16 @@ def painted_rows(h):
     return h + 1 if h % 2 == 0 else h + 2
 
 
+def svg_h(key, rows):
+    """The height the old scaling takes an SVG to for a size (`rows` painted rows): the first bar's
+    that draws the icon that tall, as old_version picks its bar, else rows - 1 (any height paints
+    painted_rows of it, whatever the glyph)."""
+    for u in uses(key):
+        if painted_rows(u['h']) == rows:
+            return u['h']
+    return rows - 1
+
+
 def uses(key):
     """Every bar the icon is drawn in: [{plat, where, font, res, h, weight}]."""
     it = icon(key)

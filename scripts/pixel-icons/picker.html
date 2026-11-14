@@ -3,8 +3,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
-/* Layout: a sticky summary bar, then one card per icon; each size is a row of four version
-   tiles (the watch's own render, zoomed, with 1:1 copies in both themes) and a Redraw flag. */
+/* Layout: a sticky summary bar, then one card per icon; each size is a row of version tiles
+   (the watch's own render, zoomed, with 1:1 copies in both themes) and a Redraw flag. An icon
+   with an SVG added gets a fifth tile per size, drawn on the page by the watch's own line
+   drawing (pebble-draw.js) from the SVG scaled the old way (svg-icon.js). */
 :root {
   --bg: #eef0f3; --surface: #ffffff; --fg: #15181d; --muted: #5b6370; --line: #d7dbe1;
   --accent: #0a62c9; --accent-weak: #e2edfb; --flag: #a14b06; --flag-weak: #fdf0e1;
@@ -23,6 +25,7 @@
   --accent: #5aa0ff; --accent-weak: #18283f; --flag: #f2a24a; --flag-weak: #36260f; color-scheme: dark;
 }
 body { background: var(--bg); color: var(--fg); font: 400 14px/1.45 var(--font); }
+[hidden] { display: none !important; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
 .wrap { max-width: 1100px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px; }
@@ -42,20 +45,38 @@ h1 { font-size: 17px; font-weight: 700; margin: 0; text-wrap: balance; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; background: transparent; color: var(--muted); font: 500 12.5px var(--font); padding: 5px 10px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--accent-weak); color: var(--accent); }
-.seg button:focus-visible, .tile:focus-visible, .redraw:focus-visible, .copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg button:focus-visible, .tile:focus-visible, .redraw:focus-visible, .copy:focus-visible, .svgbtn:focus-visible,
+.svgpanel button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .lead { margin: 18px 0 6px; color: var(--muted); max-width: 70ch; }
 .lead strong { color: var(--fg); font-weight: 600; }
 h2 { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 28px 0 10px; }
 .icon { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin: 0 0 12px; }
-.icon > h3 { font-size: 15px; font-weight: 600; margin: 0; padding: 12px 14px 4px; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px 4px; }
+.head h3 { font-size: 15px; font-weight: 600; margin: 0; margin-right: auto; }
+.svgbtn { border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--accent); font: 600 12.5px var(--font);
+  padding: 5px 10px; cursor: pointer; }
+.svgbtn[aria-expanded="true"] { background: var(--accent-weak); border-color: var(--accent); }
+.svgbtn.danger { color: var(--flag); }
+.svgnote { margin: 0 14px 6px; font-size: 12px; color: var(--flag); }
+.svgpanel { margin: 4px 14px 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+  display: grid; gap: 8px; }
+.svgpanel p { margin: 0; font-size: 12.5px; color: var(--muted); max-width: 70ch; }
+.svgpanel label { font-size: 12.5px; font-weight: 600; display: grid; gap: 4px; }
+.svgpanel input[type=file] { font: 12.5px var(--font); color: var(--fg); max-width: 100%; }
+.svgpanel textarea { margin: 0; min-height: 96px; }
+.svgpanel .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.svgpanel .primary { border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: 600 12.5px var(--font); padding: 6px 12px; cursor: pointer; }
+.svgpanel .err { color: var(--flag); font-weight: 500; }
+.svgpanel .err:empty { display: none; }
 .size { display: grid; grid-template-columns: 112px 1fr auto; gap: 10px 14px; align-items: center; padding: 10px 14px;
   border-top: 1px solid var(--line); }
-.icon > h3 + .size { border-top: 0; }
+.svgpanel + .size, .head + .size, .svgnote + .size { border-top: 0; }
 .size.hidden { display: none; }
 .label { min-width: 0; }
 .rows { font: 500 15px var(--mono); }
 .uses { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
 .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; min-width: 0; }
+.tiles.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px 6px; border-radius: 10px;
   border: 1.5px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; font: inherit; min-width: 0; }
 .tile[aria-checked="true"] { border-color: var(--accent); background: var(--accent-weak); }
@@ -79,6 +100,7 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
   header { position: static; }
   .size { grid-template-columns: 1fr auto; }
   .tiles { grid-column: 1 / -1; grid-row: 2; }
+  .tiles.five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .status { margin-left: 0; width: 100%; }
 }
 @media (prefers-reduced-motion: no-preference) { .tile, .redraw { transition: border-color .12s, background-color .12s; } }
@@ -113,47 +135,54 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
     <strong>Redraw</strong> where you want to draw the pixels again. Pixel is your drawing; Half slant and
     Slant smooth its steps into slanted lines; Old is the icon from before the pixel drawings, scaled the old
     way. Pebble 2 and Pebble 2 Duo have no grey pixels, so they always show Pixel.</p>
+  <p class="lead"><strong>Add SVG</strong> on an icon to try your own drawing: the page makes it into a PDC,
+    scales it to every size the old way and adds it as an SVG version, drawn exactly as the watch draws it.</p>
   <textarea id="json" hidden readonly aria-label="Picks as JSON"></textarea>
   <div id="list"></div>
 </main>
 
 <script>
+/*PICKER_LIBS*/
+</script>
+<script>
 /*PICKER_DATA*/
 (function () {
   'use strict';
   var D = window.PICKER_DATA;
-  var NAMES = { pixel: 'Pixel', half: 'Half slant', slant: 'Slant', old: 'Old' };
+  var NAMES = { pixel: 'Pixel', half: 'Half slant', slant: 'Slant', old: 'Old', svg: 'SVG' };
+  var ALL = D.versions.concat(['svg']);
   var PLATS = { basalt: 'Pebble Time, Pebble 2', emery: 'Pebble Time 2' };
+  var SVG_MAX = 256 * 1024;
   var state = {};            // 'KEY_id' -> {version, redraw}
   var sizes = {};            // 'KEY_id' -> {icon, size}
+  var byKey = {};            // KEY -> icon
+  var svgs = {};             // KEY -> {text, paths, warn}: the SVG each icon has
+  var svgDirty = {};         // KEY -> true while a change to its SVG waits to be saved
   var db = null, dbReady = false, failed = false, timers = {}, inflight = {}, again = {}, pending = {};
+  var svgInflight = {}, svgAgain = {}, lastPicks = null;
   var view = { light: false, zoom: window.innerWidth < 640 ? 3 : 5, filter: 'all' };
   var ZOOMS = [2, 3, 4, 5, 6];
 
   D.icons.forEach(function (ic) {
+    byKey[ic.key] = ic;
     ic.sizes.forEach(function (z) {
       var id = ic.key + '_' + z.id;
       sizes[id] = { icon: ic, size: z };
       state[id] = { version: z.version || 'pixel', redraw: Boolean(z.redraw) };
     });
   });
-  try {
-    var kept = JSON.parse(localStorage.getItem('ww-icon-picks') || 'null');
-    if (kept) {
-      Object.keys(kept).forEach(function (id) {
-        var k = kept[id];
-        if (state[id] && k && sizes[id].size.versions[k.version]) state[id] = { version: k.version, redraw: Boolean(k.redraw) };
-      });
-    }
-    var v = JSON.parse(localStorage.getItem('ww-icon-picks-view') || 'null');
-    if (v) { view.light = Boolean(v.light); if (ZOOMS.indexOf(v.zoom) >= 0) view.zoom = v.zoom; }
-  } catch (e) { /* nothing kept */ }
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
     if (text !== undefined) n.textContent = text;
     return n;
+  }
+  function readJson(key) {
+    try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; }
+  }
+  function writeJson(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* off */ }
   }
 
   /**
@@ -172,14 +201,214 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
     return order.map(function (w) { return w + ': ' + by[w].join(', '); }).join(' · ');
   }
 
+  // ---- SVG versions ------------------------------------------------------------------------
+  /**
+   * Lines drawn as the watch draws them (pebble-draw.js), a pixel of margin all round, as a PNG
+   * in the emulator's screenshot levels, like the other tiles' pictures.
+   * @param {!Array} paths pebble-draw.js paths. @param {number} w @param {number} h The view box.
+   * @param {boolean} light The light theme (black ink on white).
+   * @returns {string} A data URL.
+   */
+  function drawUrl(paths, w, h, light) {
+    var P = window.PebbleDraw;
+    var fb = P.framebuffer(w + 2, h + 2, light ? P.WHITE : P.BLACK);
+    P.drawPaths(fb, paths, 1, 1, light ? P.BLACK : P.WHITE, true);
+    var c = document.createElement('canvas');
+    c.width = fb.w; c.height = fb.h;
+    var g = c.getContext('2d'), img = g.createImageData(fb.w, fb.h);
+    for (var i = 0; i < fb.px.length; i++) {
+      var v = fb.px[i];
+      img.data[4 * i] = P.LEVEL[(v >> 4) & 3];
+      img.data[4 * i + 1] = P.LEVEL[(v >> 2) & 3];
+      img.data[4 * i + 2] = P.LEVEL[v & 3];
+      img.data[4 * i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    return c.toDataURL('image/png');
+  }
+
+  /**
+   * A size's SVG tile picture: the SVG scaled to the size's height the old way (svg-icon.js).
+   * @param {!Array} paths The SVG's precise paths (SvgIcon.toPdcPaths). @param {!Object} z A size.
+   * @returns {{d: string, l: string, w: number, h: number}}
+   */
+  function svgPic(paths, z) {
+    var v = window.SvgIcon.scaled(paths, z.h), lines = window.SvgIcon.asPaths(v.lines);
+    return { d: drawUrl(lines, v.w, v.h, false), l: drawUrl(lines, v.w, v.h, true), w: v.w + 2, h: v.h + 2 };
+  }
+
+  /**
+   * Give an icon an SVG: every size gets its SVG tile. Throws on an SVG the converter can't read.
+   * @param {!Object} ic An icon. @param {string} text The SVG.
+   * @returns {void}
+   */
+  function setSvg(ic, text) {
+    var paths = window.SvgIcon.toPdcPaths(text);
+    svgs[ic.key] = { text: text, paths: paths, warn: /\btransform\s*=/.test(text) };
+    ic.sizes.forEach(function (z) { z.versions.svg = svgPic(paths, z); });
+    paintSvg(ic);
+  }
+  function clearSvg(ic) {
+    delete svgs[ic.key];
+    ic.sizes.forEach(function (z) { delete z.versions.svg; });
+    paintSvg(ic);
+  }
+  /** Sizes picked as svg go back to pixel once the icon has no SVG. @returns {void} */
+  function dropSvgPicks(ic, save) {
+    ic.sizes.forEach(function (z) {
+      var id = ic.key + '_' + z.id;
+      if (state[id].version !== 'svg') return;
+      state[id] = { version: 'pixel', redraw: state[id].redraw };
+      if (save) changed(id); else paintRow(id);
+    });
+    paintCounts(); backup();
+  }
+  function backupSvgs() {
+    var out = {};
+    Object.keys(svgs).forEach(function (k) { out[k] = { text: svgs[k].text, dirty: Boolean(svgDirty[k]) }; });
+    Object.keys(svgDirty).forEach(function (k) { if (svgDirty[k] && !svgs[k]) out[k] = { text: null, dirty: true }; });
+    writeJson('ww-icon-svgs', out);
+  }
+
   // ---- render -------------------------------------------------------------------------------
-  var list = document.getElementById('list'), rows = {};
+  var list = document.getElementById('list'), rows = {}, heads = {};
+
+  function makeTile(id, ver, pic) {
+    var t = el('button', 'tile');
+    t.type = 'button';
+    t.setAttribute('role', 'radio');
+    t.dataset.id = id;
+    t.dataset.version = ver;
+    if (!pic) { t.disabled = true; t.appendChild(el('span', 'name', NAMES[ver] + ': none')); return t; }
+    var zoom = el('span', 'zoom'), big = el('img');
+    big.alt = '';
+    big.dataset.d = pic.d; big.dataset.l = pic.l; big.dataset.w = pic.w; big.dataset.h = pic.h;
+    big.src = view.light ? pic.l : pic.d;
+    big.width = pic.w * view.zoom; big.height = pic.h * view.zoom;
+    zoom.appendChild(big);
+    t.appendChild(zoom);
+    var ones = el('span', 'ones');
+    ['d', 'l'].forEach(function (k) {
+      var s = el('span', k), im = el('img');
+      im.src = pic[k]; im.width = pic.w; im.height = pic.h;
+      im.alt = (k === 'd' ? 'dark' : 'light') + ', actual size';
+      s.appendChild(im); ones.appendChild(s);
+    });
+    t.appendChild(ones);
+    t.appendChild(el('span', 'name', NAMES[ver]));
+    t.addEventListener('click', function () { pick(id, ver); });
+    return t;
+  }
+
+  /**
+   * An icon's SVG controls: Add SVG (or Change SVG) opens a panel to choose a file or paste the
+   * code; the panel also removes the SVG.
+   * @param {!Object} ic An icon. @param {!Element} card Its card.
+   * @returns {void}
+   */
+  function buildHead(ic, card) {
+    var head = el('div', 'head'), h = el('h3', '', ic.name), btn = el('button', 'svgbtn', 'Add SVG');
+    btn.type = 'button';
+    btn.setAttribute('aria-expanded', 'false');
+    head.appendChild(h); head.appendChild(btn);
+    card.appendChild(head);
+    var note = el('p', 'svgnote', 'This SVG uses transforms, which are left out: check the SVG tiles.');
+    note.hidden = true;
+    card.appendChild(note);
+    var panel = el('div', 'svgpanel');
+    panel.hidden = true;
+    panel.id = 'svg-' + ic.key;
+    btn.setAttribute('aria-controls', panel.id);
+    panel.setAttribute('role', 'group');
+    panel.setAttribute('aria-label', 'SVG for ' + ic.name);
+    panel.appendChild(el('p', '', 'Choose an .svg file or paste its code. Outline icons (Lucide, Tabler) work best: '
+      + 'each stroke becomes a 1 px line, fitted into the icon box and scaled to every size the old way. '
+      + 'Fills, stroke widths and transforms are left out.'));
+    var fileLabel = el('label', '', 'SVG file'), file = el('input');
+    file.type = 'file'; file.accept = '.svg,image/svg+xml';
+    fileLabel.appendChild(file);
+    panel.appendChild(fileLabel);
+    var codeLabel = el('label', '', 'Or paste the SVG code'), code = el('textarea');
+    code.spellcheck = false;
+    code.placeholder = '<svg viewBox="0 0 24 24" …>…</svg>';
+    codeLabel.appendChild(code);
+    panel.appendChild(codeLabel);
+    var actions = el('div', 'actions'), use = el('button', 'primary', 'Use this SVG'), cancel = el('button', 'copy', 'Cancel');
+    var remove = el('button', 'svgbtn danger', 'Remove SVG');
+    use.type = cancel.type = remove.type = 'button';
+    remove.hidden = true;
+    actions.appendChild(use); actions.appendChild(cancel); actions.appendChild(remove);
+    panel.appendChild(actions);
+    var err = el('p', 'err');
+    err.setAttribute('aria-live', 'polite');
+    panel.appendChild(err);
+    card.appendChild(panel);
+
+    function open(on) {
+      panel.hidden = !on;
+      btn.setAttribute('aria-expanded', String(on));
+      err.textContent = '';
+      if (on) { code.value = svgs[ic.key] ? svgs[ic.key].text : ''; file.value = ''; }
+    }
+    function apply(text) {
+      text = String(text || '').trim();
+      if (!text) { err.textContent = 'Choose a file or paste the SVG code first.'; return; }
+      if (text.length > SVG_MAX) { err.textContent = 'That SVG is too large (over 256 KB).'; return; }
+      if (!/<svg[\s>]/i.test(text)) { err.textContent = 'That is not an SVG: it has no <svg> element.'; return; }
+      try { setSvg(ic, text); } catch (e) { err.textContent = 'This SVG can’t be used: ' + e.message + '.'; return; }
+      open(false);
+      svgDirty[ic.key] = true;
+      backupSvgs();
+      flushSvg(ic.key);
+    }
+    btn.addEventListener('click', function () { open(panel.hidden); });
+    cancel.addEventListener('click', function () { open(false); });
+    use.addEventListener('click', function () { apply(code.value); });
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0];
+      if (!f) return;
+      if (f.size > SVG_MAX) { err.textContent = 'That file is too large (over 256 KB).'; return; }
+      var r = new FileReader();
+      r.onload = function () { code.value = String(r.result || ''); apply(code.value); };
+      r.onerror = function () { err.textContent = 'That file could not be read.'; };
+      r.readAsText(f);
+    });
+    remove.addEventListener('click', function () {
+      open(false);
+      clearSvg(ic);
+      dropSvgPicks(ic, true);
+      svgDirty[ic.key] = true;
+      backupSvgs();
+      flushSvg(ic.key);
+    });
+    heads[ic.key] = { btn: btn, note: note, remove: remove };
+  }
+
+  /** An icon's SVG tiles and controls, after its SVG changed. @returns {void} */
+  function paintSvg(ic) {
+    var s = svgs[ic.key], hd = heads[ic.key];
+    if (hd) {
+      hd.btn.textContent = s ? 'Change SVG' : 'Add SVG';
+      hd.note.hidden = !(s && s.warn);
+      hd.remove.hidden = !s;
+    }
+    ic.sizes.forEach(function (z) {
+      var id = ic.key + '_' + z.id, r = rows[id];
+      if (!r) return;
+      var old = r.tiles.querySelector('.tile[data-version="svg"]');
+      if (old) r.tiles.removeChild(old);
+      if (z.versions.svg) r.tiles.appendChild(makeTile(id, 'svg', z.versions.svg));
+      r.tiles.classList.toggle('five', Boolean(z.versions.svg));
+      paintRow(id);
+    });
+  }
+
   function build() {
     var group = null;
     D.icons.forEach(function (ic) {
       if (ic.group !== group) { group = ic.group; list.appendChild(el('h2', '', group)); }
       var card = el('section', 'icon');
-      card.appendChild(el('h3', '', ic.name));
+      buildHead(ic, card);
       ic.sizes.forEach(function (z) {
         var id = ic.key + '_' + z.id, row = el('div', 'size');
         var label = el('div', 'label');
@@ -189,31 +418,7 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
         var tiles = el('div', 'tiles');
         tiles.setAttribute('role', 'radiogroup');
         tiles.setAttribute('aria-label', ic.name + ' ' + z.rows + ' px');
-        D.versions.forEach(function (ver) {
-          var pic = z.versions[ver];
-          var t = el('button', 'tile');
-          t.type = 'button';
-          t.setAttribute('role', 'radio');
-          t.dataset.id = id;
-          t.dataset.version = ver;
-          if (!pic) { t.disabled = true; t.appendChild(el('span', 'name', NAMES[ver] + ': none')); tiles.appendChild(t); return; }
-          var zoom = el('span', 'zoom'), big = el('img');
-          big.alt = '';
-          big.dataset.d = pic.d; big.dataset.l = pic.l; big.dataset.w = pic.w; big.dataset.h = pic.h;
-          zoom.appendChild(big);
-          t.appendChild(zoom);
-          var ones = el('span', 'ones');
-          ['d', 'l'].forEach(function (k) {
-            var s = el('span', k), im = el('img');
-            im.src = pic[k]; im.width = pic.w; im.height = pic.h;
-            im.alt = (k === 'd' ? 'dark' : 'light') + ', actual size';
-            s.appendChild(im); ones.appendChild(s);
-          });
-          t.appendChild(ones);
-          t.appendChild(el('span', 'name', NAMES[ver]));
-          t.addEventListener('click', function () { pick(id, ver); });
-          tiles.appendChild(t);
-        });
+        D.versions.forEach(function (ver) { tiles.appendChild(makeTile(id, ver, z.versions[ver])); });
         row.appendChild(tiles);
         var flag = el('button', 'redraw');
         flag.type = 'button';
@@ -230,6 +435,7 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
 
   function paintRow(id) {
     var r = rows[id], s = state[id];
+    if (!r) return;
     Array.prototype.forEach.call(r.tiles.children, function (t) {
       t.setAttribute('aria-checked', String(t.dataset.version === s.version));
     });
@@ -251,15 +457,17 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
     Array.prototype.forEach.call(document.querySelectorAll('#zoom button'), function (b) {
       b.setAttribute('aria-pressed', String(Number(b.dataset.zoom) === view.zoom));
     });
-    try { localStorage.setItem('ww-icon-picks-view', JSON.stringify({ light: view.light, zoom: view.zoom })); } catch (e) { /* off */ }
+    writeJson('ww-icon-picks-view', { light: view.light, zoom: view.zoom });
   }
 
   function paintCounts() {
-    var c = { pixel: 0, half: 0, slant: 0, old: 0 }, redraw = 0;
+    var c = {}, redraw = 0;
+    ALL.forEach(function (v) { c[v] = 0; });
     Object.keys(state).forEach(function (id) { c[state[id].version]++; if (state[id].redraw) redraw++; });
     var box = document.getElementById('counts');
     box.textContent = '';
-    D.versions.forEach(function (v) {
+    ALL.forEach(function (v) {
+      if (v === 'svg' && !c.svg && !Object.keys(svgs).length) return;
       var s = el('span', 'count'); s.appendChild(el('b', '', String(c[v]))); s.appendChild(document.createTextNode(' ' + NAMES[v]));
       box.appendChild(s);
     });
@@ -298,18 +506,34 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
         if (again[id]) { again[id] = false; flush(id); } else status();
       });
   }
-  function backup() {
-    try { localStorage.setItem('ww-icon-picks', JSON.stringify(state)); } catch (e) { /* off */ }
+  /** Save an icon's SVG (or that it has none) in the page's database. @returns {void} */
+  function flushSvg(key) {
+    if (!db) { status(); return; }
+    if (svgInflight[key]) { svgAgain[key] = true; return; }
+    svgInflight[key] = true; status();
+    var s = svgs[key], ref = db.doc('svgs/' + key);
+    (s ? ref.set({ icon: key, svg: s.text, updatedAt: Date.now() }) : ref.delete())
+      .then(function () { failed = false; if (!svgAgain[key]) svgDirty[key] = false; }, function () { failed = true; })
+      .then(function () {
+        svgInflight[key] = false;
+        backupSvgs();
+        if (svgAgain[key]) { svgAgain[key] = false; flushSvg(key); } else status();
+      });
+  }
+  function backup() { writeJson('ww-icon-picks', state); }
+  function busy() {
+    var any = function (o) { return Object.keys(o).some(function (k) { return o[k]; }); };
+    return Object.keys(timers).length > 0 || any(inflight) || any(svgInflight);
   }
   function status(text, error) {
     var s = document.getElementById('status');
     s.classList.toggle('error', Boolean(error || failed));
     if (text) { s.textContent = text; return; }
     if (!db) { s.textContent = dbReady ? 'Saved in this browser only: use Copy picks as JSON' : 'Connecting'; return; }
-    var busy = Object.keys(timers).length || Object.keys(inflight).some(function (k) { return inflight[k]; });
-    s.textContent = failed ? 'Last save failed; it retries on your next tap' : busy ? 'Saving' : 'Saved';
+    s.textContent = failed ? 'Last save failed; it retries on your next tap' : busy() ? 'Saving' : 'Saved';
   }
   function applyRemote(snap) {
+    lastPicks = snap;
     snap.docs.forEach(function (doc) {
       var d = doc.data(), id = doc.id;
       if (!d || !state[id] || timers[id] || inflight[id]) return;
@@ -318,12 +542,34 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
     });
     paintAll(); backup();
   }
+  function applyRemoteSvgs(snap) {
+    // A first answer from the cache may not have every SVG yet: it adds and changes, never removes.
+    var cached = Boolean(snap.metadata && snap.metadata.fromCache), remote = {};
+    snap.docs.forEach(function (doc) {
+      var d = doc.data();
+      if (d && typeof d.svg === 'string' && byKey[doc.id]) remote[doc.id] = d.svg;
+    });
+    Object.keys(byKey).forEach(function (key) {
+      if (svgDirty[key] || svgInflight[key]) return;
+      var mine = svgs[key] ? svgs[key].text : null, theirs = remote[key] || null;
+      if (mine === theirs) return;
+      if (theirs) {
+        try { setSvg(byKey[key], theirs); } catch (e) { /* an SVG this page can't read: left out */ }
+      } else if (!cached) {
+        clearSvg(byKey[key]);
+        dropSvgPicks(byKey[key], false);
+      }
+    });
+    backupSvgs();
+    if (lastPicks) applyRemote(lastPicks); else paintAll();
+  }
   function exportAll() {
-    var out = { format: 'warnweather-icon-picks-1', picks: {} };
+    var out = { format: 'warnweather-icon-picks-2', picks: {}, svgs: {} };
     Object.keys(state).forEach(function (id) {
       var z = sizes[id];
       out.picks[id] = { icon: z.icon.key, size: z.size.id, version: state[id].version, redraw: state[id].redraw };
     });
+    Object.keys(svgs).forEach(function (k) { out.svgs[k] = svgs[k].text; });
     return out;
   }
 
@@ -349,7 +595,32 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
     catch (e) { fallback(); }
   });
 
+  // ---- start: the build's SVGs, then this browser's, then its picks; the database after -----
+  var kv = readJson('ww-icon-picks-view');
+  if (kv) { view.light = Boolean(kv.light); if (ZOOMS.indexOf(kv.zoom) >= 0) view.zoom = kv.zoom; }
   build();
+  D.icons.forEach(function (ic) {
+    if (ic.svg) { try { setSvg(ic, ic.svg); } catch (e) { /* left out */ } }
+  });
+  var keptSvgs = readJson('ww-icon-svgs') || {};
+  Object.keys(keptSvgs).forEach(function (key) {
+    var k = keptSvgs[key], ic = byKey[key];
+    if (!ic || !k) return;
+    try {
+      if (k.text) setSvg(ic, k.text); else clearSvg(ic);
+      if (k.dirty) svgDirty[key] = true;
+    } catch (e) { /* left out */ }
+  });
+  var kept = readJson('ww-icon-picks');
+  if (kept) {
+    Object.keys(kept).forEach(function (id) {
+      var k = kept[id];
+      if (state[id] && k && sizes[id].size.versions[k.version]) state[id] = { version: k.version, redraw: Boolean(k.redraw) };
+    });
+  }
+  Object.keys(state).forEach(function (id) {
+    if (!sizes[id].size.versions[state[id].version]) state[id] = { version: 'pixel', redraw: state[id].redraw };
+  });
   paintImages();
   paintAll();
   status();
@@ -361,11 +632,14 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
       if (!db) { status(); return; }
       var first = false;
       var timer = setTimeout(function () { if (!first) status('Saved picks not reachable yet', true); }, 10000);
+      db.collection('svgs').onSnapshot(function (snap) { applyRemoteSvgs(snap); status(); },
+        function () { status('Saved SVGs not reachable', true); });
       db.collection('picks').onSnapshot(function (snap) {
         if (!snap.metadata.fromCache) { first = true; clearTimeout(timer); }
         applyRemote(snap); status();
       }, function () { clearTimeout(timer); status('Saved picks not reachable', true); });
       Object.keys(pending).forEach(function (id) { delete pending[id]; flush(id); });   // taps before it answered
+      Object.keys(svgDirty).forEach(function (key) { if (svgDirty[key]) flushSvg(key); });
     }, function () { dbReady = true; status(); });
   } else {
     dbReady = true; status();
