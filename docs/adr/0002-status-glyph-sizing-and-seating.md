@@ -4,6 +4,12 @@
 > pixel by pixel, once per painted height (`scripts/pixel-icons/README.md`), and shown 1:1. The
 > size rules below now pick which drawing to show (`src/c/layers/status_icon_size.h`, moved there
 > from `status_row_icons.c`), and the seating is unchanged.
+>
+> **2026-11-14, later:** each size is built in the version the owner picks for it in the icon
+> picker (`scripts/pixel-icons/README.md`, "Versions"): the pixel drawing, its strokes slanted
+> halfway or fully, or the old PDC baked at that size with the old scaling (it draws exactly as
+> the scaled icon did, checked pixel for pixel in the emulator). The colour watches smooth the
+> slanted lines; the black and white ones keep the pixel drawing. Still 1:1, still seated as below.
 
 Status-slot PDC glyphs are sized by one knob (`icon_scale_pct`, in
 `src/c/layers/status_row_icons.c`) and seated vertically by a second

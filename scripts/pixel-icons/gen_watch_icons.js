@@ -6,12 +6,17 @@
  *   node scripts/pixel-icons/gen_watch_icons.js --check   exit 1 if any of them is stale
  *
  * From resources/pixel-icons.json, for every icon (Mark as done is the editor's checkmark alone):
- *   resources/data/PX_<KEY>_<rows>.pdc   each size as 1 px lines through pixel centres: level,
- *                                        upright and 45-degree runs, joined end to end, and
- *                                        single dots, which the watch draws exactly, smoothing
- *                                        on or off;
+ *   resources/data/PX_<KEY>_<rows>.pdc   each size in the version picked for it (variants.js;
+ *                                        the icon picker): by default the pixel drawing as 1 px
+ *                                        lines through pixel centres (level, upright and 45-degree
+ *                                        runs, joined end to end, and single dots), which the
+ *                                        watch draws exactly, smoothing on or off; or its slanted
+ *                                        lines, or the old icon scaled the old way, smoothed;
+ *   resources/data/PX_<KEY>_<rows>_BW.pdc   the pixel drawing again, for the black and white
+ *                                        watches (Pebble 2, Pebble 2 Duo), where a size picked in
+ *                                        another version: they have no grey pixels to smooth with;
  *   package.template.json                one raw resource per drawing, on the watches that draw
- *                                        that size;
+ *                                        it;
  *   src/c/layers/status_pixel_icons.generated.h   which drawing each icon id (and each rain
  *                                        alert bucket) uses at each painted height;
  *   src/c/layers/status_row_aplite.c     the Pebble Classic/Steel bit mask, when the icon has one.
@@ -22,6 +27,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const variants = require('./variants.js');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const PIXELS = path.join(ROOT, 'resources', 'pixel-icons.json');
@@ -51,6 +57,11 @@ const ICON_IDS = {
 const RAIN_BUCKETS = [[1, 'DRIZZLE'], [2, 'RAIN'], [3, 'HEAVY_RAIN']];
 // The watches each platform's resources go to.
 const TARGETS = { basalt: ['basalt', 'diorite', 'flint'], emery: ['emery'] };
+// The header's watch families (one table each): the Pebble Time 2, the black and white 144 px
+// watches (PBL_BW: diorite, flint), and the colour one (basalt). A platform's drawing goes to
+// each of its families; a smoothed version to its colour watches alone.
+const FAMILIES = { basalt: ['basalt', 'bw'], emery: ['emery'] };
+const COLOUR_TARGETS = { basalt: ['basalt'], emery: ['emery'] };
 
 /**
  * The set pixels of '#'/'.' rows, moved so the ink starts at (0, 0).
@@ -204,14 +215,31 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
             const rows = Number(id);
             const plats = s.platforms || ['basalt', 'emery'];
             if (!plats.length) continue;   // a size no watch draws any more
+            const version = s.version || 'pixel';
+            if (!variants.VERSIONS.includes(version)) throw new Error(key + ' ' + id + ': unknown version ' + version);
             const name = 'PX_' + key + '_' + id;
-            files[path.join(DATA_DIR, name + '.pdc')] = pdc(paths(runs(px)), w, h);
-            const targets = [].concat(...plats.map(p => TARGETS[p] || [])).sort();
-            media.push({ type: 'raw', name, file: 'data/' + name + '.pdc', targetPlatforms: targets });
-            ICON_IDS[key].forEach(icon => table.push([icon, rows, 'RESOURCE_ID_' + name, plats]));
-            RAIN_BUCKETS.forEach(([bucket, k]) => {
-                if (k === key) rainTable.push([bucket, rows, 'RESOURCE_ID_' + name, plats]);
-            });
+            const pixel = pdc(paths(runs(px)), w, h);
+            // [resource name, its file's content, its watches, its header families]
+            const drawn = [];
+            if (version === 'pixel') {
+                drawn.push([name, pixel, [].concat(...plats.map(p => TARGETS[p] || [])),
+                    [].concat(...plats.map(p => FAMILIES[p] || []))]);
+            } else {
+                const v = variants.versionLines(version, px, s.old);
+                drawn.push([name, variants.pdc(v.lines, v.w, v.h), [].concat(...plats.map(p => COLOUR_TARGETS[p] || [])),
+                    plats.filter(p => FAMILIES[p])]);
+                if (plats.includes('basalt')) {
+                    drawn.push([name + '_BW', pixel, TARGETS.basalt.filter(t => !COLOUR_TARGETS.basalt.includes(t)), ['bw']]);
+                }
+            }
+            for (const [res, buf, targets, fams] of drawn) {
+                files[path.join(DATA_DIR, res + '.pdc')] = buf;
+                media.push({ type: 'raw', name: res, file: 'data/' + res + '.pdc', targetPlatforms: targets.sort() });
+                ICON_IDS[key].forEach(icon => table.push([icon, rows, 'RESOURCE_ID_' + res, fams]));
+                RAIN_BUCKETS.forEach(([bucket, k]) => {
+                    if (k === key) rainTable.push([bucket, rows, 'RESOURCE_ID_' + res, fams]);
+                });
+            }
         }
     }
     // package.template.json: the drawings' resources after every other one, in a fixed order.
@@ -228,8 +256,9 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
  * status_pixel_icons.generated.h: the drawings each watch family looks up. Each family lists only
  * its own, since a resource is built for the watches that draw that size and another family's
  * resource id does not exist there.
- * @param {!Array<!Array>} table [icon id, rows, resource, platforms] per icon drawing.
- * @param {!Array<!Array>} rainTable [bucket, rows, resource, platforms] per rain alert drawing.
+ * @param {!Array<!Array>} table [icon id, rows, resource, families] per icon drawing; families
+ *     of 'emery', 'basalt' (the colour 144 px watch) and 'bw' (the black and white ones).
+ * @param {!Array<!Array>} rainTable [bucket, rows, resource, families] per rain alert drawing.
  * @returns {string} The header.
  */
 function header(table, rainTable) {
@@ -264,6 +293,10 @@ ${rows(rain)}
 #if defined(PBL_PLATFORM_EMERY)
 // emery: the Pebble Time 2's sizes (13, 15 and 17 rows for a weather icon).
 ${section('emery')}
+#elif defined(PBL_BW)
+// The black and white watches (Pebble 2, Pebble 2 Duo): every size's pixel drawing, as they have
+// no grey pixels to smooth a slanted line with.
+${section('bw')}
 #else
 ${section('basalt')}
 #endif

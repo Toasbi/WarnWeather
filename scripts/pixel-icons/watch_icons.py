@@ -230,6 +230,30 @@ def today(res, h):
     return raster(icon_load(resource_pdc(res), h)[0])
 
 
+def old_version(key, rows):
+    """The old version of a size (variants.js): the icon the watch drew before the pixel
+    drawings, scaled to `rows` painted rows the way the watch scaled it (icon_load), from the
+    first bar that drew it that tall, as the editor's Today starts. Its lines run through pixel
+    centres, the ink at (0, 0), a closed path ending where it began, so the watch draws them
+    1:1, smoothed, as it drew the old icon. {'lines': [[[x, y], ...], ...], 'w', 'h'}, or None
+    when no bar drew the old icon that tall."""
+    for u in uses(key):
+        paths = icon_load(resource_pdc(u['res']), u['h'])[0]
+        px = raster(paths)
+        if max(y for _, y in px) - min(y for _, y in px) + 1 != rows:
+            continue
+        x0 = min(x for x, _ in px)
+        y0 = min(y for _, y in px)
+        lines = []
+        for pts, closed in paths:
+            q = [[x - x0, y - y0] for x, y in pts]
+            if closed and len(q) > 2:
+                q.append(q[0])
+            lines.append(q)
+        return {'lines': lines, 'w': max(x for x, _ in px) - x0 + 1, 'h': rows}
+    return None
+
+
 # ---- Grids ----------------------------------------------------------------------------------
 def to_lines(pixels, rows, cols):
     """'#'/'.' rows, the ink centred across `cols` and down `rows`."""

@@ -120,9 +120,11 @@ cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_replace_test.c src/c
    src/c/layers/status_row_layout.c -o build/host/on_demand_replace_test
 build/host/on_demand_replace_test
 # Every height a bar asks for has its pixel drawing (status_icon_size.h, the generated tables),
-# on the 144-px watches and on the Pebble Time 2.
+# on the colour 144-px watch, the black and white ones (PBL_BW) and the Pebble Time 2.
 cc $CFLAGS test/c/status_icon_drawings_test.c -o build/host/status_icon_drawings_test
 build/host/status_icon_drawings_test
+cc $CFLAGS -DPBL_BW test/c/status_icon_drawings_test.c -o build/host/status_icon_drawings_test_bw
+build/host/status_icon_drawings_test_bw
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_icon_drawings_test.c -o build/host/status_icon_drawings_test_emery
 build/host/status_icon_drawings_test_emery
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test

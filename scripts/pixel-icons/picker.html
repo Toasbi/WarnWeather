@@ -1,0 +1,374 @@
+<title>Icon Version Picker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: a sticky summary bar, then one card per icon; each size is a row of four version
+   tiles (the watch's own render, zoomed, with 1:1 copies in both themes) and a Redraw flag. */
+:root {
+  --bg: #eef0f3; --surface: #ffffff; --fg: #15181d; --muted: #5b6370; --line: #d7dbe1;
+  --accent: #0a62c9; --accent-weak: #e2edfb; --flag: #a14b06; --flag-weak: #fdf0e1;
+  --watch-dark: #000000; --watch-light: #ffffff;
+  --font: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101317; --surface: #191d23; --fg: #e7e9ed; --muted: #98a0ab; --line: #2b3039;
+    --accent: #5aa0ff; --accent-weak: #18283f; --flag: #f2a24a; --flag-weak: #36260f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101317; --surface: #191d23; --fg: #e7e9ed; --muted: #98a0ab; --line: #2b3039;
+  --accent: #5aa0ff; --accent-weak: #18283f; --flag: #f2a24a; --flag-weak: #36260f; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font: 400 14px/1.45 var(--font); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap { max-width: 1100px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px; }
+header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface);
+  border-bottom: 1px solid var(--line); }
+.bar { max-width: 1100px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 10px; }
+h1 { font-size: 17px; font-weight: 700; margin: 0; text-wrap: balance; }
+.counts { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.count { padding: 2px 8px; border-radius: 999px; background: var(--bg); font-variant-numeric: tabular-nums; }
+.count b { color: var(--fg); font-weight: 600; }
+.count.flag b { color: var(--flag); }
+.status { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+.status.error { color: var(--flag); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 500 12.5px var(--font); padding: 5px 10px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent-weak); color: var(--accent); }
+.seg button:focus-visible, .tile:focus-visible, .redraw:focus-visible, .copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lead { margin: 18px 0 6px; color: var(--muted); max-width: 70ch; }
+.lead strong { color: var(--fg); font-weight: 600; }
+h2 { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 28px 0 10px; }
+.icon { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin: 0 0 12px; }
+.icon > h3 { font-size: 15px; font-weight: 600; margin: 0; padding: 12px 14px 4px; }
+.size { display: grid; grid-template-columns: 112px 1fr auto; gap: 10px 14px; align-items: center; padding: 10px 14px;
+  border-top: 1px solid var(--line); }
+.icon > h3 + .size { border-top: 0; }
+.size.hidden { display: none; }
+.label { min-width: 0; }
+.rows { font: 500 15px var(--mono); }
+.uses { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; min-width: 0; }
+.tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px 6px; border-radius: 10px;
+  border: 1.5px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; font: inherit; min-width: 0; }
+.tile[aria-checked="true"] { border-color: var(--accent); background: var(--accent-weak); }
+.tile .zoom { display: flex; align-items: center; justify-content: center; border-radius: 6px; padding: 6px;
+  background: var(--watch-dark); }
+.light .tile .zoom { background: var(--watch-light); }
+.tile img { image-rendering: pixelated; image-rendering: crisp-edges; display: block; max-width: none; }
+.ones { display: flex; gap: 4px; }
+.ones span { display: flex; padding: 3px; border-radius: 4px; border: 1px solid var(--line); }
+.ones .d { background: var(--watch-dark); }
+.ones .l { background: var(--watch-light); }
+.tile .name { font-size: 12px; font-weight: 600; }
+.tile[aria-checked="true"] .name { color: var(--accent); }
+.redraw { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 1.5px solid var(--line);
+  background: transparent; color: var(--muted); font: 600 12px var(--font); cursor: pointer; white-space: nowrap; }
+.redraw[aria-pressed="true"] { border-color: var(--flag); background: var(--flag-weak); color: var(--flag); }
+.redraw .box { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid currentColor; display: inline-grid; place-items: center; font-size: 10px; line-height: 1; }
+.copy { border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--fg); font: 500 12.5px var(--font); padding: 5px 10px; cursor: pointer; }
+textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mono); background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; }
+@media (max-width: 640px) {
+  header { position: static; }
+  .size { grid-template-columns: 1fr auto; }
+  .tiles { grid-column: 1 / -1; grid-row: 2; }
+  .status { margin-left: 0; width: 100%; }
+}
+@media (prefers-reduced-motion: no-preference) { .tile, .redraw { transition: border-color .12s, background-color .12s; } }
+</style>
+
+<header>
+  <div class="bar">
+    <h1>Icon versions</h1>
+    <div class="counts" id="counts" aria-live="polite"></div>
+    <div class="status" id="status">Connecting</div>
+  </div>
+  <div class="bar" style="padding-top:0">
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Watch theme">
+        <button type="button" id="th-dark" aria-pressed="true">Dark watch</button>
+        <button type="button" id="th-light" aria-pressed="false">Light watch</button>
+      </div>
+      <div class="seg" role="group" aria-label="Zoom" id="zoom"></div>
+      <div class="seg" role="group" aria-label="Show">
+        <button type="button" id="f-all" aria-pressed="true">All sizes</button>
+        <button type="button" id="f-redraw" aria-pressed="false">To redraw</button>
+        <button type="button" id="f-changed" aria-pressed="false">Not pixel</button>
+      </div>
+      <button type="button" class="copy" id="copy">Copy picks as JSON</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="lead">Every size of every status icon in the four ways the watch can draw it, rendered by the
+    Pebble Time 2 emulator. <strong>Tap the version you like</strong> for each size, and mark
+    <strong>Redraw</strong> where you want to draw the pixels again. Pixel is your drawing; Half slant and
+    Slant smooth its steps into slanted lines; Old is the icon from before the pixel drawings, scaled the old
+    way. Pebble 2 and Pebble 2 Duo have no grey pixels, so they always show Pixel.</p>
+  <textarea id="json" hidden readonly aria-label="Picks as JSON"></textarea>
+  <div id="list"></div>
+</main>
+
+<script>
+/*PICKER_DATA*/
+(function () {
+  'use strict';
+  var D = window.PICKER_DATA;
+  var NAMES = { pixel: 'Pixel', half: 'Half slant', slant: 'Slant', old: 'Old' };
+  var PLATS = { basalt: 'Pebble Time, Pebble 2', emery: 'Pebble Time 2' };
+  var state = {};            // 'KEY_id' -> {version, redraw}
+  var sizes = {};            // 'KEY_id' -> {icon, size}
+  var db = null, dbReady = false, failed = false, timers = {}, inflight = {}, again = {}, pending = {};
+  var view = { light: false, zoom: window.innerWidth < 640 ? 3 : 5, filter: 'all' };
+  var ZOOMS = [2, 3, 4, 5, 6];
+
+  D.icons.forEach(function (ic) {
+    ic.sizes.forEach(function (z) {
+      var id = ic.key + '_' + z.id;
+      sizes[id] = { icon: ic, size: z };
+      state[id] = { version: z.version || 'pixel', redraw: Boolean(z.redraw) };
+    });
+  });
+  try {
+    var kept = JSON.parse(localStorage.getItem('ww-icon-picks') || 'null');
+    if (kept) {
+      Object.keys(kept).forEach(function (id) {
+        var k = kept[id];
+        if (state[id] && k && sizes[id].size.versions[k.version]) state[id] = { version: k.version, redraw: Boolean(k.redraw) };
+      });
+    }
+    var v = JSON.parse(localStorage.getItem('ww-icon-picks-view') || 'null');
+    if (v) { view.light = Boolean(v.light); if (ZOOMS.indexOf(v.zoom) >= 0) view.zoom = v.zoom; }
+  } catch (e) { /* nothing kept */ }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  /**
+   * Where the watch draws a size, one line per watch: "Pebble Time 2: top bar, bars with 24 px text".
+   * @param {!Object} z A size.
+   * @returns {string}
+   */
+  function usesText(z) {
+    if (!z.uses.length) return z.plats.map(function (p) { return PLATS[p] || p; }).join(' · ');
+    var order = [], by = {};
+    z.uses.forEach(function (u) {
+      var at = u.indexOf(': '), watch = u.slice(0, at), bar = u.slice(at + 2);
+      if (!by[watch]) { by[watch] = []; order.push(watch); }
+      if (by[watch].indexOf(bar) < 0) by[watch].push(bar);
+    });
+    return order.map(function (w) { return w + ': ' + by[w].join(', '); }).join(' · ');
+  }
+
+  // ---- render -------------------------------------------------------------------------------
+  var list = document.getElementById('list'), rows = {};
+  function build() {
+    var group = null;
+    D.icons.forEach(function (ic) {
+      if (ic.group !== group) { group = ic.group; list.appendChild(el('h2', '', group)); }
+      var card = el('section', 'icon');
+      card.appendChild(el('h3', '', ic.name));
+      ic.sizes.forEach(function (z) {
+        var id = ic.key + '_' + z.id, row = el('div', 'size');
+        var label = el('div', 'label');
+        label.appendChild(el('div', 'rows', z.rows + ' px'));
+        label.appendChild(el('div', 'uses', usesText(z)));
+        row.appendChild(label);
+        var tiles = el('div', 'tiles');
+        tiles.setAttribute('role', 'radiogroup');
+        tiles.setAttribute('aria-label', ic.name + ' ' + z.rows + ' px');
+        D.versions.forEach(function (ver) {
+          var pic = z.versions[ver];
+          var t = el('button', 'tile');
+          t.type = 'button';
+          t.setAttribute('role', 'radio');
+          t.dataset.id = id;
+          t.dataset.version = ver;
+          if (!pic) { t.disabled = true; t.appendChild(el('span', 'name', NAMES[ver] + ': none')); tiles.appendChild(t); return; }
+          var zoom = el('span', 'zoom'), big = el('img');
+          big.alt = '';
+          big.dataset.d = pic.d; big.dataset.l = pic.l; big.dataset.w = pic.w; big.dataset.h = pic.h;
+          zoom.appendChild(big);
+          t.appendChild(zoom);
+          var ones = el('span', 'ones');
+          ['d', 'l'].forEach(function (k) {
+            var s = el('span', k), im = el('img');
+            im.src = pic[k]; im.width = pic.w; im.height = pic.h;
+            im.alt = (k === 'd' ? 'dark' : 'light') + ', actual size';
+            s.appendChild(im); ones.appendChild(s);
+          });
+          t.appendChild(ones);
+          t.appendChild(el('span', 'name', NAMES[ver]));
+          t.addEventListener('click', function () { pick(id, ver); });
+          tiles.appendChild(t);
+        });
+        row.appendChild(tiles);
+        var flag = el('button', 'redraw');
+        flag.type = 'button';
+        flag.appendChild(el('span', 'box'));
+        flag.appendChild(document.createTextNode('Redraw'));
+        flag.addEventListener('click', function () { setRedraw(id, !state[id].redraw); });
+        row.appendChild(flag);
+        rows[id] = { row: row, tiles: tiles, flag: flag };
+        card.appendChild(row);
+      });
+      list.appendChild(card);
+    });
+  }
+
+  function paintRow(id) {
+    var r = rows[id], s = state[id];
+    Array.prototype.forEach.call(r.tiles.children, function (t) {
+      t.setAttribute('aria-checked', String(t.dataset.version === s.version));
+    });
+    r.flag.setAttribute('aria-pressed', String(s.redraw));
+    r.flag.firstChild.textContent = s.redraw ? '✓' : '';
+    var show = view.filter === 'all' || (view.filter === 'redraw' && s.redraw) || (view.filter === 'changed' && s.version !== 'pixel');
+    r.row.classList.toggle('hidden', !show);
+  }
+
+  function paintImages() {
+    document.body.classList.toggle('light', view.light);
+    Array.prototype.forEach.call(document.querySelectorAll('.tile .zoom img'), function (im) {
+      im.src = view.light ? im.dataset.l : im.dataset.d;
+      im.width = im.dataset.w * view.zoom;
+      im.height = im.dataset.h * view.zoom;
+    });
+    document.getElementById('th-dark').setAttribute('aria-pressed', String(!view.light));
+    document.getElementById('th-light').setAttribute('aria-pressed', String(view.light));
+    Array.prototype.forEach.call(document.querySelectorAll('#zoom button'), function (b) {
+      b.setAttribute('aria-pressed', String(Number(b.dataset.zoom) === view.zoom));
+    });
+    try { localStorage.setItem('ww-icon-picks-view', JSON.stringify({ light: view.light, zoom: view.zoom })); } catch (e) { /* off */ }
+  }
+
+  function paintCounts() {
+    var c = { pixel: 0, half: 0, slant: 0, old: 0 }, redraw = 0;
+    Object.keys(state).forEach(function (id) { c[state[id].version]++; if (state[id].redraw) redraw++; });
+    var box = document.getElementById('counts');
+    box.textContent = '';
+    D.versions.forEach(function (v) {
+      var s = el('span', 'count'); s.appendChild(el('b', '', String(c[v]))); s.appendChild(document.createTextNode(' ' + NAMES[v]));
+      box.appendChild(s);
+    });
+    var f = el('span', 'count flag'); f.appendChild(el('b', '', String(redraw))); f.appendChild(document.createTextNode(' to redraw'));
+    box.appendChild(f);
+  }
+
+  function paintAll() { Object.keys(rows).forEach(paintRow); paintCounts(); }
+
+  // ---- picks and saving ---------------------------------------------------------------------
+  function pick(id, ver) {
+    if (state[id].version === ver) return;
+    state[id] = { version: ver, redraw: state[id].redraw };
+    changed(id);
+  }
+  function setRedraw(id, on) {
+    state[id] = { version: state[id].version, redraw: on };
+    changed(id);
+  }
+  function changed(id) {
+    paintRow(id); paintCounts(); backup();
+    clearTimeout(timers[id]);
+    timers[id] = setTimeout(function () { delete timers[id]; flush(id); }, 400);
+    status();
+  }
+  function flush(id) {
+    if (!db) { pending[id] = true; status(); return; }
+    if (inflight[id]) { again[id] = true; return; }
+    inflight[id] = true; status();
+    var z = sizes[id];
+    db.doc('picks/' + id).set({ icon: z.icon.key, size: z.size.id, version: state[id].version,
+      redraw: state[id].redraw, updatedAt: Date.now() })
+      .then(function () { failed = false; }, function () { failed = true; })
+      .then(function () {
+        inflight[id] = false;
+        if (again[id]) { again[id] = false; flush(id); } else status();
+      });
+  }
+  function backup() {
+    try { localStorage.setItem('ww-icon-picks', JSON.stringify(state)); } catch (e) { /* off */ }
+  }
+  function status(text, error) {
+    var s = document.getElementById('status');
+    s.classList.toggle('error', Boolean(error || failed));
+    if (text) { s.textContent = text; return; }
+    if (!db) { s.textContent = dbReady ? 'Saved in this browser only: use Copy picks as JSON' : 'Connecting'; return; }
+    var busy = Object.keys(timers).length || Object.keys(inflight).some(function (k) { return inflight[k]; });
+    s.textContent = failed ? 'Last save failed; it retries on your next tap' : busy ? 'Saving' : 'Saved';
+  }
+  function applyRemote(snap) {
+    snap.docs.forEach(function (doc) {
+      var d = doc.data(), id = doc.id;
+      if (!d || !state[id] || timers[id] || inflight[id]) return;
+      if (!sizes[id].size.versions[d.version]) return;
+      state[id] = { version: d.version, redraw: Boolean(d.redraw) };
+    });
+    paintAll(); backup();
+  }
+  function exportAll() {
+    var out = { format: 'warnweather-icon-picks-1', picks: {} };
+    Object.keys(state).forEach(function (id) {
+      var z = sizes[id];
+      out.picks[id] = { icon: z.icon.key, size: z.size.id, version: state[id].version, redraw: state[id].redraw };
+    });
+    return out;
+  }
+
+  // ---- controls -----------------------------------------------------------------------------
+  ZOOMS.forEach(function (zm) {
+    var b = el('button', '', zm + '×'); b.type = 'button'; b.dataset.zoom = zm;
+    b.addEventListener('click', function () { view.zoom = zm; paintImages(); });
+    document.getElementById('zoom').appendChild(b);
+  });
+  document.getElementById('th-dark').addEventListener('click', function () { view.light = false; paintImages(); });
+  document.getElementById('th-light').addEventListener('click', function () { view.light = true; paintImages(); });
+  [['f-all', 'all'], ['f-redraw', 'redraw'], ['f-changed', 'changed']].forEach(function (p) {
+    document.getElementById(p[0]).addEventListener('click', function () {
+      view.filter = p[1];
+      ['f-all', 'f-redraw', 'f-changed'].forEach(function (k) { document.getElementById(k).setAttribute('aria-pressed', String(k === p[0])); });
+      paintAll();
+    });
+  });
+  document.getElementById('copy').addEventListener('click', function () {
+    var text = JSON.stringify(exportAll()), box = document.getElementById('json');
+    var fallback = function () { box.hidden = false; box.value = text; box.focus(); box.select(); };
+    try { navigator.clipboard.writeText(text).then(function () { status('Copied'); setTimeout(function () { status(); }, 1500); }, fallback); }
+    catch (e) { fallback(); }
+  });
+
+  build();
+  paintImages();
+  paintAll();
+  status();
+
+  var claude = window.claude;
+  if (claude && claude.use) {
+    claude.use('db').then(function (handle) {
+      dbReady = true; db = handle;
+      if (!db) { status(); return; }
+      var first = false;
+      var timer = setTimeout(function () { if (!first) status('Saved picks not reachable yet', true); }, 10000);
+      db.collection('picks').onSnapshot(function (snap) {
+        if (!snap.metadata.fromCache) { first = true; clearTimeout(timer); }
+        applyRemote(snap); status();
+      }, function () { clearTimeout(timer); status('Saved picks not reachable', true); });
+      Object.keys(pending).forEach(function (id) { delete pending[id]; flush(id); });   // taps before it answered
+    }, function () { dbReady = true; status(); });
+  } else {
+    dbReady = true; status();
+  }
+})();
+</script>

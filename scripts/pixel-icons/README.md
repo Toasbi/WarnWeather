@@ -3,20 +3,26 @@
 The status icons (weather, weather values, phone and health, Bluetooth and quiet time) and the
 rain alert's icons drawn pixel by pixel, once for every size the watch draws them at. A drawing
 the watch shows at its own size is crisp: nothing gets scaled, so no line lands between two
-pixels and turns grey. This folder holds the tools that make that work:
+pixels and turns grey. Where you prefer a softer look, a size can be built with its lines
+slanted, or as the old icon, which the colour watches smooth with grey pixels (Versions, below).
+This folder holds the tools that make that work:
 
 | File | What it does |
 |---|---|
 | `watch_icons.py` | The icons, the sizes the watch draws each at, and the watch's own way of scaling and drawing a glyph (shared by the tools below) |
 | `build_editor.py` | Builds the pixel icon editor, one HTML page |
 | `editor.html` | The editor's page; `build_editor.py` fills in its data |
-| `import_pixels.py` | Brings edits from the editor into `resources/pixel-icons.json` |
+| `import_pixels.py` | Brings edits from the editor, and picks from the picker, into `resources/pixel-icons.json` |
+| `variants.js` | The versions a size can be built in: pixel, half slant, slant, old (below) |
+| `build_picker.py` | Builds the icon picker, one HTML page: every version of every size, drawn by the watch's renderer in the emulator |
+| `picker.html` | The picker's page; `build_picker.py` fills in its data |
+| `gallery/` | The small watch app `build_picker.py` renders the versions with |
 | `gen_watch_icons.js` | Builds the drawings into the watch |
 | `THIRD_PARTY.md` | The licences of the two icon libraries the weather icons start from |
 
-`resources/pixel-icons.json` is the source of truth: every size of every icon, and which icons
-you marked done. The watch draws these drawings and nothing else. **Mark as done** is your own
-checkmark; it does not decide what is built.
+`resources/pixel-icons.json` is the source of truth: every size of every icon, which icons you
+marked done, and the version you picked for each size. The watch draws these and nothing else.
+**Mark as done** is your own checkmark; it does not decide what is built.
 
 The old icon files (`resources/data/STATUS_*.pdc`, `HEALTH_*.pdc`, `RAIN_*.pdc`) are no longer
 built into the watch. **Keep them**: they are the editor's starting point (**Today**, and
@@ -42,7 +48,16 @@ built into the watch. **Keep them**: they are the editor's starting point (**Tod
    as JSON export; `--db <dir>` reads a dump of the published page's storage (Claude writes it
    with ArtifactData `list ... out_dir`). An icon marked done gets every size; a size you never
    touched takes the editor's starting pixels.
-4. **Build into the watch.** `node scripts/pixel-icons/gen_watch_icons.js` writes every drawing
+4. **Pick a version for each size.** `python3 scripts/pixel-icons/build_picker.py` writes
+   `build/pixel-icons/picker.html`: every size of every icon in its four versions (below),
+   drawn by the Pebble Time 2 emulator, dark and light, zoomed and at actual size. Tap the one you
+   like for each size, and mark **Redraw** where you want to draw the pixels again. Claude
+   publishes it as a claude.ai page (same link each time) whose storage it reads back, or
+   **Copy picks as JSON** takes the picks out. Import them with
+   `python3 scripts/pixel-icons/import_pixels.py --picks <dir>` (a dump of the page's storage,
+   ArtifactData `list picks ... out_dir`) or `--picks-export <file>`. Needs the Pebble SDK and
+   its emulator, and Pillow; `--skip-render` rebuilds the page from the last render.
+5. **Build into the watch.** `node scripts/pixel-icons/gen_watch_icons.js` writes every drawing
    into the watch (below), then `mise build`. Check the icons in the emulator and commit
    `resources/pixel-icons.json` with the files the script wrote. `--check` fails while they are
    stale, and so does `test/pixel-icons.test.js`.
@@ -51,8 +66,27 @@ built into the watch. **Keep them**: they are the editor's starting point (**Tod
 
 1. Open the editor: the published page (same link every time), or build it with step 1. It
    starts from the drawings in `resources/pixel-icons.json`.
-2. Edit the sizes you want to change.
-3. Import (step 3), build (step 4), check the emulator, commit.
+2. Edit the sizes you want to change. A size keeps its picked version: a slanted one follows
+   the new pixels, the old one stays the old icon.
+3. Import (step 3). To see the new drawing's slanted versions, rebuild the picker (step 4).
+4. Build (step 5), check the emulator, commit.
+
+## Versions
+
+Each size is built in the version picked for it (`variants.js`; `version` in the size's entry,
+pixel when there is none):
+
+| Version | What the watch draws |
+|---|---|
+| Pixel | Your drawing, exactly: level, upright and 45-degree runs, no grey pixel |
+| Half slant | Your drawing's 1 px strokes traced into lines, each pixel centre moved halfway towards the straight line through its stroke (a stroke strays from that line by half a pixel at most, or it is split at the corner). The watch's smoothing greys a few pixels along the steps |
+| Slant | The same, moved all the way: straight slanted lines between the corners, smoothed the most |
+| Old | The icon from before the pixel drawings (`resources/data/`), scaled to the size the way the watch scaled it (`watch_icons.py` `old_version`, from the first bar that drew it that tall). Its lines are kept in the size's entry (`old`), and it draws pixel for pixel as the scaled icon did |
+
+Smoothing needs grey pixels, which only the colour watches have: on the black and white ones
+(Pebble 2, Pebble 2 Duo) every size draws its pixel drawing, built as a resource of its own
+(`PX_<ICON>_<size>_BW`) wherever the pick is another version. **Redraw** (`redraw` in the entry)
+is your own mark, like Mark as done: it changes nothing in the build.
 
 A new icon id needs its drawings before it can show: add it to `watch_icons.py` `ICONS` and
 `gen_watch_icons.js` `ICON_IDS`, draw every size, and list the id in
@@ -64,9 +98,10 @@ A new icon id needs its drawings before it can show: add it to `watch_icons.py` 
 
 | File | What |
 |---|---|
-| `resources/data/PX_<ICON>_<size>.pdc` | Each size as 1 px lines through pixel centres: level, upright and 45-degree runs, and single dots. The watch draws them exactly, with smoothing on or off. Runs that touch are joined into one path, which keeps a drawing small on the watch's heap: about 170 bytes, against 140 for today's icons |
+| `resources/data/PX_<ICON>_<size>.pdc` | Each size in its picked version (Versions, above). The pixel version is 1 px lines through pixel centres: level, upright and 45-degree runs, and single dots, which the watch draws exactly, with smoothing on or off. Runs that touch are joined into one path, which keeps a drawing small on the watch's heap: about 170 bytes, against 140 for today's icons |
+| `resources/data/PX_<ICON>_<size>_BW.pdc` | The pixel version again, for the black and white watches, where a size is picked in another version |
 | `package.template.json` | One resource per size, only on the watches that draw that size |
-| `src/c/layers/status_pixel_icons.generated.h` | Which drawing each icon uses at each height, one table per watch family |
+| `src/c/layers/status_pixel_icons.generated.h` | Which drawing each icon uses at each height, one table per watch family: the Pebble Time 2, the colour 144 px watch and the black and white ones |
 | `src/c/layers/status_row_aplite.c` | The Pebble Classic and Steel bit mask, for the seven icons that have one |
 
 The watch draws each drawing 1:1 wherever a bar asks for the height it was drawn for

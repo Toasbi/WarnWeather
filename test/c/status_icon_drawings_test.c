@@ -8,8 +8,9 @@
 
 // Host test for the status icons' pixel drawings (status_icon_size.h, the tables
 // scripts/pixel-icons/gen_watch_icons.js writes): the watch scales no icon any more, so every
-// height a bar can ask for must have its own drawing. Built twice by scripts/test-c.sh: for the
-// 144-px watches, and with -DPBL_PLATFORM_EMERY for the Pebble Time 2. A failure here means an
+// height a bar can ask for must have its own drawing. Built three times by scripts/test-c.sh: for
+// the colour 144-px watch, with -DPBL_BW for the black and white ones (their own table: the pixel
+// drawings) and with -DPBL_PLATFORM_EMERY for the Pebble Time 2. A failure here means an
 // icon would draw a size smaller (the next smaller drawing), or not at all: draw the missing
 // size in the pixel icon editor (scripts/pixel-icons/README.md).
 

@@ -7,9 +7,11 @@
 #include "status_pixel_icons.generated.h"
 
 // Every status icon is drawn pixel by pixel in the pixel icon editor (scripts/pixel-icons/
-// README.md), once for every height a bar draws it at, as 1 px lines through pixel centres.
-// Drawn 1:1, nothing is scaled, so no line lands between two pixels and none turns grey under
-// antialiasing. The size rules that pick the drawing are status_icon_size.h's.
+// README.md), once for every height a bar draws it at, and built in the version picked for that
+// size: the pixel drawing, 1 px lines through pixel centres that stay crisp under antialiasing,
+// or its lines slanted or the old icon, which antialiasing smooths with grey pixels on the colour
+// watches (the black and white ones keep the pixel drawing). Drawn 1:1, nothing is scaled. The
+// size rules that pick the drawing are status_icon_size.h's.
 
 static bool pixel_ink_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void) index;

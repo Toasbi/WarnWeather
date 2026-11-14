@@ -161,29 +161,44 @@ test('rings, diagonals, dots and random scatter become runs that light exactly t
   }
 });
 
+/**
+ * The header's three tables: the Pebble Time 2's, the black and white 144 px watches' and the
+ * colour one's.
+ * @param {string} h status_pixel_icons.generated.h.
+ * @returns {{emery: string, bw: string, colour: string}}
+ */
+function sections(h) {
+  const m = h.match(/#if defined\(PBL_PLATFORM_EMERY\)([\s\S]*)#elif defined\(PBL_BW\)([\s\S]*)#else([\s\S]*)#endif/);
+  assert.ok(m, 'one section per watch family');
+  return { emery: m[1], bw: m[2], colour: m[3] };
+}
+
 test('each watch family lists only the drawings built for it', () => {
   const h = gen.header(
-    [['STATUS_ICON_COND_SUN', 11, 'RESOURCE_ID_PX_SUN_11', ['basalt']],
+    [['STATUS_ICON_COND_SUN', 11, 'RESOURCE_ID_PX_SUN_11', ['basalt', 'bw']],
       ['STATUS_ICON_COND_SUN', 13, 'RESOURCE_ID_PX_SUN_13', ['basalt', 'emery']],
+      ['STATUS_ICON_COND_SUN', 13, 'RESOURCE_ID_PX_SUN_13_BW', ['bw']],
       ['STATUS_ICON_COND_SUN', 15, 'RESOURCE_ID_PX_SUN_15', ['emery']]],
-    [[2, 13, 'RESOURCE_ID_PX_RAIN_13', ['basalt', 'emery']]]);
-  const m = h.match(/#if defined\(PBL_PLATFORM_EMERY\)([\s\S]*)#else([\s\S]*)#endif/);
-  assert.ok(m, 'one section per watch family');
-  const [, emery, others] = m;
+    [[2, 13, 'RESOURCE_ID_PX_RAIN_13', ['basalt', 'bw', 'emery']]]);
+  const { emery, bw, colour } = sections(h);
   assert.match(emery, /STATUS_PIXEL_ICON_COUNT 2\n/);
-  assert.match(emery, /PX_SUN_13/);
+  assert.match(emery, /PX_SUN_13\)/);
   assert.match(emery, /PX_SUN_15/);
-  assert.doesNotMatch(emery, /PX_SUN_11/);
-  assert.match(others, /STATUS_PIXEL_ICON_COUNT 2\n/);
-  assert.match(others, /PX_SUN_11/);
-  assert.match(others, /PX_SUN_13/);
-  assert.doesNotMatch(others, /PX_SUN_15/);
-  for (const part of [emery, others]) {
+  assert.doesNotMatch(emery, /PX_SUN_11|_BW/);
+  assert.match(colour, /STATUS_PIXEL_ICON_COUNT 2\n/);
+  assert.match(colour, /PX_SUN_11/);
+  assert.match(colour, /PX_SUN_13\)/);
+  assert.doesNotMatch(colour, /PX_SUN_15|_BW/);
+  assert.match(bw, /STATUS_PIXEL_ICON_COUNT 2\n/);
+  assert.match(bw, /PX_SUN_11/);
+  assert.match(bw, /PX_SUN_13_BW\)/, 'the black and white watches: their own drawing of a size');
+  assert.doesNotMatch(bw, /PX_SUN_13\)|PX_SUN_15/);
+  for (const part of [emery, bw, colour]) {
     assert.match(part, /STATUS_PIXEL_RAIN_COUNT 1\n[^}]*\{ 2, 13, PX_RES\(PX_RAIN_13\) \}/);
   }
   const none = gen.header([], []);
-  assert.equal(none.match(/COUNT 0\n/g).length, 4, 'no drawings: every table empty');
-  assert.equal(none.match(/\{ 0, 0, 0 \}/g).length, 4, 'and still an array C accepts');
+  assert.equal(none.match(/COUNT 0\n/g).length, 6, 'no drawings: every table empty');
+  assert.equal(none.match(/\{ 0, 0, 0 \}/g).length, 6, 'and still an array C accepts');
 });
 
 test('every drawing becomes a resource and a table entry per size, keyed by the size, done or not', () => {
@@ -221,14 +236,63 @@ test('every drawing becomes a resource and a table entry per size, keyed by the 
   ], 'one resource per size, on the watches that draw it');
 
   const h = files[gen.HEADER];
-  const [, emery, others] = h.match(/#if defined\(PBL_PLATFORM_EMERY\)([\s\S]*)#else([\s\S]*)#endif/);
-  assert.match(others, /\{ STATUS_ICON_COND_RAIN, 11, PX_RES\(PX_RAIN_11\) \}/);
-  assert.match(others, /\{ 2, 11, PX_RES\(PX_RAIN_11\) \}/, 'the rain alert\'s rain bucket');
+  const { emery, bw, colour } = sections(h);
+  for (const others of [bw, colour]) {
+    assert.match(others, /\{ STATUS_ICON_COND_RAIN, 11, PX_RES\(PX_RAIN_11\) \}/);
+    assert.match(others, /\{ 2, 11, PX_RES\(PX_RAIN_11\) \}/, 'the rain alert\'s rain bucket');
+    assert.match(others, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_11\) \}/, 'an icon not done is drawn too');
+  }
+  const tables = (t) => t.replace(/^\/\/.*\n/gm, '');
+  assert.equal(tables(bw), tables(colour), 'every size in its pixel drawing: both 144 px families draw the same');
   assert.match(emery, /\{ STATUS_ICON_COND_RAIN, 15, PX_RES\(PX_RAIN_15\) \}/);
   assert.match(emery, /\{ 3, 17, PX_RES\(PX_HEAVY_RAIN_17\) \}/, 'the rain alert\'s heavy bucket');
   assert.doesNotMatch(h, /STATUS_ICON_COND_\w+, 17, PX_RES\(PX_HEAVY_RAIN/, 'Heavy rain is the rain alert\'s only');
-  assert.match(others, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_11\) \}/, 'an icon not done is drawn too');
   assert.equal(files[gen.APLITE_C], fs.readFileSync(gen.APLITE_C, 'utf8'), 'no mask done: the aplite file as it is');
+});
+
+test('a size picked in another version: that version on the colour watches, the pixel drawing on the black and white ones', () => {
+  const variants = require('../scripts/pixel-icons/variants.js');
+  // A drawing with a staircase, so the slanted versions differ from it.
+  const stairs = drawing(9, 9, (x, y) => y === Math.floor(x / 2) + 2 || x === 0);
+  const old = { lines: [[[0, 0], [6, 3]], [[2, 5]]], w: 7, h: 6 };
+  const doc = { icons: {
+    SUN: { done: true, sizes: {
+      '11': { platforms: ['basalt'], pixels: stairs, version: 'half', redraw: true },
+      '13': { platforms: ['basalt', 'emery'], pixels: stairs, version: 'slant' },
+      '15': { platforms: ['emery'], pixels: stairs, version: 'old', old },
+      '17': { platforms: ['emery'], pixels: stairs, redraw: true },
+    } },
+  } };
+  const files = gen.outputs(doc);
+  const at = (name) => files[path.join(gen.DATA_DIR, name + '.pdc')];
+  const px = gen.inkPixels(stairs), w = Math.max(...px.map(p => p[0])) + 1, h = Math.max(...px.map(p => p[1])) + 1;
+  const pixel = gen.pdc(gen.paths(gen.runs(px)), w, h);
+  assert.deepEqual(at('PX_SUN_11'), variants.pdc(variants.bentLines(px, 0.5), w, h), 'half: bent halfway');
+  assert.deepEqual(at('PX_SUN_13'), variants.pdc(variants.bentLines(px, 1), w, h), 'slant: straight lines');
+  assert.deepEqual(at('PX_SUN_15'), variants.pdc([[[0, 0], [6, 3]], [[2, 5], [2, 5]]], 7, 6), 'old: its kept lines');
+  assert.deepEqual(at('PX_SUN_17'), pixel, 'no version: the pixel drawing; Redraw is only a mark');
+  assert.notDeepEqual(at('PX_SUN_11'), pixel, 'the half version is not the pixel drawing');
+  assert.deepEqual(at('PX_SUN_11_BW'), pixel, 'the black and white watches: the pixel drawing');
+  assert.deepEqual(at('PX_SUN_13_BW'), pixel);
+  assert.equal(at('PX_SUN_15_BW'), undefined, 'a size only the Pebble Time 2 draws needs none');
+  const media = JSON.parse(files[gen.PACKAGE]).pebble.resources.media.filter(m => /^PX_/.test(m.name));
+  assert.deepEqual(media.map(m => [m.name, m.targetPlatforms]), [
+    ['PX_SUN_11', ['basalt']], ['PX_SUN_11_BW', ['diorite', 'flint']],
+    ['PX_SUN_13', ['basalt', 'emery']], ['PX_SUN_13_BW', ['diorite', 'flint']],
+    ['PX_SUN_15', ['emery']], ['PX_SUN_17', ['emery']],
+  ]);
+  const { emery, bw, colour } = sections(files[gen.HEADER]);
+  assert.match(colour, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_11\) \}/);
+  assert.match(colour, /\{ STATUS_ICON_COND_SUN, 13, PX_RES\(PX_SUN_13\) \}/);
+  assert.match(bw, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_11_BW\) \}/);
+  assert.match(bw, /\{ STATUS_ICON_COND_SUN, 13, PX_RES\(PX_SUN_13_BW\) \}/);
+  assert.match(emery, /\{ STATUS_ICON_COND_SUN, 13, PX_RES\(PX_SUN_13\) \}/);
+  assert.match(emery, /\{ STATUS_ICON_COND_SUN, 15, PX_RES\(PX_SUN_15\) \}/);
+  assert.doesNotMatch(emery, /_BW/);
+  assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { '11': { platforms: ['basalt'], pixels: stairs,
+    version: 'smooth' } } } } }), /unknown version smooth/);
+  assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { '11': { platforms: ['basalt'], pixels: stairs,
+    version: 'old' } } } } }), /no old version/);
 });
 
 test('a done Pebble Classic mask is written as its ink, and a mask that is only ink as it was', () => {
