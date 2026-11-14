@@ -432,7 +432,7 @@ test('the twin\'s night rule is the pair repeated over many days, past hour 24 a
 // both hand the fetch's span to nextSunEvents, so a long fetch at a polar latitude gets the
 // six- or seven-day pair. Without it the watch finds only the night [M, M + 2 d] and leaves the
 // long chart's last hours unshaded in polar night.
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
 
 test('WeatherProvider#withSunEvents passes the fetch\'s span to the polar pair', (t) => {

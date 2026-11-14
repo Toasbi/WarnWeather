@@ -135,7 +135,7 @@ test('localDayPeaks: in a :30-offset zone the clock, not the bucket start, names
   // hand today's peak to tomorrow. getPayload passes the phone's clock in.
   const body = `
     const w = require(${JSON.stringify(require.resolve('../../../src/pkjs/weather/domain/hourly-window.js'))});
-    const WeatherProvider = require(${JSON.stringify(require.resolve('../../../src/pkjs/weather/application/provider.js'))});
+    const WeatherProvider = require(${JSON.stringify(require.resolve('../../../src/pkjs/weather/adapter/provider.js'))});
     // 00:10 on 16 Jul is 18:40 UTC on the 15th; that UTC hour starts at 23:30 local
     // on the 15th. From there entries 0..24 are the 16th and 25..48 the 17th.
     const start = Date.UTC(2026, 6, 15, 18) / 1000, now = start + 40 * 60;

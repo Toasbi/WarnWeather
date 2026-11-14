@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pebble.h>
-#include "status_metrics.h"
+#include "c/appendix/status_metrics.h"
 
 // Move a TextLayer's frame in one call (its layer is its only sized child).
 static inline void text_layer_move_frame(TextLayer *text_layer, GRect frame) {

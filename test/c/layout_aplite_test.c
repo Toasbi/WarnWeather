@@ -4,7 +4,7 @@
 // cases in layout_test.c (144x168, fc_band_h 20), proving behavior parity on aplite.
 #include <stdio.h>
 #include <string.h>
-#include "c/layers/status_metrics.h"
+#include "c/appendix/status_metrics.h"
 #include "c/windows/layout.h"
 
 static int s_failures = 0;
@@ -151,7 +151,7 @@ static void geometry_swap(void) {
     expect("swap.weather_status_on", layout_visibility(&s).weather_status, true);
 }
 
-// The shared tier/status helpers in layout.h. aplite compiles the same header, so the
+// The shared tier/status helpers in appendix/view_spec.h. aplite compiles the same header, so the
 // wire-tier -> rows -> LayoutTier composition and the status predicates must answer
 // identically here; the twin only skips layout_status_tier's DUAL promotion (it has no DUAL).
 static void tier_helper_tests(void) {
@@ -167,7 +167,7 @@ static void tier_helper_tests(void) {
         expect("tier_helpers.unpack_agrees_rows", s.calendar_rows == t[i].rows, true);
         expect("tier_helpers.unpack_agrees_tier", s.status_tier == t[i].tier, true);
     }
-    // No producer emits calendar_rows == 1; the fallback is NONE, not FULL (see layout.h).
+    // No producer emits calendar_rows == 1; the fallback is NONE, not FULL (see view_spec.h).
     expect("tier_helpers.stray_rows_1_is_none", layout_tier_for_rows(1) == LAYOUT_TIER_NONE, true);
     // Positional predicates over aplite's two shapes: forecast-upper and the swap (lower).
     ViewSpec up = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));

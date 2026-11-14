@@ -17,7 +17,8 @@ global.localStorage = {
 
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 const record = require('../../../src/pkjs/weather/domain/day-peaks.js');
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const recordStore = require('../../../src/pkjs/weather/adapter/day-peaks-store.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
 // The UV slot's reader, in the (trend, peaks, mode) shape these tests grew up on.
 const uvShown = (trend, peaks, mode) => require('../../../src/pkjs/wire/domain/wire-units.js')
@@ -81,13 +82,13 @@ test('earlierPeak: today\'s earlier hours back to the last one below the peak he
 
 test('load and save: an unreadable record is cleared, an unchanged one not rewritten', () => {
   store[KEYS.UV_DAY_RECORD_KEY] = '{oops';
-  assert.equal(record.load(KEYS.UV_DAY_RECORD_KEY), null);
+  assert.equal(recordStore.load(KEYS.UV_DAY_RECORD_KEY), null);
   assert.equal(store[KEYS.UV_DAY_RECORD_KEY], undefined);
   const r = record.merge(null, SRC, [1], at(15, 9));
-  record.save(r, KEYS.UV_DAY_RECORD_KEY);
-  record.save(JSON.parse(JSON.stringify(r)), KEYS.UV_DAY_RECORD_KEY);
+  recordStore.save(r, KEYS.UV_DAY_RECORD_KEY);
+  recordStore.save(JSON.parse(JSON.stringify(r)), KEYS.UV_DAY_RECORD_KEY);
   assert.equal(writes, 1, 'the second, identical save skips the flash write');
-  assert.deepEqual(record.load(KEYS.UV_DAY_RECORD_KEY), r);
+  assert.deepEqual(recordStore.load(KEYS.UV_DAY_RECORD_KEY), r);
 });
 
 // ---------------------------------------------------------------------------

@@ -28,7 +28,7 @@
 #include "../appendix/config.h"
 #include "../appendix/theme.h"
 #include "../services/watch_services.h"
-#include "../windows/layout.h"
+#include "../appendix/view_spec.h"
 #include "../appendix/status_row_alloc.h"
 
 #include <stdio.h>

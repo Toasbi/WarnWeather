@@ -25,7 +25,7 @@ global.Pebble = {
   sendAppMessage: function(payload, ack) { sent.push(payload); if (ack) { ack(); } }
 };
 
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 const airQuality = require('../../../src/pkjs/weather/adapter/air-quality.js');
 const pollen = require('../../../src/pkjs/weather/adapter/pollen.js');
 const forecastSeries = require('../../../src/pkjs/weather/domain/forecast-series.js');

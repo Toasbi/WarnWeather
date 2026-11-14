@@ -9,7 +9,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 // The DWD adapter keeps the request function it finds at load: stub it first.
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 let responder = null;
 WeatherProvider.request = function (url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
 const DwdProvider = require('../../../../src/pkjs/weather/adapter/providers/dwd.js');

@@ -111,7 +111,7 @@ test('Reset watchface marks the reset-safe migrations done in the wiped store', 
   t.after(h.restore);
   h.quietNetwork();
   const KEYS = seedLightUpgrade(h);
-  const resetSafe = h.mod('settings/application/clay-migrations.js').RESET_SAFE_MARKERS;
+  const resetSafe = h.mod('settings/adapter/clay-migrations.js').RESET_SAFE_MARKERS;
 
   h.policy = () => 'ack';
   h.boot().ready({});

@@ -1,5 +1,5 @@
 #include "layout.h"
-#include "c/layers/status_metrics.h"   // status_min_band_h — integer font math, no SDK
+#include "c/appendix/status_metrics.h"   // status_min_band_h — integer font math, no SDK
 #include "c/layers/calendar_metrics.h" // calendar_last_row_ink_bottom — ditto, for the
                                        // ink the clock is centred against
 

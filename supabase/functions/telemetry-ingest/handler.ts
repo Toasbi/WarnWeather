@@ -5,14 +5,14 @@
 // Privacy: the API gateway logs the full URL of every request the function makes to
 // PostgREST, so the account-token hash never rides a URL or a query filter. The hourly rate
 // check is an RPC (supabase/schemas/telemetry.sql: POST /rest/v1/rpc/<fn>, arguments in the
-// body), and the insert carries both hashes in its row bodies. Logs go through log.ts only.
+// body), and the insert carries both hashes in its row bodies. Both queries live in
+// supabase-store.ts, which the handler takes as a dependency; logs go through log.ts only.
 //
 // The answers the phone acts on (it reads only the status): 202 for an accepted batch, a
 // 4xx for a request to drop, 429 or 500 for one to retry. The single-event shape the apps
 // before 1.16 post is no longer accepted: it gets 400 invalid_payload, which those apps drop
 // like any 4xx. 500 {error: 'internal_error'} answers a deploy missing its secrets, or
 // anything thrown.
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { logEvent } from "./log.ts";
 
@@ -417,35 +417,32 @@ export async function hmacSha256Hex(secret: string, message: string) {
   return out;
 }
 
-/** The service-role client and the token-hashing secret. */
-export type IngestBackend = { client: SupabaseClient; hashSecret: string };
+/** One telemetry_weather_fetch row, both hashes included (supabase/schemas/telemetry.sql). */
+export type FetchRow = { account_token_hash: string; watch_token_hash: string | null } & Record<string, unknown>;
+
+/**
+ * Persistence seam: implemented over Postgres in supabase-store.ts. Each method logs its own
+ * failure (by tag and code) and answers null or false for it.
+ */
+export interface IngestStore {
+  /**
+   * The caller's rows that ARRIVED since `since` (inserted_at, not received_at: batched rows
+   * carry historical received_at and would slide past an event-time window, making the limit
+   * void for a back-dated flood); null on a failure.
+   */
+  countRecentInserts(hash: string, since: string): Promise<number | null>;
+  /** Insert a batch's rows; false on a failure. */
+  insertFetches(rows: FetchRow[]): Promise<boolean>;
+}
+
+/** The store and the token-hashing secret. */
+export type IngestBackend = { store: IngestStore; hashSecret: string };
 
 export type IngestDeps = {
   /** null when the deploy lacks SUPABASE_URL, the service-role key or the hashing secret. */
   backend: IngestBackend | null;
   now: () => Date;
 };
-
-/**
- * The caller's rows that ARRIVED since `since` (inserted_at, not received_at: batched rows
- * carry historical received_at and would slide past an event-time window, making the limit
- * void for a back-dated flood), by RPC so the hash rides the body.
- * @param client The service-role client.
- * @param hash The caller's account-token hash.
- * @param since Start of the window (ISO timestamp).
- * @returns The count, or null on a database error (logged by code).
- */
-async function countRecentInserts(client: SupabaseClient, hash: string, since: string): Promise<number | null> {
-  const { data, error } = await client.rpc("telemetry_recent_insert_count", {
-    p_account_token_hash: hash,
-    p_since: since,
-  });
-  if (error || !Number.isInteger(data)) {
-    logEvent("rate_check_failed", error?.code);
-    return null;
-  }
-  return data as number;
-}
 
 /**
  * One request, start to finish (createIngestHandler wraps it in the last line of defence).
@@ -521,7 +518,7 @@ async function handle(req: Request, deps: IngestDeps): Promise<Response> {
     logEvent("not_configured");
     return Response.json({ error: "internal_error" }, { status: 500 });
   }
-  const { client, hashSecret } = backend;
+  const { store, hashSecret } = backend;
 
   const accountTokenHash = await hmacSha256Hex(hashSecret, batch.accountToken);
   const watchTokenHash = batch.watchToken && batch.watchToken.trim() !== ""
@@ -530,7 +527,7 @@ async function handle(req: Request, deps: IngestDeps): Promise<Response> {
 
   // Per-account hourly ARRIVAL count: bounds physical writes per account per hour — a
   // legit watch flushes ~2 batches per DAY.
-  const recent = await countRecentInserts(client, accountTokenHash, new Date(now - HOUR_MS).toISOString());
+  const recent = await store.countRecentInserts(accountTokenHash, new Date(now - HOUR_MS).toISOString());
   if (recent === null) {
     return Response.json({ error: "rate_check_failed" }, { status: 500 });
   }
@@ -539,8 +536,7 @@ async function handle(req: Request, deps: IngestDeps): Promise<Response> {
     return Response.json({ error: "rate_limit_exceeded" }, { status: 429 });
   }
 
-  // Both hashes ride the row bodies; the URL carries only the column names.
-  const insertResult = await client.from("telemetry_weather_fetch").insert(
+  const inserted = await store.insertFetches(
     rows.map((row) => ({
       account_token_hash: accountTokenHash,
       watch_token_hash: watchTokenHash,
@@ -548,8 +544,7 @@ async function handle(req: Request, deps: IngestDeps): Promise<Response> {
     })),
   );
 
-  if (insertResult.error) {
-    logEvent("insert_failed", insertResult.error.code);
+  if (!inserted) {
     return Response.json({ error: "insert_failed" }, { status: 500 });
   }
 

@@ -1,7 +1,7 @@
-// test/weather/application/provider-gps-cache.test.js
+// test/weather/adapter/provider-gps-cache.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 
 test('computeGpsMaxAgeMs: max(cache, interval) minutes in ms', () => {
   assert.equal(WeatherProvider.computeGpsMaxAgeMs('5', '15'), 15 * 60000);

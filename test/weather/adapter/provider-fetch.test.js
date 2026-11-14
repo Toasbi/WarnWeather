@@ -1,7 +1,7 @@
-// test/weather/application/provider-fetch.test.js
+// test/weather/adapter/provider-fetch.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 
 test('fetchWithCoordinates drives the chain from the passed coords, never resolving them', () => {
   var p = new WeatherProvider();

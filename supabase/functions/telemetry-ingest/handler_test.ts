@@ -1,12 +1,13 @@
-// The telemetry-ingest handler over the real supabase-js client and a recording fetch: proves
-// what the gateway would log (Supabase logs the full URL of every PostgREST request the
-// function makes, so no account or watch token, neither hash, and no event data may appear in
-// one), what the function logs (a tag and a code, nothing else), and the answers the phone
-// acts on.
+// The telemetry-ingest handler over its store and the real supabase-js client, with a
+// recording fetch: proves what the gateway would log (Supabase logs the full URL of every
+// PostgREST request the function makes, so no account or watch token, neither hash, and no
+// event data may appear in one), what the function logs (a tag and a code, nothing else), and
+// the answers the phone acts on.
 import { assert, assertEquals } from "@std/assert";
 import { createClient } from "@supabase/supabase-js";
 import { createIngestHandler, type IngestBackend } from "./handler.ts";
 import { safeCode } from "./log.ts";
+import { createIngestStore } from "./supabase-store.ts";
 
 const NOW = new Date("2026-07-06T12:00:00Z");
 const HOUR_AGO = "2026-07-06T11:00:00.000Z";
@@ -50,7 +51,7 @@ function backendOver(fetchFn: typeof fetch): IngestBackend {
     global: { fetch: fetchFn },
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
-  return { client, hashSecret: SECRET };
+  return { store: createIngestStore(client), hashSecret: SECRET };
 }
 
 /** Everything console.error printed while `fn` ran. */

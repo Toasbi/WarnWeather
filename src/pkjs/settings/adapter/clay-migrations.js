@@ -1,4 +1,4 @@
-// src/pkjs/settings/application/clay-migrations.js
+// src/pkjs/settings/adapter/clay-migrations.js
 //
 // The migration runner: runs the ledger in settings/domain/migrations/registry.js over the stored Clay
 // blob, once per boot (index.js's ready handler, right after seedDefaults). Each entry's
@@ -25,7 +25,7 @@
 // that send still sees the change. Stop forgetting the day stamp on that NACK and those
 // entries have to move to markOn 'ack'.
 
-var claySettings = require('../adapter/clay-settings.js');
+var claySettings = require('./clay-settings.js');
 var REGISTRY = require('../domain/migrations/registry.js');
 
 /**

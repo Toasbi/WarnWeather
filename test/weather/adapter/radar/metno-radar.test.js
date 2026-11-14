@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 
 // Stub the shared XHR BEFORE requiring the module under test (it captures
 // WeatherProvider.request at load time — same pattern as rainbow-radar.test.js).
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError, headers) {
   responder(url, type, onSuccess, onError, headers);

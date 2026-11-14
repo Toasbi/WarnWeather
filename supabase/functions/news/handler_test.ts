@@ -1,12 +1,13 @@
-// The news handler over the real supabase-js client and a recording fetch: proves what the
-// gateway would log (Supabase logs the full URL of every PostgREST request the function makes,
-// so no account token, token hash or reply text may appear in one), what the function logs
-// (a tag and a code, nothing else), and that the external contract old settings pages rely on
-// is unchanged.
+// The news handler over its Supabase store, the real supabase-js client and a recording
+// fetch: proves what the gateway would log (Supabase logs the full URL of every PostgREST
+// request the function makes, so no account token, token hash or reply text may appear in
+// one), what the function logs (a tag and a code, nothing else), and that the external
+// contract old settings pages rely on is unchanged.
 import { assert, assertEquals } from "@std/assert";
 import { createClient } from "@supabase/supabase-js";
 import { createNewsHandler, type NewsBackend } from "./handler.ts";
 import { safeCode } from "./log.ts";
+import { createNewsStore } from "./supabase-store.ts";
 
 const NOW = new Date("2026-07-06T12:00:00Z");
 const DAY_AGO = "2026-07-05T12:00:00.000Z";
@@ -46,7 +47,7 @@ function backendOver(fetchFn: typeof fetch): NewsBackend {
     global: { fetch: fetchFn },
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
-  return { client, hashSecret: SECRET };
+  return { store: createNewsStore(client), hashSecret: SECRET };
 }
 
 /** Everything console.error printed while `fn` ran. */

@@ -1,28 +1,25 @@
 var sunEventsLib = require('../domain/sun-events.js');
 var nextSunEvents = sunEventsLib.nextSunEvents;
-var encodeSunEvents = sunEventsLib.encodeSunEvents;
 var outbox = require('../../wire/adapter/outbox.js');
 var wireUnits = require('../../wire/domain/wire-units.js');
-var scaleTrendToBytes = wireUnits.scaleTrendToBytes;
 var zeroFilledArray = wireUnits.zeroFilledArray;
-var airQuality = require('../adapter/air-quality.js');
-var pollen = require('../adapter/pollen.js');
+var airQuality = require('./air-quality.js');
+var pollen = require('./pollen.js');
 var dayPeaks = require('../domain/day-peaks.js');
-var feelsLike = require('../domain/feels-like.js');
+var dayPeaksStore = require('./day-peaks-store.js');
 var fetchOptions = require('../domain/fetch-options.js');
-var hourlyWindow = require('../domain/hourly-window.js');
-var condition = require('../domain/condition.js');
+var forecastModel = require('../domain/forecast-model.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
 // fetches can require them without the old provider-cycle lazy-require hack);
 // the WeatherProvider.request/.failure statics below stay the adapters' (and
 // the tests') seam.
-var http = require('../adapter/http.js');
+var http = require('./http.js');
 var request = http.request;
 var failure = http.failure;
 // Location storage/parse helpers (GPS cache, geocode cache + backoff, override
 // parser) live in location.js; the orchestration below keeps their names.
-var locationLib = require('../adapter/location.js');
+var locationLib = require('./location.js');
 var readStoredJson = locationLib.readStoredJson;
 var parseLocationOverride = locationLib.parseLocationOverride;
 var readGeocodeCache = locationLib.readGeocodeCache;
@@ -31,12 +28,6 @@ var writeGeocodeBackoff = locationLib.writeGeocodeBackoff;
 var readGpsCache = locationLib.readGpsCache;
 var GPS_CACHE_MAX_AGE_MS = locationLib.GPS_CACHE_MAX_AGE_MS;
 
-
-// The series that become wire trends (forecast-series.js): the hours a payload carries
-// are the fewest any of them holds (payloadEntries). windDirTrend and aqiTrend feed
-// status slots only, so they never shorten the graph.
-var GRAPH_SERIES = ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend', 'gustTrend', 'uvTrend',
-    'cloudTrend', 'pressureTrend', 'feelsTrend', 'dewTrend'];
 
 var WeatherProvider = function() {
     // The base window every adapter must fill (hasValidData, adoptMapped's zero-fill).
@@ -613,7 +604,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                         // The day records only refine the slots' day max: a storage
                         // failure leaves that on its plain rule, never the fetch
                         // failed.
-                        var recalled = dayPeaks.recall(self, lat, lon);
+                        var recalled = dayPeaks.recall(self, lat, lon, Math.floor(Date.now() / 1000), dayPeaksStore.load);
                         self.earlierPeaks = recalled.earlier;
                         // This runs inside an XHR callback: a throw here would
                         // escape every try and leave the fetch unfinished, so it
@@ -636,7 +627,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                         }
                         // Only a current fetch's series join the records: an
                         // abandoned one's are older than what a newer fetch stores.
-                        dayPeaks.saveAll(recalled.records);
+                        dayPeaksStore.saveAll(recalled.records);
                         // The outbox sends only the categories that changed since
                         // the last ACKed message — possibly nothing, which still
                         // counts as a successful fetch.
@@ -694,122 +685,22 @@ WeatherProvider.prototype.hasValidData = function() {
 };
 
 /**
- * The hours the payload carries: hourly-window.js sendHours over the GRAPH_SERIES lengths.
+ * The hours the payload carries (forecast-model.js payloadEntries).
  *
  * @returns {number} The hours to send.
  */
 WeatherProvider.prototype.payloadEntries = function() {
-    var self = this;
-    return hourlyWindow.sendHours(this.options, this.numEntries, GRAPH_SERIES.map(function(k) {
-        var s = self[k];
-        return (s && s.length) || 0;
-    }));
+    return forecastModel.payloadEntries(this);
 };
 
 /**
- * Build the watch weather AppMessage payload from the provider's trend/current
- * fields. Trend byte-scaling and sun-event encoding live in their own helpers
- * (wire-units.js scaleTrendToBytes, sun-events.js encodeSunEvents) so this
- * stays a flat assembly of the wire object. It carries payloadEntries()
- * hours, so TEMP_MIN/TEMP_MAX name the window the graph shows.
+ * Build the watch weather AppMessage payload from the provider's fields, at this moment
+ * (forecast-model.js buildPayload).
  *
  * @returns {Object} Weather AppMessage payload (pre render-transform).
  */
 WeatherProvider.prototype.getPayload = function() {
-    var numEntries = this.payloadEntries();
-    var temps = this.tempTrend.slice(0, numEntries).map(function(temperature) {
-        return Math.round(temperature);
-    });
-    var precips = this.precipTrend.slice(0, numEntries).map(function(probability) {
-        return Math.round(probability * 100);
-    });
-    var rains = scaleTrendToBytes(this.rainTrend, numEntries, 10); // mm/h ×10 (tenths)
-    var winds = scaleTrendToBytes(this.windTrend, numEntries, 1);  // km/h integers
-    var gusts = scaleTrendToBytes(this.gustTrend, numEntries, 1);  // km/h integers
-    var uvs = (this.uvTrend && this.uvTrend.length)
-        ? scaleTrendToBytes(this.uvTrend, numEntries, 10) // UV index ×10 (tenths); forecast-series scales vs UV 11.0
-        : [];
-    // Whole-degree temps ride as a TRANSIENT series: applyForecastSeries encodes
-    // them ONCE, where settings are in hand — against temp's own band, or the
-    // joint temperature, feels-like and dew point band when such a line is
-    // selected. (An early encode here forced a decode-and-re-encode round trip
-    // downstream.)
-    // TEMP_MIN/TEMP_MAX carry the ACTUAL air range either way: the watch reads
-    // them only for the hi/lo labels; the scaling band travels in the bytes. (One
-    // exception, made later in applyForecastSeries: a known emery with the left
-    // axis's 'High/low includes feels-like & dew point' option on gets the temperature
-    // scale's ends instead -- forecast-axis.js bakesScale.)
-    // They are whole °F int32s, so for °C the watch's f_to_c rounds them a second
-    // time — a label can sit a degree off the single-rounded temp slot.
-    var tempMin = Infinity, tempMax = -Infinity, ti;
-    for (ti = 0; ti < temps.length; ti += 1) {
-        if (temps[ti] < tempMin) { tempMin = temps[ti]; }
-        if (temps[ti] > tempMax) { tempMax = temps[ti]; }
-    }
-    if (!isFinite(tempMin)) { tempMin = 0; tempMax = 0; }
-    var payload = {
-        TEMP_RAW_TREND: temps, // Transient PKJS-only: whole-degree temps; forecast-series encodes + deletes before send
-        TEMP_MIN: tempMin,
-        TEMP_MAX: tempMax,
-        PRECIP_TREND_UINT8: precips, // Holds values within [0,100]
-        RAIN_TREND_UINT8: rains, // Holds values within [0,255], representing 0.0..25.5 mm/h (5 mm cap on the watch; >5 mm signals overflow)
-        WIND_TREND_UINT8: winds, // Transient PKJS-only: km/h integers; forecast-series consumes + deletes this before send
-        GUST_TREND_UINT8: gusts, // Transient PKJS-only: km/h integers; forecast-series consumes + deletes this before send
-        UV_TREND_UINT8: uvs, // Transient PKJS-only: UV tenths; forecast-series consumes + deletes before send
-        AQI_TREND: (this.aqiTrend && this.aqiTrend.length) ? this.aqiTrend.slice(0, numEntries) : [], // Transient PKJS-only: current-window AQI ints; forecast-series consumes + deletes before send
-        POLLEN_TODAY: this.pollenToday, // Transient PKJS-only: native DWD severity; forecast-series consumes + deletes before send
-        POLLEN_TOMORROW: this.pollenTomorrow, // Transient PKJS-only: tomorrow's DWD severity, read by the pollen alert's look-ahead; deleted before send
-        CLOUD_TREND: (this.cloudTrend && this.cloudTrend.length) ? this.cloudTrend.slice(0, numEntries) : [], // Transient PKJS-only: cloud cover %; forecast-series consumes + deletes before send
-        PRESSURE_TREND: (this.pressureTrend && this.pressureTrend.length) ? this.pressureTrend.slice(0, numEntries) : [], // Transient PKJS-only: sea-level hPa (no _UINT8 — 950..1050 doesn't fit a byte); forecast-series consumes + deletes before send
-        FORECAST_START: this.startTime,
-        NUM_ENTRIES: numEntries,
-        // Transient PKJS-only: °F, unrounded like DEW_TREND — formatTemp rounds once,
-        // in the display unit; a whole-°F round here made °C readings round twice.
-        CURRENT_TEMP: this.currentTemp,
-        CITY: this.cityName
-    };
-    // First byte flags whether the event list starts on a sunrise (0) or sunset (1).
-    // Absent rather than empty with no pair to send: the outbox skips the
-    // absent 'sun' category, the watch keeps its last pair, and the sun status
-    // slot reads '--'.
-    var sunEventBytes = encodeSunEvents(this.sunEvents);
-    if (sunEventBytes) {
-        payload.SUN_EVENTS = sunEventBytes;
-    }
-    // Feels-like keys are emitted only when sourced (unlike PRESSURE_TREND's
-    // always-present empty array) so a feels-less payload has no keys to strip.
-    // Transient PKJS-only: forecast-series/formatValue consume + delete before send.
-    if (this.feelsTrend && this.feelsTrend.length) {
-        // °F, whole degrees: Steadman/apparent values are fractional, but the joint
-        // band they widen lands in the int32 TEMP_MIN/TEMP_MAX wire keys.
-        payload.FEELS_TREND = this.feelsTrend.slice(0, numEntries).map(function (v) {
-            return Math.round(v);
-        });
-    }
-    if (typeof this.currentFeels === 'number') {
-        payload.FEELS_CURRENT = this.currentFeels; // °F, unrounded like CURRENT_TEMP
-    }
-    // The weather condition now follows the same rule: absent rather than null
-    // when the provider names none. Transient PKJS-only: buildStatusLines bakes it
-    // into the condition slot's text and glyph, and forecast-series deletes it
-    // before send.
-    if (this.currentCondition) {
-        payload.CURRENT_CONDITION = this.currentCondition; // a condition.js id, e.g. 'partly'
-    }
-    // Dew point and wind bearing follow the same conditional-emit rule as the
-    // feels-like keys: absent rather than empty, so a provider that does not
-    // source them leaves no key to strip. Transient PKJS-only — buildStatusLines
-    // bakes both into slot text and forecast-series deletes them before send.
-    if (this.dewTrend && this.dewTrend.length) {
-        payload.DEW_TREND = this.dewTrend.slice(0, numEntries); // °F, unrounded: formatTemp rounds per unit
-    }
-    if (this.windDirTrend && this.windDirTrend.length) {
-        payload.WIND_DIR_TREND = this.windDirTrend.slice(0, numEntries); // degrees 0-359, "comes from"
-    }
-    // The day-max slots' *_DAY_PEAKS triples (day-peaks.js), with the earlier
-    // peaks this fetch recalled.
-    dayPeaks.addToPayload(payload, this, this.earlierPeaks);
-    return payload;
+    return forecastModel.buildPayload(this, Math.floor(Date.now() / 1000));
 };
 
 WeatherProvider.request = request;
@@ -861,134 +752,16 @@ WeatherProvider.requestMapped = function(opts, onMapped, onFailure) {
     }, opts.headers, opts.body);
 };
 
-/**
- * The mapped-forecast vocabulary: every key an adapter's `mapped` object may
- * carry, grouped by the convention adoptMapped applies when the key is absent.
- * Written down once, here; adoptMapped iterates these lists and the adapter
- * tests assert their mappers' output against `all`.
- *
- *   core   — required for a payload (hasValidData checks their presence).
- *   zeroed — per-hour series whose "no data" reads as 0 (rain mm/h, wind/gust
- *            km/h): zero-filled to numEntries, the constructor's shape.
- *   empty  — per-hour series a provider may not source: [] (the pressure line
- *            stays off, the dew slot shows '--', the wind slots draw no arrow).
- *   feels  — apparent temperature plus the inputs the feelsFormula resolvers
- *            need (humidity + wind); only feelsTrend/currentFeels are stored.
- *   uv     — the UV series, adopted only when options.fetchUv is on.
- *   condition — the weather condition now (a condition.js id), read off the
- *            moment currentTemp describes; null when the response names none.
- */
-WeatherProvider.MAPPED_KEYS = {
-    core: ['tempTrend', 'precipTrend', 'startTime', 'currentTemp'],
-    zeroed: ['rainTrend', 'windTrend', 'gustTrend'],
-    empty: ['pressureTrend', 'cloudTrend', 'dewTrend', 'windDirTrend'],
-    feels: ['feelsTrend', 'currentFeels', 'humidityTrend', 'currentHumidity', 'currentWindKmh'],
-    uv: ['uvTrend'],
-    condition: ['currentCondition']
-};
-WeatherProvider.MAPPED_KEYS.all = [].concat(
-    WeatherProvider.MAPPED_KEYS.core,
-    WeatherProvider.MAPPED_KEYS.zeroed,
-    WeatherProvider.MAPPED_KEYS.empty,
-    WeatherProvider.MAPPED_KEYS.feels,
-    WeatherProvider.MAPPED_KEYS.uv,
-    WeatherProvider.MAPPED_KEYS.condition
-);
+WeatherProvider.MAPPED_KEYS = forecastModel.MAPPED_KEYS;
 
 /**
- * Own-key presence on a mapped object (a key set to undefined still counts:
- * hasValidData's core check is presence, not value).
- *
- * @param {Object} obj The mapped object.
- * @param {string} key Key to test.
- * @returns {boolean} True when `key` is an own property of `obj`.
- */
-function hasKey(obj, key) {
-    return Object.prototype.hasOwnProperty.call(obj, key);
-}
-
-/**
- * Adopt a mapped forecast onto the provider — TOTAL: every forecast field in
- * MAPPED_KEYS is (re)assigned on every call, so a reused provider instance can
- * never carry a previous cycle's series into a new startTime. Per group:
- *
- *   core   — present → copied (even when the value is undefined); ABSENT →
- *            deleted from the instance, so hasValidData rejects it.
- *   zeroed — present → copied; absent → zero-filled to this.numEntries.
- *   empty  — present → copied; absent → [].
- *   feels  — options.fetchFeels off → feelsTrend [], currentFeels null.
- *            Else, with a mapped humidityTrend, the feelsFormula resolvers pick
- *            per hour between the mapped (API) feels-like and Steadman from
- *            temp + humidity + wind (this branch needs mapped.tempTrend).
- *            Else a mapped feelsTrend ships verbatim under either formula (the
- *            adapter computed Steadman itself, or its API sources no humidity),
- *            with currentFeels copied when present, null when not.
- *            Else feelsTrend [], currentFeels null.
- *   uv     — options.fetchUv on and uvTrend present → copied; else [].
- *   condition — present and a condition.js id → copied; absent, null or any
- *            other value → null.
- *
- * These are the semantic feels/uv gates, in ONE place for every adapter. An
- * adapter may still skip computing a feels series when options.fetchFeels is
- * off (a pure compute-skip), and Open-Meteo's aux writers (adoptFeels,
- * adoptDewAndDirection, fetchUvInto) run after this and fill in what its main
- * response lacks. humidityTrend/currentHumidity/currentWindKmh are resolver
- * inputs only and are never stored on the instance.
+ * Adopt a mapped forecast onto the provider (forecast-model.js adoptMapped).
  *
  * @param {Object} mapped An adapter's mapped forecast (keys from MAPPED_KEYS.all).
  * @returns {void}
  */
 WeatherProvider.prototype.adoptMapped = function(mapped) {
-    var keys = WeatherProvider.MAPPED_KEYS;
-    var options = this.options;
-    var formula = options.feelsFormula;
-    var i;
-    var key;
-    for (i = 0; i < keys.core.length; i++) {
-        key = keys.core[i];
-        if (hasKey(mapped, key)) {
-            this[key] = mapped[key];
-        }
-        else {
-            delete this[key];
-        }
-    }
-    for (i = 0; i < keys.zeroed.length; i++) {
-        key = keys.zeroed[i];
-        this[key] = hasKey(mapped, key) ? mapped[key] : zeroFilledArray(this.numEntries);
-    }
-    for (i = 0; i < keys.empty.length; i++) {
-        key = keys.empty[i];
-        this[key] = hasKey(mapped, key) ? mapped[key] : [];
-    }
-    if (!options.fetchFeels) {
-        this.feelsTrend = [];
-        this.currentFeels = null;
-    }
-    else if (hasKey(mapped, 'humidityTrend')) {
-        // A mapped humidity series (OWM, WU, tomorrow.io) lets the Units tab's
-        // feels-like formula swap the API's value for Steadman; under
-        // 'provider' the resolvers hand the mapped values straight through.
-        this.feelsTrend = feelsLike.resolveFeelsTrend(formula,
-            hasKey(mapped, 'feelsTrend') ? mapped.feelsTrend : null,
-            mapped.tempTrend, mapped.humidityTrend, mapped.windTrend);
-        this.currentFeels = feelsLike.resolveCurrentFeels(formula,
-            hasKey(mapped, 'currentFeels') ? mapped.currentFeels : null,
-            mapped.currentTemp, mapped.currentHumidity, mapped.currentWindKmh);
-    }
-    else if (hasKey(mapped, 'feelsTrend')) {
-        // No humidity to compute from: DWD and Met.no already map Steadman, and
-        // Yandex's query deliberately omits humidity (its buildQuery note) —
-        // the mapped value ships under either formula.
-        this.feelsTrend = mapped.feelsTrend;
-        this.currentFeels = hasKey(mapped, 'currentFeels') ? mapped.currentFeels : null;
-    }
-    else {
-        this.feelsTrend = [];
-        this.currentFeels = null;
-    }
-    this.uvTrend = (options.fetchUv && hasKey(mapped, 'uvTrend')) ? mapped.uvTrend : [];
-    this.currentCondition = condition.isCondition(mapped.currentCondition) ? mapped.currentCondition : null;
+    forecastModel.adoptMapped(this, mapped);
 };
 
 /**

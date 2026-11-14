@@ -5,14 +5,14 @@
 // PostgREST, so nothing keyed by the caller's account-token hash ever rides a URL or a query
 // filter. Every hash-keyed read or write, and every rate-limit count, is an RPC
 // (supabase/schemas/news.sql: POST /rest/v1/rpc/<fn>, arguments in the body); the vote upsert
-// carries the hash in its row body. Logs go through log.ts only.
+// carries the hash in its row body. Every query lives in supabase-store.ts, which the handler
+// takes as a dependency; logs go through log.ts only.
 //
 // The external contract is unchanged, since old settings pages keep calling it: the same
 // request shapes, status codes and success bodies (key order included), and the same
 // {error} strings, except that the three list failures now share 'list_failed' (no client
 // reads error strings). Messages ('reply') are no longer taken: an old settings page sending
 // one gets 400 invalid_payload.
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { logEvent } from "./log.ts";
 
@@ -115,17 +115,8 @@ export async function hmacSha256Hex(secret: string, message: string) {
   return out;
 }
 
-/** The service-role client and the token-hashing secret. */
-export type NewsBackend = { client: SupabaseClient; hashSecret: string };
-
-export type NewsDeps = {
-  /** null when the deploy lacks SUPABASE_URL, the service-role key or the hashing secret. */
-  backend: NewsBackend | null;
-  now: () => Date;
-};
-
 /** One item of the news_list RPC's answer (supabase/schemas/news.sql). */
-type ListRow = {
+export type ListRow = {
   id: number;
   created_at: string;
   title: string;
@@ -134,49 +125,64 @@ type ListRow = {
   my_choice?: number | null;
 };
 
+/** The news_list RPC's answer: the items and the caller's seen watermark. */
+export type ListAnswer = { items: ListRow[]; last_seen_id?: number | null };
+
+/** One row of news_votes, as the vote upsert writes it. */
+export type VoteRow = {
+  news_id: number;
+  account_token_hash: string;
+  choice_index: number;
+  choice_text: string;
+  updated_at: string;
+};
+
 /**
- * The caller's 10/day budget of votes used so far, counted by their last change (updated_at),
- * so a re-vote refreshes its window but never adds a second row.
- * @param client The service-role client.
- * @param hash The caller's account-token hash.
- * @param since Start of the window (ISO timestamp).
- * @returns The count, or null on a database error (logged by code).
+ * Persistence seam: implemented over Postgres in supabase-store.ts. Each method logs its own
+ * failure (by tag and code) and answers null or false for it.
  */
-async function countRecentActions(client: SupabaseClient, hash: string, since: string): Promise<number | null> {
-  const { data, error } = await client.rpc("news_recent_action_count", {
-    p_account_token_hash: hash,
-    p_since: since,
-  });
-  if (error || !Number.isInteger(data)) {
-    logEvent("rate_check_failed", error?.code);
-    return null;
-  }
-  return data as number;
+export interface NewsStore {
+  /** The newest items for a version, each with the caller's vote; null on a failure. */
+  list(version: string, hash: string | null, limit: number): Promise<ListAnswer | null>;
+  /** Raise the caller's seen watermark (never lower it); false on a failure. */
+  markSeen(hash: string, maxSeenId: number): Promise<boolean>;
+  /** A poll's choices ({choices: null} for no such item); null on a failure. */
+  getChoices(newsId: number): Promise<{ choices: unknown } | null>;
+  /**
+   * The caller's votes changed since `since` (by updated_at, so a re-vote refreshes its
+   * window but never adds a second row); null on a failure.
+   */
+  countRecentActions(hash: string, since: string): Promise<number | null>;
+  /** Record or change the caller's vote; false on a failure. */
+  upsertVote(row: VoteRow): Promise<boolean>;
 }
+
+/** The store and the token-hashing secret. */
+export type NewsBackend = { store: NewsStore; hashSecret: string };
+
+export type NewsDeps = {
+  /** null when the deploy lacks SUPABASE_URL, the service-role key or the hashing secret. */
+  backend: NewsBackend | null;
+  now: () => Date;
+};
 
 /**
  * op 'list': the newest items for the caller's version, each with the caller's vote, and the
  * caller's seen watermark, in one RPC. No or a nonconforming token -> lastSeenId null (unread
  * unknowable) and no votes; a token with no watermark yet -> 0 (all unread).
- * @param backend Client and hashing secret.
+ * @param backend Store and hashing secret.
  * @param payload The validated request.
  * @returns 200 {items, lastSeenId}, each item {id, created_at, title, body_md, choices, myChoice}.
  */
 async function list(backend: NewsBackend, payload: z.infer<typeof listSchema>): Promise<Response> {
   const token = conformingToken(payload.accountToken);
   const hash = token === "" ? null : await hmacSha256Hex(backend.hashSecret, token);
-  const { data, error } = await backend.client.rpc("news_list", {
-    p_version: payload.version,
-    p_account_token_hash: hash,
-    p_limit: MAX_ITEMS,
-  });
-  const answer = data as { items?: unknown; last_seen_id?: number | null } | null;
-  if (error || !answer || !Array.isArray(answer.items)) {
-    logEvent("list_failed", error?.code);
+  const answer = await backend.store.list(payload.version, hash, MAX_ITEMS);
+  if (!answer) {
     return json({ error: "list_failed" }, 500);
   }
   // Rebuilt in the key order the table read produced (the RPC's jsonb sorts its keys).
-  const items = (answer.items as ListRow[]).map((it) => ({
+  const items = answer.items.map((it) => ({
     id: it.id,
     created_at: it.created_at,
     title: it.title,
@@ -189,18 +195,13 @@ async function list(backend: NewsBackend, payload: z.infer<typeof listSchema>): 
 
 /**
  * op 'seen': raise the caller's watermark (never lower it), as one upsert RPC.
- * @param backend Client and hashing secret.
+ * @param backend Store and hashing secret.
  * @param payload The validated request.
  * @returns 200 {ok: true}.
  */
 async function seen(backend: NewsBackend, payload: z.infer<typeof seenSchema>): Promise<Response> {
   const hash = await hmacSha256Hex(backend.hashSecret, payload.accountToken);
-  const { error } = await backend.client.rpc("news_mark_seen", {
-    p_account_token_hash: hash,
-    p_max_seen_id: payload.maxSeenId,
-  });
-  if (error) {
-    logEvent("seen_failed", error.code);
+  if (!await backend.store.markSeen(hash, payload.maxSeenId)) {
     return json({ error: "seen_failed" }, 500);
   }
   return json({ ok: true }, 200);
@@ -208,30 +209,24 @@ async function seen(backend: NewsBackend, payload: z.infer<typeof seenSchema>): 
 
 /**
  * op 'vote': record (or change) the caller's choice on a poll, within the shared daily budget.
- * @param backend Client and hashing secret.
+ * @param backend Store and hashing secret.
  * @param payload The validated request.
  * @param now The current time.
  * @returns 200 {ok: true}; 400 unknown_choice; 429 when the budget is spent.
  */
 async function vote(backend: NewsBackend, payload: z.infer<typeof voteSchema>, now: Date): Promise<Response> {
-  const { client } = backend;
+  const { store } = backend;
   const hash = await hmacSha256Hex(backend.hashSecret, payload.accountToken);
-  // Keyed by the news id only (no personal data), so a plain table read.
-  const newsRes = await client
-    .from("news")
-    .select("choices")
-    .eq("id", payload.newsId)
-    .maybeSingle();
-  if (newsRes.error) {
-    logEvent("news_lookup_failed", newsRes.error.code);
+  const poll = await store.getChoices(payload.newsId);
+  if (!poll) {
     return json({ error: "news_lookup_failed" }, 500);
   }
-  const choices = newsRes.data ? newsRes.data.choices : null;
+  const choices = poll.choices;
   if (!Array.isArray(choices) || payload.choiceIndex >= choices.length) {
     return json({ error: "unknown_choice" }, 400);
   }
 
-  const actions = await countRecentActions(client, hash, new Date(now.getTime() - DAY_MS).toISOString());
+  const actions = await store.countRecentActions(hash, new Date(now.getTime() - DAY_MS).toISOString());
   if (actions === null) {
     return json({ error: "rate_check_failed" }, 500);
   }
@@ -239,16 +234,14 @@ async function vote(backend: NewsBackend, payload: z.infer<typeof voteSchema>, n
     return json({ error: "rate_limit_exceeded", remaining: 0 }, 429);
   }
 
-  // The hash rides the row body; the URL carries only the conflict columns' names.
-  const up = await client.from("news_votes").upsert({
+  const voted = await store.upsertVote({
     news_id: payload.newsId,
     account_token_hash: hash,
     choice_index: payload.choiceIndex,
     choice_text: String(choices[payload.choiceIndex]),
     updated_at: now.toISOString(),
-  }, { onConflict: "news_id,account_token_hash" });
-  if (up.error) {
-    logEvent("vote_failed", up.error.code);
+  });
+  if (!voted) {
     return json({ error: "vote_failed" }, 500);
   }
   return json({ ok: true }, 200);

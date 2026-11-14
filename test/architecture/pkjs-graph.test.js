@@ -28,32 +28,17 @@ const RUNTIME = [
   ['new Date()', /\bnew\s+Date\b(?!\s*\(\s*[^)\s])/],
 ];
 
-// Domain and application files that still reach the runtime (file: the globals they use).
+// Domain and application files that reach the runtime (file: the globals they use): none.
 // Only adapters, the shell and the settings page may.
-const RUNTIME_ALLOWED = {
-  'settings/application/clay-migrations.js': ['localStorage'],
-  'status-bars/application/status-rebake.js': ['localStorage', 'Date.now'],
-  'telemetry/application/telemetry-settings.js': ['Date.now'],
-  'weather/application/provider.js': ['navigator', 'Date.now', 'new Date()'],
-  'weather/domain/day-peaks.js': ['localStorage', 'Date.now'],
-  'weather/domain/keys/key-result.js': ['localStorage'],
-  'weather/domain/radar/radar-coverage.js': ['localStorage'],
-};
+const RUNTIME_ALLOWED = {};
 
 // Which roles each role may require, and the requires today that break it ("from -> to").
 const RULES = [
   { name: 'domain code requires only domain code and the shared library',
     from: ['domain'], to: ['domain', 'lib'], allowed: [
-      'weather/domain/radar/radar-sky.js -> weather/application/provider.js',
     ] },
   { name: 'application code requires no adapter, shell or settings page',
     from: ['application'], to: ['application', 'domain', 'lib'], allowed: [
-      'settings/application/clay-migrations.js -> settings/adapter/clay-settings.js',
-      'weather/application/provider.js -> weather/adapter/air-quality.js',
-      'weather/application/provider.js -> weather/adapter/http.js',
-      'weather/application/provider.js -> weather/adapter/location.js',
-      'weather/application/provider.js -> weather/adapter/pollen.js',
-      'weather/application/provider.js -> wire/adapter/outbox.js',
     ] },
   { name: 'adapters require no shell or settings page',
     from: ['adapter'], to: ['adapter', 'application', 'domain', 'lib'], allowed: [

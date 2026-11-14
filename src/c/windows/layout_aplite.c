@@ -27,7 +27,7 @@
 // If aplite ever regains the bytes, the port is small: take layout.c's `clock_above`/`below`
 // blocks and its clock_seat_y() call, and delete NONE_TIME_DROP.
 #include "layout.h"
-#include "c/layers/status_metrics.h"   // status_min_band_h — integer font math, no SDK
+#include "c/appendix/status_metrics.h"   // status_min_band_h — integer font math, no SDK
 
 // Band weights + heights: the aplite-only (144x168, non-emery) values from layout.c.
 #define WEIGHT_CALENDAR 45

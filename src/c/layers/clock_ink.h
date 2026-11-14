@@ -1,7 +1,7 @@
 #pragma once
 
 #include "c/appendix/config.h"    // TimeFont enum
-#include "c/windows/layout.h"     // ClockInk / LayoutMetrics
+#include "c/appendix/clock_seat.h"   // ClockInk / LayoutMetrics
 #include "c/layers/layer_util.h"  // status_forecast_band_h / status_full_tier_font
 
 // Where each time font's digits actually ink inside the clock band — the one quantity the

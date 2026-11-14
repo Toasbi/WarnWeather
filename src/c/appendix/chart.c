@@ -113,7 +113,7 @@ static ChartAxisLabel chart_axis_label(void) {
     // emery: the only platform offering the toggle (schema.js gates the row on
     // platform == 'emery') and the only one whose strips fit GOTHIC_18. The whole box
     // derives from the tier's content height (== the Gothic nominal size,
-    // layers/layer_util.h) via the measured ink model (layers/status_metrics.h): ink
+    // layers/layer_util.h) via the measured ink model (appendix/status_metrics.h): ink
     // occupies the box's BOTTOM cap-height rows, status_ink_top(content_h) ..
     // content_h - 1. Two band-edge constraints then pin every field at ANY tier, with
     // no per-tier tuning:

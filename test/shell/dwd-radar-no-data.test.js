@@ -1,4 +1,4 @@
-// test/weather/application/dwd-radar-no-data.test.js
+// test/shell/dwd-radar-no-data.test.js
 //
 // End to end on the phone side: a place inside DWD's generous box but off its radar
 // picture (Paris) gets a 404 from Brightsky on every update. One 404 alone stays
@@ -27,7 +27,7 @@ global.localStorage = {
 };
 
 // Brightsky's /radar answer for the next request: an HTTP status to fail with, or a body.
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../src/pkjs/weather/adapter/provider.js');
 var radarAnswer = 404;
 var radarRequests = 0;
 WeatherProvider.request = function(url, type, onSuccess, onError) {
@@ -36,11 +36,11 @@ WeatherProvider.request = function(url, type, onSuccess, onError) {
   if (typeof radarAnswer === 'number') { onError({ code: 'status_' + radarAnswer, detail: 'http_status' }); }
   else { onSuccess(JSON.stringify(radarAnswer)); }
 };
-const createFetchCycle = require('../../../src/pkjs/shell/fetch-cycle.js');
-const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
-const authBackoff = require('../../../src/pkjs/weather/adapter/auth-backoff.js');
-const notices = require('../../../src/pkjs/notices/adapter/notices.js');
-const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
+const createFetchCycle = require('../../src/pkjs/shell/fetch-cycle.js');
+const outbox = require('../../src/pkjs/wire/adapter/outbox.js');
+const authBackoff = require('../../src/pkjs/weather/adapter/auth-backoff.js');
+const notices = require('../../src/pkjs/notices/adapter/notices.js');
+const KEYS = require('../../src/pkjs/settings/domain/storage-keys.js');
 
 const MIN = 60 * 1000;
 const T0 = Date.UTC(2026, 9, 2, 10, 0, 20);

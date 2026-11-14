@@ -1,4 +1,5 @@
 'use strict';
+const { withHost } = require('../../helpers/rebake-host.js');
 // status-rebake.js' own contract, apart from its phone-battery trigger (whose
 // micro-send tests live in phone-battery.test.js): the resend reports back
 // through exactly one callback, which is what lets the config close chain the
@@ -41,7 +42,7 @@ function fakeBake(payload) {
 test('no snapshot to re-bake: onSuccess runs at once and nothing is sent', () => {
   storage = {};
   const sends = [];
-  statusRebake.init({ getSettings: () => ({}), sendWeather: (p) => sends.push(p) });
+  statusRebake.init(withHost({ getSettings: () => ({}), sendWeather: (p) => sends.push(p) }));
   const cb = callbacks();
   assert.equal(statusRebake.resendStatus('test', cb.ok, cb.fail), false);
   assert.deepEqual(cb.log, ['ok'], 'a caller chained behind the resend is never stranded');
@@ -51,7 +52,7 @@ test('no snapshot to re-bake: onSuccess runs at once and nothing is sent', () =>
 test('no settings supplier: onSuccess runs at once and nothing is sent', () => {
   storage = {};
   const sends = [];
-  statusRebake.init({ sendWeather: (p) => sends.push(p), buildStatusLines: fakeBake });
+  statusRebake.init(withHost({ sendWeather: (p) => sends.push(p), buildStatusLines: fakeBake }));
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null);
   const cb = callbacks();
   statusRebake.resendStatus('test', cb.ok, cb.fail);
@@ -62,11 +63,11 @@ test('no settings supplier: onSuccess runs at once and nothing is sent', () => {
 test('the outbox\'s callbacks are forwarded: ACK runs onSuccess, NACK onFailure', () => {
   storage = {};
   const sends = [];
-  statusRebake.init({
+  statusRebake.init(withHost({
     getSettings: () => ({}),
     buildStatusLines: fakeBake,
     sendWeather: (p, onSuccess, onFailure) => sends.push({ p, onSuccess, onFailure })
-  });
+  }));
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null);
   const cb = callbacks();
   assert.equal(statusRebake.resendStatus('test', cb.ok, cb.fail), true);
@@ -80,11 +81,11 @@ test('the outbox\'s callbacks are forwarded: ACK runs onSuccess, NACK onFailure'
 test('a bake that throws runs onFailure and sends nothing', () => {
   storage = {};
   const sends = [];
-  statusRebake.init({
+  statusRebake.init(withHost({
     getSettings: () => ({}),
     buildStatusLines: () => { throw new Error('boom'); },
     sendWeather: (p) => sends.push(p)
-  });
+  }));
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null);
   const cb = callbacks();
   assert.doesNotThrow(() => statusRebake.resendStatus('test', cb.ok, cb.fail));
@@ -98,8 +99,8 @@ test('through the real outbox: an unchanged status category skips the send and s
   global.Pebble = {
     sendAppMessage: (dict, ack) => { appMessages.push(dict); ack({}); }
   };
-  statusRebake.init({ getSettings: () => ({}), buildStatusLines: fakeBake,
-    sendWeather: require('../../../src/pkjs/wire/adapter/outbox.js').sendWeather });
+  statusRebake.init(withHost({ getSettings: () => ({}), buildStatusLines: fakeBake,
+    sendWeather: require('../../../src/pkjs/wire/adapter/outbox.js').sendWeather }));
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null);
   const cb = callbacks();
   statusRebake.resendStatus('first', cb.ok, cb.fail);
@@ -116,7 +117,7 @@ test('the backstop keeps what alerts look ahead to: a restart re-bakes Days and 
   storage = {};
   let live = require('../../helpers/on-demand.js').placedOnly(['uv', 'pollen'],
     { alertUvDisplay: 'icon', alertPollenDisplay: 'value' });
-  statusRebake.init({ getSettings: () => live, sendWeather: () => {} });
+  statusRebake.init(withHost({ getSettings: () => live, sendWeather: () => {} }));
   statusRebake.rememberBakeInputs({
     CITY: 'Bonn', UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 90, 0],
     POLLEN_TODAY: '1', POLLEN_TOMORROW: '3'
@@ -128,7 +129,7 @@ test('the backstop keeps what alerts look ahead to: a restart re-bakes Days and 
 
   // A restart: the in-memory inputs are gone, the backstop answers.
   const sends = [];
-  statusRebake.init({ getSettings: () => live, sendWeather: (p) => sends.push(p) });
+  statusRebake.init(withHost({ getSettings: () => live, sendWeather: (p) => sends.push(p) }));
   statusRebake.resendStatus('restart');
   assert.deepEqual(decodeAlerts(sends[0].ALERT_ENTRIES_UINT8).map((e) => [e.kind, e.level, e.mark, e.value]),
     [[7, 2, 'raquo', ''], [1, 2, 'raquo', '3']], 'UV and pollen alert for tomorrow, both at danger');
@@ -156,8 +157,8 @@ test('onTick re-bakes once at sunset and once at sunrise, and not in between', (
   const SUNRISE = T + 13 * 3600;
   let now = T * 1000;
   const sends = [];
-  statusRebake.init({ getSettings: () => ({}), sendWeather: (p) => sends.push(p),
-    buildStatusLines: fakeBake, now: () => now });
+  statusRebake.init(withHost({ getSettings: () => ({}), sendWeather: (p) => sends.push(p),
+    buildStatusLines: fakeBake, now: () => now }));
   assert.equal(statusRebake.onTick(), false, 'no snapshot yet: nothing to re-bake');
   statusRebake.rememberBakeInputs({ SUN_EVENTS: sunEvents(1, SUNSET, SUNRISE) }, null);
   assert.equal(statusRebake.onTick(), false, 'still the day the fetch baked');
@@ -180,9 +181,9 @@ test('onTick after a restart sends nothing until the next sunset', () => {
   let now = T * 1000;
   const opts = { getSettings: () => ({}), sendWeather: (p) => sends.push(p),
     buildStatusLines: fakeBake, now: () => now };
-  statusRebake.init(opts);
+  statusRebake.init(withHost(opts));
   statusRebake.rememberBakeInputs({ SUN_EVENTS: sunEvents(1, T + 3600, T + 13 * 3600) }, null);
-  statusRebake.init(opts);   // PKJS restarted
+  statusRebake.init(withHost(opts));   // PKJS restarted
   assert.equal(statusRebake.onTick(), false, 'no resend of the old snapshot on the return');
   now = (T + 3600) * 1000;
   assert.equal(statusRebake.onTick(), true, 'the sunset still turns it');
@@ -194,8 +195,8 @@ test('a resend for another reason counts as the bake of its side of sunset', () 
   const T = 1700000000;
   let now = T * 1000;
   const sends = [];
-  statusRebake.init({ getSettings: () => ({}), sendWeather: (p) => sends.push(p),
-    buildStatusLines: fakeBake, now: () => now });
+  statusRebake.init(withHost({ getSettings: () => ({}), sendWeather: (p) => sends.push(p),
+    buildStatusLines: fakeBake, now: () => now }));
   statusRebake.rememberBakeInputs({ SUN_EVENTS: sunEvents(1, T + 3600, T + 13 * 3600) }, null);
   now = (T + 7200) * 1000;
   statusRebake.resendStatus('charging');
@@ -207,4 +208,9 @@ test('the scheduler\'s minute tick runs the day/night check (index.js onSchedule
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
   const body = src.slice(src.indexOf('function onSchedulerTick() {'));
   assert.ok(body.slice(0, body.indexOf('\n}')).indexOf('statusRebake.onTick();') > 0);
+});
+
+test('init without a clock is refused at once, not at the first tick', () => {
+  assert.throws(() => statusRebake.init({ getSettings: () => ({}) }), /options\.now/);
+  assert.throws(() => statusRebake.init(), /options\.now/);
 });

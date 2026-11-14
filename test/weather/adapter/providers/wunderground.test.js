@@ -12,7 +12,7 @@ global.localStorage = {
 
 beforeEach(function() { delete store[storageKeys.WU_HOURLY_CACHE_KEY]; });
 
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
 const WundergroundProvider = require('../../../../src/pkjs/weather/adapter/providers/wunderground.js');

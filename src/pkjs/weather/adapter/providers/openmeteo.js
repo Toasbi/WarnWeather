@@ -1,4 +1,4 @@
-var WeatherProvider = require('../../application/provider.js');
+var WeatherProvider = require('../provider.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 

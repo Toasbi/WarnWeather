@@ -22,7 +22,7 @@ const FIXTURE_NOW = new Date(2026, 5, 1, 12, 34);
 function getFixtureWeatherPayload(fixture, settings, watchInfo, now) {
   return fixtureWeather.getFixtureWeatherPayload(fixture, settings, watchInfo, now || FIXTURE_NOW);
 }
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 
 // A minimal-but-valid 3-hour fixture: temps/precipPct present, 2 sun events.
 function makeFixture(over) {
@@ -380,7 +380,7 @@ test('fixture without pressureHpa still produces a valid (empty/off) pressure li
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, []);
 });
 
-// Dew point and the wind bearing are transient: applyForecastSeries strips both
+// Dew point and the wind bearing are transient: render-payload removes both
 // before the payload is returned, so the fixture path's mapping is unobservable
 // from the finished payload. Capture it at the hand-off instead — the point of the
 // mapping is that a fixture can drive the dew slot and the wind arrow at all, and a
@@ -388,7 +388,7 @@ test('fixture without pressureHpa still produces a valid (empty/off) pressure li
 // (exactly the gap pressureHpa had above), with no test able to see it.
 /**
  * Run a fixture through getFixtureWeatherPayload and capture the raw provider
- * payload as it enters applyForecastSeries, before the transients are deleted.
+ * payload as it enters applyForecastSeries, before render-payload removes the transients.
  * @param {Object} fixture Fixture object, as makeFixture builds one.
  * @param {Object} [settings] Clay settings; defaults to every line and bar off.
  * @returns {Object} The pre-transform weather payload.

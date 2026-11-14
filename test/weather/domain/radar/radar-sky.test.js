@@ -1,8 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 const radarSky = require('../../../../src/pkjs/weather/domain/radar/radar-sky.js');
+const radarSkySource = require('../../../../src/pkjs/weather/adapter/radar/radar-sky-source.js');
 const stripeLevels = require('../../../../src/pkjs/forecast-graphs/domain/stripe-levels.js');
 
 const Q = radarSky.SLOT_SECONDS;
@@ -306,9 +307,9 @@ test('the source follows the radar graph and the toggle; disabled clears the row
   assert.equal(radarSky.skySourceIdFor({}), 'openmeteo');
   assert.equal(radarSky.skySourceIdFor(null), 'openmeteo');
   let got;
-  radarSky.createSkySource('disabled').fetchSkyTupleAt(0, 0, SLOT0, (t) => { got = t; });
+  radarSkySource.createSkySource('disabled').fetchSkyTupleAt(0, 0, SLOT0, (t) => { got = t; });
   assert.deepEqual(got, { RADAR_SKY_UINT8: [] });
-  radarSky.createSkySource('bogus').fetchSkyTupleAt(0, 0, SLOT0, (t) => { got = t; });
+  radarSkySource.createSkySource('bogus').fetchSkyTupleAt(0, 0, SLOT0, (t) => { got = t; });
   assert.deepEqual(got, { RADAR_SKY_UINT8: [] }, 'an unknown id falls back to clearing');
 });
 
@@ -326,20 +327,20 @@ test('the Open-Meteo source packs a response, and a failure is transient (null)'
       })));
     };
     let got;
-    radarSky.createSkySource('openmeteo').fetchSkyTupleAt(...HONOLULU, SLOT0, (t) => { got = t; });
+    radarSkySource.createSkySource('openmeteo').fetchSkyTupleAt(...HONOLULU, SLOT0, (t) => { got = t; });
     assert.equal(urls[0], radarSky.buildOpenMeteoSkyUrl(...HONOLULU));
     assert.equal(got.RADAR_SKY_UINT8.length, 25);
     assert.equal(got.RADAR_SKY_UINT8[5], L2, 'first slot: a veil of high cloud draws half');
     assert.equal(got.RADAR_SKY_UINT8[5 + 9], FULL, 'first slot: full sun at Honolulu\'s noon');
     // The same answer for Berlin, at night there: the source hands its location on
     // to the elevation, so the beam draws no sun.
-    radarSky.createSkySource('openmeteo').fetchSkyTupleAt(...BERLIN, SLOT0, (t) => { got = t; });
+    radarSkySource.createSkySource('openmeteo').fetchSkyTupleAt(...BERLIN, SLOT0, (t) => { got = t; });
     assert.deepEqual(got.RADAR_SKY_UINT8.slice(14, 23), Array(9).fill(NONE));
     WeatherProvider.request = (url, method, onOk, onErr) => onErr({ code: 'network_error' });
-    radarSky.createSkySource('openmeteo').fetchSkyTupleAt(52, 13, SLOT0, (t) => { got = t; });
+    radarSkySource.createSkySource('openmeteo').fetchSkyTupleAt(52, 13, SLOT0, (t) => { got = t; });
     assert.equal(got, null);
     WeatherProvider.request = (url, method, onOk) => onOk('not json');
-    radarSky.createSkySource('openmeteo').fetchSkyTupleAt(52, 13, SLOT0, (t) => { got = t; });
+    radarSkySource.createSkySource('openmeteo').fetchSkyTupleAt(52, 13, SLOT0, (t) => { got = t; });
     assert.equal(got, null);
   } finally {
     WeatherProvider.request = orig;
