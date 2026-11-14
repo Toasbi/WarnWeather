@@ -105,7 +105,10 @@ The icon creator (WarnWeatherTools, `icon-creator/`) reads this folder's icons a
 Drawing version, its pixels the drawing as the black and white watches draw it, so every watch
 draws what the creator showed. Its source reads `creator`. The importer checks every size first
 and changes nothing when one is wrong. In the picker such a size has no tile and keeps its pick,
-whatever the picker saved before, until you pick a tile there and import the picks.
+whatever the picker saved before, until you pick a tile there and import the picks. Each size the
+creator exports carries the time (`importedAt`): a pick or an editor drawing changes it again
+only when it was made later, so an old doc still in a page's database, or an export without
+times, never undoes the creator's size.
 
 ### An icon from an SVG
 

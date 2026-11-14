@@ -66,6 +66,7 @@ def sizes_to_pick():
             out.append({'key': key, 'id': sid, 'rows': rows, 'pixels': s['pixels'],
                         'plats': s.get('platforms', ['basalt', 'emery']), 'uses': where.get(rows, []),
                         'version': s.get('version', 'pixel'), 'redraw': bool(s.get('redraw')),
+                        'importedAt': s.get('importedAt'),
                         'old': W.old_version(key, rows), 'h': W.svg_h(key, rows)})
     return out
 
@@ -238,7 +239,7 @@ def page_data(sizes, cands, pics):
                           'svg': open(src).read() if os.path.exists(src) else None})
         icons[-1]['sizes'].append({'id': z['id'], 'rows': z['rows'], 'plats': z['plats'], 'uses': z['uses'],
                                    'version': z['version'], 'redraw': z['redraw'], 'h': z['h'],
-                                   'versions': by_size[i]})
+                                   'importedAt': z['importedAt'], 'versions': by_size[i]})
     return {'versions': VERSIONS, 'icons': icons}
 
 

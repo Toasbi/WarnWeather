@@ -178,6 +178,9 @@ def editor_data():
                 z['sources']['saved'] = entry['pixels']
                 z['start'] = 'saved'
                 z['savedSource'] = entry.get('source', '')
+                if entry.get('importedAt'):
+                    # When the icon creator exported the size: a drawing saved before is older.
+                    z['savedImportedAt'] = entry['importedAt']
         start = 'lucide' if 'lucide' in sources else 'now'
         icons.append({'key': key, 'name': it['name'], 'group': it['group'], 'sample': it['sample'],
                       'note': it['note'], 'sources': sources, 'start': start, 'guides': guides,

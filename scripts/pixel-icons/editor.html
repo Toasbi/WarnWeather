@@ -209,6 +209,7 @@ button { font: inherit; color: inherit; }
   }
   function scheduleSave(key, id) {
     var docId = key + '_' + id;
+    state[key].sizes[id].updatedAt = Date.now();
     clearTimeout(timers[docId]);
     timers[docId] = setTimeout(function () { delete timers[docId]; flush(docId, key, id); }, 450);
     backupLocal();
@@ -237,8 +238,10 @@ button { font: inherit; color: inherit; }
       if (!z || !Array.isArray(d.pixels) || d.pixels.length !== z.rows) return;
       var docId = d.icon + '_' + id;
       if (timers[docId] || inflight[docId] || (active && active.key === d.icon && active.id === id)) return;
+      // A size the icon creator exported later: a drawing saved before the export is older.
+      if (z.savedImportedAt && !(d.updatedAt > z.savedImportedAt)) return;
       var s = state[d.icon].sizes[id];
-      s.px = fit(d.pixels, z.rows, z.cols); s.source = d.source || s.source; s.edited = true;
+      s.px = fit(d.pixels, z.rows, z.cols); s.source = d.source || s.source; s.edited = true; s.updatedAt = d.updatedAt;
     });
     renderAll();
   }
@@ -251,7 +254,8 @@ button { font: inherit; color: inherit; }
     D.icons.forEach(function (i) {
       var st = state[i.key], sizes = {};
       i.sizes.forEach(function (z) { var s = st.sizes[z.id];
-        sizes[z.id] = { rows: z.rows, cols: z.cols, aplite: Boolean(z.aplite), source: s.source, edited: s.edited, pixels: lines(s.px, z.rows, z.cols) }; });
+        sizes[z.id] = { rows: z.rows, cols: z.cols, aplite: Boolean(z.aplite), source: s.source, edited: s.edited,
+          updatedAt: s.updatedAt, pixels: lines(s.px, z.rows, z.cols) }; });
       out.icons[i.key] = { done: st.done, sizes: sizes };
     });
     return out;
@@ -268,8 +272,10 @@ button { font: inherit; color: inherit; }
         state[k].done = Boolean(j.icons[k].done);
         Object.keys(j.icons[k].sizes || {}).forEach(function (id) {
           var e = j.icons[k].sizes[id], z = sizeOf(k, id);
-          if (z && e && e.edited && e.pixels && e.pixels.length === z.rows) {
+          if (z && e && e.edited && e.pixels && e.pixels.length === z.rows
+              && !(z.savedImportedAt && !(e.updatedAt > z.savedImportedAt))) {
             var s = state[k].sizes[id]; s.px = fit(e.pixels, z.rows, z.cols); s.source = e.source; s.edited = true;
+            s.updatedAt = e.updatedAt;
           }
         });
       });

@@ -608,12 +608,20 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
   // ---- picks and saving ---------------------------------------------------------------------
   function pick(id, ver) {
     if (state[id].version === ver) return;
-    state[id] = { version: ver, redraw: state[id].redraw };
+    state[id] = { version: ver, redraw: state[id].redraw, updatedAt: Date.now() };
     changed(id);
   }
   function setRedraw(id, on) {
-    state[id] = { version: state[id].version, redraw: on };
+    state[id] = { version: state[id].version, redraw: on, updatedAt: Date.now() };
     changed(id);
+  }
+  /**
+   * Whether a pick saved at `at` (ms) may show for a size: always, unless the icon creator
+   * exported the size later (import_pixels.py --creator stamps importedAt).
+   * @returns {boolean}
+   */
+  function afterCreator(id, at) {
+    return sizes[id].size.version !== CREATOR || at > sizes[id].size.importedAt;
   }
   function changed(id) {
     paintRow(id); paintCounts(); backup();
@@ -665,10 +673,10 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
     snap.docs.forEach(function (doc) {
       var d = doc.data(), id = doc.id;
       if (!d || !state[id] || timers[id] || inflight[id]) return;
-      // A size exported from the icon creator since: the export is newer than any saved pick.
-      if (sizes[id].size.version === CREATOR) return;
+      // A size exported from the icon creator since: the export is newer than a pick saved before it.
+      if (!afterCreator(id, d.updatedAt)) return;
       if (!sizes[id].size.versions[d.version]) return;
-      state[id] = { version: d.version, redraw: Boolean(d.redraw) };
+      state[id] = { version: d.version, redraw: Boolean(d.redraw), updatedAt: d.updatedAt };
     });
     paintAll(); backup();
   }
@@ -697,7 +705,8 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
     var out = { format: 'warnweather-icon-picks-2', picks: {}, svgs: {} };
     Object.keys(state).forEach(function (id) {
       var z = sizes[id];
-      out.picks[id] = { icon: z.icon.key, size: z.size.id, version: state[id].version, redraw: state[id].redraw };
+      out.picks[id] = { icon: z.icon.key, size: z.size.id, version: state[id].version, redraw: state[id].redraw,
+        updatedAt: state[id].updatedAt };
     });
     Object.keys(svgs).forEach(function (k) { out.svgs[k] = svgs[k].text; });
     return out;
@@ -745,8 +754,8 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
   if (kept) {
     Object.keys(kept).forEach(function (id) {
       var k = kept[id];
-      if (state[id] && k && sizes[id].size.version !== CREATOR && sizes[id].size.versions[k.version]) {
-        state[id] = { version: k.version, redraw: Boolean(k.redraw) };
+      if (state[id] && k && afterCreator(id, k.updatedAt) && sizes[id].size.versions[k.version]) {
+        state[id] = { version: k.version, redraw: Boolean(k.redraw), updatedAt: k.updatedAt };
       }
     });
   }

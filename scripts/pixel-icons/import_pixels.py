@@ -19,7 +19,9 @@ keeps its lines in the file (watch_icons.py old_version, svg-icon.js atSize), si
 a drawing.
 --creator reads an export of the icon creator (WarnWeatherTools): per icon and size, a pixel
 drawing, or a drawing as its lines (version drawing, kept in the file like old and svg) with its
-pixels as the black and white watches draw it. It checks every size before it changes any.
+pixels as the black and white watches draw it. It checks every size before it changes any, and
+stamps each size with the time (importedAt): a pick or an edit from the pages changes that size
+again only when it was made later, so an old doc still in a page's database never undoes it.
 
 The file keeps every edited size, done or not, so the editor can be rebuilt where you left off;
 only done icons go to the watch (gen_watch_icons.js).
@@ -30,6 +32,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -67,8 +70,9 @@ def save(doc):
 # What a size keeps from the picker (or the icon creator) when its pixels are edited again.
 PICKED = ('version', 'redraw', 'old', 'svg', 'drawing')
 # ...and a Pebble Classic size's mask kept as 3.1.1 drew it, which gen_watch_icons.js writes as it
-# is: new pixels wait under it, as they wait under a picked version.
-KEPT = PICKED + ('mask',)
+# is: new pixels wait under it, as they wait under a picked version; and when the icon creator
+# last exported the size.
+KEPT = PICKED + ('mask', 'importedAt')
 VERSIONS = ('pixel', 'half', 'slant', 'old', 'svg')
 SVG_DIR = os.path.join(W.ROOT, 'resources', 'icon-svg')
 SVG_MAX = 256 * 1024
@@ -106,21 +110,35 @@ def svg_version(key, rows):
     return out
 
 
-def put(doc, key, size_id, pixels, source):
+def later(size, updated, what, key, size_id):
+    """Whether a page's pick or drawing (made at `updated`, ms; None when its file doesn't say)
+    may change a size: always, unless the icon creator exported the size at or after that time."""
+    at = size.get('importedAt')
+    if at is None or (isinstance(updated, (int, float)) and updated > at):
+        return True
+    print('kept %s %s as the icon creator exported it: the %s is older' % (key, size_id, what))
+    return False
+
+
+def put(doc, key, size_id, pixels, source, updated=None):
     if key not in W.KEYS or not pixels:
         return False
     entry = doc['icons'].setdefault(key, {'done': False, 'sizes': {}})
     was = entry['sizes'].get(size_id, {})
+    if not later(was, updated, "editor's drawing", key, size_id):
+        return False
     entry['sizes'][size_id] = dict({'source': source or '', 'pixels': list(pixels)},
                                    **{k: was[k] for k in KEPT if k in was})
     return True
 
 
-def pick(doc, key, size_id, version, redraw):
+def pick(doc, key, size_id, version, redraw, updated=None):
     """One size's pick: its version (pixel by default) and its Redraw mark."""
     s = doc['icons'].get(key, {}).get('sizes', {}).get(size_id)
     if s is None or size_id == 'A' or version not in VERSIONS:
         print('skipped the pick for %s %s (%s): no such drawing' % (key, size_id, version))
+        return False
+    if not later(s, updated, "picker's pick", key, size_id):
         return False
     for k in PICKED:
         s.pop(k, None)
@@ -142,7 +160,8 @@ def from_picks(doc, picks, svgs=None):
     """The picker's SVGs ({KEY: text}) into resources/icon-svg/, then its picks
     ([{icon, size, version, redraw}]) into the file."""
     keep_svgs(svgs)
-    return sum(pick(doc, p.get('icon'), str(p.get('size')), p.get('version') or 'pixel', bool(p.get('redraw')))
+    return sum(pick(doc, p.get('icon'), str(p.get('size')), p.get('version') or 'pixel', bool(p.get('redraw')),
+                    p.get('updatedAt'))
                for p in picks)
 
 
@@ -222,10 +241,11 @@ def from_creator(doc, path):
     for key, icon in sorted((ex.get('icons') or {}).items()):
         for size_id, s in sorted((icon.get('sizes') or {}).items()):
             checked.append((key, str(size_id)) + creator_size(key, size_id, s))
+    now = int(time.time() * 1000)
     for key, size_id, rows, px, drawing in checked:
         entry = doc['icons'].setdefault(key, {'done': False, 'sizes': {}})
         was = entry['sizes'].get(size_id, {}).get('pixels') or []
-        size = {'source': 'creator', 'pixels': centred(px, rows, len(was[0]) if was else 0)}
+        size = {'source': 'creator', 'pixels': centred(px, rows, len(was[0]) if was else 0), 'importedAt': now}
         if drawing:
             size['version'] = 'drawing'
             size['drawing'] = drawing
@@ -241,7 +261,7 @@ def from_export(doc, path):
             continue
         for size_id, s in icon.get('sizes', {}).items():
             if s.get('edited') or icon.get('done'):
-                n += put(doc, key, size_id, s.get('pixels'), s.get('source'))
+                n += put(doc, key, size_id, s.get('pixels'), s.get('source'), s.get('updatedAt'))
         if key in doc['icons'] or icon.get('done'):
             doc['icons'].setdefault(key, {'done': False, 'sizes': {}})['done'] = bool(icon.get('done'))
     return n
@@ -253,7 +273,7 @@ def from_db(doc, d):
         g = json.load(open(f))
         g = g.get('data', g)
         size_id = g.get('size') or str(g.get('rows'))
-        n += put(doc, g.get('icon'), size_id, g.get('pixels'), g.get('source'))
+        n += put(doc, g.get('icon'), size_id, g.get('pixels'), g.get('source'), g.get('updatedAt'))
     for f in sorted(glob.glob(os.path.join(d, 'icons', '*.json'))):
         g = json.load(open(f))
         g = g.get('data', g)
