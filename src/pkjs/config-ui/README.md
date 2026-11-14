@@ -974,7 +974,7 @@ there and nowhere else. The look is in `shell.html` (the `.ui-*` rules, and the 
 `.dlg-*` rules the engine's own parts share). The engine draws its nav rows, folding cards,
 dropdowns, Edit buttons, dialog headers and their Delete with it. An app's page modules call it
 as `PConf.ui` in the page (`require('…/config-ui/lib/ui.js')` under Node). WarnWeather's
-`test/config-ui-parts.test.js` fails on a page file that writes one of these out by hand.
+`test/repo/config-ui-parts.test.js` fails on a page file that writes one of these out by hand.
 
 | Builder | Draws |
 |---------|-------|
@@ -1183,7 +1183,7 @@ because aplite runs the PKJS phone-side JS on a pre-ES6 JavaScriptCore. WebView-
 (`lib/show-when.js`, `lib/engine.js`) must be ES5 to protect old Android WebViews. The SDK build
 does not catch stray ES6, so failures stay silent until runtime.
 
-A test in the suite (`test/config-es5.test.js`) tokenizes every shipped ES5 file and fails on
+A test in the suite (`test/repo/config-es5.test.js`) tokenizes every shipped ES5 file and fails on
 ES2015+ syntax and on calls to ES2015+ built-ins that nothing polyfills. It also fails on the
 ES5 strict-mode errors that ES2015 dropped, which Node therefore never reports: duplicate object
 keys and function declarations inside a block. The whole page is one `"use strict"` script, so

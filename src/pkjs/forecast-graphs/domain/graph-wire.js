@@ -211,7 +211,7 @@ function buildCurveInsetBytes(settings) {
 /**
  * The graph's three Clay tuples for one watch, keyed by their AppMessage names. Derived
  * from the settings blob plus the watch's capabilities alone, never from weather data, so
- * they ride the Clay message (test/inbox-size.test.js budgets them). Deliberately NOT
+ * they ride the Clay message (test/repo/inbox-size.test.js budgets them). Deliberately NOT
  * platform-gated, unlike the threshold blob or the curve insets: aplite renders the same
  * two metric lines, so it needs their colours too.
  * @param {Object} settings Clay settings blob.

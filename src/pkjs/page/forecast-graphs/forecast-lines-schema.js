@@ -210,7 +210,7 @@ function lineFromCopies(pickerKey) {
 // forecast-series.PRESSURE_SCALE_CURVE_HPA (the sole source of truth for the numbers)
 // at module load, so the settings-screen copy can never drift from it the way a third
 // hand-copied set of numbers could (preview-forecast.js's PRESSURE_CURVES is the second copy,
-// guarded by its own drift test — see test/config-blocks.test.js). The scale is fixed
+// guarded by its own drift test — see test/page/settings/config-blocks.test.js). The scale is fixed
 // and absolute but piecewise (rain-bar style): the copy quotes the full-detail core;
 // readings outside it compress toward 940/1060 instead of clipping.
 /**

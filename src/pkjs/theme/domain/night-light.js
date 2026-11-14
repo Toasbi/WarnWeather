@@ -89,7 +89,7 @@ function clampChannel(n) {
  * channels, whitespace tolerated; an out-of-range channel is CLAMPED (0-255 is fixed by
  * the hardware, so 300 is a bruised value, not a stale one) while anything that is not
  * three integers — a hex string, two channels, a fraction — is rejected whole.
- * test/night-light.test.js pins the two parsers together over an input matrix, so the
+ * test/theme/domain/night-light.test.js pins the two parsers together over an input matrix, so the
  * colour the settings page previews is always the colour the LED gets.
  *
  * @param {Object} settings Clay settings blob (reads backlightDimColor).

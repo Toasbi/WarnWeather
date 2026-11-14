@@ -6,7 +6,7 @@
 //   - an item's `attentionFrom` (PConf.attentionResolvers) puts a dot on its tab's label
 //     and is what the Save button's confirm dialog (renderConfirmModal) is made from.
 // The Save flow itself (dialog, "Save anyway", the fix opening its sheet, no <dialog>
-// saving at once) is driven through the real page in test/config-key-status.test.js.
+// saving at once) is driven through the real page in test/page/weather/config-key-status.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 // Shared dual-use modules must populate global.PConf before engine.js reads them.

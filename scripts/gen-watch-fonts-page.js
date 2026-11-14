@@ -14,7 +14,7 @@
 // no other tool), TrueType outlines within, no hinting. Each glyph's pixels go in as
 // rectangles: the runs of a row, a run merged with the identical run under it.
 //
-// Run: node scripts/gen-watch-fonts-page.js   (test/watch-fonts-page.test.js fails while stale)
+// Run: node scripts/gen-watch-fonts-page.js   (test/page/layout/watch-fonts-page.test.js fails while stale)
 'use strict';
 const fs = require('fs');
 const path = require('path');

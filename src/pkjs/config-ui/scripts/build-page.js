@@ -22,7 +22,7 @@ var LIB_PAGE_FILES = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', '
  *    kept verbatim, since its leading blanks are part of the string;
  *  - removing whole lines keeps a line break between the code on either side, so
  *    automatic semicolon insertion sees the same breaks.
- * test/config-page-strip.test.js proves every shipped file tokenizes identically,
+ * test/page/settings/config-page-strip.test.js proves every shipped file tokenizes identically,
  * line breaks included, before and after.
  *
  * @param {string} src JavaScript source.

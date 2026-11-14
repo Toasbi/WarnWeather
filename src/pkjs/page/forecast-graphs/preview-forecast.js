@@ -101,7 +101,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     /**
      * The runs one line's polyline draws — the preview half of chart_runs.h's
      * chart_next_run, both held to test/c/chart_absent_test.c's LINE_RUN_VECTORS
-     * (parsed by test/config-blocks.test.js). A segment between two samples draws
+     * (parsed by test/page/settings/config-blocks.test.js). A segment between two samples draws
      * when both are readings, or on a joining line when one is: the line comes down
      * to a zero next to a reading. Two zeros in a row never draw. A run of one is a
      * lone reading no segment reaches (chart_render_line's small square).

@@ -33,7 +33,7 @@
 
     // Port of rain-tier.rainPermille (and its helpers). The watch builds bar heights with this
     // exact curve; the webview can't require() rain-tier, so it is mirrored here and guarded by
-    // test/config-blocks.test.js ('barPermille matches rain-tier.rainPermille byte-for-byte').
+    // test/page/settings/config-blocks.test.js ('barPermille matches rain-tier.rainPermille byte-for-byte').
     // Input is wire tenths (mm * 10); output is permille (0..1000) of plot height.
     var TIER_MAX_TENTHS = [1, 5, 20, 100];
     var TIER_TOP_PCT = [0, 14, 34, 56, 78, 100];
@@ -71,7 +71,7 @@
     }
     /**
      * Bar height for a rain reading, as a fraction of the plot in permille — the
-     * mirror of rain-tier.rainPermille, pinned to it by test/config-blocks.test.js.
+     * mirror of rain-tier.rainPermille, pinned to it by test/page/settings/config-blocks.test.js.
      * @param {number} tenths Rain in tenths of a mm (the wire unit).
      * @returns {number} 0..1000.
      */

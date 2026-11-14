@@ -36,7 +36,7 @@
 (function () {
     // The byte sent for each level 0..4. The watch's chart_stripe_level rounds UP,
     // ceil(v * 4 / 250), so each entry is the LARGEST byte of its level, floor(k * 250 / 4):
-    // a rounded 63 or 188 would draw one level too high. test/stripe-levels.test.js
+    // a rounded 63 or 188 would draw one level too high. test/forecast-graphs/domain/stripe-levels.test.js
     // round-trips them; test/c/radar_sky_test.c pins the watch side.
     var LEVEL_BYTES = [0, 62, 125, 187, 250];
     // The levels above "nothing" (chart_stripe.h CHART_STRIPE_LEVELS).

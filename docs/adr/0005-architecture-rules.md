@@ -128,7 +128,7 @@ Code behind that edge trusts its input and does not check it again.
 
 | Contract | Between | Shape | Guarded by |
 | --- | --- | --- | --- |
-| AppMessage | phone app → watchface | the message keys in `package.template.json`, packed by the wire modules; one weather and one settings message, each within the watch's inbox | `test/inbox-size.test.js`, the C host tests of the wire readers |
+| AppMessage | phone app → watchface | the message keys in `package.template.json`, packed by the wire modules; one weather and one settings message, each within the watch's inbox | `test/repo/inbox-size.test.js`, the C host tests of the wire readers |
 | Settings return | settings page → phone app | the page's JSON of stored values | the schema golden file, the migration tests |
 | Telemetry, news, radar | phone app → edge functions | JSON over HTTPS POST | each function's body schema and Deno tests |
 | Weather APIs | weather services → phone app | each service's own format; the phone conforms and maps it in its provider adapter | the provider tests and fixtures |

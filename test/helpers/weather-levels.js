@@ -1,7 +1,7 @@
 // test/helpers/weather-levels.js — read a weather kind's highlight off the public
 // wire (status-wire's packWeatherLevels, the STATUS_LEVELS_UINT8 bytes) rather
-// than through the module's internals. Shared by test/status-thresholds.test.js and
-// test/day-max-slots.test.js, which both pin what the highlight judges.
+// than through the module's internals. Shared by test/alerts/domain/status-thresholds.test.js and
+// test/weather/domain/day-max-slots.test.js, which both pin what the highlight judges.
 'use strict';
 const assert = require('node:assert/strict');
 const th = require('../../src/pkjs/alerts/domain/status-thresholds.js');

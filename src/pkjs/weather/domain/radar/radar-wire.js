@@ -61,7 +61,7 @@ function isClearRadarTuples(tuples) {
  * limit reached", the RAIN_RADAR_LIMITED string) instead of the no-rain line.
  * It rides ALONE, never together with the three radar arrays (which end the
  * notice on the watch), so it never makes the heaviest weather bundle heavier
- * (test/inbox-size.test.js).
+ * (test/repo/inbox-size.test.js).
  *
  * @returns {{RAIN_RADAR_LIMITED: string}} The limit notice tuple.
  */

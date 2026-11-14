@@ -1,0 +1,101 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const radarWire = require('../../../../src/pkjs/weather/domain/radar/radar-wire.js');
+
+test('NUM_BARS and SLOT_SECONDS are the shared 24 / 300 wire invariant', () => {
+  assert.equal(radarWire.NUM_BARS, 24);
+  assert.equal(radarWire.SLOT_SECONDS, 300);
+});
+
+test('slotZeroEpochFor pins an exact 5-min boundary to itself', () => {
+  const ms = 1700000100 * 1000;   // 1700000100 % 300 === 0
+  assert.equal(radarWire.slotZeroEpochFor(ms), 1700000100);
+});
+
+test('slotZeroEpochFor pins a mid-slot time down to the previous boundary', () => {
+  const ms = (1700000100 + 137) * 1000;   // 137 s into the slot
+  assert.equal(radarWire.slotZeroEpochFor(ms), 1700000100);
+});
+
+test('slotZeroEpochFor truncates sub-second milliseconds', () => {
+  const ms = 1700000100 * 1000 + 999;     // 999 ms past the boundary
+  assert.equal(radarWire.slotZeroEpochFor(ms), 1700000100);
+});
+
+test('clearRadarTuples returns empty trend arrays and a zero start', () => {
+  assert.deepEqual(radarWire.clearRadarTuples(), {
+    RAIN_RADAR_TREND_UINT8: [],
+    RAIN_RADAR_TREND_AREA_UINT8: [],
+    RAIN_RADAR_START: 0
+  });
+});
+
+test('isClearRadarTuples: the clear only — not a window, not a flat out-of-coverage window, not no answer', () => {
+  assert.equal(radarWire.isClearRadarTuples(radarWire.clearRadarTuples()), true);
+  assert.equal(radarWire.isClearRadarTuples(radarWire.flatRadarTuples(1700000100)), false);
+  const rain = new Array(24).fill(0); rain[5] = 30;
+  assert.equal(radarWire.isClearRadarTuples(radarWire.pointRadarTuples(rain, 1700000100)), false);
+  assert.equal(radarWire.isClearRadarTuples(null), false);
+  assert.equal(radarWire.isClearRadarTuples(undefined), false);
+  assert.equal(radarWire.isClearRadarTuples({}), false);
+});
+
+test('limitedRadarTuples is the limit notice alone: no radar array, no start', () => {
+  const limited = radarWire.limitedRadarTuples();
+  assert.deepEqual(limited, { RAIN_RADAR_LIMITED: 'Radar limit reached' }, 'the phone writes the line');
+  assert.ok(Buffer.byteLength(limited.RAIN_RADAR_LIMITED) <= 31, 'within the watch\'s 32 B notice buffer');
+  // It must never ride with the three radar keys: the arrays are what END the
+  // notice on the watch, and riding alone is what keeps the heaviest weather
+  // bundle from growing (test/repo/inbox-size.test.js).
+  ['RAIN_RADAR_TREND_UINT8', 'RAIN_RADAR_TREND_AREA_UINT8', 'RAIN_RADAR_START'].forEach((k) => {
+    assert.equal(Object.prototype.hasOwnProperty.call(limited, k), false, k);
+  });
+  assert.notEqual(radarWire.limitedRadarTuples(), radarWire.limitedRadarTuples(), 'a fresh object each call');
+});
+
+test('isLimitedRadarTuples: the limit notice (sky rows merged in too), never a window, a clear or no answer', () => {
+  assert.equal(radarWire.isLimitedRadarTuples(radarWire.limitedRadarTuples()), true);
+  // radar-sky.js joinRadarAndSky merges the sky rows into the radar answer.
+  assert.equal(radarWire.isLimitedRadarTuples(
+    Object.assign({}, radarWire.limitedRadarTuples(), { RADAR_SKY_UINT8: [1, 2, 3] })), true);
+  assert.equal(radarWire.isLimitedRadarTuples(radarWire.clearRadarTuples()), false);
+  assert.equal(radarWire.isLimitedRadarTuples(radarWire.flatRadarTuples(1700000100)), false);
+  // A window that somehow carries the flag too is a window (a fixture bundles both).
+  assert.equal(radarWire.isLimitedRadarTuples(
+    Object.assign(radarWire.flatRadarTuples(1700000100), radarWire.limitedRadarTuples())), false);
+  assert.equal(radarWire.isLimitedRadarTuples({ RAIN_RADAR_LIMITED: 0 }), false);
+  assert.equal(radarWire.isLimitedRadarTuples({ RAIN_RADAR_LIMITED: '' }), false);
+  assert.equal(radarWire.isLimitedRadarTuples({ RAIN_RADAR_LIMITED: 1 }), true, 'the 1 an older build sent');
+  assert.equal(radarWire.isLimitedRadarTuples(radarWire.outOfCoverageRadarTuples('DWD radar: Germany only')), false,
+    'the out-of-coverage notice rides with the clear');
+  assert.equal(radarWire.isLimitedRadarTuples(null), false);
+  assert.equal(radarWire.isLimitedRadarTuples(undefined), false);
+  assert.equal(radarWire.isLimitedRadarTuples({}), false);
+});
+
+test('isClearRadarTuples is false for the limit notice', () => {
+  assert.equal(radarWire.isClearRadarTuples(radarWire.limitedRadarTuples()), false);
+});
+
+test('outOfCoverageRadarTuples: the clear carrying the source\'s line; a clear to isClear, not the limit notice', () => {
+  const out = radarWire.outOfCoverageRadarTuples('DWD radar: Germany only');
+  assert.deepEqual(out, { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0,
+    RAIN_RADAR_LIMITED: 'DWD radar: Germany only' });
+  assert.equal(radarWire.isOutOfCoverageRadarTuples(out), true);
+  assert.equal(radarWire.isOutOfCoverageRadarTuples(Object.assign({ RADAR_SKY_UINT8: [1] }, out)), true, 'sky merged in');
+  assert.equal(radarWire.isClearRadarTuples(out), true, 'no window to keep');
+  assert.equal(radarWire.isLimitedRadarTuples(out), false);
+  [radarWire.clearRadarTuples(), radarWire.limitedRadarTuples(), radarWire.flatRadarTuples(1700000100), null, {}]
+    .forEach((t) => assert.equal(radarWire.isOutOfCoverageRadarTuples(t), false, JSON.stringify(t)));
+});
+
+test('failureForward: what a failed forecast still forwards of the radar answer, as its own keys', () => {
+  const sky = { RADAR_SKY_UINT8: [1, 2] };
+  assert.deepEqual(radarWire.failureForward(Object.assign({}, sky, radarWire.outOfCoverageRadarTuples('Met.no radar: Nordics only'))),
+    radarWire.outOfCoverageRadarTuples('Met.no radar: Nordics only'));
+  assert.deepEqual(radarWire.failureForward(Object.assign({}, sky, radarWire.clearRadarTuples())), radarWire.clearRadarTuples());
+  assert.deepEqual(radarWire.failureForward(Object.assign({}, sky, { RAIN_RADAR_LIMITED: 1 })), radarWire.limitedRadarTuples(),
+    'an older build\'s 1 goes out as today\'s line');
+  assert.equal(radarWire.failureForward(radarWire.flatRadarTuples(1700000100)), null, 'a window is fresh data');
+  assert.equal(radarWire.failureForward(null), null);
+});

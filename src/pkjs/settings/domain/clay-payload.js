@@ -21,7 +21,7 @@ var graphStyles = require('../../forecast-graphs/domain/graph-styles.js');
 var graphStyleWire = require('../../forecast-graphs/domain/graph-style-wire.js');
 
 // The radar's built-in no-rain text — the schema's radarNoRainText default and the
-// watch's fallback string (rain_radar_layer.c). test/clay-payload.test.js pins all three.
+// watch's fallback string (rain_radar_layer.c). test/settings/domain/clay-payload.test.js pins all three.
 var DEFAULT_NORAIN_TEXT = "You're good :)";
 
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
@@ -91,8 +91,8 @@ function holidayWindowOpts(settings, watchInfo) {
 }
 
 // CLAY_VIEW_RESET_MIN's wire layout: config_wire.h VIEW_RESET_DOUBLE_FLICK (pinned equal by
-// test/flick-presets.test.js). A bit, not a tuple: 11 B would break the Clay message's 10 B
-// headroom floor (test/inbox-size.test.js).
+// test/settings/domain/flick-presets.test.js). A bit, not a tuple: 11 B would break the Clay message's 10 B
+// headroom floor (test/repo/inbox-size.test.js).
 var VIEW_RESET_MINUTES_MASK = 0xFF;
 var VIEW_RESET_DOUBLE_FLICK = 0x100;
 
@@ -225,7 +225,7 @@ function buildClayPayload(settings, watchInfo, now) {
     // The low-battery takeover of the right slot is aplite's alone: every other watch
     // shows the battery as the On demand Battery item instead and ignores the key. Sent
     // only to a KNOWN aplite, so the 11 B stay out of every other Clay bundle, an
-    // unknown platform's included (test/inbox-size.test.js). The watch treats the key
+    // unknown platform's included (test/repo/inbox-size.test.js). The watch treats the key
     // as optional (config_wire.c); an aplite whose platform the phone cannot read
     // reads the takeover as off for that session.
     if (env.platform === 'aplite') {
@@ -251,7 +251,7 @@ function buildClayPayload(settings, watchInfo, now) {
     // emery watch of the setting over a watchInfo hiccup. Sending it everywhere is
     // harmless — the watch skips the key, and light_set_color_rgb888() is a documented
     // no-op on every board without the LED — and costs 12 B of a Clay bundle that has
-    // the headroom for it (test/inbox-size.test.js).
+    // the headroom for it (test/repo/inbox-size.test.js).
     payload.CLAY_NIGHT_LIGHT_UINT8 = nightLight.buildNightLightBytes(settings);
 
     // Threshold-highlight settings (enabled bits + colors + health-kind

@@ -4,7 +4,7 @@
 // the way src/c/appendix/alert_set.c parses it (a header byte has bit 7, a value
 // runs to the next header), so the tests that decode what the phone bakes share
 // one reader instead of each re-deriving the header bits. The constants it reads
-// are the phone's, which test/alert-entries-contract.test.js pins to the C header.
+// are the phone's, which test/alerts/domain/alert-entries-contract.test.js pins to the C header.
 'use strict';
 const assert = require('node:assert');
 const th = require('../../src/pkjs/alerts/domain/status-thresholds.js');

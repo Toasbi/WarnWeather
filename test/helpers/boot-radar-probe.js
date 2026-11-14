@@ -1,7 +1,7 @@
 // test/helpers/boot-radar-probe.js
 //
-// Child-process probe for test/index-aplite-radar.test.js and
-// test/index-radar-clear-on-failure.test.js: boots the REAL index.js on
+// Child-process probe for test/shell/index-aplite-radar.test.js and
+// test/shell/index-radar-clear-on-failure.test.js: boots the REAL index.js on
 // fresh-install defaults (radarMode 'graph', radarProvider 'rainbow' — what an
 // install whose settings page was never saved still holds) for the platform
 // named in argv[2], lets the first fetch cycle run, and prints one JSON line:

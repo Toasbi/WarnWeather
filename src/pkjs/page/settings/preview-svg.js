@@ -114,7 +114,7 @@
      * Take a preview svgFrame drew apart again: its frame height and its body, for a
      * picture that places the preview inside one of its own boxes (the Watchface tab's
      * watch draws each graph band from its preview). Kept beside svgFrame so the two
-     * cannot drift (test/preview-svg.test.js round-trips them).
+     * cannot drift (test/page/settings/preview-svg.test.js round-trips them).
      * @param {string} svg One svgFrame result.
      * @returns {?{h: number, inner: string}} null for anything svgFrame did not draw.
      */

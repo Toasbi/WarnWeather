@@ -23,7 +23,7 @@ sane and give the polygonizer enough resolution; STROKE_W matters because a 1px
 stroke is the one width Pebble antialiases (keep it 1).
 
 Conventions (override via env for one-offs):
- - VIEWBOX 24 (test/status-pdc.test.js asserts 24 for this family)
+ - VIEWBOX 24 (test/watchface/status-pdc.test.js asserts 24 for this family)
  - SVG2PDC_MARGIN 2   -> ~20px content
  - SVG2PDC_STROKE 1   -> thin, antialiased
 

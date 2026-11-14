@@ -347,7 +347,7 @@ var DWD_GUST_WARNINGS = 'https://www.dwd.de/DE/wetter/warnungen_aktuell/kriterie
 // not: they speak of the defaults ("By default, …"), the reference for picking others.
 // The numbers are the seeds (status-thresholds.js SEEDS) next to the published level
 // they sit on, written out because the reference words belong to them;
-// test/config-alert-level-cards.test.js holds every card to its variant's seed pair.
+// test/page/alerts/config-alert-level-cards.test.js holds every card to its variant's seed pair.
 // One link each, to the reference the numbers sit on.
 var ALERT_LEVEL_CARDS = {
     Gust: [{
@@ -421,7 +421,7 @@ var ALERT_LEVEL_CARDS = {
 // `iconName` feed the alert sheet's intro; Pollen is DWD's alone, like the pollen slot
 // itself; `why` is the kind's alert-level cards (ALERT_LEVEL_CARDS). The page's
 // presentation of the contract's metric alerts (status-thresholds.js ALERT_KINDS, which
-// owns which alerts exist and their order): test/config-schema.test.js pins this list's
+// owns which alerts exist and their order): test/page/settings/config-schema.test.js pins this list's
 // stems to that order.
 var ALERT_KINDS = [
     {keyStem: 'Gust', label: 'Wind gusts', title: 'Wind gusts', subject: 'the gust speed', iconName: 'gust',

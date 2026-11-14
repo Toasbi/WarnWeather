@@ -39,7 +39,7 @@ Other references:
   `src/pkjs/config-ui/test/**/*.test.js` and `plugins/test/**/*.test.js` (the weather
   plugins). Last it runs `scripts/test-c.sh` (host-compiled C layout tests).
 - Tests that touch storage must install a `global.localStorage` mock before the watch
-  modules load. `test/change-detector.test.js` shows the pattern.
+  modules load. `test/wire/adapter/change-detector.test.js` shows the pattern.
 
 ## Generated files: never edit by hand
 
@@ -53,10 +53,10 @@ The build and codegen regenerate these files and silently overwrite manual edits
 | `supabase/migrations/*` | declarative `supabase/schemas/` | `supabase db diff -f <label>` |
 | `resources/img/clock-<face>-<n>~*.png` (one per glyph; the `CLOCK_<FACE>_0..10` resources in `package.template.json`), `src/c/layers/clock_glyphs_{ink,metrics}.h` (committed) | `FACES` in `scripts/gen-clock-glyphs.py` | that script, run by hand (`pip install freetype-py pillow`); then the page copy below |
 | `scripts/clock-glyphs-system.json` (committed: the clock digits of the 1-bit system fonts: LECO, and the B/W watches' Roboto and Bitham) | nothing: read out of the SDK's emulator firmware | `python3 scripts/extract-system-clock-glyphs.py`, run by hand after an SDK update |
-| `src/pkjs/page/layout/clock-glyphs.generated.js` (committed: the settings page's watch preview draws its clock with it) | the glyph images and headers above, `scripts/clock-glyphs-system.json`, `src/c/layers/clock_ink.c` | `node scripts/gen-clock-glyphs-page.js`; `test/clock-glyphs-page.test.js` fails while it is stale |
-| `resources/data/STATUS_COND_*.pdc` and `src/pkjs/settings/condition-glyphs.generated.js` (committed: the weather condition slot's glyphs, the pixel icon editor's starting point and the settings page's copy; the watch draws pixel drawings, not these) | `GLYPHS` in `scripts/gen-condition-glyphs.py` | that script, run by hand (`pip install svg.path`); `test/status-line-contract.test.js` checks each glyph has its drawing, its watch mapping and its page outline |
+| `src/pkjs/page/layout/clock-glyphs.generated.js` (committed: the settings page's watch preview draws its clock with it) | the glyph images and headers above, `scripts/clock-glyphs-system.json`, `src/c/layers/clock_ink.c` | `node scripts/gen-clock-glyphs-page.js`; `test/page/engine/clock-glyphs-page.test.js` fails while it is stale |
+| `resources/data/STATUS_COND_*.pdc` and `src/pkjs/settings/condition-glyphs.generated.js` (committed: the weather condition slot's glyphs, the pixel icon editor's starting point and the settings page's copy; the watch draws pixel drawings, not these) | `GLYPHS` in `scripts/gen-condition-glyphs.py` | that script, run by hand (`pip install svg.path`); `test/status-bars/domain/status-line-contract.test.js` checks each glyph has its drawing, its watch mapping and its page outline |
 | `scripts/text-fonts-system.json` (committed: every glyph of the six Gothic text fonts the watch draws its status bars, calendar and graph labels in) | nothing: read out of the SDK's emulator firmware | `python3 scripts/extract-system-text-fonts.py`, run by hand after an SDK update |
-| `src/pkjs/page/layout/watch-fonts.generated.js` (committed: the settings page's pictures of the watch draw their text in it, `watch-text.js`) | `scripts/text-fonts-system.json`, `scripts/gen-watch-fonts-page.js` | `node scripts/gen-watch-fonts-page.js`; `test/watch-fonts-page.test.js` fails while it is stale |
+| `src/pkjs/page/layout/watch-fonts.generated.js` (committed: the settings page's pictures of the watch draw their text in it, `watch-text.js`) | `scripts/text-fonts-system.json`, `scripts/gen-watch-fonts-page.js` | `node scripts/gen-watch-fonts-page.js`; `test/page/layout/watch-fonts-page.test.js` fails while it is stale |
 | `resources/pixel-icons.json` (committed: the status icons' pixel drawings, per size, which icons are done, and the version picked for each size with its Redraw mark), `resources/icon-svg/<ICON>.svg` (committed: an SVG added to an icon in the picker) | the pixel icon editor and the icon picker (`scripts/pixel-icons/README.md`) | `python3 scripts/pixel-icons/import_pixels.py --export <file>` or `--db <dir>` (drawings), `--picks <dir>` or `--picks-export <file>` (picks and SVGs) |
 | `resources/data/PX_*.pdc` (each size in its picked version, and `PX_*_BW.pdc`, the pixel drawing for the black and white watches, where the pick is another version), their `PX_*` entries in `package.template.json`, `src/c/layers/status_pixel_icons.generated.h`, the `MASK_*` rows in `src/c/layers/status_row_aplite.c` (all committed: the drawings built into the watch, the only status icons it draws) and `src/pkjs/settings/condition-pixels.generated.js` (committed: the weather condition icons at 13 px, for the settings page's list of conditions) | `resources/pixel-icons.json` | `node scripts/pixel-icons/gen_watch_icons.js`; `test/pixel-icons.test.js` fails while they are stale, `test/c/status_icon_drawings_test.c` while a height a bar asks for has no drawing |
 
@@ -87,13 +87,13 @@ literals, and no ES6 built-ins. These are polyfilled and safe to call: `Object.a
 `Math.trunc` and `Array.prototype.find`/`findIndex`/`includes`. They come from
 `src/pkjs/lib/polyfills.js`, which `index.js` requires first. The settings page never loads
 that file, so the inline script in `src/pkjs/config-ui/lib/shell.html` carries the same set
-for the webview, and `test/config-page-polyfills.test.js` keeps the two in lockstep.
+for the webview, and `test/repo/config-page-polyfills.test.js` keeps the two in lockstep.
 `String.prototype.includes` is **not** polyfilled anywhere. To use another ES6 method, add a
 guarded polyfill to both places instead of calling it directly.
 
 Webview-only files are not exempt. `src/pkjs/config-ui/` (the settings UI on all platforms)
 must be ES5 even in files that only run in the phone webview (e.g. `lib/show-when.js`,
-`lib/engine.js`), to keep ancient Android WebViews working. `test/config-es5.test.js`, a
+`lib/engine.js`), to keep ancient Android WebViews working. `test/repo/config-es5.test.js`, a
 token-level ES5 check, enforces it; see the "ES5 constraint" section of that directory's
 README.md.
 
@@ -130,7 +130,7 @@ README.md.
   - A side slot's weather condition may grow its line past City's 44 B to the 48 B line cap
     (its name with the short form, only while the line holds it: `status-lines.js`
     `widenEdgeConditions`); the test checks every line at that cap too.
-  - `test/inbox-size.test.js` is the authoritative computation and the one place the bundle
+  - `test/repo/inbox-size.test.js` is the authoritative computation and the one place the bundle
     sizes are written down. It records them per platform exactly and guards both the weather
     and the Clay bundles, with a 10 B headroom floor on each. When you grow the worst-case bundle,
     update its `buildHeaviestBundle()`.
@@ -154,7 +154,7 @@ README.md.
     per-kind warn look and the ten On demand cells. `CLAY_BATTERY_LOW_ONLY` rides only a
     known aplite's bundle. Only a known emery's bundle carries the graph styles' records
     (`CLAY_GRAPH_STYLE_1..3_UINT8`) and bars 4 to 6's On demand cells
-    (`CLAY_OD_EXTRA_UINT8`). Check `test/inbox-size.test.js` either way.
+    (`CLAY_OD_EXTRA_UINT8`). Check `test/repo/inbox-size.test.js` either way.
 - Declare every new API host in the `usesPermissions` of `package.template.json`, in an
   `Internet` entry of its own service (each domain covers its subdomains).
   - SDK 4.44 builds manifest version 2 pbws. With the Pebble app's permissions preview on
@@ -176,7 +176,7 @@ README.md.
     location), the update check, notifications and Health.
   - A settings-page link to another site opens through `Pebble.openUrl` where the app
     offers it, declared or not (`config-ui/lib/links.js`).
-  - `test/uses-permissions.test.js` fails on a URL in `src/pkjs` that is neither declared
+  - `test/repo/uses-permissions.test.js` fails on a URL in `src/pkjs` that is neither declared
     nor named there as a non-request (a link in a hint, a comment), on a declared domain
     nothing requests or links to, and on an entry without a `reason` or `required`.
   - The hosts of the endpoints `prepare-package.sh` injects (telemetry, the Rainbow proxy,
@@ -325,7 +325,7 @@ their PostgREST calls and the Rainbow calls (the proxy and the own-key direct ca
   Never log an error object, message, detail, hint or request data. Thrown errors get
   literal messages. Each `Deno.serve` handler catches everything and logs it as
   `unhandled`, because the runtime would print an uncaught error's message and stack.
-  `test/supabase-log-hygiene.test.js` enforces this statically, and the Deno suites'
+  `test/repo/supabase-log-hygiene.test.js` enforces this statically, and the Deno suites'
   recording-fetch tests check the URLs supabase-js actually builds.
 - New SQL functions are `security invoker` (the default) unless they must bypass RLS. They
   set `search_path = ''` and are revoked from `public, anon, authenticated`. The REVOKE

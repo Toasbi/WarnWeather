@@ -4,7 +4,7 @@
  * (status-lines.js) and the config page (slot dropdown options).
  *
  * LOCKSTEP: KINDS / ICONS / CAPS mirror src/c/appendix/status_line.h;
- * test/status-line-contract.test.js enforces it. ES5 only (aplite PKJS).
+ * test/status-bars/domain/status-line-contract.test.js enforces it. ES5 only (aplite PKJS).
  */
 (function() {
   // view-cycle.js requires nothing, so there is no cycle; in the flat settings page it is

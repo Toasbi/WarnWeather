@@ -72,7 +72,7 @@ var FINE_BATTERY_PLATFORMS = { emery: true };
 // `#if defined(PBL_PLATFORM_EMERY)` arm of src/c/appendix/forecast_span.h, which sizes the
 // watch's forecast buffers for 68 hours there and 24 everywhere else. Every other watch is
 // sent 24 hours whatever is stored: their 640 / 536 B AppMessage inboxes would drop the long
-// span's 68-hour bundle (test/inbox-size.test.js). Unknown platforms get 24 h (fail closed,
+// span's 68-hour bundle (test/repo/inbox-size.test.js). Unknown platforms get 24 h (fail closed,
 // the colorBacklight precedent: never send more hours to a watch that may drop the message).
 var FORECAST_SPAN_PLATFORMS = { emery: true };
 // Platforms whose screens each draw their own graph style (Graphs > Forecast > Your graphs;

@@ -5,7 +5,7 @@
 // preview's sky rows, so both draw the watch's chart_stripe_fill_cell pattern: the
 // colour lines on the watch pixel grid each preview passes (see cell), the B&W
 // dither at preview scale. test/c/chart_stripe_test.c pins the C side;
-// test/config-blocks.test.js this.
+// test/page/settings/config-blocks.test.js this.
 (function () {
     var svg = (typeof require !== 'undefined') ? require('../settings/preview-svg.js') : window.PreviewSvg;
     var rect = svg.rect;

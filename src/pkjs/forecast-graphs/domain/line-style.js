@@ -144,7 +144,7 @@
     // Concrete per-polarity values, no "auto" sentinel. ADR-0003 §1-§2.
 
     // The graph metrics, the colour keys' scopes. The settings page names and orders them
-    // (page/forecast-graphs/forecast-metrics.js, the same eight: test/line-style.test.js); no reader
+    // (page/forecast-graphs/forecast-metrics.js, the same eight: test/forecast-graphs/domain/line-style.test.js); no reader
     // depends on this order.
     var GRAPH_METRICS = ['precip_prob', 'cloud', 'wind', 'uv', 'gust', 'pressure', 'feels', 'dew'];
     // Metric id -> the CamelCase key fragment. The ids are snake_case wire values and
@@ -253,7 +253,7 @@
      * DERIVED, never transcribed: every answer comes back out of the three resolvers the
      * renderer itself uses, so editing LINE_COLORS / FILL_COLORS / NIGHT_AREA_COLORS moves
      * the default with it and gust needs no special case (ADR-0003 §3). The appearance
-     * contract is pinned in test/line-style.test.js, not by a second table here.
+     * contract is pinned in test/forecast-graphs/domain/line-style.test.js, not by a second table here.
      *
      * `suffix` alone names the theme because this is the colour arm: renderContextFor
      * reports isColor true only for 'dark' and 'light', so Dark <-> 'dark' exactly.

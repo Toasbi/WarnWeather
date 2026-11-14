@@ -7,7 +7,7 @@
 // The marker-gated migration ledger (migrations/, run by clay-migrations.js) reads and
 // writes through here. The dependency is one-way BY DESIGN — this module must never
 // require it back, or the two form a cycle and the owner starts growing with the ledger
-// again (which is what put this file near 1000 lines). test/clay-migrations.test.js
+// again (which is what put this file near 1000 lines). test/settings/application/clay-migrations.test.js
 // pins it.
 
 var settings = require('../../page/settings');

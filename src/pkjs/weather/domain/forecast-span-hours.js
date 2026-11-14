@@ -89,7 +89,7 @@
     // 7 (tick 1, pad 1, bar 4, pad 1) over the plot right of the label strip, which is never
     // narrower than STRIP_MIN_W: the 142 px layer less the strip and its gap.
     var SMALL = { pitch: 7, plot: 142 - STRIP_MIN_W - STRIP_GAP };
-    // The stored values, the schema's options (test/forecast-span.test.js pins both). '48' is the
+    // The stored values, the schema's options (test/weather/domain/forecast-span.test.js pins both). '48' is the
     // long span's token: the first cut stored the long span as '48', so the token stays and
     // nothing migrates. The row labels it with the whole hours the watch will show (spanOptions:
     // "58 h" at the default layout).
@@ -97,7 +97,7 @@
     // The 24 h span: the only one off emery, and what an absent or unknown stored value reads
     // as (an install from before the key keeps it: clay-settings.js upgradeBackfill). It is
     // hourly-window.js FORECAST_HOURS, which the webview cannot read
-    // (test/forecast-span.test.js pins the two equal).
+    // (test/weather/domain/forecast-span.test.js pins the two equal).
     var DAY_HOURS = 24;
 
     /**

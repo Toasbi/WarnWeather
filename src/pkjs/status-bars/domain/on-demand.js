@@ -16,7 +16,7 @@
  * LOCKSTEP: ITEMS is the watch's OdItem order (src/c/appendix/on_demand.h: the priority
  * order and the wire order of the cells), BARS its ThreshBar order, and DEFAULTS for the
  * Watch Status Bar the compiled defaults in status_threshold.c;
- * test/on-demand-contract.test.js reads the C sources to pin all three. ES5 only (aplite
+ * test/status-bars/domain/on-demand-contract.test.js reads the C sources to pin all three. ES5 only (aplite
  * PKJS and the settings webview).
  */
 (function () {

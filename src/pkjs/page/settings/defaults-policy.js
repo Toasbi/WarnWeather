@@ -87,7 +87,7 @@
         //
         // Deliberately NOT here: the step, sleep and distance GOALS. They stay off
         // until the wearer sets one — a goal nobody chose is a number nobody meant,
-        // and it would celebrate on the watch face for it. test/defaults-policy.test.js
+        // and it would celebrate on the watch face for it. test/page/settings/defaults-policy.test.js
         // pins that omission so a future row cannot switch them on by accident.
     ];
 

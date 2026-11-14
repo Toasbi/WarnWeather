@@ -24,7 +24,7 @@
      * This file is concatenated into the flat config page, which has no require(),
      * and sleep-window.js is a watch-runtime module that is not in
      * build-config-page.js's APP_FILES — so the rule is copied rather than imported.
-     * test/tomorrowio-budget.test.js pins this against isWithinSleepWindow() over a
+     * test/page/weather/budgets/tomorrowio-budget.test.js pins this against isWithinSleepWindow() over a
      * matrix of stored values; keep the two in lockstep.
      *
      * @param {Object} S Settings state (sleepNightEnabled/sleepStartHour/sleepEndHour).
@@ -129,7 +129,7 @@
 
     // Every settings key the math above reads. A caller holding only a get(key)
     // accessor (the onSubmit hook) builds its state object from exactly these;
-    // test/tomorrowio-budget.test.js pins the list against what the math reads.
+    // test/page/weather/budgets/tomorrowio-budget.test.js pins the list against what the math reads.
     var STATE_KEYS = ['provider', 'radarProvider', 'radarMode',
         'sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'];
 
