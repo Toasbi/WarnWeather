@@ -34,7 +34,6 @@ const RUNTIME_ALLOWED = {
   'settings/application/clay-migrations.js': ['localStorage'],
   'status-bars/application/status-rebake.js': ['localStorage', 'Date.now'],
   'telemetry/application/telemetry-settings.js': ['Date.now'],
-  'weather/domain/day-peaks.js': ['localStorage', 'Date.now'],
 };
 
 // Which roles each role may require, and the requires today that break it ("from -> to").

@@ -8,6 +8,7 @@ var zeroFilledArray = wireUnits.zeroFilledArray;
 var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
 var dayPeaks = require('../domain/day-peaks.js');
+var dayPeaksStore = require('./day-peaks-store.js');
 var feelsLike = require('../domain/feels-like.js');
 var fetchOptions = require('../domain/fetch-options.js');
 var hourlyWindow = require('../domain/hourly-window.js');
@@ -613,7 +614,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                         // The day records only refine the slots' day max: a storage
                         // failure leaves that on its plain rule, never the fetch
                         // failed.
-                        var recalled = dayPeaks.recall(self, lat, lon);
+                        var recalled = dayPeaks.recall(self, lat, lon, Math.floor(Date.now() / 1000), dayPeaksStore.load);
                         self.earlierPeaks = recalled.earlier;
                         // This runs inside an XHR callback: a throw here would
                         // escape every try and leave the fetch unfinished, so it
@@ -636,7 +637,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                         }
                         // Only a current fetch's series join the records: an
                         // abandoned one's are older than what a newer fetch stores.
-                        dayPeaks.saveAll(recalled.records);
+                        dayPeaksStore.saveAll(recalled.records);
                         // The outbox sends only the categories that changed since
                         // the last ACKed message — possibly nothing, which still
                         // counts as a successful fetch.
@@ -808,7 +809,7 @@ WeatherProvider.prototype.getPayload = function() {
     }
     // The day-max slots' *_DAY_PEAKS triples (day-peaks.js), with the earlier
     // peaks this fetch recalled.
-    dayPeaks.addToPayload(payload, this, this.earlierPeaks);
+    dayPeaks.addToPayload(payload, this, this.earlierPeaks || null, Math.floor(Date.now() / 1000));
     return payload;
 };
 

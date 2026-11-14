@@ -23,6 +23,7 @@ const aq = require('../../../src/pkjs/weather/adapter/air-quality.js');
 const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
 const dayPeaks = require('../../../src/pkjs/weather/domain/day-peaks.js');
+const dayPeaksStore = require('../../../src/pkjs/weather/adapter/day-peaks-store.js');
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 
 const RAQUO = '»';
@@ -228,11 +229,11 @@ test('each day-max metric keeps its own record, keyed by its own feed', () => {
   const p = provider({ id: 'dwd', uvFeedId: 'openmeteo',
     windTrend: new Array(48).fill(10), gustTrend: new Array(48).fill(20),
     uvTrend: new Array(48).fill(3), aqiTrend: [42], aqiFeedId: null });
-  const records = dayPeaks.recall(p, 49.2, 7.0).records;
+  const records = dayPeaks.recall(p, 49.2, 7.0, Math.floor(Date.now() / 1000), dayPeaksStore.load).records;
   assert.deepEqual(records.map((r) => r.storageKey),
     [KEYS.UV_DAY_RECORD_KEY, KEYS.WIND_DAY_RECORD_KEY, KEYS.GUST_DAY_RECORD_KEY],
     'no AQI forecast, no AQI record');
-  records.forEach((r) => dayPeaks.save(r.record, r.storageKey));
+  records.forEach((r) => dayPeaksStore.save(r.record, r.storageKey));
   assert.equal(JSON.parse(store[KEYS.WIND_DAY_RECORD_KEY]).id, 'dwd');
   assert.equal(JSON.parse(store[KEYS.GUST_DAY_RECORD_KEY]).v[0], 20, 'whole km/h, as the payload rounds it');
   assert.equal(JSON.parse(store[KEYS.UV_DAY_RECORD_KEY]).id, 'openmeteo', 'UV keeps its feed');
@@ -251,7 +252,7 @@ test('only the day-max kinds a slot shows keep a record and widen their requests
     'uv in Now mode and gust in no slot keep none');
   const p = provider({ id: 'dwd', windTrend: new Array(48).fill(10),
     gustTrend: new Array(48).fill(20), uvTrend: new Array(48).fill(3), dayPeakCodes: ['wind'] });
-  assert.deepEqual(dayPeaks.recall(p, 49.2, 7.0).records.map((r) => r.storageKey), [KEYS.WIND_DAY_RECORD_KEY]);
+  assert.deepEqual(dayPeaks.recall(p, 49.2, 7.0, Math.floor(Date.now() / 1000), dayPeaksStore.load).records.map((r) => r.storageKey), [KEYS.WIND_DAY_RECORD_KEY]);
   assert.match(aq.buildAqiUrl(1, 2, 'us', false), /forecast_days=2/);
   assert.match(aq.buildAqiUrl(1, 2, 'us', true), /forecast_days=4/);
 });
@@ -279,12 +280,12 @@ test('the wind day record judges a dip in the user\'s unit, not in km/h', () => 
   // Calm until 08:00, 09:00 40 km/h, 10:00 31, 11:00 30 (31 and 30 both print 19 mph);
   // now 12:00 31, the rest of the day's max.
   const midnight = start - 12 * H;
-  dayPeaks.save(dayPeaks.merge(null, { id: 'dwd', lat: 49.2, lon: 7.0, scale: 1 },
+  dayPeaksStore.save(dayPeaks.merge(null, { id: 'dwd', lat: 49.2, lon: 7.0, scale: 1 },
     new Array(9).fill(5).concat([40, 31, 30]), midnight, midnight), KEYS.WIND_DAY_RECORD_KEY);
   const run = (windUnits) => {
     const p = provider({ id: 'dwd', startTime: start, windUnits, dayPeakCodes: ['wind'],
       windTrend: [31, 31, 20].concat(new Array(21).fill(10)) });
-    return dayPeaks.recall(p, 49.2, 7.0).earlier.wind;
+    return dayPeaks.recall(p, 49.2, 7.0, Math.floor(Date.now() / 1000), dayPeaksStore.load).earlier.wind;
   };
   assert.equal(run('kph'), 0, 'in km/h 11:00\'s 30 < 31 is a dip: the 40 is another peak\'s');
   assert.equal(run('mph'), 40, 'in mph 30 and 31 both print 19: no dip, the 40 counts');
@@ -302,10 +303,10 @@ test('wind and gust records keep to a few km; UV keeps its regional radius', () 
   Object.keys(store).forEach((k) => delete store[k]);
   const p = provider({ id: 'dwd', windTrend: new Array(48).fill(10), uvTrend: new Array(48).fill(3),
     dayPeakCodes: ['uv', 'wind'] });
-  dayPeaks.recall(p, 49.2, 7.0).records.forEach((r) => dayPeaks.save(r.record, r.storageKey));
+  dayPeaks.recall(p, 49.2, 7.0, Math.floor(Date.now() / 1000), dayPeaksStore.load).records.forEach((r) => dayPeaksStore.save(r.record, r.storageKey));
   const q = provider({ id: 'dwd', startTime: LOCAL_9AM + 3600,
     windTrend: new Array(48).fill(10), uvTrend: new Array(48).fill(3), dayPeakCodes: ['uv', 'wind'] });
-  const records = dayPeaks.recall(q, 49.5, 7.0).records;   // ~33 km north
+  const records = dayPeaks.recall(q, 49.5, 7.0, Math.floor(Date.now() / 1000), dayPeaksStore.load).records;   // ~33 km north
   const byKey = {};
   records.forEach((r) => { byKey[r.storageKey] = r.record; });
   assert.equal(byKey[KEYS.UV_DAY_RECORD_KEY].t, LOCAL_9AM, 'UV: same region, the 09:00 hour kept');
@@ -331,13 +332,13 @@ test('a fractional wind is rounded once, the same in the record as on the slot',
   const H = 3600;
   const start = new Date(2026, 6, 15, 12, 0, 0).getTime() / 1000;
   const midnight = start - 12 * H;
-  dayPeaks.save(dayPeaks.merge(null, { id: 'wunderground', lat: 49.2, lon: 7.0, scale: 1 },
+  dayPeaksStore.save(dayPeaks.merge(null, { id: 'wunderground', lat: 49.2, lon: 7.0, scale: 1 },
     new Array(11).fill(3).concat([14.484]), midnight, midnight), KEYS.WIND_DAY_RECORD_KEY);
   const p = provider({ id: 'wunderground', startTime: start, dayPeakCodes: ['wind'],
     windTrend: [14.484].concat(new Array(23).fill(3)) });
-  const earlier = dayPeaks.recall(p, 49.2, 7.0).earlier;
+  const earlier = dayPeaks.recall(p, 49.2, 7.0, Math.floor(Date.now() / 1000), dayPeaksStore.load).earlier;
   const payload = {};
-  dayPeaks.addToPayload(payload, p, earlier);
+  dayPeaks.addToPayload(payload, p, earlier, Math.floor(Date.now() / 1000));
   assert.equal(payload.WIND_DAY_PEAKS[0], 14);
   assert.equal(payload.WIND_DAY_PEAKS[2], 14, 'not 14.5 -> 15, one above the slot');
 });
@@ -373,6 +374,6 @@ test('the dew line never draws above the air temperature', () => {
 test('wind peaks stay a byte, like the trend they are compared with', () => {
   const wind = new Array(24).fill(270);
   const payload = {};
-  dayPeaks.addToPayload(payload, provider({ windTrend: wind, dayPeakCodes: ['wind'] }), {});
+  dayPeaks.addToPayload(payload, provider({ windTrend: wind, dayPeakCodes: ['wind'] }), {}, Math.floor(Date.now() / 1000));
   assert.equal(payload.WIND_DAY_PEAKS[0], 255);
 });
