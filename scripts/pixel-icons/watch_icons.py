@@ -42,7 +42,7 @@ SYSTEM = 'Bluetooth and quiet time'
 #       Lucide icon or parts, Tabler icon, note)
 # Scale percents: status_row_icons.c icon_scale_pct(). Weights: status_icon_weight.h.
 LUCIDE_CLOUD = 'M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242'
-RAIN_ALERT = 'Also the rain alert’s icon, drawn in the alert’s colour.'
+RAIN_ALERT = 'Also the rain alert’s icon.'
 ICONS = [
     ('SUN', 'Sun', WEATHER, 'STATUS_COND_SUN', 100, (50, 50), 'SUN', 'sun', 'sun', ''),
     ('MOON', 'Clear night', WEATHER, 'STATUS_COND_MOON', 100, (50, 50), 'CLR', 'moon', 'moon', ''),

@@ -38,11 +38,11 @@ GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top
                             theme_fg());
 }
 
-GDrawCommandImage *status_row_icons_load_rain(uint8_t bucket, int target_h, GColor tint, bool outline) {
+GDrawCommandImage *status_row_icons_load_rain(uint8_t bucket, int target_h) {
     if (target_h <= 0) { return NULL; }
     return icon_load_pixels(status_icon_drawing(s_status_pixel_rain, STATUS_PIXEL_RAIN_COUNT, bucket,
                                                 status_icon_painted_rows(target_h)),
-                            outline ? theme_fg() : tint);
+                            theme_fg());
 }
 
 void status_row_icons_destroy(GDrawCommandImage *image) {

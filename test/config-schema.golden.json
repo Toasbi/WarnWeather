@@ -8878,7 +8878,7 @@
               "env": "onDemand"
             },
             "title": "Rain alert",
-            "intro": "Shows the rain icon at the edge of a status bar while it rains at your location or when rain is due within the time window. On a color watch, the icon uses the radar’s rain color, except with a B&W theme. The icon is hidden during the Battery saver hours.",
+            "intro": "Shows the rain icon at the edge of a status bar while it rains at your location or when rain is due within the time window. The icon is hidden during the Battery saver hours.",
             "items": [
               {
                 "type": "subheader",

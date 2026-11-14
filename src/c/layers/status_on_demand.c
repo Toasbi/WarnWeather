@@ -15,7 +15,6 @@
 #include "status_row_layout.h"
 #include "status_sig.h"
 #include "../appendix/config.h"
-#include "../appendix/palette.h"
 #include "../appendix/persist.h"
 #include "../appendix/rain_countdown.h"
 #include "../appendix/snooze.h"
@@ -38,8 +37,6 @@ struct StatusOnDemandCache {
     uint8_t keys[GLYPH_SLOTS];   // 0 = free
     int16_t target_h;
     GColor fg;
-    GColor rain_tint;
-    bool rain_outline;
 };
 
 // NULL on OOM: the glyph items then measure text-only (or not at all) until a later
@@ -63,17 +60,6 @@ void status_on_demand_release(StatusOnDemandRow *row) {
     row->cache = NULL;
 }
 
-// The drops' tint for a radar tier: the radar palette's colour on a colour theme,
-// the foreground on B&W (palette_radar_color() hands B&W the strip's own background
-// there, which would paint the drops invisibly).
-static GColor rain_tint(int tier) {
-#ifdef PBL_COLOR
-    if (!theme_is_bw()) { return palette_radar_color(tier); }
-#endif
-    (void)tier;
-    return theme_fg();
-}
-
 // The Bluetooth glyph's ink, `hue` PictonBlue connected and red disconnected. The
 // light theme draws it in the foreground — a saturated blue reads poorly on a white
 // strip; a dark colour theme keeps the hue, and B&W collapses to the foreground
@@ -93,17 +79,14 @@ static int find_key(const StatusOnDemandCache *cache, uint8_t key) {
 // `target_h` (the row's icon tier; the slot glyphs through status_row_icons_load, the
 // rain alert's through status_row_icons_load_rain) and EVICT every cached glyph no
 // longer wanted — resident only while its item is active, so an idle bar holds no
-// glyph heap. The foreground, the rain tint and the light theme's ink for the rain
-// are part of the key: a theme or tier change reloads just the glyphs it affects.
+// glyph heap. The foreground and the icon height are part of the key: a theme or tier
+// change reloads the glyphs.
 // `top_strip` is not: a row is the top strip's or a bar's for its whole life
 // (status_bar.c's bar_line, top_status_layer.c), and so is its cache.
-static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int tier,
-                   int target_h, bool top_strip) {
+static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int target_h,
+                   bool top_strip) {
     GColor fg = theme_fg();
-    GColor tint = rain_tint(tier);
-    bool outline = theme_is_light();
     bool env = target_h != cache->target_h || !gcolor_equal(fg, cache->fg);
-    bool rain_env = env || !gcolor_equal(tint, cache->rain_tint) || outline != cache->rain_outline;
     for (int i = 0; i < GLYPH_SLOTS; i++) {
         uint8_t key = cache->keys[i];
         if (key == 0) { continue; }
@@ -111,13 +94,10 @@ static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int t
         for (int k = 0; k < n; k++) {
             if (keys[k] == key) { wanted = true; }
         }
-        bool stale = (key & RAIN_KEY_FLAG) ? rain_env : env;
-        if (stale || !wanted) { evict(cache, i); }
+        if (env || !wanted) { evict(cache, i); }
     }
     cache->target_h = (int16_t)target_h;
     cache->fg = fg;
-    cache->rain_tint = tint;
-    cache->rain_outline = outline;
     for (int k = 0; k < n; k++) {
         uint8_t key = keys[k];
         if (key == 0 || find_key(cache, key) >= 0) { continue; }
@@ -127,7 +107,7 @@ static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int t
         // redraw at the latest — tries again, as the old strip's indicator icons did;
         // until then the item measures text-only, or not at all (Bluetooth, Quiet time).
         cache->images[slot] = (key & RAIN_KEY_FLAG)
-            ? status_row_icons_load_rain(key & ~RAIN_KEY_FLAG, target_h, tint, outline)
+            ? status_row_icons_load_rain(key & ~RAIN_KEY_FLAG, target_h)
             : status_row_icons_load(key, target_h, top_strip);
         if (cache->images[slot]) { cache->keys[slot] = key; }
     }
@@ -390,8 +370,7 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     }
     if (!row->cache && nkeys > 0) { row->cache = cache_create(); }
     if (row->cache) {
-        ensure(row->cache, keys, nkeys, s->active[OD_RAIN] ? s->rain.tier : 0, env->icon_h,
-               env->top_strip);
+        ensure(row->cache, keys, nkeys, env->icon_h, env->top_strip);
     }
     // Each side's active items, nearest the side's own slot first: the item order is
     // the priority.

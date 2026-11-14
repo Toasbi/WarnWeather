@@ -1753,11 +1753,10 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
   assert.equal(s.title, 'Rain alert');
   assert.deepEqual(s.showWhen, { env: 'onDemand' }, 'shown in any radar mode: the card row names the radar');
   // When the watch shows it: raining now or due within the window, never in the
-  // Battery saver hours (rain_countdown.c; settings audit #14). rain_tint
-  // (status_on_demand.c): the radar colour only under a colour theme on a colour watch.
+  // Battery saver hours (rain_countdown.c; settings audit #14). No word on a colour: the
+  // icon draws in the foreground like every other (status_row_icons_load_rain).
   assert.equal(s.intro, 'Shows the rain icon at the edge of a status bar while it rains at your location'
-    + ' or when rain is due within the time window. On a color watch, the icon uses the radar’s rain color,'
-    + ' except with a B&W theme. The icon is hidden during the Battery saver hours.');
+    + ' or when rain is due within the time window. The icon is hidden during the Battery saver hours.');
   assert.ok(!s.items.some(it => it.messageKey === 'alertRain'), 'no on/off switch: its Shows on grid places Rain');
   // The Shows on card: its note as the card's intro (rain never merges into a slot, so no
   // merge sentence), then the boxes — the radar is off (a link to where it is turned on),

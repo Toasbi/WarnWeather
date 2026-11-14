@@ -4,9 +4,8 @@
 // the same picture the watch draws in that slot (item.icon: id).
 //
 // Hand-drawn page copies of the watch's PDC glyphs, NOT generated from them, so
-// a redraw on one side has to be carried to the other by hand:
-//   rain   -> resources/data/RAIN_*.pdc (the filled teardrop of
-//             scripts/gen-rain-pdc.py, one drop, grown to the 24 px frame)
+// a redraw on one side has to be carried to the other by hand (the rain alert's
+// icon is the exception: the condition slot's rain glyph, generated, below):
 //   uv     -> STATUS_UV.pdc      (sun: octagon core, eight 2 px rays)
 //   wind   -> STATUS_WIND.pdc    (three curled wind lines)
 //   gust   -> STATUS_GUST.pdc    (windsock — the watch's gust glyph, which is
@@ -68,12 +67,10 @@
         : window.ConditionGlyphs;
 
     var ICONS = {
-        // The watch's rain drop is a pure fill with no outline (gen-rain-pdc.py: a cone
-        // from the tip tangent to a round body). Same construction here — tip at y 3,
-        // body r 6 centred at (12, 14.5), tangent points at ±58.6° — so the row reads as
-        // the strip's rain glyph rather than as one more outline.
-        rain: svg24(' fill="currentColor"',
-            '<path d="M12 3L17.1 11.4A6 6 0 1 1 6.9 11.4Z"/>'),
+        // The rain alert's icon: the watch draws the rain cloud of the weather condition
+        // slot (its Drizzle, Rain or Heavy rain drawing), in the foreground like every
+        // other icon. The rows show the Rain one (STATUS_COND_RAIN.pdc's outline).
+        rain: svg24(OUTLINE, '<path d="' + CONDITION_GLYPHS.RAIN + '"/>'),
         uv: svg24(OUTLINE,
             '<circle cx="12" cy="12" r="4"/>'
             + '<path d="M12 2v2M12 20v2M2 12h2M20 12h2'

@@ -100,10 +100,10 @@ test('the weather condition icon ids are 19..33 on both sides of the wire', () =
 // Each condition glyph is a pixel drawing the watch draws (scripts/pixel-icons: an icon in
 // resources/pixel-icons.json, mapped to its id in gen_watch_icons.js and built into the watch's
 // tables); scripts/gen-condition-glyphs.py writes the editor's starting PDC and the settings
-// page's copy of the one glyph the page draws (condition-glyphs.generated.js). A glyph missing
+// page's copy of the glyphs the page draws (condition-glyphs.generated.js). A glyph missing
 // its drawing draws as nothing, without an error (test/c/status_icon_drawings_test.c checks
 // every height).
-test('every condition glyph has its drawing and its watch mapping; the page has the one it draws', () => {
+test('every condition glyph has its drawing and its watch mapping; the page has the ones it draws', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const ROOT = path.join(__dirname, '..');
@@ -112,7 +112,8 @@ test('every condition glyph has its drawing and its watch mapping; the page has 
   const table = fs.readFileSync(path.join(ROOT, 'src/c/layers/status_pixel_icons.generated.h'), 'utf8');
   const page = require('../src/pkjs/settings/condition-glyphs.generated.js');
   const drawn = Object.keys(catalog.ICONS).filter((k) => /^COND_/.test(k) && k !== 'COND_TEXT');
-  assert.deepEqual(Object.keys(page), ['SUN_CLOUD'], 'the page carries the slot\'s picture alone (status-slot-icons.js)');
+  assert.deepEqual(Object.keys(page), ['SUN_CLOUD', 'RAIN'],
+    'the page carries the slot\'s picture and the rain alert\'s icon (status-slot-icons.js, preview-radar.js)');
   assert.ok(drawn.indexOf('COND_SUN_CLOUD') !== -1, 'a glyph the watch draws too');
   drawn.forEach((k) => {
     const id = 'STATUS_ICON_' + k;

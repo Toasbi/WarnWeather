@@ -122,12 +122,9 @@ function rainAlertSheet() {
         showWhen: ON_DEMAND_WHEN,
         title: 'Rain alert',
         // The watch shows it while rain falls now, whatever the window, and hides it while
-        // the radar is snoozed for the Battery saver hours (rain_countdown.c). The colour
-        // follows rain_tint (status_on_demand.c): the radar's tier colour only on a colour
-        // watch under a colour theme.
+        // the radar is snoozed for the Battery saver hours (rain_countdown.c).
         intro: 'Shows the rain icon at the edge of a status bar while it rains at your location or when rain is '
-            + 'due within the time window. On a color watch, the icon uses the radar’s rain color, except with a '
-            + 'B&W theme. The icon is hidden during the Battery saver hours.',
+            + 'due within the time window. The icon is hidden during the Battery saver hours.',
         // Two cards: Shows on (with the boxes on why the icon cannot show yet: the radar
         // off, or Rain on no bar), then the alert's own rows, its time window first.
         items: showsOnRows('rain', null, [rainRadarOffNote(), rainNotPlacedNote()]).concat([

@@ -13,9 +13,9 @@
 GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top_strip);
 
 // The rain alert's icon for `bucket` (1 light, 2 rain, 3 heavy): the Drizzle, Rain or Heavy rain
-// pixel drawing at the weather icons' size, drawn in `tint`, or in the foreground when `outline`
-// (a pale tint does not read on the light theme's white). NULL for a non-positive target_h and a
-// load failure.
-GDrawCommandImage *status_row_icons_load_rain(uint8_t bucket, int target_h, GColor tint, bool outline);
+// pixel drawing at the weather icons' size, in the foreground like every other icon (a thin
+// outline in the radar's colour reads too faintly; a colour would need filled drops). NULL for
+// a non-positive target_h and a load failure.
+GDrawCommandImage *status_row_icons_load_rain(uint8_t bucket, int target_h);
 
 void status_row_icons_destroy(GDrawCommandImage *image);

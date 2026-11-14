@@ -76,8 +76,8 @@ ids) draws no icon. A drawing is its ink: rows and columns left blank fall away,
 seats the ink beside the text the way the editor's previews do. Icons draw in the theme's
 foreground colour.
 
-The rain alert draws the Drizzle, Rain or Heavy rain drawing in the alert's colour, or in the
-foreground on the light theme, where a pale colour does not read on white.
+The rain alert draws the Drizzle, Rain or Heavy rain drawing in the foreground like every other
+icon. A colour of its own reads too faintly on a thin outline; it would need filled drops.
 
 A Pebble Classic mask is its ink too: a blank row or column at its edge falls away, and the text
 sits as close as the editor shows.
