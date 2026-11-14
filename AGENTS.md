@@ -12,8 +12,9 @@ Other references:
 - Setup and the walkthrough are in `CONTRIBUTING.md`.
 - The architecture rules (where new code goes and which way it may depend) are in
   `docs/adr/0005-architecture-rules.md`, checked by `test/architecture/`. A new `src/pkjs`
-  file goes into `src/pkjs/<context>/<role>/`; `pkjs-homes.js` records only the files that
-  have not moved there yet.
+  file goes into `src/pkjs/<context>/<role>/` (settings-page files into
+  `src/pkjs/page/<context>/`); `pkjs-homes.js` records the few files whose path does not give
+  their home.
   The context map is in `CONTEXT.md`, the quality goals in `docs/quality-goals.md`.
 - For Pebble C SDK lookups, use the `pebble` skill in `.agents/skills/`. The C API is not in
   your training data, so look up any SDK call you aren't certain of before using it.

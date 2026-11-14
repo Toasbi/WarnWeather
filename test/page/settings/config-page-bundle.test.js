@@ -617,7 +617,7 @@ test('the support mug reaches the generated page, after news.js', () => {
 
 // APP_FILES is SHARED — build-config-page.js ships the page and
 // preview-config-page.js requires that same array to render `mise
-// preview-config`, so the two can no longer drift. test/preview-config-page.js's
+// preview-config`, so the two can no longer drift. test/scripts/preview-config-page.test.js's
 // last test pins that it stays one array rather than becoming a copy again.
 
 // The Weather tab is nine files, each reading a window global a file earlier

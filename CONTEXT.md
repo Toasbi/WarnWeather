@@ -14,8 +14,8 @@ and the contracts between the deployables are in [ADR 0005](./docs/adr/0005-arch
 A part of the product with its own model and words: weather data, forecast graphs, status bars,
 alerts, screens and layout, calendar, theme, health, settings, wire transport, app notices,
 telemetry.
-Its code belongs in one folder per deployable, grouped by role inside (the phone app's files
-move there over time; `test/architecture/pkjs-homes.js` records where each belongs).
+Its code sits in one folder per deployable, grouped by role inside (in the phone app,
+`src/pkjs/<context>/<role>/`).
 _Avoid_: module, feature (for the whole context).
 
 | Context | Watchface (C) | Phone app (PKJS) | Settings page | Edge functions |

@@ -30,10 +30,6 @@ is no global `domain/` or `adapter/` folder holding every context. A folder that
 about 15 to 20 files is split by sub-area. Tests mirror the source layout. Moves land in commits
 of their own, separate from edits.
 
-Today the phone app's files still sit in the flat `src/pkjs/` folder. They move into their
-context folders in later changes, and until then `test/architecture/pkjs-homes.js` records the
-context and role of each one. New files start in their folder.
-
 ### 2. The domain contexts
 
 | Context | Sub-areas |
@@ -148,7 +144,7 @@ and its docs.
 Each rule above that a machine can check has an architecture test in `test/architecture/`:
 
 - `pkjs-graph.test.js`, over the `require()` graph of `src/pkjs`: every file has a home
-  (`pkjs-homes.js` lists the files not yet in their folder), domain code touches no runtime, and
+  (`pkjs-homes.js` lists the few files whose path does not give their home), domain code touches no runtime, and
   each role requires only what it may: domain code only domain code and the shared library,
   application code no adapter, the phone app never the settings page, the page no adapter, the
   page's engine only itself and the shared library; no cycles;
@@ -174,8 +170,8 @@ a test is checked in review.
 
 ## Consequences
 
-- Files outside their context folder move there, each move in a commit of its own with no other
-  change; new code starts in its context's folder.
+- Every phone-app and settings-page file sits in its context's folder; a later move lands in a
+  commit of its own with no other change.
 - Domain code takes the time and its data as arguments, so its tests need no runtime stubs.
 - Shared watchface types move out of `windows/` so layers no longer include it.
 - The architecture tests fail on a new violation.
