@@ -163,9 +163,11 @@ function phoneBatterySupported() {
  * @param {Object} [env] Platform environment: a wind or gust slot keeps a byte free
  *   for the direction arrow only where packLine will draw one (arrowSector).
  *   Absent = a watch with the arrow (not aplite).
+ * @param {?Object} [weatherNow] The weather condition now (conditionNow), decided once for
+ *   the bake so a slot's name and glyph agree; null while none is known, absent = read here.
  * @returns {string} display text, '--' when the value is unavailable
  */
-function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) {
+function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, weatherNow) {
   var v;
   if (code === 'countdown') {
     return formatCountdown(settings && slotKey
@@ -187,7 +189,7 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) 
   // The weather condition's name in the slot's Look ('' for the glyph alone), its short form
   // after it where the slot has the bytes (slot-text.js conditionText); iconFor picks the glyph.
   if (code === 'condition') {
-    var cn = conditionNow(payload);
+    var cn = weatherNow === undefined ? conditionNow(payload) : weatherNow;
     if (!cn) { return '--'; }
     return slotText.conditionLook(settings, env) === 'icon' ? ''
       : slotText.conditionText(cn.names, cap, env, slotText.conditionName(settings));
@@ -386,9 +388,10 @@ function arrowSector(code, payload, settings, env, dayMax) {
  * @param {Object} payload weather payload (pre-transform)
  * @param {Object} settings Clay settings blob
  * @param {?Object} env platform environment
+ * @param {?Object} weatherNow the weather condition now (conditionNow), as packLine decided it
  * @returns {number} STATUS_ICON_* id to pack
  */
-function iconFor(code, item, payload, settings, env) {
+function iconFor(code, item, payload, settings, env, weatherNow) {
   if (code === 'phoneBattery') {
     var pb = phoneBatteryReading();
     if (pb && pb.charging) { return catalog.ICONS.PHONE_BATTERY_CHG; }
@@ -397,15 +400,14 @@ function iconFor(code, item, payload, settings, env) {
   // with the city's bit, which keeps the slot the city's on the watch. No glyph while no
   // condition is known, nor on aplite.
   if (code === 'city') {
-    var cw = slotText.cityIcon(settings, env) ? conditionNow(payload) : null;
+    var cw = slotText.cityIcon(settings, env) ? weatherNow : null;
     return cw ? (catalog.ICONS[condition.glyph(cw.id, cw.night)] | catalog.CITY_GLYPH) : item.icon;
   }
   // The weather condition's glyph; the text-only id while none is known and in the Text
   // look (aplite's too).
   if (code === 'condition') {
-    var cn = conditionNow(payload);
-    return cn && slotText.conditionLook(settings, env) !== 'text'
-      ? catalog.ICONS[condition.glyph(cn.id, cn.night)] : catalog.ICONS.COND_TEXT;
+    return weatherNow && slotText.conditionLook(settings, env) !== 'text'
+      ? catalog.ICONS[condition.glyph(weatherNow.id, weatherNow.night)] : catalog.ICONS.COND_TEXT;
   }
   return item.icon;
 }
@@ -443,9 +445,14 @@ function mergedAlert(alerts, settings, env, bar, s, code) {
  * @param {Object} env platform environment
  * @param {?Array<Object>} [alerts] the weather alerts the bake sends (status-wire.js
  *   bakedAlerts); absent or null = none (a watch the entries do not ride to)
+ * @param {?Object} [weatherNow] the weather condition now (conditionNow) the bake decided
+ *   once for all its lines; absent = decided here, once for the line
  * @returns {number[]} packed three-slot line
  */
-function packLine(line, payload, settings, env, alerts) {
+function packLine(line, payload, settings, env, alerts, weatherNow) {
+  // Day or night, decided once: a slot's condition glyph, its name and the city's glyph read
+  // the same answer, so a bake that runs across sunset never pairs the sun with a night name.
+  var now = weatherNow === undefined ? conditionNow(payload) : weatherNow;
   var bytes = [];
   // Where each slot's bytes start, and an edge slot's weather condition at the middle's room
   // (widenEdgeConditions).
@@ -473,7 +480,7 @@ function packLine(line, payload, settings, env, alerts) {
     }
     // Likewise resolved per bake rather than read straight off the entry: the charging
     // phone-battery glyph and the weather condition's (see iconFor).
-    var icon = iconFor(code, item, payload, settings, env);
+    var icon = iconFor(code, item, payload, settings, env, now);
     if (env.platform === 'aplite' && item.kind === catalog.KINDS.LIVE_WEEK) {
       // aplite has no watch-side iso_week() (reaped for image budget), so the
       // phone bakes the ISO week as an ordinary TEXT slot instead.
@@ -493,7 +500,7 @@ function packLine(line, payload, settings, env, alerts) {
       // The cap goes DOWN into formatValue so a per-kind unit can decline to
       // append itself rather than be silently chopped off again by utf8Truncate
       // below (see withUnit). The truncation still guards the value itself.
-      var text = formatValue(code, payload, settings, key, textCap(s), dayMax, alert, env);
+      var text = formatValue(code, payload, settings, key, textCap(s), dayMax, alert, env, now);
       // An edge slot's city walks the watch's word ladder before the cap cuts it: the
       // first form that fits ('B. Soden', not 'Bad Sode'), whose words the watch can
       // still shorten from there. A name no form fits whole is cut as before ('New
@@ -519,7 +526,7 @@ function packLine(line, payload, settings, env, alerts) {
       // form in an edge's 8 bytes.
       if (code === 'condition' && s !== 1 && env.platform !== 'aplite') {
         var wideBytes = utf8Truncate(utf8Encode(formatValue(code, payload, settings, key,
-          catalog.CAPS.EDGE_COND_TEXT_MAX, dayMax, alert, env)), catalog.CAPS.EDGE_COND_TEXT_MAX);
+          catalog.CAPS.EDGE_COND_TEXT_MAX, dayMax, alert, env, now)), catalog.CAPS.EDGE_COND_TEXT_MAX);
         if (wideBytes.join() !== valueBytes.join()) { wide[s] = wideBytes; }
       }
     } else {
@@ -583,9 +590,11 @@ function buildStatusLines(payload, settings, watchInfo) {
   // The Watch bar's line, then each bar's that a screen shows (catalog bakedLines). A bar on
   // no screen is sent no line: its text would only cost the send and the watch's flash write.
   var lines = catalog.bakedLines(settings, env);
+  // The weather now, by day or by night, decided once for every line of the bake.
+  var weatherNow = conditionNow(payload);
   for (var l = 0; l < lines.length; l++) {
     var line = lines[l];
-    payload[line.wireKey] = packLine(line, payload, settings, env, alerts);
+    payload[line.wireKey] = packLine(line, payload, settings, env, alerts, weatherNow);
   }
   // Packed weather-kind threshold levels: computed here because the raw
   // AQI/pollen/wind/gust values exist only phone-side (the watch gets text).

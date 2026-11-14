@@ -83,6 +83,37 @@ test('a sun event gone by since the forecast came flips it: the re-bake turns at
   assert.equal(polar.icon, catalog.ICONS.COND_MOON);
 });
 
+// The bake asks the clock once: a clock that moves on an hour with every reading, the sunset half
+// an hour ahead of the first, still gives every slot the day's glyph with the day's name (asked
+// twice, the glyph would be the sun's and the name the night's).
+test('a bake decides day or night once: its glyphs and names never straddle a sunset', () => {
+  const realNow = Date.now;
+  const start = realNow();
+  const SUN_EVENTS = encodeSunEvents([{ type: 'sunset', date: new Date(start + 1800000) },
+    { type: 'sunrise', date: new Date(start + 1800000 + 40000000) }]);
+  const settings = { statusForecastLeft: 'condition', statusForecastMid: 'condition', statusForecastRight: 'city',
+    citySlotIcon: true };
+  let readings = 0;
+  Date.now = () => start + 3600000 * readings++;
+  try {
+    const [left, mid, right] = decodeLine(lines.packLine(LINE, { CURRENT_CONDITION: 'clear', CITY: 'Bonn', SUN_EVENTS },
+      settings, BASALT, null));
+    assert.deepEqual([mid.icon, mid.text], [catalog.ICONS.COND_SUN, 'Sunny' + SEP + 'SUN']);
+    assert.deepEqual([left.icon, left.text], [catalog.ICONS.COND_SUN, 'Sunny' + SEP + 'SUN']);
+    assert.equal(right.icon, catalog.ICONS.COND_SUN | catalog.CITY_GLYPH, 'the city\'s glyph too');
+    // A whole bake decides it once for all its lines: the Watch bar's and the Forecast bar's.
+    readings = 0;
+    const payload = { CURRENT_CONDITION: 'clear', CITY: 'Bonn', SUN_EVENTS };
+    lines.buildStatusLines(payload, Object.assign({ statusTopLeft: 'condition' }, settings), null);
+    const top = decodeLine(payload[catalog.lineById('top').wireKey]);
+    const forecast = decodeLine(payload[LINE.wireKey]);
+    assert.deepEqual([top[0].icon, forecast[1].icon, forecast[1].text],
+      [catalog.ICONS.COND_SUN, catalog.ICONS.COND_SUN, 'Sunny' + SEP + 'SUN']);
+  } finally {
+    Date.now = realNow;
+  }
+});
+
 test('a polar pair reads the other way round: polar night has the moon, polar day the sun', () => {
   assert.equal(bake('clear', {}, BASALT, true, true)[1].icon, catalog.ICONS.COND_MOON);
   assert.equal(bake('clear', {}, BASALT, true, true)[1].text, 'Clear' + SEP + 'CLR');
