@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { bakeEnv } = require('../../helpers/bake-env.js');
 const assert = require('node:assert');
 // The time every bake in this file runs at, where the test does not care which it is.
 const NOW = new Date(2026, 5, 15, 12, 0, 0);
@@ -42,7 +43,7 @@ function clearPhoneBattery() {
  * @returns {Object} status-lines.js bakeEnv
  */
 function bakeNow() {
-  return statusLines.bakeEnv(NOW, phone);
+  return bakeEnv(NOW, phone.supported && phone.reading ? phone.reading() : null);
 }
 
 /**
@@ -306,7 +307,7 @@ test('each countdown slot reads its own target-date key and packs as TEXT', () =
     statusForecastLeftCountdown: '2099-01-01',
     statusForecastMidCountdown: '2000-01-01'
   });
-  const slots = decodeLine(statusLines.packLine(line, basePayload(), settings, basaltEnv(), null, statusLines.bakeEnv(NOW)));
+  const slots = decodeLine(statusLines.packLine(line, basePayload(), settings, basaltEnv(), null, bakeEnv(NOW)));
   assert.deepEqual(slots.map((s) => s.kind), [K.TEXT, K.TEXT, K.TEXT]);
   assert.deepEqual(slots.map((s) => s.icon),
     [I.COUNTDOWN, I.COUNTDOWN, I.COUNTDOWN]);
@@ -390,11 +391,11 @@ test('user selections and availability resolution', () => {
 test('forecast line sources its middle from statusForecastMid', () => {
   const payload = { CURRENT_TEMP: 50, CITY: 'Berlin' };  // 50F -> 10C
   // default (unset) -> city
-  const def = statusLines.packLine(forecastLine(), payload, {}, basaltEnv(), null, statusLines.bakeEnv(NOW));
+  const def = statusLines.packLine(forecastLine(), payload, {}, basaltEnv(), null, bakeEnv(NOW));
   assert.ok(decodeMidText(def).indexOf('Berlin') === 0);
   // explicit selection -> UV (a TEXT item), city no longer forced
   const uv = statusLines.packLine(forecastLine(),
-    { UV_TREND_UINT8: [30] }, { statusForecastMid: 'uv' }, basaltEnv(), null, statusLines.bakeEnv(NOW));
+    { UV_TREND_UINT8: [30] }, { statusForecastMid: 'uv' }, basaltEnv(), null, bakeEnv(NOW));
   assert.equal(decodeMidText(uv), '3');
 });
 
@@ -403,11 +404,11 @@ test('distance slot packs km vs mi kind from distanceUnits', () => {
   const sel = (u) => Object.assign(
     { statusForecastLeft: 'distance', healthMode: 'all' },
     u === undefined ? {} : { distanceUnits: u });
-  const metric = statusLines.packLine(forecastLine(), {}, sel('metric'), env, null, statusLines.bakeEnv(NOW));
+  const metric = statusLines.packLine(forecastLine(), {}, sel('metric'), env, null, bakeEnv(NOW));
   assert.equal(decodeLine(metric)[0].kind, catalog.KINDS.LIVE_DISTANCE);
-  const imperial = statusLines.packLine(forecastLine(), {}, sel('imperial'), env, null, statusLines.bakeEnv(NOW));
+  const imperial = statusLines.packLine(forecastLine(), {}, sel('imperial'), env, null, bakeEnv(NOW));
   assert.equal(decodeLine(imperial)[0].kind, catalog.KINDS.LIVE_DISTANCE_MI);
-  const unset = statusLines.packLine(forecastLine(), {}, sel(undefined), env, null, statusLines.bakeEnv(NOW));
+  const unset = statusLines.packLine(forecastLine(), {}, sel(undefined), env, null, bakeEnv(NOW));
   assert.equal(decodeLine(unset)[0].kind, catalog.KINDS.LIVE_DISTANCE); // defaults to km
   // Icon is the distance icon in both units.
   assert.equal(decodeLine(imperial)[0].icon, catalog.ICONS.DISTANCE);
@@ -419,25 +420,25 @@ test('top line: mid defaults to live date; stored mid packs; date packs at edges
   const env = basaltEnv();
   const p = basePayload();
   // default (narrow): air quality / date / battery
-  let slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), env, null, statusLines.bakeEnv(NOW)));
+  let slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), env, null, bakeEnv(NOW)));
   assert.deepEqual(slots.map(s => s.kind), [K.TEXT, K.LIVE_DATE, K.LIVE_BATTERY]);
   assert.equal(slots[0].icon, I.AQI);
   // and the emery flavor, which packLine has to take from the env rather than from
   // the flat table — an install that never opened the settings page has nothing
   // stored here, so this fallback IS what such a watch renders.
   const emeryEnv = Object.assign({}, env, { platform: 'emery', hr: true });
-  slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), emeryEnv, null, statusLines.bakeEnv(NOW)));
+  slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), emeryEnv, null, bakeEnv(NOW)));
   assert.deepEqual(slots.map(s => s.kind), [K.LIVE_WEEK, K.LIVE_DATE, K.TEXT]);
   assert.equal(slots[2].icon, I.AQI);
   // stored mid selection packs as TEXT
   slots = decodeLine(statusLines.packLine(topLine, p,
-    baseSettings({ statusTopMid: 'city' }), env, null, statusLines.bakeEnv(NOW)));
+    baseSettings({ statusTopMid: 'city' }), env, null, bakeEnv(NOW)));
   assert.equal(slots[1].kind, K.TEXT);
   assert.equal(slots[1].text, 'Saarbrücken');
   // 'date' in an edge slot packs like any slot — the middle-only gate fell with
   // custom layouts (the calendar can sit anywhere or be absent now).
   slots = decodeLine(statusLines.packLine(topLine, p,
-    baseSettings({ statusTopLeft: 'date' }), env, null, statusLines.bakeEnv(NOW)));
+    baseSettings({ statusTopLeft: 'date' }), env, null, bakeEnv(NOW)));
   assert.equal(slots[0].kind, K.LIVE_DATE);
 });
 
@@ -586,7 +587,7 @@ test('pressure slot renders the rounded value with its unit (text-only icon id)'
     catalog.LINES[1],
     { PRESSURE_TREND: [1013.4, 1014] },
     { statusRadarLeft: 'pressure', statusRadarMid: 'empty', statusRadarRight: 'empty' },
-    { platform: 'basalt', color: true, health: true }, null, statusLines.bakeEnv(NOW));
+    { platform: 'basalt', color: true, health: true }, null, bakeEnv(NOW));
   assert.equal(bytes[0], catalog.KINDS.TEXT);
   // PRESSURE discriminates the slot from city on the wire (per-kind bold mode);
   // the watch never loads a glyph for it, so the slot still renders text-only.
@@ -600,7 +601,7 @@ test('pressure slot shows -- when PRESSURE_TREND is empty or absent', () => {
     const bytes = statusLines.packLine(
       catalog.LINES[1], payload,
       { statusRadarLeft: 'pressure', statusRadarMid: 'empty', statusRadarRight: 'empty' },
-      { platform: 'basalt', color: true, health: true }, null, statusLines.bakeEnv(NOW));
+      { platform: 'basalt', color: true, health: true }, null, bakeEnv(NOW));
     assert.equal(Buffer.from(bytes.slice(3, 3 + bytes[2])).toString('utf8'), '--');
   }
 });
@@ -665,7 +666,7 @@ test('dew point packs as TEXT under its own icon id, on aplite too', () => {
   };
   for (const env of [{ platform: 'basalt', color: true, health: true },
                      { platform: 'aplite', color: false, health: false }]) {
-    const bytes = statusLines.packLine(catalog.LINES[1], { DEW_TREND: [53.6] }, settings, env, null, statusLines.bakeEnv(NOW));
+    const bytes = statusLines.packLine(catalog.LINES[1], { DEW_TREND: [53.6] }, settings, env, null, bakeEnv(NOW));
     assert.equal(bytes[0], K.TEXT, env.platform + ' kind');
     // Its own icon id even though the glyph is optional: a TEXT slot with
     // ICON_NONE would inherit City's bold mode (status_threshold.h).
@@ -705,7 +706,7 @@ function slotBytesFor(code, payload, settings, env) {
     statusRadarLeft: code, statusRadarMid: 'empty', statusRadarRight: 'empty',
     windUnits: 'kph', temperatureUnits: 'c'
   }, settings || {});
-  return sliceSlot(statusLines.packLine(radarLine(), payload, s, env || basaltEnv(), null, statusLines.bakeEnv(NOW)), 0);
+  return sliceSlot(statusLines.packLine(radarLine(), payload, s, env || basaltEnv(), null, bakeEnv(NOW)), 0);
 }
 
 // The same, in the MID slot — the roomy 19-byte cap rather than the 8-byte edge.
@@ -714,7 +715,7 @@ function midSlotBytesFor(code, payload, settings, env) {
     statusRadarLeft: 'empty', statusRadarMid: code, statusRadarRight: 'empty',
     windUnits: 'kph', temperatureUnits: 'c'
   }, settings || {});
-  return sliceSlot(statusLines.packLine(radarLine(), payload, s, env || basaltEnv(), null, statusLines.bakeEnv(NOW)), 1);
+  return sliceSlot(statusLines.packLine(radarLine(), payload, s, env || basaltEnv(), null, bakeEnv(NOW)), 1);
 }
 
 function assertPlainText(slotBytes, expected, message) {
@@ -873,7 +874,7 @@ function unitText(c, override) {
   const settings = Object.assign(baseSettings(),
     c.extra ? c.extra() : {}, override || {});
   return statusLines.formatValue(c.code, c.payload, settings, 'statusRadarLeft', undefined,
-    undefined, undefined, undefined, statusLines.bakeEnv(NOW));
+    undefined, undefined, undefined, bakeEnv(NOW));
 }
 
 test('every unit-bearing slot appends its unit only when its own toggle is on', () => {
@@ -917,7 +918,7 @@ test('countdown "now" and "--" carry no unit in either toggle state', () => {
   // ...and through formatValue, where the target date is today by default.
   const s = baseSettings({ countdownSlotUnit: true });
   assert.equal(statusLines.formatValue('countdown', {}, s, 'statusRadarLeft', undefined,
-    undefined, undefined, undefined, statusLines.bakeEnv(NOW)), 'now');
+    undefined, undefined, undefined, bakeEnv(NOW)), 'now');
 });
 
 test('an unavailable reading stays "--" with the unit on', () => {
@@ -1501,10 +1502,10 @@ test('the bake reads the phone battery only when a slot shows it, and once per b
   assert.equal(decodeLine(p.STATUS_LINE_1_UINT8)[0].text, '52%');
 });
 
-test('a phone-battery reader that throws bakes its slots as --, not the whole bake', () => {
+test('a phone-battery reader that answers null (storage blocked) bakes its slots as --', () => {
   const p = basePayload();
-  const failing = { supported: true, reading: () => { throw new Error('storage blocked'); } };
+  const blocked = { supported: true, reading: () => null };
   statusLines.buildStatusLines(p, baseSettings({ statusForecastLeft: 'phoneBattery',
-    statusForecastMid: 'empty', statusForecastRight: 'empty' }), WATCH_BASALT, NOW, failing);
+    statusForecastMid: 'empty', statusForecastRight: 'empty' }), WATCH_BASALT, NOW, blocked);
   assert.equal(decodeLine(p.STATUS_LINE_1_UINT8)[0].text, '--');
 });

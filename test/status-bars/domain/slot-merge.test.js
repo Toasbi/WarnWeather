@@ -9,6 +9,7 @@
 // Wind speed never takes a gust alert, and a watch the entries do not ride to (aplite)
 // bakes exactly as before.
 const test = require('node:test');
+const { bakeEnv } = require('../../helpers/bake-env.js');
 const assert = require('node:assert/strict');
 
 // The bake asks phone-battery.js for the phone's charge, out of localStorage: install
@@ -261,8 +262,8 @@ test('slots without such a pair bake byte for byte as with no alert at all', () 
       env.phoneBattery = false;
       const baked = env.thresholds ? wire.bakedAlerts(payload, S) : null;
       catalog.LINES.forEach((line) => {
-        const withAlerts = texts(statusLines.packLine(line, payload, S, env, baked, statusLines.bakeEnv(BAKE_TIME)));
-        const without = texts(statusLines.packLine(line, payload, S, env, null, statusLines.bakeEnv(BAKE_TIME)));
+        const withAlerts = texts(statusLines.packLine(line, payload, S, env, baked, bakeEnv(BAKE_TIME)));
+        const without = texts(statusLines.packLine(line, payload, S, env, null, bakeEnv(BAKE_TIME)));
         for (let s = 0; s < 3; s++) {
           const code = S[line.slots[s]];
           const paired = Boolean(baked) && s !== 1 && baked.some((a) => a.code === code)

@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { bakeEnv } = require('../helpers/bake-env.js');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -338,7 +339,7 @@ test('every status line at its 48-byte cap still fits the inbox', () => {
   const catalog = require('../../src/pkjs/status-bars/domain/status-line-catalog.js');
   const wide = lines.packLine(catalog.lineById('forecast'), { CURRENT_CONDITION: 'partly' },
     { statusForecastLeft: 'condition', statusForecastMid: 'empty', statusForecastRight: 'condition' },
-    { platform: 'basalt', color: true }, null, lines.bakeEnv(NOW));
+    { platform: 'basalt', color: true }, null, bakeEnv(NOW));
   assert.equal(wide.length, 47);
 });
 

@@ -250,9 +250,26 @@ function setSupported(supported) {
  * re-probe. lastWritten is dropped with it so the next persistSnapshot rewrites
  * the wiped flash backstop even when the payload serialization has not changed.
  *
- * @returns {{available: boolean, level: (number|null), charging: boolean}} Cached reading.
+ * A host whose storage throws (blocked in a WebView) reads as null, no reading at all:
+ * the bake's battery slots then print '--' instead of the whole bake failing.
+ *
+ * @returns {?{available: boolean, level: (number|null), charging: boolean}} Cached
+ *   reading, or null when storage cannot be read.
  */
 function read() {
+    try {
+        return readCache();
+    } catch (ex) {
+        return null;
+    }
+}
+
+/**
+ * read()'s body: the cached reading, re-seeded from the manager when the cache is gone.
+ *
+ * @returns {{available: boolean, level: (number|null), charging: boolean}} Cached reading.
+ */
+function readCache() {
     var raw = load(KEYS.PHONE_BATTERY_LEVEL);
     var level;
     if (raw === null && manager) {
@@ -285,7 +302,7 @@ function read() {
  */
 function bakeFacts() {
     var supported = Boolean(isSupported());
-    // The reading is read only when a slot asks for it (status-lines.js bakeEnv).
+    // The reading is read only when a bar shows it (status-lines.js buildStatusLines).
     return { supported: supported, reading: supported ? read : null };
 }
 

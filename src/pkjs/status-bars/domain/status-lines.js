@@ -115,53 +115,31 @@ var isoWeek = slotText.isoWeek;
  * @property {boolean} supported Whether this host has the Battery Status API (the
  *   persisted PHONE_BATTERY_SUPPORTED verdict, true only inside Android's Chromium WebView).
  * @property {?function(): ?{available: boolean, level: (number|null), charging: boolean}} reading
- *   Reads the cached EXACT percentage and charging flag (called only when a slot shows the
- *   phone's battery); `available` is false until a real
- *   reading has landed, and null when the module cannot answer at all (the slot then
- *   bakes '--' instead of taking the whole status bar down).
+ *   Reads the cached EXACT percentage and charging flag (called once per bake, only when a
+ *   bar it bakes shows the phone's battery); `available` is false until a real
+ *   reading has landed, and null when the module cannot answer at all (storage blocked:
+ *   the slot then bakes '--' instead of taking the whole status bar down).
  */
 
 /**
  * The bake's environment besides the watch's: the time and the phone's battery, read
- * once per bake so every slot judges the same instant.
+ * once per bake so every slot judges the same instant and the same reading.
  * @typedef {Object} BakeEnv
  * @property {Date} now The current time (countdown, aplite's ISO week).
  * @property {number} nowSec The same instant in epoch seconds (day or night now).
- * @property {function(): ?Object} phoneReading The phone's battery reading, read at most once
- *   and only when a slot asks; null when there is none.
+ * @property {?{available: boolean, level: (number|null), charging: boolean}} phone The
+ *   phone's battery reading, read once by buildStatusLines and only when a bar it bakes
+ *   shows a phone-battery item; null when there is none.
  */
 
 /**
- * The bake's environment for one instant and the phone's battery facts.
+ * The bake's environment for one instant and one phone-battery reading.
  * @param {Date} now The current time.
- * @param {?PhoneBattery} [phone] The phone's battery facts; absent = a host that cannot
- *   read the phone's battery.
+ * @param {?Object} phone The phone's battery reading, or null.
  * @returns {BakeEnv}
  */
 function bakeEnv(now, phone) {
-  var asked = false;
-  var reading = null;
-  return {
-    now: now,
-    nowSec: now.getTime() / 1000,
-    /**
-     * The phone's battery reading, read at most once per bake and only when a slot asks.
-     * @returns {?Object}
-     */
-    phoneReading: function () {
-      if (!asked) {
-        asked = true;
-        try {
-          reading = phone && phone.reading ? phone.reading() : null;
-        } catch (ex) {
-          // A reader that fails (storage blocked in a WebView) costs its slots, which
-          // bake '--', not the whole bake.
-          reading = null;
-        }
-      }
-      return reading;
-    }
-  };
+  return { now: now, nowSec: now.getTime() / 1000, phone: phone || null };
 }
 
 /**
@@ -277,7 +255,7 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
   // item that has nothing to do with the weather fetch, which is exactly what
   // lets a battery event re-send it while a provider key is expired.
   if (code === 'phoneBattery' || code === 'phoneBatteryPlain') {
-    var pb = bake.phoneReading();
+    var pb = bake.phone;
     // '--' covers both "this phone has no battery API" and "Android, but no
     // event has landed yet". It is also what the watch substitutes whenever
     // Bluetooth is down (status_row.c's freshness rule), so the two paths agree
@@ -414,7 +392,7 @@ function arrowSector(code, payload, settings, env, dayMax) {
  */
 function iconFor(code, item, payload, settings, env, bake) {
   if (code === 'phoneBattery') {
-    var pb = bake.phoneReading();
+    var pb = bake.phone;
     if (pb && pb.charging) { return catalog.ICONS.PHONE_BATTERY_CHG; }
   }
   // The city with the current weather's glyph before its name (citySlotIcon): the glyph's id
@@ -461,6 +439,45 @@ function mergedAlert(alerts, settings, env, bar, s, code) {
 }
 
 /**
+ * The item code a line's slot shows: its stored selection, else the slot's default,
+ * resolved against what this watch and phone can show.
+ * @param {Object} line catalog line definition
+ * @param {number} s slot index, 0..2
+ * @param {Object} settings Clay settings blob
+ * @param {Object} env platform environment
+ * @returns {string} the resolved item code
+ */
+function slotCode(line, s, settings, env) {
+  var key = line.slots[s];
+  var stored = settings ? settings[key] : null;
+  // slotDefault, not line.defaults: an install that never opened the settings page
+  // has NOTHING stored for these (config-ui/lib/defaults.js deliberately does not
+  // seed defaultFrom items), so this fallback IS the layout such a watch renders —
+  // and it has to be the same one the page would have shown it. Reading the flat
+  // table skipped every per-platform flavor, so an emery watch baked the narrow
+  // top row and an HR watch baked the non-HR health row.
+  return catalog.resolveSelection(stored || catalog.slotDefault(key, env), settings,
+                                  env, { slotKey: key, position: POSITIONS[s] });
+}
+
+/**
+ * Whether any slot of the given lines shows the phone's battery (either item).
+ * @param {Array<Object>} lines catalog line definitions
+ * @param {Object} settings Clay settings blob
+ * @param {Object} env platform environment
+ * @returns {boolean}
+ */
+function showsPhoneBattery(lines, settings, env) {
+  for (var l = 0; l < lines.length; l++) {
+    for (var s = 0; s < 3; s++) {
+      var code = slotCode(lines[l], s, settings, env);
+      if (code === 'phoneBattery' || code === 'phoneBatteryPlain') { return true; }
+    }
+  }
+  return false;
+}
+
+/**
  * @param {Object} line catalog line definition
  * @param {Object} payload weather payload
  * @param {Object} settings Clay settings blob
@@ -479,15 +496,7 @@ function packLine(line, payload, settings, env, alerts, bake) {
   for (var s = 0; s < 3; s++) {
     starts.push(bytes.length);
     var key = line.slots[s];
-    var stored = settings ? settings[key] : null;
-    // slotDefault, not line.defaults: an install that never opened the settings page
-    // has NOTHING stored for these (config-ui/lib/defaults.js deliberately does not
-    // seed defaultFrom items), so this fallback IS the layout such a watch renders —
-    // and it has to be the same one the page would have shown it. Reading the flat
-    // table skipped every per-platform flavor, so an emery watch baked the narrow
-    // top row and an HR watch baked the non-HR health row.
-    var code = catalog.resolveSelection(stored || catalog.slotDefault(key, env), settings,
-                                        env, { slotKey: key, position: POSITIONS[s] });
+    var code = slotCode(line, s, settings, env);
     var item = catalog.byCode(code) || catalog.byCode('empty');
     // Distance carries its unit in the wire kind (phone-only distanceUnits): the
     // watch renders km for LIVE_DISTANCE and mi for LIVE_DISTANCE_MI. Every other
@@ -597,7 +606,6 @@ function widenEdgeConditions(bytes, starts, wide) {
  */
 function buildStatusLines(payload, settings, watchInfo, now, phone) {
   var env = platformLib.computeEnv(watchInfo);
-  var bake = bakeEnv(now, phone);
   // The weather alerts' entries, judged before the lines: a slot showing an alert's
   // metric on the alert's side merges it (packLine). Only for a watch they ride to
   // (see below); null elsewhere, so aplite's lines bake exactly as before.
@@ -614,6 +622,11 @@ function buildStatusLines(payload, settings, watchInfo, now, phone) {
   // The Watch bar's line, then each bar's that a screen shows (catalog bakedLines). A bar on
   // no screen is sent no line: its text would only cost the send and the watch's flash write.
   var lines = catalog.bakedLines(settings, env);
+  // The phone's battery, read once and only when a bar baked here shows it: every
+  // battery slot of the bake prints the same reading.
+  var reading = env.phoneBattery && phone.reading && showsPhoneBattery(lines, settings, env)
+    ? phone.reading() : null;
+  var bake = bakeEnv(now, reading);
   for (var l = 0; l < lines.length; l++) {
     var line = lines[l];
     payload[line.wireKey] = packLine(line, payload, settings, env, alerts, bake);
@@ -675,7 +688,6 @@ var SOURCE_KEYS = [
 
 module.exports = {
   buildStatusLines: buildStatusLines,
-  bakeEnv: bakeEnv,
   isNightNow: isNightNow,
   SOURCE_KEYS: SOURCE_KEYS,
   packLine: packLine,
