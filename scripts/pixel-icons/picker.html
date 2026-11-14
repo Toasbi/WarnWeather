@@ -9,7 +9,7 @@
    drawing (pebble-draw.js) from the SVG scaled the old way (svg-icon.js). */
 :root {
   --bg: #eef0f3; --surface: #ffffff; --fg: #15181d; --muted: #5b6370; --line: #d7dbe1;
-  --accent: #0a62c9; --accent-weak: #e2edfb; --flag: #a14b06; --flag-weak: #fdf0e1;
+  --accent: #0a62c9; --accent-weak: #e2edfb; --on-accent: #ffffff; --flag: #a14b06; --flag-weak: #fdf0e1;
   --watch-dark: #000000; --watch-light: #ffffff;
   --font: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
@@ -17,12 +17,12 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #101317; --surface: #191d23; --fg: #e7e9ed; --muted: #98a0ab; --line: #2b3039;
-    --accent: #5aa0ff; --accent-weak: #18283f; --flag: #f2a24a; --flag-weak: #36260f; color-scheme: dark;
+    --accent: #5aa0ff; --accent-weak: #18283f; --on-accent: #0b1320; --flag: #f2a24a; --flag-weak: #36260f; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #101317; --surface: #191d23; --fg: #e7e9ed; --muted: #98a0ab; --line: #2b3039;
-  --accent: #5aa0ff; --accent-weak: #18283f; --flag: #f2a24a; --flag-weak: #36260f; color-scheme: dark;
+  --accent: #5aa0ff; --accent-weak: #18283f; --on-accent: #0b1320; --flag: #f2a24a; --flag-weak: #36260f; color-scheme: dark;
 }
 body { background: var(--bg); color: var(--fg); font: 400 14px/1.45 var(--font); }
 [hidden] { display: none !important; }
@@ -65,7 +65,7 @@ h2 { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: v
 .svgpanel input[type=file] { font: 12.5px var(--font); color: var(--fg); max-width: 100%; }
 .svgpanel textarea { margin: 0; min-height: 96px; }
 .svgpanel .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.svgpanel .primary { border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: 600 12.5px var(--font); padding: 6px 12px; cursor: pointer; }
+.svgpanel .primary { border: 0; border-radius: 8px; background: var(--accent); color: var(--on-accent); font: 600 12.5px var(--font); padding: 6px 12px; cursor: pointer; }
 .svgpanel .err { color: var(--flag); font-weight: 500; }
 .svgpanel .err:empty { display: none; }
 .size { display: grid; grid-template-columns: 112px 1fr auto; gap: 10px 14px; align-items: center; padding: 10px 14px;
