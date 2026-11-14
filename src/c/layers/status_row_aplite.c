@@ -133,7 +133,10 @@ static void resolve_slot_text(const StatusRow *row, const StatusSlotView *slot,
                               char *buf, size_t cap) {
     if (cap == 0) { return; }
     if (slot->kind == SLOT_TEXT) {
-        size_t n = slot->value_len;
+        // The full form alone: a short form after STATUS_TEXT_ALT_SEP is for the other
+        // watches' rows. The phone leaves it off a watch it knows, but packs it when it
+        // couldn't tell which watch it talks to (index.js, watchInfo null).
+        size_t n = status_text_full_len(slot->value, slot->value_len);
         if (n > cap - 1) { n = cap - 1; }
         memcpy(buf, slot->value, n);
         buf[n] = '\0';
