@@ -213,6 +213,6 @@
   },
   "3.2.0": {
     "title": "Weather condition slot",
-    "body": "A status bar slot can now show the weather in words with a sun or moon icon, such as Partly cloudy. The City slot shows the current weather's icon too. Pebble Classic and Steel show the text only."
+    "body": "A status bar slot can now show the weather in words with a sun or moon icon, such as Partly cloudy. Pebble Classic and Steel show the text only."
   }
 }
