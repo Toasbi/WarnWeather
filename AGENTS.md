@@ -8,6 +8,11 @@ contributor tool working in this repo. (Claude Code reads it through `CLAUDE.md`
 
 - **Commands / `mise` tasks** → `DEV.md`
 - **Setup & walkthrough prose** → `CONTRIBUTING.md`
+- **Architecture rules** → `docs/adr/0005-architecture-rules.md`: code is grouped by domain
+  context first, then by role; contexts with business logic keep their domain free of the
+  runtime (no `XMLHttpRequest`, `localStorage`, `Pebble.*` or clock reads); expected errors are
+  values. The context map is in `CONTEXT.md`, the quality goals and their checks in
+  `docs/quality-goals.md`.
 - **Pebble C SDK lookups** → the `pebble` skill in `.agents/skills/`. The C API is
   not in your training data — look up any SDK call you aren't certain of before using it.
 

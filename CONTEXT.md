@@ -5,6 +5,46 @@ PebbleKit JS (`src/pkjs/`), with a Clay config UI and a Supabase telemetry
 backend. This file is the project's glossary — the canonical vocabulary. Keep it
 free of implementation detail.
 
+## Context map
+
+The domain contexts, which deployable holds each, and the contracts between them. The rules each
+context follows are in [ADR 0005](./docs/adr/0005-architecture-rules.md).
+
+**Domain context**:
+A part of the product with its own model and words: weather data, forecast graphs, status bars,
+alerts, screens and layout, calendar, theme, settings, wire transport, app notices, telemetry.
+Its code sits in one folder per deployable, grouped by role inside.
+_Avoid_: module, feature (for the whole context).
+
+| Context | Watchface (C) | Phone app (PKJS) | Settings page | Edge functions |
+| --- | --- | --- | --- | --- |
+| Weather data | draws what it is sent | fetches, maps and bakes it | previews it | `rainbow-nowcast` (radar) |
+| Forecast graphs | draws the graphs | packs series and line styles | previews and edits styles | – |
+| Status bars | draws the bars, makes room | bakes each bar's line | previews and edits slots | – |
+| Alerts | draws them, replaces slots | decides when one fires | edits thresholds | – |
+| Screens and layout | lays out each view | compiles screens to view specs | edits screens | – |
+| Calendar | draws the calendar | packs the holiday mask | edits formats | – |
+| Theme | palettes, night light | theme schedule | previews colours | – |
+| Settings | reads the settings message | stores, migrates, sends them | the schema and pages | – |
+| Wire transport | AppMessage inbox, persist | outbox, change detector, scheduler | – | – |
+| App notices | release toast | news, update check | news panel | `news` |
+| Telemetry | – | snapshot and upload | – | `telemetry-ingest` |
+
+How the deployables talk, each contract owned by the side named first:
+
+| Contract | Between | Shape | Guarded by |
+| --- | --- | --- | --- |
+| AppMessage | phone app → watchface | the message keys in `package.template.json`, packed by the phone's wire modules; one weather and one settings message, each within the inbox | `test/inbox-size.test.js`, the C wire readers' host tests |
+| Settings return | settings page → phone app | the page's JSON of stored values when it closes | the schema golden file, the settings migrations |
+| Telemetry, news, radar | phone app → edge functions | JSON over HTTPS POST | each function's body schema and Deno tests |
+| Weather APIs | weather services → phone app | each service's own format; the phone conforms and maps it into one model in its provider adapter | the provider tests and fixtures |
+| Plugin manifest | weather plugins → Pebble app | the shapes a plugin declares (`plugins/lib/vocabulary.js`) | `plugins/test/manifest.test.js` |
+
+**Outbox (phone app)**:
+The phone app's single sender on the AppMessage channel: it bundles what changed into one message
+and records it as sent only once the watch acknowledges it. A send queue, not a transactional
+outbox.
+
 ## Platform divergence
 
 The strategy for keeping aplite within its fixed 24 KB budget while other
