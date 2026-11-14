@@ -375,11 +375,12 @@ function apliteSource(masks, src = fs.readFileSync(APLITE_C, 'utf8')) {
         const arr = new RegExp('(static const uint16_t MASK_' + key + '\\[\\]\\s*=\\s*)\\{[^}]*\\}');
         if (!arr.test(src)) throw new Error('no MASK_' + key + ' in status_row_aplite.c');
         src = src.replace(arr, '$1{' + hex + '}');
-        const dims = new RegExp('(\\{ MASK_' + key + ',\\s*)\\d+,\\s*\\d+( \\})');
+        const dims = new RegExp('(\\{ MASK_' + key + ',)(\\s*\\d+),(\\s*\\d+)( \\})');
         if (!dims.test(src)) throw new Error('no StatusMask for MASK_' + key);
-        // Each number two wide, as the table aligns them ({ MASK_TEMP,   13,  7 }).
-        const two = (v) => String(v).padStart(2);
-        src = src.replace(dims, '$1' + two(rows.length) + ', ' + two(w) + '$2');
+        // Each number as wide as the one it replaces, spaces included, so the table's columns
+        // stay aligned ({ MASK_TEMP,   13,  7 }) and a second run writes the same file.
+        const fit = (v, old) => ' ' + String(v).padStart(old.length - 1);
+        src = src.replace(dims, (_, head, r, c, tail) => head + fit(rows.length, r) + ',' + fit(w, c) + tail);
     }
     return src;
 }

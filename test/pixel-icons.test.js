@@ -348,6 +348,19 @@ test('every size picked svg holds the lines its icon\'s SVG makes at that size',
   }
 });
 
+test('the Pebble Classic mask table reads the same after a second write, whatever a mask\'s height', () => {
+  for (const n of [9, 13]) {
+    const masks = { GUST: { rows: Array(n).fill(1), w: 1 } };
+    const once = gen.apliteSource(masks);
+    assert.equal(gen.apliteSource(masks, once), once, n + ' rows: the same file again');
+    assert.match(once, new RegExp('\\{ MASK_GUST, +' + n + ', +1 \\}'), n + ' rows: the numbers written');
+  }
+  const src = fs.readFileSync(gen.APLITE_C, 'utf8');
+  const line = (text) => text.split('\n').find((l) => l.includes('{ MASK_GUST,'));
+  assert.equal(line(gen.apliteSource({ GUST: { rows: Array(9).fill(1), w: 1 } }, src)).length, line(src).length,
+    'the table keeps its columns');
+});
+
 test('a done Pebble Classic mask is written as its ink, and a mask that is only ink as it was', () => {
   const src = fs.readFileSync(gen.APLITE_C, 'utf8');
   /**
