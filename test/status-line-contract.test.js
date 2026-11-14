@@ -23,6 +23,7 @@ test('caps are in lockstep with status_line.h', () => {
   assert.equal(catalog.CAPS.LINE_MAX, cDefine('STATUS_LINE_MAX_BYTES'));
   assert.equal(catalog.CAPS.EDGE_TEXT_MAX, cDefine('STATUS_TEXT_EDGE_MAX'));
   assert.equal(catalog.CAPS.MID_TEXT_MAX, cDefine('STATUS_TEXT_MID_MAX'));
+  assert.equal(catalog.CAPS.EDGE_COND_TEXT_MAX, cDefine('STATUS_TEXT_EDGE_COND_MAX'));
 });
 
 test('slot kinds are in lockstep with status_line.h', () => {

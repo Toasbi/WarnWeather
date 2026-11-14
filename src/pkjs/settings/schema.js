@@ -2155,15 +2155,15 @@ module.exports = {
             label: 'Name',
             showWhen: {key: 'conditionSlotLook', ne: 'icon'},
             hintByValue: {
-                auto: 'Shows the full name, like Partly cloudy, and switches to PCLDY where the slot is short of room.',
-                full: 'Shows the full name, like Partly cloudy. A long name doesn\'t fit a side slot and shows as PCLDY there.',
+                auto: 'Shows the full name, like Partly cloudy, and switches to PCLDY where the bar is short of room, so the other slots stay whole.',
+                full: 'Shows the full name, like Partly cloudy, even where it crowds the other slots. A side slot beside a long item shows PCLDY.',
                 'short': 'Always shows the short name, like PCLDY.'
             },
             defaultValue: 'auto',
             options: [['Auto', 'auto'], ['Full', 'full'], ['Short', 'short']]
-        }], [{
+        }], [{type: 'subheader', text: 'Every condition'}, {
             // Every condition the slot shows, with its icon, full name and short form, as a
-            // reference under the settings (blocks.js conditionList draws it).
+            // reference card under the settings (blocks.js conditionList draws it).
             type: 'staticText',
             textFrom: {resolver: 'conditionList', args: {rows: conditionRows()}}
         }])

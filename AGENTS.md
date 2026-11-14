@@ -128,7 +128,10 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   other watch is never sent more than 24 hours or a bar 4 to 6, so it keeps 603 B of 640 B;
   aplite's heaviest bundle, without the lines it cannot draw, is 371 B of 536 B (see
   `test/inbox-size.test.js` — the authoritative computation, which records the bundle
-  sizes exactly per platform; keep them in sync). That headroom was 10 B until the settings-derived
+  sizes exactly per platform; keep them in sync). A side slot's weather condition may grow
+  its line past City's 44 B to the 48 B line cap (its name with the short form, only while
+  the line holds it: `status-lines.js` `widenEdgeConditions`); every line at that cap is
+  627 B of 640 B, and 1131 B of emery's 1280 B, which the test checks too. That headroom was 10 B until the settings-derived
   tuples were moved off this message: the rain-bar and radar palettes first, then the
   forecast line styling (line colours + fill flag, 4 × 11 B of scalars → one
   `CLAY_LINE_STYLE_UINT8` array, since grown to 14 B so it also carries the four night

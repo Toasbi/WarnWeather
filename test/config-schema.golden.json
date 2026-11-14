@@ -8174,8 +8174,8 @@
                   "ne": "icon"
                 },
                 "hintByValue": {
-                  "auto": "Shows the full name, like Partly cloudy, and switches to PCLDY where the slot is short of room.",
-                  "full": "Shows the full name, like Partly cloudy. A long name doesn't fit a side slot and shows as PCLDY there.",
+                  "auto": "Shows the full name, like Partly cloudy, and switches to PCLDY where the bar is short of room, so the other slots stay whole.",
+                  "full": "Shows the full name, like Partly cloudy, even where it crowds the other slots. A side slot beside a long item shows PCLDY.",
                   "short": "Always shows the short name, like PCLDY."
                 },
                 "defaultValue": "auto",
@@ -8219,6 +8219,10 @@
                     "all"
                   ]
                 }
+              },
+              {
+                "type": "subheader",
+                "text": "Every condition"
               },
               {
                 "type": "staticText",

@@ -462,16 +462,25 @@
                 sw: c.arrow ? arrowW : 0 };
         });
         var cw = box.w - 2 * ROW_MARGIN, x0 = box.x + ROW_MARGIN;
-        // A slot that brought a short form draws it where the row would cut the full one
-        // (status_row.c swap_in_short_forms).
-        var placed = placeSlots(cw, slots), swapped = false;
-        slots.forEach(function (it, i) {
-            if (!it || !it.alt || (placed[i] && placed[i].tw >= it.tw)) { return; }
-            it.label = it.alt;
-            it.tw = WT.width(ch, false, it.alt);
-            swapped = true;
-        });
-        (swapped ? placeSlots(cw, slots) : placed).forEach(function (p, i) {
+        // A slot that brought a short form draws it where the row would cut a text: an edge's
+        // whole name gives way whenever any text is cut, the wider name first, then the middle
+        // where its own is cut, each swap laid out again (status_row.c swap_in_short_forms).
+        var placed = placeSlots(cw, slots);
+        var cut = function (it, p) { return Boolean(it) && it.tw > 0 && !(p && p.tw >= it.tw); };
+        for (var round = 0; round < 3; round++) {
+            if (!slots.some(function (it, i) { return cut(it, placed[i]); })) { break; }
+            var pick = -1;
+            [0, 2].forEach(function (i) {
+                if (slots[i] && slots[i].alt && (pick < 0 || slots[i].tw > slots[pick].tw)) { pick = i; }
+            });
+            if (pick < 0 && slots[1] && slots[1].alt && cut(slots[1], placed[1])) { pick = 1; }
+            if (pick < 0) { break; }
+            slots[pick].label = slots[pick].alt;
+            slots[pick].tw = WT.width(ch, false, slots[pick].alt);
+            slots[pick].alt = '';
+            placed = placeSlots(cw, slots);
+        }
+        placed.forEach(function (p, i) {
             if (!p) { return; }
             var it = slots[i], x = x0 + p.x;
             if (it.glyph) { e += batteryGlyph(x, mid, cx.fg); }

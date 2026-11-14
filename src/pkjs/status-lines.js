@@ -447,7 +447,12 @@ function mergedAlert(alerts, settings, env, bar, s, code) {
  */
 function packLine(line, payload, settings, env, alerts) {
   var bytes = [];
+  // Where each slot's bytes start, and an edge slot's weather condition at the middle's room
+  // (widenEdgeConditions).
+  var starts = [];
+  var wide = [];
   for (var s = 0; s < 3; s++) {
+    starts.push(bytes.length);
     var key = line.slots[s];
     var stored = settings ? settings[key] : null;
     // slotDefault, not line.defaults: an install that never opened the settings page
@@ -509,11 +514,42 @@ function packLine(line, payload, settings, env, alerts) {
       if (dirByte && valueBytes.length < textCap(s)) { valueBytes.push(dirByte); }
       bytes.push(item.kind, icon, valueBytes.length);
       for (var b = 0; b < valueBytes.length; b++) { bytes.push(valueBytes[b]); }
+      // An edge slot's weather condition at the middle's room: its name with the short form
+      // after it (slot-text.js conditionText). Not on a known aplite, whose lean row reads one
+      // form in an edge's 8 bytes.
+      if (code === 'condition' && s !== 1 && env.platform !== 'aplite') {
+        var wideBytes = utf8Truncate(utf8Encode(formatValue(code, payload, settings, key,
+          catalog.CAPS.EDGE_COND_TEXT_MAX, dayMax, alert, env)), catalog.CAPS.EDGE_COND_TEXT_MAX);
+        if (wideBytes.join() !== valueBytes.join()) { wide[s] = wideBytes; }
+      }
     } else {
       bytes.push(kind, icon, 0);
     }
   }
-  return bytes;
+  return widenEdgeConditions(bytes, starts, wide);
+}
+
+/**
+ * Give an edge slot's weather condition the room its name needs, the left slot's first: its
+ * wide value (packLine) where the whole line still fits catalog.CAPS.LINE_MAX, else the edge
+ * form it was packed with. Beside an empty or a short middle the watch then shows the whole
+ * name, and swaps in the short form where the row cannot hold it (status_row.c
+ * swap_in_short_forms).
+ * @param {number[]} bytes The packed line.
+ * @param {number[]} starts Where each of the three slots' bytes start.
+ * @param {Array<number[]>} wide An edge slot's wide condition value by slot index, if any.
+ * @returns {number[]} The line.
+ */
+function widenEdgeConditions(bytes, starts, wide) {
+  if (!wide[0] && !wide[2]) { return bytes; }
+  var parts = [bytes.slice(starts[0], starts[1]), bytes.slice(starts[1], starts[2]), bytes.slice(starts[2])];
+  [0, 2].forEach(function (s) {
+    if (!wide[s]) { return; }
+    var grown = [parts[s][0], parts[s][1], wide[s].length].concat(wide[s]);
+    var total = parts[0].length + parts[1].length + parts[2].length - parts[s].length + grown.length;
+    if (total <= catalog.CAPS.LINE_MAX) { parts[s] = grown; }
+  });
+  return parts[0].concat(parts[1], parts[2]);
 }
 
 /**

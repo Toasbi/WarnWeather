@@ -44,8 +44,11 @@ static bool utf8_complete(const uint8_t *s, size_t len) {
     return true;
 }
 
-static size_t slot_text_cap(int slot_index) {
-    return (slot_index == 1) ? STATUS_TEXT_MID_MAX : STATUS_TEXT_EDGE_MAX;
+// A slot's text cap: the middle's, or an edge's, which a weather condition may exceed up to
+// STATUS_TEXT_EDGE_COND_MAX (the line's own cap still holds the whole).
+static size_t slot_text_cap(int slot_index, uint8_t icon) {
+    if (slot_index == 1) { return STATUS_TEXT_MID_MAX; }
+    return status_icon_is_condition(icon) ? STATUS_TEXT_EDGE_COND_MAX : STATUS_TEXT_EDGE_MAX;
 }
 
 // Advance *off past the slot at slot_index; optionally fill out.
@@ -68,7 +71,7 @@ static bool walk_slot(const uint8_t *blob, size_t len, int slot_index,
     }
     if (kind == SLOT_TEXT) {
         // Zero bytes is a glyph alone: the weather condition slot's Icon look bakes no text.
-        if (value_len > slot_text_cap(slot_index)) { return false; }
+        if (value_len > slot_text_cap(slot_index, icon)) { return false; }
         if (*off + value_len > len) { return false; }
         if (!utf8_complete(blob + *off, value_len)) { return false; }
     } else if (value_len != 0) {

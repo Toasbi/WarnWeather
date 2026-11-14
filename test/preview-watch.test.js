@@ -200,6 +200,26 @@ test('a light theme draws black on white, the status rows print the Status bars 
   assert.match(html, /fill="#000000" font-family="WatchGothic18[^"]*" font-weight="400">Berlin<\/text>/, 'the city in the left slot');
 });
 
+// The owner's, 2026-11-14: a side slot's weather condition shows its whole name beside an empty
+// or a short middle, and gives way to the middle's text (status_row.c swap_in_short_forms).
+test('a side slot\'s weather condition: the whole name beside an empty middle, the short form beside a long one', () => {
+  const draw = (platform, mid) => pw.watchPreview(settings({ layoutPreset: 'compactCal', radarMode: 'off',
+    healthMode: 'off', statusForecastLeft: 'condition', statusForecastMid: mid, statusForecastRight: 'empty' }),
+  plat.computeEnv({ platform: platform }), {});
+  const shows = (html, text) => html.indexOf('>' + text + '</text>') !== -1;
+  ['basalt', 'emery'].forEach((platform) => {
+    assert.ok(shows(draw(platform, 'empty'), 'Partly cloudy'), platform + ': the whole name beside an empty middle');
+    assert.ok(!shows(draw(platform, 'empty'), 'PCLDY'), platform);
+    assert.ok(shows(draw(platform, 'temp'), 'Partly cloudy'), platform + ': and beside a short one');
+  });
+  // Beside the city's name the 144 px watches have no room for both: the condition gives way,
+  // the city stays whole. The Pebble Time 2 holds both.
+  const basalt = draw('basalt', 'city');
+  assert.ok(shows(basalt, 'PCLDY') && shows(basalt, 'Berlin') && !shows(basalt, 'Partly cloudy'), 'basalt: PCLDY and Berlin');
+  const emery = draw('emery', 'city');
+  assert.ok(shows(emery, 'Partly cloudy') && shows(emery, 'Berlin'), 'emery: both whole');
+});
+
 test('a graph\'s pattern and clip ids carry its band\'s suffix, so two graphs never share one', () => {
   const env = plat.computeEnv({ platform: 'basalt' });
   const html = pw.watchPreview(settings({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'all',

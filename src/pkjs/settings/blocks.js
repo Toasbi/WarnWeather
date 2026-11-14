@@ -1103,8 +1103,7 @@ if (typeof require !== 'undefined') {
     function conditionList(S, env, args) {
         var rows = (args && args.rows) || [];
         var cell = 'padding:5px 10px 5px 0;vertical-align:middle;';
-        var html = '<div style="font-weight:600;margin:2px 0 6px;">Every condition</div>'
-            + '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+        var html = '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
             + '<tr style="font-size:12px;opacity:.7;text-align:left;"><th style="' + cell + 'font-weight:500;">Icon</th>'
             + '<th style="' + cell + 'font-weight:500;">Name</th><th style="' + cell + 'font-weight:500;">Short</th></tr>';
         rows.forEach(function (r) {

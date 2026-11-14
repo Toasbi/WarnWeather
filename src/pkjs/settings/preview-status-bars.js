@@ -284,12 +284,42 @@
      */
     function barSlots(S, env, bar, fullDate, now) {
         var st = S || {}, when = now || new Date();
-        return barCodes(st, env, bar).map(function (c, p) {
-            var forms = sample(c.code, st, {cap: SLOT_CAPS[p], env: env, now: when, fullDate: fullDate,
-                slotKey: c.key}).split(catalog.ALT_SEP);
+        var codes = barCodes(st, env, bar);
+        var slotSample = function (c, cap) {
+            return sample(c.code, st, {cap: cap, env: env, now: when, fullDate: fullDate, slotKey: c.key});
+        };
+        var texts = codes.map(function (c, p) { return slotSample(c, SLOT_CAPS[p]); });
+        // An edge slot's weather condition takes the middle slot's room where the whole line
+        // still fits, as the bake gives it (status-lines.js widenEdgeConditions).
+        var bytes = codes.map(function (c, p) { return wireBytes(c.code, texts[p], st, env, SLOT_CAPS[p]); });
+        [0, 2].forEach(function (p) {
+            var c = codes[p];
+            if (!c || c.code !== 'condition' || (env && env.platform === 'aplite')) { return; }
+            var wide = slotSample(c, catalog.CAPS.EDGE_COND_TEXT_MAX);
+            var grown = wireBytes(c.code, wide, st, env, catalog.CAPS.EDGE_COND_TEXT_MAX);
+            if (bytes[0] + bytes[1] + bytes[2] - bytes[p] + grown <= catalog.CAPS.LINE_MAX) {
+                texts[p] = wide;
+                bytes[p] = grown;
+            }
+        });
+        return codes.map(function (c, p) {
+            var forms = texts[p].split(catalog.ALT_SEP);
             return {pos: c.pos, key: c.key, code: c.code, text: forms[0], alt: forms[1] || '',
                 arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: slotIcon(c.code, env, st)};
         });
+    }
+
+    /**
+     * A slot's bytes on the wire as the bake packs them (status-lines.js packLine): its three
+     * header bytes, and a text slot's value and wind arrow byte.
+     * @param {string} code The catalog item. @param {string} text Its sample (sample()).
+     * @param {Object} S Settings. @param {Object} env Platform env. @param {number} cap Its cap.
+     * @returns {number}
+     */
+    function wireBytes(code, text, S, env, cap) {
+        var item = catalog.byCode(code);
+        if (!item || item.kind !== catalog.KINDS.TEXT) { return 3; }
+        return 3 + utf8.byteLength(text || '') + (arrowShown(code, text, S, env, cap) ? 1 : 0);
     }
 
     // How a slot is named to a screen reader, after its bar's name.

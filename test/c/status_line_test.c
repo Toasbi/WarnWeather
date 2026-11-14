@@ -375,6 +375,34 @@ static void alt_tests(void) {
     n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
     n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
     expect("alt.past-max-invalid", status_line_validate(b, n), 0);
+
+    // An edge slot's weather condition may take the middle's room (STATUS_TEXT_EDGE_COND_MAX)
+    // while the line holds it; any other edge text keeps the edge's 8 bytes.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_SUN_CLOUD, "Partly cloudy\x1fPCLDY");
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_COND_TEXT, "Partly cloudy\x1fPCLDY");
+    expect("edge-cond.both-edges-valid", status_line_validate(b, n), 1);
+    expect("edge-cond.slots", status_line_slots(b, n, v), STATUS_SLOT_COUNT);
+    expect("edge-cond.left-len", v[0].value_len, 19);
+    expect("edge-cond.right-full", (int)status_text_full_len(v[2].value, v[2].value_len), 13);
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_SUN, "Partly cloudy\x1fPCLDYX");
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    expect("edge-cond.past-cap-invalid", status_line_validate(b, n), 0);
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_NONE, "Bad Soden");
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    expect("edge-city.nine-invalid", status_line_validate(b, n), 0);
+    n = put_slot(b, 0, SLOT_TEXT, (uint8_t)(STATUS_ICON_CITY_GLYPH | STATUS_ICON_COND_SUN), "Partly cloudy");
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    expect("edge-city-glyph.long-invalid", status_line_validate(b, n), 0);
+    // The line's own cap still holds: both edges at 19 beside a 12-byte middle pass its 48 bytes.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_SUN_CLOUD, "Partly cloudy\x1fPCLDY");
+    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_NONE, "Mannheim-Ost");
+    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_COND_SUN_CLOUD, "Partly cloudy\x1fPCLDY");
+    expect("edge-cond.line-cap", (int)n > STATUS_LINE_MAX_BYTES, 1);
+    expect("edge-cond.past-line-invalid", status_line_validate(b, n), 0);
 }
 
 int main(void) {

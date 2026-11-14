@@ -754,12 +754,19 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
     return GRect((int16_t)(x0 + lo - 2), v.y, (int16_t)((hi - lo) + 4), v.h);
 }
 
+// Whether the layout cuts or hides a slot's text.
+static bool slot_text_cut(const StatusSlotMeasure *m, const StatusSlotPlace *place) {
+    return m->present && m->text_w > 0 && !(place->text_visible && place->text_w >= m->text_w);
+}
+
 // A slot that brought its own short form (the weather condition: "Partly cloudy" with
-// "PCLDY") draws that form wherever the plain row would cut or hide the full one. Judged
-// on the plain layout, before On demand makes room, so the ladder starts from the form
-// the slot draws; a slot that swaps has no short member left (`alt` is spent). Only
-// the middle slot has the bytes for both forms, so a row lays itself out once here at
-// most.
+// "PCLDY") draws that form wherever the plain row would cut or hide a text. An edge slot's
+// whole name claims its width before the middle's (status_row_layout), so it gives way
+// whenever any text is cut: it shows beside an empty or a short middle and never squeezes
+// the middle's. The edges swap first, the wider name first, then the middle where its own
+// text is cut, each swap laid out again. Judged on the plain layout, before On demand makes
+// room, so the ladder starts from the form the slot draws; a slot that swaps has no short
+// member left (`alt` is spent). preview-watch.js rowBand draws the same.
 static void swap_in_short_forms(const StatusRow *row, ResolvedSlot slots[STATUS_SLOT_COUNT],
                                 StatusSlotMeasure m[STATUS_SLOT_COUNT],
                                 StatusSlotPlace plain[STATUS_SLOT_COUNT], int16_t content_w) {
@@ -767,15 +774,21 @@ static void swap_in_short_forms(const StatusRow *row, ResolvedSlot slots[STATUS_
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) { any = any || slots[i].alt[0] != '\0'; }
     if (!any) { return; }
     status_row_layout(content_w, m, plain);
-    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        ResolvedSlot *s = &slots[i];
-        if (s->alt[0] == '\0'
-                || (plain[i].text_visible && plain[i].text_w >= m[i].text_w)) {
-            continue;
+    for (int round = 0; round < STATUS_SLOT_COUNT; round++) {
+        bool cut = false;
+        for (int i = 0; i < STATUS_SLOT_COUNT; i++) { cut = cut || slot_text_cut(&m[i], &plain[i]); }
+        if (!cut) { return; }
+        int pick = -1;
+        for (int i = 0; i < STATUS_SLOT_COUNT; i += 2) {
+            if (slots[i].alt[0] != '\0' && (pick < 0 || m[i].text_w > m[pick].text_w)) { pick = i; }
         }
+        if (pick < 0 && slots[1].alt[0] != '\0' && slot_text_cut(&m[1], &plain[1])) { pick = 1; }
+        if (pick < 0) { return; }
+        ResolvedSlot *s = &slots[pick];
         copy_text(s->text, sizeof(s->text), s->alt, strlen(s->alt));
         s->alt[0] = '\0';
-        m[i].text_w = status_row_text_w(s->text, s->font, content_w, row->bounds.size.h);
+        m[pick].text_w = status_row_text_w(s->text, s->font, content_w, row->bounds.size.h);
+        status_row_layout(content_w, m, plain);
     }
 }
 

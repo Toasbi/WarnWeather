@@ -1598,8 +1598,8 @@ const BOLD_SHEET_EXTRA_ROWS = {
 
 // Bold is the last row before any group card on EVERY slot sheet — the bold-only
 // ones, where it follows the kind's extras, the alert kinds', where it sits right above
-// the Alert highlighting card, and the goal ones, where it sits right above the Goals
-// card. Asserted across all of them at once rather than per kind, so a sheet added later
+// the Alert highlighting card, the goal ones, where it sits right above the Goals
+// card, and the weather condition's, where it sits above its Every condition card. Asserted across all of them at once rather than per kind, so a sheet added later
 // cannot quietly become an exception.
 test('Bold is the last row before any Goals or Alert highlighting group on every slot sheet', () => {
   const sheets = sheetSections();
@@ -1607,8 +1607,8 @@ test('Bold is the last row before any Goals or Alert highlighting group on every
   sheets.forEach((s) => {
     const group = s.items.findIndex(it => it.type === 'subheader');
     if (group !== -1) {
-      assert.ok(['Goals', 'Alert highlighting'].includes(s.items[group].text),
-        s.title + ': the only group a slot sheet opens is its Goals or Alert highlighting card');
+      assert.ok(['Goals', 'Alert highlighting', 'Every condition'].includes(s.items[group].text),
+        s.title + ': the only group a slot sheet opens is its Goals, Alert highlighting or Every condition card');
     }
     const end = group === -1 ? s.items.length : group;
     const last = s.items[end - 1];

@@ -47,7 +47,11 @@
   // The city's icon byte with the current weather's glyph: the glyph's id with this bit
   // (status_line.h STATUS_ICON_CITY_GLYPH), so the watch keeps the slot the city's.
   var CITY_GLYPH = 0x80;
-  var CAPS = { LINE_MAX: 48, EDGE_TEXT_MAX: 8, MID_TEXT_MAX: 19 };
+  // EDGE_COND_TEXT_MAX: an edge slot's weather condition may take the middle slot's room, its
+  // name with the short form after it, while the whole line still fits LINE_MAX
+  // (status-lines.js widenEdgeConditions), so a side slot shows the whole name beside an empty
+  // or a short middle.
+  var CAPS = { LINE_MAX: 48, EDGE_TEXT_MAX: 8, MID_TEXT_MAX: 19, EDGE_COND_TEXT_MAX: 19 };
 
   var ITEMS = [
     { code: 'empty', label: 'Empty', kind: KINDS.EMPTY, icon: ICONS.NONE },

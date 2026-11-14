@@ -578,9 +578,9 @@ test('a 3-hour fixture still sends its 3 hours on every span', () => {
 // fixtures/condition.json is the emulator sign-off scene for the weather condition slot:
 // partly cloudy at 15:24, before the 21:00 sunset, so the sun-behind-a-cloud glyph. The
 // forecast bar's middle slot carries the name with its short form after the separator
-// (the watch swaps the short one in where the row would cut the name); the Watch bar's
-// left slot has room for one form only, so the short one, beside the calendar week and
-// air quality (the rain alert, whose text would take that side, is off there).
+// (the watch swaps the short one in where the row would cut the name); so does the Watch
+// bar's left slot, its line having the room beside the calendar week and air quality (the
+// rain alert, whose text would take that side, is off there).
 test('fixtures/condition.json bakes the condition into the forecast bar and the Watch bar', () => {
   const { normalizeWeather } = require('../scripts/lib/fixture-time');
   const catalog = require('../src/pkjs/status-line-catalog.js');
@@ -593,7 +593,7 @@ test('fixtures/condition.json bakes the condition into the forecast bar and the 
     assert.equal(mid.text, 'Partly cloudy\u001fPCLDY', platform + ': the name and its short form');
     const topLeft = decodeLine(out.STATUS_LINE_3_UINT8)[0];
     assert.deepEqual([topLeft.kind, topLeft.icon, topLeft.text],
-      [catalog.KINDS.TEXT, catalog.ICONS.COND_SUN_CLOUD, 'PCLDY'], platform + ': the edge slot');
+      [catalog.KINDS.TEXT, catalog.ICONS.COND_SUN_CLOUD, 'Partly cloudy\u001fPCLDY'], platform + ': the edge slot');
   });
   const aplite = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform: 'aplite' });
   const apliteMid = decodeLine(aplite.STATUS_LINE_1_UINT8)[1];

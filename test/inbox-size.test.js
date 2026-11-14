@@ -317,6 +317,29 @@ test('bars 4 to 6: a shown bar\'s line rides the status category, one on no scre
   });
 });
 
+// A side slot's weather condition takes the middle's room while its line still fits the line's
+// 48 bytes (status-lines.js widenEdgeConditions; the owner's, 2026-11-14), so a line can grow
+// past the heaviest bundle's (City in every slot: 44 B) up to that cap. Every line at the cap
+// still fits every inbox. aplite never widens: its edges keep their 8 bytes.
+test('every status line at its 48-byte cap still fits the inbox', () => {
+  const LINE_MAX = require('../src/pkjs/status-line-catalog.js').CAPS.LINE_MAX;
+  Object.keys(WEATHER_BUNDLES).forEach(function(platform) {
+    const bundle = buildHeaviestBundleWithNotice(platform);
+    const keys = Object.keys(bundle).filter((k) => /^STATUS_LINE_\d_UINT8$/.test(k));
+    assert.ok(keys.length > 0, platform + ': premise, the bundle carries status lines');
+    keys.forEach((k) => assert.ok(bundle[k].length <= LINE_MAX, platform + ' ' + k + ' within the cap'));
+    const grown = dictSize(bundle) + keys.reduce((sum, k) => sum + LINE_MAX - bundle[k].length, 0);
+    assert.ok(grown <= readInboxSize(platform), platform + ': ' + grown + ' B with every line at the cap');
+  });
+  // The heaviest bake of a widened line: both side slots' names beside an empty middle (47 B).
+  const lines = require('../src/pkjs/status-lines.js');
+  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const wide = lines.packLine(catalog.lineById('forecast'), { CURRENT_CONDITION: 'partly' },
+    { statusForecastLeft: 'condition', statusForecastMid: 'empty', statusForecastRight: 'condition' },
+    { platform: 'basalt', color: true }, null);
+  assert.equal(wide.length, 47);
+});
+
 test('aplite keeps its 536 B inbox and a bundle without the extra metric lines', () => {
   assert.equal(readInboxSize('aplite'), 536, 'aplite\'s inbox comes out of its tiny heap — do not grow it');
   // aplite draws neither extra metric line, nor the Radar or Health bar, and has no On demand

@@ -51,10 +51,10 @@ function bake(cond, over, env, night, polar) {
   return decodeLine(lines.packLine(LINE, payload, settings, env || BASALT, null));
 }
 
-test('a sunny day: the middle slot carries the name and its short form, the edges the name', () => {
+test('a sunny day: every slot carries the name and its short form, the line having the room', () => {
   const [left, mid, right] = bake('clear');
   assert.deepEqual(mid, { kind: catalog.KINDS.TEXT, icon: catalog.ICONS.COND_SUN, text: 'Sunny' + SEP + 'SUN' });
-  assert.deepEqual(left, { kind: catalog.KINDS.TEXT, icon: catalog.ICONS.COND_SUN, text: 'Sunny' });
+  assert.deepEqual(left, mid, 'an edge slot takes the middle\'s room where the line fits it');
   assert.deepEqual(right, left);
 });
 
@@ -92,15 +92,45 @@ test('a polar pair reads the other way round: polar night has the moon, polar da
   assert.equal(noEvents.icon, catalog.ICONS.COND_SUN, 'no sun events: day');
 });
 
-test('a name too long for an edge slot arrives there as its short form', () => {
+test('a name too long for an edge slot arrives there as its short form where the line is full', () => {
+  // The middle's long name leaves the line no room for a second one: 22 + 22 + 8 > 48 bytes.
   const [left, mid] = bake('partly');
   assert.equal(mid.text, 'Partly cloudy' + SEP + 'PCLDY');
   assert.equal(left.text, 'PCLDY');
   assert.equal(left.icon, catalog.ICONS.COND_SUN_CLOUD);
-  assert.equal(bake('thunder')[0].text, 'TSTM');
+  assert.equal(bake('thunder')[0].text, 'Thunderstorm' + SEP + 'TSTM', 'a shorter one leaves room for the left');
+  assert.equal(bake('thunder')[2].text, 'TSTM', 'and none for the right');
   assert.equal(bake('freezing')[1].text, 'Freezing rain' + SEP + 'FZRA');
   assert.equal(bake('lightrain')[2].text, 'RAIN', 'light rain keeps the plain short form');
-  assert.equal(bake('cloudy')[0].text, 'Cloudy', 'a name that fits an edge slot stays whole there');
+  assert.equal(bake('cloudy')[0].text, 'Cloudy' + SEP + 'CLDY', 'a name that fits takes its short form along');
+});
+
+// The owner's, 2026-11-14: beside an empty middle, or a short one, a side slot has the room for
+// the whole name, so it gets the name with its short form (the watch swaps the short one in
+// where the row cannot hold the name, and keeps a middle's text whole).
+test('beside an empty or a short middle an edge slot gets the whole name with its short form', () => {
+  const edges = (mid, over, env) => {
+    const settings = Object.assign({ statusForecastLeft: 'condition', statusForecastMid: mid,
+      statusForecastRight: 'condition' }, over || {});
+    return decodeLine(lines.packLine(LINE, { CURRENT_CONDITION: 'partly', CURRENT_TEMP: 12,
+      CITY: 'Mönchengladbach-Ost', SUN_EVENTS: sun(false) }, settings, env || BASALT, null));
+  };
+  const both = 'Partly cloudy' + SEP + 'PCLDY';
+  let [left, mid, right] = edges('empty');
+  assert.deepEqual([left.text, mid.text, right.text], [both, '', both], 'an empty middle: both edges, 47 bytes');
+  [left, mid, right] = edges('temp');
+  assert.deepEqual([left.text, right.text], [both, 'PCLDY'], 'a short middle: room for one, the left one');
+  [left, mid, right] = edges('city');
+  assert.deepEqual([left.text, right.text], ['PCLDY', 'PCLDY'], 'a long middle: no room');
+  assert.ok(lines.packLine(LINE, { CURRENT_CONDITION: 'partly', SUN_EVENTS: sun(false) },
+    { statusForecastLeft: 'condition', statusForecastMid: 'empty', statusForecastRight: 'condition' }, BASALT, null)
+    .length <= catalog.CAPS.LINE_MAX, 'the line stays within its cap');
+  // Full: the whole name with nothing to swap in; Short: the short form alone.
+  assert.equal(edges('empty', { conditionSlotName: 'full' })[0].text, 'Partly cloudy');
+  assert.equal(edges('empty', { conditionSlotName: 'short' })[0].text, 'PCLDY');
+  // The Icon look has no name to widen, and aplite's lean row reads one form in an edge's 8 bytes.
+  assert.equal(edges('empty', { conditionSlotLook: 'icon' })[0].text, '');
+  assert.equal(edges('empty', {}, APLITE)[0].text, 'PCLDY');
 });
 
 test('a short form no shorter than the name rides with nothing', () => {
@@ -127,7 +157,7 @@ test('Name: Auto swaps in the short form, Full never sends one, Short sends it a
   const short = bake('partly', { conditionSlotName: 'short' });
   assert.equal(auto[1].text, 'Partly cloudy' + SEP + 'PCLDY', 'Auto (the default): name and short form');
   assert.equal(full[1].text, 'Partly cloudy', 'Full: the name with nothing to swap in');
-  assert.equal(full[0].text, 'PCLDY', 'Full: a name too long for an edge slot still arrives short');
+  assert.equal(full[0].text, 'Partly cloudy', 'Full: the name in an edge slot too, where the line has the room');
   assert.equal(bake('cloudy', { conditionSlotName: 'full' })[0].text, 'Cloudy', 'Full: a name that fits stays whole');
   short.forEach((slot) => assert.equal(slot.text, 'PCLDY', 'Short: every slot'));
   assert.equal(bake('cloudy', { conditionSlotName: 'short' })[0].text, 'CLDY', 'Short: even where the name fits');
@@ -163,7 +193,7 @@ test('every condition arrives whole in every slot, by day and by night', () => {
     const n = C.names(id, night);
     const [left, mid] = bake(id, {}, BASALT, night);
     assert.ok([n.full + SEP + n.short, n.full].indexOf(mid.text) !== -1, id + ': ' + mid.text);
-    assert.ok([n.full, n.short].indexOf(left.text) !== -1, id + ': an edge slot carries one form, whole');
+    assert.ok([n.full + SEP + n.short, n.full, n.short].indexOf(left.text) !== -1, id + ': an edge slot\'s forms, whole');
   }));
 });
 

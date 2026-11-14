@@ -19,6 +19,11 @@
 #define STATUS_LINE_MAX_BYTES 48
 #define STATUS_TEXT_EDGE_MAX 8
 #define STATUS_TEXT_MID_MAX 19
+// An edge slot's weather condition may take the middle slot's room, its name with the short
+// form after it, while the whole line still fits STATUS_LINE_MAX_BYTES (the phone checks:
+// status-lines.js widenEdgeConditions), so a side slot shows the whole name beside an empty
+// or a short middle (status_row.c swap_in_short_forms).
+#define STATUS_TEXT_EDGE_COND_MAX 19
 
 typedef enum {
     STATUS_LINE_FORECAST = 0,
@@ -125,6 +130,12 @@ static inline bool status_icon_is_city(uint8_t icon) {
     return icon == STATUS_ICON_NONE || (icon & STATUS_ICON_CITY_GLYPH) != 0;
 }
 
+// Whether a SLOT_TEXT slot's icon byte is the weather condition slot's: its text look or one
+// of its glyphs (never the city's, whose bit sits above every id).
+static inline bool status_icon_is_condition(uint8_t icon) {
+    return icon >= STATUS_ICON_COND_TEXT && icon <= STATUS_ICON_COND_WIND;
+}
+
 // The glyph an icon byte draws: the id without the city's bit.
 static inline uint8_t status_icon_glyph(uint8_t icon) {
     return (uint8_t)(icon & ~STATUS_ICON_CITY_GLYPH);
@@ -133,8 +144,10 @@ static inline uint8_t status_icon_glyph(uint8_t icon) {
 // A SLOT_TEXT value may carry a short form after this byte: "full" SEP "short". The watch
 // draws the full form and swaps in the short one where the row would cut the full one
 // short, and offers it as the slot's short member where On demand needs the room
-// (status_short_text.h). Only the middle slot has the bytes for both; an edge slot carries
-// one form. Never in a slot with a wind-direction sentinel (status_row_direction.h).
+// (status_short_text.h). The middle slot has the bytes for both, and an edge slot's weather
+// condition too where the line has the room (STATUS_TEXT_EDGE_COND_MAX); any other edge
+// slot carries one form. Never in a slot with a wind-direction sentinel
+// (status_row_direction.h).
 #define STATUS_TEXT_ALT_SEP 0x1F
 // Room for the longest short form, five capitals (condition.js: PCLDY, MCLDY): a longer
 // one is cut to this many bytes.
