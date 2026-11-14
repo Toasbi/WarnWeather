@@ -44,7 +44,7 @@ var forecastSpan = require('../../weather/domain/forecast-span.js');
 var forecastAxis = require('./forecast-axis.js');
 var lineStyle = require('./line-style.js');
 var lineAlert = require('../../alerts/domain/line-alert.js');
-var configUi = require('../../config-ui');
+var platforms = require('../../config-ui/lib/platform.js');
 
 // The record's tuples, by style index.
 var KEYS = ['CLAY_GRAPH_STYLE_1_UINT8', 'CLAY_GRAPH_STYLE_2_UINT8', 'CLAY_GRAPH_STYLE_3_UINT8'];
@@ -89,7 +89,7 @@ function nightShading(Sk) {
  * @returns {Object}
  */
 function weatherSettings(settings, watchInfo) {
-    var env = configUi.computeEnv(watchInfo);
+    var env = platforms.computeEnv(watchInfo);
     var u = settings ? unionOf(settings, env) : null;
     if (!u) { return settings; }
     var out = Object.assign({}, settings);
@@ -132,7 +132,7 @@ function weatherSettings(settings, watchInfo) {
  * @returns {number} 14, 24, 26 or 68
  */
 function hoursSent(settings, watchInfo) {
-    return forecastSpan.hours(weatherSettings(settings, watchInfo), configUi.computeEnv(watchInfo));
+    return forecastSpan.hours(weatherSettings(settings, watchInfo), platforms.computeEnv(watchInfo));
 }
 
 /**
@@ -144,7 +144,7 @@ function hoursSent(settings, watchInfo) {
  * @returns {number[]} 26 bytes plus 3 per palette stop
  */
 function packRecord(settings, k, u, watchInfo) {
-    var env = configUi.computeEnv(watchInfo);
+    var env = platforms.computeEnv(watchInfo);
     var Sk = graphStyles.settingsFor(settings, k);
     var scale = 0;
     if (forecastAxis.bakesScale(settings, env)) {
@@ -173,7 +173,7 @@ function packRecord(settings, k, u, watchInfo) {
  * @returns {Object<string, number[]>}
  */
 function buildStyleTuples(settings, watchInfo) {
-    var env = configUi.computeEnv(watchInfo);
+    var env = platforms.computeEnv(watchInfo);
     if (!env.graphStyles) { return {}; }
     var u = unionOf(settings, env);
     var out = {};

@@ -1,6 +1,6 @@
 var rainTier = require('./rain-tier');
 var lineStyle = require('../../forecast-graphs/domain/line-style.js');   // LINE_COLORS/FILL_COLORS + the resolved line styling
-var configUi = require('../../config-ui');        // computeEnv — the watch's env; isLineStylePlatform
+var platforms = require('../../config-ui/lib/platform.js');   // computeEnv, isLineStylePlatform
 var statusLines = require('../../status-bars/domain/status-lines.js');
 var statusRebake = require('../../status-bars/application/status-rebake.js');
 var statusCatalog = require('../../status-bars/domain/status-line-catalog.js');
@@ -257,7 +257,7 @@ function pressurePermille(arr, scale) {
  * byte (clay-payload.js' CLAY_CURVE_INSET_UINT8), so any of them can share the
  * temperature axis: the Main and Second metric lines (secondaryLine/thirdLine) on
  * every non-aplite watch, the Third and Fourth metric lines (fourthLine/fifthLine)
- * only where the watch compiles them (configUi.isLineStylePlatform — the same gate
+ * only where the watch compiles them (platform.isLineStylePlatform — the same gate
  * applyForecastSeries puts on their wire keys). line-style.js firstDrawnLine walks
  * them by effectiveLineMetric: an off line, or one repeating an earlier line's pick,
  * draws nothing and so widens nothing.
@@ -279,7 +279,7 @@ function pressurePermille(arr, scale) {
 function tempAxisLineDrawn(settings, watchInfo, metric) {
     var platform = watchInfo && watchInfo.platform ? watchInfo.platform : '';
     if (platform === 'aplite') { return false; }
-    return lineStyle.firstDrawnLine(settings, configUi.isLineStylePlatform(platform),
+    return lineStyle.firstDrawnLine(settings, platforms.isLineStylePlatform(platform),
         function (m) { return m === metric; }) !== null;
 }
 
@@ -580,7 +580,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // line's shared bottom down there. aplite has no Alert settings at all, so it gets
     // none and draws every line All whatever is stored. An unknown platform draws every
     // line, and Alert.
-    var env = configUi.computeEnv(watchInfo);
+    var env = platforms.computeEnv(watchInfo);
     raw.alertBands = lineAlert.alertBands(settings, env);
     // Whether the watch draws the line styles (WW_LINE_STYLE): only then does a line
     // stored as a stripe take stripe level bytes. aplite draws its frozen line and dots.
@@ -655,7 +655,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
  * @returns {boolean}
  */
 function metricWanted(settings, code, watchInfo) {
-    var env = configUi.computeEnv(watchInfo);
+    var env = platforms.computeEnv(watchInfo);
     return statusThresholds.alertOn(settings, code, env)
         || statusCatalog.selectedCodes(settings, env).indexOf(code) !== -1;
 }
@@ -689,7 +689,7 @@ function needsUv(settings, watchInfo) {
  */
 function dayPeakCodes(settings, watchInfo) {
     if (!settings) { return []; }
-    var env = configUi.computeEnv(watchInfo);
+    var env = platforms.computeEnv(watchInfo);
     return statusCatalog.DAY_MAX_KINDS.filter(function (kind) {
         return statusThresholds.alertOn(settings, kind, env) || statusCatalog.dayMaxInUse(settings, kind, env);
     });

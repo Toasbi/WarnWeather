@@ -18,7 +18,8 @@
 
 // unitEnabled — a Show unit toggle, read like the bake prints the slot.
 var slotText = require('../../status-bars/domain/slot-text.js');
-var configUi = require('../../config-ui');          // intToHex, computeEnv
+var platforms = require('../../config-ui/lib/platform.js');
+var color = require('../../config-ui/lib/color.js');
 // renderContextFor / graphColorKey / graphColorIsDefault — the module that resolves the
 // graph colours for the WIRE, so this snapshot reports what the watch actually paints
 // instead of a second opinion about it.
@@ -112,7 +113,7 @@ function graphColorReport(settings, scope, role, suffix) {
     if (!lineStyle.graphColorIsPicked(settings, scope, role, suffix)) {
         return 'default';
     }
-    return configUi.intToHex(
+    return color.intToHex(
         lineStyle.colorPick(settings[lineStyle.graphColorKey(scope, role, suffix)]));
 }
 
@@ -224,7 +225,7 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
     var now = typeof nowMs === 'number' ? nowMs : Date.now();
     // What this watch can show (the config page's own facts): no On demand on aplite.
     // An unknown watch (watchInfo absent) answers like basalt: colour, no LED.
-    var env = configUi.computeEnv(watchInfo);
+    var env = platforms.computeEnv(watchInfo);
     var cx = lineStyle.renderContextFor(safe, env);
     // What only a known aplite reads: its fixed quiet-time and low-battery indicators
     // (every other watch has On demand, the onDemand code below) and its one-screen Layout

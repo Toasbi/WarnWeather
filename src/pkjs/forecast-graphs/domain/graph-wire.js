@@ -26,7 +26,7 @@ var rainTier = require('../../weather/domain/rain-tier.js');
 var resolveInk = require('../../theme/domain/resolve-ink.js');
 var lineStyle = require('./line-style.js');
 var drawFrom = require('./draw-from.js');
-var configUi = require('../../config-ui');
+var platforms = require('../../config-ui/lib/platform.js');
 
 // Line-style flag byte (wire byte [3]), bit 0: the secondary line's area fill is on.
 var FLAG_SECONDARY_FILL = 0x01;
@@ -92,7 +92,7 @@ function buildPaletteTuples(settings, watchInfo) {
     var platform = watchInfo ? watchInfo.platform : 'basalt';
     var resolved = settings || {};
     var theme = resolved.theme || 'dark';
-    var env = configUi.computeEnv(watchInfo);
+    var env = platforms.computeEnv(watchInfo);
     return {
         BAR_PALETTE_UINT8: markPalette(
             rainTier.buildPackedPalette(platform, resolveInk.barColorMode(resolved.rainBarColor, theme), theme),
@@ -143,7 +143,7 @@ function buildPaletteTuples(settings, watchInfo) {
  * @returns {number[]} The fourteen bytes above.
  */
 function buildLineStyleBytes(settings, watchInfo) {
-    var env = configUi.computeEnv(watchInfo);
+    var env = platforms.computeEnv(watchInfo);
     var s = lineStyle.resolveGraphColors(settings, env);
     /**
      * One line's style byte with its Draw from flag and its float bit.
