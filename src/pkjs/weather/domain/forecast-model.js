@@ -83,14 +83,14 @@ function buildPayload(forecast, nowEpoch) {
         TEMP_MAX: tempMax,
         PRECIP_TREND_UINT8: precips, // Holds values within [0,100]
         RAIN_TREND_UINT8: rains, // Holds values within [0,255], representing 0.0..25.5 mm/h (5 mm cap on the watch; >5 mm signals overflow)
-        WIND_TREND_UINT8: winds, // Transient PKJS-only: km/h integers; forecast-series consumes + deletes this before send
-        GUST_TREND_UINT8: gusts, // Transient PKJS-only: km/h integers; forecast-series consumes + deletes this before send
-        UV_TREND_UINT8: uvs, // Transient PKJS-only: UV tenths; forecast-series consumes + deletes before send
-        AQI_TREND: (forecast.aqiTrend && forecast.aqiTrend.length) ? forecast.aqiTrend.slice(0, numEntries) : [], // Transient PKJS-only: current-window AQI ints; forecast-series consumes + deletes before send
-        POLLEN_TODAY: forecast.pollenToday, // Transient PKJS-only: native DWD severity; forecast-series consumes + deletes before send
-        POLLEN_TOMORROW: forecast.pollenTomorrow, // Transient PKJS-only: tomorrow's DWD severity, read by the pollen alert's look-ahead; deleted before send
+        WIND_TREND_UINT8: winds, // Transient PKJS-only: km/h integers; read by the bake and the series; render-payload removes it before send
+        GUST_TREND_UINT8: gusts, // Transient PKJS-only: km/h integers; read by the bake and the series; render-payload removes it before send
+        UV_TREND_UINT8: uvs, // Transient PKJS-only: UV tenths; read by the bake and the series; render-payload removes it before send
+        AQI_TREND: (forecast.aqiTrend && forecast.aqiTrend.length) ? forecast.aqiTrend.slice(0, numEntries) : [], // Transient PKJS-only: current-window AQI ints; read by the bake and the series; render-payload removes it before send
+        POLLEN_TODAY: forecast.pollenToday, // Transient PKJS-only: native DWD severity; read by the bake and the series; render-payload removes it before send
+        POLLEN_TOMORROW: forecast.pollenTomorrow, // Transient PKJS-only: tomorrow's DWD severity, read by the pollen alert's look-ahead; render-payload removes it before send
         CLOUD_TREND: (forecast.cloudTrend && forecast.cloudTrend.length) ? forecast.cloudTrend.slice(0, numEntries) : [], // Transient PKJS-only: cloud cover %; forecast-series consumes + deletes before send
-        PRESSURE_TREND: (forecast.pressureTrend && forecast.pressureTrend.length) ? forecast.pressureTrend.slice(0, numEntries) : [], // Transient PKJS-only: sea-level hPa (no _UINT8 — 950..1050 doesn't fit a byte); forecast-series consumes + deletes before send
+        PRESSURE_TREND: (forecast.pressureTrend && forecast.pressureTrend.length) ? forecast.pressureTrend.slice(0, numEntries) : [], // Transient PKJS-only: sea-level hPa (no _UINT8 — 950..1050 doesn't fit a byte); read by the bake and the series; render-payload removes it before send
         FORECAST_START: forecast.startTime,
         NUM_ENTRIES: numEntries,
         // Transient PKJS-only: °F, unrounded like DEW_TREND — formatTemp rounds once,
@@ -108,7 +108,7 @@ function buildPayload(forecast, nowEpoch) {
     }
     // Feels-like keys are emitted only when sourced (unlike PRESSURE_TREND's
     // always-present empty array) so a feels-less payload has no keys to strip.
-    // Transient PKJS-only: forecast-series/formatValue consume + delete before send.
+    // Transient PKJS-only: forecast-series removes the trend, render-payload the current value.
     if (forecast.feelsTrend && forecast.feelsTrend.length) {
         // °F, whole degrees: Steadman/apparent values are fractional, but the joint
         // band they widen lands in the int32 TEMP_MIN/TEMP_MAX wire keys.
@@ -121,7 +121,7 @@ function buildPayload(forecast, nowEpoch) {
     }
     // The weather condition now follows the same rule: absent rather than null
     // when the provider names none. Transient PKJS-only: buildStatusLines bakes it
-    // into the condition slot's text and glyph, and forecast-series deletes it
+    // into the condition slot's text and glyph, and render-payload removes it
     // before send.
     if (forecast.currentCondition) {
         payload.CURRENT_CONDITION = forecast.currentCondition; // a condition.js id, e.g. 'partly'
@@ -129,7 +129,7 @@ function buildPayload(forecast, nowEpoch) {
     // Dew point and wind bearing follow the same conditional-emit rule as the
     // feels-like keys: absent rather than empty, so a provider that does not
     // source them leaves no key to strip. Transient PKJS-only — buildStatusLines
-    // bakes both into slot text and forecast-series deletes them before send.
+    // bakes both into slot text and render-payload removes them before send.
     if (forecast.dewTrend && forecast.dewTrend.length) {
         payload.DEW_TREND = forecast.dewTrend.slice(0, numEntries); // °F, unrounded: formatTemp rounds per unit
     }

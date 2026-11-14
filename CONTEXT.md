@@ -263,7 +263,7 @@ _Avoid_: forecast span (that is the option).
 **Mapped forecast**:
 The plain object an adapter's `withProviderData` produces from its API
 response(s): the series, scalars and feels inputs named by
-`WeatherProvider.MAPPED_KEYS`. The adapter hands it to `adoptMapped`, which applies the
+`MAPPED_KEYS` (weather/domain/forecast-model.js). The adapter hands it to `adoptMapped`, which applies the
 fetch options' gates and the one missing-value convention per field and writes
 the instance. An adapter only maps; only adopt decides.
 _Avoid_: normalized provider fields, provider instance shape.

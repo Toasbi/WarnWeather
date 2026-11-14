@@ -292,7 +292,7 @@ function recall(provider, lat, lon, nowEpoch, load) {
  * when unknown. The first two are read off the FULL series — it reaches
  * PEAK_HOURS, past the graph's 24 h; the clock picks which local day is today.
  * The third is recall's (`earlier`).
- * Transient PKJS-only: the status bake reads them, forecast-series deletes them.
+ * Transient PKJS-only: the status bake reads them, render-payload.js removes them.
  *
  * @param {Object} payload The weather payload (mutated).
  * @param {Object} provider The fetching provider.

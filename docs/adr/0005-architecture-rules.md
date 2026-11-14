@@ -114,7 +114,7 @@ Input is checked once, where it enters:
 
 | Input | Checked in |
 | --- | --- |
-| Weather and radar API responses | the provider's adapter, which maps them into one model (`weather/adapter/provider.js` `adoptMapped`) |
+| Weather and radar API responses | the provider's adapter, which maps them into one model (`weather/domain/forecast-model.js` `adoptMapped`) |
 | Stored settings | the settings read and its migrations |
 | The settings page's return | the settings context, as it stores them |
 | AppMessage tuples | the watch's wire readers (`appendix/status_line.c`, `config_wire.c`, …) |
