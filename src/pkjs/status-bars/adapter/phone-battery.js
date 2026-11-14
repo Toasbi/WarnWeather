@@ -250,26 +250,9 @@ function setSupported(supported) {
  * re-probe. lastWritten is dropped with it so the next persistSnapshot rewrites
  * the wiped flash backstop even when the payload serialization has not changed.
  *
- * A host whose storage throws (blocked in a WebView) reads as null, no reading at all:
- * the bake's battery slots then print '--' instead of the whole bake failing.
- *
- * @returns {?{available: boolean, level: (number|null), charging: boolean}} Cached
- *   reading, or null when storage cannot be read.
- */
-function read() {
-    try {
-        return readCache();
-    } catch (ex) {
-        return null;
-    }
-}
-
-/**
- * read()'s body: the cached reading, re-seeded from the manager when the cache is gone.
- *
  * @returns {{available: boolean, level: (number|null), charging: boolean}} Cached reading.
  */
-function readCache() {
+function read() {
     var raw = load(KEYS.PHONE_BATTERY_LEVEL);
     var level;
     if (raw === null && manager) {
