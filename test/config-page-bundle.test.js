@@ -103,6 +103,22 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
   });
 });
 
+// watch-layout.js binds VIEW_CYCLE while its body runs and preview-watch.js binds window.WatchLayout
+// while its own does: out of order, or missing, every picture of the watch throws on a real phone
+// while Node (require()) passes.
+test('the watch\'s band placement reaches the page after view-cycle and ahead of the watch preview', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('pkjs/view-cycle.js') < idx('settings/watch-layout.js'), 'view-cycle.js must precede watch-layout.js');
+  assert.ok(idx('settings/watch-layout.js') < idx('settings/preview-watch.js'),
+    'watch-layout.js must precede preview-watch.js');
+  assert.ok(page().indexOf('window.WatchLayout = api') !== -1, 'nothing assigns window.WatchLayout');
+});
+
 // preview-watch.js and wizard.js bind window.ScreenFrame while their bodies run: out of order, or
 // missing, every screen picture on the page throws on a real phone while Node (require()) passes.
 test('the screen pictures\' frame reaches the page ahead of the watch preview and the wizard', () => {

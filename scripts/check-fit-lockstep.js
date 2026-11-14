@@ -6,7 +6,7 @@
 //   F <0|1>   a fill band: the phone's verdict (need <= avail) equals whether the watch's fill
 //             band kept its floor;
 //   C <need>  the watch reached the floor: the phone never budgets less than it placed.
-//   R ...     every band where the watch placed it equals view-cycle.js stackLayout's band,
+//   R ...     every band where the watch placed it equals settings/watch-layout.js stackLayout's band,
 //             which the settings page draws its pictures of the watch on (the clock's ink as
 //             the dump's metrics give it).
 // Run by scripts/test-c.sh for both screen families; any disagreement fails the build, so the
@@ -15,6 +15,7 @@
 'use strict';
 const fs = require('fs');
 const vc = require('../src/pkjs/view-cycle.js');
+const wl = require('../src/pkjs/settings/watch-layout.js');
 
 const MIN_LINES = 40000;   // both families; a truncated or empty dump must not pass
 const MIN_RECTS = 40000;
@@ -32,7 +33,7 @@ for (const line of lines) {
   const spec = vc.resolveForFit(vc.unpackWire(wire + ext * 65536), hr === 1, hh === 1);
   let ok, got;
   if (kind === 'R') {
-    const lay = vc.stackLayout(spec, family, INK[family]);
+    const lay = wl.stackLayout(spec, family, INK[family]);
     const at = {};
     lay.bands.forEach((b) => { at[b.band] = b.y + ',' + b.h; });
     got = BANDS.map((b) => at[b] || '-').join(' ');

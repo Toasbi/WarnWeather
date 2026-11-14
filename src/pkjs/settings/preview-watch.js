@@ -19,6 +19,7 @@
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
         : null;
     var VC = NODE ? require('../view-cycle.js') : VIEW_CYCLE;
+    var WL = NODE ? require('./watch-layout.js') : window.WatchLayout;
     var svgLib = NODE ? require('./preview-svg.js') : window.PreviewSvg;
     var resolveInk = NODE ? require('../resolve-ink.js') : window.ResolveInk;
     var statusBars = NODE ? require('./preview-status-bars.js') : window.PreviewStatusBars;
@@ -127,7 +128,7 @@
 
     /**
      * Where each band of one view sits on its screen: where the watch places it
-     * (view-cycle.js stackLayout, layout.c compute_layout, kept in lockstep with it), the
+     * (watch-layout.js stackLayout, layout.c compute_layout, kept in lockstep with it), the
      * clock's ink centred between its neighbours' for the time font drawn. A band that fills
      * the stack and ends it runs on to the screen's bottom edge (emery's floor keeps 4 rows the
      * forecast's hour labels end in: graphBand's foot).
@@ -139,7 +140,7 @@
      *     The top bar's height (0 without one), the status rows' tier and each band's rows.
      */
     function layoutView(spec, f, ink) {
-        var lay = VC.stackLayout(spec, f, ink || clockInk(null, f, false));
+        var lay = WL.stackLayout(spec, f, ink || clockInk(null, f, false));
         var last = lay.bands[lay.bands.length - 1];
         if (last && last.band === lay.fill) { last.h = SCREEN[f].h - last.y; }
         return { strip: spec.stripOff ? 0 : STRIP[f].h, tier: lay.tier, bands: lay.bands };
@@ -331,7 +332,7 @@
     var BATTERY = { w: 29, h: 10, lane: 10, nub: 2 };
 
     // status_metrics.h's seat of a line in a band (view-cycle.js, the placement's own copy).
-    var seatY = VC.statusSeatY, glyphBelow = VC.statusGlyphBelow;
+    var seatY = WL.statusSeatY, glyphBelow = WL.statusGlyphBelow;
 
     /**
      * The Watch battery glyph at the sample's 80 % charge: its body outlined, the charge filled,
