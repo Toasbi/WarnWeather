@@ -3,6 +3,8 @@
 
 int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
     if (slot_kind == SLOT_TEXT) {
+        // The city with the current weather's glyph (status_line.h STATUS_ICON_CITY_GLYPH).
+        if (icon & STATUS_ICON_CITY_GLYPH) { return THRESH_CITY; }
         switch (icon) {
             case STATUS_ICON_AQI:       return THRESH_AQI;
             case STATUS_ICON_POLLEN:    return THRESH_POLLEN;

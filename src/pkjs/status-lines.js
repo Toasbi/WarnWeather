@@ -393,6 +393,13 @@ function iconFor(code, item, payload, settings, env) {
     var pb = phoneBatteryReading();
     if (pb && pb.charging) { return catalog.ICONS.PHONE_BATTERY_CHG; }
   }
+  // The city with the current weather's glyph before its name (citySlotIcon): the glyph's id
+  // with the city's bit, which keeps the slot the city's on the watch. No glyph while no
+  // condition is known, nor on aplite.
+  if (code === 'city') {
+    var cw = slotText.cityIcon(settings, env) ? conditionNow(payload) : null;
+    return cw ? (catalog.ICONS[condition.glyph(cw.id, cw.night)] | catalog.CITY_GLYPH) : item.icon;
+  }
   // The weather condition's glyph; the text-only id while none is known and in the Text
   // look (aplite's too).
   if (code === 'condition') {

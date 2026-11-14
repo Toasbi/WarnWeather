@@ -396,6 +396,19 @@ static void city(void) {
     expect_str("floor bonn", floor, "Bon\xE2\x80\xA6");
     expect_true("floor ulm", !status_short_floor("Ulm", floor, sizeof(floor)));
     expect_true("floor cap", !status_short_floor("Frankfurt", floor, 6));
+    // The city with the current weather's glyph is the same city: elastic, the same rungs.
+    const uint8_t glyph = (uint8_t)(STATUS_ICON_CITY_GLYPH | STATUS_ICON_COND_SUN);
+    expect_true("city glyph elastic", status_short_elastic(SLOT_TEXT, glyph));
+    for (uint8_t v = 1; v < OD_VARIANTS; v++) {
+        char plain[STATUS_SHORT_CAP], marked[STATUS_SHORT_CAP];
+        uint8_t a = status_short_member(SLOT_TEXT, STATUS_ICON_NONE, "Frankfurt am Main", false, false,
+                                        v, plain, sizeof(plain));
+        uint8_t b = status_short_member(SLOT_TEXT, glyph, "Frankfurt am Main", false, false, v,
+                                        marked, sizeof(marked));
+        expect_true("city glyph same flags", a == b);
+        if (a) { expect_str("city glyph same rung", marked, plain); }
+    }
+    expect_true("condition is no city", !status_short_elastic(SLOT_TEXT, STATUS_ICON_COND_SUN));
 }
 
 // A member never outgrows its buffer: a 19-byte city (the middle slot's cap) whose

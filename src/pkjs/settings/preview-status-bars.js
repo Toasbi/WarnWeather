@@ -237,6 +237,12 @@
     function slotIcon(code, env, S) {
         if (env && env.platform === 'aplite' && !APLITE_GLYPHS[code]) { return null; }
         if (code === 'condition' && slotText.conditionLook(S, env) === 'text') { return null; }
+        // The city draws the current weather's icon before its name (citySlotIcon); the
+        // sample's weather is the condition slot's, partly cloudy.
+        if (code === 'city') {
+            return slotText.cityIcon(S, env) && PConf && PConf.icons && PConf.icons.get
+                ? PConf.icons.get('condition') || null : null;
+        }
         return (PConf && PConf.icons && PConf.icons.get && PConf.icons.get(code)) || null;
     }
 

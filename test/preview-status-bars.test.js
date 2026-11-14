@@ -297,5 +297,10 @@ test('the condition slot: the bake\'s forms, split, and one place for the glyph'
   assert.deepEqual([left.text, left.alt], ['PCLD', '']);
   assert.equal(preview.slotIcon('condition', basalt, { conditionSlotLook: 'text' }), null, 'the Text look: no glyph');
   assert.equal(preview.slotIcon('condition', aplite, {}), null, 'aplite draws none');
+  // The city draws the current weather's icon before its name unless switched off.
+  assert.equal(preview.slotIcon('city', basalt, {}), preview.slotIcon('condition', basalt, {}),
+    'the city: the weather icon, on by default');
+  assert.equal(preview.slotIcon('city', basalt, { citySlotIcon: false }), null, 'switched off: none');
+  assert.equal(preview.slotIcon('city', aplite, {}), null, 'aplite draws none');
   assert.equal(preview.barSlots(Object.assign({ conditionSlotLook: 'text' }, S), basalt, 'forecast')[1].icon, null);
 });

@@ -175,6 +175,8 @@ function renderSignature(settings, watchInfo) {
         // ...the weather condition slot's Look and Name (its glyph and text are baked, so a
         // new look or name only shows after a re-bake)...
         settings.conditionSlotLook, settings.conditionSlotName,
+        // ...the city slot's weather icon (baked into its icon byte)...
+        settings.citySlotIcon,
         // ...and the night weather-pause window (a change flips whether fetching pauses
         // and the IS_SLEEPING glyph the forced fetch pushes). The battery saver's own
         // toggle and hour pair — sleep-window.js reads no others — or an edit sits

@@ -44,6 +44,9 @@
   };
   // A TEXT slot's short form rides after this byte (status_line.h STATUS_TEXT_ALT_SEP).
   var ALT_SEP = '\u001f';
+  // The city's icon byte with the current weather's glyph: the glyph's id with this bit
+  // (status_line.h STATUS_ICON_CITY_GLYPH), so the watch keeps the slot the city's.
+  var CITY_GLYPH = 0x80;
   var CAPS = { LINE_MAX: 48, EDGE_TEXT_MAX: 8, MID_TEXT_MAX: 19 };
 
   var ITEMS = [
@@ -547,7 +550,8 @@
   }
 
   var api = {
-    KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, ALT_SEP: ALT_SEP, LINES: LINES, SLOT_POSITIONS: SLOT_POSITIONS,
+    KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, ALT_SEP: ALT_SEP, CITY_GLYPH: CITY_GLYPH, LINES: LINES,
+    SLOT_POSITIONS: SLOT_POSITIONS,
     EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,

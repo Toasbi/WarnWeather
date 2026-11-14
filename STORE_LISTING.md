@@ -62,7 +62,7 @@ STATUS LINES
    - Date and location:
       - calendar week
       - date (selectable formats: European, US, ISO and more)
-      - weather fetch location
+      - weather fetch location, with the current weather's icon
       - countdown to any date
    - Health:
       - steps

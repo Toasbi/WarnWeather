@@ -112,6 +112,24 @@ typedef enum {
 // a pre-3dae9f4 install can still hold a persisted blob referencing it.
 #define STATUS_ICON_MAX STATUS_ICON_COND_WIND
 
+// The city slot can draw the current weather's glyph before its name: the glyph's id
+// (STATUS_ICON_COND_SUN..STATUS_ICON_COND_WIND) with this bit set, so the slot stays the
+// city's (SLOT_TEXT + STATUS_ICON_NONE's bold row and word ladder) and loads that glyph.
+// The phone sends it to every watch but aplite, whose lean row draws no such glyph.
+#define STATUS_ICON_CITY_GLYPH 0x80u
+_Static_assert(STATUS_ICON_MAX < STATUS_ICON_CITY_GLYPH, "the city's glyph bit sits above every id");
+
+// Whether a SLOT_TEXT slot's icon byte is the city's: no glyph, or a weather glyph marked
+// with STATUS_ICON_CITY_GLYPH.
+static inline bool status_icon_is_city(uint8_t icon) {
+    return icon == STATUS_ICON_NONE || (icon & STATUS_ICON_CITY_GLYPH) != 0;
+}
+
+// The glyph an icon byte draws: the id without the city's bit.
+static inline uint8_t status_icon_glyph(uint8_t icon) {
+    return (uint8_t)(icon & ~STATUS_ICON_CITY_GLYPH);
+}
+
 // A SLOT_TEXT value may carry a short form after this byte: "full" SEP "short". The watch
 // draws the full form and swaps in the short one where the row would cut the full one
 // short, and offers it as the slot's short member where On demand needs the room

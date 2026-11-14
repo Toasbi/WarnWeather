@@ -171,3 +171,20 @@ test('the bake reads CURRENT_CONDITION and SUN_EVENTS through SOURCE_KEYS', () =
   assert.ok(lines.SOURCE_KEYS.indexOf('CURRENT_CONDITION') !== -1);
   assert.ok(lines.SOURCE_KEYS.indexOf('SUN_EVENTS') !== -1);
 });
+
+// The city slot draws the current weather's glyph before its name (citySlotIcon, on unless
+// switched off): the glyph's id with the city's bit, so the watch keeps it the city's slot.
+test('City: the current weather glyph with the city bit, unless switched off or on aplite', () => {
+  const bakeCity = (cond, over, env, night) => decodeLine(lines.packLine(LINE,
+    { CITY: 'Berlin', CURRENT_CONDITION: cond, SUN_EVENTS: sun(Boolean(night)) },
+    Object.assign({ statusForecastLeft: 'city' }, over || {}), env || BASALT, null))[0];
+  const day = bakeCity('partly');
+  assert.equal(day.text, 'Berlin');
+  assert.equal(day.icon, catalog.CITY_GLYPH | catalog.ICONS.COND_SUN_CLOUD, 'on by default, every install');
+  assert.equal(bakeCity('partly', {}, BASALT, true).icon, catalog.CITY_GLYPH | catalog.ICONS.COND_MOON_CLOUD,
+    'the night glyph at night');
+  assert.equal(bakeCity('partly', { citySlotIcon: false }).icon, catalog.ICONS.NONE, 'switched off: no glyph');
+  assert.equal(bakeCity(null).icon, catalog.ICONS.NONE, 'no condition known: no glyph');
+  assert.equal(bakeCity('partly', {}, APLITE).icon, catalog.ICONS.NONE, 'aplite draws none');
+  assert.ok(catalog.CITY_GLYPH > catalog.ICONS.COND_WIND, 'the bit sits above every id');
+});

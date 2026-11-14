@@ -7882,6 +7882,15 @@
             "title": "City slot",
             "items": [
               {
+                "type": "toggle",
+                "messageKey": "citySlotIcon",
+                "label": "Weather icon",
+                "defaultValue": true,
+                "hintByValue": {
+                  "true": "Shows the current weather's icon before the city name."
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "threshCityBoldMode",
                 "label": "Bold",

@@ -272,9 +272,10 @@ static inline bool sst_condition_glyph(uint8_t kind, uint8_t icon) {
     return kind == SLOT_TEXT && icon >= STATUS_ICON_COND_SUN && icon <= STATUS_ICON_COND_WIND;
 }
 
-// The city is the one slot kind whose last member is elastic.
+// The city is the one slot kind whose last member is elastic, with the current weather's
+// glyph or without.
 static inline bool status_short_elastic(uint8_t kind, uint8_t icon) {
-    return kind == SLOT_TEXT && icon == STATUS_ICON_NONE;
+    return kind == SLOT_TEXT && status_icon_is_city(icon);
 }
 
 // The elastic city's floor: its first STATUS_SHORT_FLOOR_CPS code points and the

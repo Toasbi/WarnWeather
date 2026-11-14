@@ -161,6 +161,9 @@ const settingsSchema = z
     // The weather condition slot's Name: 'auto', 'full' or 'short'. Absent on aplite.
     // DEPLOY-ORDERING: ship this function before the app release that sends it.
     conditionSlotName: z.string().optional(),
+    // Whether the city slot draws the current weather's icon. Absent on aplite.
+    // DEPLOY-ORDERING: ship this function before the app release that sends it.
+    citySlotIcon: z.boolean().optional(),
     // The Battery item's warn level as stored (a percentage) and its look ('icon' /
     // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
     batteryLowLevel: z.number().int().min(0).max(100).optional(),

@@ -126,6 +126,12 @@ test('every condition glyph has its drawing and its watch mapping; the page has 
   assert.equal(table.indexOf('STATUS_ICON_COND_TEXT'), -1, 'the Text look maps to no glyph');
 });
 
+test('the city glyph bit is in lockstep with STATUS_ICON_CITY_GLYPH', () => {
+  const m = header.match(/#define\s+STATUS_ICON_CITY_GLYPH\s+0x([0-9A-Fa-f]+)u?/);
+  assert.ok(m, 'STATUS_ICON_CITY_GLYPH missing from status_line.h');
+  assert.equal(catalog.CITY_GLYPH, parseInt(m[1], 16));
+});
+
 test('STATUS_ICON_MAX names the highest icon id in the enum', () => {
   const ids = [...header.matchAll(/(STATUS_ICON_[A-Z_]+)\s*=\s*(\d+)/g)]
     .map(m => ({ name: m[1], value: Number(m[2]) }));

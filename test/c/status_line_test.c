@@ -107,6 +107,34 @@ static void validate_tests(void) {
         expect("text-empty.len", ev[0].value_len, 0);
     }
 
+    // The city with the current weather's glyph: a weather glyph's id with the city's bit,
+    // on a text slot. Any other id with the bit, or the bit on another kind, is garbage.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_CITY_GLYPH | STATUS_ICON_COND_RAIN, "Berlin");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("city-glyph.accept", status_line_validate(b, n), 1);
+    {
+        StatusSlotView cv[STATUS_SLOT_COUNT];
+        expect("city-glyph.slots", status_line_slots(b, n, cv), STATUS_SLOT_COUNT);
+        expect("city-glyph.icon", cv[0].icon, STATUS_ICON_CITY_GLYPH | STATUS_ICON_COND_RAIN);
+        expect("city-glyph.is_city", status_icon_is_city(cv[0].icon), 1);
+        expect("city-glyph.glyph", status_icon_glyph(cv[0].icon), STATUS_ICON_COND_RAIN);
+    }
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_CITY_GLYPH | STATUS_ICON_TEMP, "Berlin");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("city-glyph.not_weather.reject", status_line_validate(b, n), 0);
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_CITY_GLYPH, "Berlin");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("city-glyph.bare_bit.reject", status_line_validate(b, n), 0);
+    n = put_slot(b, 0, SLOT_LIVE_DATE, STATUS_ICON_CITY_GLYPH | STATUS_ICON_COND_SUN, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("city-glyph.not_text.reject", status_line_validate(b, n), 0);
+    expect("city-glyph.plain_city", status_icon_is_city(STATUS_ICON_NONE), 1);
+    expect("city-glyph.condition_not_city", status_icon_is_city(STATUS_ICON_COND_RAIN), 0);
+
     // Edge slot over 8 bytes.
     n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_NONE, "123456789");
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);

@@ -686,7 +686,8 @@ static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int conte
         uint8_t wanted = views[i].kind != SLOT_EMPTY ? views[i].icon : STATUS_ICON_NONE;
         if (!env_changed && wanted == row->glyph_icons[i]) { continue; }
         status_row_icons_destroy(row->glyphs[i]);
-        row->glyphs[i] = status_row_icons_load(wanted, target_h, top);
+        // The city's weather glyph loads as that glyph (status_line.h STATUS_ICON_CITY_GLYPH).
+        row->glyphs[i] = status_row_icons_load(status_icon_glyph(wanted), target_h, top);
         row->glyph_icons[i] = wanted;
     }
     row->glyph_h = target_h;

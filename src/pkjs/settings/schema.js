@@ -2084,7 +2084,15 @@ module.exports = {
             optionsFrom: {resolver: 'dateFullFormatOptions'}
         }]),
         boldSection('Calendar week', 'Week'),
-        boldSection('City', 'City'),
+        // The city's own row: the current weather's icon before its name (slot-text.js
+        // cityIcon), on for every install until switched off.
+        boldSection('City', 'City', null, [{
+            type: 'toggle',
+            messageKey: 'citySlotIcon',
+            label: 'Weather icon',
+            defaultValue: true,
+            hintByValue: {'true': 'Shows the current weather\'s icon before the city name.'}
+        }]),
         // 'd' is a unit like any other here — the countdown reads '5d' today, and
         // dropping it buys a character back on a crowded bar.
         boldSection('Date countdown', 'Countdown', null,

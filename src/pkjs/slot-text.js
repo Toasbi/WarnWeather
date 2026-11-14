@@ -274,6 +274,19 @@
     }
 
     /**
+     * Whether the city slot draws the current weather's icon before its name (its dialog's
+     * citySlotIcon, on unless switched off, so every install has it). Never on aplite, whose
+     * lean row draws no weather icon.
+     * @param {Object} settings Settings.
+     * @param {Object} [env] Platform env.
+     * @returns {boolean}
+     */
+    function cityIcon(settings, env) {
+        if (env && env.platform === 'aplite') { return false; }
+        return !(settings && settings.citySlotIcon === false);
+    }
+
+    /**
      * The weather condition slot's Name (its dialog's conditionSlotName): 'auto' (the full name,
      * the short form where the slot runs out of room; the default, and what anything unknown
      * reads as), 'full' or 'short'.
@@ -326,6 +339,7 @@
         isoWeek: isoWeek,
         conditionLook: conditionLook,
         conditionName: conditionName,
+        cityIcon: cityIcon,
         conditionText: conditionText
     };
 

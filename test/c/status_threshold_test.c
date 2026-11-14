@@ -21,6 +21,12 @@ static void kind_tests(void) {
     expect("kind.sun", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_DRAWN_SUN), THRESH_SUN);
     expect("kind.countdown", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_COUNTDOWN), THRESH_COUNTDOWN);
     expect("kind.city", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_NONE), THRESH_CITY);
+    // The city with the current weather's glyph keeps the city's Bold row, never the
+    // condition's.
+    for (int icon = STATUS_ICON_COND_SUN; icon <= STATUS_ICON_COND_WIND; icon++) {
+        expect("kind.city_glyph", status_threshold_kind_for_slot(SLOT_TEXT,
+            (uint8_t)(STATUS_ICON_CITY_GLYPH | icon)), THRESH_CITY);
+    }
     expect("kind.date", status_threshold_kind_for_slot(SLOT_LIVE_DATE, STATUS_ICON_NONE), THRESH_DATE);
     expect("kind.week", status_threshold_kind_for_slot(SLOT_LIVE_WEEK, STATUS_ICON_NONE), THRESH_WEEK);
     expect("kind.hr", status_threshold_kind_for_slot(SLOT_LIVE_HR, STATUS_ICON_HR), THRESH_HR);
