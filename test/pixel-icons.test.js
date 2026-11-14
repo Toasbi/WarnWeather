@@ -301,6 +301,18 @@ test('a size picked in another version: that version on the colour watches, the 
   assert.deepEqual(picked[path.join(gen.DATA_DIR, 'PX_SUN_13_BW.pdc')], pixel, 'the black and white watches: the pixel drawing');
   assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { '11': { platforms: ['basalt'], pixels: stairs,
     version: 'svg' } } } } }), /no svg version/);
+  // A drawing from the icon creator: its kept lines on the colour watches, and its pixels (the
+  // drawing as the black and white watches draw it) on those.
+  const ring = drawing(5, 5, (x, y) => (x === 0 || x === 4 || y === 0 || y === 4) && !((x === 0 || x === 4) && (y === 0 || y === 4)));
+  const made = { lines: [[[1, 0], [3, 0], [4, 1], [4, 3], [3, 4], [1, 4], [0, 3], [0, 1], [1, 0]]], w: 5, h: 5 };
+  const exported = gen.outputs({ icons: { SUN: { sizes: { '13': { platforms: ['basalt', 'emery'], pixels: ring,
+    version: 'drawing', drawing: made } } } } });
+  const ringPx = gen.inkPixels(ring);
+  assert.deepEqual(exported[path.join(gen.DATA_DIR, 'PX_SUN_13.pdc')], variants.pdc(made.lines, 5, 5), 'drawing: its kept lines');
+  assert.deepEqual(exported[path.join(gen.DATA_DIR, 'PX_SUN_13_BW.pdc')], gen.pdc(gen.paths(gen.runs(ringPx)), 5, 5),
+    'the black and white watches: its pixels');
+  assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { '11': { platforms: ['basalt'], pixels: stairs,
+    version: 'drawing' } } } } }), /no drawing version/);
 });
 
 // The settings page's list of conditions (the condition slot's dialog, blocks.js conditionList)

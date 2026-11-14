@@ -12,6 +12,9 @@
  *          lines are kept in resources/pixel-icons.json with the pick.
  *   svg    an SVG added in the icon picker (resources/icon-svg/<KEY>.svg), made into a PDC and
  *          scaled to this size the same old way (svg-icon.js); its lines are kept the same way.
+ *   drawing  a drawing made in the icon creator (WarnWeatherTools) and exported here
+ *          (import_pixels.py --creator); its lines are kept the same way, and its pixels are the
+ *          drawing as the black and white watches draw it.
  *
  * The black and white watches have no grey pixels to smooth a line with: they always draw the
  * pixel version (gen_watch_icons.js).
@@ -25,9 +28,9 @@ const fs = require('fs');
 const path = require('path');
 
 const PU = 8;   // precise units per pixel (a PDC's precise paths)
-const VERSIONS = ['pixel', 'half', 'slant', 'old', 'svg'];
+const VERSIONS = ['pixel', 'half', 'slant', 'old', 'svg', 'drawing'];
 // The versions whose lines are kept in resources/pixel-icons.json with the pick, under their name.
-const KEPT = ['old', 'svg'];
+const KEPT = ['old', 'svg', 'drawing'];
 // How far a pixel centre moves towards its stroke's straight line, per traced version.
 const BEND = { half: 0.5, slant: 1 };
 // How far (px) a stroke may stray from a straight line and still be drawn as one.

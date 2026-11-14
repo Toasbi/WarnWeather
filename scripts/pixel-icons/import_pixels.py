@@ -6,6 +6,7 @@ resources/pixel-icons.json (README.md here).
     python3 scripts/pixel-icons/import_pixels.py --db <dir>
     python3 scripts/pixel-icons/import_pixels.py --picks <dir>
     python3 scripts/pixel-icons/import_pixels.py --picks-export picks.json
+    python3 scripts/pixel-icons/import_pixels.py --creator creator-export.json
 
 --export reads the editor's "Copy all as JSON" (every size of every icon). --db reads a dump
 of the published editor's database (one JSON file per document under <dir>/glyphs and
@@ -16,6 +17,9 @@ from the editor's own starting pixels (build_editor.py), so a done icon always h
 there (build_picker.py). An SVG is kept as resources/icon-svg/<KEY>.svg. An old or svg version
 keeps its lines in the file (watch_icons.py old_version, svg-icon.js atSize), since neither is
 a drawing.
+--creator reads an export of the icon creator (WarnWeatherTools): per icon and size, a pixel
+drawing, or a drawing as its lines (version drawing, kept in the file like old and svg) with its
+pixels as the black and white watches draw it. It checks every size before it changes any.
 
 The file keeps every edited size, done or not, so the editor can be rebuilt where you left off;
 only done icons go to the watch (gen_watch_icons.js).
@@ -60,8 +64,8 @@ def save(doc):
         f.write('\n')
 
 
-# What a size keeps from the picker when its pixels are edited again.
-PICKED = ('version', 'redraw', 'old', 'svg')
+# What a size keeps from the picker (or the icon creator) when its pixels are edited again.
+PICKED = ('version', 'redraw', 'old', 'svg', 'drawing')
 VERSIONS = ('pixel', 'half', 'slant', 'old', 'svg')
 SVG_DIR = os.path.join(W.ROOT, 'resources', 'icon-svg')
 SVG_MAX = 256 * 1024
@@ -155,6 +159,77 @@ def fill_done(doc):
             entry['sizes'][z['id']] = {'source': src, 'pixels': z['sources'][src]}
 
 
+CREATOR_FORMAT = 1
+
+
+def creator_size(key, size_id, s):
+    """One size of an icon creator export, checked: (rows, pixels, drawing or None). Exits with
+    the reason on anything the watch could not draw or the file does not have."""
+    where = '%s %s' % (key, size_id)
+    if key not in W.KEYS:
+        raise SystemExit('%s: no such icon' % where)
+    if not str(size_id).isdigit() or not platforms(key, str(size_id)):
+        raise SystemExit('%s: the icon has no size of %s rows' % (where, size_id))
+    rows = int(size_id)
+    px = s.get('pixels') if isinstance(s, dict) else None
+    if (not isinstance(px, list) or not px or len(px) > rows
+            or any(not isinstance(r, str) or len(r) != len(px[0]) or set(r) - set('#.') for r in px)
+            or not any('#' in r for r in px)):
+        raise SystemExit('%s: pixels must be up to %d rows of # and . of one width, with ink' % (where, rows))
+    d = s.get('drawing')
+    if d is None:
+        return rows, px, None
+    ok = (isinstance(d, dict) and isinstance(d.get('w'), int) and isinstance(d.get('h'), int)
+          and 1 <= d['w'] <= 64 and 1 <= d['h'] <= rows and isinstance(d.get('lines'), list) and d['lines'])
+    if ok:
+        for line in d['lines']:
+            if not isinstance(line, list) or not line:
+                ok = False
+                break
+            for p in line:
+                if (not isinstance(p, list) or len(p) != 2 or not all(isinstance(v, int) for v in p)
+                        or not (0 <= p[0] < d['w'] and 0 <= p[1] < d['h'])):
+                    ok = False
+                    break
+    if not ok:
+        raise SystemExit('%s: the drawing must be lines of whole pixels inside its box, at most %d rows' % (where, rows))
+    return rows, px, {'lines': d['lines'], 'w': d['w'], 'h': d['h']}
+
+
+def centred(px, rows, width):
+    """The pixels in a grid `rows` high and `width` wide (or theirs, if wider), the ink centred,
+    as the editor centres a drawing in its grid."""
+    h, w = len(px), len(px[0])
+    width = max(width, w)
+    ox, oy = (width - w) // 2, (rows - h) // 2
+    out = ['.' * width] * rows
+    for y, r in enumerate(px):
+        out[oy + y] = '.' * ox + r + '.' * (width - w - ox)
+    return out
+
+
+def from_creator(doc, path):
+    """An icon creator export into the file: each size's pixels, centred in its grid, and its
+    drawing as version drawing when it has one. Every size is checked first; nothing changes
+    when one is wrong."""
+    ex = json.load(open(path))
+    if not isinstance(ex, dict) or ex.get('format') != CREATOR_FORMAT:
+        raise SystemExit('%s: not an icon creator export of format %d' % (path, CREATOR_FORMAT))
+    checked = []
+    for key, icon in sorted((ex.get('icons') or {}).items()):
+        for size_id, s in sorted((icon.get('sizes') or {}).items()):
+            checked.append((key, str(size_id)) + creator_size(key, size_id, s))
+    for key, size_id, rows, px, drawing in checked:
+        entry = doc['icons'].setdefault(key, {'done': False, 'sizes': {}})
+        was = entry['sizes'].get(size_id, {}).get('pixels') or []
+        size = {'source': 'creator', 'pixels': centred(px, rows, len(was[0]) if was else 0)}
+        if drawing:
+            size['version'] = 'drawing'
+            size['drawing'] = drawing
+        entry['sizes'][size_id] = size
+    return len(checked)
+
+
 def from_export(doc, path):
     ex = json.load(open(path))
     n = 0
@@ -191,10 +266,16 @@ def main():
     ap.add_argument('--db')
     ap.add_argument('--picks')
     ap.add_argument('--picks-export')
+    ap.add_argument('--creator')
     a = ap.parse_args()
-    if not (a.export or a.db or a.picks or a.picks_export):
-        ap.error('give --export, --db, --picks or --picks-export')
+    if not (a.export or a.db or a.picks or a.picks_export or a.creator):
+        ap.error('give --export, --db, --picks, --picks-export or --creator')
     doc = load()
+    if a.creator:
+        n = from_creator(doc, a.creator)
+        save(doc)
+        print('imported %d sizes from the icon creator' % n)
+        return
     if a.picks or a.picks_export:
         if a.picks:
             picks, svgs = [], {}

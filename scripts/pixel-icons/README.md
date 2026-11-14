@@ -89,11 +89,23 @@ pixel when there is none):
 | Slant | The same, moved all the way: straight slanted lines between the corners, smoothed the most |
 | Old | The icon from before the pixel drawings (`resources/data/`), scaled to the size the way the watch scaled it (`watch_icons.py` `old_version`, from the first bar that drew it that tall). Its lines are kept in the size's entry (`old`), and it draws pixel for pixel as the scaled icon did |
 | SVG | An SVG you added in the picker, made into a PDC and scaled to the size the same old way (`svg-icon.js`). Its lines are kept in the size's entry (`svg`, with `at`, the height it was scaled to), its SVG in `resources/icon-svg/` |
+| Drawing | A drawing from the icon creator (below). Its lines are kept in the size's entry (`drawing`), and its pixels are the drawing as the black and white watches draw it |
 
 Smoothing needs grey pixels, which only the colour watches have: on the black and white ones
 (Pebble 2, Pebble 2 Duo) every size draws its pixel drawing, built as a resource of its own
 (`PX_<ICON>_<size>_BW`) wherever the pick is another version. **Redraw** (`redraw` in the entry)
 is your own mark, like Mark as done: it changes nothing in the build.
+
+### A size from the icon creator
+
+The icon creator (WarnWeatherTools, `icon-creator/`) reads this folder's icons and sizes
+(`watch_icons.py manifest`) and exports the sizes you pick there through
+`python3 scripts/pixel-icons/import_pixels.py --creator <file>`, then runs
+`gen_watch_icons.js`. A size that is a pixel drawing comes in as one; any other comes in as the
+Drawing version, its pixels the drawing as the black and white watches draw it, so every watch
+draws what the creator showed. Its source reads `creator`. The importer checks every size first
+and changes nothing when one is wrong. In the picker such a size has no tile and keeps its pick,
+whatever the picker saved before, until you pick a tile there and import the picks.
 
 ### An icon from an SVG
 

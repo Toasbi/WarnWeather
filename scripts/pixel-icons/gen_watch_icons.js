@@ -12,10 +12,12 @@
  *                                        runs, joined end to end, and single dots), which the
  *                                        watch draws exactly, smoothing on or off; or its slanted
  *                                        lines, or the old icon or an SVG (svg-icon.js) scaled the
- *                                        old way, smoothed;
+ *                                        old way, or a drawing from the icon creator, smoothed;
  *   resources/data/PX_<KEY>_<rows>_BW.pdc   the pixel drawing again, for the black and white
  *                                        watches (Pebble 2, Pebble 2 Duo), where a size picked in
- *                                        another version: they have no grey pixels to smooth with;
+ *                                        another version: they have no grey pixels to smooth with
+ *                                        (a creator drawing's pixels are that drawing as they draw
+ *                                        it);
  *   package.template.json                one raw resource per drawing, on the watches that draw
  *                                        it;
  *   src/c/layers/status_pixel_icons.generated.h   which drawing each icon id (and each rain

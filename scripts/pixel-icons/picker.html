@@ -166,7 +166,10 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
 (function () {
   'use strict';
   var D = window.PICKER_DATA;
-  var NAMES = { pixel: 'Pixel', half: 'Half slant', slant: 'Slant', old: 'Old', svg: 'SVG' };
+  var NAMES = { pixel: 'Pixel', half: 'Half slant', slant: 'Slant', old: 'Old', svg: 'SVG', drawing: 'From the icon creator' };
+  // A size exported from the icon creator (version drawing): no tile here, and its pick stays
+  // until you pick a tile.
+  var CREATOR = 'drawing';
   var ALL = D.versions.concat(['svg']);
   var PLATS = { basalt: 'Pebble Time, Pebble 2', emery: 'Pebble Time 2' };
   var SVG_MAX = 256 * 1024;
@@ -586,12 +589,13 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
 
   function paintCounts() {
     var c = {}, redraw = 0;
-    ALL.forEach(function (v) { c[v] = 0; });
+    ALL.concat([CREATOR]).forEach(function (v) { c[v] = 0; });
     Object.keys(state).forEach(function (id) { c[state[id].version]++; if (state[id].redraw) redraw++; });
     var box = document.getElementById('counts');
     box.textContent = '';
-    ALL.forEach(function (v) {
+    ALL.concat([CREATOR]).forEach(function (v) {
       if (v === 'svg' && !c.svg && !Object.keys(svgs).length) return;
+      if (v === CREATOR && !c[CREATOR]) return;
       var s = el('span', 'count'); s.appendChild(el('b', '', String(c[v]))); s.appendChild(document.createTextNode(' ' + NAMES[v]));
       box.appendChild(s);
     });
@@ -661,6 +665,8 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
     snap.docs.forEach(function (doc) {
       var d = doc.data(), id = doc.id;
       if (!d || !state[id] || timers[id] || inflight[id]) return;
+      // A size exported from the icon creator since: the export is newer than any saved pick.
+      if (sizes[id].size.version === CREATOR) return;
       if (!sizes[id].size.versions[d.version]) return;
       state[id] = { version: d.version, redraw: Boolean(d.redraw) };
     });
@@ -739,11 +745,14 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
   if (kept) {
     Object.keys(kept).forEach(function (id) {
       var k = kept[id];
-      if (state[id] && k && sizes[id].size.versions[k.version]) state[id] = { version: k.version, redraw: Boolean(k.redraw) };
+      if (state[id] && k && sizes[id].size.version !== CREATOR && sizes[id].size.versions[k.version]) {
+        state[id] = { version: k.version, redraw: Boolean(k.redraw) };
+      }
     });
   }
   Object.keys(state).forEach(function (id) {
-    if (!sizes[id].size.versions[state[id].version]) state[id] = { version: 'pixel', redraw: state[id].redraw };
+    var v = state[id].version;
+    if (v !== CREATOR && !sizes[id].size.versions[v]) state[id] = { version: 'pixel', redraw: state[id].redraw };
   });
   paintImages();
   paintAll();
