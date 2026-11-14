@@ -1483,3 +1483,19 @@ test('the entry cap holds all five alerts with their widest values for tomorrow 
   assert.deepEqual(entries.map((e) => e.mark), ['raquo', 'raquo', 'raquo', 'raquo', 'raquo']);
   assert.equal(p.ALERT_ENTRIES_UINT8.length, 19);
 });
+
+test('the bake reads the phone battery only when a slot shows it, and once per bake', () => {
+  let reads = 0;
+  const lazyPhone = { supported: true,
+    reading: () => { reads++; return { available: true, level: 52, charging: false }; } };
+  // No phone-battery slot anywhere: nothing reads the battery.
+  statusLines.buildStatusLines(basePayload(), baseSettings({}), WATCH_BASALT, NOW, lazyPhone);
+  assert.equal(reads, 0, 'a bake without a battery slot must not read the battery');
+  // Two battery slots (text and icon): one read serves both.
+  const p = basePayload();
+  statusLines.buildStatusLines(p, baseSettings({ statusForecastLeft: 'phoneBattery',
+    statusForecastMid: 'phoneBatteryPlain', statusForecastRight: 'empty' }), WATCH_BASALT, NOW,
+    lazyPhone);
+  assert.equal(reads, 1);
+  assert.equal(decodeLine(p.STATUS_LINE_1_UINT8)[0].text, '52%');
+});

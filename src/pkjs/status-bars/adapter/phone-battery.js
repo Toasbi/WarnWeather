@@ -280,12 +280,13 @@ function read() {
  * and, where it can, the cached reading. A host that cannot has no slot to
  * show it in (the bake collapses those slots), so read() is not asked there.
  *
- * @returns {{supported: boolean, reading: ?{available: boolean, level: (number|null), charging: boolean}}}
- *   The verdict and the cached reading (null where unsupported).
+ * @returns {{supported: boolean, reading: ?function(): ?Object}}
+ *   The verdict and the function that reads the cached reading (null where unsupported).
  */
 function bakeFacts() {
     var supported = Boolean(isSupported());
-    return { supported: supported, reading: supported ? read() : null };
+    // The reading is read only when a slot asks for it (status-lines.js bakeEnv).
+    return { supported: supported, reading: supported ? read : null };
 }
 
 /**

@@ -114,8 +114,9 @@ var isoWeek = slotText.isoWeek;
  * @typedef {Object} PhoneBattery
  * @property {boolean} supported Whether this host has the Battery Status API (the
  *   persisted PHONE_BATTERY_SUPPORTED verdict, true only inside Android's Chromium WebView).
- * @property {?{available: boolean, level: (number|null), charging: boolean}} reading
- *   The cached EXACT percentage and charging flag; `available` is false until a real
+ * @property {?({available: boolean, level: (number|null), charging: boolean}|function(): ?Object)} reading
+ *   The cached EXACT percentage and charging flag, or a function that reads it (called only
+ *   when a slot shows the phone's battery); `available` is false until a real
  *   reading has landed, and null when the module cannot answer at all (the slot then
  *   bakes '--' instead of taking the whole status bar down).
  */
@@ -126,8 +127,8 @@ var isoWeek = slotText.isoWeek;
  * @typedef {Object} BakeEnv
  * @property {Date} now The current time (countdown, aplite's ISO week).
  * @property {number} nowSec The same instant in epoch seconds (day or night now).
- * @property {?{available: boolean, level: (number|null), charging: boolean}} phone
- *   The phone's battery reading, or null when there is none.
+ * @property {function(): ?Object} phoneReading The phone's battery reading, read at most once
+ *   and only when a slot asks; null when there is none.
  */
 
 /**
@@ -138,7 +139,24 @@ var isoWeek = slotText.isoWeek;
  * @returns {BakeEnv}
  */
 function bakeEnv(now, phone) {
-  return { now: now, nowSec: now.getTime() / 1000, phone: phone ? phone.reading : null };
+  var asked = false;
+  var reading = null;
+  return {
+    now: now,
+    nowSec: now.getTime() / 1000,
+    /**
+     * The phone's battery reading, read at most once per bake and only when a slot asks.
+     * @returns {?Object}
+     */
+    phoneReading: function () {
+      if (!asked) {
+        asked = true;
+        var r = phone ? phone.reading : null;
+        reading = typeof r === 'function' ? r() : r;
+      }
+      return reading;
+    }
+  };
 }
 
 /**
@@ -254,7 +272,7 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
   // item that has nothing to do with the weather fetch, which is exactly what
   // lets a battery event re-send it while a provider key is expired.
   if (code === 'phoneBattery' || code === 'phoneBatteryPlain') {
-    var pb = bake.phone;
+    var pb = bake.phoneReading();
     // '--' covers both "this phone has no battery API" and "Android, but no
     // event has landed yet". It is also what the watch substitutes whenever
     // Bluetooth is down (status_row.c's freshness rule), so the two paths agree
@@ -391,7 +409,7 @@ function arrowSector(code, payload, settings, env, dayMax) {
  */
 function iconFor(code, item, payload, settings, env, bake) {
   if (code === 'phoneBattery') {
-    var pb = bake.phone;
+    var pb = bake.phoneReading();
     if (pb && pb.charging) { return catalog.ICONS.PHONE_BATTERY_CHG; }
   }
   // The city with the current weather's glyph before its name (citySlotIcon): the glyph's id
