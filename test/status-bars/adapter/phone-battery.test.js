@@ -302,6 +302,21 @@ test('a wipe with no manager in hand still reads as unavailable, nothing thrown'
   assert.deepEqual(phoneBattery.read(), { available: false, level: null, charging: false });
 });
 
+test('read() answers null, not a throw, when storage throws (blocked in a WebView)', () => {
+  boot({ navigator: { userAgent: 'PKJS', geolocation: {}, language: 'de' } });
+  const realStore = global.localStorage;
+  global.localStorage = {
+    getItem() { throw new Error('storage blocked'); },
+    setItem() { throw new Error('storage blocked'); },
+    removeItem() { throw new Error('storage blocked'); }
+  };
+  try {
+    assert.equal(phoneBattery.read(), null);
+  } finally {
+    global.localStorage = realStore;
+  }
+});
+
 // --- Bucketing: the SEND TRIGGER only --------------------------------------
 // The 5-point bucket decides WHEN a resend fires; it never decides what the
 // watch displays. That is the exact percentage (levelPercent), cached on every

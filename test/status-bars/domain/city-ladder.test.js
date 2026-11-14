@@ -8,6 +8,7 @@
 // alone.
 
 const test = require('node:test');
+const { bakeEnv } = require('../../helpers/bake-env.js');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -116,7 +117,7 @@ function settings(extra) {
 function bakeTop(city, platform) {
   const env = platformLib.computeEnv(platform ? { platform } : null);
   return decodeLine(statusLines.packLine(TOP, { CITY: city },
-    settings({ statusTopLeft: 'city', statusTopMid: 'city', statusTopRight: 'city' }), env, null, statusLines.bakeEnv(NOW)));
+    settings({ statusTopLeft: 'city', statusTopMid: 'city', statusTopRight: 'city' }), env, null, bakeEnv(NOW)));
 }
 
 test('an edge city that fits the cap only as a ladder form is sent as that form', () => {

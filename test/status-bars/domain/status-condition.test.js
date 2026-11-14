@@ -5,6 +5,7 @@
 // the short one in where the row would cut the name), the name alone or the short form where
 // it does not, with the condition's glyph per the slot's Look.
 const test = require('node:test');
+const { bakeEnv } = require('../../helpers/bake-env.js');
 const assert = require('node:assert/strict');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const lines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
@@ -48,7 +49,7 @@ function bake(cond, over, env, night, polar) {
   const settings = Object.assign({ statusForecastLeft: 'condition', statusForecastMid: 'condition',
     statusForecastRight: 'condition' }, over || {});
   const payload = { CURRENT_CONDITION: cond, SUN_EVENTS: sun(Boolean(night), polar) };
-  return decodeLine(lines.packLine(LINE, payload, settings, env || BASALT, null, lines.bakeEnv(new Date())));
+  return decodeLine(lines.packLine(LINE, payload, settings, env || BASALT, null, bakeEnv(new Date())));
 }
 
 test('a sunny day: every slot carries the name and its short form, the line having the room', () => {
@@ -69,7 +70,7 @@ test('a clear night says Clear with the moon', () => {
 test('a sun event gone by since the forecast came flips it: the re-bake turns at sunset', () => {
   const bakeAt = (night, aheadMs) => decodeLine(lines.packLine(LINE,
     { CURRENT_CONDITION: 'clear', SUN_EVENTS: sun(night, false, aheadMs) },
-    { statusForecastMid: 'condition' }, BASALT, null, lines.bakeEnv(new Date())))[1];
+    { statusForecastMid: 'condition' }, BASALT, null, bakeEnv(new Date())))[1];
   // Day when the forecast came, its sunset an hour ago: night now.
   assert.equal(bakeAt(false, -3600000).icon, catalog.ICONS.COND_MOON);
   assert.equal(bakeAt(false, -3600000).text, 'Clear' + SEP + 'CLR');
@@ -79,7 +80,7 @@ test('a sun event gone by since the forecast came flips it: the re-bake turns at
   assert.equal(bakeAt(false, -50000000).icon, catalog.ICONS.COND_SUN);
   // A polar pair's events are no real sunset or sunrise: it never flips.
   const polar = decodeLine(lines.packLine(LINE, { CURRENT_CONDITION: 'clear', SUN_EVENTS: sun(true, true, -3600000) },
-    { statusForecastMid: 'condition' }, BASALT, null, lines.bakeEnv(new Date())))[1];
+    { statusForecastMid: 'condition' }, BASALT, null, bakeEnv(new Date())))[1];
   assert.equal(polar.icon, catalog.ICONS.COND_MOON);
 });
 
@@ -88,7 +89,7 @@ test('a polar pair reads the other way round: polar night has the moon, polar da
   assert.equal(bake('clear', {}, BASALT, true, true)[1].text, 'Clear' + SEP + 'CLR');
   assert.equal(bake('clear', {}, BASALT, false, true)[1].icon, catalog.ICONS.COND_SUN);
   const noEvents = decodeLine(lines.packLine(LINE, { CURRENT_CONDITION: 'clear' },
-    { statusForecastMid: 'condition' }, BASALT, null, lines.bakeEnv(new Date())))[1];
+    { statusForecastMid: 'condition' }, BASALT, null, bakeEnv(new Date())))[1];
   assert.equal(noEvents.icon, catalog.ICONS.COND_SUN, 'no sun events: day');
 });
 
@@ -113,7 +114,7 @@ test('beside an empty or a short middle an edge slot gets the whole name with it
     const settings = Object.assign({ statusForecastLeft: 'condition', statusForecastMid: mid,
       statusForecastRight: 'condition' }, over || {});
     return decodeLine(lines.packLine(LINE, { CURRENT_CONDITION: 'partly', CURRENT_TEMP: 12,
-      CITY: 'Mönchengladbach-Ost', SUN_EVENTS: sun(false) }, settings, env || BASALT, null, lines.bakeEnv(new Date())));
+      CITY: 'Mönchengladbach-Ost', SUN_EVENTS: sun(false) }, settings, env || BASALT, null, bakeEnv(new Date())));
   };
   const both = 'Partly cloudy' + SEP + 'PCLDY';
   let [left, mid, right] = edges('empty');
@@ -123,7 +124,7 @@ test('beside an empty or a short middle an edge slot gets the whole name with it
   [left, mid, right] = edges('city');
   assert.deepEqual([left.text, right.text], ['PCLDY', 'PCLDY'], 'a long middle: no room');
   assert.ok(lines.packLine(LINE, { CURRENT_CONDITION: 'partly', SUN_EVENTS: sun(false) },
-    { statusForecastLeft: 'condition', statusForecastMid: 'empty', statusForecastRight: 'condition' }, BASALT, null, lines.bakeEnv(new Date()))
+    { statusForecastLeft: 'condition', statusForecastMid: 'empty', statusForecastRight: 'condition' }, BASALT, null, bakeEnv(new Date()))
     .length <= catalog.CAPS.LINE_MAX, 'the line stays within its cap');
   // Full: the whole name with nothing to swap in; Short: the short form alone.
   assert.equal(edges('empty', { conditionSlotName: 'full' })[0].text, 'Partly cloudy');
@@ -207,7 +208,7 @@ test('the bake reads CURRENT_CONDITION and SUN_EVENTS through SOURCE_KEYS', () =
 test('City: the current weather glyph with the city bit, unless switched off or on aplite', () => {
   const bakeCity = (cond, over, env, night) => decodeLine(lines.packLine(LINE,
     { CITY: 'Berlin', CURRENT_CONDITION: cond, SUN_EVENTS: sun(Boolean(night)) },
-    Object.assign({ statusForecastLeft: 'city' }, over || {}), env || BASALT, null, lines.bakeEnv(new Date())))[0];
+    Object.assign({ statusForecastLeft: 'city' }, over || {}), env || BASALT, null, bakeEnv(new Date())))[0];
   const day = bakeCity('partly');
   assert.equal(day.text, 'Berlin');
   assert.equal(day.icon, catalog.CITY_GLYPH | catalog.ICONS.COND_SUN_CLOUD, 'on by default, every install');

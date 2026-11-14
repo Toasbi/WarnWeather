@@ -2,6 +2,7 @@
 // wind, gust and AQI slots: the numbers wire-units picks, the text status-lines
 // bakes, the highlight status-wire judges, and the peaks getPayload emits.
 const test = require('node:test');
+const { bakeEnv } = require('../../helpers/bake-env.js');
 const assert = require('node:assert/strict');
 // The time every bake in this file runs at, where the test does not care which it is.
 const NOW = new Date(2026, 5, 15, 12, 0, 0);
@@ -114,7 +115,7 @@ test('the wind arrow stays in Both (its first reading is now) and leaves Day max
     const bytes = statusLines.packLine(radar,
       { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null], WIND_DIR_TREND: [270] },
       settings(Object.assign({ statusRadarLeft: 'wind', statusRadarMid: 'empty',
-        statusRadarRight: 'empty', windSlotDirection: true, windSlotUnit: false }, extra)), env, null, statusLines.bakeEnv(NOW));
+        statusRadarRight: 'empty', windSlotDirection: true, windSlotUnit: false }, extra)), env, null, bakeEnv(NOW));
     return bytes.slice(3, 3 + bytes[2]);
   };
   const last = (b) => b[b.length - 1];
@@ -125,7 +126,7 @@ test('the wind arrow stays in Both (its first reading is now) and leaves Day max
   const noPeak = statusLines.packLine(radar,
     { WIND_TREND_UINT8: [12], WIND_DIR_TREND: [270] },
     settings({ statusRadarLeft: 'wind', statusRadarMid: 'empty', statusRadarRight: 'empty',
-      windSlotDirection: true, windSlotUnit: false, windSlotDisplay: 'max' }), env, null, statusLines.bakeEnv(NOW));
+      windSlotDirection: true, windSlotUnit: false, windSlotDisplay: 'max' }), env, null, bakeEnv(NOW));
   assert.ok(noPeak[2] === 3 && noPeak[5] <= 0x10, 'current reading keeps its arrow');
 });
 
