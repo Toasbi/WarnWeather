@@ -31,10 +31,10 @@
 //
 // One slot brings its own: the weather condition's middle slot carries its short form
 // after STATUS_TEXT_ALT_SEP ("Partly cloudy" with "PCLDY"; status_line.h), the one
-// variant the phone bakes, since no rule turns a name into its code (status_short_alt).
-// A condition slot that draws its glyph then gives up its text and keeps the glyph, its
-// last member before it hides: an edge slot, which brings no short form, has only that
-// one.
+// variant the phone bakes, since no rule turns a name into its code (status_short_member's
+// `alt`). A condition slot that draws its glyph then gives up its text and keeps the
+// glyph, its last member before it hides: an edge slot, which brings no short form, has
+// only that one.
 //
 // Written for size — the app image comes out of the heap on every platform — so the
 // caller asks for one member at a time (status_short_member) and gets that one
@@ -295,43 +295,38 @@ static inline bool status_short_floor(const char *full, char *out, size_t cap) {
 // Member `v` (1 = the first short member) of the short family of a slot of `kind` /
 // `icon` whose full text is `full`, widest first: its text into `out` and its flags
 // (SST_*), 0 when there is none — the members run 1, 2, … up to the first 0 (none at
-// all: the slot hides at its turn). The text members — the chain's steps that change
-// the text (sst_apply), or the city's rungs and its elastic name (sst_city_member) —
-// then, for a slot with a `suffix` (the wind arrow), the last text drawn without it.
-// The Watch battery glyph has one member, its text unchanged and without its bolt
-// lane, and only while it is not `charging`. No family has more than OD_VARIANTS - 1
-// members (on_demand.h), which test/c/status_short_text_test.c holds every kind to.
+// all: the slot hides at its turn). The text members come first: the short form the
+// slot's text came with, `alt` (the bytes after STATUS_TEXT_ALT_SEP; NULL or "" for
+// none), as its one; else the chain's steps that change the text (sst_apply), or the
+// city's rungs and its elastic name (sst_city_member), then, for a slot with a `suffix`
+// (the wind arrow), the last text drawn without it. A weather condition that draws its
+// glyph ends with the glyph alone, after the form it brought or as its one member: no
+// step shortens a condition's name. The Watch battery glyph has one member, its text
+// unchanged and without its bolt lane, and only while it is not `charging`. No family
+// has more than OD_VARIANTS - 1 members (on_demand.h), which
+// test/c/status_short_text_test.c holds every kind to.
 static inline uint8_t status_short_member(uint8_t kind, uint8_t icon, const char *full,
-                                          bool suffix, bool charging, uint8_t v, char *out,
-                                          size_t cap) {
+                                          const char *alt, bool suffix, bool charging,
+                                          uint8_t v, char *out, size_t cap) {
     if (!full || !out || v == 0) { return 0; }
-    if (status_short_elastic(kind, icon)) { return sst_city_member(full, v, out, cap); }
-    if (sst_condition_glyph(kind, icon)) {
-        // No step shortens a condition's name: its one member is the glyph alone.
-        if (v != 1 || cap == 0) { return 0; }
-        out[0] = '\0';
-        return SST_MEMBER;
+    uint8_t texts = 0;   // the text members before the glyph alone
+    if (alt && alt[0] != '\0') {
+        if (v == 1) { return sst_copy(out, cap, alt, strlen(alt)) ? SST_MEMBER : 0; }
+        texts = 1;
+    } else if (status_short_elastic(kind, icon)) {
+        return sst_city_member(full, v, out, cap);
+    } else if (!sst_condition_glyph(kind, icon)) {
+        if (!sst_copy(out, cap, full, strlen(full))) { return 0; }
+        if (kind == SLOT_LIVE_BATTERY) {
+            return v == 1 && !charging ? (SST_MEMBER | SST_NO_LANE) : 0;
+        }
+        uint8_t found = 0;
+        for (int t = 0; t < SST_STEPS; t++) {
+            if (sst_apply(kind, icon, t, out) && ++found == v) { return SST_MEMBER; }
+        }
+        return suffix && found + 1 == v ? (SST_MEMBER | SST_NO_SUFFIX) : 0;
     }
-    if (!sst_copy(out, cap, full, strlen(full))) { return 0; }
-    if (kind == SLOT_LIVE_BATTERY) {
-        return v == 1 && !charging ? (SST_MEMBER | SST_NO_LANE) : 0;
-    }
-    uint8_t found = 0;
-    for (int t = 0; t < SST_STEPS; t++) {
-        if (sst_apply(kind, icon, t, out) && ++found == v) { return SST_MEMBER; }
-    }
-    return suffix && found + 1 == v ? (SST_MEMBER | SST_NO_SUFFIX) : 0;
-}
-
-// Member `v` of the family of a slot of `kind` / `icon` whose text came with its own short
-// form `alt` (the bytes after STATUS_TEXT_ALT_SEP, not empty): that form as member 1, then a
-// weather condition that draws its glyph keeps the glyph alone as member 2.
-static inline uint8_t status_short_alt(uint8_t kind, uint8_t icon, const char *alt, uint8_t v,
-                                       char *out, size_t cap) {
-    if (v == 1) { return sst_copy(out, cap, alt, strlen(alt)) ? SST_MEMBER : 0; }
-    if (v == 2 && sst_condition_glyph(kind, icon) && cap > 0) {
-        out[0] = '\0';
-        return SST_MEMBER;
-    }
-    return 0;
+    if (v != texts + 1 || !sst_condition_glyph(kind, icon) || cap == 0) { return 0; }
+    out[0] = '\0';
+    return SST_MEMBER;
 }

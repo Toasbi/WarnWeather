@@ -39,7 +39,7 @@ static int members(uint8_t kind, uint8_t icon, const char *full, bool suffix, bo
     int n = 0;
     for (; n < max; n++) {
         char text[STATUS_SHORT_CAP];
-        uint8_t flags = status_short_member(kind, icon, full, suffix, charging,
+        uint8_t flags = status_short_member(kind, icon, full, NULL, suffix, charging,
                                             (uint8_t)(n + 1), text, sizeof(text));
         if (!flags) { break; }
         snprintf(got[n], 48, "%s%s%s%s", text, (flags & SST_NO_SUFFIX) ? " -arrow" : "",
@@ -332,7 +332,7 @@ static const char *const CITY_VECTORS[][5] = {
 
 // Member `v` of a city slot's family (SLOT_TEXT without an icon): its flags.
 static uint8_t city_member(const char *full, uint8_t v, char *out, size_t cap) {
-    return status_short_member(SLOT_TEXT, STATUS_ICON_NONE, full, false, false, v, out, cap);
+    return status_short_member(SLOT_TEXT, STATUS_ICON_NONE, full, NULL, false, false, v, out, cap);
 }
 
 static void city(void) {
@@ -403,9 +403,9 @@ static void city(void) {
     expect_true("city glyph elastic", status_short_elastic(SLOT_TEXT, glyph));
     for (uint8_t v = 1; v < OD_VARIANTS; v++) {
         char plain[STATUS_SHORT_CAP], marked[STATUS_SHORT_CAP];
-        uint8_t a = status_short_member(SLOT_TEXT, STATUS_ICON_NONE, "Frankfurt am Main", false, false,
+        uint8_t a = status_short_member(SLOT_TEXT, STATUS_ICON_NONE, "Frankfurt am Main", NULL, false, false,
                                         v, plain, sizeof(plain));
-        uint8_t b = status_short_member(SLOT_TEXT, glyph, "Frankfurt am Main", false, false, v,
+        uint8_t b = status_short_member(SLOT_TEXT, glyph, "Frankfurt am Main", NULL, false, false, v,
                                         marked, sizeof(marked));
         expect_true("city glyph same flags", a == b);
         if (a) { expect_str("city glyph same rung", marked, plain); }
@@ -428,9 +428,9 @@ static void caps(void) {
     char tiny[4];
     expect_true("cap tiny city", !city_member("New York", 1, tiny, sizeof(tiny)));
     expect_true("cap tiny year", !status_short_member(SLOT_LIVE_DATE, STATUS_ICON_NONE,
-                                                      "Sep 2026", false, false, 1, tiny,
+                                                      "Sep 2026", NULL, false, false, 1, tiny,
                                                       sizeof(tiny)));
-    expect_true("cap zero", !status_short_member(SLOT_TEXT, STATUS_ICON_TEMP, "12 | 10",
+    expect_true("cap zero", !status_short_member(SLOT_TEXT, STATUS_ICON_TEMP, "12 | 10", NULL,
                                                  false, false, 1, out, 0));
 }
 
@@ -469,7 +469,7 @@ static void od_variants(void) {
                                     8);
                     if (n > widest) { widest = n; }
                     char out[STATUS_SHORT_CAP];
-                    if (status_short_member((uint8_t)kind, (uint8_t)icon, full, suffix,
+                    if (status_short_member((uint8_t)kind, (uint8_t)icon, full, NULL, suffix,
                                             charging, OD_VARIANTS, out, sizeof(out))) {
                         if (over++ < 5) {
                             printf("FAIL variants: kind %d icon %d \"%s\" has a member at "
@@ -487,7 +487,7 @@ static void od_variants(void) {
 // The weather condition: its text derives no short form (a name has no unit, no pair,
 // no words to abbreviate). A slot that draws its glyph gives up its text and keeps the
 // glyph, its one member (an edge slot's, which brings no short form), or its second after
-// the short form it brought (status_short_alt, the middle slot's). The Text look has no
+// the short form it brought (status_short_member's alt, the middle slot's). The Text look has no
 // glyph to keep, so it hides at its turn unless it brought a short form.
 static void condition(void) {
     char out[STATUS_SHORT_CAP];
@@ -497,25 +497,35 @@ static void condition(void) {
         const char *names[] = { "Partly cloudy", "PCLDY", "--" };
         for (int n = 0; n < 3; n++) {
             memset(out, 'x', sizeof(out));
-            expect_true("condition glyph member", status_short_member(SLOT_TEXT, icon, names[n], false,
+            expect_true("condition glyph member", status_short_member(SLOT_TEXT, icon, names[n], NULL, false,
                 false, 1, out, sizeof(out)) == SST_MEMBER);
             expect_str("condition glyph alone", out, "");
-            expect_true("condition one member", !status_short_member(SLOT_TEXT, icon, names[n], false,
+            expect_true("condition one member", !status_short_member(SLOT_TEXT, icon, names[n], NULL, false,
                 false, 2, out, sizeof(out)));
         }
-        expect_true("alt then glyph", status_short_alt(SLOT_TEXT, icon, "PCLDY", 2, out, sizeof(out))
+        expect_true("alt then glyph", status_short_member(SLOT_TEXT, icon, "Partly cloudy", "PCLDY", false, false, 2, out, sizeof(out))
             == SST_MEMBER);
         expect_str("alt then glyph alone", out, "");
-        expect_true("alt two members", !status_short_alt(SLOT_TEXT, icon, "PCLDY", 3, out, sizeof(out)));
+        expect_true("alt two members", !status_short_member(SLOT_TEXT, icon, "Partly cloudy", "PCLDY", false, false, 3, out, sizeof(out)));
     }
-    expect_true("alt member", status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLDY", 1, out,
+    expect_true("alt member", status_short_member(SLOT_TEXT, STATUS_ICON_COND_SUN, "Partly cloudy", "PCLDY", false, false, 1, out,
         sizeof(out)) == SST_MEMBER);
     expect_str("alt member", out, "PCLDY");
     expect_true("alt text look one member",
-        !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_TEXT, "PCLDY", 2, out, sizeof(out)));
-    expect_true("alt v0", !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLDY", 0, out, sizeof(out)));
+        !status_short_member(SLOT_TEXT, STATUS_ICON_COND_TEXT, "Partly cloudy", "PCLDY", false, false, 2, out, sizeof(out)));
+    expect_true("alt v0", !status_short_member(SLOT_TEXT, STATUS_ICON_COND_SUN, "Partly cloudy", "PCLDY", false, false, 0, out, sizeof(out)));
     char tiny[4];
-    expect_true("alt cap", !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLDY", 1, tiny, sizeof(tiny)));
+    expect_true("alt cap", !status_short_member(SLOT_TEXT, STATUS_ICON_COND_SUN, "Partly cloudy", "PCLDY", false, false, 1, tiny, sizeof(tiny)));
+    // An empty short form is none, as the watch passes a slot that brought none: the family
+    // its text derives.
+    expect_true("empty alt glyph", status_short_member(SLOT_TEXT, STATUS_ICON_COND_SUN, "Partly cloudy",
+        "", false, false, 1, out, sizeof(out)) == SST_MEMBER);
+    expect_str("empty alt glyph alone", out, "");
+    expect_true("empty alt one member", !status_short_member(SLOT_TEXT, STATUS_ICON_COND_SUN,
+        "Partly cloudy", "", false, false, 2, out, sizeof(out)));
+    expect_true("empty alt derives", status_short_member(SLOT_TEXT, STATUS_ICON_TEMP, "12 | 10", "",
+        false, false, 1, out, sizeof(out)) == SST_MEMBER);
+    expect_str("empty alt derives", out, "12|10");
     // A glyph that is no condition's keeps no glyph-alone member: the wind speed's flag.
     no_family("wind is no condition", SLOT_TEXT, STATUS_ICON_PRESSURE, "1013");
 }
