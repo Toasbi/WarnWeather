@@ -185,7 +185,7 @@ test('batteryLevel: 5 % steps on emery, the next 10 % step up everywhere else', 
   for (let v = 5; v <= 30; v += 5) {
     assert.equal(OD.batteryLevel({batteryLowLevel: String(v)}, emery), v, 'emery keeps ' + v);
   }
-  ['basalt', 'diorite', 'flint', 'chalk', 'aplite'].forEach((p) => {
+  ['basalt', 'diorite', 'flint', 'aplite'].forEach((p) => {
     const env = platform.computeEnv({platform: p});
     [[5, 10], [10, 10], [15, 20], [20, 20], [25, 30], [30, 30]].forEach(([v, want]) => {
       assert.equal(OD.batteryLevel({batteryLowLevel: String(v)}, env), want, p + ' ' + v);
@@ -202,7 +202,7 @@ test('batteryLevel: 5 % steps on emery, the next 10 % step up everywhere else', 
 
 test('computeEnv: fineBattery on emery only, false for an unknown watch', () => {
   assert.equal(platform.computeEnv({platform: 'emery'}).fineBattery, true);
-  ['aplite', 'basalt', 'chalk', 'diorite', 'flint', 'x'].forEach((p) => {
+  ['aplite', 'basalt', 'diorite', 'flint', 'x'].forEach((p) => {
     assert.equal(platform.computeEnv({platform: p}).fineBattery, false, p);
   });
   assert.equal(platform.computeEnv(null).fineBattery, false);

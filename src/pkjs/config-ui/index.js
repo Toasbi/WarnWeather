@@ -33,7 +33,7 @@ function createConfig(cfg) {
   var colorKeys = defaults.deriveColorKeys(schema);     // schema items with type 'color'
   function isColorKey(k) { return colorKeys.indexOf(k) >= 0; }
 
-  var instance = { meta: { userData: {} }, colorKeys: colorKeys };  // meta.userData: Clay-compatible
+  var instance = { meta: { userData: {} } };  // meta.userData: Clay-compatible
 
   function readStore()  { return storage ? JSON.parse(storage.getItem(storeKey) || '{}') : {}; }
   function writeStore(b) { if (storage) { storage.setItem(storeKey, JSON.stringify(b)); } }

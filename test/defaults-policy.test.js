@@ -22,10 +22,10 @@ const SCHEMA_ITEM = {};
 eachItem(schema, (it) => { if (it.messageKey) { SCHEMA_ITEM[it.messageKey] = it; } });
 
 // Shaped like config-ui/lib/platform.js computeEnv().
-const ENV_BASALT = { platform: 'basalt', color: true, round: false, health: true, radar: true, hr: false, thresholds: true, themePolarity: true };
-const ENV_DIORITE = { platform: 'diorite', color: false, round: false, health: true, radar: true, hr: true, thresholds: true, themePolarity: true };
-const ENV_APLITE = { platform: 'aplite', color: false, round: false, health: false, radar: false, hr: false, thresholds: false, themePolarity: false };
-const ENV_EMERY = { platform: 'emery', color: true, round: false, health: true, radar: true, hr: true, thresholds: true, themePolarity: true };
+const ENV_BASALT = { platform: 'basalt', color: true, health: true, radar: true, hr: false, thresholds: true, themePolarity: true };
+const ENV_DIORITE = { platform: 'diorite', color: false, health: true, radar: true, hr: true, thresholds: true, themePolarity: true };
+const ENV_APLITE = { platform: 'aplite', color: false, health: false, radar: false, hr: false, thresholds: false, themePolarity: false };
+const ENV_EMERY = { platform: 'emery', color: true, health: true, radar: true, hr: true, thresholds: true, themePolarity: true };
 
 /**
  * @param {Object} [over] Fields to override on the baseline context.
@@ -103,7 +103,7 @@ test('capability conditions read the env flags', () => {
 test('platform conditions accept one name or a list', () => {
   assert.equal(policy.ruleApplies({ id: 'p', when: { platform: 'basalt' }, set: {} }, ctx()), true);
   assert.equal(policy.ruleApplies({ id: 'p', when: { platform: 'aplite' }, set: {} }, ctx()), false);
-  assert.equal(policy.ruleApplies({ id: 'p', when: { platform: ['chalk', 'basalt'] }, set: {} }, ctx()), true);
+  assert.equal(policy.ruleApplies({ id: 'p', when: { platform: ['emery', 'basalt'] }, set: {} }, ctx()), true);
   assert.equal(policy.ruleApplies({ id: 'p', when: { platformNot: 'aplite' }, set: {} }, ctx()), true);
   assert.equal(policy.ruleApplies({ id: 'p', when: { platformNot: ['aplite'] }, set: {} }, ctx({ env: ENV_APLITE })), false);
 });
@@ -129,7 +129,7 @@ test('nothing is overridden outside the wizard', () => {
 });
 
 test('the wizard on a health watch moves no status slot: steps stays in the Health bar', () => {
-  [ENV_EMERY, ENV_BASALT, ENV_DIORITE, { platform: 'chalk', health: true }].forEach((env) => {
+  [ENV_EMERY, ENV_BASALT, ENV_DIORITE].forEach((env) => {
     assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, env })), AQI_HIGHLIGHT, env.platform);
   });
   policy.RULES.forEach((rule) => Object.keys(rule.set).forEach((key) => {

@@ -502,7 +502,7 @@ bool view_auto_return_due(int32_t now, int32_t flick_since, uint8_t reset_min);
 //    later partner re-arms instead. Expiry is judged lazily on the next callback: no timer.
 // Time only: on Core-era firmware every shake reports as AXIS_Z, 0.
 #define VIEW_FLICK_DEBOUNCE_MS 500
-// 3 s: the BMI160 driver (basalt/chalk) latches any-motion for ~1.28 s (one event per
+// 3 s: the BMI160 driver (basalt) latches any-motion for ~1.28 s (one event per
 // latch), so a partner cannot arrive sooner there — a natural quick flick-flick reads as one
 // flick on those watches. 3 s leaves them a >= 1.7 s slot for flick, pause, flick; every
 // other platform pairs anywhere from the 500 ms debounce up to 3 s.

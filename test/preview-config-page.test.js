@@ -44,6 +44,11 @@ test('parseArgs is order-independent for [platform] [out]', () => {
   assert.equal(r.platform, 'aplite');
 });
 
+test('parseArgs knows every platform the app builds for', () => {
+  const targets = require('../package.template.json').pebble.targetPlatforms;
+  targets.forEach((p) => assert.equal(preview.parseArgs([p]).platform, p, p));
+});
+
 test('parseArgs with no args uses defaults', () => {
   const r = preview.parseArgs([]);
   assert.equal(r.out, preview.DEFAULT_OUT);

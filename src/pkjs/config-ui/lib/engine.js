@@ -2711,7 +2711,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   function boot() {
-    var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '', health: true };
+    var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, platform: '', health: true };
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
     var S = hydrate(SCHEMA, INJECTED_CFG, ENV), INITIAL = Object.assign({}, S);
     // What More options measures "customised" against (moreDiffers), once per page.

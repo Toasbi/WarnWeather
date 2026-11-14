@@ -49,7 +49,7 @@ var HR_PLATFORMS = { emery: true, diorite: true };
 // backlight driver (CONFIG_BACKLIGHT_AW2016) for the obelix board alone, and obelix
 // is the emery platform; every other board drives a white-only backlight, where the
 // call is a documented no-op. So a tint control elsewhere would promise a colour the
-// LED can never show — including on basalt/chalk, which have a colour SCREEN but a
+// LED can never show — including on basalt, which has a colour SCREEN but a
 // white backlight (this is NOT the `color` fact). Unknown platforms are treated as
 // white-backlight (conservative — don't offer an LED feature on an unknown watch).
 var COLOR_BACKLIGHT_PLATFORMS = { emery: true };
@@ -91,7 +91,7 @@ var GRAPH_STYLE_PLATFORMS = { emery: true };
 var EXTRA_BARS_PLATFORMS = { emery: true };
 /**
  * Whether a Pebble platform has a color display (false for the B/W platforms).
- * @param {string} platform Platform name (e.g. 'basalt', 'aplite', 'chalk').
+ * @param {string} platform Platform name (e.g. 'basalt', 'aplite').
  * @returns {boolean} True if the platform is color.
  */
 function isColorPlatform(platform) { return !BW_PLATFORMS[platform]; }
@@ -188,10 +188,10 @@ function isExtraBarsPlatform(platform) { return Boolean(EXTRA_BARS_PLATFORMS[pla
 /**
  * Derive the config-UI environment facts from a Pebble watchInfo object.
  * @param {Object} watchInfo Pebble watchInfo; its .platform names the model.
- * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean, lineStyles: boolean, onDemand: boolean, fineBattery: boolean, forecastSpan: boolean, graphStyles: boolean, extraBars: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, RGB-backlight-LED support, third-metric-line + per-line-style support, On demand support, 5 % battery-charge steps, the 12 h / 24 h / long forecast span, a graph style per screen, and bars 4 to 6.
+ * @returns {{color: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean, lineStyles: boolean, onDemand: boolean, fineBattery: boolean, forecastSpan: boolean, graphStyles: boolean, extraBars: boolean}} Env: color display, platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, RGB-backlight-LED support, third-metric-line + per-line-style support, On demand support, 5 % battery-charge steps, the 12 h / 24 h / long forecast span, a graph style per screen, and bars 4 to 6.
  */
 function computeEnv(watchInfo) {
   var p = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p), lineStyles: isLineStylePlatform(p), onDemand: isOnDemandPlatform(p), fineBattery: isFineBatteryPlatform(p), forecastSpan: isForecastSpanPlatform(p), graphStyles: isGraphStylePlatform(p), extraBars: isExtraBarsPlatform(p) };
+  return { color: isColorPlatform(p), platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p), lineStyles: isLineStylePlatform(p), onDemand: isOnDemandPlatform(p), fineBattery: isFineBatteryPlatform(p), forecastSpan: isForecastSpanPlatform(p), graphStyles: isGraphStylePlatform(p), extraBars: isExtraBarsPlatform(p) };
 }
 module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, isLineStylePlatform: isLineStylePlatform, isOnDemandPlatform: isOnDemandPlatform, isFineBatteryPlatform: isFineBatteryPlatform, isForecastSpanPlatform: isForecastSpanPlatform, isGraphStylePlatform: isGraphStylePlatform, isExtraBarsPlatform: isExtraBarsPlatform, computeEnv: computeEnv };

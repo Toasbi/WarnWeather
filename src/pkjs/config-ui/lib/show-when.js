@@ -34,7 +34,7 @@ PConf.showWhen = (function () {
       return typeof fn === 'function' ? Boolean(fn(ctx, ctx.env, pred.args || {})) : false;
     }
     // `env` reads a capability fact rather than a setting value. The fact names are
-    // owned by lib/platform.js computeEnv() (the platform SoT) — `color`, `round`,
+    // owned by lib/platform.js computeEnv() (the platform SoT) — `color`,
     // `platform`, `health`, `radar`, `themePolarity`, `hr`, `thresholds`, `lineStyles`,
     // `onDemand`, `fineBattery`, `forecastSpan` (emery's 12 h / 24 h / long forecast) and
     // `colorBacklight` (emery's RGB backlight LED) — plus whatever the host app

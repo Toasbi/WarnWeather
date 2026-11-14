@@ -135,7 +135,7 @@ test('the row shows only under a picker that draws an amount metric as a line or
 
 test('every watch with line styles shows the rows; aplite never does', () => {
   const S = { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'cloud' };
-  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) => assert.deepEqual(
+  ['basalt', 'diorite', 'emery', 'flint'].forEach((p) => assert.deepEqual(
     visibleRows(S, platform.computeEnv({ platform: p })).map((r) => r.messageKey).sort(),
     ['cloudLineFrom', 'precipLineFrom', 'uvLineFrom', 'windLineFrom'], p));
   assert.deepEqual(visibleRows(Object.assign({ precipLineFrom: 'top' }, S), APLITE), []);

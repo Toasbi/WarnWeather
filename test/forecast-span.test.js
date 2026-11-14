@@ -17,7 +17,7 @@ const schema = require('../src/pkjs/settings/schema.js');
 const forecastSpanHours = require('../src/pkjs/forecast-span-hours.js');
 
 const env = (p) => platform.computeEnv(p ? { platform: p } : null);
-const OTHERS = ['basalt', 'chalk', 'diorite', 'flint', 'aplite'];
+const OTHERS = ['basalt', 'diorite', 'flint', 'aplite'];
 
 test('storedHours: 12, 24 or 48 as stored; 24 for absent or junk', () => {
   assert.equal(forecastSpan.storedHours({ forecastHours: '12' }), 12);

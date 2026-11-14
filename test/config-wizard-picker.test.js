@@ -827,7 +827,7 @@ test('only the rain chance fills its area in a look: the watch paints an area so
   // high for hours, covered the whole graph. Their looks draw a thick line or a stripe instead.
   // The colour watches; a black-and-white one dithers its area at half strength (chart.c).
   const lineStyle = require('../src/pkjs/line-style.js');
-  ['emery', 'basalt', 'chalk'].forEach((p) => {
+  ['emery', 'basalt'].forEach((p) => {
     const env = platform.computeEnv({ platform: p });
     FORECAST.LOOKS.forEach((look) => {
       [look.over, Object.assign({}, look.over, look.short)].forEach((over) => {

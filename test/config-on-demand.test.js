@@ -500,7 +500,7 @@ test('the grid lists every bar the watch draws, live exactly where a screen show
   const args = { code: 'uv' };
   // Why a bar the watch can draw is not drawn (alerts-page.js barOffReason), by its name.
   const reason = (bar) => 'No screen shows ' + BAR_NAMES[bar];
-  ['basalt', 'emery', 'diorite', 'chalk', 'flint'].forEach((p) => {
+  ['basalt', 'emery', 'diorite', 'flint'].forEach((p) => {
     const env = platform.computeEnv({ platform: p });
     // The hardware's own gate: a watch without the radar view or Health never draws that bar.
     const canDraw = { top: true, forecast: true, radar: env.radar !== false, health: env.health !== false };

@@ -2,10 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert');
 const catalog = require('../src/pkjs/status-line-catalog.js');
 
-const ENV_EMERY = { color: true, round: false, platform: 'emery', health: true, radar: true, hr: true };
-const ENV_DIORITE = { color: false, round: false, platform: 'diorite', health: true, radar: true, hr: true };
-const ENV_BASALT = { color: true, round: false, platform: 'basalt', health: true, radar: true, hr: false };
-const ENV_APLITE = { color: false, round: false, platform: 'aplite', health: false, radar: false, hr: false };
+const ENV_EMERY = { color: true, platform: 'emery', health: true, radar: true, hr: true };
+const ENV_DIORITE = { color: false, platform: 'diorite', health: true, radar: true, hr: true };
+const ENV_BASALT = { color: true, platform: 'basalt', health: true, radar: true, hr: false };
+const ENV_APLITE = { color: false, platform: 'aplite', health: false, radar: false, hr: false };
 // env.phoneBattery is the Android-only Battery Status API verdict, threaded from
 // the PHONE_BATTERY_SUPPORTED storage key. Every env above deliberately LACKS the
 // flag — that is the iOS/emulator default, under which the two phone-battery items

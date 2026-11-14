@@ -8,7 +8,7 @@
 // This module installs the missing methods as a side effect of being
 // required, so requiring it FIRST in the entry file makes the whole bundle
 // ES5-safe before any other code runs. Each polyfill is guarded so modern
-// platforms (basalt/chalk/diorite/emery) keep their faster native versions.
+// platforms (basalt/diorite/emery/flint) keep their faster native versions.
 // install() is also exported so tests can re-run it against a stripped-down
 // runtime.
 

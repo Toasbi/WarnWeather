@@ -32,9 +32,8 @@ require('../../src/pkjs/settings/blocks.js');
 const PC = global.PConf;
 const GOLDEN_PATH = path.join(__dirname, '..', 'config-schema.golden.json');
 
-// Every platform config-ui/lib/platform.js distinguishes (chalk included: its env is
-// round, even though the app does not target it today).
-const PLATFORMS = ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint'];
+// Every platform the app builds for (package.template.json's targetPlatforms).
+const PLATFORMS = require('../../package.template.json').pebble.targetPlatforms;
 
 /**
  * The theme states the warn look's hint branches on (blocks.js warnLookHint): a colour

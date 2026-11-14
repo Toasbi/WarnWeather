@@ -187,7 +187,7 @@ mise screenshot-emulator
 mise screenshot-emulator basalt
 
 # Flag form
-mise screenshot-emulator -- --emulator chalk
+mise screenshot-emulator -- --emulator flint
 
 # Set default emulator in environment
 PEBBLE_EMULATOR=basalt mise screenshot-emulator

@@ -41,7 +41,7 @@ function oneScreen(upper, over) {
 
 test('the env fact: bars 4 to 6 on the Pebble Time 2 alone; an unknown watch has three bars', () => {
   assert.equal(EMERY.extraBars, true);
-  ['aplite', 'basalt', 'chalk', 'diorite', 'flint'].forEach((p) =>
+  ['aplite', 'basalt', 'diorite', 'flint'].forEach((p) =>
     assert.equal(platform.computeEnv({ platform: p }).extraBars, false, p));
   assert.equal(UNKNOWN.extraBars, false, 'fail closed');
 });
@@ -240,7 +240,7 @@ test('bars 4 to 6\'s On demand cells: CLAY_OD_EXTRA_UINT8 on a known emery alone
   // Sent on every known emery, zeros while no made bar shows; never on another watch.
   assert.deepEqual(buildClayPayload({}, { platform: 'emery' }, NOW).CLAY_OD_EXTRA_UINT8,
     new Array(OD.ITEMS.length).fill(0));
-  ['basalt', 'chalk', 'diorite', 'flint', 'aplite'].forEach((p) =>
+  ['basalt', 'diorite', 'flint', 'aplite'].forEach((p) =>
     assert.equal('CLAY_OD_EXTRA_UINT8' in buildClayPayload(S, { platform: p }, NOW), false, p));
   assert.equal('CLAY_OD_EXTRA_UINT8' in buildClayPayload(S, null, NOW), false, 'an unknown watch');
   // The blob's own cells never carry bars 4 to 6 (their bits would land on the first four's).

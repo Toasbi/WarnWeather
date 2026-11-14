@@ -119,7 +119,7 @@ test('uvShown: the rollover compares the whole numbers the slot prints', () => {
 
 // No hold on the warn level (decision A): a 7 falling from an 8 rolls to tomorrow's
 // peak like any other peak behind us, however high it is. The slot is a record of
-// the day, and the alert icon (bakeAlerts) is what keeps warning about today.
+// the day, and the alert icon (status-wire bakedAlerts) is what keeps warning about today.
 test('uvShown: a falling value at any level gives way to tomorrow\'s peak', () => {
   assert.deepEqual(uvShown([70], [70, 80, 80], 'both'), S(7, 8, true), '"7/»8"');
   assert.deepEqual(uvShown([70], [70, 80, 80], 'max'), S(null, 8, true), 'a lone "»8"');

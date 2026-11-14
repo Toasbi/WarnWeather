@@ -107,7 +107,7 @@ test('the AQI day max runs on the Open-Meteo forecast and degrades to the readin
 
 test('the wind arrow stays in Both (its first reading is now) and leaves Day max alone', () => {
   const radar = catalog.LINES.filter((l) => l.id === 'radar')[0];
-  const env = { color: true, round: false, platform: 'basalt', health: true, radar: true };
+  const env = { color: true, platform: 'basalt', health: true, radar: true };
   const slot = (extra) => {
     const bytes = statusLines.packLine(radar,
       { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null], WIND_DIR_TREND: [270] },

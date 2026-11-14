@@ -501,7 +501,7 @@
 
   // alert<Key>Days: 'today' judges only what is left of today; 'tomorrow' ("Today +
   // tomorrow") also lets tomorrow's peak raise the alert once nothing left today
-  // reaches warn (status-wire.js bakeAlerts' rule). Absent or unknown reads as the
+  // reaches warn (status-wire.js bakedAlerts' rule). Absent or unknown reads as the
   // default.
   var ALERT_DAYS = ['today', 'tomorrow'];
   var ALERT_DAYS_DEFAULT = 'tomorrow';
