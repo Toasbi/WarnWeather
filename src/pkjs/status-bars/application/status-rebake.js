@@ -22,9 +22,9 @@
 // back at all, so both are plain top-level requires.
 
 // The micro-send mechanics: `buildStatusLines()` runs in the forecast
-// pipeline and consumes transient payload keys that applyForecastSeries deletes
-// right after, so a re-bake needs the bake *inputs*: render-payload.js hands them
-// over via rememberBakeInputs() immediately before the bake. On a trigger we
+// pipeline and reads transient payload keys that render-payload.js removes once
+// the payload is built, so a re-bake needs the bake *inputs*: render-payload.js
+// hands them over via rememberBakeInputs() immediately before the bake. On a trigger we
 // re-bake a fresh clone of that snapshot and push only the status category's
 // keys through the normal outbox. change-detector's categorySubset()
 // returns null for a category whose keys are all absent and ChangeDetector

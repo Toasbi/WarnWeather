@@ -5,7 +5,6 @@ var statusCatalog = require('../../status-bars/domain/status-line-catalog.js');
 // alertOn — whether a metric's alert is placed on a status bar (On demand), which the
 // fetch gates below add to what the slots and lines ask for.
 var statusThresholds = require('../../alerts/domain/status-thresholds.js');
-var wireUnits = require('../../wire/domain/wire-units.js');     // dayMaxPayloadKeys — the day-max kinds' transient keys
 var pressurePlausibility = require('./pressure-plausibility.js');
 // A wind, gust or UV line's Show: Alert: its band and which samples reach warn.
 var lineAlert = require('../../alerts/domain/line-alert.js');
@@ -505,9 +504,8 @@ function tempScaleRange(temps, series) {
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
 function applyForecastSeries(payload, settings, watchInfo) {
-    // The caller (weather/application/render-payload.js) hands the bake inputs to
-    // the rebaker and bakes the status lines (status-lines.js buildStatusLines)
-    // before calling this: the bake reads the transient trend arrays this deletes.
+    // The caller (weather/application/render-payload.js) also bakes the status lines and
+    // removes their inputs afterwards; this reads some of the same trends and leaves them.
     // From here on the graph's settings: with screens showing several graph styles
     // (emery), the shown styles' union (forecast-graphs/domain/graph-style-wire.js weatherSettings),
     // else the settings themselves.
@@ -589,26 +587,13 @@ function applyForecastSeries(payload, settings, watchInfo) {
     payload.TEMP_TREND_UINT8 = tempTrendToBytes(rawTemps, tempBand || undefined).bytes;
     var series = buildForecastSeries(raw, settings);
     delete payload.TEMP_RAW_TREND; // transient PKJS-only; encoded into TEMP_TREND_UINT8 above, never wired
-    delete payload.CURRENT_TEMP; // baked into the status lines; no longer a wire key
-    delete payload.CURRENT_CONDITION; // baked into the weather condition slot (status-lines.js)
-    delete payload.CITY;         // baked into the status lines; no longer a wire key
     delete payload.PRECIP_TREND_UINT8;
     delete payload.RAIN_TREND_UINT8;
-    delete payload.WIND_TREND_UINT8;  // transient PKJS-only; never over the wire
-    delete payload.GUST_TREND_UINT8;  // transient PKJS-only; never over the wire
-    delete payload.UV_TREND_UINT8;    // transient PKJS-only; never over the wire
-    // The day-max kinds' *_DAY_PEAKS (and trends, deleted above too): transient
-    // PKJS-only, baked into their slots' text + level, never wired.
-    wireUnits.dayMaxPayloadKeys().forEach(function (key) { delete payload[key]; });
+    // The status bake's inputs (status-lines.js SOURCE_KEYS: the city, the current values,
+    // the day-max kinds' trends and peaks, …) stay: render-payload.js removes them once
+    // both this and the bake have read them.
     delete payload.CLOUD_TREND;       // transient PKJS-only; cloud cover %, consumed by the cloud line above, never wired
-    delete payload.PRESSURE_TREND;    // transient PKJS-only; hPa never fit a byte, never wired
-    delete payload.AQI_TREND;         // transient PKJS-only; baked into status text, never wired
-    delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired
-    delete payload.POLLEN_TOMORROW;   // transient PKJS-only; judged by the pollen alert's look-ahead, never wired
     delete payload.FEELS_TREND;       // transient PKJS-only; consumed by the joint band + feels line above, never wired
-    delete payload.FEELS_CURRENT;     // baked into the status lines by buildStatusLines before this (same ordering contract as CURRENT_TEMP)
-    delete payload.DEW_TREND;         // transient PKJS-only; baked into the dew slot's text + the dew line above, never wired
-    delete payload.WIND_DIR_TREND;    // transient PKJS-only; baked into the wind/gust arrow sentinel, never wired
     // Values only — the line colours and the fill flag ride the Clay settings
     // message now (CLAY_LINE_STYLE_UINT8), so the weather send carries no styling.
     payload.SECONDARY_LINE_TREND_UINT8 = series.SECONDARY_LINE_TREND_UINT8;

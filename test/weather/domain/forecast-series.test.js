@@ -249,7 +249,7 @@ test('every secondary/third/bar wire byte is within 0..250', () => {
   });
 });
 
-test('applyForecastSeries swaps raw keys for render-ready series in place, deletes transients incl UV', () => {
+test('applyForecastSeries swaps raw keys for render-ready series in place, leaving the bake\'s inputs', () => {
   const payload = {
     TEMP_RAW_TREND: [10, 20, 30], TEMP_MIN: 10, TEMP_MAX: 30, NUM_ENTRIES: 3,
     PRECIP_TREND_UINT8: [0, 50, 100], RAIN_TREND_UINT8: [0, 5, 20],
@@ -258,9 +258,11 @@ test('applyForecastSeries swaps raw keys for render-ready series in place, delet
   };
   const out = applyForecastSeries(payload, { secondaryLine: 'uv', thirdLine: 'wind', windScale: 'mid', barSource: 'off' }, undefined);
   assert.equal(out, payload);
-  ['PRECIP_TREND_UINT8', 'RAIN_TREND_UINT8', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8', 'UV_TREND_UINT8',
-   'UV_DAY_PEAKS'].forEach(function(k) {
+  ['PRECIP_TREND_UINT8', 'RAIN_TREND_UINT8'].forEach(function(k) {
     assert.ok(!(k in out), k + ' should be deleted before the wire');
+  });
+  ['WIND_TREND_UINT8', 'GUST_TREND_UINT8', 'UV_TREND_UINT8', 'UV_DAY_PEAKS'].forEach(function(k) {
+    assert.ok(k in out, k + ' is the status bake\'s input too: render-payload.js removes it');
   });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // uv
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 125, 250]);    // wind
@@ -333,15 +335,27 @@ test('needsPollen is true only for DWD with an effective pollen status selection
   assert.equal(needsPollen({ provider: 'dwd', statusRadarMid: 'pollen' }), true);
 });
 
-test('applyForecastSeries deletes the transient AQI_TREND key', () => {
+test('toRenderPayload deletes the transient AQI_TREND key', () => {
   const payload = {
     AQI_TREND: [42],
     PRECIP_TREND_UINT8: [], RAIN_TREND_UINT8: [], WIND_TREND_UINT8: [],
     GUST_TREND_UINT8: [], UV_TREND_UINT8: [],
     CURRENT_TEMP: 68, CITY: 'X', SUN_EVENTS: [1]
   };
-  applyForecastSeries(payload, {}, { platform: 'basalt' });
+  toRenderPayload(payload, {}, { platform: 'basalt' }, NOW);
   assert.equal('AQI_TREND' in payload, false);
+});
+
+test('toRenderPayload removes every bake input that is no wire key, and keeps SUN_EVENTS', () => {
+  const { BAKE_ONLY_KEYS } = require('../../../src/pkjs/weather/application/render-payload');
+  const lines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
+  assert.deepEqual(BAKE_ONLY_KEYS, lines.SOURCE_KEYS.filter((k) => k !== 'SUN_EVENTS'));
+  const payload = { TEMP_RAW_TREND: [10, 20], NUM_ENTRIES: 2, SUN_EVENTS: [1] };
+  BAKE_ONLY_KEYS.forEach((k) => { if (!(k in payload)) { payload[k] = [1, 2]; } });
+  payload.CITY = 'Bonn';
+  toRenderPayload(payload, {}, { platform: 'basalt' }, NOW);
+  assert.deepEqual(BAKE_ONLY_KEYS.filter((k) => k in payload), []);
+  assert.ok('SUN_EVENTS' in payload);
 });
 
 test('toRenderPayload deletes POLLEN_TODAY after baking the pollen status slot', () => {
@@ -574,10 +588,10 @@ test('PRESSURE_SCALE_CURVE_HPA exposes the three curves', () => {
   });
 });
 
-test('applyForecastSeries deletes the transient PRESSURE_TREND', () => {
+test('toRenderPayload deletes the transient PRESSURE_TREND', () => {
   const payload = { TEMP_RAW_TREND: [], PRESSURE_TREND: [1010, 1011] };
-  applyForecastSeries(payload,
-    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+  toRenderPayload(payload,
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null, NOW);
   assert.equal('PRESSURE_TREND' in payload, false);
   // Mid curve core (35pm per hPa): 1010 -> 325pm (byte 81), 1011 -> 360pm (byte 90).
   assert.deepEqual(payload.SECONDARY_LINE_TREND_UINT8, [81, 90]);
@@ -731,7 +745,7 @@ test('feels NOT selected: temp bytes/band byte-identical even with FEELS_TREND p
   assert.equal(out.TEMP_MAX, 30);
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // precip, untouched by feels data
   assert.equal('FEELS_TREND' in out, false, 'transient still stripped when not selected');
-  assert.equal('FEELS_CURRENT' in out, false);
+  assert.equal('FEELS_CURRENT' in out, true, 'the status bake\'s input: render-payload.js removes it');
 });
 
 test('feels inside the temp band: temp bytes stay identical, feels maps within the unwidened band', () => {
@@ -1069,7 +1083,7 @@ test('dew selected: the joint band covers temp, feels AND dew, and TEMP_MIN/MAX 
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [1, 33, 75]);
   // Feels 8/18/28 against the SAME band: 267/600/933 ‰ -> 67/150/233.
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [67, 150, 233]);
-  assert.equal('DEW_TREND' in out, false, 'transient stripped');
+  assert.equal('DEW_TREND' in out, true, 'the dew slot reads it too: render-payload.js removes it');
 });
 
 test('dew: an hour with no reading ships as byte 0 (drawn as a gap) and never widens the band', () => {

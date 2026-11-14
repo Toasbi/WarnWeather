@@ -7,17 +7,27 @@
 // buildStatusLines), then turn the trends into the wire series
 // (forecast-series.js applyForecastSeries).
 //
-// Order matters. A later trigger (a phone-battery event, a settings save, a
-// sunrise or sunset) re-bakes the status lines without a fetch
-// (status-rebake.js), and by then both the bake's own mutations and the
-// transient-key deletions in applyForecastSeries have happened, so the inputs
-// are stashed BEFORE the bake. No settings: a re-bake reads the live ones.
-// The status lines bake while the transient trend arrays are still on the
-// payload: applyForecastSeries deletes them.
+// The inputs are stashed for the rebaker before the bake: a later trigger (a
+// phone-battery event, a settings save, a sunrise or sunset) re-bakes the status lines
+// without a fetch (status-rebake.js), from the payload as it was. No settings: a
+// re-bake reads the live ones. The status bake and the series read the payload and
+// leave the bake's inputs on it; this file removes the ones that never go over the
+// wire once both have run, so neither depends on the other's order.
 
 var statusRebake = require('../../status-bars/application/status-rebake.js');
 var statusLines = require('../../status-bars/domain/status-lines.js');
 var forecastSeries = require('../domain/forecast-series.js');
+var WEATHER_CATEGORIES = require('../../wire/domain/weather-categories.js');
+
+// The status bake's inputs that are no wire key (SUN_EVENTS is both): removed once the
+// bake and the series have read them.
+var BAKE_ONLY_KEYS = (function () {
+    var wired = {};
+    WEATHER_CATEGORIES.forEach(function (category) {
+        category.keys.forEach(function (key) { wired[key] = true; });
+    });
+    return statusLines.SOURCE_KEYS.filter(function (key) { return !wired[key]; });
+})();
 
 /**
  * Stash the bake inputs for the rebaker, bake the status lines, then turn the raw
@@ -33,9 +43,12 @@ var forecastSeries = require('../domain/forecast-series.js');
 function toRenderPayload(payload, settings, watchInfo, now, phone) {
     statusRebake.rememberBakeInputs(payload, watchInfo, now);
     statusLines.buildStatusLines(payload, settings, watchInfo, now, phone);
-    return forecastSeries.applyForecastSeries(payload, settings, watchInfo);
+    forecastSeries.applyForecastSeries(payload, settings, watchInfo);
+    BAKE_ONLY_KEYS.forEach(function (key) { delete payload[key]; });
+    return payload;
 }
 
 module.exports = {
-    toRenderPayload: toRenderPayload
+    toRenderPayload: toRenderPayload,
+    BAKE_ONLY_KEYS: BAKE_ONLY_KEYS
 };
