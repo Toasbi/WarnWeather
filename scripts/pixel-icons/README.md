@@ -63,8 +63,8 @@ The rain alert draws the Drizzle, Rain or Heavy rain drawing in the alert's colo
 foreground on the light theme, where a pale colour does not read on white. Until that drawing is
 done it draws its filled drops.
 
-A Pebble Classic mask is its ink too. Two of today's masks, gusts and pollen, carry spare blank
-columns; marking one done drops them, so its text moves a pixel closer, as the editor shows.
+A Pebble Classic mask is its ink too: a blank row or column at its edge falls away, and the text
+sits as close as the editor shows.
 
 ## Which sizes an icon gets
 

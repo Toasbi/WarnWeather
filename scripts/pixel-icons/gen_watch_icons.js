@@ -256,10 +256,11 @@ ${rows(rain)}
 #pragma once
 #include <stdint.h>
 
+// 4 bytes an entry: a Pebble app's image, this table included, is loaded into its RAM.
 typedef struct {
     uint8_t key;        // an icon id (status_line.h, status_row_icons.h), or a rain alert bucket
     uint8_t rows;       // the painted height it is drawn at
-    uint32_t resource;
+    uint16_t resource;  // its RESOURCE_ID_* (an id past 65535 fails the build: -Woverflow)
 } StatusPixelIcon;
 
 #if defined(PBL_PLATFORM_EMERY)
@@ -285,9 +286,11 @@ function apliteSource(masks, src = fs.readFileSync(APLITE_C, 'utf8')) {
         const arr = new RegExp('(static const uint16_t MASK_' + key + '\\[\\]\\s*=\\s*)\\{[^}]*\\}');
         if (!arr.test(src)) throw new Error('no MASK_' + key + ' in status_row_aplite.c');
         src = src.replace(arr, '$1{' + hex + '}');
-        const dims = new RegExp('(\\{ MASK_' + key + ',\\s*)\\d+(,\\s*)\\d+( \\})');
+        const dims = new RegExp('(\\{ MASK_' + key + ',\\s*)\\d+,\\s*\\d+( \\})');
         if (!dims.test(src)) throw new Error('no StatusMask for MASK_' + key);
-        src = src.replace(dims, '$1' + rows.length + '$2' + w + '$3');
+        // Each number two wide, as the table aligns them ({ MASK_TEMP,   13,  7 }).
+        const two = (v) => String(v).padStart(2);
+        src = src.replace(dims, '$1' + two(rows.length) + ', ' + two(w) + '$2');
     }
     return src;
 }
