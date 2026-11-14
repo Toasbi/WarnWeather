@@ -575,6 +575,26 @@ test('success: records the START time, resets the counter, commits the carried s
     assert.equal(h.cycle.start(false), true, 'the next start is accepted');
 });
 
+test('success: a failure the provider worked around is tracked once, before the success', () => {
+    resetStore();
+    const h = makeHarness();
+    const p = h.provider;
+    h.cycle.start(false);
+    p.fix(52.5, 13.4);
+    p.recoveredFailure = { stage: 'provider_data', code: 'fake_condition_rejected' };
+    p.succeed();
+    assert.deepEqual(h.calls.telemetry.map(function (e) { return [e.success, e.error]; }), [
+        [false, { stage: 'provider_data', code: 'fake_condition_rejected' }],
+        [true, undefined]
+    ]);
+    assert.equal(p.recoveredFailure, null, 'cleared once reported');
+
+    h.cycle.start(false);
+    p.fix(52.5, 13.4);
+    p.succeed();
+    assert.equal(h.calls.telemetry.length, 3, 'the next fetch tracks its success alone');
+});
+
 test('success: a delivered sleep onset pauses the gate; a failed one does not', () => {
     const settings = Object.assign({ fetchIntervalMin: '60' }, sleepWindowCovering(new Date(T0), 3));
     const earlier = JSON.stringify({ time: new Date(T0 - 30 * MIN).toISOString() });

@@ -6,6 +6,14 @@ var condition = require('./condition.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
 var YANDEX_ENDPOINT = 'https://api.weather.yandex.ru/graphql/query';
 
+// The failure codes a GraphQL query Yandex rejects comes back as: an HTTP 400, or a
+// 200 whose body holds errors and no data (requestMapped's missing fields).
+var REJECTED_QUERY_CODES = ['yandex_status_400', 'yandex_missing_fields'];
+
+// Set once Yandex has rejected the query with the condition field and taken it
+// without: later fetches of this app run leave the field out.
+var conditionRejected = false;
+
 /**
  * Build the Yandex Weather GraphQL query. Units are requested server-side
  * (FAHRENHEIT, KILOMETERS_PER_HOUR) so mapResponse does zero conversion, and
@@ -22,18 +30,19 @@ var YANDEX_ENDPOINT = 'https://api.weather.yandex.ru/graphql/query';
  * @param {number|string} lon Longitude.
  * @param {number} [hours] The graph's window (hourly-window.js windowHours); 24
  *   when absent.
+ * @param {boolean} [withoutCondition] True leaves the condition field out.
  * @returns {string} GraphQL query string.
  */
-function buildQuery(lat, lon, hours) {
+function buildQuery(lat, lon, hours, withoutCondition) {
     var latNum = Number(lat);
     var lonNum = Number(lon);
     return '{ weatherByPoint(request: {lat: ' + latNum + ', lon: ' + lonNum + '}) {'
         // condition is the weather condition slot's "now" (condition.js fromYandex).
-        // Unlike the fields left out below, it was checked against Yandex's published
-        // GraphQL schema (2026-11-13), though not against live traffic: Now.condition is
-        // a Condition! enum (CLEAR, PARTLY_CLOUDY ... THUNDERSTORM_WITH_HAIL) that takes
-        // no arguments.
-        + ' now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) condition }'
+        // It matches Yandex's published GraphQL schema (Now.condition, a Condition!
+        // enum without arguments) but has not been seen in live traffic, so a query
+        // Yandex rejects is asked again without it (withProviderData).
+        + ' now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT)'
+        + (withoutCondition ? ' }' : ' condition }')
         // No cloud cover either: its GraphQL field name can't be verified against
         // live traffic, and a wrong one fails the whole query (see below) — the
         // cloud line stays off on Yandex.
@@ -224,21 +233,44 @@ YandexProvider.prototype.withProviderData = function(lat, lon, force, onSuccess,
     // adoptMapped sets each absent one to its documented empty value ([]).
     // The graph's window: 24 hours, or emery's 26 or 68 (fetch-options.js).
     var hours = hourlyWindow.windowHours(this.options);
-    WeatherProvider.requestMapped({
-        url: YANDEX_ENDPOINT, method: 'POST', id: 'yandex', label: 'Yandex',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Yandex-Weather-Key': this.apiKey
-        },
-        body: JSON.stringify({ query: buildQuery(lat, lon, hours) }),
-        map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000), hours); }
-    }, (function(mapped) {
-        this.adoptMapped(mapped);
+    var self = this;
+    var adopt = function(mapped) {
+        self.adoptMapped(mapped);
         onSuccess();
-    }).bind(this), onFailure);
+    };
+    var request = function(withoutCondition, onMapped, onFailed) {
+        WeatherProvider.requestMapped({
+            url: YANDEX_ENDPOINT, method: 'POST', id: 'yandex', label: 'Yandex',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Yandex-Weather-Key': self.apiKey
+            },
+            body: JSON.stringify({ query: buildQuery(lat, lon, hours, withoutCondition) }),
+            map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000), hours); }
+        }, onMapped, onFailed);
+    };
+    if (conditionRejected) {
+        request(true, adopt, onFailure);
+        return;
+    }
+    request(false, adopt, function(first) {
+        if (REJECTED_QUERY_CODES.indexOf(first.code) < 0) {
+            onFailure(first);
+            return;
+        }
+        // Asked again without the condition field: if that loads, the field was the
+        // cause. The weather shows without the condition slot, and the fetch's
+        // telemetry carries the rejection once (recoveredFailure).
+        request(true, function(mapped) {
+            conditionRejected = true;
+            self.recoveredFailure = failure('provider_data', 'yandex_condition_rejected');
+            adopt(mapped);
+        }, function() { onFailure(first); });
+    });
 };
 
 module.exports = {
+    _resetForTests: function() { conditionRejected = false; },
     buildQuery: buildQuery,
     mapResponse: mapResponse,
     YandexProvider: YandexProvider
