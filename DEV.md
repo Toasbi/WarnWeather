@@ -615,7 +615,7 @@ supabase secrets set RAINBOW_IP_HASH_KEY=$(openssl rand -hex 32)   # optional; p
 The nowcast (the endpoint's root) takes a POST of `{"lat", "lon", "start"}` (sent as `text/plain`, a
 CORS simple request; the body is read whatever the content type) and answers `{"forecast": [...]}`.
 Coordinates are rounded to 3 decimals (~110 m) on the phone and again on the proxy, so no URL the
-gateway logs carries a position. The older `GET ?lat&lon&start` still works for app versions that
+gateway logs carries a position. A `GET ?lat&lon&start` is also accepted, for app versions that
 send it (remove once telemetry shows none). The proxy stores no place and no IP: the cache key and
 the per-IP hourly bucket are HMAC-SHA-256 under keys derived from the pepper (`keys.ts`), the cache
 read and both counters are RPCs (keys in the POST body), the cached payload is the forecast only,

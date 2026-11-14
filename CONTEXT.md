@@ -75,9 +75,8 @@ receives hand-ported bugfixes and interface updates.
 **View spec**:
 The small struct describing what is on screen: top-band content, calendar
 rows, body, status row(s), font tier, band size weights. Geometry and layer
-visibility both derive from it. Producers make specs (today the preset
-compiler + flick state; later the à-la-carte settings); the layout module
-consumes them.
+visibility both derive from it. The phone compiles them from the
+screens (`view-cycle.js`) and sends them; the layout module consumes them.
 
 **Preset (layout)**:
 A named built-in view spec, keyed by the `layoutPreset` setting: `fullCal`,
@@ -87,8 +86,7 @@ a separate code path.
 
 **Stop (flick)**:
 One position in the wrist-flick cycle: a view spec shown when the user flicks.
-Today the stops are hardcoded transitions; the à-la-carte plan makes them user
-data. With *Double flick* on, the cursor advances only on the second accepted
+The stops are the user's screens, in their order. With *Double flick* on, the cursor advances only on the second accepted
 flick within the pairing window (layout.h `view_flick_accept`).
 
 **Screen (settings page)**:
@@ -159,13 +157,12 @@ parse problem there can't take the whole config down.
 The `CLAY_LARGE_GRAPH_FONT` int read as bits on emery: bit 0 *Larger graph
 fonts*, bits 2, 3 and 5 the forecast's left axis options (Graphs › Forecast ›
 Left axis): high/low numbers on the graph, numbers off, numbers naming the
-temperature scale. Bits 1 and 4 (the 2.2.0 betas' axis line off and outline off)
-are retired and reserved: the axis line is drawn exactly when the numbers are on
-the axis, their outline exactly when they are on the graph. The layout is
+temperature scale. Bits 1 and 4 are reserved: the axis line is drawn exactly
+when the numbers are on the axis, their outline exactly when they are on the graph. The layout is
 `config.h`'s `GRAPH_OPT_*`, in lockstep with `src/pkjs/forecast-axis.js` `BIT`,
 and the watch keeps bits 1-7 in `Config.forecast_axis`. The phone packs a dormant option as its
-default, so the axis bits are all zero exactly when the graph is today's, and
-while they are the tuple is the bare boolean it always was (a known non-emery
+default, so the axis bits are all zero exactly when every axis option is at its
+default, and while they are the tuple is a bare boolean (a known non-emery
 watch never gets more); emery and an unknown watch get the number once an axis
 option leaves its default. The scale option alone also touches the weather message: on
 a known emery `TEMP_MIN`/`TEMP_MAX` carry the scale's ends instead of the air's.
@@ -289,8 +286,8 @@ a move within the slot keeps the slot's answer until the next slot); "Rainbow
 (own key)" (id `rainbowkey`) fetches the same nowcast directly on the user's
 own key at every update, on a key whose first 5,000 calls a month are free
 (Rainbow asks for a credit card and bills calls past that). Both ids are
-stored `radarProvider` values. 1.23.x stored the own key as `rainbow` plus a
-`rainbowOwnKey` switch; a 1.24.0 migration folds that pair into `rainbowkey`.
+stored `radarProvider` values; a settings migration folds a stored `rainbow` plus
+`rainbowOwnKey` switch into `rainbowkey`.
 Picked without a key, the own-key source clears the radar. Wherever the own key
 can't be set, it is the limited one.
 _Avoid_: radar provider in prose (the wire key `radarProvider` keeps its name).
