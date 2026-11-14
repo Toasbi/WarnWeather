@@ -204,7 +204,8 @@ test('a light theme draws black on white, the status rows print the Status bars 
 // or a short middle, and gives way to the middle's text (status_row.c swap_in_short_forms).
 test('a side slot\'s weather condition: the whole name beside an empty middle, the short form beside a long one', () => {
   const draw = (platform, mid) => pw.watchPreview(settings({ layoutPreset: 'compactCal', radarMode: 'off',
-    healthMode: 'off', statusForecastLeft: 'condition', statusForecastMid: mid, statusForecastRight: 'empty' }),
+    healthMode: 'off', statusForecastLeft: 'condition', statusForecastMid: mid, statusForecastRight: 'empty',
+    citySlotIcon: true }),
   plat.computeEnv({ platform: platform }), {});
   const shows = (html, text) => html.indexOf('>' + text + '</text>') !== -1;
   ['basalt', 'emery'].forEach((platform) => {
@@ -225,7 +226,7 @@ test('a side slot\'s weather condition: the whole name beside an empty middle, t
 test('the Status bars tab\'s bar pictures print the short form where the watch does', () => {
   const sbp = require('../src/pkjs/settings/preview-status-bars.js');
   const S = settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off',
-    statusForecastLeft: 'condition', statusForecastMid: 'city', statusForecastRight: 'empty' });
+    statusForecastLeft: 'condition', statusForecastMid: 'city', statusForecastRight: 'empty', citySlotIcon: true });
   const pictures = (platform) => {
     const env = plat.computeEnv({ platform: platform });
     return [sbp.barPicture(S, env, 'forecast', { big: true }), sbp.statusBarsPreview(S, env)];

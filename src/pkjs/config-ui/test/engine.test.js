@@ -2102,6 +2102,25 @@ test('boot(): a bottomSheet select\'s list rises from the bottom over the dialog
   assert.match(selectRowTags(r.modal.innerHTML, 'mark').row, /\bisel-open\b/, 'the other list opens in its row');
 });
 
+test('boot(): opening the bottom sheet scrolls only its list to the picked option, never the dialog', () => {
+  const calls = [];
+  const list = { scrollTop: 0, getBoundingClientRect: () => ({ top: 300, bottom: 500, height: 200 }) };
+  const option = {
+    closest: (sel) => (sel === '.isel-list' ? list : null),
+    getBoundingClientRect: () => ({ top: 900, bottom: 940, height: 40 }),
+    focus: (opts) => { calls.push(opts); }
+  };
+  const r = bootWithCapturedListeners(BOTTOM_SHEET_SCHEMA, {}, {
+    modalQuery: (sel) => (sel === '.psheet' ? {} : /ssel-opt\.on/.test(sel) ? option : null)
+  });
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'fmt' });
+  r.modal.scrollTop = 120;
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  assert.deepEqual(calls, [{ preventScroll: true }], 'the option takes focus without scrolling anything');
+  assert.equal(list.scrollTop, 520, 'its list scrolls the option to its middle');
+  assert.equal(r.modal.scrollTop, 0, 'the dialog is not scrolled');
+});
+
 test('boot(): a pick in the bottom sheet stores it and closes the sheet; the dialog stays', () => {
   let triggerFocus = 0;
   const r = bootWithBottomSheet({ modalQuery: (sel) => (sel === '[data-select="sep"]'

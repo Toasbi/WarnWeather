@@ -275,7 +275,7 @@
 
     /**
      * Whether the city slot draws the current weather's icon before its name (its dialog's
-     * citySlotIcon, on unless switched off, so every install has it). Never on aplite, whose
+     * citySlotIcon, off unless switched on, until the icons are redrawn). Never on aplite, whose
      * lean row draws no weather icon.
      * @param {Object} settings Settings.
      * @param {Object} [env] Platform env.
@@ -283,7 +283,7 @@
      */
     function cityIcon(settings, env) {
         if (env && env.platform === 'aplite') { return false; }
-        return !(settings && settings.citySlotIcon === false);
+        return Boolean(settings && settings.citySlotIcon === true);
     }
 
     /**

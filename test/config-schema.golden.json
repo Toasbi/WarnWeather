@@ -7914,7 +7914,7 @@
                 "type": "toggle",
                 "messageKey": "citySlotIcon",
                 "label": "Weather icon",
-                "defaultValue": true,
+                "defaultValue": false,
                 "hintByValue": {
                   "true": "Shows the current weather's icon before the city name."
                 }
@@ -15801,13 +15801,6 @@
                 "hint": "Show a ? beside each setting instead of its explanation. Tap the ? to read it."
               },
               {
-                "type": "toggle",
-                "messageKey": "telemetryEnabled",
-                "label": "Share anonymous telemetry",
-                "defaultValue": true,
-                "hint": "Sends anonymous data about weather updates and how the watchface is used, to improve reliability. Privacy & data sources below says what is sent."
-              },
-              {
                 "type": "button",
                 "label": "Run setup again",
                 "action": "startWizard",
@@ -15833,6 +15826,13 @@
             "title": "Privacy & data sources",
             "collapsible": true,
             "items": [
+              {
+                "type": "toggle",
+                "messageKey": "telemetryEnabled",
+                "label": "Share anonymous telemetry",
+                "defaultValue": true,
+                "hint": "Sends anonymous data about weather updates and how the watchface is used, to improve reliability."
+              },
               {
                 "type": "staticText",
                 "text": "<b>Privacy</b><br>While Share anonymous telemetry is on, WarnWeather sends: whether each weather update worked and how long it took, the weather provider, a rough country, the app and watch versions, and which settings are used. It never sends your location, the places you type, your API keys or any health data: steps, sleep and heart rate stay on the watch. Your account and watch are stored only as one-way hashes."
