@@ -124,7 +124,7 @@ test('the generator knows every icon the editor offers, by an id the watch defin
   const keys = [...block.matchAll(/^\s+\('([A-Z_]+)',/gm)].map(m => m[1]);
   assert.ok(keys.length > 30, 'read the editor\'s icon list');
   assert.deepEqual(Object.keys(gen.ICON_IDS).sort(), keys.sort());
-  const headers = ['src/c/appendix/status_line.h', 'src/c/layers/status_row_icons.h']
+  const headers = ['src/c/appendix/status_line.h', 'src/c/layers/status_icon_size.h']
     .map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
   for (const id of [].concat(...Object.values(gen.ICON_IDS))) {
     assert.match(headers, new RegExp('(^\\s*' + id + ' = \\d+,|#define ' + id + ' )', 'm'), id);
@@ -179,14 +179,14 @@ test('each watch family lists only the drawings built for it', () => {
   assert.match(others, /PX_SUN_13/);
   assert.doesNotMatch(others, /PX_SUN_15/);
   for (const part of [emery, others]) {
-    assert.match(part, /STATUS_PIXEL_RAIN_COUNT 1\n[^}]*\{ 2, 13, RESOURCE_ID_PX_RAIN_13 \}/);
+    assert.match(part, /STATUS_PIXEL_RAIN_COUNT 1\n[^}]*\{ 2, 13, PX_RES\(PX_RAIN_13\) \}/);
   }
   const none = gen.header([], []);
   assert.equal(none.match(/COUNT 0\n/g).length, 4, 'no drawings: every table empty');
   assert.equal(none.match(/\{ 0, 0, 0 \}/g).length, 4, 'and still an array C accepts');
 });
 
-test('a done icon becomes a resource and a table entry per size, keyed by the size', () => {
+test('every drawing becomes a resource and a table entry per size, keyed by the size, done or not', () => {
   // Drawings that leave their top and bottom rows blank: the watch looks a drawing up by the
   // size it is for, while the image is its ink alone.
   const art = (w, rows) => drawing(w, rows, (x, y) => y > 0 && y < rows - 1 && (x === 3 || y === 2));
@@ -203,7 +203,8 @@ test('a done icon becomes a resource and a table entry per size, keyed by the si
   const files = gen.outputs(doc);
   const pdcs = Object.keys(files).filter(f => f.endsWith('.pdc'));
   assert.deepEqual(pdcs.map(f => path.basename(f)).sort(),
-    ['PX_HEAVY_RAIN_17.pdc', 'PX_RAIN_11.pdc', 'PX_RAIN_13.pdc', 'PX_RAIN_15.pdc'], 'no file for an icon not done');
+    ['PX_HEAVY_RAIN_17.pdc', 'PX_RAIN_11.pdc', 'PX_RAIN_13.pdc', 'PX_RAIN_15.pdc', 'PX_SUN_11.pdc'],
+    'Mark as done is the editor\'s checkmark: an icon not done is built too; a size no watch draws is not');
   assert.ok(pdcs.every(f => path.dirname(f) === gen.DATA_DIR));
   assert.equal(readPdc(files[path.join(gen.DATA_DIR, 'PX_RAIN_11.pdc')]).h, 9, 'the image is the ink');
 
@@ -216,16 +217,17 @@ test('a done icon becomes a resource and a table entry per size, keyed by the si
     ['PX_RAIN_13', 'data/PX_RAIN_13.pdc', 'raw', ['basalt', 'diorite', 'emery', 'flint']],
     ['PX_RAIN_15', 'data/PX_RAIN_15.pdc', 'raw', ['emery']],
     ['PX_HEAVY_RAIN_17', 'data/PX_HEAVY_RAIN_17.pdc', 'raw', ['emery']],
+    ['PX_SUN_11', 'data/PX_SUN_11.pdc', 'raw', ['basalt', 'diorite', 'flint']],
   ], 'one resource per size, on the watches that draw it');
 
   const h = files[gen.HEADER];
   const [, emery, others] = h.match(/#if defined\(PBL_PLATFORM_EMERY\)([\s\S]*)#else([\s\S]*)#endif/);
-  assert.match(others, /\{ STATUS_ICON_COND_RAIN, 11, RESOURCE_ID_PX_RAIN_11 \}/);
-  assert.match(others, /\{ 2, 11, RESOURCE_ID_PX_RAIN_11 \}/, 'the rain alert\'s rain bucket');
-  assert.match(emery, /\{ STATUS_ICON_COND_RAIN, 15, RESOURCE_ID_PX_RAIN_15 \}/);
-  assert.match(emery, /\{ 3, 17, RESOURCE_ID_PX_HEAVY_RAIN_17 \}/, 'the rain alert\'s heavy bucket');
-  assert.doesNotMatch(h, /STATUS_ICON_COND_\w+, 17, RESOURCE_ID_PX_HEAVY_RAIN/, 'Heavy rain is the rain alert\'s only');
-  assert.doesNotMatch(h, /PX_SUN/);
+  assert.match(others, /\{ STATUS_ICON_COND_RAIN, 11, PX_RES\(PX_RAIN_11\) \}/);
+  assert.match(others, /\{ 2, 11, PX_RES\(PX_RAIN_11\) \}/, 'the rain alert\'s rain bucket');
+  assert.match(emery, /\{ STATUS_ICON_COND_RAIN, 15, PX_RES\(PX_RAIN_15\) \}/);
+  assert.match(emery, /\{ 3, 17, PX_RES\(PX_HEAVY_RAIN_17\) \}/, 'the rain alert\'s heavy bucket');
+  assert.doesNotMatch(h, /STATUS_ICON_COND_\w+, 17, PX_RES\(PX_HEAVY_RAIN/, 'Heavy rain is the rain alert\'s only');
+  assert.match(others, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_11\) \}/, 'an icon not done is drawn too');
   assert.equal(files[gen.APLITE_C], fs.readFileSync(gen.APLITE_C, 'utf8'), 'no mask done: the aplite file as it is');
 });
 

@@ -27,8 +27,8 @@
 #if defined(WW_ON_DEMAND)
 
 // Glyph keys: the metric icons are their StatusIconId (to STATUS_ICON_MAX), the system
-// glyphs their in-memory ids (status_row_icons.h), and the rain drops the flag bit
-// plus the drop bucket, so drizzle -> rain swaps the glyph.
+// glyphs their in-memory ids (status_icon_size.h), and the rain alert the flag bit
+// plus its bucket, so drizzle -> rain swaps the glyph.
 #define RAIN_KEY_FLAG 0x80
 // Quiet time, one Bluetooth variant, rain and the five metric kinds.
 #define GLYPH_SLOTS 8
@@ -82,14 +82,6 @@ static GColor bt_ink(GColor hue) {
     return theme_is_light() ? theme_fg() : theme_pick(hue, theme_fg());
 }
 
-static uint32_t rain_resource(uint8_t bucket) {
-    switch (bucket) {
-        case 1:  return RESOURCE_ID_RAIN_DRIZZLE;
-        case 2:  return RESOURCE_ID_RAIN_RAIN;
-        default: return RESOURCE_ID_RAIN_DOWNPOUR;   // bucket 3 (emery-only)
-    }
-}
-
 static int find_key(const StatusOnDemandCache *cache, uint8_t key) {
     for (int i = 0; i < GLYPH_SLOTS; i++) {
         if (cache->keys[i] == key) { return i; }
@@ -98,10 +90,10 @@ static int find_key(const StatusOnDemandCache *cache, uint8_t key) {
 }
 
 // Make the cache hold exactly the glyphs in `keys` (n of them): load each at
-// `target_h` (the row's icon tier; outline art through status_row_icons_load, the
-// rain drops through status_row_icons_load_filled) and EVICT every cached glyph no
+// `target_h` (the row's icon tier; the slot glyphs through status_row_icons_load, the
+// rain alert's through status_row_icons_load_rain) and EVICT every cached glyph no
 // longer wanted — resident only while its item is active, so an idle bar holds no
-// glyph heap. The foreground, the rain tint and the light theme's edge on the drops
+// glyph heap. The foreground, the rain tint and the light theme's ink for the rain
 // are part of the key: a theme or tier change reloads just the glyphs it affects.
 // `top_strip` is not: a row is the top strip's or a bar's for its whole life
 // (status_bar.c's bar_line, top_status_layer.c), and so is its cache.
@@ -135,8 +127,7 @@ static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int t
         // redraw at the latest — tries again, as the old strip's indicator icons did;
         // until then the item measures text-only, or not at all (Bluetooth, Quiet time).
         cache->images[slot] = (key & RAIN_KEY_FLAG)
-            ? status_row_icons_load_rain(key & ~RAIN_KEY_FLAG, rain_resource(key & ~RAIN_KEY_FLAG),
-                                         target_h, tint, outline)
+            ? status_row_icons_load_rain(key & ~RAIN_KEY_FLAG, target_h, tint, outline)
             : status_row_icons_load(key, target_h, top_strip);
         if (cache->images[slot]) { cache->keys[slot] = key; }
     }

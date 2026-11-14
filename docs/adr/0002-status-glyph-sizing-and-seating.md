@@ -1,5 +1,10 @@
 # Status-glyph sizing and seating are hand-tuned rungs, not derived values
 
+> **2026-11-14:** the watch no longer scales a PDC to these sizes. Every status icon is drawn
+> pixel by pixel, once per painted height (`scripts/pixel-icons/README.md`), and shown 1:1. The
+> size rules below now pick which drawing to show (`src/c/layers/status_icon_size.h`, moved there
+> from `status_row_icons.c`), and the seating is unchanged.
+
 Status-slot PDC glyphs are sized by one knob (`icon_scale_pct`, in
 `src/c/layers/status_row_icons.c`) and seated vertically by a second
 (`s_status_icon_weight_pct`, in `src/c/layers/status_icon_weight.h`). Both are

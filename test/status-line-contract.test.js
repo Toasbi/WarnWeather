@@ -97,33 +97,32 @@ test('the weather condition icon ids are 19..33 on both sides of the wire', () =
   }));
 });
 
-// Each condition glyph is the watch's PDC resource (declared in package.template.json, mapped in
-// status_row_icons.c), written by scripts/gen-condition-glyphs.py with the settings page's copy
-// of the one glyph the page draws (condition-glyphs.generated.js). A glyph missing one of them
-// draws as nothing, without an error.
-test('every condition glyph has its resource and its watch mapping; the page has the one it draws', () => {
+// Each condition glyph is a pixel drawing the watch draws (scripts/pixel-icons: an icon in
+// resources/pixel-icons.json, mapped to its id in gen_watch_icons.js and built into the watch's
+// tables); scripts/gen-condition-glyphs.py writes the editor's starting PDC and the settings
+// page's copy of the one glyph the page draws (condition-glyphs.generated.js). A glyph missing
+// its drawing draws as nothing, without an error (test/c/status_icon_drawings_test.c checks
+// every height).
+test('every condition glyph has its drawing and its watch mapping; the page has the one it draws', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const ROOT = path.join(__dirname, '..');
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.template.json'), 'utf8'));
-  const media = pkg.pebble.resources.media;
-  const icons = fs.readFileSync(path.join(ROOT, 'src/c/layers/status_row_icons.c'), 'utf8');
+  const gen = require('../scripts/pixel-icons/gen_watch_icons.js');
+  const drawings = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources', 'pixel-icons.json'), 'utf8')).icons;
+  const table = fs.readFileSync(path.join(ROOT, 'src/c/layers/status_pixel_icons.generated.h'), 'utf8');
   const page = require('../src/pkjs/settings/condition-glyphs.generated.js');
-  const drawn = Object.keys(catalog.ICONS).filter((k) => /^COND_/.test(k) && k !== 'COND_TEXT' && k !== 'COND_WIND');
+  const drawn = Object.keys(catalog.ICONS).filter((k) => /^COND_/.test(k) && k !== 'COND_TEXT');
   assert.deepEqual(Object.keys(page), ['SUN_CLOUD'], 'the page carries the slot\'s picture alone (status-slot-icons.js)');
   assert.ok(drawn.indexOf('COND_SUN_CLOUD') !== -1, 'a glyph the watch draws too');
   drawn.forEach((k) => {
-    const name = 'STATUS_' + k;
-    const res = media.find((m) => m.name === name);
-    assert.ok(res, name + ' is declared');
-    assert.equal(res.file, 'data/' + name + '.pdc', name + ': its file');
-    assert.ok(fs.existsSync(path.join(ROOT, 'resources', res.file)), name + ': the file is committed');
-    assert.deepEqual(res.targetPlatforms, ['basalt', 'diorite', 'emery', 'flint'], name + ': every watch with glyphs');
-    assert.ok(icons.indexOf('case STATUS_ICON_' + k + ': return RESOURCE_ID_' + name + ';') !== -1,
-      name + ': status_row_icons.c maps it');
+    const id = 'STATUS_ICON_' + k;
+    const key = Object.keys(gen.ICON_IDS).find((d) => gen.ICON_IDS[d].indexOf(id) !== -1);
+    assert.ok(key, id + ': a drawing maps to it (gen_watch_icons.js ICON_IDS)');
+    assert.ok(drawings[key] && Object.keys(drawings[key].sizes).length, id + ': ' + key + ' has drawings');
+    assert.ok(table.indexOf('{ ' + id + ', ') !== -1, id + ': built into the watch\'s table');
   });
-  assert.ok(icons.indexOf('case STATUS_ICON_COND_WIND: return RESOURCE_ID_STATUS_WIND;') !== -1, 'windy borrows the flag');
-  assert.equal(icons.indexOf('case STATUS_ICON_COND_TEXT'), -1, 'the Text look maps to no glyph (the default\'s 0)');
+  assert.deepEqual(gen.ICON_IDS.WIND, ['STATUS_ICON_WIND', 'STATUS_ICON_COND_WIND'], 'windy borrows the flag');
+  assert.equal(table.indexOf('STATUS_ICON_COND_TEXT'), -1, 'the Text look maps to no glyph');
 });
 
 test('STATUS_ICON_MAX names the highest icon id in the enum', () => {

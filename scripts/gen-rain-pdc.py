@@ -9,10 +9,10 @@ output — no deps.
 
     python3 scripts/gen-rain-pdc.py
 
-Fill is authored white (0xFF) / stroke clear (0x00); top_status_layer.c recolors
-the fill per radar tier and scales the glyph to the
-strip slot at load time. Precise-path points are in 1/8-pixel units (viewbox 25 px
--> 0..200 units). Shape + arrangement were tuned against an offline PIL mock before
+Fill is authored white (0xFF) / stroke clear (0x00). The watch no longer draws these
+drops: RAIN_DOWNPOUR.pdc is the pixel icon editor's starting point for the Heavy rain
+icon, and the watch draws the editor's drawings (scripts/pixel-icons/README.md).
+Precise-path points are in 1/8-pixel units (viewbox 25 px -> 0..200 units). Shape + arrangement were tuned against an offline PIL mock before
 authoring.
 """
 import math
