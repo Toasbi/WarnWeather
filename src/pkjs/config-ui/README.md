@@ -297,8 +297,8 @@ from `editSheetFrom` (a sheet resolver; the row hides itself while it answers no
 A row can also have `editBadgeFrom: { resolver, args }`, a named resolver `fn(S, env, args)`
 registered on `PConf.badgeResolvers` that returns `null` or
 `{label?, ariaNote?, chip?, dots: [{color, ring?}]}`; the badge's colour preview then leads the
-chevron. Because the row has no `messageKey`, a resolver gets whatever it needs to identify the
-row from its args. A summary is not repainted in place after a range nudge (it has no key to be
+chevron. Because the row has no `messageKey`, whatever a resolver needs to identify the
+row must be passed in its args. A summary is not repainted in place after a range nudge (it has no key to be
 found by); the dialog the nudge happens in re-renders the page when it closes.
 
 A `button` item is the same nav row. It dispatches `action`, or, with `gotoTab: '<tab id>'`,

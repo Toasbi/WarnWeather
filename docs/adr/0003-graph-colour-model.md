@@ -69,7 +69,8 @@ produced it reduces to `assert.equal(f(x), f(x))`, which cannot fail.
 
 The appearance contract lives in the test, as 40 literal expected constants
 (`test/line-style.test.js`). There a literal table does its job, which is to fail when a
-built-in moves. In production its only job would be to agree with code twenty lines away.
+built-in moves. It does not belong in production, where its only job would be to agree with
+code twenty lines away.
 
 `suffix` alone names the theme because this is the colour arm: `renderContextFor` reports
 `isColor` true only for `dark` and `light`, so `Dark ↔ 'dark'` exactly.
@@ -262,7 +263,7 @@ four and paints `theme_fg()` over a LightGray underlay from its own constants. A
 would be bytes no watch reads.
 
 Accepted consequence: on a bw theme these bytes carry whatever the user picked for that
-polarity. They describe colours this render mode ignores.
+polarity. That is expected: they describe colours this render mode ignores.
 
 ### The style tail and Draw from
 
