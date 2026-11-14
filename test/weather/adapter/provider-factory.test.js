@@ -1,10 +1,10 @@
-// test/weather/application/provider-factory.test.js
+// test/weather/adapter/provider-factory.test.js
 // Data-driven provider construction (Y1/G2/O4): adding a provider is a new
 // table entry, not a dispatch edit, and construction is unit-testable apart
 // from index.js's boot wiring.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const providerFactory = require('../../../src/pkjs/weather/application/provider-factory.js');
+const providerFactory = require('../../../src/pkjs/weather/adapter/provider-factory.js');
 
 test('createProvider builds each known provider by id', () => {
   assert.equal(providerFactory.createProvider('wunderground', {}).id, 'wunderground');

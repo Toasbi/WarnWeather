@@ -46,7 +46,7 @@ function rawParam(url, name) {
 }
 
 test('OpenWeatherMap: the watch sends the same key the Test button checked', () => {
-  const factory = require('../../../../src/pkjs/weather/application/provider-factory.js');
+  const factory = require('../../../../src/pkjs/weather/adapter/provider-factory.js');
   const owmTest = require('../../../../src/pkjs/page/weather/keys/owm-key-test.js');
   const urls = capture(() => {
     factory.createProvider('openweathermap', { owmApiKey: PASTED })
@@ -66,7 +66,7 @@ test('OpenWeatherMap: the key is URL-encoded like every other key-bearing URL', 
 });
 
 test('Tomorrow.io: forecast and radar send the same key the Test button checked', () => {
-  const factory = require('../../../../src/pkjs/weather/application/provider-factory.js');
+  const factory = require('../../../../src/pkjs/weather/adapter/provider-factory.js');
   const tioTest = require('../../../../src/pkjs/page/weather/keys/tomorrowio-key-test.js');
   const radar = require('../../../../src/pkjs/weather/adapter/radar/tomorrowio-radar.js');
   const urls = capture(() => {
@@ -111,7 +111,7 @@ test('Rainbow (own key): a whitespace-only key is a missing key, not a request',
 });
 
 test('Rainbow (own key): the Test body carries the same key the radar sends', () => {
-  const radarFactory = require('../../../../src/pkjs/weather/application/radar-factory.js');
+  const radarFactory = require('../../../../src/pkjs/weather/adapter/radar-factory.js');
   const rbwTest = require('../../../../src/pkjs/page/weather/keys/rainbow-key-test.js');
   const urls = capture(() => {
     radarFactory.createRadarSource('rainbowkey', { rainbowApiKey: PASTED })

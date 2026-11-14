@@ -767,7 +767,7 @@ var PROVIDER_WHY = {
 // tag under each name in the dropdown, mirroring the weather picker. DWD/Met.no are real
 // radar; Rainbow/Tomorrow.io are model nowcasts (Tomorrow.io is the precise, worldwide one).
 // Scope lives in the desc + "why" note, not the label (keeps the trigger short). Rainbow
-// comes twice, one option per radar source (weather/application/radar-factory.js): the shared proxy
+// comes twice, one option per radar source (weather/adapter/radar-factory.js): the shared proxy
 // everyone splits ('rainbow') and the user's own key ('rainbowkey').
 var RADAR_PROVIDER_OPTIONS = [
     ['DWD', 'dwd', {desc: 'Best radar in Germany · exact spot + nearby'}],

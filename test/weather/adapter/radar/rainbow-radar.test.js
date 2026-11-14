@@ -548,7 +548,7 @@ test('own key: the 401, parse-error and echo-mismatch logs never carry the key (
 // source, radar off — each builds its source through radar-factory.js) or the missing-key
 // clear ends it: coming back to the keyed path starts a fresh 30 minutes, measured from its
 // first new null, not from a null hours old.
-const radarFactory = require('../../../../src/pkjs/weather/application/radar-factory.js');
+const radarFactory = require('../../../../src/pkjs/weather/adapter/radar-factory.js');
 
 test('own key streak: a step on another radar source (or radar off) ends the run', () => {
   ['dwd', 'metno', 'rainbow', 'tomorrowio', 'disabled', 'bogus'].forEach(function(otherId) {

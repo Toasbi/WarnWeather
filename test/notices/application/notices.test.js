@@ -214,7 +214,7 @@ test('noticeForFailure: a provider with no data for the place raises the coverag
   assert.strictEqual(notices.noticeForFailure({ stage: 'forward_geocode', code: 'status_404', noCoverage: true }, 'DWD', 1, 2),
     null, 'and only in the provider\'s own stage');
 
-  var providerFactory = require('../../../src/pkjs/weather/application/provider-factory.js');
+  var providerFactory = require('../../../src/pkjs/weather/adapter/provider-factory.js');
   var utf8 = require('../../../src/pkjs/lib/utf8.js');
   providerFactory.PROVIDER_IDS.forEach(function (id) {
     var p = providerFactory.createProvider(id, {});
@@ -243,7 +243,7 @@ test('applyFailure: the coverage notice\'s line goes on the watch from the secon
 });
 
 test('noticeForFailure: the neutral notice\'s watch line fits the watch for every provider, the panel keeps the full name', function () {
-  var providerFactory = require('../../../src/pkjs/weather/application/provider-factory.js');
+  var providerFactory = require('../../../src/pkjs/weather/adapter/provider-factory.js');
   var utf8 = require('../../../src/pkjs/lib/utf8.js');
   assert.ok(providerFactory.PROVIDER_IDS.length >= 7, 'every registered provider');
   providerFactory.PROVIDER_IDS.forEach(function (id) {
