@@ -7,8 +7,8 @@
 // asserted now. What remains here is what the palette still carries.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildPreviewPalette } = require('../src/pkjs/settings/preview-palette.js');
-const rt = require('../src/pkjs/weather/rain-tier.js');
+const { buildPreviewPalette } = require('../src/pkjs/theme/domain/preview-palette.js');
+const rt = require('../src/pkjs/weather/domain/rain-tier.js');
 
 const hex = (n) => '#' + (n & 0xFFFFFF).toString(16).toUpperCase().padStart(6, '0');
 

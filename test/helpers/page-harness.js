@@ -19,7 +19,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const schema = require('../../src/pkjs/settings/schema.js');
+const schema = require('../../src/pkjs/page/settings/schema.js');
 const platformLib = require('../../src/pkjs/config-ui/lib/platform.js');
 
 // A select trigger as engine.js renderSelectTrigger writes it; the groups the fake below

@@ -1,8 +1,8 @@
 // test/tomorrowio-budget.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const budget = require('../src/pkjs/settings/tomorrowio-budget.js');
-const sleepWindow = require('../src/pkjs/sleep-window.js');
+const budget = require('../src/pkjs/page/weather/budgets/tomorrowio-budget.js');
+const sleepWindow = require('../src/pkjs/health/domain/sleep-window.js');
 
 // Base state: tomorrow.io weather + radar, night pause off.
 function S(over) {

@@ -33,9 +33,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
-const th = require('../src/pkjs/status-thresholds.js');
-const wire = require('../src/pkjs/status-wire.js');
-const OD = require('../src/pkjs/on-demand.js');
+const th = require('../src/pkjs/alerts/domain/status-thresholds.js');
+const wire = require('../src/pkjs/alerts/domain/status-wire.js');
+const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
 
 const COMBOS = 4000;
 const GOLDEN_SHA256 = '61f9eb09057a535c3ec7c4782e578feca7f317461f58830c2029ee9e166a4d2d';

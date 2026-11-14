@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { applyThemeConvert } = require('../src/pkjs/settings/theme-convert.js');
+const { applyThemeConvert } = require('../src/pkjs/page/theme/theme-convert.js');
 
 test('dark -> light: white picks convert to black', () => {
   const S = { colorTime: '#FFFFFF', colorSunday: '#FFFFFF', colorSaturday: '#FF0055', colorUSFederal: '#FFFFFF' };
@@ -130,7 +130,7 @@ test('an absent bar mode is not invented by a polarity flip', () => {
 });
 
 // --- applyThemeAutoPreset: the themeAuto toggle's first-enable seeding -------
-const { applyThemeAutoPreset } = require('../src/pkjs/settings/theme-convert.js');
+const { applyThemeAutoPreset } = require('../src/pkjs/page/theme/theme-convert.js');
 
 // The preset writes themeNight and NOTHING ELSE. It used to also flip S.theme to
 // 'light' and run applyThemeConvert over the stored colours, on the reasoning that
@@ -235,7 +235,7 @@ test('auto (fg) threshold colours convert in either encoding; blank and picks do
 });
 
 test('graph styles 2 and 3 convert with the flat keys; an untouched item stays byte for byte', () => {
-  const resolveInk = require('../src/pkjs/resolve-ink.js');
+  const resolveInk = require('../src/pkjs/theme/domain/resolve-ink.js');
   const dark = resolveInk.barColorDefault('dark'), light = resolveInk.barColorDefault('light');
   const item = (two, three) => JSON.stringify({ names: ['', 'Long', ''], styles: [null, two, three] });
   const S = { rainBarColor: dark, graphStyles: item({ rainBarColor: dark, forecastHours: '48' }, { rainBarColor: 'white' }) };

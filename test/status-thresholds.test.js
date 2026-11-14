@@ -2,9 +2,9 @@
 const test = require('node:test');
 const { placedOnly } = require('./helpers/on-demand.js');
 const assert = require('node:assert/strict');
-const th = require('../src/pkjs/status-thresholds.js');
-const wire = require('../src/pkjs/status-wire.js');
-const statusLines = require('../src/pkjs/status-lines.js');
+const th = require('../src/pkjs/alerts/domain/status-thresholds.js');
+const wire = require('../src/pkjs/alerts/domain/status-wire.js');
+const statusLines = require('../src/pkjs/status-bars/domain/status-lines.js');
 const { packedLevel, judged } = require('./helpers/weather-levels.js');
 const { decodeAlerts: decodeEntries, packedAlerts } = require('./helpers/alert-entries.js');
 
@@ -484,7 +484,7 @@ test('buildSettingsBlob: consistent auto colours, picks and the no-outline marke
 });
 
 test('buildSettingsBlob: the night copy resolves the auto colour for the night theme', () => {
-  const themeSchedule = require('../src/pkjs/theme-schedule.js');
+  const themeSchedule = require('../src/pkjs/theme/domain/theme-schedule.js');
   // B&W by day hides a stale black (the watch paints theme_fg on bw); bw -> dark is no
   // polarity flip, so theme-flip leaves the 0 alone and only the packer can fix it.
   const stored = Object.assign({ theme: 'bw', themeAuto: true, themeNight: 'dark',

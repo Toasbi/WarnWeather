@@ -1,6 +1,6 @@
 'use strict';
 // test/update-check-runner.test.js — the I/O half of the daily update check
-// (src/pkjs/update-check-runner.js): the once-a-day throttle, the
+// (src/pkjs/notices/adapter/update-check-runner.js): the once-a-day throttle, the
 // claim-before-fetch rule, the all-stores-or-nothing XHR chain, and the
 // notify/persist effects. The pure parse/decide half stays covered by
 // test/update-check.test.js.
@@ -35,7 +35,7 @@ function installFakeXhr(responses) {
   return requested;
 }
 
-const runner = require('../src/pkjs/update-check-runner.js');
+const runner = require('../src/pkjs/notices/adapter/update-check-runner.js');
 
 const storeBody = (version) => JSON.stringify({ data: [{ latest_release: { version } }] });
 

@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const support = require('../src/pkjs/settings/support.js');
+const support = require('../src/pkjs/page/settings/support.js');
 
 // --- renderCoffeeIconHtml ---
 

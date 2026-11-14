@@ -8,8 +8,8 @@ global.localStorage = {
   removeItem: function(k) { delete store[k]; }
 };
 
-const devStats = require('../src/pkjs/dev-stats');
-const KEYS = require('../src/pkjs/storage-keys');
+const devStats = require('../src/pkjs/telemetry/adapter/dev-stats');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

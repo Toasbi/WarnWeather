@@ -9,18 +9,18 @@ global.PConf = {};
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-require('../src/pkjs/settings/reset-status-defaults.js');
-const schema = require('../src/pkjs/settings/schema.js');
+require('../src/pkjs/page/settings/blocks.js');
+require('../src/pkjs/page/status-bars/reset-status-defaults.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 const eng = require('../src/pkjs/config-ui/lib/engine.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
-require('../src/pkjs/settings/theme-convert.js');
-const W = require('../src/pkjs/settings/wizard.js');
-const CD = require('../src/pkjs/settings/country-defaults.js');
-const SCREENS = require('../src/pkjs/settings/wizard-screens.js');
-const M = require('../src/pkjs/screens.js');
-const VC = require('../src/pkjs/view-cycle.js');
-const FINISH = require('../src/pkjs/settings/wizard-finish.js');
+require('../src/pkjs/page/theme/theme-convert.js');
+const W = require('../src/pkjs/page/settings/wizard/wizard.js');
+const CD = require('../src/pkjs/page/settings/country-defaults.js');
+const SCREENS = require('../src/pkjs/page/settings/wizard/wizard-screens.js');
+const M = require('../src/pkjs/layout/domain/screens.js');
+const VC = require('../src/pkjs/layout/domain/view-cycle.js');
+const FINISH = require('../src/pkjs/page/settings/wizard/wizard-finish.js');
 
 test('countryFromTimezone: known zones map, unknown -> null', () => {
   assert.equal(CD.countryFromTimezone('Europe/Berlin'), 'DE');
@@ -121,7 +121,7 @@ test('shouldShow: gated on onboardingDone, not on an empty config', () => {
   assert.equal(W.shouldShow({ provider: 'wunderground', holidayCountry: 'DE', onboardingDone: false }), true);
 });
 
-// --- finishing the wizard applies the situational defaults (settings/defaults-policy.js) ---
+// --- finishing the wizard applies the situational defaults (page/settings/defaults-policy.js) ---
 //
 // The table itself is tested in test/defaults-policy.test.js; these tests cover the WIRING:
 // which navigations count as finishing, what lands on the live state, and the two clauses
@@ -179,7 +179,7 @@ test('finishing the wizard on a narrow watch moves no slot and leaves Bold alone
 });
 
 test('the wizard\'s AQI highlight == a hand flip: the switch alone, the pair left blank', () => {
-  const thresholds = require('../src/pkjs/status-thresholds.js');
+  const thresholds = require('../src/pkjs/alerts/domain/status-thresholds.js');
   const ctx = wizCtx();
   FINISH.applyWizardDefaults(ctx, 'save');
 

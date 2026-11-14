@@ -1,7 +1,7 @@
 // test/telemetry.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildSettingsSnapshot } = require('../src/pkjs/telemetry.js');
+const { buildSettingsSnapshot } = require('../src/pkjs/telemetry/adapter/telemetry.js');
 
 test('buildSettingsSnapshot includes forecast and radar display settings', () => {
   const snapshot = buildSettingsSnapshot({
@@ -175,7 +175,7 @@ test('snapshot includes the wind, gust and temperature Show unit toggles as real
 // one, and a column cannot lie about a default. seedDefaults backfills the keys at boot,
 // so this is belt and braces.
 test('an absent Show unit key reports what it renders, not false', () => {
-  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
   const snap = buildSettingsSnapshot({});
   UNIT_FIELDS.forEach((key) => {
     assert.ok(catalog.UNIT_TOGGLES.some((t) => t.key === key), key + ' is a catalog toggle');
@@ -227,7 +227,7 @@ test('snapshot reports onDemand, batteryLowLevel and batteryLowDisplay', () => {
   assert.equal(moved.onDemand.slice(0, 10), '-LLLL-----', 'nothing ticked on the right');
   assert.equal(moved.onDemand.slice(10, 20), '------L---', 'the forecast bar\'s ten letters');
   assert.equal(moved.onDemand.slice(20, 30), '-------r--', 'a bar the radar mode removes reports lower case');
-  assert.equal(moved.onDemand, require('../src/pkjs/on-demand.js').telemetryCode(
+  assert.equal(moved.onDemand, require('../src/pkjs/status-bars/domain/on-demand.js').telemetryCode(
     { statusTopOnDemandRightItems: '', statusForecastOnDemandLeftItems: 'uv',
       statusRadarOnDemandRightItems: 'aqi', radarMode: 'off' }, require('../src/pkjs/config-ui').computeEnv()),
   'the shared reading, nothing of its own');
@@ -605,7 +605,7 @@ test('settings snapshot and the Deno telemetry schema agree on keys and types (l
 });
 
 test('custom layouts report customViewExt0-2 = packExt per view; presets report none', () => {
-  const vc = require('../src/pkjs/view-cycle.js');
+  const vc = require('../src/pkjs/layout/domain/view-cycle.js');
   const custom = {
     layoutPreset: 'custom', healthMode: 'off', radarMode: 'graph', viewCount: '2',
     viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB',
@@ -752,7 +752,7 @@ test('weatherTabPlaces counts the saved places the tab can read', () => {
 // Telemetry reports ONE value per element: the colour for the metric that element is
 // currently painted from, in the polarity the watch ACTUALLY renders, resolved through
 // line-style.renderContextFor over config-ui computeEnv — the wire packer
-// (weather/graph-wire.js) resolves through resolveGraphColors, which opens with the same
+// (forecast-graphs/domain/graph-wire.js) resolves through resolveGraphColors, which opens with the same
 // call — so a telemetry row can never disagree with the wire. Same lockstep rule as
 // pressureScale above: the watch snapshot AND the Deno .strip() schema, or it is
 // silently dropped.
@@ -920,7 +920,7 @@ test('a Black & White theme reports no graph colours at all', () => {
 // telemetry reports for an element and the colour the wire resolves for it have to agree
 // about whether the pick survived at all.
 test('the reported pick agrees with the wire on every platform', () => {
-  const lineStyle = require('../src/pkjs/line-style.js');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
   const computeEnv = require('../src/pkjs/config-ui/lib/platform.js').computeEnv;
   const settings = { theme: 'dark', secondaryLine: 'wind', thirdLine: 'off',
                      gcWindLineDark: 0xFF0000 };
@@ -937,7 +937,7 @@ test('the reported pick agrees with the wire on every platform', () => {
 // being a sentinel and became a comparison: telemetry saying 'default' has to mean the wire
 // is painting the built-in, on the gust row where the built-in is not even a constant.
 test('reporting default agrees with the wire painting the built-in', () => {
-  const lineStyle = require('../src/pkjs/line-style.js');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
   const computeEnv = require('../src/pkjs/config-ui/lib/platform.js').computeEnv;
   [{ rainBarColor: 'white', stored: 0xFFFFFF, builtIn: 0xAAAAAA },
    { rainBarColor: 'multicolor', stored: 0xAAAAAA, builtIn: 0xFFFFFF }].forEach((c) => {
@@ -997,9 +997,9 @@ test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYT
 // events now queue in localStorage and drain as ONE batch when the queue is
 // full enough (FLUSH_AT_EVENTS) or its head old enough (FLUSH_AT_AGE_MS).
 // These tests drive the real client against fake localStorage/Pebble/XHR.
-const createTelemetryClient = require('../src/pkjs/telemetry.js');
+const createTelemetryClient = require('../src/pkjs/telemetry/adapter/telemetry.js');
 const { TELEMETRY_BATCH } = createTelemetryClient;
-const { TELEMETRY_QUEUE_KEY, TELEMETRY_SENDING_KEY } = require('../src/pkjs/storage-keys.js');
+const { TELEMETRY_QUEUE_KEY, TELEMETRY_SENDING_KEY } = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 function batchHarness() {
   createTelemetryClient._resetBatchStateForTests();
@@ -1303,7 +1303,7 @@ test('a synchronous XHR throw releases the latch and backs off instead of wedgin
 // A new watch that left before its first ~12 h batch was never counted. A Save
 // now sends at once until the install has reported; opening the settings sends
 // once per UTC day after that. Both keep every other flush check.
-const { TELEMETRY_REPORTED_KEY, TELEMETRY_OPEN_SEND_DAY_KEY } = require('../src/pkjs/storage-keys.js');
+const { TELEMETRY_REPORTED_KEY, TELEMETRY_OPEN_SEND_DAY_KEY } = require('../src/pkjs/settings/adapter/storage-keys.js');
 const PAGE_CONTEXT = { settings: { startOnWeatherTab: true, healthMode: 'all' },
   watchInfo: { platform: 'emery', model: 'pebble_time_2', language: 'de_DE' } };
 
@@ -1500,7 +1500,7 @@ test('the weather alerts report alerts and rainAlertDisplay', () => {
 // The alerts code against the contract: each letter pair is the alert bake's own
 // reading of that alert — its placement, Look, Days and mark — across the whole matrix.
 test('alerts agrees with the bake\'s reading of every alert setting', () => {
-  const th = require('../src/pkjs/status-thresholds.js');
+  const th = require('../src/pkjs/alerts/domain/status-thresholds.js');
   const MARK = { raquo: 'r', gt: 'g', plus: 'p', star: 's', none: 'n' };
   const at = th.ALERT_KINDS.findIndex((a) => a.code === 'wind') * 2;
   [undefined, 'wind', ''].forEach((items) => [undefined, 'icon', 'value'].forEach((look) =>
@@ -1525,8 +1525,8 @@ test('alerts agrees with the bake\'s reading of every alert setting', () => {
 // report both resolve through rainAlert, so an unknown value cannot read as a
 // look the watch never got.
 test('rainAlertDisplay agrees with the rain look the blob sends', () => {
-  const thresholds = require('../src/pkjs/status-thresholds.js');
-  const wire = require('../src/pkjs/status-wire.js');
+  const thresholds = require('../src/pkjs/alerts/domain/status-thresholds.js');
+  const wire = require('../src/pkjs/alerts/domain/status-wire.js');
   [undefined, 'text', 'icon', 'minutes', 'bogus', 3].forEach((look) => {
     const settings = { rainAlertDisplay: look };
     const reported = buildSettingsSnapshot(settings).rainAlertDisplay;
@@ -1541,7 +1541,7 @@ test('rainAlertDisplay agrees with the rain look the blob sends', () => {
 // dashboards. A new look or mark that collides needs a new code, not a charAt(0). (The
 // alerts code's '-' and its looks' o/i/v are fixed letters.)
 test('the one-letter codes are unambiguous: first letters are unique per vocabulary', () => {
-  const thresholds = require('../src/pkjs/status-thresholds.js');
+  const thresholds = require('../src/pkjs/alerts/domain/status-thresholds.js');
   [['WARN_LOOKS', Object.keys(thresholds.WARN_LOOKS)],
     ['ALERT_NEXT_DAY_MARKS', thresholds.ALERT_NEXT_DAY_MARKS]
   ].forEach((row) => {

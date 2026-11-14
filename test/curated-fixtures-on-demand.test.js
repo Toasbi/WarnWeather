@@ -69,8 +69,8 @@ function assertPinned(fx, label) {
  */
 function bakedAlertEntries(fx, platform) {
   const { normalizeWeather } = require('../scripts/lib/fixture-time');
-  const fixtureWeather = require('../src/pkjs/fixture-weather.js');
-  const defaults = require('../src/pkjs/settings').getDefaults();
+  const fixtureWeather = require('../src/pkjs/weather/adapter/fixture-weather.js');
+  const defaults = require('../src/pkjs/page/settings').getDefaults();
   const copy = JSON.parse(JSON.stringify(fx));
   normalizeWeather(copy);
   const origLog = console.log;

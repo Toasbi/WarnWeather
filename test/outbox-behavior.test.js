@@ -13,8 +13,8 @@ global.localStorage = {
   removeItem: function(k) { delete store[k]; }
 };
 
-const KEYS = require('../src/pkjs/storage-keys');
-const outbox = require('../src/pkjs/outbox');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys');
+const outbox = require('../src/pkjs/wire/adapter/outbox');
 
 function reset() { for (var k in store) { delete store[k]; } sent = []; }
 

@@ -1,9 +1,9 @@
 // test/openmeteo.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const openmeteo = require('../src/pkjs/weather/openmeteo.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
-const { PEAK_HOURS } = require('../src/pkjs/weather/hourly-window.js');
+const openmeteo = require('../src/pkjs/weather/adapter/providers/openmeteo.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
+const { PEAK_HOURS } = require('../src/pkjs/weather/domain/hourly-window.js');
 const mapResponse = openmeteo.mapResponse;
 
 // BASE is hour-aligned: 1718841600 / 3600 === 477456 exactly.
@@ -75,7 +75,7 @@ test('mapResponse anchors at the current hour and returns 24-length trends', () 
 
 test('mapResponse emits only the mapped vocabulary (WeatherProvider.MAPPED_KEYS), core keys included', () => {
   const mapped = mapResponse(sampleResponse(), BASE + 18 * 3600 + 600);
-  const keys = require('../src/pkjs/weather/provider.js').MAPPED_KEYS;
+  const keys = require('../src/pkjs/weather/application/provider.js').MAPPED_KEYS;
   Object.keys(mapped).forEach((k) => assert.ok(keys.all.indexOf(k) !== -1, 'not a mapped key: ' + k));
   keys.core.forEach((k) => assert.ok(Object.prototype.hasOwnProperty.call(mapped, k), 'core key missing: ' + k));
 });
@@ -381,7 +381,7 @@ test('mapUv: missing/non-numeric buckets become null; malformed → null', () =>
   assert.equal(openmeteo.mapUv({ hourly: { time: [BASE] } }, BASE), null); // no uv_index array
 });
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 const OpenMeteoProvider = openmeteo.OpenMeteoProvider;
 
 test('OpenMeteoProvider has the expected identity and inherits the base class', () => {
@@ -644,7 +644,7 @@ test('adoptDewAndDirection adopts each series independently', () => {
 // run different models (pinned ECMWF vs best_match) and a dew point carries its own
 // vapour pressure whichever temperature it meets. Hours without a dew point keep
 // Open-Meteo's own apparent_temperature.
-const feelsLikeFromDewF = require('../src/pkjs/weather/feels-like.js').feelsLikeFromDewF;
+const feelsLikeFromDewF = require('../src/pkjs/weather/domain/feels-like.js').feelsLikeFromDewF;
 
 test('adoptFeels + steadman computes from dew point/wind, falling back to the API value per hour', () => {
   const p = new OpenMeteoProvider();

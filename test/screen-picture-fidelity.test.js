@@ -9,15 +9,15 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 const eng = require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-require('../src/pkjs/settings/status-slot-icons.js');
-const VC = require('../src/pkjs/view-cycle.js');
+require('../src/pkjs/page/settings/blocks.js');
+require('../src/pkjs/page/status-bars/status-slot-icons.js');
+const VC = require('../src/pkjs/layout/domain/view-cycle.js');
 const plat = require('../src/pkjs/config-ui/lib/platform.js');
-const schema = require('../src/pkjs/settings/schema.js');
-const pw = require('../src/pkjs/settings/preview-watch.js');
-const svgLib = require('../src/pkjs/settings/preview-svg.js');
-const frame = require('../src/pkjs/settings/screen-frame.js');
-const WT = require('../src/pkjs/settings/watch-text.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
+const pw = require('../src/pkjs/page/layout/preview-watch.js');
+const svgLib = require('../src/pkjs/page/settings/preview-svg.js');
+const frame = require('../src/pkjs/page/layout/screen-frame.js');
+const WT = require('../src/pkjs/page/layout/watch-text.js');
 
 const FRIDAY = new Date(2026, 10, 6);
 

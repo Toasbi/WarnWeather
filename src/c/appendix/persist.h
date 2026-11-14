@@ -170,7 +170,7 @@ bool persist_set_fifth_line_style(uint8_t style);
 
 // CANONICAL layout of the LINE_STYLES blob — the per-line marker styles the
 // phone resolved, copied verbatim off bytes [9..11] of CLAY_LINE_STYLE_UINT8
-// (weather/graph-wire.js packs them; app_message.c stores the block straight through):
+// (forecast-graphs/domain/graph-wire.js packs them; app_message.c stores the block straight through):
 //   [0] main-metric line   [1] second-metric line   [2] third-metric line
 // Each byte packs kind | (field << LINE_STYLE_WIDTH_SHIFT). The kind bits ARE
 // ChartLineStyle's values (chart.h — never renumber either side). For
@@ -210,10 +210,10 @@ static inline int line_style_solid_width(uint8_t b, int fallback) {
     return width > 0 ? width : fallback;
 }
 // Bit 5 of a NON-stripe style byte: the line, its marks and (Main metric) its Area fill
-// hang from the plot's top ("Draw from: Top", weather/graph-wire.js LINE_BIT). Bit 7
+// hang from the plot's top ("Draw from: Top", forecast-graphs/domain/graph-wire.js LINE_BIT). Bit 7
 // reserved (0).
 #define LINE_STYLE_FROM_TOP 0x20
-// Bit 6 of a NON-stripe style byte (weather/graph-wire.js FLOAT_BIT): the line floats:
+// Bit 6 of a NON-stripe style byte (forecast-graphs/domain/graph-wire.js FLOAT_BIT): the line floats:
 // its metric has no zero to stand on or hang from (pressure, an absolute curve around
 // mid-plot; feels-like and dew point, on the temperature axis), so it anchors no edge of
 // the plot. An amount metric's line (rain chance, clouds, wind, gusts, UV) leaves it 0:

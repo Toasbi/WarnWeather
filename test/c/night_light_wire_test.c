@@ -1,6 +1,6 @@
 // Host tests for the CLAY_NIGHT_LIGHT_UINT8 acceptance rule (persist.h's
 // night_light_wire_ok) — the "Dim backlight" tint + window the phone packs in
-// src/pkjs/night-light.js and app_message.c's handle_night_light persists.
+// src/pkjs/theme/domain/night-light.js and app_message.c's handle_night_light persists.
 //
 // This is the only part of that unpack path that is pure integer arithmetic, and
 // it is the part that decides whether a payload may OVERWRITE the last good

@@ -13,12 +13,12 @@ global.PConf = {
   actions: {},
   hooks: { onReady: () => {} }
 };
-const tab = require('../src/pkjs/settings/weather-tab.js');
-const data = require('../src/pkjs/settings/weather-tab-data.js');
-const model = require('../src/pkjs/settings/weather-tab-model.js');
-const css = require('../src/pkjs/settings/weather-tab-css.js');
-const charts = require('../src/pkjs/settings/weather-tab-charts.js');
-const interact = require('../src/pkjs/settings/weather-tab-interact.js');
+const tab = require('../src/pkjs/page/weather/weather-tab/weather-tab.js');
+const data = require('../src/pkjs/weather/adapter/weather-tab-data.js');
+const model = require('../src/pkjs/weather/domain/weather-tab-model.js');
+const css = require('../src/pkjs/page/weather/weather-tab/weather-tab-css.js');
+const charts = require('../src/pkjs/page/weather/weather-tab/weather-tab-charts.js');
+const interact = require('../src/pkjs/page/weather/weather-tab/weather-tab-interact.js');
 
 // The glue calls Date.now() itself (ensureFetch prepares the view against
 // the real clock), so the fixture anchors to the REAL current UTC day —
@@ -236,7 +236,7 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     // one — they are the same characters. The SOURCE can: the rule has to
     // interpolate interact.SETTLE_CSS, so the two can never drift apart.
     const cssSrc = require('node:fs').readFileSync(
-      require('node:path').join(__dirname, '..', 'src/pkjs/settings/weather-tab-css.js'), 'utf8');
+      require('node:path').join(__dirname, '..', 'src/pkjs/page/weather/weather-tab/weather-tab-css.js'), 'utf8');
     assert.match(cssSrc, /transition:border-color ' \+ interact\.SETTLE_CSS/,
       'the tile rule interpolates the pan curve rather than repeating it');
     assert.equal(cssSrc.indexOf("transition:border-color 0.22s"), -1,
@@ -1158,7 +1158,7 @@ test('a refresh that fails offline keeps the charts, and the other locations sta
 });
 
 // The phone keeps the day's data for the place the tab opens on and injects it at
-// every page open (src/pkjs/weather-tab-cache.js): the tab fetches on its own at most
+// every page open (src/pkjs/weather/adapter/weather-tab-cache.js): the tab fetches on its own at most
 // once a day, and after that only when the user refreshes.
 test('the phone\'s copy from today shows without a request; a stale or foreign one does not', () => {
   const urls = [];

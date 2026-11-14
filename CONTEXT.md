@@ -85,11 +85,11 @@ second accepted flick within the pairing window (layout.h `view_flick_accept`).
 
 **Screen (settings page)**:
 One view of the flick cycle as the settings page edits it: a list of rows, top to bottom
-(`src/pkjs/screens.js`), compiled to the custom layout's per-view keys. Its name belongs to the
+(`src/pkjs/layout/domain/screens.js`), compiled to the custom layout's per-view keys. Its name belongs to the
 page (`viewName{i}`: never compiled, sent or in telemetry) and moves with the screen; '' reads
 as its place: Default, Flick 1 or Flick 2. The top screen is the Default, the one the watch
 returns to, and it always shows the clock. A screen moved there gets the clock, or stays where
-it was when the clock does not fit (`src/pkjs/settings/screens-page.js` moveScreen).
+it was when the clock does not fit (`src/pkjs/page/layout/screens-page.js` moveScreen).
 _Avoid_: view (the watch's word for what it draws).
 
 **Status bar (named)**:
@@ -119,7 +119,7 @@ _Avoid_: calling bars 4 to 6 "custom bars" or "user bars"; they are your bars li
 
 **Screen preset**:
 A screen that Add screen offers after Blank (the Watch bar and the clock): Classic, Weathergraph,
-Clean, Stripes, Health + calendar and Health (`src/pkjs/screen-presets.js`), each only where the
+Clean, Stripes, Health + calendar and Health (`src/pkjs/page/layout/screen-presets.js`), each only where the
 watch can draw it. On emery a forecast preset brings a graph: one of yours that reads as its
 template, or else a new one made from the template. A screen preset is one screen, while a
 layout preset (`layoutPreset`) is a whole cycle.
@@ -151,7 +151,7 @@ fonts*, and bits 2, 3 and 5 are the forecast's left axis options (Graphs › For
 Left axis): high/low numbers on the graph, numbers off, and numbers naming the
 temperature scale. Bits 1 and 4 are reserved: the axis line is drawn exactly
 when the numbers are on the axis, and their outline exactly when they are on the graph. The
-layout is `config.h`'s `GRAPH_OPT_*`, kept in lockstep with `src/pkjs/forecast-axis.js` `BIT`,
+layout is `config.h`'s `GRAPH_OPT_*`, kept in lockstep with `src/pkjs/forecast-graphs/domain/forecast-axis.js` `BIT`,
 and the watch keeps bits 1-7 in `Config.forecast_axis`. The phone packs a dormant option as its
 default, so the axis bits are all zero exactly when every axis option is at its
 default. While they are zero the tuple is a bare boolean, and a known non-emery
@@ -175,7 +175,7 @@ _Avoid_: send queue.
 
 **Fetch cycle**:
 The module that runs one weather fetch from trigger to record
-(`src/pkjs/fetch-cycle.js`): the refresh gates (marker, slot, sleep pause,
+(`src/pkjs/shell/fetch-cycle.js`): the refresh gates (marker, slot, sleep pause,
 failure backoff), the single-flight rule and its queued force, the watchdog and
 late-completion guard, the attempt counter, the sleep commit and the
 success and failure records. The scheduler asks it two things, `shouldFetchNow`
@@ -187,7 +187,7 @@ _Avoid_: fetch orchestrator, refresh loop.
 
 **Fetch options**:
 The one per-fetch value that every adapter and auxiliary fetch reads its settings from
-(`provider.options`, built by `weather/fetch-options.js` from the settings):
+(`provider.options`, built by `weather/domain/fetch-options.js` from the settings):
 which optional series are wanted (UV, AQI, pollen, feels), the feels formula,
 the day-max codes, the wind unit, the AQI scale, source and token, and the forecast
 span (hours, emery only). Every default lives there, and nothing downstream has
@@ -197,7 +197,7 @@ _Avoid_: provider flags, per-fetch knobs.
 **Graph style**:
 A named set of the forecast graph's settings on emery: its four lines (metric,
 style, Draw from, Visible values), the main metric's fill, the rain bars, Day / night shading,
-Forecast length, Left axis values and the graph colors (`src/pkjs/graph-styles.js`
+Forecast length, Left axis values and the graph colors (`src/pkjs/forecast-graphs/domain/graph-styles.js`
 GOVERNED). There are up to three. The first is the flat settings keys; the others live in
 the `graphStyles` item. Each screen's forecast graph names its style
 (`viewStyle{i}`). The settings that shape the data the phone bakes stay one setting for
@@ -206,19 +206,19 @@ together, which is the weather message's five trend rows. A series is a metric, 
 stripe or line and its Visible values, so a wind line drawn All on one graph
 and Alert on another takes two rows. There is one row per line, plus a spare row
 that is none of a style's own lines (a style keeps its four lines; the spare has no
-picker, `src/pkjs/line-style.js` SPARE_LINE). A new style starts from one of Setup's
-forecast looks (Classic, Clean, Stripes: `src/pkjs/settings/wizard-forecast.js` LOOKS).
+picker, `src/pkjs/forecast-graphs/domain/line-style.js` SPARE_LINE). A new style starts from one of Setup's
+forecast looks (Classic, Clean, Stripes: `src/pkjs/page/settings/wizard/wizard-forecast.js` LOOKS).
 The settings page calls a style a graph ("Your graphs"; "Graph 2" until it is renamed)
 and calls the look it starts from a template. A template never changes and is never one
-of the graphs (`src/pkjs/settings/graph-styles-page.js`).
+of the graphs (`src/pkjs/page/forecast-graphs/graph-styles-page.js`).
 _Avoid_: graph profile; calling a look a style (a look is where a style starts).
 
 **Forecast span**:
 The forecast graph's Forecast length option. On emery it is 12 h, 24 h or the long span
 (Graphs › Forecast › Other › Forecast length; stored as '12' / '24' / '48'. '48' is the long
 span's token, and its label is the whole hours the watch will show for the provider's
-feed and the layout: `src/pkjs/forecast-span-hours.js`). Everywhere else, and on an unknown
-watch, it is 24 h (`src/pkjs/forecast-span.js`). The phone decides how many hours it sends
+feed and the layout: `src/pkjs/weather/domain/forecast-span-hours.js`). Everywhere else, and on an unknown
+watch, it is 24 h (`src/pkjs/weather/domain/forecast-span.js`). The phone decides how many hours it sends
 for it: 14, 24 or 68, and 26 for 24 h when the graph has no left axis (the high/low numbers
 On graph or Off on a known emery) (`hours()`; `WeatherProvider#payloadEntries`, fewer when a
 feed is shorter). The watch fits its grid to the count it receives (`NUM_ENTRIES`,
@@ -239,7 +239,7 @@ the last hour's point on the plot's last column. How many hours show for each cl
 feed and layout is set by the rule in `src/c/appendix/forecast_span.h` (see
 `docs/adr/0004-forecast-span-is-the-data.md`). The settings page labels the long
 option with the whole hours (`forecast_span_whole`, mirrored by
-`src/pkjs/forecast-span-hours.js`).
+`src/pkjs/weather/domain/forecast-span-hours.js`).
 The temperature scale and the hi/lo labels fit the visible hours, and ignore the other
 hours sent (`forecast_layer.c` fit_entries, `forecast_numbers.h`
 forecast_numbers_relabel). The stripe bands and the curve's anchored edges
@@ -298,7 +298,7 @@ _Avoid_: calling it transient (a transient failure sends no radar keys at all).
 
 **Out of coverage (radar)**:
 A place outside a regional radar source's area: DWD's composite around Germany or
-Met.no's Nordic nowcast (weather/radar-coverage.js; Rainbow and Tomorrow.io
+Met.no's Nordic nowcast (weather/domain/radar/radar-coverage.js; Rainbow and Tomorrow.io
 are worldwide). No request goes out. The answer is the clear, with the
 source's line in `RAIN_RADAR_LIMITED` ("DWD radar: Germany only"), so the
 watch's radar says why it is empty, and the settings show an amber note under

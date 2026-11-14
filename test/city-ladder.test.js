@@ -1,6 +1,6 @@
 'use strict';
 
-// The city's word ladder on the phone (src/pkjs/city-ladder.js) and where the bake
+// The city's word ladder on the phone (src/pkjs/status-bars/domain/city-ladder.js) and where the bake
 // uses it (status-lines.js packLine, edge slots only). The watch draws the same
 // ladder's first and last rung (src/c/appendix/status_short_text.h); the vectors both
 // are held to live in the C test (test/c/status_short_text_test.c, CITY_VECTORS) and
@@ -12,10 +12,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const cityLadder = require('../src/pkjs/city-ladder.js');
-const utf8 = require('../src/pkjs/utf8.js');
-const statusLines = require('../src/pkjs/status-lines.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
+const cityLadder = require('../src/pkjs/status-bars/domain/city-ladder.js');
+const utf8 = require('../src/pkjs/lib/utf8.js');
+const statusLines = require('../src/pkjs/status-bars/domain/status-lines.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
 const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
 
 /**

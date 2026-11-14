@@ -1,4 +1,4 @@
-// test/key-test.test.js — the shared "Test key" button machinery (settings/key-test.js),
+// test/key-test.test.js — the shared "Test key" button machinery (page/weather/keys/key-test.js),
 // driven through its registered PConf action against a fake DOM + XHR. The per-provider
 // URL/verdict halves are covered in owm-key-test / tomorrowio-key-test.
 'use strict';
@@ -30,10 +30,10 @@ function harness() {
     this.send = function () { this.sendArgs = Array.prototype.slice.call(arguments); };
     xhrs.push(this);
   };
-  ['../src/pkjs/settings/key-test.js', '../src/pkjs/settings/tomorrowio-key-test.js'].forEach((p) => {
+  ['../src/pkjs/page/weather/keys/key-test.js', '../src/pkjs/page/weather/keys/tomorrowio-key-test.js'].forEach((p) => {
     delete require.cache[require.resolve(p)];
   });
-  require('../src/pkjs/settings/tomorrowio-key-test.js');
+  require('../src/pkjs/page/weather/keys/tomorrowio-key-test.js');
   return {
     run: global.PConf.actions.testTomorrowioKey, field, xhrs,
     get result() { return dom.result; },
@@ -162,8 +162,8 @@ function customHarness(config, opts) {
     this.send = () => {};
     xhrs.push(this);
   };
-  delete require.cache[require.resolve('../src/pkjs/settings/key-test.js')];
-  const keyTest = require('../src/pkjs/settings/key-test.js');
+  delete require.cache[require.resolve('../src/pkjs/page/weather/keys/key-test.js')];
+  const keyTest = require('../src/pkjs/page/weather/keys/key-test.js');
   keyTest.makeKeyTest(Object.assign({ action: 'testFake', dataKey: 'fakeKey', host: 'Fake' }, config));
   return { run: global.PConf.actions.testFake, field, result, xhrs };
 }

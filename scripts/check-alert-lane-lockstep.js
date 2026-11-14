@@ -3,7 +3,7 @@
 // a tomorrow value reads. Reads the lines test/c/alert_lane_dump.c prints — each metric
 // entry's text lane as src/c/appendix/alert_set.c alert_set_lane builds it, per day
 // code, value and lane-ladder values flag — and checks each against the text the
-// phone bakes for the slot (src/pkjs/status-pair.js markNextDay), with the mark the
+// phone bakes for the slot (src/pkjs/status-bars/domain/status-pair.js markNextDay), with the mark the
 // day code names (status-thresholds.js ALERT_NEXT_DAY_MARKS, code = index + 1; 0 is
 // today's, unmarked):
 //   values on    the lane is the slot's text for that value: '»8', '>8', '+8', '8*', '8';
@@ -13,8 +13,8 @@
 // the build.
 'use strict';
 const fs = require('fs');
-const pair = require('../src/pkjs/status-pair.js');
-const th = require('../src/pkjs/status-thresholds.js');
+const pair = require('../src/pkjs/status-bars/domain/status-pair.js');
+const th = require('../src/pkjs/alerts/domain/status-thresholds.js');
 
 const lines = fs.readFileSync(process.argv[2] || 0, 'utf8').trim().split('\n');
 let bad = 0;

@@ -5,8 +5,8 @@
 // fewer than 24. hasValidData keeps requiring the base 24 whatever the span.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
 
 const ramp = (n, base) => Array.from({ length: n }, (_, i) => (base || 0) + i);
 

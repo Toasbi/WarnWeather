@@ -9,7 +9,7 @@
 // polyfills module restores correct, ES5-safe behavior.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const installPolyfills = require('../src/pkjs/polyfills');
+const installPolyfills = require('../src/pkjs/lib/polyfills');
 
 // Run `body` with `name` removed from `obj`, then restore the original as a
 // non-enumerable, configurable, writable property (matching how natives sit).

@@ -2616,7 +2616,7 @@ test('resolveTheme: auto follows prefers-color-scheme, unknown falls back to dar
 });
 
 test('hydrate: configTheme defaults to auto when absent from the saved blob', () => {
-  const schema = require('../../settings/schema.js');
+  const schema = require('../../page/settings/schema.js');
   const S = E.hydrate(schema, {});
   assert.equal(S.configTheme, 'auto');
 });
@@ -3159,7 +3159,7 @@ test('single range: the dual and threshold variants are untouched', () => {
   assert.match(dual, /data-lo="2" data-hi="8"/);
 });
 
-// ── Graph styles' engine hooks (src/pkjs/settings/graph-styles-page.js holds a style's values
+// ── Graph styles' engine hooks (src/pkjs/page/forecast-graphs/graph-styles-page.js holds a style's values
 // in the flat keys while its dialog is open): onRender, normalize, gotoTab.
 
 test('boot(): an onRender hook runs first in every render, told the tab and the pane on screen', () => {

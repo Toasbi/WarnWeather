@@ -24,8 +24,8 @@ function cDefine(name) {
   return Number(m[1]);
 }
 
-const th = require('../src/pkjs/status-thresholds.js');
-const wire = require('../src/pkjs/status-wire.js');
+const th = require('../src/pkjs/alerts/domain/status-thresholds.js');
+const wire = require('../src/pkjs/alerts/domain/status-wire.js');
 const { packedAlerts } = require('./helpers/alert-entries.js');
 
 test('the entry header layout is in lockstep with alert_set.h', () => {
@@ -66,7 +66,7 @@ test('the day codes are in lockstep with alert_set.h, and name the slot\'s marks
   // Every code fits the 3-bit day field.
   assert.ok(th.ALERT_NEXT_DAY_MARKS.length <= cDefine('STATUS_ALERT_DAY_MASK'));
   // The same marks the slot's "Tomorrow's peak mark" offers (status-pair.js).
-  const pair = require('../src/pkjs/status-pair.js');
+  const pair = require('../src/pkjs/status-bars/domain/status-pair.js');
   assert.deepEqual(th.ALERT_NEXT_DAY_MARKS.slice().sort(), Object.keys(pair.NEXT_DAY_MARKS).sort());
   // A tomorrow UV entry at danger, marked '>', icon only.
   const bytes = packedAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 90, 0] },

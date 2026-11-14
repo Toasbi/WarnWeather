@@ -8,9 +8,9 @@
 const test = require('node:test');
 const { NOTHING_PLACED, placeOn, placedOnly } = require('./helpers/on-demand.js');
 const assert = require('node:assert/strict');
-const th = require('../src/pkjs/status-thresholds.js');
-const wire = require('../src/pkjs/status-wire.js');
-const statusLines = require('../src/pkjs/status-lines.js');
+const th = require('../src/pkjs/alerts/domain/status-thresholds.js');
+const wire = require('../src/pkjs/alerts/domain/status-wire.js');
+const statusLines = require('../src/pkjs/status-bars/domain/status-lines.js');
 const { packedLevel } = require('./helpers/weather-levels.js');
 const { decodeAlerts: decodeEntries, packedAlerts } = require('./helpers/alert-entries.js');
 
@@ -82,7 +82,7 @@ test('buildSettingsBlob: bit 2 of byte 34 is the Rain alert\'s "Replaces the slo
 test('buildSettingsBlob: bytes 38-47 carry the On demand cells, effective values only', () => {
   const O = wire.ON_DEMAND_OFFSET;
   assert.equal(O, 38);
-  const OD = require('../src/pkjs/on-demand.js');
+  const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
   // One byte per item, 2 bits per bar (1 left, 2 right). The defaults: the Watch Status
   // Bar only — Bluetooth, Quiet time, Sleep and Rain on its left, the rest but Pollen right.
   assert.deepEqual(wire.buildSettingsBlob({}).slice(O), [2, 1, 1, 1, 1, 2, 2, 2, 0, 2], 'the defaults');

@@ -1,5 +1,5 @@
 // test/forecast-span.test.js
-// The forecast graph's time span (src/pkjs/forecast-span.js): the stored 12/24/48 ('48' is the
+// The forecast graph's time span (src/pkjs/weather/domain/forecast-span.js): the stored 12/24/48 ('48' is the
 // long span's token, labelled by the whole hours it shows: forecast-span-hours.js), the hours
 // the phone sends a watch (14 / 24 / 68 on emery
 // only, 26 for 24 h with no left axis, 24 everywhere else and on an unknown watch), the option
@@ -10,11 +10,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const forecastSpan = require('../src/pkjs/forecast-span.js');
-const hourlyWindow = require('../src/pkjs/weather/hourly-window.js');
+const forecastSpan = require('../src/pkjs/weather/domain/forecast-span.js');
+const hourlyWindow = require('../src/pkjs/weather/domain/hourly-window.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
-const schema = require('../src/pkjs/settings/schema.js');
-const forecastSpanHours = require('../src/pkjs/forecast-span-hours.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
+const forecastSpanHours = require('../src/pkjs/weather/domain/forecast-span-hours.js');
 
 const env = (p) => platform.computeEnv(p ? { platform: p } : null);
 const OTHERS = ['basalt', 'diorite', 'flint', 'aplite'];
@@ -152,7 +152,7 @@ test('lockstep: the schema\'s forecastHours options are CHOICES, its default the
       JSON.stringify(s));
   });
   // A new install takes the long span, and setup starts it on Clean's, which takes it too
-  // (settings/wizard-forecast.js); DAY_HOURS is what an absent value reads, the span an install
+  // (page/settings/wizard/wizard-forecast.js); DAY_HOURS is what an absent value reads, the span an install
   // from before the key keeps.
   assert.equal(item.defaultValue, forecastSpan.CHOICES[2]);
   assert.equal(forecastSpan.storedHours({}), forecastSpan.DAY_HOURS);

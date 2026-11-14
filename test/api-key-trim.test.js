@@ -46,8 +46,8 @@ function rawParam(url, name) {
 }
 
 test('OpenWeatherMap: the watch sends the same key the Test button checked', () => {
-  const factory = require('../src/pkjs/provider-factory.js');
-  const owmTest = require('../src/pkjs/settings/owm-key-test.js');
+  const factory = require('../src/pkjs/weather/application/provider-factory.js');
+  const owmTest = require('../src/pkjs/page/weather/keys/owm-key-test.js');
   const urls = capture(() => {
     factory.createProvider('openweathermap', { owmApiKey: PASTED })
       .withProviderData(52.5, 13.4, false, () => {}, () => {});
@@ -58,7 +58,7 @@ test('OpenWeatherMap: the watch sends the same key the Test button checked', () 
 });
 
 test('OpenWeatherMap: the key is URL-encoded like every other key-bearing URL', () => {
-  const OpenWeatherMapProvider = require('../src/pkjs/weather/openweathermap.js');
+  const OpenWeatherMapProvider = require('../src/pkjs/weather/adapter/providers/openweathermap.js');
   const urls = capture(() => {
     new OpenWeatherMapProvider('a&b=c').withProviderData(1, 2, false, () => {}, () => {});
   });
@@ -66,9 +66,9 @@ test('OpenWeatherMap: the key is URL-encoded like every other key-bearing URL', 
 });
 
 test('Tomorrow.io: forecast and radar send the same key the Test button checked', () => {
-  const factory = require('../src/pkjs/provider-factory.js');
-  const tioTest = require('../src/pkjs/settings/tomorrowio-key-test.js');
-  const radar = require('../src/pkjs/weather/tomorrowio-radar.js');
+  const factory = require('../src/pkjs/weather/application/provider-factory.js');
+  const tioTest = require('../src/pkjs/page/weather/keys/tomorrowio-key-test.js');
+  const radar = require('../src/pkjs/weather/adapter/radar/tomorrowio-radar.js');
   const urls = capture(() => {
     factory.createProvider('tomorrowio', { tomorrowioApiKey: PASTED })
       .withProviderData(52.5, 13.4, false, () => {}, () => {});
@@ -82,8 +82,8 @@ test('Tomorrow.io: forecast and radar send the same key the Test button checked'
 });
 
 test('Tomorrow.io radar: a whitespace-only key is a missing key, not a request', () => {
-  const radar = require('../src/pkjs/weather/tomorrowio-radar.js');
-  const radarWire = require('../src/pkjs/weather/radar-wire.js');
+  const radar = require('../src/pkjs/weather/adapter/radar/tomorrowio-radar.js');
+  const radarWire = require('../src/pkjs/weather/domain/radar/radar-wire.js');
   let got;
   const urls = capture(() => { radar.fetchRadarTuplesAt(' \t', 1, 2, 1700000100, (t) => { got = t; }); });
   assert.equal(urls.length, 0);
@@ -92,7 +92,7 @@ test('Tomorrow.io radar: a whitespace-only key is a missing key, not a request',
 });
 
 test('Rainbow (own key): the radar sends the trimmed key in the header, never in the URL', () => {
-  const radar = require('../src/pkjs/weather/rainbow-radar.js');
+  const radar = require('../src/pkjs/weather/adapter/radar/rainbow-radar.js');
   const urls = capture(() => { radar.fetchRadarTuplesWithKey(PASTED, 52.5, 13.4, 1700000100, () => {}); });
   assert.equal(urls.length, 1);
   assert.equal(urls[0].indexOf(KEY), -1, 'the key is not in the URL');
@@ -101,8 +101,8 @@ test('Rainbow (own key): the radar sends the trimmed key in the header, never in
 });
 
 test('Rainbow (own key): a whitespace-only key is a missing key, not a request', () => {
-  const radar = require('../src/pkjs/weather/rainbow-radar.js');
-  const radarWire = require('../src/pkjs/weather/radar-wire.js');
+  const radar = require('../src/pkjs/weather/adapter/radar/rainbow-radar.js');
+  const radarWire = require('../src/pkjs/weather/domain/radar/radar-wire.js');
   let got;
   const urls = capture(() => { radar.fetchRadarTuplesWithKey(' \t', 1, 2, 1700000100, (t) => { got = t; }); });
   assert.equal(urls.length, 0);
@@ -111,8 +111,8 @@ test('Rainbow (own key): a whitespace-only key is a missing key, not a request',
 });
 
 test('Rainbow (own key): the Test body carries the same key the radar sends', () => {
-  const radarFactory = require('../src/pkjs/weather/radar-factory.js');
-  const rbwTest = require('../src/pkjs/settings/rainbow-key-test.js');
+  const radarFactory = require('../src/pkjs/weather/application/radar-factory.js');
+  const rbwTest = require('../src/pkjs/page/weather/keys/rainbow-key-test.js');
   const urls = capture(() => {
     radarFactory.createRadarSource('rainbowkey', { rainbowApiKey: PASTED })
       .fetchRadarTuplesAt(52.5, 13.4, 1700000100, () => {});
@@ -126,7 +126,7 @@ test('Rainbow (own key): the Test body carries the same key the radar sends', ()
 });
 
 test('settings Weather tab: OWM and Tomorrow.io graphs send the trimmed key', () => {
-  const data = require('../src/pkjs/settings/weather-tab-data.js');
+  const data = require('../src/pkjs/weather/adapter/weather-tab-data.js');
   const urls = capture(() => {
     data.fetchWeather('openweathermap', 10.5, 20.5, { owmApiKey: PASTED }, () => {});
     data.fetchWeather('tomorrowio', 11.5, 21.5, { tomorrowioApiKey: PASTED }, () => {});
@@ -140,7 +140,7 @@ test('settings Weather tab: OWM and Tomorrow.io graphs send the trimmed key', ()
 
 test('Save stores the API keys trimmed, and a key that only lost whitespace refetches', () => {
   global.PConf = { hooks: { onLoad: function () {}, onSubmit: function () {} } };
-  const OB = require('../src/pkjs/settings/onbuild.js');
+  const OB = require('../src/pkjs/page/settings/onbuild.js');
   const store = { provider: 'openweathermap', owmApiKey: KEY + ' ', yandexApiKey: '\tY',
     tomorrowioApiKey: PASTED, rainbowApiKey: PASTED, location: 'Berlin', fetch: false };
   const initial = { provider: 'openweathermap', owmApiKey: KEY + ' ', yandexApiKey: '\tY',

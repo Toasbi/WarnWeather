@@ -1,5 +1,5 @@
 // test/clock-glyphs-page.test.js — the settings page's copy of the watch's clock digits
-// (src/pkjs/settings/clock-glyphs.generated.js, from scripts/gen-clock-glyphs-page.js) and the
+// (src/pkjs/page/layout/clock-glyphs.generated.js, from scripts/gen-clock-glyphs-page.js) and the
 // clock the watch preview draws with them (preview-watch.js clockBand).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -9,11 +9,11 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
+require('../src/pkjs/page/settings/blocks.js');
 const gen = require('../scripts/gen-clock-glyphs-page.js');
-const GLYPHS = require('../src/pkjs/settings/clock-glyphs.generated.js');
-const vc = require('../src/pkjs/view-cycle.js');
-const pw = require('../src/pkjs/settings/preview-watch.js');
+const GLYPHS = require('../src/pkjs/page/layout/clock-glyphs.generated.js');
+const vc = require('../src/pkjs/layout/domain/view-cycle.js');
+const pw = require('../src/pkjs/page/layout/preview-watch.js');
 
 test('the committed module is what the watch\'s glyph images and headers make now', () => {
   // A re-run of scripts/gen-clock-glyphs.py (new images, headers) or an edit to clock_ink.c

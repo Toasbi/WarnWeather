@@ -2,7 +2,7 @@
 // The graph styles' wire and storage contract (Pebble Time 2): three appended message keys,
 // three appended persist slots, the watch's handler behind PBL_PLATFORM_EMERY with its record
 // check before the write, the view word's style bits read on the watch where the phone
-// packs them (src/c/appendix/graph_style.h, src/pkjs/view-cycle.js packExt), and the spare
+// packs them (src/c/appendix/graph_style.h, src/pkjs/layout/domain/view-cycle.js packExt), and the spare
 // row's appended key and slot (SPARE_LINE_TREND_UINT8, persist.c SPARE_LINE_TREND).
 
 const test = require('node:test');
@@ -71,7 +71,7 @@ test('the watch checks a record before persisting it, on emery only', () => {
 });
 
 test('the watch reads the style from ext bits 9-10, where packExt puts it', () => {
-  const vc = require('../src/pkjs/view-cycle.js');
+  const vc = require('../src/pkjs/layout/domain/view-cycle.js');
   assert.match(layoutH, /\(ext >> 9\) & 3/, 'view_ext_graph_style reads bits 9-10');
   const s = Object.assign(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC,
     vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE), { graphStyle: 2 });

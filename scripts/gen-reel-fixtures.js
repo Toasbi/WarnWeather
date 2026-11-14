@@ -27,7 +27,7 @@ function segment(start, len, mm) {
 }
 const RAIN_EXACT = segment(3, 4, 1.5);
 const RAIN_AREA = segment(2, 6, 1.8);
-// Native DWD pollen display string (see POLLEN_DISPLAYS in weather/pollen.js) baked into
+// Native DWD pollen display string (see POLLEN_DISPLAYS in weather/adapter/pollen.js) baked into
 // the segments that show the pollen status slot (theme-bwlight, status-3).
 const POLLEN_BAKED = '1-2';
 

@@ -11,9 +11,9 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-const RD = require('../src/pkjs/settings/preview-radar.js');
-const PS = require('../src/pkjs/settings/preview-stripe.js');
-const radarSky = require('../src/pkjs/weather/radar-sky.js');
+const RD = require('../src/pkjs/page/weather/preview-radar.js');
+const PS = require('../src/pkjs/page/forecast-graphs/preview-stripe.js');
+const radarSky = require('../src/pkjs/weather/domain/radar/radar-sky.js');
 
 /**
  * The level the watch draws for a sky percentage sent the way radar-sky.js and

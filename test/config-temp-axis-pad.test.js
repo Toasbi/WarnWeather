@@ -22,8 +22,8 @@ const platform = require('../src/pkjs/config-ui/lib/platform.js');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-const FC = require('../src/pkjs/settings/preview-forecast.js');
-const PA = require('../src/pkjs/settings/preview-axis.js');
+const FC = require('../src/pkjs/page/forecast-graphs/preview-forecast.js');
+const PA = require('../src/pkjs/page/forecast-graphs/preview-axis.js');
 const { cDefine } = require('./helpers/c-source.js');
 
 const ROOT = path.join(__dirname, '..');
@@ -162,7 +162,7 @@ test('the curve, the label gap and the inset: one number each, the watch\'s', ()
   assert.equal(PA.CURVE_INSET_PREV, 12, 'the scale the curve is taken at: 12 units to the inset');
   assert.equal(PA.WATCH_INSET_PX,
     cDefine(read('src/c/appendix/bottom_view.h'), 'BOTTOM_VIEW_PRIMARY_LINE_INSET_Y'));
-  assert.equal(PA.WATCH_INSET_PX, require('../src/pkjs/weather/graph-wire.js').CURVE_INSET_PX);
+  assert.equal(PA.WATCH_INSET_PX, require('../src/pkjs/forecast-graphs/domain/graph-wire.js').CURVE_INSET_PX);
 });
 
 test('nothing anchored: today\'s margins, 12 units at both edges', () => {

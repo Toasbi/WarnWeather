@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const news = require('../src/pkjs/settings/news');
-const newsProtocol = require('../src/pkjs/settings/news-protocol.js');
+const news = require('../src/pkjs/page/notices/news');
+const newsProtocol = require('../src/pkjs/notices/domain/news-protocol.js');
 
 // --- renderMarkdown ---
 

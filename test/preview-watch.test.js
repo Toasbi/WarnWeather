@@ -1,4 +1,4 @@
-// test/preview-watch.test.js — the Watchface tab's watch (settings/preview-watch.js): every
+// test/preview-watch.test.js — the Watchface tab's watch (page/layout/preview-watch.js): every
 // view of the cycle drawn on its screen's grid, its bands on the seats the watch gives them
 // (view-cycle.js stackSeats), in the theme's colours, with the status bars' slots and the
 // graph previews in their bands.
@@ -10,13 +10,13 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 const eng = require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-require('../src/pkjs/settings/status-slot-icons.js');
-const VC = require('../src/pkjs/view-cycle.js');
+require('../src/pkjs/page/settings/blocks.js');
+require('../src/pkjs/page/status-bars/status-slot-icons.js');
+const VC = require('../src/pkjs/layout/domain/view-cycle.js');
 const plat = require('../src/pkjs/config-ui/lib/platform.js');
-const schema = require('../src/pkjs/settings/schema.js');
-const pw = require('../src/pkjs/settings/preview-watch.js');
-const onbuild = require('../src/pkjs/settings/onbuild.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
+const pw = require('../src/pkjs/page/layout/preview-watch.js');
+const onbuild = require('../src/pkjs/page/settings/onbuild.js');
 
 /**
  * Settings as a fresh install holds them, with overrides.
@@ -223,7 +223,7 @@ test('a side slot\'s weather condition: the whole name beside an empty middle, t
 // The Status bars tab's bar pictures print the text the watch shows: the short form where
 // the watch's row swaps it in, not the whole name cut short by the page.
 test('the Status bars tab\'s bar pictures print the short form where the watch does', () => {
-  const sbp = require('../src/pkjs/settings/preview-status-bars.js');
+  const sbp = require('../src/pkjs/page/status-bars/preview-status-bars.js');
   const S = settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off',
     statusForecastLeft: 'condition', statusForecastMid: 'city', statusForecastRight: 'empty' });
   const pictures = (platform) => {

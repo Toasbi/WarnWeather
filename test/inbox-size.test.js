@@ -11,12 +11,12 @@ global.localStorage = {
   removeItem: function(k) {}
 };
 
-const { applyForecastSeries } = require('../src/pkjs/forecast-series');
-const { buildClayPayload } = require('../src/pkjs/clay-payload');
-const { WEATHER_CATEGORIES } = require('../src/pkjs/outbox');
-const forecastSpan = require('../src/pkjs/forecast-span');
+const { applyForecastSeries } = require('../src/pkjs/weather/domain/forecast-series');
+const { buildClayPayload } = require('../src/pkjs/settings/domain/clay-payload');
+const { WEATHER_CATEGORIES } = require('../src/pkjs/wire/adapter/outbox');
+const forecastSpan = require('../src/pkjs/weather/domain/forecast-span');
 const platformLib = require('../src/pkjs/config-ui/lib/platform');
-const radarWire = require('../src/pkjs/weather/radar-wire');
+const radarWire = require('../src/pkjs/weather/domain/radar/radar-wire');
 
 // Regression guard for the AppMessage inbox size.
 //
@@ -110,7 +110,7 @@ function buildWeatherOutboxPayload(payload) {
 
 // The weather alerts' entry tuple cap (status-wire.js and alert_set.h
 // ALERT_ENTRIES_MAX_BYTES): the bundle budgets the tuple at it.
-const ALERT_ENTRIES_CAP = require('../src/pkjs/status-wire').ALERT_ENTRIES_MAX_BYTES;
+const ALERT_ENTRIES_CAP = require('../src/pkjs/alerts/domain/status-wire').ALERT_ENTRIES_MAX_BYTES;
 
 // Emery's graph styles at their heaviest on the weather message: three screens, each on a style
 // of its own, drawing six series between them. The first style's four lines take their rows,
@@ -233,7 +233,7 @@ function buildHeaviestBundle(platform, over) {
   // 2 B lightning mask). Never sent to aplite: index.js skips the whole radar
   // step there (no WW_RAIN_RADAR).
   if ((platform || 'emery') !== 'aplite') {
-    payload.RADAR_SKY_UINT8 = require('../src/pkjs/weather/radar-sky.js').packSky({
+    payload.RADAR_SKY_UINT8 = require('../src/pkjs/weather/domain/radar/radar-sky.js').packSky({
       start: 1700000000, clouds: Array(9).fill(250), suns: Array(9).fill(250),
       bolts: Array(9).fill(true)
     });
@@ -322,7 +322,7 @@ test('bars 4 to 6: a shown bar\'s line rides the status category, one on no scre
 // past the heaviest bundle's (City in every slot: 44 B) up to that cap. Every line at the cap
 // still fits every inbox. aplite never widens: its edges keep their 8 bytes.
 test('every status line at its 48-byte cap still fits the inbox', () => {
-  const LINE_MAX = require('../src/pkjs/status-line-catalog.js').CAPS.LINE_MAX;
+  const LINE_MAX = require('../src/pkjs/status-bars/domain/status-line-catalog.js').CAPS.LINE_MAX;
   Object.keys(WEATHER_BUNDLES).forEach(function(platform) {
     const bundle = buildHeaviestBundleWithNotice(platform);
     const keys = Object.keys(bundle).filter((k) => /^STATUS_LINE_\d_UINT8$/.test(k));
@@ -332,8 +332,8 @@ test('every status line at its 48-byte cap still fits the inbox', () => {
     assert.ok(grown <= readInboxSize(platform), platform + ': ' + grown + ' B with every line at the cap');
   });
   // The heaviest bake of a widened line: both side slots' names beside an empty middle (47 B).
-  const lines = require('../src/pkjs/status-lines.js');
-  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const lines = require('../src/pkjs/status-bars/domain/status-lines.js');
+  const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
   const wide = lines.packLine(catalog.lineById('forecast'), { CURRENT_CONDITION: 'partly' },
     { statusForecastLeft: 'condition', statusForecastMid: 'empty', statusForecastRight: 'condition' },
     { platform: 'basalt', color: true }, null);
@@ -390,7 +390,7 @@ test('the heaviest bundle carries the weather alerts\' entries at their cap', ()
 // ("Radar limit reached" + NUL, 20 B) replaces 7 + 24 + 7 + 24 + 7 + 4 = 73 B. So the
 // recorded heaviest bundles above stay the worst case; this pins both halves.
 test('the radar limit notice rides alone, so a limited bundle is lighter than the heaviest', () => {
-  const radarWire = require('../src/pkjs/weather/radar-wire.js');
+  const radarWire = require('../src/pkjs/weather/domain/radar/radar-wire.js');
   const limited = radarWire.limitedRadarTuples();
   const RADAR_KEYS = ['RAIN_RADAR_TREND_UINT8', 'RAIN_RADAR_TREND_AREA_UINT8', 'RAIN_RADAR_START'];
   RADAR_KEYS.forEach(function(k) {
@@ -415,8 +415,8 @@ test('the radar limit notice rides alone, so a limited bundle is lighter than th
 // 73 B: an out-of-coverage bundle is never heavier than the heaviest. The same shape
 // carries DWD's no-data line (its second 404 in a row from inside its area).
 test('the out-of-coverage and no-data answers are lighter than the radar window they replace', () => {
-  const radarWire = require('../src/pkjs/weather/radar-wire.js');
-  const radarCoverage = require('../src/pkjs/weather/radar-coverage.js');
+  const radarWire = require('../src/pkjs/weather/domain/radar/radar-wire.js');
+  const radarCoverage = require('../src/pkjs/weather/domain/radar/radar-coverage.js');
   const lines = [];
   Object.keys(radarCoverage.COVERAGE).forEach(function(id) {
     lines.push([id, radarCoverage.watchText(id)]);

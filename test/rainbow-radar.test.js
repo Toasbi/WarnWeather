@@ -3,13 +3,13 @@ const assert = require('node:assert/strict');
 
 // Mock the shared XHR BEFORE requiring the module under test: rainbow-radar.js
 // captures WeatherProvider.request at load time (same pattern as dwd.test.js).
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError, headers, body) {
   responder(url, type, onSuccess, onError, headers, body);
 };
-const rainbowRadar = require('../src/pkjs/weather/rainbow-radar.js');
-const radarWire = require('../src/pkjs/weather/radar-wire.js');
+const rainbowRadar = require('../src/pkjs/weather/adapter/radar/rainbow-radar.js');
+const radarWire = require('../src/pkjs/weather/domain/radar/radar-wire.js');
 
 const ENDPOINT = 'https://xyz.supabase.co/functions/v1/rainbow-nowcast';
 const SLOT0 = 1700000100;   // 5-min aligned (1700000100 % 300 === 0)
@@ -548,7 +548,7 @@ test('own key: the 401, parse-error and echo-mismatch logs never carry the key (
 // source, radar off — each builds its source through radar-factory.js) or the missing-key
 // clear ends it: coming back to the keyed path starts a fresh 30 minutes, measured from its
 // first new null, not from a null hours old.
-const radarFactory = require('../src/pkjs/weather/radar-factory.js');
+const radarFactory = require('../src/pkjs/weather/application/radar-factory.js');
 
 test('own key streak: a step on another radar source (or radar off) ends the run', () => {
   ['dwd', 'metno', 'rainbow', 'tomorrowio', 'disabled', 'bogus'].forEach(function(otherId) {

@@ -26,14 +26,14 @@ global.localStorage = {
 };
 
 // Mock the shared XHR BEFORE the radar modules load (they capture it).
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 var transport;
 WeatherProvider.request = function(url, type, onSuccess, onError) { transport(url, onSuccess, onError); };
-const createFetchCycle = require('../src/pkjs/fetch-cycle.js');
-const rainbowRadar = require('../src/pkjs/weather/rainbow-radar.js');
-const outbox = require('../src/pkjs/outbox.js');
-const authBackoff = require('../src/pkjs/auth-backoff.js');
-const notices = require('../src/pkjs/notices.js');
+const createFetchCycle = require('../src/pkjs/shell/fetch-cycle.js');
+const rainbowRadar = require('../src/pkjs/weather/adapter/radar/rainbow-radar.js');
+const outbox = require('../src/pkjs/wire/adapter/outbox.js');
+const authBackoff = require('../src/pkjs/weather/application/auth-backoff.js');
+const notices = require('../src/pkjs/notices/application/notices.js');
 
 const SLOT = 300;
 const N = 24;

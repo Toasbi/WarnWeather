@@ -1,5 +1,5 @@
 // test/index-key-status-userdata.test.js
-// The key status under a keyed weather provider or radar source (settings/key-status.js)
+// The key status under a keyed weather provider or radar source (page/weather/keys/key-status.js)
 // reads the phone's answers to each key (key-result.js: per source, the key's fingerprint and
 // the status). The page sees them only as userData.keyResults, which index.js's
 // showConfiguration injects; a dropped line would leave every key "not tested yet" on a real
@@ -29,7 +29,7 @@ function userDataOf(url) {
 
 test('settings open hands the page the key results and the last success as stored', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const KEYS = require('../src/pkjs/storage-keys.js');
+  const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
   const store = {};
   global.localStorage = {
     getItem: (k) => Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null,
@@ -60,7 +60,7 @@ test('settings open hands the page the key results and the last success as store
     const devConfigPath = require.resolve('../src/pkjs/dev-config.js');
     require.cache[devConfigPath] = { id: devConfigPath, filename: devConfigPath, loaded: true, exports: {} };
   } catch (e) { /* absent */ }
-  const fixturePath = require.resolve('../src/pkjs/active-fixture.generated.js');
+  const fixturePath = require.resolve('../src/pkjs/weather/adapter/active-fixture.generated.js');
   require.cache[fixturePath] = { id: fixturePath, filename: fixturePath, loaded: true, exports: null };
   const realLog = console.log;
   t.after(() => {

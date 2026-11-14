@@ -1,6 +1,6 @@
 // What the proxy keeps of a Rainbow answer. Every app version since 1.7.0 reads only
 // body.forecast[i].{precipRate, timestampBegin, timestampEnd} on the proxy path
-// (src/pkjs/weather/rainbow-radar.js resampleForecast), so the cache stores, and the phone
+// (src/pkjs/weather/adapter/radar/rainbow-radar.js resampleForecast), so the cache stores, and the phone
 // gets, the forecast intervals alone: Rainbow's echoed latitude/longitude (the requested
 // place, used only for the echo check before this runs) and its summary are dropped.
 

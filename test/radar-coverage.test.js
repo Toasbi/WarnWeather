@@ -12,8 +12,8 @@ global.localStorage = {
   setItem: (k, v) => { writes += 1; store[k] = String(v); },
   removeItem: (k) => { delete store[k]; }
 };
-const coverage = require('../src/pkjs/weather/radar-coverage.js');
-const KEYS = require('../src/pkjs/storage-keys.js');
+const coverage = require('../src/pkjs/weather/domain/radar/radar-coverage.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 const MIAMI = [25.76, -80.19];
 const BERLIN = [52.52, 13.4];

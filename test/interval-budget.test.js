@@ -3,9 +3,9 @@
 // resolver and onbuild.js's save-time fit both read.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const ib = require('../src/pkjs/settings/interval-budget.js');
-const tio = require('../src/pkjs/settings/tomorrowio-budget.js');
-const rb = require('../src/pkjs/settings/rainbow-budget.js');
+const ib = require('../src/pkjs/page/weather/budgets/interval-budget.js');
+const tio = require('../src/pkjs/page/weather/budgets/tomorrowio-budget.js');
+const rb = require('../src/pkjs/page/weather/budgets/rainbow-budget.js');
 
 const FULL = ['5', '10', '15', '30', '60'];
 const values = (opts) => opts.map((o) => o[1]);

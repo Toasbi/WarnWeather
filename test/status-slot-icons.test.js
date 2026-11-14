@@ -1,5 +1,5 @@
 // test/status-slot-icons.test.js — the settings page's status-slot row glyphs
-// (src/pkjs/settings/status-slot-icons.js): 24×24 fragments in currentColor,
+// (src/pkjs/page/status-bars/status-slot-icons.js): 24×24 fragments in currentColor,
 // registered into the config-ui icon registry when the engine is loaded, and the one
 // lookup both previews draw them through (preview-status-bars.js slotIcon).
 const test = require('node:test');
@@ -8,7 +8,7 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
-const ICONS = require('../src/pkjs/settings/status-slot-icons.js');
+const ICONS = require('../src/pkjs/page/status-bars/status-slot-icons.js');
 
 // The six weather glyphs, the Alert settings card's four System info glyphs (also the
 // Status slots tab's read-only Alerts rows, by on-demand.js ITEMS icon), and the rest of
@@ -55,7 +55,7 @@ test('requiring the module with the engine loaded registers every glyph', () => 
 test('every Alerts item names a registered glyph (an unknown id would print nothing, silently)', () => {
   // The read-only Alerts rows draw each placed item by on-demand.js ITEMS icon. bt and qt
   // have no glyph of their own name, so the ids are not the codes.
-  const OD = require('../src/pkjs/on-demand.js');
+  const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
   OD.ITEMS.forEach((item) => {
     assert.ok(IDS.indexOf(item.icon) !== -1, item.code + ': ' + item.icon + ' is one of the glyphs');
     assert.equal(global.PConf.icons.get(item.icon), ICONS[item.icon], item.code + ': registered');
@@ -68,8 +68,8 @@ test('every slot item the watch draws a glyph for has the page copy, and no othe
   // status-line-catalog.js names each item's watch glyph. NONE, PRESSURE and
   // PHONE_BATTERY_PLAIN are text on the watch; everything else, the drawn sun arrow
   // included, is a picture the previews must show too.
-  const catalog = require('../src/pkjs/status-line-catalog.js');
-  const { slotIcon } = require('../src/pkjs/settings/preview-status-bars.js');
+  const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
+  const { slotIcon } = require('../src/pkjs/page/status-bars/preview-status-bars.js');
   const C = catalog.ICONS, basalt = { platform: 'basalt' };
   const TEXT = [C.NONE, C.PRESSURE, C.PHONE_BATTERY_PLAIN];
   ['empty', 'temp', 'wind', 'gust', 'pressure', 'dew', 'uv', 'aqi', 'pollen', 'sun', 'date', 'week', 'city',
@@ -92,7 +92,7 @@ test('every slot item the watch draws a glyph for has the page copy, and no othe
 });
 
 test('aplite draws only the glyphs of its lean row: the bitmap masks and the sun arrow', () => {
-  const { slotIcon } = require('../src/pkjs/settings/preview-status-bars.js');
+  const { slotIcon } = require('../src/pkjs/page/status-bars/preview-status-bars.js');
   const aplite = { platform: 'aplite' };
   ['temp', 'wind', 'gust', 'uv', 'aqi', 'pollen', 'countdown', 'sun'].forEach((code) => {
     assert.equal(slotIcon(code, aplite), ICONS[code], code + ' has a mask on aplite');

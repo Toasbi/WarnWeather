@@ -1,9 +1,9 @@
-// test/preview-health.test.js — the health-graph preview (settings/preview-health.js): drawn the
+// test/preview-health.test.js — the health-graph preview (page/health/preview-health.js): drawn the
 // way health_graph_layer.c draws the real graph, the step bars standing on the axis over last
 // night's sleep stripe.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const health = require('../src/pkjs/settings/preview-health.js');
+const health = require('../src/pkjs/page/health/preview-health.js');
 
 const AXIS_Y = 94;   // the plot's bottom: the frame's bottom edge (preview-health.js PB)
 

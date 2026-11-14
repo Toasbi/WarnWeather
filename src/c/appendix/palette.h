@@ -26,7 +26,7 @@ int palette_parse_stops(const uint8_t *packed, int len, ChartColorStop *out);
 // "Bars from: Top" for a chart, read off its own palette (stops from palette_bar_stops
 // or palette_radar_stops). The phone ORs 0x80 into the blob's byte [1], stop 0's
 // from_hi, which is always 0 otherwise, so stop 0's threshold turns negative
-// (weather/graph-wire.js markPalette; rain-tier.js packPalette): the flag needs no mask or
+// (forecast-graphs/domain/graph-wire.js markPalette; rain-tier.js packPalette): the flag needs no mask or
 // storage of its own, rides the palette's own change compare (so a flip repaints the
 // chart it belongs to), and every reader of .from clamps a stop under the floor, so a
 // renderer that ignores the flag still draws the bars standing. aplite has no Top.

@@ -57,7 +57,7 @@ The app's side of the boundary is three files: a schema, a set of registered blo
 and one index that creates the singleton instance.
 
 ```js
-// src/pkjs/settings/index.js
+// src/pkjs/page/settings/index.js
 var configUi = require('../config-ui');
 var schema   = require('./schema.js');
 var page     = require('./page.generated.js');   // built artifact (see Build step)
@@ -95,7 +95,7 @@ Custom blocks and hooks are registered in browser-side files, which the build co
 the page (see [Build step](#build-step-buildpage)):
 
 ```js
-// src/pkjs/settings/preview-forecast.js  (runs in the phone WebView)
+// src/pkjs/page/forecast-graphs/preview-forecast.js  (runs in the phone WebView)
 PConf.blocks.register('forecastPreview', function (state, env, userData) {
   return '<svg …>' + /* render from state */ + '</svg>';
 });
@@ -107,7 +107,7 @@ PConf.blocks.register('devStats', function (state, env, userData) {
 ```
 
 ```js
-// src/pkjs/settings/onbuild.js  (runs in the phone WebView)
+// src/pkjs/page/settings/onbuild.js  (runs in the phone WebView)
 PConf.hooks.onLoad(function (ctx) {
   ctx.set('fetch', false);
   ctx.set('devStatsClear', false);
@@ -1007,8 +1007,8 @@ var build = require('../src/pkjs/config-ui/scripts/build-page.js');
 function run() {
   return build.writeGenerated({
     appFiles: [
-      'src/pkjs/settings/blocks.js',
-      'src/pkjs/settings/onbuild.js'
+      'src/pkjs/page/settings/blocks.js',
+      'src/pkjs/page/settings/onbuild.js'
     ],
     out: 'src/pkjs/settings/page.generated.js'
   });
@@ -1173,7 +1173,7 @@ All library files under `lib/` and `index.js` must be written in ES5:
 - No unpolyfilled ES6 built-ins: no `padStart`/`padEnd`, `Object.values`/`entries`,
   `Array.from`, `Promise`, `Map`, `Set`, or `String.prototype.includes`/`startsWith`.
 - `Object.assign`, `Math.trunc` and `Array.prototype.find`/`findIndex`/`includes` are safe. The
-  PKJS runtime gets them from the repo's `src/pkjs/polyfills.js` (required first). The webview
+  PKJS runtime gets them from the repo's `src/pkjs/lib/polyfills.js` (required first). The webview
   page never loads that file and gets them from the guarded shims at the top of
   `lib/shell.html`'s inline script, which runs before every lib and app file.
   `String.prototype.includes` is not polyfilled anywhere.

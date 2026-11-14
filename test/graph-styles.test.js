@@ -1,16 +1,16 @@
 'use strict';
-// test/graph-styles.test.js — the graph styles' model (src/pkjs/graph-styles.js): the stored
+// test/graph-styles.test.js — the graph styles' model (src/pkjs/forecast-graphs/domain/graph-styles.js): the stored
 // item, a style's settings, which styles the screens show, and how the shown styles' series
 // share the weather message's four rows. Its wire (the records, the bake) is
 // test/graph-style-wire.test.js'.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const GS = require('../src/pkjs/graph-styles.js');
-const VC = require('../src/pkjs/view-cycle.js');
-const screens = require('../src/pkjs/screens.js');
-const lineStyle = require('../src/pkjs/line-style.js');
-const wizardForecast = require('../src/pkjs/settings/wizard-forecast.js');
+const GS = require('../src/pkjs/forecast-graphs/domain/graph-styles.js');
+const VC = require('../src/pkjs/layout/domain/view-cycle.js');
+const screens = require('../src/pkjs/layout/domain/screens.js');
+const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
+const wizardForecast = require('../src/pkjs/page/settings/wizard/wizard-forecast.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const EMERY = platform.computeEnv({ platform: 'emery' });

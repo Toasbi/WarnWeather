@@ -3,11 +3,11 @@
 // fetchIntervalMin and the Rain radar picker that doubles the call count share Setup's Data
 // sources card, so the interval row snaps into its budget-fitting option list as the pick
 // re-renders it; a change made elsewhere (the screens, which decide whether the radar is
-// fetched) is fitted by the submit hook (settings/onbuild.js).
+// fetched) is fitted by the submit hook (page/settings/onbuild.js).
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const budget = require('../src/pkjs/settings/tomorrowio-budget.js');
+const budget = require('../src/pkjs/page/weather/budgets/tomorrowio-budget.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 /**
@@ -55,7 +55,7 @@ test('with the guard off the page keeps the interval (it only warns)', async () 
 // The same trap for "Rainbow (own key)", whose 5000 calls/month the radar alone spends: the
 // shared "Rainbow (limited)" radar at 5 min with no night pause costs the user nothing,
 // picking the own key does.
-const rainbowBudget = require('../src/pkjs/settings/rainbow-budget.js');
+const rainbowBudget = require('../src/pkjs/page/weather/budgets/rainbow-budget.js');
 const STORED_RB = {
   provider: 'openmeteo', radarProvider: 'rainbow', radarMode: 'graph',
   fetchIntervalMin: '5', sleepNightEnabled: false, rainbowFitBudget: true

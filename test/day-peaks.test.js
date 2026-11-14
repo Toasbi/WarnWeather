@@ -15,12 +15,12 @@ global.localStorage = {
   removeItem: (k) => { delete store[k]; }
 };
 
-const KEYS = require('../src/pkjs/storage-keys.js');
-const record = require('../src/pkjs/weather/day-peaks.js');
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
-const outbox = require('../src/pkjs/outbox.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
+const record = require('../src/pkjs/weather/domain/day-peaks.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+const outbox = require('../src/pkjs/wire/adapter/outbox.js');
 // The UV slot's reader, in the (trend, peaks, mode) shape these tests grew up on.
-const uvShown = (trend, peaks, mode) => require('../src/pkjs/wire-units.js')
+const uvShown = (trend, peaks, mode) => require('../src/pkjs/wire/domain/wire-units.js')
   .dayMaxShown('uv', { UV_TREND_UINT8: trend, UV_DAY_PEAKS: peaks }, { uvSlotDisplay: mode });
 
 const at = (day, hour) => new Date(2026, 6, day, hour, 0, 0).getTime() / 1000;
@@ -172,7 +172,7 @@ test('without today\'s earlier hours back to a dip the slot keeps the plain rule
 });
 
 test('a switch between DWD and Open-Meteo keeps the record: both read Open-Meteo\'s UV', () => {
-  const DwdProvider = require('../src/pkjs/weather/dwd.js');
+  const DwdProvider = require('../src/pkjs/weather/adapter/providers/dwd.js');
   const Dwd = DwdProvider.DwdProvider || DwdProvider;
   const om = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
   fetchAt(om, 0);
@@ -252,7 +252,7 @@ test('DST days: the earlier hours are the day\'s own, 23 or 25 of them', () => {
   // peak among them must be found by time, not by a 24-hour count.
   const { execFileSync } = require('child_process');
   const body = `
-    const r = require(${JSON.stringify(require.resolve('../src/pkjs/weather/day-peaks.js'))});
+    const r = require(${JSON.stringify(require.resolve('../src/pkjs/weather/domain/day-peaks.js'))});
     const src = { id: 'openmeteo', lat: 52.5, lon: 13.4 };
     const out = {};
     [['spring', 2, 29], ['autumn', 9, 25]].forEach(([name, m, d]) => {
@@ -278,7 +278,7 @@ test('DST days: the earlier hours are the day\'s own, 23 or 25 of them', () => {
 // wanted() reads the fetch's dayPeakCodes, which a placed alert extends: an
 // alert-only kind keeps its day record and widens its requests like a Day-max slot.
 test('wanted: a placed alert asks for its day peaks with no slot showing the kind', () => {
-  const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
+  const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
   const { placedOnly } = require('./helpers/on-demand.js');
   const slotless = { statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
     statusForecastRight: 'empty' };

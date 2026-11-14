@@ -5,8 +5,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const nightLight = require('../src/pkjs/night-light.js');
-const sleepWindow = require('../src/pkjs/sleep-window.js');
+const nightLight = require('../src/pkjs/theme/domain/night-light.js');
+const sleepWindow = require('../src/pkjs/health/domain/sleep-window.js');
 // The settings page's own "r,g,b" reader — the parser night-light.js hand-keeps a
 // copy of, pinned to it by the parity test at the bottom of this file.
 const rgbControl = require('../src/pkjs/config-ui/lib/rgb-control.js');
@@ -19,7 +19,7 @@ global.localStorage = global.localStorage || {
   removeItem: function () {}, clear: function () {}
 };
 const SCHEMA_DIM_COLOR_DEFAULT = (function () {
-  var schema = require('../src/pkjs/settings/schema.js');
+  var schema = require('../src/pkjs/page/settings/schema.js');
   var found = null;
   schema.tabs.forEach(function (tab) {
     (tab.sections || []).forEach(function (sec) {

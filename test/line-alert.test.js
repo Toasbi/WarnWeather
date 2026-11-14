@@ -1,4 +1,4 @@
-// test/line-alert.test.js — a graph line's Show [All | Alert] (src/pkjs/line-alert.js):
+// test/line-alert.test.js — a graph line's Show [All | Alert] (src/pkjs/alerts/domain/line-alert.js):
 // the stored value, the platforms that draw Alert, the band the bake scales a wind, gust
 // or UV line over, the samples it gaps, the bytes it ships (forecast-series.js), the
 // render signature and telemetry.
@@ -14,12 +14,12 @@ global.localStorage = {
   removeItem(k) { delete store[k]; }
 };
 
-const lineAlert = require('../src/pkjs/line-alert.js');
-const forecastSeries = require('../src/pkjs/forecast-series.js');
-const wireUnits = require('../src/pkjs/wire-units.js');
+const lineAlert = require('../src/pkjs/alerts/domain/line-alert.js');
+const forecastSeries = require('../src/pkjs/weather/domain/forecast-series.js');
+const wireUnits = require('../src/pkjs/wire/domain/wire-units.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
-const { renderSignature } = require('../src/pkjs/render-signature.js');
-const { buildSettingsSnapshot } = require('../src/pkjs/telemetry.js');
+const { renderSignature } = require('../src/pkjs/settings/domain/render-signature.js');
+const { buildSettingsSnapshot } = require('../src/pkjs/telemetry/adapter/telemetry.js');
 
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 const APLITE = platform.computeEnv({ platform: 'aplite' });

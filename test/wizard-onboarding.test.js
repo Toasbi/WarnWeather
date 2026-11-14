@@ -12,7 +12,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 
 const PKJS_DIR = path.resolve(__dirname, '../src/pkjs') + path.sep;
-const KEYS = require('../src/pkjs/storage-keys');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys');
 
 /**
  * Drop every src/pkjs module from the require cache, so the next require of
@@ -64,7 +64,7 @@ function bootAndOpenSettings(store) {
     const devConfigPath = require.resolve('../src/pkjs/dev-config.js');
     require.cache[devConfigPath] = { id: devConfigPath, filename: devConfigPath, loaded: true, exports: {} };
   } catch (e) { /* absent */ }
-  const fixturePath = require.resolve('../src/pkjs/active-fixture.generated.js');
+  const fixturePath = require.resolve('../src/pkjs/weather/adapter/active-fixture.generated.js');
   require.cache[fixturePath] = { id: fixturePath, filename: fixturePath, loaded: true, exports: null };
 
   require('../src/pkjs/index.js');
@@ -83,7 +83,7 @@ function bootAndOpenSettings(store) {
  * @returns {boolean} The real wizard.shouldShow verdict.
  */
 function wizardOpens(cfg) {
-  return require('../src/pkjs/settings/wizard.js').shouldShow(cfg);
+  return require('../src/pkjs/page/settings/wizard/wizard.js').shouldShow(cfg);
 }
 
 test.beforeEach((t) => {

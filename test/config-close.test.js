@@ -1,12 +1,12 @@
 'use strict';
 // test/config-close.test.js — the settings-close decision truth table
-// (src/pkjs/config-close.js). This logic lived inline in index.js's
+// (src/pkjs/settings/domain/config-close.js). This logic lived inline in index.js's
 // webviewclosed handler, untestable (index.js registers Pebble listeners at
 // load and exports nothing) — and it is where the 1.13.x reset/ack bugs lived.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const decide = require('../src/pkjs/config-close.js').decideConfigClose;
+const decide = require('../src/pkjs/settings/domain/config-close.js').decideConfigClose;
 
 /** @returns {Object} decision for the base input with overrides applied */
 const d = (over) => decide(Object.assign({

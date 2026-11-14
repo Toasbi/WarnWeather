@@ -13,15 +13,15 @@ const path = require('node:path');
 // the watch modules load (AGENTS.md).
 global.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 
-const wire = require('../src/pkjs/weather/graph-style-wire.js');
-const graphWire = require('../src/pkjs/weather/graph-wire.js');
-const forecastAxis = require('../src/pkjs/forecast-axis.js');
-const { buildClayPayload } = require('../src/pkjs/clay-payload.js');
-const { applyForecastSeries } = require('../src/pkjs/forecast-series.js');
-const { renderSignature } = require('../src/pkjs/render-signature.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
-const stripeLevels = require('../src/pkjs/stripe-levels.js');
-const lineAlert = require('../src/pkjs/line-alert.js');
+const wire = require('../src/pkjs/forecast-graphs/domain/graph-style-wire.js');
+const graphWire = require('../src/pkjs/forecast-graphs/domain/graph-wire.js');
+const forecastAxis = require('../src/pkjs/forecast-graphs/domain/forecast-axis.js');
+const { buildClayPayload } = require('../src/pkjs/settings/domain/clay-payload.js');
+const { applyForecastSeries } = require('../src/pkjs/weather/domain/forecast-series.js');
+const { renderSignature } = require('../src/pkjs/settings/domain/render-signature.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
+const stripeLevels = require('../src/pkjs/forecast-graphs/domain/stripe-levels.js');
+const lineAlert = require('../src/pkjs/alerts/domain/line-alert.js');
 // Nothing placed on the bars: the default On demand ticks place the UV alert, which would
 // fetch UV whatever the lines draw.
 const { NOTHING_PLACED } = require('./helpers/on-demand.js');

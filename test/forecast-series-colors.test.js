@@ -1,8 +1,8 @@
 // test/forecast-series-colors.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('../src/pkjs/line-style.js');
-const C = require('../src/pkjs/pebble-colors.js');
+const fs = require('../src/pkjs/forecast-graphs/domain/line-style.js');
+const C = require('../src/pkjs/theme/domain/pebble-colors.js');
 
 test('lineColorFor resolves per platform, with the gust rule on color', () => {
   // Color display:

@@ -1,11 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
-const DwdProvider = require('../src/pkjs/weather/dwd.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
+const DwdProvider = require('../src/pkjs/weather/adapter/providers/dwd.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
 
 test('DWD maps Brightsky forecast/current with °C→°F and km/h passthrough', () => {
   responder = function(url, onSuccess) {
@@ -217,7 +217,7 @@ test('DWD maps Brightsky cloud_cover into cloudTrend', () => {
   assert.deepEqual(p.cloudTrend, [88, 0], 'cloud_cover % passthrough, absent → 0');
 });
 
-const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
+const feelsLikeF = require('../src/pkjs/weather/domain/feels-like.js').feelsLikeF;
 
 test('DWD computes feelsTrend via Steadman from temperature/relative_humidity/wind_speed', () => {
   responder = function(url, onSuccess) {
@@ -244,7 +244,7 @@ test('DWD computes feels from dew_point when relative_humidity is null (live MOS
   // null for every hour but always carry dew_point — before the dew-point path
   // existed, all 24 hours silently fell back to the plain temp, so the feels
   // curve rendered exactly under the temp curve and "never showed up".
-  const feelsLikeFromDewF = require('../src/pkjs/weather/feels-like.js').feelsLikeFromDewF;
+  const feelsLikeFromDewF = require('../src/pkjs/weather/domain/feels-like.js').feelsLikeFromDewF;
   responder = function(url, onSuccess) {
     if (url.indexOf('/current_weather') !== -1) {
       // Observation record: RH present → the existing RH path keeps priority.
@@ -769,7 +769,7 @@ function mosmixRecords() {
 }
 
 test('DWD with no station near enough: the current hour\'s forecast stands in and the update completes', () => {
-  const feelsLikeFromDewF = require('../src/pkjs/weather/feels-like.js').feelsLikeFromDewF;
+  const feelsLikeFromDewF = require('../src/pkjs/weather/domain/feels-like.js').feelsLikeFromDewF;
   const { p, ok, failures, urls } = runCurrent(mosmixRecords(), noStation, { fetchUv: true });
   assert.deepEqual(failures, []);
   assert.equal(ok, true, 'no failed update');

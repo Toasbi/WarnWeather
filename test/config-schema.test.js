@@ -1,17 +1,17 @@
 // test/config-schema.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const schema = require('../src/pkjs/settings/schema.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 // The settings instance clay-settings.js seeds a fresh install from (getDefaults).
-const settings = require('../src/pkjs/settings');
+const settings = require('../src/pkjs/page/settings');
 // Pulled in so PConf.optionsResolvers is populated (blocks.js registers layoutPresetOptions
 // et al.) — needed to resolve layoutPreset's optionsFrom.resolver end-to-end below.
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
+require('../src/pkjs/page/settings/blocks.js');
 
 function allItems(s) { const out = []; s.tabs.forEach((t) => t.sections.forEach((sec) => sec.items.forEach((it) => out.push(it)))); return out; }
 const items = allItems(schema);
@@ -70,13 +70,13 @@ const UNIT_KEYS = ['tempSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit', 'dew
 // item's warn level and Look (on-demand.js DEFAULTS, the one list of them).
 const ALERT_KEYS = ALERT_STEMS.reduce((acc, stem) => acc.concat(['alert' + stem + 'Display',
   'alert' + stem + 'Days', 'alert' + stem + 'NextDayMark']),
-  ['rainAlertDisplay', 'rainAlertReplacesSlot']).concat(Object.keys(require('../src/pkjs/on-demand.js').DEFAULTS));
+  ['rainAlertDisplay', 'rainAlertReplacesSlot']).concat(Object.keys(require('../src/pkjs/status-bars/domain/on-demand.js').DEFAULTS));
 // The Graph-colors rows: every metric colour, with one picker per theme polarity so a
 // Dark and a Light pick never overwrite one another (the colorUSFederal idiom). The list
 // comes from line-style.js because the schema builds its rows from the same call — this
 // file asserts the card matches the RENDERER's key list, not that both match a third
 // copy kept here.
-const lineStyle = require('../src/pkjs/line-style.js');
+const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
 const GRAPH_COLOR_KEYS = lineStyle.graphColorKeys();
 
 const EXPECTED_KEYS = [
@@ -488,7 +488,7 @@ test('thirdLine derives options from secondaryLine, excluding it, with Off the d
   assert.equal(third.type, 'select');
   // Off since 2.6 (2.6's Clean graph); an existing install without the key keeps its UV dots.
   assert.equal(third.defaultValue, 'off');
-  assert.equal(require('../src/pkjs/clay-settings.js').upgradeBackfill().thirdLine, 'uv');
+  assert.equal(require('../src/pkjs/settings/adapter/clay-settings.js').upgradeBackfill().thirdLine, 'uv');
   assert.equal(third.optionsFrom.resolver, 'forecastMetric');
   assert.deepEqual(third.optionsFrom.args, { key: 'thirdLine', off: true, exclude: ['secondaryLine'] });
   // Every secondary metric yields Off + the OTHER seven (never itself).
@@ -988,7 +988,7 @@ test('the Theme & night card opens on the theme, then the shared Night hours, wh
 // else: same keys, same options, same defaults. Nothing stored on any install changes
 // meaning, so the restructure needs no migration.
 test('the battery saver owns its hours outright and still talks about SENDING', () => {
-  const nightHours = require('../src/pkjs/settings/night-hours.js');
+  const nightHours = require('../src/pkjs/page/theme/night-hours.js');
   const on = byKey('sleepNightEnabled');
   assert.equal(on.label, 'Battery saver', 'the word "Night" moved up to the card title');
   assert.equal(on.defaultValue, true);
@@ -1186,11 +1186,11 @@ test('line-style pickers: the scale of their own line\'s metric, one resolver fo
 });
 
 test('line-style hint: every metric x style reads height for curves and marks, colour strength for stripes', () => {
-  const lineStyle = require('../src/pkjs/line-style.js');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
   // The stripe copy covers exactly the metrics a stripe can show (the picker offers no
   // stripe for any other, so no other combination can reach the hint).
   assert.deepEqual(Object.keys(STRIPE).sort(), lineStyle.STRIPE_METRIC_IDS.slice().sort());
-  assert.deepEqual(Object.keys(require('../src/pkjs/settings/forecast-hints.js').STRIPE_SCALE).sort(),
+  assert.deepEqual(Object.keys(require('../src/pkjs/page/forecast-graphs/forecast-hints.js').STRIPE_SCALE).sort(),
     lineStyle.STRIPE_METRIC_IDS.slice().sort(), 'forecast-hints.js STRIPE_SCALE keys = STRIPE_METRIC_IDS');
   const expected = (m, st) => {
     if (st === 'line' || st === 'bold') { return HEIGHT[m]; }
@@ -1301,12 +1301,25 @@ test('startOnWeatherTab is a page-only toggle that defaults to Watchface', () =>
   const fs = require('node:fs');
   const path = require('node:path');
   const pkjs = path.join(__dirname, '..', 'src', 'pkjs');
-  const watchSide = fs.readdirSync(pkjs).filter((f) => f.slice(-3) === '.js');
+  // Every phone-app file: the src/pkjs tree without the settings page (page/, config-ui/ and
+  // the page's generated files directly in settings/).
+  const watchSide = [];
+  (function walk(rel) {
+    fs.readdirSync(path.join(pkjs, rel), { withFileTypes: true }).forEach((e) => {
+      const r = rel ? rel + '/' + e.name : e.name;
+      if (e.isDirectory()) {
+        if (['page', 'config-ui', 'node_modules'].indexOf(r) === -1) { walk(r); }
+      } else if (e.name.slice(-3) === '.js' && !/^settings\/[^/]+\.generated\.js$/.test(r)) {
+        watchSide.push(r);
+      }
+    });
+  })('');
   // Phone-side support for the settings page itself, which may read the page's own
   // keys: weather-tab-cache.js keeps the Weather tab's data only while the tab is in
   // use, and telemetry-settings.js reports the toggle to the telemetry ingest. Neither
   // may reach the watch — no AppMessage, no outbox.
-  const PAGE_SUPPORT = ['weather-tab-cache.js', 'telemetry-settings.js'];
+  const PAGE_SUPPORT = ['weather/adapter/weather-tab-cache.js',
+    'telemetry/application/telemetry-settings.js'];
   PAGE_SUPPORT.forEach((f) => {
     const src = fs.readFileSync(path.join(pkjs, f), 'utf8');
     assert.ok(!/sendAppMessage|outbox|clay-payload/.test(src), f + ' must not talk to the watch');
@@ -1318,8 +1331,8 @@ test('startOnWeatherTab is a page-only toggle that defaults to Watchface', () =>
   });
   // Guard the guard: the scan really does cover the payload builder, and
   // that builder really does carry watch settings.
-  assert.ok(watchSide.indexOf('clay-payload.js') !== -1, 'the scan includes the Clay payload builder');
-  assert.ok(fs.readFileSync(path.join(pkjs, 'clay-payload.js'), 'utf8').indexOf('settings.btIcons') !== -1,
+  assert.ok(watchSide.indexOf('settings/domain/clay-payload.js') !== -1, 'the scan includes the Clay payload builder');
+  assert.ok(fs.readFileSync(path.join(pkjs, 'settings/domain/clay-payload.js'), 'utf8').indexOf('settings.btIcons') !== -1,
     'and a key the watch DOES receive shows up in it');
 });
 
@@ -1415,7 +1428,7 @@ test('swapClockStatus: aplite\'s Layout card, applied exactly where the radio sh
   assert.ok(layout.items.indexOf(it) > 0, 'under the Layout radio (a screen\'s order says it elsewhere)');
   // The toggle follows the preset the radio DISPLAYS (a dormant value shows as Compact
   // calendar), and the wire follows the toggle, so the two never disagree.
-  const vc = require('../src/pkjs/view-cycle.js');
+  const vc = require('../src/pkjs/layout/domain/view-cycle.js');
   const radio = byKey('layoutPreset');
   const env = platform.computeEnv({ platform: 'aplite' });
   ['compactCal', 'compactDense', 'custom', 'fullCal', 'noCal', 'weatherOnly'].forEach((layoutPreset) => {
@@ -1473,7 +1486,7 @@ test('the Forecast pane is the Your graphs card; a graph\'s cards are its dialog
 });
 
 test('forecastHours: the Forecast length row closes the Other card, emery only', () => {
-  const forecastSpan = require('../src/pkjs/forecast-span.js');
+  const forecastSpan = require('../src/pkjs/weather/domain/forecast-span.js');
   const it = byKey('forecastHours');
   assert.equal(it.label, 'Forecast length');
   assert.equal(it.type, 'segmented');
@@ -1518,9 +1531,9 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
   assert.equal(visible(null), false, 'hidden without watchInfo (fail closed)');
 });
 
-// The forecast's left axis options (emery only; src/pkjs/forecast-axis.js).
+// The forecast's left axis options (emery only; src/pkjs/forecast-graphs/domain/forecast-axis.js).
 test('Left axis: Left axis values in the card, the scale and the font size under More, after Other, emery only', () => {
-  const forecastAxis = require('../src/pkjs/forecast-axis.js');
+  const forecastAxis = require('../src/pkjs/forecast-graphs/domain/forecast-axis.js');
   const titles = dialogCards(schema).map((c) => c.head.text);
   const at = titles.indexOf('Left axis');
   assert.ok(at > 0, 'the card is in the graph dialog');
@@ -1561,7 +1574,7 @@ test('Left axis: Left axis values in the card, the scale and the font size under
   // existing install without it is backfilled (a new install stores On graph); a beta's
   // stored 'beside' reads the same.
   assert.equal(forecastAxis.numbers({}), 'axis');
-  assert.equal(require('../src/pkjs/clay-settings.js').upgradeBackfill().forecastAxisNumbers, 'axis');
+  assert.equal(require('../src/pkjs/settings/adapter/clay-settings.js').upgradeBackfill().forecastAxisNumbers, 'axis');
   assert.equal(forecastAxis.numbers({ forecastAxisNumbers: 'beside' }), 'axis');
   assert.equal(forecastAxis.scale({}), scale.defaultValue);
 
@@ -1612,7 +1625,7 @@ test('the Rain radar picker (Setup › Data sources): Off, then DWD/Met.no/Rainb
   assert.equal(item.uiOnly, true, 'never stored, never sent');
   assert.deepEqual(item.initFrom, { resolver: 'radarSourceValue' });
   assert.equal(item.onChange, 'radarSourcePicked');
-  const SP = require('../src/pkjs/settings/screens-page.js');
+  const SP = require('../src/pkjs/page/layout/screens-page.js');
   assert.equal(SP.radarSourceValue({ radarEnabled: false, radarProvider: 'dwd' }), 'off');
   assert.equal(SP.radarSourceValue({ radarEnabled: true, radarProvider: 'dwd' }), 'dwd');
   assert.equal(SP.radarSourceValue({}), 'rainbow', 'an absent source reads as the default');
@@ -1627,7 +1640,7 @@ test('the Rain radar picker (Setup › Data sources): Off, then DWD/Met.no/Rainb
 });
 
 // "Rainbow (own key)" is a keyed source of the radar picker, wired like a keyed weather
-// provider (settings/key-status.js): one table for every key-status resolver.
+// provider (page/weather/keys/key-status.js): one table for every key-status resolver.
 const RAINBOW_OWN_KEY_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbowkey' }, { key: 'radarEnabled', ne: false }] };
 const radarPickerSection = () => schema.tabs.find((t) => t.id === 'setup').sections.find((sec) => sec.id === 'dataSources');
 // Each key table's picker row: the Weather picker for provider, the Rain radar picker for
@@ -1635,14 +1648,14 @@ const radarPickerSection = () => schema.tabs.find((t) => t.id === 'setup').secti
 const PICKER_ROW = { provider: 'provider', radarProvider: 'radarSource' };
 const PICKER_ATTENTION = { provider: { resolver: 'keyAttention' }, radarProvider: { resolver: 'radarKeyAttention' } };
 
-// The key tables live in settings/key-sources.js, one per picker, by the picker's
+// The key tables live in page/weather/keys/key-sources.js, one per picker, by the picker's
 // messageKey. The rows' key-status resolvers read them in the page by the row's picker —
 // the picker row's own messageKey, the key row's args.picker — so no row hands them a table
 // (the schema does not carry the tables); the key sheets are built from them; and Setup's
 // Tomorrow.io sheet is gated on the radar source's sharedSheet condition, so the sheet the
 // Rain radar's key row opens while Tomorrow.io is both is the one that shows.
 test('the provider and radar rows read their key tables from key-sources.js', () => {
-  const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
+  const KEY_SOURCES = require('../src/pkjs/page/weather/keys/key-sources.js');
   assert.deepEqual(Object.keys(KEY_SOURCES), ['provider', 'radarProvider']);
   Object.keys(KEY_SOURCES).forEach((picker) => {
     const row = byKey(PICKER_ROW[picker]);
@@ -1675,7 +1688,7 @@ test('the provider and radar rows read their key tables from key-sources.js', ()
 });
 
 test('the radar picker and its key row read ONE key table for the row, its label, summary, note and Save dialog', () => {
-  const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
+  const KEY_SOURCES = require('../src/pkjs/page/weather/keys/key-sources.js');
   const item = radarItem();
   // The picker has no Edit button, badge or derived summary: the key row under it opens
   // the key sheet, and the picker's info text is its per-source copy alone.
@@ -2008,11 +2021,11 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
   assert.deepEqual(titles.slice(0, 9),
     ['Your status bars', 'All status bars', 'Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Status bar 4', 'Status bar 5', 'Status bar 6'],
     'the bars\' dialogs follow the two cards, in order');
-  assert.deepEqual(require('../src/pkjs/on-demand.js').BARS.map((b) => b.bar),
+  assert.deepEqual(require('../src/pkjs/status-bars/domain/on-demand.js').BARS.map((b) => b.bar),
     ['top', 'forecast', 'radar', 'health', 'bar4', 'bar5', 'bar6'], 'the contract\'s bar order stays');
   assert.ok(!watch.sections.some((s) => s.id === 'onDemand'), 'the Alert settings card is on the Alerts tab');
-  const SCREENS = require('../src/pkjs/screens.js');
-  const PAGE = require('../src/pkjs/on-demand.js').PAGE_BARS;
+  const SCREENS = require('../src/pkjs/layout/domain/screens.js');
+  const PAGE = require('../src/pkjs/status-bars/domain/on-demand.js').PAGE_BARS;
   const dialogs = watch.sections.filter((s) => /^bar-/.test(s.sheetId || ''));
   assert.deepEqual(dialogs.map((s) => s.sheetId), PAGE.map((b) => SCREENS.barSheet(b.bar)), 'one dialog per bar');
   dialogs.forEach((sec, i) => {
@@ -2100,7 +2113,7 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
 // --- Alerts: each bar's Alerts row, the side lists' hidden items, the Alerts tab's cards and
 // their item sheets with their Shows on grids ---
 const ON_DEMAND_WHEN = { env: 'onDemand' };
-const OD = require('../src/pkjs/on-demand.js');
+const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
 const alertsTab = () => schema.tabs.find((t) => t.id === 'alerts');
 // The Alerts tab's first card, About alerts (the old Alert settings card's intro and reset).
 const onDemandSection = () => alertsTab().sections.find((s) => s.id === 'onDemand');
@@ -2280,7 +2293,7 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
 // the contract's (status-thresholds.js ALERT_KINDS): the card's rows and the tab's
 // alert sheets follow it, stem for stem.
 test('the Alerts tab\'s alert rows and the alert sheets follow the contract\'s ALERT_KINDS order', () => {
-  const thresholds = require('../src/pkjs/status-thresholds.js');
+  const thresholds = require('../src/pkjs/alerts/domain/status-thresholds.js');
   const stems = thresholds.ALERT_KINDS.map((a) => a.key);
   const sheetIds = stems.map((stem) => 'alert' + stem);
   const rows = onDemandItemsSection().items.filter((i) => i.type === 'sheet' && /^alert/.test(i.sheetId)
@@ -2368,8 +2381,8 @@ test('rainCountdownHorizon: one row, the Rain sheet\'s Time window, ahead of its
 // same default for an absent key, and a mark row that shows exactly while the bake
 // would read the mark — whatever is stored, an unknown Days included.
 test('the alert Days and tomorrow-mark rows agree with the contract', () => {
-  const TH = require('../src/pkjs/status-thresholds.js');
-  const pair = require('../src/pkjs/status-pair.js');
+  const TH = require('../src/pkjs/alerts/domain/status-thresholds.js');
+  const pair = require('../src/pkjs/status-bars/domain/status-pair.js');
   TH.ALERT_KINDS.forEach((a) => {
     const days = byKey('alert' + a.key + 'Days');
     const mark = byKey('alert' + a.key + 'NextDayMark');
@@ -2432,7 +2445,7 @@ test('Replaces the slot: the Rain alert\'s own switch, on by default, reset with
   assert.equal(row.type, 'toggle');
   assert.equal(row.label, 'Replaces the slot');
   assert.equal(row.defaultValue, true);
-  assert.equal(row.defaultValue, require('../src/pkjs/status-thresholds.js').rainAlert(null).replacesSlot,
+  assert.equal(row.defaultValue, require('../src/pkjs/alerts/domain/status-thresholds.js').rainAlert(null).replacesSlot,
     'the default is the contract\'s');
   assert.equal(row.showWhen, undefined, 'ungated in its sheet: the sheet\'s own gate is enough');
   assert.ok(/takes the place of the status slot/.test(row.hintByValue['true']), 'on: takes its place');
@@ -2692,7 +2705,7 @@ const sheetById = (id) => schema.tabs.find((t) => t.id === 'watch').sections
   .filter((s) => s.sheetOnly).find((s) => s.sheetId === id);
 
 test('the Date sheet carries the two format pickers, wire-lockstep, Bold last', () => {
-  const CODES = require('../src/pkjs/date-format.js');
+  const CODES = require('../src/pkjs/calendar/domain/date-format.js');
   const sheet = sheetById('threshDate');
   assert.ok(sheet, 'no threshDate sheet');
   assert.match(String(sheet.items[sheet.items.length - 1].messageKey), /BoldMode$/,
@@ -2772,7 +2785,7 @@ test('the six phone-baked slot kinds each carry a Show unit toggle', () => {
 // defaults are deliberately NOT uniform, and a blanket true/false would be a regression
 // for one half or the other.
 test('the Show unit defaults: a fresh install\'s, and the legacy look an absent key keeps', () => {
-  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
   UNIT_ROWS.forEach((row) => {
     assert.strictEqual(byKey(row.key).defaultValue, row.def,
       row.key + ' must ship ' + (row.def ? 'on' : 'off'));
@@ -2862,17 +2875,17 @@ test('no other slot sheet carries a Show unit toggle', () => {
 // it (boldSection's idiom). Only the gated sheets (the health kinds) have a gate to
 // apply, and none of their rows brings a showWhen of its own today, so the guarantee
 // is not observable from the built schema: check that goalSlotSheet goes through the
-// shared pass at the source, and ask the pass itself (settings/schema-gates.js gateAll).
+// shared pass at the source, and ask the pass itself (page/settings/schema-gates.js gateAll).
 test('goalSlotSheet gates its slot rows without clobbering their own showWhen', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const src = fs.readFileSync(
-    path.join(__dirname, '..', 'src', 'pkjs', 'settings', 'schema.js'), 'utf8');
+    path.join(__dirname, '..', 'src', 'pkjs', 'page', 'settings', 'schema.js'), 'utf8');
   const body = src.slice(src.indexOf('function goalSlotSheet('),
     src.indexOf('function alertSlotSheet('));
   assert.ok(body.indexOf('gateAll(') !== -1,
     'goalSlotSheet must gate through the shared gateAll pass');
-  const gateAll = require('../src/pkjs/settings/schema-gates.js').gateAll;
+  const gateAll = require('../src/pkjs/page/settings/schema-gates.js').gateAll;
   const own = { key: 'a', eq: 'b' };
   const gate = { env: 'health' };
   const rows = gateAll([{ showWhen: own }, {}], gate);
@@ -2971,7 +2984,7 @@ test('the Third metric row and every line-style row hide behind the lineStyles c
 });
 
 test('the line-style pickers offer thin/thick/dots/x/top/bottom with per-line defaults matching the wire', () => {
-  const lineStyle = require('../src/pkjs/line-style.js');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
   const OPTIONS = [['Thin line', 'line'], ['Thick line', 'bold'], ['Square dots', 'dots'],
     ['× marks', 'x'], ['Stripe at top', 'stripeTop'], ['Stripe at bottom', 'stripeBottom']];
   const styleOptions = global.PConf.optionsResolvers.get('lineStyleOptions');
@@ -2998,7 +3011,7 @@ test('the line-style pickers offer thin/thick/dots/x/top/bottom with per-line de
 // (line-style.js lineStyleValue) but the stored pick stays, so switching back to an
 // intensity metric brings the stripe back instead of silently losing it.
 test('a stored stripe on a metric that cannot be one shows the drawn style and survives a switch back', () => {
-  const lineStyle = require('../src/pkjs/line-style.js');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
   const env = STYLED_ENV;
   const LABELS = { line: 'Thin line', bold: 'Thick line', dots: 'Square dots', x: '× marks',
     stripeTop: 'Stripe at top', stripeBottom: 'Stripe at bottom' };
@@ -3063,7 +3076,7 @@ test('pressureScale shows for the main line, and for a later line only when no e
 // against forecast-series.PRESSURE_SCALE_CURVE_HPA directly, not literal numbers, so a
 // future curve change can't silently leave this copy stale even if someone re-hardcodes it.
 test('pressureScale hint copy quotes the curve core (no drift)', () => {
-  const { PRESSURE_SCALE_CURVE_HPA } = require('../src/pkjs/forecast-series.js');
+  const { PRESSURE_SCALE_CURVE_HPA } = require('../src/pkjs/weather/domain/forecast-series.js');
   const scales = items.filter((i) => i.messageKey === 'pressureScale');
   for (const s of scales) {
     for (const scale of ['low', 'mid', 'high']) {
@@ -3365,7 +3378,7 @@ test('the day-max sheets\' keys are exactly the catalog\'s dayMaxSettingKeys', (
   // Reset and renderSignature take their keys from the catalog; the sheets build theirs
   // in dayMaxRows. The two must never drift apart, or a new row would neither reset nor
   // re-bake.
-  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
   const kinds = new RegExp('^(' + catalog.DAY_MAX_KINDS.join('|') + ')Slot');
   const fromSheets = items.map((i) => i.messageKey)
     .filter((k) => k && kinds.test(k) && !/Slot(Unit|Direction)$/.test(k));

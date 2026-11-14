@@ -300,7 +300,7 @@ static void date_no_calendar(void) {
 // CITY_VECTORS: the city's word ladder, one row per name: the name, then its
 // abbreviated forms widest first, then NULL. The watch draws the ladder's first and
 // last rung; the phone walks every rung before its 8-byte edge-slot cap
-// (src/pkjs/city-ladder.js), and test/city-ladder.test.js parses this table and runs
+// (src/pkjs/status-bars/domain/city-ladder.js), and test/city-ladder.test.js parses this table and runs
 // the twin over it: keep one row per line, in this shape, with plain UTF-8 in the
 // strings.
 static const char *const CITY_VECTORS[][5] = {

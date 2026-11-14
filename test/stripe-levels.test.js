@@ -1,6 +1,6 @@
 'use strict';
 // test/stripe-levels.test.js — a stripe cell's level on its metric's own scale
-// (src/pkjs/stripe-levels.js): the table itself and its edges, the bytes the forecast
+// (src/pkjs/forecast-graphs/domain/stripe-levels.js): the table itself and its edges, the bytes the forecast
 // bake sends for a line drawn as a stripe (forecast-series.js stripeBytes) and nowhere
 // else, the forecast preview shading exactly those levels, and the stripe hints naming
 // where the bake's colour steps sit. The radar sky rows' side lives in
@@ -21,13 +21,13 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-const SL = require('../src/pkjs/stripe-levels.js');
-const lineStyle = require('../src/pkjs/line-style.js');
-const lineAlert = require('../src/pkjs/line-alert.js');
-const { buildForecastSeries, applyForecastSeries } = require('../src/pkjs/forecast-series.js');
-const FC = require('../src/pkjs/settings/preview-forecast.js');
-require('../src/pkjs/settings/blocks.js');
-const FH = require('../src/pkjs/settings/forecast-hints.js');
+const SL = require('../src/pkjs/forecast-graphs/domain/stripe-levels.js');
+const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
+const lineAlert = require('../src/pkjs/alerts/domain/line-alert.js');
+const { buildForecastSeries, applyForecastSeries } = require('../src/pkjs/weather/domain/forecast-series.js');
+const FC = require('../src/pkjs/page/forecast-graphs/preview-forecast.js');
+require('../src/pkjs/page/settings/blocks.js');
+const FH = require('../src/pkjs/page/forecast-graphs/forecast-hints.js');
 
 const [NONE, L1, L2, L3, FULL] = [0, 62, 125, 187, 250];
 

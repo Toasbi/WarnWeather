@@ -11,7 +11,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { HARNESS_NOW, bootIndex } = require('./helpers/index-harness.js');
-const statusCatalog = require('../src/pkjs/status-line-catalog.js');
+const statusCatalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 const HOUR_MS = 60 * 60 * 1000;
 const OPEN_METEO = /^https:\/\/api\.open-meteo\.com\/v1\/forecast\?/;

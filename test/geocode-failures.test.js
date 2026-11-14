@@ -32,10 +32,10 @@ global.XMLHttpRequest.prototype.send = function () {
   this.onload.call(this);
 };
 
-const storageKeys = require('../src/pkjs/storage-keys.js');
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
-const authBackoff = require('../src/pkjs/auth-backoff.js');
-const notices = require('../src/pkjs/notices.js');
+const storageKeys = require('../src/pkjs/settings/adapter/storage-keys.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+const authBackoff = require('../src/pkjs/weather/application/auth-backoff.js');
+const notices = require('../src/pkjs/notices/application/notices.js');
 
 beforeEach(function () {
   store = {};
@@ -175,9 +175,9 @@ test('an answer without an address still reads Unknown and forgets nothing', () 
 });
 
 test('the forecast is sent when ArcGIS fails and the weather provider answers', () => {
-  const outbox = require('../src/pkjs/outbox.js');
-  const airQuality = require('../src/pkjs/weather/air-quality.js');
-  const pollen = require('../src/pkjs/weather/pollen.js');
+  const outbox = require('../src/pkjs/wire/adapter/outbox.js');
+  const airQuality = require('../src/pkjs/weather/adapter/air-quality.js');
+  const pollen = require('../src/pkjs/weather/adapter/pollen.js');
   const originalSend = outbox.sendWeather;
   const originalAqi = airQuality.fetchAqiInto;
   const originalPollen = pollen.fetchPollenInto;

@@ -13,9 +13,9 @@ global.localStorage = {
   get length() { return Object.keys(store).length; }
 };
 
-const holidayMask = require('../src/pkjs/holidays/holiday-mask.js');
-const daysFromCivil = require('../src/pkjs/holidays/serial-day.js');
-const nagerSource = require('../src/pkjs/holidays/nager-source.js');
+const holidayMask = require('../src/pkjs/calendar/domain/holiday-mask.js');
+const daysFromCivil = require('../src/pkjs/calendar/domain/serial-day.js');
+const nagerSource = require('../src/pkjs/calendar/adapter/nager-source.js');
 
 const JUN_25_2026 = new Date(2026, 5, 25); // Thursday
 

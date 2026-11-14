@@ -47,7 +47,7 @@ const SHIPPED = walk(PKJS);
 const FILES = SHIPPED.filter((f) => f.endsWith('.js'));
 const HTML_FILES = SHIPPED.filter((f) => f.endsWith('.html'));
 // suncalc is the one npm dependency webpack bundles into PKJS (require('suncalc')
-// in index.js and weather/provider.js). package-lock.json pins it, so this is a
+// in index.js and weather/application/provider.js). package-lock.json pins it, so this is a
 // tripwire for a lockfile bump, scanned only where `npm install` has run.
 const SUNCALC = path.join(ROOT, 'node_modules', 'suncalc', 'suncalc.js');
 

@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const catalog = require('../src/pkjs/status-line-catalog.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 const header = fs.readFileSync(
   path.join(__dirname, '..', 'src', 'c', 'appendix', 'status_line.h'), 'utf8');
@@ -92,7 +92,7 @@ test('the weather condition icon ids are 19..33 on both sides of the wire', () =
   });
   assert.equal(catalog.ALT_SEP.charCodeAt(0), Number(header.match(/#define\s+STATUS_TEXT_ALT_SEP\s+(0x[0-9A-Fa-f]+)/)[1]));
   // Every glyph condition.js names is a catalog icon.
-  const C = require('../src/pkjs/weather/condition.js');
+  const C = require('../src/pkjs/weather/domain/condition.js');
   Object.keys(C.CONDITIONS).forEach((id) => [false, true].forEach((night) => {
     assert.ok(Object.prototype.hasOwnProperty.call(catalog.ICONS, C.glyph(id, night)), id + ' ' + night);
   }));

@@ -17,10 +17,10 @@ global.localStorage = {
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const ui = require('../src/pkjs/config-ui/lib/ui.js');
 const { editorBody: body, editorRows, editorAddChips } = require('./helpers/page-rows.js');
-const M = require('../src/pkjs/screens.js');
-const VC = require('../src/pkjs/view-cycle.js');
+const M = require('../src/pkjs/layout/domain/screens.js');
+const VC = require('../src/pkjs/layout/domain/view-cycle.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
-const { buildClayPayload } = require('../src/pkjs/clay-payload.js');
+const { buildClayPayload } = require('../src/pkjs/settings/domain/clay-payload.js');
 
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 // An upgraded install's three screens: Default (Forecast bar), Flick 1 (Health bar), Flick 2

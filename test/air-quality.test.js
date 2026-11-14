@@ -13,11 +13,11 @@ global.localStorage = (function () {
 const test = require('node:test');
 // The aux fetches call http.request through the module object, so stubbing
 // the property here intercepts them (the old seam was WeatherProvider.request).
-const http = require('../src/pkjs/weather/http.js');
+const http = require('../src/pkjs/weather/adapter/http.js');
 const assert = require('node:assert/strict');
-const aq = require('../src/pkjs/weather/air-quality.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
-const KEYS = require('../src/pkjs/storage-keys.js');
+const aq = require('../src/pkjs/weather/adapter/air-quality.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 const START = 1767258000;
 const H = 3600;
@@ -62,7 +62,7 @@ test('fetchAqiInto is a no-op when provider.options.fetchAqi is false', () => {
 });
 
 test('fetchAqiInto populates aqiTrend on success', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const orig = http.request;
   http.request = (url, method, onSuccess) =>
     onSuccess(JSON.stringify({ hourly: { time: [START], european_aqi: [42] } }));
@@ -75,7 +75,7 @@ test('fetchAqiInto populates aqiTrend on success', () => {
 });
 
 test('waqi source populates a one-element aqiTrend on success', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const orig = http.request;
   http.request = (url, method, onSuccess) =>
     onSuccess(JSON.stringify({ status: 'ok', data: { aqi: 42 } }));
@@ -88,7 +88,7 @@ test('waqi source populates a one-element aqiTrend on success', () => {
 });
 
 test('strict waqi leaves aqiTrend untouched when no station and no recent reading (slot shows --)', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const orig = http.request;
   http.request = (url, method, onSuccess) =>
     onSuccess(JSON.stringify({ status: 'error', data: 'Unknown station' }));
@@ -101,7 +101,7 @@ test('strict waqi leaves aqiTrend untouched when no station and no recent readin
 });
 
 test('auto falls back to Open-Meteo US field when WAQI has no station', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const orig = http.request;
   const urls = [];
   http.request = (url, method, onSuccess) => {
@@ -122,7 +122,7 @@ test('auto falls back to Open-Meteo US field when WAQI has no station', () => {
 });
 
 test('empty token degrades a waqi source to Open-Meteo US (dev builds)', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const orig = http.request;
   let waqiCalled = false;
   http.request = (url, method, onSuccess) => {
@@ -139,7 +139,7 @@ test('empty token degrades a waqi source to Open-Meteo US (dev builds)', () => {
 });
 
 function stubProvider() {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const p = new WeatherProvider();
   p.tempTrend = new Array(24).fill(20);
   p.precipTrend = new Array(24).fill(0);
@@ -151,7 +151,7 @@ function stubProvider() {
 }
 
 test('provider constructor defaults aqiTrend to an empty array', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   assert.deepEqual(new WeatherProvider().aqiTrend, []);
 });
 
@@ -193,8 +193,8 @@ test('mapWaqi returns null for error envelope, non-numeric aqi, or malformed inp
  * @returns {Object[]} The payload sent on each cycle.
  */
 function fetchCyclesOnOneProvider(aqiSettings, responders, between) {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const outbox = require('../src/pkjs/outbox.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+  const outbox = require('../src/pkjs/wire/adapter/outbox.js');
   const origRequest = http.request;
   const origSend = outbox.sendWeather;
   const sent = [];

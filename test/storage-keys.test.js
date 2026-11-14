@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const KEYS = require('../src/pkjs/storage-keys');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys');
 
 test('LAST_HOLIDAY_DAY_KEY matches the literal existing installs already persist', function () {
     // Must stay exactly 'last_holiday_day': changing it strands the day stamp of
@@ -23,7 +23,7 @@ test('the GPS-fix cache reads and writes only through the registry key', functio
         removeItem: function (k) { delete store[k]; }
     };
     try {
-        const location = require('../src/pkjs/weather/location.js');
+        const location = require('../src/pkjs/weather/adapter/location.js');
         location.writeGpsCache(52.5, 13.4);
         const registered = Object.keys(KEYS).map(function (name) { return KEYS[name]; });
         Object.keys(store).forEach(function (key) {

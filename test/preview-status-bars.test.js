@@ -4,9 +4,9 @@ const assert = require('node:assert/strict');
 // The Status bars tab's pinned preview prints each slot's SAMPLE reading the way the
 // watch prints a real one: through slot-text.js / status-pair.js (the bake's own
 // formatters), date-format.js (the watch's date formats) and the slot's byte cap.
-const preview = require('../src/pkjs/settings/preview-status-bars.js');
-const dateFormat = require('../src/pkjs/date-format.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
+const preview = require('../src/pkjs/page/status-bars/preview-status-bars.js');
+const dateFormat = require('../src/pkjs/calendar/domain/date-format.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 const EDGE = catalog.CAPS.EDGE_TEXT_MAX;
 const MID = catalog.CAPS.MID_TEXT_MAX;
@@ -163,7 +163,7 @@ test('the block sizes each slot by its position: the middle slot has room for th
 });
 
 test('a calendar shows only for a calendar top with rows', () => {
-  const VC = require('../src/pkjs/view-cycle.js');
+  const VC = require('../src/pkjs/layout/domain/view-cycle.js');
   assert.equal(preview.calendarShown({ top: VC.TOP_CAL, tier: VC.TIER_FULL }), true);
   assert.equal(preview.calendarShown({ top: VC.TOP_CAL, tier: VC.TIER_COMPACT }), true);
   assert.equal(preview.calendarShown({ top: VC.TOP_CAL, tier: VC.TIER_NONE }), false);
@@ -182,7 +182,7 @@ test('a bar no view of the layout seats is left out', () => {
 });
 
 test('the Radar and Health bars show while a screen shows them', () => {
-  const VC = require('../src/pkjs/view-cycle.js');
+  const VC = require('../src/pkjs/layout/domain/view-cycle.js');
   const env = { platform: 'basalt', health: true, radar: true };
   // A preset's screens follow its modes (view-cycle.js barsShown); the bars follow the screens.
   const presets = ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'];

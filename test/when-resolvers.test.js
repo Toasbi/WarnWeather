@@ -1,5 +1,5 @@
 // test/when-resolvers.test.js — the settings page's when resolvers
-// (src/pkjs/settings/when-resolvers.js), the rules the schema's { when } leaves ask:
+// (src/pkjs/page/settings/when-resolvers.js), the rules the schema's { when } leaves ask:
 // lineRow, the picker a Forecast-tab row that follows its metric sits under;
 // onDemandPlaced, an Alerts item on a status bar; defaultViewLacksOnDemand, a Default
 // view that draws no Alerts item; tempAxisLineDrawn, a drawn feels-like or dew point line.
@@ -9,9 +9,9 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-const WR = require('../src/pkjs/settings/when-resolvers.js');
-const drawFrom = require('../src/pkjs/draw-from.js');
-const OD = require('../src/pkjs/on-demand.js');
+const WR = require('../src/pkjs/page/settings/when-resolvers.js');
+const drawFrom = require('../src/pkjs/forecast-graphs/domain/draw-from.js');
+const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const BASALT = platform.computeEnv({ platform: 'basalt' });
@@ -136,7 +136,7 @@ test('defaultViewLacksOnDemand: the Default view the watch runs has no strip and
 // The Left axis card's 'High/low includes feels-like & dew point' gate is forecast-axis.js' own
 // function, the one the wire and the bake read it through, registered as is.
 test('tempAxisLineDrawn is forecast-axis.js\' own reading, and a leaf asks it', () => {
-  const forecastAxis = require('../src/pkjs/forecast-axis.js');
+  const forecastAxis = require('../src/pkjs/forecast-graphs/domain/forecast-axis.js');
   assert.equal(global.PConf.whenResolvers.get('tempAxisLineDrawn'), forecastAxis.tempAxisLineDrawn);
   const EMERY = platform.computeEnv({ platform: 'emery' });
   const UNKNOWN = platform.computeEnv(null);

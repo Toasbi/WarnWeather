@@ -10,14 +10,14 @@ const assert = require('node:assert/strict');
 // `var request = WeatherProvider.request;` at module-eval time. Each request
 // resolves synchronously with whatever `responder` returns, so the whole
 // withProviderData chain runs synchronously and a throw surfaces here.
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) {
   responder(url, onSuccess, onError);
 };
 
-const OpenWeatherMapProvider = require('../src/pkjs/weather/openweathermap.js');
-const DwdProvider = require('../src/pkjs/weather/dwd.js');
+const OpenWeatherMapProvider = require('../src/pkjs/weather/adapter/providers/openweathermap.js');
+const DwdProvider = require('../src/pkjs/weather/adapter/providers/dwd.js');
 
 test('OWM withProviderData routes empty hourly[] to onFailure without throwing', () => {
   responder = function(url, onSuccess) {

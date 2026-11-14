@@ -163,12 +163,12 @@ typedef enum {
 } TopBand;
 // Unlike TopBand above (deliberately renumbered vs. the wire `top` field and translated
 // by view_spec_unpack()), BodyContent must stay bit-for-bit identical to BODY_FC/GRAPH/RADAR/NONE
-// in src/pkjs/view-cycle.js — the packed wire value passes it through untranslated.
+// in src/pkjs/layout/domain/view-cycle.js — the packed wire value passes it through untranslated.
 // BODY_NONE (custom layouts only): the view has no graph band at all; layout_visibility
 // shows no graph layer for it by construction.
 typedef enum { BODY_FORECAST = 0, BODY_HEALTH_GRAPH = 1, BODY_RADAR = 2, BODY_NONE = 3 } BodyContent;
 // Which content feeds a status row. Positional: each of the upper/lower status bands
-// carries one source. Values match STATUS_SRC_* in src/pkjs/view-cycle.js (wire contract).
+// carries one source. Values match STATUS_SRC_* in src/pkjs/layout/domain/view-cycle.js (wire contract).
 typedef enum {
     STATUS_SRC_NONE = 0,
     STATUS_SRC_FORECAST = 1,
@@ -250,7 +250,7 @@ typedef struct {
 // zero-cost way to share the rule with both twins and with main_window.
 
 // Calendar rows for a packed WIRE tier field (0=off, 1=none, 2=compact, 3=full — see
-// src/pkjs/view-cycle.js). "off" and "none" are different things to the producer (a
+// src/pkjs/layout/domain/view-cycle.js). "off" and "none" are different things to the producer (a
 // disabled cycle slot vs. a deliberate no-calendar view) but the same thing to the
 // layout, so both map to 0 rows.
 static inline uint8_t layout_rows_for_wire_tier(uint8_t wire_tier) {

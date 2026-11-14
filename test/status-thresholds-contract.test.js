@@ -3,8 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const th = require('../src/pkjs/status-thresholds.js');
-const wire = require('../src/pkjs/status-wire.js');
+const th = require('../src/pkjs/alerts/domain/status-thresholds.js');
+const wire = require('../src/pkjs/alerts/domain/status-wire.js');
 
 const header = fs.readFileSync(
   path.join(__dirname, '..', 'src', 'c', 'appendix', 'status_threshold.h'), 'utf8');
@@ -130,7 +130,7 @@ test('the rain look wire values are in lockstep with ThreshRainDisplay', () => {
 // cell byte: the blob's for the first four (BLOB_BARS), CLAY_OD_EXTRA_UINT8's for bars 4
 // to 6 (Pebble Time 2, test/extra-bars-contract.test.js).
 test('the bars are in lockstep with ThreshBar', () => {
-  const OD = require('../src/pkjs/on-demand.js');
+  const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
   assert.equal(wire.BATTERY_OFFSET, 35);
   assert.equal(wire.WARN_LOOK_OFFSET, wire.BATTERY_OFFSET + 1, 'the warn-look bytes follow it');
   assert.deepEqual(OD.BLOB_BARS.map(b => b.bar), ['top', 'forecast', 'radar', 'health']);
@@ -178,7 +178,7 @@ test('every alert kind is a weather kind whose wire id fits the entry header', (
   });
   assert.deepEqual(th.ALERT_KINDS.map(a => a.code), ['gust', 'uv', 'aqi', 'pollen', 'wind'],
     'the On demand priority order, which is also the bake\'s (the cap drops wind first)');
-  const OD = require('../src/pkjs/on-demand.js');
+  const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
   assert.deepEqual(th.ALERT_KINDS.map(a => a.code),
     OD.ITEMS.map(i => i.code).filter(c => th.ALERT_KINDS.some(a => a.code === c)),
     'the same order as the On demand items');

@@ -4,10 +4,10 @@
 // the hour strip, readouts, icons, and the tappable 5-day strip.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const charts = require('../src/pkjs/settings/weather-tab-charts.js');
-const model = require('../src/pkjs/settings/weather-tab-model.js');
-const icons = require('../src/pkjs/settings/weather-tab-icons.js');
-const data = require('../src/pkjs/settings/weather-tab-data.js');
+const charts = require('../src/pkjs/page/weather/weather-tab/weather-tab-charts.js');
+const model = require('../src/pkjs/weather/domain/weather-tab-model.js');
+const icons = require('../src/pkjs/page/weather/weather-tab/weather-tab-icons.js');
+const data = require('../src/pkjs/weather/adapter/weather-tab-data.js');
 
 // UTC fixtures + an explicit utcOffsetSec pin the location clock, so the
 // suite is deterministic in any container timezone.
@@ -43,7 +43,7 @@ function fixtureData(day0) {
 }
 
 const LOC = { lat: 52.52, lon: 13.405 };
-const SunCalc = require('../src/pkjs/settings/vendor-suncalc.js');
+const SunCalc = require('../src/pkjs/page/theme/vendor-suncalc.js');
 
 // Two tests below need the HOST's clock to be somewhere that is NOT UTC.
 // Assigning process.env.TZ mid-run asks the runtime to swap its zone lazily,
@@ -56,9 +56,9 @@ const SunCalc = require('../src/pkjs/settings/vendor-suncalc.js');
 // whether it ran is not a guard.
 const { execFileSync } = require('node:child_process');
 const CHILD_MODULES = {
-  charts: require.resolve('../src/pkjs/settings/weather-tab-charts.js'),
-  readouts: require.resolve('../src/pkjs/settings/weather-tab-readouts.js'),
-  SunCalc: require.resolve('../src/pkjs/settings/vendor-suncalc.js')
+  charts: require.resolve('../src/pkjs/page/weather/weather-tab/weather-tab-charts.js'),
+  readouts: require.resolve('../src/pkjs/page/weather/weather-tab/weather-tab-readouts.js'),
+  SunCalc: require.resolve('../src/pkjs/page/theme/vendor-suncalc.js')
 };
 /**
  * @param {string} tz IANA zone, set before the child starts.

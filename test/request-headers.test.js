@@ -23,7 +23,7 @@ MockXhr.prototype.setRequestHeader = function(name, value) {
 MockXhr.prototype.send = function(body) { this.sent = true; this.body = body; };
 
 global.XMLHttpRequest = MockXhr;
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 
 test('request sets each header after open() and still sends', () => {
   MockXhr.throwOn = {};

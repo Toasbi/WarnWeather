@@ -18,7 +18,7 @@ test('redactForLog masks each API key on a copy and leaves the blob alone', () =
   const store = {};
   global.localStorage = { getItem: (k) => (k in store ? store[k] : null),
     setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } };
-  const claySettings = require('../src/pkjs/clay-settings.js');
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings.js');
   const blob = { provider: 'openweathermap', owmApiKey: OWM, yandexApiKey: '', tomorrowioApiKey: TIO, rainbowApiKey: RBW };
   const out = claySettings.redactForLog(blob);
   assert.deepEqual(out, { provider: 'openweathermap', owmApiKey: '<set>', yandexApiKey: '', tomorrowioApiKey: '<set>',
@@ -59,7 +59,7 @@ test('settings open/close and provider construction never log an API key', (t) =
     const devConfigPath = require.resolve('../src/pkjs/dev-config.js');
     require.cache[devConfigPath] = { id: devConfigPath, filename: devConfigPath, loaded: true, exports: {} };
   } catch (e) { /* absent */ }
-  const fixturePath = require.resolve('../src/pkjs/active-fixture.generated.js');
+  const fixturePath = require.resolve('../src/pkjs/weather/adapter/active-fixture.generated.js');
   require.cache[fixturePath] = { id: fixturePath, filename: fixturePath, loaded: true, exports: null };
 
   const lines = [];
@@ -74,7 +74,7 @@ test('settings open/close and provider construction never log an API key', (t) =
 
   require('../src/pkjs/index.js');
   listeners.ready({});
-  const claySettings = require('../src/pkjs/clay-settings.js');
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings.js');
   const saved = Object.assign({}, claySettings.read(),
     { provider: 'openweathermap', owmApiKey: OWM, yandexApiKey: YDX, tomorrowioApiKey: TIO,
       rainbowApiKey: RBW, radarProvider: 'rainbowkey', radarMode: 'graph' });

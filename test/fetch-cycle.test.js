@@ -40,16 +40,16 @@ global.localStorage = {
     removeItem: function (k) { delete store[k]; }
 };
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
-const createFetchCycle = require('../src/pkjs/fetch-cycle.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
-const radarFactory = require('../src/pkjs/weather/radar-factory.js');
-const radarSky = require('../src/pkjs/weather/radar-sky.js');
-const radarWire = require('../src/pkjs/weather/radar-wire.js');
-const authBackoff = require('../src/pkjs/auth-backoff.js');
-const notices = require('../src/pkjs/notices.js');
-const gpsFailure = require('../src/pkjs/weather/location.js').gpsFailure;
-const KEYS = require('../src/pkjs/storage-keys.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+const createFetchCycle = require('../src/pkjs/shell/fetch-cycle.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
+const radarFactory = require('../src/pkjs/weather/application/radar-factory.js');
+const radarSky = require('../src/pkjs/weather/domain/radar/radar-sky.js');
+const radarWire = require('../src/pkjs/weather/domain/radar/radar-wire.js');
+const authBackoff = require('../src/pkjs/weather/application/auth-backoff.js');
+const notices = require('../src/pkjs/notices/application/notices.js');
+const gpsFailure = require('../src/pkjs/weather/adapter/location.js').gpsFailure;
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 // The radar seam: every radar HTTP request the cycle makes, with the
 // coordinates parsed out of its URL, its method and body, and the callbacks to
@@ -726,9 +726,9 @@ test('failure: a provider 401 arms the auth backoff, raises the notice, sends it
 
 // --- the key's answers (key-result.js), for the settings page's key status ------------------
 
-const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
-const keyStatus = require('../src/pkjs/settings/key-status.js');
-const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
+const { fingerprint } = require('../src/pkjs/weather/domain/keys/key-fingerprint.js');
+const keyStatus = require('../src/pkjs/page/weather/keys/key-status.js');
+const KEY_SOURCES = require('../src/pkjs/page/weather/keys/key-sources.js');
 
 /**
  * The key status the settings page would show for a keyed source, from what the phone

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { radarComparator } = require('../src/pkjs/weather/radar-dedupe');
+const { radarComparator } = require('../src/pkjs/weather/domain/radar/radar-dedupe');
 
 const SLOT = 5 * 60;
 const N = 24;

@@ -23,11 +23,11 @@ global.Pebble = {
   sendAppMessage: function(payload, ack) { sent.push(payload); if (ack) { ack(); } }
 };
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
-const airQuality = require('../src/pkjs/weather/air-quality.js');
-const pollen = require('../src/pkjs/weather/pollen.js');
-const forecastSeries = require('../src/pkjs/forecast-series.js');
-const radarWire = require('../src/pkjs/weather/radar-wire.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+const airQuality = require('../src/pkjs/weather/adapter/air-quality.js');
+const pollen = require('../src/pkjs/weather/adapter/pollen.js');
+const forecastSeries = require('../src/pkjs/weather/domain/forecast-series.js');
+const radarWire = require('../src/pkjs/weather/domain/radar/radar-wire.js');
 
 const RADAR_ARRAYS = ['RAIN_RADAR_TREND_UINT8', 'RAIN_RADAR_TREND_AREA_UINT8', 'RAIN_RADAR_START'];
 const SETTINGS = {

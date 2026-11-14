@@ -2,7 +2,7 @@
 // pane) offers Rainbow twice, one option per radar source: "Rainbow (limited)" ('rainbow', the
 // shared proxy) and "Rainbow (own key)" ('rainbowkey', the user's own key). The blob stores the
 // pick as radarProvider, the own key included; the 1.23.x pair ('rainbow' plus rainbowOwnKey) is
-// the boot migration's to fold in (migrations/radar.js, test/clay-migrations.test.js), so the
+// the boot migration's to fold in (settings/domain/migrations/radar.js, test/clay-migrations.test.js), so the
 // page reads and saves radarProvider as it stands. Pinned here against the REAL generated page
 // for a fresh install, an install on either Rainbow, a 1.23.2 install booted through the
 // migrations, and for the setup wizard's country pick.
@@ -13,16 +13,16 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
+require('../src/pkjs/page/settings/blocks.js');
 // The provider's pollen cleanup, which the wizard's country derivation runs (applyDerived).
-require('../src/pkjs/settings/reset-status-defaults.js');
-const schema = require('../src/pkjs/settings/schema.js');
-const OB = require('../src/pkjs/settings/onbuild.js');
-const W = require('../src/pkjs/settings/wizard.js');
+require('../src/pkjs/page/status-bars/reset-status-defaults.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
+const OB = require('../src/pkjs/page/settings/onbuild.js');
+const W = require('../src/pkjs/page/settings/wizard/wizard.js');
 const { bootGeneratedPage } = require('./helpers/page-harness');
 const { loadLedger, COLORS } = require('./helpers/clay-harness.js');
-const REGISTRY = require('../src/pkjs/migrations/registry.js');
-const KEYS = require('../src/pkjs/storage-keys');
+const REGISTRY = require('../src/pkjs/settings/domain/migrations/registry.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys');
 
 const LIMITED = 'Rainbow (limited)';
 const OWN = 'Rainbow (own key)';

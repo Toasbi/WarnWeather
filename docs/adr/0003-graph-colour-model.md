@@ -1,7 +1,7 @@
 # The graph's colours are derived built-ins with per-polarity overrides
 
 Every colour the forecast graph paints (the two metric lines, the area fill and the four night
-colours) is resolved by `src/pkjs/line-style.js` from the settings blob alone, packed into one
+colours) is resolved by `src/pkjs/forecast-graphs/domain/line-style.js` from the settings blob alone, packed into one
 Clay tuple, and read back by `src/c/layers/forecast_layer.c`. This document is the design log
 for that model.
 
@@ -119,7 +119,7 @@ A stored tint means exactly one thing, that someone picked it, so `graphColorIsP
 
 A stored blob can hold carried bytes: a tint key equal to its fill, written by a page-side copy.
 Read as a pick, they would flip the wire bit and freeze the cascade on a stale colour.
-`migrateCarriedGraphNightTints` (`src/pkjs/migrations/graph-colors.js`, marker
+`migrateCarriedGraphNightTints` (`src/pkjs/settings/domain/migrations/graph-colors.js`, marker
 `v1.15.1_carried_graph_night_tint_migration`) clears a stored tint that still equals its stored
 fill; the resolver then re-derives the triple with the flag clear.
 
@@ -139,7 +139,7 @@ already installed.** `seedDefaults` writes a real colour into every key, so afte
 stored value is the old default, which does not equal the new one. `graphColorIsDefault` calls it
 a pick and the old colour keeps winning until every row is reset by hand.
 
-`migrateLightGraphColorRetune` (`src/pkjs/migrations/light-theme.js`, marker
+`migrateLightGraphColorRetune` (`src/pkjs/settings/domain/migrations/light-theme.js`, marker
 `v1.16.0_light_graph_color_retune_migration`) rewrites, cell by cell, each cell still holding the
 value the page seeded for a superseded light built-in, so a colour that is neither the old
 default nor the new one (someone's actual choice) survives. Its `SUPERSEDED_LIGHT_GRAPH_COLORS`
@@ -270,7 +270,7 @@ polarity. That is expected: they describe colours this render mode ignores.
 Two more tail blocks follow, each behind its own length check as the growth rule above asks:
 `[8]` the third-metric line colour, `[9..11]` the per-line style bytes (byte-for-byte the watch's
 `LINE_STYLES` persist blob), `[12]` the fourth-metric line colour and `[13]` its style byte
-(`FIFTH_LINE_STYLE`). `buildLineStyleBytes` (`weather/graph-wire.js`, the phone-only packer of
+(`FIFTH_LINE_STYLE`). `buildLineStyleBytes` (`forecast-graphs/domain/graph-wire.js`, the phone-only packer of
 the graph's Clay tuples) carries the full layout, and `persist.h`'s `LINE_STYLES` comment the
 canonical layout of a style byte. The watch parses `[8..13]` only under `WW_LINE_STYLE`, so
 aplite ignores them.
@@ -327,7 +327,7 @@ the wire resolves away to white.
   that is read is the pick that is painted.
 
 Every caller describes the target by its capabilities. The phone passes config-ui's
-`computeEnv(watchInfo)` for the connected watch: `weather/graph-wire.js` packs
+`computeEnv(watchInfo)` for the connected watch: `forecast-graphs/domain/graph-wire.js` packs
 `resolveGraphColors`' answer and telemetry reads `renderContextFor`'s. The settings page passes
 the env of the platform it previews. The preview and the wire run one resolution, and no adapter
 stands between a watchInfo and it.
@@ -336,7 +336,7 @@ This is also why `line-style.js` is dual-context: a CommonJS module on the phone
 tests, and a plain concatenated `<script>` in the settings-page webview, which has no
 `require()`. `pebble-colors.js` and `resolve-ink.js` must precede it in the bundle. The wire half
 (the packing, `rain-tier.js`' `GColor8` conversion and the platform table) stays out of it, in
-the phone-only `weather/graph-wire.js`, so the page bundle carries no code it cannot run.
+the phone-only `forecast-graphs/domain/graph-wire.js`, so the page bundle carries no code it cannot run.
 
 ## 9. Displaying a derived value
 

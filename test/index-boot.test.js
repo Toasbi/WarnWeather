@@ -56,7 +56,7 @@ test('ready boots and the 60 s tick loop survives its first ticks', (t) => {
   // Same for the fixture artifact: an armed fixture (FIXTURE=<x> in .env, which
   // mise test does NOT reset) makes ready take the fixture branch and skip
   // scheduler.start() entirely — this test is about the REAL boot path.
-  const fixturePath = require.resolve('../src/pkjs/active-fixture.generated.js');
+  const fixturePath = require.resolve('../src/pkjs/weather/adapter/active-fixture.generated.js');
   require.cache[fixturePath] = {
     id: fixturePath, filename: fixturePath, loaded: true, exports: null,
   };
@@ -92,7 +92,7 @@ test('ready boots and the 60 s tick loop survives its first ticks', (t) => {
 
   // Settings open: the Weather tab's stored copy is looked up for the page and
   // refreshed afterwards, for the same settings and Current-chip seed.
-  const weatherTabCache = require('../src/pkjs/weather-tab-cache.js');
+  const weatherTabCache = require('../src/pkjs/weather/adapter/weather-tab-cache.js');
   const calls = [];
   const realForPage = weatherTabCache.forPage;
   const realRefresh = weatherTabCache.refreshIfStale;

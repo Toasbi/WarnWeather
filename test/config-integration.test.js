@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const colors = require('../src/pkjs/pebble-colors.js');
+const colors = require('../src/pkjs/theme/domain/pebble-colors.js');
 
 test('library imports nothing app-specific (lift-out boundary)', () => {
   const dir = 'src/pkjs/config-ui';

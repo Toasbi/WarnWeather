@@ -10,16 +10,16 @@ const assert = require('node:assert/strict');
 // before any watch module loads (see change-detector.test.js for the pattern).
 global.localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
 
-const VC = require('../src/pkjs/view-cycle.js');
-const OD = require('../src/pkjs/on-demand.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
-const statusLines = require('../src/pkjs/status-lines.js');
-const statusWire = require('../src/pkjs/status-wire.js');
-const screens = require('../src/pkjs/screens.js');
+const VC = require('../src/pkjs/layout/domain/view-cycle.js');
+const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
+const statusLines = require('../src/pkjs/status-bars/domain/status-lines.js');
+const statusWire = require('../src/pkjs/alerts/domain/status-wire.js');
+const screens = require('../src/pkjs/layout/domain/screens.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
-const { buildClayPayload } = require('../src/pkjs/clay-payload.js');
-const { renderSignature } = require('../src/pkjs/render-signature.js');
-const forecastSeries = require('../src/pkjs/forecast-series.js');
+const { buildClayPayload } = require('../src/pkjs/settings/domain/clay-payload.js');
+const { renderSignature } = require('../src/pkjs/settings/domain/render-signature.js');
+const forecastSeries = require('../src/pkjs/weather/domain/forecast-series.js');
 const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
 const { decodeLine } = require('./helpers/status-line-bytes.js');
 

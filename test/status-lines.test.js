@@ -13,10 +13,10 @@ global.localStorage = {
   removeItem(k) { delete phoneBatteryStore[k]; }
 };
 
-const statusLines = require('../src/pkjs/status-lines.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
+const statusLines = require('../src/pkjs/status-bars/domain/status-lines.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
 const { NOTHING_PLACED, placedOnly } = require('./helpers/on-demand.js');
-const STORAGE_KEYS = require('../src/pkjs/storage-keys.js');
+const STORAGE_KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 /**
  * Put a phone-battery reading in the cache the baker reads, or clear it.
@@ -153,8 +153,8 @@ test('°C temp and feels slots round the provider reading once, like the dew slo
   // End to end through getPayload: a whole-°F round there, then the °C round in
   // formatTemp, put ~16% of °C readings one degree off and could show a dew
   // point above the air temperature (DEW_TREND was already single-rounded).
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const c2f = require('../src/pkjs/wire-units.js').celsiusToFahrenheit;
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+  const c2f = require('../src/pkjs/wire/domain/wire-units.js').celsiusToFahrenheit;
   function payloadAt(tempF) {
     const p = new WeatherProvider();
     p.tempTrend = new Array(24).fill(tempF);
@@ -477,7 +477,7 @@ test('sun time mirrors leading-zero and AM/PM settings', () => {
 // only tells the watch how to shade the chart. Neither event is a real sunrise
 // or sunset, so the slot reads '--' rather than a made-up clock time.
 test('sun slot reads -- for the polar day/night pair', () => {
-  const sunEventsLib = require('../src/pkjs/weather/sun-events.js');
+  const sunEventsLib = require('../src/pkjs/weather/domain/sun-events.js');
   [new Date('2026-06-21T12:00:00Z'), new Date('2026-12-15T12:00:00Z')].forEach((now) => {
     const pair = sunEventsLib.nextSunEvents(now, 69.65, 18.96);
     const epochs = pair.map((e) => Math.round(e.date.getTime() / 1000));
@@ -1331,13 +1331,14 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
   const WRITTEN = new Set(['STATUS_LEVELS_UINT8', 'ALERT_ENTRIES_UINT8']);
 
   const seen = new Set();
-  for (const file of ['status-lines.js', 'status-wire.js', 'status-pair.js']) {
+  for (const file of ['status-bars/domain/status-lines.js', 'alerts/domain/status-wire.js',
+    'status-bars/domain/status-pair.js']) {
     for (const m of read(file).matchAll(/payload\.([A-Z][A-Z_0-9]*)/g)) {
       if (!WRITTEN.has(m[1])) { seen.add(m[1]); }
     }
   }
   // The day-max kinds are read by key through wire-units' dayMaxShown.
-  require('../src/pkjs/wire-units.js').dayMaxPayloadKeys().forEach((k) => seen.add(k));
+  require('../src/pkjs/wire/domain/wire-units.js').dayMaxPayloadKeys().forEach((k) => seen.add(k));
 
   const declared = new Set(statusLines.SOURCE_KEYS);
   const missing = [...seen].filter((k) => !declared.has(k)).sort();
@@ -1352,7 +1353,7 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
 });
 
 // ── the weather alerts' entries (ALERT_ENTRIES_UINT8) ────────────────────────
-const wire = require('../src/pkjs/status-wire.js');
+const wire = require('../src/pkjs/alerts/domain/status-wire.js');
 const { decodeAlerts, packedAlerts } = require('./helpers/alert-entries.js');
 //
 // The weather alerts are On demand items, not slot items: their metric entries ride

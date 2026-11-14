@@ -7,14 +7,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError, headers) {
   responder(url, type, onSuccess, onError, headers);
 };
-const metno = require('../src/pkjs/weather/metno.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
-const { PEAK_HOURS } = require('../src/pkjs/weather/hourly-window.js');
+const metno = require('../src/pkjs/weather/adapter/providers/metno.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
+const { PEAK_HOURS } = require('../src/pkjs/weather/domain/hourly-window.js');
 
 const HOUR = 3600;
 const NOW = 1700003600;                       // some wall-clock "now"
@@ -221,7 +221,7 @@ test('provider identity: id/name set, inherits the base provider', () => {
   assert.ok(p instanceof WeatherProvider);
 });
 
-const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
+const feelsLikeF = require('../src/pkjs/weather/domain/feels-like.js').feelsLikeF;
 
 test('metno computes feelsTrend via Steadman from instant.details (unrounded m/s→km/h)', () => {
   const body = forecastBody(26, HOUR0, { 0: { instant: { relative_humidity: 70 } } });
@@ -377,7 +377,7 @@ test('48 h: withProviderData maps the span from the fetch options', () => {
 });
 
 // --- the weather condition now -------------------------------------------------------
-// The anchor bucket's next_1_hours symbol names the hour now (weather/condition.js).
+// The anchor bucket's next_1_hours symbol names the hour now (weather/domain/condition.js).
 
 /**
  * forecastBody with a next_1_hours symbol on the given buckets.

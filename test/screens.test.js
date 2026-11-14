@@ -1,6 +1,6 @@
-// test/screens.test.js — the screens as lists (src/pkjs/screens.js): the editor's rules, the
+// test/screens.test.js — the screens as lists (src/pkjs/layout/domain/screens.js): the editor's rules, the
 // natural places "+ Add" puts a block, the compile to the custom layout's per-view keys and
-// its inverse (checked on the settings page's own watch pictures, settings/preview-watch.js),
+// its inverse (checked on the settings page's own watch pictures, page/layout/preview-watch.js),
 // the fit check and the modes worked out from the screens.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -8,10 +8,10 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-const vc = require('../src/pkjs/view-cycle.js');
-const M = require('../src/pkjs/screens.js');
-const pw = require('../src/pkjs/settings/preview-watch.js');
+require('../src/pkjs/page/settings/blocks.js');
+const vc = require('../src/pkjs/layout/domain/view-cycle.js');
+const M = require('../src/pkjs/layout/domain/screens.js');
+const pw = require('../src/pkjs/page/layout/preview-watch.js');
 const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
 
 const NOW = new Date(2026, 8, 7, 15, 0);

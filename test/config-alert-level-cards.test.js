@@ -1,6 +1,6 @@
 'use strict';
 // test/config-alert-level-cards.test.js — each weather alert's cards on its default
-// levels (settings/alerts-schema.js ALERT_LEVEL_CARDS). They stand as notes under the
+// levels (page/alerts/alerts-schema.js ALERT_LEVEL_CARDS). They stand as notes under the
 // alert<Stem> dialog's intro, in its intro card (the section's introNotes; engine.js
 // dialogIntroHtml shows each note whose showWhen holds — owner, 2026-10-04: the notes used
 // to ride the levels slider's info text). The cards write the seed numbers out next to the published levels
@@ -13,9 +13,9 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-const schema = require('../src/pkjs/settings/schema.js');
-const thresholds = require('../src/pkjs/status-thresholds.js');
+require('../src/pkjs/page/settings/blocks.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
+const thresholds = require('../src/pkjs/alerts/domain/status-thresholds.js');
 
 const ALERT_STEMS = ['Gust', 'Uv', 'Aqi', 'Pollen', 'Wind'];
 // The label each variant's numbers carry in the copy ('kph' as the page writes it);

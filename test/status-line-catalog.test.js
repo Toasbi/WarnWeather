@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const catalog = require('../src/pkjs/status-line-catalog.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 const ENV_EMERY = { color: true, platform: 'emery', health: true, radar: true, hr: true };
 const ENV_DIORITE = { color: false, platform: 'diorite', health: true, radar: true, hr: true };

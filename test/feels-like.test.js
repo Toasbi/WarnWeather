@@ -5,7 +5,7 @@
 // e ≈ 21.14 hPa, v ≈ 5.556 m/s, AT = 30 + 6.98 − 3.89 − 4.00 ≈ 29.09 °C.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
+const feelsLikeF = require('../src/pkjs/weather/domain/feels-like.js').feelsLikeF;
 
 function c2f(c) { return c * 9 / 5 + 32; }
 function f2c(f) { return (f - 32) * 5 / 9; }
@@ -68,7 +68,7 @@ test('valid inputs at the edges still compute (0 % RH, 0 wind)', () => {
 // the two routes are the same formula reached from different inputs — pinned
 // here against a hand-checked value and against feelsLikeF itself, so a change
 // to either helper that breaks the identity fails loudly.
-const feelsLikeFromDewF = require('../src/pkjs/weather/feels-like.js').feelsLikeFromDewF;
+const feelsLikeFromDewF = require('../src/pkjs/weather/domain/feels-like.js').feelsLikeFromDewF;
 
 // Magnus inverse: the dew point at which air of temperature tF holds rh % RH.
 // Independent of the module under test (no shared helper), so the equivalence
@@ -124,7 +124,7 @@ test('dew-point route: null propagation matches the humidity route, never 0', ()
 // 'provider' ships the API's own series (hour gaps → that hour's temp); 'steadman'
 // computes from temp + RH + wind wherever all three are numeric and falls back to
 // the API value, then the temp, per hour. Current: never the temp (→ null → omitted).
-const feelsLike = require('../src/pkjs/weather/feels-like.js');
+const feelsLike = require('../src/pkjs/weather/domain/feels-like.js');
 const resolveFeelsTrend = feelsLike.resolveFeelsTrend;
 const resolveCurrentFeels = feelsLike.resolveCurrentFeels;
 

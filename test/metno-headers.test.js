@@ -4,7 +4,7 @@
 // 4 decimals (5+ → 403 Forbidden).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const metnoHeaders = require('../src/pkjs/weather/metno-headers.js');
+const metnoHeaders = require('../src/pkjs/weather/adapter/providers/metno-headers.js');
 
 test('HEADERS identify the app via User-Agent and Origin', () => {
   assert.equal(metnoHeaders.HEADERS['User-Agent'], 'WarnWeather github.com/Toasbi/WarnWeather');

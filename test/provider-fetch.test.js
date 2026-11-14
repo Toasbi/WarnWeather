@@ -1,7 +1,7 @@
 // test/provider-fetch.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 
 test('fetchWithCoordinates drives the chain from the passed coords, never resolving them', () => {
   var p = new WeatherProvider();
@@ -47,7 +47,7 @@ test('withCoordinates resets countryCode to null even when coordinate resolution
 // (fetch-cycle.js) set for good.
 // It must fail the fetch instead — once, and never on top of a success.
 function composeHarness(t, payloadTransform, onAckHook) {
-  const outbox = require('../src/pkjs/outbox.js');
+  const outbox = require('../src/pkjs/wire/adapter/outbox.js');
   const realSend = outbox.sendWeather;
   const sends = [];
   outbox.sendWeather = function (payload, onAck) { sends.push(payload); onAck(); };

@@ -16,10 +16,10 @@ global.localStorage = {
   removeItem(k) { delete storage[k]; }
 };
 
-const phoneBattery = require('../src/pkjs/phone-battery.js');
-const statusRebake = require('../src/pkjs/status-rebake.js');
-const KEYS = require('../src/pkjs/storage-keys.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
+const phoneBattery = require('../src/pkjs/status-bars/adapter/phone-battery.js');
+const statusRebake = require('../src/pkjs/status-bars/application/status-rebake.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 // The module logs a line per reading; keep the runner's output about assertions.
 const realLog = console.log;
@@ -531,7 +531,7 @@ test('STATUS_KEYS is exactly the outbox status category', () => {
   // Near-tautological since STATUS_KEYS is now DERIVED from the category — the
   // real guard is the micro-send integration tests below; this pins only that
   // the derivation found the right category.
-  const outbox = require('../src/pkjs/outbox.js');
+  const outbox = require('../src/pkjs/wire/adapter/outbox.js');
   assert.deepEqual(statusRebake.STATUS_KEYS,
     outbox.WEATHER_CATEGORIES.find((c) => c.name === 'status').keys);
   assert.ok(statusRebake.STATUS_KEYS.indexOf('STATUS_LEVELS_UINT8') !== -1);

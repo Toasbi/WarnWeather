@@ -1,7 +1,7 @@
 // test/view-cycle.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const vc = require('../src/pkjs/view-cycle.js');
+const vc = require('../src/pkjs/layout/domain/view-cycle.js');
 
 test('packSpec of null/off slot is 0', () => {
   assert.strictEqual(vc.packSpec(null), 0);

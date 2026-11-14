@@ -8,7 +8,7 @@
 !.release-please-manifest.json
 build
 src/pkjs/dev-config.js
-src/pkjs/active-fixture.generated.js
+src/pkjs/weather/adapter/active-fixture.generated.js
 src/pkjs/settings/page.generated.js
 screenshot/**/*
 !screenshot/**/

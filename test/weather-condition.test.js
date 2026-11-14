@@ -1,10 +1,10 @@
 'use strict';
-// src/pkjs/weather/condition.js: the weather condition slot's vocabulary (the owner's list,
+// src/pkjs/weather/domain/condition.js: the weather condition slot's vocabulary (the owner's list,
 // 2026-11-13) and each provider's codes mapped into it.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const C = require('../src/pkjs/weather/condition.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
+const C = require('../src/pkjs/weather/domain/condition.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 test('the list: full names and short forms as approved, RAIN and SNOW for every intensity', () => {
   const rows = Object.keys(C.CONDITIONS).map((id) => [id, C.names(id, false).full, C.names(id, false).short]);

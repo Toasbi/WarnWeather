@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { beforeEach } = require('node:test');
-const storageKeys = require('../src/pkjs/storage-keys.js');
+const storageKeys = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 var store = { wundergroundApiKey: 'k' };   // pre-seed so withApiKey skips the scrape
 global.localStorage = {
@@ -12,12 +12,12 @@ global.localStorage = {
 
 beforeEach(function() { delete store[storageKeys.WU_HOURLY_CACHE_KEY]; });
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
-const WundergroundProvider = require('../src/pkjs/weather/wunderground.js');
-const isPlausiblePressure = require('../src/pkjs/weather/pressure-plausibility.js').isPlausiblePressure;
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
+const WundergroundProvider = require('../src/pkjs/weather/adapter/providers/wunderground.js');
+const isPlausiblePressure = require('../src/pkjs/weather/domain/pressure-plausibility.js').isPlausiblePressure;
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
 
 function round4(n) { return Math.round(n * 10000) / 10000; }
 
@@ -376,8 +376,8 @@ function runWuCycle(cachedKey, force) {
 });
 
 test('a freshly scraped key that is refused too reports WU not answering, with a timed retry, without looping', () => {
-  const authBackoff = require('../src/pkjs/auth-backoff.js');
-  const notices = require('../src/pkjs/notices.js');
+  const authBackoff = require('../src/pkjs/weather/application/auth-backoff.js');
+  const notices = require('../src/pkjs/notices/application/notices.js');
   // wunderground.com still embeds a key weather.com refuses.
   var log = wuRouter('neverworks');
   responder = (function(route) {
@@ -440,7 +440,7 @@ test('a forced fetch re-scrapes a refused cached key once, like any other fetch'
 });
 
 test('a scrape that is refused, or a page without a key, reports WU not answering too', () => {
-  const authBackoff = require('../src/pkjs/auth-backoff.js');
+  const authBackoff = require('../src/pkjs/weather/application/auth-backoff.js');
   responder = function(url, onSuccess, onError) { onError({ code: 'status_403', detail: 'http_status' }); };
   var refused = runWuCycle(null, false);
   assert.deepEqual(refused.failures, [{ stage: 'provider_data', code: 'wu_api_key_status_403',
@@ -478,8 +478,8 @@ test('a cached WU key is kept on a failure that is not a key refusal', () => {
 // --- the Units tab's feels-like formula ----------------------------------------
 // v1 hourly rh (%) + wspd (mph) and the v3 observation's relativeHumidity + windSpeed
 // feed 'steadman'; an hour without rh keeps WU's own feels_like.
-const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
-const mphToKmh = require('../src/pkjs/wire-units.js').mphToKmh;
+const feelsLikeF = require('../src/pkjs/weather/domain/feels-like.js').feelsLikeF;
+const mphToKmh = require('../src/pkjs/wire/domain/wire-units.js').mphToKmh;
 
 test('WU + steadman recomputes feels from rh/wspd and the observation\'s humidity/wind', () => {
   responder = function(url, onSuccess) {
@@ -637,7 +637,7 @@ test('long span: WU sends the 48hour feed\'s 48 hours on a 48 h or 68 h window, 
 });
 
 // --- the weather condition now ------------------------------------------------------
-// The v3 observation's iconCode (0..47, part of its default response; weather/condition.js).
+// The v3 observation's iconCode (0..47, part of its default response; weather/domain/condition.js).
 
 /**
  * A responder whose observation carries `observation`'s fields beside its temperature.

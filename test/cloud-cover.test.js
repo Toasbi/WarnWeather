@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const cloudCover = require('../src/pkjs/weather/cloud-cover.js');
+const cloudCover = require('../src/pkjs/weather/domain/cloud-cover.js');
 
 test('weightedCloudCover: the layers overlap with high cloud at half weight; else the total stands in', () => {
   assert.equal(cloudCover.HIGH_CLOUD_WEIGHT, 0.5);

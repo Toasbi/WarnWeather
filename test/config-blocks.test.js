@@ -5,17 +5,17 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-const B = require('../src/pkjs/settings/blocks.js');
+const B = require('../src/pkjs/page/settings/blocks.js');
 // The block renderers live one file per concern; blocks.js keeps the threshold
 // machinery + small resolvers, and requiring it registers every block.
 // The watch preview has its own files — test/preview-watch.test.js and test/watch-preview-cycle.test.js.
-const FC = require('../src/pkjs/settings/preview-forecast.js');
-const RD = require('../src/pkjs/settings/preview-radar.js');
-const DG = require('../src/pkjs/settings/preview-diagnostics.js');
-const RAIN = require('../src/pkjs/settings/preview-rain.js');
+const FC = require('../src/pkjs/page/forecast-graphs/preview-forecast.js');
+const RD = require('../src/pkjs/page/weather/preview-radar.js');
+const DG = require('../src/pkjs/page/telemetry/preview-diagnostics.js');
+const RAIN = require('../src/pkjs/page/forecast-graphs/preview-rain.js');
 // The graph-colour key vocabulary and its built-in table — the preview resolves through
 // it, so the graph-colour cases below derive their keys and defaults from it too.
-const lineStyle = require('../src/pkjs/line-style.js');
+const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
 
 function budgetState(over) {
   return Object.assign({
@@ -97,7 +97,7 @@ test('devStats: a notice-only weather send shows in its own column, not as an em
   assert.ok(ds.indexOf('1●<br>0–</td><td') >= 0, 'the day row counts it too');
 });
 test('devStats: the panel shows every weather category the outbox sends', () => {
-  const outbox = require('../src/pkjs/outbox.js');
+  const outbox = require('../src/pkjs/wire/adapter/outbox.js');
   assert.deepEqual(DG.CATEGORIES, outbox.WEATHER_CATEGORIES.map((c) => c.name));
 });
 test('devStats: the daily table shows the phone-side day totals, not a count of the capped raw list', () => {
@@ -282,7 +282,7 @@ test('dateFullFormatOptions: values are the wire codes, samples follow the count
   assert.equal(typeof resolver, 'function', 'resolver registered');
   // The value list IS the wire vocabulary — lockstep with date-format.js (and
   // through it the C enum), whatever the country branch.
-  const CODES = require('../src/pkjs/date-format.js').FULL_FORMAT_CODES;
+  const CODES = require('../src/pkjs/calendar/domain/date-format.js').FULL_FORMAT_CODES;
   assert.deepEqual(resolver({ holidayCountry: 'DE' }).map((o) => o[1]), CODES);
   assert.deepEqual(resolver({ holidayCountry: 'US' }).map((o) => o[1]), CODES);
   // Sample labels render in the effective day/month order (the wire's Auto rule:
@@ -333,7 +333,7 @@ test('colorNoteHint adds the note for how the page draws to the row\'s hint', ()
 
 test('lineSummary names a line\'s metric by the one metric table, its style by its picker', () => {
   const summary = PConf.hintResolvers.get('lineSummary');
-  const metrics = require('../src/pkjs/settings/forecast-metrics.js');
+  const metrics = require('../src/pkjs/page/forecast-graphs/forecast-metrics.js');
   const styled = { lineStyles: true };
   const main = { lineKey: 'secondaryLine', main: true };
   assert.equal(summary({ secondaryLine: 'precip_prob', secondaryLineStyle: 'line', secondaryLineFill: true }, styled, main),
@@ -486,7 +486,7 @@ test('alertLevelBadge: the alert\'s colours while it is placed, no bold B', () =
 });
 
 test('preview-rain barPermille matches rain-tier.rainPermille byte-for-byte', () => {
-  const rt = require('../src/pkjs/weather/rain-tier.js');
+  const rt = require('../src/pkjs/weather/domain/rain-tier.js');
   [0, 1, 2, 3, 5, 6, 20, 21, 50, 100, 101, 200, 255, 500, 1000].forEach((t) =>
     assert.equal(RAIN.barPermille(t), rt.rainPermille(t), 'tenths=' + t));
 });
@@ -908,7 +908,7 @@ test('radarPreview draws the rain entry in its Look, at the side of the Watch ba
 // from the radar palette, whatever the radar colour is.
 test('the rain alert icon is the rain cloud in the theme\'s foreground, whatever the radar colour', () => {
   const glyphs = require('../src/pkjs/settings/condition-glyphs.generated.js');
-  const userData = { palette: require('../src/pkjs/settings/preview-palette.js').buildPreviewPalette() };
+  const userData = { palette: require('../src/pkjs/theme/domain/preview-palette.js').buildPreviewPalette() };
   const fg = { dark: '#FFFFFF', light: '#000000' };
   ['dark', 'light'].forEach((theme) => {
     ['white', 'multicolor'].forEach((radarColor) => {
@@ -1561,7 +1561,7 @@ test('recommend resolvers: country-matched weather + radar providers (DE→dwd, 
 });
 
 test('preview bands match forecast-series (no drift)', () => {
-  const { PRESSURE_SCALE_CURVE_HPA } = require('../src/pkjs/forecast-series');
+  const { PRESSURE_SCALE_CURVE_HPA } = require('../src/pkjs/weather/domain/forecast-series');
   assert.deepEqual(FC.pressureCurves, PRESSURE_SCALE_CURVE_HPA);
 });
 
@@ -1873,7 +1873,7 @@ test('radarPreview: the sky rows show with the toggle in graph mode, never on ap
 // preview hands preview-stripe.js its own grid: preview units per watch column and
 // the preview x of column 0. The radar's 24 slots span x 11..196, one RADAR_DEF
 // pitch each (6 px on the 144 px platforms, 8 on emery), column 0 at the plot's left.
-const PS = require('../src/pkjs/settings/preview-stripe.js');
+const PS = require('../src/pkjs/page/forecast-graphs/preview-stripe.js');
 const RADAR_PX0 = 11;
 const RADAR_STEP = (196 - 11) / 24;
 const svgRects = (svg) => [...svg.matchAll(

@@ -1,11 +1,11 @@
-// The forecast's left axis options (emery only): src/pkjs/forecast-axis.js, the one
+// The forecast's left axis options (emery only): src/pkjs/forecast-graphs/domain/forecast-axis.js, the one
 // reading of the two settings for the wire, the bake, the hours sent, the render signature,
 // telemetry, the settings gate and the preview; its wire bits held equal to
 // src/c/appendix/config.h.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const forecastAxis = require('../src/pkjs/forecast-axis.js');
+const forecastAxis = require('../src/pkjs/forecast-graphs/domain/forecast-axis.js');
 const { readC, cDefine } = require('./helpers/c-source.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 

@@ -3,7 +3,7 @@
 // The radar notice: a line the PHONE writes for the radar to say instead of its
 // no-rain text, while the radar source refuses us over a request limit (an HTTP
 // 429: "Radar limit reached") or the place lies outside the source's coverage
-// ("DWD radar: Germany only"). src/pkjs/weather/radar-wire.js limitedRadarTuples /
+// ("DWD radar: Germany only"). src/pkjs/weather/domain/radar/radar-wire.js limitedRadarTuples /
 // outOfCoverageRadarTuples send it as the RAIN_RADAR_LIMITED string, so the watch
 // carries no notice text of its own. Header-only pure decisions (static inline,
 // no .c file — the date_format.h pattern), so the host test
@@ -18,7 +18,7 @@
 #include <stddef.h>
 
 // The built-in no-rain line, drawn while no text ever reached the watch. Lockstep
-// with DEFAULT_NORAIN_TEXT in src/pkjs/clay-payload.js (test/clay-payload.test.js).
+// with DEFAULT_NORAIN_TEXT in src/pkjs/settings/domain/clay-payload.js (test/clay-payload.test.js).
 #define RADAR_NORAIN_DEFAULT_TEXT "You're good :)"
 
 /**

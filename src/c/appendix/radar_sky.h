@@ -1,6 +1,6 @@
 #pragma once
 // The radar's sky rows (clouds, sun, lightning) — the RADAR_SKY_UINT8 blob the
-// phone packs (src/pkjs/weather/radar-sky.js packSky) and the watch persists
+// phone packs (src/pkjs/weather/domain/radar/radar-sky.js packSky) and the watch persists
 // verbatim. Header-only and SDK-free, so the host suite pins the decode
 // (test/c/radar_sky_test.c, the chart_stripe.h pattern).
 //
@@ -11,7 +11,7 @@
 //   [5+N .. 5+2N)    sun strength per slot, 0..250 (share of clear-sky sun)
 //   [5+2N .. 5+2N+1] lightning bitmask (uint16), bit k = lightning in slot k
 // The phone sends both rows already as stripe levels, each picked on the row's
-// own scale (src/pkjs/stripe-levels.js), as bytes 0/62/125/187/250, which
+// own scale (src/pkjs/forecast-graphs/domain/stripe-levels.js), as bytes 0/62/125/187/250, which
 // chart_stripe_level maps back to levels 0..4, so the watch reads them on the
 // plain 0..250 scale.
 // Slot k covers [start + k * RADAR_SKY_SLOT_SECONDS, + RADAR_SKY_SLOT_SECONDS).

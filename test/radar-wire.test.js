@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const radarWire = require('../src/pkjs/weather/radar-wire.js');
+const radarWire = require('../src/pkjs/weather/domain/radar/radar-wire.js');
 
 test('NUM_BARS and SLOT_SECONDS are the shared 24 / 300 wire invariant', () => {
   assert.equal(radarWire.NUM_BARS, 24);
