@@ -648,3 +648,18 @@ test('the slot lists name the city with its weather icon while it is on, never o
   assert.equal(label(ENV_BASALT, { citySlotIcon: true }), 'City with weather icon');
   assert.equal(label({ platform: 'aplite' }, { citySlotIcon: true }), 'City');
 });
+
+// An edge slot's weather condition takes the middle's room while the whole line fits its 48
+// bytes, the left first: the one decision the bake and the settings page's pictures share.
+test('an edge condition takes the middle\'s room while the line fits, the left first', () => {
+  const MAX = catalog.CAPS.LINE_MAX;
+  assert.deepEqual(catalog.widenEdges([11, 3, 11], [22, null, 22]), [true, false, true], 'both fit: 47 B');
+  assert.deepEqual(catalog.widenEdges([11, 3, 11], [22, null, 26]), [true, false, false],
+    'the left first: its room leaves the right none (51 B)');
+  assert.deepEqual(catalog.widenEdges([11, 20, 11], [22, null, 15]), [false, false, true],
+    'the right where the left does not fit');
+  assert.deepEqual(catalog.widenEdges([11, 3, 11], [MAX - 14, null, null]), [true, false, false], 'the cap itself fits');
+  assert.deepEqual(catalog.widenEdges([11, 3, 11], [MAX - 13, null, null]), [false, false, false], 'a byte over does not');
+  assert.deepEqual(catalog.widenEdges([11, 3, 11], [null, 30, undefined]), [false, false, false],
+    'no wide value, nothing grows; the middle never does');
+});
