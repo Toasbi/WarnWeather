@@ -2094,6 +2094,7 @@ module.exports = {
                 ['Sep 2026', 'auto'],
                 ['September 2026', 'name'],
                 ['09.2026', 'dots'],
+                ['09.26', 'dotsyy'],
                 ['09/2026', 'slash'],
                 ['2026-09', 'iso']
             ]

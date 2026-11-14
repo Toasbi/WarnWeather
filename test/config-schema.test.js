@@ -2710,7 +2710,7 @@ test('the Date sheet carries the two format pickers, wire-lockstep, Bold last', 
   // date-format.js and through it the C enum; the full list resolves through
   // dateFullFormatOptions, pinned to the same rule in config-blocks.test.js.
   assert.equal(month.type, 'radio');
-  assert.deepEqual(month.options.map((o) => o[1]), CODES.MONTH_FORMAT_CODES);
+  assert.deepEqual(month.options.map((o) => o[1]).sort(), CODES.MONTH_FORMAT_CODES.slice().sort());
   assert.equal(month.defaultValue, 'auto');
   assert.equal(full.type, 'radio');
   assert.equal(full.optionsFrom.resolver, 'dateFullFormatOptions');

@@ -74,10 +74,14 @@ function findItem(key) {
 }
 
 test('the month picker labels promise exactly what the C formatter renders', () => {
+  // The list groups the look-alikes (09.26 under 09.2026), so it is matched by code, not
+  // by position; the wire byte is the code's index in MONTH_FORMAT_CODES either way.
   const options = findItem('dateSlotMonthFormat').options;
-  dateFormat.MONTH_FORMAT_CODES.forEach((code, i) => {
-    assert.equal(options[i][1], code, 'option ' + i + ' carries code ' + code);
-    assert.equal(options[i][0], cPins['month ' + code],
+  assert.deepEqual(options.map((o) => o[1]).sort(), dateFormat.MONTH_FORMAT_CODES.slice().sort(),
+    'one option per code, no other');
+  dateFormat.MONTH_FORMAT_CODES.forEach((code) => {
+    const option = options.find((o) => o[1] === code);
+    assert.equal(option[0], cPins['month ' + code],
       'label for "' + code + '" must be the pinned C output');
   });
 });
@@ -137,4 +141,6 @@ test('the settings page\'s date formatters render exactly the pinned C outputs',
   assert.equal(dateFormat.formatFullDate(jan, 'textyear', true), cPins['clamped textyear']);
   assert.equal(dateFormat.formatMonthYear(jan, 'auto'), cPins['clamped month auto']);
   assert.equal(dateFormat.formatMonthYear(jan, 'name'), cPins['clamped month name']);
+  assert.equal(dateFormat.formatMonthYear(jan, 'dotsyy'), cPins['clamped month dotsyy']);
+  assert.equal(dateFormat.formatMonthYear(new Date(2005, 8, 7), 'dotsyy'), cPins['month dotsyy 2005']);
 });
