@@ -307,7 +307,9 @@ typedef struct {
 // 0 for none. `suffix`: the slot's full form draws the wind arrow.
 static uint8_t family_member(const Families *f, const StatusOnDemandSlot *slot, bool suffix,
                              uint8_t v, char *buf) {
-    if (slot->alt[0] != '\0') { return status_short_alt(slot->alt, v, buf, STATUS_SHORT_CAP); }
+    if (slot->alt[0] != '\0') {
+        return status_short_alt(slot->kind, slot->icon, slot->alt, v, buf, STATUS_SHORT_CAP);
+    }
     return status_short_member(slot->kind, slot->icon, slot->text, suffix, f->charging, v,
                                buf, STATUS_SHORT_CAP);
 }
