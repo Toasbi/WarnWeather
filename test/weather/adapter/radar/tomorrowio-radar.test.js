@@ -120,7 +120,7 @@ test('a 401/403 key rejection clears the watch radar', () => {
 
 test('the radar records its answers to the key (fingerprint only) under the id the weather provider shares', () => {
   const { fingerprint } = require('../../../../src/pkjs/weather/domain/keys/key-fingerprint.js');
-  const KEYS = require('../../../../src/pkjs/settings/adapter/storage-keys.js');
+  const KEYS = require('../../../../src/pkjs/settings/domain/storage-keys.js');
   const verdict = () => JSON.parse(store[KEYS.KEY_RESULTS_KEY]).tomorrowio;
   const expect = (status) => ({ keyHash: fingerprint('KEY123'), status });
   for (const k in store) { delete store[k]; }

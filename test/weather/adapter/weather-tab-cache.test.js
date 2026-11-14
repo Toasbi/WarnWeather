@@ -12,7 +12,7 @@ global.localStorage = {
   removeItem: (k) => { delete store[k]; }
 };
 const cache = require('../../../src/pkjs/weather/adapter/weather-tab-cache.js');
-const storageKeys = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+const storageKeys = require('../../../src/pkjs/settings/domain/storage-keys.js');
 const data = require('../../../src/pkjs/weather/adapter/weather-tab-data.js');
 
 const DAY0 = Math.floor(Date.now() / 86400000) * 86400000;

@@ -19,7 +19,7 @@ const rainbowRadar = require('../../../../src/pkjs/weather/adapter/radar/rainbow
 const radarFetch = require('../../../../src/pkjs/weather/adapter/radar/radar-fetch.js');
 const radarWire = require('../../../../src/pkjs/weather/domain/radar/radar-wire.js');
 const keyResult = require('../../../../src/pkjs/weather/domain/keys/key-result.js');
-const KEYS = require('../../../../src/pkjs/settings/adapter/storage-keys.js');
+const KEYS = require('../../../../src/pkjs/settings/domain/storage-keys.js');
 const { fingerprint } = require('../../../../src/pkjs/weather/domain/keys/key-fingerprint.js');
 
 const SLOT0 = 1700000100;

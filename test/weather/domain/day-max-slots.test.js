@@ -22,7 +22,7 @@ const aq = require('../../../src/pkjs/weather/adapter/air-quality.js');
 const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
 const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
 const dayPeaks = require('../../../src/pkjs/weather/domain/day-peaks.js');
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 
 const RAQUO = '»';
 

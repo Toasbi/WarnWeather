@@ -10,7 +10,7 @@
 // startup drains are suppressed (previously a fixture run could drain a real
 // startup fetch).
 
-var storageKeys = require('../../settings/adapter/storage-keys.js');
+var storageKeys = require('../../settings/domain/storage-keys.js');
 
 /**
  * Create a channel scheduler.

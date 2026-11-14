@@ -196,7 +196,7 @@ test('gpsFailure reads the phone\'s message first, the W3C code only without one
 // 30 minutes. fetch() clears the AUTH backoff when force is set but historically
 // left this one armed, so a user-initiated refresh (Force toggle, provider
 // change, key change) was silently skipped for up to half an hour.
-const storageKeys = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+const storageKeys = require('../../../src/pkjs/settings/domain/storage-keys.js');
 
 test('clearGeocodeBackoff drops an armed backoff so a forced fetch can proceed', () => {
   const map = {};

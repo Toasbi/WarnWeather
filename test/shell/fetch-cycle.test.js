@@ -49,7 +49,7 @@ const radarWire = require('../../src/pkjs/weather/domain/radar/radar-wire.js');
 const authBackoff = require('../../src/pkjs/weather/application/auth-backoff.js');
 const notices = require('../../src/pkjs/notices/application/notices.js');
 const gpsFailure = require('../../src/pkjs/weather/adapter/location.js').gpsFailure;
-const KEYS = require('../../src/pkjs/settings/adapter/storage-keys.js');
+const KEYS = require('../../src/pkjs/settings/domain/storage-keys.js');
 
 // The radar seam: every radar HTTP request the cycle makes, with the
 // coordinates parsed out of its URL, its method and body, and the callbacks to

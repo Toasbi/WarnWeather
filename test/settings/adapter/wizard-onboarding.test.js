@@ -12,7 +12,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 
 const PKJS_DIR = path.resolve(__dirname, '..', '..', '../src/pkjs') + path.sep;
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys');
 
 /**
  * Drop every src/pkjs module from the require cache, so the next require of

@@ -17,7 +17,7 @@ const http = require('../../../src/pkjs/weather/adapter/http.js');
 const assert = require('node:assert/strict');
 const aq = require('../../../src/pkjs/weather/adapter/air-quality.js');
 const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 
 const START = 1767258000;
 const H = 3600;

@@ -28,7 +28,7 @@
 // too, and auth-backoff.js asks classify about a failure's code (statusOfCode) before it
 // stops fetching, so what a status says about a key is decided here only.
 (function () {
-    var storageKeys = (typeof require !== 'undefined') ? require('../../../settings/adapter/storage-keys.js') : null;
+    var storageKeys = (typeof require !== 'undefined') ? require('../../../settings/domain/storage-keys.js') : null;
     var keyFingerprint = (typeof require !== 'undefined') ? require('./key-fingerprint.js') : null;
 
     /**

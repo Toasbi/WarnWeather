@@ -10,7 +10,7 @@ global.localStorage = {
 };
 
 var createChannelScheduler = require('../../../src/pkjs/wire/adapter/channel-scheduler');
-var KEYS = require('../../../src/pkjs/settings/adapter/storage-keys');
+var KEYS = require('../../../src/pkjs/settings/domain/storage-keys');
 
 function resetStore() { for (var k in store) { delete store[k]; } }
 

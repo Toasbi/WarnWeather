@@ -27,7 +27,7 @@ const OLDER_MARKERS = ['WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY', 'HOLIDAY_WHITE_TO_
  * @returns {Object} storage-keys.
  */
 function seedLightUpgrade(h) {
-  const KEYS = h.mod('settings/adapter/storage-keys.js');
+  const KEYS = h.mod('settings/domain/storage-keys.js');
   const cs = h.mod('settings/adapter/clay-settings.js');
   cs.seedDefaults(COLORS);
   OLDER_MARKERS.forEach((name) => { h.store[KEYS[name]] = '1'; });

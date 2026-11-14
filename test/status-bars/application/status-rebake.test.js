@@ -120,7 +120,7 @@ test('the backstop keeps what alerts look ahead to: a restart re-bakes Days and 
     CITY: 'Bonn', UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 90, 0],
     POLLEN_TODAY: '1', POLLEN_TOMORROW: '3'
   }, null);
-  const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+  const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
   const stored = JSON.parse(storage[KEYS.PHONE_BATTERY_SNAPSHOT]).payload;
   assert.deepEqual(stored.UV_DAY_PEAKS, [30, 90, 0], 'tomorrow\'s UV peak is in the backstop');
   assert.equal(stored.POLLEN_TOMORROW, '3', 'and tomorrow\'s pollen band');

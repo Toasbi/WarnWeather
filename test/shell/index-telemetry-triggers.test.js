@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
 const { HARNESS_NOW, bootIndex, healthyNetwork } = require('../helpers/index-harness.js');
-const { TELEMETRY_REPORTED_KEY } = require('../../src/pkjs/settings/adapter/storage-keys.js');
+const { TELEMETRY_REPORTED_KEY } = require('../../src/pkjs/settings/domain/storage-keys.js');
 
 const HOUR_MS = 60 * 60 * 1000;
 const INGEST = 'https://ingest.test/functions/v1/telemetry-ingest';

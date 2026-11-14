@@ -18,7 +18,7 @@
 // Only the place the tab opens on is kept: other chips fetch once per page open.
 // Refreshes the user makes on the page stay on the page.
 
-var storageKeys = require('../../settings/adapter/storage-keys.js');
+var storageKeys = require('../../settings/domain/storage-keys.js');
 var model = require('../domain/weather-tab-model.js');
 var weatherTabData = require('./weather-tab-data.js');
 

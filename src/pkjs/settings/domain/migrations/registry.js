@@ -25,7 +25,7 @@
 // The ORDER is load-bearing where an entry says so. Entries later in the list see the
 // blob as the earlier ones left it, exactly as when each one saved before the next read.
 
-var KEYS = require('../../adapter/storage-keys');
+var KEYS = require('../storage-keys');
 var onboarding = require('./onboarding.js');
 var holidays = require('./holidays.js');
 var statusSlots = require('./status-slots.js');

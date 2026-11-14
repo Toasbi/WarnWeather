@@ -20,7 +20,7 @@ const vc = require('../../../src/pkjs/layout/domain/view-cycle.js');
 const M = require('../../../src/pkjs/layout/domain/screens.js');
 const { migrateToScreens, legacyCycle } = require('../../../src/pkjs/settings/domain/migrations/screens.js');
 const clayMigrations = require('../../../src/pkjs/settings/application/clay-migrations.js');
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 
 const COLORS = { white: pebbleColors.GColorWhite, folly: pebbleColors.GColorFolly,
   holiday: pebbleColors.GColorBlueMoon };

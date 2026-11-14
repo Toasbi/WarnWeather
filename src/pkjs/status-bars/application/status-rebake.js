@@ -82,7 +82,7 @@
 // written by an older build (different key set) degrades to "no snapshot"
 // instead of throwing inside a battery event handler.
 //
-var KEYS = require('../../settings/adapter/storage-keys.js');
+var KEYS = require('../../settings/domain/storage-keys.js');
 // Top-level on purpose — see the header. statusLines.buildStatusLines re-bakes;
 // outbox.sendWeather pushes (its change-detector still suppresses no-op sends).
 var statusLines = require('../domain/status-lines.js');

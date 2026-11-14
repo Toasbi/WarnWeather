@@ -16,7 +16,7 @@
 // closing settings, the refetch pulls the advanced watermark, so the dot does
 // not reappear on the next open. (When nothing is unread, no extra request.)
 
-var storageKeys = require('../../settings/adapter/storage-keys.js');
+var storageKeys = require('../../settings/domain/storage-keys.js');
 // The protocol half only — the phone bundle must not parse the webview widget.
 var news = require('../domain/news-protocol.js');
 

@@ -22,7 +22,7 @@ const W = require('../../../src/pkjs/page/settings/wizard/wizard.js');
 const { bootGeneratedPage } = require('../../helpers/page-harness');
 const { loadLedger, COLORS } = require('../../helpers/clay-harness.js');
 const REGISTRY = require('../../../src/pkjs/settings/domain/migrations/registry.js');
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys');
 
 const LIMITED = 'Rainbow (limited)';
 const OWN = 'Rainbow (own key)';

@@ -12,7 +12,7 @@ var AIR_QUALITY_BASE = 'https://air-quality-api.open-meteo.com/v1/air-quality';
 var WAQI_BASE = 'https://api.waqi.info';
 var hourlyWindow = require('../domain/hourly-window.js');
 var dayPeaks = require('../domain/day-peaks.js');
-var storageKeys = require('../../settings/adapter/storage-keys.js');
+var storageKeys = require('../../settings/domain/storage-keys.js');
 var alignHourly = hourlyWindow.alignHourly;
 
 var LAST_AQI_KEY = storageKeys.LAST_AQI_KEY;

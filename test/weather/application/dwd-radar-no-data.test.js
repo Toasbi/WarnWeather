@@ -40,7 +40,7 @@ const createFetchCycle = require('../../../src/pkjs/shell/fetch-cycle.js');
 const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
 const authBackoff = require('../../../src/pkjs/weather/application/auth-backoff.js');
 const notices = require('../../../src/pkjs/notices/application/notices.js');
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 
 const MIN = 60 * 1000;
 const T0 = Date.UTC(2026, 9, 2, 10, 0, 20);

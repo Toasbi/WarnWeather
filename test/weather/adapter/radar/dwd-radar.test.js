@@ -9,7 +9,7 @@ global.localStorage = {
   setItem: (k, v) => { store[k] = String(v); },
   removeItem: (k) => { delete store[k]; }
 };
-const KEYS = require('../../../../src/pkjs/settings/adapter/storage-keys.js');
+const KEYS = require('../../../../src/pkjs/settings/domain/storage-keys.js');
 
 // dwd-radar.js reaches the network through radar-fetch.js, which resolves
 // WeatherProvider.request at call time — stubbing it on the provider module

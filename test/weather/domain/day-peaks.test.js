@@ -15,7 +15,7 @@ global.localStorage = {
   removeItem: (k) => { delete store[k]; }
 };
 
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 const record = require('../../../src/pkjs/weather/domain/day-peaks.js');
 const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
 const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
