@@ -1,10 +1,10 @@
-# Developer Reference
+# Developer reference
 
-Quick-reference for commands, scripts, and config. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and walkthrough prose.
+This is the quick reference for ForecasWetter's commands, scripts and config. Setup and walkthrough prose is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Prerequisites
 
-Install all toolchain (Python, pebble-tool and the uv it builds the SDK with, Deno, Supabase CLI, resvg):
+Install the toolchain (Python, pebble-tool and the uv it builds the SDK with, Deno, Supabase CLI, resvg):
 ```bash
 mise install
 ```
@@ -14,12 +14,12 @@ Install JS dependencies:
 npm install
 ```
 
-Create local env file (then fill in values):
+Create the local env file, then fill in the values:
 ```bash
 cp .env.example .env
 ```
 
-## mise Tasks
+## mise tasks
 
 Build `.pbw` (dev profile):
 ```bash
@@ -42,16 +42,15 @@ Build the weather plugins' pbws (plugin-only, no Pebble SDK needed; see
 mise build-plugins
 ```
 
-- `mise test-c` — host-compiled C tests (layout golden rects). Also runs inside
-  `mise test`. `mise test-c -- dump` prints the actual rects for deliberate
-  golden updates.
+`mise test-c` runs the host-compiled C tests (layout golden rects); `mise test` runs
+them too. `mise test-c -- dump` prints the actual rects for deliberate golden updates.
 
-Regenerate `package.json` from template + profile:
+Regenerate `package.json` from the template and profile:
 ```bash
 mise prepare-package
 ```
 
-Build and install on physical Pebble (reads `IP` from `.env`):
+Build and install on a physical Pebble (reads `IP` from `.env`):
 ```bash
 mise install-phone
 ```
@@ -61,7 +60,7 @@ Build and install via CloudPebble:
 mise install-cloud
 ```
 
-Build and install on emulator (default: basalt):
+Build and install on the emulator (default: basalt):
 ```bash
 mise install-emulator
 ```
@@ -77,22 +76,22 @@ Render a static preview of the config (settings) page to `build/` without an emu
 mise preview-config
 ```
 
-Stop running emulator and phone simulator:
+Stop the running emulator and phone simulator:
 ```bash
 mise kill-emulator
 ```
 
-Take a screenshot from emulator (default: basalt):
+Take a screenshot from the emulator (default: basalt):
 ```bash
 mise screenshot-emulator
 ```
 
-Take a screenshot from phone (reads `IP` from `.env`):
+Take a screenshot from the phone (reads `IP` from `.env`):
 ```bash
 mise screenshot-phone
 ```
 
-Capture screenshots for all platforms (replace `v1.4.1` with version):
+Capture screenshots for all platforms (replace `v1.4.1` with the version):
 ```bash
 mise capture-screenshots v1.4.1
 ```
@@ -122,30 +121,31 @@ Composite a single screenshot PNG into an SVG Pebble frame:
 mise composite-screenshot
 ```
 
-Regenerate `resources/banner-*.png` (README/store banners) from a showcase scene
-and a phone settings-UI screenshot — rebuilds the gradient background, tagline, and
-phone/watch mockups (needs Pillow: `pip install pillow`):
+Regenerate `resources/banner-*.png` (README and store banners) from a showcase scene
+and a phone settings-UI screenshot. It rebuilds the gradient background, the tagline and
+the phone and watch mockups (needs Pillow: `pip install pillow`):
 ```bash
 mise gen-banner v1.6.2 3 "resources/app screenshot.jpeg"
 ```
 
-Serve `telemetry-ingest` edge function locally:
+Serve the `telemetry-ingest` edge function locally:
 ```bash
 mise telemetry-serve
 ```
 
-Type-check each Edge Function's `index.ts` and run its Deno test suite (rainbow-nowcast + news +
-telemetry-ingest; separate runner from `mise test`; CI's gate before `supabase functions deploy`):
+Type-check each edge function's `index.ts` and run its Deno test suite (rainbow-nowcast, news and
+telemetry-ingest). This is a separate runner from `mise test`, and CI runs it before
+`supabase functions deploy`:
 ```bash
 mise test-deno
 ```
 
-Build and print aplite image footprint (text+data+bss; heap leading indicator):
+Build and print the aplite image footprint (text+data+bss, the leading indicator for heap):
 ```bash
 mise aplite-size
 ```
 
-Fail when the aplite image exceeds the launch-safety ceiling (~22.06 KB) — run
+Fail when the aplite image exceeds the launch-safety ceiling (~22.06 KB). Run it
 before shipping aplite changes:
 ```bash
 mise check-aplite-size
@@ -229,17 +229,16 @@ mise install-emulator --logs
 
 ### Config page (emulator)
 
-Open the running emulator app's live config (settings) page in your browser — drives
-the real PKJS-served page from the running emulator. Install the app on that platform
-first (e.g. `mise install-emulator aplite`), since the config URL comes from the running
-app.
+Open the live config (settings) page of the app running in the emulator in your browser.
+This is the real page PKJS serves. Install the app on that platform first (e.g.
+`mise install-emulator aplite`), since the config URL comes from the running app.
 
 Default (basalt):
 ```bash
 mise config-emulator
 ```
 
-Specific platform (positional, like `install-emulator`/`screenshot-emulator`):
+Specific platform (positional, as in `install-emulator` and `screenshot-emulator`):
 ```bash
 mise config-emulator aplite
 ```
@@ -249,15 +248,15 @@ Platform from env var:
 PEBBLE_EMULATOR=aplite mise config-emulator
 ```
 
-Unlike `mise preview-config`, which renders a *static* HTML snapshot of the config UI to
-`build/` without the emulator, this opens the live page the running app serves.
+`mise preview-config` (below) renders a static HTML snapshot of the config UI to `build/`
+without the emulator; `mise config-emulator` opens the live page the running app serves.
 
 ### Config UI preview (no emulator)
 
-Renders a *static* HTML snapshot of the config UI to `build/config-ui-preview.html` —
-real schema, blocks, and onBuild hooks injected — so you can eyeball/interact with the
-settings UI (tabs, toggles, color picker) in a desktop browser without the emulator. It
-reads source (`shell.html`/`blocks.js`) fresh each run. Args are `[out] [platform]`,
+`mise preview-config` renders a static HTML snapshot of the config UI to
+`build/config-ui-preview.html`, with the real schema, blocks and onBuild hooks injected.
+Open it in a desktop browser to look at and use the settings UI (tabs, toggles, color
+picker) without the emulator. It reads the source (`shell.html`, `blocks.js`) fresh each run. Args are `[out] [platform]`,
 parsed order-independently: a bare platform name picks the platform and keeps the
 default output path. Alias: `mise preview`.
 
@@ -278,7 +277,7 @@ mise preview-config -- preview.html aplite
 
 ### Kill emulator
 
-Stop running emulator and phone simulator:
+Stop the running emulator and phone simulator:
 ```bash
 mise kill-emulator
 ```
@@ -323,37 +322,37 @@ mise capture-screenshots v1.4.1 berlin
 #### Store screenshots
 
 Capture all five curated store configs on every platform and file them per platform
-under `screenshot/<version>/store/<platform>/<config>.png` (the appstore wants ≥1
+under `screenshot/<version>/store/<platform>/<config>.png` (the appstore wants at least one
 screenshot per supported platform):
 ```bash
 scripts/capture-store-shots.sh v1.4.1
 ```
 
-Resume from a given round if a run crashed mid-way (e.g. round 4):
+Resume from a given round if a run crashed partway (e.g. round 4):
 ```bash
 scripts/capture-store-shots.sh v1.4.1 4
 ```
 
-The five configs come from fixtures — `1-calendar` (`store-calendar`),
+The five configs come from fixtures: `1-calendar` (`store-calendar`),
 `2-radar-multicolor` (`berlin`), `3-wind-gust` (`windy`), `4-radar-white-wind`
-(`store-wind-radar`), `5-precip-uv` (`precip-uv`). Upload each platform's five raw
-frames to the store as-is.
+(`store-wind-radar`) and `5-precip-uv` (`precip-uv`). Upload each platform's five raw
+frames to the store as they are.
 
 Composite the README hero shots from the store captures into framed PNGs
-(`screenshot/v1.4.1/composite/`) — Pebble Time←flint/calendar,
-Pebble 2 Duo←flint/wind, Pebble Time 2←emery/radar:
+(`screenshot/v1.4.1/composite/`): Pebble Time from flint/calendar, Pebble 2 Duo from
+flint/wind and Pebble Time 2 from emery/radar:
 ```bash
 mise composite v1.4.1
 ```
 
 #### Showcase GIF (README hero)
 
-The README's animated hero is a **showcase GIF**: a handful of curated scenes (different
-layouts + functions) captured per platform and cross-faded into one looping GIF. Scenes
+The README's animated hero is the showcase GIF: a handful of curated scenes (different
+layouts and functions) captured per platform and cross-faded into one looping GIF. Scenes
 live in `scripts/gen-showcase-fixtures.js` (regenerated into `fixtures/showcase-N.json`
 on every capture) and are guarded by `test/showcase-fixtures.test.js`. Most are built on
 the Berlin base; a scene with `fixture` copies a fixture of its own (the Miami scenes).
-The table's ROW ORDER is the GIF and reel order — ids only name the frames
+The table's row order is the GIF and reel order. Ids only name the frames
 (`scene_<id>.png`), so moving a scene never renames its frame. A scene with `platforms`
 is captured, shown and put in the reel intro only there. A scene with `inShowcase: false` is
 captured with the rest but left out of the GIF and the reel intro (the Light-theme Miami
@@ -364,19 +363,19 @@ Health readings and the rain alert are read live on the watch and don't reproduc
 static compile-time fixture, so screenshot builds swap in two canned twins (wired in
 `wscript`, never shipped in a normal build):
 
-- `WW_HEALTH_FIXTURE=1` → `src/c/services/health_fixture.c` — canned steps / sleep / heart rate.
-  `WW_HEALTH_FIXTURE=low` swaps in the same twin with a quiet day's hourly steps (every hour
-  under 100), which puts the health graph on its lowest step scale (0.1k).
-- a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — the rain alert
+- `WW_HEALTH_FIXTURE=1` selects `src/c/services/health_fixture.c`: canned steps, sleep and
+  heart rate. `WW_HEALTH_FIXTURE=low` swaps in the same twin with a quiet day's hourly steps
+  (every hour under 100), which puts the health graph on its lowest step scale (0.1k).
+- A fixture `countdown` block selects `src/c/appendix/rain_countdown_fixture.c`: the rain alert
   on every side Rain is placed on (the Watch Status Bar's left side by default; the Rain
-  alert's Shows on grid, Alerts tab, puts it Left or Right on any bar):
-  `{ mins, raining, tier }`, where `tier` (1-5) picks the drops, their colour and the noun,
-  so `{ mins: 15, raining: false, tier: 3 }` prints "Rain in 15'" with the 'text' rain look
-  and `15'` with the 'minutes' one, and `{ mins: 20, raining: true, tier: 3 }`
-  "Rain for 20'" / `+20'` (tier 1-2 reads "Drizzle"; `mins: 100` is past the 99-minute cap).
-  Like the real alert it shows nothing while the fixture's settings place Rain on no side
-  (or switch the radar off) or the radar is snoozed. The minutes are canned, though: a
-  time window shorter than them does not hide the alert.
+  alert's Shows on grid, Alerts tab, puts it Left or Right on any bar). The block is
+  `{ mins, raining, tier }`, where `tier` (1-5) picks the drops, their colour and the noun.
+  `{ mins: 15, raining: false, tier: 3 }` prints "Rain in 15'" with the 'text' rain look
+  and `15'` with the 'minutes' one; `{ mins: 20, raining: true, tier: 3 }` prints
+  "Rain for 20'" or `+20'`. Tier 1-2 reads "Drizzle", and `mins: 100` is past the 99-minute cap.
+  Like the real alert, it shows nothing while the fixture's settings place Rain on no side
+  (or switch the radar off) or the radar is snoozed. The minutes are canned, so a time
+  window shorter than them does not hide the alert.
 
 Capture the default platforms (aplite, basalt, flint, emery), or a subset via `PLATFORMS`,
 and only some scenes via `SCENE_IDS` (the other frames stay as they are):
@@ -385,19 +384,19 @@ scripts/capture-showcase.sh <version>                    # aplite basalt flint e
 PLATFORMS=basalt scripts/capture-showcase.sh <version>   # one platform
 SCENE_IDS="10 11 12" scripts/capture-showcase.sh <version>   # just those scenes
 ```
-It's a thin wrapper over `capture-screenshots.sh` (same pattern as `capture-store-shots.sh`):
-per scene it exports `WW_HEALTH_FIXTURE=1` + `FLICKS=<scene flicks>`, shoots the platforms,
-and files each frame to `screenshot/<version>/showcase/frames/<platform>/scene_N.png`. A
-fresh build runs per scene, so after changing watch C code just re-run — use `mise clean`
-first if a stale waf cache would skip the recompile.
+It is a thin wrapper over `capture-screenshots.sh`, like `capture-store-shots.sh`. Per scene
+it exports `WW_HEALTH_FIXTURE=1` and `FLICKS=<scene flicks>`, shoots the platforms and files
+each frame to `screenshot/<version>/showcase/frames/<platform>/scene_N.png`. A fresh build
+runs per scene, so after changing watch C code just run it again; run `mise clean` first if a
+stale waf cache would skip the recompile.
 
 Scenes that need per-platform slots declare a `variants` map in `gen-showcase-fixtures.js`
-(mirroring `gen-reel-fixtures.js`): each entry writes a **platform variant** fixture
-(`showcase-N-<platform>.json`) layering its overrides on the scene clay, and the wrapper
-shoots that platform from it while the rest share the base fixture. Used for emery — the
-only HR platform in the set, which would otherwise bake the base health-right default
-(walked distance) instead of the heart rate a real Pebble Time 2 renders — and for aplite,
-which has no health slots at all and falls back to weather/date slots.
+(as `gen-reel-fixtures.js` does). Each entry writes a platform variant fixture
+(`showcase-N-<platform>.json`) that layers its overrides on the scene clay, and the wrapper
+shoots that platform from it while the rest share the base fixture. Emery uses this because
+it is the only HR platform in the set and would otherwise bake the base health-right default
+(walked distance) instead of the heart rate a real Pebble Time 2 renders. Aplite uses it
+because it has no health slots and falls back to weather and date slots.
 
 Assemble one platform's frames into the looping, cross-faded GIF
 (`screenshot/<version>/showcase/<platform>-showcase.gif`):
@@ -414,17 +413,17 @@ scenes (1, 2, 4, 6) with no flags. `EXCLUDE_SCENES` still drops further ids by h
 
 #### Promo reel (Pebble-store asset)
 
-A separate, self-contained per-platform **reel** for manual app-store upload — the intro
-showcase scenes followed by three captioned chapters (Themes, Graph, Status), each
-filtered to the platform's capabilities. It never touches the README hero.
+The reel is a separate, self-contained per-platform GIF for manual app-store upload: the
+intro showcase scenes, then three captioned chapters (Themes, Graph, Status), each filtered
+to the platform's capabilities. It never touches the README hero.
 
-- Chapters + text-card copy + the capability matrix live in `scripts/gen-reel-fixtures.js`
-  (guarded by `test/reel-fixtures.test.js`); text cards are rendered by
-  `scripts/gen-text-cards.py` (Pillow).
+- The chapters, the text-card copy and the capability matrix live in
+  `scripts/gen-reel-fixtures.js` (guarded by `test/reel-fixtures.test.js`).
+  `scripts/gen-text-cards.py` (Pillow) renders the text cards.
 - Intro frames are reused from the hero capture, so run `capture-showcase.sh <version>`
   first. The intro scene set and order come from the showcase table in
-  `gen-showcase-fixtures.js` (scenes flagged `reelIntro: false` are skipped) — reorder
-  the showcase and the reel intro follows automatically.
+  `gen-showcase-fixtures.js` (scenes flagged `reelIntro: false` are skipped), so reordering
+  the showcase reorders the reel intro.
 
 ```bash
 scripts/capture-showcase.sh <version>   # once, for the intro frames
@@ -432,9 +431,9 @@ scripts/capture-reel.sh <version>        # captures chapters + assembles per-pla
 ```
 
 Output: `screenshot/<version>/promo/<platform>-reel.gif`. Per-platform differences are
-automatic: aplite has no themes chapter and no radar/health frames; flint shows 2 themes
-(dark/light) and no HR; emery shows 4 themes and heart rate. Reels are left on disk (not
-committed) for manual upload. Re-assemble a single reel without recapturing with
+automatic: aplite has no themes chapter and no radar or health frames, flint shows 2 themes
+(dark and light) and no HR, and emery shows 4 themes and heart rate. Reels stay on disk
+(not committed) for manual upload. Re-assemble a single reel without recapturing with
 `scripts/assemble-reel.sh <version> <platform> [fps]`.
 
 ### Pixel icons
@@ -451,7 +450,7 @@ The whole process, the sizes and the file formats: `scripts/pixel-icons/README.m
 
 ### Package generation
 
-`package.json` is generated from `package.template.json` + profile in `profiles/`.
+`package.json` is generated from `package.template.json` and a profile in `profiles/`.
 
 Dev profile (default):
 ```bash
@@ -463,43 +462,43 @@ Release profile:
 mise prepare-package release
 ```
 
-## Environment Variables (`.env`)
+## Environment variables (`.env`)
 
 | Variable | Description |
 |----------|-------------|
-| `IP` | Pebble phone IP address for install/screenshot |
+| `IP` | Pebble phone IP address for install and screenshots |
 | `FIXTURE` | Fixture name to load (e.g. `berlin`). Fixture files: `fixtures/<name>.json` |
 | `ENABLE_MEMORY_LOGGING` | Set to `1` to enable heap debug logs in the build |
 | `PEBBLE_EMULATOR` | Default emulator platform (e.g. `basalt`) |
 | `TELEMETRY_ENDPOINT` | Telemetry function URL (set for release/CI builds) |
 | `TELEMETRY_HASH_SECRET` | Secret for server-side HMAC hashing of IDs |
-| `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle (set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — Rainbow is the default radar provider, and an empty endpoint doesn't hide the option, it makes every Rainbow radar fetch fail soft with no radar reaching the watch; dev/fork builds may leave it empty on purpose); also reaches the settings page (userData `rainbowEndpoint`) for the Rainbow API key's Test button (Graphs tab › Rain radar, *Rainbow (own key)*'s key dialog) — empty = the button says the test isn't available |
-| `NEWS_ENDPOINT` | News edge-function URL baked into the bundle (set for release/CI builds via the `NEWS_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — the config-page news pill would otherwise be silently disabled for every user) |
-| `AQICN_TOKEN` | Shared WAQI (aqicn.org) token baked into the bundle (set for release/CI builds via the `AQICN_TOKEN_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — WAQI is the default AQI source, so every device would otherwise silently fall back to Open-Meteo) |
+| `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle. Set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets. A release build hard-fails if it is empty: Rainbow is the default radar provider, and an empty endpoint still shows the option but makes every Rainbow radar fetch fail soft, so no radar reaches the watch. Dev and fork builds may leave it empty on purpose. It also reaches the settings page (userData `rainbowEndpoint`) for the Rainbow API key's Test button (Graphs tab › Rain radar, the key dialog of *Rainbow (own key)*); when it is empty, the button says the test isn't available |
+| `NEWS_ENDPOINT` | News edge-function URL baked into the bundle. Set for release/CI builds via the `NEWS_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets. A release build hard-fails if it is empty, since the config page's news pill would otherwise be silently disabled for every user |
+| `AQICN_TOKEN` | Shared WAQI (aqicn.org) token baked into the bundle. Set for release/CI builds via the `AQICN_TOKEN_RELEASE`/`_PREVIEW` repo secrets. A release build hard-fails if it is empty: WAQI is the default AQI source, so every device would otherwise silently fall back to Open-Meteo |
 
 ## Fixtures
 
-Deterministic UI state for emulator builds. Set `FIXTURE=<name>` in `.env`.
+A fixture is a deterministic UI state for emulator builds. Set `FIXTURE=<name>` in `.env`.
 
 Fields supported in `fixtures/<name>.json`:
-- `watch.now` — date/time for C-rendered time/date UI
+- `watch.now`: date and time for the C-rendered time and date UI
 - `watch.battery.percent` / `watch.battery.charging`
-- `watchSettings.timeFormat` — `"12h"` or `"24h"`
-- `claySettings` — Clay settings by `messageKey` (colors use Pebble SDK constants like `"GColorFolly"` — see the [Rebble color definitions](https://developer.rebble.io/docs/c/Graphics/Graphics_Types/Color_Definitions/))
-- `weather.city`, `weather.currentTemp` — status-row city label and current temperature (°F)
-- `weather.startHour` — local hour (0–23) of the first forecast entry; fixture prep converts it to a runtime epoch
-- `weather.startDayOffset` — optional day offset added to `watch.now.day` for the forecast start (default 0; pairs with `startHour`)
-- `weather.temps` — hourly Fahrenheit forecast array. Its length (and the other hourly arrays') is the feed's: a watch is sent at most the hours its stored time span sends (`src/pkjs/forecast-span.js` `hours()`: 14 / 24 (26 with no left axis) / 68 on emery, 24 everywhere else). `forecast-long` is a full 68-hour feed for emery's long span; `forecast-48h` a 48-hour one (OpenWeatherMap's; Weather Underground's is 49, the hour in progress and its 48), drawn at a wider, fractional pitch that fills the plot (`src/c/appendix/forecast_span.h`)
-- `weather.precipPct` — hourly precipitation-probability array (0–100)
-- `weather.cloudPct` — optional hourly cloud-cover array (0–100); feeds the cloud-cover metric (omitted → that line stays off)
-- `weather.rainMm` — hourly rain-amount array (mm); drives the optional rain bars
-- `weather.windKmh` / `weather.gustKmh` — hourly wind / gust speed arrays (km/h); a non-zero gust array turns the gust line on
-- `weather.rainRadarExactMm` / `weather.rainRadarAreaMm` — radar rain per 5-minute frame (mm/h): rain at the exact location, and the strongest rain within 2 km. Supply both or radar is skipped
-- `weather.sky` — optional radar sky rows: `{ cloudPct, sunPct, lightning }`, one entry per 15-minute slot from the quarter hour holding the radar start (percent of what each row draws: cloud cover and sun strength against a clear sky, each shaded on its row's own scale in `src/pkjs/stripe-levels.js`: under 10 % draws nothing, 10–29 / 30–59 / 60–89 % the three lighter steps, 90 % and up full colour; lightning 0/1); sent as `RADAR_SKY_UINT8` with the radar
-- `weather.radarStartEpoch` — optional Unix-seconds anchor for the radar window (defaults to the forecast start; the time-lapse uses it to scroll radar independently of the forecast)
-- `weather.sunEvents` — next two sun events, authored as local fields `{ type, dayOffset, hour, minute }` and normalized to `{ type, epoch }`
+- `watchSettings.timeFormat`: `"12h"` or `"24h"`
+- `claySettings`: Clay settings by `messageKey` (colors use Pebble SDK constants like `"GColorFolly"`; see the [Rebble color definitions](https://developer.rebble.io/docs/c/Graphics/Graphics_Types/Color_Definitions/))
+- `weather.city`, `weather.currentTemp`: status-row city label and current temperature (°F)
+- `weather.startHour`: local hour (0 to 23) of the first forecast entry; fixture prep converts it to a runtime epoch
+- `weather.startDayOffset`: optional day offset added to `watch.now.day` for the forecast start (default 0; pairs with `startHour`)
+- `weather.temps`: hourly Fahrenheit forecast array. Its length (and the other hourly arrays') is the feed's: a watch is sent at most the hours its stored time span sends (`src/pkjs/forecast-span.js` `hours()`: 14, 24 (26 with no left axis) or 68 on emery, 24 everywhere else). `forecast-long` is a full 68-hour feed for emery's long span. `forecast-48h` is a 48-hour one (OpenWeatherMap's; Weather Underground's is 49, the hour in progress and its 48), drawn at a wider, fractional pitch that fills the plot (`src/c/appendix/forecast_span.h`)
+- `weather.precipPct`: hourly precipitation-probability array (0 to 100)
+- `weather.cloudPct`: optional hourly cloud-cover array (0 to 100) for the cloud-cover metric; without it that line stays off
+- `weather.rainMm`: hourly rain-amount array (mm) for the optional rain bars
+- `weather.windKmh` / `weather.gustKmh`: hourly wind and gust speed arrays (km/h); a non-zero gust array turns the gust line on
+- `weather.rainRadarExactMm` / `weather.rainRadarAreaMm`: radar rain per 5-minute frame (mm/h): rain at the exact location, and the strongest rain within 2 km. Supply both or radar is skipped
+- `weather.sky`: optional radar sky rows, `{ cloudPct, sunPct, lightning }`, one entry per 15-minute slot from the quarter hour holding the radar start. The percentages are cloud cover and sun strength against a clear sky, each shaded on its row's own scale in `src/pkjs/stripe-levels.js`: under 10 % draws nothing, 10 to 29, 30 to 59 and 60 to 89 % draw the three lighter steps, and 90 % and up draws full colour. Lightning is 0 or 1. Sent as `RADAR_SKY_UINT8` with the radar
+- `weather.radarStartEpoch`: optional Unix-seconds anchor for the radar window (defaults to the forecast start; the time-lapse uses it to scroll radar independently of the forecast)
+- `weather.sunEvents`: next two sun events, authored as local fields `{ type, dayOffset, hour, minute }` and normalized to `{ type, epoch }`
 
-## Debug Flags (`src/pkjs/dev-config.js`)
+## Debug flags (`src/pkjs/dev-config.js`)
 
 | Key | Type | Effect |
 |-----|------|--------|
@@ -511,83 +510,80 @@ Fields supported in `fixtures/<name>.json`:
 | `resetV140HolidayRegionKeyMigration` | `true/false` | Clears the v1.4.0 holiday-region-key migration marker so it re-runs on next boot |
 | `resetUpdateNotifiedVersion` | `true/false` | Clears the update-notification "already notified" version marker and the last-check timestamp, so the daily update check re-runs on next boot |
 
-These are local-only; not committed or written to Clay settings.
+These flags are local only: they are not committed or written to Clay settings.
 
 ## Logging
 
-**C:**
+C:
 ```c
 APP_LOG(APP_LOG_LEVEL_DEBUG, "msg %d", value);
 MEMORY_LOG_HEAP("tag");
 ```
 
-**JS:**
+JS:
 ```js
 console.log("msg");
 ```
 
-## Supabase (telemetry & rainbow proxy)
+## Supabase (telemetry and Rainbow proxy)
 
-Start local Supabase stack:
+Start the local Supabase stack:
 ```bash
 supabase start
 ```
 
-Serve telemetry edge function locally:
+Serve the telemetry edge function locally:
 ```bash
 mise telemetry-serve
 ```
 
-Stop local Supabase stack:
+Stop the local Supabase stack:
 ```bash
 supabase stop
 ```
 
-Local Studio: http://127.0.0.1:54323 — inspect `public.telemetry_weather_fetch`
+Local Studio is at http://127.0.0.1:54323; inspect `public.telemetry_weather_fetch` there.
 
 ### Migrations
 
-Never write `migrations/` files manually — edit `schemas/` and generate:
-
-Generate migration from schema changes:
+Never write `migrations/` files by hand. Edit `schemas/` and generate a migration from the changes:
 ```bash
 supabase db diff -f <label>
 ```
 
 ### Deploy (hosted)
 
-`.github/workflows/supabase-deploy.yml` already automates this on every push to `main`
-that touches `supabase/**`: it runs `supabase db push --yes` and a bare
-`supabase functions deploy` (which, given no function name, deploys *all* edge
-functions — telemetry-ingest, rainbow-nowcast, and news). The commands below are for
-manual/local deploys.
+`.github/workflows/supabase-deploy.yml` deploys on every push to `main` that touches
+`supabase/**`: it runs `supabase db push --yes` and a bare `supabase functions deploy`,
+which with no function name deploys all edge functions (telemetry-ingest, rainbow-nowcast
+and news). The commands below are for manual or local deploys.
 
 Authenticate with Supabase:
 ```bash
 supabase login
 ```
 
-Link repo to hosted project:
+Link the repo to the hosted project:
 ```bash
 supabase link --project-ref <project-ref>
 ```
 
-Set function secret:
+Set a function secret:
 ```bash
 supabase secrets set TELEMETRY_HASH_SECRET=<value>
 ```
 
-Dry-run database migration:
+Dry-run the database migration:
 ```bash
 supabase db push --dry-run
 ```
 
-Apply database migration:
+Apply the database migration:
 ```bash
 supabase db push
 ```
 
-Deploy telemetry edge function:
+Deploy the telemetry edge function:
 ```bash
 supabase functions deploy telemetry-ingest
 ```
@@ -629,8 +625,9 @@ Deploy the rainbow-nowcast edge function:
 supabase functions deploy rainbow-nowcast
 ```
 
-Key-check mode (the settings page's *Test* button beside the Rainbow API key, in the key
-dialog of *Rainbow (own key)* (Graphs tab › Rain radar); on the endpoint's `/key-check` path): a POST of `{"key":"..."}` as `text/plain` makes one Rainbow call with that key at a fixed,
+Key-check mode is on the endpoint's `/key-check` path. It backs the settings page's *Test*
+button beside the Rainbow API key, in the key dialog of *Rainbow (own key)* (Graphs tab › Rain
+radar). A POST of `{"key":"..."}` as `text/plain` makes one Rainbow call with that key at a fixed,
 always-covered point (Berlin) and answers HTTP 200 `{"status": <Rainbow status>}`. Any other
 HTTP status is the proxy's own error, never a key verdict: 400 (missing key, or not shaped like
 a Rainbow key), 413 (body over 1 KB), 429 (more than 5 checks per IP per minute) and 504
@@ -676,15 +673,15 @@ Re-install toolchain after bump:
 mise install
 ```
 
-## Key Files
+## Key files
 
 | Path | Purpose |
 |------|---------|
-| `mise.toml` | Tool versions + task definitions |
+| `mise.toml` | Tool versions and task definitions |
 | `package.template.json` | Pebble config template |
 | `profiles/` | Dev and release profile overrides |
 | `fixtures/` | Deterministic emulator state files |
-| `scripts/` | Shell + JS helper scripts |
+| `scripts/` | Shell and JS helper scripts |
 | `src/pkjs/dev-config.js` | Local-only dev behavior switches |
 | `release-notifications.json` | "What's new" toast copy keyed by version |
 | `supabase/schemas/` | Declarative DB schemas (source of truth) |
