@@ -46,8 +46,8 @@ RAIN_ALERT = 'Also the rain alert’s icon.'
 ICONS = [
     ('SUN', 'Sun', WEATHER, 'STATUS_COND_SUN', 100, (50, 50), 'SUN', 'sun', 'sun', ''),
     ('MOON', 'Clear night', WEATHER, 'STATUS_COND_MOON', 100, (50, 50), 'CLR', 'moon', 'moon', ''),
-    ('SUN_CLOUD', 'Partly cloudy', WEATHER, 'STATUS_COND_SUN_CLOUD', 100, (50, 50), 'PCLD', 'cloud-sun', None, ''),
-    ('MOON_CLOUD', 'Partly cloudy, night', WEATHER, 'STATUS_COND_MOON_CLOUD', 100, (50, 50), 'PCLD',
+    ('SUN_CLOUD', 'Partly cloudy', WEATHER, 'STATUS_COND_SUN_CLOUD', 100, (50, 50), 'PCLDY', 'cloud-sun', None, ''),
+    ('MOON_CLOUD', 'Partly cloudy, night', WEATHER, 'STATUS_COND_MOON_CLOUD', 100, (50, 50), 'PCLDY',
      'cloud-moon', None, ''),
     ('CLOUD', 'Cloudy', WEATHER, 'STATUS_COND_CLOUD', 100, (50, 50), 'CLDY', 'cloud', 'cloud', ''),
     ('FOG', 'Fog', WEATHER, 'STATUS_COND_FOG', 100, (50, 50), 'FOG', 'cloud-fog', 'cloud-fog', ''),

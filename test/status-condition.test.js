@@ -94,8 +94,8 @@ test('a polar pair reads the other way round: polar night has the moon, polar da
 
 test('a name too long for an edge slot arrives there as its short form', () => {
   const [left, mid] = bake('partly');
-  assert.equal(mid.text, 'Partly cloudy' + SEP + 'PCLD');
-  assert.equal(left.text, 'PCLD');
+  assert.equal(mid.text, 'Partly cloudy' + SEP + 'PCLDY');
+  assert.equal(left.text, 'PCLDY');
   assert.equal(left.icon, catalog.ICONS.COND_SUN_CLOUD);
   assert.equal(bake('thunder')[0].text, 'TSTM');
   assert.equal(bake('freezing')[1].text, 'Freezing rain' + SEP + 'FZRA');
@@ -112,7 +112,7 @@ test('a short form no shorter than the name rides with nothing', () => {
 test('Look: Text bakes the text-only id, Icon the glyph with no text', () => {
   const text = bake('partly', { conditionSlotLook: 'text' });
   text.forEach((s) => assert.equal(s.icon, catalog.ICONS.COND_TEXT));
-  assert.equal(text[1].text, 'Partly cloudy' + SEP + 'PCLD');
+  assert.equal(text[1].text, 'Partly cloudy' + SEP + 'PCLDY');
   const icon = bake('partly', { conditionSlotLook: 'icon' });
   icon.forEach((s) => {
     assert.equal(s.icon, catalog.ICONS.COND_SUN_CLOUD);
@@ -125,11 +125,11 @@ test('Name: Auto swaps in the short form, Full never sends one, Short sends it a
   const auto = bake('partly');
   const full = bake('partly', { conditionSlotName: 'full' });
   const short = bake('partly', { conditionSlotName: 'short' });
-  assert.equal(auto[1].text, 'Partly cloudy' + SEP + 'PCLD', 'Auto (the default): name and short form');
+  assert.equal(auto[1].text, 'Partly cloudy' + SEP + 'PCLDY', 'Auto (the default): name and short form');
   assert.equal(full[1].text, 'Partly cloudy', 'Full: the name with nothing to swap in');
-  assert.equal(full[0].text, 'PCLD', 'Full: a name too long for an edge slot still arrives short');
+  assert.equal(full[0].text, 'PCLDY', 'Full: a name too long for an edge slot still arrives short');
   assert.equal(bake('cloudy', { conditionSlotName: 'full' })[0].text, 'Cloudy', 'Full: a name that fits stays whole');
-  short.forEach((slot) => assert.equal(slot.text, 'PCLD', 'Short: every slot'));
+  short.forEach((slot) => assert.equal(slot.text, 'PCLDY', 'Short: every slot'));
   assert.equal(bake('cloudy', { conditionSlotName: 'short' })[0].text, 'CLDY', 'Short: even where the name fits');
   assert.equal(bake('partly', { conditionSlotName: 'junk' })[1].text, auto[1].text, 'junk reads as Auto');
   // The name follows the Look: the Icon look prints no name at all.
@@ -151,8 +151,8 @@ test('no condition known: -- with the text-only id, in every look', () => {
 
 test('aplite: text only, with no short form riding along (its lean row reads none)', () => {
   const [left, mid] = bake('partly', { conditionSlotLook: 'icon' }, APLITE);
-  assert.deepEqual(mid, { kind: catalog.KINDS.TEXT, icon: catalog.ICONS.COND_TEXT, text: 'PCLD' });
-  assert.equal(left.text, 'PCLD');
+  assert.deepEqual(mid, { kind: catalog.KINDS.TEXT, icon: catalog.ICONS.COND_TEXT, text: 'PCLDY' });
+  assert.equal(left.text, 'PCLDY');
   assert.equal(bake('clear', {}, APLITE)[1].text, 'Sunny');
   assert.equal(bake('drizzle', {}, APLITE)[1].text, 'Drizzle');
 });

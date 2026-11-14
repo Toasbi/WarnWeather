@@ -303,6 +303,21 @@ test('a size picked in another version: that version on the colour watches, the 
     version: 'svg' } } } } }), /no svg version/);
 });
 
+// The settings page's list of conditions (the condition slot's dialog, blocks.js conditionList)
+// draws each condition's icon from the watch's own drawings (condition-pixels.generated.js).
+test('the settings page has every weather condition glyph\'s drawing, at 13 px', () => {
+  const pixels = require('../src/pkjs/settings/condition-pixels.generated.js');
+  const condition = require('../src/pkjs/weather/condition.js');
+  const glyphs = new Set();
+  Object.values(condition.CONDITIONS).forEach((c) => c.glyph.forEach((g) => glyphs.add(g.replace(/^COND_/, ''))));
+  assert.ok(glyphs.size >= 14, 'premise: every condition glyph');
+  glyphs.forEach((key) => {
+    const p = pixels[key];
+    assert.ok(p && p.rows.length >= 1 && p.rows.length <= 13, key + ': its 13 px drawing');
+    assert.ok(p.rows.some((r) => r & 1) && p.rows.every((r) => r < (1 << p.w)), key + ': the ink alone, inside its width');
+  });
+});
+
 // A size picked svg in the icon picker keeps the lines its icon's SVG (resources/icon-svg/<KEY>.svg)
 // makes at that size (import_pixels.py, svg-icon.js): the SVG and the lines the watch draws agree.
 test('every size picked svg holds the lines its icon\'s SVG makes at that size', () => {

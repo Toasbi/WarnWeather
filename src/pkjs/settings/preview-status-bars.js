@@ -57,7 +57,7 @@
         feelsF: 60.8,
         dewF: 48.2,
         // A partly cloudy afternoon (weather/condition.js names('partly')).
-        condition: {full: 'Partly cloudy', short: 'PCLD'},
+        condition: {full: 'Partly cloudy', short: 'PCLDY'},
         uv: [3, 7],
         aqi: [42, 58],
         wind: {kph: [12, 30], mph: [7, 19], knots: [6, 16]},

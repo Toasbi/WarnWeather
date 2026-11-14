@@ -348,10 +348,10 @@ static void iso_week_tests(void) {
 }
 
 // The weather condition slot: a SLOT_TEXT value may carry its short form after
-// STATUS_TEXT_ALT_SEP ("Partly cloudy" SEP "PCLD"), which the line validates as plain
+// STATUS_TEXT_ALT_SEP ("Partly cloudy" SEP "PCLDY"), which the line validates as plain
 // text, and status_text_full_len() splits off.
 static void alt_tests(void) {
-    const char both[] = "Partly cloudy\x1fPCLD";
+    const char both[] = "Partly cloudy\x1fPCLDY";
     expect("alt.split", (int)status_text_full_len(both, strlen(both)), 13);
     expect("alt.none", (int)status_text_full_len("Cloudy", 6), 6);
     expect("alt.empty", (int)status_text_full_len("", 0), 0);

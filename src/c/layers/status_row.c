@@ -307,7 +307,7 @@ static void copy_text(char *buf, size_t cap, const char *src, size_t n) {
 
 // Materialise one slot's display text, and report the wind-direction sector
 // (0..15, -1 = none) the phone baked into its trailing byte. A short form the phone
-// baked after STATUS_TEXT_ALT_SEP (the weather condition's "PCLD") goes into `alt`,
+// baked after STATUS_TEXT_ALT_SEP (the weather condition's "PCLDY") goes into `alt`,
 // which is otherwise left empty.
 //
 // This is the ONE place a slot's text is materialised, which is exactly why the
@@ -755,7 +755,7 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
 }
 
 // A slot that brought its own short form (the weather condition: "Partly cloudy" with
-// "PCLD") draws that form wherever the plain row would cut or hide the full one. Judged
+// "PCLDY") draws that form wherever the plain row would cut or hide the full one. Judged
 // on the plain layout, before On demand makes room, so the ladder starts from the form
 // the slot draws; a slot that swaps has no short member left (`alt` is spent). Only
 // the middle slot has the bytes for both forms, so a row lays itself out once here at

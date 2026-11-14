@@ -8174,9 +8174,9 @@
                   "ne": "icon"
                 },
                 "hintByValue": {
-                  "auto": "Shows the full name, like Partly cloudy, and switches to PCLD where the slot is short of room.",
-                  "full": "Shows the full name, like Partly cloudy. A long name doesn't fit a side slot and shows as PCLD there.",
-                  "short": "Always shows the short name, like PCLD."
+                  "auto": "Shows the full name, like Partly cloudy, and switches to PCLDY where the slot is short of room.",
+                  "full": "Shows the full name, like Partly cloudy. A long name doesn't fit a side slot and shows as PCLDY there.",
+                  "short": "Always shows the short name, like PCLDY."
                 },
                 "defaultValue": "auto",
                 "options": [
@@ -8218,6 +8218,194 @@
                     "off",
                     "all"
                   ]
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "conditionList",
+                  "args": {
+                    "rows": [
+                      {
+                        "full": "Sunny",
+                        "short": "SUN",
+                        "icons": [
+                          "SUN"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Clear",
+                        "short": "CLR",
+                        "icons": [
+                          "MOON"
+                        ],
+                        "night": true
+                      },
+                      {
+                        "full": "Fair",
+                        "short": "FAIR",
+                        "icons": [
+                          "SUN_CLOUD",
+                          "MOON_CLOUD"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Partly cloudy",
+                        "short": "PCLDY",
+                        "icons": [
+                          "SUN_CLOUD",
+                          "MOON_CLOUD"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Mostly cloudy",
+                        "short": "MCLDY",
+                        "icons": [
+                          "CLOUD"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Cloudy",
+                        "short": "CLDY",
+                        "icons": [
+                          "CLOUD"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Fog",
+                        "short": "FOG",
+                        "icons": [
+                          "FOG"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Haze",
+                        "short": "HAZE",
+                        "icons": [
+                          "HAZE"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Drizzle",
+                        "short": "DRZL",
+                        "icons": [
+                          "DRIZZLE"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Light rain",
+                        "short": "RAIN",
+                        "icons": [
+                          "RAIN"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Rain",
+                        "short": "RAIN",
+                        "icons": [
+                          "RAIN"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Heavy rain",
+                        "short": "RAIN",
+                        "icons": [
+                          "RAIN"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Showers",
+                        "short": "SHWR",
+                        "icons": [
+                          "RAIN"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Freezing rain",
+                        "short": "FZRA",
+                        "icons": [
+                          "SLEET"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Sleet",
+                        "short": "SLT",
+                        "icons": [
+                          "SLEET"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Light snow",
+                        "short": "SNOW",
+                        "icons": [
+                          "SNOW"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Snow",
+                        "short": "SNOW",
+                        "icons": [
+                          "SNOW"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Heavy snow",
+                        "short": "SNOW",
+                        "icons": [
+                          "SNOW"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Snow showers",
+                        "short": "SNOW",
+                        "icons": [
+                          "SNOW"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Hail",
+                        "short": "HAIL",
+                        "icons": [
+                          "HAIL"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Thunderstorm",
+                        "short": "TSTM",
+                        "icons": [
+                          "THUNDER"
+                        ],
+                        "night": false
+                      },
+                      {
+                        "full": "Windy",
+                        "short": "WNDY",
+                        "icons": [
+                          "WIND"
+                        ],
+                        "night": false
+                      }
+                    ]
+                  }
                 }
               }
             ],

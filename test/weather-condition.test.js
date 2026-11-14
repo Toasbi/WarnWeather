@@ -9,8 +9,8 @@ const catalog = require('../src/pkjs/status-line-catalog.js');
 test('the list: full names and short forms as approved, RAIN and SNOW for every intensity', () => {
   const rows = Object.keys(C.CONDITIONS).map((id) => [id, C.names(id, false).full, C.names(id, false).short]);
   assert.deepEqual(rows, [
-    ['clear', 'Sunny', 'SUN'], ['fair', 'Fair', 'FAIR'], ['partly', 'Partly cloudy', 'PCLD'],
-    ['mostly', 'Mostly cloudy', 'MCLD'], ['cloudy', 'Cloudy', 'CLDY'], ['fog', 'Fog', 'FOG'],
+    ['clear', 'Sunny', 'SUN'], ['fair', 'Fair', 'FAIR'], ['partly', 'Partly cloudy', 'PCLDY'],
+    ['mostly', 'Mostly cloudy', 'MCLDY'], ['cloudy', 'Cloudy', 'CLDY'], ['fog', 'Fog', 'FOG'],
     ['haze', 'Haze', 'HAZE'], ['drizzle', 'Drizzle', 'DRZL'], ['lightrain', 'Light rain', 'RAIN'],
     ['rain', 'Rain', 'RAIN'], ['heavyrain', 'Heavy rain', 'RAIN'], ['showers', 'Showers', 'SHWR'],
     ['freezing', 'Freezing rain', 'FZRA'], ['sleet', 'Sleet', 'SLT'], ['lightsnow', 'Light snow', 'SNOW'],
@@ -22,12 +22,20 @@ test('the list: full names and short forms as approved, RAIN and SNOW for every 
   assert.equal(C.names('nope', false), null);
 });
 
+// The owner's, 2026-11-14: a name ending in -y keeps its Y in the short form (CLDY, WNDY, PCLDY).
+test('the cloudy kinds\' short forms end in Y', () => {
+  assert.deepEqual(['partly', 'mostly', 'cloudy', 'windy'].map((id) => C.names(id, false).short),
+    ['PCLDY', 'MCLDY', 'CLDY', 'WNDY']);
+});
+
 test('every name fits the middle slot with its short form, and every short form an edge slot', () => {
   Object.keys(C.CONDITIONS).forEach((id) => [false, true].forEach((night) => {
     const n = C.names(id, night);
     // The middle slot carries both: full, a separator byte, short (slot-text.js conditionText).
     assert.ok(Buffer.byteLength(n.full + catalog.ALT_SEP + n.short) <= catalog.CAPS.MID_TEXT_MAX, id + ' fits the middle slot');
-    assert.ok(n.short.length <= 4 && /^[A-Z]+$/.test(n.short), id + ': ' + n.short);
+    // At most five capitals (status_line.h STATUS_TEXT_ALT_MAX: PCLDY, MCLDY), which an edge
+    // slot's 8 bytes hold too.
+    assert.ok(n.short.length <= 5 && /^[A-Z]+$/.test(n.short), id + ': ' + n.short);
   }));
 });
 

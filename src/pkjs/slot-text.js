@@ -303,7 +303,7 @@
      * Auto: the full name with its short form after catalog.ALT_SEP where both fit (the middle
      * slot's 19 bytes always hold both), for the watch to swap in where the row would cut the
      * name; else the full name where it fits (an edge slot's 'Cloudy'), else the short form
-     * ('PCLD'). A short form no shorter than the name ('RAIN' for 'Rain') rides with nothing.
+     * ('PCLDY'). A short form no shorter than the name ('RAIN' for 'Rain') rides with nothing.
      * Full: the full name where it fits, with no short form to swap in, else the short form (an
      * edge slot's 8 bytes hold no 'Partly cloudy'). Short: the short form, every slot. aplite's
      * lean row reads no short form: it gets the name where it fits an edge slot's 8 bytes, else

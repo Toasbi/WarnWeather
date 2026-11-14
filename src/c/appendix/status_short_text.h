@@ -30,7 +30,7 @@
 // 2026-09-30).
 //
 // One slot brings its own: the weather condition's middle slot carries its short form
-// after STATUS_TEXT_ALT_SEP ("Partly cloudy" with "PCLD"; status_line.h), the one
+// after STATUS_TEXT_ALT_SEP ("Partly cloudy" with "PCLDY"; status_line.h), the one
 // variant the phone bakes, since no rule turns a name into its code (status_short_alt).
 // A condition slot that draws its glyph then gives up its text and keeps the glyph, its
 // last member before it hides: an edge slot, which brings no short form, has only that

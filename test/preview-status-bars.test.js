@@ -286,15 +286,15 @@ test('barCodes reads each bar\'s slots as barSlots does, without the sample text
 test('the condition slot: the bake\'s forms, split, and one place for the glyph', () => {
   const basalt = { platform: 'basalt' };
   const aplite = { platform: 'aplite' };
-  assert.equal(sample('condition', {}, { cap: MID, env: basalt }), 'Partly cloudy' + catalog.ALT_SEP + 'PCLD');
-  assert.equal(sample('condition', {}, { cap: EDGE, env: basalt }), 'PCLD');
+  assert.equal(sample('condition', {}, { cap: MID, env: basalt }), 'Partly cloudy' + catalog.ALT_SEP + 'PCLDY');
+  assert.equal(sample('condition', {}, { cap: EDGE, env: basalt }), 'PCLDY');
   assert.equal(sample('condition', { conditionSlotLook: 'icon' }, { cap: MID, env: basalt }), '');
-  assert.equal(sample('condition', { conditionSlotLook: 'icon' }, { cap: MID, env: aplite }), 'PCLD',
+  assert.equal(sample('condition', { conditionSlotLook: 'icon' }, { cap: MID, env: aplite }), 'PCLDY',
     'aplite prints the text whatever the Look');
   const S = { statusForecastLeft: 'condition', statusForecastMid: 'condition', statusForecastRight: 'empty' };
   const [left, mid] = preview.barSlots(S, basalt, 'forecast');
-  assert.deepEqual([mid.text, mid.alt], ['Partly cloudy', 'PCLD']);
-  assert.deepEqual([left.text, left.alt], ['PCLD', '']);
+  assert.deepEqual([mid.text, mid.alt], ['Partly cloudy', 'PCLDY']);
+  assert.deepEqual([left.text, left.alt], ['PCLDY', '']);
   assert.equal(preview.slotIcon('condition', basalt, { conditionSlotLook: 'text' }), null, 'the Text look: no glyph');
   assert.equal(preview.slotIcon('condition', aplite, {}), null, 'aplite draws none');
   // The city draws the current weather's icon before its name unless switched off.

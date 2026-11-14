@@ -10,8 +10,8 @@
 var CONDITIONS = {
     clear: { day: ['Sunny', 'SUN'], night: ['Clear', 'CLR'], glyph: ['COND_SUN', 'COND_MOON'] },
     fair: { day: ['Fair', 'FAIR'], glyph: ['COND_SUN_CLOUD', 'COND_MOON_CLOUD'] },
-    partly: { day: ['Partly cloudy', 'PCLD'], glyph: ['COND_SUN_CLOUD', 'COND_MOON_CLOUD'] },
-    mostly: { day: ['Mostly cloudy', 'MCLD'], glyph: ['COND_CLOUD'] },
+    partly: { day: ['Partly cloudy', 'PCLDY'], glyph: ['COND_SUN_CLOUD', 'COND_MOON_CLOUD'] },
+    mostly: { day: ['Mostly cloudy', 'MCLDY'], glyph: ['COND_CLOUD'] },
     cloudy: { day: ['Cloudy', 'CLDY'], glyph: ['COND_CLOUD'] },
     fog: { day: ['Fog', 'FOG'], glyph: ['COND_FOG'] },
     haze: { day: ['Haze', 'HAZE'], glyph: ['COND_HAZE'] },

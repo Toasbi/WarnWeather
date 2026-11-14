@@ -49,7 +49,7 @@ CALENDAR
 STATUS LINES
 - Configurable status slots on every view:
    - Weather:
-      - weather condition, as text and icon (Partly cloudy, or PCLD where space is short)
+      - weather condition, as text and icon (Partly cloudy, or PCLDY where space is short)
       - feels-like temperature
       - dew point
       - air quality (current, today's/tomorrow's peak)

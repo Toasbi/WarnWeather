@@ -90,7 +90,7 @@ typedef enum {
     // whose icon is the condition's glyph, picked per bake like the phone-battery pair.
     // COND_TEXT is its text-only look: no glyph may load, and like PRESSURE above the id
     // keeps it from arriving as TEXT + NONE. Its text may carry a short form after
-    // STATUS_TEXT_ALT_SEP ("Partly cloudy" SEP "PCLD").
+    // STATUS_TEXT_ALT_SEP ("Partly cloudy" SEP "PCLDY").
     STATUS_ICON_COND_TEXT = 19,
     STATUS_ICON_COND_SUN = 20,
     STATUS_ICON_COND_MOON = 21,
@@ -136,8 +136,8 @@ static inline uint8_t status_icon_glyph(uint8_t icon) {
 // (status_short_text.h). Only the middle slot has the bytes for both; an edge slot carries
 // one form. Never in a slot with a wind-direction sentinel (status_row_direction.h).
 #define STATUS_TEXT_ALT_SEP 0x1F
-// Room for the longest short form, four capitals (condition.js), and the slack the
-// separator's check leaves: a longer one is cut to this many bytes.
+// Room for the longest short form, five capitals (condition.js: PCLDY, MCLDY): a longer
+// one is cut to this many bytes.
 #define STATUS_TEXT_ALT_MAX 5
 
 // The full form's length in a SLOT_TEXT value of `len` bytes: the bytes before the

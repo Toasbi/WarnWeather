@@ -490,9 +490,9 @@ static void od_variants(void) {
 static void condition(void) {
     char out[STATUS_SHORT_CAP];
     no_family("condition text look", SLOT_TEXT, STATUS_ICON_COND_TEXT, "Partly cloudy");
-    no_family("condition text look short", SLOT_TEXT, STATUS_ICON_COND_TEXT, "PCLD");
+    no_family("condition text look short", SLOT_TEXT, STATUS_ICON_COND_TEXT, "PCLDY");
     for (uint8_t icon = STATUS_ICON_COND_SUN; icon <= STATUS_ICON_COND_WIND; icon++) {
-        const char *names[] = { "Partly cloudy", "PCLD", "--" };
+        const char *names[] = { "Partly cloudy", "PCLDY", "--" };
         for (int n = 0; n < 3; n++) {
             memset(out, 'x', sizeof(out));
             expect_true("condition glyph member", status_short_member(SLOT_TEXT, icon, names[n], false,
@@ -501,19 +501,19 @@ static void condition(void) {
             expect_true("condition one member", !status_short_member(SLOT_TEXT, icon, names[n], false,
                 false, 2, out, sizeof(out)));
         }
-        expect_true("alt then glyph", status_short_alt(SLOT_TEXT, icon, "PCLD", 2, out, sizeof(out))
+        expect_true("alt then glyph", status_short_alt(SLOT_TEXT, icon, "PCLDY", 2, out, sizeof(out))
             == SST_MEMBER);
         expect_str("alt then glyph alone", out, "");
-        expect_true("alt two members", !status_short_alt(SLOT_TEXT, icon, "PCLD", 3, out, sizeof(out)));
+        expect_true("alt two members", !status_short_alt(SLOT_TEXT, icon, "PCLDY", 3, out, sizeof(out)));
     }
-    expect_true("alt member", status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLD", 1, out,
+    expect_true("alt member", status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLDY", 1, out,
         sizeof(out)) == SST_MEMBER);
-    expect_str("alt member", out, "PCLD");
+    expect_str("alt member", out, "PCLDY");
     expect_true("alt text look one member",
-        !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_TEXT, "PCLD", 2, out, sizeof(out)));
-    expect_true("alt v0", !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLD", 0, out, sizeof(out)));
+        !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_TEXT, "PCLDY", 2, out, sizeof(out)));
+    expect_true("alt v0", !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLDY", 0, out, sizeof(out)));
     char tiny[4];
-    expect_true("alt cap", !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLD", 1, tiny, sizeof(tiny)));
+    expect_true("alt cap", !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLDY", 1, tiny, sizeof(tiny)));
     // A glyph that is no condition's keeps no glyph-alone member: the wind speed's flag.
     no_family("wind is no condition", SLOT_TEXT, STATUS_ICON_PRESSURE, "1013");
 }

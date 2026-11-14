@@ -590,13 +590,13 @@ test('fixtures/condition.json bakes the condition into the forecast bar and the 
     const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
     const mid = decodeLine(out.STATUS_LINE_1_UINT8)[1];
     assert.equal(mid.icon, catalog.ICONS.COND_SUN_CLOUD, platform + ': the day glyph');
-    assert.equal(mid.text, 'Partly cloudy\u001fPCLD', platform + ': the name and its short form');
+    assert.equal(mid.text, 'Partly cloudy\u001fPCLDY', platform + ': the name and its short form');
     const topLeft = decodeLine(out.STATUS_LINE_3_UINT8)[0];
     assert.deepEqual([topLeft.kind, topLeft.icon, topLeft.text],
-      [catalog.KINDS.TEXT, catalog.ICONS.COND_SUN_CLOUD, 'PCLD'], platform + ': the edge slot');
+      [catalog.KINDS.TEXT, catalog.ICONS.COND_SUN_CLOUD, 'PCLDY'], platform + ': the edge slot');
   });
   const aplite = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform: 'aplite' });
   const apliteMid = decodeLine(aplite.STATUS_LINE_1_UINT8)[1];
-  assert.deepEqual([apliteMid.icon, apliteMid.text], [catalog.ICONS.COND_TEXT, 'PCLD'],
+  assert.deepEqual([apliteMid.icon, apliteMid.text], [catalog.ICONS.COND_TEXT, 'PCLDY'],
     'aplite: the text-only look, one form');
 });

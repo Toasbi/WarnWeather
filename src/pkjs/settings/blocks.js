@@ -47,6 +47,10 @@ if (typeof require !== 'undefined') {
         ? require('./interval-budget.js') : PConf.intervalBudget;
     // Country → recommended-provider mapping (shared with the wizard).
     var CD = (typeof require !== 'undefined') ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
+    // The weather condition icons as the watch draws them (gen_watch_icons.js), for the
+    // condition slot's list of conditions.
+    var conditionPixels = (typeof require !== 'undefined')
+        ? require('./condition-pixels.generated.js') : (window.ConditionPixels || {});
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
     // the same module the watch's wire is packed from, so the row badges below preview
     // exactly what the graph draws. Same dual-context rule as the preview blocks:
@@ -1062,6 +1066,58 @@ if (typeof require !== 'undefined') {
             || radarCoverage.note((S || {}).radarProvider, ud.radarCoverage);
     }
     PConf.hintResolvers.register('radarProviderNote', radarProviderNote);
+
+    /**
+     * A pixel drawing (condition-pixels.generated.js) as a small SVG, each lit pixel a square,
+     * twice its size, in the text colour.
+     * @param {{w: number, rows: !Array<number>}} p The drawing.
+     * @returns {string} SVG markup; '' for none.
+     */
+    function pixelIconSvg(p) {
+        if (!p) { return ''; }
+        var d = '';
+        for (var y = 0; y < p.rows.length; y++) {
+            var x = 0;
+            while (x < p.w) {
+                if (!(p.rows[y] & (1 << x))) { x++; continue; }
+                var x0 = x;
+                while (x < p.w && (p.rows[y] & (1 << x))) { x++; }
+                d += 'M' + x0 + ' ' + y + 'h' + (x - x0) + 'v1h-' + (x - x0) + 'z';
+            }
+        }
+        return '<svg viewBox="0 0 ' + p.w + ' ' + p.rows.length + '" width="' + 2 * p.w + '" height="'
+            + 2 * p.rows.length + '" shape-rendering="crispEdges" aria-hidden="true" style="display:block">'
+            + '<path fill="currentColor" d="' + d + '"/></svg>';
+    }
+
+    /**
+     * The weather condition slot dialog's list of every condition (its staticText's textFrom):
+     * the icon the watch draws (the night's beside the day's where it differs), the full name and
+     * the short form the slot switches to, one row each.
+     * @param {Object} S Live settings state (unused).
+     * @param {Object} env Platform env (unused).
+     * @param {{rows: !Array<{full: string, short: string, icons: !Array<string>, night: boolean}>}} args
+     *     The conditions (schema.js conditionRows).
+     * @returns {string} HTML.
+     */
+    function conditionList(S, env, args) {
+        var rows = (args && args.rows) || [];
+        var cell = 'padding:5px 10px 5px 0;vertical-align:middle;';
+        var html = '<div style="font-weight:600;margin:2px 0 6px;">Every condition</div>'
+            + '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+            + '<tr style="font-size:12px;opacity:.7;text-align:left;"><th style="' + cell + 'font-weight:500;">Icon</th>'
+            + '<th style="' + cell + 'font-weight:500;">Name</th><th style="' + cell + 'font-weight:500;">Short</th></tr>';
+        rows.forEach(function (r) {
+            var icons = r.icons.map(function (k) { return pixelIconSvg(conditionPixels[k]); }).join('');
+            html += '<tr style="border-top:1px solid rgba(127,127,127,.25);">'
+                + '<td style="' + cell + '"><span style="display:inline-flex;gap:6px;align-items:center;">'
+                + icons + '</span></td>'
+                + '<td style="' + cell + '">' + r.full + (r.night ? ' <span style="opacity:.7;">(night)</span>' : '')
+                + '</td><td style="' + cell + 'font-weight:600;letter-spacing:.02em;">' + r.short + '</td></tr>';
+        });
+        return html + '</table>';
+    }
+    PConf.hintResolvers.register('conditionList', conditionList);
 
     // What the Alerts tab's resolvers (alerts-page.js, which loads after this file) read
     // from the threshold machinery above: a kind's slider geometry, for the unit a metric
