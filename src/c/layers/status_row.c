@@ -128,9 +128,8 @@ uint16_t sig_fold(uint16_t sig, const uint8_t *data, size_t len) {
 // strip, which rides STATUS_TOP_STRIP_LIFT rows higher inside an unchanged band — its top edge
 // is the screen edge, so the air above the line is invisible while the gap below, down to the
 // calendar, is what reads. Line-id-keyed like row_font() just below, for the same reason.
-// Written as one seat plus a conditional subtract rather than picking between status_text_y and
-// status_strip_text_y: both are inline, and branching between them duplicated the whole
-// measure-and-seat body in the image (measured ~100 B on aplite, which has none to spare).
+// Written as one seat plus a conditional subtract: branching between two inline seat helpers
+// would duplicate the whole measure-and-seat body in the image (about 100 B on aplite).
 static int row_text_y(const StatusRow *row, GFont font) {
     int y = status_text_y(row->bounds.size.h, font);
     return (row->line_id == STATUS_LINE_TOP) ? y - STATUS_TOP_STRIP_LIFT : y;
