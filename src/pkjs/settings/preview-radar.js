@@ -147,34 +147,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
     /**
      * The rain alert's icon as the watch draws it (status_on_demand.c): the weather condition
-     * slot's rain cloud (condition-glyphs.generated.js RAIN, a 24-unit outline of M/L points),
-     * with its ink box. Read at draw time, once every page file has loaded.
-     * @returns {{d: string, x: number, y: number, w: number, h: number}}
+     * slot's rain cloud, the watch's pixel drawing (condition-pixels.generated.js RAIN, the ink
+     * alone, so its box is the drawing's). Read at draw time, once every page file has loaded.
+     * @returns {{d: string, w: number, h: number}} Its pixels as a path, and its size.
      */
     function rainGlyph() {
-        var d = ((typeof require !== 'undefined') ? require('./condition-glyphs.generated.js')
-            : window.ConditionGlyphs).RAIN;
-        var nums = d.match(/-?\d+(\.\d+)?/g), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, i;
-        for (i = 0; i + 1 < nums.length; i += 2) {
-            x0 = Math.min(x0, +nums[i]); x1 = Math.max(x1, +nums[i]);
-            y0 = Math.min(y0, +nums[i + 1]); y1 = Math.max(y1, +nums[i + 1]);
-        }
-        return {d: d, x: x0, y: y0, w: x1 - x0, h: y1 - y0};
+        var p = ((typeof require !== 'undefined') ? require('./condition-pixels.generated.js')
+            : window.ConditionPixels).RAIN;
+        var PixelIcon = (typeof require !== 'undefined') ? require('./pixel-icon.js') : window.PixelIcon;
+        return {d: PixelIcon.path(p), w: p.w, h: p.rows.length};
     }
     /**
-     * The rain alert's icon, a 1 px outline, its ink box's top-left at (gx, gy) and `h` px tall.
+     * The rain alert's icon, its pixels filled, its top-left at (gx, gy) and `h` px tall.
      * @param {Object} g rainGlyph().
      * @param {number} gx Left edge of the ink.
      * @param {number} gy Top edge of the ink.
      * @param {number} h Ink height.
-     * @param {string} color Stroke colour.
+     * @param {string} color Fill colour.
      * @returns {string} SVG markup.
      */
     function rainIcon(g, gx, gy, h, color) {
-        var k = h / g.h;
-        return '<path transform="translate(' + (gx - g.x * k) + ',' + (gy - g.y * k) + ') scale(' + k + ')"'
-            + ' d="' + g.d + '" fill="none" stroke="' + color + '" stroke-width="' + (1 / k) + '"'
-            + ' stroke-linecap="round" stroke-linejoin="round"></path>';
+        return '<path transform="translate(' + gx + ',' + gy + ') scale(' + (h / g.h) + ')"'
+            + ' d="' + g.d + '" fill="' + color + '" shape-rendering="crispEdges"></path>';
     }
 
     // The preview's vertical budget, in its 200-wide viewBox units. It sits pinned above the

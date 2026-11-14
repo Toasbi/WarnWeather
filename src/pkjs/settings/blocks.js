@@ -51,6 +51,7 @@ if (typeof require !== 'undefined') {
     // condition slot's list of conditions.
     var conditionPixels = (typeof require !== 'undefined')
         ? require('./condition-pixels.generated.js') : (window.ConditionPixels || {});
+    var PixelIcon = (typeof require !== 'undefined') ? require('./pixel-icon.js') : window.PixelIcon;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
     // the same module the watch's wire is packed from, so the row badges below preview
     // exactly what the graph draws. Same dual-context rule as the preview blocks:
@@ -1075,16 +1076,7 @@ if (typeof require !== 'undefined') {
      */
     function pixelIconSvg(p) {
         if (!p) { return ''; }
-        var d = '';
-        for (var y = 0; y < p.rows.length; y++) {
-            var x = 0;
-            while (x < p.w) {
-                if (!(p.rows[y] & (1 << x))) { x++; continue; }
-                var x0 = x;
-                while (x < p.w && (p.rows[y] & (1 << x))) { x++; }
-                d += 'M' + x0 + ' ' + y + 'h' + (x - x0) + 'v1h-' + (x - x0) + 'z';
-            }
-        }
+        var d = PixelIcon.path(p);
         return '<svg viewBox="0 0 ' + p.w + ' ' + p.rows.length + '" width="' + 2 * p.w + '" height="'
             + 2 * p.rows.length + '" shape-rendering="crispEdges" aria-hidden="true" style="display:block">'
             + '<path fill="currentColor" d="' + d + '"/></svg>';

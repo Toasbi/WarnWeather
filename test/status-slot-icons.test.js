@@ -16,8 +16,12 @@ const ICONS = require('../src/pkjs/settings/status-slot-icons.js');
 const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze',
   'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun'];
 
+// The weather icons are the watch's own pixel drawings; every other glyph is a 24x24 outline.
+const WEATHER = ['rain', 'condition'];
+const OUTLINES = IDS.filter((id) => WEATHER.indexOf(id) === -1);
+
 test('every glyph is a 24x24 svg drawn in currentColor', () => {
-  IDS.forEach((id) => {
+  OUTLINES.forEach((id) => {
     const svg = ICONS[id];
     assert.equal(typeof svg, 'string', id + ' is exported');
     assert.ok(svg.indexOf('<svg viewBox="0 0 24 24"') === 0, id + ' opens a 24x24 svg');
@@ -27,12 +31,22 @@ test('every glyph is a 24x24 svg drawn in currentColor', () => {
   });
 });
 
-test('every glyph is a Tabler-style outline; rain is the condition slot\'s rain cloud', () => {
+test('the weather icons are the watch\'s own drawings: the rain alert\'s rain cloud, the condition slot\'s sample', () => {
   // The rain alert draws the weather condition slot's rain cloud on the watch, in the
-  // foreground like every other icon (status_row_icons_load_rain).
-  const glyphs = require('../src/pkjs/settings/condition-glyphs.generated.js');
-  assert.ok(ICONS.rain.indexOf('<path d="' + glyphs.RAIN + '"/>') !== -1, 'rain is the rain cloud');
-  IDS.forEach((id) => {
+  // foreground like every other icon (status_row_icons_load_rain); the condition slot's
+  // sample (and the city's weather icon) is a partly cloudy afternoon.
+  const pixels = require('../src/pkjs/settings/condition-pixels.generated.js');
+  const PixelIcon = require('../src/pkjs/settings/pixel-icon.js');
+  assert.equal(ICONS.rain, PixelIcon.svg(pixels.RAIN), 'rain is the watch\'s rain cloud');
+  assert.equal(ICONS.condition, PixelIcon.svg(pixels.SUN_CLOUD), 'the condition is the watch\'s partly cloudy');
+  WEATHER.forEach((id) => {
+    assert.ok(ICONS[id].indexOf('fill="currentColor"') !== -1, id + ' takes its colour from the row chrome');
+    assert.equal(/#[0-9a-fA-F]{3,6}\b/.test(ICONS[id]), false, id + ' hard-codes no colour');
+  });
+});
+
+test('every other glyph is a Tabler-style outline', () => {
+  OUTLINES.forEach((id) => {
     assert.ok(ICONS[id].indexOf('fill="none" stroke="currentColor" stroke-width="1.8"') !== -1,
       id + ' is an unfilled 1.8 outline');
     assert.ok(ICONS[id].indexOf('stroke-linecap="round" stroke-linejoin="round"') !== -1,
