@@ -134,8 +134,7 @@
     function afterMiss(rec, id) {
         if (!noDataText(id)) { return null; }
         var n = Math.min(missesOf(rec, id) + 1, NO_DATA_MISSES);
-        var next = {};
-        Object.keys(rec).forEach(function (k) { next[k] = rec[k]; });
+        var next = Object.assign({}, rec);
         next.misses = {};
         next.misses[id] = n;
         return { rec: next, noData: n >= NO_DATA_MISSES };
@@ -150,8 +149,8 @@
      */
     function afterData(rec, id) {
         if (missesOf(rec, id) === 0) { return null; }
-        var next = {};
-        Object.keys(rec).forEach(function (k) { if (k !== 'misses') { next[k] = rec[k]; } });
+        var next = Object.assign({}, rec);
+        delete next.misses;
         return next;
     }
 

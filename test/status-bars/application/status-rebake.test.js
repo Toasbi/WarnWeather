@@ -209,3 +209,8 @@ test('the scheduler\'s minute tick runs the day/night check (index.js onSchedule
   const body = src.slice(src.indexOf('function onSchedulerTick() {'));
   assert.ok(body.slice(0, body.indexOf('\n}')).indexOf('statusRebake.onTick();') > 0);
 });
+
+test('init without a clock is refused at once, not at the first tick', () => {
+  assert.throws(() => statusRebake.init({ getSettings: () => ({}) }), /options\.now/);
+  assert.throws(() => statusRebake.init(), /options\.now/);
+});

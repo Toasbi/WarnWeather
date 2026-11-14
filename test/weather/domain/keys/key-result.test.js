@@ -236,3 +236,13 @@ test('fetchRadarJson: the answer is recorded before interpret and onTransportErr
   radarFetch.fetchRadarJson(opts, function () { return null; }, function () {});
   assert.equal(mapIn(store).tomorrowio.status, 403);
 });
+
+test('withAnswer: a new map with the answer, null when nothing changes; the map handed in stays', () => {
+  const map = { yandex: { keyHash: fingerprint('y'), status: 200 } };
+  const next = keyResult.withAnswer(map, 'rainbowkey', KEY, 201);
+  assert.deepEqual(next, { yandex: map.yandex, rainbowkey: { keyHash: fingerprint(KEY), status: 200 } });
+  assert.deepEqual(Object.keys(map), ['yandex'], 'the input is not changed');
+  assert.equal(keyResult.withAnswer(next, 'rainbowkey', KEY, 200), null, 'the same answer again');
+  assert.equal(keyResult.withAnswer(map, 'rainbowkey', KEY, 500), null, 'a status that says nothing');
+  assert.equal(keyResult.withAnswer(map, 'rainbowkey', '  ', 401), null, 'no key');
+});

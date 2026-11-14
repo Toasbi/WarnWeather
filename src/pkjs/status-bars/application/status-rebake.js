@@ -474,7 +474,10 @@ function invalidatePersisted() {
  * @returns {void}
  */
 function init(options) {
-    deps = options || {};
+    if (!options || typeof options.now !== 'function') {
+        throw new Error('status-rebake: init needs options.now');
+    }
+    deps = options;
     snapshot = null;
     lastWritten = null;
     bakedNight = undefined;

@@ -30,7 +30,6 @@ var radarFactory = require('../weather/adapter/radar-factory.js');
 var radarWire = require('../weather/domain/radar/radar-wire.js');
 var radarSky = require('../weather/domain/radar/radar-sky.js');
 var radarSkySource = require('../weather/adapter/radar/radar-sky-source.js');
-var radarCoverage = require('../weather/domain/radar/radar-coverage.js');
 var radarCoverageStore = require('../weather/adapter/radar/radar-coverage-store.js');
 var WeatherProvider = require('../weather/adapter/provider.js');
 var renderPayload = require('../weather/application/render-payload.js');

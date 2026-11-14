@@ -87,8 +87,7 @@
         var code = (status >= 200 && status < 300) ? 200 : status;
         var last = Object.prototype.hasOwnProperty.call(map, id) ? map[id] : null;
         if (last && last.keyHash === keyHash && last.status === code) { return null; }
-        var next = {};
-        Object.keys(map).forEach(function (k) { next[k] = map[k]; });
+        var next = Object.assign({}, map);
         next[id] = { keyHash: keyHash, status: code };
         return next;
     }

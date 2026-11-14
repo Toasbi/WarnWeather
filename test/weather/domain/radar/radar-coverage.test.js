@@ -181,3 +181,18 @@ test('note: DWD inside its box but with no radar data (its second 404 in a row) 
     'DWD\'s run says nothing about Met.no');
   ['rainbow', 'rainbowkey', 'tomorrowio'].forEach((id) => assert.equal(coverage.note(id, noData), '', id));
 });
+
+test('afterMiss / afterData / remembered: plain records in, new records out', () => {
+  const first = coverage.afterMiss({ dwd: false }, 'dwd');
+  assert.deepEqual(first, { rec: { dwd: false, misses: { dwd: 1 } }, noData: false });
+  const second = coverage.afterMiss(first.rec, 'dwd');
+  assert.equal(second.noData, true);
+  assert.deepEqual(first.rec.misses, { dwd: 1 }, 'the record handed in is not changed');
+  assert.equal(coverage.afterMiss({}, 'metno'), null, 'Met.no has no misses');
+  assert.deepEqual(coverage.afterData(second.rec, 'dwd'), { dwd: false });
+  assert.equal(coverage.afterData({ dwd: false }, 'dwd'), null, 'no run to end');
+  const kept = coverage.remembered(second.rec, BERLIN[0], BERLIN[1], 'dwd', null);
+  assert.deepEqual(kept.misses, { dwd: coverage.NO_DATA_MISSES }, 'an update that asked DWD keeps the run');
+  assert.equal(coverage.remembered(second.rec, BERLIN[0], BERLIN[1], 'rainbow', null).misses, undefined,
+    'another source ends it');
+});

@@ -11,7 +11,7 @@
 // combination is a genuinely different face, so the numbers are tabulated per font in
 // layers/clock_ink.h — measured for the system fonts, generated for the anti-aliased strips
 // (which main_window.c resolves and passes in — layout.c must stay free of config_get()/font
-// calls; see the note at the top of windows/layout.h).
+// calls; the layering rule is at the top of appendix/view_spec.h).
 //
 // centre_off is band-height independent by construction: time_layer.c seats its text at
 // `bounds.size.h/2 - text_h/2 - MT_TIME`, so the band's own half cancels against the band

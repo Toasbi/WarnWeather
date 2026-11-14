@@ -349,7 +349,8 @@ test('toRenderPayload deletes the transient AQI_TREND key', () => {
 test('toRenderPayload removes every bake input that is no wire key, and keeps SUN_EVENTS', () => {
   const { BAKE_ONLY_KEYS } = require('../../../src/pkjs/weather/application/render-payload');
   const lines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
-  assert.deepEqual(BAKE_ONLY_KEYS, lines.SOURCE_KEYS.filter((k) => k !== 'SUN_EVENTS'));
+  const wired = [].concat(...require('../../../src/pkjs/wire/domain/weather-categories.js').map((c) => c.keys));
+  assert.deepEqual(BAKE_ONLY_KEYS, lines.SOURCE_KEYS.filter((k) => wired.indexOf(k) === -1));
   const payload = { TEMP_RAW_TREND: [10, 20], NUM_ENTRIES: 2, SUN_EVENTS: [1] };
   BAKE_ONLY_KEYS.forEach((k) => { if (!(k in payload)) { payload[k] = [1, 2]; } });
   payload.CITY = 'Bonn';
@@ -957,7 +958,7 @@ test('needsFeels: line selections and temp slot display modes', () => {
 
 // Ordering pin, same contract as CURRENT_TEMP: buildStatusLines (which bakes the
 // temp slot's feels/both display) must see FEELS_CURRENT/FEELS_TREND before
-// applyForecastSeries strips them. Pinned structurally (via a wrapped
+// applyForecastSeries and render-payload strip them. Pinned structurally (via a wrapped
 // buildStatusLines) so it holds regardless of which slot kinds are selected.
 test('FEELS_CURRENT/FEELS_TREND survive until buildStatusLines has run, then are deleted', () => {
   const statusLines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
@@ -982,7 +983,7 @@ test('FEELS_CURRENT/FEELS_TREND survive until buildStatusLines has run, then are
 // ---- Dew point + wind bearing transients ---------------------------------
 // DEW_TREND (°F) and WIND_DIR_TREND (degrees, "comes from") are PKJS-only, like
 // PRESSURE_TREND/FEELS_TREND: buildStatusLines bakes them into slot text (the dew
-// slot's number, the wind/gust arrow sentinel) and applyForecastSeries strips them,
+// slot's number, the wind/gust arrow sentinel) and render-payload strips them,
 // so neither ever costs a wire byte. Both halves are pinned here because they fail
 // differently: a missed delete silently inflates the bundle past the 536 B inbox,
 // while a delete that ran too early would bake an empty slot with no error anywhere.
