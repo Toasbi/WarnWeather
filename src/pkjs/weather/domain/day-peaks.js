@@ -177,36 +177,6 @@ function earlierPeak(record, source, startEpoch, nowEpoch, hold, toShown) {
     return peak / scale;
 }
 
-/**
- * @param {string} key The metric's storage key.
- * @returns {*} The stored record, or null when none (or unreadable: cleared).
- */
-function load(key) {
-    var raw = localStorage.getItem(key);
-    if (raw === null) { return null; }
-    try {
-        return JSON.parse(raw);
-    }
-    catch (ex) {
-        localStorage.removeItem(key);
-        return null;
-    }
-}
-
-/**
- * Store a record, skipping the flash write when it is unchanged.
- *
- * @param {Object} record The record merge() built.
- * @param {string} key The metric's storage key.
- * @returns {void}
- */
-function save(record, key) {
-    var raw = JSON.stringify(record);
-    if (localStorage.getItem(key) !== raw) {
-        localStorage.setItem(key, raw);
-    }
-}
-
 // The metrics with a day max, one row each: the provider series it reads (the
 // day-max ones reach hourly-window's PEAK_HOURS, past the graph's window), the
 // scale its peaks are encoded in (UV in tenths, the rest whole; the payload key
@@ -283,12 +253,14 @@ function active(provider) {
  *   options.windUnits).
  * @param {number|string} lat Latitude of this fetch (manual ones arrive as strings).
  * @param {number|string} lon Longitude of this fetch.
+ * @param {number} nowEpoch The fetch's time, in epoch seconds.
+ * @param {function(string): *} load Reads a metric's stored record by its storage key
+ *   (weather/adapter/day-peaks-store.js load); null when there is none.
  * @returns {{earlier: Object, records: Array.<{storageKey: string, record: Object}>}}
  *   earlier: metric code -> peak (null when unknown).
  */
-function recall(provider, lat, lon) {
+function recall(provider, lat, lon, nowEpoch, load) {
     var out = { earlier: {}, records: [] };
-    var nowEpoch = Math.floor(Date.now() / 1000);
     // A provider without options judges wind in km/h, the fetch-options default.
     var windUnits = provider.options && provider.options.windUnits;
     active(provider).forEach(function (metric) {
@@ -315,38 +287,20 @@ function recall(provider, lat, lon) {
 }
 
 /**
- * Store the records recall built, each on its own (a failure is logged, never
- * thrown: the day max only degrades to its plain rule).
- *
- * @param {Array.<{storageKey: string, record: Object}>} records recall().records.
- * @returns {void}
- */
-function saveAll(records) {
-    records.forEach(function (entry) {
-        try {
-            save(entry.record, entry.storageKey);
-        }
-        catch (ex) {
-            console.log('[!] Storing ' + entry.storageKey + ' failed: ' + ex.message);
-        }
-    });
-}
-
-/**
  * Add each active metric's *_DAY_PEAKS triple to a payload: [rest of today's
  * peak, tomorrow's, today's hours already begun back to the last dip], null
  * when unknown. The first two are read off the FULL series — it reaches
  * PEAK_HOURS, past the graph's 24 h; the clock picks which local day is today.
  * The third is recall's (`earlier`).
- * Transient PKJS-only: the status bake reads them, forecast-series deletes them.
+ * Transient PKJS-only: the status bake reads them, render-payload.js removes them.
  *
  * @param {Object} payload The weather payload (mutated).
  * @param {Object} provider The fetching provider.
- * @param {Object} [earlier] recall().earlier; absent = every third entry unknown.
+ * @param {?Object} earlier recall().earlier; null = every third entry unknown.
+ * @param {number} nowEpoch The payload's time, in epoch seconds.
  * @returns {void}
  */
-function addToPayload(payload, provider, earlier) {
-    var nowEpoch = Math.floor(Date.now() / 1000);
+function addToPayload(payload, provider, earlier, nowEpoch) {
     active(provider).forEach(function (metric) {
         var before = earlier ? earlier[metric.code] : null;
         payload[wireUnits.dayMaxPeaksKey(metric.code)] =
@@ -367,10 +321,7 @@ module.exports = {
     METRICS: METRICS,
     wanted: wanted,
     recall: recall,
-    saveAll: saveAll,
     addToPayload: addToPayload,
     merge: merge,
-    earlierPeak: earlierPeak,
-    load: load,
-    save: save
+    earlierPeak: earlierPeak
 };

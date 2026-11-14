@@ -3,7 +3,7 @@
 #include "status_bar.h"
 #include "status_row.h"
 #include "../appendix/status_line.h"
-#include "../windows/layout.h"
+#include "../appendix/view_spec.h"
 
 // See status_bar.h for what this module is and why its API is collective.
 

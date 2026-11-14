@@ -1,4 +1,4 @@
-// test/weather/application/radar-permanent-failure.test.js
+// test/shell/radar-permanent-failure.test.js
 //
 // End to end on the phone side: a radar source that can NEVER answer (no
 // tomorrow.io or Rainbow (own key) key, a 401/403 key rejection, an
@@ -26,14 +26,14 @@ global.localStorage = {
 };
 
 // Mock the shared XHR BEFORE the radar modules load (they capture it).
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../src/pkjs/weather/adapter/provider.js');
 var transport;
 WeatherProvider.request = function(url, type, onSuccess, onError) { transport(url, onSuccess, onError); };
-const createFetchCycle = require('../../../src/pkjs/shell/fetch-cycle.js');
-const rainbowRadar = require('../../../src/pkjs/weather/adapter/radar/rainbow-radar.js');
-const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
-const authBackoff = require('../../../src/pkjs/weather/adapter/auth-backoff.js');
-const notices = require('../../../src/pkjs/notices/adapter/notices.js');
+const createFetchCycle = require('../../src/pkjs/shell/fetch-cycle.js');
+const rainbowRadar = require('../../src/pkjs/weather/adapter/radar/rainbow-radar.js');
+const outbox = require('../../src/pkjs/wire/adapter/outbox.js');
+const authBackoff = require('../../src/pkjs/weather/adapter/auth-backoff.js');
+const notices = require('../../src/pkjs/notices/adapter/notices.js');
 
 const SLOT = 300;
 const N = 24;

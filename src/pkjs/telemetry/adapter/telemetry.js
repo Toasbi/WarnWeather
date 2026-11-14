@@ -564,7 +564,7 @@ function createTelemetryClient(options) {
      */
     function refreshHeader(context) {
         var ctx = context || {};
-        lastSettingsSnapshot = buildSettingsSnapshot(ctx.settings, ctx.watchInfo);
+        lastSettingsSnapshot = buildSettingsSnapshot(ctx.settings, ctx.watchInfo, Date.now());
         lastWatchInfoSnapshot = buildWatchInfoSnapshot(ctx.watchInfo);
     }
 
@@ -654,7 +654,7 @@ function createTelemetryClient(options) {
         writeTelemetryQueue(queue);
 
         // Header context for the next flush — freshest wins.
-        lastSettingsSnapshot = buildSettingsSnapshot(event.settings, event.watchInfo);
+        lastSettingsSnapshot = buildSettingsSnapshot(event.settings, event.watchInfo, Date.now());
         lastWatchInfoSnapshot = buildWatchInfoSnapshot(event.watchInfo);
 
         maybeFlush();

@@ -1,4 +1,4 @@
-var WeatherProvider = require('../../application/provider.js');
+var WeatherProvider = require('../provider.js');
 var metnoHeaders = require('./metno-headers.js');
 var feelsLikeF = require('../../domain/feels-like.js').feelsLikeF;
 var weightedCloudCover = require('../../domain/cloud-cover.js').weightedCloudCover;

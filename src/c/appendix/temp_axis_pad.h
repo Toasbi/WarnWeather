@@ -55,7 +55,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "c/layers/status_metrics.h"
+#include "c/appendix/status_metrics.h"
 
 // The curve: an anchored edge's margin is the plot height squared over this, so its share of
 // the plot is plot_h / TEMP_AXIS_PAD_SQ_DIV and grows with the graph: an eighth at 64 rows, a

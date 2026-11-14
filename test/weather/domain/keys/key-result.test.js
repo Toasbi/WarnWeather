@@ -10,7 +10,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 // Mock the shared XHR BEFORE requiring the radar module (it captures it at load).
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 let responder;
 WeatherProvider.request = function (url, type, onSuccess, onError, headers, body) {
   responder(url, type, onSuccess, onError, headers, body);
@@ -19,6 +19,7 @@ const rainbowRadar = require('../../../../src/pkjs/weather/adapter/radar/rainbow
 const radarFetch = require('../../../../src/pkjs/weather/adapter/radar/radar-fetch.js');
 const radarWire = require('../../../../src/pkjs/weather/domain/radar/radar-wire.js');
 const keyResult = require('../../../../src/pkjs/weather/domain/keys/key-result.js');
+const keyResultsStore = require('../../../../src/pkjs/weather/adapter/key-results-store.js');
 const KEYS = require('../../../../src/pkjs/settings/domain/storage-keys.js');
 const { fingerprint } = require('../../../../src/pkjs/weather/domain/keys/key-fingerprint.js');
 
@@ -71,58 +72,58 @@ test('statusOfCode reads a transport code and a provider code alike', () => {
 
 test('record: the key\'s fingerprint and the status under the source — never the key', () => {
   const { store } = mockStorage();
-  keyResult.record('rainbowkey', '  ' + KEY + ' ', 401);
+  keyResultsStore.record('rainbowkey', '  ' + KEY + ' ', 401);
   assert.deepEqual(mapIn(store), { rainbowkey: { keyHash: fingerprint(KEY), status: 401 } });
   assert.equal(store[KEYS.KEY_RESULTS_KEY].indexOf(KEY), -1, 'the key itself is not stored');
 });
 
 test('record: one entry per source — each keeps its own answer, a newer one replaces it', () => {
   const { store } = mockStorage();
-  keyResult.record('openweathermap', 'owm-1', 200);
-  keyResult.record('rainbowkey', KEY, 403);
-  keyResult.record('tomorrowio', 'tio-1', 401);
-  keyResult.record('tomorrowio', 'tio-1', 200);
+  keyResultsStore.record('openweathermap', 'owm-1', 200);
+  keyResultsStore.record('rainbowkey', KEY, 403);
+  keyResultsStore.record('tomorrowio', 'tio-1', 401);
+  keyResultsStore.record('tomorrowio', 'tio-1', 200);
   assert.deepEqual(mapIn(store), {
     openweathermap: { keyHash: fingerprint('owm-1'), status: 200 },
     rainbowkey: { keyHash: fingerprint(KEY), status: 403 },
     tomorrowio: { keyHash: fingerprint('tio-1'), status: 200 }
   });
-  keyResult.record('openweathermap', 'owm-2', 401);
+  keyResultsStore.record('openweathermap', 'owm-2', 401);
   assert.deepEqual(mapIn(store).openweathermap, { keyHash: fingerprint('owm-2'), status: 401 }, 'another key: its answer');
 });
 
 test('record: 2xx reads as 200; 429, 401 and 403 count; anything else leaves the last answer', () => {
   const { store } = mockStorage();
-  keyResult.record('rainbowkey', KEY, 204);
+  keyResultsStore.record('rainbowkey', KEY, 204);
   assert.equal(mapIn(store).rainbowkey.status, 200);
   [0, 404, 500, 502, -1, undefined].forEach((status) => {
-    keyResult.record('rainbowkey', KEY, status);
+    keyResultsStore.record('rainbowkey', KEY, status);
     assert.equal(mapIn(store).rainbowkey.status, 200, String(status) + ' says nothing about the key');
   });
   [429, 401, 403].forEach((status) => {
-    keyResult.record('rainbowkey', KEY, status);
+    keyResultsStore.record('rainbowkey', KEY, status);
     assert.equal(mapIn(store).rainbowkey.status, status);
   });
 });
 
 test('record: written only when an entry changes; no key, no source or no storage writes nothing', () => {
   const { writes, store } = mockStorage();
-  keyResult.record('rainbowkey', KEY, 200);
-  keyResult.record('rainbowkey', KEY, 200);
-  keyResult.record('rainbowkey', KEY, 201);
+  keyResultsStore.record('rainbowkey', KEY, 200);
+  keyResultsStore.record('rainbowkey', KEY, 200);
+  keyResultsStore.record('rainbowkey', KEY, 201);
   assert.equal(writes.length, 1, 'one write for three equal answers');
-  keyResult.record('rainbowkey', '   ', 401);
-  keyResult.record('openmeteo', undefined, 200);
-  keyResult.record('', KEY, 401);
-  keyResult.record(undefined, KEY, 401);
+  keyResultsStore.record('rainbowkey', '   ', 401);
+  keyResultsStore.record('openmeteo', undefined, 200);
+  keyResultsStore.record('', KEY, 401);
+  keyResultsStore.record(undefined, KEY, 401);
   assert.equal(writes.length, 1, 'a keyless source or a blank id writes nothing');
   store[KEYS.KEY_RESULTS_KEY] = '{oops';
-  keyResult.record('rainbowkey', KEY, 401);
+  keyResultsStore.record('rainbowkey', KEY, 401);
   assert.deepEqual(mapIn(store), { rainbowkey: { keyHash: fingerprint(KEY), status: 401 } }, 'an unreadable map starts over');
   delete global.localStorage;
-  assert.doesNotThrow(() => keyResult.record('rainbowkey', KEY, 401), 'no storage: nothing to do');
+  assert.doesNotThrow(() => keyResultsStore.record('rainbowkey', KEY, 401), 'no storage: nothing to do');
   global.localStorage = { getItem: () => null, setItem: () => { throw new Error('full'); } };
-  assert.doesNotThrow(() => keyResult.record('rainbowkey', KEY, 401), 'a full storage is not an error');
+  assert.doesNotThrow(() => keyResultsStore.record('rainbowkey', KEY, 401), 'a full storage is not an error');
 });
 
 test('verdictOf: the source\'s entry, for this exact key, when it says something about it', () => {
@@ -142,7 +143,7 @@ test('verdictOf: the source\'s entry, for this exact key, when it says something
 
 test('what record writes, verdictOf reads back', () => {
   const { store } = mockStorage();
-  keyResult.record('yandex', 'ydx-5555', 403);
+  keyResultsStore.record('yandex', 'ydx-5555', 403);
   assert.deepEqual(keyResult.verdictOf(store[KEYS.KEY_RESULTS_KEY], 'yandex', fingerprint(' ydx-5555 ')),
     { state: 'rejected', status: 403 });
 });
@@ -153,7 +154,7 @@ test('record over a corrupt stored map starts a fresh map, so the answer is not 
   ['[]', '5', 'null', '{oops'].forEach((corrupt) => {
     const { store } = mockStorage();
     store[KEYS.KEY_RESULTS_KEY] = corrupt;
-    keyResult.record('openweathermap', 'k', 401);
+    keyResultsStore.record('openweathermap', 'k', 401);
     assert.deepEqual(keyResult.verdictOf(store[KEYS.KEY_RESULTS_KEY], 'openweathermap', fingerprint('k')),
       { state: 'rejected', status: 401 }, corrupt);
   });
@@ -234,4 +235,14 @@ test('fetchRadarJson: the answer is recorded before interpret and onTransportErr
   responder = function (url, type, onSuccess, onError) { onError({ code: 'status_401', detail: 'http_status' }); };
   radarFetch.fetchRadarJson(opts, function () { return null; }, function () {});
   assert.equal(mapIn(store).tomorrowio.status, 403);
+});
+
+test('withAnswer: a new map with the answer, null when nothing changes; the map handed in stays', () => {
+  const map = { yandex: { keyHash: fingerprint('y'), status: 200 } };
+  const next = keyResult.withAnswer(map, 'rainbowkey', KEY, 201);
+  assert.deepEqual(next, { yandex: map.yandex, rainbowkey: { keyHash: fingerprint(KEY), status: 200 } });
+  assert.deepEqual(Object.keys(map), ['yandex'], 'the input is not changed');
+  assert.equal(keyResult.withAnswer(next, 'rainbowkey', KEY, 200), null, 'the same answer again');
+  assert.equal(keyResult.withAnswer(map, 'rainbowkey', KEY, 500), null, 'a status that says nothing');
+  assert.equal(keyResult.withAnswer(map, 'rainbowkey', '  ', 401), null, 'no key');
 });

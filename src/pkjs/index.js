@@ -4,7 +4,7 @@
 require('./lib/polyfills.js');
 
 var notices = require('./notices/adapter/notices.js');
-var WeatherProvider = require('./weather/application/provider.js');
+var WeatherProvider = require('./weather/adapter/provider.js');
 var createTelemetryClient = require('./telemetry/adapter/telemetry.js');
 var settings = require('./page/settings');
 var storageKeys = require('./settings/domain/storage-keys.js');
@@ -20,7 +20,7 @@ var themeSchedule = require('./theme/domain/theme-schedule.js');
 var locationLib = require('./weather/adapter/location.js');
 var SunCalc = require('suncalc');
 var claySettings = require('./settings/adapter/clay-settings.js');
-var clayMigrations = require('./settings/application/clay-migrations.js');
+var clayMigrations = require('./settings/adapter/clay-migrations.js');
 var fixtureWeather = require('./weather/adapter/fixture-weather.js');
 var holidayMask = require('./calendar/domain/holiday-mask.js');
 var nagerSource = require('./calendar/adapter/nager-source.js');
@@ -432,7 +432,9 @@ Pebble.addEventListener('ready',
         statusRebake.init({
             getSettings: function () { return app.settings; },
             getPhoneBattery: phoneBattery.bakeFacts,
-            sendWeather: outbox.sendWeather
+            sendWeather: outbox.sendWeather,
+            storage: localStorage,
+            now: function () { return Date.now(); }
         });
         phoneBattery.init({
             devConfig: app.devConfig,

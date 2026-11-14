@@ -1,7 +1,7 @@
 #include <string.h>
 
 #include "forecast_layer.h"
-#include "status_metrics.h"
+#include "c/appendix/status_metrics.h"
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"

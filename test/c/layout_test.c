@@ -3,7 +3,7 @@
 // "dump" arg prints actuals in table form for updating goldens deliberately.
 #include <stdio.h>
 #include <string.h>
-#include "c/layers/status_metrics.h"
+#include "c/appendix/status_metrics.h"
 #include "c/layers/calendar_metrics.h"
 #include "c/windows/layout.h"
 
@@ -1806,7 +1806,7 @@ static void clockless_property_tests(void) {
         // Band chain never overlaps: upper floor <= lower top, lower floor <= body top
         // (the FULL dual is the shape this proves). L.status_lower is only a real band
         // when the lower slot is filled — otherwise it aliases the upper band
-        // (layout.h's "else == status" contract) and must not be tested against the body.
+        // (view_spec.h's "else == status" contract) and must not be tested against the body.
         if (s.status_lower != STATUS_SRC_NONE) {
             if (s.status_upper != STATUS_SRC_NONE) {
                 expect("ckl.upper_clears_lower",
@@ -2563,7 +2563,7 @@ static void test_geometry_two_rows(void) {
     printf("geometry_two_rows OK\n");
 }
 
-// The shared tier/status helpers in layout.h — the rules layout.c, the aplite twin and
+// The shared tier/status helpers in appendix/view_spec.h — the rules layout.c, the aplite twin and
 // main_window all read from one place instead of restating a ternary each.
 // view_word_sources (main_window.c's in-use mask for status_bar_set_in_use) is the full
 // decode's two rows, bit for bit, for every packed value, under every combination of the ext
@@ -3139,7 +3139,7 @@ typedef struct { int cal_ink_end; int box_top; int cap_top; bool has_cal_and_row
 // Topmost row of the row's threshold-highlight box: the digits' cap top minus the font's
 // descender depth (the box is the cap box grown by descender_h on every side), clamped to
 // the band top — MIRRORS the `above` side of status_highlight_extent() in
-// src/c/layers/status_row_layout.c, the same way status_cap_top above mirrors the seat. (A
+// src/c/appendix/status_row_layout.c, the same way status_cap_top above mirrors the seat. (A
 // plain-digit box out of rows BELOW lowers its top to keep its air symmetric; it can never
 // rise above this, so the bound stays safe.)
 static int status_box_top(int band_y, int band_h, int content_h) {

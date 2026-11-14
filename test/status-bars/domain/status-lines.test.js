@@ -161,7 +161,7 @@ test('°C temp and feels slots round the provider reading once, like the dew slo
   // End to end through getPayload: a whole-°F round there, then the °C round in
   // formatTemp, put ~16% of °C readings one degree off and could show a dew
   // point above the air temperature (DEW_TREND was already single-rounded).
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const c2f = require('../../../src/pkjs/wire/domain/wire-units.js').celsiusToFahrenheit;
   function payloadAt(tempF) {
     const p = new WeatherProvider();

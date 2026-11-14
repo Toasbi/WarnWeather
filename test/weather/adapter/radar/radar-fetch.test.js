@@ -53,7 +53,7 @@ test('a 429 is never a key rejection: the two verdicts do not overlap', () => {
 // fetchRadarJson's request: GET with no body unless the source asks otherwise (the shared
 // Rainbow proxy POSTs its {lat, lon, start}).
 test('fetchRadarJson sends opts.method and opts.body, defaulting to a bodyless GET', () => {
-  const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
   const saved = WeatherProvider.request;
   const seen = [];
   WeatherProvider.request = function (url, type, onSuccess, onError, headers, body) {

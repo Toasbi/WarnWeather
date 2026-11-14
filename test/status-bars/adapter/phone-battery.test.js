@@ -1,4 +1,5 @@
 'use strict';
+const { withHost } = require('../../helpers/rebake-host.js');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -86,7 +87,7 @@ function boot(opts) {
   // The rebaker restores its flash backstop FIRST — phoneBattery.init's
   // subscribe can fire a micro-send synchronously (the shipped ready-handler
   // order; see status-rebake.js init).
-  statusRebake.init({
+  statusRebake.init(withHost({
     getSettings: function () { return h.settings; },
     getPhoneBattery: phoneBattery.bakeFacts,
     sendWeather: function (p) { h.sends.push(p); },
@@ -104,7 +105,7 @@ function boot(opts) {
       payload.NOT_A_STATUS_KEY = 99;
       return payload;
     }
-  });
+  }));
   phoneBattery.init({
     navigator: opts.navigator,
     devConfig: opts.devConfig,

@@ -12,7 +12,7 @@
 #include "status_highlight.h"
 #include "status_row.h"
 #include "status_row_icons.h"
-#include "status_row_layout.h"
+#include "c/appendix/status_row_layout.h"
 #include "status_sig.h"
 #include "../appendix/config.h"
 #include "../appendix/persist.h"

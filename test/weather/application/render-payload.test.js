@@ -1,3 +1,4 @@
+const { withHost } = require('../../helpers/rebake-host.js');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 // The time every bake in this file runs at, where the test does not care which it is.
@@ -108,11 +109,11 @@ test('a phone-battery event re-bakes from the stash after the payload has been p
   const origLog = console.log;
   console.log = function() {};
   try {
-    statusRebake.init({
+    statusRebake.init(withHost({
       getSettings: function() { return settings; },
       getPhoneBattery: phoneBattery.bakeFacts,
       sendWeather: function(p) { sends.push(p); }
-    });
+    }));
     phoneBattery.init({
       navigator: { getBattery: function() { return { then: function(ok) { ok(mgr); } }; } },
       getSettings: function() { return settings; },

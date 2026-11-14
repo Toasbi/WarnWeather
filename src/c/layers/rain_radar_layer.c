@@ -13,7 +13,7 @@
 #include "c/appendix/chart_stripe.h"
 #include "c/appendix/radar_sky.h"
 #include "c/appendix/radar_limit.h"
-#include "c/layers/status_metrics.h"
+#include "c/appendix/status_metrics.h"
 #include "paint_scratch.h"
 
 // Layout constants. The axis area sits above the bar plot. Hour labels

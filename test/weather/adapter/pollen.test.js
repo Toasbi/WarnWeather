@@ -107,7 +107,7 @@ test('worstToday returns null for malformed envelopes or no valid today data', (
 });
 
 test('fetchPollenInto skips the request when pollen fetching is disabled', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
   let requests = 0;
   let doneCalls = 0;
@@ -122,7 +122,7 @@ test('fetchPollenInto skips the request when pollen fetching is disabled', () =>
 });
 
 test('fetchPollenInto writes valid today data and calls done exactly once', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
   const today = pollen.localDateKey(new Date());
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
@@ -146,7 +146,7 @@ test('fetchPollenInto writes valid today data and calls done exactly once', () =
 });
 
 test('fetchPollenInto leaves pollen unchanged when the response has no today data', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
@@ -163,7 +163,7 @@ test('fetchPollenInto leaves pollen unchanged when the response has no today dat
 });
 
 test('fetchPollenInto treats parse failures as non-fatal and calls done once', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
@@ -178,7 +178,7 @@ test('fetchPollenInto treats parse failures as non-fatal and calls done once', (
 });
 
 test('fetchPollenInto treats transport failures as non-fatal and calls done once', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
@@ -195,7 +195,7 @@ test('fetchPollenInto treats transport failures as non-fatal and calls done once
 });
 
 test('fetchPollenInto ignores duplicate success callbacks after completing once', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
   const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
@@ -214,7 +214,7 @@ test('fetchPollenInto ignores duplicate success callbacks after completing once'
 });
 
 test('fetchPollenInto ignores an error callback after success', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
   const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
@@ -233,7 +233,7 @@ test('fetchPollenInto ignores an error callback after success', () => {
 });
 
 test('fetchPollenInto treats a synchronous request throw as non-fatal', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
@@ -250,7 +250,7 @@ test('fetchPollenInto treats a synchronous request throw as non-fatal', () => {
 });
 
 test('WeatherProvider initializes and transiently exposes pollenToday', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const provider = new WeatherProvider();
   assert.equal(provider.pollenToday, null);
 
@@ -266,7 +266,7 @@ test('WeatherProvider initializes and transiently exposes pollenToday', () => {
 });
 
 test('fetchWithCoordinates completes AQI then pollen before composing the payload', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const airQuality = require('../../../src/pkjs/weather/adapter/air-quality.js');
   const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
   const originalAqi = airQuality.fetchAqiInto;
@@ -311,7 +311,7 @@ test('fetchWithCoordinates completes AQI then pollen before composing the payloa
 });
 
 test('a failed second pollen refresh packs -- instead of the previous severity and still sends', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const airQuality = require('../../../src/pkjs/weather/adapter/air-quality.js');
   const renderPayload = require('../../../src/pkjs/weather/application/render-payload.js');
   const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
@@ -421,7 +421,7 @@ test('fetchPollenInto leaves tomorrow unset while DWD has not issued it', () => 
 });
 
 test('WeatherProvider initializes and transiently exposes pollenTomorrow', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const provider = new WeatherProvider();
   assert.equal(provider.pollenTomorrow, null);
   provider.tempTrend = [68];
@@ -437,7 +437,7 @@ test('WeatherProvider initializes and transiently exposes pollenTomorrow', () =>
 });
 
 test('each fetch cycle resets tomorrow\'s band: a refresh without it composes null, not the last one', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const airQuality = require('../../../src/pkjs/weather/adapter/air-quality.js');
   const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
   const originalAqi = airQuality.fetchAqiInto;

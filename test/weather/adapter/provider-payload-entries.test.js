@@ -1,11 +1,11 @@
-// test/weather/application/provider-payload-entries.test.js
+// test/weather/adapter/provider-payload-entries.test.js
 // The hours a weather payload carries (WeatherProvider#payloadEntries): the forecast's span
 // from the fetch options (forecast-span.js). The 12 h span sends 14, 24 h sends 24, and emery's
 // long span (68; a short feed's 48 alike) sends as many hours as every drawn series holds, never
 // fewer than 24. hasValidData keeps requiring the base 24 whatever the span.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
 
 const ramp = (n, base) => Array.from({ length: n }, (_, i) => (base || 0) + i);

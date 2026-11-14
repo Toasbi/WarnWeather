@@ -589,11 +589,8 @@ function widenEdgeConditions(bytes, starts, wide) {
  * Add the status lines the watch shows (STATUS_LINE_1..4_UINT8, and a bar 4 to 6's
  * STATUS_LINE_5..7_UINT8 on a Pebble Time 2: catalog bakedLines), the packed
  * STATUS_LEVELS_UINT8 threshold bytes and
- * the weather alerts' ALERT_ENTRIES_UINT8 to the weather payload. Must run BEFORE
- * applyForecastSeries deletes the transient trend arrays (AQI_TREND,
- * WIND_TREND_UINT8, GUST_TREND_UINT8, PRESSURE_TREND, POLLEN_TODAY,
- * POLLEN_TOMORROW) -- the status text, the threshold levels and the alert
- * entries are read from them.
+ * the weather alerts' ALERT_ENTRIES_UINT8 to the weather payload, read from the keys in
+ * SOURCE_KEYS (render-payload.js removes the ones that are no wire key afterwards).
  * @param {Object} payload weather payload (mutated)
  * @param {Object} settings Clay settings blob
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "status_metrics.h"   // status_ink_top / status_cap_h — the same Gothic model
+#include "c/appendix/status_metrics.h"   // status_ink_top / status_cap_h — the same Gothic model
 
 // Where a calendar date's glyph lands inside its cell — the SDK-free half of calendar_layer.c,
 // in the same spirit as status_metrics.h next door.

@@ -70,7 +70,9 @@ The small struct that describes what is on screen: top-band content, calendar
 rows, body, status row(s), font tier and band size weights. Geometry and layer
 visibility both derive from it. The phone compiles view specs (`view-cycle.js`)
 from the layout preset or, with the custom layout, from the user's screens, and sends them;
-the layout module reads them.
+the layout module reads them. On the watch the struct and its tier vocabulary live in
+`src/c/appendix/view_spec.h`, below the layers that read them too; the decode and the geometry
+are `src/c/windows/layout.c`.
 
 **Preset (layout)**:
 A named built-in view spec, keyed by the `layoutPreset` setting: `fullCal`,
@@ -261,7 +263,7 @@ _Avoid_: forecast span (that is the option).
 **Mapped forecast**:
 The plain object an adapter's `withProviderData` produces from its API
 response(s): the series, scalars and feels inputs named by
-`WeatherProvider.MAPPED_KEYS`. The adapter hands it to `adoptMapped`, which applies the
+`MAPPED_KEYS` (weather/domain/forecast-model.js). The adapter hands it to `adoptMapped`, which applies the
 fetch options' gates and the one missing-value convention per field and writes
 the instance. An adapter only maps; only adopt decides.
 _Avoid_: normalized provider fields, provider instance shape.

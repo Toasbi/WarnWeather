@@ -1,4 +1,4 @@
-// test/weather/application/sun-events-payload.test.js
+// test/weather/adapter/sun-events-payload.test.js
 // SUN_EVENTS on the weather payload: getPayload must never throw over the sun
 // events, and must leave the key out rather than ship a pair the watch cannot
 // use. Above the Arctic Circle SunCalc has no sunrise/sunset during midnight
@@ -16,7 +16,7 @@ global.localStorage = (function () {
   };
 }());
 
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
 
 const TROMSO = { lat: 69.65, lon: 18.96 };

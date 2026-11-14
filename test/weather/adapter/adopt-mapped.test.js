@@ -1,4 +1,4 @@
-// test/weather/application/adopt-mapped.test.js
+// test/weather/adapter/adopt-mapped.test.js
 // The seam contract every adapter answers: WeatherProvider#adoptMapped is TOTAL
 // over WeatherProvider.MAPPED_KEYS. Present keys are copied, an absent key gets
 // its group's one documented empty value, an absent CORE key is deleted (so
@@ -16,7 +16,7 @@ global.localStorage = (function () {
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
 const feelsLike = require('../../../src/pkjs/weather/domain/feels-like.js');
 

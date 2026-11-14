@@ -45,7 +45,7 @@ pkg.rainbow = { endpoint: 'https://proxy.example/functions/v1/rainbow-nowcast' }
 var radarRequests = 0;
 var skyRequests = 0;
 var skyBeforeRadarAnswer = null;
-var WeatherProvider = require(path.join(ROOT, 'src/pkjs/weather/application/provider.js'));
+var WeatherProvider = require(path.join(ROOT, 'src/pkjs/weather/adapter/provider.js'));
 WeatherProvider.request = function (url, type, onSuccess) {
     if (url.indexOf('rainbow-nowcast') !== -1 || url.indexOf('api.rainbow.ai') !== -1) {
         radarRequests += 1;

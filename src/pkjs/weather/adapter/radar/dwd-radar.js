@@ -10,6 +10,7 @@ var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 var radarWire = require('../../domain/radar/radar-wire.js');
 var radarCoverage = require('../../domain/radar/radar-coverage.js');
+var radarCoverageStore = require('./radar-coverage-store.js');
 var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
 var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 
@@ -252,7 +253,7 @@ function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
         label: 'DWD',
         onTransportError: function (error, cb) {
             if (!error || error.code !== 'status_404') { return false; }
-            if (radarCoverage.countMiss('dwd')) {
+            if (radarCoverageStore.countMiss('dwd')) {
                 console.log('[!] DWD radar: 404 again, no radar data for this location');
                 cb(radarWire.outOfCoverageRadarTuples(radarCoverage.noDataText('dwd')));
             } else {
@@ -268,7 +269,7 @@ function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
         }
         // Brightsky answered with radar data for the place (frames, or none for this
         // window): a run of 404s is over.
-        radarCoverage.endMisses('dwd');
+        radarCoverageStore.endMisses('dwd');
         if (body.radar.length === 0) {
             // No frames for this window — a flat signal rather than a failure.
             return radarWire.flatRadarTuples(slotZeroEpoch);

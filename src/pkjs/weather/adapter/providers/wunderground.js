@@ -1,4 +1,4 @@
-var WeatherProvider = require('../../application/provider.js');
+var WeatherProvider = require('../provider.js');
 var KEYS = require('../../../settings/domain/storage-keys');
 var mphToKmh = require('../../../wire/domain/wire-units.js').mphToKmh;
 var wuCache = require('./wu-current-hour-cache.js');

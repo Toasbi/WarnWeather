@@ -1,4 +1,4 @@
-var WeatherProvider = require('../../application/provider.js');
+var WeatherProvider = require('../provider.js');
 var failure = WeatherProvider.failure;
 
 var hourlyWindow = require('../../domain/hourly-window.js');

@@ -1,7 +1,7 @@
 #include "status_row.h"
 #include "status_row_icons.h"
 #include "status_row_direction.h"
-#include "status_row_layout.h"
+#include "c/appendix/status_row_layout.h"
 #include "status_highlight.h"
 #include "battery_draw.h"
 #include "layer_util.h"
@@ -10,7 +10,7 @@
 #include "../appendix/date_format.h"
 #include "../appendix/theme.h"
 #include "../appendix/status_threshold.h"
-#include "../windows/layout.h"   // LayoutTier (row_font)
+#include "../appendix/view_spec.h"   // LayoutTier (row_font)
 #include "../services/watch_services.h"
 #include "status_on_demand.h"
 #include "status_sig.h"

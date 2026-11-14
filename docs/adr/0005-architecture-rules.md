@@ -79,14 +79,16 @@ second implementation behind it.
 
 The edge functions follow the same rule inside each function: Supabase, upstream HTTP and logs
 are reached only through their own modules (`supabase-store.ts`, `upstream.ts`, `log.ts`), and
-the handler's rules take their inputs as arguments. Today `news` and `telemetry-ingest` still query
-Supabase from their handlers; the architecture test lists them.
+the handler's rules take their inputs as arguments. Each handler takes its store as a dependency,
+and every function's Supabase queries live in its `supabase-store.ts`; the architecture test
+checks that no other module queries Supabase.
 
 ### 4. Watchface and settings page: layered
 
 - Watchface: `windows` → `layers` → `appendix` and `services`; a lower layer never includes
   a higher one. Types that several layers share (the view spec, the layout tiers) live below
-  the layers, not in `windows/`. HealthService calls stay in `services/health.c`. No include
+  the layers, not in `windows/` (`appendix/view_spec.h`, and the clock's ink model in
+  `appendix/clock_seat.h`). HealthService calls stay in `services/health.c`. No include
   cycles. Aplite twins and contract files follow ADR 0001. Inside each layer, files group by
   domain context where the code has one (chart and graph, radar and rain, status row, calendar,
   palette and theme).
@@ -112,7 +114,7 @@ Input is checked once, where it enters:
 
 | Input | Checked in |
 | --- | --- |
-| Weather and radar API responses | the provider's adapter, which maps them into one model (`weather/application/provider.js` `adoptMapped`) |
+| Weather and radar API responses | the provider's adapter, which maps them into one model (`weather/domain/forecast-model.js` `adoptMapped`) |
 | Stored settings | the settings read and its migrations |
 | The settings page's return | the settings context, as it stores them |
 | AppMessage tuples | the watch's wire readers (`appendix/status_line.c`, `config_wire.c`, …) |

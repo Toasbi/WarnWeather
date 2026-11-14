@@ -1,7 +1,7 @@
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
-#include "../layers/status_row_layout.h"
+#include "status_row_layout.h"
 #include "status_line.h"
 
 // On demand: the items a status bar shows at its left and right edges only while

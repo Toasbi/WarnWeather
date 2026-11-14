@@ -100,24 +100,24 @@ node scripts/check-forecast-span-lockstep.js build/host/forecast_span.txt
 # adds the ladder row each side ends on (OdLayout.stage), which the tests read and the
 # watch build leaves out.
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_ladder_test.c \
-   src/c/layers/status_row_layout.c -o build/host/on_demand_ladder_test
+   src/c/appendix/status_row_layout.c -o build/host/on_demand_ladder_test
 build/host/on_demand_ladder_test
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_sides_test.c src/c/appendix/on_demand.c \
-   src/c/layers/status_row_layout.c -o build/host/on_demand_sides_test
+   src/c/appendix/status_row_layout.c -o build/host/on_demand_sides_test
 build/host/on_demand_sides_test
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_battery_test.c src/c/appendix/on_demand.c \
-   src/c/layers/status_row_layout.c -o build/host/on_demand_battery_test
+   src/c/appendix/status_row_layout.c -o build/host/on_demand_battery_test
 build/host/on_demand_battery_test
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_merge_test.c src/c/appendix/on_demand.c \
-   src/c/layers/status_row_layout.c -o build/host/on_demand_merge_test
+   src/c/appendix/status_row_layout.c -o build/host/on_demand_merge_test
 build/host/on_demand_merge_test
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_short_test.c src/c/appendix/on_demand.c \
-   src/c/layers/status_row_layout.c -o build/host/on_demand_short_test
+   src/c/appendix/status_row_layout.c -o build/host/on_demand_short_test
 build/host/on_demand_short_test
 # The Rain alert's "Replaces the slot" (on_demand.h od_replace_slots): a side with a rain
 # alert lays out as though its own slot were empty; the metric alerts never take it.
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_replace_test.c src/c/appendix/on_demand.c \
-   src/c/layers/status_row_layout.c -o build/host/on_demand_replace_test
+   src/c/appendix/status_row_layout.c -o build/host/on_demand_replace_test
 build/host/on_demand_replace_test
 # Every height a bar asks for has its pixel drawing (status_icon_size.h, the generated tables),
 # on the colour 144-px watch, the black and white ones (PBL_BW) and the Pebble Time 2.
@@ -157,14 +157,14 @@ cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/graph_style_test.c -o build/host/graph_st
 build/host/graph_style_test
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the
 # per-platform STATUS_STRIP_CAL_GAP.
-cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test
+cc $CFLAGS test/c/status_row_layout_test.c src/c/appendix/status_row_layout.c -o build/host/status_row_layout_test
 # The row layout with the short forms swapped in, over a sweep of slots, checked against the
 # settings page's copy (scripts/check-row-swap-lockstep.js).
-cc $CFLAGS test/c/row_swap_dump.c src/c/layers/status_row_layout.c -o build/host/row_swap_dump
+cc $CFLAGS test/c/row_swap_dump.c src/c/appendix/status_row_layout.c -o build/host/row_swap_dump
 build/host/row_swap_dump > build/host/row_swap.txt
 node scripts/check-row-swap-lockstep.js build/host/row_swap.txt
 build/host/status_row_layout_test
-cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test_emery
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_row_layout_test.c src/c/appendix/status_row_layout.c -o build/host/status_row_layout_test_emery
 build/host/status_row_layout_test_emery
 # status_icon_weight.h is header-only (a table + pure integer arithmetic), so the
 # test needs no companion .c — that is also why the weight math lives in a header

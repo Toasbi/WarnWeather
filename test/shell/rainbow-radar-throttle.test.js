@@ -1,4 +1,4 @@
-// test/weather/application/rainbow-radar-throttle.test.js
+// test/shell/rainbow-radar-throttle.test.js
 //
 // End to end on the phone side: the shared Rainbow radar is asked at most once
 // per 30-minute slot (fetch-cycle.js takeRadarRequestSlot), and the throttled
@@ -33,7 +33,7 @@ global.localStorage = {
 
 // Mock the shared XHR BEFORE the radar modules load (they capture it). A proxy
 // request is a POST to the endpoint itself, the position in its body.
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../src/pkjs/weather/adapter/provider.js');
 var transport;
 var proxyRequests = 0;
 var proxyBodies = [];
@@ -44,11 +44,11 @@ WeatherProvider.request = function(url, type, onSuccess, onError, headers, body)
   }
   transport(url, onSuccess, onError);
 };
-const createFetchCycle = require('../../../src/pkjs/shell/fetch-cycle.js');
-const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
-const authBackoff = require('../../../src/pkjs/weather/adapter/auth-backoff.js');
-const notices = require('../../../src/pkjs/notices/adapter/notices.js');
-const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
+const createFetchCycle = require('../../src/pkjs/shell/fetch-cycle.js');
+const outbox = require('../../src/pkjs/wire/adapter/outbox.js');
+const authBackoff = require('../../src/pkjs/weather/adapter/auth-backoff.js');
+const notices = require('../../src/pkjs/notices/adapter/notices.js');
+const KEYS = require('../../src/pkjs/settings/domain/storage-keys.js');
 
 const ENDPOINT = 'https://proxy.example/rainbow-nowcast';
 const SLOT = 300;
@@ -308,11 +308,11 @@ test('a missing proxy (404/405): the clear takes the radar off, survives a NACK,
 // harness (which swaps in its own Pebble/localStorage/XHR and a fresh copy of
 // every src/pkjs module; the globals above are put back afterwards).
 test('index level: a 5-minute schedule asks the proxy at :00 and :30 only, the sky rows every fetch', (t) => {
-  const { bootIndex, healthyNetwork } = require('../../helpers/index-harness.js');
+  const { bootIndex, healthyNetwork } = require('../helpers/index-harness.js');
   const savedStorage = global.localStorage;
   const savedPebble = global.Pebble;
   // A production-style build: the Rainbow proxy endpoint is set (as boot-radar-probe.js).
-  const pkg = require('../../../package.json');
+  const pkg = require('../../package.json');
   const savedRainbow = pkg.rainbow;
   pkg.rainbow = { endpoint: ENDPOINT };
   let forecastCalls = 0;

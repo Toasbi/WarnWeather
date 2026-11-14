@@ -8,7 +8,7 @@
 // when empty; <swapped> the slots that swapped, bit i for slot i; a place "<x>,<text_w>" for
 // a slot that shows, x its group's left edge, or "-" for one that doesn't.
 #include <stdio.h>
-#include "c/layers/status_row_layout.h"
+#include "c/appendix/status_row_layout.h"
 
 #define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
 

@@ -871,7 +871,7 @@
 
     /**
      * Coordinates → display city name, via the same keyless ArcGIS endpoint
-     * the phone side uses (weather/application/provider.js withCityName) — one naming
+     * the phone side uses (weather/adapter/provider.js withCityName) — one naming
      * vocabulary for the Current chip on both sides of the app.
      * @param {number} lat Latitude.
      * @param {number} lon Longitude.
