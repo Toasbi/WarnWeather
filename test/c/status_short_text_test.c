@@ -208,6 +208,7 @@ static void date_calendar(void) {
         { DATE_MONTH_SLASH, "09/2026", "09/26" },
         { DATE_MONTH_ISO, "2026-09", NULL },
         { DATE_MONTH_DOTSYY, "09.26", NULL },
+        { DATE_MONTH_NOYEAR, "Sep", NULL },
     };
     struct tm t = sample_tm(7);
     for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {

@@ -19,6 +19,7 @@ test('the date slot prints month + year beside a calendar, in its picker\'s form
   assert.equal(sample('date', { dateSlotMonthFormat: 'name' }, { fullDate: false }), 'September 2026');
   assert.equal(sample('date', { dateSlotMonthFormat: 'iso' }, { fullDate: false }), '2026-09');
   assert.equal(sample('date', { dateSlotMonthFormat: 'dotsyy' }, { fullDate: false }), '09.26');
+  assert.equal(sample('date', { dateSlotMonthFormat: 'noyear' }, { fullDate: false }), 'Sep');
 });
 
 test('the date slot prints the full date without a calendar, in the region\'s order', () => {

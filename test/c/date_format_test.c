@@ -60,6 +60,8 @@ static void month_year_formats(void) {
     t2005.tm_year = 2005 - 1900;
     date_format_month_year(buf, sizeof(buf), &t2005, DATE_MONTH_DOTSYY);
     expect_str("month dotsyy 2005", buf, "09.05");
+    date_format_month_year(buf, sizeof(buf), &t, DATE_MONTH_NOYEAR);
+    expect_str("month noyear", buf, "Sep");
     // An unknown wire byte (a future phone build) renders Auto, never garbage.
     date_format_month_year(buf, sizeof(buf), &t, 250);
     expect_str("month unknown->auto", buf, "Sep 2026");
@@ -132,6 +134,8 @@ static void torn_tm_is_clamped(void) {
     expect_str("clamped month name", buf, "January 2026");
     date_format_month_year(buf, sizeof(buf), &t, DATE_MONTH_DOTSYY);
     expect_str("clamped month dotsyy", buf, "01.26");
+    date_format_month_year(buf, sizeof(buf), &t, DATE_MONTH_NOYEAR);
+    expect_str("clamped month noyear", buf, "Jan");
 }
 
 static void longest_strings_fit_the_slot_cap(void) {

@@ -142,5 +142,6 @@ test('the settings page\'s date formatters render exactly the pinned C outputs',
   assert.equal(dateFormat.formatMonthYear(jan, 'auto'), cPins['clamped month auto']);
   assert.equal(dateFormat.formatMonthYear(jan, 'name'), cPins['clamped month name']);
   assert.equal(dateFormat.formatMonthYear(jan, 'dotsyy'), cPins['clamped month dotsyy']);
+  assert.equal(dateFormat.formatMonthYear(jan, 'noyear'), cPins['clamped month noyear']);
   assert.equal(dateFormat.formatMonthYear(new Date(2005, 8, 7), 'dotsyy'), cPins['month dotsyy 2005']);
 });

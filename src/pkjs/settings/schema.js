@@ -2093,6 +2093,7 @@ module.exports = {
             defaultValue: 'auto',
             options: [
                 ['Sep 2026', 'auto'],
+                ['Sep', 'noyear'],
                 ['September 2026', 'name'],
                 ['09.2026', 'dots'],
                 ['09.26', 'dotsyy'],

@@ -14,7 +14,7 @@
  * settings page loads this file too (window.DateFormat). ES5 only (aplite PKJS).
  */
 (function () {
-    var MONTH_FORMAT_CODES = ['auto', 'name', 'dots', 'slash', 'iso', 'dotsyy'];
+    var MONTH_FORMAT_CODES = ['auto', 'name', 'dots', 'slash', 'iso', 'dotsyy', 'noyear'];
     var FULL_FORMAT_CODES = ['auto', 'long', 'noyear', 'slash', 'iso', 'text', 'textyear'];
 
     // English month names, as strftime prints them in the app's default locale on the
@@ -93,7 +93,7 @@
      * @param {Date} d The local date.
      * @param {*} code A MONTH_FORMAT_CODES value; unknown/unset = 'auto'.
      * @returns {string} e.g. 'Sep 2026', 'September 2026', '09.2026', '09/2026', '2026-09',
-     *     '09.26'
+     *     '09.26', 'Sep'
      */
     function formatMonthYear(d, code) {
         var mon = d.getMonth() + 1;
@@ -105,6 +105,7 @@
         case 'slash': return pad(mon, 2) + '/' + year;
         case 'iso': return year + '-' + pad(mon, 2);
         case 'dotsyy': return pad(mon, 2) + '.' + pad(d.getFullYear() % 100, 2);
+        case 'noyear': return name.substr(0, 3);
         default: return name.substr(0, 3) + ' ' + year;
         }
     }
