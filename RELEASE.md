@@ -1,15 +1,20 @@
 # Releasing
 
-This is the release checklist for WarnWeather: how a release is cut, what each release needs besides the code, and how to refresh the store assets.
+RELEASE.md is the release checklist for WarnWeather that covers how a release is cut, what each release needs besides the code, and how to refresh the store assets.
 
 ## Automatic GitHub releases (Release Please)
 
 `.github/workflows/release-please.yml` manages releases:
 
 1. Merge conventional commits into `main`.
-2. Release Please opens or updates a release PR with the version bumps.
-3. Merge the release PR.
+2. Release Please opens or updates a release PR that bumps the version in
+   `package.template.json` (`$.version`).
+3. Merge the release PR. That tags the release.
 4. The workflow creates a GitHub release and uploads `build/warnweather.pbw`.
+
+The commit prefixes decide the version bump, so they matter. The weather plugins are
+versioned on their own: release-please skips commits that touch only `plugins/` (see
+`plugins/README.md`).
 
 If the `.pbw` build fails after the tag is cut, the release is published without its `.pbw`,
 and running the failed job again builds nothing, because release-please has already tagged it. Merge the
@@ -26,7 +31,8 @@ before the `.pbw` is uploaded, whether by merging the release PR or to the appst
 ### Boot toast (feature releases only)
 
 A feature release needs a `release-notifications.json` entry keyed by the exact new version
-string, with a non-empty `title` and `body`. The toast interrupts the user on first launch after
+string (e.g. `"1.4.0"`), with a non-empty `title` and `body`. It is the upgrade "what's new"
+toast. The toast interrupts the user on first launch after
 an upgrade, so it is kept for releases that give them something to do:
 
 | Release | Version shape | Toast entry |
@@ -49,15 +55,63 @@ Watch for `Release-As:` pinning a feature to a patch version. The check reads th
 not the commits, so it does not ask for a toast on that release, which needs one most. Add
 the entry by hand then.
 
+Preview the copy locally with `forceShowReleaseNotificationOnBoot` in `src/pkjs/dev-config.js`
+([DEV.md](DEV.md#debug-flags-srcpkjsdev-configjs)).
+
 ### News row (every release)
 
-Every release needs a row in the `public.news` Supabase table with `target_version` left
-`NULL`. It is the short changelog in the News & Feedback section of the settings screen.
-`NULL` shows the row to every watch whatever version it runs, so release news is also the
-nudge to update; an exact version string is for version-specific notices only. Patches need
-the row too, and **nothing in CI enforces it**, so check it yourself at release time.
+Every release needs a row in the `public.news` Supabase table, the hosted news backend behind
+the *News & Feedback* section of the settings screen. It is separate from the boot toast and
+has no feature/patch exemption: patches need the row too, and **nothing in CI enforces it**,
+so check it yourself at release time.
 
-The style guide for both is in the "Commits and releases" section of `AGENTS.md`.
+Leave `target_version` `NULL`. `NULL` shows the row to every watch whatever version it runs,
+so release news is also the nudge to update. An exact version string like `'1.9.2'` limits a
+row to watches on that build; use it only for version-specific notices, e.g. "this build
+broke X, update".
+
+The toast is a one-line summary; the news `body_md` is a short changelog, one step longer.
+Title it `"What's new in <version>"` and use only the supported markdown subset (`**bold**`
+section headers, `- ` bullets, `*italic*`, `[text](https://…)` links; see
+`src/pkjs/settings/news.js`). The schema is in `supabase/schemas/news.sql`.
+
+### Changelog style
+
+The news body and the appstore changelog both list the items grouped by kind, under
+`New features`, `Improvements` and `Fixes`: bold headings in the news body, plain lines in
+the appstore text.
+
+- Each item is one row of one sentence, about ten to fifteen words: what the user gets,
+  named the way they see it, and what it does. No exclamation marks, second sentence,
+  aside, how-to or full stop.
+- A platform limit goes in parentheses at the end (`(Pebble Time 2)`), or after the
+  heading when the whole group shares it.
+- Fixes get one row per watchface bug a user would have noticed, then one grouped row for
+  polish. Leave out mechanics, defaults and edge cases.
+- The news body renders flat `- ` bullets only (`news.js`), so no sub-bullets.
+
+The shape to match:
+
+```
+**New features** (not on Pebble Classic or Steel)
+- Name your screens and drag them into the order you want
+- Make up to six status bars and fill them as you like (Pebble Time 2)
+
+**Improvements**
+- Setup shows your own watch while you pick its layout and theme
+
+**Fixes**
+- The settings open again right after Reset watchface
+- Smaller fixes and polish
+```
+
+Write the changelog (both the toast and the news body) for users, not from the diff. List
+individually only what a user can act on: a feature they can use, or a bug that affected the
+watchface itself. Group everything else (settings-screen polish, internal refactors, small
+fixes) into one line ("small fixes and polish"), or leave it out. A polish-only patch gets one
+grouped line, not an itemized list of cosmetic tweaks. Keep the tone factual and short: no
+filler reassurances ("nothing you need to change on your end") and no generic sign-offs
+("more on the way", "message me anytime").
 
 ## Developer portals
 
@@ -65,53 +119,18 @@ The style guide for both is in the "Commits and releases" section of `AGENTS.md`
 )
 - [Pebble Developer Dashboard (RePebble)](https://developer.repebble.com/dashboard)
 
-## Screenshots & store assets
+## Screenshots and store assets
 
-The store listing copy is in [STORE_LISTING.md](STORE_LISTING.md).
+The store listing copy is in [STORE_LISTING.md](STORE_LISTING.md). The commands, their
+arguments and the scene set are in [DEV.md](DEV.md#store-screenshots).
 
-### Capture the store screenshots
-
-Capture the five chosen configs on every platform. The script files them per platform under
-`screenshot/<version>/store/<platform>/<config>.png`:
-
-```sh
-scripts/capture-store-shots.sh <version>        # all five rounds
-scripts/capture-store-shots.sh <version> 5      # resume from round 5 (after a crash)
-```
-
-The appstore wants at least one screenshot per supported platform, so upload each
-platform's five raw PNGs from `screenshot/<version>/store/<platform>/` to that platform.
-
-### Composite the README hero shots
-
-The device frames and banner templates come from [Appstore Assets](https://developer.rebble.io/guides/appstore-publishing/appstore-assets/) in the Pebble docs.
-
-Its download links are broken (see https://github.com/pebble-dev/developer.rebble.io/issues/37); the files are on the Wayback Machine (e.g. [banner templates](https://web.archive.org/web/20161207160612/https://s3.amazonaws.com/developer.getpebble.com/assets/other/banner-templates-design.zip)).
-
-Composite the README hero shots from the store captures with:
-
-```sh
-mise composite <version>
-mise composite-screenshot <pebble-time-red|pebble2-duo-white|pebble-time2-red> <screenshot.png> <output.png>
-```
-
-`mise composite <version>` reads the chosen config per device from
-`screenshot/<version>/store/<platform>/<config>.png` (Pebble Time←flint/calendar,
-Pebble 2 Duo←flint/wind, Pebble Time 2←emery/radar) and writes the framed PNGs to
-`screenshot/<version>/composite/`.
-
-Some downloaded frame assets have other device names. Rename them: `core-time2-red.svg` becomes `pebble-time2-red.svg`, and `pebble2-white.svg` becomes `pebble2-duo-white.svg`.
-
-### Refresh the README showcase GIF
-
-The README's animated hero is a showcase of several scenes, captured per platform and
-cross-faded into one looping GIF. Regenerate it when the UI or the scene set changes:
-
-```sh
-scripts/capture-showcase.sh <version>                    # aplite basalt flint emery
-scripts/assemble-showcase-gif.sh <version> <platform>    # per platform → *-showcase.gif
-```
-
-Then point the README's three `screenshot/<version>/showcase/*-showcase.gif` links at the
-new version, and commit the GIFs. [DEV.md](DEV.md#showcase-gif-readme-hero) describes the scene set and the
-deterministic health and rain-countdown twins.
+1. Capture the five chosen store configs on every platform with
+   `scripts/capture-store-shots.sh <version>` ([DEV.md](DEV.md#store-screenshots)).
+2. Upload each platform's five raw PNGs from `screenshot/<version>/store/<platform>/` to that
+   platform in the appstore, which wants at least one screenshot per supported platform.
+3. Composite the README hero shots from the store captures with `mise composite <version>`
+   ([DEV.md](DEV.md#readme-hero-shots), which also says where the device frames come from).
+4. When the UI or the scene set changed, refresh the README showcase GIF: run
+   `scripts/capture-showcase.sh <version>`, then `scripts/assemble-showcase-gif.sh <version> <platform>`
+   per platform ([DEV.md](DEV.md#showcase-gif-readme-hero)). Point the README's three
+   `screenshot/<version>/showcase/*-showcase.gif` links at the new version and commit the GIFs.

@@ -26,15 +26,9 @@ Other references:
   indefinitely and keeps using CPU and RAM. Run `pebble kill`, then check with
   `ps aux | grep qemu-pebble`: repeated installs can leave qemu processes that
   `pebble kill` misses, and `pkill -f qemu-pebble; pkill -f pypkjs` clears them.
-- For config-UI (settings page) work, `mise preview-config` renders the live page, with the
-  real schema, blocks and onBuild hooks injected, to `build/config-ui-preview.html`. Open it
-  in a desktop browser to look at and use the settings UI (tabs, toggles and the color picker
-  all work) without the emulator. It reads the source fresh on each run, so it always
-  reflects the current `shell.html`/`blocks.js`. Its arguments are `[out] [platform]`, in
-  either order: a bare platform name picks the platform and keeps the default output path,
-  so `mise preview-config -- aplite` writes the B/W rendering to
-  `build/config-ui-preview.html`. Pass a filename as well to change the output path, as in
-  `mise preview-config -- preview.html aplite`.
+- For config-UI (settings page) work, `mise preview-config` renders the live settings page
+  to `build/config-ui-preview.html` for a desktop browser, without the emulator
+  ([DEV.md](DEV.md#config-ui-preview-no-emulator) has its arguments).
 
 ## Tests
 
@@ -117,7 +111,7 @@ README.md.
     the *heaviest* bundle under budget on every platform. An overflow is dropped silently
     (`APP_MSG_BUFFER_OVERFLOW` → "Message dropped!").
   - On aplite the buffer is allocated from its already tiny heap, so 536 B is a hard
-    ceiling there and can't be raised. The other platforms have heap to spare.
+    ceiling there and the inbox can't simply be bumped. The other platforms have heap to spare.
   - The worst realistic case on the 640 B platforms is DWD with all four metric lines
     active, the radar's sky rows on, City in every status slot and a full weather-alert
     entry tuple (`ALERT_ENTRIES_UINT8`, the On demand weather alert items; 7 B header + a
@@ -143,12 +137,19 @@ README.md.
     update its `buildHeaviestBundle()`.
   - Raising `inbox_size` is a last resort and the owner's call: only for a feature-sized
     tuple with no settings-side home, and never on aplite.
-  - The settings-derived tuples ride the Clay (settings) message, not the weather one: the
-    rain-bar and radar palettes and the forecast line styling (`CLAY_LINE_STYLE_UINT8`,
-    14 B: line colours, fill flag, the four night colours, the third- and fourth-metric
-    line colours and the four per-line marker-style bytes). Before spending weather-message
-    bytes, check whether the value is settings-derived; if it is, it belongs on the Clay
-    message.
+- Settings ride the settings (Clay) message and weather data rides the weather message.
+  - Config-derived values (colour palettes, formatting and display toggles, the holiday
+    mask) belong in `sendClaySettings` (`outbox.sendClay`). The weather payload carries only
+    forecast, status, sun, radar and sleep data. Before spending weather-message bytes, check
+    whether the value is settings-derived; if it is, it belongs on the Clay message.
+  - The rain-bar/radar palette and the forecast line styling (`CLAY_LINE_STYLE_UINT8`, 14 B:
+    line colours, fill flag, the four night colours, the third- and fourth-metric line
+    colours and the four per-line marker-style bytes) are on the Clay message:
+    `weather/graph-wire.js` packs both from the readings of `rain-tier.js`, `line-style.js`
+    and `draw-from.js`, and `clay-payload.js` sends them with the other settings.
+  - Colours pack as single `GColor8` argb bytes, not int32 hex. An array tuple costs 7 B + N
+    and a scalar costs 7 B + 4, so packing several values into one array is the cheaper
+    shape.
   - The Clay message also ships to aplite and is tight. Its heaviest form is 520 B, sized
     against aplite's 536 B inbox as the conservative floor. That includes the 48 B
     thresholds blob, which carries the rain alert's look, the On demand Battery item, the
@@ -157,15 +158,6 @@ README.md.
     (`CLAY_GRAPH_STYLE_1..3_UINT8`) and bars 4 to 6's On demand cells
     (`CLAY_OD_EXTRA_UINT8`), 681 B of its 1280 B at their heaviest. Check
     `test/inbox-size.test.js` either way.
-- Settings ride the settings (Clay) message and weather data rides the weather message.
-  Config-derived values (colour palettes, formatting and display toggles, the holiday mask)
-  belong in `sendClaySettings` (`outbox.sendClay`). The weather payload carries only
-  forecast, status, sun, radar and sleep data. The rain-bar/radar palette and the forecast
-  line styling (`CLAY_LINE_STYLE_UINT8`) are on the Clay message: `weather/graph-wire.js`
-  packs both from the readings of `rain-tier.js`, `line-style.js` and `draw-from.js`, and
-  `clay-payload.js` sends them with the other settings. Colours pack as single `GColor8`
-  argb bytes, not int32 hex. An array tuple costs 7 B + N and a scalar costs 7 B + 4, so
-  packing several values into one array is the cheaper shape.
 - Declare every new API host in the `usesPermissions` of `package.template.json`, in an
   `Internet` entry of its own service (each domain covers its subdomains).
   - SDK 4.44 builds manifest version 2 pbws. With the Pebble app's permissions preview on
@@ -278,7 +270,7 @@ Aplite (Pebble Classic/Steel) is a frozen, lean variant: its feature set is fixe
 other platforms grow past its 24 KB budget. Use the earliest of these mechanisms that
 applies:
 
-1. Capability macro (`PBL_HEALTH`, `PBL_COLOR`/`PBL_IF_COLOR_ELSE`), when aplite genuinely
+1. Capability macro (`PBL_HEALTH`, `PBL_COLOR`/`PBL_IF_COLOR_ELSE`), when aplite
    can't do it. Health belongs here; do not demote it.
 2. Exclusion, for a feature aplite doesn't have: give it its own leaf file and guard its
    entry points so `--gc-sections` removes it on aplite. No twin, no duplicate.
@@ -311,7 +303,7 @@ measured on the diorite proxy. See `docs/adr/0001-aplite-frozen-lean-fork.md` an
 
 Never hand-write `supabase/migrations/` files. Edit the declarative `supabase/schemas/`
 and generate a migration before committing: `supabase db diff -f <label>`. The local-stack
-and hosted-deploy commands are in `DEV.md` / `CONTRIBUTING.md`.
+and hosted-deploy commands are in `DEV.md`.
 
 ### Privacy in Supabase requests and logs
 
@@ -351,75 +343,10 @@ Third-party weather and geocoding APIs (met.no, DWD, Open-Meteo, LocationIQ, tom
 - This repo uses Conventional Commits (`feat`, `fix`, `chore`, `refactor`, `docs`, `test`,
   `perf`, `style`), optionally scoped, e.g. `feat(forecast):` or `fix(config-ui):`. Don't
   commit bare subjects like `wip` or `nudge`.
-- release-please (`.github/workflows/release-please.yml`) cuts the releases. Merging
-  conventional commits to `main` opens or updates a release PR that bumps the version in
-  `package.template.json` (`$.version`); merging that PR tags the release and uploads
-  `build/warnweather.pbw`. The commit prefixes decide the version bump. The weather plugins
-  are versioned on their own: release-please skips commits that touch only `plugins/` (see
-  Weather plugins above).
-- A feature release needs a `release-notifications.json` entry; a fix-only patch does not.
-  - The entry is keyed by the exact new version string (e.g. `"1.4.0"`) and has a
-    non-empty `title` and `body`. It is the upgrade "what's new" toast. It interrupts the
-    user on the first launch after an upgrade, so it is kept for releases that give them
-    something to do: required for `x.y.0`, optional for `x.y.z` (z > 0).
-  - The *Release Notification Required* CI check (`scripts/check-release-notification.js`)
-    enforces exactly that, and rejects a half-filled entry at any version;
-    `prepare-package.sh` throws on one.
-  - Leaving the entry out is safe: `prepare-package.sh` injects `pkg.releaseNotification`
-    only when the manifest holds the built version, and the watch shows the newest
-    *unseen* entry at or below the running version. So 1.13.1 → 1.13.2 shows nothing,
-    while 1.13.0 → 1.13.2 still shows the 1.13.1 toast it never saw.
-  - Watch for `Release-As:` pinning a feature release to a patch version. The check reads
-    the version, not the commits, so it won't ask for a toast on that release; add the
-    entry by hand.
-  - Preview the copy locally with `forceShowReleaseNotificationOnBoot` in `dev-config.js`.
-    See `RELEASE.md`.
-- **Every release, patches included, needs a news entry in the `public.news` Supabase
-  table.** Nothing in CI enforces it, so it is on you at release time.
-  - The news table is the hosted news backend behind the *News & Feedback* section of the
-    settings screen, separate from the boot toast above, and has no feature/patch
-    exemption.
-  - Insert one row with `target_version` left `NULL`, so every watch sees it whatever
-    version it runs; the release news is also the nudge to update. An exact version string
-    like `'1.9.2'` limits a row to watches on that build; use that only for
-    version-specific notices, e.g. "this build broke X, update".
-  - The `release-notifications.json` toast is a one-line summary; the news `body_md` is a
-    short changelog, one step longer. Title it `"What's new in <version>"` and use only the
-    supported markdown subset (`**bold**` section headers, `- ` bullets, `*italic*`,
-    `[text](https://…)` links; see `src/pkjs/settings/news.js`). The schema is in
-    `supabase/schemas/news.sql`.
-- Changelog style: items grouped by kind, one plain sentence each. The news body and the
-  appstore changelog both list the items under `New features`, `Improvements` and `Fixes`,
-  as bold headings in the news body and plain lines in the appstore text.
-  - Each item is one row of one sentence, about ten to fifteen words: what the user gets,
-    named the way they see it, and what it does. No exclamation marks, second sentence,
-    aside, how-to or full stop.
-  - A platform limit goes in parentheses at the end (`(Pebble Time 2)`), or after the
-    heading when the whole group shares it.
-  - Fixes get one row per watchface bug a user would have noticed, then one grouped row for
-    polish. Leave out mechanics, defaults and edge cases.
-  - The news body renders flat `- ` bullets only (`news.js`), so no sub-bullets. The shape
-    to match:
-
-  ```
-  **New features** (not on Pebble Classic or Steel)
-  - Name your screens and drag them into the order you want
-  - Make up to six status bars and fill them as you like (Pebble Time 2)
-
-  **Improvements**
-  - Setup shows your own watch while you pick its layout and theme
-
-  **Fixes**
-  - The settings open again right after Reset watchface
-  - Smaller fixes and polish
-  ```
-- Write the changelog (both the toast and the news body) for users, not from the diff.
-  List individually only what a user can act on: a feature they can use, or a bug that
-  affected the watchface itself. Group everything else (settings-screen polish, internal
-  refactors, small fixes) into one line ("small fixes and polish"), or leave it out. A
-  polish-only patch gets one grouped line, not an itemized list of cosmetic tweaks. Keep the
-  tone factual and short: no filler reassurances ("nothing you need to change on your end")
-  and no generic sign-offs ("more on the way", "message me anytime").
+- release-please cuts the releases from these commits, so the prefixes decide the version
+  bump. Every release, patches included, needs a row in the `public.news` Supabase table, and
+  a feature release (`x.y.0`) also needs a `release-notifications.json` toast entry. The
+  release steps, the toast and news rules and the changelog style are in `RELEASE.md`.
 - Brainstorming spec and plan files (under `docs/`, which git ignores apart from `docs/adr/`
   and `docs/quality-goals.md`) stay untracked; don't `git add -f` them.
 

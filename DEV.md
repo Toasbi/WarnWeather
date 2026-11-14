@@ -1,6 +1,6 @@
 # Developer reference
 
-This is the quick reference for ForecasWetter's commands, scripts and config. Setup and walkthrough prose is in [CONTRIBUTING.md](CONTRIBUTING.md).
+DEV.md is the reference for ForecasWetter's commands, scripts and config. The setup walkthrough is in [CONTRIBUTING.md](CONTRIBUTING.md), and the release-time steps are in [RELEASE.md](RELEASE.md).
 
 ## Prerequisites
 
@@ -193,9 +193,16 @@ Explicit IP, release build:
 mise install-phone <IP> release
 ```
 
-Stream logs after install:
+Stream logs after install (pebble install flags pass through, also in the separator form
+`mise install-phone -- --logs`):
 ```bash
 mise install-phone --logs
+```
+
+Install through CloudPebble, dev build (default) or release build:
+```bash
+mise install-cloud
+mise install-cloud release
 ```
 
 ### Install on emulator
@@ -222,7 +229,13 @@ Release build on specific platform:
 mise install-emulator release basalt
 ```
 
-Stream logs after install:
+Platform from env var:
+```bash
+PEBBLE_EMULATOR=basalt mise install-emulator
+```
+
+Stream logs after install (pebble install flags pass through, also in the separator form
+`mise install-emulator -- --logs`):
 ```bash
 mise install-emulator --logs
 ```
@@ -256,7 +269,8 @@ without the emulator; `mise config-emulator` opens the live page the running app
 `mise preview-config` renders a static HTML snapshot of the config UI to
 `build/config-ui-preview.html`, with the real schema, blocks and onBuild hooks injected.
 Open it in a desktop browser to look at and use the settings UI (tabs, toggles, color
-picker) without the emulator. It reads the source (`shell.html`, `blocks.js`) fresh each run. Args are `[out] [platform]`,
+picker) without the emulator. It reads the source (`shell.html`, `blocks.js`) fresh each run,
+so it always reflects the current page. Args are `[out] [platform]`,
 parsed order-independently: a bare platform name picks the platform and keeps the
 default output path. Alias: `mise preview`.
 
@@ -265,7 +279,7 @@ Default (`build/config-ui-preview.html`, basalt):
 mise preview-config
 ```
 
-Choose platform, default output path:
+Choose platform, default output path (aplite gives the B/W rendering):
 ```bash
 mise preview-config -- aplite
 ```
@@ -284,7 +298,7 @@ mise kill-emulator
 
 ### Screenshots
 
-Emulator screenshot, basalt (default), saved to `screenshot/tmp/`:
+Emulator screenshot, basalt (default), saved to `screenshot/tmp/<timestamp>-<platform>.png`:
 ```bash
 mise screenshot-emulator
 ```
@@ -294,12 +308,22 @@ Emulator screenshot, specific platform:
 mise screenshot-emulator basalt
 ```
 
+Emulator screenshot, flag form:
+```bash
+mise screenshot-emulator -- --emulator flint
+```
+
 Emulator screenshot with platform from env var:
 ```bash
 PEBBLE_EMULATOR=emery mise screenshot-emulator
 ```
 
-Phone screenshot (IP from `.env`), saved to `screenshot/tmp/`:
+Emulator screenshot to an explicit output path, with extra screenshot args:
+```bash
+mise screenshot-emulator -- screenshot/my-capture.png --no-open --no-correction
+```
+
+Phone screenshot (IP from `.env`), saved to `screenshot/tmp/<timestamp>.png`:
 ```bash
 mise screenshot-phone
 ```
@@ -307,6 +331,11 @@ mise screenshot-phone
 Phone screenshot with explicit IP:
 ```bash
 mise screenshot-phone <IP>
+```
+
+Phone screenshot to an explicit output path:
+```bash
+mise screenshot-phone -- screenshot/my-capture.png
 ```
 
 Capture screenshots for all platforms, no fixture:
@@ -338,12 +367,28 @@ The five configs come from fixtures: `1-calendar` (`store-calendar`),
 (`store-wind-radar`) and `5-precip-uv` (`precip-uv`). Upload each platform's five raw
 frames to the store as they are.
 
-Composite the README hero shots from the store captures into framed PNGs
-(`screenshot/v1.4.1/composite/`): Pebble Time from flint/calendar, Pebble 2 Duo from
-flint/wind and Pebble Time 2 from emery/radar:
+#### README hero shots
+
+Composite the README hero shots from the store captures into framed PNGs. `mise composite`
+reads the chosen config per device from `screenshot/<version>/store/<platform>/<config>.png`
+(Pebble Time from flint/calendar, Pebble 2 Duo from flint/wind and Pebble Time 2 from
+emery/radar) and writes them to `screenshot/<version>/composite/`:
 ```bash
 mise composite v1.4.1
 ```
+
+Composite a single screenshot into a device frame:
+```bash
+mise composite-screenshot <pebble-time-red|pebble2-duo-white|pebble-time2-red> <screenshot.png> <output.png>
+```
+
+The device frames and banner templates come from
+[Appstore Assets](https://developer.rebble.io/guides/appstore-publishing/appstore-assets/) in
+the Pebble docs. Its download links are broken (see
+https://github.com/pebble-dev/developer.rebble.io/issues/37); the files are on the Wayback
+Machine (e.g. [banner templates](https://web.archive.org/web/20161207160612/https://s3.amazonaws.com/developer.getpebble.com/assets/other/banner-templates-design.zip)).
+Some downloaded frame assets have other device names. Rename them: `core-time2-red.svg`
+becomes `pebble-time2-red.svg`, and `pebble2-white.svg` becomes `pebble2-duo-white.svg`.
 
 #### Showcase GIF (README hero)
 
@@ -450,7 +495,10 @@ The whole process, the sizes and the file formats: `scripts/pixel-icons/README.m
 
 ### Package generation
 
-`package.json` is generated from `package.template.json` and a profile in `profiles/`.
+`package.json` is generated from `package.template.json` and a profile in `profiles/`
+(`profiles/package.dev.json` or `profiles/package.release.json`). `mise build` and
+`mise build release` generate it before they build; `mise prepare-package` regenerates it
+without building.
 
 Dev profile (default):
 ```bash
@@ -468,17 +516,21 @@ mise prepare-package release
 |----------|-------------|
 | `IP` | Pebble phone IP address for install and screenshots |
 | `FIXTURE` | Fixture name to load (e.g. `berlin`). Fixture files: `fixtures/<name>.json` |
-| `ENABLE_MEMORY_LOGGING` | Set to `1` to enable heap debug logs in the build |
+| `ENABLE_MEMORY_LOGGING` | Set to `1` to enable the extra Pebble heap debug logs in the build, with either package profile. It does not build on aplite (the `MEM\|` logging overflows `.bss`), so capture heap logs on diorite or another platform. On the 64 KB watches it costs about 3.1 KB of heap and links only while the release image leaves that much room; `scripts/check-64k-size.sh` has the numbers |
 | `PEBBLE_EMULATOR` | Default emulator platform (e.g. `basalt`) |
-| `TELEMETRY_ENDPOINT` | Telemetry function URL (set for release/CI builds) |
-| `TELEMETRY_HASH_SECRET` | Secret for server-side HMAC hashing of IDs |
+| `TELEMETRY_ENDPOINT` | Telemetry function URL. It ships commented out in `.env.example`, and telemetry is off without it. Local stack: `http://127.0.0.1:54321/functions/v1/telemetry-ingest`. Set for release/CI builds via the `TELEMETRY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets (`https://<your-project-ref>.supabase.co/functions/v1/telemetry-ingest`) |
+| `TELEMETRY_HASH_SECRET` | Secret for server-side HMAC hashing of IDs. Generate one with `openssl rand -hex 32` |
 | `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle. Set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets. A release build hard-fails if it is empty: Rainbow is the default radar provider, and an empty endpoint still shows the option but makes every Rainbow radar fetch fail soft, so no radar reaches the watch. Dev and fork builds may leave it empty on purpose. It also reaches the settings page (userData `rainbowEndpoint`) for the Rainbow API key's Test button (Graphs tab › Rain radar, the key dialog of *Rainbow (own key)*); when it is empty, the button says the test isn't available |
 | `NEWS_ENDPOINT` | News edge-function URL baked into the bundle. Set for release/CI builds via the `NEWS_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets. A release build hard-fails if it is empty, since the config page's news pill would otherwise be silently disabled for every user |
 | `AQICN_TOKEN` | Shared WAQI (aqicn.org) token baked into the bundle. Set for release/CI builds via the `AQICN_TOKEN_RELEASE`/`_PREVIEW` repo secrets. A release build hard-fails if it is empty: WAQI is the default AQI source, so every device would otherwise silently fall back to Open-Meteo |
 
 ## Fixtures
 
-A fixture is a deterministic UI state for emulator builds. Set `FIXTURE=<name>` in `.env`.
+A fixture is a deterministic UI state for emulator builds. Set `FIXTURE=<name>` in `.env`
+before building or installing. Fixture data is committed in `fixtures/<name>.json`. Fixture
+time and battery state are compiled into the app through `watch.now` and `watch.battery`;
+`scripts/install-emulator.sh` does not call Pebble's emulator setting controls. While a
+fixture is active, put Clay values that change the rendering in its `claySettings`.
 
 Fields supported in `fixtures/<name>.json`:
 - `watch.now`: date and time for the C-rendered time and date UI
@@ -502,15 +554,16 @@ Fields supported in `fixtures/<name>.json`:
 
 | Key | Type | Effect |
 |-----|------|--------|
-| `clearPkjsStorageOnBoot` | `true/false` | Forces PKJS `localStorage` reset on each boot (first-install testing) |
-| `forceShowReleaseNotificationOnBoot` | `'1.26.0'` | Always shows release notification for that version key |
+| `clearPkjsStorageOnBoot` | `true/false` | Forces PKJS `localStorage` reset on each boot. Keep it `true` only while testing first-install behavior, and set it back to `false` before testing upgrade-notification behavior |
+| `forceShowReleaseNotificationOnBoot` | `'1.26.0'` | Shows the release notification for that version key on every boot, whatever the upgrade state. The string must match a key in `release-notifications.json` exactly. Use it to work on the next entry's copy while `package.json` is still on an older version; remove it (or comment it out) when testing normal upgrade behavior |
 | `owmApiKey` | `'abc123'` | Preloads OpenWeatherMap API key |
 | `maxNotifiedVersion` | `'1.26.0'` | Seeds the release-notification "max notified version" marker (simulate skipped-version upgrades) |
 | `resetV134WeekendHolidayColorMigration` | `true/false` | Clears the v1.34.0 weekend/holiday color migration marker so it re-runs on next boot |
 | `resetV140HolidayRegionKeyMigration` | `true/false` | Clears the v1.4.0 holiday-region-key migration marker so it re-runs on next boot |
 | `resetUpdateNotifiedVersion` | `true/false` | Clears the update-notification "already notified" version marker and the last-check timestamp, so the daily update check re-runs on next boot |
 
-These flags are local only: they are not committed or written to Clay settings.
+These flags are local only: they are not committed or written to Clay settings. Set one as
+an export, e.g. `module.exports.clearPkjsStorageOnBoot = true;`.
 
 ## Logging
 
@@ -527,7 +580,11 @@ console.log("msg");
 
 ## Supabase (telemetry and Rainbow proxy)
 
-Start the local Supabase stack:
+Telemetry runs on Supabase Edge Functions and Postgres. `mise install` installs and updates
+the Supabase CLI through its aqua backend (pinned in `mise.toml`); check it with
+`supabase --version`.
+
+Start the local Supabase stack (from the repo root):
 ```bash
 supabase start
 ```
@@ -543,6 +600,8 @@ supabase stop
 ```
 
 Local Studio is at http://127.0.0.1:54323; inspect `public.telemetry_weather_fetch` there.
+For the local stack, set `TELEMETRY_ENDPOINT` in `.env` to the local URL in the
+[env var table](#environment-variables-env).
 
 ### Migrations
 
@@ -558,6 +617,10 @@ supabase db diff -f <label>
 which with no function name deploys all edge functions (telemetry-ingest, rainbow-nowcast
 and news). The commands below are for manual or local deploys.
 
+With Supabase's GitHub sync and branching (optional), Supabase applies migrations and deploys
+functions from `supabase/` when a branch or PR updates. Enable it in Supabase Dashboard >
+Project Settings > Integrations.
+
 Authenticate with Supabase:
 ```bash
 supabase login
@@ -568,7 +631,7 @@ Link the repo to the hosted project:
 supabase link --project-ref <project-ref>
 ```
 
-Set a function secret:
+Set a function secret (generate the value with `openssl rand -hex 32`):
 ```bash
 supabase secrets set TELEMETRY_HASH_SECRET=<value>
 ```
@@ -662,6 +725,8 @@ Postgres/PostgREST code (`log.ts`). The function needs those RPCs, so the migrat
 (CI runs `db push` before `functions deploy`).
 
 ## Upgrading pebble-tool
+
+`mise.toml` pins `pipx:pebble-tool` to an exact version, fully resolved in `mise.lock`.
 
 Bump the pinned version in `mise.toml`:
 ```bash
