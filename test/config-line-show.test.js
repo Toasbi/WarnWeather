@@ -117,7 +117,7 @@ test('wind, gusts and UV on three lines: three rows, each under its own picker',
 });
 
 test('every watch with Alert settings shows the row; aplite, without them, never does', () => {
-  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) => assert.equal(
+  ['basalt', 'diorite', 'emery', 'flint'].forEach((p) => assert.equal(
     visibleRows({ secondaryLine: 'wind', thirdLine: 'uv' }, platform.computeEnv({ platform: p })).length, 2, p));
   PICKERS.forEach((picker) => ['wind', 'gust', 'uv'].forEach((metric) => {
     const S = { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' };

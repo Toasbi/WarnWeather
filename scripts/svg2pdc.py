@@ -3,8 +3,7 @@
 
 This is the pipeline for the status/health outline family in resources/data/
 (STATUS_TEMP/UV/WIND/GUST/PRECIP/POLLEN/DISTANCE). Sources live in
-docs/superpowers/svg/*.svg (Tabler outline icons). It replaces the old
-gen-status-pdc.py, which is now a no-op.
+docs/superpowers/svg/*.svg (Tabler outline icons).
 
 Why a custom tool (vs pebble-examples' svg2pdc.py):
  - flattens Bezier/arc segments into many sub-points (the official tool keeps only

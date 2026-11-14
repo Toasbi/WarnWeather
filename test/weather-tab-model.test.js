@@ -58,7 +58,6 @@ test('activeLocation precedence: picked slot, then seed, then any slot, then nul
 test('unit conversion honors the watch settings', () => {
   assert.equal(model.displayTemp(20, { temperatureUnits: 'c' }), 20);
   assert.equal(model.displayTemp(20, { temperatureUnits: 'f' }), 68);
-  assert.equal(model.tempUnitLabel({ temperatureUnits: 'f' }), '°F');
   assert.equal(Math.round(model.displayWind(100, { windUnits: 'mph' })), 62);
   assert.equal(Math.round(model.displayWind(100, { windUnits: 'knots' })), 54);
   assert.equal(model.displayWind(100, { windUnits: 'kph' }), 100);

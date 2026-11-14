@@ -4,7 +4,7 @@
 // tabs, toggles, selects, and the color picker all work. Reads shell.html + lib + app files fresh
 // each run, so it always reflects the current source (no need to regenerate page.generated.js).
 // Usage: node scripts/preview-config-page.js [out] [platform]
-//   platform: basalt | chalk | aplite | diorite | emery   (default basalt)
+//   platform: any of package.template.json's targetPlatforms   (default basalt)
 'use strict';
 var fs = require('fs');
 var path = require('path');
@@ -21,7 +21,8 @@ var gpsFailure = require(path.join(ROOT, 'src/pkjs/weather/location.js')).gpsFai
 // Weather tab's stylesheet before the module whose settle curve it bakes in.
 var APP_FILES = require('./build-config-page.js').APP_FILES;
 var DEFAULT_OUT = path.join(ROOT, 'build/config-ui-preview.html');
-var PLATFORMS = ['basalt', 'chalk', 'aplite', 'diorite', 'emery'];
+// The watches the app builds for: a bare name among them picks the platform.
+var PLATFORMS = require(path.join(ROOT, 'package.template.json')).pebble.targetPlatforms;
 
 // Parse CLI positionals into { out, platform } order-independently. A bare platform
 // name (e.g. `mise preview-config aplite`) selects the platform and keeps the default

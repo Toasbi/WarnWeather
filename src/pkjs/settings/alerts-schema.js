@@ -226,7 +226,7 @@ function alertLooksAheadWhen(daysKey) {
  * the levels' ONE home (the slot sheet points here). It has no switch: a tick in its Shows
  * on grid is the switch. The phone bakes an entry into the ALERT_ENTRIES_UINT8 tuple
  * only for a kind placed on a bar whose day — today, or with Days "Today + tomorrow"
- * tomorrow — reaches its warn level (status-wire.js bakeAlerts), so the Look, the
+ * tomorrow — reaches its warn level (status-wire.js bakedAlerts), so the Look, the
  * Days and the mark ride renderSignature(), not the Clay message.
  * @param {string} keyStem Kind key stem, e.g. 'Uv' (alert<Stem>Display,
  *     alert<Stem>Days, alert<Stem>NextDayMark).
@@ -276,7 +276,7 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
             }
         }, {
             // Whether tomorrow's peak may make the alert active once nothing left today
-            // reaches warn (bakeAlerts: today always wins, one entry per alert, drawn at
+            // reaches warn (bakedAlerts: today always wins, one entry per alert, drawn at
             // tomorrow's own level). The default is the contract's reading of an absent
             // key, so the page hydrating the key and the phone reading it absent never
             // disagree. Today gets no hint: the intro above already says what it judges.

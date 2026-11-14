@@ -187,7 +187,7 @@ test('forecastHours: the hours the stored span sends an emery (14 / 24 or 26 / 6
   assert.equal(fetchOptions.build({ forecastHours: '24', forecastAxisNumbers: 'axis' }, emery).forecastHours, 24);
   assert.equal(fetchOptions.build({ forecastHours: '12', forecastAxisNumbers: 'off' }, emery).forecastHours, 14);
   assert.equal(fetchOptions.build({ forecastHours: '48', forecastAxisNumbers: 'off' }, emery).forecastHours, 68);
-  ['basalt', 'diorite', 'flint', 'chalk', 'aplite'].forEach((platform) => {
+  ['basalt', 'diorite', 'flint', 'aplite'].forEach((platform) => {
     assert.equal(fetchOptions.build({ forecastHours: '48' }, { platform }).forecastHours, 24, platform);
     assert.equal(fetchOptions.build({ forecastHours: '12' }, { platform }).forecastHours, 24, platform);
     assert.equal(fetchOptions.build({ forecastAxisNumbers: 'off' }, { platform }).forecastHours, 24, platform);
@@ -204,7 +204,7 @@ test('forecastHours: the hours the stored span sends an emery (14 / 24 or 26 / 6
 // their 24 h URLs.)
 test('forecastHours: off emery a stored 48 or 12 builds the same options as 24', () => {
   const s = { provider: 'openmeteo', fetchUv: true, secondaryLine: 'wind', thirdLine: 'gust' };
-  ['basalt', 'diorite', 'flint', 'chalk', 'aplite', null].forEach((platform) => {
+  ['basalt', 'diorite', 'flint', 'aplite', null].forEach((platform) => {
     const info = platform ? { platform } : null;
     const day = fetchOptions.build(Object.assign({}, s, { forecastHours: '24' }), info);
     ['48', '12'].forEach((v) => {

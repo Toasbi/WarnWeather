@@ -525,7 +525,7 @@ test('forecast-long.json: 68 hours on an emery set to the long span, 24 on 24 an
   const at24 = (nums) => getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings,
     { forecastHours: '24', forecastAxisNumbers: nums }), { platform: 'emery' }).NUM_ENTRIES;
   assert.deepEqual(['axis', 'graph', 'off'].map(at24), [24, 26, 26]);
-  ['basalt', 'diorite', 'chalk', 'aplite'].forEach((platform) => {
+  ['basalt', 'diorite', 'aplite'].forEach((platform) => {
     const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
     assert.equal(out.NUM_ENTRIES, 24, platform);
   });
@@ -544,7 +544,7 @@ test('forecast-48h.json: a 48-hour feed (OWM, WU) sends its 48 on the long span,
     { platform: 'emery' });
   assert.equal(at24.NUM_ENTRIES, 24);
   TRENDS.forEach((k) => assert.equal(at24[k].length, 24, 'emery 24 ' + k));
-  ['basalt', 'diorite', 'chalk', 'aplite'].forEach((platform) => {
+  ['basalt', 'diorite', 'aplite'].forEach((platform) => {
     const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
     assert.equal(out.NUM_ENTRIES, 24, platform);
     assert.equal(out.TEMP_TREND_UINT8.length, 24, platform);

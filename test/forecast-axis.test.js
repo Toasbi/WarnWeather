@@ -10,7 +10,7 @@ const { readC, cDefine } = require('./helpers/c-source.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const env = (p) => platform.computeEnv(p === null ? null : { platform: p });
-const NON_EMERY = ['aplite', 'basalt', 'chalk', 'diorite', 'flint'];
+const NON_EMERY = ['aplite', 'basalt', 'diorite', 'flint'];
 const LINE_KEYS = ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'];
 const DEFAULTS = { numbers: 'axis', scale: false };
 

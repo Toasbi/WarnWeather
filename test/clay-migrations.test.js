@@ -108,7 +108,7 @@ test('3.0.0 slot defaults: an existing install keeps the slots it showed, a fres
   assert.deepEqual(runOn({ theme: 'dark' }, { knownPlatform: 'emery', hadExistingInstall: true }),
     { statusForecastRight: 'aqi', statusTopLeft: undefined, statusTopRight: 'sun' });
   // A narrow watch keeps its empty left slot (the battery corner was never a default change).
-  ['basalt', 'chalk', 'diorite', 'aplite', 'flint'].forEach((platform) => {
+  ['basalt', 'diorite', 'aplite', 'flint'].forEach((platform) => {
     assert.deepEqual(runOn({ theme: 'dark' }, { knownPlatform: platform, hadExistingInstall: true }),
       { statusForecastRight: 'aqi', statusTopLeft: 'empty', statusTopRight: undefined }, platform);
   });
@@ -1963,7 +1963,7 @@ test('the ledger order and marker policies are pinned: a released entry never mo
 // The properties every entry owes, checked once over the golden's boots (fresh installs,
 // 1.23.1 upgrades, marker-less legacy installs) and a freshly seeded blob per platform
 // rather than entry by entry.
-const FRESH = ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint'].map((platform) => ({
+const FRESH = ['aplite', 'basalt', 'diorite', 'emery', 'flint'].map((platform) => ({
   name: 'fresh seeded install, ' + platform, platform, hadExistingInstall: false, blob: null, marked: [] }));
 const BOOTS = SCENARIOS.concat(FRESH);
 

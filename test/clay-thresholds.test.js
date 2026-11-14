@@ -48,7 +48,7 @@ test('the warn looks ride bytes 36-37 with the watch platform\'s default', () =>
     assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8,
       wire.buildSettingsBlob(BASE, { color: false }), platform + ': the packer, with env');
   });
-  ['basalt', 'chalk', 'emery'].forEach((platform) => {
+  ['basalt', 'emery'].forEach((platform) => {
     assert.deepEqual(buildClayPayload(BASE, { platform }, at).CLAY_THRESHOLDS_UINT8.slice(36, 38),
       [0xAA, 0x95], platform);
   });

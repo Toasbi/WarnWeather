@@ -7,7 +7,7 @@
  *    the rain alert's look, the On demand Battery item, each paired kind's warn look
  *    and the On demand cells;
  *  - the weather kinds' levels (STATUS_LEVELS_UINT8, packWeatherLevels) and the
- *    weather alerts' metric entries (ALERT_ENTRIES_UINT8, bakeAlerts), both judged at
+ *    weather alerts' metric entries (ALERT_ENTRIES_UINT8, bakedAlerts and packAlerts), both judged at
  *    weather-bake time.
  *
  * Phone-only: plain CommonJS, and NOT in the settings page's APP_FILES
@@ -133,7 +133,7 @@ function healthWire(kindIndex, v, settings) {
  * Byte ALERTS_OFFSET carries the rain alert's look and whether it takes the place of the
  * slot on its side (rainAlert's look and replacesSlot, RAIN_REPLACE_BIT); which METRIC
  * alerts are active never rides here — the phone
- * bakes only the active ones into their own weather tuple (bakeAlerts). Byte
+ * bakes only the active ones into their own weather tuple (bakedAlerts, packAlerts). Byte
  * BATTERY_OFFSET carries the
  * On demand Battery item: its warn level (on-demand.js batteryLevel, on the
  * watch's step — hence env.fineBattery) and its Look. Bytes WARN_LOOK_OFFSET..
@@ -283,7 +283,7 @@ function pollenTomorrow(payload) {
  * construction, so "2/8" is highlighted for the 8 (and "5/5", a peak still
  * running, for 5); tomorrow's marked peak never counts until it is today's, so
  * "8/»6" is judged on the 8 and a lone "»9" not at all (null). The alert icon
- * judges tomorrow on its own (bakeAlerts); the slot's highlight never does.
+ * judges tomorrow on its own (bakedAlerts); the slot's highlight never does.
  * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust' | 'uv'
  * @param {Object} payload weather payload (pre-transform, trends present)
  * @param {Object} settings Clay settings blob (windUnits, <kind>SlotDisplay)
@@ -322,7 +322,7 @@ function weatherLevelShift(k) {
  * when blank) — toggle-agnostic: the level says how high the value is, the
  * highlight toggle only says whether the watch colours it. The slot levels
  * (packWeatherLevels, on the number the slot shows) and the weather alerts
- * (bakeAlerts, on the day's) both judge here.
+ * (bakedAlerts, on the day's) both judge here.
  * @param {*} code A status item code.
  * @param {?number} value the number in the kind's display unit
  * @param {Object} settings Clay settings blob
@@ -540,17 +540,6 @@ function packAlerts(entries) {
   return out;
 }
 
-/**
- * Bake the weather alerts' metric entries (ALERT_ENTRIES_UINT8): bakedAlerts' list,
- * packed.
- * @param {Object} payload weather payload (pre-transform, trends present)
- * @param {Object} settings Clay settings blob
- * @returns {number[]} the entry bytes, [] when nothing is alerting
- */
-function bakeAlerts(payload, settings) {
-  return packAlerts(bakedAlerts(payload, settings));
-}
-
 module.exports = {
   SETTINGS_BYTES: SETTINGS_BYTES,
   COLORS_OFFSET: COLORS_OFFSET,
@@ -574,6 +563,5 @@ module.exports = {
   ALERT_LEN_MAX: ALERT_LEN_MAX,
   ALERT_ENTRIES_MAX_BYTES: ALERT_ENTRIES_MAX_BYTES,
   bakedAlerts: bakedAlerts,
-  packAlerts: packAlerts,
-  bakeAlerts: bakeAlerts
+  packAlerts: packAlerts
 };

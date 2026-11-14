@@ -189,7 +189,7 @@ var configUi = require('../config-ui');
 // Platform facts
 configUi.isColorPlatform(platform)          // boolean — false for aplite/diorite/flint
 configUi.isThemePolarityPlatform(platform)  // boolean — false for aplite (no light/B&W-Inv theme)
-configUi.computeEnv(watchInfo)              // { color, round, platform, … } — null-safe
+configUi.computeEnv(watchInfo)              // { color, platform, … } — null-safe
 
 // Color conversion (ES5-safe; no padStart)
 configUi.intToHex(n)                 // 0xFFFFFF → '#FFFFFF'
@@ -579,7 +579,6 @@ Populated by the library from `Pebble.getActiveWatchInfo()` at `generateUrl` tim
 ```js
 env = {
   color:         true,       // false for aplite, diorite, flint (known 1-bit platforms)
-  round:         false,      // true only for chalk
   platform:      "basalt",   // raw platform string
   health:        true,       // false for aplite (no PBL_HEALTH sensors)
   radar:         true,       // false for aplite (no WW_RAIN_RADAR)
@@ -593,7 +592,7 @@ env = {
   forecastSpan:  false       // true only for emery (the 12 h / 24 h / long forecast time span)
 }
 // Fallback when watchInfo is unavailable:
-// { color: true, round: false, platform: '', health: true, radar: true,
+// { color: true, platform: '', health: true, radar: true,
 //   themePolarity: true, hr: false, thresholds: true, colorBacklight: false,
 //   lineStyles: true, onDemand: true, fineBattery: false, forecastSpan: false }
 ```
@@ -612,9 +611,9 @@ no-theme-polarity/no-threshold/no-on-demand platform (`aplite`), the heart-rate-
 is conservative (show the controls if the platform is unknown); those four default to `false` so
 an unrecognized watch isn't offered a permanently-empty slot, hardware (the RGB backlight LED) it
 probably doesn't have, a battery warn level its firmware cannot resolve, or a long forecast its
-AppMessage inbox would drop. `colorBacklight` is a fact about the BACKLIGHT, not the screen: basalt and chalk
-are `color: true` but `colorBacklight: false`, because only emery's board carries the LED driver
-`light_set_color_rgb888()` needs. `env.round` is exposed for forward-compatibility; the rest are
+AppMessage inbox would drop. `colorBacklight` is a fact about the BACKLIGHT, not the screen: basalt
+is `color: true` but `colorBacklight: false`, because only emery's board carries the LED driver
+`light_set_color_rgb888()` needs. All of them are
 load-bearing values gating real shipped features.
 
 ### Hidden-item serialization rule
@@ -642,7 +641,7 @@ signature:
 // Returns an HTML string (or '' to render nothing)
 PConf.blocks.register(id, function (state, env, userData) {
   // state    — current settings object (all keys; colors as hex strings)
-  // env      — { color, round, platform }
+  // env      — { color, platform, … }
   // userData — the object the app set on instance.meta.userData (or passed to generateUrl)
   return '<div …>…</div>';
 });

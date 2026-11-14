@@ -44,7 +44,7 @@
 // metric alert, in the fixed order UV, wind, gust, AQI, pollen (the phone bakes
 // only enabled alerts at warn or higher, for today or — when the alert looks
 // ahead and nothing left today reaches warn — tomorrow: status-wire.js
-// bakeAlerts; it tail-drops entries past ALERT_ENTRIES_MAX_BYTES, pollen first).
+// bakedAlerts; it tail-drops entries past ALERT_ENTRIES_MAX_BYTES, pollen first).
 // Each entry:
 //   header byte   bit 7     STATUS_ALERT_HEADER, set on every header and on no
 //                           value byte (those are printable ASCII), so a value

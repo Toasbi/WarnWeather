@@ -43,7 +43,7 @@ test('the rows cover exactly the stripe metrics, each once, in their order', () 
 });
 
 test('every watch with line styles is capable; aplite is not; an unknown one is', () => {
-  ['basalt', 'chalk', 'diorite', 'emery', 'flint', 'gabbro'].forEach((p) =>
+  ['basalt', 'diorite', 'emery', 'flint', 'gabbro'].forEach((p) =>
     assert.equal(drawFrom.capable(platform.computeEnv({ platform: p })), true, p));
   assert.equal(drawFrom.capable(APLITE), false);
   assert.equal(drawFrom.capable(platform.computeEnv(null)), true, 'no watchInfo: an unknown watch');

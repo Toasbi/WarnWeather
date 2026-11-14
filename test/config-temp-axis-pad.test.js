@@ -479,7 +479,7 @@ test('the numbers\' gaps: one number each, the watch\'s', () => {
 });
 
 test('the left axis options change no preview off a known emery, nor emery\'s at the defaults', () => {
-  ['aplite', 'basalt', 'chalk', 'diorite', 'flint', null].forEach((p) => {
+  ['aplite', 'basalt', 'diorite', 'flint', null].forEach((p) => {
     const env = platform.computeEnv(p ? { platform: p } : null);
     [{}, { secondaryLine: 'dew' }, { thirdLine: 'feels', barSource: 'rain' }].forEach((over) => {
       assert.equal(preview(Object.assign({}, over, ALL_AXIS), env), preview(over, env),

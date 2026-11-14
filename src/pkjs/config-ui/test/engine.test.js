@@ -592,7 +592,7 @@ test('renderSelectModal: duplicate messageKey resolves the VISIBLE block (theme 
     const html = E.renderSelectModal(SCH, cx);
     return (html.match(/data-select-pick="([^"]*)"/g) || []).map((s) => s.replace(/data-select-pick="|"/g, ''));
   }
-  // Color platform (basalt/chalk/emery): the visible block is the 4-option one — B&W + B&W Inverted must appear.
+  // Color platform (basalt/emery): the visible block is the 4-option one — B&W + B&W Inverted must appear.
   assert.deepEqual(modalPicks({ color: true, themePolarity: true }), ['dark', 'light', 'bw', 'bw-light']);
   // B/W platform with polarity (diorite/flint): the visible block is the 2-option one.
   assert.deepEqual(modalPicks({ color: false, themePolarity: true }), ['dark', 'light']);
@@ -2372,13 +2372,13 @@ test('boot(): a color swatch goes through setValue, so it fires the item\'s onCh
 });
 
 test('boot(): onLoad hook context exposes the injected platform environment', () => {
-  const env = { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false };
+  const env = { color: false, platform: 'aplite', health: false, radar: false, themePolarity: false };
   const result = bootWithCapturedListeners(THEME_SCHEMA, env);
   assert.strictEqual(result.loadEnv, env);
 });
 
 test('boot(): picking a modal option fires the item\'s registered onChange hook (replaces the native <select> change path)', () => {
-  const { modalListeners, onChange } = bootWithCapturedListeners(THEME_SCHEMA, { color: true, round: false, platform: 'basalt' });
+  const { modalListeners, onChange } = bootWithCapturedListeners(THEME_SCHEMA, { color: true, platform: 'basalt' });
   let captured = null;
   onChange.register('themeConvert', (S, oldV, newV, env, key) => { captured = { oldV, newV, sTheme: S.theme, key }; });
 
@@ -2586,7 +2586,7 @@ test('boot(): modal live-search on an optionsFrom searchSelect resolves options 
     { type: 'searchSelect', messageKey: 'region', label: 'Region', defaultValue: 'all',
       optionsFrom: { byKey: 'country', map: { DE: [['Whole country','all'],['Bavaria','DE-BY']] } } }
   ] }] }] };
-  const { modalListeners, sselList } = bootWithCapturedListeners(schema, { color: true, round: false, platform: 'basalt' });
+  const { modalListeners, sselList } = bootWithCapturedListeners(schema, { color: true, platform: 'basalt' });
   assert.equal(typeof modalListeners.input, 'function', 'a modal input listener was wired');
   const fakeSearch = { getAttribute: (a) => (a === 'data-select-search' ? 'region' : null), value: 'bav', closest: (sel) => (sel === '[data-select-search]' ? fakeSearch : null) };
   assert.doesNotThrow(() => {

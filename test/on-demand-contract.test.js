@@ -94,7 +94,7 @@ test('env.onDemand is false exactly where wscript leaves WW_ON_DEMAND undefined'
   const wscript = read('wscript');
   const guard = wscript.match(/if platform != '(\w+)':\s*\n\s*ctx\.env\.CFLAGS \+= \['-DWW_ON_DEMAND=1'\]/);
   assert.ok(guard, 'wscript no longer defines WW_ON_DEMAND for every platform but one');
-  ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) => {
+  ['aplite', 'basalt', 'diorite', 'emery', 'flint'].forEach((p) => {
     assert.equal(platform.computeEnv({platform: p}).onDemand, p !== guard[1], p);
   });
 });

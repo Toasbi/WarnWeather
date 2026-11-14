@@ -95,7 +95,6 @@
           "memoryFormat": "1BitPalette",
           "targetPlatforms": [
             "basalt",
-            "chalk",
             "diorite",
             "emery",
             "flint"

@@ -147,7 +147,7 @@
       emeryDefaults: { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'aqi' } },
     { id: 'health', wireKey: 'STATUS_LINE_4_UINT8',
       slots: ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'],
-      // Non-HR platforms (basalt/chalk/aplite): leave the middle empty and show
+      // Non-HR platforms (basalt/aplite/flint): leave the middle empty and show
       // sleep on the right — matches the seed migrateStatusLineHealthDefaults
       // detects before upgrading HR-capable watches to the hr triple.
       defaults: { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' },
@@ -182,7 +182,7 @@
    * Phone-side availability gate. The watch never gates.
    * @param {Object} item catalog entry
    * @param {Object} settings Clay settings blob
-   * @param {Object} env {color, round, platform, health, radar, hr, phoneBattery}
+   * @param {Object} env {color, platform, health, radar, hr, phoneBattery}
    * @param {Object} [slotCtx] {slotKey, position: 'left'|'mid'|'right'} of the
    *   slot being resolved; position-gated items are unavailable without it
    * @returns {boolean}
