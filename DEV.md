@@ -1,6 +1,6 @@
 # Developer reference
 
-DEV.md is the reference for ForecasWetter's commands, scripts and config. The setup walkthrough is in [CONTRIBUTING.md](CONTRIBUTING.md), and the release-time steps are in [RELEASE.md](RELEASE.md).
+DEV.md is the reference for WarnWeather's commands, scripts and config. The setup walkthrough is in [CONTRIBUTING.md](CONTRIBUTING.md), and the release-time steps are in [RELEASE.md](RELEASE.md).
 
 ## Prerequisites
 

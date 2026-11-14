@@ -1,6 +1,6 @@
-# Agent guide: ForecasWetter
+# Agent guide: WarnWeather
 
-ForecasWetter is a Pebble weather watchface: a C watchface (`src/c/`) driven by
+WarnWeather is a Pebble weather watchface: a C watchface (`src/c/`) driven by
 phone-side PebbleKit JS (`src/pkjs/`), with a Clay config UI and a Supabase
 telemetry backend. This file is the rulebook for any AI agent or contributor tool
 working in this repo. Claude Code reads it through `CLAUDE.md`'s `@AGENTS.md` import;
