@@ -9,12 +9,9 @@ const { codeOf, listFiles } = require('./source-tree.js');
 
 const FUNCTIONS = path.resolve(__dirname, '..', '..', 'supabase', 'functions');
 
-// Handlers that still query Supabase themselves. A fixed one is removed here; adding one is a
-// decision for review, since the list is meant to shrink.
-const DIRECT_QUERY_ALLOWED = [
-  'news/handler.ts',
-  'telemetry-ingest/handler.ts',
-];
+// Modules that query Supabase outside a store module. Empty: every function queries through
+// its supabase-store.ts, and adding one is a decision for review.
+const DIRECT_QUERY_ALLOWED = [];
 
 /**
  * A module's code with comments and string contents blanked.
@@ -51,11 +48,11 @@ test('only an entry point creates the Supabase client', () => {
   });
 });
 
-test('Supabase is queried from the store modules only, except the listed handlers', () => {
+test('Supabase is queried from the store modules only', () => {
   const direct = MODULES.filter((m) => base(m) !== 'supabase-store.ts'
     && /(?<!(?:Array|Buffer|Object))\.(?:from|rpc)\s*\(/.test(code(m)));
   assert.deepEqual(direct, DIRECT_QUERY_ALLOWED,
-    'a module queries Supabase directly, or a listed one moved to a store (then remove it)');
+    'a module queries Supabase directly instead of through its store module');
 });
 
 test('only an entry point calls the global fetch; the rest take it as an argument', () => {

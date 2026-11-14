@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { createIngestHandler } from "./handler.ts";
+import { createIngestStore } from "./supabase-store.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -11,7 +12,7 @@ const hashSecret = Deno.env.get("TELEMETRY_HASH_SECRET");
 // a secret is fixed. A blank value counts as missing (an empty HMAC key cannot be imported).
 Deno.serve(createIngestHandler({
   backend: supabaseUrl && serviceRoleKey && hashSecret
-    ? { client: createClient(supabaseUrl, serviceRoleKey), hashSecret }
+    ? { store: createIngestStore(createClient(supabaseUrl, serviceRoleKey)), hashSecret }
     : null,
   now: () => new Date(),
 }));
