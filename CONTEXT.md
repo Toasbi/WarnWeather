@@ -5,6 +5,37 @@ PebbleKit JS (`src/pkjs/`), with a Clay config UI and a Supabase telemetry
 backend. This file is the project's glossary — the canonical vocabulary. Keep it
 free of implementation detail.
 
+## Context map
+
+The domain contexts and which deployable holds what part of each. The rules each context follows,
+and the contracts between the deployables, are in [ADR 0005](./docs/adr/0005-architecture-rules.md).
+
+**Domain context**:
+A part of the product with its own model and words: weather data, forecast graphs, status bars,
+alerts, screens and layout, calendar, theme, health, settings, wire transport, app notices,
+telemetry.
+Its code sits in one folder per deployable, grouped by role inside.
+_Avoid_: module, feature (for the whole context).
+
+| Context | Watchface (C) | Phone app (PKJS) | Settings page | Edge functions |
+| --- | --- | --- | --- | --- |
+| Weather data | draws what it is sent | fetches, maps and bakes it | previews it | `rainbow-nowcast` (radar) |
+| Forecast graphs | draws the graphs | packs series and line styles | previews and edits styles | – |
+| Status bars | draws the bars, makes room | bakes each bar's line | previews and edits slots | – |
+| Alerts | draws them, replaces slots | decides when one fires | edits thresholds | – |
+| Screens and layout | lays out each view | compiles screens to view specs | edits screens | – |
+| Calendar | draws the calendar | packs the holiday mask | edits formats | – |
+| Theme | palettes, night light | theme schedule | previews colours | – |
+| Settings | reads the settings message | stores, migrates, sends them | the schema and pages | – |
+| Wire transport | AppMessage inbox, persist | outbox, change detector, scheduler, battery saver | – | – |
+| App notices | release toast | news, update check | news panel | `news` |
+| Health | reads the watch's health data | – | previews it | – |
+| Telemetry | – | snapshot and upload | – | `telemetry-ingest` |
+
+**Outbox (phone app)**:
+The phone app's one sender to the watch: it bundles what changed into one message and counts it
+as sent once the watch acknowledges it. A send queue, not a transactional outbox.
+
 ## Platform divergence
 
 The strategy for keeping aplite within its fixed 24 KB budget while other
@@ -35,9 +66,9 @@ receives hand-ported bugfixes and interface updates.
 **View spec**:
 The small struct describing what is on screen: top-band content, calendar
 rows, body, status row(s), font tier, band size weights. Geometry and layer
-visibility both derive from it. Producers make specs (today the preset
-compiler + flick state; later the à-la-carte settings); the layout module
-consumes them.
+visibility both derive from it. The phone compiles them (`view-cycle.js`)
+from the layout preset or, with the custom layout, from the user's screens, and sends them;
+the layout module consumes them.
 
 **Preset (layout)**:
 A named built-in view spec, keyed by the `layoutPreset` setting: `fullCal`,
@@ -47,8 +78,8 @@ a separate code path.
 
 **Stop (flick)**:
 One position in the wrist-flick cycle: a view spec shown when the user flicks.
-Today the stops are hardcoded transitions; the à-la-carte plan makes them user
-data. With *Double flick* on, the cursor advances only on the second accepted
+A layout preset sets its stops; the custom layout's stops are the user's screens, in
+their order. Aplite has no flick cycle. With *Double flick* on, the cursor advances only on the second accepted
 flick within the pairing window (layout.h `view_flick_accept`).
 
 **Screen (settings page)**:
@@ -119,13 +150,12 @@ parse problem there can't take the whole config down.
 The `CLAY_LARGE_GRAPH_FONT` int read as bits on emery: bit 0 *Larger graph
 fonts*, bits 2, 3 and 5 the forecast's left axis options (Graphs › Forecast ›
 Left axis): high/low numbers on the graph, numbers off, numbers naming the
-temperature scale. Bits 1 and 4 (the 2.2.0 betas' axis line off and outline off)
-are retired and reserved: the axis line is drawn exactly when the numbers are on
-the axis, their outline exactly when they are on the graph. The layout is
+temperature scale. Bits 1 and 4 are reserved: the axis line is drawn exactly
+when the numbers are on the axis, their outline exactly when they are on the graph. The layout is
 `config.h`'s `GRAPH_OPT_*`, in lockstep with `src/pkjs/forecast-axis.js` `BIT`,
 and the watch keeps bits 1-7 in `Config.forecast_axis`. The phone packs a dormant option as its
-default, so the axis bits are all zero exactly when the graph is today's, and
-while they are the tuple is the bare boolean it always was (a known non-emery
+default, so the axis bits are all zero exactly when every axis option is at its
+default, and while they are the tuple is a bare boolean (a known non-emery
 watch never gets more); emery and an unknown watch get the number once an axis
 option leaves its default. The scale option alone also touches the weather message: on
 a known emery `TEMP_MIN`/`TEMP_MAX` carry the scale's ends instead of the air's.
@@ -143,6 +173,13 @@ The module that decides *when* anything rides the channel (startup handshake,
 config-close chaining, day-change resend, minute tick). The outbox decides
 *what* rides it (dedupe, one-message bundling, ACK-gated cache commit).
 _Avoid_: send queue.
+
+**Battery saver**:
+The night window (`sleepStartHour` to `sleepEndHour`) in which the phone fetches no weather and
+sends the watch no phone-battery updates, so the Bluetooth link stays quiet. The watch is told
+through `IS_SLEEPING`. It shares the Nighttime card's hours with the night theme and the
+backlight dim, but owns its own pair.
+_Avoid_: sleep window, sleep mode (the stored keys keep the sleep names).
 
 **Fetch cycle**:
 The module that runs *one* weather fetch from trigger to record
@@ -249,8 +286,8 @@ a move within the slot keeps the slot's answer until the next slot); "Rainbow
 (own key)" (id `rainbowkey`) fetches the same nowcast directly on the user's
 own key at every update, on a key whose first 5,000 calls a month are free
 (Rainbow asks for a credit card and bills calls past that). Both ids are
-stored `radarProvider` values. 1.23.x stored the own key as `rainbow` plus a
-`rainbowOwnKey` switch; a 1.24.0 migration folds that pair into `rainbowkey`.
+stored `radarProvider` values; a settings migration folds a stored `rainbow` plus
+`rainbowOwnKey` switch into `rainbowkey`.
 Picked without a key, the own-key source clears the radar. Wherever the own key
 can't be set, it is the limited one.
 _Avoid_: radar provider in prose (the wire key `radarProvider` keeps its name).

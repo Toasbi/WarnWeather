@@ -44,9 +44,9 @@ the watch shows the newest *unseen* entry at or below the running version. So
 1.13.1 → 1.13.2 shows nothing, while 1.13.0 → 1.13.2 still shows the 1.13.1 toast
 that user never saw.
 
-**Watch for `Release-As:`** pinning a *feature* to a patch version (1.13.1 did
-exactly this). The check reads the version, not the commits, so it will not ask for a
-toast on the release that most wants one — add it by hand in that case.
+**Watch for `Release-As:`** pinning a *feature* to a patch version. The check
+reads the version, not the commits, so it will not ask for a toast on the release
+that most wants one — add it by hand in that case.
 
 ### News row — every release
 
@@ -91,9 +91,9 @@ platform's five raw PNGs from `screenshot/<version>/store/<platform>/` to that p
 
 ### Composite the README hero shots
 
-Device frames and banner templates were originally obtained from [Appstore Assets](https://developer.rebble.io/guides/appstore-publishing/appstore-assets/) in Pebble docs.
+Device frames and banner templates come from [Appstore Assets](https://developer.rebble.io/guides/appstore-publishing/appstore-assets/) in Pebble docs.
 
-Those download links are since broken (see https://github.com/pebble-dev/developer.rebble.io/issues/37), but you can still download from the wayback machine (e.g. [banner templates](https://web.archive.org/web/20161207160612/https://s3.amazonaws.com/developer.getpebble.com/assets/other/banner-templates-design.zip)).
+Those download links are broken (see https://github.com/pebble-dev/developer.rebble.io/issues/37), but you can download them from the wayback machine (e.g. [banner templates](https://web.archive.org/web/20161207160612/https://s3.amazonaws.com/developer.getpebble.com/assets/other/banner-templates-design.zip)).
 
 Composite the README hero shots from the store captures with:
 
@@ -107,7 +107,7 @@ mise composite-screenshot <pebble-time-red|pebble2-duo-white|pebble-time2-red> <
 Pebble 2 Duo←flint/wind, Pebble Time 2←emery/radar) and writes the framed PNGs to
 `screenshot/<version>/composite/`.
 
-Some downloaded frame assets used older names. Track them with the modern device names: `core-time2-red.svg` becomes `pebble-time2-red.svg`, and `pebble2-white.svg` becomes `pebble2-duo-white.svg`. The Pebble Time 2 rename is noted in Eric Migicovsky's July Pebble update: https://ericmigi.com/blog/july-pebble-update/
+Some downloaded frame assets carry other device names. Track them with these names: `core-time2-red.svg` becomes `pebble-time2-red.svg`, and `pebble2-white.svg` becomes `pebble2-duo-white.svg`.
 
 ### Refresh the README showcase GIF
 

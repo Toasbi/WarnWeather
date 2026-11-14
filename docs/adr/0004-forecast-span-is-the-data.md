@@ -3,8 +3,8 @@
 The forecast graph on a Pebble Time 2 (emery) looks 12 or 24 hours ahead, or as far as the
 weather provider's hourly feed reaches, up to 68 hours (Graphs › Forecast › Other › Forecast length). The long
 option is labelled with the whole hours it shows: "58 h" at the default layout. Every other
-watch, and an unknown one, keeps 24 hours. Ships in 2.2.0, with the left axis options that give
-the graph the whole screen.
+watch, and an unknown one, keeps 24 hours. The left axis options can give the graph the whole
+screen.
 
 ## Context
 
@@ -17,14 +17,15 @@ the graph the whole screen.
 - Every hour sent past 24 adds a byte to each of the six forecast trends: the temperature, the
   four metric lines and the rain bars.
 - How many hours fit depends on the plot's width W, from its left edge to the screen's right
-  edge. The label strip sets it: the hi/lo numbers' place and Larger graph fonts (and, until
-  2026-11-09, the health graph's step mark). Only the watch measures it.
+  edge. The label strip sets it: the hi/lo numbers' place and Larger graph fonts. Only the watch measures it.
 
 ## Decision
 
 The phone decides how many hours it sends. The watch reads its grid off the count it receives
-(`NUM_ENTRIES`, which it already clamps) and shows as many as its plot holds. There is no
-setting, wire bit, persist key or message key for the span on the watch.
+(`NUM_ENTRIES`, which it clamps) and shows as many as its plot holds. The span is the
+phone's choice: the watch has no setting of its own for it. On emery the graph styles' records
+(a wire byte and persist keys 59..61, below) tell it how many of the sent hours each style
+draws.
 
 ### What the phone sends
 
@@ -40,8 +41,8 @@ setting, wire bit, persist key or message key for the span on the watch.
 - **The phone sends the same hours for every layout**, except 24 h's 26. The render signature
   (`signature()`) changes at 24 h for a numbers move between On axis and the other two, never
   at 12 h or the long span, and never for Larger graph fonts.
-- **The stored option is '12', '24' or '48'.** '48' is the long span's token from its first cut,
-  so nothing migrates. Telemetry reports the option (12 / 24 / 48), not the hours sent
+- **The stored option is '12', '24' or '48'.** '48' is the stored token for the long span,
+  whatever its label. Telemetry reports the option (12 / 24 / 48), not the hours sent
   (`option()`).
 - **The hours ride the fetch options** (`forecastHours`). The adapters map
   `hourly-window.js` `windowHours()` buckets. `WeatherProvider#payloadEntries()`
@@ -54,8 +55,8 @@ setting, wire bit, persist key or message key for the span on the watch.
     window, and Yandex asks `days(limit: 4)`.
   - met.no's hourly run ends 57..63 h out, then turns 6-hourly. `metno.js` `hourlyTail` fills
     the gaps hourly: instants linear, rain and chance from next_6_hours, UV from 24 h earlier,
-    gust from the last gust/wind ratio. It runs only for windows past PEAK_HOURS, so every
-    24 h payload is unchanged.
+    gust from the last gust/wind ratio. It runs only for windows past PEAK_HOURS, so it never
+    touches a 24 h payload.
 
 ### What the watch draws
 
@@ -63,7 +64,7 @@ setting, wire bit, persist key or message key for the span on the watch.
   Every class reaches the right edge, and the hours past it are clipped.
   - **2..14, the 12 h grid**: pitch W / 12 held to 11..16 px, 2 px pads. 12 whole columns,
     and the 14th hour's vertex at or past the edge for every W 145..200.
-  - **15..26, the 24 h grid**: today's `FORECAST_GRID_DEF` (pitch 8, pad 1, bar 5), 24 slots up
+  - **15..26, the 24 h grid**: `FORECAST_GRID_DEF` (pitch 8, pad 1, bar 5), 24 slots up
     to 24 hours and one per hour past it. Only where its last slot's tick stops short of the
     plot's last column does the edge rule below stretch it, pad and bar unchanged. That
     happens only on the screen-wide plot (W 200) holding fewer than the 26 hours: an unknown
@@ -74,9 +75,8 @@ setting, wire bit, persist key or message key for the span on the watch.
     pitch_q = ceil((W - 1) · 256 / (n - 1)) in 1/256 px, held to 3..8 px. It is the smallest
     pitch that puts the last hour's point on the plot's last column. Unheld, the line ends
     exactly on the edge column, n - 1 hours show whole and the last is cut at its point; the
-    area and the night shading reach the edge. That is the owner's "little" overdraw: one
-    hour. OpenWeatherMap's 48 hours show 47 whole and Weather Underground's 49 show 48, at
-    every W 145..200. A full 68-hour feed is held at the 3 px floor (a tick plus the owner's
+    area and the night shading reach the edge. The overdraw is one hour. OpenWeatherMap's 48 hours show 47 whole and Weather Underground's 49 show 48, at
+    every W 145..200. A full 68-hour feed is held at the 3 px floor (a tick plus a
     2 px bar): 58 whole hours at the default 174 px plot, 66 with no left axis. The 8 px cap
     never binds on emery (27 hours at 200 px: 7.66 px); it stays as a guard.
 - **One slot→x mapping** (`src/c/appendix/slot_x.h`): x = floor(i · pitch_q / 256) for slot i,
@@ -90,8 +90,8 @@ setting, wire bit, persist key or message key for the span on the watch.
   - the numbers On graph (`number_point_x`)
   - the counts of hours on screen (`slot_x_count`)
 
-  At a whole pitch it is exactly the integer arithmetic it replaced (host-tested), so the 12 h
-  and 24 h grids, the health graph and the radar keep every pixel. `slot_geometry`'s integer
+  At a whole pitch it is exactly integer arithmetic, i · pitch (host-tested), so the 12 h
+  and 24 h grids, the health graph and the radar land on whole pixels. `slot_geometry`'s integer
   pitch is one input to the mapping, its whole px. `ChartDef.pitch_frac` carries only the
   fraction, 0 in every other grid, so a re-padded copy of a def (the health graph's) cannot go
   stale.
@@ -106,18 +106,17 @@ setting, wire bit, persist key or message key for the span on the watch.
   - The stripe bands and the temperature curve's anchored edges read the hours whose bar
     starts on screen (`forecast_span_laid_out`). The edge rule's last hour shows only its point
     on the plot's last column, so it takes no band and anchors no edge. The 24 h grid at its
-    whole 8 px counts its started columns, as it always has.
-  - The status slots, day max and alerts are unchanged.
+    whole 8 px counts its started columns.
+  - The status slots, day max and alerts do not follow the hours on screen.
 - **No left axis**: the Left axis values are On axis, On graph or Off (`forecast-axis.js`,
-  stored 'axis' / 'graph' / 'off'; a beta's 'beside' and junk read 'axis'). On graph or Off
+  stored 'axis' / 'graph' / 'off'; 'beside' and junk read 'axis'). On graph or Off
   draws no label strip and no axis line. On emery the forecast layer then draws unclipped
   inside a clip layer of its own rows that reaches the screen's left edge, so W = 200 px. The
-  rows above and below the frame stay clipped as they always were. A health graph sharing the
-  view keeps its own strip (its step marks need it), and the forecast still starts at the
-  screen's edge (the owner, 2026-11-07; until then it kept that strip to line the two graphs
-  up, though they never shared an hour column). The axis line is drawn exactly On
-  axis and the numbers' outline exactly On graph, so the betas' Axis line and Number outline
-  rows went; their wire bits 1 and 4 of `CLAY_LARGE_GRAPH_FONT` are retired and reserved.
+  rows above and below the frame stay clipped. A health graph sharing the view keeps its own
+  strip (its step marks need it), and the forecast still starts at the screen's edge: the two
+  graphs share no hour column, so there is nothing to line up. The axis line is drawn exactly
+  On axis and the numbers' outline exactly On graph, so neither has a setting of its own; bits
+  1 and 4 of `CLAY_LARGE_GRAPH_FONT` are reserved.
 - **Whole hour labels only** (`forecast_span_label_fits`, host-tested): a label either screen
   edge would cut is dropped and its tick stays, in every class. With no left axis slot 0 (the
   current hour) is never labelled. Each label names its slot's own local hour.
@@ -142,9 +141,7 @@ setting, wire bit, persist key or message key for the span on the watch.
   - The plot: On axis, the 198 px layer less the forecast's label strip and its gap. The strip
     fits a two-digit hi/lo label in the graph label font: 176 px with Larger graph fonts
     (GOTHIC_24) and 180 px without (GOTHIC_18). The health graph has a strip of its own and never
-    widens the forecast's (the owner, 2026-11-09: until then the two shared the wider strip, so
-    the health graph's "0.5" step mark left the forecast 174 / 179 px, and a one-digit forecast
-    beside a "12.5" mark a wide empty gutter). With the numbers On graph or Off the plot is the
+    widens the forecast's. With the numbers On graph or Off the plot is the
     whole 200 px screen on every view, one a custom layout shares with the health graph too.
   - So "58 h" at the default layout, "60 h" without Larger graph fonts and "66 h" with no left
     axis. "47 h" with OpenWeatherMap and "48 h" with Weather Underground, on every layout.
@@ -153,39 +150,22 @@ setting, wire bit, persist key or message key for the span on the watch.
   byte-identical. The JS mirrors it, and `scripts/test-c.sh` holds the two to each other
   (`test/c/forecast_span_dump.c`, `scripts/check-forecast-span-lockstep.js`): every feed of
   27..68 hours on every plot width 145..200 px.
-- **The watch still decides what is visible.** The phone does not see the watch's plot. A
+- **The watch decides what is visible.** The phone does not see the watch's plot. A
   one-digit, negative or three-digit temperature moves W by a few px, and the count by an hour
   or so. The short feeds' 47 / 48 never move. The label names the common case.
-- **Nothing on the wire moves for the label.** The stored value stays '48', so there is no
+- **Nothing on the wire moves for the label.** The stored value is '48' whatever the label, so there is no
   migration and no fetch, signature, telemetry or payload change. The settings engine's
   `optionsFrom` feeds a segmented row as it does a select (`engine.js` `resolveRowItem`,
   `snapShownOptions`).
 
 ### The inbox
 
-- **emery's inbox is 1024 B** (it was 640 B; the heap has the room in 128 KB). With the long
-  span's six 68-byte trends its heaviest weather bundle is 867 B, and 875 B with a cleared
-  notice (3.0.0: 942 B and 950 B, the graph styles' spare row adding a seventh 68-byte trend
-  while the screens' graphs draw five series). `test/inbox-size.test.js` `WEATHER_BUNDLES`
-  records every platform's bundle and is
+- **emery's inbox is 1280 B** (the heap has the room in 128 KB). Its heaviest weather bundle
+  is 1095 B: the long span's six 68-byte trends, the graph styles' spare row (a seventh
+  68-byte trend, sent while the screens' graphs draw five series) and bars 4 to 6's status
+  lines. `test/inbox-size.test.js` `WEATHER_BUNDLES` records every platform's bundle and is
   the one place the sizes are asserted. The span changes no other watch's bundle and no Clay
   message.
-
-## How it got here
-
-Every step was within 2.2.0, before any release:
-
-1. **The 48 h grid**: 48 hours sent, one 3 px slot each. About 36 px stayed blank right of the
-   graph, and the 12 h grid stopped short of the edge (emery's bundle 747 B).
-2. **The cover rule**: 65 hours sent and the smallest whole pitch with n · pitch ≥ W, so every
-   span filled the plot (849 B). The left axis options then gave the plot the whole screen: 68
-   hours, 26 at 24 h, whole hour labels and the long span's clock marks (867 B).
-3. **The edge rule**: one slot→x mapping in 1/256 px, so a feed short of 68 hours puts its last
-   hour's point on the plot's last column (the owner, on 48-hour feeds showing about 44 hours:
-   "Cant we make the drawing dynamic? So it draws depending on the given hours").
-4. **The whole-hours label**: the long option, first labelled "48 h" and then "58 h", names the
-   hours the provider's feed shows on the layout's plot (the owner: "I want the label of the
-   long range to just show the actual value, depending of the provider").
 
 ## Rejected
 
@@ -194,21 +174,20 @@ Every step was within 2.2.0, before any release:
 - **Trimming on the phone.** The plot width depends on the health strip's claim, the hi/lo
   numbers' place and Larger graph fonts, which the phone does not see. Trimming there would
   also make each of those toggles a refetch.
-- **The cover rule** (step 2): the smallest whole pitch with n · pitch ≥ W, held to 3..8 px.
-  Every bar was whole, but a feed between two whole pitches ran up to a column's worth of
-  hours past the edge: OpenWeatherMap's 48 hours showed about 44 at 4 px. What the edge rule
-  gives up for it:
-  - Where the cover rule met the edge exactly (58 hours at 174 px, 55 at 165), its line
-    stopped short and every bar was whole. The edge rule's line reaches the edge, and one
+- **The cover rule**: the smallest whole pitch with n · pitch ≥ W, held to 3..8 px.
+  Every bar is whole, but a feed between two whole pitches runs up to a column's worth of
+  hours past the edge: OpenWeatherMap's 48 hours show about 44 at 4 px. What the edge rule
+  gives up against it:
+  - Where the cover rule meets the edge exactly (58 hours at 174 px, 55 at 165), its line
+    stops short and every bar is whole. The edge rule's line reaches the edge, and one
     fewer hour is whole.
-  - Where the whole pitch was just above the fractional one, the bars change by 1 px. They get
+  - Where the whole pitch is just above the fractional one, the bars differ by 1 px. They are
     narrower (5 → 4.x px: 3 → 2 px bars), or wider where the pads drop (6 → 5.97 px, a 30-hour
     feed at 174 px: 3 → 4 px bars, and its labels go from every 3 hours to every 6). There are
     always more hours on screen.
 - **A fractional or alternating 3/4 px pitch that each renderer applies on its own.** The bars,
-  ticks, marks and night bands shared `slot_geometry`'s integer pitch, and each would have
-  drifted from the others. One slot→x mapping that every x goes through made the fractional
-  pitch safe.
+  ticks, marks and night bands would each drift from the others. One slot→x mapping that every
+  x goes through makes the fractional pitch safe.
 - **Bars that fill each column.** In colour themes they would mix bars with and without side
   walls (walls from 3 px), and the same rain would look heavier in a wide column.
 - **Extracting the night-shading code into a host-testable header**: it measured +20..24 B on
@@ -218,36 +197,33 @@ Every step was within 2.2.0, before any release:
 
 - At the 3 px floor the bars are 2 px (colour themes draw their cap without walls, so the tier
   colours show) and the x marks are 3x3 and touching.
-- With the numbers On axis, the default 24 h graph is unchanged except in two places. Its last
-  label is no longer drawn where the right edge would have cut it. And on the two days a year a
-  daylight-saving change falls inside the window, each label now names its slot's own local
-  hour. Before, the first hour was counted on, so every label after the change read one hour
-  off: '3', '6', '9' where the clock reads 3, 5, 8.
+- With the numbers On axis, the default 24 h graph drops a last label the right edge would
+  cut. On the two days a year a daylight-saving change falls inside the window, each label
+  names its slot's own local hour; counting on from the first hour would read '3', '6', '9'
+  where the clock reads 3, 5, 8.
 - A provider whose feed ends early draws the hours it sent (at least 24) on the grid for that
   count, which fills the plot.
 - The settings page shows a label the watch can miss by an hour or so on an unusual plot
   width (above).
 
-## Amendment (2026-11-08): graph styles
+## Graph styles
 
-From 3.0.0, by the owner's decision, each screen's forecast graph on a Pebble Time 2 draws one of
+Each screen's forecast graph on a Pebble Time 2 draws one of
 up to three graph styles, and each style has its own length: 24 h on one screen, the long span
-on another. The phone still decides the hours. It sends the most hours a shown style needs, and
+on another. The phone decides the hours. It sends the most hours a shown style needs, and
 each style's record (`src/c/appendix/graph_style.h`, `CLAY_GRAPH_STYLE_1..3_UINT8`) carries how
 many of them that style draws. The watch draws min(hours sent, the style's hours) and picks the
 grid class from that count, as above.
 
-- So the watch now has a wire byte and persist keys (59..61) that carry a span, which the
-  Decision above ruled out. The span is still the phone's choice. Without records (a single
-  style, and every watch but emery) nothing changed.
+- The records' span is still the phone's choice. Without records (a single style, and every watch but emery) the
+  watch draws every hour sent.
 - A view names its style in its view word's ext bits 9-10 (`view-cycle.js` `packExt`,
   `layout.h` `view_ext_graph_style`).
 - The labels' readback reads every hour sent (`forecast_numbers.h`): a style that draws fewer
   hours than were sent relabels its high and low over its own hours, on the 24-slot grid too.
-- The weather message keeps its shape: 14, 24, 26 or 68 hours and the six trends. The styles
-  share the four metric trends, and each record maps its lines onto them.
-- (2026-11-09, the owner's ask: more graphs to switch between) The phone keeps up to six styles.
-  The watch still keeps three slots, the records and the 2-bit view code: only the shown styles
-  are sent, three screens show three at most, and the phone puts each in a slot
-  (`graph-styles.js` `slotsFor`; a shown style 1 to 3 keeps its own, so three graphs or fewer
-  send what they did before). The watch side did not change.
+- The weather message carries the same hours for every style: 14, 24, 26 or 68. The styles
+  share the metric rows (the four lines' trends and a spare row), and each record maps its
+  lines onto them.
+- The phone keeps up to six styles. The watch keeps three slots, the records and the 2-bit
+  view code: only the shown styles are sent, three screens show three at most, and the phone
+  puts each in a slot (`graph-styles.js` `slotsFor`; a shown style 1 to 3 keeps its own).
