@@ -486,7 +486,7 @@ test('alertLevelBadge: the alert\'s colours while it is placed, no bold B', () =
 });
 
 test('preview-rain barPermille matches rain-tier.rainPermille byte-for-byte', () => {
-  const rt = require('../../../src/pkjs/weather/domain/rain-tier.js');
+  const rt = require('../../../src/pkjs/forecast-graphs/domain/rain-tier.js');
   [0, 1, 2, 3, 5, 6, 20, 21, 50, 100, 101, 200, 255, 500, 1000].forEach((t) =>
     assert.equal(RAIN.barPermille(t), rt.rainPermille(t), 'tenths=' + t));
 });

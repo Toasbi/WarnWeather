@@ -21,7 +21,7 @@
 var thresholds = require('./status-thresholds.js');
 var onDemand = require('../../status-bars/domain/on-demand.js');
 var wireUnits = require('../../wire/domain/wire-units.js');
-var rainTier = require('../../weather/domain/rain-tier.js');
+var rainTier = require('../../forecast-graphs/domain/rain-tier.js');
 
 // The model this module packs, under the names its packers use.
 var KINDS = thresholds.KINDS;

@@ -8,7 +8,7 @@
 // preview-forecast.js). What is left here is what genuinely does not move: the mirrored
 // temp-curve constant and the rain-tier ramp.
 var COLORS = require('./pebble-colors');
-var rainTier = require('../../weather/domain/rain-tier');
+var rainTier = require('../../forecast-graphs/domain/rain-tier');
 
 // 0xRRGGBB int -> uppercase #RRGGBB. The canonical converter from config-ui/lib/color.js
 // (its own header calls itself the single source for int<->hex), not a fourth local copy.

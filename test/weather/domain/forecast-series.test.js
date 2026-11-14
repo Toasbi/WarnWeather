@@ -141,7 +141,7 @@ test('achromatic lines go black on a light theme, and never match the rain bars'
   // as an invariant over every theme x bar-mode. (Not feels: it is allowed to share
   // LightGray with the lightest rain tier on dark — its job is to shadow the temp
   // curve, and a filled bar at the baseline never reads as a curve.)
-  const rainTier = require('../../../src/pkjs/weather/domain/rain-tier.js');
+  const rainTier = require('../../../src/pkjs/forecast-graphs/domain/rain-tier.js');
   ['dark', 'light'].forEach((theme) => ['white', 'multicolor'].forEach((bars) => {
     const barColors = rainTier.buildPalette('basalt', bars, theme).rgb;
     assert.equal(barColors.indexOf(line('gust', theme, bars)), -1,

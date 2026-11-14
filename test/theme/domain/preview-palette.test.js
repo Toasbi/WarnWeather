@@ -8,7 +8,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { buildPreviewPalette } = require('../../../src/pkjs/theme/domain/preview-palette.js');
-const rt = require('../../../src/pkjs/weather/domain/rain-tier.js');
+const rt = require('../../../src/pkjs/forecast-graphs/domain/rain-tier.js');
 
 const hex = (n) => '#' + (n & 0xFFFFFF).toString(16).toUpperCase().padStart(6, '0');
 

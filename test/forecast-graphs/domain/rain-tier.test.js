@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const rainTier = require('../../../src/pkjs/weather/domain/rain-tier');
+const rainTier = require('../../../src/pkjs/forecast-graphs/domain/rain-tier');
 
 // Vectors computed from C rain_tier_permille (rain_tier.c): below_h + slab_top
 // at h=1000, integer-truncating division throughout.

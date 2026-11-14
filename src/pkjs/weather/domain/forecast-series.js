@@ -1,4 +1,4 @@
-var rainTier = require('./rain-tier');
+var rainTier = require('../../forecast-graphs/domain/rain-tier');
 var lineStyle = require('../../forecast-graphs/domain/line-style.js');   // LINE_COLORS/FILL_COLORS + the resolved line styling
 var platforms = require('../../config-ui/lib/platform.js');   // computeEnv, isLineStylePlatform
 var statusCatalog = require('../../status-bars/domain/status-line-catalog.js');

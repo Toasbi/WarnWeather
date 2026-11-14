@@ -214,7 +214,7 @@
     }
 
     // --- rain intensity: the watchface's own tier scale ------------------------
-    // Exact port of src/pkjs/weather/domain/rain-tier.js (itself mirroring C
+    // Exact port of src/pkjs/forecast-graphs/domain/rain-tier.js (itself mirroring C
     // rain_tier.c): five tiers with upper bounds 0.1/0.5/2/10 mm, drawn on a
     // non-linear slab scale so drizzle stays visible next to a downpour. The
     // temp panel's right-hand precipitation axis uses this scale, so the tab
