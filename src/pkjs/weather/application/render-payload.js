@@ -26,7 +26,7 @@ var forecastSeries = require('../domain/forecast-series.js');
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
 function toRenderPayload(payload, settings, watchInfo, now, phone) {
-    statusRebake.rememberBakeInputs(payload, watchInfo);
+    statusRebake.rememberBakeInputs(payload, watchInfo, now);
     return forecastSeries.applyForecastSeries(payload, settings, watchInfo, now, phone);
 }
 

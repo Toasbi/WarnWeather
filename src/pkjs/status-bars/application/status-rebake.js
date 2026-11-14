@@ -323,15 +323,17 @@ function bakeInputs() {
  *
  * @param {Object} payload Weather payload, still carrying its transient bake keys.
  * @param {Object|null} watchInfo getActiveWatchInfo() result, or null.
+ * @param {Date} [now] The instant the bake that follows runs at (its day or night is
+ *   latched here); absent = the rebaker's clock.
  * @returns {void}
  */
-function rememberBakeInputs(payload, watchInfo) {
+function rememberBakeInputs(payload, watchInfo, now) {
     if (!payload) { return; }
     snapshot = {
         payload: shallowClone(payload),
         watchInfo: watchInfo
     };
-    bakedNight = nightNow(payload);
+    bakedNight = nightAt(payload, now ? now.getTime() / 1000 : nowSec());
     persistSnapshot(payload, watchInfo);
 }
 
@@ -362,7 +364,16 @@ function phoneFacts() {
  * @returns {boolean} Whether it is night now by that payload's sun events.
  */
 function nightNow(payload) {
-    return statusLines.isNightNow(payload && payload.SUN_EVENTS, nowSec());
+    return nightAt(payload, nowSec());
+}
+
+/**
+ * @param {Object} payload Bake inputs' payload (its SUN_EVENTS).
+ * @param {number} sec The instant, in epoch seconds.
+ * @returns {boolean} Whether it is night at that instant by the payload's sun events.
+ */
+function nightAt(payload, sec) {
+    return statusLines.isNightNow(payload && payload.SUN_EVENTS, sec);
 }
 
 /**
@@ -416,10 +427,11 @@ function resendStatus(reason, onSuccess, onFailure) {
         return false;
     }
     payload = shallowClone(inputs.payload);
-    bakedNight = nightNow(payload);
+    var at = nowMs();   // one instant for the latch and the bake
+    bakedNight = nightAt(payload, at / 1000);
     build = deps.buildStatusLines || statusLines.buildStatusLines;
     try {
-        build(payload, inputs.settings, inputs.watchInfo, new Date(nowMs()), phoneFacts());
+        build(payload, inputs.settings, inputs.watchInfo, new Date(at), phoneFacts());
     }
     catch (ex) {
         console.log('status-rebake: re-bake failed, skipping ' + reason + ' send: ' + ex.message);

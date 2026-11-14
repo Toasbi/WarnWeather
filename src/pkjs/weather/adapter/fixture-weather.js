@@ -10,7 +10,6 @@ var fetchOptions = require('../domain/fetch-options.js');
 // The hours this watch is sent: the longest shown graph style's (forecast-span.js hours).
 var graphStyleWire = require('../../forecast-graphs/domain/graph-style-wire.js');
 var renderPayload = require('../application/render-payload.js');
-var phoneBattery = require('../../status-bars/adapter/phone-battery.js');
 var wireUnits = require('../../wire/domain/wire-units.js');
 var graphWire = require('../../forecast-graphs/domain/graph-wire.js');
 var radarSky = require('../domain/radar/radar-sky.js');
@@ -94,7 +93,7 @@ function mapFixtureWeather(weather) {
  * @param {Object} [watchInfo] Pebble watchInfo object; used to resolve platform-aware colours.
  * @returns {Object|null} Pebble weather payload, or null when invalid.
  */
-function getFixtureWeatherPayload(fixture, settings, watchInfo) {
+function getFixtureWeatherPayload(fixture, settings, watchInfo, now, phone) {
     var weather;
     var provider;
     var sunEvents;
@@ -159,10 +158,11 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     // getPayload() emits the raw PRECIP_TREND/RAIN_TREND keys; the watch only
     // reads the render-ready series, so run the same transform as the live path
     // (settings already reflects this fixture's claySettings).
-    // The bake reads the real clock, not the fixture's watch.now: the showcase's
-    // countdown target moves with the generation day (scripts/gen-showcase-fixtures.js).
-    return renderPayload.toRenderPayload(provider.getPayload(), settings, watchInfo, new Date(),
-        phoneBattery.bakeFacts());
+    // The bake runs at the caller's time (the real clock in the app), not the fixture's
+    // watch.now: the showcase's countdown target moves with the generation day
+    // (scripts/gen-showcase-fixtures.js).
+    return renderPayload.toRenderPayload(provider.getPayload(), settings, watchInfo,
+        now || new Date(), phone || null);
 }
 
 /**
@@ -241,11 +241,12 @@ function getFixtureRadarTuples(fixture) {
  * Send fixture weather directly to the watch, bypassing live provider fetch logic.
  *
  * @param {Object} fixture Active fixture loaded from fixtures/<name>.json.
- * @param {{settings: Object, watchInfo: Object|null}} deps Clay settings + watch info.
+ * @param {{settings: Object, watchInfo: Object|null, now: (Date|undefined), phone: (Object|undefined)}} deps
+ *   Clay settings, watch info, the time and the phone's battery facts (phone-battery.js bakeFacts).
  * @returns {void}
  */
 function sendFixtureWeather(fixture, deps) {
-    var payload = getFixtureWeatherPayload(fixture, deps.settings, deps.watchInfo);
+    var payload = getFixtureWeatherPayload(fixture, deps.settings, deps.watchInfo, deps.now, deps.phone);
     var radarTuples;
     var radarKey;
 

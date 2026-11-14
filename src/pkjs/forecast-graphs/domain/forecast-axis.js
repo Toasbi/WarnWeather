@@ -212,7 +212,7 @@
         signature: signature
     };
 
-    // Dual-context export — mirrors the tail of src/pkjs/draw-from.js.
+    // Dual-context export — mirrors the tail of src/pkjs/forecast-graphs/domain/draw-from.js.
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
     }

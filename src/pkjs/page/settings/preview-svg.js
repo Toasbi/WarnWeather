@@ -148,7 +148,7 @@
         tagIds: tagIds
     };
 
-    // Dual-context export — mirrors the tail of src/pkjs/status-thresholds.js.
+    // Dual-context export — mirrors the tail of src/pkjs/alerts/domain/status-thresholds.js.
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
     }

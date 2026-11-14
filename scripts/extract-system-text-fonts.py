@@ -8,7 +8,7 @@ script reads them out of the SDK's QEMU flash image (pebble_font_resource.py) an
 writes every glyph of the six to scripts/text-fonts-system.json (committed). The
 settings page draws its pictures of the watch's screens with them:
 scripts/gen-watch-fonts-page.js turns the JSON into web fonts in
-src/pkjs/settings/watch-fonts.generated.js.
+src/pkjs/page/layout/watch-fonts.generated.js.
 
 The fonts are picked from basalt's flash, whose Gothic glyphs every watch shares (emery's
 differ in a handful of accented capitals only). Each size has two full fonts in the pack,

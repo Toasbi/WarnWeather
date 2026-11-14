@@ -18,7 +18,7 @@
 #include <stddef.h>
 
 // The built-in no-rain line, drawn while no text ever reached the watch. Lockstep
-// with DEFAULT_NORAIN_TEXT in src/pkjs/settings/domain/clay-payload.js (test/clay-payload.test.js).
+// with DEFAULT_NORAIN_TEXT in src/pkjs/settings/domain/clay-payload.js (test/settings/domain/clay-payload.test.js).
 #define RADAR_NORAIN_DEFAULT_TEXT "You're good :)"
 
 /**

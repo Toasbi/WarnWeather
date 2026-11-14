@@ -2,7 +2,7 @@
 // plot's vertical layout (which series take part, the stripe bands), the temperature curve's
 // margins on the anchored edges, the scale the temperature-axis lines share with it, and the
 // hi/lo labels lined up with the curve's extremes (owner, 2026-10-02). forecast_layer.c is SDK-bound and cannot be host-compiled, so its pure
-// half is pinned here; the settings preview mirrors the rules (test/config-temp-axis-pad.test.js).
+// half is pinned here; the settings preview mirrors the rules (test/page/forecast-graphs/config-temp-axis-pad.test.js).
 // Build & run via scripts/test-c.sh.
 #include <assert.h>
 #include <stdbool.h>
@@ -879,7 +879,7 @@ static void test_scale_example(void) {
     const TempMargin m = temp_axis_margins(INSET, BASALT_COMPACTCAL, TEMP_AXIS_ANCHOR_BOTTOM);
     assert(m.top == INSET && m.bottom == INSET);
     const int top_row = BASALT_COMPACTCAL - INSET;   // 48
-    // test/forecast-series.test.js: temps 10..30 °F, feels up to 38. The joint band [10, 38]:
+    // test/weather/domain/forecast-series.test.js: temps 10..30 °F, feels up to 38. The joint band [10, 38]:
     // temps on bytes 0, 89, 179, the feels on 45, 89, 250. The joint range is the whole band,
     // 10 °F on the bottom margin row and the feels-like 38 °F on the top one: the air's high,
     // 30 °F, sits 12 rows under it (until now it took the top margin row itself, and the feels

@@ -422,7 +422,7 @@
         signature: signature
     };
 
-    // Dual-context export — mirrors the tail of src/pkjs/line-style.js.
+    // Dual-context export — mirrors the tail of src/pkjs/forecast-graphs/domain/line-style.js.
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
     }

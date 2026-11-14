@@ -114,9 +114,9 @@ var isoWeek = slotText.isoWeek;
  * @typedef {Object} PhoneBattery
  * @property {boolean} supported Whether this host has the Battery Status API (the
  *   persisted PHONE_BATTERY_SUPPORTED verdict, true only inside Android's Chromium WebView).
- * @property {?({available: boolean, level: (number|null), charging: boolean}|function(): ?Object)} reading
- *   The cached EXACT percentage and charging flag, or a function that reads it (called only
- *   when a slot shows the phone's battery); `available` is false until a real
+ * @property {?function(): ?{available: boolean, level: (number|null), charging: boolean}} reading
+ *   Reads the cached EXACT percentage and charging flag (called only when a slot shows the
+ *   phone's battery); `available` is false until a real
  *   reading has landed, and null when the module cannot answer at all (the slot then
  *   bakes '--' instead of taking the whole status bar down).
  */
@@ -151,8 +151,13 @@ function bakeEnv(now, phone) {
     phoneReading: function () {
       if (!asked) {
         asked = true;
-        var r = phone ? phone.reading : null;
-        reading = typeof r === 'function' ? r() : r;
+        try {
+          reading = phone && phone.reading ? phone.reading() : null;
+        } catch (ex) {
+          // A reader that fails (storage blocked in a WebView) costs its slots, which
+          // bake '--', not the whole bake.
+          reading = null;
+        }
       }
       return reading;
     }

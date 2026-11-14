@@ -112,6 +112,7 @@ var fetchCycle = createFetchCycle({
         rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || ''
     },
     now: function () { return new Date(); },
+    getPhoneBattery: phoneBattery.bakeFacts,
     // Wrapped like the scheduler's below (WebView receiver check).
     setTimeout: function (fn, ms) { return setTimeout(fn, ms); }
 });
@@ -456,9 +457,11 @@ Pebble.addEventListener('ready',
         newsCache.seedIfAbsent(newsCacheOpts());
         if (activeFixture) {
             sendClaySettings(function() {
-                fixtureWeather.sendFixtureWeather(activeFixture, { settings: app.settings, watchInfo: app.watchInfo });
+                fixtureWeather.sendFixtureWeather(activeFixture, { settings: app.settings, watchInfo: app.watchInfo,
+                    now: new Date(), phone: phoneBattery.bakeFacts() });
             }, function() {
-                fixtureWeather.sendFixtureWeather(activeFixture, { settings: app.settings, watchInfo: app.watchInfo });
+                fixtureWeather.sendFixtureWeather(activeFixture, { settings: app.settings, watchInfo: app.watchInfo,
+                    now: new Date(), phone: phoneBattery.bakeFacts() });
             });
             // Intentionally skip scheduler.onReady(): the readiness latch stays
             // unset in fixture mode, so a late watch-status handshake can't drain

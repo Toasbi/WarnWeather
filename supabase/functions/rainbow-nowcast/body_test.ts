@@ -2,7 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import { parseNowcastBody, parseNowcastQuery, readCapped, roundCoord } from "./body.ts";
 import table from "./coord-rounding-cases.json" with { type: "json" };
 
-Deno.test("roundCoord matches the phone's table (coord-rounding-cases.json, also run by test/coords.test.js)", () => {
+Deno.test("roundCoord matches the phone's table (coord-rounding-cases.json, also run by test/weather/domain/coords.test.js)", () => {
   assert(table.cases.length > 10);
   for (const [input, rounded] of table.cases) {
     assert(Object.is(roundCoord(input), rounded), `${input} → ${roundCoord(input)}, want ${rounded}`);

@@ -8,7 +8,7 @@
 // Status-slot threshold-highlight contract, shared with the phone.
 // LOCKSTEP: src/pkjs/alerts/domain/status-thresholds.js mirrors the kind order and level
 // values below, src/pkjs/alerts/domain/status-wire.js the blob layout;
-// test/status-thresholds-contract.test.js greps this header to enforce both.
+// test/alerts/domain/status-thresholds-contract.test.js greps this header to enforce both.
 // Deliberately no <pebble.h> so the module host-compiles (scripts/test-c.sh).
 //
 // NOT LINKED ON APLITE: aplite paints its status rows from the lean

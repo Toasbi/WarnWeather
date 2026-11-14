@@ -581,7 +581,7 @@
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse
   };
 
-  // Dual-context export - mirror the exact tail of src/pkjs/view-cycle.js.
+  // Dual-context export - mirror the exact tail of src/pkjs/layout/domain/view-cycle.js.
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
   }

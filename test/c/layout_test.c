@@ -84,7 +84,7 @@ static ViewSpec unpack_ext(uint16_t wire, uint16_t ext) {
 // Golden-test shim for the retired layout_compute() production wrapper: geometry for a
 // plain calendar+forecast view at the given tier. `two_rows` picks a single upper forecast
 // row (default views) or the dual health-upper + forecast-lower stack, matching the named
-// view constants in src/pkjs/view-cycle.js.
+// view constants in src/pkjs/layout/domain/view-cycle.js.
 static MainLayout layout_compute(GRect bounds, uint8_t tier, bool two_rows, int fc_band_h) {
     uint8_t wire_tier = (tier == LAYOUT_TIER_FULL) ? 3
                       : (tier == LAYOUT_TIER_COMPACT) ? 2 : 1;

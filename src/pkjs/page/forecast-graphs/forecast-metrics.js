@@ -115,7 +115,7 @@
     var api = { METRICS: METRICS, label: label, words: words, legendName: legendName, options: options, gapOf: gapOf,
         gapSentence: gapSentence };
 
-    // Dual-context export — mirrors the tail of src/pkjs/forecast-axis.js.
+    // Dual-context export — mirrors the tail of src/pkjs/forecast-graphs/domain/forecast-axis.js.
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
     }
