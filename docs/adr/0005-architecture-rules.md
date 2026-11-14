@@ -144,7 +144,8 @@ and its docs.
 Each rule above that a machine can check has an architecture test in `test/architecture/`:
 
 - `pkjs-graph.test.js`, over the `require()` graph of `src/pkjs`: every file has a home
-  (`pkjs-homes.js` lists the few files whose path does not give their home), domain code touches no runtime, and
+  (`pkjs-homes.js` lists the few files whose path does not give their home), domain and
+  application code touch no runtime (only adapters, the shell and the page do), and
   each role requires only what it may: domain code only domain code and the shared library,
   application code no adapter, the phone app never the settings page, the page no adapter, the
   page's engine only itself and the shared library; no cycles;

@@ -1,6 +1,6 @@
 // The phone app's and settings page's architecture (docs/adr/0005-architecture-rules.md),
 // checked over the require() graph of src/pkjs: every file has a home (pkjs-homes.js), domain
-// code touches no runtime, each role requires only what its rule allows, and there are no
+// and application code touch no runtime, each role requires only what its rule allows, and there are no
 // require cycles.
 //
 // Each allow-list holds what the code does today against a rule. Fix a file and remove its
@@ -31,8 +31,12 @@ const RUNTIME = [
 // Domain and application files that still reach the runtime (file: the globals they use).
 // Only adapters, the shell and the settings page may.
 const RUNTIME_ALLOWED = {
-  'weather/domain/keys/key-result.js': ['localStorage'],
+  'settings/application/clay-migrations.js': ['localStorage'],
+  'status-bars/application/status-rebake.js': ['localStorage', 'Date.now'],
+  'telemetry/application/telemetry-settings.js': ['Date.now'],
+  'weather/application/provider.js': ['navigator', 'Date.now', 'new Date()'],
   'weather/domain/day-peaks.js': ['localStorage', 'Date.now'],
+  'weather/domain/keys/key-result.js': ['localStorage'],
   'weather/domain/radar/radar-coverage.js': ['localStorage'],
 };
 
@@ -136,7 +140,7 @@ test('every file the homes table names exists', () => {
 
 test('domain and application code reach the runtime only in the listed files', () => {
   const found = {};
-  FILES.filter((f) => roleOf(f) === 'domain').forEach((f) => {
+  FILES.filter((f) => ['domain', 'application'].indexOf(roleOf(f)) !== -1).forEach((f) => {
     const src = codeOf(path.join(PKJS, f));
     const used = RUNTIME.filter(([, re]) => re.test(src)).map(([name]) => name);
     if (used.length) { found[f] = used; }
