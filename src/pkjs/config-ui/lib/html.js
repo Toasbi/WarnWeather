@@ -34,12 +34,15 @@ function esc(s) {
  *   (the edit sheet's reset button). It sits BESIDE the title rather than out at the
  *   right edge — the close button is the only thing that owns that corner, so the header
  *   packs from the left and the close pushes itself over with margin-left:auto.
+ * @param {string} [closeAttr] The close button's data attribute: data-select-close (the
+ *   shared dialog's), or data-psheet-close for a sheet over a dialog (engine.js renderPickSheet).
  * @returns {string} Header markup.
  */
-function sheetHeader(titleId, titleHtml, afterTitleHtml) {
+function sheetHeader(titleId, titleHtml, afterTitleHtml, closeAttr) {
   return '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">'
     + titleHtml + '</span>' + (afterTitleHtml || '')
-    + '<button type="button" class="ssel-modal-close" data-select-close aria-label="Close">×</button></div>';
+    + '<button type="button" class="ssel-modal-close" ' + (closeAttr || 'data-select-close')
+    + ' aria-label="Close">×</button></div>';
 }
 
 /**
