@@ -220,6 +220,25 @@ test('a side slot\'s weather condition: the whole name beside an empty middle, t
   assert.ok(shows(emery, 'Partly cloudy') && shows(emery, 'Berlin'), 'emery: both whole');
 });
 
+// The Status bars tab's bar pictures print the text the watch shows: the short form where
+// the watch's row swaps it in, not the whole name cut short by the page.
+test('the Status bars tab\'s bar pictures print the short form where the watch does', () => {
+  const sbp = require('../src/pkjs/settings/preview-status-bars.js');
+  const S = settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off',
+    statusForecastLeft: 'condition', statusForecastMid: 'city', statusForecastRight: 'empty' });
+  const pictures = (platform) => {
+    const env = plat.computeEnv({ platform: platform });
+    return [sbp.barPicture(S, env, 'forecast', { big: true }), sbp.statusBarsPreview(S, env)];
+  };
+  pictures('basalt').forEach((html) => {
+    assert.ok(html.indexOf('PCLDY') !== -1 && html.indexOf('Berlin') !== -1, 'basalt: PCLDY and Berlin');
+    assert.equal(html.indexOf('Partly cloudy'), -1, 'basalt: not the whole name');
+  });
+  pictures('emery').forEach((html) => {
+    assert.ok(html.indexOf('Partly cloudy') !== -1 && html.indexOf('Berlin') !== -1, 'emery: both whole');
+  });
+});
+
 test('a graph\'s pattern and clip ids carry its band\'s suffix, so two graphs never share one', () => {
   const env = plat.computeEnv({ platform: 'basalt' });
   const html = pw.watchPreview(settings({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'all',
