@@ -94,11 +94,18 @@ static void validate_tests(void) {
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     expect("live-len.reject", status_line_validate(b, n), 0);
 
-    // TEXT with zero len.
-    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, NULL);
+    // TEXT with zero len: a glyph alone (the weather condition slot's Icon look), accepted.
+    // Rejecting it threw the whole line away, so the watch kept the old icon and text.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_SUN, NULL);
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
-    expect("text-empty.reject", status_line_validate(b, n), 0);
+    expect("text-empty.accept", status_line_validate(b, n), 1);
+    {
+        StatusSlotView ev[STATUS_SLOT_COUNT];
+        expect("text-empty.slots", status_line_slots(b, n, ev), STATUS_SLOT_COUNT);
+        expect("text-empty.icon", ev[0].icon, STATUS_ICON_COND_SUN);
+        expect("text-empty.len", ev[0].value_len, 0);
+    }
 
     // Edge slot over 8 bytes.
     n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_NONE, "123456789");

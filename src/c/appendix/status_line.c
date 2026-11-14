@@ -58,7 +58,8 @@ static bool walk_slot(const uint8_t *blob, size_t len, int slot_index,
     *off += 3;
     if (kind > STATUS_SLOT_KIND_MAX || icon > STATUS_ICON_MAX) { return false; }
     if (kind == SLOT_TEXT) {
-        if (value_len == 0 || value_len > slot_text_cap(slot_index)) { return false; }
+        // Zero bytes is a glyph alone: the weather condition slot's Icon look bakes no text.
+        if (value_len > slot_text_cap(slot_index)) { return false; }
         if (*off + value_len > len) { return false; }
         if (!utf8_complete(blob + *off, value_len)) { return false; }
     } else if (value_len != 0) {
