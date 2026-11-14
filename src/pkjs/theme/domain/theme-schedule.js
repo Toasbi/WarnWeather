@@ -22,7 +22,7 @@ var themeFlip = require('./theme-flip.js');
 
 /**
  * Parse an hour select value ('0'..'23'), clamping garbage to a fallback —
- * the sleep-window parse rule (sleep-window.js).
+ * the battery saver's hour parse rule (battery-saver.js).
  *
  * @param {*} value Stored hour value (string from the settings page).
  * @param {number} fallback Hour to use when the value doesn't parse.
@@ -36,7 +36,7 @@ function parseHour(value, fallback) {
 
 /**
  * True when `now`'s hour falls inside an hour window, with wrap-around and the
- * sleep window's conventions (sleep-window.js): a window whose start equals its
+ * sleep window's conventions (battery-saver.js): a window whose start equals its
  * end is "never", not "always", and the end hour is exclusive. The caller passes
  * the fallbacks its OWN keys default to in schema.js, since that is what an
  * unparseable stored value stands in for.

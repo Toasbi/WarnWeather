@@ -77,7 +77,7 @@ static void length_is_a_minimum(void) {
 
 static void the_off_tuple_is_valid(void) {
     // The switch turned off reaches the watch as five zero bytes — start == end is
-    // this repo's "never" window (sleep-window.js), and it is the ONLY thing that
+    // this repo's "never" window (battery-saver.js), and it is the ONLY thing that
     // says "off". Reject it and the feature could never be turned off again.
     const uint8_t off[NIGHT_LIGHT_BYTES] = { 0, 0, 0, 0, 0 };
     expect("off_tuple", night_light_wire_ok(off, sizeof(off)), 1);

@@ -14,7 +14,7 @@
         : (typeof PConf !== 'undefined' && PConf) ? PConf
         : null;
     // The shared ladder and night-pause rule (test/page/weather/budgets/tomorrowio-budget.test.js pins sleepHours
-    // against sleep-window.js) — reused, not copied a third time. build-config-page.js
+    // against battery-saver.js) — reused, not copied a third time. build-config-page.js
     // concatenates tomorrowio-budget.js ahead of this file.
     var tio = (typeof require !== 'undefined') ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
     // The radarProvider of "Rainbow (own key)": the radar source id fetch-cycle.js runs it

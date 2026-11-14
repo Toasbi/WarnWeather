@@ -291,7 +291,7 @@ void persist_get_night_colors(uint8_t out[NIGHT_COLOR_BYTES]);
 //       the driver scales each channel by the user's own brightness, so these three
 //       bytes carry the hue AND how deep the dim goes.
 //   [3] window start hour, INCLUSIVE   [4] window end hour, EXCLUSIVE
-// Window conventions are the phone's own (sleep-window.js), unchanged: the window
+// Window conventions are the phone's own (battery-saver.js), unchanged: the window
 // WRAPS past midnight ([4] < [3] is normal — 22..6 burns 22:00-05:59), and
 // [3] == [4] means NEVER. "Never" is also this feature's off switch: the phone
 // zeroes all five bytes when the "Dim backlight" toggle is off, so there is NO

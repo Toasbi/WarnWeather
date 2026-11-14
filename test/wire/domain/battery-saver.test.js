@@ -1,7 +1,7 @@
-// test/health/domain/sleep-window.test.js
+// test/wire/domain/battery-saver.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isWithinSleepWindow, parseHour } = require('../../../src/pkjs/health/domain/sleep-window');
+const { isWithinSleepWindow, parseHour } = require('../../../src/pkjs/wire/domain/battery-saver');
 // Fetch-cadence logic lives in its when-do-we-fetch home now (fetch-cycle.js).
 const isPastRefreshSlot = require('../../../src/pkjs/shell/fetch-cycle.js').isPastRefreshSlot;
 

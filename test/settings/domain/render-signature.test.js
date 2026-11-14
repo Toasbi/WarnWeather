@@ -190,12 +190,12 @@ test('a bar no screen shows signs none of its slots; putting it on a screen re-s
 
 // The night pause decides whether fetching happens at all (and which IS_SLEEPING glyph
 // the forced fetch pushes), so every key that moves the window has to force the refetch.
-// That is exactly the three keys sleep-window.js reads, no more: the Nighttime card's
+// That is exactly the three keys battery-saver.js reads, no more: the Nighttime card's
 // other two features pause nothing, and signing a resolved window instead of the raw
 // keys would make an edit that happens to land on the same hours invisible.
 const SLEEP_KEYS = ['sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'];
 
-test('every sleep-window key changes the render signature (forces a refetch)', () => {
+test('every battery saver key changes the render signature (forces a refetch)', () => {
   const base = { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' };
   const changed = { sleepNightEnabled: false, sleepStartHour: '1', sleepEndHour: '8' };
   SLEEP_KEYS.forEach((key) => {
@@ -209,7 +209,7 @@ test('fourthLine is part of the render signature (it changes what the phone bake
     'a Third-metric change must force a refetch');
 });
 
-test('the sleep-window keys each occupy their own signature slot', () => {
+test('the battery saver keys each occupy their own signature slot', () => {
   // Without distinct positions, editing the start hour could read as editing the end.
   const seen = SLEEP_KEYS.map((key) => renderSignature({ [key]: 'X' }));
   seen.forEach((sig, i) => seen.slice(i + 1).forEach((other, j) =>
