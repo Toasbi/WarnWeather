@@ -77,7 +77,7 @@ function bakedAlertEntries(fx, platform) {
   console.log = () => {};
   try {
     const out = fixtureWeather.getFixtureWeatherPayload(copy,
-      Object.assign({}, defaults, copy.claySettings), { platform });
+      Object.assign({}, defaults, copy.claySettings), { platform }, new Date(2026, 5, 1, 12, 34));
     return (out && out.ALERT_ENTRIES_UINT8) || [];
   } finally {
     console.log = origLog;

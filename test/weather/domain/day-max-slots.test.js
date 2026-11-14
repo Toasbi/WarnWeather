@@ -2,7 +2,7 @@
 // wind, gust and AQI slots: the numbers wire-units picks, the text status-lines
 // bakes, the highlight status-wire judges, and the peaks getPayload emits.
 const test = require('node:test');
-const { bakeEnv } = require('../../helpers/bake-env.js');
+const { bakeEnv } = require('../../../src/pkjs/status-bars/domain/status-lines.js');
 const assert = require('node:assert/strict');
 // The time every bake in this file runs at, where the test does not care which it is.
 const NOW = new Date(2026, 5, 15, 12, 0, 0);

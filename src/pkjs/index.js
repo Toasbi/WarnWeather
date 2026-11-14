@@ -457,13 +457,12 @@ Pebble.addEventListener('ready',
         // refreshes happen on config close.
         newsCache.seedIfAbsent(newsCacheOpts());
         if (activeFixture) {
-            sendClaySettings(function() {
+            var sendFixture = function () {
                 fixtureWeather.sendFixtureWeather(activeFixture, { settings: app.settings, watchInfo: app.watchInfo,
                     now: new Date(), phone: phoneBattery.bakeFacts() });
-            }, function() {
-                fixtureWeather.sendFixtureWeather(activeFixture, { settings: app.settings, watchInfo: app.watchInfo,
-                    now: new Date(), phone: phoneBattery.bakeFacts() });
-            });
+            };
+            // After the settings send, whether the watch ACKs it or not.
+            sendClaySettings(sendFixture, sendFixture);
             // Intentionally skip scheduler.onReady(): the readiness latch stays
             // unset in fixture mode, so a late watch-status handshake can't drain
             // a real Clay send/fetch that would race the fixture send above.

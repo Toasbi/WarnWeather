@@ -691,6 +691,7 @@ module.exports = {
   isNightNow: isNightNow,
   SOURCE_KEYS: SOURCE_KEYS,
   packLine: packLine,
+  bakeEnv: bakeEnv,
   formatValue: formatValue,
   formatCountdown: formatCountdown,
   utf8Encode: utf8Encode,

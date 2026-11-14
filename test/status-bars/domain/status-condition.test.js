@@ -5,7 +5,7 @@
 // the short one in where the row would cut the name), the name alone or the short form where
 // it does not, with the condition's glyph per the slot's Look.
 const test = require('node:test');
-const { bakeEnv } = require('../../helpers/bake-env.js');
+const { bakeEnv } = require('../../../src/pkjs/status-bars/domain/status-lines.js');
 const assert = require('node:assert/strict');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const lines = require('../../../src/pkjs/status-bars/domain/status-lines.js');

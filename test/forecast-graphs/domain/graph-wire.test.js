@@ -688,7 +688,7 @@ test('the Clay payload and the fixture send carry the same three graph tuples', 
         want, 'Clay ' + at);
       const sent = [];
       global.Pebble = { sendAppMessage: (payload) => { sent.push(payload); } };
-      sendFixtureWeather(fixture, { settings: Object.assign({}, settings), watchInfo });
+      sendFixtureWeather(fixture, { settings: Object.assign({}, settings), watchInfo, now: new Date(2026, 5, 1, 12, 34) });
       assert.equal(sent.length, 1, at);
       assert.deepEqual(pick(sent[0]), want, 'fixture ' + at);
     }));

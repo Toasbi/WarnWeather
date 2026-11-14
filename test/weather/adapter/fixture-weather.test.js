@@ -3,9 +3,25 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {
-  getFixtureWeatherPayload, getFixtureRadarTuples, mapFixtureWeather, sendFixtureWeather
-} = require('../../../src/pkjs/weather/adapter/fixture-weather');
+const fixtureWeather = require('../../../src/pkjs/weather/adapter/fixture-weather');
+const { getFixtureRadarTuples, mapFixtureWeather, sendFixtureWeather } = fixtureWeather;
+
+// The bake's instant: one fixed time, so day, night and countdowns do not follow the
+// wall clock. A test that needs another passes its own.
+const FIXTURE_NOW = new Date(2026, 5, 1, 12, 34);
+
+/**
+ * fixture-weather's getFixtureWeatherPayload, baked at FIXTURE_NOW unless a test names a time.
+ *
+ * @param {Object} fixture The fixture.
+ * @param {Object} settings Clay settings.
+ * @param {Object} [watchInfo] Watch info.
+ * @param {Date} [now] The bake's instant.
+ * @returns {Object|null} The payload.
+ */
+function getFixtureWeatherPayload(fixture, settings, watchInfo, now) {
+  return fixtureWeather.getFixtureWeatherPayload(fixture, settings, watchInfo, now || FIXTURE_NOW);
+}
 const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
 
 // A minimal-but-valid 3-hour fixture: temps/precipPct present, 2 sun events.
@@ -45,7 +61,7 @@ test('the fixture send bundles the line styling, threaded with watchInfo', () =>
   try {
     sendFixtureWeather(makeFixture({ windKmh: [0, 25, 50] }), {
       settings: { secondaryLine: 'wind', windScale: 'mid', secondaryLineFill: true, barSource: 'off' },
-      watchInfo: { platform: 'diorite' }
+      watchInfo: { platform: 'diorite' }, now: FIXTURE_NOW
     });
   } finally {
     global.Pebble = origPebble;

@@ -1,5 +1,5 @@
 const test = require('node:test');
-const { bakeEnv } = require('../helpers/bake-env.js');
+const { bakeEnv } = require('../../src/pkjs/status-bars/domain/status-lines.js');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

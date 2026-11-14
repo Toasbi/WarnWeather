@@ -1,5 +1,8 @@
 'use strict';
 const test = require('node:test');
+// Every fixture bake runs at one fixed instant, so day, night and countdowns do not
+// follow the wall clock.
+const FIXTURE_NOW = new Date(2026, 5, 1, 12, 34);
 const assert = require('node:assert/strict');
 const thresholds = require('../../../src/pkjs/alerts/domain/status-thresholds.js');
 
@@ -288,7 +291,7 @@ test('the weather bake is identical across themes and the area-fill toggle', () 
                 threshWindWarn: '5', threshWindDanger: '10', threshUvWarn: '1', threshUvDanger: '2'
               });
               const out = fixtureWeather.getFixtureWeatherPayload(
-                JSON.parse(JSON.stringify(fx)), s, { platform });
+                JSON.parse(JSON.stringify(fx)), s, { platform }, FIXTURE_NOW);
               const ser = JSON.stringify(out, Object.keys(out).sort());
               compared++;
               if (ref === null) { ref = ser; }
@@ -339,7 +342,7 @@ test('the weather bake is identical with every Draw from / Bars from on Top', ()
           const s = Object.assign({}, defaults, fx.claySettings || {}, lines, styles,
             { barSource: 'rain', radarMode: 'graph' });
           const bake = (settings) => {
-            const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), settings, { platform });
+            const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), settings, { platform }, FIXTURE_NOW);
             return JSON.stringify(out, Object.keys(out).sort());
           };
           assert.equal(bake(Object.assign({}, s, TOP)), bake(s), [name, platform, JSON.stringify(lines)].join(' '));
@@ -741,7 +744,7 @@ test('the weather bake follows forecastHours on emery only', () => {
     const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '..', 'fixtures', 'forecast-48h.json'), 'utf8'));
     const bake = (platform, forecastHours, over) => {
       const s = Object.assign({}, defaults, fx.claySettings, { forecastHours }, over || {});
-      const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), s, { platform });
+      const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), s, { platform }, FIXTURE_NOW);
       return JSON.stringify(out, Object.keys(out).sort());
     };
     assert.notEqual(bake('emery', '48'), bake('emery', '24'), 'emery: the long span bakes the feed\'s 48 hours');
@@ -811,7 +814,7 @@ test('the weather bake is identical across the numbers\' place on a 24-hour feed
           [false, true].forEach((scale) => {
             const s = Object.assign({}, defaults, fx.claySettings || {}, lines, { forecastAxisScale: scale });
             const bake = (settings) => {
-              const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), settings, { platform });
+              const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), settings, { platform }, FIXTURE_NOW);
               return JSON.stringify(out, Object.keys(out).sort());
             };
             const ref = bake(s);

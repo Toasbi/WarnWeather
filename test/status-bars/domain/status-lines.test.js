@@ -1,5 +1,5 @@
 const test = require('node:test');
-const { bakeEnv } = require('../../helpers/bake-env.js');
+const { bakeEnv } = require('../../../src/pkjs/status-bars/domain/status-lines.js');
 const assert = require('node:assert');
 // The time every bake in this file runs at, where the test does not care which it is.
 const NOW = new Date(2026, 5, 15, 12, 0, 0);

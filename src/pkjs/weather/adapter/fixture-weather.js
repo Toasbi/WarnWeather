@@ -91,6 +91,9 @@ function mapFixtureWeather(weather) {
  * @param {Object} fixture Active fixture loaded from fixtures/<name>.json.
  * @param {Object} settings Clay settings used for the forecast-series transform.
  * @param {Object} [watchInfo] Pebble watchInfo object; used to resolve platform-aware colours.
+ * @param {Date} now The instant the payload is baked at (the caller's clock).
+ * @param {?Object} [phone] The phone's battery facts (phone-battery.js bakeFacts); absent on a
+ *   host that cannot read them.
  * @returns {Object|null} Pebble weather payload, or null when invalid.
  */
 function getFixtureWeatherPayload(fixture, settings, watchInfo, now, phone) {
@@ -162,7 +165,7 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo, now, phone) {
     // watch.now: the showcase's countdown target moves with the generation day
     // (scripts/gen-showcase-fixtures.js).
     return renderPayload.toRenderPayload(provider.getPayload(), settings, watchInfo,
-        now || new Date(), phone || null);
+        now, phone || null);
 }
 
 /**
@@ -241,7 +244,7 @@ function getFixtureRadarTuples(fixture) {
  * Send fixture weather directly to the watch, bypassing live provider fetch logic.
  *
  * @param {Object} fixture Active fixture loaded from fixtures/<name>.json.
- * @param {{settings: Object, watchInfo: Object|null, now: (Date|undefined), phone: (Object|undefined)}} deps
+ * @param {{settings: Object, watchInfo: Object|null, now: Date, phone: (Object|undefined)}} deps
  *   Clay settings, watch info, the time and the phone's battery facts (phone-battery.js bakeFacts).
  * @returns {void}
  */

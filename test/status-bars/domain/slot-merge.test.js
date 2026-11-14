@@ -9,7 +9,7 @@
 // Wind speed never takes a gust alert, and a watch the entries do not ride to (aplite)
 // bakes exactly as before.
 const test = require('node:test');
-const { bakeEnv } = require('../../helpers/bake-env.js');
+const { bakeEnv } = require('../../../src/pkjs/status-bars/domain/status-lines.js');
 const assert = require('node:assert/strict');
 
 // The bake asks phone-battery.js for the phone's charge, out of localStorage: install
