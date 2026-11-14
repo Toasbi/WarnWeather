@@ -730,12 +730,36 @@ var BW_LEGEND = 'The bars don\'t scale linearly. Their height is split into 5 pa
 // rationale renders. The hinted-row wrap layout flows it around the trigger and gives it the
 // full row width below, so the fuller prose no longer needs its own staticText. The short
 // tags live in the dropdown option descs; these give the fuller rationale.
+// The data sources' credits their terms ask for where their data is picked: Tomorrow.io a
+// linked "Powered by Tomorrow.io", the air quality sources theirs (Open-Meteo's model runs on
+// Copernicus data; WAQI asks for the agencies its stations belong to), LocationIQ a link. The
+// rest are named by their pickers and listed in Setup › Privacy & data sources.
+var TOMORROWIO_CREDIT = 'Powered by <a target=\'_blank\' href=\'https://www.tomorrow.io\'>Tomorrow.io</a>.';
+var OPENMETEO_AQI_CREDIT = 'Data from Open-Meteo.com and the Copernicus Atmosphere Monitoring Service.';
+var WAQI_CREDIT = 'Data from the World Air Quality Index Project and the environmental agencies of its stations.';
+var PRIVACY_TEXT = '<b>Privacy</b><br>While Share anonymous telemetry is on, WarnWeather sends: whether each '
+    + 'weather update worked and how long it took, the weather provider, a rough country, the app and watch '
+    + 'versions, and which settings are used. It never sends your location, the places you type, your API keys '
+    + 'or any health data: steps, sleep and heart rate stay on the watch. Your account and watch are stored only '
+    + 'as one-way hashes.';
+var CC_BY = '<a target=\'_blank\' href=\'https://creativecommons.org/licenses/by/4.0/\'>CC BY 4.0</a>';
+var DATA_SOURCES_TEXT = '<b>Data sources</b><br>'
+    + 'Weather: Open-Meteo.com, MET Norway, Deutscher Wetterdienst (via Bright Sky), OpenWeather, Tomorrow.io, '
+    + 'Weather Underground, Yandex Weather.<br>'
+    + 'Rain radar: Deutscher Wetterdienst, MET Norway, Rainbow.ai, Tomorrow.io.<br>'
+    + 'Air quality: Open-Meteo.com with Copernicus Atmosphere Monitoring Service data, and the World Air Quality '
+    + 'Index Project with the environmental agencies of its stations.<br>'
+    + 'Pollen: Deutscher Wetterdienst.<br>'
+    + 'Places: town names powered by Esri, place search by Open-Meteo.com (GeoNames) and LocationIQ.com.<br>'
+    + 'Public holidays: Nager.Date.<br>'
+    + 'Data from Open-Meteo.com, MET Norway and the Copernicus Atmosphere Monitoring Service is licensed under '
+    + CC_BY + ', GeoNames data too. Weather data &copy; OpenWeather.';
 var PROVIDER_WHY = {
     dwd: 'Germany\'s national weather service, with the most accurate forecasts in Germany and decent ones across Central Europe (ICON model). No API key needed.',
     metno: 'The service behind yr.no. Best in the Nordics, with a 2.5 km model, and solid worldwide. No API key needed.',
     openmeteo: 'Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.',
     openweathermap: 'A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.',
-    tomorrowio: 'Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key.',
+    tomorrowio: 'Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key. ' + TOMORROWIO_CREDIT,
     wunderground: 'A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.',
     yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key.'
 };
@@ -795,7 +819,7 @@ var RADAR_SOURCE_HINTS = {
     // Without a key the amber note under the row says what goes missing, so the hint here
     // only says whose key and whose budget.
     tomorrowio: 'A precise rain nowcast from machine-learning models, worldwide. It uses your tomorrow.io API key '
-        + 'and counts against that key\'s call budget.'
+        + 'and counts against that key\'s call budget. ' + TOMORROWIO_CREDIT
 };
 // The radar's on-state rows (its key row and its coverage note) and the picker itself: a
 // watch with the radar (not aplite).
@@ -2535,7 +2559,7 @@ module.exports = {
                 label: 'Manual location',
                 defaultValue: '',
                 attributes: {placeholder: 'e.g. Manhattan'},
-                hint: 'Example: "Manhattan" or "123 Oak St Plainsville KY".',
+                hint: 'Example: "Manhattan" or "123 Oak St Plainsville KY". Search by <a target=\'_blank\' href=\'https://locationiq.com\'>LocationIQ.com</a>.',
                 showWhen: {key: 'locationMode', eq: 'manual'}
             }, {
                 type: 'select',
@@ -2627,9 +2651,9 @@ module.exports = {
                 label: 'Air quality',
                 defaultValue: 'waqi',
                 hintByValue: {
-                    auto: 'Uses WAQI, or Open-Meteo when no WAQI station is nearby.',
-                    waqi: 'WAQI (aqicn.org) reads real monitoring stations, which is the most accurate. Rural areas and areas with few stations may have no station nearby and show "--".',
-                    openmeteo: 'Open-Meteo uses a global model, so it covers every location.'
+                    auto: 'Uses WAQI, or Open-Meteo when no WAQI station is nearby. ' + WAQI_CREDIT + ' ' + OPENMETEO_AQI_CREDIT,
+                    waqi: 'WAQI (aqicn.org) reads real monitoring stations, which is the most accurate. Rural areas and areas with few stations may have no station nearby and show "--". ' + WAQI_CREDIT,
+                    openmeteo: 'Open-Meteo uses a global model, so it covers every location. ' + OPENMETEO_AQI_CREDIT
                 },
                 options: [['Auto', 'auto'], ['WAQI', 'waqi'], ['Open-Meteo', 'openmeteo']]
             }, {
@@ -2767,7 +2791,7 @@ module.exports = {
                 messageKey: 'telemetryEnabled',
                 label: 'Share anonymous telemetry',
                 defaultValue: true,
-                hint: 'Sends anonymous data about weather updates and how the watchface is used, to improve reliability. See what is sent in the <a href="https://github.com/Toasbi/WarnWeather#telemetry">Telemetry section</a>.'
+                hint: 'Sends anonymous data about weather updates and how the watchface is used, to improve reliability. Privacy & data sources below says what is sent.'
             }, {
                 type: 'button',
                 label: 'Run setup again',
@@ -2786,6 +2810,19 @@ module.exports = {
             }, {
                 type: 'staticText',
                 text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:var(--lbl);">Support me <3</span>' + '<a href="https://buymeacoffee.com/toaster2"><img alt="Buy me a coffee" style="height:40px;width:auto;display:block;" src="' + BMC_BADGE + '"></a></div>'
+            }]
+        }, {
+            // What the app sends and whose data it shows: the telemetry summary, and every data
+            // source with the credit and licence its terms ask for (CC BY 4.0: Open-Meteo, MET
+            // Norway, Copernicus; OpenWeather: a visible credit; Esri: "Powered by Esri"). The
+            // store listing points here instead of listing them.
+            id: 'privacy',
+            title: 'Privacy & data sources', collapsible: true, items: [{
+                type: 'staticText',
+                text: PRIVACY_TEXT
+            }, {
+                type: 'staticText',
+                text: DATA_SOURCES_TEXT
             }]
         }, {
             title: 'Advanced', collapsible: true, items: [{
