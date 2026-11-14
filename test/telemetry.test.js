@@ -242,16 +242,19 @@ test('snapshot reports onDemand, batteryLowLevel and batteryLowDisplay', () => {
   assert.equal(battery.batteryLowDisplay, 'value');
 });
 
-// The All status bars card's "Weather alerts replace slots": read like the thresholds
-// blob packs it (status-wire.js alertsReplaceSlot), absent where onDemand is.
-test('snapshot reports alertsReplaceSlot where On demand exists', () => {
-  assert.equal(buildSettingsSnapshot({}).alertsReplaceSlot, 'needed', 'absent: If needed');
-  assert.equal(buildSettingsSnapshot({ alertsReplaceSlot: 'now' }).alertsReplaceSlot, 'now');
-  assert.equal(buildSettingsSnapshot({ alertsReplaceSlot: 'soon' }).alertsReplaceSlot, 'needed',
-    'junk reads as the default, as the blob packs it');
-  const aplite = buildSettingsSnapshot({ alertsReplaceSlot: 'now' }, { platform: 'aplite' });
-  assert.strictEqual(aplite.alertsReplaceSlot, undefined, 'a known aplite has no On demand');
-  assert.ok(Object.prototype.hasOwnProperty.call(aplite, 'alertsReplaceSlot'), 'still emitted as a key');
+// The Rain alert dialog's "Replaces the slot": read like the thresholds blob packs it
+// (status-thresholds.js rainAlert), absent where onDemand is. 3.2.0's alertsReplaceSlot
+// is no longer sent.
+test('snapshot reports rainReplacesSlot where On demand exists', () => {
+  assert.strictEqual(buildSettingsSnapshot({}).rainReplacesSlot, true, 'absent: on');
+  assert.strictEqual(buildSettingsSnapshot({ rainAlertReplacesSlot: false }).rainReplacesSlot, false);
+  assert.strictEqual(buildSettingsSnapshot({ rainAlertReplacesSlot: 'soon' }).rainReplacesSlot, true,
+    'only a stored false is off, as the blob packs it');
+  const aplite = buildSettingsSnapshot({ rainAlertReplacesSlot: false }, { platform: 'aplite' });
+  assert.strictEqual(aplite.rainReplacesSlot, undefined, 'a known aplite has no On demand');
+  assert.ok(Object.prototype.hasOwnProperty.call(aplite, 'rainReplacesSlot'), 'still emitted as a key');
+  assert.ok(!Object.prototype.hasOwnProperty.call(buildSettingsSnapshot({ alertsReplaceSlot: 'now' }),
+    'alertsReplaceSlot'), 'the 3.2.0 field is gone');
 });
 
 test('buildSettingsSnapshot includes radarMode (default graph)', () => {
@@ -1521,7 +1524,7 @@ test('rainAlertDisplay agrees with the rain look the blob sends', () => {
     const settings = { rainAlertDisplay: look };
     const reported = buildSettingsSnapshot(settings).rainAlertDisplay;
     assert.strictEqual(thresholds.RAIN_DISPLAY[reported],
-      wire.buildSettingsBlob(settings)[wire.ALERTS_OFFSET], String(look));
+      wire.buildSettingsBlob(settings)[wire.ALERTS_OFFSET] & 3, String(look));
   });
   assert.equal(buildSettingsSnapshot({ rainAlertDisplay: 'bogus' }).rainAlertDisplay, 'text');
 });

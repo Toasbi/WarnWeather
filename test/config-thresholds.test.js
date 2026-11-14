@@ -1747,7 +1747,7 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     'Pollen\'s scale note rides its slider in the alert sheet');
 });
 
-test('the rain alert sheet: the Shows on card (note, radar-off and not-placed boxes, grid), then the time window and the look — no switch', () => {
+test('the rain alert sheet: the Shows on card (note, radar-off and not-placed boxes, grid), then the time window, the look and Replaces the slot', () => {
   const s = alertSheets().find(x => x.sheetId === 'alertRain');
   assert.ok(s, 'the rain sheet exists');
   assert.equal(s.title, 'Rain alert');
@@ -1758,7 +1758,7 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
   assert.equal(s.intro, 'Shows the rain icon at the edge of a status bar while it rains at your location'
     + ' or when rain is due within the time window. On a color watch, the icon uses the radar’s rain color,'
     + ' except with a B&W theme. The icon is hidden during the Battery saver hours.');
-  assert.ok(!s.items.some(it => it.messageKey === 'alertRain'), 'no switch: its Shows on grid places Rain');
+  assert.ok(!s.items.some(it => it.messageKey === 'alertRain'), 'no on/off switch: its Shows on grid places Rain');
   // The Shows on card: its note as the card's intro (rain never merges into a slot, so no
   // merge sentence), then the boxes — the radar is off (a link to where it is turned on),
   // or Rain sits on no bar — then the grid they point at, then the Default view's warning.
@@ -1807,7 +1807,10 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
         + ' shorten, then hide. Only then does the text shorten to the minutes, and then to the rain icon alone.'
     }
   });
-  assert.equal(s.items.length, 8);
+  // Last, whether it takes the place of the slot on its side (the owner's, 2026-11-14).
+  assert.equal(s.items[8].messageKey, 'rainAlertReplacesSlot');
+  assert.equal(s.items[8].type, 'toggle');
+  assert.equal(s.items.length, 9);
 });
 
 test('alert sheets carry no slot rows (Bold, display mode, arrow, unit)', () => {

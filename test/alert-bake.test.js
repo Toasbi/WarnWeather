@@ -18,15 +18,17 @@ const { decodeAlerts: decodeEntries } = require('./helpers/alert-entries.js');
 
 test('buildSettingsBlob: byte 34 carries the rain alert look in bits 0-1', () => {
   assert.equal(wire.ALERTS_OFFSET, 34);
-  assert.equal(wire.buildSettingsBlob({})[34], 0, 'absent = text, the legacy look');
-  assert.equal(wire.buildSettingsBlob({ rainAlertDisplay: 'text' })[34], 0);
-  assert.equal(wire.buildSettingsBlob({ rainAlertDisplay: 'icon' })[34], 1);
-  assert.equal(wire.buildSettingsBlob({ rainAlertDisplay: 'minutes' })[34], 2);
-  assert.equal(wire.buildSettingsBlob({ rainAlertDisplay: 'bogus' })[34], 0, 'unknown = text');
-  // Bits 2-7 are reserved: whatever else is configured, they stay 0.
+  const look = (s) => wire.buildSettingsBlob(s)[34] & 3;
+  assert.equal(look({}), 0, 'absent = text, the legacy look');
+  assert.equal(look({ rainAlertDisplay: 'text' }), 0);
+  assert.equal(look({ rainAlertDisplay: 'icon' }), 1);
+  assert.equal(look({ rainAlertDisplay: 'minutes' }), 2);
+  assert.equal(look({ rainAlertDisplay: 'bogus' }), 0, 'unknown = text');
+  // Bit 2 is the rain alert's Replaces the slot (on by default); bits 3-7 are reserved:
+  // whatever else is configured, they stay 0.
   const busy = wire.buildSettingsBlob(placedOnly(['uv'], { rainAlertDisplay: 'minutes', statusBoldAll: 'all',
     alertUvDisplay: 'value', threshUvOn: true }));
-  assert.equal(busy[34], 2);
+  assert.equal(busy[34], 2 | wire.RAIN_REPLACE_BIT);
   // Which metric alerts are ACTIVE never rides the Clay blob: their entries do.
   assert.deepEqual(wire.buildSettingsBlob({ alertUvDisplay: 'value', alertWindDays: 'today' }),
     wire.buildSettingsBlob({}));
@@ -47,27 +49,32 @@ test('buildSettingsBlob: byte 35 packs the Battery item — its warn level on th
   assert.equal(wire.buildSettingsBlob({ batteryLowDisplay: 'value' })[B], 10 | wire.BATTERY_VALUE_BIT);
   assert.equal(wire.buildSettingsBlob({ batteryLowLevel: '30', batteryLowDisplay: 'value' }, emery)[B], 30 | 0x40);
   // It never touches the rain look next door, nor the look the level.
-  const both = wire.buildSettingsBlob({ rainAlertDisplay: 'minutes', batteryLowLevel: '20' });
+  const both = wire.buildSettingsBlob({ rainAlertDisplay: 'minutes', batteryLowLevel: '20',
+    rainAlertReplacesSlot: false });
   assert.equal(both[wire.ALERTS_OFFSET], 2);
   assert.equal(both[B], 20);
 });
 
-test('buildSettingsBlob: bit 2 of byte 34 is "Weather alerts replace slots: Right away"', () => {
+test('buildSettingsBlob: bit 2 of byte 34 is the Rain alert\'s "Replaces the slot", on by default', () => {
   const A = wire.ALERTS_OFFSET;
-  assert.equal(wire.ALERTS_REPLACE_BIT, 4);
-  assert.equal(wire.buildSettingsBlob({})[A] & wire.ALERTS_REPLACE_BIT, 0, 'absent: If needed');
-  assert.equal(wire.buildSettingsBlob({ alertsReplaceSlot: 'needed' })[A], 0);
-  assert.equal(wire.buildSettingsBlob({ alertsReplaceSlot: 'now' })[A], wire.ALERTS_REPLACE_BIT);
-  assert.equal(wire.buildSettingsBlob({ alertsReplaceSlot: 'yes' })[A], 0, 'junk reads as If needed');
+  assert.equal(wire.RAIN_REPLACE_BIT, 4);
+  assert.equal(wire.buildSettingsBlob({})[A] & wire.RAIN_REPLACE_BIT, wire.RAIN_REPLACE_BIT, 'absent: on');
+  assert.equal(wire.buildSettingsBlob({ rainAlertReplacesSlot: true })[A], wire.RAIN_REPLACE_BIT);
+  assert.equal(wire.buildSettingsBlob({ rainAlertReplacesSlot: false })[A], 0, 'off clears it');
+  assert.equal(wire.buildSettingsBlob({ rainAlertReplacesSlot: 'yes' })[A], wire.RAIN_REPLACE_BIT,
+    'only a stored false turns it off');
+  // 3.2.0's shared option means nothing any more, either way.
+  assert.equal(wire.buildSettingsBlob({ alertsReplaceSlot: 'needed' })[A], wire.RAIN_REPLACE_BIT);
+  assert.equal(wire.buildSettingsBlob({ alertsReplaceSlot: 'now', rainAlertReplacesSlot: false })[A], 0);
   // Beside the rain look in bits 0-1, neither touching the other, nor the Battery byte.
   ['text', 'icon', 'minutes'].forEach((look, i) => {
-    const blob = wire.buildSettingsBlob({ alertsReplaceSlot: 'now', rainAlertDisplay: look });
-    assert.equal(blob[A], wire.ALERTS_REPLACE_BIT | i, look);
+    const blob = wire.buildSettingsBlob({ rainAlertDisplay: look });
+    assert.equal(blob[A], wire.RAIN_REPLACE_BIT | i, look);
     assert.equal(blob[wire.BATTERY_OFFSET], 10, look);
   });
   // Only byte 34 moves.
-  const off = wire.buildSettingsBlob({ rainAlertDisplay: 'icon' });
-  const on = wire.buildSettingsBlob({ rainAlertDisplay: 'icon', alertsReplaceSlot: 'now' });
+  const off = wire.buildSettingsBlob({ rainAlertDisplay: 'icon', rainAlertReplacesSlot: false });
+  const on = wire.buildSettingsBlob({ rainAlertDisplay: 'icon' });
   off.forEach((b, i) => { if (i !== A) { assert.equal(on[i], b, 'byte ' + i); } });
 });
 
@@ -207,8 +214,13 @@ test('alertDays / alertNextDayMark: one reading each, with the defaults', () => 
   assert.equal(th.alertNextDayMark({ alertWindNextDayMark: 'gt' }, 'uv'), 'raquo');
 });
 
-test('rainAlert: owns the two rain defaults — the text look, a 60 min window', () => {
-  const dflt = { look: 'text', horizonMin: 60 };
+test('rainAlert: owns the rain defaults — the text look, a 60 min window, replacing its slot', () => {
+  const dflt = { look: 'text', horizonMin: 60, replacesSlot: true };
+  // Replaces the slot: on unless stored false (a toggle stores booleans; anything else is
+  // the default, as the blob packs it).
+  assert.equal(th.rainAlert({ rainAlertReplacesSlot: false }).replacesSlot, false);
+  [true, 'false', 0, null, 'x'].forEach(v =>
+    assert.equal(th.rainAlert({ rainAlertReplacesSlot: v }).replacesSlot, true, String(v)));
   assert.deepEqual(th.rainAlert({}), dflt);
   assert.deepEqual(th.rainAlert(null), dflt);
   assert.deepEqual(th.rainAlert(undefined), dflt);

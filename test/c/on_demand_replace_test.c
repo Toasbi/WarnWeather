@@ -2,13 +2,13 @@
 #include <string.h>
 #include "on_demand_fixtures.h"
 
-// Host test for "Weather alerts replace slots: Right away" (on_demand.h
-// od_replace_slots, the All status bars card): a side with an active weather alert is
-// laid out as though its own slot were empty, so its items start at the bar's edge
-// however much room the bar has, while the middle and the far slot keep their places.
-// The system items never take a slot by themselves, nor does an alert the slot merged
-// (that slot already shows it); where a slot is taken, its merged alert and the
-// Battery item stand in as for any slot the ladder hides. Built like
+// Host test for the Rain alert's "Replaces the slot" (on_demand.h od_replace_slots): a
+// side with an active rain alert is laid out as though its own slot were empty, so its
+// items start at the bar's edge however much room the bar has, while the middle and the
+// far slot keep their places. Only rain takes a slot: the metric alerts and the system
+// items never do, nor does an item the slot merged (that slot already shows it); where a
+// slot is taken, its merged alert and the Battery item stand in as for any slot the
+// ladder hides. Built like
 // on_demand_merge_test.c (-DWW_ON_DEMAND, linked with appendix/on_demand.c and the row
 // layout), whose fixtures it shares (on_demand_fixtures.h).
 
@@ -20,9 +20,10 @@ static void layout_replaced(int16_t w, const OdSlotIn slots[3], const OdSideIn s
     od_layout(w, taken, sides, bleed, batt, out);
 }
 
-// A rain alert with room to spare beside its slot: the ladder keeps the slot, Right
-// away takes it — the alert at the edge in its full look, the middle and the far slot
-// where the quiet bar has them. Both sides, and for every weather alert, not only rain.
+// A rain alert with room to spare beside its slot: the ladder keeps the slot, Replaces
+// the slot takes it — the alert at the edge in its full look, the middle and the far slot
+// where the quiet bar has them. Both sides. Every metric alert in its place leaves the
+// bar to the ladder, byte for byte.
 static void replace_takes_the_slot(void) {
     OdSlotIn slots[3];
     three_slots(slots);
@@ -41,6 +42,11 @@ static void replace_takes_the_slot(void) {
             expect(name, ladder.place[own].visible, 1);   // premise: the ladder keeps it
             OdLayout out;
             layout_replaced(144, slots, sides, NO_BLEED, 0, &out);
+            if (rank != OD_RAIN) {
+                expect(name, od_side_replaces(&sides[d]), 0);
+                expect(name, memcmp(&out, &ladder, sizeof(out)), 0);
+                continue;
+            }
             expect(name, out.place[own].visible, 0);
             expect(name, out.n[d], 1);
             expect(name, out.lane[d], 0);
@@ -141,9 +147,9 @@ static void battery_stands_in(void) {
     expect("replace.battery.x", out.item_x[1][0], 144 - 22);
 }
 
-// Over random bars: a side with a weather alert its slot did not merge never shows
-// that slot, and a bar where no side has one is laid out from the very slots it came
-// with (byte for byte: the ladder's own bar).
+// Over random bars: a side takes its slot exactly when it has a rain alert its slot did
+// not merge, never then shows that slot, and a bar where no side has one is laid out from
+// the very slots it came with (byte for byte: the ladder's own bar).
 static void random_bars(void) {
     int taken = 0;
     for (int trial = 0; trial < 20000; trial++) {
@@ -158,6 +164,11 @@ static void random_bars(void) {
         OdLayout out;
         od_layout(w, copy, sides, NO_BLEED, 0, &out);
         for (int d = 0; d < 2; d++) {
+            int rain = 0;
+            for (int i = 0; i < sides[d].n; i++) {
+                if (sides[d].rank[i] == OD_RAIN && i + 1 != sides[d].merged) { rain = 1; }
+            }
+            expect("replace.random.rain_only", od_side_replaces(&sides[d]), rain);
             if (!od_side_replaces(&sides[d])) {
                 expect("replace.random.kept", memcmp(&copy[d ? 2 : 0], &slots[d ? 2 : 0],
                                                      sizeof(OdSlotIn)), 0);

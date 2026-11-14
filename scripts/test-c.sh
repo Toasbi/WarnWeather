@@ -112,8 +112,8 @@ build/host/on_demand_merge_test
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_short_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_short_test
 build/host/on_demand_short_test
-# "Weather alerts replace the slot: Right away" (on_demand.h od_replace_slots): a side
-# with a weather alert lays out as though its own slot were empty.
+# The Rain alert's "Replaces the slot" (on_demand.h od_replace_slots): a side with a rain
+# alert lays out as though its own slot were empty; the metric alerts never take it.
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_replace_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_replace_test
 build/host/on_demand_replace_test

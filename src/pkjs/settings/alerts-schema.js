@@ -156,6 +156,22 @@ function rainAlertSheet() {
                 minutes: 'Shows the rain icon and the minutes until the rain starts. While it rains, it shows + and the minutes until it stops. When the bar runs out of room, the status slot on the alert’s side and the middle slot first shorten, then hide. Only then does it drop to the icon alone.',
                 text: 'When the bar runs out of room, the status slot on the alert’s side and the middle slot first shorten, then hide. Only then does the text shorten to the minutes, and then to the rain icon alone.'
             }
+        }, {
+            // Whether the rain alert takes the place of the status slot on its side while it
+            // shows (on, the default) or sits beside it, the slot giving way only when the bar
+            // runs out of room (the make-room ladder). Rain alone has this: the metric alerts
+            // always sit beside their slot (the owner's, 2026-11-14, replacing 3.2.0's All
+            // status bars option for every weather alert). It rides the thresholds blob's
+            // alerts byte (status-wire.js RAIN_REPLACE_BIT; the watch's on_demand.h
+            // od_replace_slots); the default is the contract's (status-thresholds.js rainAlert).
+            type: 'toggle',
+            messageKey: 'rainAlertReplacesSlot',
+            label: 'Replaces the slot',
+            defaultValue: STATUS_THRESHOLDS.rainAlert(null).replacesSlot,
+            hintByValue: {
+                'true': 'The rain alert takes the place of the status slot on its side while it shows.',
+                'false': 'The rain alert sits beside the status slot on its side, which makes room only when the bar is full.'
+            }
         }])
     };
 }

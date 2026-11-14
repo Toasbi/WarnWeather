@@ -65,12 +65,12 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnLook', 'Warn', 'Danger', 
 // battery %) would need the flag on the wire and are deliberately absent.
 const UNIT_KEYS = ['tempSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit', 'dewSlotUnit'];
 // The weather alerts' own keys: each alert kind's Look, Days and tomorrow mark and the
-// rain alert's look — and On demand's: each bar's two sides with their ticked items (the
+// rain alert's look and Replaces the slot — and On demand's: each bar's two sides with their ticked items (the
 // side lists every alert sheet's Shows on grid writes, on the Alerts tab) and the Battery
 // item's warn level and Look (on-demand.js DEFAULTS, the one list of them).
 const ALERT_KEYS = ALERT_STEMS.reduce((acc, stem) => acc.concat(['alert' + stem + 'Display',
   'alert' + stem + 'Days', 'alert' + stem + 'NextDayMark']),
-  ['rainAlertDisplay']).concat(Object.keys(require('../src/pkjs/on-demand.js').DEFAULTS));
+  ['rainAlertDisplay', 'rainAlertReplacesSlot']).concat(Object.keys(require('../src/pkjs/on-demand.js').DEFAULTS));
 // The Graph-colors rows: every metric colour, with one picker per theme polarity so a
 // Dark and a Light pick never overwrite one another (the colorUSFederal idiom). The list
 // comes from line-style.js because the schema builds its rows from the same call — this
@@ -124,7 +124,7 @@ const EXPECTED_KEYS = [
   // countdown dates (its side lists are on-demand.js DEFAULTS', ALERT_KEYS).
   ...['statusBar4', 'statusBar5', 'statusBar6'].reduce((all, p) => all.concat([p + 'Made', p + 'Name',
     p + 'Left', p + 'LeftCountdown', p + 'Mid', p + 'MidCountdown', p + 'Right', p + 'RightCountdown']), []),
-  'statusBoldAll', 'alertsReplaceSlot',
+  'statusBoldAll',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
   'statusTopLeft','statusTopLeftCountdown','statusTopMid','statusTopMidCountdown','statusTopRight','statusTopRightCountdown',
@@ -2409,31 +2409,42 @@ test('the All status bars card carries the reset-status-bars link row, ungated',
   // machinery it must NOT be thresholds-gated (neither the section nor the row).
   assert.equal(intro.showWhen, undefined, 'the card carries no platform gate');
   assert.equal(reset.showWhen, undefined, 'the reset row carries no platform gate');
-  // Bold values (thresholds-gated, in view: the owner, 2026-11-06), then Weather alerts replace slots
-  // (On demand-gated: aplite has no alerts to place), are the card's other rows.
-  assert.deepEqual(intro.items.slice(0, -1).map((i) => i.messageKey), ['statusBoldAll', 'alertsReplaceSlot']);
+  // Bold values (thresholds-gated, in view: the owner, 2026-11-06) is the card's other row:
+  // 3.2.0's Weather alerts replace slots moved into the Rain alert dialog (below).
+  assert.deepEqual(intro.items.slice(0, -1).map((i) => i.messageKey), ['statusBoldAll']);
   assert.equal(byKey('statusBoldAll').more, undefined, 'Bold values is not tucked under More options');
   assert.deepEqual(byKey('statusBoldAll').showWhen, { env: 'thresholds' });
-  assert.equal(byKey('alertsReplaceSlot').more, undefined, 'Weather alerts replace slots is in view');
-  assert.deepEqual(byKey('alertsReplaceSlot').showWhen, { env: 'onDemand' });
 });
 
-// Weather alerts replace slots (the owner's ask, 2026-11-13: an alert that takes its slot's place
-// the moment it shows, not only once the bar runs out of room): If needed, the old
-// behaviour, by default; each value's hint says what it does; Reset status bars to defaults
-// puts it back.
-test('Weather alerts replace slots: If needed by default, Right away on demand, reset with the bars', () => {
-  const row = byKey('alertsReplaceSlot');
-  assert.equal(row.type, 'segmented');
-  assert.equal(row.label, 'Weather alerts replace slots');
-  assert.equal(row.defaultValue, 'needed');
-  assert.deepEqual(row.options, [['If needed', 'needed'], ['Right away', 'now']]);
-  assert.ok(/beside the slot/.test(row.hintByValue.needed), 'If needed: beside the slot');
-  assert.ok(/takes the place of the slot/.test(row.hintByValue.now), 'Right away: takes its place');
-  const S = { alertsReplaceSlot: 'now' };
-  global.PConf.actions.resetStatusSlots(null, S, { platform: 'basalt', onDemand: true },
-    (k) => (k === 'alertsReplaceSlot' ? 'needed' : undefined));
-  assert.equal(S.alertsReplaceSlot, 'needed', 'Reset status bars to defaults puts it back');
+// The Rain alert's "Replaces the slot" (the owner's, 2026-11-14: one switch, in the Rain alert
+// dialog, on by default; the metric alerts always sit beside their slot): the toggle follows
+// the Look in the Rain sheet's Alert card, reads its default from the contract, says what
+// each value does, and Reset alert settings puts it back. 3.2.0's All status bars row for
+// every weather alert is gone.
+test('Replaces the slot: the Rain alert\'s own switch, on by default, reset with the alert settings', () => {
+  const rows = items.filter((i) => i.messageKey === 'rainAlertReplacesSlot');
+  assert.equal(rows.length, 1, 'one row for the key');
+  const row = rows[0];
+  const sheet = alertSheet('alertRain');
+  const at = sheet.items.indexOf(row);
+  assert.ok(at !== -1, 'it lives in the Rain sheet');
+  assert.equal(sheet.items[at - 1].messageKey, 'rainAlertDisplay', 'it follows the Look');
+  assert.equal(row.type, 'toggle');
+  assert.equal(row.label, 'Replaces the slot');
+  assert.equal(row.defaultValue, true);
+  assert.equal(row.defaultValue, require('../src/pkjs/status-thresholds.js').rainAlert(null).replacesSlot,
+    'the default is the contract\'s');
+  assert.equal(row.showWhen, undefined, 'ungated in its sheet: the sheet\'s own gate is enough');
+  assert.ok(/takes the place of the status slot/.test(row.hintByValue['true']), 'on: takes its place');
+  assert.ok(/beside the status slot/.test(row.hintByValue['false']), 'off: beside it');
+  assert.equal(items.filter((i) => i.messageKey === 'alertsReplaceSlot').length, 0, 'the shared row is gone');
+  ['alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen'].forEach((id) => {
+    assert.ok(!alertSheet(id).items.some((i) => /Replace/i.test(i.messageKey || '')), id + ' has no switch');
+  });
+  const S = { rainAlertReplacesSlot: false };
+  global.PConf.actions.resetOnDemand(null, S, { platform: 'basalt', onDemand: true },
+    (k) => (k === 'rainAlertReplacesSlot' ? true : undefined));
+  assert.equal(S.rainAlertReplacesSlot, true, 'Reset alert settings puts it back');
 });
 
 test('every threshold sheet is sheetOnly and gated off on aplite (which compiles the highlight out)', () => {

@@ -29,7 +29,7 @@ test('Clay payload carries the 48-byte threshold settings blob', () => {
   assert.ok(Array.isArray(payload.CLAY_THRESHOLDS_UINT8));
   assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 48);
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[0], 0); // nothing configured
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8[34], 0); // rain look: text, today's
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8[34], wire.RAIN_REPLACE_BIT); // rain look text; Replaces the slot on
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[35], 10); // the Battery item: 10 %, Icon
   // Warn looks: the colour-watch defaults (weather fill, goal outline).
   assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36, 38), [0xAA, 0x95]);
@@ -80,7 +80,7 @@ test('the rain alert look rides byte 34 of the Clay blob', () => {
     const s = Object.assign({}, BASE, { rainAlertDisplay: c[0] });
     const payload = buildClayPayload(s, { platform: 'basalt' },
       new Date('2026-07-22T00:00:00Z'));
-    assert.equal(payload.CLAY_THRESHOLDS_UINT8[34], c[1], String(c[0]));
+    assert.equal(payload.CLAY_THRESHOLDS_UINT8[34] & 3, c[1], String(c[0]));
   });
 });
 
@@ -167,7 +167,8 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
     new Date('2026-07-22T00:00:00Z'));
   assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8.length, 48);
   assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[33], 0xAA, 'all four cells = always');
-  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[34], 0, 'no bold cell spills into the alerts byte');
+  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[34], wire.RAIN_REPLACE_BIT,
+    'no bold cell spills into the alerts byte');
 });
 
 test('an unknown/absent watchInfo still gets the blob (never hide a real feature)', () => {

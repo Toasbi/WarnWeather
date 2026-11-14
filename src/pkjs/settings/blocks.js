@@ -657,7 +657,7 @@ if (typeof require !== 'undefined') {
         for (var i = 0; i < slotKeys.length; i++) {
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
-        var schemaKeys = ['statusBoldAll', 'alertsReplaceSlot', 'conditionSlotLook', 'tempSlotDisplay',
+        var schemaKeys = ['statusBoldAll', 'conditionSlotLook', 'tempSlotDisplay',
             // How the temp slot prints its pair in Both mode (separator preset,
             // custom separator text, spacing, which value leads).
             'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',
@@ -716,7 +716,7 @@ if (typeof require !== 'undefined') {
     // intro — schema-gates.js linkRow, alerts-schema.js cardSections): the items' own settings back to their
     // schema defaults, via the engine's resolver like resetStatusSlots above — the Battery
     // item's warn level and Look, the Bluetooth item's Show and vibration, the rain alert's
-    // window and look, each metric alert's Look, Days and tomorrow mark (the contract's
+    // window, look and Replaces the slot, each metric alert's Look, Days and tomorrow mark (the contract's
     // ALERT_KINDS, the five the tab lists) — and where each item shows: the eight side
     // lists its sheets' Shows on grids write (the Status bars reset restores those too, as
     // its bars' Alerts rows show them). Deliberately untouched: the levels, warn looks and
@@ -733,7 +733,7 @@ if (typeof require !== 'undefined') {
     PConf.actions.resetOnDemand = function (arg, S, env, defaultOf) {
         if (!S || !defaultOf) { return false; }
         var keys = ['batteryLowLevel', 'batteryLowDisplay', 'btIcons', 'vibe',
-            'rainCountdownHorizon', 'rainAlertDisplay'];
+            'rainCountdownHorizon', 'rainAlertDisplay', 'rainAlertReplacesSlot'];
         for (var k = 0; k < thresholds.ALERT_KINDS.length; k++) {
             var stem = thresholds.ALERT_KINDS[k].key;
             keys.push('alert' + stem + 'Display', 'alert' + stem + 'Days',

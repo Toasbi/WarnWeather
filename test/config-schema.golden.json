@@ -3564,29 +3564,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "alertsReplaceSlot",
-                "label": "Weather alerts replace slots",
-                "hintByValue": {
-                  "needed": "A weather alert sits beside the slot on its side, which makes room only when the bar is full.",
-                  "now": "A weather alert takes the place of the slot on its side while it shows."
-                },
-                "defaultValue": "needed",
-                "options": [
-                  [
-                    "If needed",
-                    "needed"
-                  ],
-                  [
-                    "Right away",
-                    "now"
-                  ]
-                ],
-                "showWhen": {
-                  "env": "onDemand"
-                }
-              },
-              {
                 "type": "button",
                 "style": "link",
                 "action": "resetStatusSlots",
@@ -9014,6 +8991,16 @@
                 "hintByValue": {
                   "minutes": "Shows the rain icon and the minutes until the rain starts. While it rains, it shows + and the minutes until it stops. When the bar runs out of room, the status slot on the alert’s side and the middle slot first shorten, then hide. Only then does it drop to the icon alone.",
                   "text": "When the bar runs out of room, the status slot on the alert’s side and the middle slot first shorten, then hide. Only then does the text shorten to the minutes, and then to the rain icon alone."
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "rainAlertReplacesSlot",
+                "label": "Replaces the slot",
+                "defaultValue": true,
+                "hintByValue": {
+                  "true": "The rain alert takes the place of the status slot on its side while it shows.",
+                  "false": "The rain alert sits beside the status slot on its side, which makes room only when the bar is full."
                 }
               }
             ]

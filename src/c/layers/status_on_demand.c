@@ -174,7 +174,7 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SC
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
     s->bt_key = 0;
     s->battery_value = false;
-    s->alerts_replace = status_threshold_alerts_replace(blob);
+    s->rain_replaces = status_threshold_rain_replaces(blob);
     BatteryChargeState bs = watch_services_battery_state();
     s->charge = bs.charge_percent;
     s->charging = bs.is_charging || bs.is_plugged;
@@ -431,9 +431,9 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     Families f;
     f.charging = s->charging;
     for (int i = 0; i < 3; i++) { measure_family(&f, i, &slots[i], &m[i], env, content_w); }
-    // Weather alerts that replace their side's slot right away: that slot is laid out as
-    // empty, so it does not show and the side's items start at the edge.
-    if (s->alerts_replace) { od_replace_slots(f.in, pass->sides); }
+    // A rain alert that replaces its side's slot: that slot is laid out as empty, so it
+    // does not show and the side's items start at the edge.
+    if (s->rain_replaces) { od_replace_slots(f.in, pass->sides); }
     const int8_t bleed[2] = { env->bleed_left, 0 };
     // W7: a slot of this bar that shows the watch battery (the glyph or the Battery %,
     // anywhere) already says what the Battery item would, whatever its Look, so the

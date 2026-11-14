@@ -146,11 +146,11 @@ const settingsSchema = z
     // DEPLOY-ORDERING: ship this function before the app release that sends these, or
     // the strip step drops them silently.
     onDemand: z.string().optional(),
-    // The All status bars card's "Weather alerts replace slots": 'now' (Right away) or 'needed'
-    // (If needed). Absent on aplite, like onDemand. z.string() per
-    // threshPhoneBatteryBoldMode's rule above. DEPLOY-ORDERING: ship this function before
-    // the app release that sends it, or the strip step drops it silently.
-    alertsReplaceSlot: z.string().optional(),
+    // The Rain alert dialog's "Replaces the slot": true (the default) when the rain alert
+    // takes the place of the status slot on its side, false when it sits beside it. Absent
+    // on aplite, like onDemand. DEPLOY-ORDERING: ship this function before the app release
+    // that sends it, or the strip step drops it silently.
+    rainReplacesSlot: z.boolean().optional(),
     // The weather condition slot's Look: 'both', 'text' or 'icon'. Absent on aplite. z.string()
     // per threshPhoneBatteryBoldMode's rule above. DEPLOY-ORDERING: ship this function before
     // the app release that sends it, or the strip step drops it silently.

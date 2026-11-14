@@ -561,14 +561,14 @@ test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds',
   const blob = wire.buildSettingsBlob({});
   assert.equal(blob[0], 0);
   // 12 health-threshold bytes, the five bold bytes (0 = the default warn mode),
-  // the alerts byte (0 = the rain alert's legacy text look), the Battery byte (the
+  // the alerts byte (4: the rain alert's legacy text look, replacing its slot), the Battery byte (the
   // default warn level 10, Icon), the two warn-look bytes at the colour-watch
   // defaults: aqi/pollen/wind/gust fill (0xAA), steps/sleep/distance outline + uv fill
   // (0x95), then the On demand cells at their defaults: the Watch Status Bar's
   // Battery right (2), Bluetooth, Quiet time, Sleep and Rain left (1), Wind gusts,
   // UV index and Air quality right, Pollen nowhere, Wind speed right.
   assert.deepEqual(blob.slice(17),
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0xAA, 0x95,
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 10, 0xAA, 0x95,
       2, 1, 1, 1, 1, 2, 2, 2, 0, 2]);
 });
 
@@ -595,7 +595,7 @@ test('buildSettingsBlob: warn looks pack 2 bits per paired kind, defaults per pl
     threshTempWarnLook: 'none' })), [0xAA, 0x95]);
   // The look never touches the rain-look and Battery bytes before it.
   const busy = wire.buildSettingsBlob({ threshAqiWarnLook: 'none', threshUvWarnLook: 'none' });
-  assert.deepEqual([busy[wire.ALERTS_OFFSET], busy[wire.BATTERY_OFFSET]], [0, 10]);
+  assert.deepEqual([busy[wire.ALERTS_OFFSET], busy[wire.BATTERY_OFFSET]], [wire.RAIN_REPLACE_BIT, 10]);
 });
 
 // The warn colour byte keeps a real colour whenever there IS a box, so a watch
@@ -736,7 +736,7 @@ test('buildSettingsBlob: statusBoldAll "all" packs always into every bold cell',
   // The bold area itself must not shrink, or the assertion above goes vacuous.
   assert.equal(wire.ALERTS_OFFSET - wire.BOLD_OFFSET, 5, 'bold area is bytes 29..33');
   // ...and the master never reaches past it into the alerts byte.
-  assert.equal(blob[wire.ALERTS_OFFSET], 0, 'the rain look is not a bold cell');
+  assert.equal(blob[wire.ALERTS_OFFSET], wire.RAIN_REPLACE_BIT, 'the rain look is not a bold cell');
 });
 
 // The master's Off is a slot's own Off in every cell: bold at danger or a reached goal only.
@@ -755,7 +755,7 @@ test('buildSettingsBlob: statusBoldAll "off" packs off into every bold cell', ()
     expected.push(tail);
   }
   assert.deepEqual(blob.slice(wire.BOLD_OFFSET, wire.ALERTS_OFFSET), expected);
-  assert.equal(blob[wire.ALERTS_OFFSET], 0, 'the rain look is not a bold cell');
+  assert.equal(blob[wire.ALERTS_OFFSET], wire.RAIN_REPLACE_BIT, 'the rain look is not a bold cell');
 });
 
 test('statusBoldAll "off" leaves everything below the bold area byte-identical, and the stored modes', () => {

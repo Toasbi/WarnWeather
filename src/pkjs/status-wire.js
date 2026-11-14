@@ -56,13 +56,14 @@ var COLORS_OFFSET = 1;
 var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
 var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3) — bytes 29..33
 // The alerts options byte: bits 0-1 the rain alert's look (RAIN_DISPLAY), bit 2
-// ALERTS_REPLACE_BIT, bits 3-7 reserved (DWD official warnings later) and written 0.
+// RAIN_REPLACE_BIT, bits 3-7 reserved (DWD official warnings later) and written 0.
 var ALERTS_OFFSET = 34;
-// Bit 2 of the alerts byte: weather alerts replace the slot on their side right away (the
-// All status bars card's alertsReplaceSlot 'now'; status_threshold.h
-// THRESH_ALERTS_REPLACE_BIT). Clear, the default and every blob from before, leaves the
-// slot to the watch's make-room ladder.
-var ALERTS_REPLACE_BIT = 4;
+// Bit 2 of the alerts byte: the rain alert takes the place of the slot on its side while
+// it shows (the Rain alert dialog's "Replaces the slot", rainAlert().replacesSlot, on by
+// default; status_threshold.h THRESH_RAIN_REPLACE_BIT). Clear leaves the slot to the
+// watch's make-room ladder. 3.2.0 set this bit for every weather alert (its All status
+// bars option); the metric alerts now always sit beside their slot.
+var RAIN_REPLACE_BIT = 4;
 // The On demand Battery item: bits 0-5 its warn level in % (on-demand.js
 // batteryLevel — already on the platform's step, the watch never rounds), bit 6
 // its Look (BATTERY_VALUE_BIT: Icon + value), bit 7 reserved 0.
@@ -102,17 +103,6 @@ function healthWire(kindIndex, v, settings) {
 }
 
 /**
- * Whether weather alerts replace the slot on their side right away: the All status bars
- * card's "Weather alerts replace slots" set to Right away ('now'). Anything else, absent
- * included, is If needed: the slot gives way only when the bar needs the room.
- * @param {Object} settings Clay settings blob
- * @returns {boolean}
- */
-function alertsReplaceSlot(settings) {
-  return Boolean(settings) && settings.alertsReplaceSlot === 'now';
-}
-
-/**
  * Build the CLAY_THRESHOLDS_UINT8 settings blob (layout: status_threshold.h).
  * The statusBoldAll master row overrides the PACKED bold cell of every kind
  * at build time only — 'all' to BOLD_MODES.always, 'off' to BOLD_MODES.off
@@ -120,9 +110,9 @@ function alertsReplaceSlot(settings) {
  * stored thresh<Kind>BoldMode values are never modified, so 'perSlot'
  * restores them on the next build. Enable bits, colors, and health u16s are
  * untouched by the master.
- * Byte ALERTS_OFFSET carries the rain alert's look (rainAlert's look) and whether
- * weather alerts replace the slot on their side right away (alertsReplaceSlot 'now',
- * ALERTS_REPLACE_BIT); which METRIC alerts are active never rides here — the phone
+ * Byte ALERTS_OFFSET carries the rain alert's look and whether it takes the place of the
+ * slot on its side (rainAlert's look and replacesSlot, RAIN_REPLACE_BIT); which METRIC
+ * alerts are active never rides here — the phone
  * bakes only the active ones into their own weather tuple (bakeAlerts). Byte
  * BATTERY_OFFSET carries the
  * On demand Battery item: its warn level (on-demand.js batteryLevel, on the
@@ -165,8 +155,8 @@ function buildSettingsBlob(settings, env) {
       blob[off + 3] = (danger >> 8) & 0xFF;
     }
   }
-  blob[ALERTS_OFFSET] = RAIN_DISPLAY[rainAlert(settings).look]
-    | (alertsReplaceSlot(settings) ? ALERTS_REPLACE_BIT : 0);
+  var rain = rainAlert(settings);
+  blob[ALERTS_OFFSET] = RAIN_DISPLAY[rain.look] | (rain.replacesSlot ? RAIN_REPLACE_BIT : 0);
   blob[BATTERY_OFFSET] = onDemand.batteryLevel(settings, env)
     | (onDemand.batteryShowsValue(settings) ? BATTERY_VALUE_BIT : 0);
   // The On demand cells: one byte per item in ITEMS order, 2 bits per bar at bits
@@ -546,8 +536,7 @@ module.exports = {
   HEALTH_OFFSET: HEALTH_OFFSET,
   BOLD_OFFSET: BOLD_OFFSET,
   ALERTS_OFFSET: ALERTS_OFFSET,
-  ALERTS_REPLACE_BIT: ALERTS_REPLACE_BIT,
-  alertsReplaceSlot: alertsReplaceSlot,
+  RAIN_REPLACE_BIT: RAIN_REPLACE_BIT,
   BATTERY_OFFSET: BATTERY_OFFSET,
   BATTERY_VALUE_BIT: BATTERY_VALUE_BIT,
   WARN_LOOK_OFFSET: WARN_LOOK_OFFSET,
