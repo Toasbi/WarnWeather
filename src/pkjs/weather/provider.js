@@ -53,6 +53,9 @@ var WeatherProvider = function() {
     this.usedGpsCache = false;
     this.gpsErrorCode = null;
     this.locationMode = null;
+    // A failure the provider worked around inside a fetch that still succeeded
+    // (failure()); the fetch cycle reports it to telemetry once and clears it.
+    this.recoveredFailure = null;
     this.rainTrend = zeroFilledArray(this.numEntries);
     this.windTrend = zeroFilledArray(this.numEntries);
     this.gustTrend = zeroFilledArray(this.numEntries);

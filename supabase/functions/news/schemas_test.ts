@@ -20,18 +20,12 @@ Deno.test("each op's valid payload is accepted", () => {
   assert(accepts({ op: "list", version: "1.8.0" }));
   assert(accepts({ op: "list", version: "1.8.0", accountToken: HEX32 }));
   assert(accepts({ op: "seen", accountToken: HEX32, maxSeenId: 5 }));
-  assert(accepts({
-    op: "reply",
-    accountToken: HEX32,
-    version: "1.8.0",
-    newsId: 3,
-    message: "hi",
-  }));
   assert(accepts({ op: "vote", accountToken: HEX32, newsId: 3, choiceIndex: 0 }));
 });
 
-Deno.test("unknown op is rejected", () => {
+Deno.test("unknown op is rejected, reply among them", () => {
   assert(!accepts({ op: "delete", accountToken: HEX32 }));
+  assert(!accepts({ op: "reply", accountToken: HEX32, version: "1.8.0", newsId: 3, message: "hi" }));
   assert(!accepts({ op: "", version: "1.8.0" }));
   assert(!accepts({ version: "1.8.0" }));
 });
@@ -53,32 +47,15 @@ Deno.test("version regex accepts a full semver-ish string", () => {
 
 // --- accountToken shape (strict on writes) ---
 
-Deno.test("accountToken shape is enforced on seen/reply/vote writes", () => {
+Deno.test("accountToken shape is enforced on seen/vote writes", () => {
   // too short (< 8 chars)
   assert(!accepts({ op: "seen", accountToken: "short", maxSeenId: 5 }));
   // bad chars (space / punctuation)
   assert(!accepts({ op: "vote", accountToken: "bad token!", newsId: 3, choiceIndex: 0 }));
-  assert(!accepts({
-    op: "reply",
-    accountToken: "!!!!!!!!",
-    version: "1.8.0",
-    newsId: 3,
-    message: "hi",
-  }));
   // 32-hex and preview-account-token accepted
   assert(accountTokenSchema.safeParse(HEX32).success);
   assert(accountTokenSchema.safeParse("preview-account-token").success);
   assert(accepts({ op: "seen", accountToken: "preview-account-token", maxSeenId: 5 }));
-});
-
-// --- reply message bounds ---
-
-Deno.test("reply message: blank rejected, 1000 ok, 1001 rejected", () => {
-  const base = { op: "reply", accountToken: HEX32, version: "1.8.0", newsId: 3 };
-  assert(!accepts({ ...base, message: "" }));
-  assert(!accepts({ ...base, message: "   " })); // trims to empty
-  assert(accepts({ ...base, message: "x".repeat(1000) }));
-  assert(!accepts({ ...base, message: "x".repeat(1001) }));
 });
 
 // --- vote choiceIndex bounds ---

@@ -364,7 +364,7 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   one — add it by hand there. Preview the copy locally with
   `forceShowReleaseNotificationOnBoot` in `dev-config.js`. See `RELEASE.md`.
 - **Every release — patches included — needs a news entry in the `public.news`
-  Supabase table** (hosted news backend — the *News & Feedback* section of the settings
+  Supabase table** (hosted news backend — the *News* popup (the bell) of the settings
   screen, not the boot toast above). Unlike that toast, this one has no feature/patch
   exemption and **nothing in CI enforces it**, so it is on you at release time. Insert one row with `target_version` left **`NULL`** so every watch
   sees it, whatever version it runs — release news doubles as the nudge to update.
@@ -375,34 +375,73 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   `"What's new in <version>"` and use only the supported markdown subset (`**bold**`
   section headers, `- ` bullets, `*italic*`, `[text](https://…)` links — see
   `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
-- **Changelog style: grouped by kind, one plain sentence per item** (the owner's,
-  2026-11-10). The news body and the appstore changelog both list the items under
-  `New features`, `Improvements` and `Fixes`: bold headings in the news body, plain lines
-  in the appstore text. Each item is one row of one sentence, about ten to fifteen words:
-  what the user gets, named the way they see it, and what it does. No exclamation marks,
-  no second sentence, no aside, no how-to and no full stop. A platform limit goes in
-  parentheses at the end (`(Pebble Time 2)`), or after the heading when the whole group
-  shares it. Fixes get one row per watchface bug a user would have noticed, then one
-  grouped row for polish. Leave out mechanics, defaults and edge cases. The news body
-  renders flat `- ` bullets only (`news.js`), so no sub-bullets. The shape to match
-  (3.0.0's):
+- **Changelog style: Keep a Changelog 1.1.0** (the owner's, 2026-11-14;
+  https://keepachangelog.com/en/1.1.0/, copied here so every session works from it).
+  - Its principles: a changelog is for humans, not machines; every version gets an entry;
+    changes of the same type are grouped; the latest version comes first; it lists the
+    noteworthy differences for the user, not the commit log.
+  - Its types, in this order, only those that apply: `Added` for new features, `Changed` for
+    changes in existing functionality, `Deprecated` for soon-to-be removed features, `Removed`
+    for now removed features, `Fixed` for any bug fixes, `Security` in case of
+    vulnerabilities.
+  - Counted against the previous release users had: `Changed`, `Removed` and `Fixed` name only
+    what that release already had. A feature new in this release goes under `Added` once, with
+    everything about it (its icons turning to the moon at sunset are part of the new slot, not
+    a `Changed` item), and a bug in something that never shipped is no `Fixed` item. When a
+    release replaces one that users barely had (3.2.1 for 3.2.0), its notes cover everything
+    since the release before and leave the skipped one out.
+  - Each item is one line without a full stop, naming the feature the way the user sees it;
+    `Fixed` items say what was wrong or what works again. No marketing words, no exclamation
+    marks, no settings path or how-to, no second sentence. Small fixes and settings-screen
+    polish are one last `Minor fixes` line in `Fixed`.
+  - **Appstore changelog:** the terse form Keep a Changelog's own examples use. Plain-line
+    headings, items of two to eight words, no platform notes and no explanation (the news
+    body has those). The shape to match (3.2.1's):
 
-  ```
-  **New features** (not on Pebble Classic or Steel)
-  - Name your screens and drag them into the order you want
-  - Make up to six status bars and fill them as you like (Pebble Time 2)
+    ```
+    Added
+    - Weather condition status slot
+    - Weather icon option for the City slot
+    - Date formats 09.26 and Sep
 
-  **Improvements**
-  - Setup shows your own watch while you pick its layout and theme
+    Changed
+    - New rain alert icons
+    - Tap a status bar to edit it
 
-  **Fixes**
-  - The settings open again right after Reset watchface
-  - Smaller fixes and polish
-  ```
+    Removed
+    - Message form in the News popup
+
+    Fixed
+    - Minor fixes
+    ```
+  - **News body** (`public.news`, RELEASE.md "News row"): the same items and groups as that
+    version's appstore changelog, each explained a little more (what it is and what it does
+    for the user), about eight to eighteen words. Bold headings with a blank line between
+    the groups, flat `- ` bullets (news.js renders `**bold**`, `*italic*`, `[text](https://…)`
+    links and `- ` bullets only: no `#` headings, no sub-bullets). An item not on Pebble
+    Classic or Steel ends with `*`, a Pebble Time 2 only item with `**`, and the body ends
+    with a blank line and only the footnotes it used: `* Not on Pebble Classic or Steel`,
+    `** Pebble Time 2 only` (a lone `*` or `**` prints as is). Other limits stay in
+    parentheses: `(color watches)`, `(Android)`, `(Pebble Classic and Steel: text only)`.
+    The shape to match (3.1.0's):
+
+    ```
+    **Added**
+    - Change layout in a screen's editor gives the screen another layout and keeps its name and place*
+
+    **Changed**
+    - Edit on a screen's forecast graph row opens the settings of that graph**
+
+    **Fixed**
+    - Visible values set on one graph no longer change the same metric on your other graphs**
+
+    * Not on Pebble Classic or Steel
+    ** Pebble Time 2 only
+    ```
 - **Write the changelog for users, not the diff** (both the toast and the news body). Call
   out individually only what a user can act on: a feature they can use, or a bug that
   affected the watchface itself. Group everything else — settings-screen polish, internal
-  refactors, small fixes — into one line ("small fixes and polish"), or omit it. A
+  refactors, small fixes — into one line ("Minor fixes"), or omit it. A
   polish-only patch gets one grouped line, not an itemized list of cosmetic tweaks.
   Keep the tone factual and concise: no filler reassurances ("nothing you need to change
   on your end") and no generic sign-offs ("more on the way", "message me anytime").

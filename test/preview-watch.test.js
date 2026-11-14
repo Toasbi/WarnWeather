@@ -204,7 +204,8 @@ test('a light theme draws black on white, the status rows print the Status bars 
 // or a short middle, and gives way to the middle's text (status_row.c swap_in_short_forms).
 test('a side slot\'s weather condition: the whole name beside an empty middle, the short form beside a long one', () => {
   const draw = (platform, mid) => pw.watchPreview(settings({ layoutPreset: 'compactCal', radarMode: 'off',
-    healthMode: 'off', statusForecastLeft: 'condition', statusForecastMid: mid, statusForecastRight: 'empty' }),
+    healthMode: 'off', statusForecastLeft: 'condition', statusForecastMid: mid, statusForecastRight: 'empty',
+    citySlotIcon: true }),
   plat.computeEnv({ platform: platform }), {});
   const shows = (html, text) => html.indexOf('>' + text + '</text>') !== -1;
   ['basalt', 'emery'].forEach((platform) => {
@@ -218,6 +219,25 @@ test('a side slot\'s weather condition: the whole name beside an empty middle, t
   assert.ok(shows(basalt, 'PCLDY') && shows(basalt, 'Berlin') && !shows(basalt, 'Partly cloudy'), 'basalt: PCLDY and Berlin');
   const emery = draw('emery', 'city');
   assert.ok(shows(emery, 'Partly cloudy') && shows(emery, 'Berlin'), 'emery: both whole');
+});
+
+// The Status bars tab's bar pictures print the text the watch shows: the short form where
+// the watch's row swaps it in, not the whole name cut short by the page.
+test('the Status bars tab\'s bar pictures print the short form where the watch does', () => {
+  const sbp = require('../src/pkjs/settings/preview-status-bars.js');
+  const S = settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off',
+    statusForecastLeft: 'condition', statusForecastMid: 'city', statusForecastRight: 'empty', citySlotIcon: true });
+  const pictures = (platform) => {
+    const env = plat.computeEnv({ platform: platform });
+    return [sbp.barPicture(S, env, 'forecast', { big: true }), sbp.statusBarsPreview(S, env)];
+  };
+  pictures('basalt').forEach((html) => {
+    assert.ok(html.indexOf('PCLDY') !== -1 && html.indexOf('Berlin') !== -1, 'basalt: PCLDY and Berlin');
+    assert.equal(html.indexOf('Partly cloudy'), -1, 'basalt: not the whole name');
+  });
+  pictures('emery').forEach((html) => {
+    assert.ok(html.indexOf('Partly cloudy') !== -1 && html.indexOf('Berlin') !== -1, 'emery: both whole');
+  });
 });
 
 test('a graph\'s pattern and clip ids carry its band\'s suffix, so two graphs never share one', () => {

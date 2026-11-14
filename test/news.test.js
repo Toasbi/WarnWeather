@@ -91,7 +91,7 @@ test('interpretReplyStatus maps 2xx/429/0/other', () => {
   assert.equal(news.interpretReplyStatus(202).message, 'Sent ✓');
   const limited = news.interpretReplyStatus(429);
   assert.equal(limited.ok, false);
-  assert.match(limited.message, /10 replies\/day/);
+  assert.match(limited.message, /10 a day/);
   assert.match(news.interpretReplyStatus(0).message, /connection/i);
   assert.match(news.interpretReplyStatus(500).message, /500/);
 });
@@ -104,8 +104,7 @@ test('payload builders mirror the edge-function contract', () => {
     { op: 'list', accountToken: 'tok', version: '1.8.0' });
   assert.deepEqual(newsProtocol.buildSeenPayload(ud, 7),
     { op: 'seen', accountToken: 'tok', maxSeenId: 7 });
-  assert.deepEqual(newsProtocol.buildReplyPayload(ud, 3, 'hello'),
-    { op: 'reply', accountToken: 'tok', version: '1.8.0', newsId: 3, message: 'hello' });
+  assert.equal(newsProtocol.buildReplyPayload, undefined, 'no messages from the page');
 });
 
 test('payload builders tolerate missing userData fields', () => {
@@ -146,50 +145,26 @@ test('renderChoicesHtml: no/empty choices -> empty string', () => {
 test('renderNewsBellHtml is accessible and preserves unread state', () => {
   const html = news.renderNewsBellHtml(2);
   assert.match(html, /<svg[^>]*aria-hidden="true"/);
-  assert.match(html, /class="sr-only">News &amp; Feedback<\/span>/);
+  assert.match(html, /class="sr-only">News<\/span>/);
   assert.match(html, /<span class="news-badge"><\/span>/);
 });
 
-test('renderNewsListHtml uses one-way message wording when replies are available', () => {
-  const html = news.renderNewsListHtml([
-    { id: 4, title: 'Hello', created_at: '2026-07-19T00:00:00Z', body_md: 'Body' }
-  ], true);
-  assert.match(html, /Write a message/);
-  assert.doesNotMatch(html, />Reply</);
-  assert.match(html, /I’m happy to hear from you/);
-  assert.match(html, /one-way, so I can’t reply/);
-  assert.match(html, /https:\/\/apps\.repebble\.com\/67d6f1fcdb264341b850f79a/);
-  assert.match(html, /https:\/\/github\.com\/Toasbi\/WarnWeather\/issues/);
-});
-
-test('renderNewsListHtml omits message controls and hint when replies are unavailable', () => {
-  const html = news.renderNewsListHtml([
-    { id: 4, title: 'Hello', created_at: '2026-07-19T00:00:00Z', body_md: 'Body' }
-  ], false);
-  assert.doesNotMatch(html, /data-news-reply=/);
-  assert.doesNotMatch(html, /news-message-hint/);
+test('renderNewsListHtml has no message form: it links to the store listing and GitHub issues', () => {
+  [true, false].forEach((canReply) => {
+    const html = news.renderNewsListHtml([
+      { id: 4, title: 'Hello', created_at: '2026-07-19T00:00:00Z', body_md: 'Body' }
+    ], canReply);
+    assert.doesNotMatch(html, /textarea|data-news-reply|data-news-send|Write a message/);
+    assert.match(html, /https:\/\/apps\.repebble\.com\/67d6f1fcdb264341b850f79a/);
+    assert.match(html, /https:\/\/github\.com\/Toasbi\/WarnWeather\/issues/);
+    assert.ok(html.indexOf('news-message-hint') > html.lastIndexOf('news-title'), 'the line sits below the items');
+  });
 });
 
 test('renderNewsListHtml titles the popup "News", not "News & Feedback"', () => {
   const html = news.renderNewsListHtml([], false);
   assert.match(html, /<h2>News<\/h2>/);
   assert.doesNotMatch(html, /News &amp; Feedback/);
-});
-
-test('renderNewsListHtml renders a single message composer targeting the newest item', () => {
-  const html = news.renderNewsListHtml([
-    { id: 7, title: 'B', created_at: '2026-07-19T00:00:00Z', body_md: 'b' },
-    { id: 3, title: 'A', created_at: '2026-07-18T00:00:00Z', body_md: 'a' }
-  ], true);
-  // Exactly one "Write a message" toggle for the whole popup...
-  assert.equal((html.match(/data-news-reply="/g) || []).length, 1);
-  assert.equal((html.match(/I’m happy to hear from you/g) || []).length, 1);
-  // ...and it (plus its hint) sits after the news items, targeting the max id.
-  assert.match(html, /data-news-reply="7"/);
-  assert.ok(html.indexOf('news-message-hint') > html.lastIndexOf('news-title'),
-    'the hint sits below the news items');
-  assert.ok(html.indexOf('news-message-hint') < html.indexOf('Write a message'),
-    'the hint sits above the "Write a message" button');
 });
 
 test('renderNewsListHtml dates each item by the local calendar day, not the UTC one', () => {
@@ -214,12 +189,6 @@ test('renderNewsListHtml dates each item by the local calendar day, not the UTC 
   } finally {
     if (prevTz === undefined) { delete process.env.TZ; } else { process.env.TZ = prevTz; }
   }
-});
-
-test('renderNewsListHtml shows no composer when there is nothing to attach a reply to', () => {
-  const html = news.renderNewsListHtml([], true);
-  assert.doesNotMatch(html, /data-news-reply=/);
-  assert.doesNotMatch(html, /news-message-hint/);
 });
 
 test('renderNewsListHtml wraps items in a scroll container between the pinned header and composer', () => {

@@ -558,6 +558,7 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
  */
 function onSchedulerTick() {
     phoneBattery.onTick();
+    statusRebake.onTick();
     updateCheckRunner.runDailyUpdateCheck({
         stores: UPDATE_CHECK_STORES,
         appVersion: pkg.version,

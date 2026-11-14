@@ -331,6 +331,7 @@
      * @returns {string} HTML.
      */
     function slotCell(c) {
+        // (c.text is the text the watch shows: watchSlots swapped in the short forms.)
         var arrow = c.arrow ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
         // The weather icons (the condition's, the city's) are detailed: a size up from the
         // other glyphs, so they read as well beside their text.
@@ -373,12 +374,30 @@
      * @param {{big: boolean, dim: boolean}} [opts] How it is drawn.
      * @returns {string} HTML ('' for an unknown bar)
      */
+    /**
+     * A bar's slots with the text the watch shows in each: the short forms swapped in where
+     * the watch's row would cut a text (preview-watch.js barLabels, the watch pictures' own
+     * layout), so a picture never prints a name the watch has shortened.
+     * @param {Object} S Settings. @param {Object} env Platform env. @param {string} bar The bar.
+     * @param {?Object} view The first screen showing the bar (barView). @param {Date} now Today.
+     * @returns {Array<Object>} The slots (barSlots), each text as the watch shows it.
+     */
+    function watchSlots(S, env, bar, view, now) {
+        var slots = barSlots(S, env, bar, !calendarShown(view), now);
+        var watch = NODE ? require('./preview-watch.js') : window.PreviewWatch;
+        if (!watch || typeof watch.barLabels !== 'function') { return slots; }
+        var labels = watch.barLabels(S, env, bar, view, slots);
+        return slots.map(function (c) {
+            return c.pos in labels && c.code !== 'empty' && c.text ? Object.assign({}, c, {text: labels[c.pos]}) : c;
+        });
+    }
+
     function barPicture(S, env, bar, opts) {
         var st = S || {}, o = opts || {}, b = null;
         BARS.forEach(function (x) { if (x.bar === bar) { b = x; } });
         if (!b) { return ''; }
         var view = barView(VC.resolveViewCycle(st, env), b);
-        var cells = barSlots(st, env, bar, !calendarShown(view), new Date()).map(slotCell).join('');
+        var cells = watchSlots(st, env, bar, view, new Date()).map(slotCell).join('');
         return frame(st, env, 'sbp one' + (o.big ? ' big' : '') + (o.dim ? ' dim' : ''), screens.barName(st, bar),
             '<span class="sbp-row">' + cells + '</span>');
     }
@@ -411,7 +430,7 @@
             // Each row by its bar's name (screens.js barName), the label column without the
             // trailing " bar" every default name has ("Forecast", a "Wind bar" as "Wind").
             var name = screens.barName(st, b.bar);
-            var cells = barSlots(st, env, b.bar, !calendarShown(view), now).map(slotCell).join('');
+            var cells = watchSlots(st, env, b.bar, view, now).map(slotCell).join('');
             rows += '<span class="sbp-row"><span class="sbp-n">' + esc(name.replace(/ bar$/i, '')) + '</span>' + cells
                 + '</span>';
         });

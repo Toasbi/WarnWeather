@@ -203,6 +203,12 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
         const sizes = doc.icons[key].sizes;
         for (const id of Object.keys(sizes).sort((a, b) => (a === 'A') - (b === 'A') || Number(a) - Number(b))) {
             const s = sizes[id];
+            // A Pebble Classic/Steel mask kept as 3.1.1 drew it ('mask': its rows and width, blank
+            // columns included), so the text beside it sits where it did.
+            if (id === 'A' && s.mask) {
+                masks[key] = { rows: s.mask.rows.slice(), w: s.mask.w };
+                continue;
+            }
             const px = inkPixels(s.pixels);
             if (!px.length) continue;
             const w = Math.max(...px.map(p => p[0])) + 1, h = Math.max(...px.map(p => p[1])) + 1;
@@ -231,6 +237,12 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
             const drawn = [];
             if (version === 'pixel') {
                 drawn.push([name, pixel, [].concat(...plats.map(p => TARGETS[p] || [])),
+                    [].concat(...plats.map(p => FAMILIES[p] || []))]);
+            } else if (version === 'old') {
+                // The old icon goes to the black and white watches too: they drew it before the
+                // pixel drawings, unsmoothed, exactly as these lines draw there.
+                const v = variants.versionLines(version, px, s[version]);
+                drawn.push([name, variants.pdc(v.lines, v.w, v.h), [].concat(...plats.map(p => TARGETS[p] || [])),
                     [].concat(...plats.map(p => FAMILIES[p] || []))]);
             } else {
                 const v = variants.versionLines(version, px, s[version]);

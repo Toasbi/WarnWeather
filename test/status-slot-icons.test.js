@@ -77,9 +77,9 @@ test('every slot item the watch draws a glyph for has the page copy, and no othe
     const item = catalog.byCode(code);
     assert.ok(item, code + ' is a catalog item');
     if (code === 'city') {
-      // The city draws the current weather's icon (citySlotIcon, on by default), the sample's.
-      assert.equal(slotIcon(code, basalt), ICONS.condition, 'city: the weather icon, as the watch draws it');
-      assert.equal(slotIcon(code, basalt, { citySlotIcon: false }), null, 'city switched off: text alone');
+      // The city draws the current weather's icon once switched on (citySlotIcon, off by default).
+      assert.equal(slotIcon(code, basalt, { citySlotIcon: true }), ICONS.condition, 'city switched on: the weather icon');
+      assert.equal(slotIcon(code, basalt), null, 'city by default: text alone, as the watch draws it');
     } else if (TEXT.indexOf(item.icon) === -1) {
       assert.equal(slotIcon(code, basalt), ICONS[code], code + ': the watch draws a glyph, so the preview does');
     } else {

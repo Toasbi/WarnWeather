@@ -435,6 +435,78 @@
     }
 
     /**
+     * @param {boolean} top The Watch bar's strip. @param {number} ch The row's Gothic size.
+     * @param {number} h The band's height.
+     * @returns {number} The row's icon height.
+     */
+    function rowIconH(top, ch, h) {
+        return Math.min(cdiv(ch * (top ? 5 : 6), 9), h - 2);
+    }
+
+    /**
+     * A row's three slots measured in the watch's Gothic and laid out as the watch does both:
+     * a slot that brought a short form draws it where the row would cut a text, an edge's
+     * whole name giving way whenever any text is cut, the wider name first, then the middle
+     * where its own is cut, each swap laid out again (status_row.c swap_in_short_forms).
+     * @param {Array<Object>} bars The bar's slots (preview-status-bars.js barSlots).
+     * @param {number} cw The row's content width. @param {number} ch Its Gothic size.
+     * @param {number} iconH Its icon height. @param {number} f Screen family.
+     * @returns {{slots: Array<?Object>, placed: Array<?Object>}} Left, middle and right: each
+     *     slot's measures and final label, and where it goes (placeSlots).
+     */
+    function rowLayout(bars, cw, ch, iconH, f) {
+        var arrowW = f ? 8 : 6;
+        var slots = [null, null, null], at = { left: 0, mid: 1, right: 2 };
+        bars.forEach(function (c) {
+            if (c.code === 'empty' || !(c.pos in at)) { return; }
+            var glyph = c.code === 'battery' && !c.text;
+            var icon = glyph ? null : c.icon;
+            slots[at[c.pos]] = { label: c.text || '', alt: c.alt, glyph: glyph, icon: icon,
+                iw: glyph ? BATTERY.w : (icon ? iconH : 0), tw: c.text ? WT.width(ch, false, c.text) : 0,
+                sw: c.arrow ? arrowW : 0 };
+        });
+        var placed = placeSlots(cw, slots);
+        var cut = function (it, p) { return Boolean(it) && it.tw > 0 && !(p && p.tw >= it.tw); };
+        for (var round = 0; round < 3; round++) {
+            if (!slots.some(function (it, i) { return cut(it, placed[i]); })) { break; }
+            var pick = -1;
+            [0, 2].forEach(function (i) {
+                if (slots[i] && slots[i].alt && (pick < 0 || slots[i].tw > slots[pick].tw)) { pick = i; }
+            });
+            if (pick < 0 && slots[1] && slots[1].alt && cut(slots[1], placed[1])) { pick = 1; }
+            if (pick < 0) { break; }
+            slots[pick].label = slots[pick].alt;
+            slots[pick].tw = WT.width(ch, false, slots[pick].alt);
+            slots[pick].alt = '';
+            placed = placeSlots(cw, slots);
+        }
+        return { slots: slots, placed: placed };
+    }
+
+    /**
+     * The text each slot of a bar shows on the watch, short forms swapped in where the watch
+     * swaps them: on the first screen showing the bar (spec), in its row's font and width.
+     * The status bar pictures on the Status bars tab print these.
+     * @param {Object} S Settings. @param {Object} env Platform env.
+     * @param {string} bar The bar. @param {?Object} spec The screen showing it (null: none).
+     * @param {Array<Object>} bars Its slots (preview-status-bars.js barSlots).
+     * @returns {{left: string, mid: string, right: string}} Each slot's text.
+     */
+    function barLabels(S, env, bar, spec, bars) {
+        var f = env && env.platform === 'emery' ? 1 : 0, sc = SCREEN[f], pad = f ? 2 : 0, ch;
+        if (bar === 'top') { ch = f ? 24 : 18; }
+        else {
+            var rowFull = Boolean(spec)
+                && layoutView(spec, f, clockInk(S, f, Boolean(env && env.color === false))).tier === VC.TIER_FULL;
+            ch = f ? (rowFull ? 18 : 24) : (rowFull ? 14 : 18);
+        }
+        var slots = rowLayout(bars, sc.w - 2 * pad - 2 * ROW_MARGIN, ch, rowIconH(bar === 'top', ch, Infinity), f).slots;
+        var out = { left: '', mid: '', right: '' };
+        ['left', 'mid', 'right'].forEach(function (pos, i) { if (slots[i]) { out[pos] = slots[i].label; } });
+        return out;
+    }
+
+    /**
      * One bar's row: its three slots' sample text (preview-status-bars.js barSlots) in the
      * watch's Gothic, each after its icon where the page has one, the battery item as its
      * glyph; seated (status_seat_y, the top strip 2 rows higher) and laid out as the watch
@@ -451,35 +523,10 @@
         var top = bar === 'top', e = '';
         var lineTop = box.y + seatY(box.h, ch) - (top ? 2 : 0);
         var mid = lineTop + ch - glyphBelow(ch);
-        var iconH = Math.min(cdiv(ch * (top ? 5 : 6), 9), box.h - 2), arrowW = cx.f ? 8 : 6;
-        var slots = [null, null, null], at = { left: 0, mid: 1, right: 2 };
-        statusBars.barSlots(S, env, bar, cx.fullDate, cx.now).forEach(function (c) {
-            if (c.code === 'empty' || !(c.pos in at)) { return; }
-            var glyph = c.code === 'battery' && !c.text;
-            var icon = glyph ? null : c.icon;
-            slots[at[c.pos]] = { label: c.text || '', alt: c.alt, glyph: glyph, icon: icon,
-                iw: glyph ? BATTERY.w : (icon ? iconH : 0), tw: c.text ? WT.width(ch, false, c.text) : 0,
-                sw: c.arrow ? arrowW : 0 };
-        });
-        var cw = box.w - 2 * ROW_MARGIN, x0 = box.x + ROW_MARGIN;
-        // A slot that brought a short form draws it where the row would cut a text: an edge's
-        // whole name gives way whenever any text is cut, the wider name first, then the middle
-        // where its own is cut, each swap laid out again (status_row.c swap_in_short_forms).
-        var placed = placeSlots(cw, slots);
-        var cut = function (it, p) { return Boolean(it) && it.tw > 0 && !(p && p.tw >= it.tw); };
-        for (var round = 0; round < 3; round++) {
-            if (!slots.some(function (it, i) { return cut(it, placed[i]); })) { break; }
-            var pick = -1;
-            [0, 2].forEach(function (i) {
-                if (slots[i] && slots[i].alt && (pick < 0 || slots[i].tw > slots[pick].tw)) { pick = i; }
-            });
-            if (pick < 0 && slots[1] && slots[1].alt && cut(slots[1], placed[1])) { pick = 1; }
-            if (pick < 0) { break; }
-            slots[pick].label = slots[pick].alt;
-            slots[pick].tw = WT.width(ch, false, slots[pick].alt);
-            slots[pick].alt = '';
-            placed = placeSlots(cw, slots);
-        }
+        var iconH = rowIconH(top, ch, box.h);
+        var row = rowLayout(statusBars.barSlots(S, env, bar, cx.fullDate, cx.now), box.w - 2 * ROW_MARGIN,
+            ch, iconH, cx.f);
+        var slots = row.slots, placed = row.placed, x0 = box.x + ROW_MARGIN;
         placed.forEach(function (p, i) {
             if (!p) { return; }
             var it = slots[i], x = x0 + p.x;
@@ -762,6 +809,7 @@
     if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }
     if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('timeFontPicture', fontPicture); }
     var api = { watchPreview: watchPreview, layoutView: layoutView, clockInk: clockInk, screenSvg: screenSvg,
+        barLabels: barLabels,
         graphKinds: graphKinds,
                 fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

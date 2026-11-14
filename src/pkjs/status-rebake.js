@@ -4,10 +4,11 @@
 // The forecast pipeline hands its bake inputs here immediately before
 // buildStatusLines (rememberBakeInputs); any later trigger re-bakes those
 // inputs against the CURRENT settings and pushes only the status keys
-// (resendStatus). Two triggers today: a phone-battery event, and every
-// settings save (channel-scheduler's config close), which is how a status-only
-// edit — an alert switched off, a level moved, a Look — reaches the watch at
-// once, network or not. A version-stamped flash snapshot backs the in-memory
+// (resendStatus). Three triggers: a phone-battery event, every settings save
+// (channel-scheduler's config close), which is how a status-only edit — an
+// alert switched off, a level moved, a Look — reaches the watch at once,
+// network or not, and a sunrise or sunset (onTick), which turns the weather
+// condition's and the city's icon between sun and moon without a fetch. A version-stamped flash snapshot backs the in-memory
 // inputs across PKJS restarts (PKJS dies whenever the user leaves the
 // watchface).
 //
@@ -112,6 +113,7 @@ var deps = {};        // injected environment (see init)
 var snapshot = null;  // last bake inputs ({payload, watchInfo}) from THIS PKJS life
 var restored = null;  // the same shape, read back from flash at init: the restart backstop
 var lastWritten = null;   // last serialized snapshot, to skip no-op flash writes
+var bakedNight;           // day or night of the last bake (undefined: nothing baked yet)
 
 /**
  * @returns {?Storage} localStorage when the host has one (Node tests may not).
@@ -327,7 +329,42 @@ function rememberBakeInputs(payload, watchInfo) {
         payload: shallowClone(payload),
         watchInfo: watchInfo
     };
+    bakedNight = nightNow(payload);
     persistSnapshot(payload, watchInfo);
+}
+
+/**
+ * @returns {number} Now, in epoch seconds (the injected clock, else Date.now).
+ */
+function nowSec() {
+    return (typeof deps.now === 'function' ? +deps.now() : Date.now()) / 1000;
+}
+
+/**
+ * @param {Object} payload Bake inputs' payload (its SUN_EVENTS).
+ * @returns {boolean} Whether it is night now by that payload's sun events.
+ */
+function nightNow(payload) {
+    return statusLines.isNightNow(payload && payload.SUN_EVENTS, nowSec());
+}
+
+/**
+ * Per-minute hook (the channel scheduler's tick): re-bakes the status once day
+ * turns to night or back since the last bake, so the sun and moon icons follow
+ * the sky between fetches. After a restart the restored snapshot counts as baked
+ * on the side of the sky it is now: the fetch that runs on the return brings
+ * the rest, and a resend before it would carry the old snapshot's values.
+ *
+ * @returns {boolean} True when a resend was attempted.
+ */
+function onTick() {
+    var src = snapshot || restored;
+    var night;
+    if (!src) { return false; }
+    night = nightNow(src.payload);
+    if (night === bakedNight) { return false; }
+    bakedNight = night;
+    return resendStatus(night ? 'sunset' : 'sunrise');
 }
 
 /**
@@ -362,6 +399,7 @@ function resendStatus(reason, onSuccess, onFailure) {
         return false;
     }
     payload = shallowClone(inputs.payload);
+    bakedNight = nightNow(payload);
     build = deps.buildStatusLines || statusLines.buildStatusLines;
     try {
         build(payload, inputs.settings, inputs.watchInfo);
@@ -403,19 +441,23 @@ function invalidatePersisted() {
  * @param {function():Object} [options.getSettings] Current Clay settings supplier.
  * @param {function(Object, Function=, Function=):void} [options.sendWeather] Outbox send (default: outbox.sendWeather).
  * @param {function(Object, Object, Object):Object} [options.buildStatusLines] Baker (default: status-lines).
+ * @param {function():(Date|number)} [options.now] Clock for the day/night check (default: Date.now).
  * @returns {void}
  */
 function init(options) {
     deps = options || {};
     snapshot = null;
     lastWritten = null;
+    bakedNight = undefined;
     restored = restoreSnapshot();
+    if (restored) { bakedNight = nightNow(restored.payload); }
 }
 
 module.exports = {
     init: init,
     rememberBakeInputs: rememberBakeInputs,
     resendStatus: resendStatus,
+    onTick: onTick,
     invalidatePersisted: invalidatePersisted,
     STATUS_KEYS: STATUS_KEYS
 };

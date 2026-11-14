@@ -202,19 +202,22 @@ test('the bake reads CURRENT_CONDITION and SUN_EVENTS through SOURCE_KEYS', () =
   assert.ok(lines.SOURCE_KEYS.indexOf('SUN_EVENTS') !== -1);
 });
 
-// The city slot draws the current weather's glyph before its name (citySlotIcon, on unless
-// switched off): the glyph's id with the city's bit, so the watch keeps it the city's slot.
-test('City: the current weather glyph with the city bit, unless switched off or on aplite', () => {
+// The city slot draws the current weather's glyph before its name once switched on
+// (citySlotIcon, off by default): the glyph's id with the city's bit, so the watch keeps it the
+// city's slot.
+test('City: the current weather glyph with the city bit once switched on, never on aplite', () => {
   const bakeCity = (cond, over, env, night) => decodeLine(lines.packLine(LINE,
     { CITY: 'Berlin', CURRENT_CONDITION: cond, SUN_EVENTS: sun(Boolean(night)) },
     Object.assign({ statusForecastLeft: 'city' }, over || {}), env || BASALT, null))[0];
-  const day = bakeCity('partly');
+  const ON = { citySlotIcon: true };
+  const day = bakeCity('partly', ON);
   assert.equal(day.text, 'Berlin');
-  assert.equal(day.icon, catalog.CITY_GLYPH | catalog.ICONS.COND_SUN_CLOUD, 'on by default, every install');
-  assert.equal(bakeCity('partly', {}, BASALT, true).icon, catalog.CITY_GLYPH | catalog.ICONS.COND_MOON_CLOUD,
-    'the night glyph at night');
+  assert.equal(day.icon, catalog.CITY_GLYPH | catalog.ICONS.COND_SUN_CLOUD, 'switched on: the weather glyph');
+  assert.equal(bakeCity('partly').icon, catalog.ICONS.NONE, 'off by default: no glyph');
   assert.equal(bakeCity('partly', { citySlotIcon: false }).icon, catalog.ICONS.NONE, 'switched off: no glyph');
-  assert.equal(bakeCity(null).icon, catalog.ICONS.NONE, 'no condition known: no glyph');
-  assert.equal(bakeCity('partly', {}, APLITE).icon, catalog.ICONS.NONE, 'aplite draws none');
+  assert.equal(bakeCity('partly', ON, BASALT, true).icon, catalog.CITY_GLYPH | catalog.ICONS.COND_MOON_CLOUD,
+    'the night glyph at night');
+  assert.equal(bakeCity(null, ON).icon, catalog.ICONS.NONE, 'no condition known: no glyph');
+  assert.equal(bakeCity('partly', ON, APLITE).icon, catalog.ICONS.NONE, 'aplite draws none');
   assert.ok(catalog.CITY_GLYPH > catalog.ICONS.COND_WIND, 'the bit sits above every id');
 });

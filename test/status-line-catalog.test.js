@@ -640,3 +640,11 @@ test('the four Battery rows are labelled Watch/Phone so none of them just reads 
   // indistinguishable in the dropdown.
   assert.equal(new Set(labels).size, labels.length, 'Battery labels must be unique');
 });
+
+test('the slot lists name the city with its weather icon while it is on, never on aplite', () => {
+  const label = (env, settings) => catalog.slotOptions(settings || {}, env, { slotKey: 'statusTopLeft', position: 'left' })
+    .filter((o) => o[1] === 'city').map((o) => o[0])[0];
+  assert.equal(label(ENV_BASALT), 'City', 'the icon is off by default');
+  assert.equal(label(ENV_BASALT, { citySlotIcon: true }), 'City with weather icon');
+  assert.equal(label({ platform: 'aplite' }, { citySlotIcon: true }), 'City');
+});
