@@ -9,9 +9,8 @@
 // the once-only completion, the watchdog, the late-completion guard, the attempt
 // counter, the sleep commit, the telemetry event and the success/failure records.
 //
-// Extracted from index.js (fetch(), needRefresh() and their helpers), with
-// weather/fetch-orchestrator.js's runFetchCycle as the internal runCycle and
-// channel-scheduler.js's two cadence statics. index.js keeps the event wiring;
+// It holds index.js's fetch(), needRefresh() and their helpers, the cycle's
+// chain as the internal runCycle, and channel-scheduler.js's two cadence statics. index.js keeps the event wiring;
 // the channel scheduler keeps WHEN (its startFetch/shouldFetchNow deps are these
 // two methods). Clock, timer, provider, settings and every collaborator that
 // touches Pebble, storage-backed state or telemetry are injected, so the cycle
@@ -25,7 +24,7 @@
 
 var storageKeys = require('../settings/domain/storage-keys.js');
 var fetchOptions = require('../weather/domain/fetch-options.js');
-var sleepWindow = require('../wire/domain/battery-saver.js');
+var batterySaver = require('../wire/domain/battery-saver.js');
 var platformLib = require('../config-ui/lib/platform.js');
 var radarFactory = require('../weather/adapter/radar-factory.js');
 var radarWire = require('../weather/domain/radar/radar-wire.js');
@@ -295,9 +294,8 @@ function rememberRadarAnswer(radarId, atMs, tuples) {
 
 // --- one cycle's chain ------------------------------------------------------
 // Resolve device coordinates ONCE per refresh cycle, then drive radar and
-// forecast from that single fix. Kept pure (deps injected), as it was in its
-// own module (weather/fetch-orchestrator.js), so the single-acquisition
-// invariant stays visible in one place.
+// forecast from that single fix. Kept pure (deps injected), so the
+// single-acquisition invariant stays visible in one place.
 
 /**
  * @param {Object} deps
@@ -819,7 +817,7 @@ function createFetchCycle(deps) {
      * @returns {boolean} True when sleeping now.
      */
     function isSleepingNow() {
-        return sleepWindow.isWithinSleepWindow(deps.now(), deps.getSettings());
+        return batterySaver.isWithinSleepWindow(deps.now(), deps.getSettings());
     }
 
     /**

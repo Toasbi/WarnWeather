@@ -40,7 +40,7 @@
 // on it is fine.
 
 var KEYS = require('../../settings/domain/storage-keys.js');
-var sleepWindow = require('../../wire/domain/battery-saver.js');
+var batterySaver = require('../../wire/domain/battery-saver.js');
 // The bake-snapshot/micro-send subsystem lives in status-rebake.js now: this
 // module keeps detection, subscription, the reading cache and the send
 // TRIGGERS, and asks the rebaker to push. Cycle-free: status-rebake's own
@@ -308,7 +308,7 @@ function currentSettings() {
  */
 function isSuppressed() {
     var now = typeof deps.now === 'function' ? deps.now() : new Date();
-    return sleepWindow.isWithinSleepWindow(now, currentSettings());
+    return batterySaver.isWithinSleepWindow(now, currentSettings());
 }
 
 /**

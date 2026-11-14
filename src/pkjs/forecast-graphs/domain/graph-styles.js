@@ -58,7 +58,7 @@
 // ONLY WHAT IS SHOWN COUNTS. The styles the screens' forecast graphs draw (stylesShown, off the
 // views the watch runs) are the ones sent. While no screen shows a style other than the first,
 // nothing changes on the wire: no records, today's bake (stylesSent is empty). The phone side
-// of the wire (the records, the bake's settings) is weather/graph-style-wire.js.
+// of the wire (the records, the bake's settings) is forecast-graphs/domain/graph-style-wire.js.
 //
 // Dual-context: a CommonJS module on the phone and in the tests, a plain concatenated <script>
 // in the settings-page webview (after view-cycle.js, line-style.js, line-alert.js, draw-from.js

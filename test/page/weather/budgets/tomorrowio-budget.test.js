@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const budget = require('../../../../src/pkjs/page/weather/budgets/tomorrowio-budget.js');
-const sleepWindow = require('../../../../src/pkjs/wire/domain/battery-saver.js');
+const batterySaver = require('../../../../src/pkjs/wire/domain/battery-saver.js');
 
 // Base state: tomorrow.io weather + radar, night pause off.
 function S(over) {
@@ -58,7 +58,7 @@ test('the budget pause length matches battery-saver.js exactly (mirror parity)',
     for (let h = 0; h < 24; h += 1) {
       const d = new Date();
       d.setHours(h, 0, 0, 0);
-      if (sleepWindow.isWithinSleepWindow(d, s)) { paused += 1; }
+      if (batterySaver.isWithinSleepWindow(d, s)) { paused += 1; }
     }
     assert.equal(budget.sleepHours(s), paused,
       'sleepHours disagrees with the watch for mode=' + mode + ' a=' + a + ' b=' + b);

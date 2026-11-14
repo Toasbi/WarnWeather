@@ -185,7 +185,8 @@ README.md.
     (`scripts/lib/uses-permissions.js`).
   - Docs: https://developer.repebble.com/guides/plugins/preview/ (Declaring, Approval).
 - Add a new telemetry setting in two places, or it is silently dropped: the watch-side
-  snapshot in `src/pkjs/telemetry/adapter/telemetry.js` and the Deno `.strip()` schema in
+  snapshot (`buildSettingsSnapshot` in `src/pkjs/telemetry/application/telemetry-settings.js`)
+  and the Deno `.strip()` schema in
   `supabase/functions/telemetry-ingest/handler.ts`.
 - Put JSDoc (`@param`/`@returns`) on new JS functions; this project has no TypeScript.
 - Prefer `Boolean(value)` over `!!value`.

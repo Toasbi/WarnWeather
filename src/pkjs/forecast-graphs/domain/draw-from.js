@@ -37,7 +37,7 @@
 // drawn line that anchors nothing, its metric having no zero to stand on (pressure,
 // feels-like, dew point: every metric without a Draw from key). lineEdge is that reading
 // of one line, for the wire and the page alike. The bits and where they ride:
-// weather/graph-wire.js.
+// forecast-graphs/domain/graph-wire.js.
 //
 // THE WATCH. Every reading takes the watch as `env`, config-ui platform.js computeEnv()
 // facts (the phone's of the connected watch, or the settings page's own); only its

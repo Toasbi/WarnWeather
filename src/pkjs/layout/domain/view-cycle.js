@@ -1218,7 +1218,7 @@ function resolveViewCycle(settings, env) {
 
 /**
  * The views the screens show, before the watch's data folds (2.6: the modes follow the
- * screens, settings/screens.js deriveModes): a custom layout compiled with every seat kind on,
+ * screens, layout/domain/screens.js deriveModes): a custom layout compiled with every seat kind on,
  * so its stored rows and graphs all count; a preset as its cycle; and on aplite, which folds
  * a custom layout to a preset, what aplite runs (resolveViewCycle).
  * @param {Object} settings settings state
