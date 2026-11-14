@@ -33,7 +33,7 @@
 // reads it (userData.radarCoverage) for an amber note under the Radar provider row while
 // the picked source cannot see the place (note()).
 (function () {
-    var storageKeys = (typeof require !== 'undefined') ? require('../../../settings/adapter/storage-keys.js') : null;
+    var storageKeys = (typeof require !== 'undefined') ? require('../../../settings/domain/storage-keys.js') : null;
 
     // id -> {name: the picker's name, area: where it covers, watch: the radar's line on
     // the watch while the place is outside (<= 31 UTF-8 bytes, the watch's notice

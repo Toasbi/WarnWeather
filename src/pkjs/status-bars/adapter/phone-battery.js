@@ -39,7 +39,7 @@
 // Promise. `getBattery()` hands back a host-provided thenable; calling .then()
 // on it is fine.
 
-var KEYS = require('../../settings/adapter/storage-keys.js');
+var KEYS = require('../../settings/domain/storage-keys.js');
 var sleepWindow = require('../../health/domain/sleep-window.js');
 // The bake-snapshot/micro-send subsystem lives in status-rebake.js now: this
 // module keeps detection, subscription, the reading cache and the send

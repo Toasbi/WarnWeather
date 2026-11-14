@@ -1,4 +1,4 @@
-var storageKeys = require('../../../settings/adapter/storage-keys.js');
+var storageKeys = require('../../../settings/domain/storage-keys.js');
 
 var CACHE_KEY = storageKeys.WU_HOURLY_CACHE_KEY;
 

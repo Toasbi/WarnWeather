@@ -19,7 +19,7 @@ function installFakeStorage() {
 
 const COLORS = { white: 0xFFFFFF, folly: 0xFF0055, holiday: 0x0055FF };
 const REGISTRY = require('../../src/pkjs/settings/domain/migrations/registry.js');
-const STORAGE_KEYS = require('../../src/pkjs/settings/adapter/storage-keys');
+const STORAGE_KEYS = require('../../src/pkjs/settings/domain/storage-keys');
 
 // --- The in-place-upgrade Clay resend -------------------------------------
 // 1.15.0 grew CLAY_LINE_STYLE_UINT8 from 4 to 10 bytes; the watch reads the
@@ -88,7 +88,7 @@ function loadUpgradeModules() {
     claySettings: require('../../src/pkjs/settings/adapter/clay-settings'),
     clayMigrations: require('../../src/pkjs/settings/application/clay-migrations'),
     createChannelScheduler: require('../../src/pkjs/wire/adapter/channel-scheduler'),
-    KEYS: require('../../src/pkjs/settings/adapter/storage-keys')
+    KEYS: require('../../src/pkjs/settings/domain/storage-keys')
   };
 }
 

@@ -999,7 +999,7 @@ test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYT
 // These tests drive the real client against fake localStorage/Pebble/XHR.
 const createTelemetryClient = require('../../../src/pkjs/telemetry/adapter/telemetry.js');
 const { TELEMETRY_BATCH } = createTelemetryClient;
-const { TELEMETRY_QUEUE_KEY, TELEMETRY_SENDING_KEY } = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+const { TELEMETRY_QUEUE_KEY, TELEMETRY_SENDING_KEY } = require('../../../src/pkjs/settings/domain/storage-keys.js');
 
 function batchHarness() {
   createTelemetryClient._resetBatchStateForTests();
@@ -1303,7 +1303,7 @@ test('a synchronous XHR throw releases the latch and backs off instead of wedgin
 // A new watch that left before its first ~12 h batch was never counted. A Save
 // now sends at once until the install has reported; opening the settings sends
 // once per UTC day after that. Both keep every other flush check.
-const { TELEMETRY_REPORTED_KEY, TELEMETRY_OPEN_SEND_DAY_KEY } = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+const { TELEMETRY_REPORTED_KEY, TELEMETRY_OPEN_SEND_DAY_KEY } = require('../../../src/pkjs/settings/domain/storage-keys.js');
 const PAGE_CONTEXT = { settings: { startOnWeatherTab: true, healthMode: 'all' },
   watchInfo: { platform: 'emery', model: 'pebble_time_2', language: 'de_DE' } };
 

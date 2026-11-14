@@ -99,7 +99,7 @@ README.md.
 
 ### Module conventions
 
-- localStorage key names live in `src/pkjs/settings/adapter/storage-keys.js`. Add new keys there and
+- localStorage key names live in `src/pkjs/settings/domain/storage-keys.js`. Add new keys there and
   reference the export instead of inlining string literals.
 - Send weather and settings through the outbox, never with `Pebble.sendAppMessage`
   directly. `outbox.sendWeather()` / `outbox.sendClay()` run the payload through

@@ -5,7 +5,7 @@
 // synchronously from that cache. Country-agnostic; the registry binds a country.
 // ES5 only (reaches the watch/aplite runtime) — no ES6 built-ins.
 
-var storageKeys = require('../../settings/adapter/storage-keys.js');
+var storageKeys = require('../../settings/domain/storage-keys.js');
 
 var TTL_MS = 30 * 24 * 60 * 60 * 1000;   // cache a year's data for >= 1 month
 var BACKOFF_MS = 60 * 60 * 1000;         // wait an hour after a failed fetch

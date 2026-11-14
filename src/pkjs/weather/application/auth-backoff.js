@@ -10,7 +10,7 @@
 // provider/key/location change — onbuild.js sets fetch:true for those) or by a
 // successful fetch. Watch-runtime PKJS: ES5 only (var/function, no ES6).
 
-var storageKeys = require('../../settings/adapter/storage-keys.js');
+var storageKeys = require('../../settings/domain/storage-keys.js');
 var keyResult = require('../domain/keys/key-result.js');
 var AUTH_BACKOFF_KEY = storageKeys.AUTH_BACKOFF_KEY;
 

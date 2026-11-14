@@ -35,7 +35,7 @@
 // record only decides whether today's peak is running or behind.
 
 var hourlyWindow = require('./hourly-window.js');
-var storageKeys = require('../../settings/adapter/storage-keys.js');
+var storageKeys = require('../../settings/domain/storage-keys.js');
 var wireUnits = require('../../wire/domain/wire-units.js');
 
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;

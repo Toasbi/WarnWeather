@@ -9,7 +9,7 @@ global.localStorage = {
 };
 
 const devStats = require('../../../src/pkjs/telemetry/adapter/dev-stats');
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

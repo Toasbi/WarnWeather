@@ -226,7 +226,7 @@ function serializeError(value, maxLength) {
 // - Opening the settings, at most once per UTC day, and only once the install
 //   has reported (so a new user is never sent before seeing the toggle): an
 //   engaged user's day shows up hours sooner.
-var storageKeys = require('../../settings/adapter/storage-keys.js');
+var storageKeys = require('../../settings/domain/storage-keys.js');
 
 var TELEMETRY_FLUSH_AT_EVENTS = 24;                    // ~12 h at the 30-min default
 var TELEMETRY_FLUSH_AT_AGE_MS = 12 * 60 * 60 * 1000;   // slow-interval watches still flush

@@ -9,7 +9,7 @@
 // locationMode telemetry mirrors) stays on the provider, calling in here.
 // Also the reading of a phone geolocation error (gpsFailure).
 
-var storageKeys = require('../../settings/adapter/storage-keys.js');
+var storageKeys = require('../../settings/domain/storage-keys.js');
 var failure = require('./http.js').failure;
 
 var GPS_CACHE_KEY = storageKeys.GPS_CACHE_KEY;

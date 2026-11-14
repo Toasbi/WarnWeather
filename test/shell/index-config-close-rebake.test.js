@@ -15,7 +15,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { HARNESS_NOW, bootIndex, healthyNetwork, isWeatherMessage } = require('../helpers/index-harness.js');
-const KEYS = require('../../src/pkjs/settings/adapter/storage-keys.js');
+const KEYS = require('../../src/pkjs/settings/domain/storage-keys.js');
 
 const HOUR = 3600;
 const FETCHING = /^Fetching from /;

@@ -14,7 +14,7 @@
  * plus the newest events, a size bounded whatever the update interval.
  */
 
-var KEYS = require('../../settings/adapter/storage-keys');
+var KEYS = require('../../settings/domain/storage-keys');
 
 var MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 

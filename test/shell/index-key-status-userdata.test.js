@@ -29,7 +29,7 @@ function userDataOf(url) {
 
 test('settings open hands the page the key results and the last success as stored', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const KEYS = require('../../src/pkjs/settings/adapter/storage-keys.js');
+  const KEYS = require('../../src/pkjs/settings/domain/storage-keys.js');
   const store = {};
   global.localStorage = {
     getItem: (k) => Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null,

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys');
 
 test('LAST_HOLIDAY_DAY_KEY matches the literal existing installs already persist', function () {
     // Must stay exactly 'last_holiday_day': changing it strands the day stamp of

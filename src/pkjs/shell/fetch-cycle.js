@@ -23,7 +23,7 @@
 // and it does not directly require index.js, outbox.js, auth-backoff.js,
 // notices.js or telemetry.js; those arrive through deps.
 
-var storageKeys = require('../settings/adapter/storage-keys.js');
+var storageKeys = require('../settings/domain/storage-keys.js');
 var fetchOptions = require('../weather/domain/fetch-options.js');
 var sleepWindow = require('../health/domain/sleep-window.js');
 var platformLib = require('../config-ui/lib/platform.js');

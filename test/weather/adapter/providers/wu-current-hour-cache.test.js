@@ -9,7 +9,7 @@ global.localStorage = {
 };
 
 const wuCache = require('../../../../src/pkjs/weather/adapter/providers/wu-current-hour-cache.js');
-const CACHE_KEY = require('../../../../src/pkjs/settings/adapter/storage-keys.js').WU_HOURLY_CACHE_KEY;
+const CACHE_KEY = require('../../../../src/pkjs/settings/domain/storage-keys.js').WU_HOURLY_CACHE_KEY;
 
 var HOUR = 3600;
 var H14 = 1700000000 - (1700000000 % HOUR); // on the hour

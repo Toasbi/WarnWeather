@@ -7,7 +7,7 @@
 // renders as HTML in the settings General-tab panel. Deduped by `key`, capped.
 // Watch-runtime PKJS: ES5 only (var/function, no ES6 built-ins).
 
-var storageKeys = require('../../settings/adapter/storage-keys.js');
+var storageKeys = require('../../settings/domain/storage-keys.js');
 var utf8 = require('../../lib/utf8.js');
 var NOTICES_KEY = storageKeys.NOTICES_KEY;
 var MAX_NOTICES = 20;

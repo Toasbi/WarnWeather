@@ -32,7 +32,7 @@ global.XMLHttpRequest.prototype.send = function () {
   this.onload.call(this);
 };
 
-const storageKeys = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+const storageKeys = require('../../../src/pkjs/settings/domain/storage-keys.js');
 const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
 const authBackoff = require('../../../src/pkjs/weather/application/auth-backoff.js');
 const notices = require('../../../src/pkjs/notices/application/notices.js');

@@ -31,7 +31,7 @@
  * (skip immediately; ack/nack from the AppMessage callbacks).
  */
 
-var KEYS = require('../../settings/adapter/storage-keys');
+var KEYS = require('../../settings/domain/storage-keys');
 var ChangeDetector = require('./change-detector');
 var devStats = require('../../telemetry/adapter/dev-stats');
 var radarDedupe = require('../../weather/domain/radar/radar-dedupe');

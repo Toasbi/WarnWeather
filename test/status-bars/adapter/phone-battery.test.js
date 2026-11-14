@@ -18,7 +18,7 @@ global.localStorage = {
 
 const phoneBattery = require('../../../src/pkjs/status-bars/adapter/phone-battery.js');
 const statusRebake = require('../../../src/pkjs/status-bars/application/status-rebake.js');
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 // The module logs a line per reading; keep the runner's output about assertions.

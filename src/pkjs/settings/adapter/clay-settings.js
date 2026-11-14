@@ -11,7 +11,7 @@
 // pins it.
 
 var settings = require('../../page/settings');
-var KEYS = require('./storage-keys');
+var KEYS = require('../domain/storage-keys');
 var statusCatalog = require('../../status-bars/domain/status-line-catalog.js');
 
 var STORAGE_KEY = 'clay-settings';

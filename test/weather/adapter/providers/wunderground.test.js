@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { beforeEach } = require('node:test');
-const storageKeys = require('../../../../src/pkjs/settings/adapter/storage-keys.js');
+const storageKeys = require('../../../../src/pkjs/settings/domain/storage-keys.js');
 
 var store = { wundergroundApiKey: 'k' };   // pre-seed so withApiKey skips the scrape
 global.localStorage = {

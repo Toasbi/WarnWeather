@@ -10,7 +10,7 @@ const {
   installFakeStorage, COLORS, seedUpgradedInstall, bootUpgradedInstall, loadUpgradeModules,
   loadLedger, shippedPageFillPick, PRE_RETUNE_LIGHT, seedPreRetuneInstall, seedThemedInstall
 } = require('../../helpers/clay-harness.js');
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys');
 const REGISTRY = require('../../../src/pkjs/settings/domain/migrations/registry.js');
 
 test('holiday white-to-toggle: white holiday color -> toggle off + color reset to the holiday default', () => {

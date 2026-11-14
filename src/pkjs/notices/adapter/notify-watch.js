@@ -10,7 +10,7 @@
 // question without answering is not asked again on every run, and the notification then counts
 // as shown. Pebble.permissions.query (app 1.17.0 and later) tells the three apart; an app without
 // it, or with the preview off, shows everything.
-var NOTIFY_ASKED_KEY = require('../../settings/adapter/storage-keys.js').NOTIFY_ASKED_KEY;
+var NOTIFY_ASKED_KEY = require('../../settings/domain/storage-keys.js').NOTIFY_ASKED_KEY;
 
 /**
  * Show `title` and `body` on the watch unless the user turned notifications off for the app, and

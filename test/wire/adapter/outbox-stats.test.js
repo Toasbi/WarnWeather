@@ -27,7 +27,7 @@ global.Pebble = {
 const outbox = require('../../../src/pkjs/wire/adapter/outbox');
 // Same module instance outbox required (Node module cache).
 const devStats = require('../../../src/pkjs/telemetry/adapter/dev-stats');
-const KEYS = require('../../../src/pkjs/settings/adapter/storage-keys');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys');
 
 devStats.setEnabled(true);
 
