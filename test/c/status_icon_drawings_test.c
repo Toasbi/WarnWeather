@@ -57,6 +57,15 @@ static const Tier TIERS[] = { { 14 * 6 / 9, false }, { 18 * 5 / 9, true }, { 18 
 #define AS_NAME(id) #id,
 static const uint8_t DRAWN[] = { DRAWN_IDS(AS_ID) };
 static const char *const DRAWN_NAMES[] = { DRAWN_IDS(AS_NAME) };
+
+// The rain alert's glyph for each bucket it can show here (status_rain_glyph): the condition's
+// Drizzle and Rain, and on the Pebble Time 2 Heavy rain's own.
+static const char *glyph_name(uint8_t id) {
+    for (int i = 0; i < (int)sizeof(DRAWN); i++) {
+        if (DRAWN[i] == id) { return DRAWN_NAMES[i]; }
+    }
+    return id == STATUS_ROW_ICON_HEAVY_RAIN ? "STATUS_ROW_ICON_HEAVY_RAIN" : "?";
+}
 static const uint8_t TEXT_ONLY[] = {
     STATUS_ICON_NONE, STATUS_ICON_DRAWN_SUN, STATUS_ICON_PRESSURE, STATUS_ICON_PHONE_BATTERY_PLAIN,
     STATUS_ICON_COND_TEXT,
@@ -81,11 +90,12 @@ static bool has_exact(const StatusPixelIcon *table, int count, int key, int rows
 // Every id is either drawn or text by contract, so a new id cannot slip past this test.
 static void every_id_classified(void) {
     int nd = (int)sizeof(DRAWN), nt = (int)sizeof(TEXT_ONLY);
-    for (int id = 0; id <= STATUS_ROW_ICON_BT_OFF; id++) {
+    for (int id = 0; id <= STATUS_ROW_ICON_HEAVY_RAIN; id++) {
         if (id == RETIRED_ICON_ID) { continue; }
         char name[48];
         snprintf(name, sizeof(name), "classified.id%d", id);
-        expect(name, in(DRAWN, nd, id) + in(TEXT_ONLY, nt, id), 1);
+        // Heavy rain is the rain alert's alone: the rain check below covers it.
+        expect(name, in(DRAWN, nd, id) + in(TEXT_ONLY, nt, id) + (id == STATUS_ROW_ICON_HEAVY_RAIN), 1);
     }
 }
 
@@ -102,14 +112,22 @@ static void every_height_drawn(void) {
         }
     }
     for (int bucket = 1; bucket <= RAIN_BUCKETS; bucket++) {
+        uint8_t glyph = status_rain_glyph((uint8_t)bucket);
         for (int t = 0; t < TIER_COUNT; t++) {
-            int rows = status_icon_painted_rows(TIERS[t].target);
-            if (!has_exact(s_status_pixel_rain, STATUS_PIXEL_RAIN_COUNT, bucket, rows)) {
-                printf("FAIL rain: bucket %d has no %d-row drawing\n", bucket, rows);
+            int rows = status_icon_rows(glyph, TIERS[t].target, TIERS[t].top);
+            if (!has_exact(s_status_pixel_icons, STATUS_PIXEL_ICON_COUNT, glyph, rows)) {
+                printf("FAIL rain: bucket %d (%s) has no %d-row drawing\n", bucket, glyph_name(glyph), rows);
                 s_failures++;
             }
         }
     }
+}
+
+// The rain alert's buckets take the condition's Drizzle and Rain, and Heavy rain's own.
+static void rain_buckets_take_their_glyphs(void) {
+    expect("rain.light", status_rain_glyph(1), STATUS_ICON_COND_DRIZZLE);
+    expect("rain.rain", status_rain_glyph(2), STATUS_ICON_COND_RAIN);
+    expect("rain.heavy", status_rain_glyph(3), STATUS_ROW_ICON_HEAVY_RAIN);
 }
 
 // A text-only id never loads a glyph: its slot keeps no icon width.
@@ -133,7 +151,7 @@ static void lookup_falls_back_smaller(void) {
 }
 
 // The painted height every drawn icon and rain bucket is asked for at every tier, a line each:
-// "<family> <icon id or RAIN_BUCKET_n> <rows>". scripts/check-icon-sizes.js holds them to the
+// "<family> <icon id> <rows>", the rain alert's buckets by their glyphs' ids. scripts/check-icon-sizes.js holds them to the
 // sizes scripts/pixel-icons/watch_icons.py makes drawings at, both ways.
 static void print_sizes(void) {
     for (int i = 0; i < (int)sizeof(DRAWN); i++) {
@@ -142,8 +160,9 @@ static void print_sizes(void) {
         }
     }
     for (int bucket = 1; bucket <= RAIN_BUCKETS; bucket++) {
+        uint8_t glyph = status_rain_glyph((uint8_t)bucket);
         for (int t = 0; t < TIER_COUNT; t++) {
-            printf("%s RAIN_BUCKET_%d %d\n", FAMILY, bucket, status_icon_painted_rows(TIERS[t].target));
+            printf("%s %s %d\n", FAMILY, glyph_name(glyph), status_icon_rows(glyph, TIERS[t].target, TIERS[t].top));
         }
     }
 }
@@ -155,6 +174,7 @@ int main(int argc, char **argv) {
     }
     every_id_classified();
     every_height_drawn();
+    rain_buckets_take_their_glyphs();
     text_only_ids_draw_nothing();
     lookup_falls_back_smaller();
     if (s_failures) {

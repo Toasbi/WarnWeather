@@ -180,8 +180,7 @@ test('each watch family lists only the drawings built for it', () => {
     [['STATUS_ICON_COND_SUN', 11, 'RESOURCE_ID_PX_SUN_11', ['basalt', 'bw']],
       ['STATUS_ICON_COND_SUN', 13, 'RESOURCE_ID_PX_SUN_13', ['basalt', 'emery']],
       ['STATUS_ICON_COND_SUN', 13, 'RESOURCE_ID_PX_SUN_13_BW', ['bw']],
-      ['STATUS_ICON_COND_SUN', 15, 'RESOURCE_ID_PX_SUN_15', ['emery']]],
-    [[2, 13, 'RESOURCE_ID_PX_RAIN_13', ['basalt', 'bw', 'emery']]]);
+      ['STATUS_ICON_COND_SUN', 15, 'RESOURCE_ID_PX_SUN_15', ['emery']]]);
   const { emery, bw, colour } = sections(h);
   assert.match(emery, /STATUS_PIXEL_ICON_COUNT 2\n/);
   assert.match(emery, /PX_SUN_13\)/);
@@ -195,12 +194,10 @@ test('each watch family lists only the drawings built for it', () => {
   assert.match(bw, /PX_SUN_11/);
   assert.match(bw, /PX_SUN_13_BW\)/, 'the black and white watches: their own drawing of a size');
   assert.doesNotMatch(bw, /PX_SUN_13\)|PX_SUN_15/);
-  for (const part of [emery, bw, colour]) {
-    assert.match(part, /STATUS_PIXEL_RAIN_COUNT 1\n[^}]*\{ 2, 13, PX_RES\(PX_RAIN_13\) \}/);
-  }
-  const none = gen.header([], []);
-  assert.equal(none.match(/COUNT 0\n/g).length, 6, 'no drawings: every table empty');
-  assert.equal(none.match(/\{ 0, 0, 0 \}/g).length, 6, 'and still an array C accepts');
+  assert.doesNotMatch(h, /RAIN/, 'one table: the rain alert takes its drawings by id (status_rain_glyph)');
+  const none = gen.header([]);
+  assert.equal(none.match(/COUNT 0\n/g).length, 3, 'no drawings: every family\'s table empty');
+  assert.equal(none.match(/\{ 0, 0, 0 \}/g).length, 3, 'and still an array C accepts');
 });
 
 test('every drawing becomes a resource and a table entry per size, keyed by the size', () => {
@@ -240,14 +237,13 @@ test('every drawing becomes a resource and a table entry per size, keyed by the 
   const h = files[gen.HEADER];
   const { emery, bw, colour } = sections(h);
   for (const others of [bw, colour]) {
-    assert.match(others, /\{ STATUS_ICON_COND_RAIN, 11, PX_RES\(PX_RAIN_11\) \}/);
-    assert.match(others, /\{ 2, 11, PX_RES\(PX_RAIN_11\) \}/, 'the rain alert\'s rain bucket');
+    assert.match(others, /\{ STATUS_ICON_COND_RAIN, 11, PX_RES\(PX_RAIN_11\) \}/, 'the condition icon\'s, and the rain alert\'s rain bucket\'s');
     assert.match(others, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_11\) \}/);
   }
   const tables = (t) => t.replace(/^\/\/.*\n/gm, '');
   assert.equal(tables(bw), tables(colour), 'every size in its pixel drawing: both 144 px families draw the same');
   assert.match(emery, /\{ STATUS_ICON_COND_RAIN, 15, PX_RES\(PX_RAIN_15\) \}/);
-  assert.match(emery, /\{ 3, 17, PX_RES\(PX_HEAVY_RAIN_17\) \}/, 'the rain alert\'s heavy bucket');
+  assert.match(emery, /\{ STATUS_ROW_ICON_HEAVY_RAIN, 17, PX_RES\(PX_HEAVY_RAIN_17\) \}/, 'the rain alert\'s heavy bucket');
   assert.doesNotMatch(h, /STATUS_ICON_COND_\w+, 17, PX_RES\(PX_HEAVY_RAIN/, 'Heavy rain is the rain alert\'s only');
   assert.equal(files[gen.APLITE_C], fs.readFileSync(gen.APLITE_C, 'utf8'), 'no mask: the aplite file as it is');
 });

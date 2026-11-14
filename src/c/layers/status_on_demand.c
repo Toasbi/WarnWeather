@@ -26,9 +26,9 @@
 #if defined(WW_ON_DEMAND)
 
 // Glyph keys: the metric icons are their StatusIconId (to STATUS_ICON_MAX), the system
-// glyphs their in-memory ids (status_icon_size.h), and the rain alert the flag bit
-// plus its bucket, so drizzle -> rain swaps the glyph.
-#define RAIN_KEY_FLAG 0x80
+// glyphs and Heavy rain their in-memory ids (status_icon_size.h); the rain alert's glyph is
+// its bucket's (status_rain_glyph), so drizzle -> rain swaps the glyph, and a Rain alert
+// shares the condition icon's drawing.
 // Quiet time, one Bluetooth variant, rain and the five metric kinds.
 #define GLYPH_SLOTS 8
 
@@ -76,8 +76,7 @@ static int find_key(const StatusOnDemandCache *cache, uint8_t key) {
 }
 
 // Make the cache hold exactly the glyphs in `keys` (n of them): load each at
-// `target_h` (the row's icon tier; the slot glyphs through status_row_icons_load, the
-// rain alert's through status_row_icons_load_rain) and EVICT every cached glyph no
+// `target_h` (the row's icon tier, through status_row_icons_load) and EVICT every cached glyph no
 // longer wanted — resident only while its item is active, so an idle bar holds no
 // glyph heap. The foreground and the icon height are part of the key: a theme or tier
 // change reloads the glyphs.
@@ -106,9 +105,7 @@ static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int t
         // A failed load (OOM) leaves the slot free, so the next draw — the minute's
         // redraw at the latest — tries again, as the old strip's indicator icons did;
         // until then the item measures text-only, or not at all (Bluetooth, Quiet time).
-        cache->images[slot] = (key & RAIN_KEY_FLAG)
-            ? status_row_icons_load_rain(key & ~RAIN_KEY_FLAG, target_h)
-            : status_row_icons_load(key, target_h, top_strip);
+        cache->images[slot] = status_row_icons_load(key, target_h, top_strip);
         if (cache->images[slot]) { cache->keys[slot] = key; }
     }
 }
@@ -222,7 +219,7 @@ static uint8_t item_key(const StatusOnDemandState *s, int item) {
         case OD_SLEEP:      return 0;
         case OD_BLUETOOTH:  return s->bt_key;
         case OD_QUIET_TIME: return STATUS_ROW_ICON_QUIET;
-        case OD_RAIN:       return (uint8_t)(RAIN_KEY_FLAG | s->rain.bucket);
+        case OD_RAIN:       return status_rain_glyph(s->rain.bucket);
         default: {
             const AlertEntry *e = item_entry(s, item);
             return e ? alert_set_icon(e->kind) : 0;

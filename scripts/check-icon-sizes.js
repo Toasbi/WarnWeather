@@ -4,7 +4,8 @@
  * both ways (scripts/pixel-icons/README.md):
  *
  *   - the watch's: `test/c/status_icon_drawings_test.c --sizes`, which prints the painted height
- *     status_icon_size.h gives every drawn icon id and rain bucket at every bar, per family;
+ *     status_icon_size.h gives every drawn icon id at every bar, per family (the rain alert's
+ *     buckets by their glyphs' ids, status_rain_glyph);
  *   - the scripts': `scripts/pixel-icons/watch_icons.py manifest`, the sizes the icon creator
  *     draws and gen_watch_icons.js builds, per platform.
  *
@@ -25,17 +26,15 @@ const gen = require('./pixel-icons/gen_watch_icons.js');
 
 /**
  * The watch's sizes, by family and drawing.
- * @param {string} text The --sizes lines: "<family> <icon id or RAIN_BUCKET_n> <rows>".
+ * @param {string} text The --sizes lines: "<family> <icon id> <rows>".
  * @param {!Object<string, string>} idToKey The drawing (catalogue key) each icon id takes.
- * @param {!Object<string, string>} bucketToKey The drawing each rain alert bucket takes.
  * @returns {!Object<string, !Object<string, !Set<number>>>} family -> key -> rows.
  */
-function watchSizes(text, idToKey, bucketToKey) {
+function watchSizes(text, idToKey) {
     const out = {};
     text.split('\n').filter((l) => l.trim()).forEach((line) => {
         const [family, name, rows] = line.trim().split(/\s+/);
-        const bucket = /^RAIN_BUCKET_(\d+)$/.exec(name);
-        const key = bucket ? bucketToKey[bucket[1]] : idToKey[name];
+        const key = idToKey[name];
         if (!key) throw new Error('no drawing for ' + name + ' (' + line + ')');
         ((out[family] = out[family] || {})[key] = out[family][key] || new Set()).add(Number(rows));
     });
@@ -84,21 +83,13 @@ function compare(watch, scripts) {
     return out;
 }
 
-/**
- * The drawing each rain alert bucket takes (gen_watch_icons.js RAIN_BUCKETS), by bucket.
- * @returns {!Object<string, string>}
- */
-function rainBuckets() {
-    return Object.fromEntries(gen.RAIN_BUCKETS.map(([bucket, key]) => [String(bucket), key]));
-}
-
 function main() {
     const file = process.argv[2];
     if (!file) throw new Error('usage: check-icon-sizes.js <the --sizes output>');
     const idToKey = {};
     Object.entries(gen.ICON_IDS).forEach(([key, ids]) => ids.forEach((id) => { idToKey[id] = key; }));
     const manifest = JSON.parse(execFileSync('python3', [path.join(ROOT, 'scripts', 'pixel-icons', 'watch_icons.py'), 'manifest']).toString());
-    const diffs = compare(watchSizes(fs.readFileSync(file, 'utf8'), idToKey, rainBuckets()), scriptSizes(manifest));
+    const diffs = compare(watchSizes(fs.readFileSync(file, 'utf8'), idToKey), scriptSizes(manifest));
     if (diffs.length) {
         console.error('The icon sizes the watch asks for and the ones drawn disagree:\n  ' + diffs.join('\n  '));
         process.exit(1);

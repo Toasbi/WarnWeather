@@ -12,13 +12,26 @@
 //
 // NOT BUILT ON APLITE: its lean status row (status_row_aplite.c) draws bit masks.
 
-// Glyph ids for the On demand system items (layers/status_on_demand.c). In memory only, never
-// on the wire: right after every StatusIconId (STATUS_ICON_MAX), and below the alert glyph
-// cache's rain flag (0x80).
+// Glyph ids for the On demand items' own drawings (layers/status_on_demand.c). In memory only,
+// never on the wire: right after every StatusIconId (STATUS_ICON_MAX), below the city's glyph
+// bit (STATUS_ICON_CITY_GLYPH).
 #define STATUS_ROW_ICON_QUIET (STATUS_ICON_MAX + 1)    // Quiet time: the muted speaker
 #define STATUS_ROW_ICON_BT (STATUS_ICON_MAX + 2)       // Bluetooth connected: the rune
 #define STATUS_ROW_ICON_BT_OFF (STATUS_ICON_MAX + 3)   // Bluetooth disconnected: crossed out
-_Static_assert(STATUS_ROW_ICON_BT_OFF < 0x80, "the system glyph ids stay below the rain flag");
+#define STATUS_ROW_ICON_HEAVY_RAIN (STATUS_ICON_MAX + 4)   // the rain alert's heavy bucket
+_Static_assert(STATUS_ROW_ICON_HEAVY_RAIN < STATUS_ICON_CITY_GLYPH,
+               "the in-memory glyph ids stay below the city's glyph bit");
+
+// The rain alert's glyph for its bucket (rain_tier.c rain_tier_to_bucket3: 1 light, 2 rain,
+// 3 heavy): the weather condition's Drizzle and Rain drawings, and Heavy rain's own, which
+// only the Pebble Time 2 asks for (the other watches fold heavy rain into rain).
+static inline uint8_t status_rain_glyph(uint8_t bucket) {
+    switch (bucket) {
+        case 1: return STATUS_ICON_COND_DRIZZLE;
+        case 3: return STATUS_ROW_ICON_HEAVY_RAIN;
+        default: return STATUS_ICON_COND_RAIN;
+    }
+}
 
 // One drawing in the generated tables: 4 bytes, since a Pebble app's image, the tables
 // included, is loaded into its RAM.

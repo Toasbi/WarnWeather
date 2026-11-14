@@ -10,7 +10,7 @@
     {"key": "HAZE", "name": "Haze", "group": "Weather", "pct": 100, "weights": [50, 50], "sample": "HAZE", "note": "", "ids": ["STATUS_ICON_COND_HAZE"]},
     {"key": "DRIZZLE", "name": "Drizzle", "group": "Weather", "pct": 100, "weights": [50, 50], "sample": "DRZL", "note": "Also the rain alert’s icon. Light rain.", "ids": ["STATUS_ICON_COND_DRIZZLE"]},
     {"key": "RAIN", "name": "Rain", "group": "Weather", "pct": 100, "weights": [50, 50], "sample": "RAIN", "note": "Also the rain alert’s icon. Rain.", "ids": ["STATUS_ICON_COND_RAIN"]},
-    {"key": "HEAVY_RAIN", "name": "Heavy rain", "group": "Weather", "pct": 100, "weights": [50, 50], "sample": "RAIN", "note": "Also the rain alert’s icon. Heavy rain (Pebble Time 2).", "ids": [], "platforms": ["emery"]},
+    {"key": "HEAVY_RAIN", "name": "Heavy rain", "group": "Weather", "pct": 100, "weights": [50, 50], "sample": "RAIN", "note": "Also the rain alert’s icon. Heavy rain (Pebble Time 2).", "ids": ["STATUS_ROW_ICON_HEAVY_RAIN"], "platforms": ["emery"]},
     {"key": "SLEET", "name": "Sleet", "group": "Weather", "pct": 100, "weights": [50, 50], "sample": "SLT", "note": "", "ids": ["STATUS_ICON_COND_SLEET"]},
     {"key": "SNOW", "name": "Snow", "group": "Weather", "pct": 100, "weights": [50, 50], "sample": "SNOW", "note": "", "ids": ["STATUS_ICON_COND_SNOW"]},
     {"key": "HAIL", "name": "Hail", "group": "Weather", "pct": 100, "weights": [50, 50], "sample": "HAIL", "note": "", "ids": ["STATUS_ICON_COND_HAIL"]},

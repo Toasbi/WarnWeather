@@ -6,16 +6,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const check = require('../scripts/check-icon-sizes.js');
 
-const ID_TO_KEY = { STATUS_ICON_COND_RAIN: 'RAIN', STATUS_ICON_WIND: 'WIND', STATUS_ICON_COND_WIND: 'WIND' };
-const BUCKETS = { 2: 'RAIN', 3: 'HEAVY_RAIN' };
+const ID_TO_KEY = { STATUS_ICON_COND_RAIN: 'RAIN', STATUS_ROW_ICON_HEAVY_RAIN: 'HEAVY_RAIN', STATUS_ICON_WIND: 'WIND', STATUS_ICON_COND_WIND: 'WIND' };
 const size = (rows, platforms, key) => ({ rows, ...(key ? { key } : {}), uses: platforms.map((platform) => ({ platform })) });
 
-test('the watch\'s heights, by family and drawing: an icon id or a rain bucket takes its drawing', () => {
-  const sizes = check.watchSizes('basalt STATUS_ICON_COND_RAIN 11\nbasalt RAIN_BUCKET_2 13\nemery STATUS_ICON_WIND 13\nemery STATUS_ICON_COND_WIND 15\n', ID_TO_KEY, BUCKETS);
+test('the watch\'s heights, by family and drawing: an icon id takes its drawing', () => {
+  const sizes = check.watchSizes('basalt STATUS_ICON_COND_RAIN 11\nbasalt STATUS_ICON_COND_RAIN 13\nemery STATUS_ICON_WIND 13\nemery STATUS_ICON_COND_WIND 15\n', ID_TO_KEY);
   assert.deepEqual(Object.keys(sizes).sort(), ['basalt', 'emery']);
-  assert.deepEqual([...sizes.basalt.RAIN].sort(), [11, 13], 'the condition icon and the rain alert share the drawing');
+  assert.deepEqual([...sizes.basalt.RAIN].sort(), [11, 13]);
   assert.deepEqual([...sizes.emery.WIND].sort(), [13, 15], 'Wind and Windy share one');
-  assert.throws(() => check.watchSizes('basalt STATUS_ICON_NEW 11\n', ID_TO_KEY, BUCKETS), /no drawing for STATUS_ICON_NEW/);
+  assert.throws(() => check.watchSizes('basalt STATUS_ICON_NEW 11\n', ID_TO_KEY), /no drawing for STATUS_ICON_NEW/);
 });
 
 test('the scripts\' sizes leave out the Pebble Classic and Steel masks', () => {
@@ -26,7 +25,7 @@ test('the scripts\' sizes leave out the Pebble Classic and Steel masks', () => {
 });
 
 test('both ways: a height with no drawing, and a drawing no height asks for', () => {
-  const watch = check.watchSizes('basalt STATUS_ICON_COND_RAIN 11\nbasalt STATUS_ICON_COND_RAIN 13\nemery RAIN_BUCKET_3 15\n', ID_TO_KEY, BUCKETS);
+  const watch = check.watchSizes('basalt STATUS_ICON_COND_RAIN 11\nbasalt STATUS_ICON_COND_RAIN 13\nemery STATUS_ROW_ICON_HEAVY_RAIN 15\n', ID_TO_KEY);
   assert.deepEqual(check.compare(watch, check.scriptSizes({ icons: [
     { id: 'RAIN', sizes: [size(11, ['basalt']), size(13, ['basalt'])] },
     { id: 'HEAVY_RAIN', sizes: [size(15, ['emery'])] },

@@ -905,7 +905,7 @@ test('radarPreview draws the rain entry in its Look, at the side of the Watch ba
 });
 
 // The watch draws the On demand Rain item's icon in the theme's foreground, like every other
-// icon (status_row_icons_load_rain): the weather condition slot's rain cloud, never a colour
+// icon (status_icon_size.h status_rain_glyph): the weather condition slot's rain cloud, never a colour
 // from the radar palette, whatever the radar colour is.
 test('the rain alert icon is the rain cloud in the theme\'s foreground, whatever the radar colour', () => {
   const userData = { palette: require('../src/pkjs/settings/preview-palette.js').buildPreviewPalette() };

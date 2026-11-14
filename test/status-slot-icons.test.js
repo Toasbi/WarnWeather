@@ -33,7 +33,7 @@ test('every glyph is a 24x24 svg drawn in currentColor', () => {
 
 test('the weather icons are the watch\'s own drawings: the rain alert\'s rain cloud, the condition slot\'s sample', () => {
   // The rain alert draws the weather condition slot's rain cloud on the watch, in the
-  // foreground like every other icon (status_row_icons_load_rain); the condition slot's
+  // foreground like every other icon (status_icon_size.h status_rain_glyph); the condition slot's
   // sample (and the city's weather icon) is a partly cloudy afternoon.
   const pixels = require('../src/pkjs/settings/condition-pixels.generated.js');
   const PixelIcon = require('../src/pkjs/settings/pixel-icon.js');

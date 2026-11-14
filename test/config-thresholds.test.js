@@ -1755,7 +1755,7 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
   assert.deepEqual(s.showWhen, { env: 'onDemand' }, 'shown in any radar mode: the card row names the radar');
   // When the watch shows it: raining now or due within the window, never in the
   // Battery saver hours (rain_countdown.c; settings audit #14). No word on a colour: the
-  // icon draws in the foreground like every other (status_row_icons_load_rain).
+  // icon draws in the foreground like every other (status_icon_size.h status_rain_glyph).
   assert.equal(s.intro, 'Shows the rain icon at the edge of a status bar while it rains at your location'
     + ' or when rain is due within the time window. The icon is hidden during the Battery saver hours.');
   assert.ok(!s.items.some(it => it.messageKey === 'alertRain'), 'no on/off switch: its Shows on grid places Rain');

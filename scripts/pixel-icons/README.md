@@ -91,8 +91,10 @@ ids) draws no icon. A drawing is its ink: rows and columns left blank fall away,
 seats the ink beside the text the way the creator's bar previews do. Icons draw in the theme's
 foreground colour.
 
-The rain alert draws the Drizzle, Rain or Heavy rain drawing in the foreground like every other
-icon. A colour of its own reads too faintly on a thin outline; it would need filled drops.
+The rain alert draws the Drizzle, Rain or Heavy rain drawing from the same table, in the
+foreground like every other icon (`status_icon_size.h` `status_rain_glyph`: the condition icons'
+Drizzle and Rain, and Heavy rain's own id, which only the Pebble Time 2 draws). A colour of its
+own reads too faintly on a thin outline; it would need filled drops.
 
 A Pebble Classic mask is its ink too: a blank row or column at its edge falls away, and the text
 sits as close as the creator shows. A size that keeps 3.1.1's mask (`mask` in its entry: the mask's
