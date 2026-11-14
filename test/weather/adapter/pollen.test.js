@@ -313,7 +313,7 @@ test('fetchWithCoordinates completes AQI then pollen before composing the payloa
 test('a failed second pollen refresh packs -- instead of the previous severity and still sends', () => {
   const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
   const airQuality = require('../../../src/pkjs/weather/adapter/air-quality.js');
-  const forecastSeries = require('../../../src/pkjs/weather/domain/forecast-series.js');
+  const renderPayload = require('../../../src/pkjs/weather/application/render-payload.js');
   const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
   const originalAqi = airQuality.fetchAqiInto;
   const originalPollen = pollen.fetchPollenInto;
@@ -354,7 +354,7 @@ test('a failed second pollen refresh packs -- instead of the previous severity a
     thirdLine: 'off', barSource: 'off', theme: 'dark'
   };
   function transform(payload) {
-    return forecastSeries.applyForecastSeries(payload, settings, { platform: 'basalt' }, NOW);
+    return renderPayload.toRenderPayload(payload, settings, { platform: 'basalt' }, NOW);
   }
   function fetchOnce() {
     provider.fetchWithCoordinates(52.52, 13.405, function() {

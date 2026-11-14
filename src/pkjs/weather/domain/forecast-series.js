@@ -1,7 +1,6 @@
 var rainTier = require('./rain-tier');
 var lineStyle = require('../../forecast-graphs/domain/line-style.js');   // LINE_COLORS/FILL_COLORS + the resolved line styling
 var platforms = require('../../config-ui/lib/platform.js');   // computeEnv, isLineStylePlatform
-var statusLines = require('../../status-bars/domain/status-lines.js');
 var statusCatalog = require('../../status-bars/domain/status-line-catalog.js');
 // alertOn — whether a metric's alert is placed on a status bar (On demand), which the
 // fetch gates below add to what the slots and lines ask for.
@@ -496,29 +495,19 @@ function tempScaleRange(temps, series) {
  * live-fetch and fixture send paths call this so the two can't drift.
  * @param {Object} payload Weather payload with PRECIP_/RAIN_/WIND_/GUST_/UV_TREND_UINT8.
  * @param {Object} settings Clay settings.
- * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined; threaded
- *   through to the status-line bake for its platform env. The series themselves are
- *   platform-independent now that the line styling rides the Clay message, save four
+ * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined. The series
+ *   are platform-independent now that the line styling rides the Clay message, save four
  *   gates: a feels or dew line is dropped on aplite, which cannot draw it (tempAxisLineDrawn),
  *   the fourth line's key is suppressed on platforms without WW_LINE_STYLE, a line
  *   draws Show: Alert only on a watch with Alert settings (not aplite), a wind and a
  *   gust line sharing its band only where the watch draws both, and a line stored as a
  *   stripe takes stripe level bytes only where the watch draws the styles (not aplite).
- * @param {Date} now The current time, for the status-line bake (status-lines.js
- *   buildStatusLines).
- * @param {?Object} [phone] The phone's battery facts for the bake (phone-battery.js
- *   bakeFacts); absent = a host that cannot read the phone's battery.
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
-function applyForecastSeries(payload, settings, watchInfo, now, phone) {
-    // The caller (weather/application/render-payload.js) hands the bake INPUTS
-    // to the rebaker (status-rebake.js rememberBakeInputs) before calling this:
-    // a later trigger re-bakes the status lines without a fetch, and by then
-    // both the bake's own mutations and the transient-key deletions below have
-    // happened.
-    // Bake the packed status lines while the transient trend arrays are
-    // still on the payload (they die a few lines below).
-    statusLines.buildStatusLines(payload, settings, watchInfo, now, phone);
+function applyForecastSeries(payload, settings, watchInfo) {
+    // The caller (weather/application/render-payload.js) hands the bake inputs to
+    // the rebaker and bakes the status lines (status-lines.js buildStatusLines)
+    // before calling this: the bake reads the transient trend arrays this deletes.
     // From here on the graph's settings: with screens showing several graph styles
     // (emery), the shown styles' union (forecast-graphs/domain/graph-style-wire.js weatherSettings),
     // else the settings themselves.
@@ -617,7 +606,7 @@ function applyForecastSeries(payload, settings, watchInfo, now, phone) {
     delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired
     delete payload.POLLEN_TOMORROW;   // transient PKJS-only; judged by the pollen alert's look-ahead, never wired
     delete payload.FEELS_TREND;       // transient PKJS-only; consumed by the joint band + feels line above, never wired
-    delete payload.FEELS_CURRENT;     // baked into the status lines by buildStatusLines above (same ordering contract as CURRENT_TEMP)
+    delete payload.FEELS_CURRENT;     // baked into the status lines by buildStatusLines before this (same ordering contract as CURRENT_TEMP)
     delete payload.DEW_TREND;         // transient PKJS-only; baked into the dew slot's text + the dew line above, never wired
     delete payload.WIND_DIR_TREND;    // transient PKJS-only; baked into the wind/gust arrow sentinel, never wired
     // Values only — the line colours and the fill flag ride the Clay settings

@@ -190,7 +190,7 @@ test('the bake sends one metric twice when one style draws it as a line and anot
     TEMP_RAW_TREND: [10, 11, 12, 13, 14, 15], TEMP_MIN: 10, TEMP_MAX: 15,
     PRECIP_TREND_UINT8: precips, CLOUD_TREND: [0, 20, 40, 60, 80, 100], RAIN_TREND_UINT8: [0, 0, 1, 2, 3, 0],
     WIND_TREND_UINT8: [], GUST_TREND_UINT8: [], UV_TREND_UINT8: [0, 10, 20, 30, 40, 50]
-  }, S, EMERY, NOW);
+  }, S, EMERY);
   // Rows: precip line, uv, cloud stripe, precip stripe.
   assert.deepEqual(payload.SECONDARY_LINE_TREND_UINT8, precips.map((p) => Math.round(p * 10 / 4)));
   assert.equal(payload.THIRD_LINE_TREND_UINT8.length, precips.length, 'uv');
@@ -265,7 +265,7 @@ const RAW = {
  * @returns {Object}
  */
 function bake(S, watchInfo) {
-  return applyForecastSeries(JSON.parse(JSON.stringify(RAW)), S, watchInfo, NOW);
+  return applyForecastSeries(JSON.parse(JSON.stringify(RAW)), S, watchInfo);
 }
 
 test('the spare row: a fifth series bakes into SPARE_LINE_TREND_UINT8, a union of four sends none', () => {
@@ -314,7 +314,7 @@ test('the spare row joins the fetch, the left axis, the Show: Alert bands and th
   assert.equal(wire.weatherSettings(feelsSpare, EMERY).spareLine, 'feels');
   assert.equal(fetchOptions.build(feelsSpare, EMERY).fetchFeels, true);
   const feels = applyForecastSeries(Object.assign(JSON.parse(JSON.stringify(RAW)),
-    { FEELS_TREND: [8, 9, 10, 11, 12, 20] }), feelsSpare, EMERY, NOW);
+    { FEELS_TREND: [8, 9, 10, 11, 12, 20] }), feelsSpare, EMERY);
   assert.equal(feels.SPARE_LINE_TREND_UINT8.length, 6);
   assert.deepEqual([feels.TEMP_MIN, feels.TEMP_MAX], [8, 20], 'the scale\'s ends cover the spare\'s feels-like');
   // A gust line on the spare drawn Show: Alert shares the wind line's band, so it bakes the

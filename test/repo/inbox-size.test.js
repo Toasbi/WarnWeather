@@ -13,7 +13,7 @@ global.localStorage = {
   removeItem: function(k) {}
 };
 
-const { applyForecastSeries } = require('../../src/pkjs/weather/domain/forecast-series');
+const { toRenderPayload } = require('../../src/pkjs/weather/application/render-payload');
 const { buildClayPayload } = require('../../src/pkjs/settings/domain/clay-payload');
 const { WEATHER_CATEGORIES } = require('../../src/pkjs/wire/adapter/outbox');
 const forecastSpan = require('../../src/pkjs/weather/domain/forecast-span');
@@ -161,7 +161,7 @@ function buildHeaviestBundle(platform, over) {
   const radarRange = Array.from({ length: RADAR_SLOTS }, function(_, i) { return i; });
 
   // Base forecast payload as provider.getPayload emits it (pre-series): raw
-  // whole-degree temps; applyForecastSeries encodes them to the N wire bytes.
+  // whole-degree temps; toRenderPayload (applyForecastSeries) encodes them to the N wire bytes.
   const payload = {
     TEMP_RAW_TREND: range.map(function() { return 25; }), // -> N TEMP_TREND_UINT8 bytes
     TEMP_MIN: -10,
@@ -196,7 +196,7 @@ function buildHeaviestBundle(platform, over) {
   });
   payload.AQI_TREND = range.map(function() { return 152; });
   payload.POLLEN_TODAY = '2-3';
-  applyForecastSeries(payload, Object.assign({
+  toRenderPayload(payload, Object.assign({
     secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'uv', fifthLine: 'precip_prob',
     secondaryLineFill: false, barSource: 'rain', windScale: 'high',
     temperatureUnits: 'c', axisTimeFormat: '12h', timeShowAmPm: true,
