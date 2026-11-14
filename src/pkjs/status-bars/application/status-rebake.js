@@ -3,7 +3,7 @@
 //
 // The forecast pipeline (weather/application/render-payload.js, for the live
 // fetch and the fixture path alike) hands its bake inputs here immediately
-// before applyForecastSeries bakes them (rememberBakeInputs); any later trigger re-bakes those
+// before it bakes the status lines (rememberBakeInputs); any later trigger re-bakes those
 // inputs against the CURRENT settings and pushes only the status keys
 // (resendStatus). Three triggers: a phone-battery event, every settings save
 // (channel-scheduler's config close), which is how a status-only edit — an
@@ -21,10 +21,10 @@
 // arguments: deps.getPhoneBattery and deps.now here), and outbox has no path
 // back at all, so both are plain top-level requires.
 
-// The micro-send mechanics: `buildStatusLines()` runs inside the
-// forecast bake and consumes transient payload keys that are deleted right
-// after, so a re-bake needs the bake *inputs*: render-payload.js hands them
-// over via rememberBakeInputs() immediately before applyForecastSeries. On a trigger we
+// The micro-send mechanics: `buildStatusLines()` runs in the forecast
+// pipeline and consumes transient payload keys that applyForecastSeries deletes
+// right after, so a re-bake needs the bake *inputs*: render-payload.js hands them
+// over via rememberBakeInputs() immediately before the bake. On a trigger we
 // re-bake a fresh clone of that snapshot and push only the status category's
 // keys through the normal outbox. change-detector's categorySubset()
 // returns null for a category whose keys are all absent and ChangeDetector
@@ -207,7 +207,7 @@ function snapshotPayload(payload) {
  * blob. A no-op when the serialization is unchanged — this runs on every
  * fetch, and the same write-only-when-it-changed discipline the watch side
  * applies to persist applies here. Nothing here may throw into
- * applyForecastSeries: an unserializable payload or a full storage quota must
+ * the forecast pipeline (render-payload.js): an unserializable payload or a full storage quota must
  * cost the backstop, not the fetch.
  *
  * @param {Object} payload Weather payload, pre-transform.
@@ -311,7 +311,7 @@ function bakeInputs() {
 
 /**
  * Stash the inputs of the forecast bake so a later trigger can re-bake without
- * a fetch. Called from render-payload.js immediately BEFORE applyForecastSeries bakes,
+ * a fetch. Called from render-payload.js immediately BEFORE the status-line bake,
  * so the clone predates both the bake's own mutations and the transient-key
  * deletions that follow it.
  *

@@ -368,20 +368,20 @@ test('applyForecastSeries: Alert only where the watch has Alert settings, the ba
   const s = { secondaryLine: 'wind', thirdLine: 'uv', fourthLine: 'gust', windScale: 'mid',
     barSource: 'off', windLineShow: 'alert', gustLineShow: 'alert', uvLineShow: 'alert' };
   // aplite has no Alert settings: both of its lines draw All, whatever is stored.
-  const aplite = forecastSeries.applyForecastSeries(payload(), s, { platform: 'aplite' }, NOW);
+  const aplite = forecastSeries.applyForecastSeries(payload(), s, { platform: 'aplite' });
   assert.deepEqual(aplite.SECONDARY_LINE_TREND_UINT8, [0, 50, 195, 200, 225, 250, 250]);
   assert.deepEqual(aplite.THIRD_LINE_TREND_UINT8, [0, 125, 136, 146, 182, 250, 250]);
   // basalt draws all four lines and Alert: wind and gusts share 40..90, gusts gapping
   // under their own 65.
-  const basalt = forecastSeries.applyForecastSeries(payload(), s, { platform: 'basalt' }, NOW);
+  const basalt = forecastSeries.applyForecastSeries(payload(), s, { platform: 'basalt' });
   assert.deepEqual(basalt.SECONDARY_LINE_TREND_UINT8, [0, 0, 0, 1, 25, 50, 100]);
   assert.deepEqual(basalt.THIRD_LINE_TREND_UINT8, [0, 1, 1, 20, 100, 250, 250]);
   assert.deepEqual(basalt.FOURTH_LINE_TREND_UINT8, [0, 0, 0, 175, 250, 250, 0]);
   // The B&W diorite has Alert settings too.
-  assert.deepEqual(forecastSeries.applyForecastSeries(payload(), s, { platform: 'diorite' }, NOW)
+  assert.deepEqual(forecastSeries.applyForecastSeries(payload(), s, { platform: 'diorite' })
     .SECONDARY_LINE_TREND_UINT8, [0, 0, 0, 1, 25, 50, 100]);
   // An unknown watch draws every line, and Alert.
-  assert.deepEqual(forecastSeries.applyForecastSeries(payload(), s, null, NOW).SECONDARY_LINE_TREND_UINT8,
+  assert.deepEqual(forecastSeries.applyForecastSeries(payload(), s, null).SECONDARY_LINE_TREND_UINT8,
     [0, 0, 0, 1, 25, 50, 100]);
 });
 

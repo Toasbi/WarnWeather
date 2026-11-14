@@ -289,7 +289,7 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
     // '31%', not the '30%' the trigger happens to be named after.
     //
     // Intended consequence, and it is the good half of the trade: this bake runs
-    // on EVERY weather fetch (applyForecastSeries -> buildStatusLines, default
+    // on EVERY weather fetch (render-payload.js toRenderPayload, default
     // every 15 min), so the displayed number now also refreshes on those fetches
     // rather than only when the bucket moves. Max staleness drops from "until the
     // next 5-point step" to about one fetch interval. The cost is that the

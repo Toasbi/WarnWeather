@@ -364,7 +364,7 @@ test('the dew line never draws above the air temperature', () => {
     TEMP_RAW_TREND: [49, 48, 47, 46], TEMP_MIN: 46, TEMP_MAX: 49,
     PRECIP_TREND_UINT8: [0, 0, 0, 0], RAIN_TREND_UINT8: [0, 0, 0, 0],
     CURRENT_TEMP: 49, CITY: 'X', DEW_TREND: [49.4, 48.2, 47.3, 46.4]
-  }, { secondaryLine: 'dew', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' }, NOW);
+  }, { secondaryLine: 'dew', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
   assert.deepEqual(out.TEMP_TREND_UINT8, [250, 167, 83, 0], 'the band stays the temperature\'s');
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [250, 167, 83, 1], 'fog: dew on the temp curve, floored off byte 0');
 });

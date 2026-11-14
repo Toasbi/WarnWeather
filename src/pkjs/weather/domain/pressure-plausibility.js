@@ -8,9 +8,8 @@
 //
 // Both consumers of a raw pressure trend array must agree on what counts as real
 // data: forecast-series.js (scales the graph line/dots) and status-lines.js (formats
-// the status-slot text). forecast-series.js already requires status-lines.js, so
-// status-lines.js requiring forecast-series.js back would be a require cycle --
-// this leaf module has no requires of its own, so both can reach it instead.
+// the status-slot text). This leaf module has no requires of its own, so both
+// reach it without depending on each other.
 //
 // The world-record low is ~870 hPa, so nothing legitimate falls outside this
 // window; it exists solely to catch nulls and the zero-fill idiom.
