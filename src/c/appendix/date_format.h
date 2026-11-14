@@ -36,6 +36,8 @@ enum DateMonthFormat {
     DATE_MONTH_DOTS = 2,   // "09.2026"
     DATE_MONTH_SLASH = 3,  // "09/2026"
     DATE_MONTH_ISO = 4,    // "2026-09"
+    DATE_MONTH_DOTSYY = 5, // "09.26" (the owner's, 2026-11-14)
+    DATE_MONTH_NOYEAR = 6, // "Sep", the month alone (the owner's, 2026-11-14)
 };
 
 // Wire vocabulary for CLAY_DATE_FORMAT_UINT8, byte [1] — how the date slot
@@ -94,6 +96,12 @@ static inline void date_format_month_year(char *buf, size_t cap,
             return;
         case DATE_MONTH_ISO:
             snprintf(buf, cap, "%04d-%02d", year, mon);
+            return;
+        case DATE_MONTH_DOTSYY:
+            snprintf(buf, cap, "%02d.%02d", mon, year < 0 ? 0 : year % 100);
+            return;
+        case DATE_MONTH_NOYEAR:
+            date_format_strftime(buf, cap, "%b", &t);
             return;
         default:
             date_format_strftime(buf, cap, "%b %Y", &t);

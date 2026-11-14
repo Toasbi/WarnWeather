@@ -14,8 +14,10 @@ cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE -DWW_CLOCK_INK -DPBL_PLATFORM_EMERY t
 build/host/layout_test "${1:-}"
 build/host/layout_test_emery "${1:-}"
 # The phone's fit check (view-cycle.js stackNeed) must measure every custom shape exactly as
-# the watch's layout engine lays it out: dump the engine's block heights per screen family
-# and compare them line by line (scripts/check-fit-lockstep.js).
+# the watch's layout engine lays it out, and the settings page's pictures of the watch
+# (view-cycle.js stackLayout) must put every band where the engine does: dump the engine's
+# block heights and band placements per screen family and compare them line by line
+# (scripts/check-fit-lockstep.js).
 cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE -DWW_CLOCK_INK test/c/fit_lockstep_dump.c src/c/windows/layout.c -o build/host/fit_lockstep_dump
 cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE -DWW_CLOCK_INK -DPBL_PLATFORM_EMERY test/c/fit_lockstep_dump.c src/c/windows/layout.c -o build/host/fit_lockstep_dump_emery
 { build/host/fit_lockstep_dump; build/host/fit_lockstep_dump_emery; } > build/host/fit_lockstep.txt
@@ -112,11 +114,19 @@ build/host/on_demand_merge_test
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_short_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_short_test
 build/host/on_demand_short_test
-# "Weather alerts replace the slot: Right away" (on_demand.h od_replace_slots): a side
-# with a weather alert lays out as though its own slot were empty.
+# The Rain alert's "Replaces the slot" (on_demand.h od_replace_slots): a side with a rain
+# alert lays out as though its own slot were empty; the metric alerts never take it.
 cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_replace_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_replace_test
 build/host/on_demand_replace_test
+# Every height a bar asks for has its pixel drawing (status_icon_size.h, the generated tables),
+# on the colour 144-px watch, the black and white ones (PBL_BW) and the Pebble Time 2.
+cc $CFLAGS test/c/status_icon_drawings_test.c -o build/host/status_icon_drawings_test
+build/host/status_icon_drawings_test
+cc $CFLAGS -DPBL_BW test/c/status_icon_drawings_test.c -o build/host/status_icon_drawings_test_bw
+build/host/status_icon_drawings_test_bw
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_icon_drawings_test.c -o build/host/status_icon_drawings_test_emery
+build/host/status_icon_drawings_test_emery
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
 build/host/hr_scale_test
 # The health graph's step scale (header-only, step_scale.h): every mark it picks draws,

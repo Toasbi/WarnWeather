@@ -23,6 +23,7 @@ test('caps are in lockstep with status_line.h', () => {
   assert.equal(catalog.CAPS.LINE_MAX, cDefine('STATUS_LINE_MAX_BYTES'));
   assert.equal(catalog.CAPS.EDGE_TEXT_MAX, cDefine('STATUS_TEXT_EDGE_MAX'));
   assert.equal(catalog.CAPS.MID_TEXT_MAX, cDefine('STATUS_TEXT_MID_MAX'));
+  assert.equal(catalog.CAPS.EDGE_COND_TEXT_MAX, cDefine('STATUS_TEXT_EDGE_COND_MAX'));
 });
 
 test('slot kinds are in lockstep with status_line.h', () => {
@@ -80,6 +81,56 @@ test('the phone-battery icon ids are 16/17/18 on both sides of the wire', () => 
   assert.equal(catalog.ICONS.PHONE_BATTERY, 16);
   assert.equal(catalog.ICONS.PHONE_BATTERY_CHG, 17);
   assert.equal(catalog.ICONS.PHONE_BATTERY_PLAIN, 18);
+});
+
+test('the weather condition icon ids are 19..33 on both sides of the wire', () => {
+  const names = ['TEXT', 'SUN', 'MOON', 'SUN_CLOUD', 'MOON_CLOUD', 'CLOUD', 'FOG', 'HAZE', 'DRIZZLE', 'RAIN',
+    'SLEET', 'SNOW', 'HAIL', 'THUNDER', 'WIND'];
+  names.forEach((n, i) => {
+    assert.equal(catalog.ICONS['COND_' + n], 19 + i, 'COND_' + n);
+    assert.equal(cEnum('STATUS_ICON_COND_' + n), 19 + i, 'STATUS_ICON_COND_' + n);
+  });
+  assert.equal(catalog.ALT_SEP.charCodeAt(0), Number(header.match(/#define\s+STATUS_TEXT_ALT_SEP\s+(0x[0-9A-Fa-f]+)/)[1]));
+  // Every glyph condition.js names is a catalog icon.
+  const C = require('../src/pkjs/weather/condition.js');
+  Object.keys(C.CONDITIONS).forEach((id) => [false, true].forEach((night) => {
+    assert.ok(Object.prototype.hasOwnProperty.call(catalog.ICONS, C.glyph(id, night)), id + ' ' + night);
+  }));
+});
+
+// Each condition glyph is a pixel drawing the watch draws (scripts/pixel-icons: an icon in
+// resources/pixel-icons.json, mapped to its id in gen_watch_icons.js and built into the watch's
+// tables); scripts/gen-condition-glyphs.py writes the editor's starting PDC and the settings
+// page's copy of the glyphs the page draws (condition-glyphs.generated.js). A glyph missing
+// its drawing draws as nothing, without an error (test/c/status_icon_drawings_test.c checks
+// every height).
+test('every condition glyph has its drawing and its watch mapping; the page has the ones it draws', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const ROOT = path.join(__dirname, '..');
+  const gen = require('../scripts/pixel-icons/gen_watch_icons.js');
+  const drawings = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources', 'pixel-icons.json'), 'utf8')).icons;
+  const table = fs.readFileSync(path.join(ROOT, 'src/c/layers/status_pixel_icons.generated.h'), 'utf8');
+  const page = require('../src/pkjs/settings/condition-glyphs.generated.js');
+  const drawn = Object.keys(catalog.ICONS).filter((k) => /^COND_/.test(k) && k !== 'COND_TEXT');
+  assert.deepEqual(Object.keys(page), ['SUN_CLOUD', 'RAIN'],
+    'the page carries the slot\'s picture and the rain alert\'s icon (status-slot-icons.js, preview-radar.js)');
+  assert.ok(drawn.indexOf('COND_SUN_CLOUD') !== -1, 'a glyph the watch draws too');
+  drawn.forEach((k) => {
+    const id = 'STATUS_ICON_' + k;
+    const key = Object.keys(gen.ICON_IDS).find((d) => gen.ICON_IDS[d].indexOf(id) !== -1);
+    assert.ok(key, id + ': a drawing maps to it (gen_watch_icons.js ICON_IDS)');
+    assert.ok(drawings[key] && Object.keys(drawings[key].sizes).length, id + ': ' + key + ' has drawings');
+    assert.ok(table.indexOf('{ ' + id + ', ') !== -1, id + ': built into the watch\'s table');
+  });
+  assert.deepEqual(gen.ICON_IDS.WIND, ['STATUS_ICON_WIND', 'STATUS_ICON_COND_WIND'], 'windy borrows the flag');
+  assert.equal(table.indexOf('STATUS_ICON_COND_TEXT'), -1, 'the Text look maps to no glyph');
+});
+
+test('the city glyph bit is in lockstep with STATUS_ICON_CITY_GLYPH', () => {
+  const m = header.match(/#define\s+STATUS_ICON_CITY_GLYPH\s+0x([0-9A-Fa-f]+)u?/);
+  assert.ok(m, 'STATUS_ICON_CITY_GLYPH missing from status_line.h');
+  assert.equal(catalog.CITY_GLYPH, parseInt(m[1], 16));
 });
 
 test('STATUS_ICON_MAX names the highest icon id in the enum', () => {

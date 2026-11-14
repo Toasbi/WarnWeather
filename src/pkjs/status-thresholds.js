@@ -124,7 +124,11 @@
     // cells. Nothing in the packer keys off `key` being unique — boldModeFor()
     // is a plain per-entry lookup — so the duplicate is a share, not a clash.
     { code: 'phoneBattery', key: 'PhoneBattery', boldOnly: true },
-    { code: 'phoneBatteryPlain', key: 'PhoneBattery', boldOnly: true }
+    { code: 'phoneBatteryPlain', key: 'PhoneBattery', boldOnly: true },
+    // The weather condition (kind 20, appended): bold-only, for its Text look and every
+    // glyph alike. The bold area (bytes 29..33) is full, so its cell sits at bits 3-4
+    // of the alerts byte (status-wire.js boldCell, status_threshold.h THRESH_CONDITION).
+    { code: 'condition', key: 'Condition', boldOnly: true }
   ];
 
   /**
@@ -619,14 +623,18 @@
   }
 
   /**
-   * The rain alert's two settings resolved, with their defaults in this one place:
+   * The rain alert's settings resolved, with their defaults in this one place:
    * the look (rainAlertDisplay) is a RAIN_DISPLAY key, else 'text' — the "Rain in
    * 12'" the strip always drew; the window (rainCountdownHorizon) is the stored
-   * minutes, else RAIN_HORIZON_DEFAULT_MIN. Whether the rain alert shows at all is
-   * its On demand tick (on-demand.js placedAnywhere(settings, 'rain', env)), and
-   * radar mode 'off' silencing it is the Clay packer's fold (clay-payload.js).
+   * minutes, else RAIN_HORIZON_DEFAULT_MIN; whether it takes the place of the status
+   * slot on its side while it shows (rainAlertReplacesSlot, the Rain alert dialog's
+   * "Replaces the slot") is on unless stored off (the owner's, 2026-11-14: the rain
+   * alert replaces by default, and it is the only alert that can — the metric alerts
+   * always sit beside their slot). Whether the rain alert shows at all is its On demand
+   * tick (on-demand.js placedAnywhere(settings, 'rain', env)), and radar mode 'off'
+   * silencing it is the Clay packer's fold (clay-payload.js).
    * @param {Object} settings Clay settings blob
-   * @returns {{look: string, horizonMin: number}}
+   * @returns {{look: string, horizonMin: number, replacesSlot: boolean}}
    */
   function rainAlert(settings) {
     var s = settings || {};
@@ -634,7 +642,8 @@
     var horizon = parseInt(s.rainCountdownHorizon, 10);
     return {
       look: Object.prototype.hasOwnProperty.call(RAIN_DISPLAY, look) ? look : 'text',
-      horizonMin: isNaN(horizon) ? RAIN_HORIZON_DEFAULT_MIN : horizon
+      horizonMin: isNaN(horizon) ? RAIN_HORIZON_DEFAULT_MIN : horizon,
+      replacesSlot: s.rainAlertReplacesSlot !== false
     };
   }
 

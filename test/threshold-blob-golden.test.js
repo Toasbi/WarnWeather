@@ -22,6 +22,13 @@
 // rather than by radarMode / healthMode: only the 477 blobs that store no radarMode moved,
 // and only in the cells (bytes 38-47), since their compact calendar cycle seats the Radar
 // bar the watch is sent; fed the old mode rule, every combo equals the previous digest.
+// Re-recorded when the rain alert's "Replaces the slot" became a switch of its own, on by
+// default (bit 2 of byte 34, which 3.2.0's shared option left 0 unless set): every one of
+// the 4000 blobs now has that bit, and with it cleared they equal the previous digest.
+// Re-recorded when the weather condition got its Bold (kind 20, bits 3-4 of byte 34): the
+// generator skips its bold mode, so the sequence holds, and only the 1322 blobs with
+// statusBoldAll 'all' moved, each by Always in those two bits; with them masked, every
+// blob equals the previous digest.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -31,7 +38,7 @@ const wire = require('../src/pkjs/status-wire.js');
 const OD = require('../src/pkjs/on-demand.js');
 
 const COMBOS = 4000;
-const GOLDEN_SHA256 = 'a34e67c6e1ee2a38374a4a0eabcaa39b6fae1848af64fe19861c1506c7b5b39e';
+const GOLDEN_SHA256 = '61f9eb09057a535c3ec7c4782e578feca7f317461f58830c2029ee9e166a4d2d';
 
 /**
  * mulberry32: a small deterministic PRNG, so the generated set never varies.
@@ -100,6 +107,9 @@ function combo(rnd) {
   put(s, 'batteryLowLevel', pick(rnd, [ABSENT, '5', '10', '15', '20', '25', '30', '0', '31', 'x', 15]));
   put(s, 'batteryLowDisplay', pick(rnd, [ABSENT, 'icon', 'value', 'bogus']));
   th.KINDS.forEach((k) => {
+    // The weather condition (kind 20) came after the recording: drawing its bold mode here
+    // would shift every later draw. Its cell has a test of its own below.
+    if (k.code === 'condition') { return; }
     const stem = 'thresh' + k.key;
     put(s, stem + 'BoldMode', pick(rnd, [ABSENT, 'warn', 'off', 'always', 'bogus']));
     if (k.boldOnly) { return; }
@@ -125,4 +135,27 @@ test('CLAY_THRESHOLDS_UINT8 is byte-identical to the recorded packer over 4000 g
   }
   const digest = crypto.createHash('sha256').update(JSON.stringify(blobs)).digest('hex');
   assert.equal(digest, GOLDEN_SHA256);
+});
+
+// The weather condition's bold cell (kind 20) rides bits 3-4 of the alerts byte, beside
+// the rain look and Replaces the slot, and moves nothing else.
+test('the weather condition\'s bold mode packs into bits 3-4 of the alerts byte alone', () => {
+  const base = { rainAlertDisplay: 'minutes' };
+  const plain = wire.buildSettingsBlob(base);
+  [['warn', 0], ['off', 1], ['always', 2], ['bogus', 0]].forEach(([mode, bits]) => {
+    const blob = wire.buildSettingsBlob(Object.assign({ threshConditionBoldMode: mode }, base));
+    assert.equal((blob[wire.ALERTS_OFFSET] >> wire.CONDITION_BOLD_SHIFT) & 3, bits, mode);
+    blob.forEach((b, i) => {
+      const want = i === wire.ALERTS_OFFSET ? plain[i] | (bits << wire.CONDITION_BOLD_SHIFT) : plain[i];
+      assert.equal(b, want, mode + ': byte ' + i);
+    });
+  });
+  assert.equal((plain[wire.ALERTS_OFFSET] & 3), 2, 'the rain look keeps bits 0-1');
+  assert.ok(plain[wire.ALERTS_OFFSET] & wire.RAIN_REPLACE_BIT, 'Replaces the slot keeps bit 2');
+  const all = wire.buildSettingsBlob(Object.assign({ statusBoldAll: 'all' }, base));
+  assert.equal((all[wire.ALERTS_OFFSET] >> wire.CONDITION_BOLD_SHIFT) & 3, 2, 'Bold all reaches it too');
+  assert.deepEqual(wire.boldCell(20), { byte: wire.ALERTS_OFFSET, shift: wire.CONDITION_BOLD_SHIFT });
+  assert.deepEqual(wire.boldCell(19), { byte: 33, shift: 6 });
+  assert.throws(() => wire.boldCell(21), /layout must change/, 'a 22nd kind has no cell');
+  assert.equal(th.KINDS[20].code, 'condition', 'the condition is kind 20');
 });

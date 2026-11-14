@@ -29,6 +29,13 @@
 // battery number shows whole or not at all; its % is never dropped (owner,
 // 2026-09-30).
 //
+// One slot brings its own: the weather condition's middle slot carries its short form
+// after STATUS_TEXT_ALT_SEP ("Partly cloudy" with "PCLDY"; status_line.h), the one
+// variant the phone bakes, since no rule turns a name into its code (status_short_alt).
+// A condition slot that draws its glyph then gives up its text and keeps the glyph, its
+// last member before it hides: an edge slot, which brings no short form, has only that
+// one.
+//
 // Written for size — the app image comes out of the heap on every platform — so the
 // caller asks for one member at a time (status_short_member) and gets that one
 // computed, the transforms work in place, and the city finds its two rungs in one
@@ -259,9 +266,16 @@ static inline uint8_t sst_city_member(const char *s, uint8_t v, char *out, size_
 
 // --- the families ------------------------------------------------------------------
 
-// The city is the one slot kind whose last member is elastic.
+// A weather condition slot that draws its glyph (not the Text look): its last member is
+// the glyph alone.
+static inline bool sst_condition_glyph(uint8_t kind, uint8_t icon) {
+    return kind == SLOT_TEXT && icon >= STATUS_ICON_COND_SUN && icon <= STATUS_ICON_COND_WIND;
+}
+
+// The city is the one slot kind whose last member is elastic, with the current weather's
+// glyph or without.
 static inline bool status_short_elastic(uint8_t kind, uint8_t icon) {
-    return kind == SLOT_TEXT && icon == STATUS_ICON_NONE;
+    return kind == SLOT_TEXT && status_icon_is_city(icon);
 }
 
 // The elastic city's floor: its first STATUS_SHORT_FLOOR_CPS code points and the
@@ -292,6 +306,12 @@ static inline uint8_t status_short_member(uint8_t kind, uint8_t icon, const char
                                           size_t cap) {
     if (!full || !out || v == 0) { return 0; }
     if (status_short_elastic(kind, icon)) { return sst_city_member(full, v, out, cap); }
+    if (sst_condition_glyph(kind, icon)) {
+        // No step shortens a condition's name: its one member is the glyph alone.
+        if (v != 1 || cap == 0) { return 0; }
+        out[0] = '\0';
+        return SST_MEMBER;
+    }
     if (!sst_copy(out, cap, full, strlen(full))) { return 0; }
     if (kind == SLOT_LIVE_BATTERY) {
         return v == 1 && !charging ? (SST_MEMBER | SST_NO_LANE) : 0;
@@ -301,4 +321,17 @@ static inline uint8_t status_short_member(uint8_t kind, uint8_t icon, const char
         if (sst_apply(kind, icon, t, out) && ++found == v) { return SST_MEMBER; }
     }
     return suffix && found + 1 == v ? (SST_MEMBER | SST_NO_SUFFIX) : 0;
+}
+
+// Member `v` of the family of a slot of `kind` / `icon` whose text came with its own short
+// form `alt` (the bytes after STATUS_TEXT_ALT_SEP, not empty): that form as member 1, then a
+// weather condition that draws its glyph keeps the glyph alone as member 2.
+static inline uint8_t status_short_alt(uint8_t kind, uint8_t icon, const char *alt, uint8_t v,
+                                       char *out, size_t cap) {
+    if (v == 1) { return sst_copy(out, cap, alt, strlen(alt)) ? SST_MEMBER : 0; }
+    if (v == 2 && sst_condition_glyph(kind, icon) && cap > 0) {
+        out[0] = '\0';
+        return SST_MEMBER;
+    }
+    return 0;
 }

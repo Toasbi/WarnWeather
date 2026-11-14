@@ -44,7 +44,7 @@ const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
 // PhoneBattery is ONE stem for TWO wire kinds (18 phoneBattery, 19 phoneBatteryPlain):
 // both KINDS entries share key 'PhoneBattery', so they share one sheet and one key.
 const BOLD_ONLY_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct', 'Dew',
-  'PhoneBattery'];
+  'PhoneBattery', 'Condition'];
 const BOLD_ONLY_KEYS = BOLD_ONLY_STEMS.map((stem) => 'thresh' + stem + 'BoldMode');
 const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnLook', 'Warn', 'Danger', 'Max'])
   .concat(THRESH_COLOR_KEYS)
@@ -65,12 +65,12 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnLook', 'Warn', 'Danger', 
 // battery %) would need the flag on the wire and are deliberately absent.
 const UNIT_KEYS = ['tempSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit', 'dewSlotUnit'];
 // The weather alerts' own keys: each alert kind's Look, Days and tomorrow mark and the
-// rain alert's look — and On demand's: each bar's two sides with their ticked items (the
+// rain alert's look and Replaces the slot — and On demand's: each bar's two sides with their ticked items (the
 // side lists every alert sheet's Shows on grid writes, on the Alerts tab) and the Battery
 // item's warn level and Look (on-demand.js DEFAULTS, the one list of them).
 const ALERT_KEYS = ALERT_STEMS.reduce((acc, stem) => acc.concat(['alert' + stem + 'Display',
   'alert' + stem + 'Days', 'alert' + stem + 'NextDayMark']),
-  ['rainAlertDisplay']).concat(Object.keys(require('../src/pkjs/on-demand.js').DEFAULTS));
+  ['rainAlertDisplay', 'rainAlertReplacesSlot']).concat(Object.keys(require('../src/pkjs/on-demand.js').DEFAULTS));
 // The Graph-colors rows: every metric colour, with one picker per theme polarity so a
 // Dark and a Light pick never overwrite one another (the colorUSFederal idiom). The list
 // comes from line-style.js because the schema builds its rows from the same call — this
@@ -96,6 +96,8 @@ const EXPECTED_KEYS = [
   'precipLineFrom','cloudLineFrom','windLineFrom','uvLineFrom','rainBarFrom','radarBarFrom',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
+  // The weather condition slot's Look (Icon + text / Text / Icon).
+  'conditionSlotLook', 'conditionSlotName', 'citySlotIcon',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','forecastHours',
   'forecastAxisNumbers','forecastAxisScale','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
@@ -122,7 +124,7 @@ const EXPECTED_KEYS = [
   // countdown dates (its side lists are on-demand.js DEFAULTS', ALERT_KEYS).
   ...['statusBar4', 'statusBar5', 'statusBar6'].reduce((all, p) => all.concat([p + 'Made', p + 'Name',
     p + 'Left', p + 'LeftCountdown', p + 'Mid', p + 'MidCountdown', p + 'Right', p + 'RightCountdown']), []),
-  'statusBoldAll', 'alertsReplaceSlot',
+  'statusBoldAll',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
   'statusTopLeft','statusTopLeftCountdown','statusTopMid','statusTopMidCountdown','statusTopRight','statusTopRightCountdown',
@@ -1994,8 +1996,8 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
   const list = watch.sections[0];
   assert.deepEqual([list.id, list.title, list.block, list.items.length], ['yourBars', 'Your status bars', 'barsList', 0],
     'the tab opens on the Your status bars card, drawn by screens-page.js barsCard');
-  assert.ok(/\bbar\b/.test(list.intro) && /Tap a slot/.test(list.intro) && /bar’s name/.test(list.intro),
-    'its intro describes the bars once: a slot can be tapped, and a bar\'s name');
+  assert.ok(/\bbar\b/.test(list.intro) && /Tap a bar/.test(list.intro) && !/Tap a slot/.test(list.intro),
+    'its intro describes the bars once: a tap on a bar opens all its settings, no slot is tapped alone');
   assert.deepEqual(watch.sections.filter((s) => !s.sheetOnly).map((s) => s.id), ['yourBars', 'statusAll'],
     'the tab\'s two cards');
   const titles = watch.sections.map((s) => s.title).filter(Boolean);
@@ -2055,13 +2057,14 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
   // the contract's wire-id order (KINDS 8..19). 'Phone battery slot' is last and
   // serves BOTH phone-battery kinds (18 and 19) — they share key 'PhoneBattery',
-  // so there are eleven sheets for twelve bold-only kinds.
+  // so there are eleven sheets for twelve bold-only kinds. The weather condition slot's
+  // dialog, its Look and no Bold row, closes the tab.
   assert.deepEqual(titles.slice(17),
     ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
       'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
-      'Phone battery slot'],
-    'bold-only slot sheets close the tab, in wire-id order');
+      'Phone battery slot', 'Weather condition slot'],
+    'bold-only slot sheets follow, in wire-id order, then the condition slot\'s');
   // Every slot sheet previews the bars while it is open (the bar it came from, when it came
   // from a bar's dialog: preview-status-bars.js statusBarsPreview).
   watch.sections.filter((s) => /^thresh/.test(s.sheetId || '')).forEach((s) =>
@@ -2406,31 +2409,42 @@ test('the All status bars card carries the reset-status-bars link row, ungated',
   // machinery it must NOT be thresholds-gated (neither the section nor the row).
   assert.equal(intro.showWhen, undefined, 'the card carries no platform gate');
   assert.equal(reset.showWhen, undefined, 'the reset row carries no platform gate');
-  // Bold values (thresholds-gated, in view: the owner, 2026-11-06), then Weather alerts replace slots
-  // (On demand-gated: aplite has no alerts to place), are the card's other rows.
-  assert.deepEqual(intro.items.slice(0, -1).map((i) => i.messageKey), ['statusBoldAll', 'alertsReplaceSlot']);
+  // Bold values (thresholds-gated, in view: the owner, 2026-11-06) is the card's other row:
+  // 3.2.0's Weather alerts replace slots moved into the Rain alert dialog (below).
+  assert.deepEqual(intro.items.slice(0, -1).map((i) => i.messageKey), ['statusBoldAll']);
   assert.equal(byKey('statusBoldAll').more, undefined, 'Bold values is not tucked under More options');
   assert.deepEqual(byKey('statusBoldAll').showWhen, { env: 'thresholds' });
-  assert.equal(byKey('alertsReplaceSlot').more, undefined, 'Weather alerts replace slots is in view');
-  assert.deepEqual(byKey('alertsReplaceSlot').showWhen, { env: 'onDemand' });
 });
 
-// Weather alerts replace slots (the owner's ask, 2026-11-13: an alert that takes its slot's place
-// the moment it shows, not only once the bar runs out of room): If needed, the old
-// behaviour, by default; each value's hint says what it does; Reset status bars to defaults
-// puts it back.
-test('Weather alerts replace slots: If needed by default, Right away on demand, reset with the bars', () => {
-  const row = byKey('alertsReplaceSlot');
-  assert.equal(row.type, 'segmented');
-  assert.equal(row.label, 'Weather alerts replace slots');
-  assert.equal(row.defaultValue, 'needed');
-  assert.deepEqual(row.options, [['If needed', 'needed'], ['Right away', 'now']]);
-  assert.ok(/beside the slot/.test(row.hintByValue.needed), 'If needed: beside the slot');
-  assert.ok(/takes the place of the slot/.test(row.hintByValue.now), 'Right away: takes its place');
-  const S = { alertsReplaceSlot: 'now' };
-  global.PConf.actions.resetStatusSlots(null, S, { platform: 'basalt', onDemand: true },
-    (k) => (k === 'alertsReplaceSlot' ? 'needed' : undefined));
-  assert.equal(S.alertsReplaceSlot, 'needed', 'Reset status bars to defaults puts it back');
+// The Rain alert's "Replaces the slot" (the owner's, 2026-11-14: one switch, in the Rain alert
+// dialog, on by default; the metric alerts always sit beside their slot): the toggle follows
+// the Look in the Rain sheet's Alert card, reads its default from the contract, says what
+// each value does, and Reset alert settings puts it back. 3.2.0's All status bars row for
+// every weather alert is gone.
+test('Replaces the slot: the Rain alert\'s own switch, on by default, reset with the alert settings', () => {
+  const rows = items.filter((i) => i.messageKey === 'rainAlertReplacesSlot');
+  assert.equal(rows.length, 1, 'one row for the key');
+  const row = rows[0];
+  const sheet = alertSheet('alertRain');
+  const at = sheet.items.indexOf(row);
+  assert.ok(at !== -1, 'it lives in the Rain sheet');
+  assert.equal(sheet.items[at - 1].messageKey, 'rainAlertDisplay', 'it follows the Look');
+  assert.equal(row.type, 'toggle');
+  assert.equal(row.label, 'Replaces the slot');
+  assert.equal(row.defaultValue, true);
+  assert.equal(row.defaultValue, require('../src/pkjs/status-thresholds.js').rainAlert(null).replacesSlot,
+    'the default is the contract\'s');
+  assert.equal(row.showWhen, undefined, 'ungated in its sheet: the sheet\'s own gate is enough');
+  assert.ok(/takes the place of the status slot/.test(row.hintByValue['true']), 'on: takes its place');
+  assert.ok(/beside the status slot/.test(row.hintByValue['false']), 'off: beside it');
+  assert.equal(items.filter((i) => i.messageKey === 'alertsReplaceSlot').length, 0, 'the shared row is gone');
+  ['alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen'].forEach((id) => {
+    assert.ok(!alertSheet(id).items.some((i) => /Replace/i.test(i.messageKey || '')), id + ' has no switch');
+  });
+  const S = { rainAlertReplacesSlot: false };
+  global.PConf.actions.resetOnDemand(null, S, { platform: 'basalt', onDemand: true },
+    (k) => (k === 'rainAlertReplacesSlot' ? true : undefined));
+  assert.equal(S.rainAlertReplacesSlot, true, 'Reset alert settings puts it back');
 });
 
 test('every threshold sheet is sheetOnly and gated off on aplite (which compiles the highlight out)', () => {
@@ -2443,14 +2457,15 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // opened as a sheet of its own (schema.js barKeysSection); each bar's dialog is a sheet that
   // holds slots, not levels (barDialog).
   const sheets = watch.sections.filter((s) => s.sheetOnly && s.sheetId !== 'barKeys' && !/^bar-/.test(s.sheetId));
-  assert.equal(sheets.length, 19,
-    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only)');
+  // The weather condition slot's dialog comes last: its Look, then Bold like every text slot.
+  assert.equal(sheets.length, 20,
+    'one edit sheet per boldable slot kind (8 threshold + 12 bold-only)');
   assert.deepEqual(sheets.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct',
-      'threshDew', 'threshPhoneBattery'],
+      'threshDew', 'threshPhoneBattery', 'threshCondition'],
     'sheet ids follow the thresh<Stem> convention the slot resolver derives');
   // The On demand sheets (the side lists' section + 10 item sheets) moved with the alerts
   // to the Alerts tab, and carry the On demand gate (aplite has no On demand).
@@ -2695,7 +2710,7 @@ test('the Date sheet carries the two format pickers, wire-lockstep, Bold last', 
   // date-format.js and through it the C enum; the full list resolves through
   // dateFullFormatOptions, pinned to the same rule in config-blocks.test.js.
   assert.equal(month.type, 'radio');
-  assert.deepEqual(month.options.map((o) => o[1]), CODES.MONTH_FORMAT_CODES);
+  assert.deepEqual(month.options.map((o) => o[1]).sort(), CODES.MONTH_FORMAT_CODES.slice().sort());
   assert.equal(month.defaultValue, 'auto');
   assert.equal(full.type, 'radio');
   assert.equal(full.optionsFrom.resolver, 'dateFullFormatOptions');

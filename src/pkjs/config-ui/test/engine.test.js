@@ -2062,6 +2062,76 @@ test('boot(): Escape collapses an open list (or palette) first and closes the sh
   });
 });
 
+// A select marked bottomSheet opens its list in a dialog as a sheet that rises from the bottom
+// over the dialog (engine renderPickSheet; the owner's, 2026-11-14, for a status bar's slots),
+// not in place under its row. Its state is the in-place list's: the same picks, Escape and focus.
+const BOTTOM_SHEET_SCHEMA = JSON.parse(JSON.stringify(SHEET_SELECT_SCHEMA));
+Object.assign(BOTTOM_SHEET_SCHEMA.tabs[0].sections[1].items.find((i) => i.messageKey === 'sep'),
+  { bottomSheet: true, sheetTitle: 'Format · Separator' });
+
+/**
+ * Boot BOTTOM_SHEET_SCHEMA, open its dialog and tap the bottomSheet select's row.
+ * @param {Object} [opts] Passed through to bootWithCapturedListeners.
+ * @returns {Object} The harness.
+ */
+function bootWithBottomSheet(opts) {
+  const r = bootWithCapturedListeners(BOTTOM_SHEET_SCHEMA, {}, opts);
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'fmt' });
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  return r;
+}
+
+test('boot(): a bottomSheet select\'s list rises from the bottom over the dialog; its row stays as it was', () => {
+  const r = bootWithBottomSheet();
+  const html = r.modal.innerHTML;
+  const at = html.indexOf('<div class="psheet-scrim" data-psheet-close></div><div class="psheet" role="group" '
+    + 'aria-labelledby="psheet-ttl-sep"><div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="psheet-ttl-sep">'
+    + 'Format · Separator</span><button type="button" class="ssel-modal-close" data-psheet-close aria-label="Close">×'
+    + '</button></div><div id="ssel-list-sep" class="isel-list" role="listbox" aria-label="Format · Separator options">');
+  assert.ok(at >= 0, 'a clear layer, then the sheet: its title, its ×, its list under the id the trigger names');
+  assert.ok(html.indexOf('data-select-pick="custom"', at) > at, 'with its options');
+  assert.ok(at > html.indexOf('data-select="mark"'), 'after every row of the dialog, not in the select\'s own row');
+  assert.ok(html.endsWith('</div></div>'), 'the last thing the dialog draws');
+  const tags = selectRowTags(html, 'sep');
+  assert.doesNotMatch(tags.row, /\bisel-open\b/, 'the row does not open in place');
+  assert.match(tags.trigger, /aria-expanded="true"/, 'its trigger reads as open');
+  assert.ok(html.indexOf('data-k="flag"') >= 0, 'the dialog is drawn under it');
+  // An ordinary select in the same dialog still opens in place.
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'mark' });
+  assert.equal(r.modal.innerHTML.indexOf('psheet'), -1, 'the sheet went');
+  assert.match(selectRowTags(r.modal.innerHTML, 'mark').row, /\bisel-open\b/, 'the other list opens in its row');
+});
+
+test('boot(): a pick in the bottom sheet stores it and closes the sheet; the dialog stays', () => {
+  let triggerFocus = 0;
+  const r = bootWithBottomSheet({ modalQuery: (sel) => (sel === '[data-select="sep"]'
+    ? { focus: () => { triggerFocus++; } } : null) });
+  clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'sep', 'data-select-pick': 'custom' });
+  assert.equal(r.getValue('sep'), 'custom');
+  const html = r.modal.innerHTML;
+  assert.equal(html.indexOf('psheet'), -1, 'the sheet went');
+  assert.ok(html.indexOf('data-k="sepText"') >= 0, 'the dialog stays, drawn with the pick');
+  assert.equal(triggerFocus, 1, 'focus goes back to the row\'s trigger');
+});
+
+test('boot(): a tap beside the bottom sheet, its × or Escape closes it alone, nothing picked', () => {
+  ['beside', 'close', 'escape'].forEach((how) => {
+    const focused = [];
+    const r = bootWithBottomSheet({ modalQuery: (sel) => (sel === '[data-select="sep"]'
+      ? { focus: () => { focused.push(sel); } } : null) });
+    if (how === 'escape') {
+      r.modalListeners.cancel({ preventDefault: () => {} });
+    } else {
+      clickMatching(r.modalListeners.click, '[data-psheet-close]', {});
+    }
+    const html = r.modal.innerHTML;
+    assert.equal(html.indexOf('psheet'), -1, how + ': the sheet went');
+    assert.ok(html.indexOf('data-k="flag"') >= 0, how + ': the dialog stays');
+    assert.equal(r.getValue('sep'), 'slash', how + ': nothing picked');
+    assert.deepEqual(focused, ['[data-select="sep"]'], how + ': focus goes back to the row\'s trigger');
+  });
+});
+
 // Edit sheets are full-screen dialogs now: × and Done are the ways out (Escape too, see
 // above). The bottom-sheet dismissals are gone by design — a full-screen dialog has no
 // backdrop to tap, and a downward drag is no way to throw away (or keep) its changes.

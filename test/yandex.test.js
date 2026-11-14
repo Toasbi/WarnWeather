@@ -104,6 +104,31 @@ test('buildQuery selects feelsLike with the temperature unit arg in now{} and ho
   assert.match(q, /hours \{[^}]*feelsLike\(unit: FAHRENHEIT\)/);
 });
 
+test('buildQuery selects the condition now, a bare enum field of now{}', () => {
+  const q = yandex.buildQuery(52.52, 13.41);
+  assert.match(q, /now \{[^}]*\bcondition \}/, 'no arguments: Now.condition takes none');
+  assert.doesNotMatch(q, /hours \{[^}]*\bcondition\b/, 'the hours need none');
+});
+
+test('mapResponse names the condition now from now.condition, either spelling', () => {
+  [['PARTLY_CLOUDY', 'partly'], ['partly-cloudy', 'partly']].forEach(([value, id]) => {
+    const r = sampleResponse();
+    r.data.weatherByPoint.now.condition = value;
+    assert.equal(mapResponse(r, BASE).currentCondition, id, value);
+  });
+});
+
+test('mapResponse names no condition when now names none', () => {
+  assert.equal(mapResponse(sampleResponse(), BASE).currentCondition, null, 'no condition');
+  [null, '', 'NOPE', 3].forEach((value) => {
+    const r = sampleResponse();
+    r.data.weatherByPoint.now.condition = value;
+    const out = mapResponse(r, BASE);
+    assert.equal(out.currentCondition, null, 'condition ' + JSON.stringify(value));
+    assert.equal(out.tempTrend.length, 24, 'the rest maps as before');
+  });
+});
+
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 const YandexProvider = yandex.YandexProvider;
 
@@ -200,6 +225,31 @@ test('withProviderData POSTs the built query with auth headers, and onload popul
   }
 });
 
+test('withProviderData carries the condition now to the payload, and a reused instance drops it', () => {
+  const prevXhr = global.XMLHttpRequest;
+  global.XMLHttpRequest = MockXhr;
+  try {
+    const p = new YandexProvider('KEY123');
+    const fetchWith = (response) => {
+      p.withProviderData(52.52, 13.41, false, () => {}, (f) => { throw new Error(f.code); });
+      MockXhr.last.status = 200;
+      MockXhr.last.responseText = JSON.stringify(response);
+      MockXhr.last.onload();
+    };
+    const wet = liveSampleResponse();
+    wet.data.weatherByPoint.now.condition = 'HEAVY_RAIN';
+    fetchWith(wet);
+    assert.equal(p.currentCondition, 'heavyrain');
+    assert.equal(p.getPayload().CURRENT_CONDITION, 'heavyrain');
+    fetchWith(liveSampleResponse());
+    assert.equal(p.currentCondition, null, 'not the previous cycle\'s');
+    assert.equal('CURRENT_CONDITION' in p.getPayload(), false);
+  }
+  finally {
+    global.XMLHttpRequest = prevXhr;
+  }
+});
+
 test('mapResponse maps feelsLike (server-side °F) with temp fallback and null current', () => {
   const r = sampleResponse();
   r.data.weatherByPoint.now.feelsLike = 65.5;
@@ -270,4 +320,74 @@ test('48 h: mapResponse maps 48 hours across the days, what the feed holds when 
   assert.equal(mapResponse(r, BASE + 18 * 3600 + 600).tempTrend.length, 24, 'the default stays 24');
   // The 54-hour sample leaves 36 from anchor 18.
   assert.equal(mapResponse(sampleResponse(), BASE + 18 * 3600 + 600, 48).tempTrend.length, 36);
+});
+
+// A query Yandex rejects (the condition field has not been seen in live traffic): HTTP 400,
+// or a 200 holding errors and no data. The fetch asks again without the field.
+function withMockXhr(fn) {
+  const prevXhr = global.XMLHttpRequest;
+  const sent = [];
+  function Recording() { MockXhr.call(this); sent.push(this); }
+  Recording.prototype = Object.create(MockXhr.prototype);
+  global.XMLHttpRequest = Recording;
+  yandex._resetForTests();
+  try { fn(sent); }
+  finally { global.XMLHttpRequest = prevXhr; yandex._resetForTests(); }
+}
+const answer = (xhr, status, body) => { xhr.status = status; xhr.responseText = JSON.stringify(body); xhr.onload(); };
+const asksCondition = (xhr) => JSON.parse(xhr.body).query.indexOf('condition') >= 0;
+
+test('buildQuery leaves the condition field out on request', () => {
+  assert.ok(yandex.buildQuery(1, 2).indexOf(' condition }') >= 0);
+  assert.equal(yandex.buildQuery(1, 2, 24, true).indexOf('condition'), -1);
+  assert.ok(yandex.buildQuery(1, 2, 24, true).indexOf('feelsLike(unit: FAHRENHEIT) }') >= 0);
+});
+
+[[400, { errors: [{ message: 'Cannot query field "condition"' }] }],
+ [200, { errors: [{ message: 'Cannot query field "condition"' }], data: null }]].forEach(([status, body]) => {
+  test('a rejected query (' + status + ') loads without the condition and reports it once', () => {
+    withMockXhr((sent) => {
+      const p = new YandexProvider('KEY123');
+      let ok = 0;
+      p.withProviderData(52.52, 13.41, false, () => { ok += 1; }, (f) => { throw new Error(f.code); });
+      assert.ok(asksCondition(sent[0]));
+      answer(sent[0], status, body);
+      assert.equal(sent.length, 2, 'asked again');
+      assert.equal(asksCondition(sent[1]), false);
+      answer(sent[1], 200, liveSampleResponse());
+      assert.equal(ok, 1);
+      assert.equal(p.currentTemp, 71);
+      assert.equal(p.currentCondition, null);
+      assert.deepEqual(p.recoveredFailure, { stage: 'provider_data', code: 'yandex_condition_rejected' });
+
+      p.recoveredFailure = null;   // the fetch cycle reports and clears it
+      p.withProviderData(52.52, 13.41, false, () => { ok += 1; }, (f) => { throw new Error(f.code); });
+      assert.equal(asksCondition(sent[2]), false, 'later fetches leave the field out');
+      answer(sent[2], 200, liveSampleResponse());
+      assert.equal(ok, 2);
+      assert.equal(sent.length, 3, 'no second try');
+      assert.equal(p.recoveredFailure, null, 'reported once');
+    });
+  });
+});
+
+test('other failures are not asked again, and a failed second try reports the first failure', () => {
+  withMockXhr((sent) => {
+    const p = new YandexProvider('KEY123');
+    let failed = null;
+    p.withProviderData(52.52, 13.41, false, () => { throw new Error('no'); }, (f) => { failed = f; });
+    answer(sent[0], 403, {});
+    assert.equal(sent.length, 1, 'a key error is not asked again');
+    assert.equal(failed.code, 'yandex_status_403');
+
+    p.withProviderData(52.52, 13.41, false, () => { throw new Error('no'); }, (f) => { failed = f; });
+    answer(sent[1], 400, {});
+    assert.equal(asksCondition(sent[2]), false);
+    answer(sent[2], 400, {});
+    assert.equal(failed.code, 'yandex_status_400', 'the first failure');
+    assert.equal(p.recoveredFailure, null);
+
+    p.withProviderData(52.52, 13.41, false, () => {}, () => {});
+    assert.ok(asksCondition(sent[3]), 'still asks for the condition: it was not the cause');
+  });
 });

@@ -43,7 +43,7 @@ test('each glyph is its PNG with the watch\'s metrics; the ClockInk rows match c
 function clock(S, env) {
   const st = Object.assign({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }, S);
   const spec = vc.resolveViewCycle(st, env)[0], f = env.platform === 'emery' ? 1 : 0;
-  const band = pw.layoutView(spec, f).bands.filter((b) => b.band === 'C')[0];
+  const band = pw.layoutView(spec, f, pw.clockInk(st, f, env.color === false)).bands.filter((b) => b.band === 'C')[0];
   return { svg: pw.screenSvg(spec, 0, st, env, {}, f, new Date(2026, 8, 7)).svg, band: band };
 }
 

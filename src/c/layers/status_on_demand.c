@@ -15,7 +15,6 @@
 #include "status_row_layout.h"
 #include "status_sig.h"
 #include "../appendix/config.h"
-#include "../appendix/palette.h"
 #include "../appendix/persist.h"
 #include "../appendix/rain_countdown.h"
 #include "../appendix/snooze.h"
@@ -27,8 +26,8 @@
 #if defined(WW_ON_DEMAND)
 
 // Glyph keys: the metric icons are their StatusIconId (to STATUS_ICON_MAX), the system
-// glyphs their in-memory ids (status_row_icons.h), and the rain drops the flag bit
-// plus the drop bucket, so drizzle -> rain swaps the glyph.
+// glyphs their in-memory ids (status_icon_size.h), and the rain alert the flag bit
+// plus its bucket, so drizzle -> rain swaps the glyph.
 #define RAIN_KEY_FLAG 0x80
 // Quiet time, one Bluetooth variant, rain and the five metric kinds.
 #define GLYPH_SLOTS 8
@@ -38,8 +37,6 @@ struct StatusOnDemandCache {
     uint8_t keys[GLYPH_SLOTS];   // 0 = free
     int16_t target_h;
     GColor fg;
-    GColor rain_tint;
-    bool rain_outline;
 };
 
 // NULL on OOM: the glyph items then measure text-only (or not at all) until a later
@@ -63,31 +60,12 @@ void status_on_demand_release(StatusOnDemandRow *row) {
     row->cache = NULL;
 }
 
-// The drops' tint for a radar tier: the radar palette's colour on a colour theme,
-// the foreground on B&W (palette_radar_color() hands B&W the strip's own background
-// there, which would paint the drops invisibly).
-static GColor rain_tint(int tier) {
-#ifdef PBL_COLOR
-    if (!theme_is_bw()) { return palette_radar_color(tier); }
-#endif
-    (void)tier;
-    return theme_fg();
-}
-
 // The Bluetooth glyph's ink, `hue` PictonBlue connected and red disconnected. The
 // light theme draws it in the foreground — a saturated blue reads poorly on a white
 // strip; a dark colour theme keeps the hue, and B&W collapses to the foreground
 // through theme_pick().
 static GColor bt_ink(GColor hue) {
     return theme_is_light() ? theme_fg() : theme_pick(hue, theme_fg());
-}
-
-static uint32_t rain_resource(uint8_t bucket) {
-    switch (bucket) {
-        case 1:  return RESOURCE_ID_RAIN_DRIZZLE;
-        case 2:  return RESOURCE_ID_RAIN_RAIN;
-        default: return RESOURCE_ID_RAIN_DOWNPOUR;   // bucket 3 (emery-only)
-    }
 }
 
 static int find_key(const StatusOnDemandCache *cache, uint8_t key) {
@@ -98,20 +76,17 @@ static int find_key(const StatusOnDemandCache *cache, uint8_t key) {
 }
 
 // Make the cache hold exactly the glyphs in `keys` (n of them): load each at
-// `target_h` (the row's icon tier; outline art through status_row_icons_load, the
-// rain drops through status_row_icons_load_filled) and EVICT every cached glyph no
+// `target_h` (the row's icon tier; the slot glyphs through status_row_icons_load, the
+// rain alert's through status_row_icons_load_rain) and EVICT every cached glyph no
 // longer wanted — resident only while its item is active, so an idle bar holds no
-// glyph heap. The foreground, the rain tint and the light theme's edge on the drops
-// are part of the key: a theme or tier change reloads just the glyphs it affects.
+// glyph heap. The foreground and the icon height are part of the key: a theme or tier
+// change reloads the glyphs.
 // `top_strip` is not: a row is the top strip's or a bar's for its whole life
 // (status_bar.c's bar_line, top_status_layer.c), and so is its cache.
-static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int tier,
-                   int target_h, bool top_strip) {
+static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int target_h,
+                   bool top_strip) {
     GColor fg = theme_fg();
-    GColor tint = rain_tint(tier);
-    bool outline = theme_is_light();
     bool env = target_h != cache->target_h || !gcolor_equal(fg, cache->fg);
-    bool rain_env = env || !gcolor_equal(tint, cache->rain_tint) || outline != cache->rain_outline;
     for (int i = 0; i < GLYPH_SLOTS; i++) {
         uint8_t key = cache->keys[i];
         if (key == 0) { continue; }
@@ -119,13 +94,10 @@ static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int t
         for (int k = 0; k < n; k++) {
             if (keys[k] == key) { wanted = true; }
         }
-        bool stale = (key & RAIN_KEY_FLAG) ? rain_env : env;
-        if (stale || !wanted) { evict(cache, i); }
+        if (env || !wanted) { evict(cache, i); }
     }
     cache->target_h = (int16_t)target_h;
     cache->fg = fg;
-    cache->rain_tint = tint;
-    cache->rain_outline = outline;
     for (int k = 0; k < n; k++) {
         uint8_t key = keys[k];
         if (key == 0 || find_key(cache, key) >= 0) { continue; }
@@ -135,8 +107,7 @@ static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int t
         // redraw at the latest — tries again, as the old strip's indicator icons did;
         // until then the item measures text-only, or not at all (Bluetooth, Quiet time).
         cache->images[slot] = (key & RAIN_KEY_FLAG)
-            ? status_row_icons_load_filled(rain_resource(key & ~RAIN_KEY_FLAG), target_h,
-                                           tint, outline)
+            ? status_row_icons_load_rain(key & ~RAIN_KEY_FLAG, target_h)
             : status_row_icons_load(key, target_h, top_strip);
         if (cache->images[slot]) { cache->keys[slot] = key; }
     }
@@ -174,7 +145,7 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SC
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
     s->bt_key = 0;
     s->battery_value = false;
-    s->alerts_replace = status_threshold_alerts_replace(blob);
+    s->rain_replaces = status_threshold_rain_replaces(blob);
     BatteryChargeState bs = watch_services_battery_state();
     s->charge = bs.charge_percent;
     s->charging = bs.is_charging || bs.is_plugged;
@@ -313,11 +284,11 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
     const bool batt = s.active[OD_BATTERY];
     const bool rain = s.active[OD_RAIN];
     const bool text = rain && s.rain_display != THRESH_RAIN_DISPLAY_ICON;
-    uint8_t live[11] = { (uint8_t)batt, s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
+    uint8_t live[10] = { (uint8_t)batt, s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
                          (uint8_t)s.active[OD_SLEEP], (uint8_t)rain,
                          batt ? s.charge : 0, (uint8_t)(batt && s.charging),
                          rain ? s.rain.tier : 0, text ? s.rain.mins : 0,
-                         (uint8_t)(text && s.rain.raining), (uint8_t)s.alerts_replace };
+                         (uint8_t)(text && s.rain.raining) };
     sig = sig_fold(sig, live, sizeof(live));
     return sig_fold(sig, s.bytes, (size_t)n);
 }
@@ -331,10 +302,14 @@ typedef struct {
     bool charging;   // the watch is charging: the battery glyph keeps its bolt lane
 } Families;
 
-// Member `v` of slot `slot`'s short family into `buf` (status_short_member): its
-// flags, 0 for none. `suffix`: the slot's full form draws the wind arrow.
+// Member `v` of slot `slot`'s short family into `buf`: the short form it brought
+// (status_short_alt), else the ones its text derives (status_short_member). Its flags,
+// 0 for none. `suffix`: the slot's full form draws the wind arrow.
 static uint8_t family_member(const Families *f, const StatusOnDemandSlot *slot, bool suffix,
                              uint8_t v, char *buf) {
+    if (slot->alt[0] != '\0') {
+        return status_short_alt(slot->kind, slot->icon, slot->alt, v, buf, STATUS_SHORT_CAP);
+    }
     return status_short_member(slot->kind, slot->icon, slot->text, suffix, f->charging, v,
                                buf, STATUS_SHORT_CAP);
 }
@@ -397,8 +372,7 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     }
     if (!row->cache && nkeys > 0) { row->cache = cache_create(); }
     if (row->cache) {
-        ensure(row->cache, keys, nkeys, s->active[OD_RAIN] ? s->rain.tier : 0, env->icon_h,
-               env->top_strip);
+        ensure(row->cache, keys, nkeys, env->icon_h, env->top_strip);
     }
     // Each side's active items, nearest the side's own slot first: the item order is
     // the priority.
@@ -429,9 +403,9 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     Families f;
     f.charging = s->charging;
     for (int i = 0; i < 3; i++) { measure_family(&f, i, &slots[i], &m[i], env, content_w); }
-    // Weather alerts that replace their side's slot right away: that slot is laid out as
-    // empty, so it does not show and the side's items start at the edge.
-    if (s->alerts_replace) { od_replace_slots(f.in, pass->sides); }
+    // A rain alert that replaces its side's slot: that slot is laid out as empty, so it
+    // does not show and the side's items start at the edge.
+    if (s->rain_replaces) { od_replace_slots(f.in, pass->sides); }
     const int8_t bleed[2] = { env->bleed_left, 0 };
     // W7: a slot of this bar that shows the watch battery (the glyph or the Battery %,
     // anywhere) already says what the Battery item would, whatever its Look, so the

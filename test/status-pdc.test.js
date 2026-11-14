@@ -84,24 +84,18 @@ for (const file of HEALTH_25) {
   });
 }
 
-// A PDC on disk that nothing declares never reaches the watch, and the failure is
-// silent: RESOURCE_ID_<NAME> simply does not exist and the C build breaks, or worse
-// the glyph is declared for aplite and quietly eats the frozen image's last bytes.
-// aplite is excluded from EVERY PDC in this project — that exclusion is what keeps
-// the aplite image at its ceiling — so the platform list is pinned exactly, not
-// merely checked for aplite's absence.
-const PDC_PLATFORMS = ['basalt', 'diorite', 'emery', 'flint'];
+// These PDCs are the pixel icon editor's starting point ("Today", scripts/pixel-icons/
+// watch_icons.py reads them), no longer the watch's: it draws the icons' pixel drawings
+// (PX_*, scripts/pixel-icons/gen_watch_icons.js) and nothing else. So none of them is
+// declared in package.template.json's media: one there would cost every watch the
+// bytes for an icon it never loads.
 const MEDIA = require('../package.template.json').pebble.resources.media;
 
 for (const file of [...OUTLINE_24, ...HEALTH_25]) {
-  test(`${file} is declared in package.template.json, aplite excluded`, () => {
+  test(`${file} stays on disk for the editor and out of the watch build`, () => {
     const name = file.replace(/\.pdc$/, '');
-    const entry = MEDIA.find((m) => m.name === name);
-    assert.ok(entry, `${name} is not declared in package.template.json's media`);
-    assert.strictEqual(entry.type, 'raw', 'PDCs ship as raw resources');
-    assert.strictEqual(entry.file, `data/${file}`, 'file path');
-    assert.deepStrictEqual(entry.targetPlatforms, PDC_PLATFORMS,
-                           'aplite must stay excluded from every PDC');
+    assert.ok(fs.existsSync(path.join(DATA, file)), `${file}: the editor starts from it`);
+    assert.equal(MEDIA.find((m) => m.name === name), undefined, `${name} is not built into the watch`);
   });
 }
 

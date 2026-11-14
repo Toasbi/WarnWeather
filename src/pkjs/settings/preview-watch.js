@@ -49,11 +49,10 @@
         return PConf && PConf.blocks ? PConf.blocks.get(id) : null;
     }
 
-    // Each screen family (view-cycle.js FIT_PX's index): its grid, and the row the top bar
-    // ends on (the stack's cursor start under it, floor minus the rows a stack has).
+    // Each screen family's grid (view-cycle.js FIT_PX's index).
     var SCREEN = [
-        { w: 144, h: 168, floor: 168 },
-        { w: 200, h: 228, floor: 222 }
+        { w: 144, h: 168 },
+        { w: 200, h: 228 }
     ];
     // A screen's name (screens.js nameOf), the caption under its picture.
     var screens = NODE ? require('../screens.js') : window.Screens;
@@ -127,66 +126,37 @@
     }
 
     /**
-     * Where each band of one view sits on its screen: the walk stackSeats makes (a preset
-     * in its tier's legacy order: COMPACT top-row-clock, FULL and NONE top-clock-rows), the
-     * band that fills taking what the stack leaves, else the whole block moved by the
-     * view's Position (layout.c stack_align_offset).
+     * Where each band of one view sits on its screen: where the watch places it
+     * (view-cycle.js stackLayout, layout.c compute_layout, kept in lockstep with it), the
+     * clock's ink centred between its neighbours' for the time font drawn. A band that fills
+     * the stack and ends it runs on to the screen's bottom edge (emery's floor keeps 4 rows the
+     * forecast's hour labels end in: graphBand's foot).
      * @param {!Object} spec One ViewSpec of the cycle.
      * @param {number} f Screen family (0 = 144 px, 1 = emery).
+     * @param {{centreOff: number, inkH: number}} [ink] The time font's ink (clockInk), Roboto's
+     *     by default.
      * @returns {{strip: number, tier: number, bands: !Array<{band: string, y: number, h: number}>}}
      *     The top bar's height (0 without one), the status rows' tier and each band's rows.
      */
-    function layoutView(spec, f) {
-        var sc = SCREEN[f];
-        var walk = spec;
-        if (!VC.isStacked(spec)) {
-            walk = VC.cloneSpec(spec);
-            walk.order = spec.tier === VC.TIER_COMPACT ? 0 : 1;
-        }
-        var st = VC.stackSeats(walk, f);
-        var strip = spec.stripOff ? 0 : sc.floor - VC.FIT_PX.availStrip[f];
-        var slack = st.avail - st.need, fillAt = -1, i;
-        for (i = 0; i < st.seats.length; i++) { if (st.seats[i].fill) { fillAt = i; } }
-        var bands = [], y = (spec.stripOff ? sc.floor - VC.FIT_PX.availNoStrip[f] : strip) + st.lead, clock = null;
-        for (i = 0; i < st.seats.length; i++) {
-            var seat = st.seats[i];
-            var h = seat.pitch + (i === fillAt && slack > 0 ? slack : 0);
-            // A top area that leads under the strip seats on the strip's ink (layout.c
-            // strip_calendar_seat), not on its slot: a calendar keeps its height, a filling
-            // graph still ends on its slot; the bands after it keep theirs.
-            var by = i === 0 && seat.band === 'T' && !spec.stripOff ? STRIP[f].calY : y;
-            bands.push({ band: seat.band, y: by, h: i === fillAt ? h + y - by : h });
-            if (seat.band === 'C') { clock = bands[i]; }
-            y += h + seat.gap;
-        }
-        if (fillAt >= 0) {
-            // The filling band runs to the screen's bottom edge (emery's floor keeps 6 rows the
-            // graph's hour labels sit in).
-            var last = bands[bands.length - 1];
-            if (fillAt === bands.length - 1) { last.h = sc.h - last.y; }
-        } else if (slack > 0) {
-            var off = alignOffset(spec.align || 0, slack, clock, sc.h);
-            for (i = 0; i < bands.length; i++) { bands[i].y += off; }
-        }
-        return { strip: strip, tier: st.tier, bands: bands };
+    function layoutView(spec, f, ink) {
+        var lay = VC.stackLayout(spec, f, ink || clockInk(null, f, false));
+        var last = lay.bands[lay.bands.length - 1];
+        if (last && last.band === lay.fill) { last.h = SCREEN[f].h - last.y; }
+        return { strip: spec.stripOff ? 0 : STRIP[f].h, tier: lay.tier, bands: lay.bands };
     }
 
     /**
-     * How far a stack that fills nothing moves down (layout.c stack_align_offset): Top 0,
-     * Bottom all the slack, Centre half; the default seats the clock's middle on the
-     * screen's midline, clamped into the slack (Centre without a clock).
-     * @param {number} align ALIGN_* code.
-     * @param {number} slack Free rows under the stack.
-     * @param {?{y: number, h: number}} clock The clock's band, if any.
-     * @param {number} screenH The screen's height.
-     * @returns {number} Rows to move.
+     * The time font's ink as the watch seats its clock with it (clock_ink.c): its centre's
+     * offset in the band and the digits' ink height (clockSet's).
+     * @param {?Object} S Settings (timeFont), null for Roboto.
+     * @param {number} f Screen family.
+     * @param {boolean} bw A black-and-white watch or theme (the 1-bit faces).
+     * @returns {{centreOff: number, inkH: number}}
      */
-    function alignOffset(align, slack, clock, screenH) {
-        if (align === VC.ALIGN_TOP) { return 0; }
-        if (align === VC.ALIGN_BOTTOM) { return slack; }
-        if (align === VC.ALIGN_CENTER || !clock) { return Math.floor(slack / 2); }
-        var off = Math.round(screenH / 2 - (clock.y + clock.h / 2));
-        return off < 0 ? 0 : (off > slack ? slack : off);
+    function clockInk(S, f, bw) {
+        var font = S && (S.timeFont === 'leco' || S.timeFont === 'bitham') ? S.timeFont : 'roboto';
+        var row = clockGlyphs ? clockGlyphs.ink[f][font] : null, set = clockSet(font, { f: f, bw: bw });
+        return { centreOff: row ? row.centreOff : 0, inkH: set ? set.inkH : (f ? 46 : 35) };
     }
 
     /**
@@ -360,28 +330,8 @@
     // watch is not charging), a 17 × 10 body, a 2-column nub.
     var BATTERY = { w: 29, h: 10, lane: 10, nub: 2 };
 
-    /**
-     * status_metrics.h status_glyph_below: rows from the content box's bottom up to the
-     * digits' visual centre.
-     * @param {number} ch The line's content height (the Gothic size).
-     * @returns {number}
-     */
-    function glyphBelow(ch) {
-        return cdiv(ch + 6, 4);
-    }
-
-    /**
-     * status_metrics.h status_seat_y: the line's top in a band, its cap centred on the band's
-     * middle unless its descenders would leave the band.
-     * @param {number} bandH The band's height.
-     * @param {number} ch The line's content height.
-     * @returns {number} Rows below the band's top.
-     */
-    function seatY(bandH, ch) {
-        var y = cdiv(bandH, 2) - ch + glyphBelow(ch);
-        var fit = bandH - ch - cdiv(ch + 3, 6);
-        return y < fit ? y : fit;
-    }
+    // status_metrics.h's seat of a line in a band (view-cycle.js, the placement's own copy).
+    var seatY = VC.statusSeatY, glyphBelow = VC.statusGlyphBelow;
 
     /**
      * The Watch battery glyph at the sample's 80 % charge: its body outlined, the charge filled,
@@ -485,6 +435,78 @@
     }
 
     /**
+     * @param {boolean} top The Watch bar's strip. @param {number} ch The row's Gothic size.
+     * @param {number} h The band's height.
+     * @returns {number} The row's icon height.
+     */
+    function rowIconH(top, ch, h) {
+        return Math.min(cdiv(ch * (top ? 5 : 6), 9), h - 2);
+    }
+
+    /**
+     * A row's three slots measured in the watch's Gothic and laid out as the watch does both:
+     * a slot that brought a short form draws it where the row would cut a text, an edge's
+     * whole name giving way whenever any text is cut, the wider name first, then the middle
+     * where its own is cut, each swap laid out again (status_row.c swap_in_short_forms).
+     * @param {Array<Object>} bars The bar's slots (preview-status-bars.js barSlots).
+     * @param {number} cw The row's content width. @param {number} ch Its Gothic size.
+     * @param {number} iconH Its icon height. @param {number} f Screen family.
+     * @returns {{slots: Array<?Object>, placed: Array<?Object>}} Left, middle and right: each
+     *     slot's measures and final label, and where it goes (placeSlots).
+     */
+    function rowLayout(bars, cw, ch, iconH, f) {
+        var arrowW = f ? 8 : 6;
+        var slots = [null, null, null], at = { left: 0, mid: 1, right: 2 };
+        bars.forEach(function (c) {
+            if (c.code === 'empty' || !(c.pos in at)) { return; }
+            var glyph = c.code === 'battery' && !c.text;
+            var icon = glyph ? null : c.icon;
+            slots[at[c.pos]] = { label: c.text || '', alt: c.alt, glyph: glyph, icon: icon,
+                iw: glyph ? BATTERY.w : (icon ? iconH : 0), tw: c.text ? WT.width(ch, false, c.text) : 0,
+                sw: c.arrow ? arrowW : 0 };
+        });
+        var placed = placeSlots(cw, slots);
+        var cut = function (it, p) { return Boolean(it) && it.tw > 0 && !(p && p.tw >= it.tw); };
+        for (var round = 0; round < 3; round++) {
+            if (!slots.some(function (it, i) { return cut(it, placed[i]); })) { break; }
+            var pick = -1;
+            [0, 2].forEach(function (i) {
+                if (slots[i] && slots[i].alt && (pick < 0 || slots[i].tw > slots[pick].tw)) { pick = i; }
+            });
+            if (pick < 0 && slots[1] && slots[1].alt && cut(slots[1], placed[1])) { pick = 1; }
+            if (pick < 0) { break; }
+            slots[pick].label = slots[pick].alt;
+            slots[pick].tw = WT.width(ch, false, slots[pick].alt);
+            slots[pick].alt = '';
+            placed = placeSlots(cw, slots);
+        }
+        return { slots: slots, placed: placed };
+    }
+
+    /**
+     * The text each slot of a bar shows on the watch, short forms swapped in where the watch
+     * swaps them: on the first screen showing the bar (spec), in its row's font and width.
+     * The status bar pictures on the Status bars tab print these.
+     * @param {Object} S Settings. @param {Object} env Platform env.
+     * @param {string} bar The bar. @param {?Object} spec The screen showing it (null: none).
+     * @param {Array<Object>} bars Its slots (preview-status-bars.js barSlots).
+     * @returns {{left: string, mid: string, right: string}} Each slot's text.
+     */
+    function barLabels(S, env, bar, spec, bars) {
+        var f = env && env.platform === 'emery' ? 1 : 0, sc = SCREEN[f], pad = f ? 2 : 0, ch;
+        if (bar === 'top') { ch = f ? 24 : 18; }
+        else {
+            var rowFull = Boolean(spec)
+                && layoutView(spec, f, clockInk(S, f, Boolean(env && env.color === false))).tier === VC.TIER_FULL;
+            ch = f ? (rowFull ? 18 : 24) : (rowFull ? 14 : 18);
+        }
+        var slots = rowLayout(bars, sc.w - 2 * pad - 2 * ROW_MARGIN, ch, rowIconH(bar === 'top', ch, Infinity), f).slots;
+        var out = { left: '', mid: '', right: '' };
+        ['left', 'mid', 'right'].forEach(function (pos, i) { if (slots[i]) { out[pos] = slots[i].label; } });
+        return out;
+    }
+
+    /**
      * One bar's row: its three slots' sample text (preview-status-bars.js barSlots) in the
      * watch's Gothic, each after its icon where the page has one, the battery item as its
      * glyph; seated (status_seat_y, the top strip 2 rows higher) and laid out as the watch
@@ -501,18 +523,11 @@
         var top = bar === 'top', e = '';
         var lineTop = box.y + seatY(box.h, ch) - (top ? 2 : 0);
         var mid = lineTop + ch - glyphBelow(ch);
-        var iconH = Math.min(cdiv(ch * (top ? 5 : 6), 9), box.h - 2), arrowW = cx.f ? 8 : 6;
-        var slots = [null, null, null], at = { left: 0, mid: 1, right: 2 };
-        statusBars.barSlots(S, env, bar, cx.fullDate, cx.now).forEach(function (c) {
-            if (c.code === 'empty' || !(c.pos in at)) { return; }
-            var glyph = c.code === 'battery' && !c.text;
-            var icon = glyph ? null : statusBars.slotIcon(c.code, env);
-            slots[at[c.pos]] = { label: c.text || '', glyph: glyph, icon: icon,
-                iw: glyph ? BATTERY.w : (icon ? iconH : 0), tw: c.text ? WT.width(ch, false, c.text) : 0,
-                sw: c.arrow ? arrowW : 0 };
-        });
-        var x0 = box.x + ROW_MARGIN;
-        placeSlots(box.w - 2 * ROW_MARGIN, slots).forEach(function (p, i) {
+        var iconH = rowIconH(top, ch, box.h);
+        var row = rowLayout(statusBars.barSlots(S, env, bar, cx.fullDate, cx.now), box.w - 2 * ROW_MARGIN,
+            ch, iconH, cx.f);
+        var slots = row.slots, placed = row.placed, x0 = box.x + ROW_MARGIN;
+        placed.forEach(function (p, i) {
             if (!p) { return; }
             var it = slots[i], x = x0 + p.x;
             if (it.glyph) { e += batteryGlyph(x, mid, cx.fg); }
@@ -654,7 +669,7 @@
         var cx = { fg: ink.fg, color: resolveInk.drawsColor(env, theme), bw: Boolean(env && env.color === false),
                    f: f, now: now, fullDate: !statusBars.calendarShown(spec),
                    holidays: (userData && userData.holidays) || null };
-        var lay = layoutView(spec, f), e = '';
+        var lay = layoutView(spec, f, clockInk(S, f, cx.bw)), e = '';
         // The forecast graph draws the screen's graph style, as the watch does (the view's
         // style, where the watch has styles and the style exists); every other band the
         // settings as they are.
@@ -793,7 +808,8 @@
 
     if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }
     if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('timeFontPicture', fontPicture); }
-    var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg,
+    var api = { watchPreview: watchPreview, layoutView: layoutView, clockInk: clockInk, screenSvg: screenSvg,
+        barLabels: barLabels,
         graphKinds: graphKinds,
                 fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

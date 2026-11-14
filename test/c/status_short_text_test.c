@@ -207,6 +207,8 @@ static void date_calendar(void) {
         { DATE_MONTH_DOTS, "09.2026", "09.26" },
         { DATE_MONTH_SLASH, "09/2026", "09/26" },
         { DATE_MONTH_ISO, "2026-09", NULL },
+        { DATE_MONTH_DOTSYY, "09.26", NULL },
+        { DATE_MONTH_NOYEAR, "Sep", NULL },
     };
     struct tm t = sample_tm(7);
     for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
@@ -396,6 +398,19 @@ static void city(void) {
     expect_str("floor bonn", floor, "Bon\xE2\x80\xA6");
     expect_true("floor ulm", !status_short_floor("Ulm", floor, sizeof(floor)));
     expect_true("floor cap", !status_short_floor("Frankfurt", floor, 6));
+    // The city with the current weather's glyph is the same city: elastic, the same rungs.
+    const uint8_t glyph = (uint8_t)(STATUS_ICON_CITY_GLYPH | STATUS_ICON_COND_SUN);
+    expect_true("city glyph elastic", status_short_elastic(SLOT_TEXT, glyph));
+    for (uint8_t v = 1; v < OD_VARIANTS; v++) {
+        char plain[STATUS_SHORT_CAP], marked[STATUS_SHORT_CAP];
+        uint8_t a = status_short_member(SLOT_TEXT, STATUS_ICON_NONE, "Frankfurt am Main", false, false,
+                                        v, plain, sizeof(plain));
+        uint8_t b = status_short_member(SLOT_TEXT, glyph, "Frankfurt am Main", false, false, v,
+                                        marked, sizeof(marked));
+        expect_true("city glyph same flags", a == b);
+        if (a) { expect_str("city glyph same rung", marked, plain); }
+    }
+    expect_true("condition is no city", !status_short_elastic(SLOT_TEXT, STATUS_ICON_COND_SUN));
 }
 
 // A member never outgrows its buffer: a 19-byte city (the middle slot's cap) whose
@@ -469,6 +484,42 @@ static void od_variants(void) {
     expect_true("variants.widest_fills_the_bound", widest == OD_VARIANTS - 1);
 }
 
+// The weather condition: its text derives no short form (a name has no unit, no pair,
+// no words to abbreviate). A slot that draws its glyph gives up its text and keeps the
+// glyph, its one member (an edge slot's, which brings no short form), or its second after
+// the short form it brought (status_short_alt, the middle slot's). The Text look has no
+// glyph to keep, so it hides at its turn unless it brought a short form.
+static void condition(void) {
+    char out[STATUS_SHORT_CAP];
+    no_family("condition text look", SLOT_TEXT, STATUS_ICON_COND_TEXT, "Partly cloudy");
+    no_family("condition text look short", SLOT_TEXT, STATUS_ICON_COND_TEXT, "PCLDY");
+    for (uint8_t icon = STATUS_ICON_COND_SUN; icon <= STATUS_ICON_COND_WIND; icon++) {
+        const char *names[] = { "Partly cloudy", "PCLDY", "--" };
+        for (int n = 0; n < 3; n++) {
+            memset(out, 'x', sizeof(out));
+            expect_true("condition glyph member", status_short_member(SLOT_TEXT, icon, names[n], false,
+                false, 1, out, sizeof(out)) == SST_MEMBER);
+            expect_str("condition glyph alone", out, "");
+            expect_true("condition one member", !status_short_member(SLOT_TEXT, icon, names[n], false,
+                false, 2, out, sizeof(out)));
+        }
+        expect_true("alt then glyph", status_short_alt(SLOT_TEXT, icon, "PCLDY", 2, out, sizeof(out))
+            == SST_MEMBER);
+        expect_str("alt then glyph alone", out, "");
+        expect_true("alt two members", !status_short_alt(SLOT_TEXT, icon, "PCLDY", 3, out, sizeof(out)));
+    }
+    expect_true("alt member", status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLDY", 1, out,
+        sizeof(out)) == SST_MEMBER);
+    expect_str("alt member", out, "PCLDY");
+    expect_true("alt text look one member",
+        !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_TEXT, "PCLDY", 2, out, sizeof(out)));
+    expect_true("alt v0", !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLDY", 0, out, sizeof(out)));
+    char tiny[4];
+    expect_true("alt cap", !status_short_alt(SLOT_TEXT, STATUS_ICON_COND_SUN, "PCLDY", 1, tiny, sizeof(tiny)));
+    // A glyph that is no condition's keeps no glyph-alone member: the wind speed's flag.
+    no_family("wind is no condition", SLOT_TEXT, STATUS_ICON_PRESSURE, "1013");
+}
+
 int main(void) {
     temperature();
     wind_and_gusts();
@@ -479,6 +530,7 @@ int main(void) {
     city();
     caps();
     od_variants();
+    condition();
     if (s_failures) {
         printf("%d status_short_text failure(s)\n", s_failures);
         return 1;

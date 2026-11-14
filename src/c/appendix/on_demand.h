@@ -215,19 +215,20 @@ typedef struct {
 void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[2],
                const int8_t bleed[2], uint8_t battery_slots, OdLayout *out);
 
-// Weather alerts replace the slot on their side right away (the All status bars card's
-// "Weather alerts replace slots: Right away", status_threshold_alerts_replace): a
-// side with an active weather alert (rain or a metric alert, OD_RAIN on) is laid out as
-// though its own slot were empty, so its items start at the bar's edge whatever room
-// the bar has, and the slot is back once those alerts end. "If needed", the default,
-// leaves every slot to the make-room ladder above. A side whose one weather alert is
-// the one its slot merged keeps that slot: it already shows the alert's value at the
-// alert's level. The system items (Battery, Bluetooth, Quiet time, Sleep) never take a
-// slot by themselves. Where a side's slot is taken, od_layout() stands its merged alert
-// in for it, and the Battery item for a battery slot, as for any slot it hides.
+// The rain alert takes the place of the slot on its side while it shows (the Rain alert
+// dialog's "Replaces the slot", on by default, status_threshold_rain_replaces): a side
+// with an active rain alert is laid out as though its own slot were empty, so its items
+// start at the bar's edge whatever room the bar has, and the slot is back once the rain
+// alert ends. Switched off, every slot is the make-room ladder's above. Only rain takes a
+// slot: the metric alerts (gusts, UV, AQI, pollen, wind) and the system items (Battery,
+// Bluetooth, Quiet time, Sleep) always sit beside it (the owner's, 2026-11-14; 3.2.0 let
+// every weather alert take it). Rain never merges into a slot, but an item its slot merged
+// would take nothing: that slot already shows it. Where a side's slot is taken, od_layout()
+// stands its merged alert in for it, and the Battery item for a battery slot, as for any
+// slot it hides.
 static inline bool od_side_replaces(const OdSideIn *side) {
     for (int i = 0; i < side->n; i++) {
-        if (side->rank[i] >= OD_RAIN && i + 1 != side->merged) { return true; }
+        if (side->rank[i] == OD_RAIN && i + 1 != side->merged) { return true; }
     }
     return false;
 }

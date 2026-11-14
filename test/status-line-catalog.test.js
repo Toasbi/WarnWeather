@@ -381,10 +381,11 @@ test('slotOptions marks multi-item groups and collapses single-item groups', () 
   const weatherHeader = opts.find(o => o[1] === '__hdr_weather');
   assert.deepEqual(weatherHeader[2], { disabled: true, groupHeader: true });
   const weatherChildren = opts.filter(o => o[2] && o[2].groupChild
-    && ['temp', 'wind', 'gust', 'uv', 'aqi', 'sun'].indexOf(o[1]) >= 0);
+    && ['temp', 'wind', 'gust', 'uv', 'aqi', 'sun', 'condition'].indexOf(o[1]) >= 0);
   assert.equal(weatherChildren[0][0], 'Temperature/feels like', 'no label-space indentation');
   assert.equal(weatherChildren[0][2].groupEnd, false);
   assert.equal(weatherChildren[weatherChildren.length - 1][2].groupEnd, true);
+  assert.equal(weatherChildren[weatherChildren.length - 1][1], 'condition', 'the weather condition ends the group');
 
   // city now lives in the "Date and location" group. On an aplite left edge slot,
   // date (middleOnly) is gone but calendar-week is now available (phone-baked
@@ -638,4 +639,11 @@ test('the four Battery rows are labelled Watch/Phone so none of them just reads 
   // Every label is unique: four rows under one header would otherwise be
   // indistinguishable in the dropdown.
   assert.equal(new Set(labels).size, labels.length, 'Battery labels must be unique');
+});
+
+test('the slot lists name the city with its weather icon, except on aplite', () => {
+  const label = (env) => catalog.slotOptions({}, env, { slotKey: 'statusTopLeft', position: 'left' })
+    .filter((o) => o[1] === 'city').map((o) => o[0])[0];
+  assert.equal(label(ENV_BASALT), 'City with weather icon');
+  assert.equal(label({ platform: 'aplite' }), 'City');
 });

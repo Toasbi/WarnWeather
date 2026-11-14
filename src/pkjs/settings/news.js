@@ -5,8 +5,9 @@
 // phone-side 1h cache injected as userData.newsCache (see ../news-cache.js) —
 // the page itself never sends the list request, so the pill and its unread
 // badge (against a server-side per-account watermark) appear immediately on
-// load. Renders a small escaped-first markdown subset and sends private
-// per-item replies (rate-limited server-side to 10/day). Pure helpers are
+// load. Renders a small escaped-first markdown subset and sends poll votes
+// (rate-limited server-side to 10/day). Messages go through the Pebble Store
+// listing or a GitHub issue, which the popup links to. Pure helpers are
 // exported for unit tests; the webview wiring lives at the bottom, guarded
 // like owm-key-test.js.
 (function () {
@@ -20,7 +21,6 @@
     var parseNewsCache = protocol.parseNewsCache;
     var buildListPayload = protocol.buildListPayload;
     var buildSeenPayload = protocol.buildSeenPayload;
-    var buildReplyPayload = protocol.buildReplyPayload;
     var buildVotePayload = protocol.buildVotePayload;
     // The page's shared parts (config-ui/lib/ui.js): the popup's frame and header, the look
     // in shell.html (.ui-pop*), the same as Support's. window's: this file's own PConf (below)
@@ -129,7 +129,7 @@
     
     
     /**
-     * Interpret the reply XHR status into a user-facing verdict.
+     * Interpret a vote's XHR status into a user-facing verdict.
      *
      * @param {number} status XHR status (0 for network/timeout failures).
      * @returns {{ok: boolean, message: string}} Verdict + message.
@@ -139,7 +139,7 @@
             return { ok: true, message: 'Sent ✓' };
         }
         if (status === 429) {
-            return { ok: false, message: 'Daily limit reached (10 replies/day). Try again tomorrow.' };
+            return { ok: false, message: 'Daily limit reached (10 a day). Try again tomorrow.' };
         }
         if (!status) {
             return { ok: false, message: 'Couldn’t send. Check your connection.' };
@@ -179,7 +179,7 @@
      * @returns {string} Bell markup, including the unread dot when needed.
      */
     function renderNewsBellHtml(unread) {
-        return '<span class="sr-only">News &amp; Feedback</span>'
+        return '<span class="sr-only">News</span>'
             + '<svg class="news-bell" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
             + '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>'
             + '</svg>' + (unread > 0 ? '<span class="news-badge"></span>' : '');
@@ -188,18 +188,17 @@
     /**
      * Render the popup's inner HTML from cached news items. Titles are
      * escaped; bodies go through renderMarkdown (which escapes first).
-     * Per-item poll voting and a single trailing message composer (targeting
-     * the newest item) are omitted when no account token is available.
+     * Per-item poll voting is omitted when no account token is available. A line
+     * under the items says where to send a message: the Pebble Store listing or a
+     * GitHub issue, where an answer can come back.
      *
      * @param {Array<Object>} items News items.
-     * @param {boolean} canReply Whether account-backed message UI is available.
+     * @param {boolean} canReply Whether account-backed voting is available.
      * @returns {string} Modal HTML.
      */
     function renderNewsListHtml(items, canReply) {
-        // Header and composer sit outside the scroll wrapper so they pin to the
-        // top and bottom of the flex-column modal; only the items scroll. This
-        // keeps the "Write a message" button reachable without scrolling past a
-        // long announcement.
+        // Header and contact line sit outside the scroll wrapper so they pin to the
+        // top and bottom of the flex-column modal; only the items scroll.
         var html = kit.popupHeader('News', { 'data-news-close': '1' })
             + '<div class="news-scroll">';
         if (!items.length) {
@@ -218,24 +217,9 @@
             html += '</div>';
         }
         html += '</div>'; // .news-scroll
-        // One message composer for the whole popup (general feedback), with the
-        // hint sitting directly above its "Write a message" button. A reply must
-        // reference a real news row (FK), so it targets the newest item and is
-        // omitted when there is nothing to attach it to. Rendered after the
-        // scroll wrapper so it pins to the modal's bottom edge.
-        if (canReply && items.length) {
-            var replyId = maxId(items);
-            html += '<div class="news-message">'
-                + '<div class="news-message-hint">I’m happy to hear from you. Messages sent here are one-way, so I can’t reply. If you’d like a response, use '
-                + '<a href="https://apps.repebble.com/67d6f1fcdb264341b850f79a" target="_blank" rel="noopener">Pebble Store messaging</a> or open a '
-                + '<a href="https://github.com/Toasbi/WarnWeather/issues" target="_blank" rel="noopener">GitHub issue</a>.</div>'
-                + '<button class="news-reply-toggle" data-news-reply="' + replyId + '">Write a message</button>'
-                + '<div class="news-reply-box" data-news-reply-box="' + replyId + '" style="display:none">'
-                + '<textarea maxlength="1000" rows="3" data-news-reply-text="' + replyId + '"></textarea>'
-                + '<button class="news-reply-toggle" data-news-send="' + replyId + '">Send</button>'
-                + '<div class="news-reply-status" data-news-reply-status="' + replyId + '"></div>'
-                + '</div></div>';
-        }
+        html += '<div class="news-message"><div class="news-message-hint">Questions or ideas? Write to me through the '
+            + '<a href="https://apps.repebble.com/67d6f1fcdb264341b850f79a" target="_blank" rel="noopener">Pebble Store listing</a> or open a '
+            + '<a href="https://github.com/Toasbi/WarnWeather/issues" target="_blank" rel="noopener">GitHub issue</a>.</div></div>';
         return html;
     }
 
@@ -302,7 +286,7 @@
                 // the page's own (shell.html); only the popup's body is styled here.
                 + '.news-scroll { flex: 1 1 auto; overflow-y: auto; padding: 0 16px; }'
                 + '.news-message { flex: 0 0 auto; border-top: 1px solid var(--row-line); padding: 12px 16px 16px; background: var(--card); }'
-                + '.news-message-hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 0 0 8px; }'
+                + '.news-message-hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 0; }'
                 + '.news-message-hint a { color: var(--link); }'
                 + '.news-item { border-top: 1px solid var(--row-line); padding: 10px 0 12px; }'
                 + '.news-empty { color: var(--muted); font-size: 13px; }'
@@ -317,37 +301,11 @@
                 +   ' color: var(--fg); font: 600 12px \'Inter\', sans-serif; padding: 5px 10px; cursor: pointer;'
                 +   ' margin: 0 6px 6px 0; }'
                 + '.news-choice.on { border-color: #FA4A35; box-shadow: 0 0 0 1px #FA4A35; }'
-                + '.news-vote-status { color: var(--muted); font-size: 12px; min-height: 14px; }'
-                + '.news-reply-toggle { margin-top: 8px; border: 1px solid var(--ctl-line); border-radius: 9px;'
-                +   ' background: var(--ctl); color: var(--fg); font: 600 12px \'Inter\', sans-serif; padding: 5px 10px; cursor: pointer; }'
-                + '.news-reply-box { margin-top: 8px; }'
-                + '.news-reply-box textarea { width: 100%; border: 1px solid var(--ctl-line); border-radius: 9px;'
-                +   ' background: var(--ctl); color: var(--fg); font: 400 13px \'Inter\', sans-serif; padding: 8px; resize: vertical; }'
-                + '.news-reply-status { color: var(--muted); font-size: 12px; margin-top: 4px; min-height: 14px; }';
+                + '.news-vote-status { color: var(--muted); font-size: 12px; min-height: 14px; }';
             var style = document.createElement('style');
             style.appendChild(document.createTextNode(css));
             document.head.appendChild(style);
         };
-        var sendNewsReply = function (id) {
-            var ta = newsOverlay.querySelector('[data-news-reply-text="' + id + '"]');
-            var statusEl = newsOverlay.querySelector('[data-news-reply-status="' + id + '"]');
-            var btn = newsOverlay.querySelector('[data-news-send="' + id + '"]');
-            var msg = ta ? ta.value : '';
-            if (!statusEl || !btn) { return; }
-            if (!msg || !msg.replace(/\s/g, '')) {
-                statusEl.textContent = 'Write a message first.';
-                return;
-            }
-            btn.disabled = true;
-            statusEl.textContent = 'Sending…';
-            postNews(buildReplyPayload(USERDATA, Number(id), msg), 8000, function (status) {
-                var verdict = interpretReplyStatus(status);
-                statusEl.textContent = verdict.message;
-                btn.disabled = false;
-                if (verdict.ok && ta) { ta.value = ''; }
-            });
-        };
-
         var sendNewsVote = function (btn) {
             // Re-tapping the already-selected option is a no-op: it would burn a
             // shared daily action (10/day, replies + votes) on a redundant re-vote.
@@ -396,15 +354,6 @@
                     newsOverlay.style.display = 'none';
                     return;
                 }
-                if ((t = e.target.closest('[data-news-reply]'))) {
-                    var box = newsOverlay.querySelector('[data-news-reply-box="' + t.getAttribute('data-news-reply') + '"]');
-                    if (box) { box.style.display = box.style.display === 'none' ? 'block' : 'none'; }
-                    return;
-                }
-                if ((t = e.target.closest('[data-news-send]'))) {
-                    sendNewsReply(t.getAttribute('data-news-send'));
-                    return;
-                }
                 if ((t = e.target.closest('[data-news-vote]'))) {
                     sendNewsVote(t);
                 }
@@ -420,8 +369,8 @@
             newsPill = document.createElement('button');
             newsPill.id = 'newsHint';
             newsPill.type = 'button';
-            newsPill.setAttribute('aria-label', 'News & Feedback');
-            newsPill.title = 'News & Feedback';
+            newsPill.setAttribute('aria-label', 'News');
+            newsPill.title = 'News';
             var unread = countUnread(newsItems, newsLastSeenId);
             newsPill.innerHTML = renderNewsBellHtml(unread);
             newsPill.className = (unread === 0) ? 'muted' : 'has-unread';

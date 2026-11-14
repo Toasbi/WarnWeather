@@ -9,7 +9,12 @@
 //             forecast) — i.e. whether the view fits;
 //   C <need>  a stack with no fill band that reaches the floor: the height it got (a lower
 //             bound — it may have been cut).
-// Legacy-order (preset-shaped) views are skipped: they always fit.
+// Legacy-order (preset-shaped) views get no fit line: they always fit.
+// And for every shape — the preset-shaped ones too — in every data state and, for a stack
+// nothing fills, every Position, the rows the engine placed each band on, for the settings
+// page's pictures of the watch (view-cycle.js stackLayout):
+//   R <a> <top> <clock> <upper> <lower> <body>   each band "<y>,<h>", "-" for one the view
+//             does not show; <a> the Position it was placed with (its ext word's align).
 #include <stdio.h>
 #include "c/windows/layout.h"
 
@@ -28,6 +33,37 @@
 #define FLOOR 168
 #define ROW 15
 #endif
+
+// One band's placed rows, or "-" when the view does not show it.
+static void print_rect(GRect r, bool shown) {
+    if (shown) { printf(" %d,%d", r.origin.y, r.size.h); } else { printf(" -"); }
+}
+
+// The R lines of one shape: in each data state, placed with each Position the configured
+// view keeps (a fill drops it, so a filling view is placed once, with its own).
+static void print_rects(uint16_t wire, uint16_t ext0, LayoutMetrics m) {
+    for (int a = ALIGN_CLOCK; a <= ALIGN_BOTTOM; a++) {
+        uint16_t ext = (uint16_t)(ext0 | (a << 7));
+        ViewSpec c = view_spec_unpack(wire);
+        view_spec_apply_ext(&c, ext);
+        if (c.align != a) { continue; }
+        ext = (uint16_t)(c.body_size | (c.top_size << 3) | (c.top_kind << 6) | (c.align << 7));
+        for (int state = 0; state < 4; state++) {
+            int hr = state & 1, hh = state >> 1;
+            ViewSpec s = view_spec_resolve(c, hr, hh);
+            MainLayout L = layout_compute_spec(BOUNDS, &s, m);
+            bool top = s.top == TOP_BAND_RADAR || s.top == TOP_BAND_GRAPH
+                       || (s.top == TOP_BAND_CALENDAR && (s.calendar_rows == 2 || s.calendar_rows == 3));
+            printf("%d %u %u %d %d R %d", FAMILY, wire, ext, hr, hh, a);
+            print_rect(L.top, top);
+            print_rect(L.time, !s.clock_off);
+            print_rect(L.status, s.status_upper != STATUS_SRC_NONE);
+            print_rect(L.status_lower, s.status_lower != STATUS_SRC_NONE);
+            print_rect(L.bottom, s.body != BODY_NONE);
+            printf("\n");
+        }
+    }
+}
 
 int main(void) {
     const struct { int tier, top, kind; } tops[] = {
@@ -62,6 +98,7 @@ int main(void) {
                                     | (tops[t].kind << 6) | (ALIGN_TOP << 7));
                                 ViewSpec c = view_spec_unpack(wire);
                                 view_spec_apply_ext(&c, ext);
+                                print_rects(wire, (uint16_t)(ext & ~(3u << 7)), m);
                                 if (!c.stacked) { continue; }   // legacy order: always fits
                                 // Print the ext word as the watch normalised it (a fill
                                 // drops the alignment) — what the phone compiler sends.

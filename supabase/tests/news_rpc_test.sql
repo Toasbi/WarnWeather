@@ -1,5 +1,5 @@
 -- pgtap tests for the news edge function's RPCs (supabase/schemas/news.sql): news_list,
--- news_mark_seen, news_recent_action_count, news_reply_count_since, and their API surface.
+-- news_mark_seen, news_recent_action_count, and their API surface.
 -- Run: docker exec -i supabase_db_warnweather psql -U postgres -d postgres -X -q \
 --        < supabase/tests/news_rpc_test.sql   (grep 'not ok')
 -- or:  supabase test db
@@ -7,7 +7,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 set timezone = 'UTC';
-select plan(42);
+select plan(37);
 
 -- ── Fixtures ────────────────────────────────────────────────────────────────
 -- Hashes are opaque text to the database; 'hash-a' etc. stand in for the hex HMACs.
@@ -112,18 +112,12 @@ select is((select updated_at from news_seen where account_token_hash = 'hash-s')
 select news_mark_seen('hash-s', 5);
 select is((select count(*)::int from news_seen where account_token_hash = 'hash-s'), 1, 'one row per hash');
 
--- ── news_recent_action_count / news_reply_count_since ───────────────────────
-insert into news_replies (news_id, account_token_hash, app_version, message, created_at) values
-  (5, 'hash-a', '1.8.0', 'recent', now() - interval '2 hours'),
-  (5, 'hash-a', '1.8.0', 'old',    now() - interval '3 days'),
-  (5, 'hash-b', '1.8.0', 'other',  now() - interval '1 hour');
-select is(news_recent_action_count('hash-a', now() - interval '1 day'), 2,
-  'replies by created_at + votes by updated_at, inside the window, own hash only');
-select is(news_recent_action_count('hash-a', now() - interval '4 days'), 4,
-  'a wider window counts the older reply and vote too');
+-- ── news_recent_action_count ────────────────────────────────────────────────
+select is(news_recent_action_count('hash-a', now() - interval '1 day'), 1,
+  'votes by updated_at, inside the window, own hash only');
+select is(news_recent_action_count('hash-a', now() - interval '4 days'), 2,
+  'a wider window counts the older vote too');
 select is(news_recent_action_count('hash-new', now() - interval '1 day'), 0, 'an unknown hash counts 0');
-select is(news_reply_count_since(now() - interval '1 day'), 2, 'the global count covers every hash');
-select is(news_reply_count_since(now() - interval '4 days'), 3, 'and honours its window');
 
 -- ── API surface: only the service role may call them ────────────────────────
 select ok(not has_function_privilege('anon', 'public.news_list(text, text, integer)', 'execute'),
@@ -144,12 +138,6 @@ select ok(not has_function_privilege('authenticated', 'public.news_recent_action
   'authenticated cannot execute news_recent_action_count');
 select ok(has_function_privilege('service_role', 'public.news_recent_action_count(text, timestamptz)', 'execute'),
   'service_role can execute news_recent_action_count');
-select ok(not has_function_privilege('anon', 'public.news_reply_count_since(timestamptz)', 'execute'),
-  'anon cannot execute news_reply_count_since');
-select ok(not has_function_privilege('authenticated', 'public.news_reply_count_since(timestamptz)', 'execute'),
-  'authenticated cannot execute news_reply_count_since');
-select ok(has_function_privilege('service_role', 'public.news_reply_count_since(timestamptz)', 'execute'),
-  'service_role can execute news_reply_count_since');
 -- The REVOKEs are hand-appended to the migration (db diff misses ACLs), so pin the whole grant
 -- list: besides the owner, service_role alone (no PUBLIC, and no other role either).
 select is(
@@ -159,29 +147,29 @@ select is(
      cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
      left join pg_roles r on r.oid = a.grantee
     where p.pronamespace = 'public'::regnamespace
-      and p.proname in ('news_list', 'news_mark_seen', 'news_recent_action_count', 'news_reply_count_since')
+      and p.proname in ('news_list', 'news_mark_seen', 'news_recent_action_count')
       and a.privilege_type = 'EXECUTE'
       and a.grantee <> p.proowner),
   array['news_list:service_role', 'news_mark_seen:service_role',
-        'news_recent_action_count:service_role', 'news_reply_count_since:service_role'],
-  'EXECUTE on the four: their owner and service_role only');
+        'news_recent_action_count:service_role'],
+  'EXECUTE on the three: their owner and service_role only');
 
 -- ── Definitions: invoker rights, pinned search_path, honest volatility ──────
 select is(
   (select array_agg(p.proname::text order by p.proname)
      from pg_proc p
     where p.pronamespace = 'public'::regnamespace
-      and p.proname in ('news_list', 'news_mark_seen', 'news_recent_action_count', 'news_reply_count_since')
+      and p.proname in ('news_list', 'news_mark_seen', 'news_recent_action_count')
       and not p.prosecdef
       and p.proconfig @> array['search_path=""']),
-  array['news_list', 'news_mark_seen', 'news_recent_action_count', 'news_reply_count_since'],
-  'all four are SECURITY INVOKER with an empty search_path');
+  array['news_list', 'news_mark_seen', 'news_recent_action_count'],
+  'all three are SECURITY INVOKER with an empty search_path');
 select is(
   (select string_agg(p.proname || '=' || p.provolatile::text, ',' order by p.proname)
      from pg_proc p
     where p.pronamespace = 'public'::regnamespace
-      and p.proname in ('news_list', 'news_mark_seen', 'news_recent_action_count', 'news_reply_count_since')),
-  'news_list=s,news_mark_seen=v,news_recent_action_count=s,news_reply_count_since=s',
+      and p.proname in ('news_list', 'news_mark_seen', 'news_recent_action_count')),
+  'news_list=s,news_mark_seen=v,news_recent_action_count=s',
   'the writer is VOLATILE, the readers STABLE');
 
 select * from finish();

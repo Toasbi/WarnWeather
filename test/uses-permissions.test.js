@@ -6,7 +6,8 @@
 // needs it from the start (`required`, app 1.18.0.1: installing waits for an answer on those). So
 // every host the code requests must be declared, and every URL in the code that is NOT a request (a
 // link in a hint, a source comment, a header value) is named below with why. A new URL fails
-// here until it is one or the other. scripts/lib/uses-permissions.js adds the build-injected
+// here until it is one or the other. (Buy Me a Coffee, only linked, is declared all the same: the
+// owner's, 2026-11-14.) scripts/lib/uses-permissions.js adds the build-injected
 // endpoints' hosts (telemetry, the Rainbow proxy, news) at build time, as an entry of their own.
 const test = require('node:test');
 const assert = require('node:assert');
@@ -28,10 +29,12 @@ const NOT_REQUESTED = {
   'app.tomorrow.io': 'the Tomorrow.io signup and API-keys links',
   'developer.rainbow.ai': 'the Rainbow signup and profile links',
   'rainbow.ai': 'the Powered by Rainbow link',
+  'www.tomorrow.io': 'the Powered by Tomorrow.io link',
+  'locationiq.com': 'the Search by LocationIQ.com link in the Manual location hint',
+  'creativecommons.org': 'the CC BY 4.0 licence link in Setup › Privacy & data sources',
   'openweathermap.org': 'the OpenWeatherMap signup and plan links',
   'yandex.com': 'the Yandex Weather API key link',
   'apps.repebble.com': 'the store listing link in the news panel',
-  'buymeacoffee.com': 'the Support link',
   'github.com': 'the issues links, and the User-Agent and Origin values met.no asks for',
   'toasbi.github.io': 'the emulator\'s settings page helper, opened with Pebble.openURL under the emulator only',
   'developer.repebble.com': 'a source comment',
@@ -92,10 +95,10 @@ test('the app is a manifest version 2 app, and every permission says why and whe
   uses.forEach((p) => {
     assert.equal(typeof p, 'object', JSON.stringify(p) + ': an object, so it can carry a reason');
     assert.ok(NAMES.indexOf(p.name) !== -1, p.name + ' is a permission this app is meant to declare');
-    // The docs' shape: one short sentence on what the app does with it, "To ...", which the
-    // phone cuts off past two lines.
+    // A short label under the permission's row (the owner's, 2026-11-14: "DWD weather provider",
+    // no "To ..." sentence needed), which the phone cuts off past two lines.
     assert.equal(typeof p.reason, 'string', p.name + ' has a reason');
-    assert.match(p.reason, /^To [a-z]/, p.name + ': "' + p.reason + '" starts "To ..."');
+    assert.ok(p.reason.trim().length > 0, p.name + ' says why');
     assert.ok(p.reason.length <= 80 && !/\.$/.test(p.reason), p.name + ': "' + p.reason + '" is short, no full stop');
     assert.equal(typeof p.required, 'boolean', p.name + ' says whether it is required');
   });
@@ -128,31 +131,56 @@ test('every host the code requests is declared, and every other URL is named wit
   });
 });
 
-test('every declared domain is one the code requests', () => {
+test('every declared domain is one the code requests (or, Buy Me a Coffee, links to)', () => {
   const hosts = Object.keys(urlHosts());
   domains.forEach((domain) => {
     assert.ok(hosts.some((h) => perms.covered(h, [domain])), domain + ' is declared but nothing requests it');
   });
 });
 
-// Required (the owner's, 2026-11-13): every weather service the app can fetch from (the
-// forecast and radar services, keyed or not, air quality, DWD pollen), place names and search,
-// and the app's own backend (the build adds its entry, required). Installing then waits for an
-// answer on all of them, so switching services or opening settings never meets a first request
-// that fails while the phone asks; a "no" is an answer too, and the install goes on. Optional:
-// what is not weather data and only some installs use, asked about when first used.
-test('every weather service and place lookup is required; holidays, updates, notifications and Health are not', () => {
+// Required (the owner's, 2026-11-13 and 2026-11-14): every weather service the app can fetch
+// from (the forecast and radar services, keyed or not, air quality, DWD pollen), the town's name
+// and the settings' place search, the public holidays (Nager.Date), Buy Me a Coffee and the app's
+// own backend (the build adds its entry, required). Installing then waits for an answer on all of
+// them, so switching services or opening settings never meets a first request that fails while
+// the phone asks; a "no" is an answer too, and the install goes on. Optional, asked about when
+// first used: LocationIQ (only a typed Manual location uses it), the update check, notifications
+// and Health.
+test('every weather service, place name, holidays and Buy Me a Coffee are required; the rest is not', () => {
   ['api.weather.com', 'www.wunderground.com', 'api.open-meteo.com', 'api.met.no', 'api.brightsky.dev',
     'api.openweathermap.org', 'api.tomorrow.io', 'api.weather.yandex.ru', 'api.rainbow.ai',
     'api.waqi.info', 'air-quality-api.open-meteo.com', 'maps.dwd.de',
-    'geocode.arcgis.com', 'geocoding-api.open-meteo.com'].forEach((d) => {
+    'geocode.arcgis.com', 'geocoding-api.open-meteo.com', 'date.nager.at', 'buymeacoffee.com'].forEach((d) => {
     assert.equal(entryOf(d).required, true, d + ' is required');
   });
-  ['us1.locationiq.com', 'date.nager.at', 'appstore-api.repebble.com', 'appstore-api.rebble.io'].forEach((d) => {
+  ['us1.locationiq.com', 'appstore-api.repebble.com', 'appstore-api.rebble.io'].forEach((d) => {
     assert.equal(entryOf(d).required, false, d + ' is optional');
   });
   assert.equal(uses.find((p) => p.name === 'Location').required, true, 'the forecast is for where you are');
   ['ShowNotifications', 'Health'].forEach((n) => assert.equal(uses.find((p) => p.name === n).required, false, n));
+});
+
+// The phone lists each domain as a row of its own ("Connect to <domain>"), its entry's reason under
+// it: so each service has an entry of its own, whose reason names it (the owner's, 2026-11-14).
+test('each service has an entry of its own, whose reason names it', () => {
+  const NAMED = {
+    'api.brightsky.dev': 'DWD', 'api.met.no': 'Met.no', 'api.open-meteo.com': 'Open-Meteo',
+    'api.openweathermap.org': 'OpenWeatherMap', 'api.tomorrow.io': 'Tomorrow.io',
+    'api.weather.com': 'Weather Underground', 'www.wunderground.com': 'Weather Underground',
+    'api.weather.yandex.ru': 'Yandex', 'api.rainbow.ai': 'Rainbow',
+    'air-quality-api.open-meteo.com': 'Open-Meteo', 'api.waqi.info': 'WAQI', 'maps.dwd.de': 'DWD',
+    'geocode.arcgis.com': 'ArcGIS', 'geocoding-api.open-meteo.com': 'Open-Meteo',
+    'date.nager.at': 'Nager.Date', 'buymeacoffee.com': 'Buy Me a Coffee', 'us1.locationiq.com': 'LocationIQ'
+  };
+  Object.keys(NAMED).forEach((d) => {
+    const entry = entryOf(d);
+    assert.ok(entry, d + ' is declared');
+    assert.deepEqual(entry.parameters.domains, [d], d + ' has an entry of its own');
+    assert.ok(entry.reason.indexOf(NAMED[d]) !== -1, d + ': "' + entry.reason + '" names ' + NAMED[d]);
+  });
+  // The two app stores are one service, the update check.
+  assert.deepEqual(entryOf('appstore-api.rebble.io').parameters.domains, ['appstore-api.rebble.io', 'appstore-api.repebble.com']);
+  domains.forEach((d) => assert.ok(NAMED[d] || /^appstore-api\./.test(d), d + ': name its service here'));
 });
 
 // Pebble app 1.18.0: Pebble.showSimpleNotificationOnPebble needs ShowNotifications, or the phone drops
@@ -190,7 +218,7 @@ test('the build adds the injected endpoints\' hosts as a required entry of their
   assert.throws(() => perms.addEndpointHosts({ usesPermissions: [{ name: 'Location' }] }, ['https://x.y']), /no Internet permission/);
   assert.equal(perms.hostOf('HTTPS://Abc.Supabase.co:443/f'), 'abc.supabase.co');
   assert.equal(perms.hostOf(''), null);
-  assert.match(perms.ENDPOINTS_REASON, /^To [a-z]/);
+  assert.match(perms.ENDPOINTS_REASON, /^WarnWeather server: /, 'the label names the server');
   const script = fs.readFileSync(path.join(ROOT, 'scripts/prepare-package.sh'), 'utf8');
   assert.match(script, /addEndpointHosts\(pkg\.pebble,\s*\[telemetryEndpoint, rainbowEndpoint, newsEndpoint\]\)/,
     'prepare-package.sh passes all three endpoints');

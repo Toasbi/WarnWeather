@@ -102,6 +102,7 @@ typedef struct {
     GFont font;             // the font it measures and draws in
     char *text;             // its full text; the layout writes the member it drew
     size_t cap;             // over it, in a buffer of this size
+    const char *alt;        // the short form it brought ("" none: status_short_alt)
 } StatusOnDemandSlot;
 
 // The entries and item states one pass resolves.
@@ -116,8 +117,8 @@ typedef struct {
     uint8_t charge;                            // the watch's charge in %
     bool charging;                             // charging or plugged in
     bool battery_value;                        // Look Icon + value
-    bool alerts_replace;                       // weather alerts replace their side's
-                                               // slot right away (on_demand.h)
+    bool rain_replaces;                        // the rain alert takes its side's slot
+                                               // while it shows (on_demand.h)
 } StatusOnDemandState;
 
 // One draw's On demand pass, filled by status_on_demand_layout() and read by

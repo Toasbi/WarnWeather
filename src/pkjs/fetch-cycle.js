@@ -636,6 +636,13 @@ function createFetchCycle(deps) {
             deps.notices.clearErrors();
             deps.outbox.clearNoticeCache();
             console.log('Successfully fetched weather!');
+            if (provider.recoveredFailure) {
+                var recoveredEvent = baseTelemetryEvent(provider, attempt, fetchStart);
+                recoveredEvent.success = false;
+                recoveredEvent.error = provider.recoveredFailure;
+                provider.recoveredFailure = null;
+                deps.trackWeatherFetch(recoveredEvent);
+            }
             var successEvent = baseTelemetryEvent(provider, attempt, fetchStart);
             successEvent.success = true;
             deps.trackWeatherFetch(successEvent);

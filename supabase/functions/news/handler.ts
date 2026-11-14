@@ -1,23 +1,23 @@
-// The news function: the settings page's News & Feedback popup (list / seen / reply / vote).
+// The news function: the settings page's News popup (list / seen / vote).
 // index.ts only wires the environment in; everything testable lives here.
 //
 // Privacy: the API gateway logs the full URL of every request the function makes to
 // PostgREST, so nothing keyed by the caller's account-token hash ever rides a URL or a query
 // filter. Every hash-keyed read or write, and every rate-limit count, is an RPC
 // (supabase/schemas/news.sql: POST /rest/v1/rpc/<fn>, arguments in the body); the vote upsert
-// and the reply insert carry the hash in their row bodies. Logs go through log.ts only.
+// carries the hash in its row body. Logs go through log.ts only.
 //
 // The external contract is unchanged, since old settings pages keep calling it: the same
 // request shapes, status codes and success bodies (key order included), and the same
 // {error} strings, except that the three list failures now share 'list_failed' (no client
-// reads error strings).
+// reads error strings). Messages ('reply') are no longer taken: an old settings page sending
+// one gets 400 invalid_payload.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { logEvent } from "./log.ts";
 
 const MAX_BODY_BYTES = 4096;
-const MAX_ACTIONS_PER_DAY = 10; // shared budget: free-text replies + poll votes
-const MAX_TOTAL_REPLIES_PER_DAY = 500; // global reply flood cap across all tokens
+const MAX_ACTIONS_PER_DAY = 10; // poll votes per account and day
 const MAX_ITEMS = 50;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -66,14 +66,6 @@ export const seenSchema = z.object({
   maxSeenId: z.number().int().positive(),
 }).strip();
 
-export const replySchema = z.object({
-  op: z.literal("reply"),
-  accountToken: accountTokenSchema,
-  version: versionSchema,
-  newsId: z.number().int().positive(),
-  message: z.string().trim().min(1).max(1000),
-}).strip();
-
 export const voteSchema = z.object({
   op: z.literal("vote"),
   accountToken: accountTokenSchema,
@@ -81,7 +73,7 @@ export const voteSchema = z.object({
   choiceIndex: z.number().int().nonnegative(),
 }).strip();
 
-export const payloadSchema = z.discriminatedUnion("op", [listSchema, seenSchema, replySchema, voteSchema]);
+export const payloadSchema = z.discriminatedUnion("op", [listSchema, seenSchema, voteSchema]);
 
 function encodeUtf8(value: string) {
   return new TextEncoder().encode(value);
@@ -143,8 +135,8 @@ type ListRow = {
 };
 
 /**
- * The caller's shared 10/day budget used so far: replies by created_at, votes by their last
- * change (updated_at), so a re-vote refreshes its window but never adds a second row.
+ * The caller's 10/day budget of votes used so far, counted by their last change (updated_at),
+ * so a re-vote refreshes its window but never adds a second row.
  * @param client The service-role client.
  * @param hash The caller's account-token hash.
  * @param since Start of the window (ISO timestamp).
@@ -263,57 +255,6 @@ async function vote(backend: NewsBackend, payload: z.infer<typeof voteSchema>, n
 }
 
 /**
- * op 'reply': store a private free-text reply, within the global flood cap and the caller's
- * shared daily budget.
- * @param backend Client and hashing secret.
- * @param payload The validated request.
- * @param now The current time.
- * @returns 202 {ok: true}; 400 unknown_news; 429 when a cap is reached.
- */
-async function reply(backend: NewsBackend, payload: z.infer<typeof replySchema>, now: Date): Promise<Response> {
-  const { client } = backend;
-  const hash = await hmacSha256Hex(backend.hashSecret, payload.accountToken);
-  const since = new Date(now.getTime() - DAY_MS).toISOString();
-
-  // Global flood cap across ALL tokens: bounds storage abuse via fabricated-token rotation —
-  // free-text reply bodies are the flagged blast radius, so this backstops the per-account
-  // budget.
-  const total = await client.rpc("news_reply_count_since", { p_since: since });
-  if (total.error || !Number.isInteger(total.data)) {
-    logEvent("rate_check_failed", total.error?.code);
-    return json({ error: "rate_check_failed" }, 500);
-  }
-  if ((total.data as number) >= MAX_TOTAL_REPLIES_PER_DAY) {
-    logEvent("reply_cap_reached");
-    return json({ error: "rate_limit_exceeded", remaining: 0 }, 429);
-  }
-
-  const actions = await countRecentActions(client, hash, since);
-  if (actions === null) {
-    return json({ error: "rate_check_failed" }, 500);
-  }
-  if (actions >= MAX_ACTIONS_PER_DAY) {
-    return json({ error: "rate_limit_exceeded", remaining: 0 }, 429);
-  }
-
-  const insertResult = await client.from("news_replies").insert({
-    news_id: payload.newsId,
-    account_token_hash: hash,
-    app_version: payload.version,
-    message: payload.message,
-  });
-  if (insertResult.error) {
-    // 23503 = FK violation: the news item was deleted (or never existed).
-    if (insertResult.error.code === "23503") {
-      return json({ error: "unknown_news" }, 400);
-    }
-    logEvent("insert_failed", insertResult.error.code);
-    return json({ error: "insert_failed" }, 500);
-  }
-  return json({ ok: true }, 202);
-}
-
-/**
  * The news function's request handler. Nothing it throws reaches the Deno runtime (which would
  * log the error's message and stack): a throw is logged as 'unhandled' with no detail and
  * answered 500 internal_error, with CORS so the page can read it.
@@ -363,8 +304,7 @@ export function createNewsHandler(deps: NewsDeps): (req: Request) => Promise<Res
 
       if (payload.op === "list") return await list(backend, payload);
       if (payload.op === "seen") return await seen(backend, payload);
-      if (payload.op === "vote") return await vote(backend, payload, deps.now());
-      return await reply(backend, payload, deps.now());
+      return await vote(backend, payload, deps.now());
     } catch (_error) {
       // Its message may carry request data: the tag alone.
       logEvent("unhandled");

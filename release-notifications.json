@@ -212,7 +212,7 @@
     "body": "Open a screen on the Watchface tab and tap Change layout to give it another layout, keeping its name and place. On the Pebble Time 2, Edit on the screen's graph opens its settings, and each graph keeps its own Visible values. Not on Pebble Classic or Steel."
   },
   "3.2.0": {
-    "title": "Weather alerts can replace a slot",
-    "body": "On the Status bars tab, under All status bars, set Weather alerts replace slots to Right away: a weather alert then takes the place of the status slot on its side while it shows. Not on Pebble Classic or Steel."
+    "title": "Weather condition slot",
+    "body": "A status bar slot can now show the weather in words with a sun or moon icon, such as Partly cloudy. The City slot shows the current weather's icon too. Pebble Classic and Steel show the text only."
   }
 }

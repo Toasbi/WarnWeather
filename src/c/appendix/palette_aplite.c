@@ -54,9 +54,7 @@ GColor palette_radar_color(int tier) {
     // Bar FILL, not foreground/outline — mirrors theme_bg(), like palette.c's
     // color-build equivalent (bw-dark: black; bw-light: white). In practice
     // unreachable on aplite: radar is compiled out here (WW_RAIN_RADAR), and
-    // nothing else calls it on aplite — the On demand Rain item's rain_tint()
-    // (status_on_demand.c) is not built here (WW_ON_DEMAND), and it guards its
-    // use behind #ifdef PBL_COLOR anyway. Kept polarity-consistent regardless
-    // for palette.h interface parity with palette.c.
+    // nothing else calls it. Kept polarity-consistent regardless for palette.h
+    // interface parity with palette.c.
     return theme_bg();
 }

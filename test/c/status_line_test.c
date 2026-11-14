@@ -94,11 +94,46 @@ static void validate_tests(void) {
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     expect("live-len.reject", status_line_validate(b, n), 0);
 
-    // TEXT with zero len.
-    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, NULL);
+    // TEXT with zero len: a glyph alone (the weather condition slot's Icon look), accepted.
+    // Rejecting it threw the whole line away, so the watch kept the old icon and text.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_SUN, NULL);
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
-    expect("text-empty.reject", status_line_validate(b, n), 0);
+    expect("text-empty.accept", status_line_validate(b, n), 1);
+    {
+        StatusSlotView ev[STATUS_SLOT_COUNT];
+        expect("text-empty.slots", status_line_slots(b, n, ev), STATUS_SLOT_COUNT);
+        expect("text-empty.icon", ev[0].icon, STATUS_ICON_COND_SUN);
+        expect("text-empty.len", ev[0].value_len, 0);
+    }
+
+    // The city with the current weather's glyph: a weather glyph's id with the city's bit,
+    // on a text slot. Any other id with the bit, or the bit on another kind, is garbage.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_CITY_GLYPH | STATUS_ICON_COND_RAIN, "Berlin");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("city-glyph.accept", status_line_validate(b, n), 1);
+    {
+        StatusSlotView cv[STATUS_SLOT_COUNT];
+        expect("city-glyph.slots", status_line_slots(b, n, cv), STATUS_SLOT_COUNT);
+        expect("city-glyph.icon", cv[0].icon, STATUS_ICON_CITY_GLYPH | STATUS_ICON_COND_RAIN);
+        expect("city-glyph.is_city", status_icon_is_city(cv[0].icon), 1);
+        expect("city-glyph.glyph", status_icon_glyph(cv[0].icon), STATUS_ICON_COND_RAIN);
+    }
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_CITY_GLYPH | STATUS_ICON_TEMP, "Berlin");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("city-glyph.not_weather.reject", status_line_validate(b, n), 0);
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_CITY_GLYPH, "Berlin");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("city-glyph.bare_bit.reject", status_line_validate(b, n), 0);
+    n = put_slot(b, 0, SLOT_LIVE_DATE, STATUS_ICON_CITY_GLYPH | STATUS_ICON_COND_SUN, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("city-glyph.not_text.reject", status_line_validate(b, n), 0);
+    expect("city-glyph.plain_city", status_icon_is_city(STATUS_ICON_NONE), 1);
+    expect("city-glyph.condition_not_city", status_icon_is_city(STATUS_ICON_COND_RAIN), 0);
 
     // Edge slot over 8 bytes.
     n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_NONE, "123456789");
@@ -312,11 +347,70 @@ static void iso_week_tests(void) {
     expect("isoweek.2020-12-31(Thu)", iso_week(2020, 365, 4), 53); // leap, 53-week year
 }
 
+// The weather condition slot: a SLOT_TEXT value may carry its short form after
+// STATUS_TEXT_ALT_SEP ("Partly cloudy" SEP "PCLDY"), which the line validates as plain
+// text, and status_text_full_len() splits off.
+static void alt_tests(void) {
+    const char both[] = "Partly cloudy\x1fPCLDY";
+    expect("alt.split", (int)status_text_full_len(both, strlen(both)), 13);
+    expect("alt.none", (int)status_text_full_len("Cloudy", 6), 6);
+    expect("alt.empty", (int)status_text_full_len("", 0), 0);
+    expect("alt.first-sep", (int)status_text_full_len("a\x1f" "b\x1f" "c", 5), 1);
+    expect("alt.sep-last", (int)status_text_full_len("Sunny\x1f", 6), 5);
+    // Only the bytes it is given: a separator past `len` is not looked at.
+    expect("alt.bounded", (int)status_text_full_len(both, 4), 4);
+
+    uint8_t b[64];
+    size_t n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_TEXT, "--");
+    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_COND_SUN_CLOUD, both);
+    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_COND_WIND, "WNDY");
+    expect("alt.line-valid", status_line_validate(b, n), 1);
+    StatusSlotView v[STATUS_SLOT_COUNT];
+    expect("alt.line-slots", status_line_slots(b, n, v), STATUS_SLOT_COUNT);
+    expect("alt.mid-len", v[1].value_len, (int)strlen(both));
+    // The short form ends in a letter, never in a wind sentinel.
+    expect("alt.no-dir", status_slot_direction(&v[1]), -1);
+    expect("alt.max-icon", STATUS_ICON_MAX, STATUS_ICON_COND_WIND);
+    n = put_slot(b, 0, SLOT_TEXT, (uint8_t)(STATUS_ICON_COND_WIND + 1), "x");
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    expect("alt.past-max-invalid", status_line_validate(b, n), 0);
+
+    // An edge slot's weather condition may take the middle's room (STATUS_TEXT_EDGE_COND_MAX)
+    // while the line holds it; any other edge text keeps the edge's 8 bytes.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_SUN_CLOUD, "Partly cloudy\x1fPCLDY");
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_COND_TEXT, "Partly cloudy\x1fPCLDY");
+    expect("edge-cond.both-edges-valid", status_line_validate(b, n), 1);
+    expect("edge-cond.slots", status_line_slots(b, n, v), STATUS_SLOT_COUNT);
+    expect("edge-cond.left-len", v[0].value_len, 19);
+    expect("edge-cond.right-full", (int)status_text_full_len(v[2].value, v[2].value_len), 13);
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_SUN, "Partly cloudy\x1fPCLDYX");
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    expect("edge-cond.past-cap-invalid", status_line_validate(b, n), 0);
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_NONE, "Bad Soden");
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    expect("edge-city.nine-invalid", status_line_validate(b, n), 0);
+    n = put_slot(b, 0, SLOT_TEXT, (uint8_t)(STATUS_ICON_CITY_GLYPH | STATUS_ICON_COND_SUN), "Partly cloudy");
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
+    expect("edge-city-glyph.long-invalid", status_line_validate(b, n), 0);
+    // The line's own cap still holds: both edges at 19 beside a 12-byte middle pass its 48 bytes.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_SUN_CLOUD, "Partly cloudy\x1fPCLDY");
+    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_NONE, "Mannheim-Ost");
+    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_COND_SUN_CLOUD, "Partly cloudy\x1fPCLDY");
+    expect("edge-cond.line-cap", (int)n > STATUS_LINE_MAX_BYTES, 1);
+    expect("edge-cond.past-line-invalid", status_line_validate(b, n), 0);
+}
+
 int main(void) {
     validate_tests();
     slot_tests();
     direction_tests();
     iso_week_tests();
+    alt_tests();
     if (s_failures) { printf("%d status_line failure(s)\n", s_failures); return 1; }
     printf("status_line OK\n");
     return 0;

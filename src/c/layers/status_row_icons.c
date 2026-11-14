@@ -1,349 +1,50 @@
 #include "status_row_icons.h"
-#include "../appendix/status_line.h"
 #include "../appendix/theme.h"
-#include <limits.h>
 
-// Not built on aplite: no PDC resources there, and its lean status row
-// (status_row_aplite.c) loads no glyph.
+// Not built on aplite: its lean status row (status_row_aplite.c) draws bit masks.
 #if !defined(PBL_PLATFORM_APLITE)
 
-#define PRECISE_UNITS_PER_PX 8
+#include "status_pixel_icons.generated.h"
 
-// The keep-fill recolour: the fill-authored RAIN_* drops (scripts/gen-rain-pdc.py:
-// white fill, stroke width 0) are drawn FILLED, so their fill takes the tint and
-// the stroke stays off — except on a light theme, where a pale tier colour on the
-// white strip needs a 1-px black edge to read at all.
-typedef struct {
-    GColor tint;
-    bool outline;
-} IconFill;
+// Every status icon is drawn pixel by pixel in the pixel icon editor (scripts/pixel-icons/
+// README.md), once for every height a bar draws it at, and built in the version picked for that
+// size: the pixel drawing, 1 px lines through pixel centres that stay crisp under antialiasing,
+// or its lines slanted or the old icon, which antialiasing smooths with grey pixels on the colour
+// watches (the black and white ones keep the pixel drawing). Drawn 1:1, nothing is scaled. The
+// size rules that pick the drawing are status_icon_size.h's.
 
-// Glyph bounding box (in the PDC's point units), the height scale to apply, and the
-// grid-snap parameters. Each point is scaled so the glyph HEIGHT maps to target_h px,
-// then snapped to the 1px grid — which, for the 1px stroke, is the pixel-centre phase
-// that renders crisp (matches the hand-authored sleep glyph's X.5 coords).
-typedef struct {
-    int16_t min_x, min_y, max_x, max_y;   // pass 1: raw ink bbox (PDC point units, 1/8px)
-    int32_t num, den;                     // uniform height scale: * num / den
-    int32_t sum_x, sum_y;                 // (min + max) per axis == 2× the master centre
-    int32_t base_x, base_y;               // snapped origin (lands the min vertex on 4 = 0.5px)
-    int16_t out_max_x, out_max_y;         // pass 2: max snapped output, for tight bounds
-    const IconFill *fill;                 // NULL = outline art (every status glyph);
-                                          // set = keep-fill art (the rain drops)
-} IconNorm;
-
-// Divide a / b (b > 0) rounding to nearest, half AWAY from zero. Odd in a.
-static int32_t icon_div_round(int32_t a, int32_t b) {
-    return (a >= 0) ? (a + b / 2) / b : -(((-a) + b / 2) / b);
-}
-
-// Snap one axis of a vertex. `d = 2*p - (min+max)` is the point's offset from the master
-// centre, doubled to stay an exact INTEGER and exactly ANTISYMMETRIC (mirror points get
-// opposite d). Scaling by num/den and rounding to the nearest whole pixel (via the odd
-// icon_div_round) therefore lands a vertex and its mirror on mirror grid cells — symmetric
-// AND on pixel centres (crisp for the 1px stroke). Result is in 1/8-px units, a multiple
-// of PRECISE_UNITS_PER_PX. Computing the offset from the doubled centre — instead of
-// rounding each point then subtracting a floored centre — is what keeps circles/curves
-// from tilting a pixel when downscaled.
-static int32_t icon_snap_off(int32_t d, int32_t num, int32_t den) {
-    return icon_div_round(d * num, 2 * PRECISE_UNITS_PER_PX * den) * PRECISE_UNITS_PER_PX;
-}
-
-// First pass: accumulate the glyph's bounding box across every command's points.
-static bool icon_bbox_cb(GDrawCommand *command, uint32_t index, void *context) {
+static bool pixel_ink_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void) index;
-    IconNorm *b = (IconNorm *)context;
-    uint16_t n = gdraw_command_get_num_points(command);
-    for (uint16_t i = 0; i < n; i++) {
-        GPoint p = gdraw_command_get_point(command, i);
-        if (p.x < b->min_x) { b->min_x = p.x; }
-        if (p.y < b->min_y) { b->min_y = p.y; }
-        if (p.x > b->max_x) { b->max_x = p.x; }
-        if (p.y > b->max_y) { b->max_y = p.y; }
-    }
+    gdraw_command_set_stroke_color(command, *(const GColor *)context);
+    gdraw_command_set_fill_color(command, GColorClear);
     return true;
 }
 
-// Second pass: recolor to white line-art (stroke white, fill cleared → light outlines;
-// the sleep glyph's "Z" strokes then read white inside the unfilled pillow outline), then
-// scale each point so the glyph HEIGHT maps to target_h px and snap it to the pixel-centre
-// grid SYMMETRICALLY about the glyph centre (see icon_round_grid). Snapping about the
-// centre — rather than rounding each point independently — keeps mirror vertices mirrored,
-// so octagons/curves stay symmetric instead of tilting a pixel when downscaled. The scale
-// itself rounds half-up (+den/2); the snap then quantises to the crisp phase.
-// Keep-fill art (b->fill set) is recoloured the other way round — fill tinted, stroke
-// off — and snapped by the same rule (its scale maps the viewbox: icon_load).
-static bool icon_normalize_cb(GDrawCommand *command, uint32_t index, void *context) {
-    (void) index;
-    IconNorm *b = (IconNorm *)context;
-    if (b->fill) {
-        gdraw_command_set_fill_color(command, b->fill->tint);
-        if (b->fill->outline) {
-            // Stroke width is baked 0 by the generator: a colour alone would stay
-            // invisible, so the width has to be set as well.
-            gdraw_command_set_stroke_color(command, GColorBlack);
-            gdraw_command_set_stroke_width(command, 1);
-        } else {
-            gdraw_command_set_stroke_color(command, GColorClear);
-        }
-    } else {
-        gdraw_command_set_stroke_color(command, theme_fg());
-        gdraw_command_set_fill_color(command, GColorClear);
-    }
-    uint16_t n = gdraw_command_get_num_points(command);
-    for (uint16_t i = 0; i < n; i++) {
-        GPoint p = gdraw_command_get_point(command, i);
-        p.x = (int16_t)(b->base_x + icon_snap_off(2 * (int32_t)p.x - b->sum_x, b->num, b->den));
-        p.y = (int16_t)(b->base_y + icon_snap_off(2 * (int32_t)p.y - b->sum_y, b->num, b->den));
-        if (p.x > b->out_max_x) { b->out_max_x = p.x; }
-        if (p.y > b->out_max_y) { b->out_max_y = p.y; }
-        gdraw_command_set_point(command, i, p);
-    }
-    uint8_t sw = gdraw_command_get_stroke_width(command);
-    if (sw > 1) {
-        int nw = ((int)sw * b->num + b->den / 2) / b->den;
-        gdraw_command_set_stroke_width(command, (uint8_t)(nw < 1 ? 1 : nw));
-    }
-    return true;
-}
-
-static GDrawCommandImage *icon_load(uint32_t resource_id, int target_h,
-                                    const IconFill *fill) {
+// A pixel drawing in `ink`. Its bounds are one less than its painted size, the convention the
+// seat (status_icon_weight.h) and the text gap are built on; the generator writes the ink's size
+// as the image's own bounds.
+static GDrawCommandImage *icon_load_pixels(uint16_t resource_id, GColor ink) {
+    if (resource_id == 0) { return NULL; }
     GDrawCommandImage *image = gdraw_command_image_create_with_resource(resource_id);
     if (!image) { return NULL; }
-    GDrawCommandList *list = gdraw_command_image_get_command_list(image);
-    IconNorm b = { .min_x = INT16_MAX, .min_y = INT16_MAX, .max_x = INT16_MIN, .max_y = INT16_MIN,
-                   .fill = fill };
-    gdraw_command_list_iterate(list, icon_bbox_cb, &b);
-    int glyph_h = b.max_y - b.min_y;
-    if (glyph_h <= 0) { return image; }   // degenerate glyph; leave untouched
-    int glyph_w = b.max_x - b.min_x;
-    // Scale so the glyph's height maps to target_h px. Points are in 1/8-px units, so the
-    // numerator carries the ×8; the max point then lands at target_h * 8 units == target_h px.
-    // Keep-fill art maps its authored VIEWBOX to target_h instead of its ink: the three rain
-    // buckets share one 25-px viewbox and one drop size (the count is the intensity), so
-    // scaling the ink would blow a one-row glyph's drops up to the full height and shrink
-    // the two-row downpour's to ~57 % of them.
-    int span = glyph_h;
-    if (fill) {
-        GSize vb = gdraw_command_image_get_bounds_size(image);
-        int vspan = (vb.h > vb.w ? vb.h : vb.w) * PRECISE_UNITS_PER_PX;
-        if (vspan > 0) { span = vspan; }
-    }
-    b.num = (int32_t)target_h * PRECISE_UNITS_PER_PX;
-    b.den = span;
-    b.sum_x = (int32_t)b.min_x + b.max_x;
-    b.sum_y = (int32_t)b.min_y + b.max_y;
-    // Origin phased so the min vertex lands on 4 (0.5 px) — a pixel centre, so the 1px
-    // stroke stays crisp and no vertex goes negative. base = 4 + snap(glyph extent), and
-    // the min vertex's offset snaps to -snap(extent), so it lands exactly on 4.
-    b.base_x = PRECISE_UNITS_PER_PX / 2 + icon_snap_off(glyph_w, b.num, b.den);
-    b.base_y = PRECISE_UNITS_PER_PX / 2 + icon_snap_off(glyph_h, b.num, b.den);
-    b.out_max_x = INT16_MIN;
-    b.out_max_y = INT16_MIN;
-    gdraw_command_list_iterate(list, icon_normalize_cb, &b);
-    // Tight bounds from the snapped extent. The min vertex sits at 4 (0.5 px), so the point
-    // span in px is (out_max - 4)/8; that reproduces the old ~target_h footprint (the 1px
-    // stroke bleeds ≤0.5 px into the layer clip, as it always did).
-    int bw = (b.out_max_x - PRECISE_UNITS_PER_PX / 2) / PRECISE_UNITS_PER_PX;
-    int bh = (b.out_max_y - PRECISE_UNITS_PER_PX / 2) / PRECISE_UNITS_PER_PX;
-    if (bw < 1) { bw = 1; }
-    if (bh < 1) { bh = 1; }
-    gdraw_command_image_set_bounds_size(image, GSize((int16_t)bw, (int16_t)bh));
+    gdraw_command_list_iterate(gdraw_command_image_get_command_list(image), pixel_ink_cb, &ink);
+    GSize size = gdraw_command_image_get_bounds_size(image);
+    gdraw_command_image_set_bounds_size(image, GSize(size.w - 1, size.h - 1));
     return image;
-}
-
-static uint32_t icon_resource(uint8_t icon_id) {
-    switch (icon_id) {
-        case STATUS_ICON_TEMP: return RESOURCE_ID_STATUS_TEMP;
-        case STATUS_ICON_UV: return RESOURCE_ID_STATUS_UV;
-        case STATUS_ICON_WIND: return RESOURCE_ID_STATUS_WIND;
-        case STATUS_ICON_GUST: return RESOURCE_ID_STATUS_GUST;
-        case STATUS_ICON_AQI: return RESOURCE_ID_STATUS_AQI;   // weather metric, all providers
-        case STATUS_ICON_POLLEN: return RESOURCE_ID_STATUS_POLLEN;
-        case STATUS_ICON_COUNTDOWN: return RESOURCE_ID_STATUS_COUNTDOWN;
-        // Dew point is a temperature, so the droplets glyph is the only thing that
-        // tells it apart from the temperature slot beside it.
-        case STATUS_ICON_DEWPOINT: return RESOURCE_ID_STATUS_DEW;
-        // The PHONE's charge, not the watch's. Two ids for one catalog item: the
-        // phone picks CHG over the plain id at bake time, so the charging state
-        // costs no wire field and no logic here — it is just a different resource.
-        case STATUS_ICON_PHONE_BATTERY: return RESOURCE_ID_STATUS_PHONE_BATTERY;
-        case STATUS_ICON_PHONE_BATTERY_CHG: return RESOURCE_ID_STATUS_PHONE_BATTERY_CHG;
-        // PRESSURE and PHONE_BATTERY_PLAIN are text-only by contract
-        // (status_line.h) — no PDC resource exists for either and none may load.
-        // Returning 0 makes status_row_icons_load() answer NULL, so the slot
-        // reserves ZERO icon width and renders as bare text; the id survives only
-        // to give the no-icon variant a ThreshKind of its own. Belt and braces:
-        // the draw site (status_row.c ensure_glyphs) never asks for them anyway.
-        case STATUS_ICON_PRESSURE: return 0;
-        case STATUS_ICON_PHONE_BATTERY_PLAIN: return 0;
-        // The On demand system items (in-memory ids, never on the wire).
-        case STATUS_ROW_ICON_QUIET: return RESOURCE_ID_STATUS_QUIET;
-        case STATUS_ROW_ICON_BT: return RESOURCE_ID_STATUS_BT;
-        case STATUS_ROW_ICON_BT_OFF: return RESOURCE_ID_STATUS_BT_OFF;
-#if defined(PBL_HEALTH)
-        // Distance is a HealthService metric (steps → distance), so it lives with the
-        // other health glyphs: no health service means no steps and no distance.
-        case STATUS_ICON_DISTANCE: return RESOURCE_ID_STATUS_DISTANCE;
-        case STATUS_ICON_STEPS: return RESOURCE_ID_HEALTH_STEPS;
-        case STATUS_ICON_SLEEP: return RESOURCE_ID_HEALTH_SLEEP;
-        case STATUS_ICON_HR: return RESOURCE_ID_HEALTH_HEART;
-#endif
-        default: return 0;
-    }
-}
-
-// Per-glyph size trim, as a percent of the tier's target height. Most glyphs fill
-// the slot, but a few read visually large at the shared target and get nudged down:
-// the route (distance) sprawls to its bbox corners and the steps footprint is wide.
-// 100 = no change; tune per icon.
-//
-// The vertical companion to this knob is the per-icon optical-centre weight in
-// status_icon_weight.h (50 = centre the ink box on the digits' cap centre, i.e.
-// what the draw site did before weights existed). Both are hand-tuned taste
-// values: this one decides how BIG a glyph reads, that one how HIGH it sits.
-//
-// One family opts out entirely: the phone-battery pair is sized in whole pixels
-// of h by phone_icon_h() below, because what it needs depends on the TIER and
-// this function only ever sees an icon id.
-static int icon_scale_pct(uint8_t icon_id) {
-    switch (icon_id) {
-        case STATUS_ICON_DISTANCE: return 95;
-        case STATUS_ICON_WIND:     return 95;
-        case STATUS_ICON_GUST:     return 95;
-        case STATUS_ICON_UV:       return 95;
-        case STATUS_ICON_AQI:      return 85;
-        case STATUS_ICON_TEMP:     return 93;
-        case STATUS_ICON_DEWPOINT: return 88;   // the two-drop pair spans nearly the
-                                                // whole viewbox, so it reads taller
-                                                // than the thermometer beside it
-        case STATUS_ICON_STEPS:    return 80;   // the 25x25 footprint glyph is wide
-        // PHONE_BATTERY / _CHG take no percent trim here. The pair is a phone and a
-        // mains plug — two different silhouettes — sharing one INK HEIGHT, and a
-        // percent cannot express what they need anyway: their size is a snapped RUNG
-        // that depends on the tier, so it is chosen in whole pixels by
-        // phone_icon_h() below. 100 here means "no trim, see there".
-        case STATUS_ICON_PHONE_BATTERY:
-        case STATUS_ICON_PHONE_BATTERY_CHG: return 100;
-        default:                   return 100;
-    }
-}
-
-// ── The phone-battery pair's size: a rung, not a percent ────────────────────
-//
-// STATUS_ICON_PHONE_BATTERY (a phone with the bolt drawn inside it) and _CHG (a
-// mains plug) swap in place inside ONE slot the moment the phone is plugged in, so
-// they are sized as a PAIR — at every tier but one. Their authored ink HEIGHTS are
-// exactly equal (160 units each), so one h renders both to the same height by
-// construction; only emery's FULL rows deliberately split them.
-//
-// THE SIZE GRAIN IS TWO PIXELS. icon_load() snaps every vertex to a pixel centre,
-// so painted height == bounds_h + 1 and is ALWAYS ODD: h and h+1 paint the same
-// height. A literal "one pixel shorter" IS NOT EXPRESSIBLE for these glyphs — that
-// is why the branches below subtract 2 and never 1, and why an odd h is trimmed
-// down rather than left to buy a rung nobody asked for.
-//
-// The measured 13-column rung ladder, the per-tier painted sizes, the emery FULL
-// split and what it costs, and the history behind each number are in
-// docs/adr/0002-status-glyph-sizing-and-seating.md §3. Do not re-tune these
-// without re-measuring both glyphs: sizes land on snapped rungs, not on percents.
-
-// Smallest h the pair survives: below 9 the plug's prongs merge into its outline
-// and the phone's inner bolt rasterises as a plain bar. The smallest h any shipping
-// tier asks for is 10, so this floor only ever HOLDS h — it never raises it past a
-// tier's target, and so can never push a glyph out of its row band.
-#define PHONE_ICON_MIN_H 9
-
-// The pair's height, in whole pixels. `icon_id` is STATUS_ICON_PHONE_BATTERY or
-// _CHG, `h` is the tier's target after icon_scale_pct() (100 for both ids, so
-// h == target_h unless the row band clamped it), and `top_strip` is the caller's own
-// tier flag, forwarded from status_row_icons_load().
-//
-// Every branch here can only ever LOWER or PASS THROUGH h, never raise it above
-// what the caller asked for (the floor aside, which cannot bite at any shipping
-// tier). That is what keeps a glyph inside its row band no matter how tightly
-// ensure_glyphs() clamped target_h.
-static int phone_icon_h(uint8_t icon_id, int h, bool top_strip) {
-#ifdef PBL_PLATFORM_EMERY
-    // emery: two of emery's three tiers leave the pair's natural rung, and only one
-    // of them splits the pair.
-    //   COMPACT/NONE rows (target 16): BOTH ids spend two requested pixels, 16 -> 14,
-    //     to paint 15 instead of 17 — the watch asked for shorter and the ladder has
-    //     no 1-px step.
-    //   FULL rows (target 12, the smallest of emery's three fonts): the NORMAL glyph
-    //     ALONE spends two, 12 -> 10, to paint 11 instead of 13. The watch asked for
-    //     the normal icon to be less tall there and said nothing about the plug, so
-    //     the plug keeps 12. This is the one tier where the two paint different
-    //     heights; the cost is spelled out above.
-    // The TOP STRIP (target 13) takes no branch of its own: it parity-trims to 12
-    // like any other odd request and paints 13, for both ids. The `h <= 12` guard is
-    // what keeps the split to the FULL tier — a compact row whose band clamped its
-    // target into 13..15 falls through to the parity trim with the pair still
-    // height-matched.
-    if (h >= 16) {
-        h -= 2;
-    } else if (!top_strip && h <= 12 && icon_id == STATUS_ICON_PHONE_BATTERY) {
-        h -= 2;
-    }
-#else
-    // basalt/diorite/flint: one answer for both ids at every tier, so neither the id
-    // nor the tier flag is consulted here. The parity trim below is the whole policy.
-    (void) icon_id;
-    (void) top_strip;
-#endif
-    // Parity trim: an ODD h paints target + 2 rows where an even one paints
-    // target + 1, so an odd request buys a rung nobody asked for. Rounding down
-    // spends it back.
-    if (h & 1) { h--; }
-    return (h < PHONE_ICON_MIN_H) ? PHONE_ICON_MIN_H : h;
 }
 
 GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top_strip) {
     if (target_h <= 0) { return NULL; }
-    int h = (target_h * icon_scale_pct(icon_id)) / 100;
-    if (h < 1) { h = 1; }
-    uint32_t resource = icon_resource(icon_id);
-    // Under ~10px the detailed thermometer's tube walls + mercury merge into a solid
-    // stick (the 144px watches' full/dense rows render it at 8px — MEASURED on basalt
-    // dense). In the regular rows, swap in the small aplite-style silhouette and draw
-    // it at its NATIVE 10px (h 9 = the authored ink bbox height, so the 1:1 scale
-    // lands every vertex on its authored pixel row — crisp like aplite's bit mask,
-    // and near aplite's icon-as-tall-as-the-digits proportions; the taller glyph
-    // still clears the dense band, 15 - ICON_BAND_MARGIN). NOT in the top strip: its
-    // deliberately smaller icon tier exists to protect the strip->calendar seam, so a
-    // 10px glyph there would spend exactly the rows STATUS_STRIP_CAL_GAP just freed.
-    // Every tier from 10px up (all of emery, the 144px compact row) keeps the
-    // detailed liquid glyph.
-    if (icon_id == STATUS_ICON_TEMP && h < 10 && !top_strip) {
-        resource = RESOURCE_ID_STATUS_TEMP_SMALL;
-        h = 9;
-    }
-    // Same shape as the thermometer swap above, and for the same reason: the phone
-    // pair's right size depends on the TIER, which icon_scale_pct() never sees. It
-    // is picked in whole pixels of h rather than as a percent, off a ladder grained
-    // in 2-px steps, and it takes BOTH the id and the tier flag — a tier can be given
-    // a rung of its own, and (emery's FULL rows only) the two ids a rung each,
-    // without touching this call. See phone_icon_h().
-    if (icon_id == STATUS_ICON_PHONE_BATTERY || icon_id == STATUS_ICON_PHONE_BATTERY_CHG) {
-        h = phone_icon_h(icon_id, h, top_strip);
-    }
-    if (resource == 0) { return NULL; }
-    return icon_load(resource, h, NULL);
+    return icon_load_pixels(status_icon_drawing(s_status_pixel_icons, STATUS_PIXEL_ICON_COUNT, icon_id,
+                                                status_icon_rows(icon_id, target_h, top_strip)),
+                            theme_fg());
 }
 
-// The drops' viewbox square, as a percent of the tier's icon height. The retired
-// strip takeover scaled the viewbox into a square a little taller than the tier's
-// icons (13 px over a 10-px tier on the 144-px screens, 15 over 13 on emery); 120 %
-// gives emery's 15 exactly, and the 144-px screens' 12 snaps to the same 6-px drop
-// as the strip's 13 did.
-#define RAIN_BOX_PCT 120
-
-GDrawCommandImage *status_row_icons_load_filled(uint32_t resource_id, int target_h,
-                                                GColor tint, bool outline) {
-    if (resource_id == 0 || target_h <= 0) { return NULL; }
-    IconFill fill = { .tint = tint, .outline = outline };
-    return icon_load(resource_id, (target_h * RAIN_BOX_PCT) / 100, &fill);
+GDrawCommandImage *status_row_icons_load_rain(uint8_t bucket, int target_h) {
+    if (target_h <= 0) { return NULL; }
+    return icon_load_pixels(status_icon_drawing(s_status_pixel_rain, STATUS_PIXEL_RAIN_COUNT, bucket,
+                                                status_icon_painted_rows(target_h)),
+                            theme_fg());
 }
 
 void status_row_icons_destroy(GDrawCommandImage *image) {

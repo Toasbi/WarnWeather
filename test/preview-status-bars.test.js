@@ -18,6 +18,8 @@ test('the date slot prints month + year beside a calendar, in its picker\'s form
   assert.equal(sample('date', {}, { fullDate: false }), 'Sep 2026');
   assert.equal(sample('date', { dateSlotMonthFormat: 'name' }, { fullDate: false }), 'September 2026');
   assert.equal(sample('date', { dateSlotMonthFormat: 'iso' }, { fullDate: false }), '2026-09');
+  assert.equal(sample('date', { dateSlotMonthFormat: 'dotsyy' }, { fullDate: false }), '09.26');
+  assert.equal(sample('date', { dateSlotMonthFormat: 'noyear' }, { fullDate: false }), 'Sep');
 });
 
 test('the date slot prints the full date without a calendar, in the region\'s order', () => {
@@ -156,8 +158,8 @@ test('the block sizes each slot by its position: the middle slot has room for th
   const S = { statusForecastLeft: 'temp', statusForecastMid: 'temp', statusForecastRight: 'empty',
     tempSlotDisplay: 'both', tempSlotUnit: true };
   const html = preview.statusBarsPreview(S, {});
-  assert.match(html, /sbp-left" data-select="statusForecastLeft"[^>]*>18\|16</);
-  assert.ok(new RegExp('sbp-mid" data-select="statusForecastMid"[^>]*>18' + DEG + '\\|16' + DEG + '<').test(html), html);
+  assert.ok(html.indexOf('<span class="sbp-v sbp-left">18|16</span>') !== -1, html);
+  assert.ok(html.indexOf('<span class="sbp-v sbp-mid">18' + DEG + '|16' + DEG + '</span>') !== -1, html);
 });
 
 test('a calendar shows only for a calendar top with rows', () => {
@@ -231,36 +233,28 @@ test('two-value temperature pairs keep the user\'s separator when the degree can
   assert.equal(sample('temp', S, { cap: EDGE }), '18 · 16', 'bare, never a narrowed 18°·16°');
 });
 
-test('on the tab each slot is a button that opens its picker, named by bar, slot and item', () => {
+// The owner's, 2026-11-14: no slot takes a tap of its own (a tap on a slot hid that a bar has
+// more settings); a tap on a bar's row opens its dialog (screens-page.js barsCard).
+test('the bars are pictures alone, on the tab and above a slot\'s dialog: nothing to tap', () => {
   const S = { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery',
     statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi',
     layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' };
-  const html = preview.statusBarsPreview(S, {});
-  assert.match(html, /^<div class="sbp tap" role="group" aria-label="Status bars"/);
-  const slots = html.match(/<button type="button" class="sbp-v [^"]*" data-select="[^"]*" aria-label="[^"]*">/g) || [];
-  assert.deepEqual(slots.map((b) => /data-select="([^"]*)"/.exec(b)[1]),
-    ['statusTopLeft', 'statusTopMid', 'statusTopRight', 'statusForecastLeft', 'statusForecastMid', 'statusForecastRight'],
-    'every slot of every shown bar, by its own key');
-  assert.ok(html.indexOf('data-select="statusTopLeft" aria-label="Watch bar, left slot: Empty">'
-    + '<span class="sbp-hole" aria-hidden="true"></span></button>') !== -1, 'an empty slot shows a hole to tap');
-  assert.ok(html.indexOf('aria-label="Forecast bar, middle slot: City">Berlin</button>') !== -1, html);
-  assert.ok(html.indexOf('class="sbp-v sbp-left sbp-empty"') !== -1, 'the empty one is marked');
-  // The bars say a tap changes a slot (the owner, 2026-11-06: it was not obvious), once,
-  // under the last bar, for sighted users only: each button carries its own name.
-  assert.equal(html.match(/<div class="sbp-tip" aria-hidden="true">Tap a slot to change it<\/div>/g).length, 1);
-  assert.ok(/<\/div><div class="sbp-tip"[^>]*>[^<]*<\/div><\/div>$/.test(html), 'the tip closes the bars');
-});
-
-test('above a slot\'s dialog the bars are the picture alone: nothing to tap', () => {
-  const S = { statusTopLeft: 'empty', statusForecastMid: 'city', layoutPreset: 'compactCal',
-    healthMode: 'off', radarMode: 'off' };
-  const html = preview.statusBarsPreview(S, {}, {}, { dialog: true });
-  assert.match(html, /^<div class="sbp" role="img" aria-label="Status bars preview"/);
-  assert.equal(html.indexOf('<button'), -1, 'no buttons');
-  assert.equal(html.indexOf('data-select'), -1, 'no picker to open');
-  assert.equal(html.indexOf('sbp-hole'), -1, 'an empty slot is blank, as on the watch');
-  assert.equal(html.indexOf('sbp-tip'), -1, 'and no tip to tap');
-  assert.ok(html.indexOf('<span class="sbp-v sbp-mid">Berlin</span>') !== -1, html);
+  [undefined, { dialog: true }].forEach((opts) => {
+    const html = preview.statusBarsPreview(S, {}, {}, opts);
+    const where = opts ? 'above a dialog' : 'on the tab';
+    assert.match(html, /^<span class="sbp" role="img" aria-label="Status bars preview"/, where);
+    assert.equal(html.indexOf('<button'), -1, where + ': no buttons');
+    assert.equal(html.indexOf('data-select'), -1, where + ': no picker to open');
+    assert.equal(html.indexOf('sbp-hole'), -1, where + ': an empty slot is blank, as on the watch');
+    assert.equal(html.indexOf('sbp-tip'), -1, where + ': and no tip to tap');
+    assert.equal(html.indexOf('<div'), -1, where + ': spans alone, so a picture fits inside a button');
+    assert.ok(html.indexOf('<span class="sbp-v sbp-left"></span>') !== -1, where + ': the empty slot');
+    assert.ok(html.indexOf('<span class="sbp-v sbp-mid">Berlin</span>') !== -1, html);
+  });
+  const one = preview.barPicture(S, {}, 'forecast', { dim: true });
+  assert.match(one, /^<span class="sbp one dim" role="img" aria-label="Forecast bar"/, 'one bar, dimmed');
+  assert.equal(one.indexOf('<button'), -1, 'one bar: no buttons');
+  assert.equal(one.indexOf('<div'), -1, 'one bar: spans alone');
 });
 
 test('barCodes reads each bar\'s slots as barSlots does, without the sample text', () => {
@@ -276,4 +270,36 @@ test('barCodes reads each bar\'s slots as barSlots does, without the sample text
   });
   assert.equal(preview.barCodes(S, basalt, 'health')[2].code, 'empty');
   assert.deepEqual(preview.barCodes(S, basalt, 'unknown'), []);
+});
+
+// The weather condition slot's picture prints the sample partly cloudy afternoon as the bake
+// does (slot-text.js conditionText): the name with its short form where the slot has the
+// bytes, split into the text and the form the watch picture swaps in where the row would cut
+// the name; the short form alone in an edge slot and on aplite. The Look decides the glyph
+// in one place, slotIcon.
+test('the condition slot: the bake\'s forms, split, and one place for the glyph', () => {
+  const basalt = { platform: 'basalt' };
+  const aplite = { platform: 'aplite' };
+  assert.equal(sample('condition', {}, { cap: MID, env: basalt }), 'Partly cloudy' + catalog.ALT_SEP + 'PCLDY');
+  assert.equal(sample('condition', {}, { cap: EDGE, env: basalt }), 'PCLDY');
+  assert.equal(sample('condition', { conditionSlotLook: 'icon' }, { cap: MID, env: basalt }), '');
+  assert.equal(sample('condition', { conditionSlotLook: 'icon' }, { cap: MID, env: aplite }), 'PCLDY',
+    'aplite prints the text whatever the Look');
+  const S = { statusForecastLeft: 'condition', statusForecastMid: 'condition', statusForecastRight: 'empty' };
+  const [left, mid] = preview.barSlots(S, basalt, 'forecast');
+  assert.deepEqual([mid.text, mid.alt], ['Partly cloudy', 'PCLDY']);
+  assert.deepEqual([left.text, left.alt], ['Partly cloudy', 'PCLDY'], 'the line has the room: as the bake gives it');
+  // A full line leaves an edge one form, as the bake does (status-lines.js widenEdgeConditions).
+  const full = preview.barSlots(Object.assign({}, S, { statusForecastRight: 'condition' }), basalt, 'forecast');
+  assert.deepEqual([full[0].text, full[0].alt, full[2].text], ['PCLDY', '', 'PCLDY']);
+  assert.deepEqual([preview.barSlots(S, aplite, 'forecast')[0].text, preview.barSlots(S, aplite, 'forecast')[0].alt],
+    ['PCLDY', ''], 'aplite: one form');
+  assert.equal(preview.slotIcon('condition', basalt, { conditionSlotLook: 'text' }), null, 'the Text look: no glyph');
+  assert.equal(preview.slotIcon('condition', aplite, {}), null, 'aplite draws none');
+  // The city draws the current weather's icon before its name unless switched off.
+  assert.equal(preview.slotIcon('city', basalt, {}), preview.slotIcon('condition', basalt, {}),
+    'the city: the weather icon, on by default');
+  assert.equal(preview.slotIcon('city', basalt, { citySlotIcon: false }), null, 'switched off: none');
+  assert.equal(preview.slotIcon('city', aplite, {}), null, 'aplite draws none');
+  assert.equal(preview.barSlots(Object.assign({ conditionSlotLook: 'text' }, S), basalt, 'forecast')[1].icon, null);
 });

@@ -145,30 +145,36 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // eyeball with `mise preview-config` and nudge the 0.52 factor if labels crowd.
     function labelAdvance(text, s) { return Math.round(text.length * s * 0.52); }
 
-    // The watch's rain drop, as the Alert settings card's rain icon draws it
-    // (status-slot-icons.js — scripts/gen-rain-pdc.py's construction: a cone from the
-    // tip tangent to a round body, pure fill, no outline). Its ink spans x 6..18,
-    // y 3..20.5 of that icon's 24-unit box.
-    var DROP_PATH = 'M12 3L17.1 11.4A6 6 0 1 1 6.9 11.4Z';
-    var DROP_INK_W = 12, DROP_INK_H = 17.5;
     /**
-     * The drop's width at a given ink height.
-     * @param {number} h Ink height in preview px.
-     * @returns {number} Ink width in preview px.
+     * The rain alert's icon as the watch draws it (status_on_demand.c): the weather condition
+     * slot's rain cloud (condition-glyphs.generated.js RAIN, a 24-unit outline of M/L points),
+     * with its ink box. Read at draw time, once every page file has loaded.
+     * @returns {{d: string, x: number, y: number, w: number, h: number}}
      */
-    function rainDropW(h) { return h * DROP_INK_W / DROP_INK_H; }
+    function rainGlyph() {
+        var d = ((typeof require !== 'undefined') ? require('./condition-glyphs.generated.js')
+            : window.ConditionGlyphs).RAIN;
+        var nums = d.match(/-?\d+(\.\d+)?/g), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, i;
+        for (i = 0; i + 1 < nums.length; i += 2) {
+            x0 = Math.min(x0, +nums[i]); x1 = Math.max(x1, +nums[i]);
+            y0 = Math.min(y0, +nums[i + 1]); y1 = Math.max(y1, +nums[i + 1]);
+        }
+        return {d: d, x: x0, y: y0, w: x1 - x0, h: y1 - y0};
+    }
     /**
-     * The rain drop, filled, its ink box's top-left at (gx, gy) and `h` px tall.
+     * The rain alert's icon, a 1 px outline, its ink box's top-left at (gx, gy) and `h` px tall.
+     * @param {Object} g rainGlyph().
      * @param {number} gx Left edge of the ink.
      * @param {number} gy Top edge of the ink.
      * @param {number} h Ink height.
-     * @param {string} color Fill colour.
+     * @param {string} color Stroke colour.
      * @returns {string} SVG markup.
      */
-    function rainDrop(gx, gy, h, color) {
-        var k = h / DROP_INK_H;
-        return '<path transform="translate(' + (gx - 6 * k) + ',' + (gy - 3 * k) + ') scale(' + k + ')"'
-            + ' d="' + DROP_PATH + '" fill="' + color + '"></path>';
+    function rainIcon(g, gx, gy, h, color) {
+        var k = h / g.h;
+        return '<path transform="translate(' + (gx - g.x * k) + ',' + (gy - g.y * k) + ') scale(' + k + ')"'
+            + ' d="' + g.d + '" fill="none" stroke="' + color + '" stroke-width="' + (1 / k) + '"'
+            + ' stroke-linecap="round" stroke-linejoin="round"></path>';
     }
 
     // The preview's vertical budget, in its 200-wide viewBox units. It sits pinned above the
@@ -375,33 +381,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         // Rain-alert preview band: a Watch Status Bar mock above the chart showing the
         // rain entry as the watch draws it there (status_on_demand.c) — its Look
-        // (the contract's rainAlert, as the blob packs it: the drop alone, the drop +
-        // "15'", or the drop + "Rain in 15'"), at the edge of the strip's On demand side
+        // (the contract's rainAlert, as the blob packs it: the icon alone, the icon +
+        // "15'", or the icon + "Rain in 15'"), at the edge of the strip's On demand side
         // that has Rain ticked (on-demand.js sideOf: left-aligned for the left side,
         // right-aligned for the right). Hidden while neither of the strip's sides
         // ticks Rain (the strip draws no rain entry then), and never shown on
-        // aplite (which lacks the feature). Only the drop is coloured, and it
-        // follows the radar colour the way rain_tint() (status_on_demand.c) does: the
-        // watch reads palette_radar_color(tier), clamped to the palette's last stop, so a
-        // Multicolor palette gives the green tier while the one-stop Solid palette gives
-        // the Solid bar colour (radarBarFg). B&W / bw themes draw it theme-fg. The text
-        // stays theme-fg.
+        // aplite (which lacks the feature). The icon and the text draw in the theme's
+        // foreground, like every icon of the bars (the watch gives the rain alert no
+        // colour of its own).
         var side = isAplite ? null : onDemand.sideOf(state, 'top', 'rain', env);
         var rain = thresholds.rainAlert(state);
         if (side === null) {
             return svgFrame(e, frameH);
         }
-        // !isColor first: B&W / bw themes take the theme_fg() branch whatever the
-        // (hidden) radar colour says.
-        var glyphColor = !isColor ? ink.fg : (radarWhite ? radarBarFg : P.rainTiers[2].color);
         var label = rain.look === 'icon' ? '' : (rain.look === 'minutes' ? "15'" : "Rain in 15'");
-        var bandH = ALERT_BAND_H, dropH = 8, dropW = rainDropW(dropH), edge = 4, size = 8.5;
-        var groupW = dropW + (label ? 3 + labelAdvance(label, size) : 0);
+        var glyph = rainGlyph(), bandH = ALERT_BAND_H, iconH = 9, edge = 4, size = 8.5;
+        var iconW = iconH * glyph.w / glyph.h;
+        var groupW = iconW + (label ? 3 + labelAdvance(label, size) : 0);
         var groupX = side === 'left' ? edge : 200 - edge - groupW;
         var band = rect(0, 0, 200, bandH, ink.bg);
-        band += rainDrop(groupX, (bandH - dropH) / 2, dropH, glyphColor);
+        band += rainIcon(glyph, groupX, (bandH - iconH) / 2, iconH, ink.fg);
         if (label) {
-            band += txt(groupX + dropW + 3, bandH / 2 + 3, size, ink.fg, 'start', 700, label);
+            band += txt(groupX + iconW + 3, bandH / 2 + 3, size, ink.fg, 'start', 700, label);
         }
         band += '<line x1="0" y1="' + bandH + '" x2="200" y2="' + bandH + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
         return svgFrame(band + '<g transform="translate(0,' + bandH + ')">' + e + '</g>', frameH + bandH);

@@ -1592,13 +1592,14 @@ const BOLD_SHEET_EXTRA_ROWS = {
     'tempSlotSeparatorSpaced', 'tempSlotUnit'],
   Pressure: ['pressureSlotUnit'],
   Countdown: ['countdownSlotUnit'],
-  Date: ['dateSlotMonthFormat', 'dateSlotFullFormat']
+  Date: ['dateSlotMonthFormat', 'dateSlotFullFormat'],
+  City: ['citySlotIcon']
 };
 
 // Bold is the last row before any group card on EVERY slot sheet — the bold-only
 // ones, where it follows the kind's extras, the alert kinds', where it sits right above
-// the Alert highlighting card, and the goal ones, where it sits right above the Goals
-// card. Asserted across all of them at once rather than per kind, so a sheet added later
+// the Alert highlighting card, the goal ones, where it sits right above the Goals
+// card, and the weather condition's, where it sits above its Every condition card. Asserted across all of them at once rather than per kind, so a sheet added later
 // cannot quietly become an exception.
 test('Bold is the last row before any Goals or Alert highlighting group on every slot sheet', () => {
   const sheets = sheetSections();
@@ -1606,8 +1607,8 @@ test('Bold is the last row before any Goals or Alert highlighting group on every
   sheets.forEach((s) => {
     const group = s.items.findIndex(it => it.type === 'subheader');
     if (group !== -1) {
-      assert.ok(['Goals', 'Alert highlighting'].includes(s.items[group].text),
-        s.title + ': the only group a slot sheet opens is its Goals or Alert highlighting card');
+      assert.ok(['Goals', 'Alert highlighting', 'Every condition'].includes(s.items[group].text),
+        s.title + ': the only group a slot sheet opens is its Goals, Alert highlighting or Every condition card');
     }
     const end = group === -1 ? s.items.length : group;
     const last = s.items[end - 1];
@@ -1747,18 +1748,17 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     'Pollen\'s scale note rides its slider in the alert sheet');
 });
 
-test('the rain alert sheet: the Shows on card (note, radar-off and not-placed boxes, grid), then the time window and the look — no switch', () => {
+test('the rain alert sheet: the Shows on card (note, radar-off and not-placed boxes, grid), then the time window, the look and Replaces the slot', () => {
   const s = alertSheets().find(x => x.sheetId === 'alertRain');
   assert.ok(s, 'the rain sheet exists');
   assert.equal(s.title, 'Rain alert');
   assert.deepEqual(s.showWhen, { env: 'onDemand' }, 'shown in any radar mode: the card row names the radar');
   // When the watch shows it: raining now or due within the window, never in the
-  // Battery saver hours (rain_countdown.c; settings audit #14). rain_tint
-  // (status_on_demand.c): the radar colour only under a colour theme on a colour watch.
+  // Battery saver hours (rain_countdown.c; settings audit #14). No word on a colour: the
+  // icon draws in the foreground like every other (status_row_icons_load_rain).
   assert.equal(s.intro, 'Shows the rain icon at the edge of a status bar while it rains at your location'
-    + ' or when rain is due within the time window. On a color watch, the icon uses the radar’s rain color,'
-    + ' except with a B&W theme. The icon is hidden during the Battery saver hours.');
-  assert.ok(!s.items.some(it => it.messageKey === 'alertRain'), 'no switch: its Shows on grid places Rain');
+    + ' or when rain is due within the time window. The icon is hidden during the Battery saver hours.');
+  assert.ok(!s.items.some(it => it.messageKey === 'alertRain'), 'no on/off switch: its Shows on grid places Rain');
   // The Shows on card: its note as the card's intro (rain never merges into a slot, so no
   // merge sentence), then the boxes — the radar is off (a link to where it is turned on),
   // or Rain sits on no bar — then the grid they point at, then the Default view's warning.
@@ -1807,7 +1807,10 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
         + ' shorten, then hide. Only then does the text shorten to the minutes, and then to the rain icon alone.'
     }
   });
-  assert.equal(s.items.length, 8);
+  // Last, whether it takes the place of the slot on its side (the owner's, 2026-11-14).
+  assert.equal(s.items[8].messageKey, 'rainAlertReplacesSlot');
+  assert.equal(s.items[8].type, 'toggle');
+  assert.equal(s.items.length, 9);
 });
 
 test('alert sheets carry no slot rows (Bold, display mode, arrow, unit)', () => {

@@ -437,6 +437,18 @@ automatic: aplite has no themes chapter and no radar/health frames; flint shows 
 committed) for manual upload. Re-assemble a single reel without recapturing with
 `scripts/assemble-reel.sh <version> <platform> [fps]`.
 
+### Pixel icons
+
+The status icons are drawn pixel by pixel, once per size, in the pixel icon editor:
+
+```bash
+python3 scripts/pixel-icons/build_editor.py          # -> build/pixel-icons/editor.html
+python3 scripts/pixel-icons/import_pixels.py --export editor-export.json
+node scripts/pixel-icons/gen_watch_icons.js          # the icons marked done, into the watch
+```
+
+The whole process, the sizes and the file formats: `scripts/pixel-icons/README.md`.
+
 ### Package generation
 
 `package.json` is generated from `package.template.json` + profile in `profiles/`.
@@ -646,9 +658,9 @@ supabase functions deploy news
 ```
 
 The news function never puts the account-token hash in a URL the gateway logs: the list (items,
-seen watermark and the caller's votes in one call), the seen upsert and the rate-limit counts are
-RPCs in `supabase/schemas/news.sql` (arguments in the POST body, service role only), and the vote
-upsert and reply insert carry it in their row bodies. Its logs carry a fixed tag plus at most a
+seen watermark and the caller's votes in one call), the seen upsert and the vote rate-limit count
+are RPCs in `supabase/schemas/news.sql` (arguments in the POST body, service role only), and the
+vote upsert carries it in its row body. The function takes no messages. Its logs carry a fixed tag plus at most a
 Postgres/PostgREST code (`log.ts`). The function needs those RPCs, so the migration goes out first
 (CI runs `db push` before `functions deploy`).
 

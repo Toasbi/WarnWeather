@@ -34,9 +34,24 @@
     // Text-only, exactly like PRESSURE: the no-icon phone-battery item never
     // loads a glyph, and the id exists so it does not arrive as TEXT + NONE and
     // inherit city's bold mode.
-    PHONE_BATTERY_PLAIN: 18
+    PHONE_BATTERY_PLAIN: 18,
+    // The weather condition slot (weather/condition.js): the glyph of the condition now,
+    // picked per bake like the phone battery's pair; COND_TEXT its text-only look, which
+    // loads no glyph (and, like PRESSURE, keeps it off TEXT + NONE).
+    COND_TEXT: 19, COND_SUN: 20, COND_MOON: 21, COND_SUN_CLOUD: 22, COND_MOON_CLOUD: 23,
+    COND_CLOUD: 24, COND_FOG: 25, COND_HAZE: 26, COND_DRIZZLE: 27, COND_RAIN: 28,
+    COND_SLEET: 29, COND_SNOW: 30, COND_HAIL: 31, COND_THUNDER: 32, COND_WIND: 33
   };
-  var CAPS = { LINE_MAX: 48, EDGE_TEXT_MAX: 8, MID_TEXT_MAX: 19 };
+  // A TEXT slot's short form rides after this byte (status_line.h STATUS_TEXT_ALT_SEP).
+  var ALT_SEP = '\u001f';
+  // The city's icon byte with the current weather's glyph: the glyph's id with this bit
+  // (status_line.h STATUS_ICON_CITY_GLYPH), so the watch keeps the slot the city's.
+  var CITY_GLYPH = 0x80;
+  // EDGE_COND_TEXT_MAX: an edge slot's weather condition may take the middle slot's room, its
+  // name with the short form after it, while the whole line still fits LINE_MAX
+  // (status-lines.js widenEdgeConditions), so a side slot shows the whole name beside an empty
+  // or a short middle.
+  var CAPS = { LINE_MAX: 48, EDGE_TEXT_MAX: 8, MID_TEXT_MAX: 19, EDGE_COND_TEXT_MAX: 19 };
 
   var ITEMS = [
     { code: 'empty', label: 'Empty', kind: KINDS.EMPTY, icon: ICONS.NONE },
@@ -60,13 +75,21 @@
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.AQI, category: 'weather' },
     { code: 'pollen', label: 'Pollen (DWD)', kind: KINDS.TEXT, icon: ICONS.POLLEN, needsProvider: 'dwd', category: 'weather' },
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'weather' },
+    // What the weather is like now (weather/condition.js): its name, or its short form where
+    // the slot is short of room, with the condition's glyph; the edit sheet's Look picks icon
+    // and text, text alone or the icon alone. The baked icon varies (status-lines.js
+    // iconFor); COND_TEXT is the id of the text-only look.
+    { code: 'condition', label: 'Weather condition', kind: KINDS.TEXT, icon: ICONS.COND_TEXT, category: 'weather' },
     // Any position since custom layouts: the calendar can sit anywhere or be absent
     // now, so the date is a first-class slot like City (the middle-only gate was a
     // leftover from when it was hard-wired into the strip's centre; the watch's
     // SLOT_LIVE_DATE renderer never cared about position).
     { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, category: 'datelocation' },
     { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, category: 'datelocation' },
-    { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE, category: 'datelocation' },
+    // iconLabel: the slot lists' name where the city draws the current weather's icon
+    // before it (every watch but aplite; slot-text.js cityIcon).
+    { code: 'city', label: 'City', iconLabel: 'City with weather icon', kind: KINDS.TEXT, icon: ICONS.NONE,
+      category: 'datelocation' },
     { code: 'countdown', label: 'Date countdown', kind: KINDS.TEXT,
       icon: ICONS.COUNTDOWN, category: 'datelocation' },
     { code: 'steps', label: 'Steps', kind: KINDS.LIVE_STEPS, icon: ICONS.STEPS, needsHealth: true, category: 'health' },
@@ -220,6 +243,15 @@
   }
 
   /**
+   * An item's name in the slot lists: its iconLabel where the watch draws that icon.
+   * @param {Object} item A catalog item. @param {Object} env Platform env.
+   * @returns {string}
+   */
+  function optionLabel(item, env) {
+    return item.iconLabel && !(env && env.platform === 'aplite') ? item.iconLabel : item.label;
+  }
+
+  /**
    * Option list for one slot dropdown: 'Empty' first, then available items per
    * category, minus args.excludeCodes. An item gated ONLY by the weather
    * provider stays in the list as a non-selectable row with {disabled: true}.
@@ -248,10 +280,10 @@
             || (taken[item.code] && item.code !== 'countdown')) { continue; }
         if (!itemAvailable(item, settings, env, slotCtx)) {
           if (!itemAvailableExceptProvider(item, settings, env, slotCtx)) { continue; }
-          children.push([item.label, item.code, { disabled: true }]);
+          children.push([optionLabel(item, env), item.code, { disabled: true }]);
           continue;
         }
-        children.push([item.label, item.code]);
+        children.push([optionLabel(item, env), item.code]);
       }
       if (!children.length) { continue; }
       if (children.length === 1) {
@@ -534,7 +566,8 @@
   }
 
   var api = {
-    KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES, SLOT_POSITIONS: SLOT_POSITIONS,
+    KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, ALT_SEP: ALT_SEP, CITY_GLYPH: CITY_GLYPH, LINES: LINES,
+    SLOT_POSITIONS: SLOT_POSITIONS,
     EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,

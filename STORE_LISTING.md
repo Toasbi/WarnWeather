@@ -1,128 +1,62 @@
-# WarnWeather — Pebble Appstore listing
+# WarnWeather Pebble appstore listing
 
-## Full description (plain text — paste verbatim)
+## Full description (plain text, paste as is)
 
 ```
-WarnWeather is a weather watchface for Pebble, based on the ForecasWatch2 watchface.
-It supports multiple views which can be reached through a wrist flick.
-Highly customizable with a modern settings UI and previews.
+WarnWeather is a weather watchface for Pebble, inspired by ForecasWatch2.
 
 FORECAST
-- 12/24/66-hour forecast with a temperature line and configurable, battery-friendly updates
-- Up to four configurable metrics such as precipitation amount & probability, cloud cover, UV index, gusts,
-  wind, air pressure, feels-like temperature and dew point
-- Optional day/night shading
-- Pebble Time 2: each screen can show its own forecast graph; keep up to six, or pick one of
-  14 templates such as Clean, Stripes or Meteogram; open a screen's graph right from its editor
-- Fully customizable line, colors and axis
-- Multiple weather providers, including regional and worldwide sources
+- Hourly forecast graph: temperature plus up to four lines*
+- Rain chance and amount, clouds, UV, wind, gusts, pressure, feels-like, dew point
+- Lines, stripes, dots or bars, with your own colors*
+- 12 to 66 hours ahead* and up to six graphs*
+- Day/night shading
 
-ALERTS
-Small screens fill up fast. Alerts reduce the clutter on your watchface by showing
-information only when it's important.
-- Alert icons show at the edge of a status bar only when they reach your warn level
-  or are active right now, and stay hidden the rest of the time
-- System info/alerts: low watch battery, Bluetooth disconnected, quiet time, and a
-  sleep icon during the Battery saver hours
-- Weather alerts: rain, wind gusts, UV index, air quality, pollen (DWD) and wind speed
-- Weather alerts replace slots: a weather alert sits beside the status slot on its side, or
-  takes that slot's place right away
-- Graph lines on Alert: show a wind, gust or UV line only where it reaches your warn
-  level, so the graph stays clean until it matters (e.g. UV index only above 5, so you
-  know exactly which hours you need sunscreen)
-- Alert levels and colors: choose the level at which each alert shows, its color, and
-  where on the screen it appears
+ALERTS*
+Icons that appear only when something needs your attention:
+- Rain on its way, with a countdown
+- Wind, gusts, UV, air quality, pollen
+- Low battery, Bluetooth lost, quiet time
+- Your own warn and danger levels and colors
 
-RAIN RADAR
-- 2-hour precipitation nowcast(based on radar for DWD) from regional and worldwide providers
-- Rain countdown telling you when rain starts (or stops)
-- Optional clouds, sun and lightning through open-meteo
+RAIN RADAR*
+- Rain for the next 2 hours, in 5-minute steps
+- Clouds, sun and lightning
 
-HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
-- Health status for steps, sleep, distance and heart rate
-- Last-24h health chart with steps per hour, heart rate on a scale you set, and a sleep band
+STATUS BARS
+- Weather condition, temperature, air quality, wind, UV, sunrise and sunset, pollen
+- Date, week, city, countdown
+- Steps, sleep, distance, heart rate*
+- Watch and phone battery
+- Name your own bars and place them on any screen*
+
+HEALTH*
+- Steps, sleep and heart rate chart for the last 24 hours
 
 CALENDAR
-- Multi-week calendar with current-day highlight
-- Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
-
-STATUS LINES
-- Configurable status slots on every view:
-   - Weather:
-      - feels-like temperature
-      - dew point
-      - air quality (current, today's/tomorrow's peak)
-      - air pressure
-      - pollen
-      - wind (current, today's/tomorrow's peak)
-      - gusts (current, today's/tomorrow's peak)
-      - UV index (current, today's/tomorrow's peak)
-      - sunrise/sunset
-   - Date and location:
-      - calendar week
-      - date (selectable formats: European, US, ISO and more)
-      - weather fetch location
-      - countdown to any date
-   - Health:
-      - steps
-      - distance
-      - heart rate
-      - sleep
-   - Battery:
-      - watch battery icon
-      - watch battery percentage
-      - phone battery
-- Name your status bars and put any of them on any screen
-- Up to six status bars on Pebble Time 2
-- Bold status values to make them stand out or easier to read
-- Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
-- Threshold highlighting: bold, outline, or fill a status slot when its value crosses a
-  warn or danger level you set
-
-WATCHFACE THEMES
-- Dark and Light, plus Black & White and Black & White Inverted options on color watches
-- Theme switching: night theme, flipped at sunrise/sunset or between custom hours
+- Two or three weeks, with holidays for 150+ countries
 
 WATCH
-- Custom color, 12h/24h, optional AM/PM
-- Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
-- Night battery saver (pause updates to the watch between hours you set, to save battery)
-- Night backlight dimming
+- Up to three screens, switched with a wrist flick*
+- Dark, light and black & white themes, with a night theme
+- 12h/24h, clock color, smooth digits*
+- Battery saver hours, night backlight*
 
-LAYOUT CUSTOMIZATION
-- Up to three screens, switched with a wrist flick
-- Edit each screen as a simple list, top to bottom: drag a row, remove it or add one where it fits
-- Name your screens and drag them into order
-- Add a screen by its layout: with or without a calendar, Health, Rain radar, or two graphs on one screen
-- Change a screen's layout in its editor, keeping its name and place
-- First-run setup wizard that picks sensible defaults for your country and watch
+SETTINGS
+- Live preview of your watch
+- 5-day forecast for your saved places
 
-WEATHER
-- Detailed 5-day weather forecast for multiple locations inside the settings app
+* Depends on your watch model.
 
-PLATFORMS
-- Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2,
-  Pebble Time 2, and Pebble 2 Duo
-
-PRIVACY
-- Sends anonymous usage data: whether weather updates succeed, app and watch version,
-  country, and which settings are used. Never your location, API keys or health data.
-- Turn it off under Setup → Misc → Share anonymous telemetry.
-
-Weather and radar data from MET Norway (CC BY 4.0).
-
-
-If you like this watchface and want to support the development, 
-press the ❤️ button and consider buying me a coffee at
+If you like this watchface, press the ❤️ button. You can support its development at
 https://www.buymeacoffee.com/toaster2.
-
 ```
 
-## Screenshots 
+## Screenshots
 
-The store wants at least one screenshot per supported platform, so we capture all five
-configs on **every** platform (aplite, basalt, diorite, emery, flint) — 5 shots × 5
-platforms = 25 files, grouped per platform for upload.
+The store needs at least one screenshot per supported platform, so all five configs are
+captured on every platform (aplite, basalt, diorite, emery, flint): 25 files, grouped per
+platform for upload.
 
 Each config is a fixture bundling its own settings + weather/radar data:
 
@@ -136,7 +70,7 @@ Each config is a fixture bundling its own settings + weather/radar data:
 
 `berlin` and `store-wind-radar` auto-tap into the radar view; the others stay on the
 calendar/forecast view. On the black-and-white platforms (aplite, diorite, flint) the
-multicolor/yellow settings render in B&W — expected.
+multicolor and yellow settings render in black and white.
 
 Capture everything in one go:
 
@@ -144,6 +78,6 @@ Capture everything in one go:
 scripts/capture-store-shots.sh v1.0.0
 ```
 
-Output lands in `screenshot/v1.0.0/store/<platform>/<label>.png` — e.g.
+Output goes to `screenshot/v1.0.0/store/<platform>/<label>.png`, for example
 `store/emery/1-calendar.png`. Upload each platform's five files to that platform in the
 store listing.

@@ -60,7 +60,8 @@ function fullMapped() {
     humidityTrend: series(24, () => 60),
     currentHumidity: 60,
     currentWindKmh: 20,
-    uvTrend: series(24, () => 3)
+    uvTrend: series(24, () => 3),
+    currentCondition: 'partly'
   });
 }
 
@@ -94,7 +95,7 @@ function snapshot(p) {
 }
 
 test('MAPPED_KEYS.all is the union of the groups, without duplicates', () => {
-  const union = [].concat(KEYS.core, KEYS.zeroed, KEYS.empty, KEYS.feels, KEYS.uv);
+  const union = [].concat(KEYS.core, KEYS.zeroed, KEYS.empty, KEYS.feels, KEYS.uv, KEYS.condition);
   assert.deepEqual(KEYS.all, union);
   assert.equal(new Set(KEYS.all).size, KEYS.all.length, 'no key in two groups');
   assert.deepEqual(KEYS.core, ['tempTrend', 'precipTrend', 'startTime', 'currentTemp']);
@@ -123,6 +124,7 @@ test('a reused instance: every optional key absent → each field gets its docum
   assert.deepEqual(p.feelsTrend, [], 'feelsTrend emptied');
   assert.equal(p.currentFeels, null, 'currentFeels nulled');
   assert.deepEqual(p.uvTrend, [], 'uvTrend emptied');
+  assert.equal(p.currentCondition, null, 'currentCondition nulled');
   assert.equal(p.hasValidData(), true);
 });
 
@@ -266,6 +268,35 @@ test('uv: fetchUv off → [] even when present (and on a reused instance)', () =
   const p = staleProvider({ fetchUv: false });
   p.adoptMapped(fullMapped());
   assert.deepEqual(p.uvTrend, []);
+});
+
+// ---- condition --------------------------------------------------------------
+
+test('condition: a fresh provider starts with none', () => {
+  assert.equal(new WeatherProvider().currentCondition, null);
+});
+
+test('condition: a condition.js id is copied, on a fresh and on a reused instance', () => {
+  const fresh = new WeatherProvider();
+  fresh.adoptMapped(fullMapped());
+  assert.equal(fresh.currentCondition, 'partly');
+
+  const reused = staleProvider();
+  assert.equal(reused.currentCondition, 'partly', 'sanity: the stale condition is loaded');
+  const next = coreOnly();
+  next.currentCondition = 'lightrain';
+  reused.adoptMapped(next);
+  assert.equal(reused.currentCondition, 'lightrain');
+});
+
+test('condition: absent, null or anything but a condition.js id → null, never the stale one', () => {
+  [undefined, null, '', 'Sunny', 'partly-cloudy', 802, { id: 'partly' }].forEach((value) => {
+    const p = staleProvider();
+    const mapped = coreOnly();
+    if (value !== undefined) { mapped.currentCondition = value; }
+    p.adoptMapped(mapped);
+    assert.equal(p.currentCondition, null, 'value ' + JSON.stringify(value));
+  });
 });
 
 // ---- idempotence -----------------------------------------------------------

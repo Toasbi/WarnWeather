@@ -861,25 +861,30 @@ test('radarPreview never shows the countdown band on aplite', () => {
   assert.ok(svg.indexOf('viewBox="0 0 200 81"') >= 0, 'aplite frame stays at the no-band height');
 });
 
-test('countdown drop is tier-coloured on color, white on B&W; text stays white', () => {
+test('the countdown band draws its icon and text in white on color and on B&W', () => {
+  const glyphs = require('../src/pkjs/settings/condition-glyphs.generated.js');
   const color = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
   const bw = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false });
-  assert.ok(/<path[^>]*d="M12 3L17\.1 11\.4A6 6 0 1 1 6\.9 11\.4Z" fill="#00FF00"/.test(color),
-    'the watch\'s filled teardrop, in the green tier, on color');
-  assert.equal(/<path[^>]*fill="#00FF00"/.test(bw), false, 'no green drop on B&W');
-  assert.equal(/<line[^>]*stroke="#00FF00"/.test(color), false, 'no three-stroke glyph any more');
+  [['color', color], ['B&W', bw]].forEach(([name, svg]) => {
+    assert.ok(svg.indexOf(' d="' + glyphs.RAIN + '" fill="none" stroke="#FFFFFF"') >= 0,
+      name + ': the rain cloud outline in white');
+    assert.equal(/<path[^>]*fill="#00FF00"/.test(svg), false, name + ': no green drop');
+  });
   assert.ok(color.indexOf('fill="#FFFFFF"') >= 0, 'white band text present on color');
 });
 
 /**
- * The preview band's drop x (its path's translate) and its text, if any.
+ * The preview band's icon x (its path's translate) and its text, if any.
  * @param {string} svg radarPreview markup
  * @returns {?{x: number, text: ?string}} null when the band is absent
  */
 function rainBand(svg) {
-  const m = /<path transform="translate\(([-\d.]+),[-\d.]+\) scale\([\d.]+\)" d="M12 3L17/.exec(svg);
-  if (!m) { return null; }
-  const after = svg.slice(m.index);
+  const glyphs = require('../src/pkjs/settings/condition-glyphs.generated.js');
+  const at = svg.indexOf(' d="' + glyphs.RAIN + '"');
+  if (at < 0) { return null; }
+  const start = svg.lastIndexOf('<path', at);
+  const m = /^<path transform="translate\(([-\d.]+),/.exec(svg.slice(start));
+  const after = svg.slice(start);
   const t = /<text[^>]*>([^<]*)<\/text>/.exec(after.slice(0, after.indexOf('<line')));
   return { x: Number(m[1]), text: t ? t[1] : null };
 }
@@ -889,7 +894,7 @@ test('radarPreview draws the rain entry in its Look, at the side of the Watch ba
   const at = (S) => rainBand(RD.radarPreview(Object.assign({}, base, S), { color: true }));
   assert.equal(at({}).text, "Rain in 15'", 'the default Look: the countdown text');
   assert.equal(at({ rainAlertDisplay: 'minutes' }).text, "15'", 'Icon + minutes');
-  assert.equal(at({ rainAlertDisplay: 'icon' }).text, null, 'Icon: the drop alone');
+  assert.equal(at({ rainAlertDisplay: 'icon' }).text, null, 'Icon: the icon alone');
   const onRight = { statusTopOnDemandLeftItems: 'bt', statusTopOnDemandRightItems: 'battery,rain' };
   const left = at({ rainAlertDisplay: 'icon' }).x;
   const right = at(Object.assign({ rainAlertDisplay: 'icon' }, onRight)).x;
@@ -898,24 +903,25 @@ test('radarPreview draws the rain entry in its Look, at the side of the Watch ba
   assert.equal(at({ statusTopOnDemandLeftItems: '' }), null, 'Rain unticked: no rain entry, no band');
 });
 
-// The watch colours the On demand Rain item's rain icon with palette_radar_color(tier)
-// (status_on_demand.c rain_tint(), colour themes only), clamped to the RADAR palette's
-// last stop — and a Solid radar palette has just the one stop. So the glyph follows the
-// Solid bar colour, never the green tier.
-test('countdown glyph follows radarColor=Solid on a colour watch (the watch\'s single radar stop)', () => {
-  const rainTier = require('../src/pkjs/weather/rain-tier.js');
-  const colorLib = require('../src/pkjs/config-ui/lib/color.js');
+// The watch draws the On demand Rain item's icon in the theme's foreground, like every other
+// icon (status_row_icons_load_rain): the weather condition slot's rain cloud, never a colour
+// from the radar palette, whatever the radar colour is.
+test('the rain alert icon is the rain cloud in the theme\'s foreground, whatever the radar colour', () => {
+  const glyphs = require('../src/pkjs/settings/condition-glyphs.generated.js');
   const userData = { palette: require('../src/pkjs/settings/preview-palette.js').buildPreviewPalette() };
+  const fg = { dark: '#FFFFFF', light: '#000000' };
   ['dark', 'light'].forEach((theme) => {
-    const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'white', radarMode: 'graph', theme },
-      { color: true, platform: 'basalt' }, userData);
-    const fills = [];
-    svg.replace(/<path transform="[^"]*" d="M12 3L17[^"]*" fill="([^"]+)"/g, (m, c) => { fills.push(c); return m; });
-    const watch = rainTier.buildPalette('basalt', 'white', theme);
-    const expected = colorLib.intToHex(watch.rgb[watch.rgb.length - 1]);
-    assert.equal(fills.length, 1, theme + ': the drop is drawn');
-    assert.deepEqual(fills, [expected], theme + ': the drop takes the Solid stop ' + expected);
-    assert.equal(/<path[^>]*fill="#00FF00"/.test(svg), false, theme + ': no green tier drop');
+    ['white', 'multicolor'].forEach((radarColor) => {
+      const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor, radarMode: 'graph', theme },
+        { color: true, platform: 'basalt' }, userData);
+      const icons = [];
+      svg.replace(/<path transform="[^"]*" d="([^"]*)" fill="([^"]*)" stroke="([^"]*)"/g, (m, d, fill, stroke) => {
+        if (d === glyphs.RAIN) { icons.push({ fill, stroke }); }
+        return m;
+      });
+      assert.deepEqual(icons, [{ fill: 'none', stroke: fg[theme] }],
+        theme + ', ' + radarColor + ': one rain cloud outline in the foreground');
+    });
   });
 });
 

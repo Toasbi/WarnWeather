@@ -12,7 +12,7 @@
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/toaster2)
 
 
-A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecast, a 3-week calendar, health tracking, and rain radar.
+WarnWeather is a weather watchface for Pebble, inspired by ForecasWatch2. It shows the time, an hourly forecast graph, a calendar and status bars, and on watches that have them a rain radar and health data. Alerts stay hidden until a value reaches the level you set.
 
 ## Screenshots
 
@@ -22,162 +22,86 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 ## Features
 
-**Alerts** *(not on Pebble Classic/Steel)*\
-Small screens fill up fast. Alerts keep the watchface clean and bring information up only when it matters, so you know before it gets dangerous.
-* Alert icons at a status bar's edge, next to the status slot there, that show only when they reach their warn level or are active right now (low battery, Bluetooth disconnected, rain coming, a high UV or wind forecast), and stay hidden the rest of the time. The *Alerts* tab lists them. Open one to set it up and to choose which status bars show it, Left or Right (one side per bar). Each bar's dialog (Status bars tab, tap the bar's name) shows, under *Alerts*, the icons placed there. The items and how they show:
-  * System info — the watch battery at or below a warn level you set (the icon, or the icon and the charge), Bluetooth when it disconnects (or connects, or both), quiet time while it is on, and a sleep icon during the Battery saver hours
-  * Weather alerts — rain falling or on its way, or wind gusts, UV index, air quality, pollen (with DWD) or wind speed reaching your warn level today (later hours included) or, once nothing left today does, tomorrow; each metric alert can print its value next to its icon and can stick to today or also look ahead to tomorrow, marking a tomorrow alert with `»` or a mark you pick (`>`, `+`, `*` or none); the rain alert shows as the rain icon, the minutes until it starts (or, while it rains, how long it keeps falling), or the full countdown text
-  * On by default: Bluetooth, quiet time, battery saver and the rain alert on the left of the Watch bar (the top bar), and the battery with the wind gust, UV index, air quality and wind speed alerts on its right; the pollen alert is off, and every other bar starts with no alerts
-  * The battery item stays out while a slot of the same bar already shows the watch battery, and stands in once that slot has to hide
-  * A weather alert (UV index, wind speed, wind gusts, air quality, pollen) on the side whose status slot shows the same value goes into that slot: the slot shows its own value and the alert's once (`3/8`, `4/»9`) in the alert's colors, and the alert icon shows only once that slot has to hide
-  * When a bar runs short of room, its slots switch to short forms — a four-digit year to `'26` (`26` after a dot or slash), a city abbreviating its shorter words (`N. York`, `Frankfurt a. M.`) and then cut with `…`, sleep to `7h`, steps to `12k`, units and spaces dropped (`12°` → `12`, `12 / 30kph` → `12/30`) — then the slot beside the items hides, then the middle slot leaves the centre and hides, and only then do the alert values and the rain text shorten, and last the lowest-priority items drop; the date shortens no further than its year, and a battery number, sunrise/sunset and the calendar week never shorten: they show whole or hide
-  * Weather alerts replace slots (Status bars tab › All status bars): *If needed*, the default, keeps a weather alert beside the slot on its side, which makes room only as above; *Right away* puts the weather alert in that slot's place for as long as it shows (Battery, Bluetooth, quiet time and battery saver still sit beside it)
-* Alert levels: a warn and a danger level for each weather alert (wind gusts, UV index, air quality, pollen, wind speed), set in its dialog on the *Alerts* tab, with its own colors on color watches
-* Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or danger level you set (its Alert levels)
-* Graph lines on Alert (Visible values: All | Alert): a wind speed, wind gust or UV index line draws every value, or only where it reaches your warn level (its Alert levels), its scale then starting at that level, so the small graph stays empty until it matters; each graph keeps its own, and a metric drawn as All on one graph and as Alert on another counts as two of the five metrics (Graphs tab › Forecast › a graph, in the metric's dialog)
+Features marked * depend on your watch model.
 
-**Forecast**
-* 24-hour forecast with a temperature line and configurable, battery-friendly updates (on Pebble Time 2: 12, 24 or up to 66 hours, the option naming the hours your weather provider and layout show, Graphs tab › Forecast › a graph › Other › Forecast length); a shorter forecast, such as OpenWeatherMap's 48 hours, widens its columns to fill the graph; on the longer span the hour axis marks the clock (a label every 6 hours, a tick at 12, 15, 18, 21 and so on)
-* Configurable metrics such as precipitation, cloud cover, UV index, gusts, wind, air pressure, feels-like temperature and dew point (both drawn on the temperature scale)
-* Up to four metric lines at once, each in its own style — thin or thick line, square dots, little x marks, or (for precipitation, cloud cover, UV, wind and gusts) a shaded stripe along the top of the graph or below its zero line, whose colour strengthens with the value (third and fourth metric and style selection on watches with enough memory, not Pebble Classic/Steel)
-* Draw from: Bottom | Top: the precipitation, cloud cover, wind, gust and UV index lines, and with *Bars from* the rain bars of the forecast and of the radar graph, can hang from the top of the graph instead of standing on its bottom, a bigger value reaching further down, so they cover the temperature curve less (wind and gusts move together, and a main metric's area fill hangs with its line; not on Pebble Classic/Steel)
-* Optional day/night shading, with a line at midnight where the next day starts
-* Left axis options on Pebble Time 2: the high and low values on the axis, on the graph (the high one under the highest point, the low one over the lowest), or off; on the graph or off there is no left axis and the graph starts at the screen's left edge. Left axis › More options can add the feels-like and dew point lines to the values (Graphs tab › Forecast › a graph)
-* Recolor the forecast graph per metric
-* Up to six forecast graphs on Pebble Time 2, each with its own lines, rain bars, night shading, colors, Left axis values and Forecast length, and each screen shows one of them, so one screen can show the next 24 hours and another the long span. You can keep more graphs than you have screens and switch a screen between them. Your graphs (Graphs tab › Forecast) lists each graph with its picture, its screens, the metrics it shows and the room left; a tap opens its settings, its name and the screens it shows on. A new graph starts from a template (Classic, Clean, Stripes, Simple, Rain, Sky, Clouds, Outdoor, Sun, Comfort, Wind, Storm, Pressure or Meteogram) or as a copy of one of yours; a screen's editor adds one of your graphs by its name, and its Switch graph chips put another one in the graph's place. The graphs on the screens together show at most five metrics, a metric drawn as a line and as a stripe, or with all its values and as alerts only, counting as two; the Your graphs card's header shows how many are in use (4/5 metrics active), and its ? lists them. A metric picked for a graph that would make six still goes in: the graph's settings then list the lines of the graphs on your screens, and you turn off the one to drop (Undo puts it back)
-* Multiple weather providers, including regional and worldwide sources, picked with the rain radar's source and the air quality source in Setup › Data sources
+### Forecast
 
-**Rain radar**
-* 2-hour precipitation nowcast from regional and worldwide providers
-* Worldwide Rainbow.ai radar out of the box — *Rainbow (limited)* in the radar picker: shared by every user, so it refreshes every 30 minutes; pick *Rainbow (own key)* and add your own Rainbow API key to refresh it at your update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
-* The radar says *Radar limit reached* when a radar source refuses requests over its limit, instead of claiming no rain
-* Outside a regional radar's area (DWD: Germany, Met.no: the Nordic countries) the radar says so, and the Rain radar setting (Setup › Data sources) suggests a source that covers your location
-* Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on its way (see **Alerts** above)
-* Pick the rain radar's source, or turn it off, in Setup › Data sources (off keeps the source for when you turn it back on); show the radar by adding the Rain radar graph or the Radar bar to a screen (the Radar bar shows even without radar data)
-* Clouds, sun & lightning rows under the radar graph's time axis (on by default): cloud cover and sun strength per quarter hour for the next 2 hours, with a lightning bolt where thunderstorms are expected (Open-Meteo, any radar source; not on Pebble Classic/Steel, which has no radar)
+- Hourly forecast graph: temperature plus up to four lines*
+- Rain chance and amount, cloud cover, UV index, wind, gusts, air pressure, feels-like temperature and dew point
+- Lines, stripes, dots or bars, with your own colors*
+- 12 to 66 hours ahead* and up to six graphs, one per screen*
+- Day/night shading
+- Weather from Open-Meteo, Met.no, Bright Sky (DWD), OpenWeatherMap, Tomorrow.io, Weather Underground or Yandex Weather
 
-**Health screen** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
-* Health status for steps, sleep, distance, and heart rate
-* Last-24h health chart with steps per hour, heart rate on a scale you set, and a sleep band
+### Alerts*
 
-**Calendar**
-* Multi-week calendar with current-day highlight
-* Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
+Icons at the edge of a status bar that appear only when something needs your attention:
 
-**Status bars**
-* Configurable status slots on every screen: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more; in the settings page, tap a slot in a bar's picture on the Status bars tab to change it
-* Your status bars by name: besides the Watch bar, three status bars you fill and name as you like (Status bars tab › Your status bars, which also says which screens show each bar; tap a bar's name to rename it); put any of them on any screen, added by name in the screen's editor (not on Pebble Classic/Steel)
-* Up to six status bars on Pebble Time 2: *New status bar* makes an empty one for you to fill and name, so every screen can have two of its own; delete one and the screens that showed it drop it (Status bars tab › New status bar, or a screen's editor › + New status bar)
-* Selectable date format for the date slot — German/European, US, ISO, and spelled-out-month styles, chosen separately for screens with a calendar (month + year) and without one (full date)
-* Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
-* Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set (not on Pebble Classic/Steel)
-* Alerts at each status bar's edge (see **Alerts** above)
+- Rain on its way, with a countdown
+- Wind, gusts, UV index, air quality and pollen above your warn level, today or tomorrow
+- Low battery, Bluetooth lost, quiet time and battery saver hours
+- Your own warn and danger levels and colors for each alert
 
-**Watchface themes**
-* Dark and Light, plus Black & White options on color watches
-* Theme switching: add a night theme, flipped at sunrise/sunset or between hours you set
+### Rain radar*
 
-**Watch**
-* Custom color, 12h/24h, optional AM/PM
-* Smooth, anti-aliased clock digits on color watches (Roboto and Bitham fonts)
-* Battery, Bluetooth, quiet time and battery saver indicators that show only when needed, as Alerts you place per status bar (see **Alerts** above), plus vibrate on disconnect (Pebble Classic/Steel keeps its fixed indicators)
-* Battery saver (pause updates to the watch between hours you set, to save battery)
-* Dim backlight on Pebble Time 2: when the backlight comes on between hours you set it glows a color you pick instead of white — it never switches the backlight on by itself
+- Rain for the next 2 hours in 5-minute steps, from DWD (Germany), Met.no (Nordic countries), Rainbow.ai or Tomorrow.io (worldwide)
+- Clouds, sun and lightning for the next 2 hours
 
-**Layout customization**
-* Up to three screens — the Default and two to flick to — switched with a wrist flick (or a double flick, to avoid accidental switches) and back to Default after a time you set (Watchface › Screen switching); a new install starts on the Default screen alone (Pebble Classic/Steel: one screen, with a Full calendar, Compact calendar or No calendar layout)
-* Name your screens (tap the name at the top of a screen's editor) and drag them by ≡ into the order you want, or move them with the arrow keys; the top one is the Default, the screen the watch goes back to, and always shows the clock (Watchface › Screens; not on Pebble Classic/Steel)
-* Add screen starts with Blank, the Watch bar and the clock for you to fill, then the forecast screen with no calendar, the compact one, the full one or Dense (the compact calendar with the rain radar's status bar right under it, so the screen shows one more status bar; watches with the rain radar), then Health (watches with health), Rain radar, and two graphs on one screen, Health + forecast and Radar + forecast, which have no calendar. Each card draws its screen as it would look with your graph. Blank goes in at once; any other card shows its screen big. On the Pebble Time 2 a row of graphs runs under it, your own first, then the templates: Classic, Clean, Stripes, Simple (the rain chance as a thin line and no bars), Rain (the next 12 hours with the rain chance as a stripe), Sky (the cloud cover as a stripe along the top over the rain chance's line), Clouds (the cloud cover as a thick line over the next nights), Outdoor (rain bars hanging from the top, the UV index and on 12 or 24 hours the feels-like temperature), Sun (the UV index as a thick line under a cloud stripe), Comfort (the feels-like temperature and the dew point), Wind (wind speed and gusts), Storm (gusts, air pressure and a rain-chance stripe), Pressure (the air pressure over the long span) and Meteogram (the clouds, air pressure and wind over the rain bars, as weather services draw one). Scroll the row and the graph in its middle goes on the screen, named under it as a template or your graph; a tap rolls a graph to the middle. Under the row a legend shows what the screen draws: a sample of each line, shaded area, stripe or bar in the watch's colours, and its name. A template starts on its own Forecast length (12 h, 24 h or the long span), which you can change; your own graph keeps its length. Health and Rain radar pick their calendar there. Add screen puts it in. The same screen can go in twice, its name numbered. A template's graph isn't one of your six graphs and goes when the screen goes; its row in the screen's editor names the template, and the row's Edit makes it one of your graphs and opens its settings. A graph with no room among the five metrics says why. A metric your weather service doesn't send is named there too (Watchface › Screens › + Add screen)
-* Edit each screen as a list, top to bottom: the Watch bar, Calendar (2 or 3 rows), Clock, your status bars by name, the Forecast graph (on Pebble Time 2 by its name), Rain radar and Health graph (2, 3 or 4 rows, or the rest of the screen); drag a row by ≡ or move it with the arrow keys, remove it with ✕, open a status bar's settings (the Watch bar's too) or the forecast graph's with its Edit, or add one where it fits from the chips under the list, grouped into status bars, graphs and the calendar and clock (on Pebble Time 2, Switch graph swaps the screen's forecast graph for another of yours), with a live picture of the screen; Change layout under the picture picks another layout, and on the Pebble Time 2 another graph or template, for the screen in its place, keeping its name and position, the Default screen too; a flick screen can drop the Watch bar and the clock for a full-screen radar or graph (Watchface › Screens, or tap a screen on the pinned watch; not on Pebble Classic/Steel)
-* Light/Dark settings page in six tabs — Weather, Watchface, Status bars, Alerts, Graphs, Setup (no Alerts tab on Pebble Classic/Steel), all in view in a tab bar at the bottom — with a pinned live preview (on the Watchface tab your watch itself, every screen drawn as you set it up, a tap opening its editor), Save that lights up once something changes and Revert to undo every change, an explanation under each setting (or, with *Hide info text* in Setup › Misc, behind a ? you tap), rarely-changed settings under *More options*, and full-screen dialogs (× discards, Done keeps)
-* Weather tab in the settings page: live graphs — temperature & precipitation, wind & gusts, humidity & dew point, pressure, sun & moon — plus a 5-day forecast, for your current location or up to three saved places, with its own switchable data source (never touches the watchface's provider or location); refreshes only on demand — pull down or tap Refresh, which also re-reads your phone's location; it leads the tab bar, and a Setup › Misc toggle makes it the tab the page opens on
-* First-run setup that shows your own watch as you pick its layout, add a Health or Rain radar screen to flick to (on your layout's calendar), on the Pebble Time 2 a Long forecast screen with a second graph over the long span, and pick a theme, offers three looks for the forecast graph (Classic, Clean, Stripes; not on Pebble Classic/Steel) and on the Pebble Time 2 its length, drawn live on your Default screen, then sums up your choices; it picks sensible defaults for your country and watch — it highlights air quality from its warn level
+### Status bars
 
-*Weather and radar data from [MET Norway](https://www.met.no/) is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*
+- Weather condition with a sun or moon icon, temperature, air quality, wind, gusts, UV index, pollen, dew point, air pressure, sunrise and sunset
+- Date, calendar week, city, countdown to a date
+- Steps, sleep, distance, heart rate*
+- Watch and phone battery
+- Short forms when a bar runs out of room (Partly cloudy becomes PCLDY)
+- Name your own bars and place them on any screen*
 
-## Forecast graph vs. rain radar
+### Health*
 
-Two things that both involve rain over time, but answer different questions:
+- Steps, sleep, distance and heart rate
+- 24-hour chart with steps per hour, heart rate and sleep
 
-- **Forecast graph** — the hourly prediction, looking up to 24 hours ahead (on Pebble Time 2,
-  12, 24 or up to 66 — Forecast length, which each of your graphs sets for the screens that show it). Temperature is always shown; on top of it you choose what to
-  add — precipitation %, cloud cover % (every
-  provider except Yandex), wind speed, wind gusts, UV index, air pressure (sea-level, in hPa,
-  with a Narrow/Mid/Wide graph scale), feels-like temperature or dew point (both drawn on the
-  same scale as the temperature curve) as a main
-  metric, an optional second metric, and — on watches with enough memory (not Pebble
-  Classic/Steel) — an optional third and fourth metric (the same metric can't appear twice), plus
-  optional bars for the hourly rain amount. Each metric line has a selectable style: thin or thick
-  solid line, bar-aligned square dots, little x marks, or — for the intensity metrics
-  (precipitation, cloud cover, UV, wind, gusts) — a stripe: a thin band of hourly cells
-  along the top of the graph or in its own band below the zero line (where bars and lines never
-  cover it), shaded stronger the higher the value (on black & white watches as denser
-  dithering) (defaults: line, dots, x, x; style selection is
-  likewise not on Pebble Classic/Steel, which keeps the classic line + dots look). The rain
-  bars and the precipitation, cloud cover, wind, gust and UV index lines stand on the graph's
-  bottom by default; with *Draw from* (under each line's Line style) or *Bars from* (for the
-  bars) set to *Top* they hang from the top of the graph instead, below any top stripes,
-  so a bigger value reaches further down and they cover the temperature curve less (wind and
-  gusts share one setting, and a main metric's area fill hangs with its line; not on Pebble
-  Classic/Steel). The
-  temperature status slot can also show the feels-like value, or both as `12|10`; the UV index
-  slot can show the highest UV left today (Day max), or both as `3/7`; today's peak stays
-  while it is still ahead or happening now, then tomorrow's shows instead, marked `»` (`4/»8`),
-  or just the current reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert
-  highlighting. The wind, gust and air quality slots offer the same Day max (air quality with the
-  Open-Meteo AQI provider, whose hourly forecast it needs; WAQI reports the current reading
-  only). How the pair is written is up to you: pick the separator (`12|10`, `12/10`, `12(10)`,
-  `12·10` or your own), with or without spaces around it (`12 | 10`), which value comes first,
-  and how tomorrow's peak is
-  marked (`»6`, `>6`, `+6`, `6*` or no mark). Feels-like itself comes in two flavours, picked
-  under Setup › Units › *Feels-like formula* (in *More options*): the provider's own value (Tomorrow.io and Weather
-  Underground follow the US heat-index/wind-chill rule, so theirs equals the air temperature in
-  mild weather; DWD and Met.no publish none) or the Steadman apparent temperature computed from
-  temperature, humidity and wind, which reads the same on every provider.
-- **Rain radar** — unlike the forecast graph's model prediction, this is a short-term nowcast
-  based on actual radar measurements moving toward you, refreshed often as new scans arrive.
-  Instead of a map it's drawn as bars: the provider's radar images for the next 2 hours are
-  sampled at your location, and each 5-minute frame becomes one bar whose height is the rain
-  amount — solid bars are rain at your exact spot; with DWD, the hatched outline behind
-  them is the strongest rain within 2 km. The bars stand on the graph's bottom, or hang from
-  below its time axis with *Bars from* set to *Top* (Graphs tab › Rain radar), heavier
-  rain reaching further down. Available from DWD (Germany), Met.no (Nordics), Rainbow.ai
-  (worldwide, exact location only; *Rainbow (limited)* on the shared key refreshes every 30
-  minutes, *Rainbow (own key)* on your own Rainbow API key refreshes at your update interval —
-  free for 5,000 calls a month, Rainbow asks for a credit card) and Tomorrow.io (worldwide, needs a free API key). Good for *"is it about to rain on me right now?"*
-  With *Clouds, sun & lightning* (Graphs tab › Rain radar, on by default), two thin stripes appear under the
-  graph's time axis: cloud cover (thin high cloud counts half) and sun strength (full when the
-  sun is as strong as under a clear sky) for each quarter hour, drawn like the forecast's
-  stripes, with a lightning bolt in the quarter hours where Open-Meteo expects a
-  thunderstorm (lightning potential sharpens that in Central Europe).
+### Calendar
+
+- Two or three weeks with today highlighted
+- Weekend and public holiday colors for 150+ countries
+
+### Watch
+
+- Up to three screens, switched with a wrist flick*
+- Dark, light and black & white themes, with a night theme at sunset or set hours
+- 12h/24h, clock color, smooth digits*
+- Battery saver hours, night backlight*
+
+### Settings
+
+- Live preview of every screen
+- Weather tab with a 5-day forecast for your location and up to three saved places
+- First-run setup with defaults for your country and watch
 
 ## Platforms
 
-Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, Pebble 2 Duo, and Pebble Time 2 are supported.
+Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, Pebble 2 Duo and Pebble Time 2.
 
 ## Installation
 
-### Pebble Appstore
+### Pebble appstore
 
 - RePebble: https://apps.repebble.com/67d6f1fcdb264341b850f79a
 - Rebble: https://apps.rebble.io/en_US/application/6a3645239d979d000abc99db
 
-If you're using the modern Pebble app, the RePebble listing should be the simplest install path. If you prefer the Rebble flow, follow https://help.rebble.io/setup to set up your Pebble app first. The RePebble store uses Rebble's backend ([blog](https://ericmigi.com/blog/re-introducing-the-pebble-appstore)), so they're effectively the same catalog through a different entry point.
+With the current Pebble app, install from the RePebble listing. For the Rebble app, set it up first as described at https://help.rebble.io/setup. Both stores use Rebble's backend ([blog](https://ericmigi.com/blog/re-introducing-the-pebble-appstore)) and list the same build.
 
 ### Manual install
 
-If you want to sideload a specific build, use the modern Pebble app on [iOS](https://repebble.com/app) or [Android](https://repebble.com/app), which supports installing `.pbw` files directly. Download the latest [`warnweather.pbw`](https://github.com/Toasbi/WarnWeather/releases/latest/download/warnweather.pbw) release and install it with the app.
+Download [`warnweather.pbw`](https://github.com/Toasbi/WarnWeather/releases/latest/download/warnweather.pbw) from the latest release and open it with the Pebble app for [iOS](https://repebble.com/app) or [Android](https://repebble.com/app).
+
+## Privacy and data sources
+
+WarnWeather sends anonymous usage data: whether weather updates work, the weather provider, a rough country, app and watch versions and which settings are used. It never sends your location, the places you type, your API keys or health data. You can turn it off in Setup › Misc › Share anonymous telemetry.
+
+Setup › Privacy & data sources in the settings lists every data source and its license. Data from [Open-Meteo.com](https://open-meteo.com/), [MET Norway](https://www.met.no/) and the Copernicus Atmosphere Monitoring Service is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ## Developers
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for developer setup and workflow.
-
-## Telemetry
-
-WarnWeather includes privacy-respecting telemetry. I do not collect precise location or API keys. Account and watch identifiers are stored only as server-side HMAC hashes—enough for rough usage stats (e.g. DAU), not as readable IDs.
-
-- Collected: each weather fetch’s outcome and duration, provider, coarse country code when available, app and watch metadata, and an allowlist of non-sensitive settings.
-- Not collected: coordinates (lat/lon), city/state, manual location strings, your API keys, or any health data — your steps, sleep, and heart-rate readings never leave the watch.
-- Purpose: estimate DAU, see coarse country mix, spot weather-fetch failures, and learn which settings are common.
-- When: in one batch about every 12 hours, plus right away the first time you save the settings (so a new install is counted) and at most once a day when you open them.
-- You may opt-out of telemetry by disabling it in the settings: Setup tab → Misc → Share anonymous telemetry.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and workflow.

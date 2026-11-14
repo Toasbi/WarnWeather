@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "3.2.0",
+  "version": "3.1.1",
   "buildProfile": "{{buildProfile}}",
   "keywords": [
     "pebble-app",
@@ -96,237 +96,6 @@
           "targetPlatforms": [
             "basalt",
             "chalk",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "HEALTH_STEPS",
-          "file": "data/HEALTH_STEPS.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "HEALTH_SLEEP",
-          "file": "data/HEALTH_SLEEP.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "HEALTH_HEART",
-          "file": "data/HEALTH_HEART.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "RAIN_DRIZZLE",
-          "file": "data/RAIN_DRIZZLE.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "RAIN_RAIN",
-          "file": "data/RAIN_RAIN.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "RAIN_DOWNPOUR",
-          "file": "data/RAIN_DOWNPOUR.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_TEMP",
-          "file": "data/STATUS_TEMP.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_TEMP_SMALL",
-          "file": "data/STATUS_TEMP_SMALL.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_UV",
-          "file": "data/STATUS_UV.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_WIND",
-          "file": "data/STATUS_WIND.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_GUST",
-          "file": "data/STATUS_GUST.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_DISTANCE",
-          "file": "data/STATUS_DISTANCE.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_AQI",
-          "file": "data/STATUS_AQI.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_POLLEN",
-          "file": "data/STATUS_POLLEN.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_COUNTDOWN",
-          "file": "data/STATUS_COUNTDOWN.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_DEW",
-          "file": "data/STATUS_DEW.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_PHONE_BATTERY",
-          "file": "data/STATUS_PHONE_BATTERY.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_PHONE_BATTERY_CHG",
-          "file": "data/STATUS_PHONE_BATTERY_CHG.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_QUIET",
-          "file": "data/STATUS_QUIET.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_BT",
-          "file": "data/STATUS_BT.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "STATUS_BT_OFF",
-          "file": "data/STATUS_BT_OFF.pdc",
-          "targetPlatforms": [
-            "basalt",
             "diorite",
             "emery",
             "flint"
@@ -573,6 +342,1138 @@
             "basalt",
             "emery"
           ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SUN_11",
+          "file": "data/PX_SUN_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SUN_13",
+          "file": "data/PX_SUN_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SUN_15",
+          "file": "data/PX_SUN_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SUN_17",
+          "file": "data/PX_SUN_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_11",
+          "file": "data/PX_MOON_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_13",
+          "file": "data/PX_MOON_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_15",
+          "file": "data/PX_MOON_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_17",
+          "file": "data/PX_MOON_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SUN_CLOUD_11",
+          "file": "data/PX_SUN_CLOUD_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SUN_CLOUD_13",
+          "file": "data/PX_SUN_CLOUD_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SUN_CLOUD_15",
+          "file": "data/PX_SUN_CLOUD_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SUN_CLOUD_17",
+          "file": "data/PX_SUN_CLOUD_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_CLOUD_11",
+          "file": "data/PX_MOON_CLOUD_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_CLOUD_13",
+          "file": "data/PX_MOON_CLOUD_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_CLOUD_15",
+          "file": "data/PX_MOON_CLOUD_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_CLOUD_17",
+          "file": "data/PX_MOON_CLOUD_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_CLOUD_11",
+          "file": "data/PX_CLOUD_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_CLOUD_13",
+          "file": "data/PX_CLOUD_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_CLOUD_15",
+          "file": "data/PX_CLOUD_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_CLOUD_17",
+          "file": "data/PX_CLOUD_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_FOG_11",
+          "file": "data/PX_FOG_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_FOG_13",
+          "file": "data/PX_FOG_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_FOG_15",
+          "file": "data/PX_FOG_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_FOG_17",
+          "file": "data/PX_FOG_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HAZE_11",
+          "file": "data/PX_HAZE_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HAZE_13",
+          "file": "data/PX_HAZE_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HAZE_15",
+          "file": "data/PX_HAZE_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HAZE_17",
+          "file": "data/PX_HAZE_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DRIZZLE_11",
+          "file": "data/PX_DRIZZLE_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DRIZZLE_13",
+          "file": "data/PX_DRIZZLE_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DRIZZLE_15",
+          "file": "data/PX_DRIZZLE_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DRIZZLE_17",
+          "file": "data/PX_DRIZZLE_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_RAIN_11",
+          "file": "data/PX_RAIN_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_RAIN_13",
+          "file": "data/PX_RAIN_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_RAIN_15",
+          "file": "data/PX_RAIN_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_RAIN_17",
+          "file": "data/PX_RAIN_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HEAVY_RAIN_11",
+          "file": "data/PX_HEAVY_RAIN_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HEAVY_RAIN_13",
+          "file": "data/PX_HEAVY_RAIN_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HEAVY_RAIN_15",
+          "file": "data/PX_HEAVY_RAIN_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HEAVY_RAIN_17",
+          "file": "data/PX_HEAVY_RAIN_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SLEET_11",
+          "file": "data/PX_SLEET_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SLEET_13",
+          "file": "data/PX_SLEET_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SLEET_15",
+          "file": "data/PX_SLEET_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SLEET_17",
+          "file": "data/PX_SLEET_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SNOW_11",
+          "file": "data/PX_SNOW_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SNOW_13",
+          "file": "data/PX_SNOW_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SNOW_15",
+          "file": "data/PX_SNOW_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SNOW_17",
+          "file": "data/PX_SNOW_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HAIL_11",
+          "file": "data/PX_HAIL_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HAIL_13",
+          "file": "data/PX_HAIL_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HAIL_15",
+          "file": "data/PX_HAIL_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HAIL_17",
+          "file": "data/PX_HAIL_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_THUNDER_11",
+          "file": "data/PX_THUNDER_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_THUNDER_13",
+          "file": "data/PX_THUNDER_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_THUNDER_15",
+          "file": "data/PX_THUNDER_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_THUNDER_17",
+          "file": "data/PX_THUNDER_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_TEMP_11",
+          "file": "data/PX_TEMP_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_TEMP_13",
+          "file": "data/PX_TEMP_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_TEMP_15",
+          "file": "data/PX_TEMP_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DEW_9",
+          "file": "data/PX_DEW_9.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DEW_11",
+          "file": "data/PX_DEW_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DEW_13",
+          "file": "data/PX_DEW_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DEW_15",
+          "file": "data/PX_DEW_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_UV_9",
+          "file": "data/PX_UV_9.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_UV_11",
+          "file": "data/PX_UV_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_UV_13",
+          "file": "data/PX_UV_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_UV_17",
+          "file": "data/PX_UV_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIND_9",
+          "file": "data/PX_WIND_9.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIND_11",
+          "file": "data/PX_WIND_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIND_13",
+          "file": "data/PX_WIND_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIND_15",
+          "file": "data/PX_WIND_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIND_17",
+          "file": "data/PX_WIND_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_GUST_9",
+          "file": "data/PX_GUST_9.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_GUST_11",
+          "file": "data/PX_GUST_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_GUST_13",
+          "file": "data/PX_GUST_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_GUST_17",
+          "file": "data/PX_GUST_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_AQI_9",
+          "file": "data/PX_AQI_9.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_AQI_11",
+          "file": "data/PX_AQI_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_AQI_13",
+          "file": "data/PX_AQI_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_AQI_15",
+          "file": "data/PX_AQI_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_POLLEN_11",
+          "file": "data/PX_POLLEN_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_POLLEN_13",
+          "file": "data/PX_POLLEN_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_POLLEN_15",
+          "file": "data/PX_POLLEN_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_POLLEN_17",
+          "file": "data/PX_POLLEN_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_COUNTDOWN_11",
+          "file": "data/PX_COUNTDOWN_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_COUNTDOWN_13",
+          "file": "data/PX_COUNTDOWN_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_COUNTDOWN_15",
+          "file": "data/PX_COUNTDOWN_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_COUNTDOWN_17",
+          "file": "data/PX_COUNTDOWN_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PHONE_BATTERY_11",
+          "file": "data/PX_PHONE_BATTERY_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PHONE_BATTERY_13",
+          "file": "data/PX_PHONE_BATTERY_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PHONE_BATTERY_15",
+          "file": "data/PX_PHONE_BATTERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PHONE_BATTERY_CHG_11",
+          "file": "data/PX_PHONE_BATTERY_CHG_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PHONE_BATTERY_CHG_13",
+          "file": "data/PX_PHONE_BATTERY_CHG_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PHONE_BATTERY_CHG_15",
+          "file": "data/PX_PHONE_BATTERY_CHG_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_STEPS_9",
+          "file": "data/PX_STEPS_9.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_STEPS_11",
+          "file": "data/PX_STEPS_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_STEPS_13",
+          "file": "data/PX_STEPS_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DISTANCE_9",
+          "file": "data/PX_DISTANCE_9.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DISTANCE_11",
+          "file": "data/PX_DISTANCE_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DISTANCE_13",
+          "file": "data/PX_DISTANCE_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DISTANCE_17",
+          "file": "data/PX_DISTANCE_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SLEEP_11",
+          "file": "data/PX_SLEEP_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SLEEP_13",
+          "file": "data/PX_SLEEP_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SLEEP_15",
+          "file": "data/PX_SLEEP_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SLEEP_17",
+          "file": "data/PX_SLEEP_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HEART_11",
+          "file": "data/PX_HEART_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HEART_13",
+          "file": "data/PX_HEART_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HEART_15",
+          "file": "data/PX_HEART_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_HEART_17",
+          "file": "data/PX_HEART_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_QUIET_11",
+          "file": "data/PX_QUIET_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_QUIET_13",
+          "file": "data/PX_QUIET_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_QUIET_15",
+          "file": "data/PX_QUIET_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_QUIET_17",
+          "file": "data/PX_QUIET_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_BT_11",
+          "file": "data/PX_BT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_BT_13",
+          "file": "data/PX_BT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_BT_15",
+          "file": "data/PX_BT_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_BT_17",
+          "file": "data/PX_BT_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_BT_OFF_11",
+          "file": "data/PX_BT_OFF_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_BT_OFF_13",
+          "file": "data/PX_BT_OFF_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_BT_OFF_15",
+          "file": "data/PX_BT_OFF_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_BT_OFF_17",
+          "file": "data/PX_BT_OFF_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
         }
       ]
     },
@@ -584,36 +1485,117 @@
     "usesPermissions": [
       {
         "name": "Location",
-        "reason": "To get the forecast for where you are",
+        "reason": "Forecast for where you are",
         "required": true
       },
       {
         "name": "Internet",
         "parameters": {
           "domains": [
-            "api.brightsky.dev",
-            "api.met.no",
-            "api.open-meteo.com",
-            "api.openweathermap.org",
-            "api.rainbow.ai",
-            "api.tomorrow.io",
-            "api.weather.com",
-            "api.weather.yandex.ru",
+            "api.brightsky.dev"
+          ]
+        },
+        "reason": "DWD weather provider",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.met.no"
+          ]
+        },
+        "reason": "Met.no weather provider and rain radar",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.open-meteo.com"
+          ]
+        },
+        "reason": "Open-Meteo weather provider",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.openweathermap.org"
+          ]
+        },
+        "reason": "OpenWeatherMap weather provider",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.tomorrow.io"
+          ]
+        },
+        "reason": "Tomorrow.io weather provider and rain radar",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.weather.com"
+          ]
+        },
+        "reason": "Weather Underground weather provider",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
             "www.wunderground.com"
           ]
         },
-        "reason": "To get your forecast and rain radar from the weather service you pick",
+        "reason": "Weather Underground: fetches the key its forecast needs",
         "required": true
       },
       {
         "name": "Internet",
         "parameters": {
           "domains": [
-            "air-quality-api.open-meteo.com",
+            "api.weather.yandex.ru"
+          ]
+        },
+        "reason": "Yandex Weather provider",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.rainbow.ai"
+          ]
+        },
+        "reason": "Rainbow rain radar, with your own key",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "air-quality-api.open-meteo.com"
+          ]
+        },
+        "reason": "Open-Meteo air quality",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
             "api.waqi.info"
           ]
         },
-        "reason": "To show the air quality",
+        "reason": "WAQI air quality",
         "required": true
       },
       {
@@ -623,18 +1605,47 @@
             "maps.dwd.de"
           ]
         },
-        "reason": "To show the pollen count from DWD",
+        "reason": "DWD pollen count",
         "required": true
       },
       {
         "name": "Internet",
         "parameters": {
           "domains": [
-            "geocode.arcgis.com",
+            "geocode.arcgis.com"
+          ]
+        },
+        "reason": "ArcGIS: your town's name",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
             "geocoding-api.open-meteo.com"
           ]
         },
-        "reason": "To show your town's name and find the places you search for",
+        "reason": "Open-Meteo place search in the settings",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "date.nager.at"
+          ]
+        },
+        "reason": "Nager.Date public holidays",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "buymeacoffee.com"
+          ]
+        },
+        "reason": "Buy Me a Coffee, the Support me link",
         "required": true
       },
       {
@@ -644,17 +1655,7 @@
             "us1.locationiq.com"
           ]
         },
-        "reason": "To look up your town's name with your own LocationIQ key",
-        "required": false
-      },
-      {
-        "name": "Internet",
-        "parameters": {
-          "domains": [
-            "date.nager.at"
-          ]
-        },
-        "reason": "To mark public holidays in the calendar",
+        "reason": "LocationIQ: finds the place you type as your Manual location",
         "required": false
       },
       {
@@ -665,17 +1666,17 @@
             "appstore-api.repebble.com"
           ]
         },
-        "reason": "To tell you when a new version is out",
+        "reason": "Pebble app store: tells you when an update is out",
         "required": false
       },
       {
         "name": "ShowNotifications",
-        "reason": "To tell you on your watch what's new and when an update is out",
+        "reason": "What's new and update notices on your watch",
         "required": false
       },
       {
         "name": "Health",
-        "reason": "To show your steps, sleep and heart rate",
+        "reason": "Steps, sleep and heart rate",
         "required": false
       }
     ],

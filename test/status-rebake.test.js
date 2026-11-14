@@ -137,3 +137,73 @@ test('the backstop keeps what alerts look ahead to: a restart re-bakes Days and 
   assert.deepEqual(decodeAlerts(sends[1].ALERT_ENTRIES_UINT8).map((e) => [e.kind, e.level, e.mark, e.value]),
     [[7, 2, 'gt', '']], 'pollen back to today only; UV marked >');
 });
+
+// Sunrise and sunset re-bake the status without a fetch, so the weather condition's and
+// the city's icon turn between sun and moon (onTick, on the scheduler's minute tick).
+function sunEvents(startType, first, second) {
+  const bytes = [startType];
+  [first, second].forEach((epoch) => {
+    for (let i = 0; i < 4; i += 1) { bytes.push((epoch >>> (8 * i)) & 0xFF); }
+  });
+  return bytes;
+}
+
+test('onTick re-bakes once at sunset and once at sunrise, and not in between', () => {
+  storage = {};
+  const T = 1700000000;
+  const SUNSET = T + 3600;
+  const SUNRISE = T + 13 * 3600;
+  let now = T * 1000;
+  const sends = [];
+  statusRebake.init({ getSettings: () => ({}), sendWeather: (p) => sends.push(p),
+    buildStatusLines: fakeBake, now: () => now });
+  assert.equal(statusRebake.onTick(), false, 'no snapshot yet: nothing to re-bake');
+  statusRebake.rememberBakeInputs({ SUN_EVENTS: sunEvents(1, SUNSET, SUNRISE) }, null);
+  assert.equal(statusRebake.onTick(), false, 'still the day the fetch baked');
+  now = (SUNSET - 1) * 1000;
+  assert.equal(statusRebake.onTick(), false);
+  now = SUNSET * 1000;
+  assert.equal(statusRebake.onTick(), true, 'sunset');
+  assert.equal(sends.length, 1);
+  now = (SUNSET + 600) * 1000;
+  assert.equal(statusRebake.onTick(), false, 'once per sunset');
+  now = SUNRISE * 1000;
+  assert.equal(statusRebake.onTick(), true, 'sunrise');
+  assert.equal(sends.length, 2);
+});
+
+test('onTick after a restart sends nothing until the next sunset', () => {
+  storage = {};
+  const T = 1700000000;
+  const sends = [];
+  let now = T * 1000;
+  const opts = { getSettings: () => ({}), sendWeather: (p) => sends.push(p),
+    buildStatusLines: fakeBake, now: () => now };
+  statusRebake.init(opts);
+  statusRebake.rememberBakeInputs({ SUN_EVENTS: sunEvents(1, T + 3600, T + 13 * 3600) }, null);
+  statusRebake.init(opts);   // PKJS restarted
+  assert.equal(statusRebake.onTick(), false, 'no resend of the old snapshot on the return');
+  now = (T + 3600) * 1000;
+  assert.equal(statusRebake.onTick(), true, 'the sunset still turns it');
+  assert.equal(sends.length, 1);
+});
+
+test('a resend for another reason counts as the bake of its side of sunset', () => {
+  storage = {};
+  const T = 1700000000;
+  let now = T * 1000;
+  const sends = [];
+  statusRebake.init({ getSettings: () => ({}), sendWeather: (p) => sends.push(p),
+    buildStatusLines: fakeBake, now: () => now });
+  statusRebake.rememberBakeInputs({ SUN_EVENTS: sunEvents(1, T + 3600, T + 13 * 3600) }, null);
+  now = (T + 7200) * 1000;
+  statusRebake.resendStatus('charging');
+  assert.equal(statusRebake.onTick(), false, 'the charging resend already baked the night');
+  assert.equal(sends.length, 1);
+});
+
+test('the scheduler\'s minute tick runs the day/night check (index.js onSchedulerTick)', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '../src/pkjs/index.js'), 'utf8');
+  const body = src.slice(src.indexOf('function onSchedulerTick() {'));
+  assert.ok(body.slice(0, body.indexOf('\n}')).indexOf('statusRebake.onTick();') > 0);
+});

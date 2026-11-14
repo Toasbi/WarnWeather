@@ -53,6 +53,15 @@ static void month_year_formats(void) {
     expect_str("month slash", buf, "09/2026");
     date_format_month_year(buf, sizeof(buf), &t, DATE_MONTH_ISO);
     expect_str("month iso", buf, "2026-09");
+    date_format_month_year(buf, sizeof(buf), &t, DATE_MONTH_DOTSYY);
+    expect_str("month dotsyy", buf, "09.26");
+    // The two-digit year keeps its leading zero: 2005 prints 05, not 5.
+    struct tm t2005 = t;
+    t2005.tm_year = 2005 - 1900;
+    date_format_month_year(buf, sizeof(buf), &t2005, DATE_MONTH_DOTSYY);
+    expect_str("month dotsyy 2005", buf, "09.05");
+    date_format_month_year(buf, sizeof(buf), &t, DATE_MONTH_NOYEAR);
+    expect_str("month noyear", buf, "Sep");
     // An unknown wire byte (a future phone build) renders Auto, never garbage.
     date_format_month_year(buf, sizeof(buf), &t, 250);
     expect_str("month unknown->auto", buf, "Sep 2026");
@@ -123,6 +132,10 @@ static void torn_tm_is_clamped(void) {
     expect_str("clamped month auto", buf, "Jan 2026");
     date_format_month_year(buf, sizeof(buf), &t, DATE_MONTH_NAME);
     expect_str("clamped month name", buf, "January 2026");
+    date_format_month_year(buf, sizeof(buf), &t, DATE_MONTH_DOTSYY);
+    expect_str("clamped month dotsyy", buf, "01.26");
+    date_format_month_year(buf, sizeof(buf), &t, DATE_MONTH_NOYEAR);
+    expect_str("clamped month noyear", buf, "Jan");
 }
 
 static void longest_strings_fit_the_slot_cap(void) {

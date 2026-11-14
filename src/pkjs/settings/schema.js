@@ -9,6 +9,8 @@ var STATUS_LINE_CATALOG = require('../status-line-catalog.js');
 // marks and the custom separator's length, from the module that PRINTS them into the
 // slot text — so every option label is exactly what the watch will show.
 var STATUS_PAIR = require('../status-pair.js');
+// The weather condition slot's names and glyphs, for its dialog's list of every condition.
+var CONDITION = require('../weather/condition.js');
 // The graph-colour vocabulary: the storage key behind every picker, the roles each
 // metric actually owns, and the built-in colour each one defaults to. All of it comes
 // from line-style.js — the module that RESOLVES these keys for the watch's wire
@@ -675,7 +677,7 @@ function alertLevelsRow(keyStem) {
  *     extras lead.
  * @returns {Object} Schema section (sheetOnly).
  */
-function boldSection(title, keyStem, gate, extraItems) {
+function boldSection(title, keyStem, gate, extraItems, afterItems) {
     var bold = {
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'BoldMode',
@@ -688,8 +690,30 @@ function boldSection(title, keyStem, gate, extraItems) {
     };
     // Bold closes the sheet, as it does in the alert kinds' sheets: the rows that
     // shape what the slot shows come first, then how boldly it prints.
-    var items = (extraItems || []).concat([bold]);
+    var items = (extraItems || []).concat([bold], afterItems || []);
     return sheetOf(keyStem, title, gateAll(items, gate));
+}
+
+/**
+ * Every condition the weather condition slot shows (weather/condition.js), for its dialog's
+ * list: the name and short form, and the glyphs as pixel icon keys (condition-pixels.generated.js),
+ * the night's one beside the day's where it differs. The clear sky's night has its own names
+ * (Clear, CLR), so its own row.
+ * @returns {!Array<{full: string, short: string, icons: !Array<string>, night: boolean}>}
+ */
+function conditionRows() {
+    var key = function (glyph) { return glyph.replace(/^COND_/, ''); };
+    var rows = [];
+    Object.keys(CONDITION.CONDITIONS).forEach(function (id) {
+        var c = CONDITION.CONDITIONS[id];
+        if (c.night) {
+            rows.push({full: c.day[0], short: c.day[1], icons: [key(c.glyph[0])], night: false});
+            rows.push({full: c.night[0], short: c.night[1], icons: [key(c.glyph[c.glyph.length - 1])], night: true});
+            return;
+        }
+        rows.push({full: c.day[0], short: c.day[1], icons: c.glyph.map(key), night: false});
+    });
+    return rows;
 }
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
 var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
@@ -706,12 +730,36 @@ var BW_LEGEND = 'The bars don\'t scale linearly. Their height is split into 5 pa
 // rationale renders. The hinted-row wrap layout flows it around the trigger and gives it the
 // full row width below, so the fuller prose no longer needs its own staticText. The short
 // tags live in the dropdown option descs; these give the fuller rationale.
+// The data sources' credits their terms ask for where their data is picked: Tomorrow.io a
+// linked "Powered by Tomorrow.io", the air quality sources theirs (Open-Meteo's model runs on
+// Copernicus data; WAQI asks for the agencies its stations belong to), LocationIQ a link. The
+// rest are named by their pickers and listed in Setup › Privacy & data sources.
+var TOMORROWIO_CREDIT = 'Powered by <a target=\'_blank\' href=\'https://www.tomorrow.io\'>Tomorrow.io</a>.';
+var OPENMETEO_AQI_CREDIT = 'Data from Open-Meteo.com and the Copernicus Atmosphere Monitoring Service.';
+var WAQI_CREDIT = 'Data from the World Air Quality Index Project and the environmental agencies of its stations.';
+var PRIVACY_TEXT = '<b>Privacy</b><br>While Share anonymous telemetry is on, WarnWeather sends: whether each '
+    + 'weather update worked and how long it took, the weather provider, a rough country, the app and watch '
+    + 'versions, and which settings are used. It never sends your location, the places you type, your API keys '
+    + 'or any health data: steps, sleep and heart rate stay on the watch. Your account and watch are stored only '
+    + 'as one-way hashes.';
+var CC_BY = '<a target=\'_blank\' href=\'https://creativecommons.org/licenses/by/4.0/\'>CC BY 4.0</a>';
+var DATA_SOURCES_TEXT = '<b>Data sources</b><br>'
+    + 'Weather: Open-Meteo.com, MET Norway, Deutscher Wetterdienst (via Bright Sky), OpenWeather, Tomorrow.io, '
+    + 'Weather Underground, Yandex Weather.<br>'
+    + 'Rain radar: Deutscher Wetterdienst, MET Norway, Rainbow.ai, Tomorrow.io.<br>'
+    + 'Air quality: Open-Meteo.com with Copernicus Atmosphere Monitoring Service data, and the World Air Quality '
+    + 'Index Project with the environmental agencies of its stations.<br>'
+    + 'Pollen: Deutscher Wetterdienst.<br>'
+    + 'Places: town names powered by Esri, place search by Open-Meteo.com (GeoNames) and LocationIQ.com.<br>'
+    + 'Public holidays: Nager.Date.<br>'
+    + 'Data from Open-Meteo.com, MET Norway and the Copernicus Atmosphere Monitoring Service is licensed under '
+    + CC_BY + ', GeoNames data too. Weather data &copy; OpenWeather.';
 var PROVIDER_WHY = {
     dwd: 'Germany\'s national weather service, with the most accurate forecasts in Germany and decent ones across Central Europe (ICON model). No API key needed.',
     metno: 'The service behind yr.no. Best in the Nordics, with a 2.5 km model, and solid worldwide. No API key needed.',
     openmeteo: 'Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.',
     openweathermap: 'A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.',
-    tomorrowio: 'Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key.',
+    tomorrowio: 'Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key. ' + TOMORROWIO_CREDIT,
     wunderground: 'A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.',
     yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key.'
 };
@@ -771,7 +819,7 @@ var RADAR_SOURCE_HINTS = {
     // Without a key the amber note under the row says what goes missing, so the hint here
     // only says whose key and whose budget.
     tomorrowio: 'A precise rain nowcast from machine-learning models, worldwide. It uses your tomorrow.io API key '
-        + 'and counts against that key\'s call budget.'
+        + 'and counts against that key\'s call budget. ' + TOMORROWIO_CREDIT
 };
 // The radar's on-state rows (its key row and its coverage note) and the picker itself: a
 // watch with the radar (not aplite).
@@ -822,11 +870,12 @@ function slotItem(slotKey, position, barWhen, joins) {
         type: 'select',
         messageKey: slotKey,
         label: labels[position],
-        // The picker names the bar too, by its name (screens.js barName): it also opens from a
-        // tap on the slot in the tab's pinned preview (preview-status-bars.js), away from the
-        // bar's card.
+        // The picker names the bar too, by its name (screens.js barName).
         sheetTitle: bar.name + ' · ' + labels[position],
         sheetTitleBy: {resolver: 'barSlotTitle', args: {bar: bar.bar, label: labels[position]}},
+        // In the bar's dialog the list rises from the bottom (engine renderPickSheet), as on a
+        // tab, rather than opening in place under the row (the owner's, 2026-11-14).
+        bottomSheet: true,
         defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: slotKey}},
         onChange: 'dedupeStatusSlot',
         editSheetFrom: {resolver: 'statusSlotEditSheet'},
@@ -1062,10 +1111,10 @@ var VIEW_FLICK_WHEN = {env: 'platform', ne: 'aplite'};
 // env.forecastSpan fact), hidden on an unknown watch (fail closed: the 640 / 536 B
 // inboxes of every other watch cannot take the long span's 68-hour bundle).
 var FORECAST_SPAN_WHEN = {env: 'forecastSpan'};
-// The owner's text (2026-11-06). The tap is said twice on purpose: the bars' own line under
-// them (preview-status-bars.js) and here, because a tap on a picture was not obvious.
-var STATUS_INTRO = 'Each status bar has a left, middle and right slot. Tap a slot to change it, or tap a bar’s name for '
-    + 'the rest of its settings.';
+// The owner's text (2026-11-06), the tap rewritten (2026-11-14): a tap anywhere on a bar opens
+// all its settings, its slots among them (screens-page.js barsCard).
+var STATUS_INTRO = 'Each status bar has a left, middle and right slot. Tap a bar to change its slots and the rest of '
+    + 'its settings.';
 // "up to 66": a full feed on the whole screen (the Left axis values On graph or Off).
 var FORECAST_INTRO = 'The forecast graph shows up to 24 hours ahead. On Pebble Time 2 you can pick 12, 24 or up to '
     + String(spanHours.wholeHours(spanHours.FULL_HOURS, spanHours.SCREEN_W)) + ' hours under Forecast length. '
@@ -1866,8 +1915,8 @@ module.exports = {
         id: 'watch', label: 'Status bars', short: 'Status', icon: 'tab-status', sections: [{
             // Your status bars (screens-page.js barsCard, the owner's pick, 2026-11-09): every bar the
             // watch has, a bar no screen shows too, so any bar can go onto any screen. Each is
-            // its name, the screens that show it and its picture, a tap on a slot changing it and
-            // a tap on the name opening the bar's dialog (barDialog below); then New status bar.
+            // its name, the screens that show it and its picture, a tap anywhere on it opening the
+            // bar's dialog (barDialog below); then New status bar.
             id: 'yourBars',
             title: 'Your status bars',
             intro: STATUS_INTRO,
@@ -1899,27 +1948,6 @@ module.exports = {
                     defaultValue: 'perSlot',
                     options: [['Off', 'off'], ['Per slot', 'perSlot'], ['All', 'all']],
                     showWhen: THRESHOLD_WHEN
-                },
-                // Weather alerts replace slots: whether a weather alert (rain, wind, gusts, UV, air
-                // quality, pollen) takes the place of the slot on its side the moment it shows
-                // (Right away), or sits beside it and the slot gives way only when the bar runs
-                // out of room (If needed: the make-room ladder, the default). The system items
-                // (Battery, Bluetooth, Quiet time, Sleep) always sit beside it, which is why the
-                // label says "Weather alerts" (the owner's, 2026-11-13). A settings-store key
-                // only, like Bold values: it rides the packed blob's alerts byte (status-wire.js
-                // ALERTS_REPLACE_BIT; the watch's on_demand.h od_replace_slots). aplite has no
-                // On demand.
-                {
-                    type: 'segmented',
-                    messageKey: 'alertsReplaceSlot',
-                    label: 'Weather alerts replace slots',
-                    hintByValue: {
-                        needed: 'A weather alert sits beside the slot on its side, which makes room only when the bar is full.',
-                        now: 'A weather alert takes the place of the slot on its side while it shows.'
-                    },
-                    defaultValue: 'needed',
-                    options: [['If needed', 'needed'], ['Right away', 'now']],
-                    showWhen: ON_DEMAND_WHEN
                 },
                 // The reset reverts every slot AND the bold settings in one tap (blocks.js
                 // resetStatusSlots); last under More options (owner, 2026-10-04). Deliberately
@@ -2089,8 +2117,10 @@ module.exports = {
             defaultValue: 'auto',
             options: [
                 ['Sep 2026', 'auto'],
+                ['Sep', 'noyear'],
                 ['September 2026', 'name'],
                 ['09.2026', 'dots'],
+                ['09.26', 'dotsyy'],
                 ['09/2026', 'slash'],
                 ['2026-09', 'iso']
             ]
@@ -2105,7 +2135,15 @@ module.exports = {
             optionsFrom: {resolver: 'dateFullFormatOptions'}
         }]),
         boldSection('Calendar week', 'Week'),
-        boldSection('City', 'City'),
+        // The city's own row: the current weather's icon before its name (slot-text.js
+        // cityIcon), on for every install until switched off.
+        boldSection('City', 'City', null, [{
+            type: 'toggle',
+            messageKey: 'citySlotIcon',
+            label: 'Weather icon',
+            defaultValue: true,
+            hintByValue: {'true': 'Shows the current weather\'s icon before the city name.'}
+        }]),
         // 'd' is a unit like any other here — the countdown reads '5d' today, and
         // dropping it buys a character back on a crowded bar.
         boldSection('Date countdown', 'Countdown', null,
@@ -2121,7 +2159,41 @@ module.exports = {
         // (blocks.js statusSlotEditSheet), so both Edit buttons open this dialog and the
         // one mode packs into both cells. Android-only on the slot side; the dialog
         // needs no extra gate, because a slot that can't be chosen never opens it.
-        boldSection('Phone battery', 'PhoneBattery')
+        boldSection('Phone battery', 'PhoneBattery'),
+        // The weather condition slot's dialog: its Look (slot-text.js conditionLook) and the
+        // length of its Name (conditionName, hidden while the Look shows no name), which every
+        // condition slot shares, then Bold like every text slot (kind 20, whose cell rides the
+        // alerts byte: status-wire.js boldCell). Opened by the slot's Edit button (blocks.js
+        // statusSlotEditSheet), not on aplite, which has no slot dialogs.
+        boldSection('Weather condition', 'Condition', null, [{
+            type: 'segmented',
+            messageKey: 'conditionSlotLook',
+            label: 'Look',
+            hintByValue: {
+                both: 'Shows the weather symbol and its name.',
+                text: 'Shows the name alone.',
+                icon: 'Shows the weather symbol alone.'
+            },
+            defaultValue: 'both',
+            options: [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']]
+        }, {
+            type: 'segmented',
+            messageKey: 'conditionSlotName',
+            label: 'Name',
+            showWhen: {key: 'conditionSlotLook', ne: 'icon'},
+            hintByValue: {
+                auto: 'Shows the full name, like Partly cloudy, and switches to PCLDY where the bar is short of room, so the other slots stay whole.',
+                full: 'Shows the full name, like Partly cloudy, even where it crowds the other slots. A side slot beside a long item shows PCLDY.',
+                'short': 'Always shows the short name, like PCLDY.'
+            },
+            defaultValue: 'auto',
+            options: [['Auto', 'auto'], ['Full', 'full'], ['Short', 'short']]
+        }], [{type: 'subheader', text: 'Every condition'}, {
+            // Every condition the slot shows, with its icon, full name and short form, as a
+            // reference card under the settings (blocks.js conditionList draws it).
+            type: 'staticText',
+            textFrom: {resolver: 'conditionList', args: {rows: conditionRows()}}
+        }])
         ].map(function (sec) {
             // Every slot dialog keeps the bars pinned above its rows: the bar it was opened
             // from, a bar's dialog (preview-status-bars.js statusBarsPreview). The bars' own
@@ -2487,7 +2559,7 @@ module.exports = {
                 label: 'Manual location',
                 defaultValue: '',
                 attributes: {placeholder: 'e.g. Manhattan'},
-                hint: 'Example: "Manhattan" or "123 Oak St Plainsville KY".',
+                hint: 'Example: "Manhattan" or "123 Oak St Plainsville KY". Search by <a target=\'_blank\' href=\'https://locationiq.com\'>LocationIQ.com</a>.',
                 showWhen: {key: 'locationMode', eq: 'manual'}
             }, {
                 type: 'select',
@@ -2579,9 +2651,9 @@ module.exports = {
                 label: 'Air quality',
                 defaultValue: 'waqi',
                 hintByValue: {
-                    auto: 'Uses WAQI, or Open-Meteo when no WAQI station is nearby.',
-                    waqi: 'WAQI (aqicn.org) reads real monitoring stations, which is the most accurate. Rural areas and areas with few stations may have no station nearby and show "--".',
-                    openmeteo: 'Open-Meteo uses a global model, so it covers every location.'
+                    auto: 'Uses WAQI, or Open-Meteo when no WAQI station is nearby. ' + WAQI_CREDIT + ' ' + OPENMETEO_AQI_CREDIT,
+                    waqi: 'WAQI (aqicn.org) reads real monitoring stations, which is the most accurate. Rural areas and areas with few stations may have no station nearby and show "--". ' + WAQI_CREDIT,
+                    openmeteo: 'Open-Meteo uses a global model, so it covers every location. ' + OPENMETEO_AQI_CREDIT
                 },
                 options: [['Auto', 'auto'], ['WAQI', 'waqi'], ['Open-Meteo', 'openmeteo']]
             }, {
@@ -2719,7 +2791,7 @@ module.exports = {
                 messageKey: 'telemetryEnabled',
                 label: 'Share anonymous telemetry',
                 defaultValue: true,
-                hint: 'Sends anonymous data about weather updates and how the watchface is used, to improve reliability. See what is sent in the <a href="https://github.com/Toasbi/WarnWeather#telemetry">Telemetry section</a>.'
+                hint: 'Sends anonymous data about weather updates and how the watchface is used, to improve reliability. Privacy & data sources below says what is sent.'
             }, {
                 type: 'button',
                 label: 'Run setup again',
@@ -2738,6 +2810,19 @@ module.exports = {
             }, {
                 type: 'staticText',
                 text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:var(--lbl);">Support me <3</span>' + '<a href="https://buymeacoffee.com/toaster2"><img alt="Buy me a coffee" style="height:40px;width:auto;display:block;" src="' + BMC_BADGE + '"></a></div>'
+            }]
+        }, {
+            // What the app sends and whose data it shows: the telemetry summary, and every data
+            // source with the credit and licence its terms ask for (CC BY 4.0: Open-Meteo, MET
+            // Norway, Copernicus; OpenWeather: a visible credit; Esri: "Powered by Esri"). The
+            // store listing points here instead of listing them.
+            id: 'privacy',
+            title: 'Privacy & data sources', collapsible: true, items: [{
+                type: 'staticText',
+                text: PRIVACY_TEXT
+            }, {
+                type: 'staticText',
+                text: DATA_SOURCES_TEXT
             }]
         }, {
             title: 'Advanced', collapsible: true, items: [{

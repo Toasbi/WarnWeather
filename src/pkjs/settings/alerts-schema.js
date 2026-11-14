@@ -122,12 +122,9 @@ function rainAlertSheet() {
         showWhen: ON_DEMAND_WHEN,
         title: 'Rain alert',
         // The watch shows it while rain falls now, whatever the window, and hides it while
-        // the radar is snoozed for the Battery saver hours (rain_countdown.c). The colour
-        // follows rain_tint (status_on_demand.c): the radar's tier colour only on a colour
-        // watch under a colour theme.
+        // the radar is snoozed for the Battery saver hours (rain_countdown.c).
         intro: 'Shows the rain icon at the edge of a status bar while it rains at your location or when rain is '
-            + 'due within the time window. On a color watch, the icon uses the radar’s rain color, except with a '
-            + 'B&W theme. The icon is hidden during the Battery saver hours.',
+            + 'due within the time window. The icon is hidden during the Battery saver hours.',
         // Two cards: Shows on (with the boxes on why the icon cannot show yet: the radar
         // off, or Rain on no bar), then the alert's own rows, its time window first.
         items: showsOnRows('rain', null, [rainRadarOffNote(), rainNotPlacedNote()]).concat([
@@ -155,6 +152,22 @@ function rainAlertSheet() {
             hintByValue: {
                 minutes: 'Shows the rain icon and the minutes until the rain starts. While it rains, it shows + and the minutes until it stops. When the bar runs out of room, the status slot on the alert’s side and the middle slot first shorten, then hide. Only then does it drop to the icon alone.',
                 text: 'When the bar runs out of room, the status slot on the alert’s side and the middle slot first shorten, then hide. Only then does the text shorten to the minutes, and then to the rain icon alone.'
+            }
+        }, {
+            // Whether the rain alert takes the place of the status slot on its side while it
+            // shows (on, the default) or sits beside it, the slot giving way only when the bar
+            // runs out of room (the make-room ladder). Rain alone has this: the metric alerts
+            // always sit beside their slot (the owner's, 2026-11-14, replacing 3.2.0's All
+            // status bars option for every weather alert). It rides the thresholds blob's
+            // alerts byte (status-wire.js RAIN_REPLACE_BIT; the watch's on_demand.h
+            // od_replace_slots); the default is the contract's (status-thresholds.js rainAlert).
+            type: 'toggle',
+            messageKey: 'rainAlertReplacesSlot',
+            label: 'Replaces the slot',
+            defaultValue: STATUS_THRESHOLDS.rainAlert(null).replacesSlot,
+            hintByValue: {
+                'true': 'The rain alert takes the place of the status slot on its side while it shows.',
+                'false': 'The rain alert sits beside the status slot on its side, which makes room only when the bar is full.'
             }
         }])
     };

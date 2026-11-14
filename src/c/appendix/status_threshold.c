@@ -3,6 +3,8 @@
 
 int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
     if (slot_kind == SLOT_TEXT) {
+        // The city with the current weather's glyph (status_line.h STATUS_ICON_CITY_GLYPH).
+        if (icon & STATUS_ICON_CITY_GLYPH) { return THRESH_CITY; }
         switch (icon) {
             case STATUS_ICON_AQI:       return THRESH_AQI;
             case STATUS_ICON_POLLEN:    return THRESH_POLLEN;
@@ -21,6 +23,22 @@ int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
             case STATUS_ICON_PRESSURE:  return THRESH_PRESSURE;
             case STATUS_ICON_DRAWN_SUN: return THRESH_SUN;
             case STATUS_ICON_COUNTDOWN: return THRESH_COUNTDOWN;
+            // The weather condition: its Text look and every glyph (status_line.h).
+            case STATUS_ICON_COND_TEXT:
+            case STATUS_ICON_COND_SUN:
+            case STATUS_ICON_COND_MOON:
+            case STATUS_ICON_COND_SUN_CLOUD:
+            case STATUS_ICON_COND_MOON_CLOUD:
+            case STATUS_ICON_COND_CLOUD:
+            case STATUS_ICON_COND_FOG:
+            case STATUS_ICON_COND_HAZE:
+            case STATUS_ICON_COND_DRIZZLE:
+            case STATUS_ICON_COND_RAIN:
+            case STATUS_ICON_COND_SLEET:
+            case STATUS_ICON_COND_SNOW:
+            case STATUS_ICON_COND_HAIL:
+            case STATUS_ICON_COND_THUNDER:
+            case STATUS_ICON_COND_WIND: return THRESH_CONDITION;
             // City is the only remaining TEXT+NONE catalog option (a pre-icon
             // pressure slot also lands here until the phone re-sends its slots
             // — see status_threshold.h).
@@ -169,10 +187,13 @@ static uint16_t health_u16(const uint8_t blob[THRESH_SETTINGS_BYTES], int kind, 
 }
 
 // The kind's bold mode (ThreshBold); THRESH_BOLD_WARN, the shipped behaviour, for an
-// out-of-range kind and the reserved wire value 3.
+// out-of-range kind and the reserved wire value 3. The weather condition's cell sits
+// past the full bold area, at bits 3-4 of the alerts byte.
 static int status_threshold_bold_mode(const uint8_t blob[THRESH_SETTINGS_BYTES], int kind) {
     if (kind < 0 || kind >= THRESH_KIND_COUNT) { return THRESH_BOLD_WARN; }
-    int mode = cell2(blob, THRESH_BOLD_OFFSET, kind);
+    int mode = kind == THRESH_CONDITION
+        ? (blob[THRESH_ALERTS_OFFSET] >> THRESH_CONDITION_BOLD_SHIFT) & 3
+        : cell2(blob, THRESH_BOLD_OFFSET, kind);
     return mode == 3 ? THRESH_BOLD_WARN : mode;   // 3 is reserved
 }
 
@@ -181,8 +202,8 @@ int status_threshold_rain_display(const uint8_t blob[THRESH_SETTINGS_BYTES]) {
     return mode == 3 ? THRESH_RAIN_DISPLAY_TEXT : mode;   // 3 is reserved
 }
 
-bool status_threshold_alerts_replace(const uint8_t blob[THRESH_SETTINGS_BYTES]) {
-    return (blob[THRESH_ALERTS_OFFSET] & THRESH_ALERTS_REPLACE_BIT) != 0;
+bool status_threshold_rain_replaces(const uint8_t blob[THRESH_SETTINGS_BYTES]) {
+    return (blob[THRESH_ALERTS_OFFSET] & THRESH_RAIN_REPLACE_BIT) != 0;
 }
 
 OdSide status_threshold_on_demand_side(const uint8_t blob[THRESH_SCRATCH_BYTES], int bar,

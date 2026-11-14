@@ -86,6 +86,9 @@ const settingsSchema = z
     // blob can hold a bold mode this build's picker no longer offers, and a stricter
     // type would reject the whole event over one cosmetic setting.
     threshPhoneBatteryBoldMode: z.string().optional(),
+    // The weather condition slot's Bold (kind 20). DEPLOY-ORDERING: ship this function
+    // before the app release that sends it, or the strip step drops it silently.
+    threshConditionBoldMode: z.string().optional(),
     dayNightShading: z.boolean().optional(),
     healthMode: z.enum(['off', 'status', 'all', 'slot']).optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
@@ -146,11 +149,21 @@ const settingsSchema = z
     // DEPLOY-ORDERING: ship this function before the app release that sends these, or
     // the strip step drops them silently.
     onDemand: z.string().optional(),
-    // The All status bars card's "Weather alerts replace slots": 'now' (Right away) or 'needed'
-    // (If needed). Absent on aplite, like onDemand. z.string() per
-    // threshPhoneBatteryBoldMode's rule above. DEPLOY-ORDERING: ship this function before
+    // The Rain alert dialog's "Replaces the slot": true (the default) when the rain alert
+    // takes the place of the status slot on its side, false when it sits beside it. Absent
+    // on aplite, like onDemand. DEPLOY-ORDERING: ship this function before the app release
+    // that sends it, or the strip step drops it silently.
+    rainReplacesSlot: z.boolean().optional(),
+    // The weather condition slot's Look: 'both', 'text' or 'icon'. Absent on aplite. z.string()
+    // per threshPhoneBatteryBoldMode's rule above. DEPLOY-ORDERING: ship this function before
     // the app release that sends it, or the strip step drops it silently.
-    alertsReplaceSlot: z.string().optional(),
+    conditionSlotLook: z.string().optional(),
+    // The weather condition slot's Name: 'auto', 'full' or 'short'. Absent on aplite.
+    // DEPLOY-ORDERING: ship this function before the app release that sends it.
+    conditionSlotName: z.string().optional(),
+    // Whether the city slot draws the current weather's icon. Absent on aplite.
+    // DEPLOY-ORDERING: ship this function before the app release that sends it.
+    citySlotIcon: z.boolean().optional(),
     // The Battery item's warn level as stored (a percentage) and its look ('icon' /
     // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
     batteryLowLevel: z.number().int().min(0).max(100).optional(),

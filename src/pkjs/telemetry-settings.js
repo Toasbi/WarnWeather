@@ -30,9 +30,6 @@ var viewCycle = require('./view-cycle.js');
 var statusThresholds = require('./status-thresholds.js');
 // telemetryCode — where each On demand item is ticked, read like the bake reads it.
 var onDemand = require('./on-demand.js');
-// alertsReplaceSlot — whether weather alerts take their slot right away, read like the
-// thresholds blob packs it.
-var statusWire = require('./status-wire.js');
 // showOf — a graph line's Show choice, read like the bake reads it.
 var lineAlert = require('./line-alert.js');
 // The forecast's time span option this watch draws (12/24/48 on emery, 24 elsewhere).
@@ -304,6 +301,7 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // the other bold modes stay out. Passed through raw like tempSlotDisplay --
         // an unseeded install reports undefined, which the column reads as "default".
         threshPhoneBatteryBoldMode: safe.threshPhoneBatteryBoldMode,
+        threshConditionBoldMode: safe.threshConditionBoldMode,
         dayNightShading: !!safe.dayNightShading,
         healthMode: safe.healthMode || 'off',
         fetchIntervalMin: toIntOrUndefined(safe.fetchIntervalMin),
@@ -363,11 +361,18 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // Absent on a known aplite, which has no On demand: showQt and batteryLowOnly
         // above are what aplite reads, and only aplite reports them.
         onDemand: onDemandCode,
-        // The All status bars card's "Weather alerts replace slots": 'now' (Right away) or 'needed'
-        // (If needed, also what an absent key reads as). Absent where onDemand is:
-        // aplite has no On demand. Lockstep with handler.ts -- deploy it first.
-        alertsReplaceSlot: onDemandCode === undefined ? undefined
-            : (statusWire.alertsReplaceSlot(safe) ? 'now' : 'needed'),
+        // The Rain alert dialog's "Replaces the slot" (true, the default, takes the place of
+        // the slot on its side; false sits beside it), read like the thresholds blob packs it
+        // (status-thresholds.js rainAlert). Absent where onDemand is: aplite has no On
+        // demand. Lockstep with handler.ts -- deploy it first.
+        rainReplacesSlot: onDemandCode === undefined ? undefined
+            : statusThresholds.rainAlert(safe).replacesSlot,
+        // The weather condition slot's Look ('both' icon and text, 'text', 'icon'; absent or
+        // junk reads 'both'), on the watches that draw its glyph: aplite prints text whatever
+        // is stored. Lockstep with handler.ts -- deploy it first.
+        conditionSlotLook: isAplite ? undefined : slotText.conditionLook(safe),
+        conditionSlotName: isAplite ? undefined : slotText.conditionName(safe),
+        citySlotIcon: isAplite ? undefined : slotText.cityIcon(safe),
         // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),

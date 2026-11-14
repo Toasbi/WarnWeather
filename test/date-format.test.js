@@ -11,7 +11,7 @@ test('the code lists are append-only and start at Auto', () => {
   // Pinned literally: reordering either list silently re-formats every install
   // that saved a pick, so a diff here must be a conscious wire change.
   assert.deepEqual(dateFormat.MONTH_FORMAT_CODES,
-    ['auto', 'name', 'dots', 'slash', 'iso']);
+    ['auto', 'name', 'dots', 'slash', 'iso', 'dotsyy', 'noyear']);
   assert.deepEqual(dateFormat.FULL_FORMAT_CODES,
     ['auto', 'long', 'noyear', 'slash', 'iso', 'text', 'textyear']);
 });

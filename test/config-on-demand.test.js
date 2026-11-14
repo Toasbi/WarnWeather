@@ -226,21 +226,22 @@ test('Your status bars shows the alerts on each bar\'s row, the icons its dialog
   // The owner, 2026-11-09: "I also want to see right away if there are alarms set for the bar".
   const page = watchTab({ statusForecastOnDemandRightItems: 'uv' });
   const html = page.scroll.innerHTML;
-  // A bar's name button, which carries its alerts under its name.
+  // A bar's name block in its row's button, which carries its alerts under its name.
   const nameOf = (bar) => {
-    const at = html.indexOf('<button type="button" class="bl-name" data-edit-sheet="bar-' + bar + '"');
-    assert.ok(at !== -1, bar + ' listed');
-    return html.slice(at, html.indexOf('</button>', at) + '</button>'.length);
+    const row = html.indexOf('<button type="button" class="bl-open" data-edit-sheet="bar-' + bar + '"');
+    assert.ok(row !== -1, bar + ' listed');
+    const at = html.indexOf('<span class="bl-name">', row);
+    return html.slice(at, html.indexOf('<span class="sbp one', at));
   };
   const line = (hint) => '<span class="ui-d bl-al"><span class="bl-al-cap">Alerts</span><span class="bl-al-runs">' + hint
-    + '</span></span></button>';
+    + '</span></span></span>';
   assert.ok(nameOf('top').endsWith(line(TOP_HINT)), 'the Watch bar\'s: Left + its icons, Right + its icons');
   assert.equal(barHint(page, 'Watch bar'), TOP_HINT, 'the same as its dialog\'s Alerts row');
   assert.ok(nameOf('forecast').endsWith(line(iconRun('right', ['uv']))), 'one placed on the Forecast bar');
   ['health', 'radar'].forEach((bar) => assert.equal(nameOf(bar).indexOf('bl-al'), -1, bar + ': none placed, no line'));
 });
 
-test('the Status bars tab: Your status bars in the owner\'s order, each name opening the bar\'s dialog, then the reset as a link row', () => {
+test('the Status bars tab: Your status bars in the owner\'s order, each row opening the bar\'s dialog, then the reset as a link row', () => {
   // The owner, 2026-10-01: "1: watch status bar 2 weather 3 health 4 radar" (the page only;
   // the wire keeps its order). The health bar needs a health mode with a status bar.
   const closed = watchTab({ healthMode: 'status' });
@@ -249,8 +250,8 @@ test('the Status bars tab: Your status bars in the owner\'s order, each name ope
   const page = watchTab({ healthMode: 'status' });
   page.openAllMore('scroll');
   const html = page.scroll.innerHTML;
-  const at = (bar) => html.indexOf('<button type="button" class="bl-name" data-edit-sheet="bar-' + bar + '"');
-  PAGE_BARS.forEach((bar) => assert.ok(at(bar) !== -1, bar + ': its name opens its dialog'));
+  const at = (bar) => html.indexOf('<button type="button" class="bl-open" data-edit-sheet="bar-' + bar + '"');
+  PAGE_BARS.forEach((bar) => assert.ok(at(bar) !== -1, bar + ': its row opens its dialog'));
   assert.deepEqual(PAGE_BARS.slice().sort((a, b) => at(a) - at(b)), PAGE_BARS, 'Watch, Forecast, Health, Radar');
   PAGE_BARS.forEach((bar) => assert.ok(at(bar) > titleAt(html, 'Your status bars'), bar + ': in the Your status bars card'));
   PAGE_BARS.forEach((bar) => assert.ok(barRow(page, BAR_NAMES[bar]) !== '', bar + ': its dialog\'s Alerts row'));

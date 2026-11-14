@@ -47,7 +47,9 @@ function labels(html) {
   return (html.match(/class="wpv-v[^"]*"[^>]*aria-label="[^"]*"/g) || []).map((m) => /aria-label="([^"]*)"/.exec(m)[1]);
 }
 
-test('every preset\'s views sit on the watch\'s seats, the filling graph running to the screen\'s foot', () => {
+test('every preset\'s views sit where the watch places them, the filling graph running to the screen\'s foot', () => {
+  // view-cycle.js stackLayout is the watch's placement: scripts/check-fit-lockstep.js holds it
+  // to layout.c for every shape, data state and Position.
   ['basalt', 'emery'].forEach((platform) => {
     const f = platform === 'emery' ? 1 : 0, sc = pw.SCREEN[f];
     ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((preset) => {
@@ -55,32 +57,40 @@ test('every preset\'s views sit on the watch\'s seats, the filling graph running
       c.views.forEach((spec, i) => {
         if (!spec) { return; }
         const lay = pw.layoutView(spec, f), at = preset + ' ' + platform + ' view ' + i;
-        assert.equal(lay.strip, spec.stripOff ? 0 : sc.floor - VC.FIT_PX.availStrip[f], at + ': the top bar');
-        const walk = VC.isStacked(spec) ? spec : Object.assign(VC.cloneSpec(spec),
-          { order: spec.tier === VC.TIER_COMPACT ? 0 : 1 });
-        const st = VC.stackSeats(walk, f), seats = st.seats;
-        assert.deepEqual(lay.bands.map((b) => b.band), seats.map((s) => s.band), at + ': the bands, in order');
-        // A top area that leads under the strip seats on the strip's ink (layout.c
-        // strip_calendar_seat: 15 rows down on a 144 px watch, 23 on emery), not on its slot;
-        // the bands after it follow the slots. A stack that fills nothing is then aligned.
-        const onInk = lay.bands[0].band === 'T' && !spec.stripOff;
-        const top = (spec.stripOff ? sc.floor - VC.FIT_PX.availNoStrip[f] : lay.strip) + st.lead;
-        const off = lay.bands[0].y - (onInk ? [15, 23][f] : top);
-        const fills = seats.some((s) => s.fill);
-        assert.ok(fills ? off === 0 : off >= 0, at + ': the first band on its seat');
-        let slot = top + off;
+        const placed = VC.stackLayout(spec, f, pw.clockInk(null, f, false));
+        assert.equal(lay.strip, spec.stripOff ? 0 : [17, 21][f], at + ': the top bar');
+        assert.deepEqual(lay.bands.map((b) => b.band), placed.bands.map((b) => b.band), at + ': the bands, in order');
         lay.bands.forEach((b, j) => {
-          if (j > 0) { assert.equal(b.y, slot, at + ': band ' + j + ' follows the one above'); }
-          slot = (seats[j].fill ? b.y + b.h : slot + b.h) + seats[j].gap;
+          const fills = j === lay.bands.length - 1 && b.band === placed.fill;
+          assert.equal(b.y, placed.bands[j].y, at + ': band ' + b.band + ' where the watch puts it');
+          assert.equal(b.y + b.h, fills ? sc.h : placed.bands[j].y + placed.bands[j].h,
+            at + ': band ' + b.band + (fills ? ' fills to the foot' : ' as tall as the watch\'s'));
         });
-        const last = lay.bands[lay.bands.length - 1];
-        if (fills) {
-          assert.equal(last.y + last.h, sc.h, at + ': the graph fills to the foot');
-        } else {
-          assert.ok(last.y + last.h <= sc.h, at + ': it fits');
-        }
       });
     });
+  });
+});
+
+test('the Dense screen: the bar above the clock as far under the calendar as the clock is under it', () => {
+  // The rows the watch inks (status_metrics.h's Gothic model, the clock's ink from clock_ink.c):
+  // the calendar's last digit row, each bar's cap, the clock's digits. On emery the emulator
+  // shows them evenly spaced; the page used to seat the bar 3 rows up on the calendar.
+  const S = settings({ layoutPreset: 'custom', viewCount: '1', viewTop0: 'cal', viewTopSize0: '2',
+    viewUpper0: 'radar', viewLower0: 'weather', viewBody0: 'forecast', viewBodySize0: 'fill', viewOrder0: 'TACB',
+    viewAlign0: 'clock', radarMode: 'graph' });
+  [['emery', 1, 24, 18, [8, 8, 8]], ['basalt', 0, 18, 14, [5, 6, 6]]].forEach((p) => {
+    const env = plat.computeEnv({ platform: p[0] }), f = p[1], large = p[2], ch = p[3];
+    const spec = VC.resolveViewCycle(S, env)[0], ink = pw.clockInk(S, f, false);
+    const at = {};
+    pw.layoutView(spec, f, ink).bands.forEach((b) => { at[b.band] = b; });
+    assert.deepEqual(Object.keys(at), ['T', 'A', 'C', 'B', 'G'], p[0] + ': calendar, bar, clock, bar, graph');
+    const cell = at.T.y + at.T.h / 2;   // the calendar's second row
+    const calInk = (f ? cell + Math.trunc((at.T.h / 2 - large) / 2) - 5 : cell - 5) + large - 1;
+    const capTop = (b) => b.y + VC.statusSeatY(b.h, ch) + ch - (Math.trunc(ch / 2) + 2);
+    const capBottom = (b) => capTop(b) + Math.trunc(ch / 2) + 1;
+    const clockTop = at.C.y + Math.trunc(at.C.h / 2) + ink.centreOff - Math.trunc(ink.inkH / 2);
+    assert.deepEqual([capTop(at.A) - calInk - 1, clockTop - capBottom(at.A) - 1, capTop(at.B) - (clockTop + ink.inkH)],
+      p[4], p[0] + ': blank rows calendar | bar | clock | bar');
   });
 });
 
@@ -188,6 +198,45 @@ test('a light theme draws black on white, the status rows print the Status bars 
   assert.match(html, /<rect x="-9" y="-9" width="162" height="186" fill="#FFFFFF"><\/rect>/);
   // In the watch's Gothic 18, regular as status_row.c row_font draws a slot under no threshold.
   assert.match(html, /fill="#000000" font-family="WatchGothic18[^"]*" font-weight="400">Berlin<\/text>/, 'the city in the left slot');
+});
+
+// The owner's, 2026-11-14: a side slot's weather condition shows its whole name beside an empty
+// or a short middle, and gives way to the middle's text (status_row.c swap_in_short_forms).
+test('a side slot\'s weather condition: the whole name beside an empty middle, the short form beside a long one', () => {
+  const draw = (platform, mid) => pw.watchPreview(settings({ layoutPreset: 'compactCal', radarMode: 'off',
+    healthMode: 'off', statusForecastLeft: 'condition', statusForecastMid: mid, statusForecastRight: 'empty' }),
+  plat.computeEnv({ platform: platform }), {});
+  const shows = (html, text) => html.indexOf('>' + text + '</text>') !== -1;
+  ['basalt', 'emery'].forEach((platform) => {
+    assert.ok(shows(draw(platform, 'empty'), 'Partly cloudy'), platform + ': the whole name beside an empty middle');
+    assert.ok(!shows(draw(platform, 'empty'), 'PCLDY'), platform);
+    assert.ok(shows(draw(platform, 'temp'), 'Partly cloudy'), platform + ': and beside a short one');
+  });
+  // Beside the city's name the 144 px watches have no room for both: the condition gives way,
+  // the city stays whole. The Pebble Time 2 holds both.
+  const basalt = draw('basalt', 'city');
+  assert.ok(shows(basalt, 'PCLDY') && shows(basalt, 'Berlin') && !shows(basalt, 'Partly cloudy'), 'basalt: PCLDY and Berlin');
+  const emery = draw('emery', 'city');
+  assert.ok(shows(emery, 'Partly cloudy') && shows(emery, 'Berlin'), 'emery: both whole');
+});
+
+// The Status bars tab's bar pictures print the text the watch shows: the short form where
+// the watch's row swaps it in, not the whole name cut short by the page.
+test('the Status bars tab\'s bar pictures print the short form where the watch does', () => {
+  const sbp = require('../src/pkjs/settings/preview-status-bars.js');
+  const S = settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off',
+    statusForecastLeft: 'condition', statusForecastMid: 'city', statusForecastRight: 'empty' });
+  const pictures = (platform) => {
+    const env = plat.computeEnv({ platform: platform });
+    return [sbp.barPicture(S, env, 'forecast', { big: true }), sbp.statusBarsPreview(S, env)];
+  };
+  pictures('basalt').forEach((html) => {
+    assert.ok(html.indexOf('PCLDY') !== -1 && html.indexOf('Berlin') !== -1, 'basalt: PCLDY and Berlin');
+    assert.equal(html.indexOf('Partly cloudy'), -1, 'basalt: not the whole name');
+  });
+  pictures('emery').forEach((html) => {
+    assert.ok(html.indexOf('Partly cloudy') !== -1 && html.indexOf('Berlin') !== -1, 'emery: both whole');
+  });
 });
 
 test('a graph\'s pattern and clip ids carry its band\'s suffix, so two graphs never share one', () => {

@@ -112,8 +112,9 @@ test('the calendar draws in the watch\'s cells: its Gothic dates centred on them
 });
 
 test('a status row seats its slots as the watch does: the edge slots from the margin, the middle centred', () => {
+  // The city without its weather icon (citySlotIcon), so its text starts at the margin.
   const svg = picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'city', statusTopMid: 'empty',
-    statusTopRight: 'battery' });
+    statusTopRight: 'battery', citySlotIcon: false });
   // The top strip (status_metrics.h status_seat_y, 2 rows higher): Gothic 18 in its 17-row band.
   const city = text(/<text [^>]*>Berlin<\/text>/.exec(svg)[0]);
   assert.deepEqual([city.x, city.y, city.size, city.weight], [2, 12, 18, 400], 'the city from the 2 px margin, regular');
@@ -122,7 +123,7 @@ test('a status row seats its slots as the watch does: the edge slots from the ma
   assert.match(svg, /<rect x="123\.5" y="[^"]*" width="16" height="9" fill="none" stroke="#FFFFFF" stroke-width="1"><\/rect><rect x="140" y="[^"]*" width="2" height="4"/);
   // A middle slot centred on the row.
   const mid = picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'empty', statusTopMid: 'city',
-    statusTopRight: 'empty' });
+    statusTopRight: 'empty', citySlotIcon: false });
   const m = text(/<text [^>]*>Berlin<\/text>/.exec(mid)[0]);
   assert.equal(m.x, 2 + Math.trunc((140 - WT.width(18, false, 'Berlin')) / 2), 'the middle slot centred in the margins');
 });
