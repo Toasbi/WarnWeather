@@ -493,7 +493,7 @@ test('a B&W theme takes the B&W line arms; its night tail is discarded, not spec
 // 0x20). Every other byte is untouched, and with every key on Bottom (or absent, or
 // junk) the fourteen bytes are the ones the build before Draw from sent: pinned per
 // platform below, captured from that build.
-const DRAW_FROM_PLATFORMS = ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint'];
+const DRAW_FROM_PLATFORMS = ['aplite', 'basalt', 'diorite', 'emery', 'flint'];
 const DRAW_FROM_KEYS = ['precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom', 'radarBarFrom'];
 const STYLE_BYTE_OF = { secondaryLine: 9, thirdLine: 10, fourthLine: 11, fifthLine: 13 };
 // The shipped look (rain chance filled, UV dots) and four amount lines in four styles.
@@ -504,7 +504,6 @@ const PRE_DRAW_FROM = {
     bytes: {
       aplite: [255, 234, 255, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2],
       basalt: [219, 198, 243, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2],
-      chalk: [219, 198, 243, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2],
       diorite: [255, 234, 255, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2],
       emery: [219, 198, 243, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2],
       flint: [255, 234, 255, 1, 213, 213, 194, 195, 255, 4, 1, 2, 255, 2]
@@ -517,7 +516,6 @@ const PRE_DRAW_FROM = {
     bytes: {
       aplite: [255, 234, 255, 1, 213, 213, 212, 232, 255, 12, 1, 2, 255, 4],
       basalt: [248, 252, 192, 1, 213, 213, 249, 254, 214, 12, 1, 2, 226, 4],
-      chalk: [248, 252, 192, 1, 213, 213, 249, 254, 214, 12, 1, 2, 226, 4],
       diorite: [192, 234, 192, 1, 213, 213, 249, 254, 192, 12, 1, 2, 192, 4],
       emery: [248, 252, 192, 1, 213, 213, 249, 254, 214, 12, 1, 2, 226, 4],
       flint: [192, 234, 192, 1, 213, 213, 249, 254, 192, 12, 1, 2, 192, 4]
@@ -542,7 +540,7 @@ test('Draw from on Bottom, absent or junk: the fourteen bytes the build before i
 
 test('Draw from: Top sets bit 5 on exactly the matching line\'s style byte', () => {
   const { settings, bytes } = PRE_DRAW_FROM.amounts;
-  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((platform) => {
+  ['basalt', 'diorite', 'emery', 'flint'].forEach((platform) => {
     const base = bytes[platform];
     // wind (Main, bold) and gusts (Second, dots) share windLineFrom.
     [['windLineFrom', ['secondaryLine', 'thirdLine']], ['cloudLineFrom', ['fourthLine']],
@@ -593,7 +591,7 @@ test('Draw from: never on aplite, a stripe, a line not drawn, or a line without 
 // no edge of the graph, so the watch's temperature-axis margins ignore it (persist.h
 // LINE_STYLE_FLOATING, temp_axis_pad.h).
 test('the float bit: on every drawn pressure, feels and dew line, as a line or marks, on every capable watch', () => {
-  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((platform) => {
+  ['basalt', 'diorite', 'emery', 'flint'].forEach((platform) => {
     ['pressure', 'feels', 'dew'].forEach((metric) => {
       Object.keys(STYLE_BYTE_OF).forEach((lineKey) => {
         ['line', 'bold', 'dots', 'x'].forEach((st) => {
@@ -635,7 +633,7 @@ test('the float bit: never on an amount line, a stripe, a line not drawn, or on 
 // sites that each built a palette and a style tuple once drifted apart in their comments,
 // and nothing but a shared builder keeps their bytes together.
 const WATCHES = [null, {}, { platform: '' }, { platform: 'aplite' }, { platform: 'basalt' },
-  { platform: 'chalk' }, { platform: 'diorite' }, { platform: 'emery' }, { platform: 'flint' },
+  { platform: 'diorite' }, { platform: 'emery' }, { platform: 'flint' },
   { platform: 'gabbro' }];
 const GRAPH_SETTINGS = [
   { secondaryLine: 'precip_prob', thirdLine: 'uv', secondaryLineFill: true, theme: 'dark', rainBarColor: 'multicolor' },

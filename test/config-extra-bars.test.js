@@ -202,7 +202,7 @@ test('the Alerts tab: a made bar no screen shows has an inert Shows on row; on a
 });
 
 test('every other watch: no New status bar, no bar 4 to 6, nothing in the editor', () => {
-  ['basalt', 'chalk', 'diorite', 'flint'].forEach((p) => {
+  ['basalt', 'diorite', 'flint'].forEach((p) => {
     const page = statusTab({ statusBar4Made: true }, p);
     const html = page.scroll.innerHTML;
     assert.equal(html.indexOf('data-action="newBar"'), -1, p + ': no New status bar');

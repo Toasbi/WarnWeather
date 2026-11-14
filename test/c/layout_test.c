@@ -2862,7 +2862,7 @@ static void view_flick_tests(void) {
     expect("flick.double.pair_consumed", g.armed, false);
     expect("flick.double.third_rearms", view_flick_accept(&g, t0 + 1400, true), false);
     expect("flick.double.fourth_fires", view_flick_accept(&g, t0 + 2000, true), true);
-    // Any partner inside the window pairs: the earliest a BMI160 watch (basalt/chalk, ~1.28 s
+    // Any partner inside the window pairs: the earliest a BMI160 watch (basalt, ~1.28 s
     // any-motion latch) can deliver, a deliberate flick-pause-flick, and the window's edge.
     const struct { const char *name; uint32_t gap; } pairs[] = {
         { "flick.double.bmi160_gap_pairs", 1300 },

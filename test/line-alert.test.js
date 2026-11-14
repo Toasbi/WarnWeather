@@ -86,7 +86,7 @@ test('Show reads \'alert\' as Alert, anything else as All', () => {
 test('every watch with Alert settings draws Alert; aplite, without them, never does', () => {
   const s = { secondaryLine: 'wind', windLineShow: 'alert' };
   const drawn = (env) => Object.keys(lineAlert.alertBands(s, env));
-  ['basalt', 'chalk', 'diorite', 'emery', 'flint', 'gabbro'].forEach((p) =>
+  ['basalt', 'diorite', 'emery', 'flint', 'gabbro'].forEach((p) =>
     assert.deepEqual(drawn(platform.computeEnv({ platform: p })), ['wind'], p));
   assert.deepEqual(drawn(APLITE), []);
   assert.deepEqual(drawn(platform.computeEnv(null)), ['wind'], 'an unknown watch is capable');

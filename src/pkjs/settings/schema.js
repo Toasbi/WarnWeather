@@ -1007,7 +1007,7 @@ function keySheetSection(source, when, items) {
 // The Theme & night card's backlight gates. "Dim backlight" is emery-only: env.colorBacklight
 // (config-ui/lib/platform.js) is a fact about the BACKLIGHT, not the screen — only
 // emery's board carries the RGB LED driver light_set_color_rgb888() needs, so
-// basalt/chalk (colour screen, plain white backlight) are deliberately out. NOT
+// basalt (colour screen, plain white backlight) is deliberately out. NOT
 // capabilities: ['COLOR'], which says "colour screen" and would light the rows up
 // there.
 var BACKLIGHT_WHEN = {env: 'colorBacklight'};

@@ -81,7 +81,7 @@ test('CLAY_BATTERY_LOW_ONLY reflects the batteryLowOnly setting (default false),
   s.batteryLowOnly = true;
   assert.equal(buildClayPayload(s, { platform: 'aplite' }, NOW).CLAY_BATTERY_LOW_ONLY, true);
   [{ platform: 'basalt' }, { platform: 'diorite' }, { platform: 'emery' }, { platform: 'flint' },
-    { platform: 'chalk' }, null, {}].forEach((wi) => {
+    null, {}].forEach((wi) => {
     assert.equal(Object.prototype.hasOwnProperty.call(buildClayPayload(s, wi, NOW), 'CLAY_BATTERY_LOW_ONLY'),
       false, JSON.stringify(wi));
   });
@@ -549,7 +549,7 @@ test('CLAY_LARGE_GRAPH_FONT: the defaults keep the bare boolean on every platfor
   [false, true].forEach((large) => {
     const s = Object.assign(baseSettings(), { largeGraphFont: large,
       forecastAxisNumbers: 'axis', forecastAxisScale: false });
-    [null, {}, { platform: 'emery' }, { platform: 'basalt' }, { platform: 'chalk' }]
+    [null, {}, { platform: 'emery' }, { platform: 'basalt' }]
       .forEach((info) => {
         const v = buildClayPayload(s, info, NOW).CLAY_LARGE_GRAPH_FONT;
         assert.strictEqual(v, large, JSON.stringify(info) + ' ' + large);
@@ -602,7 +602,7 @@ test('CLAY_LARGE_GRAPH_FONT: emery carries the left axis options in bits 2, 3 an
 // got, whatever left axis options a shared settings blob stores.
 test('CLAY_LARGE_GRAPH_FONT: a known non-emery watch gets the bare boolean', () => {
   const all = { forecastAxisNumbers: 'graph', forecastAxisScale: true, secondaryLine: 'dew' };
-  ['aplite', 'basalt', 'chalk', 'diorite', 'flint'].forEach((platform) => {
+  ['aplite', 'basalt', 'diorite', 'flint'].forEach((platform) => {
     [false, true].forEach((large) => {
       const s = Object.assign(baseSettings(), all, { largeGraphFont: large });
       const v = buildClayPayload(s, { platform }, NOW).CLAY_LARGE_GRAPH_FONT;
@@ -680,7 +680,7 @@ test('CLAY_NIGHT_LIGHT_UINT8 rides every platform (only the WATCH gates it)', ()
   // platform, so gating the key would starve a real emery watch of the setting over a
   // watchInfo hiccup -- CLAY_LARGE_GRAPH_FONT's reasoning above. Sending it everywhere
   // is harmless: light_set_color_rgb888() is a documented no-op without the LED.
-  [{ platform: 'aplite' }, { platform: 'basalt' }, { platform: 'chalk' }, null]
+  [{ platform: 'aplite' }, { platform: 'basalt' }, null]
     .forEach((watchInfo) => {
       const p = buildClayPayload(baseSettings(), watchInfo, NOW);
       assert.equal(p.CLAY_NIGHT_LIGHT_UINT8.length, 5,

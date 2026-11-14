@@ -147,7 +147,7 @@
       emeryDefaults: { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'aqi' } },
     { id: 'health', wireKey: 'STATUS_LINE_4_UINT8',
       slots: ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'],
-      // Non-HR platforms (basalt/chalk/aplite): leave the middle empty and show
+      // Non-HR platforms (basalt/aplite/flint): leave the middle empty and show
       // sleep on the right — matches the seed migrateStatusLineHealthDefaults
       // detects before upgrading HR-capable watches to the hr triple.
       defaults: { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' },

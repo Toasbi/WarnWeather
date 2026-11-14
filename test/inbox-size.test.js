@@ -264,8 +264,8 @@ function buildHeaviestBundleWithNotice(platform) {
 // entries, the radar sky rows and the Radar and Health bars' lines (2 × 51 B), which aplite
 // cannot draw; emery's carries its long span's 68 hours, the graph styles' spare row and bars
 // 4 to 6's lines (below).
-const WEATHER_BUNDLES = { emery: 1095, basalt: 603, chalk: 603, diorite: 603, flint: 603, aplite: 371 };
-const INBOXES = { emery: 1280, basalt: 640, chalk: 640, diorite: 640, flint: 640, aplite: 536 };
+const WEATHER_BUNDLES = { emery: 1095, basalt: 603, diorite: 603, flint: 603, aplite: 371 };
+const INBOXES = { emery: 1280, basalt: 640, diorite: 640, flint: 640, aplite: 536 };
 // One of bars 4 to 6's lines with a full city in every slot, as the other bars' lines carry
 // it: a 7 B tuple header and three slots' packed bytes (status-lines.js).
 const EXTRA_LINE_BYTES = 51;
@@ -311,7 +311,7 @@ test('bars 4 to 6: a shown bar\'s line rides the status category, one on no scre
   assert.deepEqual(EXTRA.filter((key) => key in offScreen), ['STATUS_LINE_5_UINT8'],
     'bars 5 and 6 are made but on no screen');
   assert.equal(dictSize(offScreen), WEATHER_BUNDLES.emery - 2 * EXTRA_LINE_BYTES);
-  ['basalt', 'chalk', 'diorite', 'flint', 'aplite'].forEach((platform) => {
+  ['basalt', 'diorite', 'flint', 'aplite'].forEach((platform) => {
     const bundle = buildHeaviestBundle(platform, HEAVIEST_EXTRA_BARS);
     assert.deepEqual(EXTRA.filter((key) => key in bundle), [], platform + ' has no bars 4 to 6');
   });
@@ -507,7 +507,7 @@ function buildHeaviestClayMessage(watchInfo, over) {
 test('Clay settings message (with palette) fits the watch inbox', function() {
   // Each watch against its own inbox, emery with its graph styles at their heaviest; an
   // unknown platform (the capable shape) against the smallest inbox, aplite's.
-  ['emery', 'basalt', 'chalk', 'diorite', 'flint', 'aplite', null].forEach((platform) => {
+  ['emery', 'basalt', 'diorite', 'flint', 'aplite', null].forEach((platform) => {
     const inbox = readInboxSize(platform || 'aplite');
     const size = dictSize(buildHeaviestClayMessage(platform ? { platform } : null,
       platform === 'emery' ? HEAVIEST_STYLES : null));
@@ -601,7 +601,7 @@ test('the graph styles\' records ride emery\'s Clay bundle, at most 681 B of its
   assert.equal(size, 681, 'update the recorded size when the records change');
   assert.ok(inbox - size >= 10, 'emery: the 10 B floor');
   // Every other watch, and an unknown one, is never sent them.
-  ['basalt', 'chalk', 'diorite', 'flint', 'aplite', null].forEach((platform) => {
+  ['basalt', 'diorite', 'flint', 'aplite', null].forEach((platform) => {
     const payload = buildHeaviestClayMessage(platform ? { platform } : null, HEAVIEST_STYLES);
     assert.equal(Object.keys(payload).some((k) => /^CLAY_GRAPH_STYLE_|^CLAY_OD_EXTRA_/.test(k)), false,
       String(platform));
@@ -616,7 +616,7 @@ test('the graph styles\' records ride emery\'s Clay bundle, at most 681 B of its
 test('CLAY_BATTERY_LOW_ONLY rides aplite\'s Clay bundle only; the per-platform sizes', () => {
   // emery's 38 B more: the graph styles' three empty record tuples and bars 4 to 6's cells
   // (the test above).
-  const sizes = { emery: 558, basalt: 520, chalk: 520, diorite: 496, flint: 496, aplite: 399 };
+  const sizes = { emery: 558, basalt: 520, diorite: 496, flint: 496, aplite: 399 };
   Object.keys(sizes).forEach((platform) => {
     const payload = buildHeaviestClayMessage({ platform });
     assert.equal(dictSize(payload), sizes[platform], platform);

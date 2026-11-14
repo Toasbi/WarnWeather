@@ -82,7 +82,7 @@ function rainPermille(tenths) {
  * GColorDarkGray in light polarity (a pure white bar reads too flat against a
  * white background) — anything else (default) yields the five multicolor tier
  * stops, untouched by theme.
- * @param {string} platform Pebble platform id (aplite/basalt/chalk/diorite/emery/flint).
+ * @param {string} platform Pebble platform id (aplite/basalt/diorite/emery/flint).
  * @param {string} [colorMode] 'multicolor' (default) or 'white'. Effectively-color displays only.
  * @param {string} [theme] 'dark'|'light'|'bw'|'bw-light'; defaults to 'dark' (dark-polarity stop, no B&W collapse beyond hardware).
  * @returns {{from: number[], rgb: number[]}} Stops: permille thresholds + 0xRRGGBB colors.

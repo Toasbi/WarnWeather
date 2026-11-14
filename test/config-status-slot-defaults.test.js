@@ -10,8 +10,8 @@ const { deriveDefaults } = require('../src/pkjs/config-ui/lib/defaults.js');
 require('../src/pkjs/settings/blocks.js');                 // registers statusSlotDefault
 const SCHEMA = require('../src/pkjs/settings/schema.js');
 
-const ENV_EMERY = { color: true, round: false, platform: 'emery', health: true, radar: true, themePolarity: true, hr: true };
-const ENV_BASALT = { color: true, round: false, platform: 'basalt', health: true, radar: true, themePolarity: true, hr: false };
+const ENV_EMERY = { color: true, platform: 'emery', health: true, radar: true, themePolarity: true, hr: true };
+const ENV_BASALT = { color: true, platform: 'basalt', health: true, radar: true, themePolarity: true, hr: false };
 
 test('real schema hydrates the HR-aware status-slot default set', () => {
   const emery = E.hydrate(SCHEMA, {}, ENV_EMERY);

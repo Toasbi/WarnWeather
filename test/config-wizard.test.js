@@ -104,7 +104,7 @@ test('buildSteps: Welcome, Layout, Screens, Theme, Forecast, Done; each gated by
   // aplite: one screen, nothing to flick to, AND no theme polarity to choose (WW_THEME_POLARITY
   // compiled out) nor line styles — the wizard skips all three steps.
   assert.deepEqual(W.buildSteps({ radar: false, health: false, themePolarity: false }), ['welcome', 'layout', 'done']);
-  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) => {
+  ['basalt', 'diorite', 'emery', 'flint'].forEach((p) => {
     assert.deepEqual(W.buildSteps(platform.computeEnv({ platform: p })),
       ['welcome', 'layout', 'screens', 'theme', 'forecast', 'done'], p);
   });

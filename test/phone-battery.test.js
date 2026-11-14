@@ -251,7 +251,7 @@ test('after a wipe the items are still offered in EVERY slot, not just top-right
   // as the only trace, which reads as "the phone item only works top-right".
   boot({ navigator: modernNavigator(fakeManager(0.62, false)) });
   storage = {};
-  const env = { color: true, round: false, platform: 'basalt', health: true,
+  const env = { color: true, platform: 'basalt', health: true,
                 hr: false, phoneBattery: phoneBattery.isSupported() };
   catalog.LINES.forEach((line) => {
     line.slots.forEach((slotKey, i) => {

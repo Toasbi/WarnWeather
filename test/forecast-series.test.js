@@ -1410,7 +1410,7 @@ test('scale option: a dew point over the air never raises TEMP_MAX (capped at ea
 test('scale option: the air range off a known emery, without a line, or with the option off', () => {
   const settings = { secondaryLine: 'dew', barSource: 'off', forecastAxisScale: true };
   const payload = () => feelsPayload({ DEW_TREND: [2, 8, 12] });
-  ['basalt', 'aplite', 'diorite', 'flint', 'chalk'].forEach((p) => {
+  ['basalt', 'aplite', 'diorite', 'flint'].forEach((p) => {
     const out = applyForecastSeries(payload(), settings, { platform: p });
     assert.equal(out.TEMP_MIN, 10, p);
     assert.equal(out.TEMP_MAX, 30, p);

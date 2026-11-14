@@ -549,7 +549,7 @@ test('the Alerts tab: between Status bars and Graphs, hidden on aplite, holding 
   assert.deepEqual(tab.showWhen, { env: 'onDemand' }, 'env-hidden where the watch has no Alerts');
   const ctx = (p) => ({ env: platform.computeEnv({ platform: p }) });
   assert.equal(showWhen.isVisible(tab, ctx('aplite')), false, 'gone on aplite');
-  ['basalt', 'diorite', 'chalk', 'emery', 'flint'].forEach((p) =>
+  ['basalt', 'diorite', 'emery', 'flint'].forEach((p) =>
     assert.equal(showWhen.isVisible(tab, ctx(p)), true, 'shown on ' + p));
   assert.equal(showWhen.isVisible(tab, { env: platform.computeEnv(null) }), true, 'an unknown watch reads as capable');
   const cards = tab.sections.filter((s) => !s.sheetOnly);
@@ -904,7 +904,7 @@ test('Theme & night: the card steps in the Watchface tab\'s row rhythm, on every
   // Every platform, not a sample: the Theme and Theme at night rows have a colour copy
   // and a B/W one (diorite/flint), and only rendering both pins each copy's own join.
   const envs = {};
-  ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint', 'gabbro'].forEach((p) => {
+  ['aplite', 'basalt', 'diorite', 'emery', 'flint', 'gabbro'].forEach((p) => {
     envs[p] = platform.computeEnv({ platform: p });
   });
   let seams = 0;
@@ -1027,7 +1027,7 @@ test('Dim backlight is emery-only, on by default, and carries a dim-red RGB colo
   assert.equal(on.type, 'toggle');
   assert.equal(on.defaultValue, true);
   // The LED fact, NOT capabilities:['COLOR'] — that one means "colour screen" and is
-  // true on basalt/chalk, which have a plain white backlight.
+  // true on basalt, which has a plain white backlight.
   assert.deepEqual(on.showWhen, { env: 'colorBacklight' });
   assert.equal(on.capabilities, undefined);
 
@@ -1396,7 +1396,7 @@ test('Screen switching: Double flick and Back to Default after, once there is a 
   const custom = (viewCount) => ({ layoutPreset: 'custom', customLayoutSeeded: true, viewCount,
     viewTop1: 'none', viewBody1: 'forecast', viewUpper1: 'weather', viewLower1: 'off' });
   const vis = (p, S) => showWhen.isVisible(sec, Object.assign({ env: platform.computeEnv({ platform: p }) }, S));
-  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) => {
+  ['basalt', 'diorite', 'emery', 'flint'].forEach((p) => {
     assert.equal(vis(p, custom('1')), false, p + ': the Default screen alone');
     assert.equal(vis(p, custom('2')), true, p + ': a screen to flick to');
   });
@@ -1514,7 +1514,7 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
   assert.ok(!it.more, 'the span frames the whole graph: never behind More');
   const visible = (p) => showWhen.isVisible(it, { env: platform.computeEnv(p ? { platform: p } : null) });
   assert.equal(visible('emery'), true, 'shown on emery');
-  ['basalt', 'chalk', 'diorite', 'flint', 'aplite'].forEach((p) => assert.equal(visible(p), false, p));
+  ['basalt', 'diorite', 'flint', 'aplite'].forEach((p) => assert.equal(visible(p), false, p));
   assert.equal(visible(null), false, 'hidden without watchInfo (fail closed)');
 });
 
@@ -1569,7 +1569,7 @@ test('Left axis: Left axis values in the card, the scale and the font size under
     env: platform.computeEnv(p ? { platform: p } : null) }));
   // The numbers row: emery only, hidden without watchInfo (fail closed).
   assert.equal(vis(nums, 'emery'), true, 'numbers on emery');
-  ['basalt', 'chalk', 'diorite', 'flint', 'aplite', null].forEach((p) =>
+  ['basalt', 'diorite', 'flint', 'aplite', null].forEach((p) =>
     assert.equal(vis(nums, p), false, 'numbers on ' + p));
   // The scale: numbers drawn and a feels-like or dew point line drawn, on any line.
   ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'].forEach((key) => {
@@ -2217,7 +2217,7 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
   const rowsSec = onDemandItemsSection();
   [sec, rowsSec].forEach((s) => {
     assert.equal(showWhen.isVisible(s, ctx('aplite')), false, s.id + ': gone on aplite');
-    ['basalt', 'diorite', 'chalk', 'emery', 'flint'].forEach((p) =>
+    ['basalt', 'diorite', 'emery', 'flint'].forEach((p) =>
       assert.equal(showWhen.isVisible(s, ctx(p)), true, s.id + ': shown on ' + p));
   });
   assert.deepEqual(sec.items[0], { type: 'button', style: 'link', action: 'resetOnDemand',
@@ -2319,7 +2319,7 @@ test('the Battery sheet: the warn level in the watch\'s charge steps, and the Lo
   const shown = (p) => sheet.items.slice(4, 6).filter((i) => showWhen.isVisible(i,
     { env: platform.computeEnv(p === null ? null : { platform: p }) }));
   assert.deepEqual(shown('emery').map((i) => i.step), [5]);
-  ['basalt', 'diorite', 'flint', 'chalk', 'aplite', null].forEach((p) =>
+  ['basalt', 'diorite', 'flint', 'aplite', null].forEach((p) =>
     assert.deepEqual(shown(p).map((i) => i.step), [10], String(p)));
   // The 10 % slider shows a stored 5/15/25 at the next step up, the value the phone sends.
   const RC = require('../src/pkjs/config-ui/lib/range-control.js');

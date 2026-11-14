@@ -36,12 +36,12 @@
 //                        slots would be dead.
 //   hr / radar /         plain env capability flags, as computeEnv reports them
 //   thresholds /         (config-ui/lib/platform.js). Missing env reads as
-//   color / round /      "not capable", which is the safe direction: it can only
+//   color /              "not capable", which is the safe direction: it can only
 //   themePolarity /      withhold a default, never place a dead one. Keep this
 //   colorBacklight       set in step with computeEnv: a fact it reports and this
 //                        vocabulary omits is a condition that cannot be written,
 //                        and an omission is not visible until someone tries.
-//   platform: 'basalt' | ['chalk', 'basalt']      one name or a list
+//   platform: 'basalt' | ['emery', 'basalt']      one name or a list
 //   platformNot: 'aplite' | ['aplite']            the complement of the above
 //   choice: {key: 'value'} | {key: ['a', 'b']}    what the user picked/stored;
 //                        an unset choice matches nothing (except via `health`,
@@ -138,7 +138,6 @@
         radar: envFlag('radar'),
         thresholds: envFlag('thresholds'),
         color: envFlag('color'),
-        round: envFlag('round'),
         themePolarity: envFlag('themePolarity'),
         // emery's colour backlight LED (the Nighttime card's Dim backlight). No
         // rule uses it yet; it is here because the vocabulary above promises to

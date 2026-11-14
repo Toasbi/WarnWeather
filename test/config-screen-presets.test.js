@@ -29,7 +29,6 @@ const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const PC = global.PConf;
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 const EMERY = platform.computeEnv({ platform: 'emery' });
-const CHALK = platform.computeEnv({ platform: 'chalk' });
 const APLITE = platform.computeEnv({ platform: 'aplite' });
 const DIORITE = platform.computeEnv({ platform: 'diorite' });
 const FLINT = platform.computeEnv({ platform: 'flint' });
@@ -188,7 +187,7 @@ const BUSY = { secondaryLine: 'precip_prob', secondaryLineStyle: 'line', thirdLi
 test('the kinds: Blank, the forecast screen, Health, Rain radar and two graphs on a screen; each watch the ones it can draw', () => {
   assert.deepEqual(P.KINDS.map((k) => k.name), ['Blank', 'Forecast', 'Health', 'Rain radar', 'Health + forecast',
     'Radar + forecast']);
-  [EMERY, BASALT, DIORITE, CHALK, FLINT].forEach((env) => assert.deepEqual(P.offered(env).map((k) => k.id), KIND_IDS,
+  [EMERY, BASALT, DIORITE, FLINT].forEach((env) => assert.deepEqual(P.offered(env).map((k) => k.id), KIND_IDS,
     env.platform + ': every one'));
   assert.deepEqual(P.offered(APLITE).map((k) => k.id), ['blank', 'forecast'], 'no health, no radar');
   assert.deepEqual(P.offered(null).map((k) => k.id), KIND_IDS, 'an unknown watch is capable');
@@ -262,7 +261,7 @@ test('a screen\'s rows: the Watch bar, its calendar, the clock, its bar and its 
   assert.deepEqual(P.screenOf(P.byId('radarfc'), CAL.dense), P.screenOf(P.byId('radarfc'), CAL.none), 'two graphs: no calendar');
   // Every kind with every calendar it can have keeps the rules and fits as a flick screen on
   // every watch that is offered it.
-  [EMERY, BASALT, CHALK, DIORITE, FLINT].forEach((env) => P.offered(env).forEach((kind) => {
+  [EMERY, BASALT, DIORITE, FLINT].forEach((env) => P.offered(env).forEach((kind) => {
     (P.calendars(kind, env).length ? P.calendars(kind, env) : [['', '']]).forEach(([, cal]) => {
       const list = P.screenOf(kind, cal);
       assert.equal(M.problem(list), '', kind.id + cal + ' keeps the rules');
