@@ -139,11 +139,19 @@ and its docs.
 
 ### 9. Checked by tests
 
-Each rule above that a machine can check gets an architecture test: the phone app's `require()`
-graph (domain purity, direction, no cycles, every file in a context or the shell or the shared
-library), the watchface's `#include` graph (direction, HealthService, no cycles) and the edge
-functions' imports. A test may start with an allow-list of the violations it finds; the list only
-shrinks. A rule without its test yet is checked in review.
+Each rule above that a machine can check has an architecture test in `test/architecture/`:
+
+- `pkjs-graph.test.js`, over the `require()` graph of `src/pkjs`: every file has a home
+  (`pkjs-homes.js` lists the files not yet in their context folder), domain code touches no
+  runtime and requires only domain code and the shared library, the phone app never requires the
+  settings page, the page's engine requires only itself and the shared library, no cycles;
+- `c-includes.test.js`, over the watchface's `#include` graph: no upward include, no cycles,
+  HealthService only in `services/health.c`, no second ticks;
+- `edge-functions.test.js`: only an entry point creates the Supabase client or calls the global
+  `fetch`; queries go through the store modules.
+
+Each test's allow-list holds the violations the code has today and only shrinks. A rule without
+a test is checked in review.
 
 `docs/quality-goals.md` lists the quality goals that differ from the norm, each with its check.
 
