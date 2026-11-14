@@ -9,7 +9,8 @@ take them in and build them:
 
 | File | What it does |
 |---|---|
-| `watch_icons.py` | The icons and the sizes the watch draws each at. `python3 scripts/pixel-icons/watch_icons.py manifest` prints them, with the bars that draw each size and the bars' fonts, as JSON for the icon creator; `test/pixel-icons-manifest.test.js` holds it to `pixel-icons.json` |
+| `icons.json` | The icons: name, group, scale percent, seating weights, sample text, and the watch icon ids each one's drawings serve. Both scripts below read it |
+| `watch_icons.py` | The sizes the watch draws each icon at. `python3 scripts/pixel-icons/watch_icons.py manifest` prints the icons, their sizes, the bars that draw each size and the bars' fonts as JSON for the icon creator; `test/pixel-icons-manifest.test.js` holds it to `pixel-icons.json`, the sizes and the watches each is stored for |
 | `import_pixels.py` | Brings an icon creator export into `resources/pixel-icons.json` |
 | `gen_watch_icons.js` | Builds the drawings into the watch |
 | `THIRD_PARTY.md` | The licences of the two icon libraries some drawings started from |
@@ -64,8 +65,8 @@ exports its pixels alone; the importer refuses a drawing, ink wider than 16 colu
 13 rows for it, and an `A` for an icon the Classic draws no mask of. The build makes the mask from
 the pixels (below).
 
-A new icon id needs its drawings before it can show: add it to `watch_icons.py` `ICONS` and
-`gen_watch_icons.js` `ICON_IDS`, draw every size in the creator, and list the id in
+A new icon id needs its drawings before it can show: add it to `icons.json` (a new icon, or the
+`ids` of the one whose drawings it shares), draw every size in the creator, and list the id in
 `test/c/status_icon_drawings_test.c`, which fails while any height a bar asks for has no drawing.
 
 ## What the watch does with a drawing

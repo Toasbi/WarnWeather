@@ -118,15 +118,17 @@ test('the generated files match resources/pixel-icons.json', () => {
   assert.equal(r.status, 0, r.stderr);
 });
 
-test('the generator knows every icon the catalogue lists, by an id the watch defines', () => {
-  const py = fs.readFileSync(path.join(ROOT, 'scripts', 'pixel-icons', 'watch_icons.py'), 'utf8');
-  const block = py.slice(py.indexOf('\nICONS = ['), py.indexOf('\n]', py.indexOf('\nICONS = [')));
-  const keys = [...block.matchAll(/^\s+\('([A-Z_]+)',/gm)].map(m => m[1]);
-  assert.ok(keys.length > 30, 'read the catalogue\'s icon list');
-  assert.deepEqual(Object.keys(gen.ICON_IDS).sort(), keys.sort());
+test('the icon catalogue gives every drawing the watch icon ids it serves, ids the watch defines, each once', () => {
+  const catalogue = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'pixel-icons', 'icons.json'), 'utf8')).icons;
+  const keys = catalogue.map((i) => i.key);
+  assert.ok(keys.length > 30, 'read the catalogue');
+  assert.equal(new Set(keys).size, keys.length, 'each key once');
+  assert.deepEqual(Object.keys(gen.ICON_IDS), keys, 'the build reads the catalogue');
+  const ids = [].concat(...catalogue.map((i) => i.ids));
+  assert.equal(new Set(ids).size, ids.length, 'an icon id takes one drawing');
   const headers = ['src/c/appendix/status_line.h', 'src/c/layers/status_icon_size.h']
     .map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
-  for (const id of [].concat(...Object.values(gen.ICON_IDS))) {
+  for (const id of ids) {
     assert.match(headers, new RegExp('(^\\s*' + id + ' = \\d+,|#define ' + id + ' )', 'm'), id);
   }
 });

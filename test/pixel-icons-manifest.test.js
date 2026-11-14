@@ -54,3 +54,23 @@ test('the Pebble Classic and Steel masks are a size of their own, as many rows a
     ], id + ': the Classic bars, seated as a mask');
   }
 });
+
+test('every size resources/pixel-icons.json holds names the watches that draw it, as the manifest has them', { skip }, () => {
+  const m = manifest();
+  const doc = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources', 'pixel-icons.json'), 'utf8'));
+  const catalogue = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'pixel-icons', 'icons.json'), 'utf8')).icons;
+  assert.deepEqual(m.icons.map((i) => i.id), catalogue.map((i) => i.key), 'the manifest lists the catalogue, in its order');
+  let n = 0;
+  for (const icon of m.icons) {
+    for (const size of icon.sizes) {
+      const saved = doc.icons[icon.id].sizes[size.key || String(size.rows)];
+      const platforms = [...new Set(size.uses.map((u) => u.platform))].sort();
+      // The build sends each drawing to these watches (gen_watch_icons.js): a stale list would
+      // leave a watch without it, or give one a drawing for a bar it doesn't have.
+      assert.deepEqual(saved.platforms, platforms, icon.id + ' ' + (size.key || size.rows));
+      n++;
+    }
+  }
+  assert.ok(n > 100, 'read the sizes');
+});
+

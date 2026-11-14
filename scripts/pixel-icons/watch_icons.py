@@ -35,49 +35,13 @@ FONT_HEIGHT = {'GOTHIC_14': 14, 'GOTHIC_18': 18, 'GOTHIC_24': 24}
 ICON_TEXT_GAP = 2
 
 # ---- The icons ------------------------------------------------------------------------------
-WEATHER = 'Weather'
-VALUES = 'Weather values'
-HEALTH = 'Phone and health'
-SYSTEM = 'Bluetooth and quiet time'
-
-# key: (name, group, scale percent, weight (basalt, emery), sample text, note)
-# Scale percents: status_row_icons.c icon_scale_pct(). Weights: status_icon_weight.h.
-RAIN_ALERT = 'Also the rain alert’s icon.'
-ICONS = [
-    ('SUN', 'Sun', WEATHER, 100, (50, 50), 'SUN', ''),
-    ('MOON', 'Clear night', WEATHER, 100, (50, 50), 'CLR', ''),
-    ('SUN_CLOUD', 'Partly cloudy', WEATHER, 100, (50, 50), 'PCLDY', ''),
-    ('MOON_CLOUD', 'Partly cloudy, night', WEATHER, 100, (50, 50), 'PCLDY', ''),
-    ('CLOUD', 'Cloudy', WEATHER, 100, (50, 50), 'CLDY', ''),
-    ('FOG', 'Fog', WEATHER, 100, (50, 50), 'FOG', ''),
-    ('HAZE', 'Haze', WEATHER, 100, (50, 50), 'HAZE', ''),
-    ('DRIZZLE', 'Drizzle', WEATHER, 100, (50, 50), 'DRZL', RAIN_ALERT + ' Light rain.'),
-    ('RAIN', 'Rain', WEATHER, 100, (50, 50), 'RAIN', RAIN_ALERT + ' Rain.'),
-    ('HEAVY_RAIN', 'Heavy rain', WEATHER, 100, (50, 50), 'RAIN', RAIN_ALERT + ' Heavy rain (Pebble Time 2).'),
-    ('SLEET', 'Sleet', WEATHER, 100, (50, 50), 'SLT', ''),
-    ('SNOW', 'Snow', WEATHER, 100, (50, 50), 'SNOW', ''),
-    ('HAIL', 'Hail', WEATHER, 100, (50, 50), 'HAIL', ''),
-    ('THUNDER', 'Thunderstorm', WEATHER, 100, (50, 50), 'TSTM', ''),
-    ('TEMP', 'Temperature', VALUES, 93, (50, 50), '18°', ''),
-    ('DEW', 'Dew point', VALUES, 88, (50, 56), '9°', ''),
-    ('UV', 'UV index', VALUES, 95, (50, 53), '3', ''),
-    ('WIND', 'Wind and Windy', VALUES, 95, (54, 60), '12',
-     'Wind speed and the Windy weather icon share this drawing.'),
-    ('GUST', 'Wind gusts', VALUES, 95, (54, 53), '30', ''),
-    ('AQI', 'Air quality', VALUES, 85, (50, 50), '38', ''),
-    ('POLLEN', 'Pollen', VALUES, 100, (54, 56), '2', ''),
-    ('COUNTDOWN', 'Countdown', VALUES, 100, (58, 59), '3d', ''),
-    ('PHONE_BATTERY', 'Phone battery', HEALTH, 100, (50, 54), '80%', ''),
-    ('PHONE_BATTERY_CHG', 'Phone charging', HEALTH, 100, (50, 54), '80%', ''),
-    ('STEPS', 'Steps', HEALTH, 80, (50, 54), '8.2k', ''),
-    ('DISTANCE', 'Distance', HEALTH, 95, (50, 53), '5.1', ''),
-    ('SLEEP', 'Sleep', HEALTH, 100, (50, 50), '7h', ''),
-    ('HEART', 'Heart rate', HEALTH, 100, (50, 56), '62', ''),
-    ('QUIET', 'Quiet time', SYSTEM, 100, (50, 50), '', ''),
-    ('BT', 'Bluetooth', SYSTEM, 100, (50, 50), '', ''),
-    ('BT_OFF', 'Bluetooth off', SYSTEM, 100, (50, 50), '', ''),
-]
-KEYS = [i[0] for i in ICONS]
+# The catalogue both this file and gen_watch_icons.js read (icons.json): per icon its key, name and
+# group, its scale percent (status_row_icons.c icon_scale_pct()), its weights on the 144 px
+# watches and the Pebble Time 2 (status_icon_weight.h), its sample text, a note, and the watch
+# icon ids its drawings serve.
+ICONS_JSON = os.path.join(HERE, 'icons.json')
+ICONS = json.load(open(ICONS_JSON, encoding='utf-8'))['icons']
+KEYS = [i['key'] for i in ICONS]
 # Pebble Classic/Steel draw these from bit masks in status_row_aplite.c (bit x = column x).
 APLITE = ['TEMP', 'WIND', 'GUST', 'UV', 'AQI', 'POLLEN', 'COUNTDOWN']
 # A mask's most rows and columns: a taller one is cut at the top of the 14 px text's band
@@ -90,8 +54,8 @@ APLITE_BARS = [('bars with 14 px text', 'GOTHIC_14'), ('top bar', 'GOTHIC_18'), 
 
 def icon(key):
     for i in ICONS:
-        if i[0] == key:
-            return dict(zip(('key', 'name', 'group', 'pct', 'weights', 'sample', 'note'), i))
+        if i['key'] == key:
+            return i
     raise KeyError(key)
 
 
@@ -167,8 +131,7 @@ def manifest():
     icon the Pebble Classic and Steel draw from a bit mask has that as a size of its own, 'A'
     (aplite_size)."""
     icons = []
-    for row in ICONS:
-        it = icon(row[0])
+    for it in ICONS:
         sizes = {}
         for u in uses(it['key']):
             rows = painted_rows(u['h'])

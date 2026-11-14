@@ -46,22 +46,10 @@ const PAGE_ROWS = '13';
 const VERSIONS = ['pixel', 'old', 'drawing'];
 const PU = 8;
 
-// The watch's icon ids for each drawing (status_line.h, status_row_icons.h).
-const ICON_IDS = {
-    SUN: ['STATUS_ICON_COND_SUN'], MOON: ['STATUS_ICON_COND_MOON'],
-    SUN_CLOUD: ['STATUS_ICON_COND_SUN_CLOUD'], MOON_CLOUD: ['STATUS_ICON_COND_MOON_CLOUD'],
-    CLOUD: ['STATUS_ICON_COND_CLOUD'], FOG: ['STATUS_ICON_COND_FOG'], HAZE: ['STATUS_ICON_COND_HAZE'],
-    DRIZZLE: ['STATUS_ICON_COND_DRIZZLE'], RAIN: ['STATUS_ICON_COND_RAIN'], HEAVY_RAIN: [],
-    SLEET: ['STATUS_ICON_COND_SLEET'], SNOW: ['STATUS_ICON_COND_SNOW'], HAIL: ['STATUS_ICON_COND_HAIL'],
-    THUNDER: ['STATUS_ICON_COND_THUNDER'],
-    TEMP: ['STATUS_ICON_TEMP'], DEW: ['STATUS_ICON_DEWPOINT'], UV: ['STATUS_ICON_UV'],
-    WIND: ['STATUS_ICON_WIND', 'STATUS_ICON_COND_WIND'], GUST: ['STATUS_ICON_GUST'], AQI: ['STATUS_ICON_AQI'],
-    POLLEN: ['STATUS_ICON_POLLEN'], COUNTDOWN: ['STATUS_ICON_COUNTDOWN'],
-    PHONE_BATTERY: ['STATUS_ICON_PHONE_BATTERY'], PHONE_BATTERY_CHG: ['STATUS_ICON_PHONE_BATTERY_CHG'],
-    STEPS: ['STATUS_ICON_STEPS'], DISTANCE: ['STATUS_ICON_DISTANCE'], SLEEP: ['STATUS_ICON_SLEEP'],
-    HEART: ['STATUS_ICON_HR'],
-    QUIET: ['STATUS_ROW_ICON_QUIET'], BT: ['STATUS_ROW_ICON_BT'], BT_OFF: ['STATUS_ROW_ICON_BT_OFF'],
-};
+// The icon catalogue watch_icons.py reads too: the watch's icon ids each drawing serves
+// (status_line.h, status_row_icons.h), by the icon's key.
+const ICONS_JSON = path.join(__dirname, 'icons.json');
+const ICON_IDS = Object.fromEntries(JSON.parse(fs.readFileSync(ICONS_JSON, 'utf8')).icons.map((i) => [i.key, i.ids]));
 // The rain alert's buckets (status_on_demand.c item_key, OD_RAIN): light, rain, heavy.
 const RAIN_BUCKETS = [[1, 'DRIZZLE'], [2, 'RAIN'], [3, 'HEAVY_RAIN']];
 // The watches each platform's resources go to.
