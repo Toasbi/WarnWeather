@@ -38,7 +38,7 @@ ICON_TEXT_GAP = 2
 # The catalogue both this file and gen_watch_icons.js read (icons.json): per icon its key, name and
 # group, its scale percent (status_row_icons.c icon_scale_pct()), its weights on the 144 px
 # watches and the Pebble Time 2 (status_icon_weight.h), its sample text, a note, and the watch
-# icon ids its drawings serve.
+# icon ids its drawings serve, and for an icon only some watches draw, their platforms.
 ICONS_JSON = os.path.join(HERE, 'icons.json')
 ICONS = json.load(open(ICONS_JSON, encoding='utf-8'))['icons']
 KEYS = [i['key'] for i in ICONS]
@@ -98,10 +98,13 @@ def svg_h(key, rows):
 
 
 def uses(key):
-    """Every bar the icon is drawn in: [{plat, where, font, h, weight}]."""
+    """Every bar the icon is drawn in: [{plat, where, font, h, weight}]; an icon only some watches
+    draw (its `platforms`) on theirs alone."""
     it = icon(key)
     out = []
     for plat, pname, bars in PLATFORMS:
+        if it.get('platforms') and plat not in it['platforms']:
+            continue
         wb, we = it['weights']
         for label, target, top, font in bars:
             h = load_for(key, it['pct'], target, top, plat)

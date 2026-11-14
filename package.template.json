@@ -678,23 +678,10 @@
         },
         {
           "type": "raw",
-          "name": "PX_HEAVY_RAIN_11",
-          "file": "data/PX_HEAVY_RAIN_11.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
           "name": "PX_HEAVY_RAIN_13",
           "file": "data/PX_HEAVY_RAIN_13.pdc",
           "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
+            "emery"
           ]
         },
         {

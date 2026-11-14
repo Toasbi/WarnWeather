@@ -188,14 +188,12 @@ static const StatusPixelIcon s_status_pixel_icons[] = {
     { STATUS_ROW_ICON_BT_OFF, 11, PX_RES(PX_BT_OFF_11) },
     { STATUS_ROW_ICON_BT_OFF, 13, PX_RES(PX_BT_OFF_13) },
 };
-#define STATUS_PIXEL_RAIN_COUNT 6
+#define STATUS_PIXEL_RAIN_COUNT 4
 static const StatusPixelIcon s_status_pixel_rain[] = {
     { 1, 11, PX_RES(PX_DRIZZLE_11) },
     { 1, 13, PX_RES(PX_DRIZZLE_13) },
     { 2, 11, PX_RES(PX_RAIN_11) },
     { 2, 13, PX_RES(PX_RAIN_13) },
-    { 3, 11, PX_RES(PX_HEAVY_RAIN_11) },
-    { 3, 13, PX_RES(PX_HEAVY_RAIN_13) },
 };
 #else
 #define STATUS_PIXEL_ICON_COUNT 67
@@ -268,13 +266,11 @@ static const StatusPixelIcon s_status_pixel_icons[] = {
     { STATUS_ROW_ICON_BT_OFF, 11, PX_RES(PX_BT_OFF_11) },
     { STATUS_ROW_ICON_BT_OFF, 13, PX_RES(PX_BT_OFF_13) },
 };
-#define STATUS_PIXEL_RAIN_COUNT 6
+#define STATUS_PIXEL_RAIN_COUNT 4
 static const StatusPixelIcon s_status_pixel_rain[] = {
     { 1, 11, PX_RES(PX_DRIZZLE_11) },
     { 1, 13, PX_RES(PX_DRIZZLE_13) },
     { 2, 11, PX_RES(PX_RAIN_11) },
     { 2, 13, PX_RES(PX_RAIN_13) },
-    { 3, 11, PX_RES(PX_HEAVY_RAIN_11) },
-    { 3, 13, PX_RES(PX_HEAVY_RAIN_13) },
 };
 #endif

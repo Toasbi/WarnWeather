@@ -413,5 +413,5 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { outputs, header, apliteSource, pagePixels, runs, paths, pdc, keptLines, inkPixels, VERSIONS, ICON_IDS, TARGETS,
+module.exports = { outputs, header, apliteSource, pagePixels, runs, paths, pdc, keptLines, inkPixels, VERSIONS, ICON_IDS, RAIN_BUCKETS, TARGETS,
     PACKAGE, HEADER, APLITE_C, PAGE_PIXELS, DATA_DIR };

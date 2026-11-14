@@ -9,7 +9,7 @@ take them in and build them:
 
 | File | What it does |
 |---|---|
-| `icons.json` | The icons: name, group, scale percent, seating weights, sample text, and the watch icon ids each one's drawings serve. Both scripts below read it |
+| `icons.json` | The icons: name, group, scale percent, seating weights, sample text, the watch icon ids each one's drawings serve, and for an icon only some watches draw, their platforms (Heavy rain: the Pebble Time 2). Both scripts below read it |
 | `watch_icons.py` | The sizes the watch draws each icon at. `python3 scripts/pixel-icons/watch_icons.py manifest` prints the icons, their sizes, the bars that draw each size and the bars' fonts as JSON for the icon creator; `test/pixel-icons-manifest.test.js` holds it to `pixel-icons.json`, the sizes and the watches each is stored for |
 | `import_pixels.py` | Brings an icon creator export into `resources/pixel-icons.json` |
 | `gen_watch_icons.js` | Builds the drawings into the watch |
@@ -68,6 +68,9 @@ the pixels (below).
 A new icon id needs its drawings before it can show: add it to `icons.json` (a new icon, or the
 `ids` of the one whose drawings it shares), draw every size in the creator, and list the id in
 `test/c/status_icon_drawings_test.c`, which fails while any height a bar asks for has no drawing.
+`scripts/check-icon-sizes.js` (run by `scripts/test-c.sh`) holds the heights the watch asks for
+(`status_icon_size.h`) to the sizes `watch_icons.py` makes drawings at, both ways, so neither a
+height without its drawing nor a drawing no height asks for gets built.
 
 ## What the watch does with a drawing
 
