@@ -45,7 +45,8 @@ test('the prefetch keeps the previous year the 3-row calendar top row still show
     'the prefetch pruned 2028 while the calendar top row still shows 25-31 Dec 2028');
   // Every later Clay send builds the mask from this cache.
   const cs = h.mod('settings/adapter/clay-settings.js');
-  const payload = h.mod('settings/domain/clay-payload.js').buildClayPayload(cs.read(), h.watchInfo, new Date(h.now()));
+  const payload = h.mod('settings/domain/clay-payload.js').buildClayPayload(cs.read(), h.watchInfo, new Date(h.now()),
+    h.mod('calendar/adapter/nager-source.js').isHoliday);
   const win = decodeHolidays(payload.HOLIDAYS);
   const serial = h.mod('calendar/domain/serial-day.js');
   assert.equal(win.anchor, serial(2028, 12, 25), 'the window anchors on the previous week');

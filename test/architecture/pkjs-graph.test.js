@@ -28,8 +28,9 @@ const RUNTIME = [
   ['new Date()', /\bnew\s+Date\b(?!\s*\(\s*[^)\s])/],
 ];
 
-// Domain files that still reach the runtime (file: the globals they use).
-const RUNTIME_IN_DOMAIN_ALLOWED = {
+// Domain and application files that still reach the runtime (file: the globals they use).
+// Only adapters, the shell and the settings page may.
+const RUNTIME_ALLOWED = {
   'weather/domain/keys/key-result.js': ['localStorage'],
   'weather/domain/day-peaks.js': ['localStorage', 'Date.now'],
   'weather/domain/radar/radar-coverage.js': ['localStorage'],
@@ -39,13 +40,11 @@ const RUNTIME_IN_DOMAIN_ALLOWED = {
 const RULES = [
   { name: 'domain code requires only domain code and the shared library',
     from: ['domain'], to: ['domain', 'lib'], allowed: [
-      'calendar/domain/holiday-mask.js -> calendar/adapter/nager-source.js',
       'weather/domain/radar/radar-sky.js -> weather/application/provider.js',
     ] },
   { name: 'application code requires no adapter, shell or settings page',
     from: ['application'], to: ['application', 'domain', 'lib'], allowed: [
       'settings/application/clay-migrations.js -> settings/adapter/clay-settings.js',
-      'status-bars/application/status-rebake.js -> wire/adapter/outbox.js',
       'weather/application/provider.js -> weather/adapter/air-quality.js',
       'weather/application/provider.js -> weather/adapter/http.js',
       'weather/application/provider.js -> weather/adapter/location.js',
@@ -135,15 +134,15 @@ test('every file the homes table names exists', () => {
     'remove the entry of a file that moved or was deleted');
 });
 
-test('domain code reaches the runtime only in the listed files', () => {
+test('domain and application code reach the runtime only in the listed files', () => {
   const found = {};
   FILES.filter((f) => roleOf(f) === 'domain').forEach((f) => {
     const src = codeOf(path.join(PKJS, f));
     const used = RUNTIME.filter(([, re]) => re.test(src)).map(([name]) => name);
     if (used.length) { found[f] = used; }
   });
-  assert.deepEqual(found, RUNTIME_IN_DOMAIN_ALLOWED,
-    'a domain file reaches the runtime, or a listed one no longer does (then update the list)');
+  assert.deepEqual(found, RUNTIME_ALLOWED,
+    'a domain or application file reaches the runtime, or a listed one no longer does (then update the list)');
 });
 
 RULES.forEach((rule) => {

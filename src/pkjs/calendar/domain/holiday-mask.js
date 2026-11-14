@@ -5,10 +5,6 @@
 // no resend never runs off the end of the data. ES5 only (reaches the watch).
 
 var daysFromCivil = require('./serial-day.js');
-// One holiday source in the codebase's lifetime — call it directly (the old
-// registry.js was an identity curry over it; reintroduce a registry when a
-// SECOND source actually lands).
-var nagerSource = require('../adapter/nager-source.js');
 
 var WINDOW_DAYS = 28; // 4 weeks; 21 visible cells + 1 week headroom.
 
@@ -47,9 +43,11 @@ function windowStart(opts, now) {
  * @param {{startMon: boolean, prevWeek: boolean, country: string, region: string, enabled: boolean}} opts
  *   Calendar layout, selected holiday country/region, and enable flag.
  * @param {Date} now Current local date/time.
+ * @param {function(string, string, Date): boolean} isHoliday Whether a day is a public holiday
+ *   in a country and region (calendar/adapter/nager-source.js isHoliday, which reads its cache).
  * @returns {{anchor: number, mask: number}} Serial-day anchor and 28-bit mask (0 when disabled or no provider).
  */
-function build(opts, now) {
+function build(opts, now, isHoliday) {
     var cell0 = windowStart(opts, now);
     var anchor = daysFromCivil(cell0.getFullYear(), cell0.getMonth() + 1, cell0.getDate());
 
@@ -61,7 +59,7 @@ function build(opts, now) {
         var day;
         for (i = 0; i < WINDOW_DAYS; i++) {
             day = new Date(cell0.getFullYear(), cell0.getMonth(), cell0.getDate() + i);
-            if (nagerSource.isHoliday(opts.country, opts.region, day)) {
+            if (isHoliday(opts.country, opts.region, day)) {
                 mask |= (1 << i);
             }
         }

@@ -98,7 +98,8 @@ test('through the real outbox: an unchanged status category skips the send and s
   global.Pebble = {
     sendAppMessage: (dict, ack) => { appMessages.push(dict); ack({}); }
   };
-  statusRebake.init({ getSettings: () => ({}), buildStatusLines: fakeBake });
+  statusRebake.init({ getSettings: () => ({}), buildStatusLines: fakeBake,
+    sendWeather: require('../../../src/pkjs/wire/adapter/outbox.js').sendWeather });
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null);
   const cb = callbacks();
   statusRebake.resendStatus('first', cb.ok, cb.fail);

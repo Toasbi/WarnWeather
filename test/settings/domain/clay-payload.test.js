@@ -60,14 +60,8 @@ test('HOLIDAYS reads the flat holidayRegion key, not the obsolete per-country ho
   const s = baseSettings();
   s.holidayCountry = 'DE';
   s.holidayRegion = 'BY';                 // Bavaria — a real ISO-3166-2 subdivision
-  const origBuild = holidayMask.build;
   let seenRegion = null;
-  holidayMask.build = function(opts, now) { seenRegion = opts.region; return origBuild(opts, now); };
-  try {
-    buildClayPayload(s, { platform: 'emery' }, NOW);
-  } finally {
-    holidayMask.build = origBuild;
-  }
+  buildClayPayload(s, { platform: 'emery' }, NOW, (country, region) => { seenRegion = region; return false; });
   assert.equal(seenRegion, 'BY');
 });
 
@@ -168,9 +162,9 @@ test('compact top view anchors the holiday window to the current week (prevWeek 
   s.topViewMode = 'compact';
   const got = anchorOf(buildClayPayload(s, null, NOW).HOLIDAYS);
   const expectCurrent = holidayMask.build(
-    { startMon: s.weekStartDay === 'mon', prevWeek: false, country: 'US', region: 'all', enabled: true }, NOW).anchor;
+    { startMon: s.weekStartDay === 'mon', prevWeek: false, country: 'US', region: 'all', enabled: true }, NOW, () => false).anchor;
   const prevAnchor = holidayMask.build(
-    { startMon: s.weekStartDay === 'mon', prevWeek: true, country: 'US', region: 'all', enabled: true }, NOW).anchor;
+    { startMon: s.weekStartDay === 'mon', prevWeek: true, country: 'US', region: 'all', enabled: true }, NOW, () => false).anchor;
   assert.strictEqual(got, expectCurrent);        // aligned to current-week-first
   assert.notStrictEqual(got, prevAnchor);        // the override actually changed the anchor
 });
@@ -184,7 +178,7 @@ test('a 3-row calendar on a flick view anchors the holiday window on the previou
   const anchorOf = (b) => (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24));
   const MON_OCT_5 = new Date(2026, 9, 5, 12, 0, 0);
   const windowAt = (prevWeek) => holidayMask.build({ startMon: true, prevWeek: prevWeek,
-    country: 'none', region: 'all', enabled: true }, MON_OCT_5).anchor;
+    country: 'none', region: 'all', enabled: true }, MON_OCT_5, () => false).anchor;
   const custom = (top1, extra) => Object.assign(baseSettings(), {
     layoutPreset: 'custom', viewCount: '2', viewTop0: 'cal2', viewTop1: top1,
     firstWeek: 'prev', weekStartDay: 'mon', holidayCountry: 'DE'

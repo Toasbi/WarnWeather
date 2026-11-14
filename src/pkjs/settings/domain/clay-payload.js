@@ -136,13 +136,24 @@ function graphOptionsWord(settings, env) {
 }
 
 /**
+ * The holiday check of a phone without holiday data.
+ * @returns {boolean} false
+ */
+function noHoliday() {
+    return false;
+}
+
+/**
  * Build the Clay settings AppMessage payload.
  * @param {Object} settings Clay settings (claySettings.read() shape).
  * @param {Object|null} watchInfo Active watch info (platform read for palette packing).
  * @param {Date} now Reference time for the holiday window (the caller's clock).
+ * @param {function(string, string, Date): boolean} [isHoliday] Whether a day is a public holiday
+ *   (calendar/adapter/nager-source.js isHoliday); absent, no day is marked, as for a phone
+ *   that has fetched no holiday data yet.
  * @returns {Object} AppMessage key→value payload.
  */
-function buildClayPayload(settings, watchInfo, now) {
+function buildClayPayload(settings, watchInfo, now, isHoliday) {
     var theme = settings.theme || 'dark';
 
     // Platform env up front: the custom-layout branch below folds for aplite, and the
@@ -191,7 +202,7 @@ function buildClayPayload(settings, watchInfo, now) {
                 country: effectiveHolidayCountry(settings),
                 region: settings.holidayRegion || 'all',
                 enabled: settings.holidaysEnabled !== false
-            }, now);
+            }, now, isHoliday || noHoliday);
             return holidayMask.pack(built.anchor, built.mask);
         })(),
         "CLAY_COLOR_TIME": settings.hasOwnProperty('colorTime') ? settings.colorTime : resolveInk(DEFAULT_COLOR_WHITE, theme),

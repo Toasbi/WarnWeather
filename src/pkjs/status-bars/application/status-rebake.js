@@ -86,7 +86,7 @@ var KEYS = require('../../settings/domain/storage-keys.js');
 // Top-level on purpose — see the header. statusLines.buildStatusLines re-bakes;
 // outbox.sendWeather pushes (its change-detector still suppresses no-op sends).
 var statusLines = require('../domain/status-lines.js');
-var outbox = require('../../wire/adapter/outbox.js');
+var WEATHER_CATEGORIES = require('../../wire/domain/weather-categories.js');
 
 /**
  * The AppMessage keys a micro-send may carry — the outbox's 'status' category,
@@ -94,7 +94,7 @@ var outbox = require('../../wire/adapter/outbox.js');
  * send emits or the change-detector's cached serializations diverge and the
  * two paths perpetually invalidate each other's cache slot.
  */
-var STATUS_KEYS = outbox.WEATHER_CATEGORIES.find(function (category) {
+var STATUS_KEYS = WEATHER_CATEGORIES.find(function (category) {
     return category.name === 'status';
 }).keys;
 
@@ -444,7 +444,7 @@ function resendStatus(reason, onSuccess, onFailure) {
         }
     }
     console.log('status-rebake: status micro-send (' + reason + ').');
-    (deps.sendWeather || outbox.sendWeather)(outgoing, onSuccess, onFailure);
+    deps.sendWeather(outgoing, onSuccess, onFailure);
     return true;
 }
 
@@ -468,7 +468,7 @@ function invalidatePersisted() {
  *
  * @param {Object} [options] Injected environment; every field has a default.
  * @param {function():Object} [options.getSettings] Current Clay settings supplier.
- * @param {function(Object, Function=, Function=):void} [options.sendWeather] Outbox send (default: outbox.sendWeather).
+ * @param {function(Object, Function=, Function=):void} options.sendWeather The outbox's send (outbox.sendWeather).
  * @param {function(Object, Object, Object, Date, ?Object):Object} [options.buildStatusLines] Baker (default: status-lines).
  * @param {function():(Date|number)} [options.now] Clock for the day/night check and the re-bake (default: Date.now).
  * @param {function():?Object} [options.getPhoneBattery] The phone's battery facts for the re-bake

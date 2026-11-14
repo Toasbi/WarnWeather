@@ -31,15 +31,15 @@ function seed(country, apiList) {
 test('anchor is grid cell-0 for the four weekStart/firstWeek combos', () => {
   seed('US', [{ date: '2026-07-03', global: true, counties: null }]);
   const base = { country: 'US', region: 'all', enabled: true };
-  assert.equal(holidayMask.build(Object.assign({}, base, { startMon: false, prevWeek: false }), JUN_25_2026).anchor, daysFromCivil(2026, 6, 21));
-  assert.equal(holidayMask.build(Object.assign({}, base, { startMon: false, prevWeek: true }), JUN_25_2026).anchor, daysFromCivil(2026, 6, 14));
-  assert.equal(holidayMask.build(Object.assign({}, base, { startMon: true, prevWeek: false }), JUN_25_2026).anchor, daysFromCivil(2026, 6, 22));
-  assert.equal(holidayMask.build(Object.assign({}, base, { startMon: true, prevWeek: true }), JUN_25_2026).anchor, daysFromCivil(2026, 6, 15));
+  assert.equal(holidayMask.build(Object.assign({}, base, { startMon: false, prevWeek: false }), JUN_25_2026, nagerSource.isHoliday).anchor, daysFromCivil(2026, 6, 21));
+  assert.equal(holidayMask.build(Object.assign({}, base, { startMon: false, prevWeek: true }), JUN_25_2026, nagerSource.isHoliday).anchor, daysFromCivil(2026, 6, 14));
+  assert.equal(holidayMask.build(Object.assign({}, base, { startMon: true, prevWeek: false }), JUN_25_2026, nagerSource.isHoliday).anchor, daysFromCivil(2026, 6, 22));
+  assert.equal(holidayMask.build(Object.assign({}, base, { startMon: true, prevWeek: true }), JUN_25_2026, nagerSource.isHoliday).anchor, daysFromCivil(2026, 6, 15));
 });
 
 test('a cached observed holiday sets its bit (Fri Jul 3 2026)', () => {
   seed('US', [{ date: '2026-07-03', global: true, counties: null }]);
-  const result = holidayMask.build({ startMon: false, prevWeek: false, country: 'US', region: 'all', enabled: true }, JUN_25_2026);
+  const result = holidayMask.build({ startMon: false, prevWeek: false, country: 'US', region: 'all', enabled: true }, JUN_25_2026, nagerSource.isHoliday);
   const bit = daysFromCivil(2026, 7, 3) - result.anchor;
   assert.ok(bit >= 0 && bit < 28);
   assert.equal((result.mask >>> bit) & 1, 1);
@@ -49,21 +49,21 @@ test('a cached observed holiday sets its bit (Fri Jul 3 2026)', () => {
 
 test('empty cache yields mask 0 with a valid anchor (offline / pre-fetch)', () => {
   global.localStorage.clear();
-  const result = holidayMask.build({ startMon: false, prevWeek: false, country: 'US', region: 'all', enabled: true }, JUN_25_2026);
+  const result = holidayMask.build({ startMon: false, prevWeek: false, country: 'US', region: 'all', enabled: true }, JUN_25_2026, nagerSource.isHoliday);
   assert.equal(result.mask, 0);
   assert.equal(result.anchor, daysFromCivil(2026, 6, 21));
 });
 
 test('country none yields mask 0 with a valid anchor', () => {
   seed('US', [{ date: '2026-07-03', global: true, counties: null }]);
-  const result = holidayMask.build({ startMon: false, prevWeek: false, country: 'none', region: 'all', enabled: true }, JUN_25_2026);
+  const result = holidayMask.build({ startMon: false, prevWeek: false, country: 'none', region: 'all', enabled: true }, JUN_25_2026, nagerSource.isHoliday);
   assert.equal(result.mask, 0);
   assert.equal(result.anchor, daysFromCivil(2026, 6, 21));
 });
 
 test('disabled yields mask 0 but a valid anchor', () => {
   seed('US', [{ date: '2026-07-03', global: true, counties: null }]);
-  const result = holidayMask.build({ startMon: false, prevWeek: false, country: 'US', region: 'all', enabled: false }, JUN_25_2026);
+  const result = holidayMask.build({ startMon: false, prevWeek: false, country: 'US', region: 'all', enabled: false }, JUN_25_2026, nagerSource.isHoliday);
   assert.equal(result.mask, 0);
   assert.equal(result.anchor, daysFromCivil(2026, 6, 21));
 });
@@ -71,8 +71,8 @@ test('disabled yields mask 0 but a valid anchor', () => {
 test('region threading: a regional day lights only when its region is selected', () => {
   // Controlled in-window fixture (Jul 6 2026 is inside the Jun 21..Jul 18 window).
   seed('DE', [{ date: '2026-07-06', global: false, counties: ['DE-BY'] }]);
-  const all = holidayMask.build({ startMon: false, prevWeek: false, country: 'DE', region: 'all', enabled: true }, JUN_25_2026);
-  const by = holidayMask.build({ startMon: false, prevWeek: false, country: 'DE', region: 'DE-BY', enabled: true }, JUN_25_2026);
+  const all = holidayMask.build({ startMon: false, prevWeek: false, country: 'DE', region: 'all', enabled: true }, JUN_25_2026, nagerSource.isHoliday);
+  const by = holidayMask.build({ startMon: false, prevWeek: false, country: 'DE', region: 'DE-BY', enabled: true }, JUN_25_2026, nagerSource.isHoliday);
   assert.equal(all.mask, 0);    // not nationwide
   assert.ok(by.mask !== 0);     // Bavaria sees it
 });

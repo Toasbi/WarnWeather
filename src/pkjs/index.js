@@ -431,7 +431,8 @@ Pebble.addEventListener('ready',
         // subscribe can fire a micro-send synchronously (see status-rebake.js).
         statusRebake.init({
             getSettings: function () { return app.settings; },
-            getPhoneBattery: phoneBattery.bakeFacts
+            getPhoneBattery: phoneBattery.bakeFacts,
+            sendWeather: outbox.sendWeather
         });
         phoneBattery.init({
             devConfig: app.devConfig,
@@ -742,7 +743,7 @@ function isNightForTheme() {
  */
 function sendClaySettings(onSuccess, onFailure) {
     var effective = themeSchedule.effectiveSettings(app.settings, isNightForTheme());
-    var payload = buildClayPayload(effective, app.watchInfo, new Date());
+    var payload = buildClayPayload(effective, app.watchInfo, new Date(), nagerSource.isHoliday);
     outbox.sendClay(payload, onSuccess, onFailure);
 }
 
