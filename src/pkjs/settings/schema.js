@@ -2787,12 +2787,6 @@ module.exports = {
                 defaultValue: false,
                 hint: 'Show a ? beside each setting instead of its explanation. Tap the ? to read it.'
             }, {
-                type: 'toggle',
-                messageKey: 'telemetryEnabled',
-                label: 'Share anonymous telemetry',
-                defaultValue: true,
-                hint: 'Sends anonymous data about weather updates and how the watchface is used, to improve reliability. Privacy & data sources below says what is sent.'
-            }, {
                 type: 'button',
                 label: 'Run setup again',
                 action: 'startWizard',
@@ -2812,12 +2806,18 @@ module.exports = {
                 text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:var(--lbl);">Support me <3</span>' + '<a href="https://buymeacoffee.com/toaster2"><img alt="Buy me a coffee" style="height:40px;width:auto;display:block;" src="' + BMC_BADGE + '"></a></div>'
             }]
         }, {
-            // What the app sends and whose data it shows: the telemetry summary, and every data
+            // What the app sends and whose data it shows: the telemetry switch and its summary, and every data
             // source with the credit and licence its terms ask for (CC BY 4.0: Open-Meteo, MET
             // Norway, Copernicus; OpenWeather: a visible credit; Esri: "Powered by Esri"). The
             // store listing points here instead of listing them.
             id: 'privacy',
             title: 'Privacy & data sources', collapsible: true, items: [{
+                type: 'toggle',
+                messageKey: 'telemetryEnabled',
+                label: 'Share anonymous telemetry',
+                defaultValue: true,
+                hint: 'Sends anonymous data about weather updates and how the watchface is used, to improve reliability.'
+            }, {
                 type: 'staticText',
                 text: PRIVACY_TEXT
             }, {

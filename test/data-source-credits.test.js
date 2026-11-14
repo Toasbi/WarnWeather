@@ -37,3 +37,12 @@ test('Setup lists the privacy summary and every data source with its licence', (
     'never sends your location'].forEach((name) => assert.ok(texts.indexOf(name) !== -1, name));
   assert.ok(setup.sections.some((s) => s.id === 'privacy'), 'the card sits in Setup');
 });
+
+test('the telemetry switch sits in Setup › Privacy & data sources, above what it sends, not in Misc', () => {
+  const setup = schema.tabs.find((t) => t.id === 'setup');
+  const privacy = setup.sections.find((s) => s.id === 'privacy');
+  assert.equal(privacy.items[0].messageKey, 'telemetryEnabled', 'the card opens with the switch');
+  assert.equal(privacy.items[0].defaultValue, true);
+  const misc = setup.sections.find((s) => s.id === 'about');
+  assert.ok(!misc.items.some((i) => i.messageKey === 'telemetryEnabled'), 'no longer in Misc');
+});
