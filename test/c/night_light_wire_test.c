@@ -45,7 +45,7 @@ static void expect(const char *name, int got, int want) {
 static const uint8_t SAMPLE[NIGHT_LIGHT_BYTES] = { 96, 0, 0, 22, 6 };
 
 static void wire_contract(void) {
-    // Pinned against the phone side: test/inbox-size.test.js asserts the packed
+    // Pinned against the phone side: test/repo/inbox-size.test.js asserts the packed
     // tuple is 5 bytes, and night-light.js clamps both hour selects to 0..23.
     expect("bytes", NIGHT_LIGHT_BYTES, 5);
     expect("hour_max", NIGHT_LIGHT_HOUR_MAX, 23);

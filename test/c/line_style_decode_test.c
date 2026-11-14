@@ -8,7 +8,7 @@
 // WW_LINE_STYLE defined, the only configuration that declares the helpers;
 // the aplite build compiles them out together with their callers.
 //
-// The literal bytes here mirror test/line-style.test.js's style-byte pins, so
+// The literal bytes here mirror test/forecast-graphs/domain/line-style.test.js's style-byte pins, so
 // the two ends of the wire cannot drift apart without one suite failing.
 #include <assert.h>
 #include <stdio.h>

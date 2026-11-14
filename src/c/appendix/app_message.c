@@ -919,7 +919,7 @@ void app_message_init() {
     // channel is half-duplex). The heaviest bundle is DWD + wind: the third line (any metric,
     // gust too) rides alongside the secondary line, plus rain radar + status + sun. The palette
     // and the line styling ride the Clay message instead (clay-payload.js; handle_palette /
-    // handle_line_style above). test/inbox-size.test.js is the authoritative computation.
+    // handle_line_style above). test/repo/inbox-size.test.js is the authoritative computation.
     // 528 (was 512): the selectable top-strip middle slot lets City pack up to 19 text bytes
     // where the fixed Date packed none (+19 B worst case, 517 B). 536 (was 528): the threshold
     // levels byte rides as its own tuple, 1 value byte + the 7-byte header (525 B; headroom 11).
@@ -929,13 +929,13 @@ void app_message_init() {
     const int inbox_size = 536;
 #elif defined(PBL_PLATFORM_EMERY)
     // emery: 1024 (was 640, 2.2.0): the long forecast span's six 68-byte trends make the
-    // heaviest bundle 867 B, 875 B with a cleared notice (test/inbox-size.test.js); 128 KB of
+    // heaviest bundle 867 B, 875 B with a cleared notice (test/repo/inbox-size.test.js); 128 KB of
     // app RAM has the room. Every other watch is never sent more than 24 hours. 1280 (was
     // 1024, 3.0.0): bars 4 to 6's lines ride the status category, up to 51 B each, so the
     // heaviest bundle is 1095 B, 1103 B with a cleared notice.
     const int inbox_size = 1280;
 #else
-    // Every other platform carries the extra metric lines (test/inbox-size.test.js sizes each
+    // Every other platform carries the extra metric lines (test/repo/inbox-size.test.js sizes each
     // platform's heaviest bundle against its own value here). Their heap is not spare either:
     // on basalt, diorite and flint it shares 64 KB with the app image (check-64k-size.sh), so
     // every inbox byte counts there too. 640 (was 600): the weather alerts' ALERT_ENTRIES_UINT8

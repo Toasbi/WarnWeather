@@ -265,7 +265,7 @@
         barsFromTop: barsFromTop
     };
 
-    // Dual-context export — mirrors the tail of src/pkjs/line-alert.js.
+    // Dual-context export — mirrors the tail of src/pkjs/alerts/domain/line-alert.js.
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
     }

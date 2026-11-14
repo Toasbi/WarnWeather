@@ -77,7 +77,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     var api = { hasKey: hasKey, offered: offered, providerFor: providerFor, html: html };
 
-    // Dual-context export — mirrors the tail of src/pkjs/forecast-axis.js.
+    // Dual-context export — mirrors the tail of src/pkjs/forecast-graphs/domain/forecast-axis.js.
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
     }

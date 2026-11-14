@@ -65,7 +65,7 @@
 // with values stay under the cap on either day (5 headers + at most 2 + 3 + 3 + 3
 // + 3 value bytes, pollen's widest band being "2-3" = 19 B — a tomorrow entry costs
 // no extra byte), so the 20-B cap drops nothing today; it bounds what the inbox has
-// to budget for (test/inbox-size.test.js). The phone never sends the tuple to aplite.
+// to budget for (test/repo/inbox-size.test.js). The phone never sends the tuple to aplite.
 #define ALERT_ENTRIES_MAX_BYTES 20
 #define STATUS_ALERT_HEADER 0x80
 #define STATUS_ALERT_KIND_MASK 0x07

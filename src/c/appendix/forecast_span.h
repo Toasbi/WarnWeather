@@ -20,7 +20,7 @@
 
 // The most hourly entries the forecast keeps (persist, the series buffers, the paint
 // scratch, the chart's point buffer). Lockstep with hourly-window.js MAX_FORECAST_HOURS
-// (test/forecast-span.test.js). Every other platform keeps today's 24, equal to
+// (test/weather/domain/forecast-span.test.js). Every other platform keeps today's 24, equal to
 // MAX_BOTTOM_VIEW_ENTRIES (asserted in forecast_grid.c), which the health graph keeps on
 // emery too.
 #if defined(PBL_PLATFORM_EMERY)

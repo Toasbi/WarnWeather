@@ -29,7 +29,7 @@
 // slot carries month + year). APPEND-ONLY: the byte values ride the Clay message
 // and persist in the Config blob, so a retired value keeps its slot. Lockstep
 // with MONTH_FORMAT_CODES in src/pkjs/calendar/domain/date-format.js (index = wire value),
-// machine-checked by test/date-format-contract.test.js.
+// machine-checked by test/page/engine/date-format-contract.test.js.
 enum DateMonthFormat {
     DATE_MONTH_AUTO = 0,   // "Sep 2026" (%b %Y) — the pre-setting behavior
     DATE_MONTH_NAME = 1,   // "September 2026" (%B %Y)

@@ -63,7 +63,7 @@ const settingsSchema = z
     temperatureUnits: z.string().optional(),
     tempSlotDisplay: z.string().optional(),
     // The Units tab's feels-like formula ('provider' | 'steadman'), lockstep with
-    // buildSettingsSnapshot in src/pkjs/telemetry-settings.js. z.string() like windUnits
+    // buildSettingsSnapshot in src/pkjs/telemetry/application/telemetry-settings.js. z.string() like windUnits
     // so an unexpected value never fails the whole payload.
     feelsFormula: z.string().optional(),
     // The UV, wind and gust slots' day-max display mode, lockstep with
@@ -357,7 +357,7 @@ export const batchEventSchema = z.object({
 // ever reads the NEWEST settings per watch, so per-event snapshots bought
 // nothing), then up to MAX_BATCH_EVENTS slim records. The settings go through
 // foldRadarOff, then settingsSchema, the object the watch-side lockstep test
-// (test/telemetry.test.js) reads.
+// (test/telemetry/adapter/telemetry.test.js) reads.
 export const batchPayloadSchema = z.object({
   eventType: z.literal("weather_fetch_batch"),
   accountToken: z.string().trim().min(1, {
@@ -487,7 +487,7 @@ async function handle(req: Request, deps: IngestDeps): Promise<Response> {
   const batch: BatchPayload = batchResult.data;
   // The header is duplicated into EVERY row of the batch, so its size is a 50x write
   // amplifier: it keeps a bound of its own. The heaviest one the phone sends measures
-  // ~2.7 KB (test/telemetry.test.js).
+  // ~2.7 KB (test/telemetry/adapter/telemetry.test.js).
   if (JSON.stringify(batch.settings).length > MAX_SETTINGS_BYTES ||
     JSON.stringify(batch.watchInfo).length > 1024) {
     return Response.json({ error: "payload_too_large" }, { status: 413 });

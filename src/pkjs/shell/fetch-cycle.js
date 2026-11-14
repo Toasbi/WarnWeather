@@ -33,7 +33,6 @@ var radarSky = require('../weather/domain/radar/radar-sky.js');
 var radarCoverage = require('../weather/domain/radar/radar-coverage.js');
 var WeatherProvider = require('../weather/application/provider.js');
 var renderPayload = require('../weather/application/render-payload.js');
-var phoneBattery = require('../status-bars/adapter/phone-battery.js');
 var keyResult = require('../weather/domain/keys/key-result.js');
 
 var KEY_FETCH_ATTEMPT = storageKeys.FETCH_ATTEMPT_KEY;
@@ -354,6 +353,8 @@ function runCycle(deps) {
  * @param {function(Object):void} deps.trackWeatherFetch Receives each fetch's telemetry event (the caller owns the telemetry-enabled gate).
  * @param {{waqiToken: string, rainbowEndpoint: string}} deps.env Build-injected secrets (package.json's waqi.token and rainbow.endpoint; '' when absent).
  * @param {function():Date} deps.now Current-time supplier (same contract as the channel scheduler's deps.now).
+ * @param {function():?Object} [deps.getPhoneBattery] The phone's battery facts for the bake
+ *   (phone-battery.js bakeFacts); absent = a host that cannot read the phone's battery.
  * @param {function(Function, number):*} deps.setTimeout Timer function (the watchdog and the queued-force drain; wrap the native one — see index.js).
  * @returns {{shouldFetchNow: function():boolean, start: function(boolean):boolean}} The fetch cycle.
  */
@@ -741,7 +742,7 @@ function createFetchCycle(deps) {
          */
         function toRenderPayload(payload) {
             return renderPayload.toRenderPayload(payload, deps.getSettings(), deps.getWatchInfo(),
-                new Date(), phoneBattery.bakeFacts());
+                deps.now(), typeof deps.getPhoneBattery === 'function' ? deps.getPhoneBattery() : null);
         }
 
         // Watchdog: the chain is asynchronous, so a callback that throws — or a

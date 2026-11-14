@@ -23,9 +23,10 @@ let phone = { supported: false, reading: null };
  * @returns {void}
  */
 function setPhoneBattery(pct, charging) {
-  phone = { supported: true, reading: pct === null
+  const reading = pct === null
     ? { available: false, level: null, charging: false }
-    : { available: true, level: pct, charging: Boolean(charging) } };
+    : { available: true, level: pct, charging: Boolean(charging) };
+  phone = { supported: true, reading: () => reading };
 }
 
 /**
@@ -1498,4 +1499,12 @@ test('the bake reads the phone battery only when a slot shows it, and once per b
     lazyPhone);
   assert.equal(reads, 1);
   assert.equal(decodeLine(p.STATUS_LINE_1_UINT8)[0].text, '52%');
+});
+
+test('a phone-battery reader that throws bakes its slots as --, not the whole bake', () => {
+  const p = basePayload();
+  const failing = { supported: true, reading: () => { throw new Error('storage blocked'); } };
+  statusLines.buildStatusLines(p, baseSettings({ statusForecastLeft: 'phoneBattery',
+    statusForecastMid: 'empty', statusForecastRight: 'empty' }), WATCH_BASALT, NOW, failing);
+  assert.equal(decodeLine(p.STATUS_LINE_1_UINT8)[0].text, '--');
 });

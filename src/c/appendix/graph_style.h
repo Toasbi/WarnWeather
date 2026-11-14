@@ -34,7 +34,7 @@
 //            none while the style draws no rain bars (another shown style may: the rain
 //            trend is shared)
 // Lockstep with src/pkjs/forecast-graphs/domain/graph-style-wire.js (packRecord), pinned by
-// test/graph-style-wire.test.js and test/c/graph_style_test.c.
+// test/forecast-graphs/domain/graph-style-wire.test.js and test/c/graph_style_test.c.
 #include <stdbool.h>
 #include <stdint.h>
 

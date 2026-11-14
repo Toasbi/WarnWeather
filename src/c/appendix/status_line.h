@@ -5,7 +5,7 @@
 
 // Packed status-line contract, shared with the phone.
 // LOCKSTEP: src/pkjs/status-bars/domain/status-line-catalog.js mirrors every enum value and cap
-// below; test/status-line-contract.test.js greps this header to enforce it.
+// below; test/status-bars/domain/status-line-contract.test.js greps this header to enforce it.
 // Deliberately no <pebble.h> so the module host-compiles (scripts/test-c.sh).
 
 #if defined(PBL_PLATFORM_EMERY)

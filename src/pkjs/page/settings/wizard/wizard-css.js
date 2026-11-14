@@ -182,7 +182,7 @@
 
     var api = { CSS: WIZ_CSS, ICON_BACK: ICON_BACK, ICON_DONE: ICON_DONE, ICON_FLICK: ICON_FLICK, ICON_X: ICON_X };
 
-    // Dual-context export — mirrors the tail of src/pkjs/forecast-axis.js.
+    // Dual-context export — mirrors the tail of src/pkjs/forecast-graphs/domain/forecast-axis.js.
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
     }

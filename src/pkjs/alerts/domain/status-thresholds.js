@@ -683,7 +683,7 @@
     DEFAULT_DANGER_HEX: DEFAULT_DANGER_HEX
   };
 
-  // Dual-context export — mirror the tail of src/pkjs/status-line-catalog.js.
+  // Dual-context export — mirror the tail of src/pkjs/status-bars/domain/status-line-catalog.js.
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
   }
