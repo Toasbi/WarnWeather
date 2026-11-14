@@ -9,8 +9,9 @@ contributor tool working in this repo. (Claude Code reads it through `CLAUDE.md`
 - **Commands / `mise` tasks** → `DEV.md`
 - **Setup & walkthrough prose** → `CONTRIBUTING.md`
 - **Architecture rules** → `docs/adr/0005-architecture-rules.md` (where new code goes and
-  which way it may depend); the context map is in `CONTEXT.md`, the quality goals in
-  `docs/quality-goals.md`.
+  which way it may depend), checked by `test/architecture/`: a new `src/pkjs` file needs a
+  home there (`pkjs-homes.js`) unless it sits in `src/pkjs/<context>/<role>/`. The context map
+  is in `CONTEXT.md`, the quality goals in `docs/quality-goals.md`.
 - **Pebble C SDK lookups** → the `pebble` skill in `.agents/skills/`. The C API is
   not in your training data — look up any SDK call you aren't certain of before using it.
 

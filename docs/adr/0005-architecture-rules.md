@@ -71,7 +71,7 @@ Every phone-app context has the same shape (lightweight hexagonal):
   sender), geolocation, the clock and notifications. Collaborators inside a context stay direct
   calls; there is no framework and no container.
 - Dependencies point inward (`adapter` → `application` → `domain`), with no cycles. A context
-  without rules of its own (wire transport, app notices, telemetry) has no `domain/` folder.
+  without rules of its own (telemetry) has no `domain/` folder.
 
 Full hexagonal's command and query objects and one inbound port per use case do not apply: the
 phone app has one caller, its own event handlers, and an interface per action would have no
@@ -89,9 +89,10 @@ the handler's rules take their inputs as arguments.
   cycles. Aplite twins and contract files follow ADR 0001. Inside each layer, files group by
   domain context where the code has one (chart and graph, radar and rain, status row, calendar,
   palette and theme).
-- **Settings page:** `config-ui/lib` is the engine (rendering, show-when, controls) and knows
-  nothing of WarnWeather's settings; `settings/` holds the schema, pages and previews that use
-  it, grouped by context. Previews draw what the watch would draw by calling the phone app's
+- **Settings page:** `config-ui/` is the engine (rendering, show-when, controls) and knows
+  nothing of WarnWeather's settings; `src/pkjs/page/<context>/` holds the schema, pages and
+  previews that use it, grouped by context. A module both the page and the phone app use (a
+  palette, the news protocol, the weather tab's model) is domain code of its context. Previews draw what the watch would draw by calling the phone app's
   domain modules, never by copying their rules. It stays plain ES5 without a framework: the
   Pebble app opens it in old Android webviews that a framework's output does not run on.
 
@@ -139,11 +140,20 @@ and its docs.
 
 ### 9. Checked by tests
 
-Each rule above that a machine can check gets an architecture test: the phone app's `require()`
-graph (domain purity, direction, no cycles, every file in a context or the shell or the shared
-library), the watchface's `#include` graph (direction, HealthService, no cycles) and the edge
-functions' imports. A test may start with an allow-list of the violations it finds; the list only
-shrinks. A rule without its test yet is checked in review.
+Each rule above that a machine can check has an architecture test in `test/architecture/`:
+
+- `pkjs-graph.test.js`, over the `require()` graph of `src/pkjs`: every file has a home
+  (`pkjs-homes.js` lists the files not yet in their folder), domain code touches no runtime, and
+  each role requires only what it may: domain code only domain code and the shared library,
+  application code no adapter, the phone app never the settings page, the page no adapter, the
+  page's engine only itself and the shared library; no cycles;
+- `c-includes.test.js`, over the watchface's `#include` graph: no upward include, no cycles,
+  HealthService only in `services/health.c`, no second ticks;
+- `edge-functions.test.js`: only an entry point creates the Supabase client or calls the global
+  `fetch`; queries go through the store modules.
+
+Each test's allow-list holds the violations the code has today and only shrinks. A rule without
+a test is checked in review.
 
 `docs/quality-goals.md` lists the quality goals that differ from the norm, each with its check.
 
