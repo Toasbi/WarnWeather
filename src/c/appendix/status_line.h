@@ -124,6 +124,12 @@ typedef enum {
 #define STATUS_ICON_CITY_GLYPH 0x80u
 _Static_assert(STATUS_ICON_MAX < STATUS_ICON_CITY_GLYPH, "the city's glyph bit sits above every id");
 
+// Whether an id is one of the weather condition's glyphs: what the condition slot draws, and
+// what the city may draw before its name.
+static inline bool status_icon_is_weather_glyph(uint8_t icon) {
+    return icon >= STATUS_ICON_COND_SUN && icon <= STATUS_ICON_COND_WIND;
+}
+
 // Whether a SLOT_TEXT slot's icon byte is the city's: no glyph, or a weather glyph marked
 // with STATUS_ICON_CITY_GLYPH.
 static inline bool status_icon_is_city(uint8_t icon) {
@@ -133,7 +139,7 @@ static inline bool status_icon_is_city(uint8_t icon) {
 // Whether a SLOT_TEXT slot's icon byte is the weather condition slot's: its text look or one
 // of its glyphs (never the city's, whose bit sits above every id).
 static inline bool status_icon_is_condition(uint8_t icon) {
-    return icon >= STATUS_ICON_COND_TEXT && icon <= STATUS_ICON_COND_WIND;
+    return icon == STATUS_ICON_COND_TEXT || status_icon_is_weather_glyph(icon);
 }
 
 // The glyph an icon byte draws: the id without the city's bit.

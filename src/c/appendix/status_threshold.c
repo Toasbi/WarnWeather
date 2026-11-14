@@ -3,8 +3,13 @@
 
 int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
     if (slot_kind == SLOT_TEXT) {
-        // The city with the current weather's glyph (status_line.h STATUS_ICON_CITY_GLYPH).
-        if (icon & STATUS_ICON_CITY_GLYPH) { return THRESH_CITY; }
+        // The city, with or without the current weather's glyph (status_line.h
+        // STATUS_ICON_CITY_GLYPH). City is the only TEXT+NONE catalog option (a pre-icon
+        // pressure slot also lands here until the phone re-sends its slots — see
+        // status_threshold.h).
+        if (status_icon_is_city(icon)) { return THRESH_CITY; }
+        // The weather condition: its Text look and every glyph (status_line.h).
+        if (status_icon_is_condition(icon)) { return THRESH_CONDITION; }
         switch (icon) {
             case STATUS_ICON_AQI:       return THRESH_AQI;
             case STATUS_ICON_POLLEN:    return THRESH_POLLEN;
@@ -23,26 +28,6 @@ int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
             case STATUS_ICON_PRESSURE:  return THRESH_PRESSURE;
             case STATUS_ICON_DRAWN_SUN: return THRESH_SUN;
             case STATUS_ICON_COUNTDOWN: return THRESH_COUNTDOWN;
-            // The weather condition: its Text look and every glyph (status_line.h).
-            case STATUS_ICON_COND_TEXT:
-            case STATUS_ICON_COND_SUN:
-            case STATUS_ICON_COND_MOON:
-            case STATUS_ICON_COND_SUN_CLOUD:
-            case STATUS_ICON_COND_MOON_CLOUD:
-            case STATUS_ICON_COND_CLOUD:
-            case STATUS_ICON_COND_FOG:
-            case STATUS_ICON_COND_HAZE:
-            case STATUS_ICON_COND_DRIZZLE:
-            case STATUS_ICON_COND_RAIN:
-            case STATUS_ICON_COND_SLEET:
-            case STATUS_ICON_COND_SNOW:
-            case STATUS_ICON_COND_HAIL:
-            case STATUS_ICON_COND_THUNDER:
-            case STATUS_ICON_COND_WIND: return THRESH_CONDITION;
-            // City is the only remaining TEXT+NONE catalog option (a pre-icon
-            // pressure slot also lands here until the phone re-sends its slots
-            // — see status_threshold.h).
-            case STATUS_ICON_NONE:      return THRESH_CITY;
             default: return -1;
         }
     }

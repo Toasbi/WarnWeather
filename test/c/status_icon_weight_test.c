@@ -151,7 +151,8 @@ static void sweep_is_monotonic(void) {
 // The ink height per (icon, tier) is DEVICE-MEASURED — the grid is
 // docs/adr/0002-status-glyph-sizing-and-seating.md §2, which is the only in-repo
 // copy these 66 numbers can be checked against — and `bounds_h` is that ink height
-// minus 1 (icon_load() paints one row more than the bounds box). Four ink figures
+// minus 1 (a drawing paints one row more than its bounds box, status_row_icons.c
+// icon_load_pixels). Four ink figures
 // were carried over from an earlier centring audit rather than re-measured:
 // AQI@t13, HR@t10 and STEPS/AQI@t10. All four belong to icons at weight 50 on that
 // platform, where the lift is 0 for any ink whatsoever, so nothing here rides on them.
@@ -288,7 +289,7 @@ static void shipped_weights_are_the_judged_ones(void) {
     };
     const int cap_cy = 74;
     for (unsigned i = 0; i < sizeof(cells) / sizeof(cells[0]); i++) {
-        int h = cells[i].ink - 1;                 // bounds_h; icon_load() paints ink
+        int h = cells[i].ink - 1;                 // bounds_h; a drawing paints ink
         expect(cells[i].cell, status_icon_top_y(cap_cy, h, cells[i].weight),
                status_icon_top_y(cap_cy, h, 50) - cells[i].want_lift);
         // No shipped weight may ask for a >=2 px lift on this branch of the table

@@ -269,7 +269,7 @@ static inline uint8_t sst_city_member(const char *s, uint8_t v, char *out, size_
 // A weather condition slot that draws its glyph (not the Text look): its last member is
 // the glyph alone.
 static inline bool sst_condition_glyph(uint8_t kind, uint8_t icon) {
-    return kind == SLOT_TEXT && icon >= STATUS_ICON_COND_SUN && icon <= STATUS_ICON_COND_WIND;
+    return kind == SLOT_TEXT && status_icon_is_weather_glyph(icon);
 }
 
 // The city is the one slot kind whose last member is elastic, with the current weather's

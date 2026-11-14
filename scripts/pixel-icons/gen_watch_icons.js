@@ -61,7 +61,7 @@ const ICON_IDS = {
     HEART: ['STATUS_ICON_HR'],
     QUIET: ['STATUS_ROW_ICON_QUIET'], BT: ['STATUS_ROW_ICON_BT'], BT_OFF: ['STATUS_ROW_ICON_BT_OFF'],
 };
-// The rain alert's buckets (status_on_demand.c rain_resource): light, rain, heavy.
+// The rain alert's buckets (status_on_demand.c item_key, OD_RAIN): light, rain, heavy.
 const RAIN_BUCKETS = [[1, 'DRIZZLE'], [2, 'RAIN'], [3, 'HEAVY_RAIN']];
 // The watches each platform's resources go to.
 const TARGETS = { basalt: ['basalt', 'diorite', 'flint'], emery: ['emery'] };

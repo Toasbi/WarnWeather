@@ -681,8 +681,8 @@ static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int conte
     bool env_changed = target_h != row->glyph_h || !gcolor_equal(fg, row->glyph_fg);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         // An id with no glyph (NONE, the drawn sun arrow, the text-only ids such as
-        // PRESSURE) loads as NULL (status_row_icons.c icon_resource), so its slot reserves
-        // no icon width and draws as bare text.
+        // PRESSURE) has no drawing and loads as NULL (status_row_icons.c), so its slot
+        // reserves no icon width and draws as bare text.
         uint8_t wanted = views[i].kind != SLOT_EMPTY ? views[i].icon : STATUS_ICON_NONE;
         if (!env_changed && wanted == row->glyph_icons[i]) { continue; }
         status_row_icons_destroy(row->glyphs[i]);
@@ -914,9 +914,10 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         } else if (row->glyphs[i]) {
             // Seated on the cap centre at its per-icon optical-centre weight
             // (status_icon_weight.h). glyph_icons[i] is the id whose PDC is in
-            // glyphs[i] (ensure_glyphs keeps the two together).
+            // glyphs[i] (ensure_glyphs keeps the two together); the city's weather glyph
+            // seats as that glyph does (status_line.h STATUS_ICON_CITY_GLYPH).
             status_highlight_draw_glyph(ctx, row->glyphs[i], icon_x, glyph_cy,
-                                        row->glyph_icons[i], ink);
+                                        status_icon_glyph(row->glyph_icons[i]), ink);
         } else if (slots[i].slot.icon == STATUS_ICON_DRAWN_SUN
                    && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;
