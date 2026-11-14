@@ -904,7 +904,7 @@ test('Theme & night: the card steps in the Watchface tab\'s row rhythm, on every
   // Every platform, not a sample: the Theme and Theme at night rows have a colour copy
   // and a B/W one (diorite/flint), and only rendering both pins each copy's own join.
   const envs = {};
-  ['aplite', 'basalt', 'diorite', 'emery', 'flint', 'gabbro'].forEach((p) => {
+  require('../package.template.json').pebble.targetPlatforms.forEach((p) => {
     envs[p] = platform.computeEnv({ platform: p });
   });
   let seams = 0;

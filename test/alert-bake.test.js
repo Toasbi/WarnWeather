@@ -386,7 +386,7 @@ test('packAlerts: the exact bytes for a UV-danger + wind-warn row', () => {
   'mph: 45 km/h = 28 mph, at the mph seed warn 25');
 });
 
-test('packAlerts: the On demand order gust, UV, AQI, pollen, wind; unplaced and quiet kinds absent', () => {
+test('the alert entries: the On demand order gust, UV, AQI, pollen, wind; unplaced and quiet kinds absent', () => {
   const all = decodeAlerts(packedAlerts(ALL_ALERTING, Object.assign({ provider: 'dwd' }, ALL_ON, ICON_LOOKS)));
   assert.deepEqual(all.map(e => e.kind), [3, 7, 0, 1, 2], 'gust, UV, AQI, pollen, wind');
   assert.deepEqual(all.map(e => e.level), [2, 2, 2, 1, 1]);
@@ -411,7 +411,7 @@ test('packAlerts: the On demand order gust, UV, AQI, pollen, wind; unplaced and 
   assert.deepEqual(packedAlerts(null, ALL_ON), []);
 });
 
-test('packAlerts: values only for the kinds whose Look is value, printed like the slot', () => {
+test('the alert entries: values only for the kinds whose Look is value, printed like the slot', () => {
   const s = Object.assign({}, ALL_ON, {
     alertUvDisplay: 'value', alertWindDisplay: 'icon', alertGustDisplay: 'value',
     alertAqiDisplay: 'value', alertPollenDisplay: 'value'
@@ -427,7 +427,7 @@ test('packAlerts: values only for the kinds whose Look is value, printed like th
   assert.equal(decodeEntries(packedAlerts(ALL_ALERTING, s)).length, 5);
 });
 
-test('packAlerts: tail-drops entries past the 20 B cap, wind first', () => {
+test('the alert entries: tail-drop entries past the 20 B cap, wind first', () => {
   const values = Object.assign({}, ALL_ON, {
     alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
     alertAqiDisplay: 'value', alertPollenDisplay: 'value'

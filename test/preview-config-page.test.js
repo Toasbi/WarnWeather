@@ -44,7 +44,7 @@ test('parseArgs is order-independent for [platform] [out]', () => {
   assert.equal(r.platform, 'aplite');
 });
 
-test('parseArgs knows every platform the app builds for, and only those', () => {
+test('parseArgs knows every platform the app builds for', () => {
   const targets = require('../package.template.json').pebble.targetPlatforms;
   targets.forEach((p) => assert.equal(preview.parseArgs([p]).platform, p, p));
 });

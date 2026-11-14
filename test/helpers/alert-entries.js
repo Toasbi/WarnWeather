@@ -42,8 +42,9 @@ function decodeAlerts(bytes) {
 }
 
 /**
- * The ALERT_ENTRIES_UINT8 bytes the bake sends, on the path buildStatusLines takes
- * (status-lines.js): status-wire's bakedAlerts list, packed by packAlerts.
+ * The ALERT_ENTRIES_UINT8 bytes for a watch with Alert settings: status-wire's bakedAlerts
+ * list, packed by packAlerts, as buildStatusLines (status-lines.js) does once its platform
+ * gate (env.thresholds) lets the bake run.
  * @param {Object} payload weather payload (pre-transform, trends present)
  * @param {Object} settings Clay settings blob
  * @param {?Object} [env] platform env; omitted = a watch with every bar
