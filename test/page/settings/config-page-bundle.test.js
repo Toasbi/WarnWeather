@@ -47,13 +47,13 @@ test('the generated page installs the DefaultsPolicy global the wizard reads', (
 test('the On demand contract is bundled after view-cycle and before status-thresholds', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  assert.ok(idx('pkjs/view-cycle.js') < idx('pkjs/on-demand.js'),
+  assert.ok(idx('layout/domain/view-cycle.js') < idx('status-bars/domain/on-demand.js'),
     'view-cycle.js must precede on-demand.js');
-  assert.ok(idx('pkjs/on-demand.js') < idx('pkjs/status-thresholds.js'),
+  assert.ok(idx('status-bars/domain/on-demand.js') < idx('alerts/domain/status-thresholds.js'),
     'on-demand.js must precede status-thresholds.js');
   assert.ok(page().indexOf('window.OnDemand = api') !== -1,
     'nothing assigns window.OnDemand in the generated page');
@@ -61,7 +61,7 @@ test('the On demand contract is bundled after view-cycle and before status-thres
 
 test('defaults-policy is bundled BEFORE the wizard part that binds it', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
-  const idx = (suffix) => appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+  const idx = (suffix) => appFiles.findIndex((f) => f.endsWith('/' + suffix));
   const policyAt = idx('page/settings/defaults-policy.js');
   const finishAt = idx('page/settings/wizard/wizard-finish.js');
   assert.notEqual(policyAt, -1, 'defaults-policy.js is not in APP_FILES at all');
@@ -77,7 +77,7 @@ test('defaults-policy is bundled BEFORE the wizard part that binds it', () => {
 test('the setup wizard\'s parts reach the page ahead of wizard.js, each after what it binds', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
@@ -89,13 +89,13 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
     assert.ok(idx(file) < wizard, file + ' must precede wizard.js');
     assert.ok(page().indexOf('window.' + parts[file] + ' = api') !== -1, 'nothing assigns window.' + parts[file]);
   });
-  ['pkjs/line-style.js', 'pkjs/draw-from.js', 'pkjs/forecast-axis.js', 'pkjs/resolve-ink.js', 'pkjs/theme-flip.js',
-    'pkjs/graph-styles.js', 'pkjs/forecast-span-hours.js', 'page/forecast-graphs/forecast-sample.js',
+  ['forecast-graphs/domain/line-style.js', 'forecast-graphs/domain/draw-from.js', 'forecast-graphs/domain/forecast-axis.js', 'theme/domain/resolve-ink.js', 'theme/domain/theme-flip.js',
+    'forecast-graphs/domain/graph-styles.js', 'weather/domain/forecast-span-hours.js', 'page/forecast-graphs/forecast-sample.js',
     'page/forecast-graphs/preview-forecast.js'].forEach((file) => {
     assert.ok(idx(file) < idx('page/settings/wizard/wizard-forecast.js'), file + ' must precede wizard-forecast.js');
   });
-  assert.ok(idx('pkjs/screens.js') < idx('page/settings/wizard/wizard-screens.js'));
-  assert.ok(idx('pkjs/status-line-catalog.js') < idx('page/settings/wizard/wizard-finish.js'));
+  assert.ok(idx('layout/domain/screens.js') < idx('page/settings/wizard/wizard-screens.js'));
+  assert.ok(idx('status-bars/domain/status-line-catalog.js') < idx('page/settings/wizard/wizard-finish.js'));
   assert.ok(idx('page/settings/country-defaults.js') < idx('page/settings/wizard/wizard-upsell.js'));
   ['ForecastSample', 'PreviewForecast'].forEach((name) => {
     assert.ok(page().indexOf('window.' + name + ' = api') !== -1,
@@ -108,7 +108,7 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
 test('the screen pictures\' frame reaches the page ahead of the watch preview and the wizard', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
@@ -125,7 +125,7 @@ test('the screen pictures\' frame reaches the page ahead of the watch preview an
 test('the metrics\' names reach the page ahead of the modules that bind them', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
@@ -147,12 +147,12 @@ test('the screens page reaches the generated page, after the screens model and t
   assert.ok(src.indexOf("PConf.blocks.register('screensCard'") !== -1, 'the Screens card is missing from the page');
   assert.ok(src.indexOf('window.Screens = api') !== -1, 'nothing assigns window.Screens');
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
-  const idx = (suffix) => appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+  const idx = (suffix) => appFiles.findIndex((f) => f.endsWith('/' + suffix));
   const at = idx('page/layout/screens-page.js');
   assert.notEqual(at, -1, 'screens-page.js is not in APP_FILES at all');
-  ['pkjs/view-cycle.js', 'pkjs/status-line-catalog.js', 'pkjs/on-demand.js'].forEach((dep) =>
-    assert.ok(idx(dep) !== -1 && idx(dep) < idx('pkjs/screens.js'), dep + ' must precede screens.js'));
-  assert.ok(idx('pkjs/screens.js') < at, 'screens.js must precede screens-page.js');
+  ['layout/domain/view-cycle.js', 'status-bars/domain/status-line-catalog.js', 'status-bars/domain/on-demand.js'].forEach((dep) =>
+    assert.ok(idx(dep) !== -1 && idx(dep) < idx('layout/domain/screens.js'), dep + ' must precede screens.js'));
+  assert.ok(idx('layout/domain/screens.js') < at, 'screens.js must precede screens-page.js');
   assert.ok(idx('page/layout/preview-watch.js') < at, 'preview-watch.js must precede screens-page.js');
 });
 
@@ -162,12 +162,12 @@ test('the screens page reaches the generated page, after the screens model and t
 test('the screen presets are bundled ahead of the screens page and setup\'s screens', () => {
   assert.ok(page().indexOf('window.ScreenPresets = api') !== -1, 'nothing assigns window.ScreenPresets');
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
-  const idx = (suffix) => appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
-  const at = idx('pkjs/screen-presets.js');
+  const idx = (suffix) => appFiles.findIndex((f) => f.endsWith('/' + suffix));
+  const at = idx('page/layout/screen-presets.js');
   assert.notEqual(at, -1, 'screen-presets.js is not in APP_FILES');
   assert.ok(at < idx('page/layout/screens-page.js'), 'screen-presets.js must precede screens-page.js');
   assert.ok(at < idx('page/settings/wizard/wizard-screens.js'), 'screen-presets.js must precede wizard-screens.js');
-  assert.ok(idx('pkjs/screens.js') < idx('page/settings/wizard/wizard-screens.js'));
+  assert.ok(idx('layout/domain/screens.js') < idx('page/settings/wizard/wizard-screens.js'));
 });
 
 // screen-legend.js binds the graph previews' legends (window.PreviewForecast, PreviewHealth,
@@ -180,7 +180,7 @@ test('Add a screen\'s legend is bundled after the pictures it reads and ahead of
     assert.ok(src.indexOf('window.' + name + ' = api') !== -1, 'nothing assigns window.' + name));
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
@@ -198,17 +198,17 @@ test('Add a screen\'s legend is bundled after the pictures it reads and ahead of
 test('the Show [All | Alert] module is bundled after its deps and before its readers', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  assert.ok(idx('pkjs/status-thresholds.js') < idx('pkjs/line-alert.js'),
+  assert.ok(idx('alerts/domain/status-thresholds.js') < idx('alerts/domain/line-alert.js'),
     'status-thresholds.js must precede line-alert.js');
-  assert.ok(idx('pkjs/line-style.js') < idx('pkjs/line-alert.js'),
+  assert.ok(idx('forecast-graphs/domain/line-style.js') < idx('alerts/domain/line-alert.js'),
     'line-style.js must precede line-alert.js');
-  assert.ok(idx('pkjs/line-alert.js') < idx('page/forecast-graphs/preview-forecast.js'),
+  assert.ok(idx('alerts/domain/line-alert.js') < idx('page/forecast-graphs/preview-forecast.js'),
     'line-alert.js must precede preview-forecast.js');
-  assert.ok(idx('pkjs/line-alert.js') < idx('page/forecast-graphs/forecast-hints.js'),
+  assert.ok(idx('alerts/domain/line-alert.js') < idx('page/forecast-graphs/forecast-hints.js'),
     'line-alert.js must precede forecast-hints.js');
   const src = page();
   assert.ok(src.indexOf('window.LineAlert = api') !== -1,
@@ -224,14 +224,14 @@ test('the Show [All | Alert] module is bundled after its deps and before its rea
 test('the Draw from module is bundled after line-style.js and before its readers', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  assert.ok(idx('pkjs/line-style.js') < idx('pkjs/draw-from.js'), 'line-style.js must precede draw-from.js');
+  assert.ok(idx('forecast-graphs/domain/line-style.js') < idx('forecast-graphs/domain/draw-from.js'), 'line-style.js must precede draw-from.js');
   ['page/forecast-graphs/preview-forecast.js', 'page/weather/preview-radar.js', 'page/forecast-graphs/forecast-hints.js']
     .forEach((reader) => {
-      assert.ok(idx('pkjs/draw-from.js') < idx(reader), 'draw-from.js must precede ' + reader);
+      assert.ok(idx('forecast-graphs/domain/draw-from.js') < idx(reader), 'draw-from.js must precede ' + reader);
     });
   const src = page();
   assert.ok(src.indexOf('window.DrawFrom = api') !== -1, 'nothing assigns window.DrawFrom in the generated page');
@@ -246,14 +246,14 @@ test('the Draw from module is bundled after line-style.js and before its readers
 test('the left axis module is bundled after line-style.js and before its readers', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  assert.ok(idx('pkjs/line-style.js') < idx('pkjs/forecast-axis.js'),
+  assert.ok(idx('forecast-graphs/domain/line-style.js') < idx('forecast-graphs/domain/forecast-axis.js'),
     'line-style.js must precede forecast-axis.js');
   ['page/forecast-graphs/preview-forecast.js', 'page/settings/when-resolvers.js'].forEach((reader) => {
-    assert.ok(idx('pkjs/forecast-axis.js') < idx(reader), 'forecast-axis.js must precede ' + reader);
+    assert.ok(idx('forecast-graphs/domain/forecast-axis.js') < idx(reader), 'forecast-axis.js must precede ' + reader);
   });
   const src = page();
   assert.ok(src.indexOf('window.ForecastAxis = api') !== -1,
@@ -268,13 +268,13 @@ test('the left axis module is bundled after line-style.js and before its readers
 test('the span hours module is bundled after forecast-axis.js, before forecast-hints.js', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  assert.ok(idx('pkjs/forecast-axis.js') < idx('pkjs/forecast-span-hours.js'),
+  assert.ok(idx('forecast-graphs/domain/forecast-axis.js') < idx('weather/domain/forecast-span-hours.js'),
     'forecast-axis.js must precede forecast-span-hours.js');
-  assert.ok(idx('pkjs/forecast-span-hours.js') < idx('page/forecast-graphs/forecast-hints.js'),
+  assert.ok(idx('weather/domain/forecast-span-hours.js') < idx('page/forecast-graphs/forecast-hints.js'),
     'forecast-span-hours.js must precede forecast-hints.js');
   const src = page();
   assert.ok(src.indexOf('window.ForecastSpanHours = api') !== -1,
@@ -321,12 +321,12 @@ test('the forecast preview and its axis mirrors are bundled after every global t
 test('the when resolvers are bundled after the modules they ask', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  ['pkjs/line-style.js', 'pkjs/draw-from.js', 'pkjs/on-demand.js', 'pkjs/view-cycle.js',
-    'pkjs/forecast-axis.js'].forEach((dep) =>
+  ['forecast-graphs/domain/line-style.js', 'forecast-graphs/domain/draw-from.js', 'status-bars/domain/on-demand.js', 'layout/domain/view-cycle.js',
+    'forecast-graphs/domain/forecast-axis.js'].forEach((dep) =>
     assert.ok(idx(dep) < idx('page/settings/when-resolvers.js'), dep + ' must precede when-resolvers.js'));
   const src = page();
   ['lineRow', 'onDemandPlaced', 'defaultViewLacksOnDemand', 'tempAxisLineDrawn'].forEach((id) =>
@@ -345,11 +345,11 @@ test('the when resolvers are bundled after the modules they ask', () => {
 test('the forecast line resolvers are bundled after the line modules they read', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  ['pkjs/line-style.js', 'pkjs/line-alert.js', 'pkjs/draw-from.js', 'pkjs/stripe-levels.js'].forEach((dep) =>
+  ['forecast-graphs/domain/line-style.js', 'alerts/domain/line-alert.js', 'forecast-graphs/domain/draw-from.js', 'forecast-graphs/domain/stripe-levels.js'].forEach((dep) =>
     assert.ok(idx(dep) < idx('page/forecast-graphs/forecast-hints.js'), dep + ' must precede forecast-hints.js'));
   const lines = require('../../../src/pkjs/page/settings/schema.js').tabs.find((t) => t.id === 'graphs').sections
     .filter((sec) => /^line(Main|Second|Third|Fourth)$/.test(sec.sheetId))
@@ -389,7 +389,7 @@ test('the forecast line resolvers are bundled after the line modules they read',
 test('the Alerts tab\'s resolvers are bundled after blocks.js, which they read', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
@@ -425,12 +425,12 @@ test('the Alerts tab\'s resolvers are bundled after blocks.js, which they read',
 test('the stripe scales are bundled before the previews and the forecast hints that read them', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
   ['page/forecast-graphs/preview-forecast.js', 'page/weather/preview-radar.js', 'page/forecast-graphs/forecast-hints.js'].forEach((reader) => {
-    assert.ok(idx('pkjs/stripe-levels.js') < idx(reader), 'stripe-levels.js must precede ' + reader);
+    assert.ok(idx('forecast-graphs/domain/stripe-levels.js') < idx(reader), 'stripe-levels.js must precede ' + reader);
   });
   assert.ok(page().indexOf('window.StripeLevels = api') !== -1,
     'nothing assigns window.StripeLevels in the generated page');
@@ -446,15 +446,15 @@ test('the stripe scales are bundled before the previews and the forecast hints t
 test('the key status, its tables, its fingerprint and the key results are bundled before blocks.js and the key tests', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
   assert.ok(idx('page/weather/keys/key-sources.js') < idx('page/weather/keys/key-status.js'),
     'key-sources.js must precede key-status.js');
-  assert.ok(idx('pkjs/key-fingerprint.js') < idx('page/weather/keys/key-status.js'),
+  assert.ok(idx('weather/domain/keys/key-fingerprint.js') < idx('page/weather/keys/key-status.js'),
     'key-fingerprint.js must precede key-status.js');
-  assert.ok(idx('pkjs/key-result.js') < idx('page/weather/keys/key-status.js'),
+  assert.ok(idx('weather/domain/keys/key-result.js') < idx('page/weather/keys/key-status.js'),
     'key-result.js must precede key-status.js');
   assert.ok(idx('page/weather/keys/key-status.js') < idx('page/settings/blocks.js'),
     'key-status.js must precede blocks.js');
@@ -493,17 +493,17 @@ const PREVIEW_BLOCK_FILES = ['page/forecast-graphs/preview-forecast.js', 'page/w
 test('the graph-colour modules and the preview kit are bundled in dependency order', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
   // resolve-ink reads window.PebbleColors and line-style reads both, each at load time,
   // so a wrong order throws at page boot rather than degrading quietly.
-  assert.ok(idx('pkjs/pebble-colors.js') < idx('pkjs/resolve-ink.js'),
+  assert.ok(idx('theme/domain/pebble-colors.js') < idx('theme/domain/resolve-ink.js'),
     'pebble-colors.js must precede resolve-ink.js');
-  assert.ok(idx('pkjs/resolve-ink.js') < idx('pkjs/line-style.js'),
+  assert.ok(idx('theme/domain/resolve-ink.js') < idx('forecast-graphs/domain/line-style.js'),
     'resolve-ink.js must precede line-style.js');
-  assert.ok(idx('pkjs/resolve-ink.js') < idx('page/settings/preview-svg.js'),
+  assert.ok(idx('theme/domain/resolve-ink.js') < idx('page/settings/preview-svg.js'),
     'resolve-ink.js must precede preview-svg.js, which reads window.ResolveInk at IIFE time');
   // theme-flip.js reads window.ResolveInk at IIFE time (barColorDefault /
   // BAR_COLOR_KEYS), and theme-convert.js reads window.ThemeFlip at IIFE time to
@@ -511,14 +511,14 @@ test('the graph-colour modules and the preview kit are bundled in dependency ord
   // page still boots (the read just binds undefined) and only dies when someone
   // flips the Theme control, which no Node test exercises because those take the
   // require() branch.
-  assert.ok(idx('pkjs/resolve-ink.js') < idx('pkjs/theme-flip.js'),
+  assert.ok(idx('theme/domain/resolve-ink.js') < idx('theme/domain/theme-flip.js'),
     'resolve-ink.js must precede theme-flip.js, which reads window.ResolveInk at IIFE time');
-  assert.ok(idx('pkjs/theme-flip.js') < idx('page/theme/theme-convert.js'),
+  assert.ok(idx('theme/domain/theme-flip.js') < idx('page/theme/theme-convert.js'),
     'theme-flip.js must precede theme-convert.js, which reads window.ThemeFlip at IIFE time');
   assert.ok(idx('page/settings/preview-svg.js') < idx('page/forecast-graphs/preview-rain.js'),
     'preview-svg.js must precede preview-rain.js, which reads window.PreviewSvg at IIFE time');
   PREVIEW_BLOCK_FILES.forEach((file) => {
-    assert.ok(idx('pkjs/line-style.js') < idx(file) &&
+    assert.ok(idx('forecast-graphs/domain/line-style.js') < idx(file) &&
       idx('page/settings/preview-svg.js') < idx(file) &&
       idx('page/forecast-graphs/preview-rain.js') < idx(file),
       file + ' must follow line-style.js, preview-svg.js and preview-rain.js — it reads ' +
@@ -534,11 +534,11 @@ test('the graph-colour modules and the preview kit are bundled in dependency ord
 test('the night-tint display rule reaches the generated page, after line-style', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  assert.ok(idx('pkjs/line-style.js') < idx('page/settings/blocks.js'),
+  assert.ok(idx('forecast-graphs/domain/line-style.js') < idx('page/settings/blocks.js'),
     'line-style.js must precede blocks.js, which reads window.LineStyle at IIFE time');
   const src = page();
   assert.ok(src.indexOf("PConf.displayResolvers.register('graphNightTint'") !== -1,
@@ -570,20 +570,20 @@ test('every preview block reaches the generated settings page', () => {
 test('the Status bars preview and the Night hours reach the page, in dependency order', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  assert.ok(idx('pkjs/status-line-catalog.js') < idx('page/status-bars/preview-status-bars.js'));
-  assert.ok(idx('pkjs/on-demand.js') < idx('page/status-bars/preview-status-bars.js'));
+  assert.ok(idx('status-bars/domain/status-line-catalog.js') < idx('page/status-bars/preview-status-bars.js'));
+  assert.ok(idx('status-bars/domain/on-demand.js') < idx('page/status-bars/preview-status-bars.js'));
   assert.ok(idx('page/settings/preview-svg.js') < idx('page/status-bars/preview-status-bars.js'),
     'preview-status-bars.js reads window.PreviewSvg (the theme ink) at IIFE time');
-  assert.ok(idx('pkjs/view-cycle.js') < idx('page/status-bars/preview-status-bars.js'));
-  assert.ok(idx('pkjs/status-line-catalog.js') < idx('pkjs/status-pair.js'));
-  assert.ok(idx('pkjs/utf8.js') < idx('pkjs/status-pair.js'), 'status-pair.js reads window.Utf8');
-  assert.ok(idx('pkjs/status-pair.js') < idx('pkjs/slot-text.js'), 'slot-text.js reads window.StatusPair');
-  assert.ok(idx('pkjs/slot-text.js') < idx('page/status-bars/preview-status-bars.js'));
-  assert.ok(idx('pkjs/date-format.js') < idx('page/status-bars/preview-status-bars.js'));
+  assert.ok(idx('layout/domain/view-cycle.js') < idx('page/status-bars/preview-status-bars.js'));
+  assert.ok(idx('status-bars/domain/status-line-catalog.js') < idx('status-bars/domain/status-pair.js'));
+  assert.ok(idx('lib/utf8.js') < idx('status-bars/domain/status-pair.js'), 'status-pair.js reads window.Utf8');
+  assert.ok(idx('status-bars/domain/status-pair.js') < idx('status-bars/domain/slot-text.js'), 'slot-text.js reads window.StatusPair');
+  assert.ok(idx('status-bars/domain/slot-text.js') < idx('page/status-bars/preview-status-bars.js'));
+  assert.ok(idx('calendar/domain/date-format.js') < idx('page/status-bars/preview-status-bars.js'));
   idx('page/theme/night-hours.js');
   const src = page();
   ["PConf.displayResolvers.register('nightHoursValue'", "PConf.displayResolvers.register('nightHoursSeparate'",
@@ -599,7 +599,7 @@ test('the Status bars preview and the Night hours reach the page, in dependency 
 test('the support mug reaches the generated page, after news.js', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
@@ -641,7 +641,7 @@ test('the Weather tab kit reaches the generated page in dependency order', () =>
     'weather-tab.js does not register the weatherGraphs block in the page');
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
@@ -706,7 +706,7 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
 test('the budget modules reach the generated page in dependency order, ahead of blocks.js', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
@@ -740,7 +740,7 @@ test('the budget modules reach the generated page in dependency order, ahead of 
 test('the Rainbow key Test reaches the generated page after key-test.js', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
@@ -762,14 +762,14 @@ test('the Rainbow key Test reaches the generated page after key-test.js', () => 
 test('the threshold contract reaches the generated page between resolve-ink and every file that binds it', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
-    const at = appFiles.findIndex((f) => path.basename(f) === path.basename(suffix));
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  assert.ok(idx('pkjs/resolve-ink.js') < idx('pkjs/status-thresholds.js'),
+  assert.ok(idx('theme/domain/resolve-ink.js') < idx('alerts/domain/status-thresholds.js'),
     'resolve-ink.js must precede status-thresholds.js, which reads window.ResolveInk at IIFE time');
   ['page/weather/preview-radar.js', 'page/settings/blocks.js', 'page/settings/onbuild.js'].forEach((file) => {
-    assert.ok(idx('pkjs/status-thresholds.js') < idx(file),
+    assert.ok(idx('alerts/domain/status-thresholds.js') < idx(file),
       'status-thresholds.js must precede ' + file + ', which reads window.StatusThresholds at IIFE time');
   });
   const src = page();
