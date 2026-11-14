@@ -6,8 +6,8 @@
 #include "on_demand.h"   // OdItem / OdSide: the On demand cells' order and values
 
 // Status-slot threshold-highlight contract, shared with the phone.
-// LOCKSTEP: src/pkjs/status-thresholds.js mirrors the kind order and level
-// values below, src/pkjs/status-wire.js the blob layout;
+// LOCKSTEP: src/pkjs/alerts/domain/status-thresholds.js mirrors the kind order and level
+// values below, src/pkjs/alerts/domain/status-wire.js the blob layout;
 // test/status-thresholds-contract.test.js greps this header to enforce both.
 // Deliberately no <pebble.h> so the module host-compiles (scripts/test-c.sh).
 //
@@ -168,7 +168,7 @@ typedef enum {
     // Phone battery (kinds 18/19, appended): byte 33's THIRD and FOURTH cells,
     // so THRESH_SETTINGS_BYTES still stays 34. Both are phone-baked SLOT_TEXT.
     // TWO kinds, ONE settings key: the phone's KINDS table gives both entries
-    // key 'PhoneBattery' (src/pkjs/status-thresholds.js), so they share one Bold
+    // key 'PhoneBattery' (src/pkjs/alerts/domain/status-thresholds.js), so they share one Bold
     // sheet and the packer writes the same mode into both cells. Kind 18 covers
     // the icon variants (STATUS_ICON_PHONE_BATTERY and _CHG — one item, two
     // glyphs); kind 19 covers the no-icon variant, which without its own kind

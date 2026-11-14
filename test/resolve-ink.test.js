@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const COLORS = require('../src/pkjs/pebble-colors.js');
+const COLORS = require('../src/pkjs/theme/domain/pebble-colors.js');
 const { resolveInk, isLightPolarity, isBwTheme, drawsColor, effectiveTheme, barColorDefault,
-  BAR_COLOR_KEYS } = require('../src/pkjs/resolve-ink.js');
+  BAR_COLOR_KEYS } = require('../src/pkjs/theme/domain/resolve-ink.js');
 
 test('light theme: exact white flips to black', () => {
   assert.equal(resolveInk(COLORS.GColorWhite, 'light'), COLORS.GColorBlack);
@@ -82,11 +82,11 @@ test('BAR_COLOR_KEYS names both bar-mode settings', () => {
 
 test('requiring resolve-ink registers nothing — that is why both sides can share it', () => {
   // The property that makes this module the home for barColorDefault rather than
-  // settings/theme-convert.js, which registers a config-UI onChange hook at import
-  // time. A phone-side consumer (clay-settings.js, weather/graph-wire.js) must be
+  // page/theme/theme-convert.js, which registers a config-UI onChange hook at import
+  // time. A phone-side consumer (clay-settings.js, forecast-graphs/domain/graph-wire.js) must be
   // able to require it without dragging a page registry into the runtime.
   const before = global.PConf;
-  delete require.cache[require.resolve('../src/pkjs/resolve-ink.js')];
-  require('../src/pkjs/resolve-ink.js');
+  delete require.cache[require.resolve('../src/pkjs/theme/domain/resolve-ink.js')];
+  require('../src/pkjs/theme/domain/resolve-ink.js');
   assert.equal(global.PConf, before, 'resolve-ink must not touch global.PConf');
 });

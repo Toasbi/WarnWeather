@@ -1,6 +1,6 @@
 'use strict';
-// test/clay-migrations.test.js — the marker-gated ledger (src/pkjs/migrations/registry.js)
-// and its runner (src/pkjs/clay-migrations.js). Split from test/clay-settings.test.js,
+// test/clay-migrations.test.js — the marker-gated ledger (src/pkjs/settings/domain/migrations/registry.js)
+// and its runner (src/pkjs/settings/application/clay-migrations.js). Split from test/clay-settings.test.js,
 // which keeps the blob-ownership tests; the shared fake-storage / upgraded-install
 // harness lives in helpers/clay-harness.js. A test about one entry runs the ledger with
 // {only: <its marker>} (loadLedger's run), so the other entries stay out of the verdict.
@@ -10,8 +10,8 @@ const {
   installFakeStorage, COLORS, seedUpgradedInstall, bootUpgradedInstall, loadUpgradeModules,
   loadLedger, shippedPageFillPick, PRE_RETUNE_LIGHT, seedPreRetuneInstall, seedThemedInstall
 } = require('./helpers/clay-harness.js');
-const KEYS = require('../src/pkjs/storage-keys');
-const REGISTRY = require('../src/pkjs/migrations/registry.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys');
+const REGISTRY = require('../src/pkjs/settings/domain/migrations/registry.js');
 
 test('holiday white-to-toggle: white holiday color -> toggle off + color reset to the holiday default', () => {
   const L = loadLedger({ holidaysEnabled: true, colorUSFederal: COLORS.white });
@@ -77,7 +77,7 @@ test('holiday region keys: already-real subdivision preserved, old keys still dr
 test('3.0.0 slot defaults: an existing install keeps the slots it showed, a fresh one takes the new defaults', () => {
   const L = loadLedger(null);
   const key = KEYS.SLOT_DEFAULTS_2_7_MIGRATION_KEY;
-  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
   const SLOTS = ['statusForecastRight', 'statusTopLeft', 'statusTopRight'];
   /**
    * One unmarked run over `blob`.
@@ -273,8 +273,8 @@ test('a NACKed upgrade resend retries on the next boot', () => {
 test('a night tint the 1.15.0 page carried from the fill is released on upgrade', () => {
   const store = installFakeStorage();
   const mods = loadUpgradeModules();
-  const lineStyle = require('../src/pkjs/line-style');
-  const graphWire = require('../src/pkjs/weather/graph-wire');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style');
+  const graphWire = require('../src/pkjs/forecast-graphs/domain/graph-wire');
   const now = new Date(2026, 7, 26, 9, 0, 0);
   seedUpgradedInstall(store, mods.claySettings, mods.KEYS, now);
 
@@ -319,7 +319,7 @@ test('the released tint tracks the next fill pick again', () => {
   // had just replaced.
   const store = installFakeStorage();
   const mods = loadUpgradeModules();
-  const lineStyle = require('../src/pkjs/line-style');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style');
   const now = new Date(2026, 7, 26, 9, 0, 0);
   seedUpgradedInstall(store, mods.claySettings, mods.KEYS, now);
 
@@ -343,7 +343,7 @@ test('the released tint tracks the next fill pick again', () => {
 test('the migration leaves a tint the user really picked alone', () => {
   const store = installFakeStorage();
   const mods = loadUpgradeModules();
-  const lineStyle = require('../src/pkjs/line-style');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style');
   const now = new Date(2026, 7, 26, 9, 0, 0);
   seedUpgradedInstall(store, mods.claySettings, mods.KEYS, now);
 
@@ -368,7 +368,7 @@ test('the migration leaves a tint the user really picked alone', () => {
 test('the carried-tint migration is one-shot and marks a clean blob too', () => {
   const store = installFakeStorage();
   const mods = loadUpgradeModules();
-  const lineStyle = require('../src/pkjs/line-style');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style');
   const now = new Date(2026, 7, 26, 9, 0, 0);
   seedUpgradedInstall(store, mods.claySettings, mods.KEYS, now);
 
@@ -402,7 +402,7 @@ test('the carried-tint migration is one-shot and marks a clean blob too', () => 
 test('the seeded light graph colours move onto the re-tuned built-ins', () => {
   const store = installFakeStorage();
   const mods = loadUpgradeModules();
-  const lineStyle = require('../src/pkjs/line-style');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style');
   const now = new Date(2026, 7, 26, 9, 0, 0);
   seedPreRetuneInstall(store, mods.claySettings, mods.KEYS, now);
 
@@ -443,7 +443,7 @@ test('the re-tune marker is deferred to the Clay ACK, so a NACK retries', () => 
 test('a light colour the user actually chose survives the re-tune', () => {
   const store = installFakeStorage();
   const mods = loadUpgradeModules();
-  const lineStyle = require('../src/pkjs/line-style');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style');
   const now = new Date(2026, 7, 26, 9, 0, 0);
   seedPreRetuneInstall(store, mods.claySettings, mods.KEYS, now);
 
@@ -519,7 +519,7 @@ test('the re-tune runs after the carried-tint release, or a carry is stranded', 
   // migrations interact.
   const store = installFakeStorage();
   const mods = loadUpgradeModules();
-  const lineStyle = require('../src/pkjs/line-style');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style');
   const now = new Date(2026, 7, 26, 9, 0, 0);
   seedPreRetuneInstall(store, mods.claySettings, mods.KEYS, now);
 
@@ -679,7 +679,7 @@ test('the dependency stays one-way: clay-settings never requires the ledger back
   // inspection, in the spirit of the repo's other structural guards
   // (check-aplite-twins.js, test/config-page-bundle.test.js).
   const fs = require('node:fs');
-  const src = fs.readFileSync(require.resolve('../src/pkjs/clay-settings.js'), 'utf8');
+  const src = fs.readFileSync(require.resolve('../src/pkjs/settings/adapter/clay-settings.js'), 'utf8');
   assert.equal(/require\(['"]\.\/(clay-migrations|migrations\/)/.test(src), false,
     'clay-settings.js must not require clay-migrations.js or the ledger');
 });
@@ -780,7 +780,7 @@ test('the fourth-line style move survives the boot order (seedDefaults, then the
 const LINE_KEYS = ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'];
 
 test('stripe-rule resend: resend exactly when a drawn line holds a stripe its metric cannot show', () => {
-  const lineStyle = require('../src/pkjs/line-style.js');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
   const cases = [];
   LINE_KEYS.forEach((lineKey) => {
     ['feels', 'dew', 'pressure'].forEach((m) => {
@@ -891,18 +891,18 @@ test('resetAll marks the fourth-line style move done: the next blob is seeded wi
   assert.equal(mods.claySettings.read().fifthLineStyle, 'stripeTop');
 });
 
-// --- 1.24.0: the alert levels (migrations/v1_24.js) ---------------------------------
+// --- 1.24.0: the alert levels (settings/domain/migrations/v1_24.js) ---------------------------------
 // One entry, ALERT_LEVELS_MIGRATION_KEY, runs five steps in order (ALERT_LEVELS_STEPS):
 // the highlight toggles, the warn look, the rain window's Off, the seed pairs back to
 // blank, the temperature separator. A step's own rule is tested on the step (stepOn);
 // what the steps do together, and the entry's send, through the ledger ({only} the
 // entry).
-const thresholdsContract = require('../src/pkjs/status-thresholds.js');
-const wire = require('../src/pkjs/status-wire.js');
-const v124 = require('../src/pkjs/migrations/v1_24.js');
-const seedPairs = require('../src/pkjs/migrations/seed-pairs.js');
-const OD = require('../src/pkjs/on-demand.js');
-const { renderSignature } = require('../src/pkjs/render-signature.js');
+const thresholdsContract = require('../src/pkjs/alerts/domain/status-thresholds.js');
+const wire = require('../src/pkjs/alerts/domain/status-wire.js');
+const v124 = require('../src/pkjs/settings/domain/migrations/v1_24.js');
+const seedPairs = require('../src/pkjs/settings/domain/migrations/seed-pairs.js');
+const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
+const { renderSignature } = require('../src/pkjs/settings/domain/render-signature.js');
 const {
   SCENARIOS, runScenario, BLOB_1_23_1, THROUGH_1_23_1
 } = require('./helpers/clay-migration-golden.js');
@@ -1251,7 +1251,7 @@ test('the alert levels are not safe over settings saved on the 1.24.0 page, henc
   assert.strictEqual(read.threshUvOn, false, 'a second run would switch the UV highlight off');
 });
 
-// --- 1.24.0: seed pairs back to blank (migrations/seed-pairs.js) ---------------------
+// --- 1.24.0: seed pairs back to blank (settings/domain/migrations/seed-pairs.js) ---------------------
 // The page used to pin the seed pair into storage when a highlight or Goals switch came
 // on over a blank pair (and the wizard did so for AQI); a pinned pair then kept the
 // unit it was pinned under. The step blanks every pair equal to one of its kind's seeds,
@@ -1439,7 +1439,7 @@ test('seed pairs: blanked pins follow a later unit or AQI-scale change', () => {
   assert.deepEqual([wind.warn, wind.danger], [40, 60], 'the kph seed, not the pinned mph pair');
 });
 
-// --- 1.24.0: the temperature pair's separator moves to the bar (migrations/v1_24.js) --
+// --- 1.24.0: the temperature pair's separator moves to the bar (settings/domain/migrations/v1_24.js) --
 // The temp slot's Both pair defaults to the bar ('12|10') from 1.24.0 on, and every
 // stored 'slash' moves with it once. Keyed on the stored value; the separator is
 // phone-baked slot text, already in renderSignature.
@@ -1479,7 +1479,7 @@ test('temp separator: survives the boot order, and the slot text re-bakes', () =
   assert.notEqual(renderSignature(after), renderSignature(before), 'the slot text re-bakes');
 });
 
-// --- 1.24.0: the status bars move onto On demand (migrations/v1_24.js) ---------------
+// --- 1.24.0: the status bars move onto On demand (settings/domain/migrations/v1_24.js) ---------------
 // seedDefaults has already written the side keys with the defaults into every install,
 // upgraded ones included (the owner's call: the weather alerts arrive switched on). The
 // move carries over the 1.23.2 switches against them, places Rain for 'Rain alert only',
@@ -1597,7 +1597,7 @@ test('on demand: Reset watchface marks it done, so ticks picked after the reset 
   assert.equal(mods.claySettings.read().statusTopOnDemandLeftItems, 'bt,qt', 'the 1.24.0 page\'s pick survives');
 });
 
-// --- 1.24.0: "Rainbow (own key)" stored as itself (migrations/radar.js) --------------
+// --- 1.24.0: "Rainbow (own key)" stored as itself (settings/domain/migrations/radar.js) --------------
 // 1.23.1 to the 1.24.0 dev builds stored it as radarProvider 'rainbow' plus
 // rainbowOwnKey true, and radar-source-id.js (deleted with this move) resolved the pair
 // for every reader. The move stores the source that pair ran as radarProvider and
@@ -1730,13 +1730,13 @@ test('rainbow own key, upgrade paths: the dev phone holding every other marker m
   assert.equal(L.saves.n, 0);
 });
 
-// --- 2.0.1: the alert defaults (migrations/alert-defaults.js) -------------------------
+// --- 2.0.1: the alert defaults (settings/domain/migrations/alert-defaults.js) -------------------------
 // Every install onto the alert defaults: a WEATHER kind's warn look stored as 'outline'
 // goes (it resolves to warnLookDefault: the fill on a colour watch), and an alert's Look
 // stored as Icon becomes Icon + value. The entry runs through the ledger ({only} its
 // marker) for what it stores and sends; its body is called directly for its verdict.
 const ALERT_DEFAULTS = KEYS.ALERT_DEFAULTS_MIGRATION_KEY;
-const { migrateAlertDefaults } = require('../src/pkjs/migrations/alert-defaults.js');
+const { migrateAlertDefaults } = require('../src/pkjs/settings/domain/migrations/alert-defaults.js');
 const WEATHER_KINDS = thresholdsContract.KINDS.filter((k) => !k.goal && !k.boldOnly);
 const GOAL_KINDS = thresholdsContract.KINDS.filter((k) => k.goal);
 const BOLD_ONLY_KINDS = thresholdsContract.KINDS.filter((k) => k.boldOnly);
@@ -2035,7 +2035,7 @@ test('every entry but the alert levels: a re-run over the boot\'s output changes
 });
 
 test('every reset-safe entry, and no other, is marked by Reset watchface', () => {
-  const clayMigrations = require('../src/pkjs/clay-migrations');
+  const clayMigrations = require('../src/pkjs/settings/application/clay-migrations');
   assert.deepEqual(clayMigrations.RESET_SAFE_MARKERS, ['v1.23.0_norain_default_text_migration',
     'v1.23.1_fifth_line_style_default_migration', 'v1.24.0_warn_look_migration',
     'v1.24.0_on_demand_migration', 'v1.24.0_rainbow_own_key_source_migration',

@@ -4,7 +4,7 @@
 // from index.js's boot wiring.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const providerFactory = require('../src/pkjs/provider-factory.js');
+const providerFactory = require('../src/pkjs/weather/application/provider-factory.js');
 
 test('createProvider builds each known provider by id', () => {
   assert.equal(providerFactory.createProvider('wunderground', {}).id, 'wunderground');

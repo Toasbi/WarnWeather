@@ -9,12 +9,12 @@ global.localStorage = {
   removeItem: function(k) {}
 };
 
-const { buildClayPayload, truncateUtf8Bytes } = require('../src/pkjs/clay-payload');
-const holidayMask = require('../src/pkjs/holidays/holiday-mask');
-const viewCycle = require('../src/pkjs/view-cycle');
-const lineStyle = require('../src/pkjs/line-style');
-const graphWire = require('../src/pkjs/weather/graph-wire');
-const nightLight = require('../src/pkjs/night-light');
+const { buildClayPayload, truncateUtf8Bytes } = require('../src/pkjs/settings/domain/clay-payload');
+const holidayMask = require('../src/pkjs/calendar/domain/holiday-mask');
+const viewCycle = require('../src/pkjs/layout/domain/view-cycle');
+const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style');
+const graphWire = require('../src/pkjs/forecast-graphs/domain/graph-wire');
+const nightLight = require('../src/pkjs/theme/domain/night-light');
 
 const NOW = new Date('2026-06-26T00:00:00Z');
 
@@ -213,8 +213,8 @@ test('a 3-row calendar on a flick view anchors the holiday window on the previou
 // exactly the window the HOLIDAYS tuple scans — for every layout shape, the aplite
 // custom fold and the unknown-platform (null watchInfo) case included.
 test('holidayWindowOpts is the window the HOLIDAYS tuple anchors on, for every layout shape', () => {
-  const { holidayWindowOpts } = require('../src/pkjs/clay-payload');
-  const daysFromCivil = require('../src/pkjs/holidays/serial-day');
+  const { holidayWindowOpts } = require('../src/pkjs/settings/domain/clay-payload');
+  const daysFromCivil = require('../src/pkjs/calendar/domain/serial-day');
   const anchorOf = (b) => (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24));
   const serialOf = (d) => daysFromCivil(d.getFullYear(), d.getMonth() + 1, d.getDate());
   const BASALT = { platform: 'basalt' };
@@ -330,8 +330,8 @@ test('CLAY_NORAIN_TEXT: unset sends the built-in text, empty or whitespace sends
 test('the built-in no-rain text is one string: payload default, schema default, watch fallback', function() {
   const fs = require('node:fs');
   const path = require('node:path');
-  const { DEFAULT_NORAIN_TEXT } = require('../src/pkjs/clay-payload.js');
-  const schema = require('../src/pkjs/settings/schema.js');
+  const { DEFAULT_NORAIN_TEXT } = require('../src/pkjs/settings/domain/clay-payload.js');
+  const schema = require('../src/pkjs/page/settings/schema.js');
   const tabs = Array.isArray(schema) ? schema : (schema.schema || schema.SCHEMA || schema.tabs);
   let item = null;
   (function walk(list) {
@@ -349,7 +349,7 @@ test('the built-in no-rain text is one string: payload default, schema default, 
     'the watch falls back to the same text');
   const layer = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'layers', 'rain_radar_layer.c'), 'utf8');
   assert.ok(layer.indexOf('radar_empty_text(') !== -1, 'and the radar layer draws through it');
-  const migrations = fs.readFileSync(path.join(__dirname, '..', 'src', 'pkjs', 'migrations', 'radar.js'), 'utf8');
+  const migrations = fs.readFileSync(path.join(__dirname, '..', 'src', 'pkjs', 'settings', 'domain', 'migrations', 'radar.js'), 'utf8');
   assert.ok(migrations.indexOf('"' + DEFAULT_NORAIN_TEXT + '"') !== -1, 'and the 1.23.0 migration moves to it');
 });
 
@@ -468,7 +468,7 @@ test('the Clay message carries the graph line styling', function() {
   const p = buildClayPayload(s, { platform: 'emery' }, NOW);
   assert.ok(Array.isArray(p.CLAY_LINE_STYLE_UINT8));
   assert.equal(p.CLAY_LINE_STYLE_UINT8.length, 14);
-  // Packed by the one graph packer (weather/graph-wire.js, over the resolver both the
+  // Packed by the one graph packer (forecast-graphs/domain/graph-wire.js, over the resolver both the
   // wire and the render read), so the Clay tuple can't drift from what the graph
   // builder assumes.
   assert.deepEqual(p.CLAY_LINE_STYLE_UINT8,
@@ -777,12 +777,12 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
 // seedDefaults). A colour platform: on B&W hardware theme_pick() ignores the colour and
 // would hide the bug.
 {
-  const themeSchedule = require('../src/pkjs/theme-schedule');
-  const settingsLib = require('../src/pkjs/settings');
-  const claySettings = require('../src/pkjs/clay-settings');
-  const pebbleColors = require('../src/pkjs/pebble-colors');
-  const statusThresholds = require('../src/pkjs/status-thresholds');
-  const statusWire = require('../src/pkjs/status-wire');
+  const themeSchedule = require('../src/pkjs/theme/domain/theme-schedule');
+  const settingsLib = require('../src/pkjs/page/settings');
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
+  const pebbleColors = require('../src/pkjs/theme/domain/pebble-colors');
+  const statusThresholds = require('../src/pkjs/alerts/domain/status-thresholds');
+  const statusWire = require('../src/pkjs/alerts/domain/status-wire');
   const BASALT = { platform: 'basalt', model: 'pebble_time_black' };
   const savedBlob = (pageState) =>
     settingsLib.parseResponse(encodeURIComponent(JSON.stringify(pageState)));
@@ -829,9 +829,9 @@ test('Weather only folds to Compact calendar on aplite, the preset its radio sho
 });
 
 test('radar sky rows are on by default: a missing key sends them', function() {
-  const radarSky = require('../src/pkjs/weather/radar-sky.js');
+  const radarSky = require('../src/pkjs/weather/domain/radar/radar-sky.js');
   assert.equal(radarSky.skySourceIdFor({ radarMode: 'graph' }), 'openmeteo');
-  const schema = require('../src/pkjs/settings/schema.js');
+  const schema = require('../src/pkjs/page/settings/schema.js');
   let item = null;
   (function walk(list) {
     (list || []).forEach((it) => {

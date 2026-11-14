@@ -1,6 +1,6 @@
 'use strict';
 
-// The long time span's label (src/pkjs/forecast-span-hours.js): the whole hours the watch shows
+// The long time span's label (src/pkjs/weather/domain/forecast-span-hours.js): the whole hours the watch shows
 // for the provider's feed and the layout. The count is the watch's rule
 // (src/c/appendix/forecast_span.h forecast_span_whole). The full parity runs under
 // scripts/test-c.sh, not here: test/c/forecast_span_dump.c prints the watch's count for every
@@ -13,10 +13,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const spanHours = require('../src/pkjs/forecast-span-hours.js');
-const forecastAxis = require('../src/pkjs/forecast-axis.js');
-const hourlyWindow = require('../src/pkjs/weather/hourly-window.js');
-const schema = require('../src/pkjs/settings/schema.js');
+const spanHours = require('../src/pkjs/weather/domain/forecast-span-hours.js');
+const forecastAxis = require('../src/pkjs/forecast-graphs/domain/forecast-axis.js');
+const hourlyWindow = require('../src/pkjs/weather/domain/hourly-window.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { cDefine } = require('./helpers/c-source.js');
 
@@ -160,8 +160,8 @@ test('feedHours: OpenWeatherMap 48, Weather Underground 49, every other provider
   // The short feeds' sources: WU's 48-hour endpoint plus the hour in progress the anchor
   // prepends; OWM's One Call 3.0 hourly list (48 hours: test/openweathermap.test.js sends 48
   // at the long span).
-  assert.match(read('src/pkjs/weather/wunderground.js'), /\/forecast\/hourly\/48hour\.json/);
-  assert.match(read('src/pkjs/weather/openweathermap.js'), /data\/3\.0\/onecall/);
+  assert.match(read('src/pkjs/weather/adapter/providers/wunderground.js'), /\/forecast\/hourly\/48hour\.json/);
+  assert.match(read('src/pkjs/weather/adapter/providers/openweathermap.js'), /data\/3\.0\/onecall/);
   // Unknown, absent and inherited ids read as the full feed.
   [{ provider: 'nope' }, { provider: 'toString' }, { provider: '__proto__' }, {}, null, undefined,
     { provider: 48 }].forEach((s) => assert.equal(spanHours.feedHours(s), 68, JSON.stringify(s)));
@@ -223,7 +223,7 @@ test('shownHours: the hours each span draws, as the watch fits its grid to the p
   assert.equal(1 + 2 * cDefine(span, 'FORECAST_SPAN_DAY_PAD') + cDefine(span, 'FORECAST_SPAN_DAY_BAR_W'), 8);
   assert.equal(cDefine(span, 'FORECAST_SPAN_HALF_SLOTS'), 12);
   assert.equal(cDefine(span, 'FORECAST_SPAN_DAY_SENT'), 26);
-  assert.equal(require('../src/pkjs/forecast-span.js').DAY_WIDE_HOURS, 26);
+  assert.equal(require('../src/pkjs/weather/domain/forecast-span.js').DAY_WIDE_HOURS, 26);
   const grid = read('src/c/appendix/forecast_grid.h');
   const small = grid.slice(grid.indexOf('DISPLAY_WIDTH_144'));
   assert.equal(1 + 2 * cDefine(small, 'FORECAST_GRID_PAD') + cDefine(small, 'FORECAST_GRID_BAR_W'), 7);

@@ -1,5 +1,5 @@
 // test/config-radar-key-status.test.js — "Rainbow (own key)" on the Radar provider row has the
-// key status a keyed weather provider has (settings/key-status.js, key-sources.js): the key row
+// key status a keyed weather provider has (page/weather/keys/key-status.js, key-sources.js): the key row
 // under the dropdown ("Rainbow API key"; its summary "Key ••••1234 · ✓ works · ~2,976 of 5,000
 // calls a month", or a dimmed "No key"), the amber note while the key is missing, the dot on the
 // Setup tab (its Data sources card holds the row) and the Save dialog while it is missing or known
@@ -11,14 +11,14 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const schema = require('../src/pkjs/settings/schema.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-const keyStatus = require('../src/pkjs/settings/key-status.js');
-const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
+require('../src/pkjs/page/settings/blocks.js');
+const keyStatus = require('../src/pkjs/page/weather/keys/key-status.js');
+const { fingerprint } = require('../src/pkjs/weather/domain/keys/key-fingerprint.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 // Setup's Data sources card holds the Rain radar picker (a page-only select over radarEnabled
@@ -30,7 +30,7 @@ const radarKeyRow = radarSec.items.find((i) => i.type === 'sheet' && i.editSheet
 // The keyed sources of both pickers (key-sources.js): the Radar row's resolvers read the
 // radarProvider table by the row's messageKey, its key row's by args.picker; the Weather
 // provider row's the provider one.
-const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
+const KEY_SOURCES = require('../src/pkjs/page/weather/keys/key-sources.js');
 const SOURCE = KEY_SOURCES.radarProvider.sources.rainbowkey;
 const RBW_KEY = 'rbw-secret-0123wxyz';
 // Settings with the radar on "Rainbow (own key)".

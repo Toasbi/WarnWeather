@@ -13,19 +13,19 @@ global.localStorage = {
   removeItem(k) { delete pkjsStorage[k]; }
 };
 
-const { buildForecastSeries: buildSeriesValues, applyForecastSeries, needsUv, needsAqi, needsPollen } = require('../src/pkjs/forecast-series');
-const lineStyle = require('../src/pkjs/line-style');
+const { buildForecastSeries: buildSeriesValues, applyForecastSeries, needsUv, needsAqi, needsPollen } = require('../src/pkjs/weather/domain/forecast-series');
+const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 // The gates below judge slots and lines: nothing placed, so the default On demand ticks
 // (which place the UV and AQI alerts) do not answer for them.
 const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
 const bare = (s) => Object.assign({}, NOTHING_PLACED, s);
-const statusRebake = require('../src/pkjs/status-rebake.js');
-const phoneBattery = require('../src/pkjs/phone-battery.js');
+const statusRebake = require('../src/pkjs/status-bars/application/status-rebake.js');
+const phoneBattery = require('../src/pkjs/status-bars/adapter/phone-battery.js');
 
 // The graph's line COLOURS and its fill flag moved off the weather message onto the
 // Clay settings message, so buildForecastSeries returns the VALUES only now: the
-// styling lives in line-style.js and is packed by weather/graph-wire.js for the Clay
+// styling lives in line-style.js and is packed by forecast-graphs/domain/graph-wire.js for the Clay
 // send (clay-payload.js). The colour rules
 // themselves are unchanged, and the cases below are still their coverage — this
 // helper resolves them through the real resolver, from the same settings + watchInfo
@@ -141,7 +141,7 @@ test('achromatic lines go black on a light theme, and never match the rain bars'
   // as an invariant over every theme x bar-mode. (Not feels: it is allowed to share
   // LightGray with the lightest rain tier on dark — its job is to shadow the temp
   // curve, and a filled bar at the baseline never reads as a curve.)
-  const rainTier = require('../src/pkjs/weather/rain-tier.js');
+  const rainTier = require('../src/pkjs/weather/domain/rain-tier.js');
   ['dark', 'light'].forEach((theme) => ['white', 'multicolor'].forEach((bars) => {
     const barColors = rainTier.buildPalette('basalt', bars, theme).rgb;
     assert.equal(barColors.indexOf(line('gust', theme, bars)), -1,
@@ -157,7 +157,7 @@ test('a BLACK light-variant is honoured (0x000000 is falsy — presence, not tru
   // Regression: lineColorFor tested `entry.light && isLightPolarity(theme)`, so a
   // light variant of GColorBlack (0x000000) failed the guard and the metric silently
   // fell back to its DARK colour. feels-like is the first metric with a black one.
-  const { LINE_COLORS } = require('../src/pkjs/line-style.js');
+  const { LINE_COLORS } = require('../src/pkjs/forecast-graphs/domain/line-style.js');
   assert.equal(LINE_COLORS.feels.light, 0x000000, 'the fixture for this bug');
   assert.equal(buildForecastSeries(RAW,
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off', theme: 'light' },
@@ -524,7 +524,7 @@ test('a phone-battery event re-bakes from the stash after the payload has been p
   }
 });
 
-const { permilleToByte, tempTrendToBytes } = require('../src/pkjs/forecast-series');
+const { permilleToByte, tempTrendToBytes } = require('../src/pkjs/weather/domain/forecast-series');
 
 test('permilleToByte: 0/500/1000 permille → 0/125/250, clamped', () => {
   assert.equal(permilleToByte(0), 0);
@@ -584,7 +584,7 @@ test('buildForecastSeries: aplite + bw-light theme also stays white (bw-light fo
 // 1010-1020, Mid 1005-1025, Wide 995-1035) takes 70% of plot height; readings out
 // to 940/1060 compress into the shoulders instead of clamping. Always sea-level
 // (MSL) — station pressure falls ~12 hPa/100 m and would sit off-scale at altitude.
-const { PRESSURE_SCALE_CURVE_HPA } = require('../src/pkjs/forecast-series');
+const { PRESSURE_SCALE_CURVE_HPA } = require('../src/pkjs/weather/domain/forecast-series');
 
 test('secondary pressure: scaled against the mid band, orange line', () => {
   const out = buildForecastSeries(
@@ -717,8 +717,8 @@ test('applyForecastSeries deletes the transient PRESSURE_TREND', () => {
 // temp∪feels band (the plain lowest and highest value of the two), so both curves share
 // one scale and the vertical gap between them is real. The watch fits that scale so the
 // lowest and highest of the curves fill its margins (temp_axis_pad.h THE SCALE).
-const { needsFeels } = require('../src/pkjs/forecast-series');
-const { LINE_COLORS, FILL_COLORS } = require('../src/pkjs/line-style.js');
+const { needsFeels } = require('../src/pkjs/weather/domain/forecast-series');
+const { LINE_COLORS, FILL_COLORS } = require('../src/pkjs/forecast-graphs/domain/line-style.js');
 
 // °F temps 10/20/30, raw off getPayload; applyForecastSeries encodes them
 // against [10, 30] (temp-only) or the joint band (feels selected).
@@ -797,7 +797,7 @@ test('a stripe on either edge bakes the same temperature-axis bytes as none', ()
 // feels or dew curve, on every line slot. The intensity lines carry readings, so a stripe's
 // level bytes differ from a curve's exact values.
 test('a line-style edit that changes the bake changes the render signature', () => {
-  const { renderSignature } = require('../src/pkjs/render-signature.js');
+  const { renderSignature } = require('../src/pkjs/settings/domain/render-signature.js');
   const STYLES = ['line', 'bold', 'dots', 'x', 'stripeTop', 'stripeBottom'];
   const payload = () => feelsPayload({ FEELS_TREND: [15, 20, 38], DEW_TREND: [5, 8, 12],
     UV_TREND_UINT8: [10, 33, 77], CLOUD_TREND: [10, 33, 77], WIND_TREND_UINT8: [10, 33, 77] });
@@ -1004,7 +1004,7 @@ test('feels as the THIRD line does not disturb the secondary metric fill', () =>
 // that — a 0 % hour SHOULD have no dot. Band-scaled ones (pressure, feels, dew) must
 // never emit it: their minimum is a real reading. metricBytes() is the single gate;
 // these tests are what stop a future band-scaled metric from repeating the bug.
-const { isBandScaledMetric, BAND_SCALED_METRICS } = require('../src/pkjs/forecast-series');
+const { isBandScaledMetric, BAND_SCALED_METRICS } = require('../src/pkjs/weather/domain/forecast-series');
 
 test('BAND_SCALED_METRICS is the declared list and isBandScaledMetric agrees with it', () => {
   assert.deepEqual(BAND_SCALED_METRICS.slice().sort(), ['dew', 'feels', 'pressure']);
@@ -1074,7 +1074,7 @@ test('needsFeels: line selections and temp slot display modes', () => {
 // applyForecastSeries strips them. Pinned structurally (via a wrapped
 // buildStatusLines) so it holds regardless of which slot kinds are selected.
 test('FEELS_CURRENT/FEELS_TREND survive until buildStatusLines has run, then are deleted', () => {
-  const statusLines = require('../src/pkjs/status-lines.js');
+  const statusLines = require('../src/pkjs/status-bars/domain/status-lines.js');
   const orig = statusLines.buildStatusLines;
   let present;
   statusLines.buildStatusLines = function(payload) {
@@ -1101,7 +1101,7 @@ test('FEELS_CURRENT/FEELS_TREND survive until buildStatusLines has run, then are
 // differently: a missed delete silently inflates the bundle past the 536 B inbox,
 // while a delete that ran too early would bake an empty slot with no error anywhere.
 test('DEW_TREND/WIND_DIR_TREND survive until buildStatusLines has run, then are deleted', () => {
-  const statusLines = require('../src/pkjs/status-lines.js');
+  const statusLines = require('../src/pkjs/status-bars/domain/status-lines.js');
   const orig = statusLines.buildStatusLines;
   let present;
   statusLines.buildStatusLines = function(payload) {
@@ -1130,7 +1130,7 @@ test('DEW_TREND/WIND_DIR_TREND survive until buildStatusLines has run, then are 
 // bundles keys its categories name, so an unlisted key is dropped silently rather
 // than caught. Asserting both layers means neither can quietly become the wire.
 test('the outbox projection has no category for either transient', () => {
-  const outbox = require('../src/pkjs/outbox.js');
+  const outbox = require('../src/pkjs/wire/adapter/outbox.js');
   const wired = outbox.WEATHER_CATEGORIES.reduce(function(acc, category) {
     return acc.concat(category.keys);
   }, []);
@@ -1300,7 +1300,7 @@ test('dew never fills the area below its line', () => {
 // line shows it, so it must extend the fetch gates on its own — the user the alert
 // serves is exactly the one with no UV/AQI/pollen slot. A known aplite has no On demand.
 test('a placed alert makes UV, AQI and pollen fetch with no slot or line', () => {
-  const { dayPeakCodes } = require('../src/pkjs/forecast-series');
+  const { dayPeakCodes } = require('../src/pkjs/weather/domain/forecast-series');
   const none = bare({ secondaryLine: 'wind', thirdLine: 'off', statusRadarLeft: 'empty',
     statusTopLeft: 'empty' });
   const on = (codes, extra) => placeOn(Object.assign({}, none, extra), 'top', 'right', codes);
@@ -1359,7 +1359,7 @@ test('a 48-hour payload bakes 48-byte wire trends on every line, stripes and ale
 // On a KNOWN emery with forecastAxisScale on, TEMP_MIN/TEMP_MAX name the temperature scale's
 // ends: the air and every drawn feels-like / capped dew point value (forecast-axis.js
 // bakesScale, forecast-series.js tempScaleRange). The trend bytes never change.
-const { tempScaleRange } = require('../src/pkjs/forecast-series');
+const { tempScaleRange } = require('../src/pkjs/weather/domain/forecast-series');
 
 test('tempScaleRange: the ends over the air and the drawn series widened to whole degrees, missing readings skipped', () => {
   assert.deepEqual(tempScaleRange([10, 20, 30], []), { min: 10, max: 30 });

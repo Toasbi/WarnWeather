@@ -1,9 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
-const radarSky = require('../src/pkjs/weather/radar-sky.js');
-const stripeLevels = require('../src/pkjs/stripe-levels.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+const radarSky = require('../src/pkjs/weather/domain/radar/radar-sky.js');
+const stripeLevels = require('../src/pkjs/forecast-graphs/domain/stripe-levels.js');
 
 const Q = radarSky.SLOT_SECONDS;
 const SLOT0 = 1790200800 + 5 * 60;   // a 5-min radar slot, 5 min past a quarter hour
@@ -229,7 +229,7 @@ test('solarElevationDeg: SunCalc\'s altitude in degrees; no location is null', (
 });
 
 test('the fixture sky rows take the live path\'s level bytes, each row on its own scale', () => {
-  const { getFixtureRadarTuples } = require('../src/pkjs/fixture-weather.js');
+  const { getFixtureRadarTuples } = require('../src/pkjs/weather/adapter/fixture-weather.js');
   const cloudPct = [50, null, 120, 'x', 9.4, 9.5, 89.5, undefined];
   const sunPct = [-10, 29.4, 100, 0, 29.5, 59.5, NaN, 89.4];
   const tuples = getFixtureRadarTuples({ weather: {

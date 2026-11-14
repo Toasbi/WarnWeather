@@ -49,14 +49,14 @@ The build and codegen regenerate these files and silently overwrite manual edits
 |------|--------------|----------------|
 | `package.json` (gitignored build artifact, not committed) | `package.template.json` + `profiles/package.<profile>.json` | `mise build` / `mise prepare-package` (mustache, plus telemetry, rainbow-endpoint and release-notification injection from env/secrets) |
 | `src/pkjs/settings/page.generated.js` | config-UI source (`shell.html` / `blocks.js`) | `scripts/build-config-page.js` (runs in `mise build` and `mise test`) |
-| `src/pkjs/active-fixture.generated.js` | the fixture JSON in `fixtures/` (+ `FIXTURE` in `.env`) | `scripts/prepare-fixture.js` |
+| `src/pkjs/weather/adapter/active-fixture.generated.js` | the fixture JSON in `fixtures/` (+ `FIXTURE` in `.env`) | `scripts/prepare-fixture.js` |
 | `supabase/migrations/*` | declarative `supabase/schemas/` | `supabase db diff -f <label>` |
 | `resources/img/clock-<face>-<n>~*.png` (one per glyph; the `CLOCK_<FACE>_0..10` resources in `package.template.json`), `src/c/layers/clock_glyphs_{ink,metrics}.h` (committed) | `FACES` in `scripts/gen-clock-glyphs.py` | that script, run by hand (`pip install freetype-py pillow`); then the page copy below |
 | `scripts/clock-glyphs-system.json` (committed: the clock digits of the 1-bit system fonts: LECO, and the B/W watches' Roboto and Bitham) | nothing: read out of the SDK's emulator firmware | `python3 scripts/extract-system-clock-glyphs.py`, run by hand after an SDK update |
-| `src/pkjs/settings/clock-glyphs.generated.js` (committed: the settings page's watch preview draws its clock with it) | the glyph images and headers above, `scripts/clock-glyphs-system.json`, `src/c/layers/clock_ink.c` | `node scripts/gen-clock-glyphs-page.js`; `test/clock-glyphs-page.test.js` fails while it is stale |
+| `src/pkjs/page/layout/clock-glyphs.generated.js` (committed: the settings page's watch preview draws its clock with it) | the glyph images and headers above, `scripts/clock-glyphs-system.json`, `src/c/layers/clock_ink.c` | `node scripts/gen-clock-glyphs-page.js`; `test/clock-glyphs-page.test.js` fails while it is stale |
 | `resources/data/STATUS_COND_*.pdc` and `src/pkjs/settings/condition-glyphs.generated.js` (committed: the weather condition slot's glyphs, the pixel icon editor's starting point and the settings page's copy; the watch draws pixel drawings, not these) | `GLYPHS` in `scripts/gen-condition-glyphs.py` | that script, run by hand (`pip install svg.path`); `test/status-line-contract.test.js` checks each glyph has its drawing, its watch mapping and its page outline |
 | `scripts/text-fonts-system.json` (committed: every glyph of the six Gothic text fonts the watch draws its status bars, calendar and graph labels in) | nothing: read out of the SDK's emulator firmware | `python3 scripts/extract-system-text-fonts.py`, run by hand after an SDK update |
-| `src/pkjs/settings/watch-fonts.generated.js` (committed: the settings page's pictures of the watch draw their text in it, `watch-text.js`) | `scripts/text-fonts-system.json`, `scripts/gen-watch-fonts-page.js` | `node scripts/gen-watch-fonts-page.js`; `test/watch-fonts-page.test.js` fails while it is stale |
+| `src/pkjs/page/layout/watch-fonts.generated.js` (committed: the settings page's pictures of the watch draw their text in it, `watch-text.js`) | `scripts/text-fonts-system.json`, `scripts/gen-watch-fonts-page.js` | `node scripts/gen-watch-fonts-page.js`; `test/watch-fonts-page.test.js` fails while it is stale |
 | `resources/pixel-icons.json` (committed: the status icons' pixel drawings, per size, which icons are done, and the version picked for each size with its Redraw mark), `resources/icon-svg/<ICON>.svg` (committed: an SVG added to an icon in the picker) | the pixel icon editor and the icon picker (`scripts/pixel-icons/README.md`) | `python3 scripts/pixel-icons/import_pixels.py --export <file>` or `--db <dir>` (drawings), `--picks <dir>` or `--picks-export <file>` (picks and SVGs) |
 | `resources/data/PX_*.pdc` (each size in its picked version, and `PX_*_BW.pdc`, the pixel drawing for the black and white watches, where the pick is another version), their `PX_*` entries in `package.template.json`, `src/c/layers/status_pixel_icons.generated.h`, the `MASK_*` rows in `src/c/layers/status_row_aplite.c` (all committed: the drawings built into the watch, the only status icons it draws) and `src/pkjs/settings/condition-pixels.generated.js` (committed: the weather condition icons at 13 px, for the settings page's list of conditions) | `resources/pixel-icons.json` | `node scripts/pixel-icons/gen_watch_icons.js`; `test/pixel-icons.test.js` fails while they are stale, `test/c/status_icon_drawings_test.c` while a height a bar asks for has no drawing |
 
@@ -85,7 +85,7 @@ or in the build:
 Write watch-runtime PKJS as ES5: `var` and `function`, no arrow functions or template
 literals, and no ES6 built-ins. These are polyfilled and safe to call: `Object.assign`,
 `Math.trunc` and `Array.prototype.find`/`findIndex`/`includes`. They come from
-`src/pkjs/polyfills.js`, which `index.js` requires first. The settings page never loads
+`src/pkjs/lib/polyfills.js`, which `index.js` requires first. The settings page never loads
 that file, so the inline script in `src/pkjs/config-ui/lib/shell.html` carries the same set
 for the webview, and `test/config-page-polyfills.test.js` keeps the two in lockstep.
 `String.prototype.includes` is **not** polyfilled anywhere. To use another ES6 method, add a
@@ -99,7 +99,7 @@ README.md.
 
 ### Module conventions
 
-- localStorage key names live in `src/pkjs/storage-keys.js`. Add new keys there and
+- localStorage key names live in `src/pkjs/settings/adapter/storage-keys.js`. Add new keys there and
   reference the export instead of inlining string literals.
 - Send weather and settings through the outbox, never with `Pebble.sendAppMessage`
   directly. `outbox.sendWeather()` / `outbox.sendClay()` run the payload through
@@ -119,7 +119,7 @@ README.md.
     20 B entry cap). Aplite draws neither the fourth metric line nor the weather alerts and
     is never sent either payload.
   - Emery's inbox also holds the forecast span (six trends of up to 68 B;
-    `src/pkjs/forecast-span.js`) and bars 4 to 6 (New bar: `STATUS_LINE_5..7_UINT8`, one
+    `src/pkjs/weather/domain/forecast-span.js`) and bars 4 to 6 (New bar: `STATUS_LINE_5..7_UINT8`, one
     more status line per bar a screen shows, up to 51 B each). Its heaviest bundle holds the
     long span, the graph styles' seventh trend (the spare row,
     `SPARE_LINE_TREND_UINT8`, sent only while the screens' graphs draw five series between
@@ -144,7 +144,7 @@ README.md.
   - The rain-bar/radar palette and the forecast line styling (`CLAY_LINE_STYLE_UINT8`, 14 B:
     line colours, fill flag, the four night colours, the third- and fourth-metric line
     colours and the four per-line marker-style bytes) are on the Clay message:
-    `weather/graph-wire.js` packs both from the readings of `rain-tier.js`, `line-style.js`
+    `forecast-graphs/domain/graph-wire.js` packs both from the readings of `rain-tier.js`, `line-style.js`
     and `draw-from.js`, and `clay-payload.js` sends them with the other settings.
   - Colours pack as single `GColor8` argb bytes, not int32 hex. An array tuple costs 7 B + N
     and a scalar costs 7 B + 4, so packing several values into one array is the cheaper
@@ -184,7 +184,7 @@ README.md.
     (`scripts/lib/uses-permissions.js`).
   - Docs: https://developer.repebble.com/guides/plugins/preview/ (Declaring, Approval).
 - Add a new telemetry setting in two places, or it is silently dropped: the watch-side
-  snapshot in `src/pkjs/telemetry.js` and the Deno `.strip()` schema in
+  snapshot in `src/pkjs/telemetry/adapter/telemetry.js` and the Deno `.strip()` schema in
   `supabase/functions/telemetry-ingest/handler.ts`.
 - Put JSDoc (`@param`/`@returns`) on new JS functions; this project has no TypeScript.
 - Prefer `Boolean(value)` over `!!value`.
@@ -319,7 +319,7 @@ their PostgREST calls and the Rainbow calls (the proxy and the own-key direct ca
   `rainbow_prune` job (`supabase/schemas/rainbow.sql`) or in a job of its own, not in the
   nightly telemetry rollup, whose timeout would roll the prune back too.
 - Round coordinates to 3 decimals (~110 m) before they leave the phone for Rainbow
-  (`src/pkjs/weather/coords.js`). The proxy rounds them again.
+  (`src/pkjs/weather/domain/coords.js`). The proxy rounds them again.
 - Function logs carry a fixed tag plus at most a machine code (Postgres SQLSTATE,
   PostgREST code, HTTP status), and only through the function's `log.ts` `logEvent()`.
   Never log an error object, message, detail, hint or request data. Thrown errors get

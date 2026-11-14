@@ -10,9 +10,9 @@ global.localStorage = {
   removeItem: function() {}
 };
 
-const { buildClayPayload } = require('../src/pkjs/clay-payload');
-const thresholds = require('../src/pkjs/status-thresholds');
-const wire = require('../src/pkjs/status-wire');
+const { buildClayPayload } = require('../src/pkjs/settings/domain/clay-payload');
+const thresholds = require('../src/pkjs/alerts/domain/status-thresholds');
+const wire = require('../src/pkjs/alerts/domain/status-wire');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const BASE = {
@@ -187,7 +187,7 @@ test("a goal kind's blank warn color ('') survives the settings save round-trip"
   // to storage; '' must come out as '' (hexToInt('') is NaN, which JSON would turn
   // into null — the old bug), so what the watch is told cannot change on save.
   const configUi = require('../src/pkjs/config-ui');
-  const schema = require('../src/pkjs/settings/schema.js');
+  const schema = require('../src/pkjs/page/settings/schema.js');
   const inst = configUi.createConfig({ schema, page: '' });
   const fromPage = { threshSleepWarn: '360', threshSleepDanger: '480', threshSleepWarnColor: '' };
   const stored = JSON.parse(JSON.stringify(
@@ -204,7 +204,7 @@ test("a goal kind's legacy null warn color is AUTO at pack time — the off stat
   // hexToInt('') = NaN, which JSON persisted as null. Since the warn look, the
   // colour no longer carries on/off: null, '' and absent all pack as the auto goal
   // green, and "no box" is threshSleepWarnLook 'none' — which the one-time
-  // migration (migrations/v1_24.js migrateWarnLook) wrote for exactly those blobs.
+  // migration (settings/domain/migrations/v1_24.js migrateWarnLook) wrote for exactly those blobs.
   const pair = { threshSleepWarn: '360', threshSleepDanger: '480' };
   const nul = Object.assign({}, BASE, pair, { threshSleepWarnColor: null });
   const blank = Object.assign({}, BASE, pair, { threshSleepWarnColor: '' });

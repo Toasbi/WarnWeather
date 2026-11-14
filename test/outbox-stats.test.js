@@ -24,10 +24,10 @@ global.Pebble = {
   }
 };
 
-const outbox = require('../src/pkjs/outbox');
+const outbox = require('../src/pkjs/wire/adapter/outbox');
 // Same module instance outbox required (Node module cache).
-const devStats = require('../src/pkjs/dev-stats');
-const KEYS = require('../src/pkjs/storage-keys');
+const devStats = require('../src/pkjs/telemetry/adapter/dev-stats');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys');
 
 devStats.setEnabled(true);
 

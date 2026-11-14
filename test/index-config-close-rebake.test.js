@@ -15,15 +15,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { HARNESS_NOW, bootIndex, healthyNetwork, isWeatherMessage } = require('./helpers/index-harness.js');
-const KEYS = require('../src/pkjs/storage-keys.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 const HOUR = 3600;
 const FETCHING = /^Fetching from /;
 const FETCHED = /Successfully fetched weather/;
 // The UV kind's wire id (its index in status-thresholds' KINDS) and a danger
 // entry's header byte: the header bit | kind | the danger bit, today's, no value text.
-const TH = require('../src/pkjs/status-thresholds.js');
-const WIRE = require('../src/pkjs/status-wire.js');
+const TH = require('../src/pkjs/alerts/domain/status-thresholds.js');
+const WIRE = require('../src/pkjs/alerts/domain/status-wire.js');
 const UV_KIND = 7;
 const UV_DANGER_ENTRY = WIRE.ALERT_HEADER | UV_KIND | WIRE.ALERT_DANGER;
 

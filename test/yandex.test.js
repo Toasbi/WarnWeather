@@ -1,8 +1,8 @@
 // test/yandex.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const yandex = require('../src/pkjs/weather/yandex.js');
-const { PEAK_HOURS } = require('../src/pkjs/weather/hourly-window.js');
+const yandex = require('../src/pkjs/weather/adapter/providers/yandex.js');
+const { PEAK_HOURS } = require('../src/pkjs/weather/domain/hourly-window.js');
 const mapResponse = yandex.mapResponse;
 
 // BASE is hour-aligned: 1718841600 / 3600 === 477456 exactly.
@@ -63,7 +63,7 @@ test('mapResponse flattens days, anchors at the current hour, returns 24-length 
 
 test('mapResponse emits only the mapped vocabulary (WeatherProvider.MAPPED_KEYS), core keys included', () => {
   const mapped = mapResponse(sampleResponse(), BASE + 600);
-  const keys = require('../src/pkjs/weather/provider.js').MAPPED_KEYS;
+  const keys = require('../src/pkjs/weather/application/provider.js').MAPPED_KEYS;
   Object.keys(mapped).forEach((k) => assert.ok(keys.all.indexOf(k) !== -1, 'not a mapped key: ' + k));
   keys.core.forEach((k) => assert.ok(Object.prototype.hasOwnProperty.call(mapped, k), 'core key missing: ' + k));
 });
@@ -129,7 +129,7 @@ test('mapResponse names no condition when now names none', () => {
   });
 });
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 const YandexProvider = yandex.YandexProvider;
 
 test('YandexProvider has the expected identity and inherits the base class', () => {

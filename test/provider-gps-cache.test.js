@@ -1,7 +1,7 @@
 // test/provider-gps-cache.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 
 test('computeGpsMaxAgeMs: max(cache, interval) minutes in ms', () => {
   assert.equal(WeatherProvider.computeGpsMaxAgeMs('5', '15'), 15 * 60000);
@@ -171,7 +171,7 @@ test('withGpsCoordinates reports failure when native GPS errors and no cache exi
 });
 
 test('gpsFailure reads the phone\'s message first, the W3C code only without one', () => {
-  var gpsFailure = require('../src/pkjs/weather/location.js').gpsFailure;
+  var gpsFailure = require('../src/pkjs/weather/adapter/location.js').gpsFailure;
   var reason = function (code, message) { return gpsFailure({ code: code, message: message }).reason; };
   // The Core Devices app reports every location error as code 1: its message decides,
   // and only a message that says so reads as refused.
@@ -196,7 +196,7 @@ test('gpsFailure reads the phone\'s message first, the W3C code only without one
 // 30 minutes. fetch() clears the AUTH backoff when force is set but historically
 // left this one armed, so a user-initiated refresh (Force toggle, provider
 // change, key change) was silently skipped for up to half an hour.
-const storageKeys = require('../src/pkjs/storage-keys.js');
+const storageKeys = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 test('clearGeocodeBackoff drops an armed backoff so a forced fetch can proceed', () => {
   const map = {};

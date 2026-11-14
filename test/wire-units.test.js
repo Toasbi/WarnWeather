@@ -1,9 +1,9 @@
 // test/wire-units.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { clampByte, mphToKmh, MPH_TO_KMH, zeroFilledArray } = require('../src/pkjs/wire-units');
+const { clampByte, mphToKmh, MPH_TO_KMH, zeroFilledArray } = require('../src/pkjs/wire/domain/wire-units');
 // The UV slot's reader, in the (trend, peaks, mode) shape these tests grew up on.
-const uvShown = (trend, peaks, mode) => require('../src/pkjs/wire-units.js')
+const uvShown = (trend, peaks, mode) => require('../src/pkjs/wire/domain/wire-units.js')
   .dayMaxShown('uv', { UV_TREND_UINT8: trend, UV_DAY_PEAKS: peaks }, { uvSlotDisplay: mode });
 
 test('clampByte rounds then clamps to 0..255', () => {
@@ -125,13 +125,13 @@ test('uvShown: a falling value at any level gives way to tomorrow\'s peak', () =
   assert.deepEqual(uvShown([70], [70, 80, 80], 'max'), S(null, 8, true), 'a lone "»8"');
   assert.deepEqual(uvShown([70], [70, 50, 80], 'both'), S(7, 5, true), '"7/»5": a milder tomorrow too');
   // A fourth argument (the retired warn level) changes nothing.
-  assert.deepEqual(require('../src/pkjs/wire-units.js').dayMaxShown('uv',
+  assert.deepEqual(require('../src/pkjs/wire/domain/wire-units.js').dayMaxShown('uv',
     { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [70, 80, 80] }, { uvSlotDisplay: 'max' }, 6),
   S(null, 8, true));
 });
 
 test('dayMaxShown: null for a code that is no day-max kind', () => {
-  const wu = require('../src/pkjs/wire-units.js');
+  const wu = require('../src/pkjs/wire/domain/wire-units.js');
   const payload = { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [70, 80, 80], POLLEN_TODAY: '3',
     TEMP_TREND_UINT8: [200], CURRENT_TEMP: 20 };
   ['pollen', 'temp', 'steps', 'city', 'constructor', 'toString', '', undefined, null].forEach((code) =>
@@ -151,7 +151,7 @@ test('uvShown: no peak ahead known falls back to the current reading alone', () 
 // dayMaxToday: what a weather alert judges — the highest number left TODAY incl. now,
 // in the slot's own rounding and unit, whatever the slot's display mode.
 test('dayMaxToday: today\'s remaining peak through the kind\'s reader, never below now', () => {
-  const wu = require('../src/pkjs/wire-units.js');
+  const wu = require('../src/pkjs/wire/domain/wire-units.js');
   // UV tenths -> whole UV; the slot mode does not matter.
   assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [84, 90, 0] }, {}), 8);
   assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [85, 90, 0] },
@@ -171,7 +171,7 @@ test('dayMaxToday: today\'s remaining peak through the kind\'s reader, never bel
 });
 
 test('dayMaxToday: the current reading without today\'s peak, whatever the slot shows', () => {
-  const wu = require('../src/pkjs/wire-units.js');
+  const wu = require('../src/pkjs/wire/domain/wire-units.js');
   assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [20] }, {}), 2, 'no peaks fetched');
   assert.equal(wu.dayMaxToday('aqi', { AQI_TREND: [120.4] }, {}), 120, 'WAQI: current only');
   // Today unknown while a Day max slot would show tomorrow's »5: the reading.
@@ -189,7 +189,7 @@ test('dayMaxToday: the current reading without today\'s peak, whatever the slot 
 // dayMaxTomorrow: what an alert that looks ahead judges — tomorrow's peak alone,
 // rounded like the slot's "»8", and only when it is known and above 0.
 test('dayMaxTomorrow: tomorrow\'s peak through the kind\'s reader, never the reading', () => {
-  const wu = require('../src/pkjs/wire-units.js');
+  const wu = require('../src/pkjs/wire/domain/wire-units.js');
   assert.equal(wu.dayMaxTomorrow('uv', { UV_TREND_UINT8: [90], UV_DAY_PEAKS: [90, 84, 0] }, {}), 8);
   assert.equal(wu.dayMaxTomorrow('uv', { UV_DAY_PEAKS: [null, 85, 0] }, {}), 9, 'rounds like the slot');
   assert.equal(wu.dayMaxTomorrow('wind', { WIND_TREND_UINT8: [10], WIND_DAY_PEAKS: [20, 70, 0] },
@@ -210,7 +210,7 @@ test('dayMaxTomorrow: tomorrow\'s peak through the kind\'s reader, never the rea
 });
 
 test('dayMaxTomorrow is the tomorrow the slot rolls to: one reading for slot and alert', () => {
-  const wu = require('../src/pkjs/wire-units.js');
+  const wu = require('../src/pkjs/wire/domain/wire-units.js');
   // Today's peak behind us (nothing left above the current 1), so the Day max
   // slot rolls to tomorrow whenever there is one to show.
   [[84, 8], [5, 1], [4, null], [0, null], [null, null]].forEach(([next, want]) => {

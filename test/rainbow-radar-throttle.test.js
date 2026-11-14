@@ -33,7 +33,7 @@ global.localStorage = {
 
 // Mock the shared XHR BEFORE the radar modules load (they capture it). A proxy
 // request is a POST to the endpoint itself, the position in its body.
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 var transport;
 var proxyRequests = 0;
 var proxyBodies = [];
@@ -44,11 +44,11 @@ WeatherProvider.request = function(url, type, onSuccess, onError, headers, body)
   }
   transport(url, onSuccess, onError);
 };
-const createFetchCycle = require('../src/pkjs/fetch-cycle.js');
-const outbox = require('../src/pkjs/outbox.js');
-const authBackoff = require('../src/pkjs/auth-backoff.js');
-const notices = require('../src/pkjs/notices.js');
-const KEYS = require('../src/pkjs/storage-keys.js');
+const createFetchCycle = require('../src/pkjs/shell/fetch-cycle.js');
+const outbox = require('../src/pkjs/wire/adapter/outbox.js');
+const authBackoff = require('../src/pkjs/weather/application/auth-backoff.js');
+const notices = require('../src/pkjs/notices/application/notices.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 const ENDPOINT = 'https://proxy.example/rainbow-nowcast';
 const SLOT = 300;

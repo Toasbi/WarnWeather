@@ -16,8 +16,8 @@ global.localStorage = (function () {
   };
 }());
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
-const outbox = require('../src/pkjs/outbox.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+const outbox = require('../src/pkjs/wire/adapter/outbox.js');
 
 const TROMSO = { lat: 69.65, lon: 18.96 };
 

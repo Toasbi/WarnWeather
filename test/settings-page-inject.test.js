@@ -23,7 +23,7 @@ const HOSTILE = 'a</script><img src=x onerror=alert(1)><!--<script>' + LS + PS +
 function devicePage(values, userData) {
   global.Pebble = { platform: 'basalt' };  // not pypkjs -> the real device data: branch
   try {
-    const settings = require('../src/pkjs/settings/index.js');
+    const settings = require('../src/pkjs/page/settings/index.js');
     const url = settings.generateUrl({ values: values, watchInfo: { platform: 'basalt' },
       env: { phoneBattery: false }, userData: userData });
     const prefix = 'data:text/html;charset=utf-8,';
@@ -63,7 +63,7 @@ test('escaped injection round-trips every value exactly', () => {
   const plain = (v) => JSON.parse(JSON.stringify(v));  // drop the vm realm's prototypes
   assert.deepEqual(plain(ctx.INJECTED_USERDATA), userData);
   assert.equal(ctx.INJECTED_RETURN, 'pebblejs://close#');
-  assert.deepEqual(plain(ctx.INJECTED_SCHEMA), plain(require('../src/pkjs/settings/schema.js')));
+  assert.deepEqual(plain(ctx.INJECTED_SCHEMA), plain(require('../src/pkjs/page/settings/schema.js')));
 });
 
 test('dev preview page escapes its injected JSON the same way', () => {

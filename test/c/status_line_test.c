@@ -246,7 +246,7 @@ static void slot_tests(void) {
 //
 // The arrow on a wind/gust slot rides as ONE trailing byte inside the slot's
 // already-paid-for text bytes (0x01 + sector, 16 compass points of 22.5 deg;
-// src/pkjs/status-lines.js bakes it, src/c/layers/status_row.c strips and draws
+// src/pkjs/status-bars/domain/status-lines.js bakes it, src/c/layers/status_row.c strips and draws
 // it). These pin the two halves the phone and the watch have to agree on: that
 // the byte is wire-legal with NO validator change, and that the watch reads back
 // exactly the sector the phone encoded.

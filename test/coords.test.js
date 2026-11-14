@@ -1,10 +1,10 @@
-// test/coords.test.js — src/pkjs/weather/coords.js, the coordinate rounding for the Rainbow
+// test/coords.test.js — src/pkjs/weather/domain/coords.js, the coordinate rounding for the Rainbow
 // requests. The case table is shared with the rainbow-nowcast proxy's Deno test
 // (supabase/functions/rainbow-nowcast/body_test.ts): the two sides must round alike, or an old
 // app's GET and a new app's POST from the same fix land in different cache rows.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const coords = require('../src/pkjs/weather/coords.js');
+const coords = require('../src/pkjs/weather/domain/coords.js');
 const table = require('../supabase/functions/rainbow-nowcast/coord-rounding-cases.json');
 
 test('roundCoord matches the proxy\'s table (Math.round half-points, -0 as 0)', () => {

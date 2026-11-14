@@ -1,7 +1,7 @@
 // test/holiday-data.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { COUNTRY_OPTIONS, REGION_OPTIONS } = require('../src/pkjs/settings/holiday-data.js');
+const { COUNTRY_OPTIONS, REGION_OPTIONS } = require('../src/pkjs/page/calendar/holiday-data.js');
 
 test('country options: None first, Germany second, Sweden present, no duplicate values', () => {
   assert.deepEqual(COUNTRY_OPTIONS[0], ['None', 'none']);

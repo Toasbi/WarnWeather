@@ -1,5 +1,5 @@
 // test/watch-fonts-page.test.js — the settings page's copy of the watch's text fonts
-// (src/pkjs/settings/watch-fonts.generated.js, from scripts/gen-watch-fonts-page.js): the six
+// (src/pkjs/page/layout/watch-fonts.generated.js, from scripts/gen-watch-fonts-page.js): the six
 // Gothic fonts of the firmware (scripts/text-fonts-system.json) as web fonts, each glyph its
 // firmware bitmap, and their advances for watch-text.js.
 const test = require('node:test');
@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const zlib = require('zlib');
 const gen = require('../scripts/gen-watch-fonts-page.js');
-const WF = require('../src/pkjs/settings/watch-fonts.generated.js');
+const WF = require('../src/pkjs/page/layout/watch-fonts.generated.js');
 
 const SRC = JSON.parse(fs.readFileSync(gen.SRC, 'utf8'));
 const NAMES = ['GOTHIC_14', 'GOTHIC_14_BOLD', 'GOTHIC_18', 'GOTHIC_18_BOLD', 'GOTHIC_24', 'GOTHIC_24_BOLD'];

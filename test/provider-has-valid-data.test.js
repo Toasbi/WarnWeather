@@ -1,7 +1,7 @@
 // test/provider-has-valid-data.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 
 function makeProvider(over) {
   const p = new WeatherProvider();
@@ -177,7 +177,7 @@ test('getPayload emits sourced feelsTrend as whole °F, trimmed to numEntries', 
   assert.equal('FEELS_CURRENT' in out, false, 'current is independent of the trend');
 });
 
-// The weather condition now (weather/condition.js) follows the feels keys' rule:
+// The weather condition now (weather/domain/condition.js) follows the feels keys' rule:
 // a transient key, present only when the provider named a condition.
 test('getPayload omits CURRENT_CONDITION when the provider named no condition', () => {
   assert.equal('CURRENT_CONDITION' in pressureProvider().getPayload(), false, 'the constructor default');

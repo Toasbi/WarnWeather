@@ -1,7 +1,7 @@
 // test/release-notifications.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const rn = require('../src/pkjs/release-notifications');
+const rn = require('../src/pkjs/notices/domain/release-notifications');
 
 test('parseSemver tolerates prefixes and pre-release/build metadata', () => {
   assert.deepEqual(rn.parseSemver('v1.25.3-beta+build'), [1, 25, 3]);

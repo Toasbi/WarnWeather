@@ -12,10 +12,10 @@ var build = require('../src/pkjs/config-ui/scripts/build-page.js');
 
 var ROOT = path.join(__dirname, '..');
 var platformLib = require(path.join(ROOT, 'src/pkjs/config-ui/lib/platform.js'));
-var schema = require(path.join(ROOT, 'src/pkjs/settings/schema.js'));
-var previewPalette = require(path.join(ROOT, 'src/pkjs/settings/preview-palette.js'));
-var notices = require(path.join(ROOT, 'src/pkjs/notices.js'));
-var gpsFailure = require(path.join(ROOT, 'src/pkjs/weather/location.js')).gpsFailure;
+var schema = require(path.join(ROOT, 'src/pkjs/page/settings/schema.js'));
+var previewPalette = require(path.join(ROOT, 'src/pkjs/theme/domain/preview-palette.js'));
+var notices = require(path.join(ROOT, 'src/pkjs/notices/application/notices.js'));
+var gpsFailure = require(path.join(ROOT, 'src/pkjs/weather/adapter/location.js')).gpsFailure;
 // The bundle IS the build's bundle: same files, same order. It used to be a
 // second copy of the list, which is exactly how the preview came to load the
 // Weather tab's stylesheet before the module whose settle curve it bakes in.

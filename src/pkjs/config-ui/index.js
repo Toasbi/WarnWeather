@@ -2,7 +2,7 @@
 var color    = require('./lib/color.js');     // intToHex, hexToInt, PALETTE
 var platform = require('./lib/platform.js');  // isColorPlatform, computeEnv
 var defaults = require('./lib/defaults.js');  // deriveDefaults(schema), deriveColorKeys(schema)
-require('../polyfills.js');                    // Object.assign / Array.find on aplite
+require('../lib/polyfills.js');                    // Object.assign / Array.find on aplite
 
 /**
  * JSON for splicing into the page's only inline <script>. Plain JSON.stringify

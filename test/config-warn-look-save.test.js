@@ -10,8 +10,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const thresholds = require('../src/pkjs/status-thresholds.js');
-const wire = require('../src/pkjs/status-wire.js');
+const thresholds = require('../src/pkjs/alerts/domain/status-thresholds.js');
+const wire = require('../src/pkjs/alerts/domain/status-wire.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const { installFakeStorage, COLORS } = require('./helpers/clay-harness.js');
 
@@ -26,9 +26,9 @@ const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
  */
 function storeOnPhone(saved) {
   installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
-  const settings = require('../src/pkjs/settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
+  const settings = require('../src/pkjs/page/settings');
   claySettings.seedDefaults(COLORS);
   claySettings.save(claySettings.fillFromPreserved(
     settings.parseResponse(encodeURIComponent(JSON.stringify(saved)))));

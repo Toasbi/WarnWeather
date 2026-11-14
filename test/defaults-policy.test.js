@@ -1,5 +1,5 @@
 'use strict';
-// test/defaults-policy.test.js — the conditional-defaults table (settings/defaults-policy.js)
+// test/defaults-policy.test.js — the conditional-defaults table (page/settings/defaults-policy.js)
 // and its resolver. Node-only (ES6 allowed here; the module under test is ES5).
 //
 // Two jobs:
@@ -10,11 +10,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const policy = require('../src/pkjs/settings/defaults-policy.js');
-const schema = require('../src/pkjs/settings/schema.js');
+const policy = require('../src/pkjs/page/settings/defaults-policy.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 const eachItem = require('../src/pkjs/config-ui/lib/schema-walk.js').eachItem;
-const catalog = require('../src/pkjs/status-line-catalog.js');
-const contract = require('../src/pkjs/status-thresholds.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
+const contract = require('../src/pkjs/alerts/domain/status-thresholds.js');
 
 // --- fixtures --------------------------------------------------------------
 

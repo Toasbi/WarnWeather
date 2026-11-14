@@ -1,10 +1,10 @@
 'use strict';
-// The frame every screen picture sits in (src/pkjs/settings/screen-frame.js): the Watchface
+// The frame every screen picture sits in (src/pkjs/page/layout/screen-frame.js): the Watchface
 // tab's views and pictures (preview-watch.js) and the setup wizard's screens and forecast graph
 // (wizard.js, wizard-forecast.js) all draw through it.
 const test = require('node:test');
 const assert = require('node:assert');
-const frame = require('../src/pkjs/settings/screen-frame.js');
+const frame = require('../src/pkjs/page/layout/screen-frame.js');
 
 test('the margin is about 6 % of the drawing\'s width: 9 on the 144 px screens, 12 on emery\'s 200', () => {
   assert.equal(frame.margin(144), 9);

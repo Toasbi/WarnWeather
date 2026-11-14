@@ -63,7 +63,7 @@ var NO_ON_DEMAND_PLATFORMS = { aplite: true };
 // Platforms whose firmware reports the battery charge in 5 % steps: emery (Pebble
 // Time 2). Every other watch reports 10 % steps, where an "at or below 15 %" warn level
 // would act like 10, so the On demand Battery item's warn level steps by 5 on emery and
-// by 10 elsewhere (src/pkjs/on-demand.js batteryLevel rounds a stored 5/15/25 up there).
+// by 10 elsewhere (src/pkjs/status-bars/domain/on-demand.js batteryLevel rounds a stored 5/15/25 up there).
 // Unknown platforms read the 10 % steps (conservative, the colorBacklight precedent: a
 // wrong guess then fires at most one 5 % step early on an emery, never late elsewhere).
 var FINE_BATTERY_PLATFORMS = { emery: true };
@@ -76,14 +76,14 @@ var FINE_BATTERY_PLATFORMS = { emery: true };
 // the colorBacklight precedent: never send more hours to a watch that may drop the message).
 var FORECAST_SPAN_PLATFORMS = { emery: true };
 // Platforms whose screens each draw their own graph style (Graphs > Forecast > Your graphs;
-// src/pkjs/graph-styles.js): emery (Pebble Time 2) only. Keep in lockstep with the C
+// src/pkjs/forecast-graphs/domain/graph-styles.js): emery (Pebble Time 2) only. Keep in lockstep with the C
 // `#if defined(PBL_PLATFORM_EMERY)` arms that read the style records (src/c/appendix/
 // graph_style.h). Every other watch keeps one graph look and is never sent a record. Unknown
 // platforms have one style (fail closed, as FORECAST_SPAN_PLATFORMS: the records would cost
 // an aplite's 536 B inbox bytes it does not have).
 var GRAPH_STYLE_PLATFORMS = { emery: true };
 // Platforms with bars 4 to 6, three status bars beside the first three (Status bars > New status bar;
-// src/pkjs/view-cycle.js EXTRA_BARS): emery (Pebble Time 2) only. Keep in lockstep with the C
+// src/pkjs/layout/domain/view-cycle.js EXTRA_BARS): emery (Pebble Time 2) only. Keep in lockstep with the C
 // `#if defined(PBL_PLATFORM_EMERY)` arms of src/c/appendix/status_line.h and
 // src/c/layers/status_bar.h, which give the watch the three more lines and layers. Every
 // other watch keeps three and is never sent their lines. Unknown platforms have three (fail

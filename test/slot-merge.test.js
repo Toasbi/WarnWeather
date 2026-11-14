@@ -20,11 +20,11 @@ global.localStorage = {
   removeItem(k) { delete store[k]; }
 };
 
-const pair = require('../src/pkjs/status-pair.js');
-const statusLines = require('../src/pkjs/status-lines.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
-const wire = require('../src/pkjs/status-wire.js');
-const { renderSignature } = require('../src/pkjs/render-signature.js');
+const pair = require('../src/pkjs/status-bars/domain/status-pair.js');
+const statusLines = require('../src/pkjs/status-bars/domain/status-lines.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
+const wire = require('../src/pkjs/alerts/domain/status-wire.js');
+const { renderSignature } = require('../src/pkjs/settings/domain/render-signature.js');
 const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
 
 // --- the text: status-pair.js mergeAlert -------------------------------------------
@@ -218,7 +218,7 @@ test('a watch the entries do not ride to bakes its slots exactly as before', () 
 // showing the metric of an alert on its side bakes byte for byte what it bakes with no
 // alert at all; on aplite every slot does.
 test('slots without such a pair bake byte for byte as with no alert at all', () => {
-  const OD = require('../src/pkjs/on-demand.js');
+  const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
   const platform = require('../src/pkjs/config-ui/lib/platform.js');
   const codes = ['empty', 'temp', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'city', 'dew', 'pressure'];
   const alerts = ['gust', 'uv', 'aqi', 'pollen', 'wind'];

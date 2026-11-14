@@ -17,7 +17,7 @@ const NAGER = 'https://date.nager.at/api/v3/PublicHolidays/';
  * @returns {void}
  */
 function seedSettings(h, changes) {
-  const cs = h.mod('clay-settings.js');
+  const cs = h.mod('settings/adapter/clay-settings.js');
   cs.seedDefaults(COLORS);
   cs.save(Object.assign(cs.read(), changes));
 }
@@ -44,10 +44,10 @@ test('the prefetch keeps the previous year the 3-row calendar top row still show
   assert.notEqual(h.store.holidays_DE_2028, undefined,
     'the prefetch pruned 2028 while the calendar top row still shows 25-31 Dec 2028');
   // Every later Clay send builds the mask from this cache.
-  const cs = h.mod('clay-settings.js');
-  const payload = h.mod('clay-payload.js').buildClayPayload(cs.read(), h.watchInfo);
+  const cs = h.mod('settings/adapter/clay-settings.js');
+  const payload = h.mod('settings/domain/clay-payload.js').buildClayPayload(cs.read(), h.watchInfo);
   const win = decodeHolidays(payload.HOLIDAYS);
-  const serial = h.mod('holidays/serial-day.js');
+  const serial = h.mod('calendar/domain/serial-day.js');
   assert.equal(win.anchor, serial(2028, 12, 25), 'the window anchors on the previous week');
   assert.equal(win.mask & 0x83, 0x83, 'Christmas, Boxing Day and New Year stay highlighted');
 });
@@ -78,7 +78,7 @@ test('a NACKed holiday-data resend is retried on the next minute tick', (t) => {
     holidayRegion: 'all', holidaysEnabled: true });
   h.store.holidays_DE_2026 = JSON.stringify({ f: h.now(), h: [['12-25', null], ['12-26', null]] });
   h.boot().ready({});
-  const serial = h.mod('holidays/serial-day.js');
+  const serial = h.mod('calendar/domain/serial-day.js');
   const bitOf = (m, d) => (m >>> (serial(2026, 12, d) - serial(2026, 11, 30))) & 1;
 
   h.closeSettings({ holidayCountry: 'AT' });

@@ -1,6 +1,6 @@
 // Host tests for graph_style.h (emery's graph style records): which records are whole, the
 // hours a style draws of the hours sent, the trend each line reads (the spare trend among
-// them) and whether it draws rain bars. The record layout is in lockstep with src/pkjs/weather/graph-style-wire.js packRecord
+// them) and whether it draws rain bars. The record layout is in lockstep with src/pkjs/forecast-graphs/domain/graph-style-wire.js packRecord
 // (test/graph-style-wire.test.js pins the same offsets).
 // Build & run via scripts/test-c.sh (-DPBL_PLATFORM_EMERY).
 #include <stdio.h>

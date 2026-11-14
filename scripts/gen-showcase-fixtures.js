@@ -35,9 +35,9 @@ const BASE_PATH = path.join('fixtures', 'berlin.json');
  * @returns {Object} claySettings with the theme and the flipped colours.
  */
 function withTheme(clay, newTheme) {
-  const claySettings = require('../src/pkjs/clay-settings.js');
-  const pebbleColors = require('../src/pkjs/pebble-colors.js');
-  const themeFlip = require('../src/pkjs/theme-flip.js');
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings.js');
+  const pebbleColors = require('../src/pkjs/theme/domain/pebble-colors.js');
+  const themeFlip = require('../src/pkjs/theme/domain/theme-flip.js');
   const defaults = claySettings.getDefaults({ white: pebbleColors.GColorWhite,
     folly: pebbleColors.GColorFolly, holiday: pebbleColors.GColorBlueMoon });
   const S = { ...defaults, ...clay };

@@ -105,7 +105,7 @@ Supabase from their handlers; the architecture test lists them.
 
 Expected failures are values: a provider that answers with an error, a refused
 API key, no location, an out-of-coverage radar. Asynchronous code reports them through its
-failure callback as a `{stage, code}` value (`weather/http.js` `failure`); synchronous code
+failure callback as a `{stage, code}` value (`weather/adapter/http.js` `failure`); synchronous code
 returns `null` or a failure value. A thrown exception means a bug or a broken runtime, and
 nothing catches one to steer normal flow. Edge functions answer expected failures with a status
 code and a JSON error body, and catch everything else as `unhandled`.
@@ -116,7 +116,7 @@ Input is checked once, where it enters:
 
 | Input | Checked in |
 | --- | --- |
-| Weather and radar API responses | the provider's adapter, which maps them into one model (`weather/provider.js` `adoptMapped`) |
+| Weather and radar API responses | the provider's adapter, which maps them into one model (`weather/application/provider.js` `adoptMapped`) |
 | Stored settings | the settings read and its migrations |
 | The settings page's return | the settings context, as it stores them |
 | AppMessage tuples | the watch's wire readers (`appendix/status_line.c`, `config_wire.c`, …) |

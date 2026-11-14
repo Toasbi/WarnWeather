@@ -9,8 +9,8 @@ test('seedDefaults writes defaults when none stored', () => {
   // being the first require of the module in the process (the other tests below
   // already do this) — otherwise a shared-process test run that loaded
   // clay-settings earlier hands back a stale module bound to another store.
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
   assert.equal(read.provider, 'wunderground');
@@ -19,8 +19,8 @@ test('seedDefaults writes defaults when none stored', () => {
 
 test('seedDefaults backfills missing keys without clobbering set ones', () => {
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   store['clay-settings'] = JSON.stringify({ provider: 'dwd' });
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
@@ -41,8 +41,8 @@ const CHANGED = CHANGED_222.concat(CHANGED_260, CHANGED_SPAN);
 
 test('a fresh install seeds the 2.2.0 defaults: vibrate on, wind and gusts on Both without a unit', () => {
   installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
   assert.strictEqual(read.vibe, true);
@@ -56,8 +56,8 @@ test('a fresh install seeds the 2.2.0 defaults: vibrate on, wind and gusts on Bo
 
 test('an existing install missing a changed key backfills its old look, not the new default', () => {
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   // A blob from before the keys existed (or one a hand edit thinned out).
   store['clay-settings'] = JSON.stringify({ provider: 'dwd' });
   claySettings.seedDefaults(COLORS);
@@ -74,10 +74,10 @@ test('an existing install missing a changed key backfills its old look, not the 
 
 test('a fresh install starts on the Default screen alone, the rain alert on, and 2.6\'s Clean graph', () => {
   installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
-  const VC = require('../src/pkjs/view-cycle.js');
-  const M = require('../src/pkjs/screens.js');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
+  const VC = require('../src/pkjs/layout/domain/view-cycle.js');
+  const M = require('../src/pkjs/layout/domain/screens.js');
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
   assert.deepEqual([read.radarMode, read.healthMode, read.thirdLine, read.forecastAxisNumbers],
@@ -93,9 +93,9 @@ test('a fresh install starts on the Default screen alone, the rain alert on, and
 
 test('an existing install that lacks the 2.6 keys keeps its three screens and its graph', () => {
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
-  const VC = require('../src/pkjs/view-cycle.js');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
+  const VC = require('../src/pkjs/layout/domain/view-cycle.js');
   store['clay-settings'] = JSON.stringify({ provider: 'dwd' });
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
@@ -109,8 +109,8 @@ test('an existing install that lacks the 2.6 keys keeps its three screens and it
 
 test('an existing install that stores the changed keys keeps them either way', () => {
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   const stored = { vibe: true, windSlotDisplay: 'max', gustSlotDisplay: 'both', windSlotUnit: false,
     gustSlotUnit: true, radarMode: 'status', healthMode: 'slot', thirdLine: 'wind', forecastAxisNumbers: 'off',
     forecastHours: '12' };
@@ -121,10 +121,10 @@ test('an existing install that stores the changed keys keeps them either way', (
 });
 
 test('the backfilled legacy values are what a blob without the keys already renders', () => {
-  const slotText = require('../src/pkjs/slot-text.js');
-  const wireUnits = require('../src/pkjs/wire-units.js');
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  const slotText = require('../src/pkjs/status-bars/domain/slot-text.js');
+  const wireUnits = require('../src/pkjs/wire/domain/wire-units.js');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   const legacy = claySettings.upgradeBackfill();
   assert.strictEqual(legacy.windSlotUnit, slotText.unitEnabled({}, 'windSlotUnit'));
   assert.strictEqual(legacy.gustSlotUnit, slotText.unitEnabled({}, 'gustSlotUnit'));
@@ -141,8 +141,8 @@ test('seedDefaults only backfills: a stored On demand list keeps its ticks, what
   // The boot pass rewrites no stored value; a key no schema row has stays until the
   // page's next Save, which writes schema keys only.
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   store['clay-settings'] = JSON.stringify({
     provider: 'dwd',
     statusTopOnDemandRight: 'off', statusTopOnDemandRightItems: 'battery,rain,uv'
@@ -159,9 +159,9 @@ test('an existing Custom layout gains the size/Position keys at boot and still c
   // hidden items, and the compiled wire words keep an all-zero high half — the watch
   // sees nothing change until the user edits the layout.
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
-  const vc = require('../src/pkjs/view-cycle.js');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
+  const vc = require('../src/pkjs/layout/domain/view-cycle.js');
   store['clay-settings'] = JSON.stringify({
     layoutPreset: 'custom', customLayoutSeeded: true, healthMode: 'off', radarMode: 'graph',
     viewCount: '2',
@@ -182,16 +182,16 @@ test('an existing Custom layout gains the size/Position keys at boot and still c
 
 test('save round-trips through read', () => {
   installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   claySettings.save({ provider: 'openweathermap', location: 'Berlin' });
   assert.deepEqual(claySettings.read(), { provider: 'openweathermap', location: 'Berlin' });
 });
 
 test('seedDefaults backfills sleep keys into existing installs that lack them', () => {
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   // Simulate a pre-upgrade install: user had custom provider+font but no sleep keys.
   store['clay-settings'] = JSON.stringify({ provider: 'dwd', timeFont: 'bitham' });
   claySettings.seedDefaults(COLORS);
@@ -207,8 +207,8 @@ test('seedDefaults backfills sleep keys into existing installs that lack them', 
 
 test('shouldReset triggers when the Reset toggle is exactly true', () => {
   installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
 
   assert.equal(claySettings.shouldReset({ reset: true }), true);
   assert.equal(claySettings.shouldReset({ reset: false }), false);
@@ -218,8 +218,8 @@ test('shouldReset triggers when the Reset toggle is exactly true', () => {
 
 test('resetAll wipes the settings blob and every cache key for a fresh start', () => {
   installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
 
   localStorage.setItem('clay-settings', JSON.stringify({ provider: 'dwd' }));
   localStorage.setItem('newsCache', '{"items":[]}');
@@ -236,8 +236,8 @@ test('resetAll refuses to wipe without the reset-safe marker list', () => {
   // A caller that forgot the list would leave those migrations unmarked, and the
   // next boot would re-run them over what the page saved after the reset.
   installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   localStorage.setItem('clay-settings', JSON.stringify({ provider: 'dwd' }));
 
   assert.throws(() => claySettings.resetAll(), /reset-safe migration markers/);
@@ -252,8 +252,8 @@ test('after a reset the defaults are available WITHOUT repopulating storage', ()
   // after the wipe, so reset looked right on the phone and silently reverted on
   // the watch.
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ timeFont: 'bitham', reset: true });
   claySettings.resetAll([]);
@@ -270,8 +270,8 @@ test('reset keeps the credentials the user typed, and nothing else', () => {
   // one they may have paid for or waited on activation for -- is a different and
   // far more annoying reset than the one they asked for.
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
 
   store['clay-settings'] = JSON.stringify({
     owmApiKey: 'owm-secret', yandexApiKey: 'ya-secret', tomorrowioApiKey: 'tio-secret',
@@ -306,8 +306,8 @@ test('reset keeps the credentials the user typed, and nothing else', () => {
 
 test('reset parks nothing when the user had no keys', () => {
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   store['clay-settings'] = JSON.stringify({ timeFont: 'bitham', owmApiKey: '' });
   assert.deepEqual(claySettings.resetAll([]), {});
   assert.equal(store['preservedApiKeys'], undefined, 'no empty parking slot left behind');
@@ -315,8 +315,8 @@ test('reset parks nothing when the user had no keys', () => {
 
 test('a malformed parking slot is discarded rather than throwing', () => {
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   store['preservedApiKeys'] = '{not json';
   claySettings.seedDefaults(COLORS);
   assert.ok(claySettings.read().provider, 'seeding still completes');
@@ -329,8 +329,8 @@ test('a key entered AFTER the reset is never clobbered by the parked one', () =>
   // invisible: the settings page's Test button passed against the newly typed key,
   // then the next boot restored the old one underneath and every fetch was rejected.
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ tomorrowioApiKey: 'OLD-KEY', owmApiKey: 'OLD-OWM' });
   claySettings.resetAll([]);
@@ -349,8 +349,8 @@ test('a key entered AFTER the reset is never clobbered by the parked one', () =>
 
 test('an empty string does not count as a value worth keeping', () => {
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   store['clay-settings'] = JSON.stringify({ owmApiKey: 'KEEP-ME' });
   claySettings.resetAll([]);
   // A blob whose field exists but is blank (the schema default) is still a gap.
@@ -366,8 +366,8 @@ test('a second reset in one session must not destroy the keys the first one park
   // in the blob to park and used to localStorage.clear() the parking slot away,
   // permanently, while the toggle's hint promises "Your API keys are kept."
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ owmApiKey: 'owm-secret', tomorrowioApiKey: 'tio-secret' });
   claySettings.resetAll([]);
@@ -387,8 +387,8 @@ test('a second reset in one session must not destroy the keys the first one park
 
 test('a key typed between two resets wins over its parked predecessor', () => {
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ owmApiKey: 'OLD-OWM', tomorrowioApiKey: 'OLD-TIO' });
   claySettings.resetAll([]);
@@ -406,8 +406,8 @@ test('fillFromPreserved fills empty key fields from the parked slot, never overw
   // did not retype (the page hydrated from an absent blob), and persisting that ''
   // would leave fetches running against an empty key until the next PKJS boot.
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ owmApiKey: 'owm-secret', yandexApiKey: 'ya-secret' });
   claySettings.resetAll([]);
@@ -426,8 +426,8 @@ test('fillFromPreserved fills empty key fields from the parked slot, never overw
 
 test('a deliberate key clear after the post-reset save sticks', () => {
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ owmApiKey: 'owm-secret' });
   claySettings.resetAll([]);
@@ -444,8 +444,8 @@ test('a deliberate key clear after the post-reset save sticks', () => {
 
 test('a non-object parking slot is discarded, not laundered into junk keys', () => {
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   // JSON-valid but not an object — only external corruption produces this; a
   // for-in over it would iterate string indices into {"0":"s","1":"n",...}.
   store['preservedApiKeys'] = JSON.stringify('sneaky-string');
@@ -462,8 +462,8 @@ test('a non-object parking slot is discarded, not laundered into junk keys', () 
 test('reset keeps the Rainbow (own key) radar key, and a post-reset save fills it back', () => {
   // The radar key is a credential like the forecast keys: someone signed up for it.
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
 
   store['clay-settings'] = JSON.stringify({ rainbowApiKey: 'rbw-secret', radarProvider: 'rainbowkey', timeFont: 'bitham' });
   const kept = claySettings.resetAll([]);
@@ -487,8 +487,8 @@ test('reset keeps the Rainbow (own key) radar key, and a post-reset save fills i
 
 test('fillFromPreserved is a pass-through when nothing is parked', () => {
   installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   const blob = { provider: 'dwd', owmApiKey: '' };
   assert.equal(claySettings.fillFromPreserved(blob), blob);
   assert.equal(blob.owmApiKey, '');
@@ -499,8 +499,8 @@ test('the restore is whitelist-only: a foreign key in the parking slot never lan
   // corruption or tampering — it must not ride the restore into the blob (the
   // old for-in restore would have folded it over the fresh defaults).
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   store['preservedApiKeys'] = JSON.stringify({ owmApiKey: 'KEEP-ME', provider: 'evil' });
   claySettings.seedDefaults(COLORS);
   const blob = claySettings.read();
@@ -514,8 +514,8 @@ test('the boot restore discards a non-object parking slot too, not laundered int
   // boot restore would fold {"0":"s","1":"n",...} into the fresh blob — junk keys
   // that then persist and ride every future save.
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   store['preservedApiKeys'] = JSON.stringify('sneaky-string');
   claySettings.seedDefaults(COLORS);
   const blob = claySettings.read();
@@ -528,8 +528,8 @@ test('boot-only dev-config keys never persist into the settings blob', () => {
   // and devPhoneBattery) leaked into the persisted blob, where they stayed even
   // after being deleted from dev-config.js. Pin every known boot-only key.
   const store = installFakeStorage();
-  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
-  const claySettings = require('../src/pkjs/clay-settings');
+  delete require.cache[require.resolve('../src/pkjs/settings/adapter/clay-settings')];
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings');
   claySettings.seedDefaults(COLORS);
   claySettings.applyDevConfig({
     clearPkjsStorageOnBoot: true,

@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 // Packed status-line contract, shared with the phone.
-// LOCKSTEP: src/pkjs/status-line-catalog.js mirrors every enum value and cap
+// LOCKSTEP: src/pkjs/status-bars/domain/status-line-catalog.js mirrors every enum value and cap
 // below; test/status-line-contract.test.js greps this header to enforce it.
 // Deliberately no <pebble.h> so the module host-compiles (scripts/test-c.sh).
 
@@ -91,7 +91,7 @@ typedef enum {
                                 // arriving as SLOT_TEXT + STATUS_ICON_NONE, falling
                                 // through to THRESH_CITY and silently driving
                                 // City's Bold row (status_threshold.h)
-    // The weather condition slot (src/pkjs/weather/condition.js): phone-baked SLOT_TEXT
+    // The weather condition slot (src/pkjs/weather/domain/condition.js): phone-baked SLOT_TEXT
     // whose icon is the condition's glyph, picked per bake like the phone-battery pair.
     // COND_TEXT is its text-only look: no glyph may load, and like PRESSURE above the id
     // keeps it from arriving as TEXT + NONE. Its text may carry a short form after

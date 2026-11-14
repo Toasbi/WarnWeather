@@ -11,7 +11,7 @@ global.localStorage = {
   clear: function () { store = {}; }
 };
 
-var notices = require('../src/pkjs/notices.js');
+var notices = require('../src/pkjs/notices/application/notices.js');
 
 test('add + list + dedupe by key preserves first since', function () {
   global.localStorage.clear();
@@ -214,8 +214,8 @@ test('noticeForFailure: a provider with no data for the place raises the coverag
   assert.strictEqual(notices.noticeForFailure({ stage: 'forward_geocode', code: 'status_404', noCoverage: true }, 'DWD', 1, 2),
     null, 'and only in the provider\'s own stage');
 
-  var providerFactory = require('../src/pkjs/provider-factory.js');
-  var utf8 = require('../src/pkjs/utf8.js');
+  var providerFactory = require('../src/pkjs/weather/application/provider-factory.js');
+  var utf8 = require('../src/pkjs/lib/utf8.js');
   providerFactory.PROVIDER_IDS.forEach(function (id) {
     var p = providerFactory.createProvider(id, {});
     var named = notices.noticeForFailure({ stage: 'provider_data', code: id + '_status_404', noCoverage: true },
@@ -243,8 +243,8 @@ test('applyFailure: the coverage notice\'s line goes on the watch from the secon
 });
 
 test('noticeForFailure: the neutral notice\'s watch line fits the watch for every provider, the panel keeps the full name', function () {
-  var providerFactory = require('../src/pkjs/provider-factory.js');
-  var utf8 = require('../src/pkjs/utf8.js');
+  var providerFactory = require('../src/pkjs/weather/application/provider-factory.js');
+  var utf8 = require('../src/pkjs/lib/utf8.js');
   assert.ok(providerFactory.PROVIDER_IDS.length >= 7, 'every registered provider');
   providerFactory.PROVIDER_IDS.forEach(function (id) {
     var p = providerFactory.createProvider(id, {});

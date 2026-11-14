@@ -1,5 +1,5 @@
 // test/config-page-polyfills.test.js — the settings page never loads
-// src/pkjs/polyfills.js (it is a flat concatenated <script>, not a webpack
+// src/pkjs/lib/polyfills.js (it is a flat concatenated <script>, not a webpack
 // bundle), yet AGENTS.md and the config-ui README call that file's methods safe
 // in page code too. lib/shell.html's inline script, which runs before every lib
 // and app file, has to carry the same set. Each case boots that script in a vm
@@ -14,7 +14,7 @@ const { inlineScripts } = require('./helpers/es5-lint.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const SHELL = fs.readFileSync(path.join(ROOT, 'src', 'pkjs', 'config-ui', 'lib', 'shell.html'), 'utf8');
-const POLYFILLS = fs.readFileSync(path.join(ROOT, 'src', 'pkjs', 'polyfills.js'), 'utf8');
+const POLYFILLS = fs.readFileSync(path.join(ROOT, 'src', 'pkjs', 'lib', 'polyfills.js'), 'utf8');
 
 /**
  * Every method polyfills.js installs, read off its `if (!X.y)` guards.

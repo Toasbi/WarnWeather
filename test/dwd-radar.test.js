@@ -9,15 +9,15 @@ global.localStorage = {
   setItem: (k, v) => { store[k] = String(v); },
   removeItem: (k) => { delete store[k]; }
 };
-const KEYS = require('../src/pkjs/storage-keys.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 // dwd-radar.js reaches the network through radar-fetch.js, which resolves
 // WeatherProvider.request at call time — stubbing it on the provider module
 // works at any point before a fetch runs (same pattern as rainbow-radar.test.js).
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 let responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, type, onSuccess, onError); };
-const radar = require('../src/pkjs/weather/dwd-radar.js');
+const radar = require('../src/pkjs/weather/adapter/radar/dwd-radar.js');
 
 const SLOT0 = 1700000100;   // 5-min aligned (1700000100 % 300 === 0)
 const N = 24;

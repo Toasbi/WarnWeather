@@ -14,8 +14,8 @@
 // away: a diff there is a behaviour change on real installs. Change a scenario only
 // together with a deliberate, reviewed golden update.
 'use strict';
-const KEYS = require('../../src/pkjs/storage-keys');
-const REGISTRY = require('../../src/pkjs/migrations/registry.js');
+const KEYS = require('../../src/pkjs/settings/adapter/storage-keys');
+const REGISTRY = require('../../src/pkjs/settings/domain/migrations/registry.js');
 
 const COLORS = { white: 0xFFFFFF, folly: 0xFF0055, holiday: 0x0055FF };
 

@@ -1,14 +1,14 @@
 'use strict';
-// test/status-pair.test.js — the two-value slots' presentation (src/pkjs/status-pair.js):
+// test/status-pair.test.js — the two-value slots' presentation (src/pkjs/status-bars/domain/status-pair.js):
 // Temperature 'both' (actual / feels-like) and UV 'both' (now / the peak ahead), plus the
 // UV next-day mark in 'max' mode. Node-only (ES6 allowed here; the module is ES5).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const pair = require('../src/pkjs/status-pair.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
-const wire = require('../src/pkjs/status-wire.js');
-const utf8 = require('../src/pkjs/utf8.js');
+const pair = require('../src/pkjs/status-bars/domain/status-pair.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
+const wire = require('../src/pkjs/alerts/domain/status-wire.js');
+const utf8 = require('../src/pkjs/lib/utf8.js');
 
 const EDGE = catalog.CAPS.EDGE_TEXT_MAX;   // 8
 const MID = catalog.CAPS.MID_TEXT_MAX;     // 19

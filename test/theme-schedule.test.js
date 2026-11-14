@@ -5,7 +5,7 @@
 // scratch-copy settings substitution sendClaySettings builds wire payloads from.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const themeSchedule = require('../src/pkjs/theme-schedule.js');
+const themeSchedule = require('../src/pkjs/theme/domain/theme-schedule.js');
 
 // A local-noon reference day; manual-mode tests derive hours from it.
 const at = (h, m) => new Date(2026, 8, 20, h, m || 0, 0);
@@ -195,7 +195,7 @@ test('effectiveSettings: a dark<->bw night pair flips the theme without converti
 test('effectiveSettings at night converts the STORED (int) colours; the blob is untouched', () => {
   global.localStorage = global.localStorage
     || { getItem: function () { return null; }, setItem: function () {}, removeItem: function () {} };
-  const settings = require('../src/pkjs/settings');
+  const settings = require('../src/pkjs/page/settings');
   const blob = settings.parseResponse(encodeURIComponent(JSON.stringify({
     themeAuto: true, theme: 'light', themeNight: 'dark',
     colorTime: '#000000', colorToday: '#000000', colorSunday: '#FF0055',

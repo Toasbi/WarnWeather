@@ -11,16 +11,16 @@ global.localStorage = {
   removeItem: (k) => { delete store[k]; }
 };
 
-const wireUnits = require('../src/pkjs/wire-units.js');
-const statusLines = require('../src/pkjs/status-lines.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
+const wireUnits = require('../src/pkjs/wire/domain/wire-units.js');
+const statusLines = require('../src/pkjs/status-bars/domain/status-lines.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
 const { packedLevel, judged } = require('./helpers/weather-levels.js');
-const http = require('../src/pkjs/weather/http.js');
-const aq = require('../src/pkjs/weather/air-quality.js');
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
-const dayPeaks = require('../src/pkjs/weather/day-peaks.js');
-const KEYS = require('../src/pkjs/storage-keys.js');
+const http = require('../src/pkjs/weather/adapter/http.js');
+const aq = require('../src/pkjs/weather/adapter/air-quality.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
+const dayPeaks = require('../src/pkjs/weather/domain/day-peaks.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 const RAQUO = '»';
 
@@ -238,7 +238,7 @@ test('each day-max metric keeps its own record, keyed by its own feed', () => {
 
 test('only the day-max kinds a slot shows keep a record and widen their requests', () => {
   Object.keys(store).forEach((k) => delete store[k]);
-  const forecastSeries = require('../src/pkjs/forecast-series.js');
+  const forecastSeries = require('../src/pkjs/weather/domain/forecast-series.js');
   // Nothing placed as an alert: a placed day-max alert keeps its record too (the
   // default ticks place gust, UV, AQI and wind), which this test is not about.
   const s = Object.assign({ statusForecastLeft: 'wind', statusForecastMid: 'uv', statusForecastRight: 'aqi',
@@ -357,7 +357,7 @@ test('the unit gives way to the direction arrow on an edge slot', () => {
 });
 
 test('the dew line never draws above the air temperature', () => {
-  const fs = require('../src/pkjs/forecast-series.js');
+  const fs = require('../src/pkjs/weather/domain/forecast-series.js');
   const out = fs.applyForecastSeries({
     TEMP_RAW_TREND: [49, 48, 47, 46], TEMP_MIN: 46, TEMP_MAX: 49,
     PRECIP_TREND_UINT8: [0, 0, 0, 0], RAIN_TREND_UINT8: [0, 0, 0, 0],

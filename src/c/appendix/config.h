@@ -202,7 +202,7 @@ static inline bool config_large_graph_font(void) {
 // bits 1 and 4, their retired options (a dev build's "Axis line" off and "Number outline"
 // off), are reserved -- never sent, never read -- and the other bits keep their places, so a
 // dev watch's stored Config reads right. Bits 6-7 are reserved (sent 0). Lockstep with
-// src/pkjs/forecast-axis.js BIT / AXIS_MASK, pinned by test/forecast-axis.test.js.
+// src/pkjs/forecast-graphs/domain/forecast-axis.js BIT / AXIS_MASK, pinned by test/forecast-axis.test.js.
 #define GRAPH_OPT_LARGE_FONT    0x01
 #define GRAPH_OPT_NUMS_MASK     0x0C   // the hi/lo numbers' code
 #define GRAPH_OPT_NUMS_GRAPH    0x04   // ...on the graph, under / over the points they name

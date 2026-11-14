@@ -7,12 +7,12 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const schema = require('../src/pkjs/settings/schema.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
+require('../src/pkjs/page/settings/blocks.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 const PC = global.PConf;
@@ -25,7 +25,7 @@ const keyRow = card.items[card.items.indexOf(providerRow) + 2];
 const sheetById = (id) => setup.sections.find((s) => s.sheetOnly && s.sheetId === id);
 // The Weather provider picker's keyed sources (key-sources.js), which the picker's key-status
 // resolver reads by its messageKey, and the note's and the key row's by args.picker.
-const SOURCES = require('../src/pkjs/settings/key-sources.js').provider.sources;
+const SOURCES = require('../src/pkjs/page/weather/keys/key-sources.js').provider.sources;
 
 // Provider value -> [sheetId, sheet title, the sheet's rows (messageKey order)].
 const KEYED = {

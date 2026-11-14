@@ -18,10 +18,10 @@ const assert = require('node:assert/strict');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-const schema = require('../src/pkjs/settings/schema.js');
+require('../src/pkjs/page/settings/blocks.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
-const statusPair = require('../src/pkjs/status-pair.js');
+const statusPair = require('../src/pkjs/status-bars/domain/status-pair.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 const PC = global.PConf;

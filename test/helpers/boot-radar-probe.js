@@ -45,7 +45,7 @@ pkg.rainbow = { endpoint: 'https://proxy.example/functions/v1/rainbow-nowcast' }
 var radarRequests = 0;
 var skyRequests = 0;
 var skyBeforeRadarAnswer = null;
-var WeatherProvider = require(path.join(ROOT, 'src/pkjs/weather/provider.js'));
+var WeatherProvider = require(path.join(ROOT, 'src/pkjs/weather/application/provider.js'));
 WeatherProvider.request = function (url, type, onSuccess) {
     if (url.indexOf('rainbow-nowcast') !== -1 || url.indexOf('api.rainbow.ai') !== -1) {
         radarRequests += 1;
@@ -124,7 +124,7 @@ try {
     var devConfigPath = require.resolve(path.join(ROOT, 'src/pkjs/dev-config.js'));
     require.cache[devConfigPath] = { id: devConfigPath, filename: devConfigPath, loaded: true, exports: {} };
 } catch (e) { /* absent */ }
-var fixturePath = require.resolve(path.join(ROOT, 'src/pkjs/active-fixture.generated.js'));
+var fixturePath = require.resolve(path.join(ROOT, 'src/pkjs/weather/adapter/active-fixture.generated.js'));
 require.cache[fixturePath] = { id: fixturePath, filename: fixturePath, loaded: true, exports: null };
 
 // index.js logs heavily; keep stdout for the one result line.

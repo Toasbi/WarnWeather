@@ -4,11 +4,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
-const openmeteo = require('../src/pkjs/weather/openmeteo.js');
+const openmeteo = require('../src/pkjs/weather/adapter/providers/openmeteo.js');
 const OpenMeteoProvider = openmeteo.OpenMeteoProvider || openmeteo;
 
 const HOUR = 3600;

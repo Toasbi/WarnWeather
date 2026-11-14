@@ -4,8 +4,8 @@
 // test/day-max-slots.test.js, which both pin what the highlight judges.
 'use strict';
 const assert = require('node:assert/strict');
-const th = require('../../src/pkjs/status-thresholds.js');
-const wire = require('../../src/pkjs/status-wire.js');
+const th = require('../../src/pkjs/alerts/domain/status-thresholds.js');
+const wire = require('../../src/pkjs/alerts/domain/status-wire.js');
 
 /**
  * One weather kind's 2-bit level off packWeatherLevels' wire bytes: kinds 0..3 at

@@ -1,5 +1,5 @@
 'use strict';
-// The On demand contract between the phone (src/pkjs/on-demand.js) and the watch: the
+// The On demand contract between the phone (src/pkjs/status-bars/domain/on-demand.js) and the watch: the
 // item order (on_demand.h OdItem), the side values (OdSide), the bar order (ThreshBar)
 // and the compiled defaults the watch reads until a 48-B blob arrives
 // (status_threshold.c OD_DEFAULT_TOP), plus the platform fact that hides the settings
@@ -9,7 +9,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const OD = require('../src/pkjs/on-demand.js');
+const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { cEnum } = require('./helpers/c-source.js');
 

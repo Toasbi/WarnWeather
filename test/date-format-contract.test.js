@@ -18,7 +18,7 @@ const path = require('node:path');
 // Any one-sided reorder, append, or reworded sample fails here instead of
 // silently rendering a format the UI never promised.
 
-const dateFormat = require('../src/pkjs/date-format.js');
+const dateFormat = require('../src/pkjs/calendar/domain/date-format.js');
 
 const header = fs.readFileSync(
   path.join(__dirname, '..', 'src', 'c', 'appendix', 'date_format.h'), 'utf8');
@@ -57,12 +57,12 @@ for (const m of cTest.matchAll(/expect_str\("([^"]+)", buf, "([^"]+)"\)/g)) {
 
 // UI side: the schema's month options and the blocks resolver's full-date
 // options, loaded the way config-schema.test.js loads them.
-const schema = require('../src/pkjs/settings/schema.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
+require('../src/pkjs/page/settings/blocks.js');
 
 function findItem(key) {
   let found = null;
@@ -106,7 +106,7 @@ test('the resolver order agrees with effectiveHolidayCountry (the wire\'s Auto r
     setItem: function () {},
     removeItem: function () {}
   };
-  const { effectiveHolidayCountry } = require('../src/pkjs/clay-payload.js');
+  const { effectiveHolidayCountry } = require('../src/pkjs/settings/domain/clay-payload.js');
   const resolver = global.PConf.optionsResolvers.get('dateFullFormatOptions');
   [{ holidayCountry: 'US' }, { holidayCountry: 'DE' }, { holidayCountry: 'GB' }, {}]
     .forEach((S) => {

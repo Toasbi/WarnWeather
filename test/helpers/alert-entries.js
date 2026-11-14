@@ -7,8 +7,8 @@
 // are the phone's, which test/alert-entries-contract.test.js pins to the C header.
 'use strict';
 const assert = require('node:assert');
-const th = require('../../src/pkjs/status-thresholds.js');
-const wire = require('../../src/pkjs/status-wire.js');
+const th = require('../../src/pkjs/alerts/domain/status-thresholds.js');
+const wire = require('../../src/pkjs/alerts/domain/status-wire.js');
 
 /**
  * Decode an ALERT_ENTRIES_UINT8 byte array. Asserts the tuple is well formed the

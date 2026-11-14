@@ -30,7 +30,7 @@ of its own for the span. On emery the graph styles' records (a wire byte and per
 
 ### What the phone sends
 
-- 14, 24 or 68 hours, on emery only (`src/pkjs/forecast-span.js` `hours()`):
+- 14, 24 or 68 hours, on emery only (`src/pkjs/weather/domain/forecast-span.js` `hours()`):
   - 12 h sends 14: its 12 columns, the partial 13th and the 14th hour's vertex past the edge.
   - 24 h sends 24, or 26 = ceil(200 / 8) + 1 when the hi/lo numbers sit On graph or Off, so
     the 8 px grid reaches the edge of the screen-wide plot.
@@ -134,7 +134,7 @@ of its own for the span. On emery the graph styles' records (a wire byte and per
 
 ### The long option names the hours it shows
 
-- The label follows the provider and the layout (`src/pkjs/forecast-span-hours.js`, the
+- The label follows the provider and the layout (`src/pkjs/weather/domain/forecast-span-hours.js`, the
   settings page's `forecastSpanOptions` resolver). The long option names the whole hours the
   watch will show for the picked provider's feed on the plot the layout leaves.
   - The feed: OpenWeatherMap 48 hours, Weather Underground 49, every other adapter the full 68.

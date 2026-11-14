@@ -27,8 +27,8 @@ const OLDER_MARKERS = ['WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY', 'HOLIDAY_WHITE_TO_
  * @returns {Object} storage-keys.
  */
 function seedLightUpgrade(h) {
-  const KEYS = h.mod('storage-keys.js');
-  const cs = h.mod('clay-settings.js');
+  const KEYS = h.mod('settings/adapter/storage-keys.js');
+  const cs = h.mod('settings/adapter/clay-settings.js');
   cs.seedDefaults(COLORS);
   OLDER_MARKERS.forEach((name) => { h.store[KEYS[name]] = '1'; });
   cs.save(Object.assign(cs.read(), { theme: 'light', rainBarColor: 'multicolor',
@@ -111,7 +111,7 @@ test('Reset watchface marks the reset-safe migrations done in the wiped store', 
   t.after(h.restore);
   h.quietNetwork();
   const KEYS = seedLightUpgrade(h);
-  const resetSafe = h.mod('clay-migrations.js').RESET_SAFE_MARKERS;
+  const resetSafe = h.mod('settings/application/clay-migrations.js').RESET_SAFE_MARKERS;
 
   h.policy = () => 'ack';
   h.boot().ready({});
@@ -146,7 +146,7 @@ test('a migration boot with Theme switching on sends ONE Clay message, not two',
   const h = installIndexRuntime({ now: new Date(2026, 8, 23, 12, 0, 0).getTime() });
   t.after(h.restore);
   h.quietNetwork();
-  const cs = h.mod('clay-settings.js');
+  const cs = h.mod('settings/adapter/clay-settings.js');
   cs.seedDefaults(COLORS);
   cs.save(Object.assign(cs.read(), { themeAuto: true, themeAutoMode: 'manual',
     themeAutoStartHour: '20', themeAutoEndHour: '7', holidayCountry: 'none' }));

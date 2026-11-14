@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const ChangeDetector = require('../src/pkjs/change-detector');
+const ChangeDetector = require('../src/pkjs/wire/adapter/change-detector');
 
 function withLocalStorage(map) {
   global.localStorage = {

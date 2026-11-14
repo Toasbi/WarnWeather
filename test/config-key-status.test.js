@@ -1,5 +1,5 @@
 // test/config-key-status.test.js — the key status of a keyed weather provider (OpenWeatherMap,
-// Tomorrow.io, Yandex Weather; settings/key-status.js): the key row under the Weather
+// Tomorrow.io, Yandex Weather; page/weather/keys/key-status.js): the key row under the Weather
 // provider row (Setup › Data sources: "<Name> API key", its summary "Key ••••1234 · ✓ works"
 // or a dimmed "No key"), the amber note while the key is missing, the dot on the tab and the
 // Save dialog while it is missing or known to be rejected. The states come from the Test
@@ -9,14 +9,14 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const schema = require('../src/pkjs/settings/schema.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-const keyStatus = require('../src/pkjs/settings/key-status.js');
-const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
+require('../src/pkjs/page/settings/blocks.js');
+const keyStatus = require('../src/pkjs/page/weather/keys/key-status.js');
+const { fingerprint } = require('../src/pkjs/weather/domain/keys/key-fingerprint.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 const PC = global.PConf;
@@ -28,7 +28,7 @@ const noteItem = card.items[card.items.indexOf(providerRow) + 1];
 const keyRowItem = card.items[card.items.indexOf(providerRow) + 2];
 // The Weather provider picker's table (key-sources.js), which every key-status resolver reads:
 // the picker's by its messageKey, the note's and the key row's by args.picker.
-const TABLE = require('../src/pkjs/settings/key-sources.js').provider;
+const TABLE = require('../src/pkjs/page/weather/keys/key-sources.js').provider;
 const KEYED = TABLE.sources;
 const NOTE_ARGS = noteItem.textFrom.args;
 const OWM_KEY = 'owm-secret-0123abcd';

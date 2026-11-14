@@ -1,7 +1,7 @@
 // test/sun-events.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { pickNext24hSunEvents } = require('../src/pkjs/weather/sun-events');
+const { pickNext24hSunEvents } = require('../src/pkjs/weather/domain/sun-events');
 
 test('keeps only future events and caps at two', () => {
   const now = new Date('2026-06-19T12:00:00Z');
@@ -30,7 +30,7 @@ test('returns fewer than two when only one is future', () => {
 // nextSunEvents: always a pair the watch can use, including at polar latitudes.
 // ---------------------------------------------------------------------------
 const SunCalc = require('suncalc');
-const sunEvents = require('../src/pkjs/weather/sun-events');
+const sunEvents = require('../src/pkjs/weather/domain/sun-events');
 
 const DAY_S = 86400;
 const SUNRISE_ALT = -0.833 * Math.PI / 180;
@@ -432,8 +432,8 @@ test('the twin\'s night rule is the pair repeated over many days, past hour 24 a
 // both hand the fetch's span to nextSunEvents, so a long fetch at a polar latitude gets the
 // six- or seven-day pair. Without it the watch finds only the night [M, M + 2 d] and leaves the
 // long chart's last hours unshaded in polar night.
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
 
 test('WeatherProvider#withSunEvents passes the fetch\'s span to the polar pair', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-12-15T18:00:00Z') });

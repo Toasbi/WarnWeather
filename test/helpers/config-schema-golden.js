@@ -21,13 +21,13 @@
 const fs = require('fs');
 const path = require('path');
 
-const schema = require('../../src/pkjs/settings/schema.js');
+const schema = require('../../src/pkjs/page/settings/schema.js');
 const platform = require('../../src/pkjs/config-ui/lib/platform.js');
 const { eachItem } = require('../../src/pkjs/config-ui/lib/schema-walk.js');
 require('../../src/pkjs/config-ui/lib/color.js');
 require('../../src/pkjs/config-ui/lib/show-when.js');
 require('../../src/pkjs/config-ui/lib/engine.js');
-require('../../src/pkjs/settings/blocks.js');
+require('../../src/pkjs/page/settings/blocks.js');
 
 const PC = global.PConf;
 const GOLDEN_PATH = path.join(__dirname, '..', 'config-schema.golden.json');

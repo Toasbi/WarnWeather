@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const owm = require('../src/pkjs/settings/owm-key-test');
+const owm = require('../src/pkjs/page/weather/keys/owm-key-test');
 
 test('buildTestUrl targets the One Call 3.0 endpoint with the key', () => {
   const url = owm.buildTestUrl('abc123');

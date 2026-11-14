@@ -1,5 +1,5 @@
 'use strict';
-// test/config-screens-page.test.js — the Watchface tab's screens (settings/screens-page.js):
+// test/config-screens-page.test.js — the Watchface tab's screens (page/layout/screens-page.js):
 // the Screens card (a row per screen, a ✕ with Undo on each flick, "+ Add screen"), the
 // screen editor (its picture, the rows top to bottom, a row's dropdowns and their pickers, its
 // moves by drag and by key, ✕ and the Add chips, Delete screen, the radar-off row), Setup's Rain
@@ -12,11 +12,11 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');   // registers screens-page.js' resolvers too
-const SP = require('../src/pkjs/settings/screens-page.js');
-const M = require('../src/pkjs/screens.js');
-const P = require('../src/pkjs/screen-presets.js');
-const VC = require('../src/pkjs/view-cycle.js');
+require('../src/pkjs/page/settings/blocks.js');   // registers screens-page.js' resolvers too
+const SP = require('../src/pkjs/page/layout/screens-page.js');
+const M = require('../src/pkjs/layout/domain/screens.js');
+const P = require('../src/pkjs/page/layout/screen-presets.js');
+const VC = require('../src/pkjs/layout/domain/view-cycle.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const ui = require('../src/pkjs/config-ui/lib/ui.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
@@ -542,7 +542,7 @@ test('the editor: the forecast graph\'s Edit opens the graph the screen draws in
   page.tapEditor({ se: 'editgraph', j: 2 });
   assert.equal(page.modal.innerHTML, '');
   // The Pebble Time 2: the graph the screen draws, here the second of two.
-  const GS = require('../src/pkjs/graph-styles.js');
+  const GS = require('../src/pkjs/forecast-graphs/domain/graph-styles.js');
   const two = { provider: 'dwd', layoutPreset: 'custom', radarMode: 'off', healthMode: 'off', forecastHours: '24',
     viewCount: '2', viewTop0: 'cal', viewBody0: 'forecast', viewStyle0: '1', viewTop1: 'none', viewBody1: 'forecast',
     viewStyle1: '2', graphStyles: GS.withName({ graphStyles: GS.withStyle({}, 1, { forecastHours: '48' }) }, 1, 'Long') };

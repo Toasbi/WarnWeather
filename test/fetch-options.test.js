@@ -1,13 +1,13 @@
 // test/fetch-options.test.js
-// The per-fetch knobs as one value (src/pkjs/weather/fetch-options.js): every
+// The per-fetch knobs as one value (src/pkjs/weather/domain/fetch-options.js): every
 // default in DEFAULTS, and build() deriving the booleans from forecast-series'
 // predicates on the RAW settings — null means "nothing selected", {} means "the
 // default slot selection", which includes UV and AQI.
 const test = require('node:test');
 const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
 const assert = require('node:assert/strict');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
-const forecastSeries = require('../src/pkjs/forecast-series.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
+const forecastSeries = require('../src/pkjs/weather/domain/forecast-series.js');
 
 const KNOBS = ['fetchUv', 'fetchAqi', 'fetchPollen', 'fetchFeels', 'feelsFormula',
   'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours'];

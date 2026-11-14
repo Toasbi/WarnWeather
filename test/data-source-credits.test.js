@@ -3,7 +3,7 @@
 // Setup › Privacy & data sources (the store listing points there).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const schema = require('../src/pkjs/settings/schema.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 const walk = require('../src/pkjs/config-ui/lib/schema-walk.js');
 
 /** @returns {Object[]} Every item of the schema. */

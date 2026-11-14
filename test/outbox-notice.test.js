@@ -15,7 +15,7 @@ global.Pebble = {
   sendAppMessage: function (payload, ack /*, nack */) { sent.push(payload); if (ack) { ack(); } }
 };
 
-var outbox = require('../src/pkjs/outbox.js');
+var outbox = require('../src/pkjs/wire/adapter/outbox.js');
 
 test('partial {NOTICE_TEXT} payload sends only the notice category', function () {
   store = {}; sent = [];

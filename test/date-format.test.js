@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const dateFormat = require('../src/pkjs/date-format.js');
+const dateFormat = require('../src/pkjs/calendar/domain/date-format.js');
 
 // The phone half of the CLAY_DATE_FORMAT_UINT8 contract. The byte values are
 // LOCKSTEP with src/c/appendix/date_format.h (index = wire value, append-only);
@@ -44,7 +44,7 @@ test('the Clay payload carries the tuple exactly for threshold-capable watches',
     setItem: function () {},
     removeItem: function () {}
   };
-  const { buildClayPayload } = require('../src/pkjs/clay-payload.js');
+  const { buildClayPayload } = require('../src/pkjs/settings/domain/clay-payload.js');
   const settings = { dateSlotMonthFormat: 'dots', dateSlotFullFormat: 'textyear' };
   const capable = buildClayPayload(settings, { platform: 'basalt' },
     new Date('2026-09-07T00:00:00Z'));

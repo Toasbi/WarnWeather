@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 var _L = [], _S = [];
 global.PConf = { hooks: { onLoad: function (fn) { _L.push(fn); }, onSubmit: function (fn) { _S.push(fn); } } };
-const OB = require('../src/pkjs/settings/onbuild.js');
+const OB = require('../src/pkjs/page/settings/onbuild.js');
 
 function loadContext(store, platform) {
     return {

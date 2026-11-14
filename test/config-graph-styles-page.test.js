@@ -1,6 +1,6 @@
 'use strict';
 // test/config-graph-styles-page.test.js — graph styles on the settings page, where each is "a
-// graph" (src/pkjs/settings/graph-styles-page.js, Pebble Time 2): the swap that puts the picked
+// graph" (src/pkjs/page/forecast-graphs/graph-styles-page.js, Pebble Time 2): the swap that puts the picked
 // graph's values in the flat keys while its dialog is open and the first graph's otherwise, the
 // settings as Save stores them, the Your graphs card (a row per graph with its picture, its
 // screens, its metrics and the room left; New graph from a template or as a copy; the Undo of a
@@ -14,9 +14,9 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');   // registers forecast-hints.js' pickers
-const GSP = require('../src/pkjs/settings/graph-styles-page.js');
-const GS = require('../src/pkjs/graph-styles.js');
+require('../src/pkjs/page/settings/blocks.js');   // registers forecast-hints.js' pickers
+const GSP = require('../src/pkjs/page/forecast-graphs/graph-styles-page.js');
+const GS = require('../src/pkjs/forecast-graphs/domain/graph-styles.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const ui = require('../src/pkjs/config-ui/lib/ui.js');
@@ -484,7 +484,7 @@ test('the page: Revert puts every graph back, the pick too', () => {
 });
 
 test('the page: New graph from a template opens the new graph\'s dialog, its name ready to type; a seventh is not offered', async () => {
-  const WF = require('../src/pkjs/settings/wizard-forecast.js');
+  const WF = require('../src/pkjs/page/settings/wizard/wizard-forecast.js');
   const p = bootGeneratedPage(TWO, 'emery');
   p.clickTab('graphs');
   p.tapAction('newGraph');
@@ -638,7 +638,7 @@ test('the page: Delete in a graph\'s dialog closes it and moves its screens to t
 });
 
 test('the screen editor: with several graphs a chip per graph adds the forecast graph, and its row is named after its graph', () => {
-  const M = require('../src/pkjs/screens.js');
+  const M = require('../src/pkjs/layout/domain/screens.js');
   const p = bootGeneratedPage(TWO, 'emery');
   p.tapAction('openScreen', 1);
   const body = () => p.editor().querySelector('[data-se-body]').innerHTML;
@@ -686,7 +686,7 @@ test('the screen editor: with several graphs a chip per graph adds the forecast 
 });
 
 test('the screen editor: a graph that would make the screens show a sixth metric is a greyed-out chip; a tap on it says why', () => {
-  const M = require('../src/pkjs/screens.js');
+  const M = require('../src/pkjs/layout/domain/screens.js');
   // Default draws Graph 1's four series; Flick 1 has no forecast graph. Long would add cloud and
   // pressure (six), Sky cloud alone (five, on the spare row).
   const S = layout(['1', '1'], { provider: 'dwd', viewBody1: 'none', viewTop1: 'cal',
@@ -728,7 +728,7 @@ function switchChips(html) {
 }
 
 test('the screen editor: with its forecast graph on, Switch graph offers the other graphs; a tap puts one in its place', () => {
-  const M = require('../src/pkjs/screens.js');
+  const M = require('../src/pkjs/layout/domain/screens.js');
   // Three graphs; Flick 1 draws Long over the calendar, its graph 3 rows.
   const S = layout(['1', '2'], { provider: 'dwd', forecastHours: '24', secondaryLine: 'precip_prob', thirdLine: 'off',
     viewTop1: 'cal', viewBodySize1: '3',
@@ -772,7 +772,7 @@ test('the screen editor: with its forecast graph on, Switch graph offers the oth
 });
 
 test('the screen editor: a graph that would make the screens show a sixth metric is a greyed-out Switch graph chip', () => {
-  const M = require('../src/pkjs/screens.js');
+  const M = require('../src/pkjs/layout/domain/screens.js');
   // Default draws Graph 1's four series; Flick 1 draws Sky (cloud: the fifth). Long would make
   // it cloud and pressure (six).
   const S = layout(['1', '3'], { provider: 'dwd', viewTop1: 'cal',
@@ -949,8 +949,8 @@ test('the metrics count: a line and a stripe of one metric count twice; all five
 });
 
 test('a screen picture draws its forecast graph with the screen\'s style', () => {
-  const PW = require('../src/pkjs/settings/preview-watch.js');
-  const VC = require('../src/pkjs/view-cycle.js');
+  const PW = require('../src/pkjs/page/layout/preview-watch.js');
+  const VC = require('../src/pkjs/layout/domain/view-cycle.js');
   const S = Object.assign({}, TWO, { graphStyles: stylesItem({ forecastHours: '12', barSource: 'off' }) });
   const cycle = VC.resolveViewCycle(S, EMERY);
   const svg = (spec, st) => PW.screenSvg(spec, 0, st, EMERY, {}, 1, new Date(2026, 10, 8, 12, 0), 'x').svg;

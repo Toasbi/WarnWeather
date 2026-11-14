@@ -1,5 +1,5 @@
 // test/config-line-show.test.js — the settings page's side of a graph line's Visible
-// values [All | Alert] (src/pkjs/line-alert.js, internally "Show"; the row's label was
+// values [All | Alert] (src/pkjs/alerts/domain/line-alert.js, internally "Show"; the row's label was
 // "Show" until the owner renamed it, 2026-10-01): the row in the dialog of whichever
 // forecast line (Graphs tab › Forecast › Lines) shows wind speed, wind gusts or the UV
 // index (under no other metric, and not on aplite, which has no Alert settings), each
@@ -7,15 +7,15 @@
 // scale hints while it is on Alert, and the forecast preview.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const schema = require('../src/pkjs/settings/schema.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-const FH = require('../src/pkjs/settings/forecast-hints.js');
-const FC = require('../src/pkjs/settings/preview-forecast.js');
+require('../src/pkjs/page/settings/blocks.js');
+const FH = require('../src/pkjs/page/forecast-graphs/forecast-hints.js');
+const FC = require('../src/pkjs/page/forecast-graphs/preview-forecast.js');
 
 const PICKERS = ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'];
 const METRICS = ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew'];

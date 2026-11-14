@@ -19,9 +19,9 @@ global.localStorage = {
   removeItem(k) { delete store[k]; }
 };
 
-const forecastSeries = require('../src/pkjs/forecast-series.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
-const OD = require('../src/pkjs/on-demand.js');
+const forecastSeries = require('../src/pkjs/weather/domain/forecast-series.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
+const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
 

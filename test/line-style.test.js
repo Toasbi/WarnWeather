@@ -1,23 +1,23 @@
 // test/line-style.test.js — the graph colours' and line styles' reading (src/pkjs/
 // line-style.js): the built-ins, the picks, the night area, the cascade, the stripe rules
 // and the style-byte encoding. The fourteen wire bytes it resolves into are pinned in
-// graph-wire.test.js (src/pkjs/weather/graph-wire.js packs them).
+// graph-wire.test.js (src/pkjs/forecast-graphs/domain/graph-wire.js packs them).
 const test = require('node:test');
 const assert = require('node:assert');
-const lineStyle = require('../src/pkjs/line-style.js');
-const graphWire = require('../src/pkjs/weather/graph-wire.js');
+const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
+const graphWire = require('../src/pkjs/forecast-graphs/domain/graph-wire.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
-const COLORS = require('../src/pkjs/pebble-colors.js');
-const { resolveInk } = require('../src/pkjs/resolve-ink.js');
-const rainTier = require('../src/pkjs/weather/rain-tier.js');
+const COLORS = require('../src/pkjs/theme/domain/pebble-colors.js');
+const { resolveInk } = require('../src/pkjs/theme/domain/resolve-ink.js');
+const rainTier = require('../src/pkjs/weather/domain/rain-tier.js');
 
 const emery = { platform: 'emery' };
 // The graph colours one watch resolves to: resolveGraphColors over that watch's
-// config-ui env, the call weather/graph-wire.js packs the wire from.
+// config-ui env, the call forecast-graphs/domain/graph-wire.js packs the wire from.
 const resolve = (settings, watchInfo) => lineStyle.resolveGraphColors(settings, platform.computeEnv(watchInfo));
 
 test('the settings page names the same eight graph metrics the colour keys are scoped by', () => {
-  const metrics = require('../src/pkjs/settings/forecast-metrics.js');
+  const metrics = require('../src/pkjs/page/forecast-graphs/forecast-metrics.js');
   const ids = metrics.METRICS.map((m) => m.id);
   assert.deepEqual(ids.slice().sort(), lineStyle.GRAPH_METRICS.slice().sort());
   ids.forEach((id) => {

@@ -9,14 +9,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 // The DWD adapter keeps the request function it finds at load: stub it first.
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 let responder = null;
 WeatherProvider.request = function (url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
-const DwdProvider = require('../src/pkjs/weather/dwd.js');
-const charts = require('../src/pkjs/settings/weather-tab-charts.js');
-const model = require('../src/pkjs/settings/weather-tab-model.js');
-const data = require('../src/pkjs/settings/weather-tab-data.js');
-const openmeteo = require('../src/pkjs/weather/openmeteo.js');
+const DwdProvider = require('../src/pkjs/weather/adapter/providers/dwd.js');
+const charts = require('../src/pkjs/page/weather/weather-tab/weather-tab-charts.js');
+const model = require('../src/pkjs/weather/domain/weather-tab-model.js');
+const data = require('../src/pkjs/weather/adapter/weather-tab-data.js');
+const openmeteo = require('../src/pkjs/weather/adapter/providers/openmeteo.js');
 
 const H = 3600000;
 const DAY0 = new Date(2026, 8, 20, 0, 0, 0).getTime();

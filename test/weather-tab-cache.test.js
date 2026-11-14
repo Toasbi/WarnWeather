@@ -11,9 +11,9 @@ global.localStorage = {
   setItem: (k, v) => { store[k] = String(v); },
   removeItem: (k) => { delete store[k]; }
 };
-const cache = require('../src/pkjs/weather-tab-cache.js');
-const storageKeys = require('../src/pkjs/storage-keys.js');
-const data = require('../src/pkjs/settings/weather-tab-data.js');
+const cache = require('../src/pkjs/weather/adapter/weather-tab-cache.js');
+const storageKeys = require('../src/pkjs/settings/adapter/storage-keys.js');
+const data = require('../src/pkjs/weather/adapter/weather-tab-data.js');
 
 const DAY0 = Math.floor(Date.now() / 86400000) * 86400000;
 const SEED = { lat: 52.52, lon: 13.405, name: 'Berlin', gps: true };

@@ -7,9 +7,9 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-const svg = require('../src/pkjs/settings/preview-svg.js');
-const previewForecast = require('../src/pkjs/settings/preview-forecast.js');
-const previewRadar = require('../src/pkjs/settings/preview-radar.js');
+const svg = require('../src/pkjs/page/settings/preview-svg.js');
+const previewForecast = require('../src/pkjs/page/forecast-graphs/preview-forecast.js');
+const previewRadar = require('../src/pkjs/page/weather/preview-radar.js');
 
 test('unframe takes back what svgFrame drew, with either fit', () => {
   const inner = '<rect x="0" y="0" width="200" height="40" fill="#000"></rect><text>a</text>';

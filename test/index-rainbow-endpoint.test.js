@@ -58,7 +58,7 @@ test('settings open hands the page the build\'s Rainbow proxy endpoint, or \'\' 
     const devConfigPath = require.resolve('../src/pkjs/dev-config.js');
     require.cache[devConfigPath] = { id: devConfigPath, filename: devConfigPath, loaded: true, exports: {} };
   } catch (e) { /* absent */ }
-  const fixturePath = require.resolve('../src/pkjs/active-fixture.generated.js');
+  const fixturePath = require.resolve('../src/pkjs/weather/adapter/active-fixture.generated.js');
   require.cache[fixturePath] = { id: fixturePath, filename: fixturePath, loaded: true, exports: null };
 
   // index.js reads pkg.rainbow at settings-open time, from the same cached package.json.

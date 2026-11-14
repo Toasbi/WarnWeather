@@ -1,11 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const radar = require('../src/pkjs/weather/dwd-radar.js');
-const metnoRadar = require('../src/pkjs/weather/metno-radar.js');
-const rainbowRadar = require('../src/pkjs/weather/rainbow-radar.js');
-const tomorrowioRadar = require('../src/pkjs/weather/tomorrowio-radar.js');
-const radarFactory = require('../src/pkjs/weather/radar-factory.js');
-const schema = require('../src/pkjs/settings/schema.js');
+const radar = require('../src/pkjs/weather/adapter/radar/dwd-radar.js');
+const metnoRadar = require('../src/pkjs/weather/adapter/radar/metno-radar.js');
+const rainbowRadar = require('../src/pkjs/weather/adapter/radar/rainbow-radar.js');
+const tomorrowioRadar = require('../src/pkjs/weather/adapter/radar/tomorrowio-radar.js');
+const radarFactory = require('../src/pkjs/weather/application/radar-factory.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 
 const CLEAR = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0 };
 
@@ -160,7 +160,7 @@ test('radar picker offers tomorrowio', () => {
 });
 
 test('canAnswer: sources whose missing config clears the radar on every fetch can never answer', () => {
-  const factory = require('../src/pkjs/weather/radar-factory.js');
+  const factory = require('../src/pkjs/weather/application/radar-factory.js');
   const cfg = { rainbowEndpoint: 'https://proxy.example/rainbow', tomorrowioApiKey: 'KEY' };
   assert.equal(factory.canAnswer('dwd', cfg), true);
   assert.equal(factory.canAnswer('metno', cfg), true);

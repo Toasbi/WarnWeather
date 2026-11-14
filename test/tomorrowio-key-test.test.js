@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const tio = require('../src/pkjs/settings/tomorrowio-key-test');
+const tio = require('../src/pkjs/page/weather/keys/tomorrowio-key-test');
 
 test('buildTestUrl targets the realtime endpoint with the key', () => {
   const url = tio.buildTestUrl('abc123');

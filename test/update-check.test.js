@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const updateCheck = require('../src/pkjs/update-check.js');
+const updateCheck = require('../src/pkjs/notices/domain/update-check.js');
 
 function storeJson(version) {
   return JSON.stringify({ data: [{ latest_release: { version: version } }] });

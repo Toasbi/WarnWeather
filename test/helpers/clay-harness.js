@@ -18,8 +18,8 @@ function installFakeStorage() {
 }
 
 const COLORS = { white: 0xFFFFFF, folly: 0xFF0055, holiday: 0x0055FF };
-const REGISTRY = require('../../src/pkjs/migrations/registry.js');
-const STORAGE_KEYS = require('../../src/pkjs/storage-keys');
+const REGISTRY = require('../../src/pkjs/settings/domain/migrations/registry.js');
+const STORAGE_KEYS = require('../../src/pkjs/settings/adapter/storage-keys');
 
 // --- The in-place-upgrade Clay resend -------------------------------------
 // 1.15.0 grew CLAY_LINE_STYLE_UINT8 from 4 to 10 bytes; the watch reads the
@@ -80,15 +80,15 @@ function bootUpgradedInstall(clayMigrations, createChannelScheduler, now, filter
 function loadUpgradeModules() {
   // clay-migrations must be reloaded WITH clay-settings: it captures the module
   // object at require time, so a stale copy would hold the previous test's instance.
-  ['../../src/pkjs/clay-settings', '../../src/pkjs/clay-migrations',
-    '../../src/pkjs/channel-scheduler'].forEach((m) => {
+  ['../../src/pkjs/settings/adapter/clay-settings', '../../src/pkjs/settings/application/clay-migrations',
+    '../../src/pkjs/wire/adapter/channel-scheduler'].forEach((m) => {
     delete require.cache[require.resolve(m)];
   });
   return {
-    claySettings: require('../../src/pkjs/clay-settings'),
-    clayMigrations: require('../../src/pkjs/clay-migrations'),
-    createChannelScheduler: require('../../src/pkjs/channel-scheduler'),
-    KEYS: require('../../src/pkjs/storage-keys')
+    claySettings: require('../../src/pkjs/settings/adapter/clay-settings'),
+    clayMigrations: require('../../src/pkjs/settings/application/clay-migrations'),
+    createChannelScheduler: require('../../src/pkjs/wire/adapter/channel-scheduler'),
+    KEYS: require('../../src/pkjs/settings/adapter/storage-keys')
   };
 }
 
@@ -113,7 +113,7 @@ function loadLedger(blob) {
 }
 
 // Replay of the 1.15.0 page picking a metric's fill colour, hook and all
-// (git 4459d17, src/pkjs/settings/blocks.js' graphFillTint registration).
+// (git 4459d17, src/pkjs/page/settings/blocks.js' graphFillTint registration).
 function shippedPageFillPick(blob, lineStyle, metric, suffix, value) {
   const nightKey = lineStyle.graphColorKey(metric, 'Night', suffix);
   // The hook's own gate: it wrote the sibling only while the tint was unclaimed,

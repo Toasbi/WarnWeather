@@ -1,6 +1,6 @@
 // test/key-result.test.js — the last answer each keyed source gave the user's own API key
 // (key-result.js), which the settings page reads as userData.keyResults for the key status
-// under the Weather and Radar provider rows (settings/key-status.js). One map by source id,
+// under the Weather and Radar provider rows (page/weather/keys/key-status.js). One map by source id,
 // the key's fingerprint and never the key, written only when an entry changes; only answers
 // that say something about the key count. Then the radar transport writing it for a keyed
 // source (radar-fetch.js opts.keyResult, which the keyed Rainbow path and Tomorrow.io's radar
@@ -10,17 +10,17 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 // Mock the shared XHR BEFORE requiring the radar module (it captures it at load).
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 let responder;
 WeatherProvider.request = function (url, type, onSuccess, onError, headers, body) {
   responder(url, type, onSuccess, onError, headers, body);
 };
-const rainbowRadar = require('../src/pkjs/weather/rainbow-radar.js');
-const radarFetch = require('../src/pkjs/weather/radar-fetch.js');
-const radarWire = require('../src/pkjs/weather/radar-wire.js');
-const keyResult = require('../src/pkjs/key-result.js');
-const KEYS = require('../src/pkjs/storage-keys.js');
-const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
+const rainbowRadar = require('../src/pkjs/weather/adapter/radar/rainbow-radar.js');
+const radarFetch = require('../src/pkjs/weather/adapter/radar/radar-fetch.js');
+const radarWire = require('../src/pkjs/weather/domain/radar/radar-wire.js');
+const keyResult = require('../src/pkjs/weather/domain/keys/key-result.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
+const { fingerprint } = require('../src/pkjs/weather/domain/keys/key-fingerprint.js');
 
 const SLOT0 = 1700000100;
 const KEY = 'rbw-secret-0123wxyz';

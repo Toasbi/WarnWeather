@@ -1,11 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
-const OpenWeatherMapProvider = require('../src/pkjs/weather/openweathermap.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
+const OpenWeatherMapProvider = require('../src/pkjs/weather/adapter/providers/openweathermap.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
 
 function round4(n) { return Math.round(n * 10000) / 10000; }
 
@@ -325,7 +325,7 @@ test('OWM withSunEvents falls back to SunCalc when its daily times make no usabl
   let got = null;
   p.withSunEvents(66.6, 25.7, (events) => { got = events; },
     (f) => { throw new Error('unexpected failure ' + JSON.stringify(f)); });
-  assert.deepEqual(got, require('../src/pkjs/weather/sun-events.js').nextSunEvents(new Date(now), 66.6, 25.7));
+  assert.deepEqual(got, require('../src/pkjs/weather/domain/sun-events.js').nextSunEvents(new Date(now), 66.6, 25.7));
   assert.notEqual(got[0].type, got[1].type);
 });
 
@@ -333,8 +333,8 @@ test('OWM withSunEvents falls back to SunCalc when its daily times make no usabl
 // One Call carries hourly + current humidity (%) and wind (mph under units=imperial),
 // so 'steadman' recomputes from the same response; a missing humidity hour keeps the
 // API feels_like, a missing current wind stays null (never "calm").
-const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
-const mphToKmh = require('../src/pkjs/wire-units.js').mphToKmh;
+const feelsLikeF = require('../src/pkjs/weather/domain/feels-like.js').feelsLikeF;
+const mphToKmh = require('../src/pkjs/wire/domain/wire-units.js').mphToKmh;
 
 test('OWM + steadman recomputes feels from humidity/wind, API value where humidity is missing', () => {
   responder = function(url, onSuccess) {
@@ -398,7 +398,7 @@ test('long span: OWM sends all 48 One Call hours on a 48 h or 68 h window, 24 on
 });
 
 // --- the weather condition now ------------------------------------------------------
-// One Call's current block lists its conditions, the primary first (weather/condition.js).
+// One Call's current block lists its conditions, the primary first (weather/domain/condition.js).
 
 test('OWM names the condition now from current.weather[0].id', () => {
   responder = function(url, onSuccess) {

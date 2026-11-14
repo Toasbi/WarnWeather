@@ -3,7 +3,7 @@
 // value tips that ride outside it), and the snap arithmetic.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const interact = require('../src/pkjs/settings/weather-tab-interact.js');
+const interact = require('../src/pkjs/page/weather/weather-tab/weather-tab-interact.js');
 
 /**
  * A document stub that records the listeners wire() attaches, so a test can
@@ -447,11 +447,11 @@ test('a rotation re-measures the row, whose transform is in PIXELS', () => {
     querySelector: () => null,
     getElementById: () => null
   };
-  const key = require.resolve('../src/pkjs/settings/weather-tab-interact.js');
+  const key = require.resolve('../src/pkjs/page/weather/weather-tab/weather-tab-interact.js');
   const cached = require.cache[key];
   delete require.cache[key];
   try {
-    const fresh = require('../src/pkjs/settings/weather-tab-interact.js');
+    const fresh = require('../src/pkjs/page/weather/weather-tab/weather-tab-interact.js');
     const moved = [];
     fresh.wire({
       view: () => ({ days: 5 }),

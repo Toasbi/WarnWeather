@@ -29,8 +29,8 @@ function withXhr() {
   return created;
 }
 
-const newsCache = require('../src/pkjs/news-cache.js');
-const KEY = require('../src/pkjs/storage-keys.js').NEWS_CACHE_KEY;
+const newsCache = require('../src/pkjs/notices/adapter/news-cache.js');
+const KEY = require('../src/pkjs/settings/adapter/storage-keys.js').NEWS_CACHE_KEY;
 
 const HOUR = newsCache.MAX_AGE_MS;
 const NOW = 1000 * HOUR;

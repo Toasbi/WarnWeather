@@ -16,9 +16,9 @@ global.localStorage = (function () {
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
-const feelsLike = require('../src/pkjs/weather/feels-like.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
+const feelsLike = require('../src/pkjs/weather/domain/feels-like.js');
 
 const KEYS = WeatherProvider.MAPPED_KEYS;
 const START = 1767258000;

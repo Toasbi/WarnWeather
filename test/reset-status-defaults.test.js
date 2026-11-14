@@ -5,7 +5,7 @@ const {
   dedupeStatusSlot,
   resetCountdownDate,
   onDemandTick
-} = require('../src/pkjs/settings/reset-status-defaults.js');
+} = require('../src/pkjs/page/status-bars/reset-status-defaults.js');
 
 function todayValue() {
   const d = new Date();

@@ -1,5 +1,5 @@
 // test/config-draw-from.test.js — the settings page's side of Draw from / Bars from
-// [Bottom | Top] (src/pkjs/draw-from.js): the Draw from row in the dialog of the first
+// [Bottom | Top] (src/pkjs/forecast-graphs/domain/draw-from.js): the Draw from row in the dialog of the first
 // forecast line (Graphs tab › Forecast › Lines) whose picker draws an amount metric
 // (rain chance, clouds, wind and gusts together, UV) as a line or marks, never on
 // aplite, a stripe or any other metric; the Bars from rows of the forecast and the
@@ -8,18 +8,18 @@
 // Modelled on config-line-show.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const schema = require('../src/pkjs/settings/schema.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-const FH = require('../src/pkjs/settings/forecast-hints.js');
-const FC = require('../src/pkjs/settings/preview-forecast.js');
-const RD = require('../src/pkjs/settings/preview-radar.js');
-const PR = require('../src/pkjs/settings/preview-rain.js');
-const drawFrom = require('../src/pkjs/draw-from.js');
+require('../src/pkjs/page/settings/blocks.js');
+const FH = require('../src/pkjs/page/forecast-graphs/forecast-hints.js');
+const FC = require('../src/pkjs/page/forecast-graphs/preview-forecast.js');
+const RD = require('../src/pkjs/page/weather/preview-radar.js');
+const PR = require('../src/pkjs/page/forecast-graphs/preview-rain.js');
+const drawFrom = require('../src/pkjs/forecast-graphs/domain/draw-from.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 const PICKERS = ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'];

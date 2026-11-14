@@ -33,7 +33,7 @@
 //   [26..]   the rain bars' palette, BAR_PALETTE_UINT8's bytes: 3 per stop, 1 to 5 stops;
 //            none while the style draws no rain bars (another shown style may: the rain
 //            trend is shared)
-// Lockstep with src/pkjs/weather/graph-style-wire.js (packRecord), pinned by
+// Lockstep with src/pkjs/forecast-graphs/domain/graph-style-wire.js (packRecord), pinned by
 // test/graph-style-wire.test.js and test/c/graph_style_test.c.
 #include <stdbool.h>
 #include <stdint.h>
@@ -59,7 +59,7 @@
 #define GS_TREND_MAX           GS_TREND_SPARE
 
 // The line styling's bytes in a record, from GS_LINE_STYLE (CLAY_LINE_STYLE_UINT8's layout,
-// weather/graph-wire.js buildLineStyleBytes; app_message.c handle_line_style stores the
+// forecast-graphs/domain/graph-wire.js buildLineStyleBytes; app_message.c handle_line_style stores the
 // first style's the same way).
 #define GS_LS_SECOND_COLOR     0
 #define GS_LS_FILL_COLOR       1

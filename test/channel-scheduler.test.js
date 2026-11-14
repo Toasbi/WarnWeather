@@ -9,8 +9,8 @@ global.localStorage = {
     removeItem: function (k) { delete store[k]; }
 };
 
-var createChannelScheduler = require('../src/pkjs/channel-scheduler');
-var KEYS = require('../src/pkjs/storage-keys');
+var createChannelScheduler = require('../src/pkjs/wire/adapter/channel-scheduler');
+var KEYS = require('../src/pkjs/settings/adapter/storage-keys');
 
 function resetStore() { for (var k in store) { delete store[k]; } }
 

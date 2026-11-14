@@ -1,9 +1,9 @@
 // test/tomorrowio.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const tomorrowio = require('../src/pkjs/weather/tomorrowio.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
-const { PEAK_HOURS } = require('../src/pkjs/weather/hourly-window.js');
+const tomorrowio = require('../src/pkjs/weather/adapter/providers/tomorrowio.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
+const { PEAK_HOURS } = require('../src/pkjs/weather/domain/hourly-window.js');
 const mapResponse = tomorrowio.mapResponse;
 
 // BASE is hour-aligned: 1718841600 / 3600 === 477456 exactly.
@@ -49,7 +49,7 @@ test('mapResponse anchors at the current hour and converts units', () => {
 
 test('mapResponse emits only the mapped vocabulary (WeatherProvider.MAPPED_KEYS), core keys included', () => {
   const mapped = mapResponse(sampleResponse(), BASE + 3 * 3600 + 600);
-  const keys = require('../src/pkjs/weather/provider.js').MAPPED_KEYS;
+  const keys = require('../src/pkjs/weather/application/provider.js').MAPPED_KEYS;
   Object.keys(mapped).forEach((k) => assert.ok(keys.all.indexOf(k) !== -1, 'not a mapped key: ' + k));
   keys.core.forEach((k) => assert.ok(Object.prototype.hasOwnProperty.call(mapped, k), 'core key missing: ' + k));
 });
@@ -130,7 +130,7 @@ test('tomorrow.io names no condition when the anchor interval names none', () =>
   });
 });
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 const TomorrowIoProvider = tomorrowio.TomorrowIoProvider;
 
 test('TomorrowIoProvider identity, inheritance, base sun events', () => {
@@ -399,7 +399,7 @@ test('withProviderData carries the condition now to the payload, and a reused in
 // tomorrow.io's temperatureApparent is the US heat-index / wind-chill value (equal to
 // the air temperature between roughly 5 °C and 27 °C), so the Steadman option needs the
 // Core-tier humidity field on the same single call; adoptMapped resolves it.
-const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
+const feelsLikeF = require('../src/pkjs/weather/domain/feels-like.js').feelsLikeF;
 
 test('tomorrow.io requests humidity and maps it (%, null where unreported) plus the anchor "now" inputs', () => {
   assert.ok(tomorrowio.buildUrl(52.52, 13.41, 'KEY123', BASE + 1234).includes('humidity'),

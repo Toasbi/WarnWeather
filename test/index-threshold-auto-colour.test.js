@@ -51,11 +51,11 @@ SCENARIOS.forEach((sc) => {
     assert.ok(sends.length >= 1, 'a Clay carrying the threshold blob went out');
     const bytes = Array.from(sends[sends.length - 1].dict.CLAY_THRESHOLDS_UINT8);
 
-    const wire = h.mod('status-wire.js');
+    const wire = h.mod('alerts/domain/status-wire.js');
     const stored = JSON.parse(h.store['clay-settings']);
     const ink = sc.face === 'dark' ? '#ffffff' : '#000000';
     // The 1.24.0 warn-look move turns a weather danger that held the old auto
-    // text colour into the contract's red (migrations/v1_24.js migrateWarnLook).
+    // text colour into the contract's red (settings/domain/migrations/v1_24.js migrateWarnLook).
     assert.equal(stored.threshWindDangerColor, '#FF0000', 'the old auto danger is red now');
     assert.equal(stored.threshUvDangerColor, '#FF0000', 'either text colour');
     const expected = wire.buildSettingsBlob(Object.assign({}, stored, {

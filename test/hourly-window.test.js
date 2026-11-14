@@ -8,8 +8,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
-const hourlyWindow = require('../src/pkjs/weather/hourly-window.js');
-const openmeteo = require('../src/pkjs/weather/openmeteo.js');
+const hourlyWindow = require('../src/pkjs/weather/domain/hourly-window.js');
+const openmeteo = require('../src/pkjs/weather/adapter/providers/openmeteo.js');
 const { localDayPeaks, readHourly, HOUR_SECONDS, PEAK_HOURS, FORECAST_HOURS } = hourlyWindow;
 
 const at = (d, h) => new Date(2026, 6, d, h, 0, 0).getTime() / 1000;
@@ -88,7 +88,7 @@ test('localDayPeaks answers [null, null] for unusable input', () => {
 
 test('localDayPeaks follows the phone calendar across DST (23 h and 25 h days)', () => {
   const body = `
-    const w = require(${JSON.stringify(require.resolve('../src/pkjs/weather/hourly-window.js'))});
+    const w = require(${JSON.stringify(require.resolve('../src/pkjs/weather/domain/hourly-window.js'))});
     const s = (n, o) => { const a = new Array(n).fill(0); for (const k in o) a[k] = o[k]; return a; };
     const t = (y, m, d, h) => new Date(y, m, d, h, 0, 0).getTime() / 1000;
     // Fall back, 2026-10-25 is 25 h long. From 20:00 on the 24th: tomorrow is
@@ -134,8 +134,8 @@ test('localDayPeaks: in a :30-offset zone the clock, not the bucket start, names
   // 23:30-00:30 local: at 00:10 it starts on YESTERDAY, and its start alone would
   // hand today's peak to tomorrow. getPayload passes the phone's clock in.
   const body = `
-    const w = require(${JSON.stringify(require.resolve('../src/pkjs/weather/hourly-window.js'))});
-    const WeatherProvider = require(${JSON.stringify(require.resolve('../src/pkjs/weather/provider.js'))});
+    const w = require(${JSON.stringify(require.resolve('../src/pkjs/weather/domain/hourly-window.js'))});
+    const WeatherProvider = require(${JSON.stringify(require.resolve('../src/pkjs/weather/application/provider.js'))});
     // 00:10 on 16 Jul is 18:40 UTC on the 15th; that UTC hour starts at 23:30 local
     // on the 15th. From there entries 0..24 are the 16th and 25..48 the 17th.
     const start = Date.UTC(2026, 6, 15, 18) / 1000, now = start + 40 * 60;

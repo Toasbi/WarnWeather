@@ -1,19 +1,19 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const schema = require('../src/pkjs/settings/schema.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 const { eachItem } = require('../src/pkjs/config-ui/lib/schema-walk.js');
 // The two color defaults are owned by the contract module (status-thresholds.js),
 // which also reads these settings back at pack time — assert against the exported
 // constants rather than re-inlining the hex a third time.
-const thresholds = require('../src/pkjs/status-thresholds.js');
-const wire = require('../src/pkjs/status-wire.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
+const thresholds = require('../src/pkjs/alerts/domain/status-thresholds.js');
+const wire = require('../src/pkjs/alerts/domain/status-wire.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-const B = require('../src/pkjs/settings/blocks.js');
-const onbuild = require('../src/pkjs/settings/onbuild.js');
+const B = require('../src/pkjs/page/settings/blocks.js');
+const onbuild = require('../src/pkjs/page/settings/onbuild.js');
 const PC = global.PConf;
 
 function itemsByKey() {
@@ -399,7 +399,7 @@ test('onLoad leaves the stored toggle alone and still heals colours', () => {
   // The toggle is STORED state since the levels/highlight split: the page used to
   // re-derive it from the pair on every open, which would now undo a user's OFF
   // (the pair lives on while off). The pre-split backfill is the phone-side
-  // migration (migrations/v1_24.js migrateThresholdHighlightToggles).
+  // migration (settings/domain/migrations/v1_24.js migrateThresholdHighlightToggles).
   const S = {
     threshStepsOn: false, threshStepsWarn: '2500', threshStepsDanger: '5000', // ordered, stored off
     threshWindOn: true, threshWindWarn: '', threshWindDanger: '',            // blank (= seed), stored on
@@ -1416,7 +1416,7 @@ test('the middle Bold option goes inert only while nothing gives the kind a leve
   // The weather gate holds exactly while the highlight is off and the kind's alert shows
   // on no bar (the onDemandPlaced leaf: on-demand.js placedAnywhere, pinned in
   // test/when-resolvers.test.js).
-  const OD = require('../src/pkjs/on-demand.js');
+  const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
   const env = { thresholds: true, onDemand: true, radar: true, health: true };
   ALERT_STEMS.forEach(stem => {
     const code = thresholds.ALERT_KINDS.find(a => a.key === stem).code;
@@ -1770,7 +1770,7 @@ test('the rain alert sheet: the Shows on card (note, radar-off and not-placed bo
       + ' data-goto-tab="setup">Setup › Data sources</button>.',
     showWhen: { key: 'radarEnabled', eq: false } });
   assert.equal(s.items[2].text, 'Rain isn’t on any status bar yet, so the rain icon won’t show. Tick a side below.');
-  const OD = require('../src/pkjs/on-demand.js');
+  const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
   const odEnv = { onDemand: true, radar: true, health: true };
   const notPlaced = (od) => PC.showWhen.evaluate(s.items[2].showWhen,
     Object.assign({ env: odEnv }, OD.DEFAULTS, od));
@@ -2288,7 +2288,7 @@ test('resetStatusSlots restores every slot default (hr and non-hr) and the bold 
 test('resetStatusSlots reverts every bar\'s On demand ticks, and leaves the items\' settings to their card', () => {
   const map = itemsByKey();
   const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], ENV);
-  const OD = require('../src/pkjs/on-demand.js');
+  const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
   const S = scrambledSlotState();
   S.statusTopOnDemandLeftItems = 'uv';
   S.statusTopOnDemandRightItems = 'bt';
@@ -2393,7 +2393,7 @@ test('the temp slot\'s Value selection and its degree sign never touch each othe
 test("a goal kind's legacy null warn color heals to the auto green on page open", () => {
   // The old parseResponse stored hexToInt('') = NaN -> JSON null for a turned-off
   // goal outline. Since the warn look, "off" is threshSleepWarnLook 'none' (written
-  // for exactly those blobs by migrations/v1_24.js migrateWarnLook), and a blank or
+  // for exactly those blobs by settings/domain/migrations/v1_24.js migrateWarnLook), and a blank or
   // null colour is auto: the goal green.
   ['', null, undefined].forEach((raw) => {
     const S = { theme: 'dark', threshSleepWarn: '360', threshSleepDanger: '480',

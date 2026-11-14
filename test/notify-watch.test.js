@@ -1,11 +1,11 @@
 'use strict';
-// src/pkjs/notify-watch.js: a notification on the watch as far as the Pebble app's permissions
+// src/pkjs/notices/adapter/notify-watch.js: a notification on the watch as far as the Pebble app's permissions
 // let it show (ShowNotifications, app 1.18.0 with the permissions preview on). It shows unless the
 // user turned notifications off for the app, and says whether the user has decided: false while
 // the phone asks first and drops this one, so the caller keeps it for a later run.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { notifyWatch } = require('../src/pkjs/notify-watch.js');
+const { notifyWatch } = require('../src/pkjs/notices/adapter/notify-watch.js');
 
 // The phone's question is asked once per install (storage-keys.js NOTIFY_ASKED_KEY): every
 // case starts from a fresh store unless it keeps the one before.

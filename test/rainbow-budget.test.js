@@ -1,9 +1,9 @@
 // test/rainbow-budget.test.js — the free-plan budget math for Rainbow on the user's own key.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const budget = require('../src/pkjs/settings/rainbow-budget.js');
-const tio = require('../src/pkjs/settings/tomorrowio-budget.js');
-const radarFactory = require('../src/pkjs/weather/radar-factory.js');
+const budget = require('../src/pkjs/page/weather/budgets/rainbow-budget.js');
+const tio = require('../src/pkjs/page/weather/budgets/tomorrowio-budget.js');
+const radarFactory = require('../src/pkjs/weather/application/radar-factory.js');
 
 // Base state: radar on "Rainbow (own key)", graph mode, night pause off.
 function S(over) {

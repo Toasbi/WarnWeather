@@ -44,7 +44,7 @@ export async function readCapped(req: Request, max: number): Promise<string | nu
 }
 
 /**
- * Round a coordinate to 3 decimals, the one algorithm the phone (src/pkjs/weather/coords.js)
+ * Round a coordinate to 3 decimals, the one algorithm the phone (src/pkjs/weather/domain/coords.js)
  * uses too, so an old GET and a new POST from the same fix share a cache row. -0 comes back
  * as 0 (so it can never format as "-0.000").
  * @param x Decimal degrees.

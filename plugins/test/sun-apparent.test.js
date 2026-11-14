@@ -7,7 +7,7 @@ const apparent = require('../lib/apparent');
 const openMeteoFixture = require('./fixtures/open-meteo-freiburg-forecast.json');
 
 // The watchface's own formulas: the plugins must agree with them on the same inputs.
-const faceFeels = require(path.join(__dirname, '..', '..', 'src', 'pkjs', 'weather', 'feels-like.js'));
+const faceFeels = require(path.join(__dirname, '..', '..', 'src', 'pkjs', 'weather', 'domain', 'feels-like.js'));
 
 const fahrenheitToCelsius = (f) => (f - 32) * 5 / 9;
 

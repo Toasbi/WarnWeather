@@ -1,9 +1,9 @@
 'use strict';
-// src/pkjs/on-demand.js — the one reading of which items each status bar shows at its
+// src/pkjs/status-bars/domain/on-demand.js — the one reading of which items each status bar shows at its
 // edges (the side lists) and of the Battery item's settings.
 const test = require('node:test');
 const assert = require('node:assert');
-const OD = require('../src/pkjs/on-demand.js');
+const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const CODES = ['battery', 'bt', 'qt', 'snooze', 'rain', 'gust', 'uv', 'aqi', 'pollen', 'wind'];

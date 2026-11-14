@@ -28,7 +28,7 @@
 // prints while a calendar is on screen (the grid already shows the day, so the
 // slot carries month + year). APPEND-ONLY: the byte values ride the Clay message
 // and persist in the Config blob, so a retired value keeps its slot. Lockstep
-// with MONTH_FORMAT_CODES in src/pkjs/date-format.js (index = wire value),
+// with MONTH_FORMAT_CODES in src/pkjs/calendar/domain/date-format.js (index = wire value),
 // machine-checked by test/date-format-contract.test.js.
 enum DateMonthFormat {
     DATE_MONTH_AUTO = 0,   // "Sep 2026" (%b %Y) — the pre-setting behavior

@@ -1,12 +1,12 @@
-// test/draw-from.test.js — Draw from / Bars from [Bottom | Top] (src/pkjs/draw-from.js):
+// test/draw-from.test.js — Draw from / Bars from [Bottom | Top] (src/pkjs/forecast-graphs/domain/draw-from.js):
 // the one reading of the six settings and its gates (aplite, a stripe, a line that is not
 // drawn, a metric without the setting). The wire bytes and their bits are pinned in
 // graph-wire.test.js, the settings page in config-draw-from.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const drawFrom = require('../src/pkjs/draw-from.js');
-const lineStyle = require('../src/pkjs/line-style.js');
+const drawFrom = require('../src/pkjs/forecast-graphs/domain/draw-from.js');
+const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const BASALT = platform.computeEnv({ platform: 'basalt' });

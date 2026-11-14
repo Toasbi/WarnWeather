@@ -91,9 +91,9 @@ test('every scene resolves its intended preset through the real Clay settings pi
     setItem: (k, v) => { store[k] = String(v); },
     removeItem: (k) => { delete store[k]; }
   };
-  const claySettings = require('../src/pkjs/clay-settings.js');
-  const pebbleColors = require('../src/pkjs/pebble-colors.js');
-  const viewCycle = require('../src/pkjs/view-cycle.js');
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings.js');
+  const pebbleColors = require('../src/pkjs/theme/domain/pebble-colors.js');
+  const viewCycle = require('../src/pkjs/layout/domain/view-cycle.js');
   const expectedPreset = { 1: 'fullCal', 2: 'compactDense', 4: 'compactCal', 5: 'noCal', 6: 'noCal',
     7: 'compactCal', 8: 'custom', 9: 'noCal', 10: 'compactCal', 11: 'custom', 12: 'noCal' };
 

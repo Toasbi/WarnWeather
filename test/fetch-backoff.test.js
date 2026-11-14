@@ -7,7 +7,7 @@
 // capped at the refresh interval; a 429 waits the whole interval.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const createFetchCycle = require('../src/pkjs/fetch-cycle.js');
+const createFetchCycle = require('../src/pkjs/shell/fetch-cycle.js');
 const { HARNESS_NOW, bootIndex, healthyNetwork } = require('./helpers/index-harness.js');
 
 const MIN = 60 * 1000;

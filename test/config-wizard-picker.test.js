@@ -1,6 +1,6 @@
 // test/config-wizard-picker.test.js
 //
-// The onboarding wizard's screens (src/pkjs/settings/wizard.js), driven through its real event
+// The onboarding wizard's screens (src/pkjs/page/settings/wizard/wizard.js), driven through its real event
 // handlers on a fake DOM (test/helpers/wizard-dom.js): the picker that the layout and theme steps
 // share (tap, arrow keys, swipe; a highlight that never writes), the Screens step (the watch's own
 // screens, + and ✕, the flick), the forecast step's looks, the progress bar and title focus, the
@@ -16,19 +16,19 @@ global.PConf = {};
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-require('../src/pkjs/settings/reset-status-defaults.js');
+require('../src/pkjs/page/settings/blocks.js');
+require('../src/pkjs/page/status-bars/reset-status-defaults.js');
 // The Theme row's real conversion: the looks' defaults follow it (the bars' colour a theme starts on).
-require('../src/pkjs/settings/theme-convert.js');
-require('../src/pkjs/settings/wizard.js');
-const FORECAST = require('../src/pkjs/settings/wizard-forecast.js');
-const SCREENS = require('../src/pkjs/settings/wizard-screens.js');
-const SPAGE = require('../src/pkjs/settings/screens-page.js');
-const M = require('../src/pkjs/screens.js');
-const VC = require('../src/pkjs/view-cycle.js');
-const PW = require('../src/pkjs/settings/preview-watch.js');
-const spanHours = require('../src/pkjs/forecast-span-hours.js');
-const GS = require('../src/pkjs/graph-styles.js');
+require('../src/pkjs/page/theme/theme-convert.js');
+require('../src/pkjs/page/settings/wizard/wizard.js');
+const FORECAST = require('../src/pkjs/page/settings/wizard/wizard-forecast.js');
+const SCREENS = require('../src/pkjs/page/settings/wizard/wizard-screens.js');
+const SPAGE = require('../src/pkjs/page/layout/screens-page.js');
+const M = require('../src/pkjs/layout/domain/screens.js');
+const VC = require('../src/pkjs/layout/domain/view-cycle.js');
+const PW = require('../src/pkjs/page/layout/preview-watch.js');
+const spanHours = require('../src/pkjs/weather/domain/forecast-span-hours.js');
+const GS = require('../src/pkjs/forecast-graphs/domain/graph-styles.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const { openSetup } = require('./helpers/wizard-dom.js');
 const { blankBar, slotsOf } = require('./helpers/status-slots.js');
@@ -627,7 +627,7 @@ test('taking out the Rain radar screen setup added with the radar off turns the 
 });
 
 test('with the rain radar off, a Rain radar screen is drawn as the watch draws it: the screen editor\'s picture', () => {
-  const SP = require('../src/pkjs/settings/screens-page.js');
+  const SP = require('../src/pkjs/page/layout/screens-page.js');
   const base = openSetup().ctx;
   const saved = Object.assign({ layoutPreset: 'custom', viewCount: '2', radarEnabled: false, radarProvider: 'dwd' },
     M.compileKeys(M.screensOf(base.S, base.ENV)[0], 0), M.compileKeys(SCREENS.listOf(SCREENS.byId('radar'), ''), 1));
@@ -826,7 +826,7 @@ test('only the rain chance fills its area in a look: the watch paints an area so
   // The owner's, 2026-11-10: the watch has no alpha, so the clouds', gusts' or UV index's area,
   // high for hours, covered the whole graph. Their looks draw a thick line or a stripe instead.
   // The colour watches; a black-and-white one dithers its area at half strength (chart.c).
-  const lineStyle = require('../src/pkjs/line-style.js');
+  const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
   ['emery', 'basalt'].forEach((p) => {
     const env = platform.computeEnv({ platform: p });
     FORECAST.LOOKS.forEach((look) => {

@@ -1,11 +1,11 @@
 // test/watch-text.test.js — the watch's text in the settings page's pictures of its screens
-// (src/pkjs/settings/watch-text.js): widths as the firmware measures them, its trailing
+// (src/pkjs/page/layout/watch-text.js): widths as the firmware measures them, its trailing
 // ellipsis, and each line seated on the pixels the watch lights.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const WT = require('../src/pkjs/settings/watch-text.js');
+const WT = require('../src/pkjs/page/layout/watch-text.js');
 
 const SRC = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'text-fonts-system.json'), 'utf8'));
 

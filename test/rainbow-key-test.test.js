@@ -1,5 +1,5 @@
 // test/rainbow-key-test.test.js — the Rainbow (own key) "Test" button
-// (settings/rainbow-key-test.js), driven through its registered PConf action against a
+// (page/weather/keys/rainbow-key-test.js), driven through its registered PConf action against a
 // fake DOM + XHR. The webview can't call Rainbow itself, so the button POSTs the key to
 // the rainbow-nowcast proxy's key-check mode and reads Rainbow's status out of the
 // proxy's {"status": n} envelope; every other proxy answer maps to a proxy verdict that
@@ -40,10 +40,10 @@ function harness() {
     this.send = function () { this.sendArgs = Array.prototype.slice.call(arguments); };
     xhrs.push(this);
   };
-  ['../src/pkjs/settings/key-test.js', '../src/pkjs/settings/rainbow-key-test.js'].forEach((p) => {
+  ['../src/pkjs/page/weather/keys/key-test.js', '../src/pkjs/page/weather/keys/rainbow-key-test.js'].forEach((p) => {
     delete require.cache[require.resolve(p)];
   });
-  const api = require('../src/pkjs/settings/rainbow-key-test.js');
+  const api = require('../src/pkjs/page/weather/keys/rainbow-key-test.js');
   return { run: global.PConf.actions.testRainbowKey, field, result, xhrs, api };
 }
 

@@ -307,7 +307,7 @@ test('a size picked in another version: that version on the colour watches, the 
 // draws each condition's icon from the watch's own drawings (condition-pixels.generated.js).
 test('the settings page has every weather condition glyph\'s drawing, at 13 px', () => {
   const pixels = require('../src/pkjs/settings/condition-pixels.generated.js');
-  const condition = require('../src/pkjs/weather/condition.js');
+  const condition = require('../src/pkjs/weather/domain/condition.js');
   const glyphs = new Set();
   Object.values(condition.CONDITIONS).forEach((c) => c.glyph.forEach((g) => glyphs.add(g.replace(/^COND_/, ''))));
   assert.ok(glyphs.size >= 14, 'premise: every condition glyph');

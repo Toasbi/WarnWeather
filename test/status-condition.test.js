@@ -6,10 +6,10 @@
 // it does not, with the condition's glyph per the slot's Look.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const catalog = require('../src/pkjs/status-line-catalog.js');
-const lines = require('../src/pkjs/status-lines.js');
-const C = require('../src/pkjs/weather/condition.js');
-const { encodeSunEvents } = require('../src/pkjs/weather/sun-events.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
+const lines = require('../src/pkjs/status-bars/domain/status-lines.js');
+const C = require('../src/pkjs/weather/domain/condition.js');
+const { encodeSunEvents } = require('../src/pkjs/weather/domain/sun-events.js');
 const { decodeLine } = require('./helpers/status-line-bytes.js');
 
 const SEP = catalog.ALT_SEP;

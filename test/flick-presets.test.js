@@ -10,7 +10,7 @@ const path = require('node:path');
 
 global.localStorage = { getItem: function () { return null; }, setItem: function () {}, removeItem: function () {} };
 
-const { buildClayPayload, VIEW_RESET_DOUBLE_FLICK } = require('../src/pkjs/clay-payload.js');
+const { buildClayPayload, VIEW_RESET_DOUBLE_FLICK } = require('../src/pkjs/settings/domain/clay-payload.js');
 
 function views(settings) {
   const p = buildClayPayload(settings, null, new Date(0));

@@ -73,7 +73,7 @@ broke X, update".
 The toast is a one-line summary; the news `body_md` is a short changelog, one step longer.
 Title it `"What's new in <version>"` and use only the supported markdown subset (`**bold**`
 section headers, `- ` bullets, `*italic*`, `[text](https://…)` links; see
-`src/pkjs/settings/news.js`). The schema is in `supabase/schemas/news.sql`.
+`src/pkjs/page/notices/news.js`). The schema is in `supabase/schemas/news.sql`.
 
 To add it (Supabase project `uorytkglrxbafryiugpu`): insert one row per release with
 `execute_sql`, title `What's new in <version>`, `target_version` NULL, and the body in dollar

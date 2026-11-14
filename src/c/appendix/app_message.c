@@ -483,7 +483,7 @@ static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dir
 // Second appended tail block, ONE unit: [8] the third-metric line colour,
 // then bytes [9..11] ARE the LINE_STYLES persist blob (per-line marker
 // styles), byte for byte — layout in persist.h. The phone only ever appends
-// these four bytes together (weather/graph-wire.js), so one length check guards the
+// these four bytes together (forecast-graphs/domain/graph-wire.js), so one length check guards the
 // block. Offsets unguarded like the night offset above; the CONSUMING arm is
 // WW_LINE_STYLE-guarded, so aplite ignores the trailing bytes it may still
 // receive.

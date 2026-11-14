@@ -2,7 +2,7 @@
 // Bars 4 to 6's wire and storage contract (Pebble Time 2, 3.0.0's New status bar): four appended
 // message keys, four appended persist slots, the watch's line and cell handlers behind
 // PBL_PLATFORM_EMERY, and the view word's row bits read on the watch where the phone packs
-// them (src/c/windows/layout.h, src/pkjs/view-cycle.js packExt). The phone's half of each:
+// them (src/c/windows/layout.h, src/pkjs/layout/domain/view-cycle.js packExt). The phone's half of each:
 // test/extra-bars.test.js.
 
 const test = require('node:test');
@@ -10,9 +10,9 @@ const assert = require('node:assert');
 const { readC, cDefine, cEnum } = require('./helpers/c-source.js');
 
 global.localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
-const VC = require('../src/pkjs/view-cycle.js');
-const OD = require('../src/pkjs/on-demand.js');
-const catalog = require('../src/pkjs/status-line-catalog.js');
+const VC = require('../src/pkjs/layout/domain/view-cycle.js');
+const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
+const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 const persistC = readC('src/c/appendix/persist.c');
 const appMessageC = readC('src/c/appendix/app_message.c');

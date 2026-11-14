@@ -39,7 +39,7 @@ test('the settings open right after Reset watchface, before the next launch', (t
     const devConfigPath = require.resolve('../src/pkjs/dev-config.js');
     require.cache[devConfigPath] = { id: devConfigPath, filename: devConfigPath, loaded: true, exports: {} };
   } catch (e) { /* absent */ }
-  const fixturePath = require.resolve('../src/pkjs/active-fixture.generated.js');
+  const fixturePath = require.resolve('../src/pkjs/weather/adapter/active-fixture.generated.js');
   require.cache[fixturePath] = { id: fixturePath, filename: fixturePath, loaded: true, exports: null };
   t.after(() => {
     delete global.localStorage;

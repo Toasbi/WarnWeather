@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
   getFixtureWeatherPayload, getFixtureRadarTuples, mapFixtureWeather, sendFixtureWeather
-} = require('../src/pkjs/fixture-weather');
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+} = require('../src/pkjs/weather/adapter/fixture-weather');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 
 // A minimal-but-valid 3-hour fixture: temps/precipPct present, 2 sun events.
 function makeFixture(over) {
@@ -251,8 +251,8 @@ test('a styled UV pair bakes end to end: peak first, spaced, starred as tomorrow
 // wholly in the past, so no rain alert draws.
 test('fixtures/rain-countdown.json bakes UV danger 8 + wind warn 66 into ALERT_ENTRIES_UINT8', () => {
   const { normalizeWeather } = require('../scripts/lib/fixture-time');
-  const thresholds = require('../src/pkjs/status-thresholds.js');
-  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const thresholds = require('../src/pkjs/alerts/domain/status-thresholds.js');
+  const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
   const fx = JSON.parse(fs.readFileSync(
     path.join(__dirname, '..', 'fixtures', 'rain-countdown.json'), 'utf8'));
   assert.equal(fx.weather.radarStartEpoch, Date.UTC(2026, 5, 1, 12) / 1000,
@@ -295,7 +295,7 @@ test('fixtures/rain-countdown.json bakes UV danger 8 + wind warn 66 into ALERT_E
 // icon carries tomorrow's level: the slot's »8 is never highlighted.
 test('fixtures/uv-alert-tomorrow.json bakes a tomorrow UV entry (» 8, danger) + today\'s wind 58', () => {
   const { normalizeWeather } = require('../scripts/lib/fixture-time');
-  const thresholds = require('../src/pkjs/status-thresholds.js');
+  const thresholds = require('../src/pkjs/alerts/domain/status-thresholds.js');
   const { decodeAlerts } = require('./helpers/alert-entries.js');
   const fx = JSON.parse(fs.readFileSync(
     path.join(__dirname, '..', 'fixtures', 'uv-alert-tomorrow.json'), 'utf8'));
@@ -378,7 +378,7 @@ test('fixture without pressureHpa still produces a valid (empty/off) pressure li
  * @returns {Object} The pre-transform weather payload.
  */
 function capturePreTransform(fixture, settings) {
-  const forecastSeries = require('../src/pkjs/forecast-series.js');
+  const forecastSeries = require('../src/pkjs/weather/domain/forecast-series.js');
   const orig = forecastSeries.applyForecastSeries;
   let raw;
   forecastSeries.applyForecastSeries = function(payload) {
@@ -487,8 +487,8 @@ test('a scalar currentFeels ships without an hourly feelsTemps series', () => {
 // settings: a fixture sources every series it carries, and its feels ship
 // verbatim, so neither the slot selection nor the feels-like formula filters them.
 test('the fixture adopts its UV and feels whatever the settings select or the formula says', () => {
-  const forecastSeries = require('../src/pkjs/forecast-series.js');
-  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const forecastSeries = require('../src/pkjs/weather/domain/forecast-series.js');
+  const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
   // No UV slot, line or placed UV alert (the default ticks would place it).
   const settings = Object.assign({ secondaryLine: 'off', thirdLine: 'off', barSource: 'off', feelsFormula: 'steadman' },
     require('./helpers/on-demand.js').NOTHING_PLACED);
@@ -507,7 +507,7 @@ test('the fixture adopts its UV and feels whatever the settings select or the fo
 // — so a long fixture fits every inbox.
 const TRENDS = ['TEMP_TREND_UINT8', 'SECONDARY_LINE_TREND_UINT8', 'THIRD_LINE_TREND_UINT8',
   'FOURTH_LINE_TREND_UINT8', 'BAR_TREND_UINT8'];
-const { MAX_FORECAST_HOURS } = require('../src/pkjs/weather/hourly-window.js');
+const { MAX_FORECAST_HOURS } = require('../src/pkjs/weather/domain/hourly-window.js');
 const loadFixture = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));
 
 test('forecast-long.json: 68 hours on an emery set to the long span, 24 on 24 and on every other watch', () => {
@@ -583,7 +583,7 @@ test('a 3-hour fixture still sends its 3 hours on every span', () => {
 // rain alert, whose text would take that side, is off there).
 test('fixtures/condition.json bakes the condition into the forecast bar and the Watch bar', () => {
   const { normalizeWeather } = require('../scripts/lib/fixture-time');
-  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const catalog = require('../src/pkjs/status-bars/domain/status-line-catalog.js');
   const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'condition.json'), 'utf8'));
   normalizeWeather(fx);
   ['basalt', 'emery'].forEach((platform) => {

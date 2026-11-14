@@ -8,7 +8,7 @@ const build = require('../scripts/build-config-page.js');
 build.run();
 
 // Step 2: require the WarnWeather settings instance (which requires page.generated.js)
-const settings = require('../src/pkjs/settings/index.js');
+const settings = require('../src/pkjs/page/settings/index.js');
 
 // The instance now carries an emulatorConfigUrl, and in Node (no Pebble global) generateUrl
 // would read as "emulator" and emit the hosted-helper URL. This suite verifies the device

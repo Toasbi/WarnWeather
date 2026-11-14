@@ -2,7 +2,7 @@
 
 // Humidity and "feels like" for feeds that don't report them (Bright Sky's forecast records carry a
 // dew point but no relative humidity). The formulas are the ones the WarnWeather watchface uses
-// (src/pkjs/weather/feels-like.js), so a plugin and the face agree on the same inputs:
+// (src/pkjs/weather/domain/feels-like.js), so a plugin and the face agree on the same inputs:
 //
 //   apparent temperature (Steadman):  AT = T + 0.33·e − 0.70·v − 4.00   (T in °C, v in m/s)
 //   vapour pressure (Magnus):         e  = (rh/100) · 6.105 · exp(17.27·T / (237.7 + T))

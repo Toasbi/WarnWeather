@@ -1,9 +1,9 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const thresholds = require('../src/pkjs/status-thresholds.js');
+const thresholds = require('../src/pkjs/alerts/domain/status-thresholds.js');
 
-const renderSignature = require('../src/pkjs/render-signature.js').renderSignature;
+const renderSignature = require('../src/pkjs/settings/domain/render-signature.js').renderSignature;
 // The same predicate status-wire packWeatherLevels packs by: phone-leveled weather kinds
 // (aqi, pollen, wind, gust, uv). slice(0, 4) here once mirrored the shipped
 // bug of dropping UV (kind 7, after the health kinds) from the signature.
@@ -132,7 +132,7 @@ test('the Show unit toggles are independent of each other', () => {
 // watch keeps the old count until the next scheduled fetch. Signed only while the slot
 // shows the countdown: the page hydrates every slot's date to today, so signing the
 // unused ones would buy a needless fetch on the first save that writes them.
-const SLOT_KEYS = require('../src/pkjs/status-line-catalog.js').allSlotKeys();
+const SLOT_KEYS = require('../src/pkjs/status-bars/domain/status-line-catalog.js').allSlotKeys();
 // The default screens show the Forecast, Radar and Watch bars; healthMode 'status' adds the
 // Health bar, so every one of the twelve slots bakes (and signs).
 const ALL_BARS = { healthMode: 'status' };
@@ -271,8 +271,8 @@ test('the weather bake is identical across themes and the area-fill toggle', () 
   const origLog = console.log;
   console.log = () => {};
   try {
-    const fixtureWeather = require('../src/pkjs/fixture-weather.js');
-    const defaults = require('../src/pkjs/settings').getDefaults();
+    const fixtureWeather = require('../src/pkjs/weather/adapter/fixture-weather.js');
+    const defaults = require('../src/pkjs/page/settings').getDefaults();
     let compared = 0;
     ['berlin.json', 'windy.json', 'graph-colors.json'].forEach((name) => {
       const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));
@@ -321,8 +321,8 @@ test('the weather bake is identical with every Draw from / Bars from on Top', ()
   const origLog = console.log;
   console.log = () => {};
   try {
-    const fixtureWeather = require('../src/pkjs/fixture-weather.js');
-    const defaults = require('../src/pkjs/settings').getDefaults();
+    const fixtureWeather = require('../src/pkjs/weather/adapter/fixture-weather.js');
+    const defaults = require('../src/pkjs/page/settings').getDefaults();
     const TOP = { precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top', uvLineFrom: 'top',
       rainBarFrom: 'top', radarBarFrom: 'top' };
     const LINES = [
@@ -382,7 +382,7 @@ test('setting a WEATHER-kind pair changes the render signature (forces a refetch
 
 // A pair stored equal to the seed (dragged onto it, or pinned by a page before 1.24.0)
 // bakes the same numbers as a blank one — so the 1.24.0 migration that blanks such a
-// pair (migrations/seed-pairs.js) must not force a refetch either.
+// pair (settings/domain/migrations/seed-pairs.js) must not force a refetch either.
 test('storing the seed pair over a blank one leaves the signature unchanged', () => {
   WEATHER_KINDS.forEach(kind => {
     const seed = thresholds.seedPair(kind.key, {});
@@ -534,7 +534,7 @@ test('placing an alert and, while placed, its Look change the render signature',
 // On demand): moving an item between sides or bars, or unticking it on one of two sides
 // that both carry it, signs nothing new; adding or removing it from the union does.
 test('moving an alert between sides or bars leaves the signature alone; changing the union changes it', () => {
-  const OD = require('../src/pkjs/on-demand.js');
+  const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
   const top = renderSignature(placedOnly(['uv', 'wind']));
   assert.equal(renderSignature(placeOn(Object.assign({}, NOTHING_PLACED), 'top', 'left', 'uv,wind')), top,
     'the other side of the same bar');
@@ -736,8 +736,8 @@ test('the weather bake follows forecastHours on emery only', () => {
   const origLog = console.log;
   console.log = () => {};
   try {
-    const fixtureWeather = require('../src/pkjs/fixture-weather.js');
-    const defaults = require('../src/pkjs/settings').getDefaults();
+    const fixtureWeather = require('../src/pkjs/weather/adapter/fixture-weather.js');
+    const defaults = require('../src/pkjs/page/settings').getDefaults();
     const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'forecast-48h.json'), 'utf8'));
     const bake = (platform, forecastHours, over) => {
       const s = Object.assign({}, defaults, fx.claySettings, { forecastHours }, over || {});
@@ -801,8 +801,8 @@ test('the weather bake is identical across the numbers\' place on a 24-hour feed
   const origLog = console.log;
   console.log = () => {};
   try {
-    const fixtureWeather = require('../src/pkjs/fixture-weather.js');
-    const defaults = require('../src/pkjs/settings').getDefaults();
+    const fixtureWeather = require('../src/pkjs/weather/adapter/fixture-weather.js');
+    const defaults = require('../src/pkjs/page/settings').getDefaults();
     let compared = 0;
     ['berlin.json', 'feels-curve.json'].forEach((name) => {
       const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));

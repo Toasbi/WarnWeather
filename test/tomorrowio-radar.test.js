@@ -11,10 +11,10 @@ global.localStorage = {
   setItem: (k, v) => { store[k] = String(v); },
   removeItem: (k) => { delete store[k]; }
 };
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, type, onSuccess, onError); };
-const tomorrowioRadar = require('../src/pkjs/weather/tomorrowio-radar.js');
+const tomorrowioRadar = require('../src/pkjs/weather/adapter/radar/tomorrowio-radar.js');
 
 const SLOT0 = 1700000100;   // 5-min aligned (1700000100 % 300 === 0)
 const SLOT = 300;
@@ -119,8 +119,8 @@ test('a 401/403 key rejection clears the watch radar', () => {
 });
 
 test('the radar records its answers to the key (fingerprint only) under the id the weather provider shares', () => {
-  const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
-  const KEYS = require('../src/pkjs/storage-keys.js');
+  const { fingerprint } = require('../src/pkjs/weather/domain/keys/key-fingerprint.js');
+  const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
   const verdict = () => JSON.parse(store[KEYS.KEY_RESULTS_KEY]).tomorrowio;
   const expect = (status) => ({ keyHash: fingerprint('KEY123'), status });
   for (const k in store) { delete store[k]; }

@@ -1,4 +1,4 @@
-// test/migration-screens.test.js — the 2.6.0 move onto screens (src/pkjs/migrations/screens.js):
+// test/migration-screens.test.js — the 2.6.0 move onto screens (src/pkjs/settings/domain/migrations/screens.js):
 // every preset install becomes the custom keys of its own cycle with the modes worked out from
 // them, and its watch is sent exactly what it was sent before; a custom install keeps the views
 // 2.5 drew; aplite and an unknown watch keep their preset.
@@ -13,14 +13,14 @@ global.localStorage = {
   removeItem: (k) => { delete STORE[k]; }
 };
 
-const claySettings = require('../src/pkjs/clay-settings.js');
-const pebbleColors = require('../src/pkjs/pebble-colors.js');
-const { buildClayPayload } = require('../src/pkjs/clay-payload.js');
-const vc = require('../src/pkjs/view-cycle.js');
-const M = require('../src/pkjs/screens.js');
-const { migrateToScreens, legacyCycle } = require('../src/pkjs/migrations/screens.js');
-const clayMigrations = require('../src/pkjs/clay-migrations.js');
-const KEYS = require('../src/pkjs/storage-keys.js');
+const claySettings = require('../src/pkjs/settings/adapter/clay-settings.js');
+const pebbleColors = require('../src/pkjs/theme/domain/pebble-colors.js');
+const { buildClayPayload } = require('../src/pkjs/settings/domain/clay-payload.js');
+const vc = require('../src/pkjs/layout/domain/view-cycle.js');
+const M = require('../src/pkjs/layout/domain/screens.js');
+const { migrateToScreens, legacyCycle } = require('../src/pkjs/settings/domain/migrations/screens.js');
+const clayMigrations = require('../src/pkjs/settings/application/clay-migrations.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 const COLORS = { white: pebbleColors.GColorWhite, folly: pebbleColors.GColorFolly,
   holiday: pebbleColors.GColorBlueMoon };

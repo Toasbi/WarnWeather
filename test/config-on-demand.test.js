@@ -12,17 +12,17 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const { rowOf, hintOf } = require('./helpers/page-rows.js');
-const OD = require('../src/pkjs/on-demand.js');
+const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
-const SCHEMA = require('../src/pkjs/settings/schema.js');
+const SCHEMA = require('../src/pkjs/page/settings/schema.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
+require('../src/pkjs/page/settings/blocks.js');
 // After the engine: the glyphs register into PConf.icons only once it is there.
-const ICONS = require('../src/pkjs/settings/status-slot-icons.js');
-const onbuild = require('../src/pkjs/settings/onbuild.js');
+const ICONS = require('../src/pkjs/page/status-bars/status-slot-icons.js');
+const onbuild = require('../src/pkjs/page/settings/onbuild.js');
 const PC = global.PConf;
 
 // An upgraded install's screens, the state these tests were written for: the Default, Health

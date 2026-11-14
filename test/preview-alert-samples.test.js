@@ -1,5 +1,5 @@
 // test/preview-alert-samples.test.js — the forecast preview's samples for a wind, gust or UV
-// line drawn Visible values: Alert (src/pkjs/settings/preview-forecast.js alertSamples).
+// line drawn Visible values: Alert (src/pkjs/page/forecast-graphs/preview-forecast.js alertSamples).
 // Owner, 2026-10-02: "when enabling alert values only for a gust line, nothing shows in the
 // preview anymore.. can you fix that for all metrics with alert". The preview's fixed sample
 // is a mild day that never reaches the seed warn levels, so on Alert each metric keeps its
@@ -13,9 +13,9 @@ const platform = require('../src/pkjs/config-ui/lib/platform.js');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 const color = require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-const FC = require('../src/pkjs/settings/preview-forecast.js');
-const lineAlert = require('../src/pkjs/line-alert.js');
-const lineStyle = require('../src/pkjs/line-style.js');
+const FC = require('../src/pkjs/page/forecast-graphs/preview-forecast.js');
+const lineAlert = require('../src/pkjs/alerts/domain/line-alert.js');
+const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
 
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 const EMERY = platform.computeEnv({ platform: 'emery' });

@@ -27,7 +27,7 @@ global.localStorage = {
 };
 
 // Brightsky's /radar answer for the next request: an HTTP status to fail with, or a body.
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 var radarAnswer = 404;
 var radarRequests = 0;
 WeatherProvider.request = function(url, type, onSuccess, onError) {
@@ -36,11 +36,11 @@ WeatherProvider.request = function(url, type, onSuccess, onError) {
   if (typeof radarAnswer === 'number') { onError({ code: 'status_' + radarAnswer, detail: 'http_status' }); }
   else { onSuccess(JSON.stringify(radarAnswer)); }
 };
-const createFetchCycle = require('../src/pkjs/fetch-cycle.js');
-const outbox = require('../src/pkjs/outbox.js');
-const authBackoff = require('../src/pkjs/auth-backoff.js');
-const notices = require('../src/pkjs/notices.js');
-const KEYS = require('../src/pkjs/storage-keys.js');
+const createFetchCycle = require('../src/pkjs/shell/fetch-cycle.js');
+const outbox = require('../src/pkjs/wire/adapter/outbox.js');
+const authBackoff = require('../src/pkjs/weather/application/auth-backoff.js');
+const notices = require('../src/pkjs/notices/application/notices.js');
+const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
 
 const MIN = 60 * 1000;
 const T0 = Date.UTC(2026, 9, 2, 10, 0, 20);

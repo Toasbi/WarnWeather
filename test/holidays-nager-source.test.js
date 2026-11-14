@@ -17,7 +17,7 @@ function installStorage() {
 }
 
 installStorage();
-const nagerSource = require('../src/pkjs/holidays/nager-source.js');
+const nagerSource = require('../src/pkjs/calendar/adapter/nager-source.js');
 
 const NOW = Date.UTC(2026, 5, 25);
 const DAY = 24 * 60 * 60 * 1000;
@@ -106,7 +106,7 @@ test('non-global holiday with null/empty counties is inert (never highlighted)',
 });
 
 test('ensure prunes stale year and other-country keys, keeps the wanted window', () => {
-  const KEYS = require('../src/pkjs/storage-keys');
+  const KEYS = require('../src/pkjs/settings/adapter/storage-keys');
   global.localStorage.setItem(KEYS.HOLIDAY_CACHE_PREFIX + 'DE_2025', JSON.stringify({ f: NOW, h: [] }));
   global.localStorage.setItem(KEYS.HOLIDAY_CACHE_PREFIX + 'US_2026', JSON.stringify({ f: NOW, h: [] }));
   global.localStorage.setItem(KEYS.HOLIDAY_BACKOFF_PREFIX + 'US', String(NOW + DAY));
@@ -135,7 +135,7 @@ test('ensure fetches each year across a year boundary and caches both', () => {
 });
 
 test('forPage hands the settings page the cached years around today, null without any', () => {
-  const KEYS = require('../src/pkjs/storage-keys.js');
+  const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
   const put = (country, year, h) => localStorage.setItem(KEYS.HOLIDAY_CACHE_PREFIX + country + '_' + year,
     JSON.stringify({ f: NOW, h: h }));
   assert.equal(nagerSource.forPage('DE', new Date(2026, 5, 25)), null, 'nothing cached');

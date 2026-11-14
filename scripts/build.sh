@@ -18,7 +18,7 @@ mise run prepare-package -- "$profile"
 
 # Install the locked Node dependency (suncalc) before the test suite and
 # pebble build. CI checks out fresh with no node_modules, so `node --test`
-# would otherwise fail to load src/pkjs/weather/provider.js with "Cannot find
+# would otherwise fail to load src/pkjs/weather/application/provider.js with "Cannot find
 # module 'suncalc'". Runs after prepare-package so the generated package.json
 # version matches package-lock.json for npm ci.
 npm ci

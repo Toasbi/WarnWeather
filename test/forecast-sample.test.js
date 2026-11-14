@@ -1,4 +1,4 @@
-// test/forecast-sample.test.js — the sample weather (src/pkjs/settings/forecast-sample.js) and the
+// test/forecast-sample.test.js — the sample weather (src/pkjs/page/forecast-graphs/forecast-sample.js) and the
 // forecast preview drawing it (preview-forecast.js forecastPreview's `sample`, and on a watch with a
 // Forecast length its pinned preview): every span draws its own hours, from the sample's own first
 // hour, with a night band per night it reaches.
@@ -10,12 +10,12 @@ global.PConf = global.PConf || {};
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-const schema = require('../src/pkjs/settings/schema.js');
+require('../src/pkjs/page/settings/blocks.js');
+const schema = require('../src/pkjs/page/settings/schema.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
-const FC = require('../src/pkjs/settings/preview-forecast.js');
-const FS = require('../src/pkjs/settings/forecast-sample.js');
-const spanHours = require('../src/pkjs/forecast-span-hours.js');
+const FC = require('../src/pkjs/page/forecast-graphs/preview-forecast.js');
+const FS = require('../src/pkjs/page/forecast-graphs/forecast-sample.js');
+const spanHours = require('../src/pkjs/weather/domain/forecast-span-hours.js');
 
 const EMERY = platform.computeEnv({ platform: 'emery' });
 // 24 hours under emery's left axis, as an upgraded install keeps them (a new install's graph

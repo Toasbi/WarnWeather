@@ -30,7 +30,7 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
     setItem: (k, v) => { store[k] = String(v); },
     removeItem: (k) => { delete store[k]; },
   };
-  const KEYS = require('../src/pkjs/storage-keys.js');
+  const KEYS = require('../src/pkjs/settings/adapter/storage-keys.js');
   const pkg = require('../package.json');
   // Same seeding as index-boot.test.js: no fetch and no update check on the first tick.
   store.lastFetchSuccess = JSON.stringify({ time: new Date(now + 60 * 60 * 1000).toISOString(), name: 'Berlin' });
@@ -105,7 +105,7 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
     const devConfigPath = require.resolve('../src/pkjs/dev-config.js');
     require.cache[devConfigPath] = { id: devConfigPath, filename: devConfigPath, loaded: true, exports: {} };
   } catch (e) { /* absent */ }
-  const fixturePath = require.resolve('../src/pkjs/active-fixture.generated.js');
+  const fixturePath = require.resolve('../src/pkjs/weather/adapter/active-fixture.generated.js');
   require.cache[fixturePath] = { id: fixturePath, filename: fixturePath, loaded: true, exports: null };
   t.after(() => {
     delete global.localStorage;

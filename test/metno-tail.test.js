@@ -7,14 +7,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
 let responder;
 WeatherProvider.request = function(url, type, onSuccess, onError, headers) {
   responder(url, type, onSuccess, onError, headers);
 };
-const metno = require('../src/pkjs/weather/metno.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
-const { MAX_FORECAST_HOURS, PEAK_HOURS } = require('../src/pkjs/weather/hourly-window.js');
+const metno = require('../src/pkjs/weather/adapter/providers/metno.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
+const { MAX_FORECAST_HOURS, PEAK_HOURS } = require('../src/pkjs/weather/domain/hourly-window.js');
 const { HOUR, metnoFeed } = require('./helpers/metno-feed.js');
 const golden = require('./metno-gate.golden.json');
 

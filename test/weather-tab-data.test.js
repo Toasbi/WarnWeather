@@ -4,8 +4,8 @@
 // (provider daily array vs client-side aggregation).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const data = require('../src/pkjs/settings/weather-tab-data.js');
-const charts = require('../src/pkjs/settings/weather-tab-charts.js');
+const data = require('../src/pkjs/weather/adapter/weather-tab-data.js');
+const charts = require('../src/pkjs/page/weather/weather-tab/weather-tab-charts.js');
 
 const NOON = new Date(2026, 8, 20, 12, 0, 0).getTime();
 const DAY0 = new Date(2026, 8, 20, 0, 0, 0).getTime();
@@ -159,7 +159,7 @@ test('OWM parser: m/s → km/h, pop 0..1 → %, its own daily array', () => {
 });
 
 // OWM reports snowfall in its own fields (mm water equivalent). The watch's OWM adapter
-// (weather/openweathermap.js) sums rain + snow into the rain bar, and the other providers'
+// (weather/adapter/providers/openweathermap.js) sums rain + snow into the rain bar, and the other providers'
 // precipitation already includes snow — so the tab's OWM series is the sum too.
 test('OWM parsers count snow as precipitation (hourly, daily and the 3-hourly tail)', () => {
   const out = data.parsers.openweathermap({

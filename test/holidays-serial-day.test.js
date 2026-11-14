@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const daysFromCivil = require('../src/pkjs/holidays/serial-day.js');
+const daysFromCivil = require('../src/pkjs/calendar/domain/serial-day.js');
 
 test('epoch and known anchors', () => {
   assert.equal(daysFromCivil(1970, 1, 1), 0);

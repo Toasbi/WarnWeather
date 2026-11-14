@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { WEATHER_CATEGORIES } = require('../src/pkjs/outbox');
+const { WEATHER_CATEGORIES } = require('../src/pkjs/wire/adapter/outbox');
 
 const forecastCategory = WEATHER_CATEGORIES.find(function(c) { return c.name === 'forecast'; });
 const statusCategory = WEATHER_CATEGORIES.find(function(c) { return c.name === 'status'; });

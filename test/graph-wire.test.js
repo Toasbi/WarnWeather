@@ -1,4 +1,4 @@
-// test/graph-wire.test.js — the graph's three Clay tuples (src/pkjs/weather/graph-wire.js):
+// test/graph-wire.test.js — the graph's three Clay tuples (src/pkjs/forecast-graphs/domain/graph-wire.js):
 // the forecast's and the radar's bar palettes, each with its Bars from flag, and the
 // fourteen bytes of line styling: colours, the fill flag, the style bytes and their
 // Draw from and float bits. The readings they encode are pinned in line-style.test.js and
@@ -14,13 +14,13 @@ global.localStorage = {
   removeItem: () => {}
 };
 
-const graphWire = require('../src/pkjs/weather/graph-wire.js');
-const lineStyle = require('../src/pkjs/line-style.js');
-const drawFrom = require('../src/pkjs/draw-from.js');
+const graphWire = require('../src/pkjs/forecast-graphs/domain/graph-wire.js');
+const lineStyle = require('../src/pkjs/forecast-graphs/domain/line-style.js');
+const drawFrom = require('../src/pkjs/forecast-graphs/domain/draw-from.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
-const rainTier = require('../src/pkjs/weather/rain-tier.js');
-const COLORS = require('../src/pkjs/pebble-colors.js');
-const { resolveInk } = require('../src/pkjs/resolve-ink.js');
+const rainTier = require('../src/pkjs/weather/domain/rain-tier.js');
+const COLORS = require('../src/pkjs/theme/domain/pebble-colors.js');
+const { resolveInk } = require('../src/pkjs/theme/domain/resolve-ink.js');
 
 const emery = { platform: 'emery' };
 // The graph colours one watch resolves to, the answer buildLineStyleBytes packs.
@@ -670,8 +670,8 @@ test('an unknown watch packs the basalt bytes', () => {
 });
 
 test('the Clay payload and the fixture send carry the same three graph tuples', () => {
-  const { buildClayPayload } = require('../src/pkjs/clay-payload.js');
-  const { sendFixtureWeather } = require('../src/pkjs/fixture-weather.js');
+  const { buildClayPayload } = require('../src/pkjs/settings/domain/clay-payload.js');
+  const { sendFixtureWeather } = require('../src/pkjs/weather/adapter/fixture-weather.js');
   const fixture = {
     name: 'graph-wire',
     weather: { city: 'Testville', currentTemp: 60, startEpoch: 1000, temps: [50, 51, 52], precipPct: [0, 40, 80],

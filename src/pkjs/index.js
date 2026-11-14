@@ -1,45 +1,45 @@
 
 // ES5-safe polyfills (Object.assign, Math.trunc, Array find/findIndex/includes) MUST load
 // before anything else so the aplite JavaScriptCore runtime can run the bundle.
-require('./polyfills.js');
+require('./lib/polyfills.js');
 
-var notices = require('./notices.js');
-var WeatherProvider = require('./weather/provider.js');
-var createTelemetryClient = require('./telemetry.js');
-var settings = require('./settings');
-var storageKeys = require('./storage-keys.js');
-var outbox = require('./outbox.js');
-var authBackoff = require('./auth-backoff.js');
-var devStats = require('./dev-stats.js');
+var notices = require('./notices/application/notices.js');
+var WeatherProvider = require('./weather/application/provider.js');
+var createTelemetryClient = require('./telemetry/adapter/telemetry.js');
+var settings = require('./page/settings');
+var storageKeys = require('./settings/adapter/storage-keys.js');
+var outbox = require('./wire/adapter/outbox.js');
+var authBackoff = require('./weather/application/auth-backoff.js');
+var devStats = require('./telemetry/adapter/dev-stats.js');
 var pkg = require('../../package.json');
-var activeFixture = require('./active-fixture.generated.js');
-var pebbleColors = require('./pebble-colors.js');
-var releaseNotifications = require('./release-notifications.js');
-var updateCheckRunner = require('./update-check-runner.js');
-var themeSchedule = require('./theme-schedule.js');
-var locationLib = require('./weather/location.js');
+var activeFixture = require('./weather/adapter/active-fixture.generated.js');
+var pebbleColors = require('./theme/domain/pebble-colors.js');
+var releaseNotifications = require('./notices/domain/release-notifications.js');
+var updateCheckRunner = require('./notices/adapter/update-check-runner.js');
+var themeSchedule = require('./theme/domain/theme-schedule.js');
+var locationLib = require('./weather/adapter/location.js');
 var SunCalc = require('suncalc');
-var claySettings = require('./clay-settings.js');
-var clayMigrations = require('./clay-migrations.js');
-var fixtureWeather = require('./fixture-weather.js');
-var holidayMask = require('./holidays/holiday-mask.js');
-var nagerSource = require('./holidays/nager-source.js');
-var buildClayPayload = require('./clay-payload.js').buildClayPayload;
-var effectiveHolidayCountry = require('./clay-payload.js').effectiveHolidayCountry;
-var holidayWindowOpts = require('./clay-payload.js').holidayWindowOpts;
-var providerFactory = require('./provider-factory.js');
-var previewPalette = require('./settings/preview-palette.js');
-var newsCache = require('./news-cache.js');
-var weatherTabCache = require('./weather-tab-cache.js');
-var createChannelScheduler = require('./channel-scheduler.js');
-var createFetchCycle = require('./fetch-cycle.js');
+var claySettings = require('./settings/adapter/clay-settings.js');
+var clayMigrations = require('./settings/application/clay-migrations.js');
+var fixtureWeather = require('./weather/adapter/fixture-weather.js');
+var holidayMask = require('./calendar/domain/holiday-mask.js');
+var nagerSource = require('./calendar/adapter/nager-source.js');
+var buildClayPayload = require('./settings/domain/clay-payload.js').buildClayPayload;
+var effectiveHolidayCountry = require('./settings/domain/clay-payload.js').effectiveHolidayCountry;
+var holidayWindowOpts = require('./settings/domain/clay-payload.js').holidayWindowOpts;
+var providerFactory = require('./weather/application/provider-factory.js');
+var previewPalette = require('./theme/domain/preview-palette.js');
+var newsCache = require('./notices/adapter/news-cache.js');
+var weatherTabCache = require('./weather/adapter/weather-tab-cache.js');
+var createChannelScheduler = require('./wire/adapter/channel-scheduler.js');
+var createFetchCycle = require('./shell/fetch-cycle.js');
 // The render-affecting-settings signature (the force-fetch rule) lives in its own
 // module so the invariant is testable; see the header there.
-var renderSignature = require('./render-signature.js').renderSignature;
-var decideConfigClose = require('./config-close.js').decideConfigClose;
-var phoneBattery = require('./phone-battery.js');
-var statusRebake = require('./status-rebake.js');
-var notifyWatch = require('./notify-watch.js').notifyWatch;
+var renderSignature = require('./settings/domain/render-signature.js').renderSignature;
+var decideConfigClose = require('./settings/domain/config-close.js').decideConfigClose;
+var phoneBattery = require('./status-bars/adapter/phone-battery.js');
+var statusRebake = require('./status-bars/application/status-rebake.js');
+var notifyWatch = require('./notices/adapter/notify-watch.js').notifyWatch;
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -190,7 +190,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // The last answer each keyed source gave the user's own key (key-result.js: per
         // weather provider or radar source, the key's fingerprint and the status), as
         // stored, or null: the key status under the Weather and Radar provider rows
-        // (settings/key-status.js) reads it.
+        // (page/weather/keys/key-status.js) reads it.
         keyResults: localStorage.getItem(KEY_KEY_RESULTS),
         // Which regional radar sources can see the last update's location
         // (radar-coverage.js: {dwd, metno}, true = outside, plus DWD's run of 404s; never
@@ -222,7 +222,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
     var phoneBatteryEnv = phoneBattery.isSupported();
     console.log('Config env: phoneBattery=' + phoneBatteryEnv);
     // Let the library pick the return target: pebblejs://close# on device, or the
-    // $$RETURN_TO$$ helper placeholder in the emulator (see settings/index.js options).
+    // $$RETURN_TO$$ helper placeholder in the emulator (see page/settings/index.js options).
     Pebble.openURL(settings.generateUrl({
         values: values,
         watchInfo: app.watchInfo,
@@ -398,7 +398,7 @@ Pebble.addEventListener('ready',
         }
         catch (ex) { /* keep the safe default */ }
         // Every marker-gated migration runs inside clay-migrations.runMigrations
-        // (the ledger is migrations/registry.js); the ones marked 'ack' commit
+        // (the ledger is settings/domain/migrations/registry.js); the ones marked 'ack' commit
         // their markers only on the Clay ACK below.
         var migrations = clayMigrations.runMigrations({
             platform: statusMigrationPlatform,

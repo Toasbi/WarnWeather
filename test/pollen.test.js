@@ -1,11 +1,11 @@
 const test = require('node:test');
 // The aux fetches call http.request through the module object, so stubbing
 // the property here intercepts them (the old seam was WeatherProvider.request).
-const http = require('../src/pkjs/weather/http.js');
+const http = require('../src/pkjs/weather/adapter/http.js');
 const assert = require('node:assert/strict');
 
-const pollen = require('../src/pkjs/weather/pollen.js');
-const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
+const pollen = require('../src/pkjs/weather/adapter/pollen.js');
+const fetchOptions = require('../src/pkjs/weather/domain/fetch-options.js');
 
 function feature(date, pollenInt, species) {
   return {
@@ -105,7 +105,7 @@ test('worstToday returns null for malformed envelopes or no valid today data', (
 });
 
 test('fetchPollenInto skips the request when pollen fetching is disabled', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const originalRequest = http.request;
   let requests = 0;
   let doneCalls = 0;
@@ -120,7 +120,7 @@ test('fetchPollenInto skips the request when pollen fetching is disabled', () =>
 });
 
 test('fetchPollenInto writes valid today data and calls done exactly once', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const originalRequest = http.request;
   const today = pollen.localDateKey(new Date());
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
@@ -144,7 +144,7 @@ test('fetchPollenInto writes valid today data and calls done exactly once', () =
 });
 
 test('fetchPollenInto leaves pollen unchanged when the response has no today data', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const originalRequest = http.request;
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
@@ -161,7 +161,7 @@ test('fetchPollenInto leaves pollen unchanged when the response has no today dat
 });
 
 test('fetchPollenInto treats parse failures as non-fatal and calls done once', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const originalRequest = http.request;
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
@@ -176,7 +176,7 @@ test('fetchPollenInto treats parse failures as non-fatal and calls done once', (
 });
 
 test('fetchPollenInto treats transport failures as non-fatal and calls done once', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const originalRequest = http.request;
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
@@ -193,7 +193,7 @@ test('fetchPollenInto treats transport failures as non-fatal and calls done once
 });
 
 test('fetchPollenInto ignores duplicate success callbacks after completing once', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const originalRequest = http.request;
   const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
@@ -212,7 +212,7 @@ test('fetchPollenInto ignores duplicate success callbacks after completing once'
 });
 
 test('fetchPollenInto ignores an error callback after success', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const originalRequest = http.request;
   const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
@@ -231,7 +231,7 @@ test('fetchPollenInto ignores an error callback after success', () => {
 });
 
 test('fetchPollenInto treats a synchronous request throw as non-fatal', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const originalRequest = http.request;
   const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
@@ -248,7 +248,7 @@ test('fetchPollenInto treats a synchronous request throw as non-fatal', () => {
 });
 
 test('WeatherProvider initializes and transiently exposes pollenToday', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const provider = new WeatherProvider();
   assert.equal(provider.pollenToday, null);
 
@@ -264,9 +264,9 @@ test('WeatherProvider initializes and transiently exposes pollenToday', () => {
 });
 
 test('fetchWithCoordinates completes AQI then pollen before composing the payload', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const airQuality = require('../src/pkjs/weather/air-quality.js');
-  const outbox = require('../src/pkjs/outbox.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+  const airQuality = require('../src/pkjs/weather/adapter/air-quality.js');
+  const outbox = require('../src/pkjs/wire/adapter/outbox.js');
   const originalAqi = airQuality.fetchAqiInto;
   const originalPollen = pollen.fetchPollenInto;
   const originalSend = outbox.sendWeather;
@@ -309,10 +309,10 @@ test('fetchWithCoordinates completes AQI then pollen before composing the payloa
 });
 
 test('a failed second pollen refresh packs -- instead of the previous severity and still sends', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const airQuality = require('../src/pkjs/weather/air-quality.js');
-  const forecastSeries = require('../src/pkjs/forecast-series.js');
-  const outbox = require('../src/pkjs/outbox.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+  const airQuality = require('../src/pkjs/weather/adapter/air-quality.js');
+  const forecastSeries = require('../src/pkjs/weather/domain/forecast-series.js');
+  const outbox = require('../src/pkjs/wire/adapter/outbox.js');
   const originalAqi = airQuality.fetchAqiInto;
   const originalPollen = pollen.fetchPollenInto;
   const originalSend = outbox.sendWeather;
@@ -419,7 +419,7 @@ test('fetchPollenInto leaves tomorrow unset while DWD has not issued it', () => 
 });
 
 test('WeatherProvider initializes and transiently exposes pollenTomorrow', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
   const provider = new WeatherProvider();
   assert.equal(provider.pollenTomorrow, null);
   provider.tempTrend = [68];
@@ -435,9 +435,9 @@ test('WeatherProvider initializes and transiently exposes pollenTomorrow', () =>
 });
 
 test('each fetch cycle resets tomorrow\'s band: a refresh without it composes null, not the last one', () => {
-  const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const airQuality = require('../src/pkjs/weather/air-quality.js');
-  const outbox = require('../src/pkjs/outbox.js');
+  const WeatherProvider = require('../src/pkjs/weather/application/provider.js');
+  const airQuality = require('../src/pkjs/weather/adapter/air-quality.js');
+  const outbox = require('../src/pkjs/wire/adapter/outbox.js');
   const originalAqi = airQuality.fetchAqiInto;
   const originalPollen = pollen.fetchPollenInto;
   const originalSend = outbox.sendWeather;

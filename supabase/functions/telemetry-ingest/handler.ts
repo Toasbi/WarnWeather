@@ -81,7 +81,7 @@ const settingsSchema = z
     windSlotUnit: z.boolean().optional(),
     gustSlotUnit: z.boolean().optional(),
     tempSlotUnit: z.boolean().optional(),
-    // Lockstep with buildSettingsSnapshot in src/pkjs/telemetry-settings.js (a field
+    // Lockstep with buildSettingsSnapshot in src/pkjs/telemetry/application/telemetry-settings.js (a field
     // missing here is stripped and silently lost). z.string(), not z.enum: an old or migrated
     // blob can hold a bold mode this build's picker no longer offers, and a stricter
     // type would reject the whole event over one cosmetic setting.
@@ -93,7 +93,7 @@ const settingsSchema = z
     healthMode: z.enum(['off', 'status', 'all', 'slot']).optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
     rainCountdownHorizon: z.number().int().min(0).optional(),
-    // The weather alerts (src/pkjs/telemetry-settings.js): the metric alerts, two letters
+    // The weather alerts (src/pkjs/telemetry/application/telemetry-settings.js): the metric alerts, two letters
     // each in the On demand order (gust, uv, aqi, pollen, wind) — the look, o not placed on
     // any status bar / i icon / v icon + value, upper case while the alert looks ahead
     // to tomorrow; then the tomorrow mark in effect, r » / g > / p + / s * / n none,
@@ -139,7 +139,7 @@ const settingsSchema = z
     // low-battery-only toggles, which every other watch replaced with On demand below.
     showQt: z.boolean().optional(),
     batteryLowOnly: z.boolean().optional(),
-    // On demand (src/pkjs/on-demand.js telemetryCode): 40 letters, the ten items of
+    // On demand (src/pkjs/status-bars/domain/on-demand.js telemetryCode): 40 letters, the ten items of
     // each bar (top, forecast, radar, health) in the On demand order (battery, bt, qt,
     // snooze, rain, gust, uv, aqi, pollen, wind) — L/R ticked on a side of a bar that
     // shows, l/r ticked on a hidden bar, '-' not ticked
@@ -198,14 +198,14 @@ const settingsSchema = z
     // An open-ended int (no max, like viewResetMin), not an enum: a longer span a later
     // release adds cannot 400 the batch.
     forecastHours: z.number().int().min(1).optional(),
-    // Graph styles (3.0.0, src/pkjs/graph-styles.js), emery only: how many exist, and the
+    // Graph styles (3.0.0, src/pkjs/forecast-graphs/domain/graph-styles.js), emery only: how many exist, and the
     // length option of styles 2 and 3 while a screen shows them (as forecastHours: 12/24/48).
     // DEPLOY-ORDERING: ship this function before the app release that sends them, or the
     // strip step silently drops them. Open-ended ints, like forecastHours.
     graphStyleCount: z.number().int().min(1).optional(),
     graphStyle2Hours: z.number().int().min(1).optional(),
     graphStyle3Hours: z.number().int().min(1).optional(),
-    // The forecast graph's left axis options (2.2.0, BETA, src/pkjs/forecast-axis.js),
+    // The forecast graph's left axis options (2.2.0, BETA, src/pkjs/forecast-graphs/domain/forecast-axis.js),
     // emery only, as chosen. DEPLOY-ORDERING: ship this function before the app release
     // that sends them, or the strip step silently drops them. The numbers' place as a
     // plain string ('axis' | 'graph' | 'off'), not an enum: a value a later release adds
@@ -218,7 +218,7 @@ const settingsSchema = z
     secondaryLine: z.string().optional(),
     secondaryLineFill: z.boolean().optional(),
     windScale: z.string().optional(),
-    // The wind, gust and UV lines' Show, 'all' or 'alert' (1.24.0, src/pkjs/line-alert.js
+    // The wind, gust and UV lines' Show, 'all' or 'alert' (1.24.0, src/pkjs/alerts/domain/line-alert.js
     // showOf). DEPLOY-ORDERING: ship this function before the app release that sends
     // them, or the strip step drops them silently. z.string(), not z.enum: a future
     // Show value must not 400 the batch.
@@ -270,7 +270,7 @@ const settingsSchema = z
     // every event and 400 the WHOLE payload — the fetch outcome with it, and nothing
     // retries a 400. And not a z.enum of the 64 Pebble swatches either: a stricter type
     // would reject an entire event over one cosmetic setting. Lockstep with
-    // buildSettingsSnapshot in src/pkjs/telemetry-settings.js — a field missing here is
+    // buildSettingsSnapshot in src/pkjs/telemetry/application/telemetry-settings.js — a field missing here is
     // stripped and silently lost.
     graphMainColor: z.string().optional(),
     graphFillColor: z.string().optional(),

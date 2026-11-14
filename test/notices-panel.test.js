@@ -2,7 +2,7 @@
 var test = require('node:test');
 var assert = require('node:assert');
 
-var panel = require('../src/pkjs/settings/notices-panel.js');
+var panel = require('../src/pkjs/page/notices/notices-panel.js');
 
 test('empty list renders nothing', function () {
   assert.strictEqual(panel.renderNoticesPanelHtml([]), '');

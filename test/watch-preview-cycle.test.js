@@ -1,5 +1,5 @@
 // test/watch-preview-cycle.test.js — the view cycle as the Watchface tab's watch preview
-// draws it (settings/preview-watch.js): which views each layout gives, and each view's
+// draws it (page/layout/preview-watch.js): which views each layout gives, and each view's
 // bands top to bottom as the preview speaks them (the Layout card's words: Watch bar,
 // Calendar (3 rows), Clock, Forecast bar, Forecast …), on the seats the watch gives
 // them (view-cycle.js stackSeats). These checks ran on the schematic band preview
@@ -10,9 +10,9 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-const vc = require('../src/pkjs/view-cycle.js');
-const pw = require('../src/pkjs/settings/preview-watch.js');
+require('../src/pkjs/page/settings/blocks.js');
+const vc = require('../src/pkjs/layout/domain/view-cycle.js');
+const pw = require('../src/pkjs/page/layout/preview-watch.js');
 
 const BASALT = { platform: 'basalt', color: true };
 const NOW = new Date(2026, 8, 7, 15, 0);

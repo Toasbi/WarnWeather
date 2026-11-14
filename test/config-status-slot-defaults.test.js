@@ -7,8 +7,8 @@ require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
 const { deriveDefaults } = require('../src/pkjs/config-ui/lib/defaults.js');
-require('../src/pkjs/settings/blocks.js');                 // registers statusSlotDefault
-const SCHEMA = require('../src/pkjs/settings/schema.js');
+require('../src/pkjs/page/settings/blocks.js');                 // registers statusSlotDefault
+const SCHEMA = require('../src/pkjs/page/settings/schema.js');
 
 const ENV_EMERY = { color: true, platform: 'emery', health: true, radar: true, themePolarity: true, hr: true };
 const ENV_BASALT = { color: true, platform: 'basalt', health: true, radar: true, themePolarity: true, hr: false };
@@ -44,7 +44,7 @@ test('real schema hydrates the HR-aware status-slot default set', () => {
 // the schema's defaults ARE what every install, upgraded ones included, starts with —
 // and they must be on-demand.js's DEFAULTS, the reading the phone packs from.
 test('the schema seeds every On demand key with the contract\'s default', () => {
-  const OD = require('../src/pkjs/on-demand.js');
+  const OD = require('../src/pkjs/status-bars/domain/on-demand.js');
   const seeded = deriveDefaults(SCHEMA);
   Object.keys(OD.DEFAULTS).forEach((key) => {
     assert.equal(seeded[key], OD.DEFAULTS[key], key);
