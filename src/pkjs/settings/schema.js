@@ -2101,21 +2101,34 @@ module.exports = {
         // one mode packs into both cells. Android-only on the slot side; the dialog
         // needs no extra gate, because a slot that can't be chosen never opens it.
         boldSection('Phone battery', 'PhoneBattery'),
-        // The weather condition slot's dialog: its Look (slot-text.js conditionLook), which
-        // every condition slot shares, then Bold like every text slot (kind 20, whose cell
-        // rides the alerts byte: status-wire.js boldCell). Opened by the slot's Edit button
-        // (blocks.js statusSlotEditSheet), not on aplite, which has no slot dialogs.
+        // The weather condition slot's dialog: its Look (slot-text.js conditionLook) and the
+        // length of its Name (conditionName, hidden while the Look shows no name), which every
+        // condition slot shares, then Bold like every text slot (kind 20, whose cell rides the
+        // alerts byte: status-wire.js boldCell). Opened by the slot's Edit button (blocks.js
+        // statusSlotEditSheet), not on aplite, which has no slot dialogs.
         boldSection('Weather condition', 'Condition', null, [{
             type: 'segmented',
             messageKey: 'conditionSlotLook',
             label: 'Look',
             hintByValue: {
-                both: 'Shows the weather symbol and its name, like Partly cloudy, or PCLD where the slot is short of room.',
-                text: 'Shows the name alone, like Partly cloudy, or PCLD where the slot is short of room.',
+                both: 'Shows the weather symbol and its name.',
+                text: 'Shows the name alone.',
                 icon: 'Shows the weather symbol alone.'
             },
             defaultValue: 'both',
             options: [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']]
+        }, {
+            type: 'segmented',
+            messageKey: 'conditionSlotName',
+            label: 'Name',
+            showWhen: {key: 'conditionSlotLook', ne: 'icon'},
+            hintByValue: {
+                auto: 'Shows the full name, like Partly cloudy, and switches to PCLD where the slot is short of room.',
+                full: 'Shows the full name, like Partly cloudy. A long name doesn\'t fit a side slot and shows as PCLD there.',
+                'short': 'Always shows the short name, like PCLD.'
+            },
+            defaultValue: 'auto',
+            options: [['Auto', 'auto'], ['Full', 'full'], ['Short', 'short']]
         }])
         ].map(function (sec) {
             // Every slot dialog keeps the bars pinned above its rows: the bar it was opened

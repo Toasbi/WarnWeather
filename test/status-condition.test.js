@@ -121,6 +121,25 @@ test('Look: Text bakes the text-only id, Icon the glyph with no text', () => {
   assert.deepEqual(bake('snow', { conditionSlotLook: 'junk' })[1].icon, catalog.ICONS.COND_SNOW, 'junk reads as Icon + text');
 });
 
+test('Name: Auto swaps in the short form, Full never sends one, Short sends it alone', () => {
+  const auto = bake('partly');
+  const full = bake('partly', { conditionSlotName: 'full' });
+  const short = bake('partly', { conditionSlotName: 'short' });
+  assert.equal(auto[1].text, 'Partly cloudy' + SEP + 'PCLD', 'Auto (the default): name and short form');
+  assert.equal(full[1].text, 'Partly cloudy', 'Full: the name with nothing to swap in');
+  assert.equal(full[0].text, 'PCLD', 'Full: a name too long for an edge slot still arrives short');
+  assert.equal(bake('cloudy', { conditionSlotName: 'full' })[0].text, 'Cloudy', 'Full: a name that fits stays whole');
+  short.forEach((slot) => assert.equal(slot.text, 'PCLD', 'Short: every slot'));
+  assert.equal(bake('cloudy', { conditionSlotName: 'short' })[0].text, 'CLDY', 'Short: even where the name fits');
+  assert.equal(bake('partly', { conditionSlotName: 'junk' })[1].text, auto[1].text, 'junk reads as Auto');
+  // The name follows the Look: the Icon look prints no name at all.
+  bake('partly', { conditionSlotName: 'full', conditionSlotLook: 'icon' }).forEach((slot) => assert.equal(slot.text, ''));
+  // aplite reads no short form either way: the name where it fits, else the short form, and
+  // the short form alone under Short.
+  assert.equal(bake('clear', { conditionSlotName: 'short' }, APLITE)[1].text, 'SUN');
+  assert.equal(bake('clear', { conditionSlotName: 'full' }, APLITE)[1].text, 'Sunny');
+});
+
 test('no condition known: -- with the text-only id, in every look', () => {
   ['both', 'text', 'icon'].forEach((look) => [null, undefined, 'nope'].forEach((cond) => {
     bake(cond, { conditionSlotLook: look }).forEach((s) => {

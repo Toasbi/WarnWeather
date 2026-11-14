@@ -200,7 +200,7 @@
         // after catalog.ALT_SEP where the slot has the bytes (barSlots splits them).
         case 'condition':
             if (slotText.conditionLook(S, c.env) === 'icon') { return ''; }
-            return slotText.conditionText(SAMPLE.condition, cap, c.env);
+            return slotText.conditionText(SAMPLE.condition, cap, c.env, slotText.conditionName(S));
         case 'countdown':
             return slotText.formatCountdown(c.slotKey ? S[c.slotKey + 'Countdown'] : undefined, now,
                 slotText.unitEnabled(S, 'countdownSlotUnit'), cap);

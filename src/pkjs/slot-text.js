@@ -274,23 +274,40 @@
     }
 
     /**
-     * The weather condition's text for a slot of `cap` bytes: the full name with its short form
-     * after catalog.ALT_SEP where both fit (the middle slot's 19 bytes always hold both), for
-     * the watch to swap in where the row would cut the name; else the full name where it fits
-     * (an edge slot's 'Cloudy'), else the short form ('PCLD'). A short form no shorter than the
-     * name ('RAIN' for 'Rain') rides with nothing. aplite's lean row reads no short form: it
-     * gets the name where it fits an edge slot's 8 bytes, else the short form, in every slot.
+     * The weather condition slot's Name (its dialog's conditionSlotName): 'auto' (the full name,
+     * the short form where the slot runs out of room; the default, and what anything unknown
+     * reads as), 'full' or 'short'.
+     * @param {Object} settings Settings.
+     * @returns {string} 'auto', 'full' or 'short'
+     */
+    function conditionName(settings) {
+        var name = settings && settings.conditionSlotName;
+        return name === 'full' || name === 'short' ? name : 'auto';
+    }
+
+    /**
+     * The weather condition's text for a slot of `cap` bytes, by its Name (conditionName).
+     * Auto: the full name with its short form after catalog.ALT_SEP where both fit (the middle
+     * slot's 19 bytes always hold both), for the watch to swap in where the row would cut the
+     * name; else the full name where it fits (an edge slot's 'Cloudy'), else the short form
+     * ('PCLD'). A short form no shorter than the name ('RAIN' for 'Rain') rides with nothing.
+     * Full: the full name where it fits, with no short form to swap in, else the short form (an
+     * edge slot's 8 bytes hold no 'Partly cloudy'). Short: the short form, every slot. aplite's
+     * lean row reads no short form: it gets the name where it fits an edge slot's 8 bytes, else
+     * the short form, in every slot, and the short form alone under Short.
      * @param {{full: string, short: string}} n The condition's names (weather/condition.js).
      * @param {number} cap The slot's byte cap.
      * @param {Object} [env] Platform env.
+     * @param {string} [name] conditionName(); absent = 'auto'.
      * @returns {string}
      */
-    function conditionText(n, cap, env) {
+    function conditionText(n, cap, env, name) {
+        if (name === 'short') { return n.short; }
         if (env && env.platform === 'aplite') {
             return utf8.byteLength(n.full) <= catalog.CAPS.EDGE_TEXT_MAX ? n.full : n.short;
         }
         var both = n.full + catalog.ALT_SEP + n.short;
-        if (n.short.length < n.full.length && utf8.byteLength(both) <= cap) { return both; }
+        if (name !== 'full' && n.short.length < n.full.length && utf8.byteLength(both) <= cap) { return both; }
         return utf8.byteLength(n.full) <= cap ? n.full : n.short;
     }
 
@@ -308,6 +325,7 @@
         formatCountdown: formatCountdown,
         isoWeek: isoWeek,
         conditionLook: conditionLook,
+        conditionName: conditionName,
         conditionText: conditionText
     };
 

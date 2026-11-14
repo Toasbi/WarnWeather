@@ -655,7 +655,7 @@ if (typeof require !== 'undefined') {
         for (var i = 0; i < slotKeys.length; i++) {
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
-        var schemaKeys = ['statusBoldAll', 'conditionSlotLook', 'tempSlotDisplay',
+        var schemaKeys = ['statusBoldAll', 'conditionSlotLook', 'conditionSlotName', 'tempSlotDisplay',
             // How the temp slot prints its pair in Both mode (separator preset,
             // custom separator text, spacing, which value leads).
             'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',

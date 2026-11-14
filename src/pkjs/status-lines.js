@@ -189,7 +189,8 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) 
   if (code === 'condition') {
     var cn = conditionNow(payload);
     if (!cn) { return '--'; }
-    return slotText.conditionLook(settings, env) === 'icon' ? '' : slotText.conditionText(cn.names, cap, env);
+    return slotText.conditionLook(settings, env) === 'icon' ? ''
+      : slotText.conditionText(cn.names, cap, env, slotText.conditionName(settings));
   }
   if (code === 'sun') {
     var ev = decodeFirstSunEvent(payload.SUN_EVENTS);
