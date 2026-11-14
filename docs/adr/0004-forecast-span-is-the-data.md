@@ -222,7 +222,8 @@ grid class from that count, as above.
 - The labels' readback reads every hour sent (`forecast_numbers.h`): a style that draws fewer
   hours than were sent relabels its high and low over its own hours, on the 24-slot grid too.
 - The weather message carries the same hours for every style: 14, 24, 26 or 68. The styles
-  share the four metric trends, and each record maps its lines onto them.
+  share the metric rows (the four lines' trends and a spare row), and each record maps its
+  lines onto them.
 - The phone keeps up to six styles. The watch keeps three slots, the records and the 2-bit
   view code: only the shown styles are sent, three screens show three at most, and the phone
   puts each in a slot (`graph-styles.js` `slotsFor`; a shown style 1 to 3 keeps its own).
