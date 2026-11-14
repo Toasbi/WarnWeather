@@ -7,15 +7,14 @@ drawing, its strokes slanted halfway or fully, or the PDC icon baked at that siz
 scaling. The colour watches smooth the slanted lines; the black and white ones keep the pixel
 drawing. The size rules below pick which drawing to show.
 
-Status-slot glyphs are sized by one knob (`status_icon_scale_pct()`, in
-`src/c/layers/status_icon_size.h`) and seated vertically by a second
-(`s_status_icon_weight_pct`, in `src/c/layers/status_icon_weight.h`). Both are
-**taste values a human picked by eye on real hardware**, not measurements and not
-derivable from the artwork. This document is the design log for both.
+Which pre-drawn size a slot shows is chosen by one knob (`status_icon_scale_pct()`, in
+`src/c/layers/status_icon_size.h`), which picks the target height, and the icon is seated
+vertically by a second (`s_status_icon_weight_pct`, in `src/c/layers/status_icon_weight.h`).
+Both are **taste values a human picked by eye on real hardware**, not measurements and not
+derivable from the artwork.
 
-The code sites keep only the invariants a future editor must not break. Everything
-here is the *reasoning*: the measurement tables, the rejected options, and the one
-decision still open.
+The code sites keep only the invariants a future editor must not break. This ADR holds the
+reasoning: the measurement tables, the options not taken, and the one decision still open.
 
 ## Decision
 

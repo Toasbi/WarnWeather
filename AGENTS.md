@@ -8,10 +8,8 @@ contributor tool working in this repo. (Claude Code reads it through `CLAUDE.md`
 
 - **Commands / `mise` tasks** → `DEV.md`
 - **Setup & walkthrough prose** → `CONTRIBUTING.md`
-- **Architecture rules** → `docs/adr/0005-architecture-rules.md`: code is grouped by domain
-  context first, then by role; contexts with business logic keep their domain free of the
-  runtime (no `XMLHttpRequest`, `localStorage`, `Pebble.*` or clock reads); expected errors are
-  values. The context map is in `CONTEXT.md`, the quality goals and their checks in
+- **Architecture rules** → `docs/adr/0005-architecture-rules.md` (where new code goes and
+  which way it may depend); the context map is in `CONTEXT.md`, the quality goals in
   `docs/quality-goals.md`.
 - **Pebble C SDK lookups** → the `pebble` skill in `.agents/skills/`. The C API is
   not in your training data — look up any SDK call you aren't certain of before using it.
@@ -144,7 +142,8 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   Before spending weather-message bytes, ask whether the value is settings-derived — if
   it is, it belongs on the Clay message —
   but the Clay message ships to aplite too and is tight (the heaviest Clay message is
-  520 B, with the 48 B thresholds blob, sized against aplite's 536 B inbox as the
+  520 B, with the 48 B thresholds blob that carries the rain alert's look, the On demand
+  Battery item, the per-kind warn look and the ten On demand cells, sized against aplite's 536 B inbox as the
   conservative floor; `CLAY_BATTERY_LOW_ONLY` rides a known aplite's bundle alone, and a
   known emery's bundle alone also
   carries the graph styles' records, `CLAY_GRAPH_STYLE_1..3_UINT8`, and bars 4 to 6's On
@@ -163,11 +162,11 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
 - **A new API host must be declared in `package.template.json`'s `usesPermissions`**, in an
   `Internet` entry of its own service (each domain covers its subdomains). SDK 4.44 builds
   manifest version 2 pbws. With the Pebble app's permissions preview on (its Settings ›
-  Plugins; on for everyone in a later release) the phone lets PKJS and the settings page reach
+  Plugins) the phone lets PKJS and the settings page reach
   only the declared domains the user allowed, and asks before the rest the app declares
   (`Location`; `ShowNotifications` for `Pebble.showSimpleNotificationOnPebble`, which goes
-  through `notify-watch.js`). Every entry carries a `reason` and `required` (app 1.18.0.1:
-  installing waits for an answer on the required ones, though a "no" counts and the install
+  through `notify-watch.js`). Every entry carries a `reason` and `required` (installing
+  waits for an answer on the required ones, though a "no" counts and the install
   goes on; the others are asked about on first use, and that first request fails). The phone
   lists each domain as a row of its own, "Connect to <domain>" with its entry's reason under
   it, so the reason is a short label that names the service and what it is for ("DWD weather
