@@ -66,6 +66,9 @@ def save(doc):
 
 # What a size keeps from the picker (or the icon creator) when its pixels are edited again.
 PICKED = ('version', 'redraw', 'old', 'svg', 'drawing')
+# ...and a Pebble Classic size's mask kept as 3.1.1 drew it, which gen_watch_icons.js writes as it
+# is: new pixels wait under it, as they wait under a picked version.
+KEPT = PICKED + ('mask',)
 VERSIONS = ('pixel', 'half', 'slant', 'old', 'svg')
 SVG_DIR = os.path.join(W.ROOT, 'resources', 'icon-svg')
 SVG_MAX = 256 * 1024
@@ -109,7 +112,7 @@ def put(doc, key, size_id, pixels, source):
     entry = doc['icons'].setdefault(key, {'done': False, 'sizes': {}})
     was = entry['sizes'].get(size_id, {})
     entry['sizes'][size_id] = dict({'source': source or '', 'pixels': list(pixels)},
-                                   **{k: was[k] for k in PICKED if k in was})
+                                   **{k: was[k] for k in KEPT if k in was})
     return True
 
 

@@ -1,8 +1,8 @@
 // test/pixel-icons-creator.test.js — an export of the icon creator (WarnWeatherTools) brought into
 // resources/pixel-icons.json: python3 scripts/pixel-icons/import_pixels.py --creator <file>.
 // Each size's pixels go into its grid, centred; a drawing is kept as version drawing; a wrong
-// size is refused before anything changes. Runs from_creator on a document in memory, so the
-// committed file is never touched.
+// size is refused before anything changes. Also the editor's export (--export), which keeps what
+// a size picked. Runs the import on a document in memory, so the committed file is never touched.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -19,12 +19,13 @@ const CROSS = ['.#.', '###', '.#.'];
 const RING = { lines: [[[1, 0], [2, 1], [1, 2], [0, 1], [1, 0]]], w: 3, h: 3 };
 
 /**
- * from_creator on a document, as import_pixels.py --creator would run it, without saving.
+ * An import on a document, as import_pixels.py would run it, without saving.
  * @param {!Object} doc The pixel icons document to start from.
- * @param {!Object} exported The creator's export.
+ * @param {!Object} exported The export: the creator's, or the editor's.
+ * @param {string=} fn The import: from_creator (--creator, the default) or from_export (--export).
  * @returns {{status: number, doc: ?Object, message: string}} The document after, or the refusal.
  */
-function importInto(doc, exported) {
+function importInto(doc, exported, fn = 'from_creator') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'creator-'));
   try {
     const file = path.join(dir, 'export.json');
@@ -34,10 +35,10 @@ function importInto(doc, exported) {
       "sys.path.insert(0, sys.argv[1])",
       'import import_pixels as I',
       'doc = json.loads(sys.argv[2])',
-      'n = I.from_creator(doc, sys.argv[3])',
+      'n = getattr(I, sys.argv[4])(doc, sys.argv[3])',
       "print(json.dumps({'n': n, 'doc': doc}))",
     ].join('\n');
-    const r = spawnSync('python3', ['-c', script, path.join(ROOT, 'scripts', 'pixel-icons'), JSON.stringify(doc), file], { encoding: 'utf8' });
+    const r = spawnSync('python3', ['-c', script, path.join(ROOT, 'scripts', 'pixel-icons'), JSON.stringify(doc), file, fn], { encoding: 'utf8' });
     const out = r.status === 0 ? JSON.parse(r.stdout) : null;
     return { status: r.status, doc: out && out.doc, n: out && out.n, message: (r.stderr || '').trim() };
   } finally {
@@ -98,4 +99,22 @@ test('a wrong size is refused, and nothing changes', { skip }, () => {
     TEMP: { sizes: { '99': { pixels: CROSS } } },
   } });
   assert.notEqual(r.status, 0);
+});
+
+test('an editor import keeps what a size picked: its version, and a Pebble Classic mask kept from 3.1.1', { skip }, () => {
+  const mask = { rows: [2, 7, 2], w: 3 };
+  const doc = before();
+  doc.icons.SUN.sizes.A = { source: 'draft', pixels: ['#'], mask };
+  const r = importInto(doc, { icons: { SUN: { done: true, sizes: {
+    '13': { edited: true, source: 'me', pixels: CROSS },
+    A: { edited: true, source: 'me', pixels: ['##', '##'] },
+  } } } }, 'from_export');
+  assert.equal(r.status, 0, r.message);
+  const big = r.doc.icons.SUN.sizes['13'];
+  assert.deepEqual(big.pixels, CROSS, 'the new pixels');
+  assert.equal(big.version, 'old', 'the picked version stays');
+  assert.equal(big.redraw, true, 'the Redraw mark stays');
+  const classic = r.doc.icons.SUN.sizes.A;
+  assert.deepEqual(classic.pixels, ['##', '##'], 'the new pixels wait under the mask');
+  assert.deepEqual(classic.mask, mask, 'the mask the watch draws stays');
 });

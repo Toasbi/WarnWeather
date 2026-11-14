@@ -159,7 +159,9 @@ The rain alert draws the Drizzle, Rain or Heavy rain drawing in the foreground l
 icon. A colour of its own reads too faintly on a thin outline; it would need filled drops.
 
 A Pebble Classic mask is its ink too: a blank row or column at its edge falls away, and the text
-sits as close as the editor shows.
+sits as close as the editor shows. A size that keeps 3.1.1's mask (`mask` in its entry: the mask's
+rows and width) is written as it is instead, whatever its pixels; an import from the editor keeps
+it, as it keeps a size's picked version.
 
 ## Which sizes an icon gets
 
