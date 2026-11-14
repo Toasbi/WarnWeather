@@ -88,6 +88,7 @@ function boot(opts) {
   // order; see status-rebake.js init).
   statusRebake.init({
     getSettings: function () { return h.settings; },
+    getPhoneBattery: phoneBattery.bakeFacts,
     sendWeather: function (p) { h.sends.push(p); },
     // undefined falls through to the real status-lines baker.
     buildStatusLines: opts.realBake ? undefined : function (payload, settings, watchInfo) {

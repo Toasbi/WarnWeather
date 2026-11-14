@@ -11,6 +11,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+// The time every bake in this file runs at, where the test does not care which it is.
+const NOW = new Date(2026, 5, 15, 12, 0, 0);
 
 const cityLadder = require('../../../src/pkjs/status-bars/domain/city-ladder.js');
 const utf8 = require('../../../src/pkjs/lib/utf8.js');
@@ -114,7 +116,7 @@ function settings(extra) {
 function bakeTop(city, platform) {
   const env = platformLib.computeEnv(platform ? { platform } : null);
   return decodeLine(statusLines.packLine(TOP, { CITY: city },
-    settings({ statusTopLeft: 'city', statusTopMid: 'city', statusTopRight: 'city' }), env));
+    settings({ statusTopLeft: 'city', statusTopMid: 'city', statusTopRight: 'city' }), env, null, statusLines.bakeEnv(NOW)));
 }
 
 test('an edge city that fits the cap only as a ladder form is sent as that form', () => {

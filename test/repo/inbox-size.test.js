@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+// The time every bake in this file runs at, where the test does not care which it is.
+const NOW = new Date(2026, 5, 15, 12, 0, 0);
 
 // holiday-mask → nager-source touches localStorage; install the mock before
 // any watch module loads (see change-detector.test.js for the pattern).
@@ -212,7 +214,7 @@ function buildHeaviestBundle(platform, over) {
     statusHealthLeft: 'city', statusHealthMid: 'city', statusHealthRight: 'city'
   }, alertSettings, (platform || 'emery') === 'emery' ? HEAVIEST_GRAPHS : {},
   (platform || 'emery') === 'emery' ? HEAVIEST_EXTRA_BARS : {}, over || {}),
-  { platform: platform || 'emery' });
+  { platform: platform || 'emery' }, NOW);
 
   // The entry tuple (off aplite: the bake skips it there, like the levels). The
   // realistic heaviest bake — all five with values — stays under the cap; the
@@ -336,7 +338,7 @@ test('every status line at its 48-byte cap still fits the inbox', () => {
   const catalog = require('../../src/pkjs/status-bars/domain/status-line-catalog.js');
   const wide = lines.packLine(catalog.lineById('forecast'), { CURRENT_CONDITION: 'partly' },
     { statusForecastLeft: 'condition', statusForecastMid: 'empty', statusForecastRight: 'condition' },
-    { platform: 'basalt', color: true }, null);
+    { platform: 'basalt', color: true }, null, lines.bakeEnv(NOW));
   assert.equal(wide.length, 47);
 });
 

@@ -32,7 +32,8 @@ var radarWire = require('../weather/domain/radar/radar-wire.js');
 var radarSky = require('../weather/domain/radar/radar-sky.js');
 var radarCoverage = require('../weather/domain/radar/radar-coverage.js');
 var WeatherProvider = require('../weather/application/provider.js');
-var forecastSeries = require('../weather/domain/forecast-series.js');
+var renderPayload = require('../weather/application/render-payload.js');
+var phoneBattery = require('../status-bars/adapter/phone-battery.js');
 var keyResult = require('../weather/domain/keys/key-result.js');
 
 var KEY_FETCH_ATTEMPT = storageKeys.FETCH_ATTEMPT_KEY;
@@ -739,7 +740,8 @@ function createFetchCycle(deps) {
          * @returns {Object} The render-ready wire payload.
          */
         function toRenderPayload(payload) {
-            return forecastSeries.applyForecastSeries(payload, deps.getSettings(), deps.getWatchInfo());
+            return renderPayload.toRenderPayload(payload, deps.getSettings(), deps.getWatchInfo(),
+                new Date(), phoneBattery.bakeFacts());
         }
 
         // Watchdog: the chain is asynchronous, so a callback that throws — or a

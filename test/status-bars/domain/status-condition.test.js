@@ -48,7 +48,7 @@ function bake(cond, over, env, night, polar) {
   const settings = Object.assign({ statusForecastLeft: 'condition', statusForecastMid: 'condition',
     statusForecastRight: 'condition' }, over || {});
   const payload = { CURRENT_CONDITION: cond, SUN_EVENTS: sun(Boolean(night), polar) };
-  return decodeLine(lines.packLine(LINE, payload, settings, env || BASALT, null));
+  return decodeLine(lines.packLine(LINE, payload, settings, env || BASALT, null, lines.bakeEnv(new Date())));
 }
 
 test('a sunny day: every slot carries the name and its short form, the line having the room', () => {
@@ -69,7 +69,7 @@ test('a clear night says Clear with the moon', () => {
 test('a sun event gone by since the forecast came flips it: the re-bake turns at sunset', () => {
   const bakeAt = (night, aheadMs) => decodeLine(lines.packLine(LINE,
     { CURRENT_CONDITION: 'clear', SUN_EVENTS: sun(night, false, aheadMs) },
-    { statusForecastMid: 'condition' }, BASALT, null))[1];
+    { statusForecastMid: 'condition' }, BASALT, null, lines.bakeEnv(new Date())))[1];
   // Day when the forecast came, its sunset an hour ago: night now.
   assert.equal(bakeAt(false, -3600000).icon, catalog.ICONS.COND_MOON);
   assert.equal(bakeAt(false, -3600000).text, 'Clear' + SEP + 'CLR');
@@ -79,7 +79,7 @@ test('a sun event gone by since the forecast came flips it: the re-bake turns at
   assert.equal(bakeAt(false, -50000000).icon, catalog.ICONS.COND_SUN);
   // A polar pair's events are no real sunset or sunrise: it never flips.
   const polar = decodeLine(lines.packLine(LINE, { CURRENT_CONDITION: 'clear', SUN_EVENTS: sun(true, true, -3600000) },
-    { statusForecastMid: 'condition' }, BASALT, null))[1];
+    { statusForecastMid: 'condition' }, BASALT, null, lines.bakeEnv(new Date())))[1];
   assert.equal(polar.icon, catalog.ICONS.COND_MOON);
 });
 
@@ -88,7 +88,7 @@ test('a polar pair reads the other way round: polar night has the moon, polar da
   assert.equal(bake('clear', {}, BASALT, true, true)[1].text, 'Clear' + SEP + 'CLR');
   assert.equal(bake('clear', {}, BASALT, false, true)[1].icon, catalog.ICONS.COND_SUN);
   const noEvents = decodeLine(lines.packLine(LINE, { CURRENT_CONDITION: 'clear' },
-    { statusForecastMid: 'condition' }, BASALT, null))[1];
+    { statusForecastMid: 'condition' }, BASALT, null, lines.bakeEnv(new Date())))[1];
   assert.equal(noEvents.icon, catalog.ICONS.COND_SUN, 'no sun events: day');
 });
 
@@ -113,7 +113,7 @@ test('beside an empty or a short middle an edge slot gets the whole name with it
     const settings = Object.assign({ statusForecastLeft: 'condition', statusForecastMid: mid,
       statusForecastRight: 'condition' }, over || {});
     return decodeLine(lines.packLine(LINE, { CURRENT_CONDITION: 'partly', CURRENT_TEMP: 12,
-      CITY: 'Mönchengladbach-Ost', SUN_EVENTS: sun(false) }, settings, env || BASALT, null));
+      CITY: 'Mönchengladbach-Ost', SUN_EVENTS: sun(false) }, settings, env || BASALT, null, lines.bakeEnv(new Date())));
   };
   const both = 'Partly cloudy' + SEP + 'PCLDY';
   let [left, mid, right] = edges('empty');
@@ -123,7 +123,7 @@ test('beside an empty or a short middle an edge slot gets the whole name with it
   [left, mid, right] = edges('city');
   assert.deepEqual([left.text, right.text], ['PCLDY', 'PCLDY'], 'a long middle: no room');
   assert.ok(lines.packLine(LINE, { CURRENT_CONDITION: 'partly', SUN_EVENTS: sun(false) },
-    { statusForecastLeft: 'condition', statusForecastMid: 'empty', statusForecastRight: 'condition' }, BASALT, null)
+    { statusForecastLeft: 'condition', statusForecastMid: 'empty', statusForecastRight: 'condition' }, BASALT, null, lines.bakeEnv(new Date()))
     .length <= catalog.CAPS.LINE_MAX, 'the line stays within its cap');
   // Full: the whole name with nothing to swap in; Short: the short form alone.
   assert.equal(edges('empty', { conditionSlotName: 'full' })[0].text, 'Partly cloudy');
@@ -208,7 +208,7 @@ test('the bake reads CURRENT_CONDITION and SUN_EVENTS through SOURCE_KEYS', () =
 test('City: the current weather glyph with the city bit once switched on, never on aplite', () => {
   const bakeCity = (cond, over, env, night) => decodeLine(lines.packLine(LINE,
     { CITY: 'Berlin', CURRENT_CONDITION: cond, SUN_EVENTS: sun(Boolean(night)) },
-    Object.assign({ statusForecastLeft: 'city' }, over || {}), env || BASALT, null))[0];
+    Object.assign({ statusForecastLeft: 'city' }, over || {}), env || BASALT, null, lines.bakeEnv(new Date())))[0];
   const ON = { citySlotIcon: true };
   const day = bakeCity('partly', ON);
   assert.equal(day.text, 'Berlin');
@@ -220,4 +220,25 @@ test('City: the current weather glyph with the city bit once switched on, never 
   assert.equal(bakeCity(null, ON).icon, catalog.ICONS.NONE, 'no condition known: no glyph');
   assert.equal(bakeCity('partly', ON, APLITE).icon, catalog.ICONS.NONE, 'aplite draws none');
   assert.ok(catalog.CITY_GLYPH > catalog.ICONS.COND_WIND, 'the bit sits above every id');
+});
+
+// The bake reads no clock of its own: the time it is handed decides day or night, so one
+// payload bakes the same line for the same now, whatever the real clock says.
+test('the bake is deterministic for a given now: the time it is handed picks day or night', () => {
+  const sunset = new Date(2026, 5, 15, 21, 30, 0);
+  const sunrise = new Date(2026, 5, 16, 5, 0, 0);
+  const SUN_EVENTS = encodeSunEvents([{ type: 'sunset', date: sunset }, { type: 'sunrise', date: sunrise }]);
+  const settings = { statusForecastLeft: 'empty', statusForecastMid: 'condition', statusForecastRight: 'empty' };
+  const mid = (now) => {
+    const payload = { CURRENT_CONDITION: 'clear', SUN_EVENTS };
+    lines.buildStatusLines(payload, settings, { platform: 'basalt' }, now);
+    return decodeLine(payload[LINE.wireKey])[1];
+  };
+  const day = mid(new Date(2026, 5, 15, 12, 0, 0));
+  const night = mid(new Date(2026, 5, 15, 23, 0, 0));
+  assert.equal(day.icon, catalog.ICONS.COND_SUN);
+  assert.equal(day.text, 'Sunny' + SEP + 'SUN');
+  assert.equal(night.icon, catalog.ICONS.COND_MOON);
+  assert.equal(night.text, 'Clear' + SEP + 'CLR');
+  assert.deepEqual(mid(new Date(2026, 5, 15, 23, 0, 0)), night, 'the same now bakes the same slot');
 });

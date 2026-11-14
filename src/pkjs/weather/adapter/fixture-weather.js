@@ -9,7 +9,8 @@ var WeatherProvider = require('../application/provider.js');
 var fetchOptions = require('../domain/fetch-options.js');
 // The hours this watch is sent: the longest shown graph style's (forecast-span.js hours).
 var graphStyleWire = require('../../forecast-graphs/domain/graph-style-wire.js');
-var forecastSeries = require('../domain/forecast-series.js');
+var renderPayload = require('../application/render-payload.js');
+var phoneBattery = require('../../status-bars/adapter/phone-battery.js');
 var wireUnits = require('../../wire/domain/wire-units.js');
 var graphWire = require('../../forecast-graphs/domain/graph-wire.js');
 var radarSky = require('../domain/radar/radar-sky.js');
@@ -158,7 +159,10 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     // getPayload() emits the raw PRECIP_TREND/RAIN_TREND keys; the watch only
     // reads the render-ready series, so run the same transform as the live path
     // (settings already reflects this fixture's claySettings).
-    return forecastSeries.applyForecastSeries(provider.getPayload(), settings, watchInfo);
+    // The bake reads the real clock, not the fixture's watch.now: the showcase's
+    // countdown target moves with the generation day (scripts/gen-showcase-fixtures.js).
+    return renderPayload.toRenderPayload(provider.getPayload(), settings, watchInfo, new Date(),
+        phoneBattery.bakeFacts());
 }
 
 /**

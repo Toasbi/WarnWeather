@@ -1,4 +1,6 @@
 const test = require('node:test');
+// The time every bake in this file runs at, where the test does not care which it is.
+const NOW = new Date(2026, 5, 15, 12, 0, 0);
 // The aux fetches call http.request through the module object, so stubbing
 // the property here intercepts them (the old seam was WeatherProvider.request).
 const http = require('../../../src/pkjs/weather/adapter/http.js');
@@ -352,7 +354,7 @@ test('a failed second pollen refresh packs -- instead of the previous severity a
     thirdLine: 'off', barSource: 'off', theme: 'dark'
   };
   function transform(payload) {
-    return forecastSeries.applyForecastSeries(payload, settings, { platform: 'basalt' });
+    return forecastSeries.applyForecastSeries(payload, settings, { platform: 'basalt' }, NOW);
   }
   function fetchOnce() {
     provider.fetchWithCoordinates(52.52, 13.405, function() {

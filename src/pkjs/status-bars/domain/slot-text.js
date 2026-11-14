@@ -228,14 +228,13 @@
      * Format whole local calendar days until a target date.
      * 'now' and '--' never take the unit: neither is a count of days.
      * @param {*} targetValue Stored YYYY-MM-DD target.
-     * @param {Date} [now] Current local time; injectable for tests.
+     * @param {Date} now Current local time (the caller's clock).
      * @param {boolean} [showUnit] Whether countdownSlotUnit is on; absent = its default (on).
      * @param {number} [cap] The slot's byte cap.
      * @returns {string} Nd for future, now for today, -- for passed.
      */
     function formatCountdown(targetValue, now, showUnit, cap) {
-        var current = now || new Date();
-        var today = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         var target = parseCountdownDate(targetValue, today);
         var days = Math.round((target.getTime() - today.getTime()) / 86400000);
         if (days < 0) { return '--'; }

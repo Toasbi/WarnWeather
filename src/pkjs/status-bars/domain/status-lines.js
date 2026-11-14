@@ -108,40 +108,37 @@ var formatCountdown = slotText.formatCountdown;
 var isoWeek = slotText.isoWeek;
 
 /**
- * The phone's cached battery reading, or null when there is none.
- *
- * Required LAZILY, not at the top of this module, because the require chain
- * loops back here: phone-battery.js requires status-rebake.js, which requires
- * THIS module (a battery event re-runs buildStatusLines over the stashed bake
- * inputs so the new value reaches the watch without a fetch). THIS module is
- * the one mid-load when that chain would close (forecast-series requires it
- * before status-rebake), so a top-level require here would make status-rebake
- * capture status-lines' still-empty exports — killing every battery re-bake
- * with a TypeError inside resendStatus.
- *
- * The typeof guard is deliberate rather than paranoid: this runs inside the bake
- * for ALL FOUR status lines, so a phone-battery module that cannot answer has to
- * degrade this ONE slot to '--' instead of throwing and taking the whole status
- * bar down with it.
- *
- * @returns {{available: boolean, level: (number|null), charging: boolean}|null}
- *   the cached EXACT percentage and charging flag; `available` is false until a
- *   real reading has landed, and null only if the module cannot answer at all
+ * The phone's battery facts a bake reads: whether this PKJS host can read the phone's
+ * battery at all, and its cached reading. The caller asks phone-battery.js for them
+ * (bakeFacts) and passes them in, so the bake itself never touches the adapter.
+ * @typedef {Object} PhoneBattery
+ * @property {boolean} supported Whether this host has the Battery Status API (the
+ *   persisted PHONE_BATTERY_SUPPORTED verdict, true only inside Android's Chromium WebView).
+ * @property {?{available: boolean, level: (number|null), charging: boolean}} reading
+ *   The cached EXACT percentage and charging flag; `available` is false until a real
+ *   reading has landed, and null when the module cannot answer at all (the slot then
+ *   bakes '--' instead of taking the whole status bar down).
  */
-function phoneBatteryReading() {
-  var mod = require('../adapter/phone-battery.js');
-  return typeof mod.read === 'function' ? mod.read() : null;
-}
 
 /**
- * Whether this PKJS host can read the phone's battery at all -- the persisted
- * PHONE_BATTERY_SUPPORTED detector result, true only inside Android's Chromium
- * WebView. See phoneBatteryReading for why the require is lazy and guarded.
- * @returns {boolean}
+ * The bake's environment besides the watch's: the time and the phone's battery, read
+ * once per bake so every slot judges the same instant.
+ * @typedef {Object} BakeEnv
+ * @property {Date} now The current time (countdown, aplite's ISO week).
+ * @property {number} nowSec The same instant in epoch seconds (day or night now).
+ * @property {?{available: boolean, level: (number|null), charging: boolean}} phone
+ *   The phone's battery reading, or null when there is none.
  */
-function phoneBatterySupported() {
-  var mod = require('../adapter/phone-battery.js');
-  return typeof mod.isSupported === 'function' ? Boolean(mod.isSupported()) : false;
+
+/**
+ * The bake's environment for one instant and the phone's battery facts.
+ * @param {Date} now The current time.
+ * @param {?PhoneBattery} [phone] The phone's battery facts; absent = a host that cannot
+ *   read the phone's battery.
+ * @returns {BakeEnv}
+ */
+function bakeEnv(now, phone) {
+  return { now: now, nowSec: now.getTime() / 1000, phone: phone ? phone.reading : null };
 }
 
 /**
@@ -163,13 +160,15 @@ function phoneBatterySupported() {
  * @param {Object} [env] Platform environment: a wind or gust slot keeps a byte free
  *   for the direction arrow only where packLine will draw one (arrowSector).
  *   Absent = a watch with the arrow (not aplite).
+ * @param {BakeEnv} [bake] The time and the phone's battery (bakeEnv): required by the
+ *   countdown, the weather condition and the phone-battery items, which read them.
  * @returns {string} display text, '--' when the value is unavailable
  */
-function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) {
+function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, bake) {
   var v;
   if (code === 'countdown') {
     return formatCountdown(settings && slotKey
-      ? settings[slotKey + 'Countdown'] : undefined, undefined,
+      ? settings[slotKey + 'Countdown'] : undefined, bake.now,
       unitEnabled(settings, 'countdownSlotUnit'), cap);
   }
   if (code === 'temp') {
@@ -187,7 +186,7 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) 
   // The weather condition's name in the slot's Look ('' for the glyph alone), its short form
   // after it where the slot has the bytes (slot-text.js conditionText); iconFor picks the glyph.
   if (code === 'condition') {
-    var cn = conditionNow(payload);
+    var cn = conditionNow(payload, bake.nowSec);
     if (!cn) { return '--'; }
     return slotText.conditionLook(settings, env) === 'icon' ? ''
       : slotText.conditionText(cn.names, cap, env, slotText.conditionName(settings));
@@ -255,7 +254,7 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) 
   // item that has nothing to do with the weather fetch, which is exactly what
   // lets a battery event re-send it while a provider key is expired.
   if (code === 'phoneBattery' || code === 'phoneBatteryPlain') {
-    var pb = phoneBatteryReading();
+    var pb = bake.phone;
     // '--' covers both "this phone has no battery API" and "Android, but no
     // event has landed yet". It is also what the watch substitutes whenever
     // Bluetooth is down (status_row.c's freshness rule), so the two paths agree
@@ -287,11 +286,12 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env) 
  * The weather condition now (CURRENT_CONDITION), by day or by night (the next sun event,
  * SUN_EVENTS): its id and names; null while no condition is known.
  * @param {Object} payload weather payload (pre-transform)
+ * @param {number} nowSec now, in epoch seconds
  * @returns {?{id: string, night: boolean, names: {full: string, short: string}}}
  */
-function conditionNow(payload) {
+function conditionNow(payload, nowSec) {
   var id = payload && payload.CURRENT_CONDITION;
-  var night = isNightNow(payload && payload.SUN_EVENTS, Date.now() / 1000);
+  var night = isNightNow(payload && payload.SUN_EVENTS, nowSec);
   var n = condition.names(id, night);
   return n ? { id: id, night: night, names: n } : null;
 }
@@ -386,24 +386,25 @@ function arrowSector(code, payload, settings, env, dayMax) {
  * @param {Object} payload weather payload (pre-transform)
  * @param {Object} settings Clay settings blob
  * @param {?Object} env platform environment
+ * @param {BakeEnv} bake the time and the phone's battery (bakeEnv)
  * @returns {number} STATUS_ICON_* id to pack
  */
-function iconFor(code, item, payload, settings, env) {
+function iconFor(code, item, payload, settings, env, bake) {
   if (code === 'phoneBattery') {
-    var pb = phoneBatteryReading();
+    var pb = bake.phone;
     if (pb && pb.charging) { return catalog.ICONS.PHONE_BATTERY_CHG; }
   }
   // The city with the current weather's glyph before its name (citySlotIcon): the glyph's id
   // with the city's bit, which keeps the slot the city's on the watch. No glyph while no
   // condition is known, nor on aplite.
   if (code === 'city') {
-    var cw = slotText.cityIcon(settings, env) ? conditionNow(payload) : null;
+    var cw = slotText.cityIcon(settings, env) ? conditionNow(payload, bake.nowSec) : null;
     return cw ? (catalog.ICONS[condition.glyph(cw.id, cw.night)] | catalog.CITY_GLYPH) : item.icon;
   }
   // The weather condition's glyph; the text-only id while none is known and in the Text
   // look (aplite's too).
   if (code === 'condition') {
-    var cn = conditionNow(payload);
+    var cn = conditionNow(payload, bake.nowSec);
     return cn && slotText.conditionLook(settings, env) !== 'text'
       ? catalog.ICONS[condition.glyph(cn.id, cn.night)] : catalog.ICONS.COND_TEXT;
   }
@@ -443,9 +444,10 @@ function mergedAlert(alerts, settings, env, bar, s, code) {
  * @param {Object} env platform environment
  * @param {?Array<Object>} [alerts] the weather alerts the bake sends (status-wire.js
  *   bakedAlerts); absent or null = none (a watch the entries do not ride to)
+ * @param {BakeEnv} bake the time and the phone's battery (bakeEnv), read once per bake
  * @returns {number[]} packed three-slot line
  */
-function packLine(line, payload, settings, env, alerts) {
+function packLine(line, payload, settings, env, alerts, bake) {
   var bytes = [];
   // Where each slot's bytes start, and an edge slot's weather condition at the middle's room
   // (widenEdgeConditions).
@@ -473,11 +475,11 @@ function packLine(line, payload, settings, env, alerts) {
     }
     // Likewise resolved per bake rather than read straight off the entry: the charging
     // phone-battery glyph and the weather condition's (see iconFor).
-    var icon = iconFor(code, item, payload, settings, env);
+    var icon = iconFor(code, item, payload, settings, env, bake);
     if (env.platform === 'aplite' && item.kind === catalog.KINDS.LIVE_WEEK) {
       // aplite has no watch-side iso_week() (reaped for image budget), so the
       // phone bakes the ISO week as an ordinary TEXT slot instead.
-      var weekBytes = utf8Truncate(utf8Encode('W' + isoWeek(new Date())), textCap(s));
+      var weekBytes = utf8Truncate(utf8Encode('W' + isoWeek(bake.now)), textCap(s));
       bytes.push(catalog.KINDS.TEXT, icon, weekBytes.length);
       for (var wb = 0; wb < weekBytes.length; wb++) { bytes.push(weekBytes[wb]); }
     } else if (item.kind === catalog.KINDS.TEXT) {
@@ -493,7 +495,7 @@ function packLine(line, payload, settings, env, alerts) {
       // The cap goes DOWN into formatValue so a per-kind unit can decline to
       // append itself rather than be silently chopped off again by utf8Truncate
       // below (see withUnit). The truncation still guards the value itself.
-      var text = formatValue(code, payload, settings, key, textCap(s), dayMax, alert, env);
+      var text = formatValue(code, payload, settings, key, textCap(s), dayMax, alert, env, bake);
       // An edge slot's city walks the watch's word ladder before the cap cuts it: the
       // first form that fits ('B. Soden', not 'Bad Sode'), whose words the watch can
       // still shorten from there. A name no form fits whole is cut as before ('New
@@ -519,7 +521,7 @@ function packLine(line, payload, settings, env, alerts) {
       // form in an edge's 8 bytes.
       if (code === 'condition' && s !== 1 && env.platform !== 'aplite') {
         var wideBytes = utf8Truncate(utf8Encode(formatValue(code, payload, settings, key,
-          catalog.CAPS.EDGE_COND_TEXT_MAX, dayMax, alert, env)), catalog.CAPS.EDGE_COND_TEXT_MAX);
+          catalog.CAPS.EDGE_COND_TEXT_MAX, dayMax, alert, env, bake)), catalog.CAPS.EDGE_COND_TEXT_MAX);
         if (wideBytes.join() !== valueBytes.join()) { wide[s] = wideBytes; }
       }
     } else {
@@ -564,10 +566,15 @@ function widenEdgeConditions(bytes, starts, wide) {
  * @param {Object} payload weather payload (mutated)
  * @param {Object} settings Clay settings blob
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
+ * @param {Date} now The current time: the countdown, aplite's ISO week and whether it is
+ *   night now read it, one instant for the whole bake.
+ * @param {?PhoneBattery} [phone] The phone's battery facts (phone-battery.js bakeFacts);
+ *   absent = a host that cannot read the phone's battery.
  * @returns {Object} the same payload
  */
-function buildStatusLines(payload, settings, watchInfo) {
+function buildStatusLines(payload, settings, watchInfo, now, phone) {
   var env = platformLib.computeEnv(watchInfo);
+  var bake = bakeEnv(now, phone);
   // The weather alerts' entries, judged before the lines: a slot showing an alert's
   // metric on the alert's side merges it (packLine). Only for a watch they ride to
   // (see below); null elsewhere, so aplite's lines bake exactly as before.
@@ -580,13 +587,13 @@ function buildStatusLines(payload, settings, watchInfo) {
   // silently disappear even on a phone that CAN read its battery. The config
   // page threads the same flag into its own env through config-ui/index.js'
   // opts.env, so both sides answer from the one PHONE_BATTERY_SUPPORTED key.
-  env.phoneBattery = phoneBatterySupported();
+  env.phoneBattery = Boolean(phone && phone.supported);
   // The Watch bar's line, then each bar's that a screen shows (catalog bakedLines). A bar on
   // no screen is sent no line: its text would only cost the send and the watch's flash write.
   var lines = catalog.bakedLines(settings, env);
   for (var l = 0; l < lines.length; l++) {
     var line = lines[l];
-    payload[line.wireKey] = packLine(line, payload, settings, env, alerts);
+    payload[line.wireKey] = packLine(line, payload, settings, env, alerts, bake);
   }
   // Packed weather-kind threshold levels: computed here because the raw
   // AQI/pollen/wind/gust values exist only phone-side (the watch gets text).
@@ -645,6 +652,7 @@ var SOURCE_KEYS = [
 
 module.exports = {
   buildStatusLines: buildStatusLines,
+  bakeEnv: bakeEnv,
   isNightNow: isNightNow,
   SOURCE_KEYS: SOURCE_KEYS,
   packLine: packLine,

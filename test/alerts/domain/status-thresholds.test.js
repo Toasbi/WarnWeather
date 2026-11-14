@@ -7,6 +7,8 @@ const wire = require('../../../src/pkjs/alerts/domain/status-wire.js');
 const statusLines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
 const { packedLevel, judged } = require('../../helpers/weather-levels.js');
 const { decodeAlerts: decodeEntries, packedAlerts } = require('../../helpers/alert-entries.js');
+// The time every bake in this file runs at, where the test does not care which it is.
+const NOW = new Date(2026, 5, 15, 12, 0, 0);
 
 test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.code),
@@ -910,7 +912,7 @@ test('isGoalKind flags the celebratory health trio', () => {
 test('buildStatusLines bakes STATUS_LEVELS_UINT8 into the weather payload', () => {
   const payload = { AQI_TREND: [150] };
   statusLines.buildStatusLines(payload,
-    { threshAqiWarn: '100', threshAqiDanger: '200' }, { platform: 'basalt' });
+    { threshAqiWarn: '100', threshAqiDanger: '200' }, { platform: 'basalt' }, NOW);
   assert.deepEqual(payload.STATUS_LEVELS_UINT8, [1, 0]);   // AQI warn in bits 0-1
 });
 
@@ -920,7 +922,7 @@ test('buildStatusLines omits STATUS_LEVELS_UINT8 on aplite (highlight compiled o
   // status-line blobs (the 'status' dedupe category's other keys) still go out.
   const payload = { AQI_TREND: [150] };
   statusLines.buildStatusLines(payload,
-    { threshAqiWarn: '100', threshAqiDanger: '200' }, { platform: 'aplite' });
+    { threshAqiWarn: '100', threshAqiDanger: '200' }, { platform: 'aplite' }, NOW);
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'STATUS_LEVELS_UINT8'), false);
   assert.ok(Array.isArray(payload.STATUS_LINE_1_UINT8), 'status lines still packed');
 });
@@ -928,7 +930,7 @@ test('buildStatusLines omits STATUS_LEVELS_UINT8 on aplite (highlight compiled o
 test('buildStatusLines keeps STATUS_LEVELS_UINT8 for an unknown watchInfo', () => {
   const payload = { AQI_TREND: [150] };
   statusLines.buildStatusLines(payload,
-    { threshAqiWarn: '100', threshAqiDanger: '200' }, null);
+    { threshAqiWarn: '100', threshAqiDanger: '200' }, null, NOW);
   assert.deepEqual(payload.STATUS_LEVELS_UINT8, [1, 0]);
 });
 

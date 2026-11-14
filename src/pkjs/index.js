@@ -429,7 +429,8 @@ Pebble.addEventListener('ready',
         // The rebaker restores its flash backstop FIRST: phoneBattery.init's
         // subscribe can fire a micro-send synchronously (see status-rebake.js).
         statusRebake.init({
-            getSettings: function () { return app.settings; }
+            getSettings: function () { return app.settings; },
+            getPhoneBattery: phoneBattery.bakeFacts
         });
         phoneBattery.init({
             devConfig: app.devConfig,
@@ -738,7 +739,7 @@ function isNightForTheme() {
  */
 function sendClaySettings(onSuccess, onFailure) {
     var effective = themeSchedule.effectiveSettings(app.settings, isNightForTheme());
-    var payload = buildClayPayload(effective, app.watchInfo);
+    var payload = buildClayPayload(effective, app.watchInfo, new Date());
     outbox.sendClay(payload, onSuccess, onFailure);
 }
 

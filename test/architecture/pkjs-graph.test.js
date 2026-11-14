@@ -30,10 +30,7 @@ const RUNTIME = [
 
 // Domain files that still reach the runtime (file: the globals they use).
 const RUNTIME_IN_DOMAIN_ALLOWED = {
-  'settings/domain/clay-payload.js': ['new Date()'],
   'weather/domain/keys/key-result.js': ['localStorage'],
-  'status-bars/domain/slot-text.js': ['new Date()'],
-  'status-bars/domain/status-lines.js': ['Date.now', 'new Date()'],
   'weather/domain/day-peaks.js': ['localStorage', 'Date.now'],
   'weather/domain/radar/radar-coverage.js': ['localStorage'],
 };
@@ -44,9 +41,7 @@ const RULES = [
     from: ['domain'], to: ['domain', 'lib'], allowed: [
       'calendar/domain/holiday-mask.js -> calendar/adapter/nager-source.js',
       'settings/domain/migrations/registry.js -> settings/adapter/storage-keys.js',
-      'status-bars/domain/status-lines.js -> status-bars/adapter/phone-battery.js',
       'weather/domain/day-peaks.js -> settings/adapter/storage-keys.js',
-      'weather/domain/forecast-series.js -> status-bars/application/status-rebake.js',
       'weather/domain/keys/key-result.js -> settings/adapter/storage-keys.js',
       'weather/domain/radar/radar-coverage.js -> settings/adapter/storage-keys.js',
       'weather/domain/radar/radar-sky.js -> weather/application/provider.js',
@@ -86,9 +81,6 @@ const CYCLES_ALLOWED = [
     'page/layout/screen-legend.js',
     'page/layout/screens-page.js',
     'page/status-bars/preview-status-bars.js'],
-  ['status-bars/adapter/phone-battery.js',
-    'status-bars/application/status-rebake.js',
-    'status-bars/domain/status-lines.js'],
 ];
 
 /**

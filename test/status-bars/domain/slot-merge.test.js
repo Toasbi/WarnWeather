@@ -26,6 +26,8 @@ const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalo
 const wire = require('../../../src/pkjs/alerts/domain/status-wire.js');
 const { renderSignature } = require('../../../src/pkjs/settings/domain/render-signature.js');
 const { NOTHING_PLACED, placeOn } = require('../../helpers/on-demand.js');
+// The time every bake in this file runs at, where the test does not care which it is.
+const BAKE_TIME = new Date(2026, 5, 15, 12, 0, 0);
 
 // --- the text: status-pair.js mergeAlert -------------------------------------------
 
@@ -103,7 +105,7 @@ function texts(bytes) {
 // The Watch Status Bar's slots after a bake.
 function topTexts(payload, settings, watch) {
   const p = Object.assign({}, payload);
-  statusLines.buildStatusLines(p, settings, watch || BASALT);
+  statusLines.buildStatusLines(p, settings, watch || BASALT, BAKE_TIME);
   const line = catalog.LINES.filter((l) => l.id === 'top')[0];
   return { slots: texts(p[line.wireKey]).map(utf8), entries: p.ALERT_ENTRIES_UINT8 };
 }
@@ -259,8 +261,8 @@ test('slots without such a pair bake byte for byte as with no alert at all', () 
       env.phoneBattery = false;
       const baked = env.thresholds ? wire.bakedAlerts(payload, S) : null;
       catalog.LINES.forEach((line) => {
-        const withAlerts = texts(statusLines.packLine(line, payload, S, env, baked));
-        const without = texts(statusLines.packLine(line, payload, S, env, null));
+        const withAlerts = texts(statusLines.packLine(line, payload, S, env, baked, statusLines.bakeEnv(BAKE_TIME)));
+        const without = texts(statusLines.packLine(line, payload, S, env, null, statusLines.bakeEnv(BAKE_TIME)));
         for (let s = 0; s < 3; s++) {
           const code = S[line.slots[s]];
           const paired = Boolean(baked) && s !== 1 && baked.some((a) => a.code === code)

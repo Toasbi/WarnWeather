@@ -2,7 +2,6 @@ var rainTier = require('./rain-tier');
 var lineStyle = require('../../forecast-graphs/domain/line-style.js');   // LINE_COLORS/FILL_COLORS + the resolved line styling
 var platforms = require('../../config-ui/lib/platform.js');   // computeEnv, isLineStylePlatform
 var statusLines = require('../../status-bars/domain/status-lines.js');
-var statusRebake = require('../../status-bars/application/status-rebake.js');
 var statusCatalog = require('../../status-bars/domain/status-line-catalog.js');
 // alertOn — whether a metric's alert is placed on a status bar (On demand), which the
 // fetch gates below add to what the slots and lines ask for.
@@ -505,19 +504,21 @@ function tempScaleRange(temps, series) {
  *   draws Show: Alert only on a watch with Alert settings (not aplite), a wind and a
  *   gust line sharing its band only where the watch draws both, and a line stored as a
  *   stripe takes stripe level bytes only where the watch draws the styles (not aplite).
+ * @param {Date} now The current time, for the status-line bake (status-lines.js
+ *   buildStatusLines).
+ * @param {?Object} [phone] The phone's battery facts for the bake (phone-battery.js
+ *   bakeFacts); absent = a host that cannot read the phone's battery.
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
-function applyForecastSeries(payload, settings, watchInfo) {
-    // Hand the bake INPUTS to the rebaker before anything touches them: a
-    // later trigger (a phone-battery event) re-bakes the status lines without
-    // a fetch, and by
-    // then both the bake's own mutations and the transient-key deletions below
-    // have happened. Order matters — this must precede buildStatusLines. No
-    // settings: a re-bake reads the live ones.
-    statusRebake.rememberBakeInputs(payload, watchInfo);
+function applyForecastSeries(payload, settings, watchInfo, now, phone) {
+    // The caller (weather/application/render-payload.js) hands the bake INPUTS
+    // to the rebaker (status-rebake.js rememberBakeInputs) before calling this:
+    // a later trigger re-bakes the status lines without a fetch, and by then
+    // both the bake's own mutations and the transient-key deletions below have
+    // happened.
     // Bake the packed status lines while the transient trend arrays are
     // still on the payload (they die a few lines below).
-    statusLines.buildStatusLines(payload, settings, watchInfo);
+    statusLines.buildStatusLines(payload, settings, watchInfo, now, phone);
     // From here on the graph's settings: with screens showing several graph styles
     // (emery), the shown styles' union (forecast-graphs/domain/graph-style-wire.js weatherSettings),
     // else the settings themselves.

@@ -1,8 +1,9 @@
 // src/pkjs/status-bars/application/status-rebake.js — re-send the status category WITHOUT a fetch,
 // from remembered bake inputs.
 //
-// The forecast pipeline hands its bake inputs here immediately before
-// buildStatusLines (rememberBakeInputs); any later trigger re-bakes those
+// The forecast pipeline (weather/application/render-payload.js, for the live
+// fetch and the fixture path alike) hands its bake inputs here immediately
+// before applyForecastSeries bakes them (rememberBakeInputs); any later trigger re-bakes those
 // inputs against the CURRENT settings and pushes only the status keys
 // (resendStatus). Three triggers: a phone-battery event, every settings save
 // (channel-scheduler's config close), which is how a status-only edit — an
@@ -15,14 +16,15 @@
 // This lived inside phone-battery.js, which inverted a dependency — the
 // weather pipeline (forecast-series.js) had to require a BATTERY module just
 // to stash bake inputs — and forced lazy-require contortions around the
-// status-lines cycle. The load graph here is clean: status-lines' only edge
-// back to phone-battery is lazy, and outbox has no path back at all, so both
-// are plain top-level requires.
+// status-lines cycle. The load graph here is clean: status-lines requires no
+// adapter (the bake takes the phone's battery facts and the time as
+// arguments: deps.getPhoneBattery and deps.now here), and outbox has no path
+// back at all, so both are plain top-level requires.
 
 // The micro-send mechanics: `buildStatusLines()` runs inside the
 // forecast bake and consumes transient payload keys that are deleted right
-// after, so a re-bake needs the bake *inputs*: forecast-series.js hands them
-// over via rememberBakeInputs() immediately before the bake. On a trigger we
+// after, so a re-bake needs the bake *inputs*: render-payload.js hands them
+// over via rememberBakeInputs() immediately before applyForecastSeries. On a trigger we
 // re-bake a fresh clone of that snapshot and push only the status category's
 // keys through the normal outbox. change-detector's categorySubset()
 // returns null for a category whose keys are all absent and ChangeDetector
@@ -40,7 +42,7 @@
 // user looks at the watch to confirm.
 //
 // Why re-baking a RESTORED snapshot is safe -- verified against
-// forecast-series.js (applyForecastSeries) and status-lines.js:
+// render-payload.js, forecast-series.js (applyForecastSeries) and status-lines.js:
 //
 //   * The snapshot is rewritten at EVERY bake (rememberBakeInputs runs
 //     immediately before buildStatusLines), and the status lines the watch has
@@ -56,9 +58,9 @@
 //     an old snapshot re-renders the identical string -- stale in precisely the
 //     way the watch is already stale, never differently stale.
 //   * Three things DO read the clock during a bake, and all three re-derive
-//     FORWARD rather than going stale: the countdown slot (formatCountdown
-//     defaults `now` to new Date()), aplite's phone-baked ISO week ('W' +
-//     isoWeek(new Date())), and the LIVE_* kinds (date, week, hr, steps,
+//     FORWARD rather than going stale: the countdown slot and aplite's
+//     phone-baked ISO week (both from the `now` the re-bake passes in, this
+//     module's clock), and the LIVE_* kinds (date, week, hr, steps,
 //     distance), which carry no baked text at all -- the watch draws them
 //     itself from the kind byte. A snapshot restored across midnight therefore
 //     pushes "3d" where the watch still shows "4d": the value the next fetch
@@ -309,7 +311,7 @@ function bakeInputs() {
 
 /**
  * Stash the inputs of the forecast bake so a later trigger can re-bake without
- * a fetch. Called from forecast-series.js immediately BEFORE buildStatusLines,
+ * a fetch. Called from render-payload.js immediately BEFORE applyForecastSeries bakes,
  * so the clone predates both the bake's own mutations and the transient-key
  * deletions that follow it.
  *
@@ -334,10 +336,25 @@ function rememberBakeInputs(payload, watchInfo) {
 }
 
 /**
+ * @returns {number} Now, in epoch milliseconds (the injected clock, else Date.now).
+ */
+function nowMs() {
+    return typeof deps.now === 'function' ? +deps.now() : Date.now();
+}
+
+/**
  * @returns {number} Now, in epoch seconds (the injected clock, else Date.now).
  */
 function nowSec() {
-    return (typeof deps.now === 'function' ? +deps.now() : Date.now()) / 1000;
+    return nowMs() / 1000;
+}
+
+/**
+ * @returns {?Object} The phone's battery facts for a re-bake (the injected
+ *   supplier, phone-battery.js bakeFacts in the app), or null without one.
+ */
+function phoneFacts() {
+    return typeof deps.getPhoneBattery === 'function' ? deps.getPhoneBattery() : null;
 }
 
 /**
@@ -402,7 +419,7 @@ function resendStatus(reason, onSuccess, onFailure) {
     bakedNight = nightNow(payload);
     build = deps.buildStatusLines || statusLines.buildStatusLines;
     try {
-        build(payload, inputs.settings, inputs.watchInfo);
+        build(payload, inputs.settings, inputs.watchInfo, new Date(nowMs()), phoneFacts());
     }
     catch (ex) {
         console.log('status-rebake: re-bake failed, skipping ' + reason + ' send: ' + ex.message);
@@ -440,8 +457,10 @@ function invalidatePersisted() {
  * @param {Object} [options] Injected environment; every field has a default.
  * @param {function():Object} [options.getSettings] Current Clay settings supplier.
  * @param {function(Object, Function=, Function=):void} [options.sendWeather] Outbox send (default: outbox.sendWeather).
- * @param {function(Object, Object, Object):Object} [options.buildStatusLines] Baker (default: status-lines).
- * @param {function():(Date|number)} [options.now] Clock for the day/night check (default: Date.now).
+ * @param {function(Object, Object, Object, Date, ?Object):Object} [options.buildStatusLines] Baker (default: status-lines).
+ * @param {function():(Date|number)} [options.now] Clock for the day/night check and the re-bake (default: Date.now).
+ * @param {function():?Object} [options.getPhoneBattery] The phone's battery facts for the re-bake
+ *   (phone-battery.js bakeFacts); absent = a host that cannot read the phone's battery.
  * @returns {void}
  */
 function init(options) {

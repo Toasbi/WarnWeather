@@ -1,28 +1,21 @@
 const test = require('node:test');
 const assert = require('node:assert');
-
-// The bake now asks phone-battery.js for the phone's cached charge (and whether
-// this host can read one at all), and that module answers out of localStorage.
-// AGENTS.md: install the mock BEFORE the watch modules load. Node 26 does define
-// an implicit global `localStorage`, but it is undefined on first access, so a
-// suite that leans on it passes or fails at random.
-const phoneBatteryStore = {};
-global.localStorage = {
-  getItem(k) { return Object.prototype.hasOwnProperty.call(phoneBatteryStore, k) ? phoneBatteryStore[k] : null; },
-  setItem(k, v) { phoneBatteryStore[k] = String(v); },
-  removeItem(k) { delete phoneBatteryStore[k]; }
-};
+// The time every bake in this file runs at, where the test does not care which it is.
+const NOW = new Date(2026, 5, 15, 12, 0, 0);
 
 const statusLines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const { NOTHING_PLACED, placedOnly } = require('../../helpers/on-demand.js');
-const STORAGE_KEYS = require('../../../src/pkjs/settings/adapter/storage-keys.js');
+
+// The phone's battery facts the bake is handed (phone-battery.js bakeFacts' shape): whether
+// this host can read the battery at all, and its cached reading. Set by the helpers below.
+let phone = { supported: false, reading: null };
 
 /**
- * Put a phone-battery reading in the cache the baker reads, or clear it.
+ * Hand the bake a phone-battery reading, or "no reading yet" on a phone that can report one.
  *
  * The cached level is the phone's EXACT percentage — phone-battery.js's 5-point
- * bucket is its send trigger and never reaches this cache — so the values here
+ * bucket is its send trigger and never reaches the bake — so the values here
  * are deliberately not multiples of 5.
  *
  * @param {number|null} pct Exact charge percentage 0..100, or null for "no reading".
@@ -30,14 +23,9 @@ const STORAGE_KEYS = require('../../../src/pkjs/settings/adapter/storage-keys.js
  * @returns {void}
  */
 function setPhoneBattery(pct, charging) {
-  global.localStorage.setItem(STORAGE_KEYS.PHONE_BATTERY_SUPPORTED, 'true');
-  if (pct === null) {
-    global.localStorage.removeItem(STORAGE_KEYS.PHONE_BATTERY_LEVEL);
-    global.localStorage.removeItem(STORAGE_KEYS.PHONE_BATTERY_CHARGING);
-    return;
-  }
-  global.localStorage.setItem(STORAGE_KEYS.PHONE_BATTERY_LEVEL, String(pct));
-  global.localStorage.setItem(STORAGE_KEYS.PHONE_BATTERY_CHARGING, charging ? 'true' : 'false');
+  phone = { supported: true, reading: pct === null
+    ? { available: false, level: null, charging: false }
+    : { available: true, level: pct, charging: Boolean(charging) } };
 }
 
 /**
@@ -45,7 +33,25 @@ function setPhoneBattery(pct, charging) {
  * @returns {void}
  */
 function clearPhoneBattery() {
-  Object.keys(phoneBatteryStore).forEach((k) => { delete phoneBatteryStore[k]; });
+  phone = { supported: false, reading: null };
+}
+
+/**
+ * The bake's time and the phone's battery as the helpers above set it.
+ * @returns {Object} status-lines.js bakeEnv
+ */
+function bakeNow() {
+  return statusLines.bakeEnv(NOW, phone);
+}
+
+/**
+ * A phone-battery item's slot text, baked with the phone's facts set above.
+ * @param {string} code 'phoneBattery' or 'phoneBatteryPlain'
+ * @returns {string}
+ */
+function batteryText(code) {
+  return statusLines.formatValue(code, {}, {}, 'statusForecastLeft', undefined, undefined,
+    undefined, undefined, bakeNow());
 }
 
 const K = catalog.KINDS, I = catalog.ICONS;
@@ -299,7 +305,7 @@ test('each countdown slot reads its own target-date key and packs as TEXT', () =
     statusForecastLeftCountdown: '2099-01-01',
     statusForecastMidCountdown: '2000-01-01'
   });
-  const slots = decodeLine(statusLines.packLine(line, basePayload(), settings, basaltEnv()));
+  const slots = decodeLine(statusLines.packLine(line, basePayload(), settings, basaltEnv(), null, statusLines.bakeEnv(NOW)));
   assert.deepEqual(slots.map((s) => s.kind), [K.TEXT, K.TEXT, K.TEXT]);
   assert.deepEqual(slots.map((s) => s.icon),
     [I.COUNTDOWN, I.COUNTDOWN, I.COUNTDOWN]);
@@ -333,7 +339,7 @@ test('missing weather values bake as --', () => {
 
 test('buildStatusLines packs four lines with defaults', () => {
   const p = basePayload();
-  statusLines.buildStatusLines(p, baseSettings(), WATCH_BASALT);
+  statusLines.buildStatusLines(p, baseSettings(), WATCH_BASALT, NOW);
 
   const forecast = decodeLine(p.STATUS_LINE_1_UINT8);
   assert.equal(forecast[0].kind, K.TEXT);
@@ -367,7 +373,7 @@ test('user selections and availability resolution', () => {
     statusForecastLeft: 'uv', statusForecastRight: 'wind',
     statusHealthRight: 'hr' // hr on basalt -> resolves to empty
   });
-  statusLines.buildStatusLines(p, s, WATCH_BASALT);
+  statusLines.buildStatusLines(p, s, WATCH_BASALT, NOW);
   const forecast = decodeLine(p.STATUS_LINE_1_UINT8);
   assert.equal(forecast[0].icon, I.UV);
   assert.equal(forecast[0].text, '6');
@@ -375,7 +381,7 @@ test('user selections and availability resolution', () => {
   const health = decodeLine(p.STATUS_LINE_4_UINT8);
   assert.equal(health[2].kind, K.EMPTY);
 
-  statusLines.buildStatusLines(p, s, WATCH_EMERY);
+  statusLines.buildStatusLines(p, s, WATCH_EMERY, NOW);
   const healthEmery = decodeLine(p.STATUS_LINE_4_UINT8);
   assert.equal(healthEmery[2].kind, K.LIVE_HR); // same stored choice, capable watch
 });
@@ -383,11 +389,11 @@ test('user selections and availability resolution', () => {
 test('forecast line sources its middle from statusForecastMid', () => {
   const payload = { CURRENT_TEMP: 50, CITY: 'Berlin' };  // 50F -> 10C
   // default (unset) -> city
-  const def = statusLines.packLine(forecastLine(), payload, {}, basaltEnv());
+  const def = statusLines.packLine(forecastLine(), payload, {}, basaltEnv(), null, statusLines.bakeEnv(NOW));
   assert.ok(decodeMidText(def).indexOf('Berlin') === 0);
   // explicit selection -> UV (a TEXT item), city no longer forced
   const uv = statusLines.packLine(forecastLine(),
-    { UV_TREND_UINT8: [30] }, { statusForecastMid: 'uv' }, basaltEnv());
+    { UV_TREND_UINT8: [30] }, { statusForecastMid: 'uv' }, basaltEnv(), null, statusLines.bakeEnv(NOW));
   assert.equal(decodeMidText(uv), '3');
 });
 
@@ -396,11 +402,11 @@ test('distance slot packs km vs mi kind from distanceUnits', () => {
   const sel = (u) => Object.assign(
     { statusForecastLeft: 'distance', healthMode: 'all' },
     u === undefined ? {} : { distanceUnits: u });
-  const metric = statusLines.packLine(forecastLine(), {}, sel('metric'), env);
+  const metric = statusLines.packLine(forecastLine(), {}, sel('metric'), env, null, statusLines.bakeEnv(NOW));
   assert.equal(decodeLine(metric)[0].kind, catalog.KINDS.LIVE_DISTANCE);
-  const imperial = statusLines.packLine(forecastLine(), {}, sel('imperial'), env);
+  const imperial = statusLines.packLine(forecastLine(), {}, sel('imperial'), env, null, statusLines.bakeEnv(NOW));
   assert.equal(decodeLine(imperial)[0].kind, catalog.KINDS.LIVE_DISTANCE_MI);
-  const unset = statusLines.packLine(forecastLine(), {}, sel(undefined), env);
+  const unset = statusLines.packLine(forecastLine(), {}, sel(undefined), env, null, statusLines.bakeEnv(NOW));
   assert.equal(decodeLine(unset)[0].kind, catalog.KINDS.LIVE_DISTANCE); // defaults to km
   // Icon is the distance icon in both units.
   assert.equal(decodeLine(imperial)[0].icon, catalog.ICONS.DISTANCE);
@@ -412,25 +418,25 @@ test('top line: mid defaults to live date; stored mid packs; date packs at edges
   const env = basaltEnv();
   const p = basePayload();
   // default (narrow): air quality / date / battery
-  let slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), env));
+  let slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), env, null, statusLines.bakeEnv(NOW)));
   assert.deepEqual(slots.map(s => s.kind), [K.TEXT, K.LIVE_DATE, K.LIVE_BATTERY]);
   assert.equal(slots[0].icon, I.AQI);
   // and the emery flavor, which packLine has to take from the env rather than from
   // the flat table — an install that never opened the settings page has nothing
   // stored here, so this fallback IS what such a watch renders.
   const emeryEnv = Object.assign({}, env, { platform: 'emery', hr: true });
-  slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), emeryEnv));
+  slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), emeryEnv, null, statusLines.bakeEnv(NOW)));
   assert.deepEqual(slots.map(s => s.kind), [K.LIVE_WEEK, K.LIVE_DATE, K.TEXT]);
   assert.equal(slots[2].icon, I.AQI);
   // stored mid selection packs as TEXT
   slots = decodeLine(statusLines.packLine(topLine, p,
-    baseSettings({ statusTopMid: 'city' }), env));
+    baseSettings({ statusTopMid: 'city' }), env, null, statusLines.bakeEnv(NOW)));
   assert.equal(slots[1].kind, K.TEXT);
   assert.equal(slots[1].text, 'Saarbrücken');
   // 'date' in an edge slot packs like any slot — the middle-only gate fell with
   // custom layouts (the calendar can sit anywhere or be absent now).
   slots = decodeLine(statusLines.packLine(topLine, p,
-    baseSettings({ statusTopLeft: 'date' }), env));
+    baseSettings({ statusTopLeft: 'date' }), env, null, statusLines.bakeEnv(NOW)));
   assert.equal(slots[0].kind, K.LIVE_DATE);
 });
 
@@ -438,7 +444,7 @@ test('city cap: 19 bytes in mid, 8 in edge, code-point safe', () => {
   const p = basePayload();
   p.CITY = 'Mönchengladbach-Ost'; // 20 UTF-8 bytes (o-umlaut = 2)
   const s = baseSettings({ statusRadarLeft: 'city' });
-  statusLines.buildStatusLines(p, s, WATCH_BASALT);
+  statusLines.buildStatusLines(p, s, WATCH_BASALT, NOW);
   const forecast = decodeLine(p.STATUS_LINE_1_UINT8);
   assert.ok(forecast[1].len <= 19);
   assert.ok(forecast[1].text.length > 0);
@@ -498,7 +504,7 @@ test('sun slot keeps a real pair\'s time, even one nearly a day apart', () => {
 test('aqi slot renders the bare index from AQI_TREND head (leaf icon carries context)', () => {
   const payload = Object.assign(basePayload(), { AQI_TREND: [42, 50] });
   const settings = baseSettings({ statusForecastLeft: 'aqi' });
-  statusLines.buildStatusLines(payload, settings, WATCH_BASALT);
+  statusLines.buildStatusLines(payload, settings, WATCH_BASALT, NOW);
   const slots = decodeLine(payload.STATUS_LINE_1_UINT8);
   assert.equal(slots[0].kind, K.TEXT);
   assert.equal(slots[0].icon, I.AQI);
@@ -507,18 +513,18 @@ test('aqi slot renders the bare index from AQI_TREND head (leaf icon carries con
 
 test('aqi slot shows -- when AQI_TREND head is null or absent', () => {
   const nulls = Object.assign(basePayload(), { AQI_TREND: [null] });
-  statusLines.buildStatusLines(nulls, baseSettings({ statusForecastLeft: 'aqi' }), WATCH_BASALT);
+  statusLines.buildStatusLines(nulls, baseSettings({ statusForecastLeft: 'aqi' }), WATCH_BASALT, NOW);
   assert.equal(decodeLine(nulls.STATUS_LINE_1_UINT8)[0].text, '--');
 
   const absent = basePayload(); // no AQI_TREND at all
-  statusLines.buildStatusLines(absent, baseSettings({ statusForecastLeft: 'aqi' }), WATCH_BASALT);
+  statusLines.buildStatusLines(absent, baseSettings({ statusForecastLeft: 'aqi' }), WATCH_BASALT, NOW);
   assert.equal(decodeLine(absent.STATUS_LINE_1_UINT8)[0].text, '--');
 });
 
 test('pollen slot emits POLLEN_TODAY verbatim with the pollen icon', () => {
   const payload = Object.assign(basePayload(), { POLLEN_TODAY: '2-3' });
   const settings = baseSettings({ provider: 'dwd', statusForecastLeft: 'pollen' });
-  statusLines.buildStatusLines(payload, settings, WATCH_BASALT);
+  statusLines.buildStatusLines(payload, settings, WATCH_BASALT, NOW);
   const slot = decodeLine(payload.STATUS_LINE_1_UINT8)[0];
   assert.equal(statusLines.formatValue('pollen', payload, settings), '2-3');
   assert.equal(slot.kind, K.TEXT);
@@ -529,17 +535,17 @@ test('pollen slot emits POLLEN_TODAY verbatim with the pollen icon', () => {
 test('pollen slot shows -- when POLLEN_TODAY is null or absent', () => {
   const settings = baseSettings({ provider: 'dwd', statusForecastLeft: 'pollen' });
   const missing = basePayload();
-  statusLines.buildStatusLines(missing, settings, WATCH_BASALT);
+  statusLines.buildStatusLines(missing, settings, WATCH_BASALT, NOW);
   assert.equal(decodeLine(missing.STATUS_LINE_1_UINT8)[0].text, '--');
 
   const nullValue = Object.assign(basePayload(), { POLLEN_TODAY: null });
-  statusLines.buildStatusLines(nullValue, settings, WATCH_BASALT);
+  statusLines.buildStatusLines(nullValue, settings, WATCH_BASALT, NOW);
   assert.equal(decodeLine(nullValue.STATUS_LINE_1_UINT8)[0].text, '--');
 });
 
 test('every baked line validates against the caps', () => {
   const p = basePayload();
-  statusLines.buildStatusLines(p, baseSettings(), WATCH_EMERY);
+  statusLines.buildStatusLines(p, baseSettings(), WATCH_EMERY, NOW);
   ['STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8',
    'STATUS_LINE_3_UINT8', 'STATUS_LINE_4_UINT8'].forEach(k => {
     assert.ok(Array.isArray(p[k]), k + ' present');
@@ -549,7 +555,7 @@ test('every baked line validates against the caps', () => {
 
 test('week slot bakes as a LIVE_WEEK kind (watch renders it live, no baked text)', () => {
   const payload = basePayload();
-  statusLines.buildStatusLines(payload, baseSettings({ statusForecastLeft: 'week' }), WATCH_BASALT);
+  statusLines.buildStatusLines(payload, baseSettings({ statusForecastLeft: 'week' }), WATCH_BASALT, NOW);
   const slots = decodeLine(payload.STATUS_LINE_1_UINT8);
   assert.equal(slots[0].kind, K.LIVE_WEEK);
   assert.equal(slots[0].icon, I.NONE);
@@ -558,7 +564,7 @@ test('week slot bakes as a LIVE_WEEK kind (watch renders it live, no baked text)
 
 test('week slot bakes as phone-baked TEXT on aplite', () => {
   const payload = basePayload();
-  statusLines.buildStatusLines(payload, baseSettings({ statusForecastLeft: 'week' }), WATCH_APLITE);
+  statusLines.buildStatusLines(payload, baseSettings({ statusForecastLeft: 'week' }), WATCH_APLITE, NOW);
   const slots = decodeLine(payload.STATUS_LINE_1_UINT8);
   assert.equal(slots[0].kind, K.TEXT);
   assert.equal(slots[0].icon, I.NONE);
@@ -579,7 +585,7 @@ test('pressure slot renders the rounded value with its unit (text-only icon id)'
     catalog.LINES[1],
     { PRESSURE_TREND: [1013.4, 1014] },
     { statusRadarLeft: 'pressure', statusRadarMid: 'empty', statusRadarRight: 'empty' },
-    { platform: 'basalt', color: true, health: true });
+    { platform: 'basalt', color: true, health: true }, null, statusLines.bakeEnv(NOW));
   assert.equal(bytes[0], catalog.KINDS.TEXT);
   // PRESSURE discriminates the slot from city on the wire (per-kind bold mode);
   // the watch never loads a glyph for it, so the slot still renders text-only.
@@ -593,7 +599,7 @@ test('pressure slot shows -- when PRESSURE_TREND is empty or absent', () => {
     const bytes = statusLines.packLine(
       catalog.LINES[1], payload,
       { statusRadarLeft: 'pressure', statusRadarMid: 'empty', statusRadarRight: 'empty' },
-      { platform: 'basalt', color: true, health: true });
+      { platform: 'basalt', color: true, health: true }, null, statusLines.bakeEnv(NOW));
     assert.equal(Buffer.from(bytes.slice(3, 3 + bytes[2])).toString('utf8'), '--');
   }
 });
@@ -658,7 +664,7 @@ test('dew point packs as TEXT under its own icon id, on aplite too', () => {
   };
   for (const env of [{ platform: 'basalt', color: true, health: true },
                      { platform: 'aplite', color: false, health: false }]) {
-    const bytes = statusLines.packLine(catalog.LINES[1], { DEW_TREND: [53.6] }, settings, env);
+    const bytes = statusLines.packLine(catalog.LINES[1], { DEW_TREND: [53.6] }, settings, env, null, statusLines.bakeEnv(NOW));
     assert.equal(bytes[0], K.TEXT, env.platform + ' kind');
     // Its own icon id even though the glyph is optional: a TEXT slot with
     // ICON_NONE would inherit City's bold mode (status_threshold.h).
@@ -698,7 +704,7 @@ function slotBytesFor(code, payload, settings, env) {
     statusRadarLeft: code, statusRadarMid: 'empty', statusRadarRight: 'empty',
     windUnits: 'kph', temperatureUnits: 'c'
   }, settings || {});
-  return sliceSlot(statusLines.packLine(radarLine(), payload, s, env || basaltEnv()), 0);
+  return sliceSlot(statusLines.packLine(radarLine(), payload, s, env || basaltEnv(), null, statusLines.bakeEnv(NOW)), 0);
 }
 
 // The same, in the MID slot — the roomy 19-byte cap rather than the 8-byte edge.
@@ -707,7 +713,7 @@ function midSlotBytesFor(code, payload, settings, env) {
     statusRadarLeft: 'empty', statusRadarMid: code, statusRadarRight: 'empty',
     windUnits: 'kph', temperatureUnits: 'c'
   }, settings || {});
-  return sliceSlot(statusLines.packLine(radarLine(), payload, s, env || basaltEnv()), 1);
+  return sliceSlot(statusLines.packLine(radarLine(), payload, s, env || basaltEnv(), null, statusLines.bakeEnv(NOW)), 1);
 }
 
 function assertPlainText(slotBytes, expected, message) {
@@ -837,10 +843,9 @@ test('the sentinel never pushes a slot past its 8-byte edge cap', () => {
 // setting, and those two bytes are what makes the 8-byte edge cap interesting.
 const DEG = '°';
 
-// A YYYY-MM-DD target n whole local days from today. formatValue() reaches for
-// the real clock (no injectable now), so the fixture has to move with it.
+// A YYYY-MM-DD target n whole local days from NOW, the time these bakes run at.
 function daysAheadDate(n) {
-  const d = new Date();
+  const d = new Date(NOW.getTime());
   d.setDate(d.getDate() + n);
   const p2 = (x) => String(x).padStart(2, '0');
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
@@ -866,7 +871,8 @@ const UNIT_CASES = [
 function unitText(c, override) {
   const settings = Object.assign(baseSettings(),
     c.extra ? c.extra() : {}, override || {});
-  return statusLines.formatValue(c.code, c.payload, settings, 'statusRadarLeft');
+  return statusLines.formatValue(c.code, c.payload, settings, 'statusRadarLeft', undefined,
+    undefined, undefined, undefined, statusLines.bakeEnv(NOW));
 }
 
 test('every unit-bearing slot appends its unit only when its own toggle is on', () => {
@@ -909,7 +915,8 @@ test('countdown "now" and "--" carry no unit in either toggle state', () => {
   });
   // ...and through formatValue, where the target date is today by default.
   const s = baseSettings({ countdownSlotUnit: true });
-  assert.equal(statusLines.formatValue('countdown', {}, s, 'statusRadarLeft'), 'now');
+  assert.equal(statusLines.formatValue('countdown', {}, s, 'statusRadarLeft', undefined,
+    undefined, undefined, undefined, statusLines.bakeEnv(NOW)), 'now');
 });
 
 test('an unavailable reading stays "--" with the unit on', () => {
@@ -1200,15 +1207,15 @@ test('the wind unit gives way only to an arrow the slot actually draws', () => {
 
 test('phone battery renders the cached percentage as NN%, both codes alike', () => {
   setPhoneBattery(87, false);
-  assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), '87%');
-  assert.equal(statusLines.formatValue('phoneBatteryPlain', {}, {}, 'statusForecastLeft'), '87%');
+  assert.equal(batteryText('phoneBattery'), '87%');
+  assert.equal(batteryText('phoneBatteryPlain'), '87%');
   // The two items differ only in the icon they pack; the text is identical.
   setPhoneBattery(0, false);
-  assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), '0%');
+  assert.equal(batteryText('phoneBattery'), '0%');
   setPhoneBattery(100, true);
-  assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), '100%',
+  assert.equal(batteryText('phoneBattery'), '100%',
     'charging changes the icon, never the text');
-  assert.equal(statusLines.formatValue('phoneBatteryPlain', {}, {}, 'statusForecastLeft'), '100%');
+  assert.equal(batteryText('phoneBatteryPlain'), '100%');
 });
 
 test('the reported percentage is never rounded to a 5-point step', () => {
@@ -1217,8 +1224,8 @@ test('the reported percentage is never rounded to a 5-point step', () => {
   // the bake intact.
   [31, 30, 1, 7, 49, 63, 99].forEach((pct) => {
     setPhoneBattery(pct, false);
-    assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), pct + '%');
-    assert.equal(statusLines.formatValue('phoneBatteryPlain', {}, {}, 'statusForecastLeft'), pct + '%');
+    assert.equal(batteryText('phoneBattery'), pct + '%');
+    assert.equal(batteryText('phoneBatteryPlain'), pct + '%');
   });
 });
 
@@ -1227,11 +1234,11 @@ test('phone battery is -- with no reading, and on a phone that cannot report one
   // all". It is also what the watch substitutes while Bluetooth is down
   // (status_row.c's freshness rule), so the two paths agree by construction.
   setPhoneBattery(null);
-  assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), '--');
-  assert.equal(statusLines.formatValue('phoneBatteryPlain', {}, {}, 'statusForecastLeft'), '--');
+  assert.equal(batteryText('phoneBattery'), '--');
+  assert.equal(batteryText('phoneBatteryPlain'), '--');
   clearPhoneBattery();
-  assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), '--');
-  assert.equal(statusLines.formatValue('phoneBatteryPlain', {}, {}, 'statusForecastLeft'), '--');
+  assert.equal(batteryText('phoneBattery'), '--');
+  assert.equal(batteryText('phoneBatteryPlain'), '--');
 });
 
 test('phone battery text fits the narrow edge cap at every whole percentage', () => {
@@ -1239,7 +1246,7 @@ test('phone battery text fits the narrow edge cap at every whole percentage', ()
   for (let pct = 0; pct <= 100; pct += 1) {
     for (const charging of [false, true]) {
       setPhoneBattery(pct, charging);
-      const text = statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft');
+      const text = batteryText('phoneBattery');
       assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
         `${pct}% overflows the edge slot`);
     }
@@ -1253,13 +1260,13 @@ test('charging swaps the packed icon id, and only for the icon-bearing item', ()
                            statusForecastRight: 'empty' });
 
   setPhoneBattery(63, false);
-  let slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBattery'), env))[0];
+  let slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBattery'), env, null, bakeNow()))[0];
   assert.equal(slot.kind, catalog.KINDS.TEXT);
   assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY);
   assert.equal(slot.text, '63%');
 
   setPhoneBattery(63, true);
-  slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBattery'), env))[0];
+  slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBattery'), env, null, bakeNow()))[0];
   assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY_CHG, 'charging glyph, same text');
   assert.equal(slot.text, '63%');
 
@@ -1268,7 +1275,7 @@ test('charging swaps the packed icon id, and only for the icon-bearing item', ()
   // watch, so without one its Bold row would silently drive City.
   for (const charging of [false, true]) {
     setPhoneBattery(63, charging);
-    slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBatteryPlain'), env))[0];
+    slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBatteryPlain'), env, null, bakeNow()))[0];
     assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY_PLAIN, `plain, charging=${charging}`);
     assert.equal(slot.text, '63%');
   }
@@ -1279,12 +1286,12 @@ test('an unreadable phone battery still packs its slot, as --', () => {
   setPhoneBattery(null);
   const slot = decodeLine(statusLines.packLine(forecastLine(), {},
     { statusForecastLeft: 'phoneBattery', statusForecastMid: 'empty',
-      statusForecastRight: 'empty' }, env))[0];
+      statusForecastRight: 'empty' }, env, null, bakeNow()))[0];
   assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY, 'not the charging glyph');
   assert.equal(slot.text, '--');
 });
 
-test('buildStatusLines derives env.phoneBattery from the persisted detector verdict', () => {
+test('buildStatusLines derives env.phoneBattery from the phone\'s detector verdict it is handed', () => {
   // computeEnv() knows only WATCH facts; the gate is a PHONE fact. Without the
   // flag being added inside buildStatusLines, itemAvailable() fails and the slot
   // silently collapses to empty even on a phone that CAN read its battery.
@@ -1293,7 +1300,7 @@ test('buildStatusLines derives env.phoneBattery from the persisted detector verd
 
   setPhoneBattery(47, false);
   let p = basePayload();
-  statusLines.buildStatusLines(p, settings, WATCH_BASALT);
+  statusLines.buildStatusLines(p, settings, WATCH_BASALT, NOW, phone);
   let slot = decodeLine(p.STATUS_LINE_1_UINT8)[0];
   assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY);
   assert.equal(slot.text, '47%');
@@ -1302,7 +1309,7 @@ test('buildStatusLines derives env.phoneBattery from the persisted detector verd
   // resolves to 'empty' rather than baking a made-up value.
   clearPhoneBattery();
   p = basePayload();
-  statusLines.buildStatusLines(p, settings, WATCH_BASALT);
+  statusLines.buildStatusLines(p, settings, WATCH_BASALT, NOW, phone);
   slot = decodeLine(p.STATUS_LINE_1_UINT8)[0];
   assert.equal(slot.kind, catalog.KINDS.EMPTY);
   assert.equal(slot.text, '');
@@ -1383,7 +1390,7 @@ const ALL_FIVE_VALUES = placedOnly(['gust', 'uv', 'aqi', 'pollen', 'wind'], {
 test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, with their values by default', () => {
   const p = alertPayload();
   const s = baseSettings(placedOnly(['uv', 'wind'], { alertUvDisplay: 'icon', alertWindDisplay: 'icon' }));
-  statusLines.buildStatusLines(p, s, WATCH_BASALT);
+  statusLines.buildStatusLines(p, s, WATCH_BASALT, NOW);
   // UV danger (header bit 7 | kind 7 | danger bit 3), wind warn (kind 2), both
   // today's; the Icon Look: no value bytes.
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08, 0x80 | 2]);
@@ -1391,14 +1398,14 @@ test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, with their 
   // The Looks absent: Icon + value, the default — UV's "8" and wind's "45" follow.
   const dflt = alertPayload();
   const d = baseSettings(placedOnly(['uv', 'wind']));
-  statusLines.buildStatusLines(dflt, d, WATCH_BASALT);
+  statusLines.buildStatusLines(dflt, d, WATCH_BASALT, NOW);
   assert.deepEqual(dflt.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08, 0x38, 0x80 | 2, 0x34, 0x35]);
   assert.deepEqual(dflt.ALERT_ENTRIES_UINT8, packedAlerts(alertPayload(), d));
 });
 
 test('buildStatusLines: all four with values fit the tuple, in the On demand order', () => {
   const p = alertPayload();
-  statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_EMERY);
+  statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_EMERY, NOW);
   const ch = (t) => t.split('').map((c) => c.charCodeAt(0));
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, [].concat(
     [0x80 | 3 | 0x08], ch('90'),
@@ -1416,20 +1423,20 @@ test('buildStatusLines: nothing alerting sends an empty ALERT_ENTRIES_UINT8', ()
     GUST_TREND_UINT8: [15], GUST_DAY_PEAKS: [15, 15, 0],
     AQI_TREND: [20]
   });
-  statusLines.buildStatusLines(quiet, baseSettings(ALERTS_ALL_VALUES), WATCH_BASALT);
+  statusLines.buildStatusLines(quiet, baseSettings(ALERTS_ALL_VALUES), WATCH_BASALT, NOW);
   assert.deepEqual(quiet.ALERT_ENTRIES_UINT8, [], 'present, so the watch clears its entries');
   const off = alertPayload();
-  statusLines.buildStatusLines(off, baseSettings(NOTHING_PLACED), WATCH_BASALT);
+  statusLines.buildStatusLines(off, baseSettings(NOTHING_PLACED), WATCH_BASALT, NOW);
   assert.deepEqual(off.ALERT_ENTRIES_UINT8, []);
 });
 
 test('buildStatusLines never sends ALERT_ENTRIES_UINT8 to aplite (no On demand there)', () => {
   const p = alertPayload();
-  statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_APLITE);
+  statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_APLITE, NOW);
   assert.equal(Object.prototype.hasOwnProperty.call(p, 'ALERT_ENTRIES_UINT8'), false);
   // An unknown watch still gets it, like the levels (never hide a real feature).
   const unknown = alertPayload();
-  statusLines.buildStatusLines(unknown, baseSettings(placedOnly(['uv'], { alertUvDisplay: 'icon' })), null);
+  statusLines.buildStatusLines(unknown, baseSettings(placedOnly(['uv'], { alertUvDisplay: 'icon' })), null, NOW);
   assert.deepEqual(unknown.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08]);
 });
 
@@ -1437,7 +1444,7 @@ test('the weather alerts are no slot item: no catalog kind, and the lines carry 
   assert.equal(catalog.byCode('alerts'), undefined);
   assert.equal(Object.prototype.hasOwnProperty.call(catalog.KINDS, 'ALERTS'), false);
   const p = alertPayload();
-  statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_BASALT);
+  statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_BASALT, NOW);
   const top = decodeLine(p.STATUS_LINE_3_UINT8);
   assert.deepEqual(top.map((slot) => slot.kind), [K.TEXT, K.LIVE_DATE, K.LIVE_BATTERY],
     'the strip keeps its shipped slots; the watch overlays the row itself');
@@ -1452,7 +1459,7 @@ test('the entry cap holds all five alerts with their widest values', () => {
     AQI_TREND: [500], POLLEN_TODAY: '2-3'
   });
   const s = baseSettings(Object.assign({ provider: 'dwd' }, ALL_FIVE_VALUES));
-  statusLines.buildStatusLines(p, s, WATCH_BASALT);
+  statusLines.buildStatusLines(p, s, WATCH_BASALT, NOW);
   const bytes = p.ALERT_ENTRIES_UINT8;
   // Five headers, nothing tail-dropped.
   assert.deepEqual(decodeAlerts(bytes).map((e) => e.value), ['130', '11', '500', '2-3', '120']);
@@ -1470,7 +1477,7 @@ test('the entry cap holds all five alerts with their widest values for tomorrow 
   });
   const s = baseSettings(Object.assign({ provider: 'dwd', aqiSource: 'openmeteo', aqiScale: 'us' },
     ALL_FIVE_VALUES));
-  statusLines.buildStatusLines(p, s, WATCH_BASALT);
+  statusLines.buildStatusLines(p, s, WATCH_BASALT, NOW);
   const entries = decodeAlerts(p.ALERT_ENTRIES_UINT8);
   assert.deepEqual(entries.map((e) => e.value), ['255', '11', '500', '2-3', '255']);
   assert.deepEqual(entries.map((e) => e.mark), ['raquo', 'raquo', 'raquo', 'raquo', 'raquo']);
