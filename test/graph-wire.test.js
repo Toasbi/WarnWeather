@@ -634,7 +634,7 @@ test('the float bit: never on an amount line, a stripe, a line not drawn, or on 
 // and nothing but a shared builder keeps their bytes together.
 const WATCHES = [null, {}, { platform: '' }, { platform: 'aplite' }, { platform: 'basalt' },
   { platform: 'diorite' }, { platform: 'emery' }, { platform: 'flint' },
-  { platform: 'gabbro' }];
+  { platform: 'unknown-watch' }];
 const GRAPH_SETTINGS = [
   { secondaryLine: 'precip_prob', thirdLine: 'uv', secondaryLineFill: true, theme: 'dark', rainBarColor: 'multicolor' },
   { secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'cloud', fifthLine: 'pressure', secondaryLineStyle: 'bold',

@@ -66,7 +66,9 @@ const HOMES = {
   ],
 
   // platform.js: which watch has which capability, so which settings it gets.
+  // storage-keys.js: the table of key names, no storage calls
   'settings/domain': [
+    'storage-keys.js',
     'clay-payload.js', 'config-close.js', 'config-ui/lib/platform.js', 'render-signature.js',
     'migrations/alert-defaults.js', 'migrations/graph-colors.js', 'migrations/holidays.js',
     'migrations/light-theme.js', 'migrations/line-styles.js', 'migrations/onboarding.js',
@@ -74,7 +76,7 @@ const HOMES = {
     'migrations/seed-pairs.js', 'migrations/status-slots.js', 'migrations/v1_24.js',
   ],
   'settings/application': ['clay-migrations.js'],
-  'settings/adapter': ['clay-settings.js', 'storage-keys.js'],
+  'settings/adapter': ['clay-settings.js'],
 
   // sleep-window.js: the battery saver's night window
   'wire/domain': ['sleep-window.js', 'wire-units.js'],

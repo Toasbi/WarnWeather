@@ -3,14 +3,15 @@
 // code touches no runtime, each role requires only what its rule allows, and there are no
 // require cycles.
 //
-// Each allow-list holds what the code does today against a rule. The lists only shrink: fix a
-// file and remove its entry, and the test fails until the list matches the code again.
+// Each allow-list holds what the code does today against a rule. Fix a file and remove its
+// entry; the test fails until the list matches the code again. Adding an entry is a decision
+// for review, since the lists are meant to shrink.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { HOMES, homeOf } = require('./pkjs-homes.js');
-const { codeOf, withoutComments } = require('./source-text.js');
+const { codeOf, withoutComments, relPath, listFiles, cyclesOf } = require('./source-tree.js');
 
 const PKJS = path.resolve(__dirname, '..', '..', 'src', 'pkjs');
 
@@ -44,21 +45,15 @@ const RULES = [
       'forecast-series.js -> config-ui/index.js',
       'forecast-series.js -> status-rebake.js',
       'holidays/holiday-mask.js -> holidays/nager-source.js',
-      'key-result.js -> storage-keys.js',
-      'migrations/registry.js -> storage-keys.js',
       'status-lines.js -> phone-battery.js',
-      'weather/day-peaks.js -> storage-keys.js',
       'weather/graph-style-wire.js -> config-ui/index.js',
       'weather/graph-wire.js -> config-ui/index.js',
-      'weather/radar-coverage.js -> storage-keys.js',
       'weather/radar-sky.js -> weather/provider.js',
       'weather/rain-tier.js -> config-ui/index.js',
     ] },
   { name: 'application code requires no adapter, shell or settings page',
     from: ['application'], to: ['application', 'domain', 'lib'], allowed: [
-      'auth-backoff.js -> storage-keys.js',
       'clay-migrations.js -> clay-settings.js',
-      'notices.js -> storage-keys.js',
       'provider-factory.js -> weather/dwd.js',
       'provider-factory.js -> weather/metno.js',
       'provider-factory.js -> weather/openmeteo.js',
@@ -67,7 +62,6 @@ const RULES = [
       'provider-factory.js -> weather/wunderground.js',
       'provider-factory.js -> weather/yandex.js',
       'status-rebake.js -> outbox.js',
-      'status-rebake.js -> storage-keys.js',
       'telemetry-settings.js -> config-ui/index.js',
       'weather/provider.js -> outbox.js',
       'weather/provider.js -> weather/air-quality.js',
@@ -102,26 +96,6 @@ const CYCLES_ALLOWED = [
 ];
 
 /**
- * Every shipped JS file under src/pkjs (tests, node_modules and SKIPPED left out), relative,
- * with forward slashes.
- * @returns {string[]}
- */
-function files() {
-  const out = [];
-  (function walk(dir) {
-    fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
-      if (['node_modules', 'test', 'tests'].indexOf(e.name) !== -1) { return; }
-      const p = path.join(dir, e.name);
-      const rel = path.relative(PKJS, p).split(path.sep).join('/');
-      if (e.isDirectory()) { walk(p); } else if (e.name.endsWith('.js') && SKIPPED.indexOf(rel) === -1) {
-        out.push(rel);
-      }
-    });
-  })(PKJS);
-  return out.sort();
-}
-
-/**
  * Where a relative require lands, the way Node resolves it: the path, the path plus .js, or
  * the folder's index.js.
  * @param {string} from absolute path of the requiring file
@@ -147,13 +121,15 @@ function requiresOf(rel) {
   let m;
   while ((m = re.exec(text)) !== null) {
     const target = resolveRequire(file, m[1]);
-    const t = target && path.relative(PKJS, target).split(path.sep).join('/');
+    const t = target && relPath(PKJS, target);
     if (t && !t.startsWith('..')) { out.add(t); }
   }
   return Array.from(out).sort();
 }
 
-const FILES = files();
+// Every shipped JS file (tests, node_modules and SKIPPED left out).
+const FILES = listFiles(PKJS, { name: /\.js$/, skipDirs: ['node_modules', 'test', 'tests'],
+  skipFiles: SKIPPED });
 const GRAPH = new Map(FILES.map((f) => [f, requiresOf(f).filter((t) => SKIPPED.indexOf(t) === -1)]));
 
 /**
@@ -202,30 +178,5 @@ RULES.forEach((rule) => {
 });
 
 test('the require graph has no cycles beyond the listed ones', () => {
-  // Tarjan's strongly connected components; a component of two or more files is a cycle.
-  let index = 0;
-  const idx = new Map();
-  const low = new Map();
-  const stack = [];
-  const on = new Set();
-  const cycles = [];
-  /**
-   * Tarjan's visit: number v, walk its requires, and pop a component when v is its root.
-   * @param {string} v
-   */
-  const connect = (v) => {
-    idx.set(v, index); low.set(v, index); index++; stack.push(v); on.add(v);
-    (GRAPH.get(v) || []).forEach((w) => {
-      if (!idx.has(w)) { connect(w); low.set(v, Math.min(low.get(v), low.get(w))); }
-      else if (on.has(w)) { low.set(v, Math.min(low.get(v), idx.get(w))); }
-    });
-    if (low.get(v) === idx.get(v)) {
-      const comp = [];
-      let w;
-      do { w = stack.pop(); on.delete(w); comp.push(w); } while (w !== v);
-      if (comp.length > 1) { cycles.push(comp.sort()); }
-    }
-  };
-  FILES.forEach((f) => { if (!idx.has(f)) { connect(f); } });
-  assert.deepEqual(cycles.sort(), CYCLES_ALLOWED);
+  assert.deepEqual(cyclesOf(GRAPH), CYCLES_ALLOWED);
 });

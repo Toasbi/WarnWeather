@@ -30,6 +30,10 @@ is no global `domain/` or `adapter/` folder holding every context. A folder that
 about 15 to 20 files is split by sub-area. Tests mirror the source layout. Moves land in commits
 of their own, separate from edits.
 
+Today the phone app's files still sit in the flat `src/pkjs/` folder. They move into their
+context folders in later changes, and until then `test/architecture/pkjs-homes.js` records the
+context and role of each one. New files start in their folder.
+
 ### 2. The domain contexts
 
 | Context | Sub-areas |
@@ -51,7 +55,7 @@ Two homes are not contexts:
 
 - The app shell (`src/pkjs/index.js` and the fetch cycle) is the composition root. It creates the
   adapters, passes them in, and wires the Pebble events to the contexts. It holds no rules.
-- The shared library (`src/pkjs/lib/`) holds generic helpers with no domain word in them (polyfills,
+- The shared library (`src/pkjs/lib/`, where the polyfills and UTF-8 helpers move) holds generic helpers with no domain word in them (polyfills,
   UTF-8, integer packing). Anything that names a context's concept belongs to that context.
 
 `CONTEXT.md` (Context map) shows which deployable holds which part of each context.
@@ -63,7 +67,7 @@ Every phone-app context has the same shape (lightweight hexagonal):
 - `domain/` holds the rules. It never calls `XMLHttpRequest`, `fetch`, `localStorage`,
   `Pebble.*`, `navigator`, `Date.now()` or `new Date()` without an argument. It takes data and
   the current time as arguments and returns values. It requires only domain modules (its own
-  context's, or another context's public ones) and the shared library.
+  context's or another context's) and the shared library.
 - `application/` runs a use: it loads what it needs through ports, calls the domain, and
   hands the result to a port.
 - `adapter/` is the only place that touches the runtime. Ports are plain ES5 objects passed
@@ -79,7 +83,8 @@ second implementation behind it.
 
 The edge functions follow the same rule inside each function: Supabase, upstream HTTP and logs
 are reached only through their own modules (`supabase-store.ts`, `upstream.ts`, `log.ts`), and
-the handler's rules take their inputs as arguments.
+the handler's rules take their inputs as arguments. Today `news` and `telemetry-ingest` still query
+Supabase from their handlers; the architecture test lists them.
 
 ### 4. Watchface and settings page: layered
 

@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { codeOf, withoutComments } = require('./source-text.js');
+const { codeOf, withoutComments, relPath, listFiles, cyclesOf } = require('./source-tree.js');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const SRC = path.join(ROOT, 'src', 'c');
@@ -13,7 +13,8 @@ const SRC = path.join(ROOT, 'src', 'c');
 // Higher includes lower. watchface.c is the app's entry point.
 const RANK = { 'watchface.c': 4, windows: 3, layers: 2, appendix: 1, services: 1 };
 
-// Upward includes the code has today. The list only shrinks: a fixed one is removed here.
+// Upward includes the code has today. A fixed one is removed here; adding one is a decision
+// for review, since the list is meant to shrink.
 const UPWARD_ALLOWED = [
   'appendix/app_message.c -> layers/calendar_layer.h',
   'appendix/app_message.c -> layers/forecast_layer.h',
@@ -35,22 +36,6 @@ const UPWARD_ALLOWED = [
 ];
 
 /**
- * Every C source and header under src/c, as paths relative to it.
- * @returns {string[]}
- */
-function sources() {
-  const out = [];
-  (function walk(dir) {
-    fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
-      const p = path.join(dir, e.name);
-      if (e.isDirectory()) { walk(p); return; }
-      if (/\.[ch]$/.test(e.name)) { out.push(path.relative(SRC, p).split(path.sep).join('/')); }
-    });
-  })(SRC);
-  return out.sort();
-}
-
-/**
  * The quoted includes of one file, resolved to paths relative to src/c: against the file's
  * own folder first, then against src/ (the `"c/layers/…"` form). System headers and
  * build-generated ones, which are not under src/c, are left out.
@@ -65,7 +50,7 @@ function includesOf(rel) {
   while ((m = re.exec(text)) !== null) {
     const found = [path.resolve(path.dirname(path.join(SRC, rel)), m[1]), path.resolve(SRC, '..', m[1])]
       .find((p) => fs.existsSync(p) && !path.relative(SRC, p).startsWith('..'));
-    if (found) { out.push(path.relative(SRC, found).split(path.sep).join('/')); }
+    if (found) { out.push(relPath(SRC, found)); }
   }
   return out;
 }
@@ -88,7 +73,7 @@ function code(rel) {
   return codeOf(path.join(SRC, rel));
 }
 
-const FILES = sources();
+const FILES = listFiles(SRC, { name: /\.[ch]$/ });
 const GRAPH = new Map(FILES.map((f) => [f, includesOf(f)]));
 
 test('every file under src/c sits in a ranked folder', () => {
@@ -110,23 +95,7 @@ test('no file includes one from a higher layer, except the listed ones', () => {
 });
 
 test('the include graph has no cycles', () => {
-  const state = new Map();   // undefined: unseen, 1: on the stack, 2: done
-  const cycles = [];
-  /**
-   * Depth-first walk that records each include that closes a loop.
-   * @param {string} f the file being visited
-   * @param {string[]} stack the files on the path to it, f last
-   */
-  const visit = (f, stack) => {
-    state.set(f, 1);
-    (GRAPH.get(f) || []).forEach((t) => {
-      if (state.get(t) === 1) { cycles.push(stack.slice(stack.indexOf(t)).concat(t).join(' -> ')); }
-      else if (!state.get(t)) { visit(t, stack.concat(t)); }
-    });
-    state.set(f, 2);
-  };
-  FILES.forEach((f) => { if (!state.get(f)) { visit(f, [f]); } });
-  assert.deepEqual(cycles, []);
+  assert.deepEqual(cyclesOf(GRAPH), []);
 });
 
 test('HealthService is called from services/health.c only', () => {

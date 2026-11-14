@@ -12,7 +12,8 @@ Other references:
 - Setup and the walkthrough are in `CONTRIBUTING.md`.
 - The architecture rules (where new code goes and which way it may depend) are in
   `docs/adr/0005-architecture-rules.md`, checked by `test/architecture/`. A new `src/pkjs`
-  file needs a home there (`pkjs-homes.js`) unless it sits in `src/pkjs/<context>/<role>/`.
+  file goes into `src/pkjs/<context>/<role>/`; `pkjs-homes.js` records only the files that
+  have not moved there yet.
   The context map is in `CONTEXT.md`, the quality goals in `docs/quality-goals.md`.
 - For Pebble C SDK lookups, use the `pebble` skill in `.agents/skills/`. The C API is not in
   your training data, so look up any SDK call you aren't certain of before using it.
@@ -115,25 +116,23 @@ README.md.
   - The worst realistic case on the 640 B platforms is DWD with all four metric lines
     active, the radar's sky rows on, City in every status slot and a full weather-alert
     entry tuple (`ALERT_ENTRIES_UINT8`, the On demand weather alert items; 7 B header + a
-    20 B entry cap): 603 B of 640 B, 37 B headroom. Aplite draws neither the fourth metric
-    line nor the weather alerts and is never sent either payload.
+    20 B entry cap). Aplite draws neither the fourth metric line nor the weather alerts and
+    is never sent either payload.
   - Emery's inbox also holds the forecast span (six trends of up to 68 B;
     `src/pkjs/forecast-span.js`) and bars 4 to 6 (New bar: `STATUS_LINE_5..7_UINT8`, one
-    more status line per bar a screen shows, up to 51 B each). Its heaviest bundle is
-    1095 B of 1280 B: the long span, the graph styles' seventh trend (the spare row,
+    more status line per bar a screen shows, up to 51 B each). Its heaviest bundle holds the
+    long span, the graph styles' seventh trend (the spare row,
     `SPARE_LINE_TREND_UINT8`, sent only while the screens' graphs draw five series between
     them) and all six bars on the screens, full of City. A bar no screen shows is sent no
     line (`status-line-catalog.js` `bakedLines`); the Watch bar's line is always sent.
-  - Every other watch is never sent more than 24 hours or a bar 4 to 6, so it stays at
-    603 B of 640 B. Aplite's heaviest bundle, without the lines it cannot draw, is 371 B
-    of 536 B.
+  - Every other watch is never sent more than 24 hours or a bar 4 to 6. Aplite's heaviest
+    bundle leaves out the lines it cannot draw.
   - A side slot's weather condition may grow its line past City's 44 B to the 48 B line cap
     (its name with the short form, only while the line holds it: `status-lines.js`
-    `widenEdgeConditions`). With every line at that cap the bundle is 627 B of 640 B, and
-    1131 B of emery's 1280 B; the test checks this too.
-  - `test/inbox-size.test.js` is the authoritative computation. It records the bundle sizes
-    per platform exactly (keep them in sync) and guards both the weather and the Clay
-    bundles, with a 10 B headroom floor on each. When you grow the worst-case bundle,
+    `widenEdgeConditions`); the test checks every line at that cap too.
+  - `test/inbox-size.test.js` is the authoritative computation and the one place the bundle
+    sizes are written down. It records them per platform exactly and guards both the weather
+    and the Clay bundles, with a 10 B headroom floor on each. When you grow the worst-case bundle,
     update its `buildHeaviestBundle()`.
   - Raising `inbox_size` is a last resort and the owner's call: only for a feature-sized
     tuple with no settings-side home, and never on aplite.
@@ -150,14 +149,12 @@ README.md.
   - Colours pack as single `GColor8` argb bytes, not int32 hex. An array tuple costs 7 B + N
     and a scalar costs 7 B + 4, so packing several values into one array is the cheaper
     shape.
-  - The Clay message also ships to aplite and is tight. Its heaviest form is 520 B, sized
-    against aplite's 536 B inbox as the conservative floor. That includes the 48 B
-    thresholds blob, which carries the rain alert's look, the On demand Battery item, the
+  - The Clay message also ships to aplite and is tight: its heaviest form is sized against
+    aplite's 536 B inbox as the conservative floor. It includes the 48 B thresholds blob, which carries the rain alert's look, the On demand Battery item, the
     per-kind warn look and the ten On demand cells. `CLAY_BATTERY_LOW_ONLY` rides only a
     known aplite's bundle. Only a known emery's bundle carries the graph styles' records
     (`CLAY_GRAPH_STYLE_1..3_UINT8`) and bars 4 to 6's On demand cells
-    (`CLAY_OD_EXTRA_UINT8`), 681 B of its 1280 B at their heaviest. Check
-    `test/inbox-size.test.js` either way.
+    (`CLAY_OD_EXTRA_UINT8`). Check `test/inbox-size.test.js` either way.
 - Declare every new API host in the `usesPermissions` of `package.template.json`, in an
   `Internet` entry of its own service (each domain covers its subdomains).
   - SDK 4.44 builds manifest version 2 pbws. With the Pebble app's permissions preview on

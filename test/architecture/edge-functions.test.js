@@ -5,34 +5,16 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { codeOf } = require('./source-text.js');
+const { codeOf, listFiles } = require('./source-tree.js');
 
 const FUNCTIONS = path.resolve(__dirname, '..', '..', 'supabase', 'functions');
 
-// Handlers that still query Supabase themselves. The list only shrinks.
+// Handlers that still query Supabase themselves. A fixed one is removed here; adding one is a
+// decision for review, since the list is meant to shrink.
 const DIRECT_QUERY_ALLOWED = [
   'news/handler.ts',
   'telemetry-ingest/handler.ts',
 ];
-
-/**
- * Every deployed module of every function, subfolders included (tests left out), relative to
- * supabase/functions with forward slashes.
- * @returns {string[]}
- */
-function modules() {
-  const out = [];
-  (function walk(dir) {
-    fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
-      const p = path.join(dir, e.name);
-      if (e.isDirectory()) { walk(p); return; }
-      if (e.name.endsWith('.ts') && !/[_.]test\.ts$/.test(e.name)) {
-        out.push(path.relative(FUNCTIONS, p).split(path.sep).join('/'));
-      }
-    });
-  })(FUNCTIONS);
-  return out.sort();
-}
 
 /**
  * A module's code with comments and string contents blanked.
@@ -43,7 +25,8 @@ function code(rel) {
   return codeOf(path.join(FUNCTIONS, rel));
 }
 
-const MODULES = modules();
+// Every deployed module of every function, subfolders included (tests left out).
+const MODULES = listFiles(FUNCTIONS, { name: /\.ts$/ }).filter((m) => !/[_.]test\.ts$/.test(m));
 /**
  * A module's file name.
  * @param {string} rel
@@ -70,7 +53,7 @@ test('only an entry point creates the Supabase client', () => {
 
 test('Supabase is queried from the store modules only, except the listed handlers', () => {
   const direct = MODULES.filter((m) => base(m) !== 'supabase-store.ts'
-    && /(?<!\b(?:Array|Buffer|Object|Uint8Array))\.(?:from|rpc)\s*\(/.test(code(m)));
+    && /(?<!(?:Array|Buffer|Object))\.(?:from|rpc)\s*\(/.test(code(m)));
   assert.deepEqual(direct, DIRECT_QUERY_ALLOWED,
     'a module queries Supabase directly, or a listed one moved to a store (then remove it)');
 });
