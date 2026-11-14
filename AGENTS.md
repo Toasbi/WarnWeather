@@ -375,18 +375,45 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   `"What's new in <version>"` and use only the supported markdown subset (`**bold**`
   section headers, `- ` bullets, `*italic*`, `[text](https://…)` links — see
   `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
-- **Changelog style: Keep a Changelog** (the owner's, 2026-11-14;
-  https://keepachangelog.com). The appstore changelog and the news body group their items
-  under the Keep a Changelog types, in this order and only those that apply: `Added` (new
-  features), `Changed` (changes to existing features), `Removed`, `Fixed`. Each item is one
-  line without a full stop, naming the feature the way the user sees it: `Added` and
-  `Changed` items name the feature or what is different now; `Fixed` items say what was wrong
-  ("The settings page opened blank on Android") or what works again. No marketing words, no
-  exclamation marks, no settings path or how-to, no second sentence. Small fixes and
-  settings-screen polish are one last `Minor fixes` line in `Fixed`.
-  - **Appstore changelog:** plain-line headings, items of about five to twelve words, a
-    platform limit in parentheses at the end (`(Pebble Time 2)`,
-    `(not on Pebble Classic or Steel)`).
+- **Changelog style: Keep a Changelog 1.1.0** (the owner's, 2026-11-14;
+  https://keepachangelog.com/en/1.1.0/, copied here so every session works from it).
+  - Its principles: a changelog is for humans, not machines; every version gets an entry;
+    changes of the same type are grouped; the latest version comes first; it lists the
+    noteworthy differences for the user, not the commit log.
+  - Its types, in this order, only those that apply: `Added` for new features, `Changed` for
+    changes in existing functionality, `Deprecated` for soon-to-be removed features, `Removed`
+    for now removed features, `Fixed` for any bug fixes, `Security` in case of
+    vulnerabilities.
+  - Counted against the previous release users had: `Changed`, `Removed` and `Fixed` name only
+    what that release already had. A feature new in this release goes under `Added` once, with
+    everything about it (its icons turning to the moon at sunset are part of the new slot, not
+    a `Changed` item), and a bug in something that never shipped is no `Fixed` item. When a
+    release replaces one that users barely had (3.2.1 for 3.2.0), its notes cover everything
+    since the release before and leave the skipped one out.
+  - Each item is one line without a full stop, naming the feature the way the user sees it;
+    `Fixed` items say what was wrong or what works again. No marketing words, no exclamation
+    marks, no settings path or how-to, no second sentence. Small fixes and settings-screen
+    polish are one last `Minor fixes` line in `Fixed`.
+  - **Appstore changelog:** the terse form Keep a Changelog's own examples use. Plain-line
+    headings, items of two to eight words, no platform notes and no explanation (the news
+    body has those). The shape to match (3.2.1's):
+
+    ```
+    Added
+    - Weather condition status slot
+    - Weather icon option for the City slot
+    - Date formats 09.26 and Sep
+
+    Changed
+    - New rain alert icons
+    - Tap a status bar to edit it
+
+    Removed
+    - Message form in the News popup
+
+    Fixed
+    - Minor fixes
+    ```
   - **News body** (`public.news`, RELEASE.md "News row"): the same items and groups as that
     version's appstore changelog, each explained a little more (what it is and what it does
     for the user), about eight to eighteen words. Bold headings with a blank line between
