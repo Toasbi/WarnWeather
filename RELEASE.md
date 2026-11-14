@@ -57,7 +57,7 @@ Every release needs a row in the `public.news` Supabase table with `target_versi
 nudge to update; an exact version string is for version-specific notices only. Patches need
 the row too, and **nothing in CI enforces it**, so check it yourself at release time.
 
-The style guide for both is in the "Commits & releases" section of `AGENTS.md`.
+The style guide for both is in the "Commits and releases" section of `AGENTS.md`.
 
 ## Developer portals
 

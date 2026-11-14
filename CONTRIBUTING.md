@@ -35,11 +35,13 @@ mise install
 supabase --version
 ```
 
-Generate a value for the telemetry hash secret, `TELEMETRY_HASH_SECRET`:
+Generate a value for the local telemetry hash secret:
 
 ```bash
 openssl rand -hex 32
 ```
+
+Use this value for `TELEMETRY_HASH_SECRET`.
 
 ### Local stack and emulator testing
 

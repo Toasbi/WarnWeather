@@ -213,7 +213,7 @@ hours. It sends the most hours a shown style needs, and each style's record
 style draws. The watch draws min(hours sent, the style's hours) and picks the grid class from
 that count, as above.
 
-- The span is still the phone's choice with records. Without records (a single style, and every
+- With records too, the span is the phone's choice. Without records (a single style, and every
   watch but emery) the watch draws every hour sent.
 - A view names its style in its view word's ext bits 9-10 (`view-cycle.js` `packExt`,
   `layout.h` `view_ext_graph_style`).
