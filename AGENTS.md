@@ -1,62 +1,57 @@
-# Agent Guide — ForecasWetter
+# Agent guide: WarnWeather
 
-ForecasWetter is a Pebble weather watchface: a C watchface (`src/c/`) driven by
+WarnWeather is a Pebble weather watchface: a C watchface (`src/c/`) driven by
 phone-side PebbleKit JS (`src/pkjs/`), with a Clay config UI and a Supabase
-telemetry backend. This file is the canonical rulebook for any AI agent or
-contributor tool working in this repo. (Claude Code reads it through `CLAUDE.md`'s
-`@AGENTS.md` import; opencode/Codex read `AGENTS.md` directly.)
+telemetry backend. This file is the rulebook for any AI agent or contributor tool
+working in this repo. Claude Code reads it through `CLAUDE.md`'s `@AGENTS.md` import;
+opencode and Codex read `AGENTS.md` directly.
 
-- **Commands / `mise` tasks** → `DEV.md`
-- **Setup & walkthrough prose** → `CONTRIBUTING.md`
-- **Architecture rules** → `docs/adr/0005-architecture-rules.md` (where new code goes and
-  which way it may depend), checked by `test/architecture/`: a new `src/pkjs` file needs a
-  home there (`pkjs-homes.js`) unless it sits in `src/pkjs/<context>/<role>/`. The context map
-  is in `CONTEXT.md`, the quality goals in `docs/quality-goals.md`.
-- **Pebble C SDK lookups** → the `pebble` skill in `.agents/skills/`. The C API is
-  not in your training data — look up any SDK call you aren't certain of before using it.
+Other references:
 
-## Build & verify loop
+- Commands and `mise` tasks are in `DEV.md`.
+- Setup and the walkthrough are in `CONTRIBUTING.md`.
+- The architecture rules (where new code goes and which way it may depend) are in
+  `docs/adr/0005-architecture-rules.md`, checked by `test/architecture/`. A new `src/pkjs`
+  file needs a home there (`pkjs-homes.js`) unless it sits in `src/pkjs/<context>/<role>/`.
+  The context map is in `CONTEXT.md`, the quality goals in `docs/quality-goals.md`.
+- For Pebble C SDK lookups, use the `pebble` skill in `.agents/skills/`. The C API is not in
+  your training data, so look up any SDK call you aren't certain of before using it.
 
-- After any change, run `mise build` to verify it builds.
-- For runtime logs, `mise install-emulator --logs` runs it in an emulator and prints
-  logs to the terminal. The process stays alive until the emulator is closed.
-- **Shut emulators down when you're done with them** — `pebble kill`, then verify with
-  `ps aux | grep qemu-pebble`: repeated installs can accumulate qemu processes that
-  `pebble kill` misses; `pkill -f qemu-pebble; pkill -f pypkjs` clears the stragglers.
-  Booted emulators linger indefinitely otherwise and keep eating CPU/RAM.
-- For config-UI (settings page) work, `mise preview-config` renders the live page —
-  real schema, blocks, and onBuild hooks injected — to
-  `build/config-ui-preview.html`. Open it in a desktop
-  browser to eyeball/interact with the settings UI (tabs, toggles, color picker all
-  work) without the emulator. It reads source fresh each run, so it always reflects
-  the current `shell.html`/`blocks.js`. Args are `[out] [platform]`, parsed
-  order-independently: a bare platform name picks the platform and keeps the default
-  output path, so `mise preview-config -- aplite` gives the B/W rendering in
-  `build/config-ui-preview.html` (pass an explicit filename too — e.g.
-  `mise preview-config -- preview.html aplite` — to vary the output path).
+## Build and verify loop
+
+- After any change, run `mise build` to check that it builds.
+- For runtime logs, `mise install-emulator --logs` runs the app in an emulator and prints
+  its logs to the terminal. The process stays alive until the emulator is closed.
+- Shut emulators down when you're done with them, because a booted emulator lingers
+  indefinitely and keeps using CPU and RAM. Run `pebble kill`, then check with
+  `ps aux | grep qemu-pebble`: repeated installs can leave qemu processes that
+  `pebble kill` misses, and `pkill -f qemu-pebble; pkill -f pypkjs` clears them.
+- For config-UI (settings page) work, `mise preview-config` renders the live settings page
+  to `build/config-ui-preview.html` for a desktop browser, without the emulator
+  ([DEV.md](DEV.md#config-ui-preview-no-emulator) has its arguments).
 
 ## Tests
 
-- `mise test` regenerates `page.generated.js` first (a gitignored build artifact the
-  tests depend on transitively), then runs three Node test globs with Node's native runner
-  (`node --test` / `node:test` — not Jest or Mocha): `test/**/*.test.js`,
+- `mise test` first regenerates `page.generated.js` (a gitignored build artifact the tests
+  depend on transitively). It then runs three test globs with Node's native runner
+  (`node --test` / `node:test`, not Jest or Mocha): `test/**/*.test.js`,
   `src/pkjs/config-ui/test/**/*.test.js` and `plugins/test/**/*.test.js` (the weather
-  plugins), then `scripts/test-c.sh` (host-compiled C layout tests).
+  plugins). Last it runs `scripts/test-c.sh` (host-compiled C layout tests).
 - Tests that touch storage must install a `global.localStorage` mock before the watch
-  modules load (see `test/change-detector.test.js` for the pattern).
+  modules load. `test/change-detector.test.js` shows the pattern.
 
-## Generated files — never hand-edit
+## Generated files: never edit by hand
 
-These are regenerated by the build/codegen and will silently overwrite manual edits:
+The build and codegen regenerate these files and silently overwrite manual edits:
 
 | File | Edit instead | Regenerated by |
 |------|--------------|----------------|
-| `package.json` (gitignored build artifact — not committed) | `package.template.json` + `profiles/package.<profile>.json` | `mise build` / `mise prepare-package` (mustache + telemetry, rainbow-endpoint & release-notification injection from env/secrets) |
+| `package.json` (gitignored build artifact, not committed) | `package.template.json` + `profiles/package.<profile>.json` | `mise build` / `mise prepare-package` (mustache, plus telemetry, rainbow-endpoint and release-notification injection from env/secrets) |
 | `src/pkjs/settings/page.generated.js` | config-UI source (`shell.html` / `blocks.js`) | `scripts/build-config-page.js` (runs in `mise build` and `mise test`) |
 | `src/pkjs/active-fixture.generated.js` | the fixture JSON in `fixtures/` (+ `FIXTURE` in `.env`) | `scripts/prepare-fixture.js` |
 | `supabase/migrations/*` | declarative `supabase/schemas/` | `supabase db diff -f <label>` |
 | `resources/img/clock-<face>-<n>~*.png` (one per glyph; the `CLOCK_<FACE>_0..10` resources in `package.template.json`), `src/c/layers/clock_glyphs_{ink,metrics}.h` (committed) | `FACES` in `scripts/gen-clock-glyphs.py` | that script, run by hand (`pip install freetype-py pillow`); then the page copy below |
-| `scripts/clock-glyphs-system.json` (committed: the 1-bit system fonts' clock digits — LECO, and the B/W watches' Roboto and Bitham) | nothing: read out of the SDK's emulator firmware | `python3 scripts/extract-system-clock-glyphs.py`, run by hand after an SDK update |
+| `scripts/clock-glyphs-system.json` (committed: the clock digits of the 1-bit system fonts: LECO, and the B/W watches' Roboto and Bitham) | nothing: read out of the SDK's emulator firmware | `python3 scripts/extract-system-clock-glyphs.py`, run by hand after an SDK update |
 | `src/pkjs/settings/clock-glyphs.generated.js` (committed: the settings page's watch preview draws its clock with it) | the glyph images and headers above, `scripts/clock-glyphs-system.json`, `src/c/layers/clock_ink.c` | `node scripts/gen-clock-glyphs-page.js`; `test/clock-glyphs-page.test.js` fails while it is stale |
 | `resources/data/STATUS_COND_*.pdc` and `src/pkjs/settings/condition-glyphs.generated.js` (committed: the weather condition slot's glyphs, the pixel icon editor's starting point and the settings page's copy; the watch draws pixel drawings, not these) | `GLYPHS` in `scripts/gen-condition-glyphs.py` | that script, run by hand (`pip install svg.path`); `test/status-line-contract.test.js` checks each glyph has its drawing, its watch mapping and its page outline |
 | `scripts/text-fonts-system.json` (committed: every glyph of the six Gothic text fonts the watch draws its status bars, calendar and graph labels in) | nothing: read out of the SDK's emulator firmware | `python3 scripts/extract-system-text-fonts.py`, run by hand after an SDK update |
@@ -64,8 +59,8 @@ These are regenerated by the build/codegen and will silently overwrite manual ed
 | `resources/pixel-icons.json` (committed: the status icons' pixel drawings, per size, which icons are done, and the version picked for each size with its Redraw mark), `resources/icon-svg/<ICON>.svg` (committed: an SVG added to an icon in the picker) | the pixel icon editor and the icon picker (`scripts/pixel-icons/README.md`) | `python3 scripts/pixel-icons/import_pixels.py --export <file>` or `--db <dir>` (drawings), `--picks <dir>` or `--picks-export <file>` (picks and SVGs) |
 | `resources/data/PX_*.pdc` (each size in its picked version, and `PX_*_BW.pdc`, the pixel drawing for the black and white watches, where the pick is another version), their `PX_*` entries in `package.template.json`, `src/c/layers/status_pixel_icons.generated.h`, the `MASK_*` rows in `src/c/layers/status_row_aplite.c` (all committed: the drawings built into the watch, the only status icons it draws) and `src/pkjs/settings/condition-pixels.generated.js` (committed: the weather condition icons at 13 px, for the settings page's list of conditions) | `resources/pixel-icons.json` | `node scripts/pixel-icons/gen_watch_icons.js`; `test/pixel-icons.test.js` fails while they are stale, `test/c/status_icon_drawings_test.c` while a height a bar asks for has no drawing |
 
-**AppMessage keys** live in `package.template.json`'s `messageKeys` array (not in the
-generated `package.json`). A key missing there surfaces as `MESSAGE_KEY_<NAME>
+AppMessage keys live in the `messageKeys` array of `package.template.json`, not in the
+generated `package.json`. A key missing there shows up as `MESSAGE_KEY_<NAME>
 undeclared` at C compile time. The C code takes the ids as constants from
 `build/include/message_key_ids.auto.h`, which `wscript` writes on every build (a new C
 file that uses a key includes it after its other headers). When the build stops with
@@ -76,220 +71,226 @@ file that uses a key includes it after its other headers). When the build stops 
 ### ES5-only runtime (aplite)
 
 aplite (Pebble Classic/Steel) runs the PKJS phone-side JS on a pre-ES6 JavaScriptCore.
-The Pebble SDK bundles PKJS with webpack but does **no** babel transpilation, so ES6 in
-`src/pkjs/` ships as-is and breaks aplite — and the failure is invisible on other
-platforms and in the build:
+The Pebble SDK bundles PKJS with webpack but does no babel transpilation, so ES6 in
+`src/pkjs/` ships as-is and breaks aplite. The failure does not show on other platforms
+or in the build:
 
-- **ES6 syntax** (arrow functions, `const`/`let`, template literals, `class`, `for…of`,
-  spread/destructuring) fails to parse → the whole bundle dies on aplite.
-- **ES6 built-in methods/globals** (`Array.from`, `String.prototype.includes`/`startsWith`,
-  `Object.values`/`entries`, `Promise`, `Map`, `Set`, …) are `undefined` → they throw
-  "undefined is not a function" at **runtime**, only when that line executes.
+- ES6 syntax (arrow functions, `const`/`let`, template literals, `class`, `for…of`,
+  spread/destructuring) fails to parse, and the whole bundle dies on aplite.
+- ES6 built-in methods and globals (`Array.from`, `String.prototype.includes`/`startsWith`,
+  `Object.values`/`entries`, `Promise`, `Map`, `Set`, …) are `undefined`. They throw
+  "undefined is not a function" at runtime, only when that line executes.
 
-Write watch-runtime PKJS as ES5: `var` + `function`, no arrow/template-literal syntax,
-and avoid ES6 built-ins. Already polyfilled and safe to call: `Object.assign`, `Math.trunc`, and
-`Array.prototype.find`/`findIndex`/`includes` (see `src/pkjs/polyfills.js`, required
-first in `index.js`; the settings page never loads it, so the inline script in
-`src/pkjs/config-ui/lib/shell.html` carries the same set for the webview, and
-`test/config-page-polyfills.test.js` keeps the two in lockstep). `String.prototype.includes`
-is NOT polyfilled anywhere. Need another ES6 method? Add a guarded polyfill to both instead
-of calling it directly. No exemption for webview-only files: `src/pkjs/config-ui/`
-(the settings UI on all platforms) requires ES5 even in files that only run in the phone
-webview (e.g. `lib/show-when.js`, `lib/engine.js`) to protect ancient Android WebViews,
-enforced by an automated guardrail in the test suite (`test/config-es5.test.js`, a
-token-level ES5 check) — see its own README.md's "ES5 constraint" section.
+Write watch-runtime PKJS as ES5: `var` and `function`, no arrow functions or template
+literals, and no ES6 built-ins. These are polyfilled and safe to call: `Object.assign`,
+`Math.trunc` and `Array.prototype.find`/`findIndex`/`includes`. They come from
+`src/pkjs/polyfills.js`, which `index.js` requires first. The settings page never loads
+that file, so the inline script in `src/pkjs/config-ui/lib/shell.html` carries the same set
+for the webview, and `test/config-page-polyfills.test.js` keeps the two in lockstep.
+`String.prototype.includes` is **not** polyfilled anywhere. To use another ES6 method, add a
+guarded polyfill to both places instead of calling it directly.
+
+Webview-only files are not exempt. `src/pkjs/config-ui/` (the settings UI on all platforms)
+must be ES5 even in files that only run in the phone webview (e.g. `lib/show-when.js`,
+`lib/engine.js`), to keep ancient Android WebViews working. `test/config-es5.test.js`, a
+token-level ES5 check, enforces it; see the "ES5 constraint" section of that directory's
+README.md.
 
 ### Module conventions
 
-- **localStorage key names live in `src/pkjs/storage-keys.js`** — add new keys there and
-  reference the export; don't inline string literals.
-- **Go through the outbox; don't call `Pebble.sendAppMessage` directly** for weather or
-  settings. `outbox.sendWeather()` / `outbox.sendClay()` run the payload through
-  `change-detector.js`, bundle only the categories whose content changed into ONE send
-  (the AppMessage channel is half-duplex, so back-to-back sends collide), and commit the
-  last-sent cache only in the ACK callback so a NACK retries next time.
-- **Keep the bundled message within the watch's inbox — `inbox_size` is 536 B on aplite,
-  1280 B on emery and 640 B everywhere else (`src/c/appendix/app_message.c`).** Because
-  all changed categories ride in one send, a new or enlarged payload key has to keep the *heaviest*
-  bundle under budget on every platform. On aplite the buffer is allocated from its
-  already-tiny heap, so 536 B is a hard ceiling there — you can't just bump it; the other
-  platforms have heap to spare. An overflow is dropped silently
-  (`APP_MSG_BUFFER_OVERFLOW` → "Message dropped!"). Worst realistic case is DWD with all
-  four metric lines active, the radar's sky rows on, City in every status slot and a
-  full weather-alert entry tuple (`ALERT_ENTRIES_UINT8`, the On demand weather alert items;
-  7 B header + a 20 B entry cap) = 603 B of 640 B (37 B headroom). Aplite draws neither
-  the fourth metric line nor the weather alerts and is never sent either payload.
-  Emery's inbox also holds the forecast span (six trends of up to 68 B;
-  `src/pkjs/forecast-span.js`) and bars 4 to 6 (New bar: `STATUS_LINE_5..7_UINT8`, one more
-  status line per bar a screen shows, up to 51 B each). Its
-  heaviest bundle is 1095 B of 1280 B: the long span, the graph styles' seventh trend (the
-  spare row, `SPARE_LINE_TREND_UINT8`, sent only while the screens' graphs draw five series
-  between them) and all six bars on the screens, full of City. A bar no screen shows is sent
-  no line (`status-line-catalog.js` `bakedLines`; the Watch bar's line always goes). Every
-  other watch is never sent more than 24 hours or a bar 4 to 6, so it keeps 603 B of 640 B;
-  aplite's heaviest bundle, without the lines it cannot draw, is 371 B of 536 B (see
-  `test/inbox-size.test.js` — the authoritative computation, which records the bundle
-  sizes exactly per platform; keep them in sync). A side slot's weather condition may grow
-  its line past City's 44 B to the 48 B line cap (its name with the short form, only while
-  the line holds it: `status-lines.js` `widenEdgeConditions`); every line at that cap is
-  627 B of 640 B, and 1131 B of emery's 1280 B, which the test checks too. The
-  settings-derived tuples — the rain-bar and radar palettes and the forecast line styling
-  (`CLAY_LINE_STYLE_UINT8`, 14 B: line colours, fill flag, the four night colours, the
-  third- and fourth-metric line colours and the four per-line marker-style bytes) — ride the
-  Clay/settings message, not this one. `test/inbox-size.test.js` guards both the weather and Clay
-  bundles; when you grow the worst-case bundle, update its `buildHeaviestBundle()`, and
-  treat bumping `inbox_size` as a last resort and the owner's call (only for a feature-sized
-  tuple with no settings-side home, and never on aplite).
-  Before spending weather-message bytes, ask whether the value is settings-derived — if
-  it is, it belongs on the Clay message —
-  but the Clay message ships to aplite too and is tight (the heaviest Clay message is
-  520 B, with the 48 B thresholds blob that carries the rain alert's look, the On demand
-  Battery item, the per-kind warn look and the ten On demand cells, sized against aplite's 536 B inbox as the
-  conservative floor; `CLAY_BATTERY_LOW_ONLY` rides a known aplite's bundle alone, and a
-  known emery's bundle alone also
-  carries the graph styles' records, `CLAY_GRAPH_STYLE_1..3_UINT8`, and bars 4 to 6's On
-  demand cells, `CLAY_OD_EXTRA_UINT8`, 681 B of its 1280 B at their heaviest — and the test
-  enforces a 10 B headroom floor on each bundle), so check
-  `test/inbox-size.test.js` either way.
-- **Message boundary: settings ride the settings (Clay) message; weather data rides the
-  weather message.** Config-derived values — colour palettes, formatting/display toggles,
-  the holiday mask — belong in `sendClaySettings` (`outbox.sendClay`). The weather payload
-  carries only forecast/status/sun/radar/sleep. (The rain-bar/radar palette and the forecast
-  line styling — `CLAY_LINE_STYLE_UINT8` — ride the Clay message;
-  `weather/graph-wire.js` packs both from `rain-tier.js`', `line-style.js`' and
-  `draw-from.js`' readings, and `clay-payload.js` sends them alongside the other settings.
-  Colours pack as single `GColor8` argb bytes, not int32 hex: an array tuple costs 7 B + N,
-  a scalar costs 7 B + 4, so packing several into one array is the cheap shape.)
-- **A new API host must be declared in `package.template.json`'s `usesPermissions`**, in an
-  `Internet` entry of its own service (each domain covers its subdomains). SDK 4.44 builds
-  manifest version 2 pbws. With the Pebble app's permissions preview on (its Settings ›
-  Plugins) the phone lets PKJS and the settings page reach
-  only the declared domains the user allowed, and asks before the rest the app declares
-  (`Location`; `ShowNotifications` for `Pebble.showSimpleNotificationOnPebble`, which goes
-  through `notify-watch.js`). Every entry carries a `reason` and `required` (installing
-  waits for an answer on the required ones, though a "no" counts and the install
-  goes on; the others are asked about on first use, and that first request fails). The phone
-  lists each domain as a row of its own, "Connect to <domain>" with its entry's reason under
-  it, so the reason is a short label that names the service and what it is for ("DWD weather
-  provider"), a few words more only where the name doesn't say it.
-  Required: every weather service the app can fetch
-  from (forecast and radar, keyed or not, air quality, pollen), the town's name and the
-  settings' place search, the public holidays (Nager.Date), Buy Me a Coffee (the Support me
-  link: only linked, declared at the owner's wish) and the app's own backend; optional:
-  LocationIQ (a typed Manual location), the update check, notifications and Health. With the
-  preview off, the phone grants everything and ignores both fields. A settings-page link to
-  another site opens through `Pebble.openUrl` where the app offers it, declared or not
-  (`config-ui/lib/links.js`). `test/uses-permissions.test.js` fails on a URL in `src/pkjs` that
-  is neither declared nor named there as a non-request (a link in a hint, a comment), on a
-  declared domain nothing requests or links to, and on an entry without a reason or
-  `required`. The hosts
-  of the endpoints `prepare-package.sh` injects (telemetry, the Rainbow proxy, news) are added
-  at build time, as an entry of their own (`scripts/lib/uses-permissions.js`). Docs:
-  https://developer.repebble.com/guides/plugins/preview/ (Declaring, Approval).
-- **A new telemetry setting must be added in two places or it's silently dropped:** the
-  watch-side snapshot in `src/pkjs/telemetry.js` AND the Deno `.strip()` schema in
+- localStorage key names live in `src/pkjs/storage-keys.js`. Add new keys there and
+  reference the export instead of inlining string literals.
+- Send weather and settings through the outbox, never with `Pebble.sendAppMessage`
+  directly. `outbox.sendWeather()` / `outbox.sendClay()` run the payload through
+  `change-detector.js` and bundle only the categories whose content changed into one send,
+  because the AppMessage channel is half-duplex and back-to-back sends collide. They commit
+  the last-sent cache only in the ACK callback, so a NACK retries next time.
+- Keep the bundled message within the watch's inbox. `inbox_size` is 536 B on aplite,
+  1280 B on emery and 640 B everywhere else (`src/c/appendix/app_message.c`).
+  - All changed categories ride in one send, so a new or enlarged payload key has to keep
+    the *heaviest* bundle under budget on every platform. An overflow is dropped silently
+    (`APP_MSG_BUFFER_OVERFLOW` → "Message dropped!").
+  - On aplite the buffer is allocated from its already tiny heap, so 536 B is a hard
+    ceiling there and the inbox can't simply be bumped. The other platforms have heap to spare.
+  - The worst realistic case on the 640 B platforms is DWD with all four metric lines
+    active, the radar's sky rows on, City in every status slot and a full weather-alert
+    entry tuple (`ALERT_ENTRIES_UINT8`, the On demand weather alert items; 7 B header + a
+    20 B entry cap): 603 B of 640 B, 37 B headroom. Aplite draws neither the fourth metric
+    line nor the weather alerts and is never sent either payload.
+  - Emery's inbox also holds the forecast span (six trends of up to 68 B;
+    `src/pkjs/forecast-span.js`) and bars 4 to 6 (New bar: `STATUS_LINE_5..7_UINT8`, one
+    more status line per bar a screen shows, up to 51 B each). Its heaviest bundle is
+    1095 B of 1280 B: the long span, the graph styles' seventh trend (the spare row,
+    `SPARE_LINE_TREND_UINT8`, sent only while the screens' graphs draw five series between
+    them) and all six bars on the screens, full of City. A bar no screen shows is sent no
+    line (`status-line-catalog.js` `bakedLines`); the Watch bar's line is always sent.
+  - Every other watch is never sent more than 24 hours or a bar 4 to 6, so it stays at
+    603 B of 640 B. Aplite's heaviest bundle, without the lines it cannot draw, is 371 B
+    of 536 B.
+  - A side slot's weather condition may grow its line past City's 44 B to the 48 B line cap
+    (its name with the short form, only while the line holds it: `status-lines.js`
+    `widenEdgeConditions`). With every line at that cap the bundle is 627 B of 640 B, and
+    1131 B of emery's 1280 B; the test checks this too.
+  - `test/inbox-size.test.js` is the authoritative computation. It records the bundle sizes
+    per platform exactly (keep them in sync) and guards both the weather and the Clay
+    bundles, with a 10 B headroom floor on each. When you grow the worst-case bundle,
+    update its `buildHeaviestBundle()`.
+  - Raising `inbox_size` is a last resort and the owner's call: only for a feature-sized
+    tuple with no settings-side home, and never on aplite.
+- Settings ride the settings (Clay) message and weather data rides the weather message.
+  - Config-derived values (colour palettes, formatting and display toggles, the holiday
+    mask) belong in `sendClaySettings` (`outbox.sendClay`). The weather payload carries only
+    forecast, status, sun, radar and sleep data. Before spending weather-message bytes, check
+    whether the value is settings-derived; if it is, it belongs on the Clay message.
+  - The rain-bar/radar palette and the forecast line styling (`CLAY_LINE_STYLE_UINT8`, 14 B:
+    line colours, fill flag, the four night colours, the third- and fourth-metric line
+    colours and the four per-line marker-style bytes) are on the Clay message:
+    `weather/graph-wire.js` packs both from the readings of `rain-tier.js`, `line-style.js`
+    and `draw-from.js`, and `clay-payload.js` sends them with the other settings.
+  - Colours pack as single `GColor8` argb bytes, not int32 hex. An array tuple costs 7 B + N
+    and a scalar costs 7 B + 4, so packing several values into one array is the cheaper
+    shape.
+  - The Clay message also ships to aplite and is tight. Its heaviest form is 520 B, sized
+    against aplite's 536 B inbox as the conservative floor. That includes the 48 B
+    thresholds blob, which carries the rain alert's look, the On demand Battery item, the
+    per-kind warn look and the ten On demand cells. `CLAY_BATTERY_LOW_ONLY` rides only a
+    known aplite's bundle. Only a known emery's bundle carries the graph styles' records
+    (`CLAY_GRAPH_STYLE_1..3_UINT8`) and bars 4 to 6's On demand cells
+    (`CLAY_OD_EXTRA_UINT8`), 681 B of its 1280 B at their heaviest. Check
+    `test/inbox-size.test.js` either way.
+- Declare every new API host in the `usesPermissions` of `package.template.json`, in an
+  `Internet` entry of its own service (each domain covers its subdomains).
+  - SDK 4.44 builds manifest version 2 pbws. With the Pebble app's permissions preview on
+    (its Settings › Plugins), the phone lets PKJS and the settings page reach only the
+    declared domains the user allowed, and asks before the other permissions the app
+    declares (`Location`; `ShowNotifications` for `Pebble.showSimpleNotificationOnPebble`,
+    which goes through `notify-watch.js`). With the preview off, the phone grants
+    everything and ignores `reason` and `required`.
+  - Every entry carries a `reason` and `required`. Installing waits for an answer on the
+    required ones, though a "no" counts and the install goes on. The others are asked
+    about on first use, and that first request fails.
+  - The phone lists each domain as its own row, "Connect to <domain>", with the entry's
+    reason under it. So the reason is a short label that names the service and what it is
+    for ("DWD weather provider"), with a few more words only where the name doesn't say it.
+  - Required: every weather service the app can fetch from (forecast and radar, keyed or
+    not, air quality, pollen), the town's name and the settings' place search, the public
+    holidays (Nager.Date), Buy Me a Coffee (the Support me link: only linked, declared at
+    the owner's wish) and the app's own backend. Optional: LocationIQ (a typed Manual
+    location), the update check, notifications and Health.
+  - A settings-page link to another site opens through `Pebble.openUrl` where the app
+    offers it, declared or not (`config-ui/lib/links.js`).
+  - `test/uses-permissions.test.js` fails on a URL in `src/pkjs` that is neither declared
+    nor named there as a non-request (a link in a hint, a comment), on a declared domain
+    nothing requests or links to, and on an entry without a `reason` or `required`.
+  - The hosts of the endpoints `prepare-package.sh` injects (telemetry, the Rainbow proxy,
+    news) are added at build time, as an entry of their own
+    (`scripts/lib/uses-permissions.js`).
+  - Docs: https://developer.repebble.com/guides/plugins/preview/ (Declaring, Approval).
+- Add a new telemetry setting in two places, or it is silently dropped: the watch-side
+  snapshot in `src/pkjs/telemetry.js` and the Deno `.strip()` schema in
   `supabase/functions/telemetry-ingest/handler.ts`.
-- JSDoc (`@param`/`@returns`) on new JS functions — this project has no TypeScript.
+- Put JSDoc (`@param`/`@returns`) on new JS functions; this project has no TypeScript.
 - Prefer `Boolean(value)` over `!!value`.
 
 ## Weather plugins (`plugins/`)
 
-Plugin-only pbws for the Pebble app's plugin system (a preview), released separately from the
-watchface with their own UUID, version and CHANGELOG. The watchface doesn't read plugins yet.
-`plugins/README.md` has the layout, build and release steps.
+The weather plugins are plugin-only pbws for the Pebble app's plugin system (a preview).
+They are released separately from the watchface, with their own UUID, version and
+CHANGELOG. The watchface doesn't read plugins yet. `plugins/README.md` has the layout,
+build and release steps.
 
-- **Not bound by the ES5 rule:** plugin code runs in the Pebble app's plugin engine, never on
-  aplite's JavaScriptCore, so syntax up to ES2017 is fine. It has `fetch`, not
-  XMLHttpRequest. No npm packages: `plugins/scripts/build.js` bundles relative requires only.
-  Don't require watchface code (`src/pkjs/`) from a plugin, since the two ship separately.
-- **Declare every shape a plugin sends:** the Pebble app silently drops a shape the manifest
-  doesn't declare. `plugins/lib/vocabulary.js` is the table; list what a plugin sends in its
-  `src/source.js` `SERVES`, and the build writes the pbw's `properties` from it (no copy in
-  `package.json`; `plugins/test/manifest.test.js`).
-- **Keep plugin commits inside `plugins/`:** the release-please root package excludes that
-  path, so such commits never bump the watchface. A commit that also touches app files does.
-  Release a plugin by bumping its `package.json` version and adding a `## <version>` section
-  to its `CHANGELOG.md`.
+- Plugin code is not bound by the ES5 rule. It runs in the Pebble app's plugin engine,
+  never on aplite's JavaScriptCore, so syntax up to ES2017 is fine. It has `fetch`, not
+  XMLHttpRequest. It uses no npm packages: `plugins/scripts/build.js` bundles relative
+  requires only. Don't require watchface code (`src/pkjs/`) from a plugin, since the two
+  ship separately.
+- Declare every shape a plugin sends, because the Pebble app silently drops a shape the
+  manifest doesn't declare. `plugins/lib/vocabulary.js` is the table. List what a plugin
+  sends in its `src/source.js` `SERVES`, and the build writes the pbw's `properties` from
+  it (there is no copy in `package.json`; `plugins/test/manifest.test.js`).
+- Keep plugin commits inside `plugins/`. The release-please root package excludes that
+  path, so such commits never bump the watchface; a commit that also touches app files
+  does. Release a plugin by bumping its `package.json` version and adding a
+  `## <version>` section to its `CHANGELOG.md`.
 - The weather APIs take coordinates in their URLs by design. Plugins round them to two
   decimals and never log a URL.
 
 ## C watchface
 
-### Architecture & lifecycle
+### Architecture and lifecycle
 
-- A window owns its root layer; each visual area is a **static-singleton layer module**
-  (`src/c/layers/*.c`) exposing `_create()` / `_destroy()` / `_refresh()` around a
-  file-scope `s_*_layer`. The window calls these from its load/unload/tick handlers, and
-  children are added under the window's root layer.
-- **Toggle visibility with `layer_set_hidden()` — never destroy/recreate layers at
-  runtime.** Create every layer / GPath / bitmap in `_load` and destroy every one in
+- A window owns its root layer. Each visual area is a static-singleton layer module
+  (`src/c/layers/*.c`) that exposes `_create()` / `_destroy()` / `_refresh()` around a
+  file-scope `s_*_layer`. The window calls these from its load, unload and tick handlers,
+  and children are added under the window's root layer.
+- Toggle visibility with `layer_set_hidden()`; never destroy and recreate layers at
+  runtime. Create every layer, GPath and bitmap in `_load` and destroy each one in
   `_unload`. Pre-allocate GPaths in `window_load`.
 
 ### Persistence
 
-- **Persist-key enums are append-only.** The numeric IDs are the on-flash storage slots,
-  so reordering or removing a key corrupts existing installs' data across upgrades. Add
-  new keys at the end and leave retired slots in place.
-- **Only write persist when the value actually changed.** The `persist_set_*()` helpers
-  compare first and return whether they wrote; gate `layer_mark_dirty` on that result.
-  This avoids flash-write churn and redundant redraws. (The phone side enforces the same
-  discipline via the outbox's change-detector — both ends suppress no-op writes/sends.)
+- Persist-key enums are append-only. The numeric IDs are the on-flash storage slots, so
+  reordering or removing a key corrupts existing installs' data across upgrades. Add new
+  keys at the end and leave retired slots in place.
+- Write persist only when the value changed, to avoid flash-write churn and redundant
+  redraws. The `persist_set_*()` helpers compare first and return whether they wrote; gate
+  `layer_mark_dirty` on that result. The phone side does the same through the outbox's
+  change-detector, so both ends suppress no-op writes and sends.
 
 ### Constraints
 
-- **No floating point** — use `sin_lookup()`/`cos_lookup()` for trig and integer rounding
-  for conversions.
-- **`MINUTE_UNIT` ticks only** (plus `DAY_UNIT` where the calendar needs it) for battery
-  efficiency.
-- **Dynamic bounds** — derive geometry from `layer_get_bounds()`; never hardcode screen
-  sizes.
-- **Emery:** when branching on `#ifdef PBL_PLATFORM_EMERY`, add a brief `emery:` comment
-  explaining the Emery-specific behavior.
+- No floating point. Use `sin_lookup()`/`cos_lookup()` for trig and integer rounding for
+  conversions.
+- Use `MINUTE_UNIT` ticks only (plus `DAY_UNIT` where the calendar needs it), for battery
+  life.
+- Derive geometry from `layer_get_bounds()`; never hardcode screen sizes.
+- When branching on `#ifdef PBL_PLATFORM_EMERY`, add a brief `emery:` comment explaining
+  the Emery-specific behavior.
 
-## Memory & heap (aplite)
+## Memory and heap (aplite)
 
-- Real peak free heap on aplite is ≈1.5 KB — treat that, not the larger boot figure, as
-  the binding constraint. Lazy-load bitmaps and destroy them when not needed; prefer
-  drawing directly in an update proc over creating extra layer objects; keep
+- The real peak free heap on aplite is about 1.5 KB. Treat that, not the larger boot
+  figure, as the binding constraint. Lazy-load bitmaps and destroy them when they're not
+  needed, draw directly in an update proc instead of creating extra layer objects, and keep
   paint-only elements as light as possible.
-- `ENABLE_MEMORY_LOGGING=1` does **not** build on aplite — the `MEM|` logging overflows
+- `ENABLE_MEMORY_LOGGING=1` does not build on aplite, because the `MEM|` logging overflows
   `.bss`. Capture heap logs on diorite (a B/W proxy) or another platform instead.
-- **HealthService calls live in `src/c/services/health.c` only.** The firmware puts a
-  2 KB `HealthServiceCache` on the app heap at the first `health_service_sum*` / peek /
-  `activities_iterate` call and keeps it until the app exits, so each such read there
-  frees it again before returning (`health_release_service_cache`). A new allocating
-  call does the same, or the 2 KB stays held. Without the cache, every StepCount sum or
-  accessibility check reads the step history from the activity settings file, so a new
-  one on the tick or flick path costs a flash read each time (why `health_available()`
-  latches its first true).
+- HealthService calls live in `src/c/services/health.c` only. The firmware puts a 2 KB
+  `HealthServiceCache` on the app heap at the first `health_service_sum*`, peek or
+  `activities_iterate` call and keeps it until the app exits, so each such read there frees
+  it again before returning (`health_release_service_cache`). A new allocating call must do
+  the same, or the 2 KB stays held. Without the cache, every StepCount sum or accessibility
+  check reads the step history from the activity settings file, so a new one on the tick or
+  flick path costs a flash read each time. That is why `health_available()` latches its
+  first true.
 
 ## Aplite source-fork convention
 
-Aplite (Pebble Classic/Steel) is a **frozen, lean variant**: a fixed feature set
-while other platforms grow past its 24 KB budget. Reach for the earliest
-mechanism that applies:
+Aplite (Pebble Classic/Steel) is a frozen, lean variant: its feature set is fixed while the
+other platforms grow past its 24 KB budget. Use the earliest of these mechanisms that
+applies:
 
-1. **Capability macro** (`PBL_HEALTH`, `PBL_COLOR`/`PBL_IF_COLOR_ELSE`) — aplite
-   genuinely can't. Health lives here; do not demote it.
-2. **Exclusion** — an aplite-*absent* feature: give it its own leaf file and guard
-   its entry points so `--gc-sections` reaps it on aplite. No twin, no duplicate.
-3. **Lean twin** (`foo_aplite.c`) — aplite must still answer `foo.h`'s interface,
-   cheaply. It is a same-directory sibling of `foo.c`, selected by the `wscript`
-   filter; callers just `#include "foo.h"`. **Feature-frozen, not code-frozen:**
-   bugfixes are hand-ported, interface changes are forced by the aplite link
-   error. Start each twin with a provenance header naming `foo.c` and the
-   fork-point SHA. **Never fork contract files** (`app_message.c`, `persist.c`,
-   `config.c`) — savings there come indirectly via `--gc-sections`.
-4. **Interleaved `#ifdef PBL_PLATFORM_APLITE`** — last resort only.
+1. Capability macro (`PBL_HEALTH`, `PBL_COLOR`/`PBL_IF_COLOR_ELSE`), when aplite
+   can't do it. Health belongs here; do not demote it.
+2. Exclusion, for a feature aplite doesn't have: give it its own leaf file and guard its
+   entry points so `--gc-sections` removes it on aplite. No twin, no duplicate.
+3. Lean twin (`foo_aplite.c`), when aplite must still answer `foo.h`'s interface cheaply.
+   It is a same-directory sibling of `foo.c`, selected by the `wscript` filter; callers
+   just `#include "foo.h"`. Twins are feature-frozen, not code-frozen: bugfixes are ported
+   by hand, and the aplite link error forces interface changes. Start each twin with a
+   provenance header naming `foo.c` and the fork-point SHA. Never fork contract files
+   (`app_message.c`, `persist.c`, `config.c`); savings there come indirectly through
+   `--gc-sections`.
+4. Interleaved `#ifdef PBL_PLATFORM_APLITE`, as a last resort only.
 
-`scripts/check-aplite-twins.js` (CI, `aplite-twins-required.yml`) enforces that
-every `foo_aplite.c` has a same-dir `foo.c`+`foo.h`, and prompts a port review
-when a base changes without its twin (escape hatch: an `Aplite-Twin-Reviewed:`
-commit trailer). `mise aplite-size` prints the aplite image footprint
-(`text+data+bss`) via `arm-none-eabi-size` — the 1:1 leading indicator for a
-twin's recovery (every byte shrunk is a byte of heap); gate the real decision
-on runtime peak-free heap measured on the diorite proxy. See
-`docs/adr/0001-aplite-frozen-lean-fork.md` and `CONTEXT.md`.
+`scripts/check-aplite-twins.js` (CI, `aplite-twins-required.yml`) checks that every
+`foo_aplite.c` has a `foo.c` and `foo.h` in the same directory, and asks for a port review
+when a base changes without its twin (escape hatch: an `Aplite-Twin-Reviewed:` commit
+trailer). `mise aplite-size` prints the aplite image footprint (`text+data+bss`) through
+`arm-none-eabi-size`. It is the 1:1 leading indicator of what a twin recovers, since every
+byte shrunk is a byte of heap; base the real decision on the runtime peak free heap
+measured on the diorite proxy. See `docs/adr/0001-aplite-frozen-lean-fork.md` and
+`CONTEXT.md`.
 
 ## Debugging
 
@@ -298,157 +299,59 @@ on runtime peak-free heap measured on the diorite proxy. See
   redraw checkpoints (see the aplite caveat above).
 - JS: `console.log("msg")`
 
-## Supabase / telemetry
+## Supabase and telemetry
 
 Never hand-write `supabase/migrations/` files. Edit the declarative `supabase/schemas/`
-and generate a migration before committing: `supabase db diff -f <label>`. Local-stack
-and hosted-deploy commands are in `DEV.md` / `CONTRIBUTING.md`.
+and generate a migration before committing: `supabase db diff -f <label>`. The local-stack
+and hosted-deploy commands are in `DEV.md`.
 
 ### Privacy in Supabase requests and logs
 
-Supabase logs the full URL (query string included) of every request: the phone's calls to our
-edge functions and every PostgREST call a function makes. It also keeps every line a function
-prints. Request bodies are never logged. For our edge functions, their PostgREST calls and the
-Rainbow calls (the proxy and the own-key direct call):
+Supabase logs the full URL (query string included) of every request: the phone's calls to
+our edge functions and every PostgREST call a function makes. It also keeps every line a
+function prints. Request bodies are never logged. These rules cover our edge functions,
+their PostgREST calls and the Rainbow calls (the proxy and the own-key direct call):
 
-- **Personal data never goes in a URL or a query filter.** That covers coordinates,
-  account/watch tokens and their hashes, IPs, API keys and free text. The phone sends it in a
-  POST body. A function passes it to an RPC as a plain `supabase.rpc(name, params)`, never to
-  `.eq()`/`.or()`/`.match()` or a `head: true` count. The `{ head: true }`/`{ get: true }` rpc
-  options and chained filters move the params into the URL too. Store no raw IP or position: key
-  them with a server-side HMAC (rainbow-nowcast `keys.ts`). Anything stored per IP or per place
-  needs a prune in the hourly `rainbow_prune` job (`supabase/schemas/rainbow.sql`) or a job of
-  its own, not in the nightly telemetry rollup, whose timeout would roll the prune back too.
-- **Round coordinates to 3 decimals (~110 m)** before they leave the phone for Rainbow
+- Personal data never goes in a URL or a query filter. That covers coordinates,
+  account/watch tokens and their hashes, IPs, API keys and free text. The phone sends it in
+  a POST body. A function passes it to an RPC as a plain `supabase.rpc(name, params)`, never
+  to `.eq()`/`.or()`/`.match()` or a `head: true` count. The `{ head: true }`/`{ get: true }`
+  rpc options and chained filters also move the params into the URL.
+- Store no raw IP or position: key them with a server-side HMAC (rainbow-nowcast
+  `keys.ts`). Anything stored per IP or per place needs a prune in the hourly
+  `rainbow_prune` job (`supabase/schemas/rainbow.sql`) or in a job of its own, not in the
+  nightly telemetry rollup, whose timeout would roll the prune back too.
+- Round coordinates to 3 decimals (~110 m) before they leave the phone for Rainbow
   (`src/pkjs/weather/coords.js`). The proxy rounds them again.
-- **Function logs carry a fixed tag plus at most a machine code** (Postgres SQLSTATE, PostgREST
-  code, HTTP status), and only through the function's `log.ts` `logEvent()`. Never log an error
-  object, message, detail, hint or request data. Thrown errors get literal messages. Each
-  `Deno.serve` handler catches everything and logs it as `unhandled`, because the runtime would
-  print an uncaught error's message and stack. `test/supabase-log-hygiene.test.js` enforces this
-  statically. The Deno suites' recording-fetch tests check the URLs supabase-js actually builds.
-- **New SQL functions** are `security invoker` (the default) unless they must bypass RLS, set
-  `search_path = ''`, and are revoked from `public, anon, authenticated`. The REVOKE goes in the
-  schema AND is hand-appended to the generated migration, because `db diff` doesn't capture ACLs.
+- Function logs carry a fixed tag plus at most a machine code (Postgres SQLSTATE,
+  PostgREST code, HTTP status), and only through the function's `log.ts` `logEvent()`.
+  Never log an error object, message, detail, hint or request data. Thrown errors get
+  literal messages. Each `Deno.serve` handler catches everything and logs it as
+  `unhandled`, because the runtime would print an uncaught error's message and stack.
+  `test/supabase-log-hygiene.test.js` enforces this statically, and the Deno suites'
+  recording-fetch tests check the URLs supabase-js actually builds.
+- New SQL functions are `security invoker` (the default) unless they must bypass RLS. They
+  set `search_path = ''` and are revoked from `public, anon, authenticated`. The REVOKE
+  goes in the schema and is also appended by hand to the generated migration, because
+  `db diff` doesn't capture ACLs.
 
-Out of scope: third-party weather and geocoding APIs (met.no, DWD, Open-Meteo, LocationIQ,
-tomorrow.io, …) take coordinates or addresses in their URLs by their own design.
+Third-party weather and geocoding APIs (met.no, DWD, Open-Meteo, LocationIQ, tomorrow.io,
+…) are out of scope: they take coordinates or addresses in their URLs by their own design.
 
-## Commits & releases
+## Commits and releases
 
-- This repo uses **Conventional Commits** (`feat`, `fix`, `chore`, `refactor`, `docs`,
-  `test`, `perf`, `style`), optionally scoped — e.g. `feat(forecast):`,
-  `fix(config-ui):`. Don't commit bare subjects like `wip` or `nudge`.
-- **Releases are cut by release-please** (`.github/workflows/release-please.yml`): merging
-  conventional commits to `main` opens/updates a release PR that bumps the version in
-  `package.template.json` (`$.version`); merging that PR tags the release and uploads
-  `build/warnweather.pbw`. The commit prefixes drive the version bump, so they matter.
-  The weather plugins are versioned on their own: release-please skips commits that touch
-  only `plugins/` (see Weather plugins above).
-- **A FEATURE release needs a `release-notifications.json` entry; a fix-only patch does
-  not.** The entry is keyed by the exact new version string (e.g. `"1.4.0"`) with
-  non-empty `title` + `body` — the upgrade "what's new" toast. It interrupts the user on
-  first launch after an upgrade, so it is spent on releases that give them something to
-  do: **required for `x.y.0`, optional for `x.y.z` (z > 0)**. The *Release Notification
-  Required* CI check (`scripts/check-release-notification.js`) enforces exactly that, and
-  still rejects a half-filled entry at ANY version — `prepare-package.sh` throws on one.
-  Omitting it is safe by construction: `prepare-package.sh` injects
-  `pkg.releaseNotification` only when the manifest holds the built version, and the watch
-  shows the newest *unseen* entry at or below the running version — so 1.13.1 → 1.13.2
-  shows nothing while 1.13.0 → 1.13.2 still shows the 1.13.1 toast it never saw. Watch for
-  `Release-As:` pinning a FEATURE to a patch version: the check reads the
-  version, not the commits, so it won't ask for a toast on the release that most wants
-  one — add it by hand there. Preview the copy locally with
-  `forceShowReleaseNotificationOnBoot` in `dev-config.js`. See `RELEASE.md`.
-- **Every release — patches included — needs a news entry in the `public.news`
-  Supabase table** (hosted news backend — the *News* popup (the bell) of the settings
-  screen, not the boot toast above). Unlike that toast, this one has no feature/patch
-  exemption and **nothing in CI enforces it**, so it is on you at release time. Insert one row with
-  `target_version` left **`NULL`** so every watch
-  sees it, whatever version it runs — release news doubles as the nudge to update.
-  (An exact version string like `'1.9.2'` limits a row to watches on that build;
-  reserve that for version-specific notices, e.g. "this build broke X, update".)
-  The `release-notifications.json` toast is a one-line
-  summary; the news `body_md` is a short changelog, one step up from it. Title it
-  `"What's new in <version>"` and use only the supported markdown subset (`**bold**`
-  section headers, `- ` bullets, `*italic*`, `[text](https://…)` links — see
-  `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
-- **Changelog style: Keep a Changelog 1.1.0** (https://keepachangelog.com/en/1.1.0/, copied
-  here so every session works from it).
-  - Its principles: a changelog is for humans, not machines; every version gets an entry;
-    changes of the same type are grouped; the latest version comes first; it lists the
-    noteworthy differences for the user, not the commit log.
-  - Its types, in this order, only those that apply: `Added` for new features, `Changed` for
-    changes in existing functionality, `Deprecated` for soon-to-be removed features, `Removed`
-    for now removed features, `Fixed` for any bug fixes, `Security` in case of
-    vulnerabilities.
-  - Counted against the previous release users had: `Changed`, `Removed` and `Fixed` name only
-    what that release already had. A feature new in this release goes under `Added` once, with
-    everything about it (its icons turning to the moon at sunset are part of the new slot, not
-    a `Changed` item), and a bug in something that never shipped is no `Fixed` item. When a
-    release replaces one that users barely had (3.2.1 for 3.2.0), its notes cover everything
-    since the release before and leave the skipped one out.
-  - Each item is one line without a full stop, naming the feature the way the user sees it;
-    `Fixed` items say what was wrong or what works again. No marketing words, no exclamation
-    marks, no settings path or how-to, no second sentence. Small fixes and settings-screen
-    polish are one last `Minor fixes` line in `Fixed`.
-  - **Appstore changelog:** the terse form Keep a Changelog's own examples use. Plain-line
-    headings, items of two to eight words, no platform notes and no explanation (the news
-    body has those). The shape to match:
-
-    ```
-    Added
-    - Weather condition status slot
-    - Weather icon option for the City slot
-    - Date formats 09.26 and Sep
-
-    Changed
-    - New rain alert icons
-    - Tap a status bar to edit it
-
-    Removed
-    - Message form in the News popup
-
-    Fixed
-    - Minor fixes
-    ```
-  - **News body** (`public.news`, RELEASE.md "News row"): the same items and groups as that
-    version's appstore changelog, each explained a little more (what it is and what it does
-    for the user), about eight to eighteen words. Bold headings with a blank line between
-    the groups, flat `- ` bullets (news.js renders `**bold**`, `*italic*`, `[text](https://…)`
-    links and `- ` bullets only: no `#` headings, no sub-bullets). An item not on Pebble
-    Classic or Steel ends with `*`, a Pebble Time 2 only item with `**`, and the body ends
-    with a blank line and only the footnotes it used: `* Not on Pebble Classic or Steel`,
-    `** Pebble Time 2 only` (a lone `*` or `**` prints as is). Other limits stay in
-    parentheses: `(color watches)`, `(Android)`, `(Pebble Classic and Steel: text only)`.
-    The shape to match:
-
-    ```
-    **Added**
-    - Change layout in a screen's editor gives the screen another layout and keeps its name and place*
-
-    **Changed**
-    - Edit on a screen's forecast graph row opens the settings of that graph**
-
-    **Fixed**
-    - Visible values set on one graph no longer change the same metric on your other graphs**
-
-    * Not on Pebble Classic or Steel
-    ** Pebble Time 2 only
-    ```
-- **Write the changelog for users, not the diff** (both the toast and the news body). Call
-  out individually only what a user can act on: a feature they can use, or a bug that
-  affected the watchface itself. Group everything else — settings-screen polish, internal
-  refactors, small fixes — into one line ("Minor fixes"), or omit it. A
-  polish-only patch gets one grouped line, not an itemized list of cosmetic tweaks.
-  Keep the tone factual and concise: no filler reassurances ("nothing you need to change
-  on your end") and no generic sign-offs ("more on the way", "message me anytime").
-- Brainstorming spec/plan files (e.g. under `docs/`, which is gitignored) stay untracked —
-  don't `git add -f` them.
+- This repo uses Conventional Commits (`feat`, `fix`, `chore`, `refactor`, `docs`, `test`,
+  `perf`, `style`), optionally scoped, e.g. `feat(forecast):` or `fix(config-ui):`. Don't
+  commit bare subjects like `wip` or `nudge`.
+- release-please cuts the releases from these commits, so the prefixes decide the version
+  bump. Every release, patches included, needs a row in the `public.news` Supabase table, and
+  a feature release (`x.y.0`) also needs a `release-notifications.json` toast entry. The
+  release steps, the toast and news rules and the changelog style are in `RELEASE.md`.
+- Brainstorming spec and plan files (under `docs/`, which git ignores apart from `docs/adr/`
+  and `docs/quality-goals.md`) stay untracked; don't `git add -f` them.
 
 ## Keeping user-facing docs in sync
 
-When you add, remove, or rename a user-visible feature, weather provider, or setting,
-update the feature lists in **both `README.md` and `STORE_LISTING.md`** — they are parallel
-copies that drift easily. The live appstore
-listing is a third copy that has to be updated by hand at release time.
+When you add, remove or rename a user-visible feature, weather provider or setting, update
+the feature lists in both `README.md` and `STORE_LISTING.md`. They are parallel copies that
+drift easily. The live appstore listing is a third copy, updated by hand at release time.

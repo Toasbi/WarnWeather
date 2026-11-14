@@ -49,9 +49,9 @@ of their own, separate from edits.
 
 Two homes are not contexts:
 
-- **App shell** (`src/pkjs/index.js` and the fetch cycle): the composition root. It creates the
+- The app shell (`src/pkjs/index.js` and the fetch cycle) is the composition root. It creates the
   adapters, passes them in, and wires the Pebble events to the contexts. It holds no rules.
-- **Shared library** (`src/pkjs/lib/`): generic helpers with no domain word in them (polyfills,
+- The shared library (`src/pkjs/lib/`) holds generic helpers with no domain word in them (polyfills,
   UTF-8, integer packing). Anything that names a context's concept belongs to that context.
 
 `CONTEXT.md` (Context map) shows which deployable holds which part of each context.
@@ -60,13 +60,13 @@ Two homes are not contexts:
 
 Every phone-app context has the same shape (lightweight hexagonal):
 
-- **`domain/`** holds the rules. It never calls `XMLHttpRequest`, `fetch`, `localStorage`,
+- `domain/` holds the rules. It never calls `XMLHttpRequest`, `fetch`, `localStorage`,
   `Pebble.*`, `navigator`, `Date.now()` or `new Date()` without an argument. It takes data and
   the current time as arguments and returns values. It requires only domain modules (its own
   context's, or another context's public ones) and the shared library.
-- **`application/`** runs a use: it loads what it needs through ports, calls the domain, and
+- `application/` runs a use: it loads what it needs through ports, calls the domain, and
   hands the result to a port.
-- **`adapter/`** is the only place that touches the runtime. Ports are plain ES5 objects passed
+- `adapter/` is the only place that touches the runtime. Ports are plain ES5 objects passed
   in, only at real seams: weather and radar HTTP, storage, AppMessage (the outbox stays the only
   sender), geolocation, the clock and notifications. Collaborators inside a context stay direct
   calls; there is no framework and no container.
@@ -83,22 +83,22 @@ the handler's rules take their inputs as arguments.
 
 ### 4. Watchface and settings page: layered
 
-- **Watchface:** `windows` → `layers` → `appendix` and `services`; a lower layer never includes
+- Watchface: `windows` → `layers` → `appendix` and `services`; a lower layer never includes
   a higher one. Types that several layers share (the view spec, the layout tiers) live below
   the layers, not in `windows/`. HealthService calls stay in `services/health.c`. No include
   cycles. Aplite twins and contract files follow ADR 0001. Inside each layer, files group by
   domain context where the code has one (chart and graph, radar and rain, status row, calendar,
   palette and theme).
-- **Settings page:** `config-ui/` is the engine (rendering, show-when, controls) and knows
+- Settings page: `config-ui/` is the engine (rendering, show-when, controls) and knows
   nothing of WarnWeather's settings; `src/pkjs/page/<context>/` holds the schema, pages and
   previews that use it, grouped by context. A module both the page and the phone app use (a
-  palette, the news protocol, the weather tab's model) is domain code of its context. Previews draw what the watch would draw by calling the phone app's
-  domain modules, never by copying their rules. It stays plain ES5 without a framework: the
+  palette, the news protocol, the weather tab's model) is domain code of its context. Previews draw what the watch would draw by calling the phone
+  app's domain modules, never by copying their rules. It stays plain ES5 without a framework: the
   Pebble app opens it in old Android webviews that a framework's output does not run on.
 
 ### 5. Errors are values
 
-Expected failures are values, not exceptions: a provider that answers with an error, a refused
+Expected failures are values: a provider that answers with an error, a refused
 API key, no location, an out-of-coverage radar. Asynchronous code reports them through its
 failure callback as a `{stage, code}` value (`weather/http.js` `failure`); synchronous code
 returns `null` or a failure value. A thrown exception means a bug or a broken runtime, and
