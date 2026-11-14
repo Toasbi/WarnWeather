@@ -190,15 +190,26 @@ def creator_size(key, size_id, s):
     where = '%s %s' % (key, size_id)
     if key not in W.KEYS:
         raise SystemExit('%s: no such icon' % where)
-    if not str(size_id).isdigit() or not platforms(key, str(size_id)):
+    mask = str(size_id) == 'A'
+    if mask and key not in W.APLITE:
+        raise SystemExit('%s: the Pebble Classic and Steel draw no mask of this icon' % where)
+    if not mask and (not str(size_id).isdigit() or not platforms(key, str(size_id))):
         raise SystemExit('%s: the icon has no size of %s rows' % (where, size_id))
-    rows = int(size_id)
+    rows = W.APLITE_ROWS if mask else int(size_id)
     px = s.get('pixels') if isinstance(s, dict) else None
     if (not isinstance(px, list) or not px or len(px) > rows
             or any(not isinstance(r, str) or len(r) != len(px[0]) or set(r) - set('#.') for r in px)
             or not any('#' in r for r in px)):
         raise SystemExit('%s: pixels must be up to %d rows of # and . of one width, with ink' % (where, rows))
     d = s.get('drawing')
+    if mask:
+        # A bit mask is its pixels: the size's 3.1.1 mask stays behind, the build makes the new one.
+        if d is not None:
+            raise SystemExit('%s: the Pebble Classic and Steel mask is pixels alone, no drawing' % where)
+        ink = [i for r in px for i, ch in enumerate(r) if ch == '#']
+        if max(ink) - min(ink) + 1 > W.APLITE_WIDTH:
+            raise SystemExit('%s: the Pebble Classic and Steel mask is %d pixels wide at most' % (where, W.APLITE_WIDTH))
+        return rows, px, None
     if d is None:
         return rows, px, None
     ok = (isinstance(d, dict) and isinstance(d.get('w'), int) and isinstance(d.get('h'), int)

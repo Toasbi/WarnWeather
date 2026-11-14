@@ -110,6 +110,14 @@ creator exports carries the time (`importedAt`): a pick or an editor drawing cha
 only when it was made later, so an old doc still in a page's database, or an export without
 times, never undoes the creator's size.
 
+The manifest lists an icon's Pebble Classic and Steel mask as a size of its own, keyed `A`
+(`aplite_size`): at most 13 rows (`APLITE_ROWS`, the tallest mask the 14 px text's band draws
+uncut) and 16 columns (`APLITE_WIDTH`, a mask row is a `uint16_t`), seated in the Classic bars as
+`status_mask_draw` seats a mask. The creator draws it pixel for pixel in black and white and
+exports its pixels alone; the importer refuses a drawing, ink wider than 16 columns or more than
+13 rows for it, and an `A` for an icon the Classic draws no mask of. The size's 3.1.1 mask stays
+behind: the build makes the new mask from the pixels (below).
+
 ### An icon from an SVG
 
 In the picker, **Add SVG** on an icon takes a Lucide or Tabler icon, an `.svg` file or its pasted
@@ -189,8 +197,9 @@ in, and the editor shows them on each size. Wind speed and the Windy weather ico
 drawing, so Wind has every size either uses.
 
 Pebble Classic and Steel draw seven icons (thermometer, wind, gusts, UV, air quality, pollen,
-countdown) from bit masks in `src/c/layers/status_row_aplite.c`, one size each; the editor shows
-them as a size of their own. Every other icon is text only on those watches.
+countdown) from bit masks in `src/c/layers/status_row_aplite.c`, one size each; the editor and
+the icon creator show them as a size of their own (`A`). Every other icon is text only on those
+watches.
 
 ## Starting pixels
 

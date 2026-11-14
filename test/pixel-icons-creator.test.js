@@ -114,6 +114,36 @@ test('a wrong size is refused, and nothing changes', { skip }, () => {
   assert.notEqual(r.status, 0);
 });
 
+test('a Pebble Classic and Steel mask from the creator goes in as pixels, and its 3.1.1 mask stays behind', { skip }, () => {
+  const doc = { format: 1, icons: { TEMP: { done: true, sizes: {
+    'A': { source: '3.1.1', pixels: Array(13).fill('.'.repeat(16)), platforms: ['aplite'], mask: { rows: [28], w: 7 } },
+  } } } };
+  const r = importInto(doc, { format: 1, icons: { TEMP: { sizes: { 'A': { pixels: CROSS } } } } });
+  assert.equal(r.status, 0, r.message);
+  const size = r.doc.icons.TEMP.sizes.A;
+  assert.deepEqual(Object.keys(size).sort(), ['importedAt', 'pixels', 'source'], 'no kept mask: the build makes it from the pixels');
+  assert.equal(size.pixels.length, 13, 'a mask\'s 13 rows');
+  assert.ok(size.pixels.every((row) => row.length === 16), 'as wide as its grid was');
+  assert.deepEqual(size.pixels.slice(5, 8), ['.......#........', '......###.......', '.......#........']);
+});
+
+test('a mask the Pebble Classic and Steel can\'t draw is refused', { skip }, () => {
+  const wrong = [
+    [{ SUN: { sizes: { 'A': { pixels: CROSS } } } }, /SUN A: the Pebble Classic and Steel draw no mask of this icon/],
+    [{ TEMP: { sizes: { 'A': { pixels: ['#'.repeat(17)] } } } }, /16 pixels wide at most/],
+    [{ TEMP: { sizes: { 'A': { pixels: Array(14).fill('#') } } } }, /up to 13 rows/],
+    [{ TEMP: { sizes: { 'A': { pixels: CROSS, drawing: RING } } } }, /pixels alone, no drawing/],
+  ];
+  for (const [icons, message] of wrong) {
+    const r = importInto(before(), { format: 1, icons });
+    assert.notEqual(r.status, 0, JSON.stringify(icons));
+    assert.match(r.message, message);
+  }
+  // 16 pixels wide with blank columns round them in a wider grid: the ink is what counts.
+  const r = importInto(before(), { format: 1, icons: { TEMP: { sizes: { 'A': { pixels: ['..' + '#'.repeat(16) + '..'] } } } } });
+  assert.equal(r.status, 0, r.message);
+});
+
 test('an editor import keeps what a size picked: its version, and a Pebble Classic mask kept from 3.1.1', { skip }, () => {
   const mask = { rows: [2, 7, 2], w: 3 };
   const doc = before();

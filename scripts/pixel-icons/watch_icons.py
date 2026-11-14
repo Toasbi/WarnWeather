@@ -118,6 +118,12 @@ ICONS = [
 KEYS = [i[0] for i in ICONS]
 # Pebble Classic/Steel draw these from bit masks in status_row_aplite.c (bit x = column x).
 APLITE = ['TEMP', 'WIND', 'GUST', 'UV', 'AQI', 'POLLEN', 'COUNTDOWN']
+# A mask's most rows and columns: a taller one is cut at the top of the 14 px text's band
+# (status_row_aplite.c status_mask_draw), and a row is a uint16_t, bit x for column x.
+APLITE_ROWS = 13
+APLITE_WIDTH = 16
+# The Pebble Classic/Steel bars: (label, text font), as status_row_aplite.c row_font picks them.
+APLITE_BARS = [('bars with 14 px text', 'GOTHIC_14'), ('top bar', 'GOTHIC_18'), ('bars with 18 px text', 'GOTHIC_18')]
 
 
 def icon(key):
@@ -337,11 +343,22 @@ def aplite_masks():
 
 
 # ---- The manifest ---------------------------------------------------------------------------
+def aplite_size(key):
+    """An icon's Pebble Classic and Steel bit mask as a size of its own for the icon creator: key
+    'A', at most APLITE_ROWS tall and APLITE_WIDTH wide, drawn in black and white pixel for pixel,
+    seated in the Classic bars as status_mask_draw seats a mask ('seat': 'mask')."""
+    return {'key': 'A', 'name': 'Pebble Classic and Steel', 'rows': APLITE_ROWS, 'maxWidth': APLITE_WIDTH,
+            'scaleHeight': svg_h(key, APLITE_ROWS),
+            'uses': [{'where': 'Pebble Classic, Steel: ' + label, 'platform': 'aplite', 'font': font, 'weight': 50,
+                      'seat': 'mask'} for label, font in APLITE_BARS]}
+
+
 def manifest():
     """The icons, the sizes the watch draws each at and where, for the icon creator: each size's
     painted rows, the height the old scaling takes a source to for it (svg_h), and every bar that
-    draws it, with the bar's text font and the icon's seating weight (status_icon_weight.h). The
-    Pebble Classic and Steel bit masks are left out: they are no PDCs."""
+    draws it, with the bar's text font and the icon's seating weight (status_icon_weight.h). An
+    icon the Pebble Classic and Steel draw from a bit mask has that as a size of its own, 'A'
+    (aplite_size)."""
     icons = []
     for row in ICONS:
         it = icon(row[0])
@@ -350,8 +367,11 @@ def manifest():
             rows = painted_rows(u['h'])
             s = sizes.setdefault(rows, {'rows': rows, 'scaleHeight': svg_h(it['key'], rows), 'uses': []})
             s['uses'].append({'where': u['where'], 'platform': u['plat'], 'font': u['font'], 'weight': u['weight']})
+        listed = [sizes[r] for r in sorted(sizes)]
+        if it['key'] in APLITE:
+            listed.append(aplite_size(it['key']))
         icons.append({'id': it['key'], 'name': it['name'], 'group': it['group'], 'sample': it['sample'],
-                      'note': it['note'], 'sizes': [sizes[r] for r in sorted(sizes)]})
+                      'note': it['note'], 'sizes': listed})
     fonts = {f: {'height': FONT_HEIGHT[f], 'capCentre': FONT_CAP_CY[f]} for f in FONT_CAP_CY}
     return {'app': 'WarnWeather', 'iconTextGap': ICON_TEXT_GAP, 'fonts': fonts, 'icons': icons}
 
