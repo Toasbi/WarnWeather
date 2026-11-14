@@ -29,6 +29,7 @@ var platformLib = require('../config-ui/lib/platform.js');
 var radarFactory = require('../weather/adapter/radar-factory.js');
 var radarWire = require('../weather/domain/radar/radar-wire.js');
 var radarSky = require('../weather/domain/radar/radar-sky.js');
+var radarSkySource = require('../weather/adapter/radar/radar-sky-source.js');
 var radarCoverage = require('../weather/domain/radar/radar-coverage.js');
 var radarCoverageStore = require('../weather/adapter/radar/radar-coverage-store.js');
 var WeatherProvider = require('../weather/adapter/provider.js');
@@ -433,7 +434,7 @@ function createFetchCycle(deps) {
         var source = radarFactory.createRadarSource(radarId, radarCfg);
         // The sky rows ride the radar graph: a radar source that can never answer draws
         // no graph, so the sky request would be wasted — clear the rows instead.
-        var skySource = radarSky.createSkySource(radarFactory.canAnswer(radarId, radarCfg)
+        var skySource = radarSkySource.createSkySource(radarFactory.canAnswer(radarId, radarCfg)
             ? radarSky.skySourceIdFor(settings) : 'disabled');
         var nowMs = +deps.now();
         var slotZeroEpoch = radarWire.slotZeroEpochFor(nowMs);

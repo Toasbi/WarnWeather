@@ -41,7 +41,6 @@ const RUNTIME_ALLOWED = {
 const RULES = [
   { name: 'domain code requires only domain code and the shared library',
     from: ['domain'], to: ['domain', 'lib'], allowed: [
-      'weather/domain/radar/radar-sky.js -> weather/adapter/provider.js',
     ] },
   { name: 'application code requires no adapter, shell or settings page',
     from: ['application'], to: ['application', 'domain', 'lib'], allowed: [

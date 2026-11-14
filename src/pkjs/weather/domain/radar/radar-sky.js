@@ -25,7 +25,6 @@
 
 var SunCalc = require('suncalc');
 var cloudCover = require('../cloud-cover.js');
-var WeatherProvider = require('../../adapter/provider.js');
 var radarWire = require('./radar-wire.js');
 var stripeLevels = require('../../../forecast-graphs/domain/stripe-levels.js');
 
@@ -258,55 +257,6 @@ function isClearSkyTuple(tuples) {
         && tuples.RADAR_SKY_UINT8.length === 0;
 }
 
-var DEFAULT_SKY_ID = 'disabled';
-
-var SKY_FACTORIES = {
-    openmeteo: function () {
-        return {
-            /**
-             * Fetch the sky for the radar window. A transport or parse failure is
-             * transient (null): the key stays out of the send and the watch keeps
-             * the rows it has, which slide out of the window by themselves.
-             * @param {number} lat Latitude.
-             * @param {number} lon Longitude.
-             * @param {number} slotZeroEpoch The radar's slot-0 epoch.
-             * @param {function(?Object)} cb Receives {RADAR_SKY_UINT8} or null.
-             * @returns {void}
-             */
-            fetchSkyTupleAt: function (lat, lon, slotZeroEpoch, cb) {
-                WeatherProvider.request(buildOpenMeteoSkyUrl(lat, lon), 'GET', function (response) {
-                    var sky = null;
-                    try {
-                        sky = mapOpenMeteoSky(JSON.parse(response), slotZeroEpoch, lat, lon);
-                    }
-                    catch (ex) {
-                        console.log('[!] Open-Meteo sky: response parse error');
-                    }
-                    cb(sky ? { RADAR_SKY_UINT8: packSky(sky) } : null);
-                }, function (error) {
-                    console.log('[!] Open-Meteo sky fetch failed: ' + JSON.stringify(error));
-                    cb(null);
-                });
-            }
-        };
-    },
-    disabled: function () {
-        return {
-            /**
-             * Clear the watch's sky rows.
-             * @param {number} lat Unused.
-             * @param {number} lon Unused.
-             * @param {number} slotZeroEpoch Unused.
-             * @param {function(?Object)} cb Receives the clearing tuple.
-             * @returns {void}
-             */
-            fetchSkyTupleAt: function (lat, lon, slotZeroEpoch, cb) {
-                cb(clearSkyTuple());
-            }
-        };
-    }
-};
-
 /**
  * The sky source id a fetch cycle calls: Open-Meteo only when the radar GRAPH is
  * shown (the only radar view that draws the rows) and the toggle is on;
@@ -318,16 +268,6 @@ function skySourceIdFor(settings) {
     var s = settings || {};
     // On by default: only an explicit false turns the rows off.
     return ((s.radarMode || 'graph') === 'graph' && s.radarSky !== false) ? 'openmeteo' : 'disabled';
-}
-
-/**
- * The sky source for an id; an unknown id falls back to the clearing one.
- * @param {string} skyId 'openmeteo' or 'disabled'.
- * @returns {{fetchSkyTupleAt: Function}} The source.
- */
-function createSkySource(skyId) {
-    var has = Object.prototype.hasOwnProperty.call(SKY_FACTORIES, skyId);
-    return (has ? SKY_FACTORIES[skyId] : SKY_FACTORIES[DEFAULT_SKY_ID])();
 }
 
 /**
@@ -385,8 +325,6 @@ module.exports = {
     packSky: packSky,
     clearSkyTuple: clearSkyTuple,
     isClearSkyTuple: isClearSkyTuple,
-    SKY_FACTORIES: SKY_FACTORIES,
     skySourceIdFor: skySourceIdFor,
-    createSkySource: createSkySource,
     joinRadarAndSky: joinRadarAndSky
 };
