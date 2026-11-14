@@ -1,4 +1,4 @@
-// test/page/engine/watch-preview-cycle.test.js — the view cycle as the Watchface tab's watch preview
+// test/page/layout/watch-preview-cycle.test.js — the view cycle as the Watchface tab's watch preview
 // draws it (page/layout/preview-watch.js): which views each layout gives, and each view's
 // bands top to bottom as the preview speaks them (the Layout card's words: Watch bar,
 // Calendar (3 rows), Clock, Forecast bar, Forecast …), on the seats the watch gives

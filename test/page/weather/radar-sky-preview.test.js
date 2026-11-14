@@ -1,4 +1,4 @@
-// test/page/engine/radar-sky-preview.test.js
+// test/page/weather/radar-sky-preview.test.js
 //
 // The settings page's radar preview draws the sky rows' sample on the rows' own
 // scales (preview-radar.js skyLevel, over stripe-levels.js, which the webview bundle

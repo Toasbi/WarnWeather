@@ -178,7 +178,7 @@ test('the clock: the samples\' 15:00 in the time colour and the picked face\'s w
   const env = plat.computeEnv({ platform: 'basalt' });
   const c = cycle(settings({ layoutPreset: 'noCal', radarMode: 'off', healthMode: 'off' }), 'basalt');
   const svg = (over) => pw.screenSvg(c.views[0], 0, settings(Object.assign({ layoutPreset: 'noCal' }, over)), env, {}, 0, new Date()).svg;
-  // Roboto and Bitham: the watch's glyph images, tinted (test/page/engine/clock-glyphs-page.test.js has the
+  // Roboto and Bitham: the watch's glyph images, tinted (test/page/layout/clock-glyphs-page.test.js has the
   // seating) in the colour as the screen shows it: #FFAA00 as #F1AA86 (displayColors).
   const tint = (over) => (/<feFlood flood-color="([^"]*)">/.exec(svg(over)) || [])[1];
   assert.equal(tint({ colorTime: '#FFFFFF', timeFont: 'roboto' }), '#FFFFFF');

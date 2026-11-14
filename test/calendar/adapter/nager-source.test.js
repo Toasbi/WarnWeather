@@ -1,4 +1,4 @@
-// test/settings/adapter/holidays-nager-source.test.js
+// test/calendar/adapter/nager-source.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

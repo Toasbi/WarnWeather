@@ -1,4 +1,4 @@
-// test/page/engine/preview-alert-samples.test.js — the forecast preview's samples for a wind, gust or UV
+// test/page/forecast-graphs/preview-alert-samples.test.js — the forecast preview's samples for a wind, gust or UV
 // line drawn Visible values: Alert (src/pkjs/page/forecast-graphs/preview-forecast.js alertSamples).
 // Owner, 2026-10-02: "when enabling alert values only for a gust line, nothing shows in the
 // preview anymore.. can you fix that for all metrics with alert". The preview's fixed sample

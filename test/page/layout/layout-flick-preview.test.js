@@ -1,4 +1,4 @@
-// test/page/engine/layout-flick-preview.test.js
+// test/page/layout/layout-flick-preview.test.js
 // The Watchface tab pins the watch preview at its top: one card per screen of the resolved
 // view cycle (Default, Flick 1, Flick 2), each a button that opens its editor off aplite.
 // Drive the real engine over the Watchface tab and assert the cards track the cycle — a

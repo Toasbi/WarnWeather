@@ -8,7 +8,7 @@ require('../../../src/pkjs/config-ui/lib/engine.js');
 const B = require('../../../src/pkjs/page/settings/blocks.js');
 // The block renderers live one file per concern; blocks.js keeps the threshold
 // machinery + small resolvers, and requiring it registers every block.
-// The watch preview has its own files — test/page/layout/preview-watch.test.js and test/page/engine/watch-preview-cycle.test.js.
+// The watch preview has its own files — test/page/layout/preview-watch.test.js and test/page/layout/watch-preview-cycle.test.js.
 const FC = require('../../../src/pkjs/page/forecast-graphs/preview-forecast.js');
 const RD = require('../../../src/pkjs/page/weather/preview-radar.js');
 const DG = require('../../../src/pkjs/page/telemetry/preview-diagnostics.js');

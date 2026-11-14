@@ -17,7 +17,7 @@
 //   · platform list      package.template.json                 pebble.targetPlatforms
 //
 // To CHANGE a default: a rule row goes in defaults-policy.js, a flat default in schema.js.
-// Never here — this file only reports. test/page/engine/print-defaults.test.js pins the report against
+// Never here — this file only reports. test/scripts/print-defaults.test.js pins the report against
 // the real wizard, so a rule that stops being printed (or starts lying) fails the suite.
 //
 // Node-only (scripts/ may use ES6); the modules it reads are the ES5 watch/webview ones.

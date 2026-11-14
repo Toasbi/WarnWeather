@@ -6,7 +6,7 @@
 //
 // Every format string is pinned LITERALLY against 7 September 2026 — the same
 // sample date the settings screen's option labels show. This file pins only the
-// C side; test/page/engine/date-format-contract.test.js closes the loop by parsing these
+// C side; test/page/calendar/date-format-contract.test.js closes the loop by parsing these
 // expect_str pins and asserting the UI's sample labels (blocks.js
 // dateFullFormatOptions, the schema's month options) promise exactly these
 // strings, and that the enum values match the JS wire codes. Month names come

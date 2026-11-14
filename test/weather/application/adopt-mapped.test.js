@@ -1,4 +1,4 @@
-// test/weather/domain/adopt-mapped.test.js
+// test/weather/application/adopt-mapped.test.js
 // The seam contract every adapter answers: WeatherProvider#adoptMapped is TOTAL
 // over WeatherProvider.MAPPED_KEYS. Present keys are copied, an absent key gets
 // its group's one documented empty value, an absent CORE key is deleted (so

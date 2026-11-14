@@ -1,4 +1,4 @@
-// test/page/engine/screen-picture-fidelity.test.js — a picture of a watch screen (preview-watch.js screenSvg)
+// test/page/layout/screen-picture-fidelity.test.js — a picture of a watch screen (preview-watch.js screenSvg)
 // drawn as the watch draws it, so it reads like a screenshot: the screen's colours
 // (preview-svg.js displayColors, through screen-frame.js), the calendar's cells, the status
 // rows' slots and the forecast graph's axis, labels and frame at the watch's own pixels.

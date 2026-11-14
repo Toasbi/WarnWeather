@@ -4,7 +4,7 @@
 // bake sends for a line drawn as a stripe (forecast-series.js stripeBytes) and nowhere
 // else, the forecast preview shading exactly those levels, and the stripe hints naming
 // where the bake's colour steps sit. The radar sky rows' side lives in
-// test/weather/domain/radar/radar-sky.test.js and test/page/engine/radar-sky-preview.test.js.
+// test/weather/domain/radar/radar-sky.test.js and test/page/weather/radar-sky-preview.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 // The time every bake in this file runs at, where the test does not care which it is.

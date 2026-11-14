@@ -1,4 +1,4 @@
-// test/page/engine/settings-restructure.test.js — the six-tab settings page (Weather · Watchface ·
+// test/page/settings/settings-restructure.test.js — the six-tab settings page (Weather · Watchface ·
 // Status bars · Alerts · Graphs · Setup) as a user drives it: the shared Night hours and
 // its Separate hours, the full-screen dialogs' Done / × / ‹, and a page that saves the
 // same values however much of it was opened. Through the real generated page (the

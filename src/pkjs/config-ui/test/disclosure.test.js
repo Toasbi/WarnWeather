@@ -4,7 +4,7 @@
 // splitting a section into cards, "More options", nav and link rows, From–To rows,
 // panes with a pinned header, page-only (uiOnly) items, and the full-screen dialog's
 // header. Pure renders only; the boot-time wiring (taps, the dialog stack and its
-// revert) is driven through the real page in test/page/engine/settings-restructure.test.js.
+// revert) is driven through the real page in test/page/settings/settings-restructure.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../lib/schema-walk.js');

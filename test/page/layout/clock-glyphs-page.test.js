@@ -1,4 +1,4 @@
-// test/page/engine/clock-glyphs-page.test.js — the settings page's copy of the watch's clock digits
+// test/page/layout/clock-glyphs-page.test.js — the settings page's copy of the watch's clock digits
 // (src/pkjs/page/layout/clock-glyphs.generated.js, from scripts/gen-clock-glyphs-page.js) and the
 // clock the watch preview draws with them (preview-watch.js clockBand).
 const test = require('node:test');

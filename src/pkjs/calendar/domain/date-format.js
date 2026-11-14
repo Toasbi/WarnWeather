@@ -9,7 +9,7 @@
  * Also the date slot's TEXT, for the settings page's status bars preview: the watch
  * renders the slot itself (status_row.c format_status_date), so formatMonthYear and
  * formatFullDate are JS copies of date_format.h's two formatters, pinned to the C
- * host test's strings by test/page/engine/date-format-contract.test.js; dateMonthFirst is the
+ * host test's strings by test/page/calendar/date-format-contract.test.js; dateMonthFirst is the
  * day/month order both they and the Clay message (CLAY_DATE_MONTH_FIRST) follow. The
  * settings page loads this file too (window.DateFormat). ES5 only (aplite PKJS).
  */

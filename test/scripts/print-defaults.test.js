@@ -1,5 +1,5 @@
 'use strict';
-// test/page/engine/print-defaults.test.js — the defaults overview (`mise defaults`) is only worth
+// test/scripts/print-defaults.test.js — the defaults overview (`mise defaults`) is only worth
 // reading if it cannot drift from the code. These tests pin the two joins that would let
 // it lie: every rule in the policy table must reach the printed page, and the columns it
 // prints for a finished wizard must equal what the REAL wizard writes on that watch.
@@ -8,19 +8,19 @@ const assert = require('node:assert/strict');
 
 // Same registry boot as test/page/settings/wizard/config-wizard.test.js: blocks.js registers the
 // statusSlotDefault resolver the schema's defaultFrom items resolve through.
-require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/lib/color.js');
-require('../../../src/pkjs/config-ui/lib/engine.js');
-require('../../../src/pkjs/page/settings/blocks.js');
-require('../../../src/pkjs/page/status-bars/reset-status-defaults.js');
-const schema = require('../../../src/pkjs/page/settings/schema.js');
-const eng = require('../../../src/pkjs/config-ui/lib/engine.js');
-const platformLib = require('../../../src/pkjs/config-ui/lib/platform.js');
-const { deriveDefaults } = require('../../../src/pkjs/config-ui/lib/defaults.js');
-const { eachItem } = require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-const policy = require('../../../src/pkjs/page/settings/defaults-policy.js');
-const FINISH = require('../../../src/pkjs/page/settings/wizard/wizard-finish.js');
-const report = require('../../../scripts/print-defaults.js');
+require('../../src/pkjs/config-ui/lib/schema-walk.js');
+require('../../src/pkjs/lib/color.js');
+require('../../src/pkjs/config-ui/lib/engine.js');
+require('../../src/pkjs/page/settings/blocks.js');
+require('../../src/pkjs/page/status-bars/reset-status-defaults.js');
+const schema = require('../../src/pkjs/page/settings/schema.js');
+const eng = require('../../src/pkjs/config-ui/lib/engine.js');
+const platformLib = require('../../src/pkjs/config-ui/lib/platform.js');
+const { deriveDefaults } = require('../../src/pkjs/config-ui/lib/defaults.js');
+const { eachItem } = require('../../src/pkjs/config-ui/lib/schema-walk.js');
+const policy = require('../../src/pkjs/page/settings/defaults-policy.js');
+const FINISH = require('../../src/pkjs/page/settings/wizard/wizard-finish.js');
+const report = require('../../scripts/print-defaults.js');
 
 const OUT = report.render();
 
