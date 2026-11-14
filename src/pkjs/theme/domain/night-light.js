@@ -8,12 +8,12 @@
 // gated on a watchInfo that can be missing; see clay-payload.js for that call.
 //
 // The window follows the conventions the rest of the app already runs on
-// (sleep-window.js): the END HOUR IS EXCLUSIVE, the window WRAPS past midnight, and
+// (battery-saver.js): the END HOUR IS EXCLUSIVE, the window WRAPS past midnight, and
 // START === END MEANS NEVER. That last one is also the feature's off switch on the
 // wire — buildNightLightBytes zeroes the whole tuple when the toggle is off, so the
 // watch needs no enabled flag of its own.
 
-var parseHour = require('../../health/domain/sleep-window.js').parseHour;   // THE hour-select parse rule
+var parseHour = require('../../wire/domain/battery-saver.js').parseHour;   // THE hour-select parse rule
 
 // The three channels, in wire order. 8 bits each: the LED driver takes 0-255 per
 // channel and scales it by the watch's own brightness setting, so the value carries
@@ -29,7 +29,7 @@ var DEFAULT_R = 40, DEFAULT_G = 10, DEFAULT_B = 0;
 
 // Fallbacks for an hour that doesn't parse: the schema defaults of the keys being
 // read (backlightDimStartHour/backlightDimEndHour, both '0'/'7'). Deliberately NOT
-// sleep-window.js's 22/7: those are the battery saver's historical "sane night", kept
+// battery-saver.js's 22/7: those are the battery saver's historical "sane night", kept
 // for ITS upgrading installs, and an unparseable value stands in for the default the
 // key it came from would have had (theme-schedule.js's rule).
 var DEFAULT_START_HOUR = 0;
@@ -115,7 +115,7 @@ function parseDimColor(settings) {
  * with the theme switch and the battery saver but shares no window with them, so
  * there is no mode to honour — the From/To under the switch IS the window.
  *
- * Shares sleep-window.js's parse rule, and the conventions with it: callers apply the
+ * Shares battery-saver.js's parse rule, and the conventions with it: callers apply the
  * start === end "never" rule themselves, and the enabled toggle is likewise not read
  * here (buildNightLightBytes applies it).
  *

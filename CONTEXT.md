@@ -27,9 +27,9 @@ _Avoid_: module, feature (for the whole context).
 | Calendar | draws the calendar | packs the holiday mask | edits formats | – |
 | Theme | palettes, night light | theme schedule | previews colours | – |
 | Settings | reads the settings message | stores, migrates, sends them | the schema and pages | – |
-| Wire transport | AppMessage inbox, persist | outbox, change detector, scheduler | – | – |
+| Wire transport | AppMessage inbox, persist | outbox, change detector, scheduler, battery saver | – | – |
 | App notices | release toast | news, update check | news panel | `news` |
-| Health | reads the watch's health data | the sleep window | – | – |
+| Health | reads the watch's health data | – | previews it | – |
 | Telemetry | – | snapshot and upload | – | `telemetry-ingest` |
 
 **Outbox (phone app)**:
@@ -172,6 +172,13 @@ The module that decides when anything is sent over the channel: the startup hand
 config-close chaining, the day-change resend and the minute tick. The outbox decides
 what is sent (dedupe, one-message bundling, ACK-gated cache commit).
 _Avoid_: send queue.
+
+**Battery saver**:
+The night window (`sleepStartHour` to `sleepEndHour`) in which the phone fetches no weather and
+sends the watch no phone-battery updates, so the Bluetooth link stays quiet. The watch is told
+through `IS_SLEEPING`. It shares the Nighttime card's hours with the night theme and the
+backlight dim, but owns its own pair.
+_Avoid_: sleep window, sleep mode (the stored keys keep the sleep names).
 
 **Fetch cycle**:
 The module that runs one weather fetch from trigger to record

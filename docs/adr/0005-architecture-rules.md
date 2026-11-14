@@ -41,9 +41,9 @@ of their own, separate from edits.
 | Screens and layout | screens, view specs, flick cycle, presets, stack layout |
 | Calendar | date formats, public holidays |
 | Theme | palettes and inks, theme schedule, night light |
-| Health | sleep window, steps and heart rate |
+| Health | steps and heart rate (the watch reads them; the settings page previews them) |
 | Settings | stored settings, migrations, the settings message |
-| Wire transport | outbox, change detector, channel scheduler, packing and units |
+| Wire transport | outbox, change detector, channel scheduler, battery saver, packing and units |
 | App notices | release notification, news, update check, watch notifications |
 | Telemetry | snapshot, upload, ingest, diagnostics |
 

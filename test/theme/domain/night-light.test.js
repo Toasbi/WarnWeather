@@ -1,12 +1,12 @@
 // test/theme/domain/night-light.test.js — the Dim backlight tuple (CLAY_NIGHT_LIGHT_UINT8):
 // [r, g, b, startHour, endHour]. Three 0-255 LED channels and the window they glow
-// in, with the app's established window conventions (sleep-window.js): end hour
+// in, with the app's established window conventions (battery-saver.js): end hour
 // exclusive, wrapping past midnight, start === end meaning never.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const nightLight = require('../../../src/pkjs/theme/domain/night-light.js');
-const sleepWindow = require('../../../src/pkjs/health/domain/sleep-window.js');
+const sleepWindow = require('../../../src/pkjs/wire/domain/battery-saver.js');
 // The settings page's own "r,g,b" reader — the parser night-light.js hand-keeps a
 // copy of, pinned to it by the parity test at the bottom of this file.
 const rgbControl = require('../../../src/pkjs/config-ui/lib/rgb-control.js');
@@ -143,7 +143,7 @@ test('a non-wrapping window rides the wire as-is', () => {
 });
 
 test('unparseable hours fall back to 0..7 — the schema defaults of the keys being read', () => {
-  // NOT sleep-window.js's 22/7: those are the battery saver's historical fallback,
+  // NOT battery-saver.js's 22/7: those are the battery saver's historical fallback,
   // kept for ITS upgrading installs. backlightDimStartHour/EndHour default to '0'/'7'.
   assert.deepEqual(resolveDimWindow(S({
     backlightDimStartHour: undefined, backlightDimEndHour: '-1' })), { start: 0, end: 7 });
@@ -260,10 +260,10 @@ test('the colour parser matches the settings page exactly (mirror parity)', () =
   });
 });
 
-// The hour parse is not a copy at all — night-light.js requires sleep-window.js's
+// The hour parse is not a copy at all — night-light.js requires battery-saver.js's
 // parseHour, the one home of the rule. This pins that it stays that way: the tuple's
 // hour bytes must be exactly what the shared parser answers for the same input.
-test('the hour bytes are sleep-window.js\'s parse, with this feature\'s own fallbacks', () => {
+test('the hour bytes are battery-saver.js\'s parse, with this feature\'s own fallbacks', () => {
   const HOURS = ['0', '5', '7', '22', '23', 'x', '99', '-1', undefined, null, 12, ' 8 '];
   HOURS.forEach((a) => HOURS.forEach((b) => {
     const bytes = buildNightLightBytes(S({

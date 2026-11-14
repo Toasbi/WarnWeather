@@ -1,4 +1,4 @@
-// src/pkjs/health/domain/sleep-window.js
+// src/pkjs/wire/domain/battery-saver.js
 //
 // The battery saver's night window: sleepStartHour/sleepEndHour, the pair that
 // switch has always owned. The Nighttime card groups the saver with the theme

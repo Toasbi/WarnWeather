@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const budget = require('../../../../src/pkjs/page/weather/budgets/tomorrowio-budget.js');
-const sleepWindow = require('../../../../src/pkjs/health/domain/sleep-window.js');
+const sleepWindow = require('../../../../src/pkjs/wire/domain/battery-saver.js');
 
 // Base state: tomorrow.io weather + radar, night pause off.
 function S(over) {
@@ -17,7 +17,7 @@ test('sleepHours: off -> 0; simple window; midnight-crossing window; start==end 
   assert.equal(budget.sleepHours(S({ sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' })), 7);
   assert.equal(budget.sleepHours(S({ sleepNightEnabled: true, sleepStartHour: '23', sleepEndHour: '7' })), 8);
   assert.equal(budget.sleepHours(S({ sleepNightEnabled: true, sleepStartHour: '5', sleepEndHour: '5' })), 0);
-  // NaN/out-of-range fall back to 22 / 7 (sleep-window.js parity) -> 9 h
+  // NaN/out-of-range fall back to 22 / 7 (battery-saver.js parity) -> 9 h
   assert.equal(budget.sleepHours(S({ sleepNightEnabled: true, sleepStartHour: 'x', sleepEndHour: '99' })), 9);
 });
 
@@ -41,12 +41,12 @@ test('sleepHours reads the saver own pair and nothing else in the Nighttime card
 });
 
 // This file is concatenated into the flat config page, which has no require(), so its
-// window rule is a hand-kept COPY of sleep-window.js's. Pin the two together over the
+// window rule is a hand-kept COPY of battery-saver.js's. Pin the two together over the
 // whole input matrix — a change to one that isn't made to the other fails here rather
 // than shipping a budget block that disagrees with the watch. Compared against the
 // watch's OWN verdict (count the hours isWithinSleepWindow actually pauses), which is
 // the invariant that matters rather than the shape of either implementation.
-test('the budget pause length matches sleep-window.js exactly (mirror parity)', () => {
+test('the budget pause length matches battery-saver.js exactly (mirror parity)', () => {
   const HOURS = ['0', '5', '7', '22', '23', 'x', '99', undefined];
   const NOISE = [undefined, 'night', 'custom', 'wat'];
   NOISE.forEach((mode) => HOURS.forEach((a) => HOURS.forEach((b) => {

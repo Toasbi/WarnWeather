@@ -18,11 +18,11 @@
 
     /**
      * Nightly pause length in whole hours from the battery saver's settings.
-     * Mirrors sleep-window.js semantics: toggle off or start==end means no pause;
+     * Mirrors battery-saver.js semantics: toggle off or start==end means no pause;
      * invalid hours clamp to the 22..7 defaults; windows may cross midnight.
      *
      * This file is concatenated into the flat config page, which has no require(),
-     * and sleep-window.js is a watch-runtime module that is not in
+     * and battery-saver.js is a watch-runtime module that is not in
      * build-config-page.js's APP_FILES — so the rule is copied rather than imported.
      * test/page/weather/budgets/tomorrowio-budget.test.js pins this against isWithinSleepWindow() over a
      * matrix of stored values; keep the two in lockstep.

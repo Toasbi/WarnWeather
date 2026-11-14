@@ -25,7 +25,7 @@
 
 var storageKeys = require('../settings/domain/storage-keys.js');
 var fetchOptions = require('../weather/domain/fetch-options.js');
-var sleepWindow = require('../health/domain/sleep-window.js');
+var sleepWindow = require('../wire/domain/battery-saver.js');
 var platformLib = require('../config-ui/lib/platform.js');
 var radarFactory = require('../weather/adapter/radar-factory.js');
 var radarWire = require('../weather/domain/radar/radar-wire.js');
@@ -61,7 +61,7 @@ var FAILURE_BACKOFF_BASE_MS = 60 * 1000;
 
 // --- fetch cadence ----------------------------------------------------------
 // When-do-we-fetch vocabulary, read by shouldFetchNow (isRefreshDue and
-// isFailureBackoffActive). It sat in sleep-window.js by historical accident,
+// isFailureBackoffActive). It sat in battery-saver.js by historical accident,
 // then in channel-scheduler.js; it lives with its only reader now. Static on
 // the factory: the cadence probe is stateless and shared.
 /**

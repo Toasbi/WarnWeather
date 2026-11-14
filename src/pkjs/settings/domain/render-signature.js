@@ -179,7 +179,7 @@ function renderSignature(settings, watchInfo) {
         settings.citySlotIcon,
         // ...and the night weather-pause window (a change flips whether fetching pauses
         // and the IS_SLEEPING glyph the forced fetch pushes). The battery saver's own
-        // toggle and hour pair — sleep-window.js reads no others — or an edit sits
+        // toggle and hour pair — battery-saver.js reads no others — or an edit sits
         // invisible until the next scheduled fetch, which, inside a pause, is the very
         // thing being edited. The Nighttime card's other two features ride the Clay
         // message (the backlight tint) or need no fetch at all (the theme flip), so
