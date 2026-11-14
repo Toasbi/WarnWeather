@@ -2,7 +2,7 @@
 // Build the settings page's copy of the watch's text fonts: the six Gothic fonts
 // (scripts/text-fonts-system.json, read out of the SDK's firmware by
 // extract-system-text-fonts.py) as web fonts, written to
-// src/pkjs/settings/watch-fonts.generated.js with each font's advances.
+// src/pkjs/page/layout/watch-fonts.generated.js with each font's advances.
 //
 // The page draws its pictures of the watch's screens (preview-watch.js, preview-forecast.js)
 // in these fonts: SVG text in the family the watch uses, every glyph its firmware bitmap,
@@ -14,7 +14,7 @@
 // no other tool), TrueType outlines within, no hinting. Each glyph's pixels go in as
 // rectangles: the runs of a row, a run merged with the identical run under it.
 //
-// Run: node scripts/gen-watch-fonts-page.js   (test/watch-fonts-page.test.js fails while stale)
+// Run: node scripts/gen-watch-fonts-page.js   (test/page/layout/watch-fonts-page.test.js fails while stale)
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -22,7 +22,7 @@ const zlib = require('zlib');
 
 const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'scripts', 'text-fonts-system.json');
-const OUT = path.join(ROOT, 'src', 'pkjs', 'settings', 'watch-fonts.generated.js');
+const OUT = path.join(ROOT, 'src', 'pkjs', 'page', 'layout', 'watch-fonts.generated.js');
 // Font units per watch pixel.
 const PX = 64;
 // The page's family per firmware font: a size's regular and bold faces share one family.

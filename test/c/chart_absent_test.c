@@ -6,7 +6,7 @@
 // both are SDK-bound and cannot be host-compiled (the line_style_decode_test
 // pattern), so the kernel is pinned here, and the settings preview's twin
 // (preview-forecast.js lineRuns) is held to the same LINE_RUN_VECTORS by
-// test/config-blocks.test.js, keeping the two renderers from drifting apart.
+// test/page/settings/config-blocks.test.js, keeping the two renderers from drifting apart.
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,7 +34,7 @@ static int collect_runs(const int16_t *vals, int count, int lo, int zero,
 
 // LINE_RUN_VECTORS: one line's samples (wire bytes over lo 0), how it reads its byte 0
 // (chart_runs.h CHART_ZERO_*), and the runs its polyline draws as "start+length" pairs.
-// test/config-blocks.test.js parses this table and runs the preview's lineRuns over it
+// test/page/settings/config-blocks.test.js parses this table and runs the preview's lineRuns over it
 // (the CITY_VECTORS pattern): keep one row per line, in this shape.
 static const struct { const char *vals; int zero; const char *runs; } LINE_RUN_VECTORS[] = {
     { "5 0 0 3 2", CHART_ZERO_JOIN, "0+2 2+3" },

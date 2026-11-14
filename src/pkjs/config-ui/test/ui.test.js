@@ -1,11 +1,11 @@
 // src/pkjs/config-ui/test/ui.test.js — the page's shared parts (lib/ui.js): one builder per
 // piece more than one place draws, and the engine drawing its own rows, cards and dialogs with
 // them (its nav rows' red arrow, its folding cards' chevron, its dialogs' header and a Delete
-// item under its card). test/config-ui-parts.test.js holds the app's pages to them.
+// item under its card). test/repo/config-ui-parts.test.js holds the app's pages to them.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../lib/schema-walk.js');
-require('../lib/color.js');
+require('../../lib/color.js');
 require('../lib/show-when.js');
 const ui = require('../lib/ui.js');
 const E = require('../lib/engine.js');

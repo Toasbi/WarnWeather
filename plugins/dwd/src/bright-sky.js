@@ -8,7 +8,7 @@
 // place's offset is CET/CEST by the EU rule, and sunrise and sunset are worked out (lib/sun.js).
 // UV isn't served.
 //
-// The record quirks are the ones the WarnWeather watchface handles (src/pkjs/weather/dwd.js):
+// The record quirks are the ones the WarnWeather watchface handles (src/pkjs/weather/adapter/providers/dwd.js):
 // forecast records have no relative humidity but always a dew point; precipitation, its chance and
 // gusts cover the hour BEFORE a record's timestamp; the current observation reports wind only as
 // 10/30/60-minute means.

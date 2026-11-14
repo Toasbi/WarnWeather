@@ -31,7 +31,7 @@
 /**
  * Does `hour` fall inside the nightly window [start_hour, end_hour)?
  *
- * The window conventions are the phone's own, unchanged from sleep-window.js and
+ * The window conventions are the phone's own, unchanged from battery-saver.js and
  * re-documented in persist.h — this is their one C implementation:
  *   - start_hour is INCLUSIVE, end_hour is EXCLUSIVE. 22..6 covers 22:00-05:59, and
  *     06:00 is already day.

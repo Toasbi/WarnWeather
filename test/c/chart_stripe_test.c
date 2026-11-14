@@ -3,7 +3,7 @@
 // chart.c's chart_render_stripe is SDK-bound and cannot be host-compiled (the
 // chart_absent_test pattern), so its pure half is pinned here; the settings
 // preview mirrors the same three (preview-forecast.js), pinned by
-// test/config-blocks.test.js with the same colours.
+// test/page/settings/config-blocks.test.js with the same colours.
 #include <assert.h>
 #include <stdio.h>
 

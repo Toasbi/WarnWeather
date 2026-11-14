@@ -7,7 +7,7 @@
 // x slide clamps, a full-height hatch's rect and the boundary lines' contour clamp read
 // the plot's edges directly.) The settings preview mirrors the same rule
 // (preview-forecast.js metricY, preview-rain.js rainBars), pinned by
-// test/config-draw-from.test.js.
+// test/page/forecast-graphs/config-draw-from.test.js.
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>

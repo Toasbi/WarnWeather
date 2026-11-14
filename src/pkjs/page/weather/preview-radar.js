@@ -1,0 +1,419 @@
+// src/pkjs/page/weather/preview-radar.js — ES5, WebView. The rain-radar preview
+// block: a two-hour nowcast bar chart with its provider-dependent "nearby"
+// outline bars, its legend, and the rain-alert status strip above it.
+/* global PConf */
+// The `.blocks` test is not redundant. lib/color.js and lib/schema-walk.js
+// each do `global.PConf = global.PConf || {}` to attach their own shard, and
+// line-style.js pulls both in — so under Node, from the second preview file onwards,
+// global.PConf EXISTS while carrying no block registry unless engine.js was loaded
+// first. The page and every test do load it first; without the test, a require of
+// this file on its own would pick that shard up and throw on the register below.
+var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.blocks)
+    ? global.PConf
+    : (typeof window !== 'undefined' && window.PConf) ? window.PConf
+    : (typeof PConf !== 'undefined' && PConf) ? PConf
+    : { blocks: { register: function () {}, get: function () {} } };
+(function () {
+    // Dual-context pattern (see line-style.js): CommonJS modules under Node, the
+    // matching window globals from files concatenated ahead of this one in the
+    // webview, which has no require(). See scripts/build-config-page.js's APP_FILES.
+    var svg = (typeof require !== 'undefined') ? require('../settings/preview-svg.js') : window.PreviewSvg;
+    var rect = svg.rect, txt = svg.txt, previewInk = svg.previewInk, svgFrame = svg.svgFrame;
+    var previewRain = (typeof require !== 'undefined')
+        ? require('../forecast-graphs/preview-rain.js') : window.PreviewRain;
+    var rainBars = previewRain.rainBars, barPermille = previewRain.barPermille;
+    var FALLBACK_PALETTE = previewRain.FALLBACK_PALETTE;
+    var resolveInkLib = (typeof require !== 'undefined')
+        ? require('../../theme/domain/resolve-ink.js') : window.ResolveInk;
+    var isLightPolarity = resolveInkLib.isLightPolarity;
+    var drawsColor = resolveInkLib.drawsColor;
+    var previewStripe = (typeof require !== 'undefined')
+        ? require('../forecast-graphs/preview-stripe.js') : window.PreviewStripe;
+    // The sky rows' scales: the table the phone's radar-sky.js picks their bytes by.
+    var stripeLevels = (typeof require !== 'undefined')
+        ? require('../../forecast-graphs/domain/stripe-levels.js') : window.StripeLevels;
+    var thresholds = (typeof require !== 'undefined')
+        ? require('../../alerts/domain/status-thresholds.js') : window.StatusThresholds;
+    // Which side of the Watch Status Bar shows the rain icon (on-demand.js sideOf).
+    var onDemand = (typeof require !== 'undefined')
+        ? require('../../status-bars/domain/on-demand.js') : window.OnDemand;
+    // Bars from [Bottom | Top] (draw-from.js radarBarFrom), read as the wire reads it.
+    var drawFrom = (typeof require !== 'undefined')
+        ? require('../../forecast-graphs/domain/draw-from.js') : window.DrawFrom;
+
+    // The radar sky rows' sample (radar-sky.js, rain_radar_layer.c draw_radar_sky):
+    // eight quarter hours over the two-hour window, as percentages of what the rows
+    // draw — the weighted cloud cover and the sun's strength against a clear sky.
+    // A veil of thin high cloud first, which the cloud row counts half while the sun
+    // still shines at full strength through it; then clouds thickening into the
+    // shower with a thunderstorm at its peak; then breaking up, the last quarter hour
+    // under 10 % cloud (which draws nothing) and in full sun again. The two rows
+    // are independent, not sun = 100 - cloud: that is what the watch shows too.
+    var SKY_CLOUD_PCT = [45, 50, 80, 100, 100, 70, 30, 5];
+    var SKY_SUN_PCT = [100, 90, 35, 0, 0, 10, 60, 100];
+    var SKY_BOLT = [false, false, false, true, true, false, false, false];
+    // radar_sky.h's bolt glyph, 5 x 7, bit 4 = the leftmost column.
+    var BOLT_ROWS = [0x03, 0x06, 0x0C, 0x1F, 0x06, 0x0C, 0x18];
+
+    /**
+     * A sky-row percentage's stripe level as the watch draws it: the byte the phone
+     * sends for it (radar-sky.js skyByte — the row's own scale in stripe-levels.js,
+     * which the page bundle carries too), read back the way the watch's
+     * chart_stripe_level reads it. test/page/weather/radar-sky-preview.test.js pins the two
+     * together.
+     * @param {string} row 'cloud' | 'sun'.
+     * @param {*} pct Percent of what the row draws (missing, non-numeric or negative
+     *   draws nothing; above 100 is full).
+     * @returns {number} Level 0..4.
+     */
+    function skyLevel(row, pct) {
+        return previewStripe.levelOfByte(stripeLevels.byteOf(row, pct));
+    }
+
+    /**
+     * The sky rows' colours per polarity — rain_radar_layer.c's RADAR_SKY_*_COLOR.
+     * @param {string} theme Settings theme.
+     * @param {boolean} isColor Effective colour render?
+     * @param {string} fg Theme foreground (the B&W arm).
+     * @returns {{cloud: string, sun: string, bolt: string}} Hex colours.
+     */
+    function skyColors(theme, isColor, fg) {
+        if (!isColor) { return { cloud: fg, sun: fg, bolt: fg }; }
+        var light = isLightPolarity(theme);
+        return {
+            cloud: light ? '#5555AA' : '#AAAAFF',
+            sun: light ? '#FFAA00' : '#FFFF00',
+            bolt: light ? '#FF5500' : '#FFFF00'
+        };
+    }
+
+    /**
+     * radar_sky_clip_span: the span [a, a + len) clipped to [lo, hi).
+     * @param {number} a Span start.
+     * @param {number} len Span length.
+     * @param {number} lo Clip start.
+     * @param {number} hi Clip end (exclusive).
+     * @returns {?Array<number>} [start, length], or null when nothing is left.
+     */
+    function clipSpan(a, len, lo, hi) {
+        var end = Math.min(a + len, hi);
+        a = Math.max(a, lo);
+        return end > a ? [a, end - a] : null;
+    }
+
+    /**
+     * The lightning bolt glyph — draw_radar_sky's two passes: a background halo (a
+     * 3 x 3 cell per inked pixel), then the glyph. On a watch pixel grid: glyph pixel
+     * (x, y) is the u x u square at (ox + (bx + x) * u, oy + (by + y) * u), and with a
+     * clip every cell is cut to watch columns [0, clipW) and rows [0, clipH) — the
+     * plot's x range and the sky band, as the watch clips it.
+     * @param {number} ox Preview x of watch column 0.
+     * @param {number} oy Preview y of watch row 0.
+     * @param {number} u Preview units per watch pixel.
+     * @param {number} bx Glyph left, in watch columns.
+     * @param {number} by Glyph top, in watch rows.
+     * @param {string} color Bolt colour.
+     * @param {string} bg Halo (background) colour.
+     * @param {number} [clipW] Clip width in watch columns (omitted: no clip).
+     * @param {number} [clipH] Clip height in watch rows.
+     * @returns {string} SVG markup.
+     */
+    function boltGlyph(ox, oy, u, bx, by, color, bg, clipW, clipH) {
+        var out = '', pass, grow, y, x, cx, cy;
+        for (pass = 0; pass < 2; pass += 1) {
+            grow = pass === 0 ? 1 : 0;
+            for (y = 0; y < BOLT_ROWS.length; y += 1) {
+                for (x = 0; x < 5; x += 1) {
+                    if (!((BOLT_ROWS[y] >> (4 - x)) & 1)) { continue; }
+                    cx = [bx + x - grow, 1 + 2 * grow];
+                    cy = [by + y - grow, 1 + 2 * grow];
+                    if (clipW !== undefined) {
+                        cx = clipSpan(cx[0], cx[1], 0, clipW);
+                        cy = clipSpan(cy[0], cy[1], 0, clipH);
+                        if (!cx || !cy) { continue; }
+                    }
+                    out += rect(ox + cx[0] * u, oy + cy[0] * u, cx[1] * u, cy[1] * u,
+                        pass === 0 ? bg : color);
+                }
+            }
+        }
+        return out;
+    }
+
+    // Rough advance width (px) of a proportional sans-serif label at font-size `s`.
+    // Used to lay out legend items left-to-right without a real text-metrics engine;
+    // eyeball with `mise preview-config` and nudge the 0.52 factor if labels crowd.
+    function labelAdvance(text, s) { return Math.round(text.length * s * 0.52); }
+
+    /**
+     * The rain alert's icon as the watch draws it (status_on_demand.c): the weather condition
+     * slot's rain cloud (condition-glyphs.generated.js RAIN, a 24-unit outline of M/L points),
+     * with its ink box. Read at draw time, once every page file has loaded.
+     * @returns {{d: string, x: number, y: number, w: number, h: number}}
+     */
+    function rainGlyph() {
+        var d = ((typeof require !== 'undefined') ? require('../../settings/condition-glyphs.generated.js')
+            : window.ConditionGlyphs).RAIN;
+        var nums = d.match(/-?\d+(\.\d+)?/g), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, i;
+        for (i = 0; i + 1 < nums.length; i += 2) {
+            x0 = Math.min(x0, +nums[i]); x1 = Math.max(x1, +nums[i]);
+            y0 = Math.min(y0, +nums[i + 1]); y1 = Math.max(y1, +nums[i + 1]);
+        }
+        return {d: d, x: x0, y: y0, w: x1 - x0, h: y1 - y0};
+    }
+    /**
+     * The rain alert's icon, a 1 px outline, its ink box's top-left at (gx, gy) and `h` px tall.
+     * @param {Object} g rainGlyph().
+     * @param {number} gx Left edge of the ink.
+     * @param {number} gy Top edge of the ink.
+     * @param {number} h Ink height.
+     * @param {string} color Stroke colour.
+     * @returns {string} SVG markup.
+     */
+    function rainIcon(g, gx, gy, h, color) {
+        var k = h / g.h;
+        return '<path transform="translate(' + (gx - g.x * k) + ',' + (gy - g.y * k) + ') scale(' + k + ')"'
+            + ' d="' + g.d + '" fill="none" stroke="' + color + '" stroke-width="' + (1 / k) + '"'
+            + ' stroke-linecap="round" stroke-linejoin="round"></path>';
+    }
+
+    // The preview's vertical budget, in its 200-wide viewBox units. It sits pinned above the
+    // Rain radar pane, so it stays short (owner, 2026-10-04): the time axis at AXIS_Y, a
+    // PLOT_H plot, one legend row — NO_SKY_H in all — plus the rain alert band on top.
+    var AXIS_Y = 12, PLOT_H = 45, NO_SKY_H = AXIS_Y + 7 + PLOT_H + 17, ALERT_BAND_H = 14;
+
+    /**
+     * The Solid ('white') radar bars' colour: DarkGray in light polarity, white in dark (mirrors
+     * rain-tier.js buildPalette's colorMode==='white' branch: forecastPreview's barFg, same
+     * rule). B&W/bw themes draw an OUTLINE instead (rainBars' `outline`) in ink.fg, which this
+     * also equals there: same value, different role.
+     * @param {Object} state Settings.
+     * @param {boolean} isColor The effective colour flag.
+     * @param {Object} ink The theme's ink (previewInk).
+     * @returns {string}
+     */
+    function barFg(state, isColor, ink) {
+        return isColor ? (isLightPolarity(state.theme) ? '#555555' : '#FFFFFF') : ink.fg;
+    }
+
+    /**
+     * Whether the radar draws its sky rows (Radar tab -> Clouds, sun & lightning): on, as a
+     * graph, and never on aplite.
+     * @param {Object} state Settings.
+     * @param {?Object} env Platform env.
+     * @returns {boolean}
+     */
+    function skyOn(state, env) {
+        return Boolean(state.radarSky) && (state.radarMode || 'graph') === 'graph' && !(env && env.platform === 'aplite');
+    }
+
+    /**
+     * What the rain radar draws, as a legend lists it: the rain coming as bars (the palette's
+     * tier colours, else Solid's one colour, outlined on a black-and-white display; `top`: hung
+     * from the top), DWD's rain nearby as faint bars, then with the sky rows on the clouds and
+     * sun stripes and the lightning bolt (skyColors). Nothing while the radar is off.
+     * @param {Object} state Settings.
+     * @param {?Object} env Platform env.
+     * @param {Object} [userData] Page userData (the palette).
+     * @returns {Array<{metric: string, kind: string, color: string, tiers: ?Array<string>, outline: boolean,
+     *     top: boolean}>} kind: 'bars' | 'nearby' | 'stripe' | 'bolt'
+     */
+    function radarLegend(state, env, userData) {
+        if ((state.radarMode || 'graph') === 'off') { return []; }
+        var isColor = drawsColor(env, state.theme), ink = previewInk(state.theme);
+        var P = (userData && userData.palette) || FALLBACK_PALETTE;
+        var tiers = !(state.radarColor === 'white' || !isColor), top = drawFrom.barsFromTop(state, 'radar', env);
+        var out = [{ metric: 'radar', kind: 'bars', color: barFg(state, isColor, ink), outline: !isColor, top: top,
+            tiers: tiers ? P.rainTiers.map(function (t) { return t.color; }) : null }];
+        if (state.radarProvider === 'dwd') {
+            out.push({ metric: 'nearby', kind: 'nearby', color: ink.fg, outline: true, top: top, tiers: null });
+        }
+        if (skyOn(state, env)) {
+            var sc = skyColors(state.theme, isColor, ink.fg);
+            out.push({ metric: 'cloud', kind: 'stripe', color: sc.cloud, outline: false, top: false, tiers: null },
+                { metric: 'sun', kind: 'stripe', color: sc.sun, outline: false, top: false, tiers: null },
+                { metric: 'storm', kind: 'bolt', color: sc.bolt, outline: false, top: false, tiers: null });
+        }
+        return out;
+    }
+
+    /**
+     * The rain-radar preview block — adapted from index.html:270-286's radarSVG.
+     * @param {Object} state Live settings (colours as hex strings).
+     * @param {Object} env Config-UI environment facts ({ color, platform, … }).
+     * @param {Object} [userData] Page userData; `palette` is the page-open snapshot.
+     * @param {{bare: boolean}} [opts] `bare` (the Watchface tab's watch, preview-watch.js):
+     *   the time axis, the sky rows and the plot only, the frame ending under the plot.
+     * @returns {string} SVG markup.
+     */
+    function radarPreview(state, env, userData, opts) {
+        // Effective color: a color display renders as color only when the theme isn't
+        // Black & White — a bw/bw-light theme reuses the exact preview a B&W watch gets.
+        var isColor = drawsColor(env, state.theme);
+        var ink = previewInk(state.theme);
+        var radarMode = state.radarMode || 'graph';
+        if (radarMode === 'off') {
+            return svgFrame(rect(0, 0, 200, NO_SKY_H, ink.bg)
+                + txt(100, NO_SKY_H / 2 + 3, 10, '#566072', 'middle', 700, 'Radar off'), NO_SKY_H);
+        }
+        var local = [0, 0, 0, 0.2, 0.6, 1.5, 3, 7, 14, 10, 5, 2, 0.8, 0.3, 0.1, 0, 0.3, 1, 3, 8, 12, 6, 2, 0.5];
+        var add = [0.4, 0.5, 0.7, 1, 1.5, 2, 3, 4, 3, 2, 1.5, 1, 0.8, 0.5, 0.4, 0.3, 0.5, 1.5, 3, 4, 3, 2, 1, 0.5];
+        var isAplite = Boolean(env && env.platform === 'aplite');
+        // The sky rows (Radar tab -> Clouds, sun & lightning) take a band under the
+        // axis ticks, and the bars keep the rest — rain_radar_layer.c's sky band. The
+        // sample is a received radar window with a received sky over it, so the
+        // watch's gates (a sky blob, a radar start, the two overlapping —
+        // radar_sky_in_window) hold by construction. Like the bars, the preview draws
+        // a roomy plot (40 px and up: 4 px stripes). A shorter one gets 3 px stripes
+        // and leaves the bars less room, which the preview does not model: the 144 px
+        // watches' radar top band, and on either size a body under a tall stack of
+        // calendar and status rows (a 3-row calendar with both status rows is one).
+        var sky = skyOn(state, env);
+        var n = local.length, PX0 = 11, PX1 = 196;
+        var step = (PX1 - PX0) / n, bw = step - 1.6;
+        // The watch's pixel grid, for the sky rows: its 24 slots of RADAR_DEF's pitch
+        // (6 px, 8 on emery's 200 px bucket) span PX0..PX1, watch x 0 (the stripe
+        // lines' anchor) at PX0 — so one watch pixel is `unit` preview units.
+        var WATCH_PITCH = (env && env.platform === 'emery') ? 8 : 6, SKY_H = 4;
+        var unit = step / WATCH_PITCH, topY = AXIS_Y;
+        var skyBand = sky ? (2 * SKY_H + 2) * unit : 0;
+        // The plot keeps its height with the sky rows on: they and their legend row grow
+        // the frame instead (owner, 2026-10-04: a short pinned preview leaves the pane room).
+        var PT = topY + 7 + skyBand, PB = PT + PLOT_H, plotH = PLOT_H;
+        var frameH = sky ? Math.ceil(NO_SKY_H + skyBand + 10) : NO_SKY_H;
+        var e = rect(0, 0, 200, frameH, ink.bg);
+        e += '<line x1="' + PX0 + '" y1="' + topY + '" x2="' + PX1 + '" y2="' + topY + '" stroke="' + ink.rgba('0.22') + '" stroke-width="0.6"></line>';
+        for (var k = 0; k <= n; k++) {
+            var tx = PX0 + k * step, big = k % 6 === 0;
+            e += '<line x1="' + tx + '" y1="' + topY + '" x2="' + tx + '" y2="' + (topY + (big ? 4 : 2)) + '" stroke="' + ink.rgba('0.30') + '" stroke-width="0.6"></line>';
+        }
+        e += txt(PX0, topY - 3, 7, '#7C828D', 'start', 600, 'now') + txt(PX0 + 12 * step, topY - 3, 7, '#7C828D', 'middle', 600, '+1h') + txt(PX1, topY - 3, 7, '#7C828D', 'end', 600, '+2h');
+        // Bars from: Top hangs every bar, the exact spot's and the nearby area's, from the
+        // plot's top (PT: under the time axis and the sky rows); never previewing aplite,
+        // whose env has no line styles (draw-from.js capable). The faint floor line is the
+        // preview's own and goes with standing bars.
+        var barsTop = drawFrom.barsFromTop(state, 'radar', env);
+        var anchor = barsTop ? PT : PB;
+        if (!barsTop) {
+            e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
+        }
+        if (sky) {
+            var sc = skyColors(state.theme, isColor, ink.fg);
+            var skyY = topY + 5;   // below the preview's downward ticks
+            if (!isColor) { e += '<defs>' + previewStripe.ditherDefs(ink.fg, 'rsd') + '</defs>'; }
+            // Each quarter hour spans three radar slots; cloud row, 1 px gap, sun row.
+            for (var q = 0; q < SKY_CLOUD_PCT.length; q += 1) {
+                var qx = PX0 + q * 3 * step, qw = 3 * step;
+                e += previewStripe.cell(isColor, qx, skyY, qw, SKY_H * unit, sc.cloud,
+                    skyLevel('cloud', SKY_CLOUD_PCT[q]), ink.bg, 'rsd', unit, PX0);
+                e += previewStripe.cell(isColor, qx, skyY + (SKY_H + 1) * unit, qw, SKY_H * unit,
+                    sc.sun, skyLevel('sun', SKY_SUN_PCT[q]), ink.bg, 'rsd', unit, PX0);
+            }
+            // The bolts in watch pixels, placed as draw_radar_sky places them: centred
+            // on the quarter hour and on the two rows, clipped to the band and plot.
+            var plotCols = n * WATCH_PITCH, bandRows = 2 * SKY_H + 2;
+            var boltY = Math.floor((2 * SKY_H + 1 - BOLT_ROWS.length) / 2);
+            for (var qb = 0; qb < SKY_BOLT.length; qb += 1) {
+                var xa = qb * 3 * WATCH_PITCH, xb = xa + 3 * WATCH_PITCH;
+                var boltX = Math.floor((xa + xb) / 2) - 2;   // - RADAR_BOLT_W / 2
+                if (SKY_BOLT[qb] && boltX >= 0 && boltX + 5 <= plotCols) {
+                    e += boltGlyph(PX0, skyY, unit, boltX, boltY, sc.bolt, ink.bg, plotCols, bandRows);
+                }
+            }
+        }
+        var P = (userData && userData.palette) || FALLBACK_PALETTE;
+        var radarWhite = state.radarColor === 'white' || !isColor;
+        var radarBarFg = barFg(state, isColor, ink);
+        // rain_radar_layer.c draws BAR_OUTLINED, which chart.c strokes in theme_fg() in
+        // every theme but colour-dark: the light colour theme outlines its bars too.
+        var radarBarEdge = (isColor && isLightPolarity(state.theme)) ? ink.fg : null;
+        // Only DWD carries a 2 km-area signal; Met.no and Rainbow are
+        // single-point nowcasts → omit the hollow "nearby" outline bars and
+        // their legend entry entirely.
+        var showNearby = state.radarProvider === 'dwd';
+        for (var i = 0; i < n; i++) {
+            var x = PX0 + i * step + (step - bw) / 2;
+            var nH = barPermille(Math.round((local[i] + add[i]) * 10)) / 1000;
+            if (showNearby && nH > 0) {
+                e += '<rect x="' + x + '" y="' + (barsTop ? PT : PB - nH * plotH) + '" width="' + bw + '" height="' + (nH * plotH) + '" fill="none" stroke="' + ink.rgba('0.30') + '" stroke-width="0.7"></rect>';
+            }
+            // outline (B&W/bw: a theme_bg()-filled silhouette, matching the watch's
+            // polarity-aware palette fill) vs. the colour interior (tier bands, or the
+            // Solid radarBarFg), with a theme-fg silhouette over it in the light theme.
+            e += rainBars(local[i], x, bw, anchor, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg, ink.bg,
+                radarBarEdge, barsTop);
+        }
+        // A bare frame stops here: no legend, and no Watch Status Bar mock (the watch's own
+        // top bar is drawn in its band).
+        if (opts && opts.bare) { return svgFrame(e, PB + 3); }
+        // Rain legend (one row): the exact-spot swatch (tier gradient on color, solid
+        // theme-fg on B&W) + label, then a hollow grey "nearby" box + label. The nearby
+        // box is a fixed grey outline (not tier-coloured), so it reads the same on
+        // color and B&W — matching the faint nearby-rain outline bars above.
+        var lgy = PB + 10, lx = PX0;
+        if (!radarWhite) {
+            for (var t = 0; t < P.rainTiers.length; t += 1) {
+                e += rect(lx + t * 2.4, lgy - 3.5, 2.4, 7, P.rainTiers[t].color);
+            }
+            lx += P.rainTiers.length * 2.4 + 2;
+        } else {
+            e += rect(lx, lgy - 3.5, 12, 7, radarBarFg);
+            lx += 14;
+        }
+        e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Rain at your exact spot');
+        if (showNearby) {
+            lx += 3 + labelAdvance('Rain at your exact spot', 7.5) + 7;
+            e += '<rect x="' + lx + '" y="' + (lgy - 3.5) + '" width="9" height="7" fill="none" stroke="#8A8F98" stroke-width="1"></rect>';
+            lx += 11;
+            e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Nearby (2 km)');
+        }
+        if (sky) {
+            // Second legend row: the two rows and the bolt.
+            var sy = lgy + 10, sx = PX0, skc = skyColors(state.theme, isColor, ink.fg);
+            e += previewStripe.cell(isColor, sx, sy - 2, 10, 4, skc.cloud, 4, ink.bg, 'rsd', unit, PX0);
+            e += txt(sx + 13, sy + 3, 7.5, '#AEB4BD', 'start', 600, 'Clouds');
+            sx += 13 + labelAdvance('Clouds', 7.5) + 8;
+            e += previewStripe.cell(isColor, sx, sy - 2, 10, 4, skc.sun, 4, ink.bg, 'rsd', unit, PX0);
+            e += txt(sx + 13, sy + 3, 7.5, '#AEB4BD', 'start', 600, 'Sun');
+            sx += 13 + labelAdvance('Sun', 7.5) + 8;
+            e += boltGlyph(sx, sy - 4, 1, 0, 0, skc.bolt, ink.bg);
+            e += txt(sx + 8, sy + 3, 7.5, '#AEB4BD', 'start', 600, 'Lightning');
+        }
+        // Rain-alert preview band: a Watch Status Bar mock above the chart showing the
+        // rain entry as the watch draws it there (status_on_demand.c) — its Look
+        // (the contract's rainAlert, as the blob packs it: the icon alone, the icon +
+        // "15'", or the icon + "Rain in 15'"), at the edge of the strip's On demand side
+        // that has Rain ticked (on-demand.js sideOf: left-aligned for the left side,
+        // right-aligned for the right). Hidden while neither of the strip's sides
+        // ticks Rain (the strip draws no rain entry then), and never shown on
+        // aplite (which lacks the feature). The icon and the text draw in the theme's
+        // foreground, like every icon of the bars (the watch gives the rain alert no
+        // colour of its own).
+        var side = isAplite ? null : onDemand.sideOf(state, 'top', 'rain', env);
+        var rain = thresholds.rainAlert(state);
+        if (side === null) {
+            return svgFrame(e, frameH);
+        }
+        var label = rain.look === 'icon' ? '' : (rain.look === 'minutes' ? "15'" : "Rain in 15'");
+        var glyph = rainGlyph(), bandH = ALERT_BAND_H, iconH = 9, edge = 4, size = 8.5;
+        var iconW = iconH * glyph.w / glyph.h;
+        var groupW = iconW + (label ? 3 + labelAdvance(label, size) : 0);
+        var groupX = side === 'left' ? edge : 200 - edge - groupW;
+        var band = rect(0, 0, 200, bandH, ink.bg);
+        band += rainIcon(glyph, groupX, (bandH - iconH) / 2, iconH, ink.fg);
+        if (label) {
+            band += txt(groupX + iconW + 3, bandH / 2 + 3, size, ink.fg, 'start', 700, label);
+        }
+        band += '<line x1="0" y1="' + bandH + '" x2="200" y2="' + bandH + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
+        return svgFrame(band + '<g transform="translate(0,' + bandH + ')">' + e + '</g>', frameH + bandH);
+    }
+
+    PConf.blocks.register('radarPreview', radarPreview);
+
+    var api = { radarPreview: radarPreview, legend: radarLegend, boltGlyph: boltGlyph, skyLevel: skyLevel };
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = api;
+    }
+    // Add a screen's legend (screen-legend.js) reads the legend.
+    if (typeof window !== 'undefined') { window.PreviewRadar = api; }
+})();

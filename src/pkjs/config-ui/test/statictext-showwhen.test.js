@@ -36,8 +36,8 @@ const SCHEMA = {
 };
 
 test('staticText with showWhen is hidden on color, shown on B/W; ungated staticText always shows', () => {
-  const colorHtml = renderScroll(SCHEMA, { color: true, round: false, platform: 'basalt' });
-  const bwHtml    = renderScroll(SCHEMA, { color: false, round: false, platform: 'aplite' });
+  const colorHtml = renderScroll(SCHEMA, { color: true, platform: 'basalt' });
+  const bwHtml    = renderScroll(SCHEMA, { color: false, platform: 'aplite' });
   assert.equal(colorHtml.indexOf('BWONLY'), -1, 'gated note hidden on color watch');
   assert.ok(bwHtml.indexOf('BWONLY') >= 0, 'gated note shown on B/W watch');
   assert.ok(colorHtml.indexOf('ALWAYS') >= 0 && bwHtml.indexOf('ALWAYS') >= 0, 'ungated note always shown');

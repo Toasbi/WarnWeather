@@ -125,7 +125,7 @@ def watch_fonts():
           "out[k] = { family: f.family, height: f.height,"
           "css: rules.filter(r => r.includes('font-family:' + f.family + ';')).join('') }; }"
           "process.stdout.write(JSON.stringify(out));")
-    path = os.path.join(ROOT, 'src', 'pkjs', 'settings', 'watch-fonts.generated.js')
+    path = os.path.join(ROOT, 'src', 'pkjs', 'page', 'layout', 'watch-fonts.generated.js')
     return json.loads(subprocess.check_output(['node', '-e', js, path]))
 
 

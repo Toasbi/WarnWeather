@@ -110,7 +110,7 @@ bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
 }
 
 // The compiled On demand defaults: the Watch Status Bar's cells as the phone's
-// defaults (src/pkjs/on-demand.js DEFAULTS) write them for a fresh install — left
+// defaults (src/pkjs/status-bars/domain/on-demand.js DEFAULTS) write them for a fresh install — left
 // Bluetooth, Quiet time, Sleep, Rain; right Battery, Wind gusts, UV index, Air
 // quality, Wind speed; Pollen on no side. Every other bar has no item. The Watch
 // Status Bar's cell is bits 0-1, so each side is its item's whole cell byte: these

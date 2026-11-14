@@ -1,7 +1,7 @@
 'use strict';
 
 // Open-Meteo (https://open-meteo.com): keyless and worldwide. Two requests per place, with the same
-// model choices the WarnWeather watchface makes (src/pkjs/weather/openmeteo.js), so the two agree:
+// model choices the WarnWeather watchface makes (src/pkjs/weather/adapter/providers/openmeteo.js), so the two agree:
 //
 // - the forecast pins ECMWF IFS 0.25° (models=ecmwf_ifs025). The default best_match blends models
 //   and takes the chance of rain from a different one than the amount, so a 90% hour often comes

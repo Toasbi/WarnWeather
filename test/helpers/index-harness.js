@@ -245,7 +245,7 @@ function bootIndex(t, opts) {
     const devConfigPath = require.resolve(PKJS_DIR + 'dev-config.js');
     require.cache[devConfigPath] = { id: devConfigPath, filename: devConfigPath, loaded: true, exports: {} };
   } catch (e) { /* absent: getDevConfig() already falls back to {} */ }
-  const fixturePath = require.resolve(PKJS_DIR + 'active-fixture.generated.js');
+  const fixturePath = require.resolve(PKJS_DIR + 'weather/adapter/active-fixture.generated.js');
   require.cache[fixturePath] = { id: fixturePath, filename: fixturePath, loaded: true, exports: null };
 
   require(PKJS_DIR + 'index.js');
@@ -286,8 +286,8 @@ function bootIndex(t, opts) {
      * the config page returns them (colours as hex).
      */
     saveSettings(over) {
-      const cfgUi = require(PKJS_DIR + 'settings/index.js');
-      const color = require(PKJS_DIR + 'config-ui/lib/color.js');
+      const cfgUi = require(PKJS_DIR + 'page/settings/index.js');
+      const color = require(PKJS_DIR + 'lib/color.js');
       const blob = Object.assign(JSON.parse(store['clay-settings']), over || {});
       Object.keys(blob).forEach((k) => {
         if (cfgUi.isColorKey(k) && typeof blob[k] === 'number') { blob[k] = color.intToHex(blob[k]); }

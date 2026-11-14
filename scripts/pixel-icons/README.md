@@ -185,5 +185,5 @@ them as a size of their own. Every other icon is text only on those watches.
   committed; their licences are in `THIRD_PARTY.md`.
 
 `build_editor.py` needs node (the watch fonts, read from
-`src/pkjs/settings/watch-fonts.generated.js`), npm and `svg.path` (`pip install svg.path`, as
+`src/pkjs/page/layout/watch-fonts.generated.js`), npm and `svg.path` (`pip install svg.path`, as
 `scripts/svg2pdc.py` does).

@@ -6,7 +6,7 @@
 //   1. the on-flash slot number (58): persist.c's `enum key` is append-only
 //      because its values ARE the storage slots; the retired RADAR_LIMITED bool
 //      (56) is never read nor written again;
-//   2. the change gating (AGENTS.md: "only write persist when the value actually
+//   2. the change gating (AGENTS.md: "Write persist only when the value
 //      changed"): a repeat of the same text costs no flash write and reports
 //      false, so handle_rain_radar marks nothing dirty;
 //   3. no notice is the ABSENT slot: the first window on an install that never had

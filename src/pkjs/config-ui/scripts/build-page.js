@@ -4,8 +4,9 @@ var path = require('path');
 var inlineScriptJson = require('../index.js').inlineScriptJson;
 var LIB = path.join(__dirname, '..', 'lib');
 // ui.js (the shared parts) reads html.js's esc while its body runs and engine.js reads PConf.ui
-// while its own runs, so it sits between them.
-var LIB_PAGE_FILES = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'ui.js', 'date-picker.js', 'range-control.js',
+// while its own runs, so it sits between them. color.js is the phone app's shared library
+// (src/pkjs/lib), which the engine uses as PConf.color.
+var LIB_PAGE_FILES = ['schema-walk.js', '../../lib/color.js', 'show-when.js', 'html.js', 'ui.js', 'date-picker.js', 'range-control.js',
   'rgb-control.js', 'checklist.js', 'links.js', 'engine.js'];
 
 /**
@@ -22,7 +23,7 @@ var LIB_PAGE_FILES = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', '
  *    kept verbatim, since its leading blanks are part of the string;
  *  - removing whole lines keeps a line break between the code on either side, so
  *    automatic semicolon insertion sees the same breaks.
- * test/config-page-strip.test.js proves every shipped file tokenizes identically,
+ * test/page/settings/config-page-strip.test.js proves every shipped file tokenizes identically,
  * line breaks included, before and after.
  *
  * @param {string} src JavaScript source.

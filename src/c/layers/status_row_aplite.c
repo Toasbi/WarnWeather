@@ -60,8 +60,9 @@ static char s_text_scratch[STATUS_TEXT_MID_MAX + 1];
 
 // Seat this row's line in its band. Ported from status_row.c: every row cap-centres EXCEPT
 // the top strip, which rides STATUS_TOP_STRIP_LIFT rows higher inside an unchanged band
-// (its top edge is the screen edge, so only the gap below it is visible). One seat plus a
-// conditional subtract, not a choice between two inline seaters — see the base file.
+// (its top edge is the screen edge, so only the gap below it is visible). One seat, minus
+// STATUS_TOP_STRIP_LIFT for the strip: a single measure-and-seat body, which keeps the image
+// small (two inline seaters would duplicate it).
 static int row_text_y(const StatusRow *row, GFont font) {
     int y = status_text_y(row->bounds.size.h, font);
     return (row->line_id == STATUS_LINE_TOP) ? y - STATUS_TOP_STRIP_LIFT : y;

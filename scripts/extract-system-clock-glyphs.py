@@ -8,7 +8,7 @@ only inside the firmware, so this script reads them out of the SDK's QEMU flash
 image, where the firmware keeps them in its system resource pack, and writes their
 digits and colon to scripts/clock-glyphs-system.json (committed). The settings
 page's watch preview draws its clock with them (scripts/gen-clock-glyphs-page.js
-bakes the JSON into src/pkjs/settings/clock-glyphs.generated.js).
+bakes the JSON into src/pkjs/page/layout/clock-glyphs.generated.js).
 
 Each font is a Pebble font resource, read by pebble_font_resource.py (shared with
 extract-system-text-fonts.py).

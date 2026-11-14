@@ -5,7 +5,7 @@ const path = require('path');
 const { FixtureError, normalizeWeather } = require('./lib/fixture-time');
 
 const fixtureName = (process.env.FIXTURE || '').trim();
-const outputPath = path.join('src', 'pkjs', 'active-fixture.generated.js');
+const outputPath = path.join('src', 'pkjs', 'weather', 'adapter', 'active-fixture.generated.js');
 
 function fail(message) {
   console.error(message);

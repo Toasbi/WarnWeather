@@ -3,7 +3,7 @@
 
 // Dumps the long span's whole hours (appendix/forecast_span.h forecast_span_whole) for
 // scripts/check-forecast-span-lockstep.js, which checks each count against the settings
-// page's label rule (src/pkjs/forecast-span-hours.js wholeHours): every feed the long class
+// page's label rule (src/pkjs/weather/domain/forecast-span-hours.js wholeHours): every feed the long class
 // lays out (FORECAST_SPAN_DAY_SENT + 1 .. FORECAST_MAX_ENTRIES hours: OWM's 48, WU's 49, a
 // full 68) on every plot width W_MIN .. W_MAX (the narrowest plot past any label strip the
 // watch measures, graph_left 53, to the whole screen). Built with -DPBL_PLATFORM_EMERY, the
