@@ -52,6 +52,8 @@ if (typeof require !== 'undefined') {
     var conditionPixels = (typeof require !== 'undefined')
         ? require('./condition-pixels.generated.js') : (window.ConditionPixels || {});
     var PixelIcon = (typeof require !== 'undefined') ? require('./pixel-icon.js') : window.PixelIcon;
+    // The weather condition slot's vocabulary, for its list of every condition.
+    var conditionLib = (typeof require !== 'undefined') ? require('../weather/condition.js') : window.Condition;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
     // the same module the watch's wire is packed from, so the row badges below preview
     // exactly what the graph draws. Same dual-context rule as the preview blocks:
@@ -1083,17 +1085,37 @@ if (typeof require !== 'undefined') {
     }
 
     /**
+     * Every condition the weather condition slot shows (weather/condition.js), a row each: the
+     * name and short form, and the glyphs as pixel icon keys (condition-pixels.generated.js), the
+     * night's beside the day's where it differs. The clear sky's night has its own names (Clear,
+     * CLR), so its own row.
+     * @returns {!Array<{full: string, short: string, icons: !Array<string>, night: boolean}>}
+     */
+    function conditionRows() {
+        var key = function (glyph) { return glyph.replace(/^COND_/, ''); };
+        var rows = [];
+        Object.keys(conditionLib.CONDITIONS).forEach(function (id) {
+            var c = conditionLib.CONDITIONS[id];
+            if (c.night) {
+                rows.push({full: c.day[0], short: c.day[1], icons: [key(c.glyph[0])], night: false});
+                rows.push({full: c.night[0], short: c.night[1], icons: [key(c.glyph[c.glyph.length - 1])], night: true});
+                return;
+            }
+            rows.push({full: c.day[0], short: c.day[1], icons: c.glyph.map(key), night: false});
+        });
+        return rows;
+    }
+
+    /**
      * The weather condition slot dialog's list of every condition (its staticText's textFrom):
      * the icon the watch draws (the night's beside the day's where it differs), the full name and
-     * the short form the slot switches to, one row each.
+     * the short form the slot switches to, one row each (conditionRows).
      * @param {Object} S Live settings state (unused).
      * @param {Object} env Platform env (unused).
-     * @param {{rows: !Array<{full: string, short: string, icons: !Array<string>, night: boolean}>}} args
-     *     The conditions (schema.js conditionRows).
      * @returns {string} HTML.
      */
-    function conditionList(S, env, args) {
-        var rows = (args && args.rows) || [];
+    function conditionList(S, env) {
+        var rows = conditionRows();
         var cell = 'padding:5px 10px 5px 0;vertical-align:middle;';
         var html = '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
             + '<tr style="font-size:12px;opacity:.7;text-align:left;"><th style="' + cell + 'font-weight:500;">Icon</th>'

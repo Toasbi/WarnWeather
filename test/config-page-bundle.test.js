@@ -103,6 +103,22 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
   });
 });
 
+// preview-status-bars.js binds window.Condition while its body runs (its sample's names), and
+// blocks.js' list of every condition reads it at render: out of order, or missing, the Status bars
+// tab throws on a real phone while Node (require()) passes.
+test('the weather condition vocabulary reaches the page ahead of the Status bars preview and blocks', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('weather/condition.js') < idx('settings/preview-status-bars.js'),
+    'condition.js must precede preview-status-bars.js');
+  assert.ok(idx('weather/condition.js') < idx('settings/blocks.js'), 'condition.js must precede blocks.js');
+  assert.ok(page().indexOf('window.Condition = api') !== -1, 'nothing assigns window.Condition');
+});
+
 // watch-layout.js binds VIEW_CYCLE while its body runs and preview-watch.js binds window.WatchLayout
 // while its own does: out of order, or missing, every picture of the watch throws on a real phone
 // while Node (require()) passes.

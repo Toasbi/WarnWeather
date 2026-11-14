@@ -2013,3 +2013,18 @@ test('forecastPreview: a Fahrenheit watch reads its noon sample in °F, temperat
   const dew = FC.forecastPreview({ temperatureUnits: 'f', secondaryLine: 'dew' }, { color: true });
   assert.ok(dew.indexOf('>57°<') > -1 && dew.indexOf('>54°<') === -1, 'the dew low (12 °C, 54°) is not labelled');
 });
+
+// The weather condition slot's list of every condition reads weather/condition.js itself, not a
+// copy in the schema: a row per condition, the clear sky's night a row of its own.
+test('the list of every condition has a row per condition, read from condition.js', () => {
+  const C = require('../src/pkjs/weather/condition.js');
+  const html = PConf.hintResolvers.get('conditionList')({}, {});
+  const conditions = Object.values(C.CONDITIONS);
+  const nights = conditions.filter((c) => c.night).length;
+  assert.equal(html.split('<tr style="border-top').length - 1, conditions.length + nights, 'a row each');
+  conditions.forEach((c) => {
+    assert.ok(html.includes('>' + c.day[0]), c.day[0] + ': its name');
+    assert.ok(html.includes('>' + c.day[1] + '</td>'), c.day[0] + ': its short form');
+  });
+  assert.ok(html.includes('>Clear <span style="opacity:.7;">(night)</span>'), 'the clear night its own row');
+});

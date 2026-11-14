@@ -157,6 +157,10 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/status-pair.js'),
   path.join(ROOT, 'src/pkjs/slot-text.js'),
   path.join(ROOT, 'src/pkjs/date-format.js'),
+  // The weather condition slot's vocabulary (window.Condition, a leaf): the Status bars tab's
+  // sample reads it while preview-status-bars.js' body runs, and blocks.js' list of every
+  // condition at render, so it precedes both — test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/weather/condition.js'),
   // The Status bars tab's pinned preview (reads StatusLineCatalog, OnDemand, VIEW_CYCLE,
   // PreviewSvg and the slot-text chain above at render).
   path.join(ROOT, 'src/pkjs/settings/preview-status-bars.js'),

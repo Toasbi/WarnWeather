@@ -9,8 +9,6 @@ var STATUS_LINE_CATALOG = require('../status-line-catalog.js');
 // marks and the custom separator's length, from the module that PRINTS them into the
 // slot text — so every option label is exactly what the watch will show.
 var STATUS_PAIR = require('../status-pair.js');
-// The weather condition slot's names and glyphs, for its dialog's list of every condition.
-var CONDITION = require('../weather/condition.js');
 // The graph-colour vocabulary: the storage key behind every picker, the roles each
 // metric actually owns, and the built-in colour each one defaults to. All of it comes
 // from line-style.js — the module that RESOLVES these keys for the watch's wire
@@ -694,27 +692,6 @@ function boldSection(title, keyStem, gate, extraItems, afterItems) {
     return sheetOf(keyStem, title, gateAll(items, gate));
 }
 
-/**
- * Every condition the weather condition slot shows (weather/condition.js), for its dialog's
- * list: the name and short form, and the glyphs as pixel icon keys (condition-pixels.generated.js),
- * the night's one beside the day's where it differs. The clear sky's night has its own names
- * (Clear, CLR), so its own row.
- * @returns {!Array<{full: string, short: string, icons: !Array<string>, night: boolean}>}
- */
-function conditionRows() {
-    var key = function (glyph) { return glyph.replace(/^COND_/, ''); };
-    var rows = [];
-    Object.keys(CONDITION.CONDITIONS).forEach(function (id) {
-        var c = CONDITION.CONDITIONS[id];
-        if (c.night) {
-            rows.push({full: c.day[0], short: c.day[1], icons: [key(c.glyph[0])], night: false});
-            rows.push({full: c.night[0], short: c.night[1], icons: [key(c.glyph[c.glyph.length - 1])], night: true});
-            return;
-        }
-        rows.push({full: c.day[0], short: c.day[1], icons: c.glyph.map(key), night: false});
-    });
-    return rows;
-}
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
 var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
 // Bar color hint depends on the selected mode (hintByValue): Multicolor shows the swatches; White doesn't.
@@ -2192,7 +2169,7 @@ module.exports = {
             // Every condition the slot shows, with its icon, full name and short form, as a
             // reference card under the settings (blocks.js conditionList draws it).
             type: 'staticText',
-            textFrom: {resolver: 'conditionList', args: {rows: conditionRows()}}
+            textFrom: {resolver: 'conditionList'}
         }])
         ].map(function (sec) {
             // Every slot dialog keeps the bars pinned above its rows: the bar it was opened

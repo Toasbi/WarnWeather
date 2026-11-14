@@ -34,6 +34,7 @@
     var esc = NODE ? require('../config-ui/lib/html.js').esc : PConf.html.esc;
     var previewInk = (NODE ? require('./preview-svg.js') : window.PreviewSvg).previewInk;
     var slotText = NODE ? require('../slot-text.js') : window.SlotText;
+    var condition = NODE ? require('../weather/condition.js') : window.Condition;
     var utf8 = NODE ? require('../utf8.js') : window.Utf8;
     var dateFormat = NODE ? require('../date-format.js') : window.DateFormat;
     var VC = NODE ? require('../view-cycle.js') : VIEW_CYCLE;
@@ -57,8 +58,8 @@
         tempF: 64.4,
         feelsF: 60.8,
         dewF: 48.2,
-        // A partly cloudy afternoon (weather/condition.js names('partly')).
-        condition: {full: 'Partly cloudy', short: 'PCLDY'},
+        // A partly cloudy afternoon.
+        condition: condition.names('partly', false),
         uv: [3, 7],
         aqi: [42, 58],
         wind: {kph: [12, 30], mph: [7, 19], knots: [6, 16]},
