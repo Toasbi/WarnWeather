@@ -612,7 +612,7 @@ function buildStatusLines(payload, settings, watchInfo) {
 /**
  * Every weather-payload key this module's bake actually READS — formatValue's
  * per-code arms plus directionSentinel — and, by inclusion, the only ones
- * status-wire's packWeatherLevels and bakeAlerts need (their displayValue /
+ * status-wire's packWeatherLevels and bakedAlerts need (their displayValue /
  * dayMaxToday / dayMaxTomorrow read a subset: the day-max trends and peaks,
  * POLLEN_TODAY — plus POLLEN_TOMORROW, which only the alerts read).
  * STATUS_LINE_n_UINT8, STATUS_LEVELS_UINT8 and ALERT_ENTRIES_UINT8 are
@@ -637,7 +637,7 @@ var SOURCE_KEYS = [
   'DEW_TREND',
   'POLLEN_TODAY',
   // Tomorrow's pollen band: read only by the pollen alert's look-ahead
-  // (status-wire bakeAlerts), never by a slot.
+  // (status-wire bakedAlerts), never by a slot.
   'POLLEN_TOMORROW'
   // ...plus the day-max kinds' trends and *_DAY_PEAKS, read through wire-units'
   // dayMaxShown (UV, wind, gusts, AQI).

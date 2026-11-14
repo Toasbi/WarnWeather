@@ -100,7 +100,7 @@ function forecastLine() {
 }
 
 function basaltEnv() {
-  return { color: true, round: false, platform: 'basalt', health: true, radar: true };
+  return { color: true, platform: 'basalt', health: true, radar: true };
 }
 
 function decodeMidText(bytes) {
@@ -1353,11 +1353,11 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
 
 // ── the weather alerts' entries (ALERT_ENTRIES_UINT8) ────────────────────────
 const wire = require('../src/pkjs/status-wire.js');
-const { decodeAlerts } = require('./helpers/alert-entries.js');
+const { decodeAlerts, packedAlerts } = require('./helpers/alert-entries.js');
 //
 // The weather alerts are On demand items, not slot items: their metric entries ride
 // their own weather tuple, baked by buildStatusLines through status-wire's
-// bakeAlerts under the 20-B cap the watch's inbox budgets for.
+// bakedAlerts and packAlerts under the 20-B cap the watch's inbox budgets for.
 
 // UV 8 (danger on the seed 6/8), wind 45 km/h (warn on 40/60), gusts 90 (danger),
 // AQI 152 (danger on the US 100/150).
@@ -1386,13 +1386,13 @@ test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, with their 
   // UV danger (header bit 7 | kind 7 | danger bit 3), wind warn (kind 2), both
   // today's; the Icon Look: no value bytes.
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08, 0x80 | 2]);
-  assert.deepEqual(p.ALERT_ENTRIES_UINT8, wire.bakeAlerts(alertPayload(), s));
+  assert.deepEqual(p.ALERT_ENTRIES_UINT8, packedAlerts(alertPayload(), s));
   // The Looks absent: Icon + value, the default — UV's "8" and wind's "45" follow.
   const dflt = alertPayload();
   const d = baseSettings(placedOnly(['uv', 'wind']));
   statusLines.buildStatusLines(dflt, d, WATCH_BASALT);
   assert.deepEqual(dflt.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08, 0x38, 0x80 | 2, 0x34, 0x35]);
-  assert.deepEqual(dflt.ALERT_ENTRIES_UINT8, wire.bakeAlerts(alertPayload(), d));
+  assert.deepEqual(dflt.ALERT_ENTRIES_UINT8, packedAlerts(alertPayload(), d));
 });
 
 test('buildStatusLines: all four with values fit the tuple, in the On demand order', () => {

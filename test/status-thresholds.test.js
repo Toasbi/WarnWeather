@@ -6,7 +6,7 @@ const th = require('../src/pkjs/status-thresholds.js');
 const wire = require('../src/pkjs/status-wire.js');
 const statusLines = require('../src/pkjs/status-lines.js');
 const { packedLevel, judged } = require('./helpers/weather-levels.js');
-const { decodeAlerts: decodeEntries } = require('./helpers/alert-entries.js');
+const { decodeAlerts: decodeEntries, packedAlerts } = require('./helpers/alert-entries.js');
 
 test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.code),
@@ -357,7 +357,7 @@ test('packWeatherLevels: tomorrow\'s marked peak never counts until it is today\
   assert.deepEqual(wire.packWeatherLevels(falling, both), [0, 0]);
   assert.deepEqual(wire.packWeatherLevels(falling, max), [0, 0]);
   const alertTomorrow = placedOnly(['uv'], { alertUvDays: 'tomorrow' });
-  assert.equal(decodeEntries(wire.bakeAlerts(falling, Object.assign({}, max, alertTomorrow)))[0].level, 1,
+  assert.equal(decodeEntries(packedAlerts(falling, Object.assign({}, max, alertTomorrow)))[0].level, 1,
     'the alert icon still warns about tomorrow\'s 7');
   // Next morning the same peak is TODAY's (unmarked) and counts: "2/9" is danger.
   const morning = { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [90, 60] };

@@ -41,4 +41,16 @@ function decodeAlerts(bytes) {
   return out;
 }
 
-module.exports = { decodeAlerts };
+/**
+ * The ALERT_ENTRIES_UINT8 bytes the bake sends, on the path buildStatusLines takes
+ * (status-lines.js): status-wire's bakedAlerts list, packed by packAlerts.
+ * @param {Object} payload weather payload (pre-transform, trends present)
+ * @param {Object} settings Clay settings blob
+ * @param {?Object} [env] platform env; omitted = a watch with every bar
+ * @returns {number[]} the entry bytes, [] when nothing is alerting
+ */
+function packedAlerts(payload, settings, env) {
+  return wire.packAlerts(wire.bakedAlerts(payload, settings, env));
+}
+
+module.exports = { decodeAlerts, packedAlerts };

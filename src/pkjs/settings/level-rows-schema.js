@@ -196,7 +196,7 @@ function nextDayMarkOptions() {
 function levelLead(keyStem, voice, hint, gate) {
     // The slider is ALWAYS live: the warn level is not the highlight's alone — a
     // weather kind's alert icon shows from it whether or not the slot is coloured
-    // (status-wire bakeAlerts), so it must stay editable with the switch off.
+    // (status-wire bakedAlerts), so it must stay editable with the switch off.
     // For a GOAL kind the highlight-only rows below (warn look + color pickers) go
     // VISIBLE but disabled (muted, inert — the sheet shows what turning it on
     // offers) while its switch is off. A weather

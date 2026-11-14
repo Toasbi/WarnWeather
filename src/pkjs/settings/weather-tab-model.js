@@ -392,14 +392,6 @@
     }
 
     /**
-     * @param {Object} settings Live settings.
-     * @returns {string} '°C' | '°F'.
-     */
-    function tempUnitLabel(settings) {
-        return (settings && settings.temperatureUnits === 'f') ? '°F' : '°C';
-    }
-
-    /**
      * @param {number} kmh Speed in km/h.
      * @param {Object} settings Live settings (windUnits 'kph'|'mph'|'knots').
      * @returns {number} Display speed.
@@ -720,7 +712,6 @@
         serializeSlot: serializeSlot,
         activeLocation: activeLocation,
         displayTemp: displayTemp,
-        tempUnitLabel: tempUnitLabel,
         displayWind: displayWind,
         windUnitLabel: windUnitLabel,
         humidityFromDewPoint: humidityFromDewPoint,

@@ -2,7 +2,7 @@
 // The weather alerts and the On demand bytes the phone sends: the settings blob's
 // rain-look, Battery and cell bytes (status-wire.js buildSettingsBlob), which alerts
 // are on and how each reads (status-thresholds.js enabledAlerts and friends), and the
-// alerts' metric entries (ALERT_ENTRIES_UINT8, status-wire.js bakeAlerts): what each
+// alerts' metric entries (ALERT_ENTRIES_UINT8, status-wire.js packAlerts): what each
 // alert judges (the day, not the slot), the entry bytes and their order and cap, and
 // looking ahead to tomorrow.
 const test = require('node:test');
@@ -12,7 +12,7 @@ const th = require('../src/pkjs/status-thresholds.js');
 const wire = require('../src/pkjs/status-wire.js');
 const statusLines = require('../src/pkjs/status-lines.js');
 const { packedLevel } = require('./helpers/weather-levels.js');
-const { decodeAlerts: decodeEntries } = require('./helpers/alert-entries.js');
+const { decodeAlerts: decodeEntries, packedAlerts } = require('./helpers/alert-entries.js');
 
 // --- the settings blob's alert, Battery and On demand bytes --------------------
 
@@ -241,10 +241,10 @@ test('rainAlert: owns the rain defaults — the text look, a 60 min window, repl
     assert.equal(th.rainAlert({ rainCountdownHorizon: v }).horizonMin, 60, String(v)));
 });
 
-// --- the metric entries (ALERT_ENTRIES_UINT8, status-wire.js bakeAlerts) ---------
+// --- the metric entries (ALERT_ENTRIES_UINT8, status-wire.js packAlerts) ---------
 
 /**
- * The value text of the one entry bakeAlerts makes for `code` with its alert on,
+ * The value text of the one entry the bake makes for `code` with its alert on,
  * its Look 'value' and a pair every reading crosses (warn 0) — so the entry is
  * there exactly when the alert has a reading, and prints it.
  * @param {string} code An ALERT_KINDS code.
@@ -254,7 +254,7 @@ test('rainAlert: owns the rain defaults — the text look, a 60 min window, repl
  */
 function alertText(code, payload, settings) {
   const key = th.ALERT_KINDS.find((a) => a.code === code).key;
-  const e = decodeAlerts(wire.bakeAlerts(payload, Object.assign({}, settings, placedOnly([code]), {
+  const e = decodeAlerts(packedAlerts(payload, Object.assign({}, settings, placedOnly([code]), {
     ['alert' + key + 'Display']: 'value',
     ['thresh' + key + 'Warn']: '0', ['thresh' + key + 'Danger']: '1000000'
   })));
@@ -262,7 +262,7 @@ function alertText(code, payload, settings) {
 }
 
 /**
- * The level of the entry bakeAlerts makes for `code` with its alert placed (and no
+ * The level of the entry the bake makes for `code` with its alert placed (and no
  * other).
  * @param {string} code An ALERT_KINDS code.
  * @param {Object} payload
@@ -272,7 +272,7 @@ function alertText(code, payload, settings) {
 function alertLevelOf(code, payload, settings) {
   const key = th.ALERT_KINDS.find((a) => a.code === code).key;
   assert.ok(key, code + ' is an alert');
-  const e = decodeAlerts(wire.bakeAlerts(payload, Object.assign(placedOnly([code]), settings)));
+  const e = decodeAlerts(packedAlerts(payload, Object.assign(placedOnly([code]), settings)));
   return e.length ? e[0].level : 0;
 }
 
@@ -321,7 +321,7 @@ test('an alert falls back to the current reading: no peaks, WAQI AQI, pollen', (
   assert.equal(alertText('pollen', { POLLEN_TODAY: 'n/a' }, {}), null, 'no known band');
   // No reading: no entry. And no alert for a kind outside ALERT_KINDS.
   assert.equal(alertText('uv', {}, {}), null);
-  assert.deepEqual(wire.bakeAlerts({ CURRENT_TEMP: 70 }, { alertTemp: true, alertSteps: true }), []);
+  assert.deepEqual(packedAlerts({ CURRENT_TEMP: 70 }, { alertTemp: true, alertSteps: true }), []);
 });
 
 test('an alert levels its reading on the resolved pair (seeds when blank)', () => {
@@ -340,7 +340,7 @@ test('an alert levels its reading on the resolved pair (seeds when blank)', () =
 });
 
 /**
- * Decode a bakeAlerts byte array into {kind, level, value} entries, plus `mark`
+ * Decode a packed ALERT_ENTRIES_UINT8 byte array into {kind, level, value} entries, plus `mark`
  * (its ALERT_NEXT_DAY_MARKS key) on a tomorrow entry only — so a today entry
  * reads exactly {kind, level, value}.
  * @param {number[]} bytes
@@ -364,87 +364,87 @@ const ALL_ALERTING = {
   POLLEN_TODAY: '2'
 };
 
-test('bakeAlerts: the exact bytes for a UV-danger + wind-warn row', () => {
+test('packAlerts: the exact bytes for a UV-danger + wind-warn row', () => {
   const p = { UV_TREND_UINT8: [30], UV_DAY_PEAKS: [85, 50, 0],
     WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 20, 0] };
   // Icons only: one header byte each (bit 7). UV = kind 7, danger (bit 3); wind =
   // kind 2, warn (bit 3 clear); both today's (day bits 4-6 zero).
   const icons = { alertUvDisplay: 'icon', alertWindDisplay: 'icon' };
-  assert.deepEqual(wire.bakeAlerts(p, on(['uv', 'wind'], icons)),
+  assert.deepEqual(packedAlerts(p, on(['uv', 'wind'], icons)),
     [0x80 | 7 | 0x08, 0x80 | 2]);
-  assert.deepEqual(wire.bakeAlerts(p, on(['uv', 'wind'], icons)), [0x8F, 0x82]);
+  assert.deepEqual(packedAlerts(p, on(['uv', 'wind'], icons)), [0x8F, 0x82]);
   // UV with its value ("9" — 8.5 rounds like the slot prints it), wind icon-only:
   // the value needs no length, it runs to the next header.
-  assert.deepEqual(wire.bakeAlerts(p, on(['uv', 'wind'], { alertUvDisplay: 'value', alertWindDisplay: 'icon' })),
+  assert.deepEqual(packedAlerts(p, on(['uv', 'wind'], { alertUvDisplay: 'value', alertWindDisplay: 'icon' })),
     [0x8F, 0x39, 0x82]);
   // Looks absent: both print their value, the default.
-  assert.deepEqual(wire.bakeAlerts(p, on(['uv', 'wind'])), [0x8F, 0x39, 0x82, 0x34, 0x35]);
+  assert.deepEqual(packedAlerts(p, on(['uv', 'wind'])), [0x8F, 0x39, 0x82, 0x34, 0x35]);
   // Both with values: wind in the user's unit, no unit label.
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(p, on(['uv', 'wind'], { alertUvDisplay: 'value',
+  assert.deepEqual(decodeAlerts(packedAlerts(p, on(['uv', 'wind'], { alertUvDisplay: 'value',
     alertWindDisplay: 'value', windUnits: 'mph' }))),
   [{ kind: 7, level: 2, value: '9' }, { kind: 2, level: 1, value: '28' }],
   'mph: 45 km/h = 28 mph, at the mph seed warn 25');
 });
 
-test('bakeAlerts: the On demand order gust, UV, AQI, pollen, wind; unplaced and quiet kinds absent', () => {
-  const all = decodeAlerts(wire.bakeAlerts(ALL_ALERTING, Object.assign({ provider: 'dwd' }, ALL_ON, ICON_LOOKS)));
+test('packAlerts: the On demand order gust, UV, AQI, pollen, wind; unplaced and quiet kinds absent', () => {
+  const all = decodeAlerts(packedAlerts(ALL_ALERTING, Object.assign({ provider: 'dwd' }, ALL_ON, ICON_LOOKS)));
   assert.deepEqual(all.map(e => e.kind), [3, 7, 0, 1, 2], 'gust, UV, AQI, pollen, wind');
   assert.deepEqual(all.map(e => e.level), [2, 2, 2, 1, 1]);
   assert.deepEqual(all.map(e => e.value), ['', '', '', '', ''], 'icon Look: no values');
   // An unplaced alert is absent even at danger: ticked on no side, or on a bar that
   // does not exist, it shows nowhere.
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(ALL_ALERTING, on(['gust']))).map(e => e.kind), [3]);
+  assert.deepEqual(decodeAlerts(packedAlerts(ALL_ALERTING, on(['gust']))).map(e => e.kind), [3]);
   const noRadarBar = placeOn(on(['gust'], { radarMode: 'off' }), 'radar', 'right', 'uv');
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(ALL_ALERTING, noRadarBar)).map(e => e.kind), [3]);
+  assert.deepEqual(decodeAlerts(packedAlerts(ALL_ALERTING, noRadarBar)).map(e => e.kind), [3]);
   // Placed on any bar counts, the Watch Status Bar or not.
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(ALL_ALERTING,
+  assert.deepEqual(decodeAlerts(packedAlerts(ALL_ALERTING,
     placeOn(on([]), 'forecast', 'right', 'aqi'))).map(e => e.kind), [0]);
   // Level 0 (below warn) is absent.
   const calm = { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 20, 0], WIND_TREND_UINT8: [45] };
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(calm, on(['uv', 'wind'])))
+  assert.deepEqual(decodeAlerts(packedAlerts(calm, on(['uv', 'wind'])))
     .map(e => e.kind), [2], 'UV 3 stays quiet, wind 45 warns');
   // A partial blob reads the default ticks: gust, UV, AQI and wind.
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(ALL_ALERTING, { provider: 'dwd' })).map(e => e.kind), [3, 7, 0, 2]);
+  assert.deepEqual(decodeAlerts(packedAlerts(ALL_ALERTING, { provider: 'dwd' })).map(e => e.kind), [3, 7, 0, 2]);
   // Nothing alerting, no settings, no payload: no bytes.
-  assert.deepEqual(wire.bakeAlerts(calm, on(['uv'])), []);
-  assert.deepEqual(wire.bakeAlerts(ALL_ALERTING, null), []);
-  assert.deepEqual(wire.bakeAlerts(null, ALL_ON), []);
+  assert.deepEqual(packedAlerts(calm, on(['uv'])), []);
+  assert.deepEqual(packedAlerts(ALL_ALERTING, null), []);
+  assert.deepEqual(packedAlerts(null, ALL_ON), []);
 });
 
-test('bakeAlerts: values only for the kinds whose Look is value, printed like the slot', () => {
+test('packAlerts: values only for the kinds whose Look is value, printed like the slot', () => {
   const s = Object.assign({}, ALL_ON, {
     alertUvDisplay: 'value', alertWindDisplay: 'icon', alertGustDisplay: 'value',
     alertAqiDisplay: 'value', alertPollenDisplay: 'value'
   });
-  const e = decodeAlerts(wire.bakeAlerts(ALL_ALERTING, s));
+  const e = decodeAlerts(packedAlerts(ALL_ALERTING, s));
   assert.deepEqual(e.map(x => x.value), ['90', '8', '152', '2', '']);
   // Pollen prints its DWD band, as the pollen slot does.
-  const half = decodeAlerts(wire.bakeAlerts({ POLLEN_TODAY: '2-3' },
+  const half = decodeAlerts(packedAlerts({ POLLEN_TODAY: '2-3' },
     on(['pollen'], { alertPollenDisplay: 'value' })));
   assert.deepEqual(half, [{ kind: 1, level: 1, value: '2-3' }]);
   // Every value byte is printable ASCII (the watch's walker rejects anything else,
   // and a byte with bit 7 would read as a header): decodeEntries asserts both.
-  assert.equal(decodeEntries(wire.bakeAlerts(ALL_ALERTING, s)).length, 5);
+  assert.equal(decodeEntries(packedAlerts(ALL_ALERTING, s)).length, 5);
 });
 
-test('bakeAlerts: tail-drops entries past the 20 B cap, wind first', () => {
+test('packAlerts: tail-drops entries past the 20 B cap, wind first', () => {
   const values = Object.assign({}, ALL_ON, {
     alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
     alertAqiDisplay: 'value', alertPollenDisplay: 'value'
   });
   assert.equal(wire.ALERT_ENTRIES_MAX_BYTES, 20);
   // All five with values: 5 headers + "90" "8" "152" "2" "45" = 14 B.
-  const all = wire.bakeAlerts(ALL_ALERTING, values);
+  const all = packedAlerts(ALL_ALERTING, values);
   assert.equal(all.length, 14);
   assert.deepEqual(decodeAlerts(all).map(e => e.kind), [3, 7, 0, 1, 2]);
   // Only a value wider than any real one fills the tuple: a 7-digit AQI (the most an
   // entry prints) with pollen's '2-3' is 3 + 2 + 8 + 4 + 3 = 20 B — all five fit...
   const wide = Object.assign({}, ALL_ALERTING, { AQI_TREND: [1234567], POLLEN_TODAY: '2-3' });
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(wide, values)).map(e => e.value),
+  assert.deepEqual(decodeAlerts(packedAlerts(wide, values)).map(e => e.value),
     ['90', '8', '1234567', '2-3', '45']);
   // ...and a two-digit UV on top is 21 B: wind, the tail (the lowest priority), drops.
   const over = Object.assign({}, wide, { UV_TREND_UINT8: [120], UV_DAY_PEAKS: [120, 60, 0] });
-  const dropped = wire.bakeAlerts(over, values);
+  const dropped = packedAlerts(over, values);
   assert.equal(dropped.length, 18);
   assert.deepEqual(decodeAlerts(dropped).map(e => e.kind), [3, 7, 0, 1]);
   // The row stays a prefix of the order: the first entry that does not fit ends it,
@@ -456,23 +456,23 @@ test('bakeAlerts: tail-drops entries past the 20 B cap, wind first', () => {
   const prefix = Object.assign({}, ALL_ALERTING, {
     UV_TREND_UINT8: [12345670], UV_DAY_PEAKS: [12345670, 0, 0], AQI_TREND: [1234567], POLLEN_TODAY: '2-3'
   });
-  const stopped = wire.bakeAlerts(prefix, Object.assign({}, values, { alertWindDisplay: 'icon' }));
+  const stopped = packedAlerts(prefix, Object.assign({}, values, { alertWindDisplay: 'icon' }));
   assert.equal(stopped.length, 19);
   assert.deepEqual(decodeAlerts(stopped).map(e => e.kind), [3, 7, 0], 'pollen ends the row; wind is not taken');
   // A value past ALERT_LEN_MAX bytes rides as the icon alone.
   const huge = Object.assign({}, ALL_ALERTING, { AQI_TREND: [12345678] });
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(huge, values)).map(e => e.value),
+  assert.deepEqual(decodeAlerts(packedAlerts(huge, values)).map(e => e.value),
     ['90', '8', '', '2', '45']);
   // Icon-only: all five = 5 B.
-  assert.equal(wire.bakeAlerts(over, Object.assign({}, ALL_ON, ICON_LOOKS)).length, 5);
+  assert.equal(packedAlerts(over, Object.assign({}, ALL_ON, ICON_LOOKS)).length, 5);
 });
 
 test('the placed alerts ride in the On demand order, each entry under its wire kind id', () => {
   // An entry's kind id is its code's KINDS index, in ALERT_KINDS order.
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(ALL_ALERTING, ALL_ON)).map((e) => th.KINDS[e.kind].code),
+  assert.deepEqual(decodeAlerts(packedAlerts(ALL_ALERTING, ALL_ON)).map((e) => th.KINDS[e.kind].code),
     th.ALERT_KINDS.map((a) => a.code));
   // Only the placed ones, still in that order, and a value only where the Look asks.
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(ALL_ALERTING,
+  assert.deepEqual(decodeAlerts(packedAlerts(ALL_ALERTING,
     on(['pollen', 'uv'], { alertUvDisplay: 'value', alertAqiDisplay: 'value', alertPollenDisplay: 'icon' }))),
   [{ kind: 7, level: 2, value: '8' }, { kind: 1, level: 1, value: '' }]);
 });
@@ -518,9 +518,9 @@ test('look-ahead: the design timeline, UV on warn 6 / danger 8 with the value', 
     ['00:10, first fetch of the new day', uvDay(0, 9, 3, 0), uv(2, '9'), uv(2, '9')]
   ];
   rows.forEach(([name, p, today, ahead]) => {
-    assert.deepEqual(decodeAlerts(wire.bakeAlerts(p, todayOnly)), today, name + ' — Today');
-    assert.deepEqual(decodeAlerts(wire.bakeAlerts(p, both)), ahead, name + ' — Today + tomorrow');
-    assert.deepEqual(decodeAlerts(wire.bakeAlerts(p, Object.assign({ alertUvDays: 'tomorrow' }, both))),
+    assert.deepEqual(decodeAlerts(packedAlerts(p, todayOnly)), today, name + ' — Today');
+    assert.deepEqual(decodeAlerts(packedAlerts(p, both)), ahead, name + ' — Today + tomorrow');
+    assert.deepEqual(decodeAlerts(packedAlerts(p, Object.assign({ alertUvDays: 'tomorrow' }, both))),
       ahead, name + ' — stored Today + tomorrow reads as the default');
   });
 });
@@ -528,19 +528,19 @@ test('look-ahead: the design timeline, UV on warn 6 / danger 8 with the value', 
 test('look-ahead: wind in km/h (warn 40 / danger 60), and the building storm', () => {
   const s = on(['wind'], { alertWindDisplay: 'value' });
   const wind = (now, rest, tomorrow) => ({ WIND_TREND_UINT8: [now], WIND_DAY_PEAKS: [rest, tomorrow, 0] });
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(wind(45, 45, 70), s)),
+  assert.deepEqual(decodeAlerts(packedAlerts(wind(45, 45, 70), s)),
     [{ kind: 2, level: 1, value: '45' }], 'still 45 at 23:00: today\'s warn');
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(wind(30, 30, 70), s)),
+  assert.deepEqual(decodeAlerts(packedAlerts(wind(30, 30, 70), s)),
     [{ kind: 2, level: 2, value: '70', mark: 'raquo' }], 'dropped to 30, tomorrow 70: »70 danger');
   // Monday 10:00: 15 now, 35 at 23:00, 80 tomorrow — nothing left today warns, so
   // the gale is announced all Monday, not first at Tuesday's midnight fetch.
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(wind(15, 35, 80), s)),
+  assert.deepEqual(decodeAlerts(packedAlerts(wind(15, 35, 80), s)),
     [{ kind: 2, level: 2, value: '80', mark: 'raquo' }], 'the building storm');
   // Tomorrow in the user's unit, on that unit's pair: 70 km/h = 43 mph, danger on 25/40.
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(wind(30, 30, 70), Object.assign({ windUnits: 'mph' }, s))),
+  assert.deepEqual(decodeAlerts(packedAlerts(wind(30, 30, 70), Object.assign({ windUnits: 'mph' }, s))),
     [{ kind: 2, level: 2, value: '43', mark: 'raquo' }]);
   // Gusts read their own peaks.
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts({ GUST_TREND_UINT8: [20], GUST_DAY_PEAKS: [30, 65, 0] },
+  assert.deepEqual(decodeAlerts(packedAlerts({ GUST_TREND_UINT8: [20], GUST_DAY_PEAKS: [30, 65, 0] },
     on(['gust'], { alertGustDisplay: 'icon' }))), [{ kind: 3, level: 1, value: '', mark: 'raquo' }],
   'gust 65 vs the seed 65/90, icon only');
 });
@@ -548,84 +548,84 @@ test('look-ahead: wind in km/h (warn 40 / danger 60), and the building storm', (
 test('look-ahead: tomorrow must be known and above 0 — never a »0', () => {
   const s = on(['uv'], { alertUvDisplay: 'value', threshUvWarn: '0', threshUvDanger: '0' });
   // No current reading and no today's peak, so nothing today: tomorrow 0.4 prints 0.
-  assert.deepEqual(wire.bakeAlerts({ UV_DAY_PEAKS: [null, 4, 0] }, s), [], 'a 0 tomorrow on warn 0');
-  assert.deepEqual(wire.bakeAlerts({ UV_DAY_PEAKS: [null, 0, 0] }, s), []);
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts({ UV_DAY_PEAKS: [null, 5, 0] }, s)),
+  assert.deepEqual(packedAlerts({ UV_DAY_PEAKS: [null, 4, 0] }, s), [], 'a 0 tomorrow on warn 0');
+  assert.deepEqual(packedAlerts({ UV_DAY_PEAKS: [null, 0, 0] }, s), []);
+  assert.deepEqual(decodeAlerts(packedAlerts({ UV_DAY_PEAKS: [null, 5, 0] }, s)),
     [{ kind: 7, level: 2, value: '1', mark: 'raquo' }], 'guard: 0.5 prints 1, which counts');
   // Unknown tomorrow: absent, null, or no day peaks at all.
   const uvOn = on(['uv']);
-  assert.deepEqual(wire.bakeAlerts({ UV_TREND_UINT8: [20] }, uvOn), [], 'peaks not fetched');
-  assert.deepEqual(wire.bakeAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20, null, 0] }, uvOn), []);
-  assert.deepEqual(wire.bakeAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20] }, uvOn), []);
+  assert.deepEqual(packedAlerts({ UV_TREND_UINT8: [20] }, uvOn), [], 'peaks not fetched');
+  assert.deepEqual(packedAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20, null, 0] }, uvOn), []);
+  assert.deepEqual(packedAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20] }, uvOn), []);
 });
 
 test('look-ahead: AQI needs day peaks — Open-Meteo looks ahead, WAQI judges the reading', () => {
   const s = on(['aqi'], { alertAqiDisplay: 'value' });
   // WAQI (and Auto with a station) carries the current reading alone.
-  assert.deepEqual(wire.bakeAlerts({ AQI_TREND: [40] }, Object.assign({ aqiSource: 'waqi' }, s)), [],
+  assert.deepEqual(packedAlerts({ AQI_TREND: [40] }, Object.assign({ aqiSource: 'waqi' }, s)), [],
     'WAQI: nothing to look ahead to');
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts({ AQI_TREND: [152] }, Object.assign({ aqiSource: 'waqi' }, s))),
+  assert.deepEqual(decodeAlerts(packedAlerts({ AQI_TREND: [152] }, Object.assign({ aqiSource: 'waqi' }, s))),
     [{ kind: 0, level: 2, value: '152' }], 'WAQI: today\'s reading still alerts');
   // Open-Meteo's forecast has tomorrow's peak: US scale 100/150, European 60/80.
   const om = { AQI_TREND: [40], AQI_DAY_PEAKS: [50, 120, 0] };
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(om, Object.assign({ aqiSource: 'openmeteo', aqiScale: 'us' }, s))),
+  assert.deepEqual(decodeAlerts(packedAlerts(om, Object.assign({ aqiSource: 'openmeteo', aqiScale: 'us' }, s))),
     [{ kind: 0, level: 1, value: '120', mark: 'raquo' }]);
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(om, Object.assign({ aqiSource: 'openmeteo' }, s))),
+  assert.deepEqual(decodeAlerts(packedAlerts(om, Object.assign({ aqiSource: 'openmeteo' }, s))),
     [{ kind: 0, level: 2, value: '120', mark: 'raquo' }], 'European scale: 120 is past danger 80');
 });
 
 test('look-ahead: pollen judges tomorrow\'s DWD band (POLLEN_TOMORROW)', () => {
   const s = on(['pollen'], { alertPollenDisplay: 'value' });
   const pollen = (today, tomorrow) => ({ POLLEN_TODAY: today, POLLEN_TOMORROW: tomorrow });
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(pollen('1', '2-3'), s)),
+  assert.deepEqual(decodeAlerts(packedAlerts(pollen('1', '2-3'), s)),
     [{ kind: 1, level: 1, value: '2-3', mark: 'raquo' }], '2.5 on the seed 2/3: warn');
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(pollen('1', '3'), s)),
+  assert.deepEqual(decodeAlerts(packedAlerts(pollen('1', '3'), s)),
     [{ kind: 1, level: 2, value: '3', mark: 'raquo' }]);
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(pollen('2', '3'), s)),
+  assert.deepEqual(decodeAlerts(packedAlerts(pollen('2', '3'), s)),
     [{ kind: 1, level: 1, value: '2' }], 'today wins');
-  assert.deepEqual(wire.bakeAlerts(pollen('1', '1-2'), s), [], 'tomorrow below warn');
-  assert.deepEqual(wire.bakeAlerts(pollen('1', null), s), [], 'DWD has not issued tomorrow');
-  assert.deepEqual(wire.bakeAlerts(pollen(null, 'n/a'), s), [], 'no known band');
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(pollen('1', '0'), Object.assign({
+  assert.deepEqual(packedAlerts(pollen('1', '1-2'), s), [], 'tomorrow below warn');
+  assert.deepEqual(packedAlerts(pollen('1', null), s), [], 'DWD has not issued tomorrow');
+  assert.deepEqual(packedAlerts(pollen(null, 'n/a'), s), [], 'no known band');
+  assert.deepEqual(decodeAlerts(packedAlerts(pollen('1', '0'), Object.assign({
     threshPollenWarn: '0', threshPollenDanger: '0' }, s))), [{ kind: 1, level: 2, value: '1' }],
   'guard: on 0/0 today\'s 1 alerts, and today wins');
-  assert.deepEqual(wire.bakeAlerts({ POLLEN_TOMORROW: '0' }, Object.assign({
+  assert.deepEqual(packedAlerts({ POLLEN_TOMORROW: '0' }, Object.assign({
     threshPollenWarn: '0', threshPollenDanger: '0' }, s)), [], 'a 0 tomorrow never alerts');
-  assert.deepEqual(wire.bakeAlerts(pollen('1', '3'), Object.assign({ alertPollenDays: 'today' }, s)), [],
+  assert.deepEqual(packedAlerts(pollen('1', '3'), Object.assign({ alertPollenDays: 'today' }, s)), [],
     'Today only');
 });
 
 test('look-ahead: Days today, an alert that is not placed, and unknown Days', () => {
   const p = uvDay(5, 5, 9, 8);
-  assert.deepEqual(wire.bakeAlerts(p, on(['uv'], { alertUvDays: 'today' })), []);
-  assert.deepEqual(wire.bakeAlerts(p, on([])), [], 'unplaced: no entry, whatever tomorrow');
-  assert.deepEqual(wire.bakeAlerts(p, on([], { alertUvDays: 'tomorrow' })), [], 'Days alone places nothing');
+  assert.deepEqual(packedAlerts(p, on(['uv'], { alertUvDays: 'today' })), []);
+  assert.deepEqual(packedAlerts(p, on([])), [], 'unplaced: no entry, whatever tomorrow');
+  assert.deepEqual(packedAlerts(p, on([], { alertUvDays: 'tomorrow' })), [], 'Days alone places nothing');
   ['bogus', '', null, 1, 'constructor'].forEach((v) =>
-    assert.equal(decodeAlerts(wire.bakeAlerts(p, on(['uv'], { alertUvDays: v }))).length, 1,
+    assert.equal(decodeAlerts(packedAlerts(p, on(['uv'], { alertUvDays: v }))).length, 1,
       String(v) + ' reads as the default, Today + tomorrow'));
   // Per alert: one alert's Days never reaches another.
   const pair = Object.assign({}, p, { WIND_TREND_UINT8: [30], WIND_DAY_PEAKS: [30, 70, 0] });
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(pair, on(['uv', 'wind'], { alertUvDays: 'today' })))
+  assert.deepEqual(decodeAlerts(packedAlerts(pair, on(['uv', 'wind'], { alertUvDays: 'today' })))
     .map((e) => e.kind), [2]);
 });
 
 test('look-ahead: the tomorrow mark rides the header, per alert; today\'s entries carry none', () => {
   const p = uvDay(5, 5, 9, 8);
   th.ALERT_NEXT_DAY_MARKS.forEach((mark, i) => {
-    const bytes = wire.bakeAlerts(p, on(['uv'], { alertUvNextDayMark: mark, alertUvDisplay: 'icon' }));
+    const bytes = packedAlerts(p, on(['uv'], { alertUvNextDayMark: mark, alertUvDisplay: 'icon' }));
     assert.equal(bytes.length, 1, mark + ': no extra byte for the mark');
     assert.equal((bytes[0] >> wire.ALERT_DAY_SHIFT) & 7, i + 1, mark);
     assert.equal(decodeAlerts(bytes)[0].mark, mark);
   });
   [undefined, 'bogus', '»', 'toString', 3].forEach((v) =>
-    assert.equal(decodeAlerts(wire.bakeAlerts(p, on(['uv'], { alertUvNextDayMark: v })))[0].mark,
+    assert.equal(decodeAlerts(packedAlerts(p, on(['uv'], { alertUvNextDayMark: v })))[0].mark,
       'raquo', String(v) + ' reads as the default »'));
   // Today's entry is unmarked whatever the mark setting says.
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(uvDay(2, 8, 9, 0),
+  assert.deepEqual(decodeAlerts(packedAlerts(uvDay(2, 8, 9, 0),
     on(['uv'], { alertUvNextDayMark: 'star', alertUvDisplay: 'icon' }))), [{ kind: 7, level: 2, value: '' }]);
   // Each alert its own mark; the icon look carries the mark too.
   const both = Object.assign({}, p, { WIND_TREND_UINT8: [30], WIND_DAY_PEAKS: [30, 70, 0] });
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(both, on(['uv', 'wind'], { alertUvNextDayMark: 'none',
+  assert.deepEqual(decodeAlerts(packedAlerts(both, on(['uv', 'wind'], { alertUvNextDayMark: 'none',
     alertUvDisplay: 'icon', alertWindNextDayMark: 'star', alertWindDisplay: 'value' }))),
   [{ kind: 7, level: 2, value: '', mark: 'none' }, { kind: 2, level: 2, value: '70', mark: 'star' }]);
 });
@@ -642,7 +642,7 @@ test('look-ahead: all five tomorrow with their widest values still fit the 20 B 
     alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
     alertAqiDisplay: 'value', alertPollenDisplay: 'value', aqiSource: 'openmeteo', aqiScale: 'us',
     alertUvNextDayMark: 'star', alertAqiNextDayMark: 'none' });
-  const bytes = wire.bakeAlerts(p, s);
+  const bytes = packedAlerts(p, s);
   assert.equal(bytes.length, 19, '5 headers + "255" "11" "500" "2-3" "255"');
   assert.ok(bytes.length <= wire.ALERT_ENTRIES_MAX_BYTES);
   assert.deepEqual(decodeAlerts(bytes), [
@@ -655,5 +655,5 @@ test('look-ahead: all five tomorrow with their widest values still fit the 20 B 
   // Mixed days tail-drop by the same byte rule: a 7-digit AQI today pushes the
   // tail — wind's tomorrow entry — out, never a middle one.
   const wide = Object.assign({}, p, { AQI_TREND: [1234567], AQI_DAY_PEAKS: [1234567, 500, 0] });
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(wide, s)).map((e) => e.kind), [3, 7, 0, 1]);
+  assert.deepEqual(decodeAlerts(packedAlerts(wide, s)).map((e) => e.kind), [3, 7, 0, 1]);
 });

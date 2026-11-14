@@ -180,7 +180,7 @@ function dayMaxToday(code, payload, settings) {
  * TOMORROW's peak of a day-max kind, in the display unit: *_DAY_PEAKS[1] through
  * the kind's own reader, so it rounds exactly like the slot's "»8". What an alert
  * set to look ahead judges once nothing left today reaches its warn level
- * (status-wire's bakeAlerts), and what the slot's day max rolls to
+ * (status-wire's bakedAlerts), and what the slot's day max rolls to
  * (dayMaxShown) — one reading of tomorrow for both.
  *
  * A tomorrow that never prints above 0 has no peak: often a feed that writes an
