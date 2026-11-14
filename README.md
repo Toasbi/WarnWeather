@@ -70,7 +70,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * City slot: the weather fetch location with the current weather's icon before it; switch the icon off in its dialog (not on Pebble Classic/Steel)
 * Your status bars by name: besides the Watch bar, three status bars you fill and name as you like (Status bars tab › Your status bars, which also says which screens show each bar; tap a bar's name to rename it); put any of them on any screen, added by name in the screen's editor (not on Pebble Classic/Steel)
 * Up to six status bars on Pebble Time 2: *New status bar* makes an empty one for you to fill and name, so every screen can have two of its own; delete one and the screens that showed it drop it (Status bars tab › New status bar, or a screen's editor › + New status bar)
-* Selectable date format for the date slot — German/European, US, ISO, and spelled-out-month styles, chosen separately for screens with a calendar (month + year) and without one (full date)
+* Selectable date format for the date slot — German/European, US, ISO, and spelled-out-month styles, chosen separately for screens with a calendar (month + year, the year as two digits like `09.26`, or the month alone like `Sep`) and without one (full date)
 * Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
 * Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set (not on Pebble Classic/Steel)
 * Alerts at each status bar's edge (see **Alerts** above)

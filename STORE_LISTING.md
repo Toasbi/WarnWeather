@@ -61,7 +61,7 @@ STATUS LINES
       - sunrise/sunset
    - Date and location:
       - calendar week
-      - date (selectable formats: European, US, ISO and more)
+      - date (selectable formats: European, US, ISO, the month alone and more)
       - weather fetch location, with the current weather's icon
       - countdown to any date
    - Health:
