@@ -3,11 +3,14 @@
 // default). With the Pebble app's permissions preview on (Settings › Plugins, to be on for everyone
 // in a later release), a version 2 app's PebbleKit JS and settings page reach only the domains its
 // Internet entries list, each covering its subdomains, and the app asks before anything else it
-// declares (Location, ShowNotifications). Since app 1.18.0.1 each entry carries a `reason` (one
-// short sentence the user reads wherever they decide) and `required` (installing waits for an
+// declares (Location, ShowNotifications). Since app 1.18.0.1 each entry carries a `reason` (a
+// short label the user reads wherever they decide) and `required` (installing waits for an
 // answer on the required ones; the others are asked about when the app first uses them). One
-// entry's reason and required cover all its domains, so the template groups the hosts by what
-// they are for: https://developer.repebble.com/guides/plugins/preview/ (Declaring).
+// entry's reason and required cover all its domains, and the phone lists each domain as a row of
+// its own ("Connect to <domain>", the reason under it), so each service has an entry of its own
+// whose reason names it ("DWD weather provider", the owner's, 2026-11-14), with a few words more
+// only where the name doesn't say what it is for:
+// https://developer.repebble.com/guides/plugins/preview/ (Declaring).
 //
 // package.template.json lists every API host the code requests (test/uses-permissions.test.js
 // keeps the list and the code in step); the hosts of the three endpoints
@@ -18,7 +21,7 @@
 // The injected endpoints' entry: the default radar outside Germany and the Nordics (the Rainbow
 // proxy), the settings page's news and the telemetry, which is on unless the user turns it off.
 // Required: a fresh install shows the radar, and the page's domains are fixed when it opens.
-const ENDPOINTS_REASON = 'To show the rain radar and the news, and to share anonymous telemetry';
+const ENDPOINTS_REASON = 'WarnWeather server: rain radar, news and anonymous telemetry';
 
 /**
  * The hostname of an http(s) URL.

@@ -1485,36 +1485,117 @@
     "usesPermissions": [
       {
         "name": "Location",
-        "reason": "To get the forecast for where you are",
+        "reason": "Forecast for where you are",
         "required": true
       },
       {
         "name": "Internet",
         "parameters": {
           "domains": [
-            "api.brightsky.dev",
-            "api.met.no",
-            "api.open-meteo.com",
-            "api.openweathermap.org",
-            "api.rainbow.ai",
-            "api.tomorrow.io",
-            "api.weather.com",
-            "api.weather.yandex.ru",
+            "api.brightsky.dev"
+          ]
+        },
+        "reason": "DWD weather provider",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.met.no"
+          ]
+        },
+        "reason": "Met.no weather provider and rain radar",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.open-meteo.com"
+          ]
+        },
+        "reason": "Open-Meteo weather provider",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.openweathermap.org"
+          ]
+        },
+        "reason": "OpenWeatherMap weather provider",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.tomorrow.io"
+          ]
+        },
+        "reason": "Tomorrow.io weather provider and rain radar",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.weather.com"
+          ]
+        },
+        "reason": "Weather Underground weather provider",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
             "www.wunderground.com"
           ]
         },
-        "reason": "To get your forecast and rain radar from the weather service you pick",
+        "reason": "Weather Underground: fetches the key its forecast needs",
         "required": true
       },
       {
         "name": "Internet",
         "parameters": {
           "domains": [
-            "air-quality-api.open-meteo.com",
+            "api.weather.yandex.ru"
+          ]
+        },
+        "reason": "Yandex Weather provider",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.rainbow.ai"
+          ]
+        },
+        "reason": "Rainbow rain radar, with your own key",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "air-quality-api.open-meteo.com"
+          ]
+        },
+        "reason": "Open-Meteo air quality",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
             "api.waqi.info"
           ]
         },
-        "reason": "To show the air quality",
+        "reason": "WAQI air quality",
         "required": true
       },
       {
@@ -1524,28 +1605,27 @@
             "maps.dwd.de"
           ]
         },
-        "reason": "To show the pollen count from DWD",
+        "reason": "DWD pollen count",
         "required": true
       },
       {
         "name": "Internet",
         "parameters": {
           "domains": [
-            "geocode.arcgis.com",
+            "geocode.arcgis.com"
+          ]
+        },
+        "reason": "ArcGIS: your town's name",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
             "geocoding-api.open-meteo.com"
           ]
         },
-        "reason": "To show your town's name and find the places you search for",
-        "required": true
-      },
-      {
-        "name": "Internet",
-        "parameters": {
-          "domains": [
-            "us1.locationiq.com"
-          ]
-        },
-        "reason": "To find the place you typed as your location",
+        "reason": "Open-Meteo place search in the settings",
         "required": true
       },
       {
@@ -1555,7 +1635,27 @@
             "date.nager.at"
           ]
         },
-        "reason": "To mark public holidays in the calendar",
+        "reason": "Nager.Date public holidays",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "buymeacoffee.com"
+          ]
+        },
+        "reason": "Buy Me a Coffee, the Support me link",
+        "required": true
+      },
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "us1.locationiq.com"
+          ]
+        },
+        "reason": "LocationIQ: finds the place you type as your Manual location",
         "required": false
       },
       {
@@ -1566,17 +1666,17 @@
             "appstore-api.repebble.com"
           ]
         },
-        "reason": "To tell you when a new version is out",
+        "reason": "Pebble app store: tells you when an update is out",
         "required": false
       },
       {
         "name": "ShowNotifications",
-        "reason": "To tell you on your watch what's new and when an update is out",
+        "reason": "What's new and update notices on your watch",
         "required": false
       },
       {
         "name": "Health",
-        "reason": "To show your steps, sleep and heart rate",
+        "reason": "Steps, sleep and heart rate",
         "required": false
       }
     ],
