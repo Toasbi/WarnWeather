@@ -3749,13 +3749,39 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * Move focus to the first element in the dialog matching one of the selectors, in
      * order — the stand-in for a trigger or option node a render() just replaced.
      * @param {Array<string>} selectors Candidate selectors, most wanted first.
+     * @param {boolean} [inSheet] The element is an option in a bottom sheet: only its list
+     *     scrolls to it, the dialog not at all.
      * @returns {void}
      */
-    function focusInModal(selectors) {
+    function focusInModal(selectors, inSheet) {
       var modal = document.getElementById('modal'), el = null, i;
       if (!modal || !modal.querySelector) { return; }
       for (i = 0; i < selectors.length && !el; i++) { el = modal.querySelector(selectors[i]); }
-      if (el && el.focus) { el.focus(); }
+      if (!el || !el.focus) { return; }
+      if (!inSheet) { el.focus(); return; }
+      // An option in a bottom sheet (renderPickSheet): the sheet is still rising from below
+      // the screen, so a plain focus() would scroll the whole dialog down to the option and
+      // back. Scroll only the sheet's list to it, then focus without scrolling; an old
+      // webview that ignores preventScroll is put back by the scrollTop reset.
+      revealInList(el);
+      el.focus({ preventScroll: true });
+      modal.scrollTop = 0;
+    }
+
+    /**
+     * Scroll an option's list (its closest .isel-list) so the option sits in its middle,
+     * by rect math alone (scrollIntoView's options form is unsafe in old Android WebViews).
+     * Nothing else scrolls.
+     * @param {Object} el The option element.
+     * @returns {void}
+     */
+    function revealInList(el) {
+      var list = el.closest ? el.closest('.isel-list') : null;
+      if (!list || !el.getBoundingClientRect || !list.getBoundingClientRect) { return; }
+      var o = el.getBoundingClientRect(), l = list.getBoundingClientRect();
+      if (o.top < l.top || o.bottom > l.bottom) {
+        list.scrollTop += Math.round(o.top - l.top - (l.height - o.height) / 2);
+      }
     }
 
     /**
@@ -3837,7 +3863,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           // A tap that opened nothing (render() dropped the key) lands back on the trigger.
           focusInModal(expanded
             ? ['.isel-list .ssel-opt.on[data-select-pick]', '.isel-list [data-select-pick]']
-            : ['[data-select="' + sk + '"]']);
+            : ['[data-select="' + sk + '"]'], Boolean(expanded && modal.querySelector('.psheet')));
           return;
         }
         if (sheetIs('edit') && e.target.closest && controlClick(e)) { return; }
