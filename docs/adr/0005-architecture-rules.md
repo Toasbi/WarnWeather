@@ -79,8 +79,9 @@ second implementation behind it.
 
 The edge functions follow the same rule inside each function: Supabase, upstream HTTP and logs
 are reached only through their own modules (`supabase-store.ts`, `upstream.ts`, `log.ts`), and
-the handler's rules take their inputs as arguments. Today `news` and `telemetry-ingest` still query
-Supabase from their handlers; the architecture test lists them.
+the handler's rules take their inputs as arguments. Each handler takes its store as a dependency,
+and every function's Supabase queries live in its `supabase-store.ts`; the architecture test
+checks that no other module queries Supabase.
 
 ### 4. Watchface and settings page: layered
 
