@@ -3,16 +3,11 @@
 Every colour the forecast graph paints — the two metric lines, the area fill, and the
 four night colours — is resolved by `src/pkjs/line-style.js` from the settings blob
 alone, packed into one Clay tuple, and read back by
-`src/c/layers/forecast_layer.c`. This document is the design log that used to live
-inside that module, where it had grown to roughly 60% of the file and had started to
-drift (a "9 bytes" note for a ten-byte tuple, a pointer to a function that no longer
-existed).
+`src/c/layers/forecast_layer.c`. This document is the design log for that model.
 
 The code keeps only the invariants an editor must not break. Everything here is the
 *reasoning*: why the built-ins are derived rather than listed, why the night tint
 cascades at resolve time, and which trade-offs were accepted rather than solved.
-
-Shipped in 1.15.0; reworked in 1.15.1 (§3, §4).
 
 ## Decision
 
@@ -49,7 +44,7 @@ hidden one tuned would resurrect old picks on the next theme switch.
 
 ## 2. Why there is no sentinel
 
-An earlier design used `''` to mean "auto". It was dropped because the settings page
+Using `''` to mean "auto" is rejected because the settings page
 has nowhere to *show* an absent value: `hydrate()` seeds every schema key and the save
 flattens the whole blob, so "unset" does not survive a save anyway. A concrete stored
 value with a derived comparison is the honest model for this config UI.
@@ -70,14 +65,11 @@ telemetry's `default` vs `#RRGGBB` report.
 | metric / `Fill` | `fillColorFor(scope, true, theme)` |
 | anything else | `lineColorFor(scope, settings, true, theme)` |
 
-1.15.0 shipped a 40-cell `GRAPH_COLOR_DEFAULTS` table beside these resolvers, with a
-comment stating the two "MUST" stay equal and a test that compared each cell against
-the resolver that produced it. That test had decayed into `assert.equal(f(x), f(x))`
-— it could no longer fail — and the table was a second source of truth for values the
-module could already compute. It was deleted in 1.15.1 after proving the derived form
-identical over 1440 (scope × role × polarity × settings-blob) combinations.
+A literal table of built-ins beside these resolvers is rejected: it is a second source
+of truth for values the module computes, and a test comparing each cell against the
+resolver that produced it reduces to `assert.equal(f(x), f(x))`, which cannot fail.
 
-**The appearance contract now lives in the test**, as 40 literal expected constants
+**The appearance contract lives in the test**, as 40 literal expected constants
 (`test/line-style.test.js`). A literal table belongs there: its job is to fail when a
 built-in moves. It does not belong in production, where its job would be to agree with
 code sitting twenty lines away.
@@ -90,14 +82,12 @@ reports `isColor` true only for `dark` and `light`, so `Dark ↔ 'dark'` exactly
 `graphColorDefault` is total over scopes and roles: an unknown scope (today
 `thirdLine`'s `'off'`, or a blob with no `secondaryLine`) falls through to
 `lineColorFor`, which answers the theme foreground. No caller needs a `||` fallback —
-which matters, because `GColorBlack` is `0x000000` and therefore falsy. That trap has
-bitten this module before; prefer `hasOwnProperty` over truthiness when testing for a
+which matters, because `GColorBlack` is `0x000000` and therefore falsy. Prefer `hasOwnProperty` over truthiness when testing for a
 light-theme override.
 
 **Known hole, unreached:** the `LINE_COLORS` / `FILL_COLORS` / `NIGHT_AREA_COLORS`
 lookups are bare object literals, so an `Object.prototype` name (`'toString'`,
-`'constructor'`) answers truthy and resolves to `undefined`. Pre-existing and
-unreachable — every scope comes from `GRAPH_METRICS`, `'night'`, or a metric picker.
+`'constructor'`) answers truthy and resolves to `undefined`. Unreachable — every scope comes from `GRAPH_METRICS`, `'night'`, or a metric picker.
 Closing it means own-key guards in all three lookups.
 
 ## 4. The night tint cascades at resolve time
@@ -108,16 +98,13 @@ the day fill for the night hours rather than shading it. A tint left on its buil
 while the fill moved would therefore paint over a colour the user chose with one they
 never did.
 
-1.15.0 solved that in the settings page: a `graphFillTint` onChange copied each new
-fill colour into the sibling tint key, and `line-style.js` recognised the carry
-afterwards by comparing the two stored values.
+Solving that in the settings page, by copying each new fill colour into the sibling tint
+key, is rejected: a page-side write makes a carried tint and a deliberately chosen one the
+same bytes, so nothing downstream can tell them apart. A tint picked equal to its fill
+would read as untouched: on the light polarity the night re-shade would be silently
+skipped, and telemetry would report `default` for a colour the user had chosen.
 
-**That was the bug.** A page-side write makes a carried tint and a deliberately chosen
-one the same bytes, so nothing downstream could tell them apart. A tint picked equal to
-its fill read as untouched: on the light polarity the night re-shade was silently
-skipped, and telemetry reported `default` for a colour the user had chosen.
-
-1.15.1 moved the cascade into `graphNightTint(settings, metric, suffix)`:
+The cascade lives in `graphNightTint(settings, metric, suffix)`:
 
 ```
 claimed  — the tint key is off its built-in        -> that colour
@@ -128,45 +115,43 @@ built-in — neither has moved                       -> null
 `null` rather than the base is deliberate: `nightAreaColorsFor` answers `null` with the
 hand-tuned pair verbatim, while a concrete base runs the derive recipe (§5).
 
-A stored tint now means exactly one thing — someone picked it — so `graphColorIsPicked`
-is `!graphColorIsDefault`, and the settings page is a pure editor again.
+A stored tint means exactly one thing — someone picked it — so `graphColorIsPicked`
+is `!graphColorIsDefault`, and the settings page is a pure editor.
 
 ### The upgrade migration
 
-Every 1.15.0 install that ever touched a fill picker has the carried bytes on flash.
-Under the new reading those are a pick, which would have flipped the wire bit and
-frozen the cascade on a stale colour. `clay-settings.js`'
-`migrateCarriedGraphNightTints` (marker `v1.15.1_carried_graph_night_tint_migration`)
-clears a stored tint that still equals its stored fill; the resolver then re-derives
-the same triple with the flag clear — byte-for-byte what 1.15.0 sent.
+A stored blob can hold carried bytes: a tint key equal to its fill, written by a
+page-side copy. Read as a pick, they would flip the wire bit and freeze the cascade on a
+stale colour. `migrateCarriedGraphNightTints` (`src/pkjs/migrations/graph-colors.js`,
+marker `v1.15.1_carried_graph_night_tint_migration`) clears a stored tint that still
+equals its stored fill; the resolver then re-derives the triple with the flag clear.
 
 Two accepted imprecisions:
 
 - A tint set equal to its fill **by hand** is cleared too. Indistinguishable by
-  construction, and 1.15.0 painted the two identically, so clearing preserves
-  appearance.
-- A fill picked to the metric's **own built-in fill colour** is not restored
-  byte-for-byte: 1.15.0 stored it in the tint key, where it was not that metric's night
-  built-in, so it derived a lightened triple. With the tint cleared, the hand-tuned
-  triple stands. The flag stays 0 and the result is what a fresh install with those
-  settings paints.
+  construction, and the two paint identically, so clearing preserves appearance.
+- A carried fill equal to the metric's **own built-in fill colour** sits in the tint key,
+  where it is not that metric's night built-in, so it derives a lightened triple. With
+  the tint cleared, the hand-tuned triple stands instead. The flag stays 0 and the result
+  is what a fresh install with those settings paints.
 
 ### Re-tuning a built-in needs a migration of its own
 
 Concrete storage (§2) has a price that is easy to miss: **moving a built-in reaches
-nobody who is already installed.** `seedDefaults` wrote a real colour into every key, so
-after a re-tune the stored value is the OLD default, which no longer equals the new one
-— `graphColorIsDefault` calls it a pick and the old colour keeps winning. Observed on a
-watch after the light re-tune (§6): every light row had to be reset by hand.
+nobody who is already installed.** `seedDefaults` writes a real colour into every key, so
+after a re-tune the stored value is the OLD default, which does not equal the new one
+— `graphColorIsDefault` calls it a pick and the old colour keeps winning, until every
+row is reset by hand.
 
-`migrateLightGraphColorRetune` (marker `v1.16.0_light_graph_color_retune_migration`)
-rewrites each cell still holding the value the page seeded, cell by cell, so a colour
-that is neither the old default nor the new one — someone's actual choice — survives.
-Its `SUPERSEDED_LIGHT_GRAPH_COLORS` is a **frozen historical record** and must never be
+`migrateLightGraphColorRetune` (`src/pkjs/migrations/light-theme.js`, marker
+`v1.16.0_light_graph_color_retune_migration`) rewrites each cell still holding the value
+the page seeded for a superseded light built-in, cell by cell, so a colour that is neither
+the old default nor the new one — someone's actual choice — survives.
+Its `SUPERSEDED_LIGHT_GRAPH_COLORS` is a **frozen record** and must never be
 re-derived from `line-style.js`: the whole point is that the built-ins have moved away
 from it. Any future re-tune needs its own frozen table and its own marker.
 
-Two rules the code carries comments about, both of which were bugs first:
+Two rules the code carries comments about:
 
 - It runs **after** `migrateCarriedGraphNightTints`. A carried tint holds the *fill's*
   colour, so the release detects it by `night === fill`; the re-tune rewrites the Fill
@@ -180,10 +165,9 @@ Two rules the code carries comments about, both of which were bugs first:
 ## 5. The night area pair
 
 For **dark** polarity: hand-tuned `{base, hatch}` pairs, keyed by
-**metric** (`NIGHT_AREA_COLORS`). They moved here from `forecast_layer.c`, which keyed
-on the *day fill colour* with `gcolor_equal` — which is exactly what made an unlisted
-metric render precip-blue (pressure shipped that way; measured on emery). A
-user-selectable fill would have sent every custom pick down that same fall-through.
+**metric** (`NIGHT_AREA_COLORS`), not by the *day fill colour*: keying on the fill with
+`gcolor_equal` sends an unlisted metric, and every custom fill pick, down a fall-through
+that renders precip-blue.
 
 For an **arbitrary** pick the pairs cannot cover, `nightAreaColorsFor` derives one via
 `deriveNightPair`: the hatch one Pebble level above its base (`lighten`). This is **not** the
@@ -228,9 +212,7 @@ magenta, wind yellow, pressure orange, gust the greys, cloud a grey-blue.
   accepts **either** grey (White with multicolour bars, LightGray with solid white
   ones) as "still the built-in", so a solid-bar install seeded with White keeps
   resolving through `rainBarColor` instead of painting white on white. The cost: this
-  one row cannot be deliberately pinned. 1.15.0 also carried a hard-coded override of
-  this cell in `graphColorDefault`; deriving the default (§3) made it redundant, since
-  `lineColorFor` was already applying the rule.
+  one row cannot be deliberately pinned.
 - **feels** shadows the 3px temp curve, so it stays achromatic and dimmer than any hue
   — LightGray on dark, **Black** on light (a grey at 1px on white reads as
   barely-there, and DarkGray is what the white-bar mode paints its bars in a light
@@ -238,11 +220,10 @@ magenta, wind yellow, pressure orange, gust the greys, cloud a grey-blue.
   line is the area above a real zero, while feels rides the temp∪feels band whose floor
   is just the coldest value on the plot. A fill there would flood the plot and swallow
   the temp curve it exists to be compared against. `resolveGraphColors` is the
-  authoritative gate, so a blob written before the UI hid the toggle still cannot turn
-  it on.
+  authoritative gate, so a stored fill toggle for feels still cannot turn it on.
 - **pressure**'s orange reads close to wind's yellow at 1px on dark. It is also the one
   metric with no light line variant — Orange holds on white as-is.
-- **cloud** (added after 1.21.0) sits between precip's blue and the greys: BabyBlueEyes
+- **cloud** sits between precip's blue and the greys: BabyBlueEyes
   on dark, Liberty on light, so a cloud line next to a rain-chance line still reads as
   two. Its dark night pair (OxfordBlue / Liberty) happens to be the derive recipe's own
   output, so a pick of its base reproduces it exactly. Its most common use is the stripe style. A stripe cell's tint
@@ -262,11 +243,11 @@ magenta, wind yellow, pressure orange, gust the greys, cloud a grey-blue.
 
 ## 7. The wire
 
-Ten bytes on `CLAY_LINE_STYLE_UINT8` as shipped (fourteen now, see *The style tail and
-Draw from* below), on the **Clay settings message** — these are
+Fourteen bytes on `CLAY_LINE_STYLE_UINT8` (the head and night tail below, then the
+blocks in *The style tail and Draw from*), on the **Clay settings message** — these are
 settings-derived, never weather-derived, so per `AGENTS.md`'s message-boundary rule
-they must not ride every weather send. (They replaced four scalar tuples that did: 44 B
-per weather send, 17 B once here.)
+they must not ride every weather send. One array tuple is also the cheap shape: four
+scalar tuples would cost 44 B.
 
 ```
 [0] main line   [1] area fill   [2] second line   [3] line flags (bit 0 = fill on)
@@ -282,18 +263,17 @@ with its own `length >= offset + size` check; widening the minimum would start
 rejecting shorter tuples. Removing a byte moves the blocks after it, which is safe only
 because the phone and watch ship in one `.pbw`.
 
-The tuple once carried two more night bytes, the filled area's dusk/dawn line and a flag
-saying the tint was an explicit pick. Nothing read the flag once light got its own tuned
-arm (§5), and the area line went when the day line replaced the dusk/dawn lines, so 2.3.0
-deleted both. The blob's four bytes are the first four of the old six, so a stored blob
-still reads; telemetry takes "is this a pick?" from `graphColorIsPicked` directly.
+The tuple carries no "tint is a pick" flag: nothing on the watch needs one, since light
+has its own tuned arm (§5). Telemetry takes "is this a pick?" from `graphColorIsPicked`
+directly. A six-byte `NIGHT_COLORS` blob stored by an older build still reads: its first
+four bytes are this layout.
 
 ### No B&W arm in the night tail
 
 Every one of these bytes reaches the render through `theme_pick(colour_arm, bw_arm)`,
 and the underlay through `has_underlay = !theme_is_bw()`. A B&W watch or a bw/bw-light
 theme discards all four and paints `theme_fg()` over a LightGray underlay from its own
-constants. Sending a "B&W-honest" set was bytes of ceremony no watch ever read.
+constants. A "B&W-honest" set would be bytes of ceremony no watch reads.
 
 Consequence, accepted: on a bw theme these bytes carry whatever the user picked for
 that polarity. The wire is not lying — it is describing colours this render mode
@@ -301,7 +281,7 @@ ignores.
 
 ### The style tail and Draw from
 
-The tuple has since grown to fourteen bytes by two more tail blocks, each behind its own
+Two more tail blocks follow, each behind its own
 length check as the growth rule above asks: `[8]` the third-metric line colour,
 `[9..11]` the per-line style bytes (byte-for-byte the watch's `LINE_STYLES` persist
 blob), `[12]` the fourth-metric line colour and `[13]` its style byte (`FIFTH_LINE_STYLE`).
@@ -312,7 +292,7 @@ only under `WW_LINE_STYLE`, so aplite ignores them.
 
 A style byte packs `kind | (field << 2)`: the kind (0–3) in bits 0–1, the field (a solid
 line's width, a stripe's edge) in bits 2–4. The encoder never reaches bit 5 (its largest
-bytes are `0x0C`, bold, and `0x07`, stripeTop), so **Draw from: Top** (1.24.0) rides
+bytes are `0x0C`, bold, and `0x07`, stripeTop), so **Draw from: Top** rides
 there: bit 5 (`0x20`; `graph-wire.js` `LINE_BIT`, `persist.h` `LINE_STYLE_FROM_TOP`) of
 `[9]`, `[10]`, `[11]` and `[13]` says that line hangs from the plot's top — its stroke
 or marks, and, for the Main metric, its Area fill with it. Bit 6 (`FLOAT_BIT`, `persist.h`
@@ -337,23 +317,22 @@ watch reads as `palette_from_top()` (`stops[0].from < 0`): no mask, no persist k
 the palette's own change compare dirties exactly the chart the flag belongs to.
 
 This is the one implicit coupling of the feature. Every reader of `ChartColorStop.from`
-clamps a stop below the floor, so a reader that ignores the flag (a 1.23.x watch after a
-downgrade, say) still draws the bars standing; a new consumer of `.from` must clamp too.
+clamps a stop below the floor, so a reader that ignores the flag (an older watch build,
+say) still draws the bars standing; a new consumer of `.from` must clamp too.
 `palette.h`, `chart.h` and `rain-tier.js` say so, and `test/c/chart_flip_test.c` pins the
 flag.
 
 Both flags are settings-derived and leave the weather bake alone, so the six Draw from /
 Bars from keys (`draw-from.js`) stay out of `renderSignature`: a flip is a Clay-only resend. With every
-key on Bottom, absent, or on aplite whatever is stored, all three tuples are byte for
-byte what they were before the feature; no tuple grew, and the Clay budget is unchanged.
+key on Bottom, absent, or on aplite whatever is stored, no flag bit is set in any of the
+three tuples; the flags take no bytes of their own, so they cost the Clay budget nothing.
 
 ## 8. One render context, three consumers
 
 `renderContextFor(settings, caps)` is the single authority on *what this watch is
-actually rendering*. The wire packer and the telemetry snapshot once derived it
-separately and diverged — telemetry copied the theme fold but dropped the
-colour-platform half, so a diorite install reported picks the wire had already resolved
-away to white.
+actually rendering*. Derived separately, the wire packer and the telemetry snapshot
+diverge — a telemetry copy of the theme fold without the colour-platform half reports a
+diorite install's picks that the wire resolves away to white.
 
 - `theme` is the **folded** theme. aplite has the light polarity compiled out
   (`theme.h` pins `theme_is_light()` false), so resolving off `settings.theme` would

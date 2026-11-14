@@ -1,7 +1,7 @@
 # Aplite is a frozen, lean source-fork; other platforms evolve
 
 Aplite (Pebble Classic/Steel) has a fixed 24 KB image+heap budget that a growing
-feature set can no longer fit, so aplite becomes a **frozen, lean variant**: for
+feature set cannot fit, so aplite is a **frozen, lean variant**: for
 files that diverge, aplite gets its own self-contained `foo_aplite.c` (no color
 code, no inapplicable features), selected by a build-level source filter in
 `wscript`, while every other platform keeps the full-featured shared `foo.c`. We
