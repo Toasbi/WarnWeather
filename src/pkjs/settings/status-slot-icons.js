@@ -36,7 +36,7 @@
 //                   and a filled head, pointing down: the samples read a sunset)
 // The outlines follow Tabler Icons (https://tabler.io/icons), MIT License,
 // Copyright (c) 2020-2024 Pawel Kuna — the same family the watch glyphs were
-// converted from (credited in scripts/gen-status-pdc.py). Everything is drawn in
+// converted from. Everything is drawn in
 // currentColor, so the .lbl-ico rule colours the glyph and the theme flip follows.
 //
 // Page-only on purpose: status-line-catalog.js also ships in the watch-runtime
