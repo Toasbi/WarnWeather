@@ -65,7 +65,7 @@ Small screens fill up fast. Alerts keep the watchface clean and bring informatio
 * Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
 **Status bars**
-* Configurable status slots on every screen: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more; in the settings page, tap a slot in a bar's picture on the Status bars tab to change it
+* Configurable status slots on every screen: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more; in the settings page, tap a bar on the Status bars tab to change its slots
 * Weather condition slot: the weather now in words (Partly cloudy) with its icon, a sun by day and a moon by night; where the name doesn't fit, its short form (PCLDY), and the slot's Look shows the icon and text, the text only or the icon only; its Name always shows the full name or always the short form, or picks by room (Pebble Classic and Steel: the text only)
 * City slot: the weather fetch location with the current weather's icon before it; switch the icon off in its dialog (not on Pebble Classic/Steel)
 * Your status bars by name: besides the Watch bar, three status bars you fill and name as you like (Status bars tab › Your status bars, which also says which screens show each bar; tap a bar's name to rename it); put any of them on any screen, added by name in the screen's editor (not on Pebble Classic/Steel)

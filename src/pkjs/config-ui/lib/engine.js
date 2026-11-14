@@ -1187,6 +1187,37 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * The list of a select marked `bottomSheet`, opened in a dialog: a sheet that rises from the
+   * bottom over the dialog, as a select opens on a tab (renderSelectModal: its title, its ×, its
+   * option rows), where an ordinary select in a dialog opens its list in place under its row
+   * (renderInlineList; the owner's, 2026-11-14, for a status bar's slots: the in-place list
+   * pushed the rest of the dialog away). It is the in-place list's state all the same — the
+   * dialog's open key (cx.openInline), the same picks, Escape and focus — drawn elsewhere:
+   * the list keeps the id and the class render() looks for. A tap on the dim layer or the ×
+   * closes it (data-psheet-close). '' when no such list is open.
+   *
+   * @param {Object} schema Config schema.
+   * @param {{S: Object, ENV: Object, evalCtx: Object, openInline: ?string}} cx Render context.
+   * @returns {string} The layer and sheet HTML, or ''.
+   */
+  function renderPickSheet(schema, cx) {
+    if (!cx.openInline) { return ''; }
+    var found = findShownItem(schema, cx.openInline, cx.evalCtx);
+    if (!found || found.type !== 'select' || !found.bottomSheet) { return ''; }
+    var item = resolveRowItem(found, { value: cx.S[found.messageKey] }, cx);
+    var key = esc(item.messageKey), titleId = 'psheet-ttl-' + key;
+    var title = esc(String(resolvedTitle(item.sheetTitleBy, cx) || item.sheetTitle || item.label || 'Selection'));
+    return '<div class="psheet-scrim" data-psheet-close></div>'
+      + '<div class="psheet" role="group" aria-labelledby="' + titleId + '">'
+      + '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">' + title + '</span>'
+      + '<button type="button" class="ssel-modal-close" data-psheet-close aria-label="Close">×</button></div>'
+      + '<div id="ssel-list-' + key + '" class="isel-list" role="listbox" aria-label="' + title + ' options">'
+      + renderSelectOptions(item, cx.S[item.messageKey], '', resolveRecommended(item, cx.S, cx.ENV),
+          disabledOptionValues(item, cx.evalCtx), resolvePictures(item, cx.S, cx.ENV, cx.USERDATA))
+      + '</div></div>';
+  }
+
+  /**
    * The open dialog: a sheetOnly section rendered full-screen into the shared <dialog> —
    * the dialog header (× or ‹, the kicker cx.editKicker, the section title with its '?'
    * and reset, Done), the section's pinBlock, its intro while open, then its cards
@@ -1242,7 +1273,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         introId ? infoButtonHtml(introId, introOpen, title) : '', labelActionHtml(sec), rename)
       + '<div class="ssel-list esheet">' + pin
       + (introOpen ? dialogIntroHtml(sec, cx) : '')
-      + body + '</div>';
+      + body + '</div>' + renderPickSheet(schema, cx);
   }
 
   /**
@@ -1849,8 +1880,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (view.disabled) { view.openInline = null; }
     // A select expanded in place inside an edit sheet (only the sheet's cx carries
     // openInline, see renderEditModal). rowItem, so an optionsFrom list and the per-option
-    // meta.disabled gates apply exactly as in the select modal.
-    if (item.type === 'select' && view.openInline === item.messageKey) {
+    // meta.disabled gates apply exactly as in the select modal. A bottomSheet select's list
+    // opens over the dialog instead (renderPickSheet).
+    if (item.type === 'select' && view.openInline === item.messageKey && !item.bottomSheet) {
       view.inlineList = renderInlineList(rowItem, view.value, cx);
     }
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
@@ -3759,6 +3791,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // The full-screen dialog's header: Done and ‹ keep the changes, × discards them. A
         // title that renames: its pencil makes it a name field, OK stores the name.
         if (sheetIs('edit') && e.target.closest) {
+          // A bottomSheet select's list over the dialog (renderPickSheet): its dim layer and
+          // its × close the list alone, as Escape does.
+          if (e.target.closest('[data-psheet-close]')) { collapseSheetExpander(); return; }
           if (e.target.closest('[data-dlg-rename-ok]')) { commitRename(); return; }
           if (e.target.closest('[data-dlg-rename]')) { startRename(sheet.key); return; }
           if (e.target.closest('[data-dlg-done]') || e.target.closest('[data-dlg-back]')) { popDialog(); return; }

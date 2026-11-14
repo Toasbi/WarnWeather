@@ -3527,7 +3527,7 @@
           {
             "id": "yourBars",
             "title": "Your status bars",
-            "intro": "Each status bar has a left, middle and right slot. Tap a slot to change it, or tap a bar’s name for the rest of its settings.",
+            "intro": "Each status bar has a left, middle and right slot. Tap a bar to change its slots and the rest of its settings.",
             "block": "barsList",
             "items": []
           },
@@ -3601,6 +3601,7 @@
                     "label": "Left slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3647,6 +3648,7 @@
                     "label": "Middle slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3694,6 +3696,7 @@
                     "label": "Right slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3849,6 +3852,7 @@
                     "label": "Left slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3895,6 +3899,7 @@
                     "label": "Middle slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3942,6 +3947,7 @@
                     "label": "Right slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4030,6 +4036,7 @@
                     "label": "Left slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4086,6 +4093,7 @@
                     "label": "Middle slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4143,6 +4151,7 @@
                     "label": "Right slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4251,6 +4260,7 @@
                     "label": "Left slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4307,6 +4317,7 @@
                     "label": "Middle slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4364,6 +4375,7 @@
                     "label": "Right slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4472,6 +4484,7 @@
                     "label": "Left slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4544,6 +4557,7 @@
                     "label": "Middle slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4617,6 +4631,7 @@
                     "label": "Right slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4764,6 +4779,7 @@
                     "label": "Left slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4836,6 +4852,7 @@
                     "label": "Middle slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4909,6 +4926,7 @@
                     "label": "Right slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -5056,6 +5074,7 @@
                     "label": "Left slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -5128,6 +5147,7 @@
                     "label": "Middle slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -5201,6 +5221,7 @@
                     "label": "Right slot"
                   }
                 },
+                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {

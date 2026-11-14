@@ -28,7 +28,7 @@ function statusTab(cfg, platformName) {
 }
 
 /**
- * One bar's line on the Your status bars card (its name button and its picture), '' when not listed.
+ * One bar's line on the Your status bars card (its one button: its name, its picture), '' when not listed.
  * @param {string} html The tab's markup.
  * @param {string} bar An on-demand.js BARS bar.
  * @returns {string}
@@ -37,8 +37,8 @@ function barLine(html, bar) {
   const at = html.indexOf('data-edit-sheet="bar-' + bar + '"');
   if (at === -1) { return ''; }
   const start = html.lastIndexOf('<div class="ui-row bl-bar">', at);
-  // Its end: the red arrow's column closes the row.
-  const go = html.indexOf('<button type="button" class="bl-go" data-edit-sheet="bar-' + bar + '"', at);
+  // Its end: the red arrow's column closes the row's one button.
+  const go = html.indexOf('<span class="bl-go" aria-hidden="true">', at);
   return html.slice(start, html.indexOf('</button></div>', go) + '</button></div>'.length);
 }
 

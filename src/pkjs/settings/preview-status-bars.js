@@ -1,9 +1,10 @@
 // src/pkjs/settings/preview-status-bars.js — ES5, WebView (+ Node for tests). The status bars'
 // pictures: one bar's three slots as sample values, left, middle and right (barPicture: the
-// Status bars tab's Your status bars card draws each bar with it, a tap on a slot opening its picker,
-// and a bar's dialog draws its bar large), and the preview pinned above every slot dialog
-// (block 'statusBarsPreview'): the bar the dialog was opened from, else every bar the watch
-// draws right now, one line each, the slots the picture alone.
+// Status bars tab's Your status bars card draws each bar with it inside the row a tap on which
+// opens the bar's dialog, and a bar's dialog draws its bar large), and the preview pinned above
+// every slot dialog (block 'statusBarsPreview'): the bar the dialog was opened from, else every
+// bar the watch draws right now, one line each. They are pictures alone: no slot takes a tap of
+// its own (the owner's, 2026-11-14: a tap on a slot hid that a bar has more settings).
 //
 // The readings are SAMPLES (a fixed afternoon: 18°, wind 12 now / 30 at its peak, UV 3 …),
 // but the TEXT is the watch's: each sample goes through the code that prints the real
@@ -322,89 +323,69 @@
         return 3 + utf8.byteLength(text || '') + (arrowShown(code, text, S, env, cap) ? 1 : 0);
     }
 
-    // How a slot is named to a screen reader, after its bar's name.
-    var POS_NAME = {left: 'left slot', mid: 'middle slot', right: 'right slot'};
-
     /**
-     * One slot of a row. On the tab it is a button that opens the slot's picker (the
-     * engine's [data-select] path, as the slot's own row in its card does), an empty one
-     * marked so there is something to tap; above a slot's dialog, where a picker cannot
-     * open, it is the picture alone.
+     * One slot of a row, as the watch prints it: its icon, its text and the wind arrow; an
+     * empty slot is blank, as on the watch.
      * @param {{pos: string, key: string, code: string, text: string, arrow: boolean}} c The
      *     slot (barSlots).
-     * @param {string} barName The bar's name (screens.js barName).
-     * @param {Object} env Platform env.
-     * @param {boolean} tappable Whether the slot opens its picker.
      * @returns {string} HTML.
      */
-    function slotCell(c, barName, env, tappable) {
+    function slotCell(c) {
         var arrow = c.arrow ? '<span class="sbp-arr" aria-hidden="true">↗</span>' : '';
-        var empty = c.code === 'empty';
         // The weather icons (the condition's, the city's) are detailed: a size up from the
         // other glyphs, so they read as well beside their text.
         var wx = c.code === 'condition' || c.code === 'city';
         var lead = c.icon ? '<span class="sbp-ico' + (wx ? ' sbp-wx' : '') + '" aria-hidden="true">' + c.icon
             + '</span>' : '';
-        var body = empty ? '' : lead + esc(c.text) + arrow;
-        var cls = 'sbp-v sbp-' + c.pos;
-        if (!tappable) { return '<span class="' + cls + '">' + body + '</span>'; }
-        var item = catalog.byCode(c.code);
-        var name = barName + ', ' + POS_NAME[c.pos] + ': ' + (item ? item.label : c.code);
-        return '<button type="button" class="' + cls + (empty ? ' sbp-empty' : '') + '" data-select="' + esc(c.key)
-            + '" aria-label="' + esc(name) + '">' + (empty ? '<span class="sbp-hole" aria-hidden="true"></span>' : body)
-            + '</button>';
+        var body = c.code === 'empty' ? '' : lead + esc(c.text) + arrow;
+        return '<span class="sbp-v sbp-' + c.pos + '">' + body + '</span>';
     }
 
     /**
      * The pictures' frame: the watch's screen in its theme's ink. The watch draws the bars in
      * its theme's ink (status_row.c: theme_fg() on the theme's background), so a light theme
      * previews black on white, except on a watch without the light polarity (aplite), which
-     * always draws white on black.
+     * always draws white on black. Spans throughout, so a picture may sit inside a button (the
+     * Your status bars card's rows).
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @param {string} cls Its classes.
-     * @param {boolean} tappable Whether its slots are buttons (a group), else a picture.
      * @param {string} label Its accessible name.
      * @param {string} inner Its rows.
      * @returns {string} HTML
      */
-    function frame(S, env, cls, tappable, label, inner) {
+    function frame(S, env, cls, label, inner) {
         var ink = previewInk(env && env.themePolarity === false ? 'dark' : S.theme);
         ensureStyle();
-        return '<div class="' + cls + '" role="' + (tappable ? 'group' : 'img') + '" aria-label="' + esc(label)
+        return '<span class="' + cls + '" role="img" aria-label="' + esc(label)
             + '" style="--sbp-bg:' + ink.bg + ';--sbp-fg:' + ink.fg + ';--sbp-dim:' + ink.rgba('0.5') + ';--sbp-line:'
-            + ink.rgba('0.12') + ';--sbp-chip:' + ink.rgba('0.1') + '">' + inner + '</div>';
+            + ink.rgba('0.12') + '">' + inner + '</span>';
     }
 
     /**
      * One bar's picture: its three slots as the watch prints them (barSlots), the date slot as
-     * the first view showing the bar shows it. The Your status bars card draws each bar with it, a tap
-     * on a slot opening its picker (opts.tappable), dimmed while no screen shows the bar
-     * (opts.dim); a bar's dialog draws its bar large (opts.big).
+     * the first view showing the bar shows it. The Your status bars card draws each bar with it,
+     * dimmed while no screen shows the bar (opts.dim); a bar's dialog draws its bar large
+     * (opts.big).
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @param {string} bar An on-demand.js BARS bar.
-     * @param {{tappable: boolean, big: boolean, dim: boolean}} [opts] How it is drawn.
+     * @param {{big: boolean, dim: boolean}} [opts] How it is drawn.
      * @returns {string} HTML ('' for an unknown bar)
      */
     function barPicture(S, env, bar, opts) {
         var st = S || {}, o = opts || {}, b = null;
         BARS.forEach(function (x) { if (x.bar === bar) { b = x; } });
         if (!b) { return ''; }
-        var name = screens.barName(st, bar), tappable = Boolean(o.tappable);
         var view = barView(VC.resolveViewCycle(st, env), b);
-        var cells = barSlots(st, env, bar, !calendarShown(view), new Date()).map(function (c) {
-            return slotCell(c, name, env, tappable);
-        }).join('');
-        return frame(st, env, 'sbp one' + (tappable ? ' tap' : '') + (o.big ? ' big' : '') + (o.dim ? ' dim' : ''), tappable,
-            name, '<div class="sbp-row">' + cells + '</div>');
+        var cells = barSlots(st, env, bar, !calendarShown(view), new Date()).map(slotCell).join('');
+        return frame(st, env, 'sbp one' + (o.big ? ' big' : '') + (o.dim ? ' dim' : ''), screens.barName(st, bar),
+            '<span class="sbp-row">' + cells + '</span>');
     }
 
     /**
      * The block pinned above a slot's dialog: the bar it was opened from (opts.from, that bar's
-     * dialog), else one row per bar the watch draws now, its name and three sample slots, the
-     * picture alone. Off a dialog (the page's old pinned preview) a tap on a slot opens its
-     * picker.
+     * dialog), else one row per bar the watch draws now, its name and three sample slots.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
      * @param {Object} [userData] Page userData (unused).
@@ -413,7 +394,7 @@
      * @returns {string} HTML ('' when no bar exists).
      */
     function statusBarsPreview(S, env, userData, opts) {
-        var st = S || {}, rows = '', tappable = !(opts && opts.dialog);
+        var st = S || {}, rows = '';
         var from = screens.barOfSheet(opts && opts.from);
         if (from) { return barPicture(st, env, from, {big: true}); }
         var views = VC.resolveViewCycle(st, env);
@@ -430,17 +411,12 @@
             // Each row by its bar's name (screens.js barName), the label column without the
             // trailing " bar" every default name has ("Forecast", a "Wind bar" as "Wind").
             var name = screens.barName(st, b.bar);
-            var cells = barSlots(st, env, b.bar, !calendarShown(view), now).map(function (c) {
-                return slotCell(c, name, env, tappable);
-            }).join('');
-            rows += '<div class="sbp-row"><span class="sbp-n">' + esc(name.replace(/ bar$/i, '')) + '</span>' + cells
-                + '</div>';
+            var cells = barSlots(st, env, b.bar, !calendarShown(view), now).map(slotCell).join('');
+            rows += '<span class="sbp-row"><span class="sbp-n">' + esc(name.replace(/ bar$/i, '')) + '</span>' + cells
+                + '</span>';
         });
         if (!rows) { return ''; }
-        // On the tab, a line under the bars says the slots can be tapped (their chips show
-        // which); assistive tech hears each slot's button instead.
-        if (tappable) { rows += '<div class="sbp-tip" aria-hidden="true">Tap a slot to change it</div>'; }
-        return frame(st, env, 'sbp' + (tappable ? ' tap' : ''), tappable, tappable ? 'Status bars' : 'Status bars preview', rows);
+        return frame(st, env, 'sbp', 'Status bars preview', rows);
     }
 
     // The preview's look, injected once: the watch's screen in its theme's ink (the
@@ -450,7 +426,7 @@
     // A slot's glyph sits on the text's line at the text's size.
     // It sits in a pinned frame that carries a preview's padding (shell.html .pin-blk),
     // which the negative margins cancel, as a preview SVG's do (preview-svg.js svgFrame).
-    var CSS = '.sbp{background:#000;background:var(--sbp-bg,#000);padding:4px 12px;margin:-12px -16px -14px}'
+    var CSS = '.sbp{display:block;background:#000;background:var(--sbp-bg,#000);padding:4px 12px;margin:-12px -16px -14px}'
         + '.sbp-row{display:grid;grid-template-columns:58px auto minmax(0,1fr) auto;column-gap:6px;'
         + 'align-items:center;'
         + 'padding:7px 0;border-top:1px solid #1C1C1E;border-top-color:var(--sbp-line,#1C1C1E)}'
@@ -464,25 +440,6 @@
         + '.sbp-ico svg{display:block;width:100%;height:100%}'
         + '.sbp-ico.sbp-wx{width:16px;height:16px;margin-right:3px;vertical-align:-3px}'
         + '.sbp-arr{margin-left:1px}'
-        // On the tab each slot is a button: the row's height and a little to each side are
-        // its tap area (the negative margins keep the watch's spacing), a press shades it,
-        // and an empty slot shows a dashed hole to tap. A filled one sits on a faint chip
-        // (its ::before, inside the tap area so rows never touch), so every slot reads as
-        // something to tap; the line under the bars says what a tap does.
-        + 'button.sbp-v{-webkit-appearance:none;appearance:none;min-width:40px;margin:-7px -4px;padding:7px 6px;'
-        + 'border:none;border-radius:7px;background:none;cursor:pointer;position:relative;z-index:0}'
-        + 'button.sbp-v:not(.sbp-empty):before{content:"";position:absolute;top:3px;bottom:3px;left:0;right:0;'
-        + 'z-index:-1;border-radius:6px;background:rgba(255,255,255,.1);background:var(--sbp-chip,rgba(255,255,255,.1))}'
-        // Each chip hugs its value (the middle one centred, as the watch centres it), so
-        // chips never meet across the narrow column gap.
-        + 'button.sbp-left{justify-self:start}button.sbp-mid{justify-self:center}button.sbp-right{justify-self:end}'
-        + 'button.sbp-v{text-align:center}'
-        + 'button.sbp-v:active{background:var(--sbp-line,#1C1C1E)}'
-        + 'button.sbp-v:focus-visible{outline:2px solid var(--sbp-fg,#FFFFFF);outline-offset:-2px}'
-        + '.sbp-hole{display:inline-block;width:30px;height:15px;border:1px dashed var(--sbp-dim,#7C808A);'
-        + 'border-radius:4px;vertical-align:middle}'
-        + '.sbp-tip{padding:6px 0 3px;border-top:1px solid #1C1C1E;border-top-color:var(--sbp-line,#1C1C1E);'
-        + 'text-align:center;font:600 11px Inter,sans-serif;color:#7C808A;color:var(--sbp-dim,#7C808A)}'
         // One bar's picture (barPicture): its own rounded strip, no name column; large in its
         // dialog; dimmed while no screen shows it.
         + '.sbp.one{margin:0;padding:0 10px;border-radius:9px}'

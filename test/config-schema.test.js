@@ -1996,8 +1996,8 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
   const list = watch.sections[0];
   assert.deepEqual([list.id, list.title, list.block, list.items.length], ['yourBars', 'Your status bars', 'barsList', 0],
     'the tab opens on the Your status bars card, drawn by screens-page.js barsCard');
-  assert.ok(/\bbar\b/.test(list.intro) && /Tap a slot/.test(list.intro) && /bar’s name/.test(list.intro),
-    'its intro describes the bars once: a slot can be tapped, and a bar\'s name');
+  assert.ok(/\bbar\b/.test(list.intro) && /Tap a bar/.test(list.intro) && !/Tap a slot/.test(list.intro),
+    'its intro describes the bars once: a tap on a bar opens all its settings, no slot is tapped alone');
   assert.deepEqual(watch.sections.filter((s) => !s.sheetOnly).map((s) => s.id), ['yourBars', 'statusAll'],
     'the tab\'s two cards');
   const titles = watch.sections.map((s) => s.title).filter(Boolean);

@@ -828,10 +828,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * The Your status bars card (block 'barsList', the owner's pick, 2026-11-09), in the page's shared
      * parts (kit): a line per bar, the Watch bar first and then your bars (screens.js yourBars),
      * each its name, the screens that show it (none on aplite, which has one) and the alerts
-     * placed on it (barAlerts; the owner's ask, 2026-11-09: seen without opening the bar), a tap
-     * opening the bar's dialog (schema.js barDialog); under it the bar's picture, where a tap on
-     * a slot opens its picker, dimmed while no screen shows it; and the red arrow of a row that
-     * opens a screen of its own, in the middle of the whole row. Then New status bar with how many bars
+     * placed on it (barAlerts; the owner's ask, 2026-11-09: seen without opening the bar); under
+     * it the bar's picture, dimmed while no screen shows it; and the red arrow of a row that
+     * opens a screen of its own, in the middle of the whole row. The whole row is one button that
+     * opens the bar's dialog (schema.js barDialog; the owner's, 2026-11-14: a tap on a slot of
+     * the picture used to open that slot's picker, which hid the bar's other settings). Then New
+     * status bar with how many bars
      * there are (Pebble Time 2), or with six why there is none, and the Undo after a Delete status bar.
      * @param {Object} S Live settings.
      * @param {?Object} env Platform env.
@@ -844,16 +846,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var where = !places ? '' : places.length ? places.map(function (i) { return M.nameOf(st, i); }).join(', ')
                 : 'No screen';
             var sheet = M.barSheet(bar), alerts = barAlerts(st, env, bar);
-            return '<div class="ui-row bl-bar"><div class="bl-main"><button type="button" class="bl-name" data-edit-sheet="' + sheet
-                + '"><span class="bl-line"><span class="ui-n">' + esc(name) + '</span>'
+            return '<div class="ui-row bl-bar"><button type="button" class="bl-open" data-edit-sheet="' + sheet + '">'
+                + '<span class="bl-main"><span class="bl-name"><span class="bl-line"><span class="ui-n">' + esc(name) + '</span>'
                 + (where ? '<span class="ui-d">' + esc(where) + '</span>' : '') + '</span>'
                 + (alerts ? '<span class="ui-d bl-al"><span class="bl-al-cap">Alerts</span><span class="bl-al-runs">' + alerts
-                    + '</span></span>' : '') + '</button>'
-                + PSB.barPicture(st, env, bar, { tappable: true, dim: Boolean(places && !places.length) }) + '</div>'
-                // The arrow's own column, a second way into the dialog for a tap beside the
-                // picture; the name above is the one a screen reader and the keyboard use.
-                + '<button type="button" class="bl-go" data-edit-sheet="' + sheet + '" tabindex="-1" aria-hidden="true">'
-                + kit.navArrow() + '</button></div>';
+                    + '</span></span>' : '') + '</span>'
+                + PSB.barPicture(st, env, bar, { dim: Boolean(places && !places.length) }) + '</span>'
+                + '<span class="bl-go" aria-hidden="true">' + kit.navArrow() + '</span></button></div>';
         }).join('');
         if (M.freeBar(st, env)) {
             h += kit.newRow('New status bar', barCount(st, env), { 'data-action': 'newBar' });
@@ -917,12 +916,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.scr-grip:focus-visible{outline:2px solid var(--link);outline-offset:-6px;border-radius:12px}'
         + '.scr-pill{display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;background:var(--ctl);'
         + 'color:var(--muted);font:700 10.5px/1.3 Inter,system-ui,sans-serif;vertical-align:1px}'
-        // The Your status bars card: a bar's name line and its alerts over its picture, and the red arrow
-        // (its dialog) in a column of its own, in the middle of the whole row as on a nav row.
-        + '.bl-bar{display:flex;align-items:stretch;gap:8px;padding:10px 16px 12px}'
-        + '.bl-main{flex:1 1 auto;min-width:0}'
-        + '.bl-name{display:block;width:100%;margin:0 0 7px;padding:3px 0;border:none;background:none;'
-        + 'color:var(--lbl);text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
+        // The Your status bars card: a row is one button (its dialog), a bar's name line and its
+        // alerts over its picture, and the red arrow in a column of its own, in the middle of the
+        // whole row as on a nav row.
+        + '.bl-bar{padding:0}'
+        + '.bl-open{display:flex;align-items:stretch;gap:8px;width:100%;margin:0;padding:10px 16px 12px;border:none;'
+        + 'background:none;color:var(--lbl);text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}'
+        + '.bl-main{display:block;flex:1 1 auto;min-width:0}'
+        + '.bl-name{display:block;margin:0 0 7px;padding:3px 0}'
         + '.bl-line{display:flex;align-items:center;gap:8px}'
         + '.bl-line .ui-n{flex:1 1 auto;min-width:0}'
         + '.bl-line .ui-d{flex:0 1 auto;min-width:0;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
@@ -930,8 +931,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.bl-al{display:flex;align-items:flex-start;gap:8px;margin-top:4px}'
         + '.bl-al-cap{flex:none}'
         + '.bl-al-runs{flex:1 1 auto;min-width:0}'
-        + '.bl-go{flex:none;display:flex;align-items:center;justify-content:flex-end;width:22px;margin:0;padding:0;border:none;'
-        + 'background:none;cursor:pointer;-webkit-appearance:none;appearance:none}'
+        + '.bl-go{flex:none;display:flex;align-items:center;justify-content:flex-end;width:22px}'
         // A bar's dialog's picture: the bar, large, where it shows under it.
         + '.bl-pin{display:grid;gap:8px}'
         + '.bl-pin .ui-d{text-align:center}'

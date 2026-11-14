@@ -846,11 +846,12 @@ function slotItem(slotKey, position, barWhen, joins) {
         type: 'select',
         messageKey: slotKey,
         label: labels[position],
-        // The picker names the bar too, by its name (screens.js barName): it also opens from a
-        // tap on the slot in the tab's pinned preview (preview-status-bars.js), away from the
-        // bar's card.
+        // The picker names the bar too, by its name (screens.js barName).
         sheetTitle: bar.name + ' · ' + labels[position],
         sheetTitleBy: {resolver: 'barSlotTitle', args: {bar: bar.bar, label: labels[position]}},
+        // In the bar's dialog the list rises from the bottom (engine renderPickSheet), as on a
+        // tab, rather than opening in place under the row (the owner's, 2026-11-14).
+        bottomSheet: true,
         defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: slotKey}},
         onChange: 'dedupeStatusSlot',
         editSheetFrom: {resolver: 'statusSlotEditSheet'},
@@ -1086,10 +1087,10 @@ var VIEW_FLICK_WHEN = {env: 'platform', ne: 'aplite'};
 // env.forecastSpan fact), hidden on an unknown watch (fail closed: the 640 / 536 B
 // inboxes of every other watch cannot take the long span's 68-hour bundle).
 var FORECAST_SPAN_WHEN = {env: 'forecastSpan'};
-// The owner's text (2026-11-06). The tap is said twice on purpose: the bars' own line under
-// them (preview-status-bars.js) and here, because a tap on a picture was not obvious.
-var STATUS_INTRO = 'Each status bar has a left, middle and right slot. Tap a slot to change it, or tap a bar’s name for '
-    + 'the rest of its settings.';
+// The owner's text (2026-11-06), the tap rewritten (2026-11-14): a tap anywhere on a bar opens
+// all its settings, its slots among them (screens-page.js barsCard).
+var STATUS_INTRO = 'Each status bar has a left, middle and right slot. Tap a bar to change its slots and the rest of '
+    + 'its settings.';
 // "up to 66": a full feed on the whole screen (the Left axis values On graph or Off).
 var FORECAST_INTRO = 'The forecast graph shows up to 24 hours ahead. On Pebble Time 2 you can pick 12, 24 or up to '
     + String(spanHours.wholeHours(spanHours.FULL_HOURS, spanHours.SCREEN_W)) + ' hours under Forecast length. '
@@ -1890,8 +1891,8 @@ module.exports = {
         id: 'watch', label: 'Status bars', short: 'Status', icon: 'tab-status', sections: [{
             // Your status bars (screens-page.js barsCard, the owner's pick, 2026-11-09): every bar the
             // watch has, a bar no screen shows too, so any bar can go onto any screen. Each is
-            // its name, the screens that show it and its picture, a tap on a slot changing it and
-            // a tap on the name opening the bar's dialog (barDialog below); then New status bar.
+            // its name, the screens that show it and its picture, a tap anywhere on it opening the
+            // bar's dialog (barDialog below); then New status bar.
             id: 'yourBars',
             title: 'Your status bars',
             intro: STATUS_INTRO,
