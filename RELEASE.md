@@ -1,63 +1,63 @@
+# Releasing
+
+This is the release checklist for WarnWeather: how a release is cut, what each release needs besides the code, and how to refresh the store assets.
+
 ## Automatic GitHub releases (Release Please)
 
-Releases are managed by `.github/workflows/release-please.yml`.
-
-Flow:
+`.github/workflows/release-please.yml` manages releases:
 
 1. Merge conventional commits into `main`.
-2. Release Please opens or updates a release PR with version bumps.
+2. Release Please opens or updates a release PR with the version bumps.
 3. Merge the release PR.
 4. The workflow creates a GitHub release and uploads `build/warnweather.pbw`.
 
-**If the `.pbw` build fails after the tag is cut,** the release is published without its `.pbw`,
-and running the failed job again builds nothing (release-please has already tagged it). Merge the
+If the `.pbw` build fails after the tag is cut, the release is published without its `.pbw`,
+and running the failed job again builds nothing, because release-please has already tagged it. Merge the
 fix to `main`, then run *Release Please* by hand on `main` (Actions → Release Please → Run
-workflow) with the release's tag, e.g. `v2.6.0`. That run builds `main` and uploads its `.pbw` to
+workflow) with the release's tag, e.g. `v2.6.0`. That run builds `main`, uploads its `.pbw` to
 that release, and stops if `main` is at another version.
 
-**Supabase goes out before the app.** Any `supabase/` change a release depends on must be merged
-and deployed (the *Deploy Supabase* run on `main` green) before the `.pbw` is uploaded — by
-merging the release PR or to the appstore — since the app POSTs to the rainbow-nowcast proxy.
+Supabase goes out before the app. The app POSTs to the rainbow-nowcast proxy, so any `supabase/`
+change a release depends on must be merged and deployed (the *Deploy Supabase* run on `main` green)
+before the `.pbw` is uploaded, whether by merging the release PR or to the appstore.
 
 ## Release notification requirements
 
-### Boot toast — feature releases only
+### Boot toast (feature releases only)
 
-A `release-notifications.json` entry keyed by the exact new version string, with
-non-empty `title` + `body`. The toast interrupts the user on first launch after an
-upgrade, so it is spent on releases that give them something to do:
+A feature release needs a `release-notifications.json` entry keyed by the exact new version
+string, with a non-empty `title` and `body`. The toast interrupts the user on first launch after
+an upgrade, so it is kept for releases that give them something to do:
 
 | Release | Version shape | Toast entry |
 |---------|---------------|-------------|
-| Feature (`feat:`) | `x.y.0` | **Required** — the release PR fails CI without one |
-| Fix-only (`fix:`) | `x.y.z`, z > 0 | **Optional** — omit it and nothing shows |
+| Feature (`feat:`) | `x.y.0` | **Required**: the release PR fails CI without one |
+| Fix-only (`fix:`) | `x.y.z`, z > 0 | **Optional**: omit it and nothing shows |
 
 The *Release Notification Required* workflow
 (`.github/workflows/release-notification-required.yml`, running
-`scripts/check-release-notification.js`) enforces exactly that. An entry that IS
-present is validated at any version — a half-filled one still fails, because
-`prepare-package.sh` throws on it.
+`scripts/check-release-notification.js`) enforces this. It validates an entry that is
+present at any version: a half-filled one fails, because `prepare-package.sh` throws on it.
 
-Skipping it on a patch is safe by construction: `prepare-package.sh` injects
+Leaving the entry out of a patch is safe: `prepare-package.sh` injects
 `pkg.releaseNotification` only when the manifest holds the version being built, and
 the watch shows the newest *unseen* entry at or below the running version. So
 1.13.1 → 1.13.2 shows nothing, while 1.13.0 → 1.13.2 still shows the 1.13.1 toast
 that user never saw.
 
-**Watch for `Release-As:`** pinning a *feature* to a patch version. The check
-reads the version, not the commits, so it will not ask for a toast on the release
-that most wants one — add it by hand in that case.
+Watch for `Release-As:` pinning a feature to a patch version. The check reads the version,
+not the commits, so it does not ask for a toast on that release, which needs one most. Add
+the entry by hand then.
 
-### News row — every release
+### News row (every release)
 
-A row in the `public.news` Supabase table with `target_version` left `NULL` — the
-short changelog shown in the settings screen's News & Feedback section. `NULL`
-shows the row to **every** watch regardless of version, so release news doubles as
-the nudge to update; an exact version string is reserved for version-specific
-notices. This has **no feature/patch exemption**, and **nothing in CI enforces
-it**, so it is on you at release time.
+Every release needs a row in the `public.news` Supabase table with `target_version` left
+`NULL`. It is the short changelog in the News & Feedback section of the settings screen.
+`NULL` shows the row to every watch whatever version it runs, so release news is also the
+nudge to update; an exact version string is for version-specific notices only. Patches need
+the row too, and **nothing in CI enforces it**, so check it yourself at release time.
 
-See `AGENTS.md`'s "Commits & releases" section for the style guide for both.
+The style guide for both is in the "Commits & releases" section of `AGENTS.md`.
 
 ## Developer portals
 
@@ -67,11 +67,11 @@ See `AGENTS.md`'s "Commits & releases" section for the style guide for both.
 
 ## Screenshots & store assets
 
-Store listing copy lives in [STORE_LISTING.md](STORE_LISTING.md).
+The store listing copy is in [STORE_LISTING.md](STORE_LISTING.md).
 
 ### Capture the store screenshots
 
-Capture the five curated configs on every platform, filed per platform under
+Capture the five chosen configs on every platform. The script files them per platform under
 `screenshot/<version>/store/<platform>/<config>.png`:
 
 ```sh
@@ -84,9 +84,9 @@ platform's five raw PNGs from `screenshot/<version>/store/<platform>/` to that p
 
 ### Composite the README hero shots
 
-Device frames and banner templates come from [Appstore Assets](https://developer.rebble.io/guides/appstore-publishing/appstore-assets/) in Pebble docs.
+The device frames and banner templates come from [Appstore Assets](https://developer.rebble.io/guides/appstore-publishing/appstore-assets/) in the Pebble docs.
 
-Those download links are broken (see https://github.com/pebble-dev/developer.rebble.io/issues/37), but you can download them from the wayback machine (e.g. [banner templates](https://web.archive.org/web/20161207160612/https://s3.amazonaws.com/developer.getpebble.com/assets/other/banner-templates-design.zip)).
+Its download links are broken (see https://github.com/pebble-dev/developer.rebble.io/issues/37); the files are on the Wayback Machine (e.g. [banner templates](https://web.archive.org/web/20161207160612/https://s3.amazonaws.com/developer.getpebble.com/assets/other/banner-templates-design.zip)).
 
 Composite the README hero shots from the store captures with:
 
@@ -100,11 +100,11 @@ mise composite-screenshot <pebble-time-red|pebble2-duo-white|pebble-time2-red> <
 Pebble 2 Duo←flint/wind, Pebble Time 2←emery/radar) and writes the framed PNGs to
 `screenshot/<version>/composite/`.
 
-Some downloaded frame assets carry other device names. Track them with these names: `core-time2-red.svg` becomes `pebble-time2-red.svg`, and `pebble2-white.svg` becomes `pebble2-duo-white.svg`.
+Some downloaded frame assets have other device names. Rename them: `core-time2-red.svg` becomes `pebble-time2-red.svg`, and `pebble2-white.svg` becomes `pebble2-duo-white.svg`.
 
 ### Refresh the README showcase GIF
 
-The README's animated hero is a multi-scene showcase captured per platform and
+The README's animated hero is a showcase of several scenes, captured per platform and
 cross-faded into one looping GIF. Regenerate it when the UI or the scene set changes:
 
 ```sh
@@ -113,5 +113,5 @@ scripts/assemble-showcase-gif.sh <version> <platform>    # per platform → *-sh
 ```
 
 Then point the README's three `screenshot/<version>/showcase/*-showcase.gif` links at the
-new version, and commit the GIFs. The scene set and the deterministic health /
-rain-countdown twins are documented in [DEV.md](DEV.md#showcase-gif-readme-hero).
+new version, and commit the GIFs. [DEV.md](DEV.md#showcase-gif-readme-hero) describes the scene set and the
+deterministic health and rain-countdown twins.

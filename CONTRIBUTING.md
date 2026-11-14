@@ -1,5 +1,7 @@
 # Contributing
 
+This guide is the setup walkthrough for WarnWeather: building the watchface, running the Supabase telemetry backend locally and in the cloud, installing builds, and the local dev config. The `mise` task reference is in [DEV.md](DEV.md).
+
 ## Building
 
 Prerequisites: [Node.js](https://nodejs.org/en/) and [mise](https://mise.jdx.dev/)
@@ -18,28 +20,26 @@ mise build
 mise build release
 ```
 
-This builds the project with the Pebble SDK version pinned in `pebble-sdk-version` and provisioned by the repo scripts. The `.pbw` output can be found in the `build` directory.
+The build uses the Pebble SDK version pinned in `pebble-sdk-version`, which the repo scripts provision. The `.pbw` lands in `build/`.
 
-`mise build release` requires `RAINBOW_PROXY_ENDPOINT` to be set in the environment — the release profile hard-fails without it (see the env var table in [DEV.md](DEV.md#environment-variables-env)).
+`mise build release` needs `RAINBOW_PROXY_ENDPOINT` in the environment; the release profile fails without it (see the env var table in [DEV.md](DEV.md#environment-variables-env)).
 
 ## Supabase (telemetry)
 
-Telemetry uses Supabase Edge Functions + Postgres.
+Telemetry runs on Supabase Edge Functions and Postgres.
 
-Install/update the CLI through mise's aqua backend (already pinned in `mise.toml`):
+mise installs and updates the Supabase CLI through its aqua backend (pinned in `mise.toml`):
 
 ```bash
 mise install
 supabase --version
 ```
 
-Create a local telemetry hash secret (`TELEMETRY_HASH_SECRET`):
+Generate a value for the telemetry hash secret, `TELEMETRY_HASH_SECRET`:
 
 ```bash
 openssl rand -hex 32
 ```
-
-Use this value for `TELEMETRY_HASH_SECRET`.
 
 ### Local stack and emulator testing
 
@@ -49,27 +49,27 @@ Start the local Supabase stack from the repo root:
 supabase start
 ```
 
-Copy `.env.example` to `.env`, then populate the telemetry keys there:
+Copy `.env.example` to `.env` and fill in the telemetry keys there:
 
 ```bash
 cp .env.example .env
 ```
 
-Uncomment `TELEMETRY_ENDPOINT` in `.env` and set it to `http://127.0.0.1:54321/functions/v1/telemetry-ingest` — it ships commented out, and telemetry is disabled without it.
+`TELEMETRY_ENDPOINT` ships commented out, and telemetry is off without it. Uncomment it in `.env` and set it to `http://127.0.0.1:54321/functions/v1/telemetry-ingest`.
 
-Serve the telemetry edge function locally (from repo root):
+Serve the telemetry edge function locally, from the repo root:
 
 ```bash
 mise telemetry-serve
 ```
 
-For emulator validation, run:
+To check it in the emulator, run:
 
 ```bash
 mise install-emulator --logs
 ```
 
-To verify inserts locally, open Supabase Studio at `http://127.0.0.1:54323` and inspect `public.telemetry_weather_fetch`.
+To check the inserts, open Supabase Studio at `http://127.0.0.1:54323` and look at `public.telemetry_weather_fetch`.
 
 ### Hosted deployment (Supabase cloud)
 
@@ -100,36 +100,38 @@ Deploy the telemetry function:
 supabase functions deploy telemetry-ingest
 ```
 
-Wire release and preview builds to hosted telemetry by setting repository secret(s) used by CI workflows:
+Release and preview builds reach hosted telemetry through these repository secrets, which the CI workflows read:
 
 - `TELEMETRY_ENDPOINT_RELEASE=https://<your-project-ref>.supabase.co/functions/v1/telemetry-ingest`
 - `TELEMETRY_ENDPOINT_PREVIEW=https://<your-project-ref>.supabase.co/functions/v1/telemetry-ingest`
 
 ### Optional: Supabase GitHub integration
 
-If you use Supabase GitHub sync/branching, Supabase can auto-apply migrations and deploy functions from the `supabase/` directory when branches/PRs update. Enable it in Supabase Dashboard > Project Settings > Integrations.
+With Supabase's GitHub sync and branching, Supabase applies migrations and deploys functions from `supabase/` when a branch or PR updates. Enable it in Supabase Dashboard > Project Settings > Integrations.
 
-`package.json` is generated from `package.template.json` and profile data in `profiles/`.
+## Package profiles and local build options
+
+`package.json` is generated from `package.template.json` and the profile data in `profiles/`:
 
 - Release profile: `profiles/package.release.json`
 - Dev profile: `profiles/package.dev.json`
 
-`mise build` and `mise build release` automatically generate `package.json` from the template/profile before building.
+`mise build` and `mise build release` generate `package.json` from the template and profile before they build.
 
-If you want the extra Pebble heap debug logs, set `ENABLE_MEMORY_LOGGING=1` in your `.env` before building or installing. This is independent of the dev/release package profile. This does not build on aplite (the `MEM|` logging overflows `.bss`) — capture heap logs on diorite or another platform instead. On the 64 KB watches it costs about 3.1 KB of heap and links only while the release image leaves that much room; `scripts/check-64k-size.sh` has the numbers.
+For the extra Pebble heap debug logs, set `ENABLE_MEMORY_LOGGING=1` in `.env` before building or installing. It works with either package profile. It does not build on aplite (the `MEM|` logging overflows `.bss`), so capture heap logs on diorite or another platform. On the 64 KB watches it costs about 3.1 KB of heap and links only while the release image leaves that much room; `scripts/check-64k-size.sh` has the numbers.
 
-For deterministic emulator UI, set `FIXTURE=<name>` in `.env` before building or installing. Fixture files live in `fixtures/<name>.json` and define the watch facts and weather payload used by local builds.
+For a deterministic emulator UI, set `FIXTURE=<name>` in `.env` before building or installing. Fixture files are `fixtures/<name>.json` and define the watch facts and weather payload of local builds.
 
-Release notification copy (optional “what’s new” toast on upgrade) lives in `release-notifications.json`, keyed by the exact `version` string from the template (e.g. `"1.26.0"`); use `dev-config.js` `maxNotifiedVersion` to simulate skipped-version upgrades locally.
+The copy of the release notification (the optional "what's new" toast on upgrade) is in `release-notifications.json`, keyed by the exact `version` string from the template (e.g. `"1.26.0"`). To simulate an upgrade that skipped versions locally, set `maxNotifiedVersion` in `dev-config.js`.
 
-If you want to regenerate `package.json` without building:
+To regenerate `package.json` without building:
 
 ```bash
 mise prepare-package           # dev profile (default)
 mise prepare-package release   # release profile
 ```
 
-You can run Pebble CLI commands directly, or use install tasks that build and install in one command:
+You can run Pebble CLI commands directly, or use the install tasks, which build and install in one command:
 
 ```bash
 # Option 1: set once in .env
@@ -210,13 +212,14 @@ mise screenshot-phone -- screenshot/my-capture.png
 ```
 
 ## Config
+
 Local dev config has three layers:
 
-- Use `.env` to choose the local mode or scenario, such as `FIXTURE=berlin`.
-- Use `fixtures/*.json` for committed, deterministic UI state: watch facts, Clay render settings, weather payloads, and other data that should make emulator screenshots reproducible.
-- Use `src/pkjs/dev-config.js` for uncommitted behavior testing, including preloaded Clay settings when you are exercising real app flows instead of deterministic fixture UI.
+- `.env` picks the local mode or scenario, such as `FIXTURE=berlin`.
+- `fixtures/*.json` hold committed, deterministic UI state that makes emulator screenshots reproducible: watch facts, Clay render settings, weather payloads and similar data.
+- `src/pkjs/dev-config.js` is for uncommitted behavior testing, including preloaded Clay settings when you exercise real app flows instead of a fixture's UI.
 
-When a fixture is active, prefer `claySettings` in the fixture for render-affecting Clay values. `dev-config.js` remains useful for local-only behavior switches and non-fixture testing.
+While a fixture is active, put Clay values that change the rendering in the fixture's `claySettings`. `dev-config.js` is for local-only behavior switches and testing without a fixture.
 
 Example:
 
@@ -226,7 +229,7 @@ module.exports.owmApiKey = 'abc123';
 
 ### PKJS storage reset (dev)
 
-Use this key in `src/pkjs/dev-config.js` to force a PKJS `localStorage` reset on each app boot while enabled:
+This key in `src/pkjs/dev-config.js` resets PKJS `localStorage` on every app boot while it is set:
 
 - `clearPkjsStorageOnBoot = true`
 
@@ -240,11 +243,11 @@ Notes:
 
 - Keep this set to `true` only while testing first-install behavior.
 - Set it back to `false` before testing upgrade-notification behavior.
-- This is local-only dev behavior and is not written into Clay settings.
+- It is local-only dev behavior and is not written into Clay settings.
 
 ### Release notification preview (dev)
 
-Use this key in `src/pkjs/dev-config.js` to always show the notification for a **specific version key** from `release-notifications.json` on every app boot (ignores upgrade gating):
+This key in `src/pkjs/dev-config.js` shows the notification for one version key from `release-notifications.json` on every app boot, whatever the upgrade state:
 
 - `forceShowReleaseNotificationOnBoot = '1.26.0'` (string must match a key in `release-notifications.json` exactly)
 
@@ -256,14 +259,14 @@ module.exports.forceShowReleaseNotificationOnBoot = '1.26.0';
 
 Notes:
 
-- Useful when `package.json` is still on an older version but you want to iterate on copy for the next release entry.
+- Use it to work on the next release entry's copy while `package.json` is still on an older version.
 - Remove the key (or comment it out) when testing normal upgrade behavior.
-- This is local-only dev behavior and is not written into Clay settings.
+- It is local-only dev behavior and is not written into Clay settings.
 
 ### Fixtures (emulator/dev)
 
-Set `FIXTURE=<name>` in `.env` to load deterministic app-state data from `fixtures/<name>.json`.
-See [DEV.md](DEV.md#fixtures) for the full list of supported fixture fields (`watch.now`,
+Set `FIXTURE=<name>` in `.env` to load deterministic app state from `fixtures/<name>.json`.
+[DEV.md](DEV.md#fixtures) lists every supported fixture field (`watch.now`,
 `watch.battery`, `watchSettings`, `claySettings`, and the `weather.*` forecast / wind /
 radar arrays).
 
@@ -273,7 +276,7 @@ Minimal `.env`:
 FIXTURE=berlin
 ```
 
-Fixture data is tracked in git inside `fixtures/`.
+Fixture data is committed in `fixtures/`.
 
 ### Fixture emulator installs
 
@@ -285,7 +288,7 @@ mise install-emulator --logs
 
 ## Upgrading pebble-tool
 
-This project pins `pipx:pebble-tool` to an exact version in `mise.toml` (fully resolved in `mise.lock`).
+`mise.toml` pins `pipx:pebble-tool` to an exact version, fully resolved in `mise.lock`.
 
 To bump the pinned version:
 
