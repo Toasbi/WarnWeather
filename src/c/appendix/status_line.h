@@ -22,7 +22,7 @@
 // An edge slot's weather condition may take the middle slot's room, its name with the short
 // form after it, while the whole line still fits STATUS_LINE_MAX_BYTES (the phone checks:
 // status-lines.js widenEdgeConditions), so a side slot shows the whole name beside an empty
-// or a short middle (status_row.c swap_in_short_forms).
+// or a short middle (status_row_layout.h status_row_swap_short_forms).
 #define STATUS_TEXT_EDGE_COND_MAX 19
 
 typedef enum {

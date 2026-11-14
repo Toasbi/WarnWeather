@@ -158,6 +158,11 @@ build/host/graph_style_test
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the
 # per-platform STATUS_STRIP_CAL_GAP.
 cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test
+# The row layout with the short forms swapped in, over a sweep of slots, checked against the
+# settings page's copy (scripts/check-row-swap-lockstep.js).
+cc $CFLAGS test/c/row_swap_dump.c src/c/layers/status_row_layout.c -o build/host/row_swap_dump
+build/host/row_swap_dump > build/host/row_swap.txt
+node scripts/check-row-swap-lockstep.js build/host/row_swap.txt
 build/host/status_row_layout_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test_emery
 build/host/status_row_layout_test_emery

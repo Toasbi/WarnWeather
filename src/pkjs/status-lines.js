@@ -533,8 +533,8 @@ function packLine(line, payload, settings, env, alerts) {
  * Give an edge slot's weather condition the room its name needs, the left slot's first: its
  * wide value (packLine) where the whole line still fits catalog.CAPS.LINE_MAX, else the edge
  * form it was packed with. Beside an empty or a short middle the watch then shows the whole
- * name, and swaps in the short form where the row cannot hold it (status_row.c
- * swap_in_short_forms).
+ * name, and swaps in the short form where the row cannot hold it (status_row_layout.h
+ * status_row_swap_short_forms).
  * @param {number[]} bytes The packed line.
  * @param {number[]} starts Where each of the three slots' bytes start.
  * @param {Array<number[]>} wide An edge slot's wide condition value by slot index, if any.

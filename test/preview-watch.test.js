@@ -201,7 +201,8 @@ test('a light theme draws black on white, the status rows print the Status bars 
 });
 
 // The owner's, 2026-11-14: a side slot's weather condition shows its whole name beside an empty
-// or a short middle, and gives way to the middle's text (status_row.c swap_in_short_forms).
+// or a short middle, and gives way to the middle's text (status_row_layout.h
+// status_row_swap_short_forms).
 test('a side slot\'s weather condition: the whole name beside an empty middle, the short form beside a long one', () => {
   const draw = (platform, mid) => pw.watchPreview(settings({ layoutPreset: 'compactCal', radarMode: 'off',
     healthMode: 'off', statusForecastLeft: 'condition', statusForecastMid: mid, statusForecastRight: 'empty',

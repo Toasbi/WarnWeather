@@ -444,10 +444,42 @@
     }
 
     /**
-     * A row's three slots measured in the watch's Gothic and laid out as the watch does both:
-     * a slot that brought a short form draws it where the row would cut a text, an edge's
-     * whole name giving way whenever any text is cut, the wider name first, then the middle
-     * where its own is cut, each swap laid out again (status_row.c swap_in_short_forms).
+     * Where a row's three slots go once the short forms they brought are swapped in, as the
+     * watch does it (status_row_layout.c status_row_swap_short_forms, which
+     * scripts/check-row-swap-lockstep.js holds this to): a slot that brought one draws it
+     * where the plain row would cut or hide a text, an edge's whole name giving way whenever
+     * any text is cut, the wider name first, then the middle where its own is cut, each swap
+     * laid out again. A slot that swaps takes its short form's width as its `tw`.
+     * @param {number} cw The row's content width.
+     * @param {!Array<?{iw: number, tw: number, sw: number, aw: number}>} m Left, middle and
+     *     right slots' measures (null: empty); `aw` the short form's text width, negative when
+     *     the slot brought none.
+     * @returns {{swapped: number, placed: !Array<?{x: number, tw: number}>}} The slots that
+     *     swapped, bit i for slot i, and where each goes (placeSlots).
+     */
+    function swapShortForms(cw, m) {
+        var placed = placeSlots(cw, m), swapped = 0;
+        var left = m.map(function (it) { return Boolean(it) && it.aw >= 0; });
+        var cut = function (it, p) { return Boolean(it) && it.tw > 0 && !(p && p.tw >= it.tw); };
+        for (var round = 0; round < 3 && left.some(Boolean); round++) {
+            if (!m.some(function (it, i) { return cut(it, placed[i]); })) { break; }
+            var pick = -1;
+            [0, 2].forEach(function (i) {
+                if (left[i] && (pick < 0 || m[i].tw > m[pick].tw)) { pick = i; }
+            });
+            if (pick < 0 && left[1] && cut(m[1], placed[1])) { pick = 1; }
+            if (pick < 0) { break; }
+            left[pick] = false;
+            swapped |= 1 << pick;
+            m[pick].tw = m[pick].aw;
+            placed = placeSlots(cw, m);
+        }
+        return { swapped: swapped, placed: placed };
+    }
+
+    /**
+     * A row's three slots measured in the watch's Gothic and laid out as the watch does both,
+     * the short forms they brought swapped in where the watch swaps them (swapShortForms).
      * @param {Array<Object>} bars The bar's slots (preview-status-bars.js barSlots).
      * @param {number} cw The row's content width. @param {number} ch Its Gothic size.
      * @param {number} iconH Its icon height. @param {number} f Screen family.
@@ -463,24 +495,16 @@
             var icon = glyph ? null : c.icon;
             slots[at[c.pos]] = { label: c.text || '', alt: c.alt, glyph: glyph, icon: icon,
                 iw: glyph ? BATTERY.w : (icon ? iconH : 0), tw: c.text ? WT.width(ch, false, c.text) : 0,
-                sw: c.arrow ? arrowW : 0 };
+                sw: c.arrow ? arrowW : 0, aw: c.alt ? WT.width(ch, false, c.alt) : -1 };
         });
-        var placed = placeSlots(cw, slots);
-        var cut = function (it, p) { return Boolean(it) && it.tw > 0 && !(p && p.tw >= it.tw); };
-        for (var round = 0; round < 3; round++) {
-            if (!slots.some(function (it, i) { return cut(it, placed[i]); })) { break; }
-            var pick = -1;
-            [0, 2].forEach(function (i) {
-                if (slots[i] && slots[i].alt && (pick < 0 || slots[i].tw > slots[pick].tw)) { pick = i; }
-            });
-            if (pick < 0 && slots[1] && slots[1].alt && cut(slots[1], placed[1])) { pick = 1; }
-            if (pick < 0) { break; }
-            slots[pick].label = slots[pick].alt;
-            slots[pick].tw = WT.width(ch, false, slots[pick].alt);
-            slots[pick].alt = '';
-            placed = placeSlots(cw, slots);
-        }
-        return { slots: slots, placed: placed };
+        var swap = swapShortForms(cw, slots);
+        slots.forEach(function (it, i) {
+            if (swap.swapped & (1 << i)) {
+                it.label = it.alt;
+                it.alt = '';
+            }
+        });
+        return { slots: slots, placed: swap.placed };
     }
 
     /**
@@ -809,7 +833,7 @@
     if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }
     if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('timeFontPicture', fontPicture); }
     var api = { watchPreview: watchPreview, layoutView: layoutView, clockInk: clockInk, screenSvg: screenSvg,
-        barLabels: barLabels,
+        barLabels: barLabels, swapShortForms: swapShortForms,
         graphKinds: graphKinds,
                 fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
