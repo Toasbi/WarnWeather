@@ -7914,7 +7914,7 @@
                 "type": "toggle",
                 "messageKey": "citySlotIcon",
                 "label": "Weather icon",
-                "defaultValue": true,
+                "defaultValue": false,
                 "hintByValue": {
                   "true": "Shows the current weather's icon before the city name."
                 }
