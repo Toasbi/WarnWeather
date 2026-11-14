@@ -711,8 +711,6 @@ test('weatherTabSeenDays is the whole days since the page last drew the tab', ()
   assert.strictEqual(days(TAB_NOW - DAY_MS), 1);
   assert.strictEqual(days(TAB_NOW - 30.5 * DAY_MS), 30, 'rounded down');
   assert.strictEqual(days(String(TAB_NOW - 2 * DAY_MS)), 2, 'read with Number(), like the tab cache reads it');
-  // Without a reference time, the snapshot is read now.
-  assert.strictEqual(buildSettingsSnapshot({ weatherTabSeenAt: Date.now() - 3 * DAY_MS }).weatherTabSeenDays, 3);
 });
 
 test('weatherTabSeenDays is absent without a stamp the page could have made', () => {

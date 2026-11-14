@@ -217,12 +217,12 @@ function weatherTabPlaces(safe) {
  *   read: what the watch can show, and the graph colours resolved the way the renderer
  *   does (line-style.renderContextFor: the theme fold and the colour-display check).
  *   Absent = an unknown watch, which answers like basalt: colour, no LED.
- * @param {number} [nowMs] Reference time for the Weather tab's seen age; defaults to now.
+ * @param {number} nowMs Reference time for the Weather tab's seen age (the caller's clock).
  * @returns {Object} Telemetry-safe settings snapshot.
  */
 function buildSettingsSnapshot(settings, watchInfo, nowMs) {
     var safe = settings || {};
-    var now = typeof nowMs === 'number' ? nowMs : Date.now();
+    var now = nowMs;
     // What this watch can show (the config page's own facts): no On demand on aplite.
     // An unknown watch (watchInfo absent) answers like basalt: colour, no LED.
     var env = platforms.computeEnv(watchInfo);
