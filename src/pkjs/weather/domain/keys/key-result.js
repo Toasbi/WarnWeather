@@ -5,7 +5,8 @@
 // the settings page's key status (page/weather/keys/key-status.js: "Key ••••1234 · ✓ works",
 // "✗ rejected: invalid key (401)", the tab's dot and the Save dialog).
 //
-// ONE map in localStorage (storage-keys.js KEY_RESULTS_KEY), by source id:
+// ONE map, stored by weather/adapter/key-results-store.js (storage-keys.js KEY_RESULTS_KEY),
+// by source id:
 //   {<id>: {keyHash, status}}
 // — the source the phone asked (a weather provider's id, or a radar source's:
 // 'rainbowkey' for "Rainbow (own key)"), the fingerprint of the key the request carried
@@ -28,7 +29,6 @@
 // too, and auth-backoff.js asks classify about a failure's code (statusOfCode) before it
 // stops fetching, so what a status says about a key is decided here only.
 (function () {
-    var storageKeys = (typeof require !== 'undefined') ? require('../../../settings/domain/storage-keys.js') : null;
     var keyFingerprint = (typeof require !== 'undefined') ? require('./key-fingerprint.js') : null;
 
     /**
@@ -71,46 +71,26 @@
     }
 
     /**
-     * The stored map. Phone only; never throws.
-     * @returns {Object} The map; {} when absent, unreadable or off the phone.
-     */
-    function readMap() {
-        var raw;
-        try {
-            if (!storageKeys || typeof localStorage === 'undefined' || !localStorage) { return {}; }
-            raw = localStorage.getItem(storageKeys.KEY_RESULTS_KEY);
-        } catch (e) {
-            return {};
-        }
-        return parseMap(raw);
-    }
-
-    /**
-     * Record a source's answer to the key a request carried, when it says something about
-     * the key (classify) and differs from the source's entry. Phone only; never throws (it
-     * runs in async fetch callbacks).
+     * The map with a source's answer to the key a request carried, when the answer says
+     * something about the key (classify) and differs from the source's entry.
+     * @param {Object} map The current map (not changed).
      * @param {string} id The source id ('openweathermap', 'tomorrowio', 'rainbowkey', ...).
      * @param {*} apiKey The key the request carried (fingerprinted, never stored); a
      *   keyless source's blank or absent key records nothing.
      * @param {number} status The HTTP status that answered it.
-     * @returns {void}
+     * @returns {?Object} The new map, or null when nothing changes.
      */
-    function record(id, apiKey, status) {
-        if (!classify(status) || typeof id !== 'string' || !id || !keyFingerprint) { return; }
+    function withAnswer(map, id, apiKey, status) {
+        if (!classify(status) || typeof id !== 'string' || !id || !keyFingerprint) { return null; }
         var keyHash = keyFingerprint.fingerprint(apiKey);
-        if (!keyHash) { return; }
+        if (!keyHash) { return null; }
         var code = (status >= 200 && status < 300) ? 200 : status;
-        var map = readMap();
         var last = Object.prototype.hasOwnProperty.call(map, id) ? map[id] : null;
-        if (last && last.keyHash === keyHash && last.status === code) { return; }
-        map[id] = { keyHash: keyHash, status: code };
-        try {
-            if (typeof localStorage !== 'undefined' && localStorage) {
-                localStorage.setItem(storageKeys.KEY_RESULTS_KEY, JSON.stringify(map));
-            }
-        } catch (e) {
-            // Storage full or unavailable: the settings page only knows less.
-        }
+        if (last && last.keyHash === keyHash && last.status === code) { return null; }
+        var next = {};
+        Object.keys(map).forEach(function (k) { next[k] = map[k]; });
+        next[id] = { keyHash: keyHash, status: code };
+        return next;
     }
 
     /**
@@ -134,7 +114,8 @@
     var api = {
         classify: classify,
         statusOfCode: statusOfCode,
-        record: record,
+        parseMap: parseMap,
+        withAnswer: withAnswer,
         verdictOf: verdictOf
     };
 

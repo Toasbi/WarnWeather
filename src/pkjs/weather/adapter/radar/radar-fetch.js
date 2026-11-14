@@ -13,6 +13,7 @@
 
 var WeatherProvider = require('../../application/provider.js');
 var keyResult = require('../../domain/keys/key-result.js');
+var keyResultsStore = require('../key-results-store.js');
 var radarWire = require('../../domain/radar/radar-wire.js');
 var wireUnits = require('../../../wire/domain/wire-units.js');
 var clampByte = wireUnits.clampByte;
@@ -68,7 +69,7 @@ function fetchRadarJson(opts, interpret, callback) {
         }
         // The source served this key (2xx with a JSON body), whatever the body holds.
         if (opts.keyResult && body && typeof body === 'object') {
-            keyResult.record(opts.keyResult.id, opts.keyResult.apiKey, 200);
+            keyResultsStore.record(opts.keyResult.id, opts.keyResult.apiKey, 200);
         }
         // Radar is best-effort: an interpret throw preserves the watch's radar
         // like any other bad response, rather than stranding the fetch chain.
@@ -85,7 +86,7 @@ function fetchRadarJson(opts, interpret, callback) {
         // A 401/403 (refused) or 429 (known, over its allowance) is the key's verdict;
         // record() leaves any other status alone.
         if (opts.keyResult) {
-            keyResult.record(opts.keyResult.id, opts.keyResult.apiKey, keyResult.statusOfCode(error && error.code));
+            keyResultsStore.record(opts.keyResult.id, opts.keyResult.apiKey, keyResult.statusOfCode(error && error.code));
         }
         if (opts.onTransportError && opts.onTransportError(error, callback)) { return; }
         console.log('[!] ' + opts.label + ' radar fetch failed: ' + JSON.stringify(error));

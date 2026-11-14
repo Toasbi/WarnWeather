@@ -36,8 +36,6 @@ const RUNTIME_ALLOWED = {
   'telemetry/application/telemetry-settings.js': ['Date.now'],
   'weather/application/provider.js': ['navigator', 'Date.now', 'new Date()'],
   'weather/domain/day-peaks.js': ['localStorage', 'Date.now'],
-  'weather/domain/keys/key-result.js': ['localStorage'],
-  'weather/domain/radar/radar-coverage.js': ['localStorage'],
 };
 
 // Which roles each role may require, and the requires today that break it ("from -> to").

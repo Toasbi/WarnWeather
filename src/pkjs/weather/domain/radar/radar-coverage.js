@@ -27,14 +27,12 @@
 // that does not ask the source (outside its box, another source, radar off: remember). A
 // failure that is no 404 (5xx, no connection) neither counts nor ends it.
 //
-// The fetch cycle also keeps the last location's verdict for each source here
-// (remember(): {dwd: true|false, metno: true|false}, true = outside its area, plus
+// The fetch cycle also keeps the last location's verdict for each source, in a record
+// that weather/adapter/radar/radar-coverage-store.js stores (remembered(): {dwd: true|false, metno: true|false}, true = outside its area, plus
 // misses: {dwd: n} while a run of misses lasts; never a position), and the settings page
 // reads it (userData.radarCoverage) for an amber note under the Radar provider row while
 // the picked source cannot see the place (note()).
 (function () {
-    var storageKeys = (typeof require !== 'undefined') ? require('../../../settings/domain/storage-keys.js') : null;
-
     // id -> {name: the picker's name, area: where it covers, watch: the radar's line on
     // the watch while the place is outside (<= 31 UTF-8 bytes, the watch's notice
     // buffer), noData: the radar's line while the source sends no radar data for a place
@@ -113,38 +111,6 @@
     }
 
     /**
-     * The stored record (RADAR_COVERAGE_KEY). Phone only; never throws.
-     * @returns {Object} The record; {} when absent, unreadable or off the phone.
-     */
-    function readRecord() {
-        try {
-            if (!storageKeys || typeof localStorage === 'undefined' || !localStorage) { return {}; }
-            var rec = JSON.parse(localStorage.getItem(storageKeys.RADAR_COVERAGE_KEY));
-            return (rec && typeof rec === 'object') ? rec : {};
-        } catch (e) {
-            return {};
-        }
-    }
-
-    /**
-     * Store the record, only when it changed. Phone only; never throws (it runs in an
-     * async fetch callback).
-     * @param {Object} rec The record.
-     * @returns {void}
-     */
-    function writeRecord(rec) {
-        try {
-            if (!storageKeys || typeof localStorage === 'undefined' || !localStorage) { return; }
-            var next = JSON.stringify(rec);
-            if (localStorage.getItem(storageKeys.RADAR_COVERAGE_KEY) !== next) {
-                localStorage.setItem(storageKeys.RADAR_COVERAGE_KEY, next);
-            }
-        } catch (e) {
-            // A full store: the settings page only knows less.
-        }
-    }
-
-    /**
      * A record's run of misses for a source.
      * @param {Object} rec The record.
      * @param {string} id Radar source id.
@@ -156,59 +122,61 @@
     }
 
     /**
-     * Count a miss: a 404 from inside the source's box (the adapter asks right after it).
-     * The count stops at NO_DATA_MISSES, so a place that stays without data writes
-     * nothing more. Only the source in use has a run, so it replaces any other.
+     * The record after a miss: a 404 from inside the source's box (the adapter asks right
+     * after it). The count stops at NO_DATA_MISSES, so a place that stays without data
+     * changes nothing more. Only the source in use has a run, so it replaces any other.
+     * @param {Object} rec The stored record (not changed).
      * @param {string} id Radar source id.
-     * @returns {boolean} True when the place now counts as one the source sends no radar
-     *   data for (answer noDataText); false for the first miss, a source without misses,
-     *   or with no store to count in.
+     * @returns {?{rec: Object, noData: boolean}} The new record, and whether the place now
+     *   counts as one the source sends no radar data for (answer noDataText); null for a
+     *   source without misses.
      */
-    function countMiss(id) {
-        if (!noDataText(id)) { return false; }
-        var rec = readRecord();
+    function afterMiss(rec, id) {
+        if (!noDataText(id)) { return null; }
         var n = Math.min(missesOf(rec, id) + 1, NO_DATA_MISSES);
-        rec.misses = {};
-        rec.misses[id] = n;
-        writeRecord(rec);
-        return n >= NO_DATA_MISSES;
+        var next = {};
+        Object.keys(rec).forEach(function (k) { next[k] = rec[k]; });
+        next.misses = {};
+        next.misses[id] = n;
+        return { rec: next, noData: n >= NO_DATA_MISSES };
     }
 
     /**
-     * An answer with radar data: the source's run of misses ends, and with it the
-     * settings page's note.
+     * The record after an answer with radar data: the source's run of misses ends, and
+     * with it the settings page's note.
+     * @param {Object} rec The stored record (not changed).
      * @param {string} id Radar source id.
-     * @returns {void}
+     * @returns {?Object} The new record, or null when there was no run to end.
      */
-    function endMisses(id) {
-        var rec = readRecord();
-        if (missesOf(rec, id) === 0) { return; }
-        delete rec.misses;
-        writeRecord(rec);
+    function afterData(rec, id) {
+        if (missesOf(rec, id) === 0) { return null; }
+        var next = {};
+        Object.keys(rec).forEach(function (k) { if (k !== 'misses') { next[k] = rec[k]; } });
+        return next;
     }
 
     /**
-     * Keep this update's verdicts for the settings page (RADAR_COVERAGE_KEY), written only
-     * when they change. A run of misses survives only an update that asked its source:
-     * the source in use, with the place inside its area. Phone only; never throws (it
-     * runs in an async fetch callback).
+     * The record of this update's verdicts for the settings page. A run of misses
+     * survives only an update that asked its source: the source in use, with the place
+     * inside its area.
+     * @param {Object} rec The stored record (not changed).
      * @param {number|string} lat Latitude in degrees.
      * @param {number|string} lon Longitude in degrees.
      * @param {string} activeId The radar source this update used.
      * @param {?Object} answer That source's answer (null for none). Its out-of-area line
      *   (RAIN_RADAR_LIMITED = watchText) is its own word that it cannot see the place; the
      *   noData line is not (the place is in its area; the misses say the rest).
-     * @returns {void}
+     * @returns {Object} The new record.
      */
-    function remember(lat, lon, activeId, answer) {
+    function remembered(rec, lat, lon, activeId, answer) {
         var line = watchText(activeId);
-        var rec = verdicts(lat, lon, activeId, line !== '' && Boolean(answer) && answer.RAIN_RADAR_LIMITED === line);
-        var n = (isRegional(activeId) && !rec[activeId]) ? missesOf(readRecord(), activeId) : 0;
+        var next = verdicts(lat, lon, activeId, line !== '' && Boolean(answer) && answer.RAIN_RADAR_LIMITED === line);
+        var n = (isRegional(activeId) && !next[activeId]) ? missesOf(rec, activeId) : 0;
         if (n > 0) {
-            rec.misses = {};
-            rec.misses[activeId] = n;
+            next.misses = {};
+            next.misses[activeId] = n;
         }
-        writeRecord(rec);
+        return next;
     }
 
     /**
@@ -245,9 +213,9 @@
         watchText: watchText,
         noDataText: noDataText,
         verdicts: verdicts,
-        countMiss: countMiss,
-        endMisses: endMisses,
-        remember: remember,
+        afterMiss: afterMiss,
+        afterData: afterData,
+        remembered: remembered,
         note: note
     };
 

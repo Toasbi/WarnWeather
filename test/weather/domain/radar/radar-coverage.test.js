@@ -13,6 +13,7 @@ global.localStorage = {
   removeItem: (k) => { delete store[k]; }
 };
 const coverage = require('../../../../src/pkjs/weather/domain/radar/radar-coverage.js');
+const coverageStore = require('../../../../src/pkjs/weather/adapter/radar/radar-coverage-store.js');
 const KEYS = require('../../../../src/pkjs/settings/domain/storage-keys.js');
 
 const MIAMI = [25.76, -80.19];
@@ -85,60 +86,60 @@ function record() { return JSON.parse(store[KEYS.RADAR_COVERAGE_KEY]); }
 test('remember: the verdicts, never the position, written only when they change', () => {
   resetStore();
   writes = 0;
-  coverage.remember(MIAMI[0], MIAMI[1], 'dwd', DWD_OUTSIDE);
+  coverageStore.remember(MIAMI[0], MIAMI[1], 'dwd', DWD_OUTSIDE);
   assert.equal(store[KEYS.RADAR_COVERAGE_KEY], JSON.stringify({ dwd: true, metno: true }));
   assert.equal(store[KEYS.RADAR_COVERAGE_KEY].indexOf('25.7'), -1, 'no coordinate');
-  coverage.remember(MIAMI[0] + 0.1, MIAMI[1], 'dwd', DWD_OUTSIDE);
+  coverageStore.remember(MIAMI[0] + 0.1, MIAMI[1], 'dwd', DWD_OUTSIDE);
   assert.equal(writes, 1, 'the same verdicts: no write');
-  coverage.remember(BERLIN[0], BERLIN[1], 'dwd', null);
+  coverageStore.remember(BERLIN[0], BERLIN[1], 'dwd', null);
   assert.equal(store[KEYS.RADAR_COVERAGE_KEY], JSON.stringify({ dwd: false, metno: true }));
   assert.equal(writes, 2);
 });
 
 test('remember: the source\'s own out-of-area line says outside; the no-data line, a window or the limit do not', () => {
   resetStore();
-  coverage.remember(OSLO[0], OSLO[1], 'metno', METNO_OUTSIDE);
+  coverageStore.remember(OSLO[0], OSLO[1], 'metno', METNO_OUTSIDE);
   assert.deepEqual(record(), { dwd: true, metno: true }, 'Met.no\'s own word inside its box');
-  coverage.remember(PARIS[0], PARIS[1], 'dwd', DWD_NO_DATA);
+  coverageStore.remember(PARIS[0], PARIS[1], 'dwd', DWD_NO_DATA);
   assert.deepEqual(record(), { dwd: false, metno: true }, 'no radar data is not "outside Germany"');
-  coverage.remember(OSLO[0], OSLO[1], 'metno', { RAIN_RADAR_LIMITED: 'Radar limit reached' });
+  coverageStore.remember(OSLO[0], OSLO[1], 'metno', { RAIN_RADAR_LIMITED: 'Radar limit reached' });
   assert.deepEqual(record(), { dwd: true, metno: false });
-  coverage.remember(OSLO[0], OSLO[1], 'rainbow', DWD_OUTSIDE);
+  coverageStore.remember(OSLO[0], OSLO[1], 'rainbow', DWD_OUTSIDE);
   assert.deepEqual(record(), { dwd: true, metno: false }, 'another source\'s line says nothing');
 });
 
 test('countMiss / endMisses: the second 404 in a row makes the place one DWD sends no data for; data ends the run', () => {
   resetStore();
-  assert.equal(coverage.countMiss('dwd'), false, 'the first: a hiccup, maybe');
+  assert.equal(coverageStore.countMiss('dwd'), false, 'the first: a hiccup, maybe');
   assert.deepEqual(record(), { misses: { dwd: 1 } });
-  assert.equal(coverage.countMiss('dwd'), true, 'the second in a row');
+  assert.equal(coverageStore.countMiss('dwd'), true, 'the second in a row');
   writes = 0;
-  assert.equal(coverage.countMiss('dwd'), true);
+  assert.equal(coverageStore.countMiss('dwd'), true);
   assert.deepEqual(record(), { misses: { dwd: coverage.NO_DATA_MISSES } }, 'the count stops there');
   assert.equal(writes, 0, 'so a place that stays without data writes nothing more');
-  coverage.endMisses('dwd');
+  coverageStore.endMisses('dwd');
   assert.deepEqual(record(), {});
-  assert.equal(coverage.countMiss('dwd'), false, 'afresh');
-  assert.equal(coverage.countMiss('metno'), false, 'Met.no has no misses');
-  assert.equal(coverage.countMiss('metno'), false);
+  assert.equal(coverageStore.countMiss('dwd'), false, 'afresh');
+  assert.equal(coverageStore.countMiss('metno'), false, 'Met.no has no misses');
+  assert.equal(coverageStore.countMiss('metno'), false);
 });
 
 test('remember: a run of 404s survives only an update that asked DWD inside its box', () => {
   resetStore();
-  coverage.countMiss('dwd');
-  coverage.countMiss('dwd');
-  coverage.remember(PARIS[0], PARIS[1], 'dwd', DWD_NO_DATA);
+  coverageStore.countMiss('dwd');
+  coverageStore.countMiss('dwd');
+  coverageStore.remember(PARIS[0], PARIS[1], 'dwd', DWD_NO_DATA);
   assert.deepEqual(record(), { dwd: false, metno: true, misses: { dwd: 2 } }, 'DWD asked, inside: kept');
-  coverage.remember(PARIS[0], PARIS[1], 'dwd', null);
+  coverageStore.remember(PARIS[0], PARIS[1], 'dwd', null);
   assert.deepEqual(record().misses, { dwd: 2 }, 'a transient miss keeps it');
-  coverage.remember(MIAMI[0], MIAMI[1], 'dwd', DWD_OUTSIDE);
+  coverageStore.remember(MIAMI[0], MIAMI[1], 'dwd', DWD_OUTSIDE);
   assert.deepEqual(record(), { dwd: true, metno: true }, 'outside the box: no request, the run is over');
 
   [['rainbow', null], ['disabled', CLEAR], ['metno', METNO_OUTSIDE]].forEach(([id, answer]) => {
     resetStore();
-    coverage.countMiss('dwd');
-    coverage.countMiss('dwd');
-    coverage.remember(PARIS[0], PARIS[1], id, answer);
+    coverageStore.countMiss('dwd');
+    coverageStore.countMiss('dwd');
+    coverageStore.remember(PARIS[0], PARIS[1], id, answer);
     assert.equal(record().misses, undefined, id + ' asked instead: the run is over');
   });
 });
@@ -148,9 +149,9 @@ test('remember: never throws, and off the phone (no storage) writes nothing', ()
   const saved = global.localStorage;
   global.localStorage = { getItem: () => { throw new Error('gone'); }, setItem: () => { throw new Error('full'); } };
   try {
-    coverage.remember(PARIS[0], PARIS[1], 'dwd', DWD_NO_DATA);
-    assert.equal(coverage.countMiss('dwd'), false, 'no store to count in');
-    coverage.endMisses('dwd');
+    coverageStore.remember(PARIS[0], PARIS[1], 'dwd', DWD_NO_DATA);
+    assert.equal(coverageStore.countMiss('dwd'), false, 'no store to count in');
+    coverageStore.endMisses('dwd');
   } finally {
     global.localStorage = saved;
   }

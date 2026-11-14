@@ -30,9 +30,11 @@ var radarFactory = require('../weather/adapter/radar-factory.js');
 var radarWire = require('../weather/domain/radar/radar-wire.js');
 var radarSky = require('../weather/domain/radar/radar-sky.js');
 var radarCoverage = require('../weather/domain/radar/radar-coverage.js');
+var radarCoverageStore = require('../weather/adapter/radar/radar-coverage-store.js');
 var WeatherProvider = require('../weather/application/provider.js');
 var renderPayload = require('../weather/application/render-payload.js');
 var keyResult = require('../weather/domain/keys/key-result.js');
+var keyResultsStore = require('../weather/adapter/key-results-store.js');
 
 var KEY_FETCH_ATTEMPT = storageKeys.FETCH_ATTEMPT_KEY;
 var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
@@ -464,7 +466,7 @@ function createFetchCycle(deps) {
             // Which regional radar sources can see this place (no position kept), for the
             // settings page's note under the Radar provider row; an update that did not
             // ask DWD ends its run of 404s.
-            radarCoverage.remember(lat, lon, radarId, tuples);
+            radarCoverageStore.remember(lat, lon, radarId, tuples);
             callback(tuples);
         });
     }
@@ -621,7 +623,7 @@ function createFetchCycle(deps) {
             localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
             // A keyed provider served the key this fetch carried: the settings page's key
             // status (key-result.js; a keyless provider records nothing).
-            keyResult.record(provider.id, provider.apiKey, 200);
+            keyResultsStore.record(provider.id, provider.apiKey, 200);
             resetFetchAttemptCounter();
             // The payload reached the watch (ACK, or unchanged since the last ACK):
             // only now is its IS_SLEEPING the watch's state.
@@ -664,7 +666,7 @@ function createFetchCycle(deps) {
                 deps.authBackoff.set(failure);
                 // And the key's verdict, kept apart from the gate: a forced fetch clears
                 // the backoff, never this (key-result.js).
-                keyResult.record(provider.id, provider.apiKey, keyResult.statusOfCode(failure.code));
+                keyResultsStore.record(provider.id, provider.apiKey, keyResult.statusOfCode(failure.code));
             }
             // No weather data is available on failure, so whatever the watch still
             // needs rides alone, bundled into ONE send (the channel is half-duplex;
