@@ -3,7 +3,7 @@
 // "dump" arg prints actuals in table form for updating goldens deliberately.
 #include <stdio.h>
 #include <string.h>
-#include "c/layers/status_metrics.h"
+#include "c/appendix/status_metrics.h"
 #include "c/layers/calendar_metrics.h"
 #include "c/windows/layout.h"
 
@@ -3139,7 +3139,7 @@ typedef struct { int cal_ink_end; int box_top; int cap_top; bool has_cal_and_row
 // Topmost row of the row's threshold-highlight box: the digits' cap top minus the font's
 // descender depth (the box is the cap box grown by descender_h on every side), clamped to
 // the band top — MIRRORS the `above` side of status_highlight_extent() in
-// src/c/layers/status_row_layout.c, the same way status_cap_top above mirrors the seat. (A
+// src/c/appendix/status_row_layout.c, the same way status_cap_top above mirrors the seat. (A
 // plain-digit box out of rows BELOW lowers its top to keep its air symmetric; it can never
 // rise above this, so the bound stays safe.)
 static int status_box_top(int band_y, int band_h, int content_h) {

@@ -1,8 +1,8 @@
 #include <stdio.h>
-#include "c/layers/status_row_layout.h"
+#include "c/appendix/status_row_layout.h"
 // STATUS_TOP_STRIP_LIFT — the strip's cap sits that far above its band centre, which is what
 // makes its highlight box shorter than the identically-sized lone compact row's.
-#include "c/layers/status_metrics.h"
+#include "c/appendix/status_metrics.h"
 
 static int s_failures = 0;
 static void expect(const char *name, long got, long want) {

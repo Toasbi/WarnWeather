@@ -1,7 +1,7 @@
 #include "status_row.h"
 #include "status_row_icons.h"
 #include "status_row_direction.h"
-#include "status_row_layout.h"
+#include "c/appendix/status_row_layout.h"
 #include "status_highlight.h"
 #include "battery_draw.h"
 #include "layer_util.h"

@@ -23,9 +23,6 @@ const UPWARD_ALLOWED = [
   'appendix/app_message.c -> layers/status_bar.h',
   'appendix/app_message.c -> layers/top_status_layer.h',
   'appendix/app_message.c -> windows/main_window.h',
-  'appendix/on_demand.h -> layers/status_row_layout.h',
-  'appendix/step_scale.h -> layers/status_metrics.h',
-  'appendix/temp_axis_pad.h -> layers/status_metrics.h',
 ];
 
 /**

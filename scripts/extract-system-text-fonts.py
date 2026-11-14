@@ -13,7 +13,7 @@ src/pkjs/page/layout/watch-fonts.generated.js.
 The fonts are picked from basalt's flash, whose Gothic glyphs every watch shares (emery's
 differ in a handful of accented capitals only). Each size has two full fonts in the pack,
 the regular one inking less than the bold. As a check, each font's digits must seat as
-src/c/layers/status_metrics.h models them: a cap of content_h/2 + 2 rows, standing on the
+src/c/appendix/status_metrics.h models them: a cap of content_h/2 + 2 rows, standing on the
 line box's bottom (the content height is the font's nominal size).
 
 JSON: per font, its height (the nominal size, from the line's top to its baseline), the

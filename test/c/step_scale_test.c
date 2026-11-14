@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #include "c/appendix/step_scale.h"
-#include "c/layers/status_metrics.h"   // the label font's metrics (drawn_label)
+#include "c/appendix/status_metrics.h"   // the label font's metrics (drawn_label)
 
 // The graph seats each mark it keeps (its dashed line and its label) on the row step_scale_row
 // gives it, with no bounds check (step_scale_grid): over every hourly step count a watch can

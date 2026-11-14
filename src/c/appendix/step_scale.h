@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "c/layers/status_metrics.h"   // the labels' font metrics
+#include "c/appendix/status_metrics.h"   // the labels' font metrics
 
 // The smallest scale: 0.1k (100 steps). A quiet window, every hour under 100 steps,
 // scales as if its busiest hour had 100, so the 0.1 line and its label always draw.
@@ -53,7 +53,7 @@ static inline int step_scale_row(int v, int hi, int plot_h) {
 // THE LABELS, in a font whose measured height is `content_h` (bottom_view.h
 // bottom_view_label_font_h): a single-row number centred on its line, its INK centre on the
 // line's row + 1. Pebble seats a digit's cap on the BOTTOM of its measured content box, its ink
-// centre status_glyph_below(content_h) above that bottom (layers/status_metrics.h), so the ink's
+// centre status_glyph_below(content_h) above that bottom (appendix/status_metrics.h), so the ink's
 // top row sits this many rows above the line. Fully font-derived: no per-tier tuning.
 static inline int step_label_ink_lift(int content_h) {
     return status_cap_h(content_h) - 1 - status_glyph_below(content_h);

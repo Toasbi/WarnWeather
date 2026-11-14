@@ -4,7 +4,7 @@
 // cases in layout_test.c (144x168, fc_band_h 20), proving behavior parity on aplite.
 #include <stdio.h>
 #include <string.h>
-#include "c/layers/status_metrics.h"
+#include "c/appendix/status_metrics.h"
 #include "c/windows/layout.h"
 
 static int s_failures = 0;

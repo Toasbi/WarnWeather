@@ -18,7 +18,7 @@
 
 #include "top_status_layer.h"
 #include "battery_draw.h"
-#include "status_metrics.h"   // STATUS_TOP_STRIP_LIFT — the strip's seating (STATUS_ICON_Y)
+#include "c/appendix/status_metrics.h"   // STATUS_TOP_STRIP_LIFT — the strip's seating (STATUS_ICON_Y)
 #include "status_row.h"
 #include "top_status_indicators.h"
 #include "c/appendix/config.h"
