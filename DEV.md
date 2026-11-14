@@ -395,7 +395,7 @@ becomes `pebble-time2-red.svg`, and `pebble2-white.svg` becomes `pebble2-duo-whi
 The README's animated hero is the showcase GIF: a handful of curated scenes (different
 layouts and functions) captured per platform and cross-faded into one looping GIF. Scenes
 live in `scripts/gen-showcase-fixtures.js` (regenerated into `fixtures/showcase-N.json`
-on every capture) and are guarded by `test/showcase-fixtures.test.js`. Most are built on
+on every capture) and are guarded by `test/settings/adapter/showcase-fixtures.test.js`. Most are built on
 the Berlin base; a scene with `fixture` copies a fixture of its own (the Miami scenes).
 The table's row order is the GIF and reel order. Ids only name the frames
 (`scene_<id>.png`), so moving a scene never renames its frame. A scene with `platforms`
@@ -463,7 +463,7 @@ intro showcase scenes, then three captioned chapters (Themes, Graph, Status), ea
 to the platform's capabilities. It never touches the README hero.
 
 - The chapters, the text-card copy and the capability matrix live in
-  `scripts/gen-reel-fixtures.js` (guarded by `test/reel-fixtures.test.js`).
+  `scripts/gen-reel-fixtures.js` (guarded by `test/scripts/reel-fixtures.test.js`).
   `scripts/gen-text-cards.py` (Pillow) renders the text cards.
 - Intro frames are reused from the hero capture, so run `capture-showcase.sh <version>`
   first. The intro scene set and order come from the showcase table in

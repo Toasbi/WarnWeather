@@ -11,7 +11,7 @@
 // Node blocks.js requires this file at its top, with the preview blocks and the when
 // resolvers, so requiring blocks.js registers these resolvers too; the webview concatenates
 // it after those five modules and ahead of blocks.js (scripts/build-config-page.js
-// APP_FILES, pinned by test/config-page-bundle.test.js).
+// APP_FILES, pinned by test/page/settings/config-page-bundle.test.js).
 /* global PConf */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf

@@ -65,7 +65,7 @@
             // The page's own accent (shell.html's --link for this theme).
             // The day tiles' highlight interpolates TO it frame by frame
             // while a swipe is in flight, so it is needed as a value, not
-            // only as a CSS var — test/weather-tab-charts.test.js pins both
+            // only as a CSS var — test/page/weather/weather-tab/weather-tab-charts.test.js pins both
             // steps against shell.html so they cannot drift apart.
             link: '#D93A24',
             hiBox: '#1B2536', hiText: '#FFFFFF'

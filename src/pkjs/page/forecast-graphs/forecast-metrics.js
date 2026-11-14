@@ -4,7 +4,7 @@
 // words a sentence names it with (the templates' words, wizard-forecast.js THE WORDS) and by the
 // short name a legend gives it (Add a screen's legend, screen-legend.js). One table: a metric
 // added here is named everywhere the page names one (line-style.js GRAPH_METRICS holds the same
-// eight, test/line-style.test.js).
+// eight, test/forecast-graphs/domain/line-style.test.js).
 //
 // The metrics each weather service leaves out (GAPS) are here too: the metric pickers say so
 // (forecast-hints.js forecastMetricHint), and so does Add a screen's picked screen (screen-presets.js

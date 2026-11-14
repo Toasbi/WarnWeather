@@ -1349,7 +1349,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         editing: editing,
         normalize: normalize,
         // normalize by the name other modules call it by: a call spelt `.normalize(` reads as
-        // String.prototype.normalize to the ES5 check (test/config-es5.test.js).
+        // String.prototype.normalize to the ES5 check (test/repo/config-es5.test.js).
         asStored: normalize,
         settle: settle,
         swapIn: swapIn,

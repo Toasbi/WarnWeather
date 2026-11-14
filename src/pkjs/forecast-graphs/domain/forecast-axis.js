@@ -60,7 +60,7 @@
     var OFF = 'off';
     var NUMBERS = [AXIS, GRAPH, OFF];
     // The CLAY_LARGE_GRAPH_FONT word's bits. Lockstep with src/c/appendix/config.h GRAPH_OPT_*
-    // (test/forecast-axis.test.js). LARGE_FONT is Larger graph fonts' (clay-payload.js); the
+    // (test/forecast-graphs/domain/forecast-axis.test.js). LARGE_FONT is Larger graph fonts' (clay-payload.js); the
     // rest are this module's, AXIS_MASK. RETIRED: the betas' axis line off (0x02) and outline
     // off (0x10), reserved, never renumbered, never sent.
     var BIT = {

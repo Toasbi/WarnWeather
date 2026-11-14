@@ -59,7 +59,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * A sky-row percentage's stripe level as the watch draws it: the byte the phone
      * sends for it (radar-sky.js skyByte — the row's own scale in stripe-levels.js,
      * which the page bundle carries too), read back the way the watch's
-     * chart_stripe_level reads it. test/radar-sky-preview.test.js pins the two
+     * chart_stripe_level reads it. test/page/engine/radar-sky-preview.test.js pins the two
      * together.
      * @param {string} row 'cloud' | 'sun'.
      * @param {*} pct Percent of what the row draws (missing, non-numeric or negative

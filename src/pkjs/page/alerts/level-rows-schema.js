@@ -22,7 +22,7 @@ var COLOR_THEME_WHEN = gates.COLOR_THEME_WHEN;
 // blocks.js) and the slot's Bold row (schema.js boldRow) say, so the builders hold no
 // copy and never ask which kind they build.
 // The contract's goal flag (status-thresholds.js isGoalKind) packs the same three
-// kinds; test/config-thresholds.test.js pins the labels to it.
+// kinds; test/page/alerts/config-thresholds.test.js pins the labels to it.
 //
 // The intros are the only place the levels are explained now that the Watch-tab card
 // is gone. Both lead with what the pair IS: the slider is always live (the weather pair

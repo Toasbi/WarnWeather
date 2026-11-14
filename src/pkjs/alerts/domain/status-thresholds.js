@@ -19,8 +19,8 @@
  *
  * LOCKSTEP: kind order and the level, warn-look, bold-mode and rain-look values
  * mirror src/c/appendix/status_threshold.h, the mark order alert_set.h;
- * test/status-thresholds-contract.test.js and
- * test/alert-entries-contract.test.js enforce it. ES5 only (aplite PKJS).
+ * test/alerts/domain/status-thresholds-contract.test.js and
+ * test/alerts/domain/alert-entries-contract.test.js enforce it. ES5 only (aplite PKJS).
  */
 (function() {
   // The theme-polarity vocabulary, for the text colour an auto highlight colour
@@ -206,7 +206,7 @@
   // the pairs the page pinned before then are frozen in migrations/seed-pairs.js.
   // Each weather alert's dialog explains its pair in a note per unit or scale
   // (page/alerts/alerts-schema.js ALERT_LEVEL_CARDS), which quotes these numbers next to the references
-  // they sit on; test/config-alert-level-cards.test.js holds the two equal.
+  // they sit on; test/page/alerts/config-alert-level-cards.test.js holds the two equal.
   var SEEDS = {
     Uv: {'': {warn: 6, danger: 8}},
     Pollen: {'': {warn: 2, danger: 3}},

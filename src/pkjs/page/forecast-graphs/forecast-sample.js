@@ -10,7 +10,7 @@
 // morning haze and clearer nights; feels-like as a wind chill past 10 km/h and a degree more in
 // heavy rain, and never less than a degree under the air, so its line stays clear of the
 // temperature curve; dew point a few degrees under the air, closer at night and in rain).
-// test/forecast-sample.test.js holds the seven series the fixture has to it. Nights run from
+// test/page/forecast-graphs/forecast-sample.test.js holds the seven series the fixture has to it. Nights run from
 // the fixture's sunset (21:29) to its sunrise (04:46), as slot positions from the first hour.
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings-page

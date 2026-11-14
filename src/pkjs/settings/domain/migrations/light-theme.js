@@ -12,7 +12,7 @@
 // old values until it opens and saves the settings page, since an in-place upgrade
 // queues no Clay send of its own. Gating on "every cell reads as the built-in"
 // instead does not save it either — one deliberately chosen colour makes that false
-// forever, which is the shape test/clay-migrations.test.js pins.
+// forever, which is the shape test/settings/application/clay-migrations.test.js pins.
 //
 // The cost of being unconditional is one redundant Clay message on an install that
 // never held the old values. It does not loop: nothing changed means the payload

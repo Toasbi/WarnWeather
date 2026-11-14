@@ -6,7 +6,7 @@
 // LOCKSTEP: every field buildSettingsSnapshot emits is a field of the Deno .strip()
 // schema in supabase/functions/telemetry-ingest/handler.ts, and vice versa. A field
 // missing there is silently dropped; a type mismatch fails safeParse and 400s the whole
-// batch. test/telemetry.test.js holds the two key sets and their types equal. Deploy the
+// batch. test/telemetry/adapter/telemetry.test.js holds the two key sets and their types equal. Deploy the
 // ingest BEFORE the app that sends a new field ships. Removing a field is safe in either
 // order: the strip step drops what older apps still send, and every field is optional.
 //
@@ -132,7 +132,7 @@ function graphColorReport(settings, scope, role, suffix) {
  * copies the settings header into every row a batch writes, and this one code
  * replaced two comma lists (alertKinds, alertValueKinds) that cost about 60 B more
  * per row at their heaviest. The mark initials are pinned unique in
- * test/telemetry.test.js.
+ * test/telemetry/adapter/telemetry.test.js.
  * @param {Object} safe Settings blob (never null).
  * @param {Object} env Platform env (config-ui computeEnv).
  * @returns {string} e.g. 'VrVrVro-Vr' on an untouched install.
@@ -473,7 +473,7 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
     // table page/settings/schema.js defaults from), so a flipped default can never
     // desynchronize what telemetry reports from what the watch renders: an absent key
     // reports what it renders (the look from before the toggle existed), not a fresh
-    // install's default. Pinned by test/telemetry.test.js. A new key here must also join
+    // install's default. Pinned by test/telemetry/adapter/telemetry.test.js. A new key here must also join
     // the Deno .strip() schema or it is silently dropped
     // (supabase/functions/telemetry-ingest/handler.ts).
     for (var i = 0; i < REPORTED_UNIT_TOGGLES.length; i++) {
@@ -502,7 +502,7 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
     // (`where secondaryLine = 'wind'`) rather than needing twenty more columns.
     //
     // Assign undefined, never delete: the key must still EXIST for the lockstep
-    // set-equality test (test/telemetry.test.js). JSON.stringify drops it, and its
+    // set-equality test (test/telemetry/adapter/telemetry.test.js). JSON.stringify drops it, and its
     // ABSENCE is then the "this watch paints no colour at all" flag (the
     // `settings_json ? 'sleepStartHour'` idiom).
     var secMetric = safe.secondaryLine;

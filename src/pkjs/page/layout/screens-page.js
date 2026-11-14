@@ -579,7 +579,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Add a screen's cards: each kind this watch can draw, the forecast screen once per calendar it
      * can have (screen-presets.js cards; each fits every watch it is offered, with every calendar,
-     * test/config-screen-presets.test.js), each as addChoice reads it with your first graph. None
+     * test/page/layout/config-screen-presets.test.js), each as addChoice reads it with your first graph. None
      * with three screens already, but for Change layout, which replaces one.
      * @param {Object} S Settings.
      * @param {?Object} env Platform env.

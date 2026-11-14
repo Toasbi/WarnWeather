@@ -19,14 +19,14 @@ var APP_FILES = [
   // The On demand contract (window.OnDemand). It reads window.VIEW_CYCLE (the radar and
   // health row modes) while its own body runs, and status-thresholds.js binds it while
   // THAT body runs, so it sits after view-cycle.js and before status-thresholds.js —
-  // test/config-page-bundle.test.js pins the order.
+  // test/page/settings/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/status-bars/domain/on-demand.js'),
   // The screens as lists (window.Screens): reads VIEW_CYCLE, window.StatusLineCatalog and
   // window.OnDemand while its body runs, so it follows all three.
   path.join(ROOT, 'src/pkjs/layout/domain/screens.js'),
   // The screens Add screen offers after Blank (window.ScreenPresets). It reads nothing at load;
   // screens-page.js and wizard-screens.js bind it while their bodies run, so it precedes both —
-  // test/config-page-bundle.test.js pins the order.
+  // test/page/settings/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/page/layout/screen-presets.js'),
   path.join(ROOT, 'src/pkjs/page/weather/budgets/tomorrowio-budget.js'),
   // rainbow-budget.js reads PConf.tomorrowioBudget (ladder + night-pause rule) at load, and
@@ -44,7 +44,7 @@ var APP_FILES = [
   // when a test answers. Every Node test takes the require() branch, so neither a dropped
   // file (no key row, key summary, missing-key note, tab dot or Save dialog — or,
   // without the tables, the fingerprint or the key results, a throw at the first keyed
-  // provider's render) nor a wrong order shows there: test/config-page-bundle.test.js pins
+  // provider's render) nor a wrong order shows there: test/page/settings/config-page-bundle.test.js pins
   // all four into the generated page.
   path.join(ROOT, 'src/pkjs/page/weather/keys/key-sources.js'),
   path.join(ROOT, 'src/pkjs/weather/domain/keys/key-fingerprint.js'),
@@ -61,7 +61,7 @@ var APP_FILES = [
   // degrading. Omitting any of them instead leaves window.LineStyle undefined, which
   // preview-forecast.js would hit only when the forecast preview renders — on a real
   // phone, while every Node test still passes through the require() branch.
-  // test/config-page-bundle.test.js pins all three into the generated page.
+  // test/page/settings/config-page-bundle.test.js pins all three into the generated page.
   path.join(ROOT, 'src/pkjs/theme/domain/pebble-colors.js'),
   path.join(ROOT, 'src/pkjs/theme/domain/resolve-ink.js'),
   // The threshold contract (window.StatusThresholds). Same load-bearing order on both
@@ -70,7 +70,7 @@ var APP_FILES = [
   // while THEIRS run, so it sits between resolve-ink.js and all three. Out of order a
   // binding is undefined and the first sheet, badge or preview that reads it throws on
   // a real phone while every Node test still passes through require() —
-  // test/config-page-bundle.test.js pins the order.
+  // test/page/settings/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/alerts/domain/status-thresholds.js'),
   // theme-flip.js publishes window.ThemeFlip (the polarity-flip rules);
   // theme-convert.js reads it at IIFE time to register the onChange hooks.
@@ -80,25 +80,25 @@ var APP_FILES = [
   // bake scales such a line over, for forecast-hints.js' hints and the forecast preview. It
   // binds window.StatusThresholds and window.LineStyle while its own body runs, so it
   // follows both, and its two readers bind it while theirs run, so it precedes them —
-  // test/config-page-bundle.test.js pins the order.
+  // test/page/settings/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/alerts/domain/line-alert.js'),
   // Draw from / Bars from [Bottom | Top] (window.DrawFrom): which lines and bars hang
   // from the top, for forecast-hints.js' hints and the forecast and radar previews. It binds
   // window.LineStyle while its own body runs, so it follows line-style.js, and its
   // readers bind it while theirs run, so it precedes them —
-  // test/config-page-bundle.test.js pins the order.
+  // test/page/settings/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/forecast-graphs/domain/draw-from.js'),
   // The forecast's left axis options (window.ForecastAxis): the numbers' place and the
   // scale option, for the forecast preview and the Left axis card's when-resolver. It binds
   // window.LineStyle while its own body runs, so it follows line-style.js, and
   // preview-forecast.js and when-resolvers.js bind it while theirs run, so it precedes them —
-  // test/config-page-bundle.test.js pins the order.
+  // test/page/settings/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/forecast-graphs/domain/forecast-axis.js'),
   // The long Forecast length's whole hours (window.ForecastSpanHours): that row's label,
   // by forecast-hints.js' forecastSpanOptions resolver, and the span option the forecast
   // preview's hour axis reads (preview-axis.js). It binds window.ForecastAxis while its own
   // body runs, so it follows forecast-axis.js, and forecast-hints.js and preview-axis.js bind
-  // it while theirs run, so it precedes them — test/config-page-bundle.test.js pins the order.
+  // it while theirs run, so it precedes them — test/page/settings/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/weather/domain/forecast-span-hours.js'),
   // Graph styles (window.GraphStyles, the model) reads VIEW_CYCLE, LineStyle, LineAlert, DrawFrom
   // and ForecastAxis while its body runs; its page module (window.GraphStylesPage) reads it,
@@ -114,7 +114,7 @@ var APP_FILES = [
   // bake shades every stripe by, which the forecast and radar previews shade their cells
   // by and forecast-hints.js' stripe hints are written from. It reads nothing at load, and its
   // three readers bind it while their own bodies run, so it precedes them —
-  // test/config-page-bundle.test.js pins the order.
+  // test/page/settings/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/forecast-graphs/domain/stripe-levels.js'),
   // The five preview blocks, split by concern. Same load-bearing order rule as the
   // three above: preview-svg.js publishes window.PreviewSvg and preview-rain.js
@@ -122,7 +122,7 @@ var APP_FILES = [
   // bodies run, so the two libraries come first. Dropping any one of these silently
   // unregisters its block on a real phone (an unregistered id renders nothing and only
   // warns) while every Node test still passes through the require() branch —
-  // test/config-page-bundle.test.js pins each of them into the generated page.
+  // test/page/settings/config-page-bundle.test.js pins each of them into the generated page.
   path.join(ROOT, 'src/pkjs/page/settings/preview-svg.js'),
   // The screen pictures' shared frame: ahead of preview-watch.js and wizard.js, which bind
   // window.ScreenFrame while their bodies run.
@@ -140,7 +140,7 @@ var APP_FILES = [
   // preview-axis.js publishes window.PreviewAxis (the watch's temperature axis and hour
   // marks, mirrored), read by the forecast preview below. It binds window.ForecastSpanHours
   // while its own body runs, so it follows forecast-span-hours.js —
-  // test/config-page-bundle.test.js pins the order.
+  // test/page/settings/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/page/forecast-graphs/preview-axis.js'),
   // The setup wizard's sample weather (window.ForecastSample, a leaf): the hours its forecast
   // previews draw (forecastPreview's `sample`). wizard.js reads it when that step renders.
@@ -167,7 +167,7 @@ var APP_FILES = [
   // the lib files would do; it sits with the other page-only registrars, ahead of
   // blocks.js, and is only looked up at render time. Dropping it throws nothing —
   // an unregistered icon id just prints no glyph — so
-  // test/config-page-bundle.test.js pins its register() calls into the page.
+  // test/page/settings/config-page-bundle.test.js pins its register() calls into the page.
   // The weather condition glyphs' outlines (window.ConditionGlyphs), which status-slot-icons.js
   // reads while its body runs.
   path.join(ROOT, 'src/pkjs/settings/condition-glyphs.generated.js'),
@@ -196,7 +196,7 @@ var APP_FILES = [
   // nothing: an unregistered when-leaf reads false, so every Draw from, Visible values and
   // graph-scale row would silently never show on a real phone (and the Alerts notes and
   // the Bold row's middle option would read every item as placed nowhere) while every
-  // Node test passed through blocks.js' require() — test/config-page-bundle.test.js pins
+  // Node test passed through blocks.js' require() — test/page/settings/config-page-bundle.test.js pins
   // its register() calls into the page.
   path.join(ROOT, 'src/pkjs/page/settings/when-resolvers.js'),
   // The Forecast tab's line resolvers (the metric and style pickers' options, and the
@@ -205,7 +205,7 @@ var APP_FILES = [
   // their own body runs (the stripe hints are written at load), so they follow all four;
   // they read nothing of blocks.js. Dropped, nothing throws: the metric and style pickers
   // silently offer no options and those rows lose their hints on a real phone, while every
-  // Node test passes through blocks.js' require() — test/config-page-bundle.test.js pins
+  // Node test passes through blocks.js' require() — test/page/settings/config-page-bundle.test.js pins
   // the order and its registrations into the page.
   path.join(ROOT, 'src/pkjs/page/forecast-graphs/forecast-hints.js'),
   path.join(ROOT, 'src/pkjs/page/settings/blocks.js'),
@@ -214,13 +214,13 @@ var APP_FILES = [
   // publishes while ITS body runs, so they follow it; before it, the page throws at boot.
   // Dropped, nothing throws: the card's rows and the grids silently lose everything these
   // resolvers answer, while every Node test passes through blocks.js' require() —
-  // test/config-page-bundle.test.js pins the file after blocks.js and its registrations
+  // test/page/settings/config-page-bundle.test.js pins the file after blocks.js and its registrations
   // into the page.
   path.join(ROOT, 'src/pkjs/page/alerts/alerts-page.js'),
   // The Watchface tab's shared Night hours (its resolvers, onChange hooks and onSubmit).
   path.join(ROOT, 'src/pkjs/page/theme/night-hours.js'),
   // defaults-policy.js assigns window.DefaultsPolicy, which wizard-finish.js binds while its
-  // own body runs, so it comes first. test/config-page-bundle.test.js pins every rule id into
+  // own body runs, so it comes first. test/page/settings/config-page-bundle.test.js pins every rule id into
   // the generated page: a Node test takes the require() branch and would not notice it missing.
   path.join(ROOT, 'src/pkjs/page/settings/defaults-policy.js'),
   // The Watchface tab's screens (the Screens card, the screen editor overlay, Setup's Rain
@@ -229,7 +229,7 @@ var APP_FILES = [
   // writes its screens through it (window.ScreensPage) and shares its overlay pattern.
   path.join(ROOT, 'src/pkjs/page/layout/screens-page.js'),
   // The setup wizard's parts, each publishing a window global that wizard.js binds while its own
-  // body runs (test/config-page-bundle.test.js pins them ahead of it): its styles, the Screens
+  // body runs (test/page/settings/config-page-bundle.test.js pins them ahead of it): its styles, the Screens
   // step's data (reads window.Screens), the forecast step (reads the line, Draw from, axis, ink,
   // theme-flip, span and sample modules and preview-forecast.js, all above), the finishing
   // defaults (reads DefaultsPolicy and StatusLineCatalog) and the Tomorrow.io card (reads

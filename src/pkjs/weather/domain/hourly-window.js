@@ -26,7 +26,7 @@ var PEAK_HOURS = 2 * FORECAST_HOURS + 1;
 // forecast-span-hours.js, names the hours shown). ceil(200 / 3) + 1: the widest plot (the whole 200 px screen: the hi/lo numbers On
 // graph or Off draw no left axis) at the 3 px pitch, plus the hour whose vertex lies past the
 // right edge. The watch picks what it shows (src/c/appendix/forecast_span.h). Lockstep with
-// FORECAST_MAX_ENTRIES there (test/forecast-span.test.js reads both).
+// FORECAST_MAX_ENTRIES there (test/weather/domain/forecast-span.test.js reads both).
 var MAX_FORECAST_HOURS = 68;
 
 /**

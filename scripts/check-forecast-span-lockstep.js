@@ -8,7 +8,7 @@
 //   N_MIN   the long class's first feed: forecast-span.js DAY_WIDE_HOURS + 1;
 //   N_MAX   emery's FORECAST_MAX_ENTRIES: hourly-window.js MAX_FORECAST_HOURS;
 //   W_MAX   the whole screen: forecast-span-hours.js SCREEN_W;
-//   W_MIN   below every plot the page computes (test/forecast-span-hours.test.js);
+//   W_MIN   below every plot the page computes (test/weather/domain/forecast-span-hours.test.js);
 // and one line per (W, n) of that grid, in order.
 // Run by scripts/test-c.sh; any disagreement fails the build.
 'use strict';

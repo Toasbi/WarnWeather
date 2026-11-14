@@ -12,7 +12,7 @@
 //    rows' args carry voice copy into the resolvers, so an args reshape shows up in
 //    `schema` while this half proves the page still shows the same words.
 //
-// The golden is a byte-for-byte pin (test/config-schema-golden.test.js). After a
+// The golden is a byte-for-byte pin (test/scripts/config-schema-golden.test.js). After a
 // DELIBERATE schema change, rewrite it with
 //     node test/helpers/config-schema-golden.js
 // and review its diff like code. Never regenerate it to make an unexplained failure go

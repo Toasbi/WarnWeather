@@ -621,7 +621,7 @@ function buildStatusLines(payload, settings, watchInfo) {
  * Exported because status-rebake.js persists exactly this slice of the payload
  * so a charging event can re-bake after a PKJS restart. It lives HERE, next to
  * the code that reads the keys, so a new slot cannot add a read without the
- * list moving with it — test/status-lines.test.js pins the two together by
+ * list moving with it — test/status-bars/domain/status-lines.test.js pins the two together by
  * scanning this file's payload.* accesses.
  */
 var SOURCE_KEYS = [

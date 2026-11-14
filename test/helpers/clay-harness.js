@@ -1,5 +1,5 @@
 // test/helpers/clay-harness.js — the fake-storage + upgraded-install harness shared by
-// test/clay-settings.test.js (which owns the blob) and test/clay-migrations.test.js
+// test/settings/adapter/clay-settings.test.js (which owns the blob) and test/settings/application/clay-migrations.test.js
 // (which owns the ledger). It lives here rather than being copied into both: the two
 // files exercise the SAME stored blob from opposite sides, and a drifted seed would
 // make one of them quietly stop testing the shape the other builds.

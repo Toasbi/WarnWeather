@@ -218,7 +218,7 @@
     // rain_tier.c): five tiers with upper bounds 0.1/0.5/2/10 mm, drawn on a
     // non-linear slab scale so drizzle stays visible next to a downpour. The
     // temp panel's right-hand precipitation axis uses this scale, so the tab
-    // reads like the watch's own rain bar. test/weather-tab-model.test.js
+    // reads like the watch's own rain bar. test/weather/domain/weather-tab-model.test.js
     // locks this port to rain-tier.js value-for-value — change them together.
     var RAIN_TIER_MAX_TENTHS = [1, 5, 20, 100];       // tier upper bounds (tenths of mm)
     var RAIN_TIER_TOP_PCT = [0, 14, 34, 56, 78, 100]; // cumulative slab tops (% of plot)

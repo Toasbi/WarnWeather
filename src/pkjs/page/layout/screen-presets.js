@@ -17,7 +17,7 @@
 // clock (the forecast bar under the Rain radar's), on a watch with the rain radar. A screen of two
 // graphs has its upper graph, three rows high, in the calendar's seat (screens.js: one row sits
 // there), so it has no calendar (calendars). Every kind fits with every calendar on every watch
-// that is offered it (test/config-screen-presets.test.js).
+// that is offered it (test/page/layout/config-screen-presets.test.js).
 //
 // WHAT A SCREEN BRINGS. Its rows, and on a watch with graph styles (Pebble Time 2) the graph its
 // forecast graph draws: one of yours, or a template's at the length picked, as a template graph

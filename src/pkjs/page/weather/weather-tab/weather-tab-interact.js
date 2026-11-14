@@ -221,7 +221,7 @@
     // The day tiles' own edge margin (weather-tab-css.js gives the first and
     // last tile 8px), needed here because the row's resting end is measured,
     // not scrolled: without it the last day parks 8px too far left.
-    // test/weather-tab.test.js pins the two together.
+    // test/page/weather/weather-tab/weather-tab.test.js pins the two together.
     var EDGE_PAD = 8;
 
     // How long after a released pan a click is still that pan's tail. A

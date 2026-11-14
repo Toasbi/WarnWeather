@@ -129,7 +129,7 @@
         + '.wx-days{display:flex;gap:6px;position:relative;}'
         // EDGE_PAD in weather-tab-interact.js mirrors these 8px — the row's
         // resting end stops with the last tile's margin showing, not hard
-        // against the card border. test/weather-tab.test.js pins the pair.
+        // against the card border. test/page/weather/weather-tab/weather-tab.test.js pins the pair.
         + '.wx-days .wx-day:first-child{margin-left:8px;}'
         + '.wx-days .wx-day:last-child{margin-right:8px;}'
         // Every tile carries a transparent border so selecting one (border

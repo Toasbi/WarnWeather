@@ -12,7 +12,7 @@
 // packLine), so an edge city arrives as the first form that fits ("B. Soden") instead
 // of cut short ("Bad Sode").
 // A name no form fits whole is cut as before ("New York City" -> "New York").
-// test/city-ladder.test.js runs this twin over the C test's vector table
+// test/status-bars/domain/city-ladder.test.js runs this twin over the C test's vector table
 // (test/c/status_short_text_test.c, CITY_VECTORS), which holds both to one table.
 // ES5 only (aplite PKJS).
 

@@ -2,7 +2,7 @@
 // watch's two axes: src/c/appendix/temp_axis_pad.h's temperature-axis margins, hi/lo labels,
 // scale and numbers on the graph, and src/c/appendix/forecast_span.h's hour marks. Pure
 // numbers, no SVG: preview-forecast.js lays its plot out with them, and
-// test/config-temp-axis-pad.test.js holds the constants to the watch's headers.
+// test/page/forecast-graphs/config-temp-axis-pad.test.js holds the constants to the watch's headers.
 // Registers nothing; it is a library, not a block.
 (function () {
     // Dual-context pattern (see line-style.js): a CommonJS module under Node, a
@@ -16,7 +16,7 @@
     // its square over TEMP_AXIS_PAD_SQ_DIV (the share grows with the plot: an eighth at 64
     // rows, a quarter at 128), and the labels keep TEMP_LABEL_MIN_INK_GAP watch px of blank
     // rows between their ink. Both are the watch's numbers, held equal to the header's by
-    // test/config-temp-axis-pad.test.js. WATCH_INSET_PX is the watch's temperature inset
+    // test/page/forecast-graphs/config-temp-axis-pad.test.js. WATCH_INSET_PX is the watch's temperature inset
     // (bottom_view.h BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), the unit the preview scales watch px by.
     var TEMP_AXIS_PAD_SQ_DIV = 512;
     var TEMP_LABEL_MIN_INK_GAP = 11;
@@ -27,7 +27,7 @@
     var CURVE_INSET_PREV = 12;
     // The numbers on the graph (left axis; temp_axis_pad.h THE NUMBERS ON THE GRAPH,
     // mirrored): watch px from a line's ink to its number's ink, and between the two
-    // numbers' ink (test/config-temp-axis-pad.test.js holds both equal to the header's),
+    // numbers' ink (test/page/forecast-graphs/config-temp-axis-pad.test.js holds both equal to the header's),
     // scaled to preview units like the label gap (CURVE_INSET_PREV units a WATCH_INSET_PX).
     var TEMP_LABEL_POINT_GAP = 2;
     var TEMP_LABEL_PART_GAP = 3;

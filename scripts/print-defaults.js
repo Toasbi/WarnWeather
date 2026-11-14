@@ -17,14 +17,14 @@
 //   · platform list      package.template.json                 pebble.targetPlatforms
 //
 // To CHANGE a default: a rule row goes in defaults-policy.js, a flat default in schema.js.
-// Never here — this file only reports. test/print-defaults.test.js pins the report against
+// Never here — this file only reports. test/page/engine/print-defaults.test.js pins the report against
 // the real wizard, so a rule that stops being printed (or starts lying) fails the suite.
 //
 // Node-only (scripts/ may use ES6); the modules it reads are the ES5 watch/webview ones.
 
 // The config-UI modules attach to a shared global PConf and must be required in this order:
 // blocks.js registers the 'statusSlotDefault' resolver that the schema's defaultFrom items
-// resolve through. Same boot as test/config-wizard.test.js.
+// resolve through. Same boot as test/page/settings/wizard/config-wizard.test.js.
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');

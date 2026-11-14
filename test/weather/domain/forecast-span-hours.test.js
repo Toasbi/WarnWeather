@@ -1,0 +1,230 @@
+'use strict';
+
+// The long time span's label (src/pkjs/weather/domain/forecast-span-hours.js): the whole hours the watch shows
+// for the provider's feed and the layout. The count is the watch's rule
+// (src/c/appendix/forecast_span.h forecast_span_whole). The full parity runs under
+// scripts/test-c.sh, not here: test/c/forecast_span_dump.c prints the watch's count for every
+// n 27..68 on every plot width 145..200 and scripts/check-forecast-span-lockstep.js holds
+// wholeHours to each. Here, every plot width the page computes is held inside that range, and
+// the geometry constants are pinned against the C sources they name.
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const spanHours = require('../../../src/pkjs/weather/domain/forecast-span-hours.js');
+const forecastAxis = require('../../../src/pkjs/forecast-graphs/domain/forecast-axis.js');
+const hourlyWindow = require('../../../src/pkjs/weather/domain/hourly-window.js');
+const schema = require('../../../src/pkjs/page/settings/schema.js');
+const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
+const { cDefine } = require('../../helpers/c-source.js');
+
+const ROOT = path.join(__dirname, '..', '..', '..');
+const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+const C_TEST = read('test/c/forecast_span_test.c');
+const DUMP = read('test/c/forecast_span_dump.c');
+const SPAN_H = read('src/c/appendix/forecast_span.h');
+
+// emery's settings-page env (config-ui platform.js computeEnv): health and custom layouts.
+const EMERY = platform.computeEnv({ platform: 'emery' });
+// A custom layout of one view, the health graph in the top band over the forecast body: the
+// two share the screen, each graph past its own labels' strip (bottom_view.h), and the forecast
+// starts at the screen's edge with the numbers On graph or Off (forecast_layer.c graph_left).
+const SHARED_VIEW = {
+  layoutPreset: 'custom', healthMode: 'all', viewCount: '1', viewTop0: 'health', viewBody0: 'forecast'
+};
+
+// The lockstep's plot widths (test/c/forecast_span_dump.c W_MIN .. W_MAX) and emery's screen.
+const W_MIN = cDefine(DUMP, 'W_MIN');
+const W_MAX = cDefine(DUMP, 'W_MAX');
+const SCREEN_W = cDefine(C_TEST, 'EMERY_SCREEN_W');
+
+test('the lockstep covers every plot width the page computes', () => {
+  // Each numbers place and font, with and without the health graph, and with it beside the
+  // forecast.
+  ['axis', 'graph', 'off'].forEach((numbers) => [true, false].forEach((largeGraphFont) => {
+    [{}, { healthMode: 'all' }, SHARED_VIEW].forEach((layout) => {
+      const s = Object.assign({ forecastAxisNumbers: numbers, largeGraphFont: largeGraphFont }, layout);
+      const w = spanHours.plotWidth(s);
+      assert.ok(w >= W_MIN && w <= W_MAX, JSON.stringify(s) + ': W ' + w + ' is in the lockstep');
+    });
+  }));
+});
+
+test('the geometry is the watch\'s', () => {
+  assert.equal(spanHours.FULL_HOURS, hourlyWindow.MAX_FORECAST_HOURS);
+  assert.equal(spanHours.SCREEN_W, SCREEN_W);
+  assert.equal(spanHours.LAYER_W, cDefine(C_TEST, 'EMERY_W'));
+  const bottomViewH = read('src/c/appendix/bottom_view.h');
+  assert.equal(spanHours.STRIP_MIN_W, cDefine(bottomViewH, 'BOTTOM_VIEW_LABEL_STRIP_MIN_W'));
+  assert.equal(spanHours.STRIP_GAP, cDefine(bottomViewH, 'BOTTOM_VIEW_LABEL_GAP'));
+  assert.equal(spanHours.LABEL_PAD, cDefine(read('src/c/layers/forecast_layer.c'), 'TEMP_LABEL_PAD'));
+  // The hi/lo labels' font: GOTHIC_24 with Larger graph fonts, else GOTHIC_18; GOTHIC_18's
+  // digit advance is the one the hour labels use with Larger graph fonts.
+  assert.match(bottomViewH, /#define BOTTOM_VIEW_LABEL_FONT_KEY\s+FONT_KEY_GOTHIC_18\b/);
+  assert.match(bottomViewH, /#define BOTTOM_VIEW_LABEL_FONT_KEY_LARGE\s+FONT_KEY_GOTHIC_24\b/);
+  assert.match(read('src/c/appendix/bottom_view.c'),
+    /config_large_graph_font\(\) \? BOTTOM_VIEW_LABEL_FONT_KEY_LARGE\s*: BOTTOM_VIEW_LABEL_FONT_KEY\)/);
+  assert.match(SPAN_H, /#define FORECAST_LABEL_ADVANCE\(large\) \(\(large\) \? 7 : 6\)/);
+  assert.equal(spanHours.DIGIT_W.small, 7);
+  assert.equal(spanHours.DIGIT_W.large, 9);
+  // The forecast's strip is its own: bottom_view sizes each graph's strip from that graph's
+  // labels alone, so the health graph's step marks ("0.5", "12.5") never widen the forecast's
+  // (the owner's, 2026-11-09).
+  const bottomViewC = read('src/c/appendix/bottom_view.c');
+  assert.match(bottomViewC,
+    /int bottom_view_label_strip_w\(BottomViewSrc src\) \{\s*const int w = s_reported_w\[src\];/);
+  const forecastC = read('src/c/layers/forecast_layer.c');
+  assert.match(forecastC, /bottom_view_report_label_w\(BOTTOM_VIEW_SRC_FORECAST, content_w\);/);
+  assert.doesNotMatch(forecastC, /BOTTOM_VIEW_SRC_HEALTH/);
+  // A forecast with no left axis starts at the screen's edge on every view, the health graph on
+  // its screen or not.
+  assert.match(forecastC,
+    /graph_left = axis_on \? bottom_view_graph_inset\(BOTTOM_VIEW_SRC_FORECAST\) : screen_left;/);
+  // The long class's pitch.
+  assert.equal(spanHours.SLOT_ONE, 1 << cDefine(read('src/c/appendix/slot_x.h'), 'SLOT_X_Q'));
+  assert.equal(spanHours.PITCH_MIN, cDefine(SPAN_H, 'FORECAST_SPAN_LONG_PITCH_MIN'));
+  assert.equal(spanHours.PITCH_MAX, cDefine(SPAN_H, 'FORECAST_SPAN_LONG_PITCH_MAX'));
+  assert.equal(spanHours.PAD_FROM, cDefine(SPAN_H, 'FORECAST_SPAN_LONG_PAD_FROM'));
+});
+
+test('plotWidth: the whole screen with no left axis, else the layer less a two-digit label strip', () => {
+  assert.equal(spanHours.plotWidth({ largeGraphFont: true }), 176, 'GOTHIC_24: 2 * 9 + 2 = 20, gap 2');
+  assert.equal(spanHours.plotWidth({ largeGraphFont: false }), 180, 'GOTHIC_18: 2 * 7 + 2 = 16, gap 2');
+  assert.equal(spanHours.plotWidth({ forecastAxisNumbers: 'axis', largeGraphFont: true }), 176);
+  ['graph', 'off'].forEach((numbers) => [true, false].forEach((large) => {
+    assert.equal(spanHours.plotWidth({ forecastAxisNumbers: numbers, largeGraphFont: large }), 200,
+      numbers + ' ' + large);
+  }));
+  // The betas' 'beside' and junk read as On axis (forecast-axis.js numbers).
+  assert.equal(spanHours.plotWidth({ forecastAxisNumbers: 'beside', largeGraphFont: true }), 176);
+  assert.equal(forecastAxis.numbers({ forecastAxisNumbers: 'beside' }), forecastAxis.AXIS);
+  assert.equal(spanHours.plotWidth(null), 180, 'nothing stored: no Larger graph fonts, On axis');
+});
+
+test('plotWidth: a health graph never widens the forecast\'s strip', () => {
+  // Every Health mode and preset: the forecast's own two-digit hi/lo strip, 20 px with Larger
+  // graph fonts and 16 px without, whatever the health graph's step marks need.
+  ['all', 'off', 'slot', 'status'].forEach((healthMode) => [[true, 176], [false, 180]].forEach(([large, w]) => {
+    assert.equal(spanHours.plotWidth({ largeGraphFont: large, healthMode: healthMode }), w,
+      healthMode + ' ' + large);
+  }));
+  ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((layoutPreset) => {
+    assert.equal(spanHours.plotWidth({ layoutPreset: layoutPreset, healthMode: 'all', largeGraphFont: false }),
+      180, layoutPreset);
+  });
+  // The health graph on the forecast's own screen, either band order.
+  [SHARED_VIEW, Object.assign({}, SHARED_VIEW, { viewTop0: 'forecast', viewBody0: 'health' })]
+    .forEach((layout) => {
+      assert.equal(spanHours.plotWidth(Object.assign({ largeGraphFont: true }, layout)), 176);
+      assert.equal(spanHours.plotWidth(Object.assign({ largeGraphFont: false }, layout)), 180);
+    });
+});
+
+test('plotWidth: with no left axis the forecast spans the screen beside a health graph too', () => {
+  // The health graph on the forecast's own screen (the owner's, 2026-11-07), On graph or Off, in
+  // either font and either band order: the health graph on top of the forecast, or under it.
+  ['graph', 'off'].forEach((numbers) => {
+    [SHARED_VIEW, Object.assign({}, SHARED_VIEW, { viewTop0: 'forecast', viewBody0: 'health' })]
+      .forEach((layout) => {
+        const s = (large) => Object.assign({ forecastAxisNumbers: numbers, largeGraphFont: large }, layout);
+        assert.equal(spanHours.plotWidth(s(true)), 200, numbers + ' G24');
+        assert.equal(spanHours.plotWidth(s(false)), 200, numbers + ' G18');
+        assert.equal(spanHours.longHours(Object.assign({ provider: 'dwd' }, s(true))), 66);
+        assert.equal(spanHours.longHours(Object.assign({ provider: 'dwd' }, s(false))), 66);
+      });
+  });
+  // The custom-two-graphs fixture: the Default view's forecast alone, views 2 and 3 beside the
+  // health graph. Every view spans the screen with no left axis; On axis every view keeps the
+  // forecast's own strip, the fixture's own font (GOTHIC_18): 60.
+  const two = JSON.parse(read('fixtures/custom-two-graphs.json')).claySettings;
+  assert.deepEqual([two.viewTop0, two.viewBody0, two.viewTop1, two.viewBody1, two.viewTop2, two.viewBody2],
+    ['cal2', 'forecast', 'health', 'forecast', 'forecast', 'health']);
+  const off = Object.assign({}, two, { forecastAxisNumbers: 'off', largeGraphFont: true });
+  assert.equal(spanHours.plotWidth(off), 200);
+  assert.equal(spanHours.longHours(off), 66);
+  assert.equal(spanHours.longHours(Object.assign({}, off, { viewBody0: 'none' })), 66);
+  assert.equal(spanHours.longHours(two), 60);
+});
+
+test('feedHours: OpenWeatherMap 48, Weather Underground 49, every other provider the full 68', () => {
+  const providerItem = schema.tabs.reduce((acc, t) => acc.concat(...t.sections.map((s) => s.items)), [])
+    .find((it) => it.messageKey === 'provider');
+  const ids = providerItem.options.map((o) => o[1]);
+  assert.deepEqual(ids.slice().sort(),
+    ['dwd', 'metno', 'openmeteo', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex']);
+  Object.keys(spanHours.PROVIDER_HOURS).forEach((id) => assert.ok(ids.includes(id), id + ' is a provider'));
+  const want = { openweathermap: 48, wunderground: 49 };
+  ids.forEach((id) => assert.equal(spanHours.feedHours({ provider: id }), want[id] || 68, id));
+  // The short feeds' sources: WU's 48-hour endpoint plus the hour in progress the anchor
+  // prepends; OWM's One Call 3.0 hourly list (48 hours: test/weather/adapter/providers/openweathermap.test.js sends 48
+  // at the long span).
+  assert.match(read('src/pkjs/weather/adapter/providers/wunderground.js'), /\/forecast\/hourly\/48hour\.json/);
+  assert.match(read('src/pkjs/weather/adapter/providers/openweathermap.js'), /data\/3\.0\/onecall/);
+  // Unknown, absent and inherited ids read as the full feed.
+  [{ provider: 'nope' }, { provider: 'toString' }, { provider: '__proto__' }, {}, null, undefined,
+    { provider: 48 }].forEach((s) => assert.equal(spanHours.feedHours(s), 68, JSON.stringify(s)));
+});
+
+test('longHours and spanOptions: the label for each provider and layout', () => {
+  const FULL = ['dwd', 'metno', 'openmeteo', 'tomorrowio', 'yandex', 'nope', undefined];
+  const layouts = [
+    // [settings, a full feed's label]
+    [{ largeGraphFont: true, healthMode: 'all' }, 58],                  // the default layout
+    [{ largeGraphFont: true }, 58],                                     // no health graph
+    [{ largeGraphFont: true, forecastAxisNumbers: 'axis' }, 58],
+    [{ largeGraphFont: false, healthMode: 'all' }, 60],                 // GOTHIC_18, health graph too
+    [{ largeGraphFont: false }, 60],                                    // GOTHIC_18 labels
+    [{ largeGraphFont: false, healthMode: 'status' }, 60],
+    [{ largeGraphFont: true, forecastAxisNumbers: 'graph' }, 66],
+    [{ largeGraphFont: true, forecastAxisNumbers: 'off' }, 66],
+    [{ largeGraphFont: true, forecastAxisNumbers: 'off', healthMode: 'all' }, 66],
+    [{ largeGraphFont: false, forecastAxisNumbers: 'off' }, 66],
+    [Object.assign({ largeGraphFont: true, forecastAxisNumbers: 'off' }, SHARED_VIEW), 66],
+    [Object.assign({ largeGraphFont: false, forecastAxisNumbers: 'graph' }, SHARED_VIEW), 66],
+    [Object.assign({ largeGraphFont: true }, SHARED_VIEW), 58]
+  ];
+  layouts.forEach(([layout, full]) => {
+    FULL.forEach((provider) => {
+      const s = Object.assign({ provider: provider }, layout);
+      assert.equal(spanHours.longHours(s), full, JSON.stringify(s));
+      assert.deepEqual(spanHours.spanOptions(s),
+        [['12 h', '12'], ['24 h', '24'], [full + ' h', '48']]);
+    });
+    // The short feeds fill every layout: 47 and 48 whole hours.
+    assert.equal(spanHours.longHours(Object.assign({ provider: 'openweathermap' }, layout)), 47);
+    assert.equal(spanHours.longHours(Object.assign({ provider: 'wunderground' }, layout)), 48);
+  });
+  assert.deepEqual(spanHours.spanOptions({ provider: 'openweathermap', largeGraphFont: true }),
+    [['12 h', '12'], ['24 h', '24'], ['47 h', '48']]);
+  assert.deepEqual(spanHours.spanOptions({ provider: 'wunderground', largeGraphFont: true }),
+    [['12 h', '12'], ['24 h', '24'], ['48 h', '48']]);
+});
+
+test('shownHours: the hours each span draws, as the watch fits its grid to the plot', () => {
+  const emery = platform.computeEnv({ platform: 'emery' });
+  const basalt = platform.computeEnv({ platform: 'basalt' });
+  // emery's 24 h grid keeps its 8 px pitch: 22 hours beside the left axis (its 176 px plot),
+  // 25 of the 26 sent without one; 12 h fits 12 whole columns; the long span is longHours'.
+  const defaults = { largeGraphFont: true, healthMode: 'all' };   // a 176 px plot beside the strip
+  assert.equal(spanHours.plotWidth(defaults), 176);
+  assert.equal(spanHours.shownHours(defaults, emery), 22);
+  assert.equal(spanHours.shownHours({}, emery), 23, 'a 180 px plot: 22.5 hours');
+  assert.equal(spanHours.shownHours(Object.assign({ forecastAxisNumbers: 'graph' }, defaults), emery), 25);
+  assert.equal(spanHours.shownHours({ forecastAxisNumbers: 'off' }, emery), 25);
+  assert.equal(spanHours.shownHours({ forecastHours: '12' }, emery), 12);
+  assert.equal(spanHours.shownHours({ forecastHours: '48' }, emery), spanHours.longHours({ forecastHours: '48' }, emery));
+  // The 144 px watches: 24 h at 7 px over the plot right of the label strip, whatever is stored.
+  assert.equal(spanHours.shownHours({}, basalt), 18);
+  assert.equal(spanHours.shownHours({ forecastHours: '12' }, basalt), 18);
+  // The grids, lockstep with the watch's headers and the hours the phone sends.
+  const span = read('src/c/appendix/forecast_span.h');
+  assert.equal(1 + 2 * cDefine(span, 'FORECAST_SPAN_DAY_PAD') + cDefine(span, 'FORECAST_SPAN_DAY_BAR_W'), 8);
+  assert.equal(cDefine(span, 'FORECAST_SPAN_HALF_SLOTS'), 12);
+  assert.equal(cDefine(span, 'FORECAST_SPAN_DAY_SENT'), 26);
+  assert.equal(require('../../../src/pkjs/weather/domain/forecast-span.js').DAY_WIDE_HOURS, 26);
+  const grid = read('src/c/appendix/forecast_grid.h');
+  const small = grid.slice(grid.indexOf('DISPLAY_WIDTH_144'));
+  assert.equal(1 + 2 * cDefine(small, 'FORECAST_GRID_PAD') + cDefine(small, 'FORECAST_GRID_BAR_W'), 7);
+});

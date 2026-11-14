@@ -13,13 +13,13 @@
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
         : (typeof PConf !== 'undefined' && PConf) ? PConf
         : null;
-    // The shared ladder and night-pause rule (test/tomorrowio-budget.test.js pins sleepHours
+    // The shared ladder and night-pause rule (test/page/weather/budgets/tomorrowio-budget.test.js pins sleepHours
     // against sleep-window.js) — reused, not copied a third time. build-config-page.js
     // concatenates tomorrowio-budget.js ahead of this file.
     var tio = (typeof require !== 'undefined') ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
     // The radarProvider of "Rainbow (own key)": the radar source id fetch-cycle.js runs it
     // under (weather/application/radar-factory.js OWN_KEY_RADAR_ID; the page cannot load the runtime's
-    // radar modules, so test/rainbow-budget.test.js pins the two equal).
+    // radar modules, so test/page/weather/budgets/rainbow-budget.test.js pins the two equal).
     var OWN_KEY_RADAR_ID = 'rainbowkey';
 
     // Rainbow's Nowcast API free tier: 5,000 requests per month, reset every calendar month
@@ -123,7 +123,7 @@
 
     // Every settings key the math above reads. A caller holding only a get(key)
     // accessor (the onSubmit hook, through interval-budget.js) builds its state object
-    // from exactly these; test/rainbow-budget.test.js pins the list against what the math reads.
+    // from exactly these; test/page/weather/budgets/rainbow-budget.test.js pins the list against what the math reads.
     var STATE_KEYS = ['radarProvider', 'radarMode', 'sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'];
 
     var api = {

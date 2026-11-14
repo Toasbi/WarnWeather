@@ -12,7 +12,7 @@
 // loads AFTER blocks.js in both contexts: under Node blocks.js requires this file at the
 // end of its own body, so requiring blocks.js registers these resolvers too; the webview
 // concatenates it right after blocks.js (scripts/build-config-page.js APP_FILES, pinned by
-// test/config-page-bundle.test.js).
+// test/page/settings/config-page-bundle.test.js).
 /* global PConf */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf

@@ -15,8 +15,8 @@
  * on-demand.js) and never packs a byte, so none of this ships in it.
  *
  * LOCKSTEP: the blob layout mirrors src/c/appendix/status_threshold.h, the alert
- * entries alert_set.h; test/status-thresholds-contract.test.js and
- * test/alert-entries-contract.test.js enforce it. ES5 only (aplite PKJS).
+ * entries alert_set.h; test/alerts/domain/status-thresholds-contract.test.js and
+ * test/alerts/domain/alert-entries-contract.test.js enforce it. ES5 only (aplite PKJS).
  */
 var thresholds = require('./status-thresholds.js');
 var onDemand = require('../../status-bars/domain/on-demand.js');
@@ -442,7 +442,7 @@ function alertPick(alert, payload, settings) {
 
 // ALERT_ENTRIES_UINT8 (alert_set.h): one header byte per entry, then its value
 // bytes; the whole tuple at most ALERT_ENTRIES_MAX_BYTES, what the watch accepts
-// and its inbox budgets for (test/inbox-size.test.js).
+// and its inbox budgets for (test/repo/inbox-size.test.js).
 //   header  bit 7     ALERT_HEADER, on every header — and on no value byte, which
 //                     is printable ASCII (< 0x80). So the value needs no length:
 //                     it runs to the next header or the end of the tuple.
@@ -459,7 +459,7 @@ function alertPick(alert, payload, settings) {
 // A tomorrow entry costs no more than a today one, so all five alerts with their
 // widest realistic values — UV "11", wind and gusts "255" (the byte clamp), AQI
 // "500", pollen "2-3" — are 19 B on either day and nothing is dropped.
-// test/alert-entries-contract.test.js pins these to the C header.
+// test/alerts/domain/alert-entries-contract.test.js pins these to the C header.
 var ALERT_HEADER = 0x80;
 var ALERT_DANGER = 0x08;
 var ALERT_DAY_SHIFT = 4;

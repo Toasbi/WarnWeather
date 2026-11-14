@@ -68,7 +68,7 @@ truth for values the module computes, and a test comparing each cell against the
 produced it reduces to `assert.equal(f(x), f(x))`, which cannot fail.
 
 The appearance contract lives in the test, as 40 literal expected constants
-(`test/line-style.test.js`). There a literal table does its job, which is to fail when a
+(`test/forecast-graphs/domain/line-style.test.js`). There a literal table does its job, which is to fail when a
 built-in moves. It does not belong in production, where its only job would be to agree with
 code twenty lines away.
 

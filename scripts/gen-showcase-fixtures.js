@@ -15,7 +15,7 @@
 // keeps the defaults, the rain alert among them. The default right ticks would add
 // weather-alert icons whose presence depends on the capture time (a day peak counts only
 // while it is still ahead). A scene that should show an alert ticks it in its own clay
-// (statusTopOnDemandRightItems); test/curated-fixtures-on-demand.test.js holds the pin.
+// (statusTopOnDemandRightItems); test/weather/adapter/curated-fixtures-on-demand.test.js holds the pin.
 
 const fs = require('fs');
 const path = require('path');

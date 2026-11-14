@@ -513,7 +513,7 @@ test('renderBody: a staticText with style info renders boxed, with its own class
   const rule = shell.match(/\.static\.info \.info-box \{([^}]*)\}/);
   assert.ok(rule, 'shell.html styles the box');
   // The amber comes from two theme variables the notice panel's info item shares
-  // (test/notices-panel.test.js pins that side). The text colour is explicit: a
+  // (test/page/notices/notices-panel.test.js pins that side). The text colour is explicit: a
   // tight-joined box would otherwise take the hint grey, too faint on the dark amber.
   ['background: var(--info-tint)', 'border-left: 3px solid var(--info-rule)', 'border-radius: 6px',
     'color: var(--static)']
