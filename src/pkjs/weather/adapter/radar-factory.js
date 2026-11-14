@@ -1,4 +1,4 @@
-// src/pkjs/weather/application/radar-factory.js
+// src/pkjs/weather/adapter/radar-factory.js
 //
 // Data-driven radar-source construction, mirroring provider-factory.js. The
 // RADAR_FACTORIES table maps a radar source id to a builder that returns an
@@ -28,10 +28,10 @@
 // "Rainbow (own key)" (the user's own key). Plus one internal id that is never
 // stored: 'disabled' (radar off, and the fallback).
 
-var radar = require('../adapter/radar/dwd-radar.js');
-var metnoRadar = require('../adapter/radar/metno-radar.js');
-var rainbowRadar = require('../adapter/radar/rainbow-radar.js');
-var tomorrowioRadar = require('../adapter/radar/tomorrowio-radar.js');
+var radar = require('./radar/dwd-radar.js');
+var metnoRadar = require('./radar/metno-radar.js');
+var rainbowRadar = require('./radar/rainbow-radar.js');
+var tomorrowioRadar = require('./radar/tomorrowio-radar.js');
 var radarWire = require('../domain/radar/radar-wire.js');
 
 var DEFAULT_RADAR_ID = 'disabled';

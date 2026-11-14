@@ -1,4 +1,4 @@
-// src/pkjs/weather/application/provider-factory.js
+// src/pkjs/weather/adapter/provider-factory.js
 //
 // Data-driven weather-provider construction. The PROVIDER_FACTORIES table maps
 // a Clay provider id to a builder that constructs the provider from settings
@@ -6,13 +6,13 @@
 // no dispatch switch to edit (Open/Closed), and construction is testable apart
 // from index.js's boot wiring.
 
-var WundergroundProvider = require('../adapter/providers/wunderground.js');
-var OpenWeatherMapProvider = require('../adapter/providers/openweathermap.js');
-var DwdProvider = require('../adapter/providers/dwd.js');
-var OpenMeteoProvider = require('../adapter/providers/openmeteo.js').OpenMeteoProvider;
-var MetnoProvider = require('../adapter/providers/metno.js').MetnoProvider;
-var YandexProvider = require('../adapter/providers/yandex.js').YandexProvider;
-var TomorrowIoProvider = require('../adapter/providers/tomorrowio.js').TomorrowIoProvider;
+var WundergroundProvider = require('./providers/wunderground.js');
+var OpenWeatherMapProvider = require('./providers/openweathermap.js');
+var DwdProvider = require('./providers/dwd.js');
+var OpenMeteoProvider = require('./providers/openmeteo.js').OpenMeteoProvider;
+var MetnoProvider = require('./providers/metno.js').MetnoProvider;
+var YandexProvider = require('./providers/yandex.js').YandexProvider;
+var TomorrowIoProvider = require('./providers/tomorrowio.js').TomorrowIoProvider;
 
 var DEFAULT_PROVIDER_ID = 'wunderground';
 

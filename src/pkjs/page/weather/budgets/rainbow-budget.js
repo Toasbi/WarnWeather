@@ -18,7 +18,7 @@
     // concatenates tomorrowio-budget.js ahead of this file.
     var tio = (typeof require !== 'undefined') ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
     // The radarProvider of "Rainbow (own key)": the radar source id fetch-cycle.js runs it
-    // under (weather/application/radar-factory.js OWN_KEY_RADAR_ID; the page cannot load the runtime's
+    // under (weather/adapter/radar-factory.js OWN_KEY_RADAR_ID; the page cannot load the runtime's
     // radar modules, so test/page/weather/budgets/rainbow-budget.test.js pins the two equal).
     var OWN_KEY_RADAR_ID = 'rainbowkey';
 
