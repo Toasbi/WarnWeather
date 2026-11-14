@@ -118,7 +118,7 @@
 
     /**
      * Whether a view puts a calendar on screen — the watch's layout_full_date rule
-     * (windows/layout.h) turned round: a calendar top band with rows to show (a 2- or
+     * (appendix/view_spec.h) turned round: a calendar top band with rows to show (a 2- or
      * 3-row tier). Without one the date slot carries the full date.
      * @param {?Object} spec One view-cycle ViewSpec.
      * @returns {boolean}

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pebble.h>
-#include "../windows/layout.h"        // LayoutTier, ViewSpec, MainLayout, LayerVisibility, StatusSource
+#include "../appendix/view_spec.h"   // LayoutTier, ViewSpec, MainLayout, LayerVisibility, StatusSource
 #include "../appendix/status_line.h"  // StatusLineId
 
 // ── The band status rows ─────────────────────────────────────────────────────

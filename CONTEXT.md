@@ -70,7 +70,9 @@ The small struct that describes what is on screen: top-band content, calendar
 rows, body, status row(s), font tier and band size weights. Geometry and layer
 visibility both derive from it. The phone compiles view specs (`view-cycle.js`)
 from the layout preset or, with the custom layout, from the user's screens, and sends them;
-the layout module reads them.
+the layout module reads them. On the watch the struct and its tier vocabulary live in
+`src/c/appendix/view_spec.h`, below the layers that read them too; the decode and the geometry
+are `src/c/windows/layout.c`.
 
 **Preset (layout)**:
 A named built-in view spec, keyed by the `layoutPreset` setting: `fullCal`,

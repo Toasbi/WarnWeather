@@ -1806,7 +1806,7 @@ static void clockless_property_tests(void) {
         // Band chain never overlaps: upper floor <= lower top, lower floor <= body top
         // (the FULL dual is the shape this proves). L.status_lower is only a real band
         // when the lower slot is filled — otherwise it aliases the upper band
-        // (layout.h's "else == status" contract) and must not be tested against the body.
+        // (view_spec.h's "else == status" contract) and must not be tested against the body.
         if (s.status_lower != STATUS_SRC_NONE) {
             if (s.status_upper != STATUS_SRC_NONE) {
                 expect("ckl.upper_clears_lower",
@@ -2563,7 +2563,7 @@ static void test_geometry_two_rows(void) {
     printf("geometry_two_rows OK\n");
 }
 
-// The shared tier/status helpers in layout.h — the rules layout.c, the aplite twin and
+// The shared tier/status helpers in appendix/view_spec.h — the rules layout.c, the aplite twin and
 // main_window all read from one place instead of restating a ternary each.
 // view_word_sources (main_window.c's in-use mask for status_bar_set_in_use) is the full
 // decode's two rows, bit for bit, for every packed value, under every combination of the ext

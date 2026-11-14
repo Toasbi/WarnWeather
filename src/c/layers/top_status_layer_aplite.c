@@ -27,7 +27,7 @@
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
-#include "c/windows/layout.h"   // LayoutTier (status_row tier param)
+#include "c/appendix/view_spec.h"   // LayoutTier (status_row tier param)
 
 #define PADDING 4
 #define ICON_SLOT_1 GRect(PADDING, 0, 10, 10)
