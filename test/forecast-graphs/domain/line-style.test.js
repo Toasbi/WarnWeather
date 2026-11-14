@@ -9,7 +9,7 @@ const graphWire = require('../../../src/pkjs/forecast-graphs/domain/graph-wire.j
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const COLORS = require('../../../src/pkjs/theme/domain/pebble-colors.js');
 const { resolveInk } = require('../../../src/pkjs/theme/domain/resolve-ink.js');
-const rainTier = require('../../../src/pkjs/weather/domain/rain-tier.js');
+const rainTier = require('../../../src/pkjs/forecast-graphs/domain/rain-tier.js');
 
 const emery = { platform: 'emery' };
 // The graph colours one watch resolves to: resolveGraphColors over that watch's

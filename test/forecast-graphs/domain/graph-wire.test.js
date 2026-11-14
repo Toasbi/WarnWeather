@@ -18,7 +18,7 @@ const graphWire = require('../../../src/pkjs/forecast-graphs/domain/graph-wire.j
 const lineStyle = require('../../../src/pkjs/forecast-graphs/domain/line-style.js');
 const drawFrom = require('../../../src/pkjs/forecast-graphs/domain/draw-from.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
-const rainTier = require('../../../src/pkjs/weather/domain/rain-tier.js');
+const rainTier = require('../../../src/pkjs/forecast-graphs/domain/rain-tier.js');
 const COLORS = require('../../../src/pkjs/theme/domain/pebble-colors.js');
 const { resolveInk } = require('../../../src/pkjs/theme/domain/resolve-ink.js');
 

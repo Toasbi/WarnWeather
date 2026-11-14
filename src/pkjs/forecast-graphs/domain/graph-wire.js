@@ -22,7 +22,7 @@
 // (or on aplite, which never gets a bit) both tuples are byte-identical to the build
 // before the setting, save the float bit on a drawn pressure, feels-like or dew point line.
 
-var rainTier = require('../../weather/domain/rain-tier.js');
+var rainTier = require('./rain-tier.js');
 var resolveInk = require('../../theme/domain/resolve-ink.js');
 var lineStyle = require('./line-style.js');
 var drawFrom = require('./draw-from.js');

@@ -153,7 +153,7 @@ test('aggregateDaily folds hourly data into local-day tiles and stops at the hor
 test('the rain tier port matches rain-tier.js value-for-value (the watch scale)', () => {
   // The tab's right-hand precipitation axis IS the watchface's rain scale;
   // this lockstep sweep keeps the two implementations from drifting apart.
-  const rainTier = require('../../../src/pkjs/weather/domain/rain-tier.js');
+  const rainTier = require('../../../src/pkjs/forecast-graphs/domain/rain-tier.js');
   for (let tenths = 0; tenths <= 300; tenths += 1) {
     assert.equal(model.rainTierPermille(tenths), rainTier.rainPermille(tenths), 'tenths=' + tenths);
   }
