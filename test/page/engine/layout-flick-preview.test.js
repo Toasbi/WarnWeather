@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 
 // The lib modules share global.PConf across separate requires (show-when.js seeds it).
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/show-when.js');
 const eng = require('../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../src/pkjs/page/settings/blocks.js'); // registers watchPreview

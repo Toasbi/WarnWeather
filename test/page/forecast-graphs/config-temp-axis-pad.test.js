@@ -20,7 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/engine.js');
 const FC = require('../../../src/pkjs/page/forecast-graphs/preview-forecast.js');
 const PA = require('../../../src/pkjs/page/forecast-graphs/preview-axis.js');

@@ -10,7 +10,7 @@ const { bootGeneratedPage } = require('../../helpers/page-harness.js');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 // The engine reads the shared dual-use modules off global.PConf: load them first.
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../../../src/pkjs/config-ui/lib/engine.js');
 const platformLib = require('../../../src/pkjs/config-ui/lib/platform.js');

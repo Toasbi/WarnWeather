@@ -46,8 +46,8 @@ const fetchOptions = require('../../src/pkjs/weather/domain/fetch-options.js');
 const radarFactory = require('../../src/pkjs/weather/adapter/radar-factory.js');
 const radarSky = require('../../src/pkjs/weather/domain/radar/radar-sky.js');
 const radarWire = require('../../src/pkjs/weather/domain/radar/radar-wire.js');
-const authBackoff = require('../../src/pkjs/weather/application/auth-backoff.js');
-const notices = require('../../src/pkjs/notices/application/notices.js');
+const authBackoff = require('../../src/pkjs/weather/adapter/auth-backoff.js');
+const notices = require('../../src/pkjs/notices/adapter/notices.js');
 const gpsFailure = require('../../src/pkjs/weather/adapter/location.js').gpsFailure;
 const KEYS = require('../../src/pkjs/settings/domain/storage-keys.js');
 

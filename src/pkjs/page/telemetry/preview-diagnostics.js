@@ -5,7 +5,7 @@
 // dev-stats.js summarize() builds), draw no SVG, and share nothing with the chart
 // previews but the block-renderer signature.
 /* global PConf */
-// The `.blocks` test is not redundant. config-ui's lib/color.js and lib/schema-walk.js
+// The `.blocks` test is not redundant. lib/color.js and lib/schema-walk.js
 // each do `global.PConf = global.PConf || {}` to attach their own shard, and
 // line-style.js pulls both in — so under Node, from the second preview file onwards,
 // global.PConf EXISTS while carrying no block registry unless engine.js was loaded

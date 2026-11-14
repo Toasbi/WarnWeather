@@ -1,4 +1,4 @@
-// src/pkjs/config-ui/lib/color.js — ES5. Single-source int<->hex, dual-use (PConf global + module).
+// src/pkjs/lib/color.js — ES5. Single-source int<->hex, dual-use (PConf global + module).
 var PConf = (typeof PConf !== 'undefined') ? PConf
   : (typeof global !== 'undefined') ? (global.PConf = global.PConf || {}) : {};
 /**

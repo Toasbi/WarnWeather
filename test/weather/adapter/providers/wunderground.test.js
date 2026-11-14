@@ -376,8 +376,8 @@ function runWuCycle(cachedKey, force) {
 });
 
 test('a freshly scraped key that is refused too reports WU not answering, with a timed retry, without looping', () => {
-  const authBackoff = require('../../../../src/pkjs/weather/application/auth-backoff.js');
-  const notices = require('../../../../src/pkjs/notices/application/notices.js');
+  const authBackoff = require('../../../../src/pkjs/weather/adapter/auth-backoff.js');
+  const notices = require('../../../../src/pkjs/notices/adapter/notices.js');
   // wunderground.com still embeds a key weather.com refuses.
   var log = wuRouter('neverworks');
   responder = (function(route) {
@@ -440,7 +440,7 @@ test('a forced fetch re-scrapes a refused cached key once, like any other fetch'
 });
 
 test('a scrape that is refused, or a page without a key, reports WU not answering too', () => {
-  const authBackoff = require('../../../../src/pkjs/weather/application/auth-backoff.js');
+  const authBackoff = require('../../../../src/pkjs/weather/adapter/auth-backoff.js');
   responder = function(url, onSuccess, onError) { onError({ code: 'status_403', detail: 'http_status' }); };
   var refused = runWuCycle(null, false);
   assert.deepEqual(refused.failures, [{ stage: 'provider_data', code: 'wu_api_key_status_403',

@@ -287,7 +287,7 @@ function bootIndex(t, opts) {
      */
     saveSettings(over) {
       const cfgUi = require(PKJS_DIR + 'page/settings/index.js');
-      const color = require(PKJS_DIR + 'config-ui/lib/color.js');
+      const color = require(PKJS_DIR + 'lib/color.js');
       const blob = Object.assign(JSON.parse(store['clay-settings']), over || {});
       Object.keys(blob).forEach((k) => {
         if (cfgUi.isColorKey(k) && typeof blob[k] === 'number') { blob[k] = color.intToHex(blob[k]); }

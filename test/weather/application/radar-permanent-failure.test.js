@@ -32,8 +32,8 @@ WeatherProvider.request = function(url, type, onSuccess, onError) { transport(ur
 const createFetchCycle = require('../../../src/pkjs/shell/fetch-cycle.js');
 const rainbowRadar = require('../../../src/pkjs/weather/adapter/radar/rainbow-radar.js');
 const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
-const authBackoff = require('../../../src/pkjs/weather/application/auth-backoff.js');
-const notices = require('../../../src/pkjs/notices/application/notices.js');
+const authBackoff = require('../../../src/pkjs/weather/adapter/auth-backoff.js');
+const notices = require('../../../src/pkjs/notices/adapter/notices.js');
 
 const SLOT = 300;
 const N = 24;

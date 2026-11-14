@@ -12,7 +12,7 @@ const schema = require('../../../src/pkjs/page/settings/schema.js');
 const showWhen = require('../../../src/pkjs/config-ui/lib/show-when.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 const E = require('../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../src/pkjs/page/settings/blocks.js');
 const FH = require('../../../src/pkjs/page/forecast-graphs/forecast-hints.js');

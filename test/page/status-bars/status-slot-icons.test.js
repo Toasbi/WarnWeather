@@ -5,7 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../../../src/pkjs/config-ui/lib/engine.js');
 const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');

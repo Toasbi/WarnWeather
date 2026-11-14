@@ -34,8 +34,8 @@ global.XMLHttpRequest.prototype.send = function () {
 
 const storageKeys = require('../../../src/pkjs/settings/domain/storage-keys.js');
 const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
-const authBackoff = require('../../../src/pkjs/weather/application/auth-backoff.js');
-const notices = require('../../../src/pkjs/notices/application/notices.js');
+const authBackoff = require('../../../src/pkjs/weather/adapter/auth-backoff.js');
+const notices = require('../../../src/pkjs/notices/adapter/notices.js');
 
 beforeEach(function () {
   store = {};

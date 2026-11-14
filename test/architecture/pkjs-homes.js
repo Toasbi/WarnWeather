@@ -7,9 +7,10 @@
 //   src/pkjs/lib/…                the shared library (role lib)
 //   src/pkjs/shell/…              the composition root, with src/pkjs/index.js (role shell)
 //
-// This table holds the files not yet in their folder and the few that sit in one but belong
-// elsewhere (the colour and platform helpers in config-ui/lib). It only shrinks, and the test
-// fails on an entry for a file that no longer exists.
+// This table holds the few files whose path does not give their home: the entry point, the
+// platform table the page engine owns but the phone app's settings read, and generated files
+// a pipeline still writes into settings/. The test fails on an entry for a file that no longer
+// exists.
 //
 // Contexts: weather, forecast-graphs, status-bars, alerts, layout, calendar, theme, health,
 // settings, wire, notices, telemetry. Two homes are not contexts: shell (the composition root)
@@ -18,7 +19,6 @@
 
 const HOMES = {
   'shell': ['index.js'],
-  'lib': ['config-ui/lib/color.js'],
   // which watch has which capability, so which settings it gets
   'settings/domain': ['config-ui/lib/platform.js'],
   // the icon pipeline's generated glyphs, moved once that work is on main

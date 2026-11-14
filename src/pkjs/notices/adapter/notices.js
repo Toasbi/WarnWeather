@@ -1,4 +1,4 @@
-// src/pkjs/notices/application/notices.js — ES5, watch runtime.
+// src/pkjs/notices/adapter/notices.js — ES5, watch runtime.
 //
 // A general phone-side notice list, surfaced in two places: `error` notices push
 // a short plain-text overlay to the watch (NOTICE_TEXT, rendered by loading_layer;

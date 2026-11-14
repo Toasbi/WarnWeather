@@ -11,7 +11,7 @@ function withLocalStorage(map) {
   };
 }
 
-const authBackoff = require('../../../src/pkjs/weather/application/auth-backoff');
+const authBackoff = require('../../../src/pkjs/weather/adapter/auth-backoff');
 const AUTH_KEY = require('../../../src/pkjs/settings/domain/storage-keys').AUTH_BACKOFF_KEY;
 
 test('isAuthFailure: true for 401/403 status codes across providers', () => {

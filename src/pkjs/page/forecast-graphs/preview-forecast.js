@@ -5,7 +5,7 @@
 // colours are not modelled here — line-style.js resolves every one of them from
 // the same settings blob the watch is sent.
 /* global PConf */
-// The `.blocks` test is not redundant. config-ui's lib/color.js and lib/schema-walk.js
+// The `.blocks` test is not redundant. lib/color.js and lib/schema-walk.js
 // each do `global.PConf = global.PConf || {}` to attach their own shard, and
 // line-style.js pulls both in — so under Node, from the second preview file onwards,
 // global.PConf EXISTS while carrying no block registry unless engine.js was loaded
@@ -72,13 +72,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         ? require('../../weather/domain/forecast-span-hours.js') : window.ForecastSpanHours;
 
     // 0xRRGGBB int -> uppercase '#RRGGBB'. line-style.js speaks ints; SVG wants strings.
-    // The canonical converter, not a local copy: config-ui/lib/color.js is the page
+    // The canonical converter, not a local copy: lib/color.js is the page
     // bundle's single-source int<->hex and is concatenated ahead of every app file
     // (build-page.js emits LIB_PAGE_FILES first), so PConf.color is always there.
     var previewStripe = (typeof require !== 'undefined')
         ? require('./preview-stripe.js') : window.PreviewStripe;
     var hexColor = (typeof require !== 'undefined')
-        ? require('../../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
+        ? require('../../lib/color.js').intToHex : PConf.color.intToHex;
 
     /**
      * Catmull-Rom-ish smoothing: a cubic Bezier path through every point.

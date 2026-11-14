@@ -59,7 +59,7 @@ for (const m of cTest.matchAll(/expect_str\("([^"]+)", buf, "([^"]+)"\)/g)) {
 // options, loaded the way config-schema.test.js loads them.
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/show-when.js');
 require('../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../src/pkjs/page/settings/blocks.js');

@@ -19,7 +19,7 @@
 // unitEnabled — a Show unit toggle, read like the bake prints the slot.
 var slotText = require('../../status-bars/domain/slot-text.js');
 var platforms = require('../../config-ui/lib/platform.js');
-var color = require('../../config-ui/lib/color.js');
+var color = require('../../lib/color.js');
 // renderContextFor / graphColorKey / graphColorIsDefault — the module that resolves the
 // graph colours for the WIRE, so this snapshot reports what the watch actually paints
 // instead of a second opinion about it.

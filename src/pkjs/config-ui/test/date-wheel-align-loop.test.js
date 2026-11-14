@@ -18,7 +18,7 @@ const path = require('node:path');
 // page loads.
 const { LIB_PAGE_FILES } = require('../scripts/build-page.js');
 require('../lib/schema-walk.js');
-require('../lib/color.js');
+require('../../lib/color.js');
 require('../lib/show-when.js');
 
 const SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [

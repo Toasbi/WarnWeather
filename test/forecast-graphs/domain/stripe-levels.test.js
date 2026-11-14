@@ -20,7 +20,7 @@ global.localStorage = {
 };
 
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/show-when.js');
 require('../../../src/pkjs/config-ui/lib/engine.js');
 const SL = require('../../../src/pkjs/forecast-graphs/domain/stripe-levels.js');

@@ -11,7 +11,7 @@ global.localStorage = {
   clear: function () { store = {}; }
 };
 
-var notices = require('../../../src/pkjs/notices/application/notices.js');
+var notices = require('../../../src/pkjs/notices/adapter/notices.js');
 
 test('add + list + dedupe by key preserves first since', function () {
   global.localStorage.clear();

@@ -1,4 +1,4 @@
-// src/pkjs/weather/application/auth-backoff.js — ES5, watch runtime.
+// src/pkjs/weather/adapter/auth-backoff.js — ES5, watch runtime.
 //
 // A permanent auth failure (HTTP 401/403) will not fix itself on retry, yet the
 // fetch loop would otherwise re-request every cycle forever — draining battery

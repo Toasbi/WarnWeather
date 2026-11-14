@@ -8,7 +8,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../lib/schema-walk.js');
-require('../lib/color.js');
+require('../../lib/color.js');
 require('../lib/show-when.js');
 const E = require('../lib/engine.js');
 const defaults = require('../lib/defaults.js');

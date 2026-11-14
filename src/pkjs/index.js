@@ -3,13 +3,13 @@
 // before anything else so the aplite JavaScriptCore runtime can run the bundle.
 require('./lib/polyfills.js');
 
-var notices = require('./notices/application/notices.js');
+var notices = require('./notices/adapter/notices.js');
 var WeatherProvider = require('./weather/application/provider.js');
 var createTelemetryClient = require('./telemetry/adapter/telemetry.js');
 var settings = require('./page/settings');
 var storageKeys = require('./settings/domain/storage-keys.js');
 var outbox = require('./wire/adapter/outbox.js');
-var authBackoff = require('./weather/application/auth-backoff.js');
+var authBackoff = require('./weather/adapter/auth-backoff.js');
 var devStats = require('./telemetry/adapter/dev-stats.js');
 var pkg = require('../../package.json');
 var activeFixture = require('./weather/adapter/active-fixture.generated.js');

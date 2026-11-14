@@ -9,7 +9,7 @@ const { eachItem } = require('../../../src/pkjs/config-ui/lib/schema-walk.js');
 const thresholds = require('../../../src/pkjs/alerts/domain/status-thresholds.js');
 const wire = require('../../../src/pkjs/alerts/domain/status-wire.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/show-when.js');
 require('../../../src/pkjs/config-ui/lib/engine.js');
 const B = require('../../../src/pkjs/page/settings/blocks.js');

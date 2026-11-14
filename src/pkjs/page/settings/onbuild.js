@@ -13,10 +13,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The On demand contract (on-demand.js), concatenated ahead of this file.
     var onDemand = (typeof require !== 'undefined')
         ? require('../../status-bars/domain/on-demand.js') : window.OnDemand;
-    // The page bundle's single-source int -> '#RRGGBB' (config-ui/lib/color.js,
+    // The page bundle's single-source int -> '#RRGGBB' (lib/color.js,
     // concatenated ahead of every app file).
     var intToHex = (typeof require !== 'undefined')
-        ? require('../../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
+        ? require('../../lib/color.js').intToHex : PConf.color.intToHex;
     var COLOR_ROLES = ['Warn', 'Danger'];
 
     /**

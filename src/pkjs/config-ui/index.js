@@ -1,6 +1,6 @@
 // src/pkjs/config-ui/index.js (library entry)
-var color    = require('./lib/color.js');     // intToHex, hexToInt, PALETTE
-var platform = require('./lib/platform.js');  // isColorPlatform, computeEnv
+var color    = require('../lib/color.js');     // intToHex, hexToInt, PALETTE
+var platform = require('../config-ui/lib/platform.js');  // isColorPlatform, computeEnv
 var defaults = require('./lib/defaults.js');  // deriveDefaults(schema), deriveColorKeys(schema)
 require('../lib/polyfills.js');                    // Object.assign / Array.find on aplite
 

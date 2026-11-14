@@ -62,10 +62,10 @@ if (typeof require !== 'undefined') {
     // ahead of line-style.js and so of this file.
     var resolveInk = (typeof require !== 'undefined')
         ? require('../../theme/domain/resolve-ink.js') : window.ResolveInk;
-    // The page bundle's single-source int<->hex (config-ui/lib/color.js, concatenated
+    // The page bundle's single-source int<->hex (lib/color.js, concatenated
     // ahead of every app file), rather than a fourth local copy of the same six digits.
     var intToHex = (typeof require !== 'undefined')
-        ? require('../../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
+        ? require('../../lib/color.js').intToHex : PConf.color.intToHex;
     // The rgb control's own value helpers (config-ui/lib/rgb-control.js, likewise
     // concatenated ahead of the app files): a badge previewing an rgb key parses the
     // stored "r,g,b" string with the same parser — fallbacks included — as the sliders

@@ -46,8 +46,8 @@ WeatherProvider.request = function(url, type, onSuccess, onError, headers, body)
 };
 const createFetchCycle = require('../../../src/pkjs/shell/fetch-cycle.js');
 const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
-const authBackoff = require('../../../src/pkjs/weather/application/auth-backoff.js');
-const notices = require('../../../src/pkjs/notices/application/notices.js');
+const authBackoff = require('../../../src/pkjs/weather/adapter/auth-backoff.js');
+const notices = require('../../../src/pkjs/notices/adapter/notices.js');
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 
 const ENDPOINT = 'https://proxy.example/rainbow-nowcast';

@@ -10,9 +10,9 @@
 var COLORS = require('./pebble-colors');
 var rainTier = require('../../forecast-graphs/domain/rain-tier');
 
-// 0xRRGGBB int -> uppercase #RRGGBB. The canonical converter from config-ui/lib/color.js
+// 0xRRGGBB int -> uppercase #RRGGBB. The canonical converter from lib/color.js
 // (its own header calls itself the single source for int<->hex), not a fourth local copy.
-var hex = require('../../config-ui/lib/color.js').intToHex;
+var hex = require('../../lib/color.js').intToHex;
 
 /**
  * Build the preview palette. The rain tiers come from rain-tier — the same module that

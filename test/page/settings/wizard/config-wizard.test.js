@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 // (same require order as test/page/settings/config-schema.test.js) rather than a stub PConf.
 global.PConf = {};
 require('../../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../../src/pkjs/config-ui/lib/color.js');
+require('../../../../src/pkjs/lib/color.js');
 require('../../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../../src/pkjs/page/settings/blocks.js');
 require('../../../../src/pkjs/page/status-bars/reset-status-defaults.js');

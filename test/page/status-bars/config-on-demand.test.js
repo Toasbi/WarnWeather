@@ -17,7 +17,7 @@ const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const SCHEMA = require('../../../src/pkjs/page/settings/schema.js');
 const showWhen = require('../../../src/pkjs/config-ui/lib/show-when.js');
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../src/pkjs/page/settings/blocks.js');
 // After the engine: the glyphs register into PConf.icons only once it is there.

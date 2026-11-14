@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const color = require('../lib/color.js');
-const platform = require('../lib/platform.js');
+const color = require('../../lib/color.js');
+const platform = require('../../config-ui/lib/platform.js');
 const defaults = require('../lib/defaults.js');
 
 const FIXTURE = { tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [

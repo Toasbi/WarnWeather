@@ -606,7 +606,7 @@ phone-runtime capabilities get in, because the library derives env from `watchIn
 never reads app storage. WarnWeather passes `phoneBattery`: whether this PKJS host exposes the
 Battery Status API, which only Android's Chromium WebView does.
 
-The library owns these Pebble facts in `lib/platform.js`: the known 1-bit platforms (`aplite`,
+WarnWeather's platform table, `src/pkjs/config-ui/lib/platform.js`, holds these Pebble facts: the known 1-bit platforms (`aplite`,
 `diorite`, `flint`), the platform without health, radar, theme polarity, thresholds and on
 demand (`aplite`), the heart-rate platforms (`emery`, `diorite`), the colour-backlight platform
 (`emery`), the 5 % battery-step platform (`emery`) and the forecast-time-span platform
@@ -1030,7 +1030,7 @@ file.
    offline. A letter outside the Latin range falls back to the system font.
 2. At the `/*__PCONF_CONCAT__*/` marker, concatenates in order:
    - `lib/schema-walk.js`: single-source schema traversal (`PConf.schemaWalk`)
-   - `lib/color.js`: int↔hex color conversion (`PConf.color`)
+   - `src/pkjs/lib/color.js` (the phone app's shared library): int↔hex color conversion (`PConf.color`)
    - `lib/show-when.js`: predicate evaluator (`PConf.showWhen`)
    - `lib/html.js`: the escape helper, the shared sheet header, the swatch+hex colour readout
      that the `rgb` control and a `chip` badge both print, and a joined row's no-divider class
@@ -1178,7 +1178,7 @@ All library files under `lib/` and `index.js` must be written in ES5:
   `lib/shell.html`'s inline script, which runs before every lib and app file.
   `String.prototype.includes` is not polyfilled anywhere.
 
-PKJS-parsed files (`index.js`, `lib/color.js`, `lib/platform.js`, `lib/defaults.js`) must be ES5
+PKJS-parsed files (`index.js`, `lib/platform.js`, `lib/defaults.js`, and the shared `color.js` it requires) must be ES5
 because aplite runs the PKJS phone-side JS on a pre-ES6 JavaScriptCore. WebView-only files
 (`lib/show-when.js`, `lib/engine.js`) must be ES5 to protect old Android WebViews. The SDK build
 does not catch stray ES6, so failures stay silent until runtime.

@@ -24,7 +24,7 @@ const path = require('node:path');
 const { LIB_PAGE_FILES } = require('../scripts/build-page.js');
 // Shared dual-use modules must populate global.PConf before engine.js reads them.
 require('../lib/schema-walk.js');
-require('../lib/color.js');
+require('../../lib/color.js');
 require('../lib/show-when.js');
 const E = require('../lib/engine.js');
 

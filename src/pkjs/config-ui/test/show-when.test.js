@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const W = require('../lib/show-when.js');
-const platform = require('../lib/platform.js');
+const platform = require('../../config-ui/lib/platform.js');
 const ctx = { secondaryLine: 'wind', provider: 'dwd', devStatsEnabled: true, env: { color: false, platform: 'flint' } };
 
 test('leaf operators: eq/ne/in/nin/truthy + env', () => {

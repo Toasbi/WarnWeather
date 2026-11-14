@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 // Populate global.PConf registries (engine) then register the statusSlotDefault resolver (blocks).
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../../../src/pkjs/config-ui/lib/engine.js');
 const { deriveDefaults } = require('../../../src/pkjs/config-ui/lib/defaults.js');

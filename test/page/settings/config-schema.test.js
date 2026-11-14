@@ -9,7 +9,7 @@ const settings = require('../../../src/pkjs/page/settings/index');
 // Pulled in so PConf.optionsResolvers is populated (blocks.js registers layoutPresetOptions
 // et al.) — needed to resolve layoutPreset's optionsFrom.resolver end-to-end below.
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../src/pkjs/page/settings/blocks.js');
 

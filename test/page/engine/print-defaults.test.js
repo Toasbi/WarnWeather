@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 // Same registry boot as test/page/settings/wizard/config-wizard.test.js: blocks.js registers the
 // statusSlotDefault resolver the schema's defaultFrom items resolve through.
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../../src/pkjs/config-ui/lib/color.js');
+require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../src/pkjs/page/settings/blocks.js');
 require('../../../src/pkjs/page/status-bars/reset-status-defaults.js');
