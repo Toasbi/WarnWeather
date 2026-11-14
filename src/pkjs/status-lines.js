@@ -645,6 +645,7 @@ var SOURCE_KEYS = [
 
 module.exports = {
   buildStatusLines: buildStatusLines,
+  isNightNow: isNightNow,
   SOURCE_KEYS: SOURCE_KEYS,
   packLine: packLine,
   formatValue: formatValue,
