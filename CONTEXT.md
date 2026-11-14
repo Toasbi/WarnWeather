@@ -75,8 +75,9 @@ receives hand-ported bugfixes and interface updates.
 **View spec**:
 The small struct describing what is on screen: top-band content, calendar
 rows, body, status row(s), font tier, band size weights. Geometry and layer
-visibility both derive from it. The phone compiles them from the
-screens (`view-cycle.js`) and sends them; the layout module consumes them.
+visibility both derive from it. The phone compiles them (`view-cycle.js`)
+from the layout preset or, with the custom layout, from the user's screens, and sends them;
+the layout module consumes them.
 
 **Preset (layout)**:
 A named built-in view spec, keyed by the `layoutPreset` setting: `fullCal`,
@@ -86,7 +87,8 @@ a separate code path.
 
 **Stop (flick)**:
 One position in the wrist-flick cycle: a view spec shown when the user flicks.
-The stops are the user's screens, in their order. With *Double flick* on, the cursor advances only on the second accepted
+A layout preset sets its stops; the custom layout's stops are the user's screens, in
+their order. Aplite has no flick cycle. With *Double flick* on, the cursor advances only on the second accepted
 flick within the pairing window (layout.h `view_flick_accept`).
 
 **Screen (settings page)**:

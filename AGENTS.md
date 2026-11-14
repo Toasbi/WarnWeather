@@ -155,7 +155,8 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   weather message.** Config-derived values — colour palettes, formatting/display toggles,
   the holiday mask — belong in `sendClaySettings` (`outbox.sendClay`). The weather payload
   carries only forecast/status/sun/radar/sleep. (The rain-bar/radar palette and the forecast
-  line styling — `CLAY_LINE_STYLE_UINT8` — ride the Clay message; `weather/graph-wire.js` packs both from `rain-tier.js`', `line-style.js`' and
+  line styling — `CLAY_LINE_STYLE_UINT8` — ride the Clay message;
+  `weather/graph-wire.js` packs both from `rain-tier.js`', `line-style.js`' and
   `draw-from.js`' readings, and `clay-payload.js` sends them alongside the other settings.
   Colours pack as single `GColor8` argb bytes, not int32 hex: an array tuple costs 7 B + N,
   a scalar costs 7 B + 4, so packing several into one array is the cheap shape.)
@@ -362,7 +363,8 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
 - **Every release — patches included — needs a news entry in the `public.news`
   Supabase table** (hosted news backend — the *News & Feedback* section of the settings
   screen, not the boot toast above). Unlike that toast, this one has no feature/patch
-  exemption and **nothing in CI enforces it**, so it is on you at release time. Insert one row with `target_version` left **`NULL`** so every watch
+  exemption and **nothing in CI enforces it**, so it is on you at release time. Insert one row with
+  `target_version` left **`NULL`** so every watch
   sees it, whatever version it runs — release news doubles as the nudge to update.
   (An exact version string like `'1.9.2'` limits a row to watches on that build;
   reserve that for version-specific notices, e.g. "this build broke X, update".)
@@ -371,7 +373,8 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   `"What's new in <version>"` and use only the supported markdown subset (`**bold**`
   section headers, `- ` bullets, `*italic*`, `[text](https://…)` links — see
   `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
-- **Changelog style: grouped by kind, one plain sentence per item**. The news body and the appstore changelog both list the items under
+- **Changelog style: grouped by kind, one plain sentence per item**. The news body and the
+  appstore changelog both list the items under
   `New features`, `Improvements` and `Fixes`: bold headings in the news body, plain lines
   in the appstore text. Each item is one row of one sentence, about ten to fifteen words:
   what the user gets, named the way they see it, and what it does. No exclamation marks,

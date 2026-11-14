@@ -289,7 +289,7 @@ rows while keeping its lift in the strip. **It is not needed**: only the *normal
 drops there, and that drop falls out of `status_icon_phone_h()` shrinking it, with no weight
 involved.
 
-If two tiers ever genuinely need two tiers to differ for one icon **at the same painted
+If two tiers ever genuinely need to differ for one icon **at the same painted
 height**, per-tier storage is the answer and a percent is not — the plug paints 13 rows in
 both the FULL rows and the top strip, so nothing keyed on size alone can separate them.
 

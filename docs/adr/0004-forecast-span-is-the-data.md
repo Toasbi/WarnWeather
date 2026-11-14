@@ -22,9 +22,10 @@ screen.
 ## Decision
 
 The phone decides how many hours it sends. The watch reads its grid off the count it receives
-(`NUM_ENTRIES`, which it clamps) and shows as many as its plot holds. The watch has no
-setting, wire bit, persist key or message key for the span of its own; the graph styles'
-records (below) only carry how many of the sent hours a style draws.
+(`NUM_ENTRIES`, which it clamps) and shows as many as its plot holds. The span is the
+phone's choice: the watch has no setting of its own for it. On emery the graph styles' records
+(a wire byte and persist keys 59..61, below) tell it how many of the sent hours each style
+draws.
 
 ### What the phone sends
 
@@ -214,8 +215,7 @@ each style's record (`src/c/appendix/graph_style.h`, `CLAY_GRAPH_STYLE_1..3_UINT
 many of them that style draws. The watch draws min(hours sent, the style's hours) and picks the
 grid class from that count, as above.
 
-- So the watch has a wire byte and persist keys (59..61) that carry a span, but the span is
-  still the phone's choice. Without records (a single style, and every watch but emery) the
+- The records' span is still the phone's choice. Without records (a single style, and every watch but emery) the
   watch draws every hour sent.
 - A view names its style in its view word's ext bits 9-10 (`view-cycle.js` `packExt`,
   `layout.h` `view_ext_graph_style`).

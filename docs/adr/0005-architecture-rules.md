@@ -7,14 +7,14 @@ contracts:
 
 | Deployable | Runs on | Language |
 | --- | --- | --- |
-| Watchface | the watch (aplite, basalt, chalk, diorite, emery, flint) | C, Pebble SDK |
+| Watchface | the watch (aplite, basalt, diorite, emery, flint) | C, Pebble SDK |
 | Phone app (PKJS) | the Pebble phone app's JavaScript runtime | ES5 JavaScript |
 | Settings page | the phone's webview, opened from the Pebble app | ES5 JavaScript, HTML |
 | Edge functions | Supabase (`rainbow-nowcast`, `telemetry-ingest`, `news`) | TypeScript on Deno |
 | Weather plugins | the Pebble app's plugin engine | JavaScript (ES2017) |
 
 The code grew feature by feature, so files sit where they were first written: `src/pkjs/` holds
-dozens of files side by side, `src/pkjs/settings/` about sixty, `src/c/appendix/` mixes chart,
+dozens of files side by side, `src/pkjs/settings/` about seventy, `src/c/appendix/` mixes chart,
 radar, status and theme code. Business rules (which hour a provider's condition belongs to, when
 an alert replaces a slot, how a stored setting upgrades) sit next to HTTP calls, `localStorage`
 and `Pebble.*` calls in the same functions, so they are tested through stubs of the runtime.
@@ -83,8 +83,9 @@ action would add a file per function without a second implementation behind it.
 
 Contexts without business logic, and the watchface, keep a layered shape and write it down:
 
-- **Watchface:** `windows` → `layers` → `appendix` and `services`. A layer never includes a
-  window; HealthService calls stay in `services/health.c`; no include cycles. Aplite twins
+- **Watchface:** `windows` → `layers` → `appendix` and `services`. A layer does not include a
+  window (the status bar and status row still do, and the include test lists them until they
+  are fixed); HealthService calls stay in `services/health.c`; no include cycles. Aplite twins
   and contract files follow ADR 0001 unchanged.
 - **Settings page:** `config-ui/lib` is the engine (rendering, show-when, controls) and knows
   nothing of WarnWeather's settings; `settings/` holds the schema, pages and previews that use
@@ -113,9 +114,8 @@ it again.
 ### 7. Names
 
 `CONTEXT.md` is the binding glossary: code, tests, docs and ADRs use its terms, and a new term is
-added there before it is used. Domain names are English: WarnWeather is an English-language
-product with users in many countries, so the rule of naming business concepts in German does not
-apply.
+added there before it is used. Domain names are English, the language of the product, its users
+and its docs.
 
 ### 8. Architecture tests
 
@@ -144,7 +144,6 @@ that guards it. The edge functions follow the usual REST rules for status codes 
 | Invocation context | No authenticated users or tenants to carry through calls. |
 | GraphQL | WarnWeather provides no GraphQL API; it only calls Yandex's as a client. |
 | Frontend framework selection | The settings page stays plain ES5 with its own engine: the Pebble app opens it in old Android webviews that a framework's output does not run on. The ES5 test (`test/config-es5.test.js`) and the page's tests are its guardrails. |
-| German domain names | English product (section 7). |
 
 ### Exceptions and when they are looked at again
 
