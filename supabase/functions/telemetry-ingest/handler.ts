@@ -86,6 +86,9 @@ const settingsSchema = z
     // blob can hold a bold mode this build's picker no longer offers, and a stricter
     // type would reject the whole event over one cosmetic setting.
     threshPhoneBatteryBoldMode: z.string().optional(),
+    // The weather condition slot's Bold (kind 20). DEPLOY-ORDERING: ship this function
+    // before the app release that sends it, or the strip step drops it silently.
+    threshConditionBoldMode: z.string().optional(),
     dayNightShading: z.boolean().optional(),
     healthMode: z.enum(['off', 'status', 'all', 'slot']).optional(),
     fetchIntervalMin: z.number().int().positive().optional(),

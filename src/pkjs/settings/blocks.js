@@ -155,8 +155,6 @@ if (typeof require !== 'undefined') {
     PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
         if (!env || !env.thresholds) { return null; }
         var code = S[args.messageKey];
-        // The weather condition slot has a dialog without levels or a bold cell: its Look.
-        if (code === 'condition') { return 'slotCondition'; }
         for (var i = 0; i < thresholds.KINDS.length; i++) {
             if (thresholds.KINDS[i].code === code) { return 'thresh' + thresholds.KINDS[i].key; }
         }

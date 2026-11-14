@@ -44,7 +44,7 @@ const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
 // PhoneBattery is ONE stem for TWO wire kinds (18 phoneBattery, 19 phoneBatteryPlain):
 // both KINDS entries share key 'PhoneBattery', so they share one sheet and one key.
 const BOLD_ONLY_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct', 'Dew',
-  'PhoneBattery'];
+  'PhoneBattery', 'Condition'];
 const BOLD_ONLY_KEYS = BOLD_ONLY_STEMS.map((stem) => 'thresh' + stem + 'BoldMode');
 const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnLook', 'Warn', 'Danger', 'Max'])
   .concat(THRESH_COLOR_KEYS)
@@ -2457,16 +2457,15 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // opened as a sheet of its own (schema.js barKeysSection); each bar's dialog is a sheet that
   // holds slots, not levels (barDialog).
   const sheets = watch.sections.filter((s) => s.sheetOnly && s.sheetId !== 'barKeys' && !/^bar-/.test(s.sheetId));
-  // The weather condition slot's dialog comes last: its Look, no levels and no bold row, so
-  // not a thresh<Stem> sheet (blocks.js statusSlotEditSheet names it).
+  // The weather condition slot's dialog comes last: its Look, then Bold like every text slot.
   assert.equal(sheets.length, 20,
-    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only), then the condition slot\'s');
+    'one edit sheet per boldable slot kind (8 threshold + 12 bold-only)');
   assert.deepEqual(sheets.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct',
-      'threshDew', 'threshPhoneBattery', 'slotCondition'],
+      'threshDew', 'threshPhoneBattery', 'threshCondition'],
     'sheet ids follow the thresh<Stem> convention the slot resolver derives');
   // The On demand sheets (the side lists' section + 10 item sheets) moved with the alerts
   // to the Alerts tab, and carry the On demand gate (aplite has no On demand).

@@ -301,6 +301,7 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // the other bold modes stay out. Passed through raw like tempSlotDisplay --
         // an unseeded install reports undefined, which the column reads as "default".
         threshPhoneBatteryBoldMode: safe.threshPhoneBatteryBoldMode,
+        threshConditionBoldMode: safe.threshConditionBoldMode,
         dayNightShading: !!safe.dayNightShading,
         healthMode: safe.healthMode || 'off',
         fetchIntervalMin: toIntOrUndefined(safe.fetchIntervalMin),

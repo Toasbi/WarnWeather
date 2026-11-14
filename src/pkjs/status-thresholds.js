@@ -124,7 +124,11 @@
     // cells. Nothing in the packer keys off `key` being unique — boldModeFor()
     // is a plain per-entry lookup — so the duplicate is a share, not a clash.
     { code: 'phoneBattery', key: 'PhoneBattery', boldOnly: true },
-    { code: 'phoneBatteryPlain', key: 'PhoneBattery', boldOnly: true }
+    { code: 'phoneBatteryPlain', key: 'PhoneBattery', boldOnly: true },
+    // The weather condition (kind 20, appended): bold-only, for its Text look and every
+    // glyph alike. The bold area (bytes 29..33) is full, so its cell sits at bits 3-4
+    // of the alerts byte (status-wire.js boldCell, status_threshold.h THRESH_CONDITION).
+    { code: 'condition', key: 'Condition', boldOnly: true }
   ];
 
   /**

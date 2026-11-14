@@ -8125,7 +8125,7 @@
           },
           {
             "sheetOnly": true,
-            "sheetId": "slotCondition",
+            "sheetId": "threshCondition",
             "showWhen": {
               "env": "thresholds"
             },
@@ -8155,6 +8155,32 @@
                     "icon"
                   ]
                 ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshConditionBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"

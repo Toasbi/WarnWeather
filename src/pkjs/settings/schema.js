@@ -2101,28 +2101,22 @@ module.exports = {
         // one mode packs into both cells. Android-only on the slot side; the dialog
         // needs no extra gate, because a slot that can't be chosen never opens it.
         boldSection('Phone battery', 'PhoneBattery'),
-        // The weather condition slot's dialog (slot-text.js conditionLook): its Look, which
-        // every condition slot shares. No Bold row: the slot has no levels and no bold cell.
-        // Opened by the slot's Edit button (blocks.js statusSlotEditSheet), not on aplite,
-        // which draws no condition glyph and prints the text.
-        {
-            sheetOnly: true,
-            sheetId: 'slotCondition',
-            showWhen: THRESHOLD_WHEN,
-            title: 'Weather condition slot',
-            items: [{
-                type: 'segmented',
-                messageKey: 'conditionSlotLook',
-                label: 'Look',
-                hintByValue: {
-                    both: 'Shows the weather symbol and its name, like Partly cloudy, or PCLD where the slot is short of room.',
-                    text: 'Shows the name alone, like Partly cloudy, or PCLD where the slot is short of room.',
-                    icon: 'Shows the weather symbol alone.'
-                },
-                defaultValue: 'both',
-                options: [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']]
-            }]
-        }
+        // The weather condition slot's dialog: its Look (slot-text.js conditionLook), which
+        // every condition slot shares, then Bold like every text slot (kind 20, whose cell
+        // rides the alerts byte: status-wire.js boldCell). Opened by the slot's Edit button
+        // (blocks.js statusSlotEditSheet), not on aplite, which has no slot dialogs.
+        boldSection('Weather condition', 'Condition', null, [{
+            type: 'segmented',
+            messageKey: 'conditionSlotLook',
+            label: 'Look',
+            hintByValue: {
+                both: 'Shows the weather symbol and its name, like Partly cloudy, or PCLD where the slot is short of room.',
+                text: 'Shows the name alone, like Partly cloudy, or PCLD where the slot is short of room.',
+                icon: 'Shows the weather symbol alone.'
+            },
+            defaultValue: 'both',
+            options: [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']]
+        }])
         ].map(function (sec) {
             // Every slot dialog keeps the bars pinned above its rows: the bar it was opened
             // from, a bar's dialog (preview-status-bars.js statusBarsPreview). The bars' own

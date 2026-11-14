@@ -12,7 +12,7 @@ test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.code),
     ['aqi', 'pollen', 'wind', 'gust', 'steps', 'sleep', 'distance', 'uv',
      'temp', 'pressure', 'sun', 'date', 'week', 'city', 'countdown', 'hr',
-     'batteryPct', 'dew', 'phoneBattery', 'phoneBatteryPlain']);
+     'batteryPct', 'dew', 'phoneBattery', 'phoneBatteryPlain', 'condition']);
   // Two kinds, ONE settings key. The sheet resolver maps a catalog code to
   // 'thresh' + KINDS[i].key, so both phone-battery codes land on the single
   // threshPhoneBattery* sheet — one Bold row covering the iconed and the no-icon
@@ -20,14 +20,14 @@ test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.key),
     ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv',
      'Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr',
-     'BatteryPct', 'Dew', 'PhoneBattery', 'PhoneBattery']);
-  // The bold-only flag covers exactly the appended kinds 8..19 (the GLYPH
+     'BatteryPct', 'Dew', 'PhoneBattery', 'PhoneBattery', 'Condition']);
+  // The bold-only flag covers exactly the appended kinds 8..20 (the GLYPH
   // battery is deliberately absent: a drawn glyph with no text run has nothing
-  // to bold; the battery-% TEXT slot is kind 16, dew point kind 17, and the two
-  // phone-battery TEXT slots are kinds 18/19).
+  // to bold; the battery-% TEXT slot is kind 16, dew point kind 17, the two
+  // phone-battery TEXT slots are kinds 18/19 and the weather condition kind 20).
   assert.deepEqual(th.KINDS.map(k => Boolean(k.boldOnly)),
     [false, false, false, false, false, false, false, false,
-     true, true, true, true, true, true, true, true, true, true, true, true]);
+     true, true, true, true, true, true, true, true, true, true, true, true, true]);
 });
 
 // 'PhoneBattery' is the ONLY duplicated settings key in the table. buildSettingsBlob
@@ -724,8 +724,8 @@ test('buildSettingsBlob: statusBoldAll "all" packs always into every bold cell',
   // free, wire-neutral change and should not read here as a regression. The
   // kind COUNT itself is pinned by status-thresholds-contract.test.js.
   const cellsPerByte = 4;
-  const fullBytes = Math.floor(th.KINDS.length / cellsPerByte);
-  const tailCells = th.KINDS.length % cellsPerByte;
+  const fullBytes = Math.floor(wire.BOLD_AREA_KINDS / cellsPerByte);
+  const tailCells = wire.BOLD_AREA_KINDS % cellsPerByte;
   const expected = new Array(fullBytes).fill(0xAA);
   if (tailCells) {
     let tail = 0;
@@ -735,8 +735,10 @@ test('buildSettingsBlob: statusBoldAll "all" packs always into every bold cell',
   assert.deepEqual(blob.slice(wire.BOLD_OFFSET, wire.ALERTS_OFFSET), expected);
   // The bold area itself must not shrink, or the assertion above goes vacuous.
   assert.equal(wire.ALERTS_OFFSET - wire.BOLD_OFFSET, 5, 'bold area is bytes 29..33');
-  // ...and the master never reaches past it into the alerts byte.
-  assert.equal(blob[wire.ALERTS_OFFSET], wire.RAIN_REPLACE_BIT, 'the rain look is not a bold cell');
+  // ...and in the alerts byte it reaches the weather condition's cell (kind 20) alone:
+  // the rain look is not a bold cell.
+  assert.equal(blob[wire.ALERTS_OFFSET],
+    wire.RAIN_REPLACE_BIT | (th.BOLD_MODES.always << wire.CONDITION_BOLD_SHIFT));
 });
 
 // The master's Off is a slot's own Off in every cell: bold at danger or a reached goal only.
@@ -746,8 +748,8 @@ test('buildSettingsBlob: statusBoldAll "off" packs off into every bold cell', ()
     // Stored modes that would otherwise pack always (2) / warn (0) lanes.
     threshAqiBoldMode: 'always', threshStepsBoldMode: 'warn', threshCityBoldMode: 'always'
   });
-  const fullBytes = Math.floor(th.KINDS.length / 4);
-  const tailCells = th.KINDS.length % 4;
+  const fullBytes = Math.floor(wire.BOLD_AREA_KINDS / 4);
+  const tailCells = wire.BOLD_AREA_KINDS % 4;
   const expected = new Array(fullBytes).fill(0x55);   // 1 ('off') in every 2-bit lane
   if (tailCells) {
     let tail = 0;
@@ -755,7 +757,9 @@ test('buildSettingsBlob: statusBoldAll "off" packs off into every bold cell', ()
     expected.push(tail);
   }
   assert.deepEqual(blob.slice(wire.BOLD_OFFSET, wire.ALERTS_OFFSET), expected);
-  assert.equal(blob[wire.ALERTS_OFFSET], wire.RAIN_REPLACE_BIT, 'the rain look is not a bold cell');
+  assert.equal(blob[wire.ALERTS_OFFSET],
+    wire.RAIN_REPLACE_BIT | (th.BOLD_MODES.off << wire.CONDITION_BOLD_SHIFT),
+    'the condition\'s cell takes the Off too; the rain look is not a bold cell');
 });
 
 test('statusBoldAll "off" leaves everything below the bold area byte-identical, and the stored modes', () => {

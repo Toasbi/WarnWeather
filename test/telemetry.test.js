@@ -309,6 +309,11 @@ test('radarProvider reports disabled while the rain radar is off, and radarEnabl
 // it actually configure it is worth seeing. Passed through RAW, like tempSlotDisplay:
 // an install that has never opened the sheet reports undefined, which reads as "left at
 // the default" rather than as a deliberate "off".
+test('snapshot includes threshConditionBoldMode, raw', () => {
+  assert.strictEqual(buildSettingsSnapshot({ threshConditionBoldMode: 'always' }).threshConditionBoldMode, 'always');
+  assert.strictEqual(buildSettingsSnapshot({}).threshConditionBoldMode, undefined, 'unset: no value');
+});
+
 test('snapshot includes threshPhoneBatteryBoldMode, raw', () => {
   assert.strictEqual(buildSettingsSnapshot({ threshPhoneBatteryBoldMode: 'always' }).threshPhoneBatteryBoldMode, 'always');
   assert.strictEqual(buildSettingsSnapshot({ threshPhoneBatteryBoldMode: 'off' }).threshPhoneBatteryBoldMode, 'off');
@@ -418,7 +423,7 @@ const HEAVIEST_SETTINGS = {
   dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
   aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
   gustSlotDirection: true,
-  threshPhoneBatteryBoldMode: 'always', dayNightShading: true,
+  threshPhoneBatteryBoldMode: 'always', threshConditionBoldMode: 'always', dayNightShading: true,
   healthMode: 'status', fetchIntervalMin: '120',
   rainCountdownHorizon: '60', sleepNightEnabled: true, sleepStartHour: '23',
   // The weather alerts at their heaviest: every metric alert placed on a bar, every one
@@ -957,6 +962,8 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // and adding the Weather tab's three, made it 2745 of 4096, headroom 1351. The graph
 // styles (graphStyleCount, graphStyle2Hours, graphStyle3Hours; 3.0.0, emery only, the
 // custom fixture's flick screens on styles 2 and 3) made it 2810 of 4096, headroom 1286.
+// The rain alert's Replaces the slot and the weather condition's Look and Bold made it
+// 2896 of 4096, headroom 1200.
 test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYTES', () => {
   const cap = Number(/const MAX_SETTINGS_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');

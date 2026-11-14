@@ -36,8 +36,8 @@
 //      [29 + (k >> 2)]  bold mode (ThreshBold), 2 bits per kind at bits
 //                       2 * (k & 3) — 20 kinds x 2 bits = bytes 29..33 (byte 33
 //                       carries kinds 16..19, ALL FOUR now assigned: the bold
-//                       area is full, and kind 20 is the first that would need a
-//                       sixth bold byte).
+//                       area is full). Kind 20, the weather condition, keeps its
+//                       cell in the alerts byte below (bits 3-4).
 //                       INDEPENDENT of the enabled bitmask: THRESH_BOLD_ALWAYS
 //                       bolds a slot whose kind has no thresholds configured.
 //      [34]             alerts options (THRESH_ALERTS_OFFSET). Bits 0-1: the
@@ -46,8 +46,11 @@
 //                       as text). Bit 2: the rain alert takes the place of the
 //                       slot on its side while it shows (THRESH_RAIN_REPLACE_BIT,
 //                       on_demand.h od_replace_slots; the phone sets it by default);
-//                       0 leaves the slot to the make-room ladder. Bits 3-7 reserved (DWD official-warning
-//                       flags later) — written 0. Which METRIC alerts are active never
+//                       0 leaves the slot to the make-room ladder. Bits 3-4: the
+//                       weather condition's bold mode (kind 20, the one kind past
+//                       the full bold area; THRESH_CONDITION_BOLD_SHIFT). Bits 5-7
+//                       reserved (DWD official-warning flags later) — written 0.
+//                       Which METRIC alerts are active never
 //                       rides here: the phone bakes the placed, active ones into
 //                       their own weather tuple (ALERT_ENTRIES_UINT8, encoding in
 //                       alert_set.h).
@@ -78,12 +81,14 @@
 //      - 1.24.0: 48 B, the rain look, the Battery item byte, the two warn-look
 //        bytes, which cover the 8 PAIRED kinds only (a ninth paired kind would
 //        need a third byte — asserted below), and the ten On demand cells.
-//    The alert bytes sit right behind the full bold area, so kind 20 is no plain
-//    append — it needs a sixth bold byte AND must relocate everything behind it
-//    (the rain look, the Battery byte, the warn looks, the cells), a LAYOUT change
-//    (a new accepted length and a reader that knows every position). The
-//    _Static_asserts below the offsets turn that into a compile error instead of
-//    kind 20's bold cell silently aliasing the rain look.
+//    The alert bytes sit right behind the full bold area, so kind 20 (the weather
+//    condition) took two spare bits of the alerts byte instead of a sixth bold
+//    byte, and the blob kept its 48 B. A kind 21 has no such room: it needs a
+//    sixth bold byte AND must relocate everything behind it (the rain look, the
+//    Battery byte, the warn looks, the cells), a LAYOUT change (a new accepted
+//    length and a reader that knows every position). The _Static_asserts below
+//    the offsets turn that into a compile error instead of a bold cell silently
+//    aliasing the rain look.
 //    Exactly four lengths are accepted: the current 48, the pre-alerts 34, the
 //    16-kind 33 and the pre-bold 29. The interim 31-byte (8-kind bold), 35-, 36-
 //    and 38-byte formats never shipped, so they validate as garbage, not as
@@ -94,7 +99,11 @@
 //    Health threshold wire units: steps = steps, sleep = MINUTES,
 //    distance = 100 m units (the status row's own display resolution).
 
-#define THRESH_KIND_COUNT 20
+#define THRESH_KIND_COUNT 21
+// The kinds whose bold cells fill the bold area (bytes 29..33); the one kind past it
+// (THRESH_CONDITION) keeps its cell at bits 3-4 of the alerts byte.
+#define THRESH_BOLD_AREA_KINDS 20
+#define THRESH_CONDITION_BOLD_SHIFT 3
 // Kinds that OWN a blob pair — an enable bit in byte 0, a color pair, and (for
 // the health trio) a u16 threshold pair. Byte 0 has exactly 8 enable bits and
 // the color/health offsets collide with later fields past kind 7, so bounding
@@ -166,14 +175,23 @@ typedef enum {
     // would arrive as SLOT_TEXT + STATUS_ICON_NONE and drive THRESH_CITY.
     THRESH_PHONE_BATTERY = 18,
     THRESH_PHONE_BATTERY_PLAIN = 19,
+    // The weather condition (kind 20, appended): bold-only. Its text look and every
+    // glyph (STATUS_ICON_COND_TEXT..STATUS_ICON_COND_WIND) map here. The bold area is
+    // full, so its cell sits at bits 3-4 of the alerts byte (see the layout above).
+    THRESH_CONDITION = 20,
 } ThreshKind;
 #define THRESH_WEATHER_KIND_MAX THRESH_GUST
 
-// The alert bytes follow the bold area (see the layout above): a kind appended
-// past the last bold cell would write its bold mode into the rain look, so it must
-// relocate everything behind it.
-_Static_assert(THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT + 3) / 4) <= THRESH_ALERTS_OFFSET,
-               "a bold kind past byte 33 must relocate the alert bytes (layout change)");
+// The alert bytes follow the bold area (see the layout above): the bold area holds 20
+// kinds, the condition's cell rides the alerts byte, and a kind past that would have
+// no cell, so it must relocate everything behind the bold area.
+_Static_assert(THRESH_BOLD_OFFSET + THRESH_BOLD_AREA_KINDS / 4 == THRESH_ALERTS_OFFSET,
+               "the bold area fills bytes 29..33, right up to the alert bytes");
+_Static_assert(THRESH_CONDITION == THRESH_BOLD_AREA_KINDS
+               && THRESH_KIND_COUNT == THRESH_BOLD_AREA_KINDS + 1,
+               "one kind past the bold area, in the alerts byte; another needs a layout change");
+_Static_assert(THRESH_CONDITION_BOLD_SHIFT > 2 && THRESH_CONDITION_BOLD_SHIFT + 2 <= 8,
+               "the condition's cell sits above the rain look and Replaces the slot bits");
 _Static_assert(THRESH_BATTERY_OFFSET == THRESH_ALERTS_OFFSET + 1
                && THRESH_WARN_LOOK_OFFSET == THRESH_BATTERY_OFFSET + 1,
                "the rain look and the Battery byte sit side by side, the warn look right behind");
