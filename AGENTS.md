@@ -375,34 +375,36 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   `"What's new in <version>"` and use only the supported markdown subset (`**bold**`
   section headers, `- ` bullets, `*italic*`, `[text](https://…)` links — see
   `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
-- **Changelog style: grouped by kind, one plain sentence per item** (the owner's,
-  2026-11-10). The news body and the appstore changelog both list the items under
-  `New features`, `Improvements` and `Fixes`: bold headings in the news body, plain lines
-  in the appstore text. Each item is one row of one sentence, about ten to fifteen words:
-  what the user gets, named the way they see it, and what it does. No exclamation marks,
-  no second sentence, no aside, no how-to and no full stop. A platform limit goes in
-  parentheses at the end (`(Pebble Time 2)`), or after the heading when the whole group
-  shares it. Fixes get one row per watchface bug a user would have noticed, then one
-  grouped row for polish. Leave out mechanics, defaults and edge cases. The news body
-  renders flat `- ` bullets only (`news.js`), so no sub-bullets. The shape to match
-  (3.0.0's):
+- **Changelog style: Keep a Changelog** (the owner's, 2026-11-14;
+  https://keepachangelog.com). The news body and the appstore changelog group their items
+  under the Keep a Changelog types, in this order and only those that apply: `Added` (new
+  features), `Changed` (changes to existing features), `Removed`, `Fixed`. Headings are
+  bold in the news body and plain lines in the appstore text. Each item is one short line
+  without a full stop, about five to twelve words, naming the feature the way the user sees
+  it: `Added` and `Changed` items name the feature or what is different now ("Weather icon
+  before the city name in the City slot"); `Fixed` items name what was wrong ("Rain alert
+  icon drew in the wrong color") or what works again. No marketing words, no exclamation
+  marks, no how-to, no second sentence. A platform limit goes in parentheses at the end
+  (`(Pebble Time 2)`, `(not on Pebble Classic or Steel)`). Small fixes are one grouped
+  `Minor fixes` line at the end of `Fixed`. The news body renders flat `- ` bullets only
+  (`news.js`), so no sub-bullets. The shape to match:
 
   ```
-  **New features** (not on Pebble Classic or Steel)
-  - Name your screens and drag them into the order you want
-  - Make up to six status bars and fill them as you like (Pebble Time 2)
+  Added
+  - Weather condition status slot with a sun or moon icon
+  - Up to six status bars (Pebble Time 2)
 
-  **Improvements**
-  - Setup shows your own watch while you pick its layout and theme
+  Changed
+  - Tap a status bar in the settings to open its settings
 
-  **Fixes**
-  - The settings open again right after Reset watchface
-  - Smaller fixes and polish
+  Fixed
+  - Settings did not open right after Reset watchface
+  - Minor fixes
   ```
 - **Write the changelog for users, not the diff** (both the toast and the news body). Call
   out individually only what a user can act on: a feature they can use, or a bug that
   affected the watchface itself. Group everything else — settings-screen polish, internal
-  refactors, small fixes — into one line ("small fixes and polish"), or omit it. A
+  refactors, small fixes — into one line ("Minor fixes"), or omit it. A
   polish-only patch gets one grouped line, not an itemized list of cosmetic tweaks.
   Keep the tone factual and concise: no filler reassurances ("nothing you need to change
   on your end") and no generic sign-offs ("more on the way", "message me anytime").
