@@ -658,9 +658,9 @@ supabase functions deploy news
 ```
 
 The news function never puts the account-token hash in a URL the gateway logs: the list (items,
-seen watermark and the caller's votes in one call), the seen upsert and the rate-limit counts are
-RPCs in `supabase/schemas/news.sql` (arguments in the POST body, service role only), and the vote
-upsert and reply insert carry it in their row bodies. Its logs carry a fixed tag plus at most a
+seen watermark and the caller's votes in one call), the seen upsert and the vote rate-limit count
+are RPCs in `supabase/schemas/news.sql` (arguments in the POST body, service role only), and the
+vote upsert carries it in its row body. The function takes no messages. Its logs carry a fixed tag plus at most a
 Postgres/PostgREST code (`log.ts`). The function needs those RPCs, so the migration goes out first
 (CI runs `db push` before `functions deploy`).
 

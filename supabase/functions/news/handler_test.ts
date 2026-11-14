@@ -279,94 +279,15 @@ Deno.test("vote: failures answer as before and log a tag and a code only", async
   assertEquals(upsertFails.lines, ["news vote_failed 23503"]);
 });
 
-// ── reply ───────────────────────────────────────────────────────────────────
+// ── reply (no longer taken) ──────────────────────────────────────────────────
 
-/** PostgREST answers for a reply; `total` is all accounts' replies, `mine` the caller's budget. */
-function replyAnswers(total: unknown, mine: unknown, insert: Answer = [201, undefined]) {
-  return (method: string, path: string): Answer => {
-    if (path === "/rest/v1/rpc/news_reply_count_since") return [200, total];
-    if (path === "/rest/v1/rpc/news_recent_action_count") return [200, mine];
-    if (path === "/rest/v1/news_replies" && method === "POST") return insert;
-    return unexpected(method, path);
-  };
-}
-
-const REPLY = { op: "reply", accountToken: TOKEN, version: "1.8.0", newsId: 5, message: "  a private reply  " };
-
-Deno.test("reply: both counts by RPC, the reply inserted with the hash in its row, 202", async () => {
-  const { res, text, route, bodies, lines } = await call(REPLY, replyAnswers(12, 3));
-  assertEquals(route, [
-    "POST /rest/v1/rpc/news_reply_count_since",
-    "POST /rest/v1/rpc/news_recent_action_count",
-    "POST /rest/v1/news_replies",
-  ]);
-  assertEquals(bodies[0], { p_since: DAY_AGO });
-  assertEquals(bodies[1], { p_account_token_hash: HASH, p_since: DAY_AGO });
-  assertEquals(bodies[2], { news_id: 5, account_token_hash: HASH, app_version: "1.8.0", message: "a private reply" });
-  assertEquals(res.status, 202);
-  assertCors(res);
-  assertEquals(text, '{"ok":true}');
-  assertEquals(lines, []);
-});
-
-Deno.test("reply: a U+0000 never reaches the database (Postgres refuses it and logs the JSON around it)", async () => {
-  // Postgres rejects \u0000 in text (22P05) with a CONTEXT line quoting ~50 characters of the
-  // request JSON before it: the reply's free text, or the account-token hash.
-  const nul = await call({ ...REPLY, message: "\u0000 a private\u0000 reply \u0000" }, replyAnswers(0, 0));
-  assertEquals(nul.res.status, 202);
-  assertEquals(nul.bodies[2].message, "a private reply");
-  for (const r of nul.requests) assert(!r.body.includes("\\u0000"), r.method + " " + r.url + " sends a NUL");
-
-  const onlyNul = await call({ ...REPLY, message: " \u0000\u0000 " }, replyAnswers(0, 0));
-  assertEquals(onlyNul.res.status, 400);
-  assertEquals(JSON.parse(onlyNul.text).error, "invalid_payload");
-  assertEquals(onlyNul.route, []);
-});
-
-Deno.test("reply: the global cap is 429 before the caller's own count, and logged as a tag", async () => {
-  const { res, text, route, lines } = await call(REPLY, replyAnswers(500, 0));
-  assertEquals(res.status, 429);
-  assertEquals(text, '{"error":"rate_limit_exceeded","remaining":0}');
-  assertEquals(route, ["POST /rest/v1/rpc/news_reply_count_since"]);
-  assertEquals(lines, ["news reply_cap_reached"]);
-});
-
-Deno.test("reply: a spent budget is 429 and stores nothing", async () => {
-  const { res, text, route, lines } = await call(REPLY, replyAnswers(12, 10));
-  assertEquals(res.status, 429);
-  assertEquals(text, '{"error":"rate_limit_exceeded","remaining":0}');
-  assert(!route.includes("POST /rest/v1/news_replies"));
-  assertEquals(lines, []);
-});
-
-Deno.test("reply: to a deleted item is 400 unknown_news, logged not at all", async () => {
-  const { res, text, lines } = await call(
-    REPLY,
-    replyAnswers(0, 0, [409, { code: "23503", message: "fk", details: "Key (news_id)=(5) is not present", hint: null }]),
+Deno.test("reply: an old settings page's message is 400 invalid_payload and reaches no table", async () => {
+  const { res, route } = await call(
+    { op: "reply", accountToken: TOKEN, version: "1.8.0", newsId: 5, message: "a private reply" },
+    () => [500, undefined],
   );
   assertEquals(res.status, 400);
-  assertEquals(text, '{"error":"unknown_news"}');
-  assertEquals(lines, []);
-});
-
-Deno.test("reply: failures answer as before and log a tag and a code only", async () => {
-  const totalFails = await call(REPLY, (method, path) =>
-    path === "/rest/v1/rpc/news_reply_count_since"
-      ? [500, { code: "57014", message: "canceled", details: null, hint: null }]
-      : replyAnswers(0, 0)(method, path));
-  assertEquals([totalFails.res.status, totalFails.text], [500, '{"error":"rate_check_failed"}']);
-  assertEquals(totalFails.lines, ["news rate_check_failed 57014"]);
-
-  const notANumber = await call(REPLY, replyAnswers(0, "many"));
-  assertEquals([notANumber.res.status, notANumber.text], [500, '{"error":"rate_check_failed"}']);
-  assertEquals(notANumber.lines, ["news rate_check_failed"]);
-
-  const insertFails = await call(
-    REPLY,
-    replyAnswers(0, 0, [400, { code: "23514", message: "check", details: "Failing row contains (a private reply)", hint: null }]),
-  );
-  assertEquals([insertFails.res.status, insertFails.text], [500, '{"error":"insert_failed"}']);
-  assertEquals(insertFails.lines, ["news insert_failed 23514"]);
+  assertEquals(route, []);
 });
 
 // ── transport, configuration and the last line of defence ──────────────────
