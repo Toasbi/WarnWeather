@@ -350,7 +350,7 @@ static void test_visible(void) {
 // The long option's label (Graphs > Forecast > Forecast length): the whole hours a feed of n hours
 // shows in a plot w px wide (forecast_span_whole) are the bars counted whole, for every feed
 // the long class lays out (FORECAST_SPAN_DAY_SENT + 1..FORECAST_MAX_ENTRIES hours: OWM's 48,
-// WU's 49, a full 68) on every W. src/pkjs/forecast-span-hours.js computes the same count on
+// WU's 49, a full 68) on every W. src/pkjs/weather/domain/forecast-span-hours.js computes the same count on
 // the settings page; scripts/test-c.sh holds the two to each other on every cell
 // (test/c/forecast_span_dump.c, scripts/check-forecast-span-lockstep.js). The labels' landmarks
 // are test_visible's.

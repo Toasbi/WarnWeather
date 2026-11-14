@@ -175,7 +175,7 @@ cc $CFLAGS test/c/date_format_test.c -o build/host/date_format_test
 build/host/date_format_test
 # The status slots' short forms (status_short_text.h, header-only like date_format.h):
 # every kind's family, the date's year and day members over date_format.h's real
-# outputs, the city's word ladder, whose vector table test/city-ladder.test.js also
+# outputs, the city's word ladder, whose vector table test/status-bars/domain/city-ladder.test.js also
 # runs the phone's twin over, and that no family outgrows on_demand.h's OD_VARIANTS.
 # Only On demand's callers include it, so aplite never does.
 cc $CFLAGS test/c/status_short_text_test.c -o build/host/status_short_text_test
@@ -261,7 +261,7 @@ build/host/night_light_persist_test_emery
 
 # The LINE_STYLES byte decode (per-line marker styles, wire bytes [9..11] of
 # CLAY_LINE_STYLE_UINT8): header-only static inlines in persist.h, mirrored
-# against the JS packer's pins in test/line-style.test.js so the two wire ends
+# against the JS packer's pins in test/forecast-graphs/domain/line-style.test.js so the two wire ends
 # cannot drift. Built with WW_LINE_STYLE — the only configuration that declares
 # the helpers; aplite compiles them out together with their callers.
 cc $CFLAGS -DWW_LINE_STYLE test/c/line_style_decode_test.c \
@@ -271,22 +271,22 @@ build/host/line_style_decode_test
 # a polyline across absent samples, incl. the metric lines' zero_absent
 # "wire byte 0 draws nothing" reading and the zero a JOIN line still comes down
 # to next to a reading. The preview's twin (lineRuns) runs the same
-# LINE_RUN_VECTORS in test/config-blocks.test.js.
+# LINE_RUN_VECTORS in test/page/settings/config-blocks.test.js.
 cc $CFLAGS test/c/chart_absent_test.c -o build/host/chart_absent_test
 build/host/chart_absent_test
 # The stripe line style's arithmetic (chart_stripe.h, header-only): value ->
 # level, the background->colour blend and the B&W dither. Mirrored against the
-# preview's stripe pins in test/config-blocks.test.js.
+# preview's stripe pins in test/page/settings/config-blocks.test.js.
 cc $CFLAGS test/c/chart_stripe_test.c -o build/host/chart_stripe_test
 build/host/chart_stripe_test
 # The chart's one vertical rule, "Draw from" / "Bars from" (chart_flip.h, header-only):
 # the zero row + direction, the mirrored vertex and span mappings, the hanging vertex
 # hold (a value under one pixel stays off the gap row under a top stripe band) and
-# the palette's Top flag. Mirrored by the previews (test/config-draw-from.test.js).
+# the palette's Top flag. Mirrored by the previews (test/page/forecast-graphs/config-draw-from.test.js).
 cc $CFLAGS test/c/chart_flip_test.c -o build/host/chart_flip_test
 build/host/chart_flip_test
 # The radar sky blob decode + bolt glyph (radar_sky.h, header-only), mirrored
-# against radar-sky.js's packSky pin in test/radar-sky.test.js.
+# against radar-sky.js's packSky pin in test/weather/domain/radar/radar-sky.test.js.
 cc $CFLAGS test/c/radar_sky_test.c -o build/host/radar_sky_test
 build/host/radar_sky_test
 # The radar notice (RAIN_RADAR_LIMITED, the phone's line: a request limit or a place

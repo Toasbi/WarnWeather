@@ -1,6 +1,6 @@
 // Host tests for the CLAY_NIGHT_LIGHT_UINT8 acceptance rule (persist.h's
 // night_light_wire_ok) — the "Dim backlight" tint + window the phone packs in
-// src/pkjs/night-light.js and app_message.c's handle_night_light persists.
+// src/pkjs/theme/domain/night-light.js and app_message.c's handle_night_light persists.
 //
 // This is the only part of that unpack path that is pure integer arithmetic, and
 // it is the part that decides whether a payload may OVERWRITE the last good
@@ -45,7 +45,7 @@ static void expect(const char *name, int got, int want) {
 static const uint8_t SAMPLE[NIGHT_LIGHT_BYTES] = { 96, 0, 0, 22, 6 };
 
 static void wire_contract(void) {
-    // Pinned against the phone side: test/inbox-size.test.js asserts the packed
+    // Pinned against the phone side: test/repo/inbox-size.test.js asserts the packed
     // tuple is 5 bytes, and night-light.js clamps both hour selects to 0..23.
     expect("bytes", NIGHT_LIGHT_BYTES, 5);
     expect("hour_max", NIGHT_LIGHT_HOUR_MAX, 23);
@@ -77,7 +77,7 @@ static void length_is_a_minimum(void) {
 
 static void the_off_tuple_is_valid(void) {
     // The switch turned off reaches the watch as five zero bytes — start == end is
-    // this repo's "never" window (sleep-window.js), and it is the ONLY thing that
+    // this repo's "never" window (battery-saver.js), and it is the ONLY thing that
     // says "off". Reject it and the feature could never be turned off again.
     const uint8_t off[NIGHT_LIGHT_BYTES] = { 0, 0, 0, 0, 0 };
     expect("off_tuple", night_light_wire_ok(off, sizeof(off)), 1);

@@ -41,7 +41,7 @@ digits keep their size and the layout's measured ink (clock_ink.h) still holds:
 Requires freetype-py and Pillow:  pip install freetype-py pillow
 Run:      python3 scripts/gen-clock-glyphs.py
 Then:     node scripts/gen-clock-glyphs-page.js   (the settings page's copy of the glyphs,
-          src/pkjs/settings/clock-glyphs.generated.js; a test fails while it is stale)
+          src/pkjs/page/layout/clock-glyphs.generated.js; a test fails while it is stale)
 Preview:  python3 scripts/gen-clock-glyphs.py --preview build/clock-glyphs-preview
           (renders sample times on dark and light backgrounds through a model of the
           firmware's 2-bit blend, 4x upscaled, for eyeballing — not committed)

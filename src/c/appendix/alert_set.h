@@ -44,7 +44,7 @@
 // metric alert, in the fixed order UV, wind, gust, AQI, pollen (the phone bakes
 // only enabled alerts at warn or higher, for today or — when the alert looks
 // ahead and nothing left today reaches warn — tomorrow: status-wire.js
-// bakeAlerts; it tail-drops entries past ALERT_ENTRIES_MAX_BYTES, pollen first).
+// bakedAlerts; it tail-drops entries past ALERT_ENTRIES_MAX_BYTES, pollen first).
 // Each entry:
 //   header byte   bit 7     STATUS_ALERT_HEADER, set on every header and on no
 //                           value byte (those are printable ASCII), so a value
@@ -65,7 +65,7 @@
 // with values stay under the cap on either day (5 headers + at most 2 + 3 + 3 + 3
 // + 3 value bytes, pollen's widest band being "2-3" = 19 B — a tomorrow entry costs
 // no extra byte), so the 20-B cap drops nothing today; it bounds what the inbox has
-// to budget for (test/inbox-size.test.js). The phone never sends the tuple to aplite.
+// to budget for (test/repo/inbox-size.test.js). The phone never sends the tuple to aplite.
 #define ALERT_ENTRIES_MAX_BYTES 20
 #define STATUS_ALERT_HEADER 0x80
 #define STATUS_ALERT_KIND_MASK 0x07

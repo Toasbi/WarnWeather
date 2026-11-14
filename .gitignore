@@ -8,7 +8,7 @@
 !.release-please-manifest.json
 build
 src/pkjs/dev-config.js
-src/pkjs/active-fixture.generated.js
+src/pkjs/weather/adapter/active-fixture.generated.js
 src/pkjs/settings/page.generated.js
 screenshot/**/*
 !screenshot/**/
@@ -40,8 +40,9 @@ package.json
 !AGENTS.md
 # Ignore everything under docs/ (brainstorming specs & plans stay untracked)…
 /docs/*
-# …except tracked architecture decision records.
+# …except tracked architecture decision records and the quality goals.
 !/docs/adr/
+!/docs/quality-goals.md
 
 # Python bytecode from scripts/ (svg2pdc and friends)
 __pycache__/

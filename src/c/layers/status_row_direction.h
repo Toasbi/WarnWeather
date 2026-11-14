@@ -7,7 +7,7 @@
 //
 // An optional arrow after the speed on the Wind speed / Wind gusts slots. It rides
 // as ONE trailing byte appended by the phone INSIDE the slot's already-paid-for
-// text bytes (src/pkjs/status-lines.js), so the arrow costs the AppMessage
+// text bytes (src/pkjs/status-bars/domain/status-lines.js), so the arrow costs the AppMessage
 // **zero** extra bytes on a weather message that has ~10 B of true slack:
 //
 //     byte = STATUS_DIR_SENTINEL_MIN + sector,   sector 0..15

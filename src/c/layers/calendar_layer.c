@@ -85,7 +85,7 @@ static struct tm relative_tm(int days_from_today)
     return out;
 }
 
-// Days-from-civil (Howard Hinnant) — must match src/pkjs/holidays/serial-day.js
+// Days-from-civil (Howard Hinnant) — must match src/pkjs/calendar/domain/serial-day.js
 // exactly so the watch and PKJS agree on the anchor's day numbering. Integer
 // only (no floating point).
 static int32_t days_from_civil(int year, int month, int day) {

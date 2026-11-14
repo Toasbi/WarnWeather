@@ -240,7 +240,7 @@ ViewSpec view_spec_unpack(uint16_t v) {
     ViewSpec spec;
     uint8_t rows = layout_rows_for_wire_tier(tier);
     spec.calendar_rows = rows;
-    // Wire `top` uses EMPTY=0, CALENDAR=1, RADAR=2, GRAPH=3 (see src/pkjs/view-cycle.js);
+    // Wire `top` uses EMPTY=0, CALENDAR=1, RADAR=2, GRAPH=3 (see src/pkjs/layout/domain/view-cycle.js);
     // translate to the C TopBand enum (which numbers them differently). body/status
     // fields share the wire's numbering, so they pass through directly. Which graph a
     // GRAPH top holds rides the ext word (top_kind, view_spec_apply_ext).
@@ -498,7 +498,7 @@ enum { STK_TOP = 0, STK_CLOCK = 1, STK_A = 2, STK_B = 3, STK_BODY = 4, STK_NONE 
 // The 12 canonical orderings of {top, clock, A, B} with A before B; the body always
 // follows. Code 0 is also the COMPACT tier's legacy order and code 1 the FULL / NONE
 // tiers' — the orders a spec without a custom trigger renders. Codes 1-11 are the
-// orderings in lexicographic id order. MIRRORED in src/pkjs/view-cycle.js STACK_ORDERS —
+// orderings in lexicographic id order. MIRRORED in src/pkjs/layout/domain/view-cycle.js STACK_ORDERS —
 // both sides pin the same documented list in their tests; edit in lockstep or the phone
 // previews one order and the watch renders another.
 static const uint8_t STACK_ORDER[12][4] = {

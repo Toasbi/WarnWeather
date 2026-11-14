@@ -1,8 +1,8 @@
 // src/pkjs/config-ui/index.js (library entry)
-var color    = require('./lib/color.js');     // intToHex, hexToInt, PALETTE
-var platform = require('./lib/platform.js');  // isColorPlatform, computeEnv
+var color    = require('../lib/color.js');     // intToHex, hexToInt, PALETTE
+var platform = require('../config-ui/lib/platform.js');  // isColorPlatform, computeEnv
 var defaults = require('./lib/defaults.js');  // deriveDefaults(schema), deriveColorKeys(schema)
-require('../polyfills.js');                    // Object.assign / Array.find on aplite
+require('../lib/polyfills.js');                    // Object.assign / Array.find on aplite
 
 /**
  * JSON for splicing into the page's only inline <script>. Plain JSON.stringify
@@ -33,7 +33,7 @@ function createConfig(cfg) {
   var colorKeys = defaults.deriveColorKeys(schema);     // schema items with type 'color'
   function isColorKey(k) { return colorKeys.indexOf(k) >= 0; }
 
-  var instance = { meta: { userData: {} }, colorKeys: colorKeys };  // meta.userData: Clay-compatible
+  var instance = { meta: { userData: {} } };  // meta.userData: Clay-compatible
 
   function readStore()  { return storage ? JSON.parse(storage.getItem(storeKey) || '{}') : {}; }
   function writeStore(b) { if (storage) { storage.setItem(storeKey, JSON.stringify(b)); } }

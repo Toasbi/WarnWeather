@@ -7,7 +7,7 @@
 // persistent-storage syscalls, which fake_persist.h fakes over a RAM map. That fake
 // is the whole point — it is what lets this file EXECUTE the two things that are
 // otherwise only readable:
-//   1. the change gating (AGENTS.md: "only write persist when the value actually
+//   1. the change gating (AGENTS.md: "Write persist only when the value
 //      changed"), i.e. that a re-save of identical bytes performs no flash write
 //      and reports false, so nothing downstream re-applies;
 //   2. the short-read guard in the getter, which must leave its all-zero default

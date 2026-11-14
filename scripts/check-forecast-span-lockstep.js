@@ -2,20 +2,20 @@
 // Lockstep between the watch's long span and the settings page's label on how many whole
 // hours a feed shows. Reads the lines test/c/forecast_span_dump.c prints — the whole hours
 // src/c/appendix/forecast_span.h forecast_span_whole counts for every feed the long class lays
-// out on every plot width — and checks each against src/pkjs/forecast-span-hours.js
+// out on every plot width — and checks each against src/pkjs/weather/domain/forecast-span-hours.js
 // wholeHours, the count the Forecast length row's long option is labelled with. The dump's range is
 // checked too, so a shrunken loop cannot pass:
 //   N_MIN   the long class's first feed: forecast-span.js DAY_WIDE_HOURS + 1;
 //   N_MAX   emery's FORECAST_MAX_ENTRIES: hourly-window.js MAX_FORECAST_HOURS;
 //   W_MAX   the whole screen: forecast-span-hours.js SCREEN_W;
-//   W_MIN   below every plot the page computes (test/forecast-span-hours.test.js);
+//   W_MIN   below every plot the page computes (test/weather/domain/forecast-span-hours.test.js);
 // and one line per (W, n) of that grid, in order.
 // Run by scripts/test-c.sh; any disagreement fails the build.
 'use strict';
 const fs = require('fs');
-const spanHours = require('../src/pkjs/forecast-span-hours.js');
-const forecastSpan = require('../src/pkjs/forecast-span.js');
-const hourlyWindow = require('../src/pkjs/weather/hourly-window.js');
+const spanHours = require('../src/pkjs/weather/domain/forecast-span-hours.js');
+const forecastSpan = require('../src/pkjs/weather/domain/forecast-span.js');
+const hourlyWindow = require('../src/pkjs/weather/domain/hourly-window.js');
 
 const lines = fs.readFileSync(process.argv[2] || 0, 'utf8').trim().split('\n');
 const head = /^W_MIN (\d+) W_MAX (\d+) N_MIN (\d+) N_MAX (\d+)$/.exec(lines.shift());

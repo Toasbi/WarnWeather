@@ -84,7 +84,7 @@ static ViewSpec unpack_ext(uint16_t wire, uint16_t ext) {
 // Golden-test shim for the retired layout_compute() production wrapper: geometry for a
 // plain calendar+forecast view at the given tier. `two_rows` picks a single upper forecast
 // row (default views) or the dual health-upper + forecast-lower stack, matching the named
-// view constants in src/pkjs/view-cycle.js.
+// view constants in src/pkjs/layout/domain/view-cycle.js.
 static MainLayout layout_compute(GRect bounds, uint8_t tier, bool two_rows, int fc_band_h) {
     uint8_t wire_tier = (tier == LAYOUT_TIER_FULL) ? 3
                       : (tier == LAYOUT_TIER_COMPACT) ? 2 : 1;
@@ -576,7 +576,7 @@ static uint16_t stk(int tier, int top, int su, int sl, int clock_off, int order)
     return pack_custom(pack(tier, top, 0, su, sl), clock_off, 0, order);
 }
 
-// The canonical order list — MUST equal STACK_ORDERS in src/pkjs/view-cycle.js and
+// The canonical order list — MUST equal STACK_ORDERS in src/pkjs/layout/domain/view-cycle.js and
 // STACK_ORDER in layout.c (pinned there through rendered band order, here as data).
 static const char *STK_WANT[12] = {
     "TACB", "TCAB", "TABC", "CTAB", "CATB", "CABT",
@@ -2156,7 +2156,7 @@ static void test_resolve_no_health_no_radar(void) {
 
 static void viewspec_tests(void) {
     // Packed 10-bit decode: tier<<8 | top<<6 | body<<4 | statusUpper<<2 | statusLower.
-    // The wire `top` field uses EMPTY=0, CALENDAR=1, RADAR=2 (see src/pkjs/view-cycle.js);
+    // The wire `top` field uses EMPTY=0, CALENDAR=1, RADAR=2 (see src/pkjs/layout/domain/view-cycle.js);
     // view_spec_unpack translates it to the C TopBand enum. su/sl are StatusSource values.
     ViewSpec u = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE)); // CAL2 forecast-upper
     expect("unpack.cal2.rows", u.calendar_rows == 2, true);
@@ -2862,7 +2862,7 @@ static void view_flick_tests(void) {
     expect("flick.double.pair_consumed", g.armed, false);
     expect("flick.double.third_rearms", view_flick_accept(&g, t0 + 1400, true), false);
     expect("flick.double.fourth_fires", view_flick_accept(&g, t0 + 2000, true), true);
-    // Any partner inside the window pairs: the earliest a BMI160 watch (basalt/chalk, ~1.28 s
+    // Any partner inside the window pairs: the earliest a BMI160 watch (basalt, ~1.28 s
     // any-motion latch) can deliver, a deliberate flick-pause-flick, and the window's edge.
     const struct { const char *name; uint32_t gap; } pairs[] = {
         { "flick.double.bmi160_gap_pairs", 1300 },

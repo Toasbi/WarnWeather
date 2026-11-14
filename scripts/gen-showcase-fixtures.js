@@ -15,7 +15,7 @@
 // keeps the defaults, the rain alert among them. The default right ticks would add
 // weather-alert icons whose presence depends on the capture time (a day peak counts only
 // while it is still ahead). A scene that should show an alert ticks it in its own clay
-// (statusTopOnDemandRightItems); test/curated-fixtures-on-demand.test.js holds the pin.
+// (statusTopOnDemandRightItems); test/weather/adapter/curated-fixtures-on-demand.test.js holds the pin.
 
 const fs = require('fs');
 const path = require('path');
@@ -35,9 +35,9 @@ const BASE_PATH = path.join('fixtures', 'berlin.json');
  * @returns {Object} claySettings with the theme and the flipped colours.
  */
 function withTheme(clay, newTheme) {
-  const claySettings = require('../src/pkjs/clay-settings.js');
-  const pebbleColors = require('../src/pkjs/pebble-colors.js');
-  const themeFlip = require('../src/pkjs/theme-flip.js');
+  const claySettings = require('../src/pkjs/settings/adapter/clay-settings.js');
+  const pebbleColors = require('../src/pkjs/theme/domain/pebble-colors.js');
+  const themeFlip = require('../src/pkjs/theme/domain/theme-flip.js');
   const defaults = claySettings.getDefaults({ white: pebbleColors.GColorWhite,
     folly: pebbleColors.GColorFolly, holiday: pebbleColors.GColorBlueMoon });
   const S = { ...defaults, ...clay };
@@ -97,8 +97,8 @@ const COLOUR_PLATFORMS = ['basalt', 'flint', 'emery'];
 
 /**
  * Target date for scene 4's date-countdown slot, 21 days out from TODAY.
- * The countdown TEXT is formatted phone-side against the real clock (status-lines.js
- * packLine → formatCountdown(new Date())), not the fixture's watch.now — so the target
+ * The countdown TEXT is formatted phone-side against the real clock (the bake's now:
+ * new Date() in weather/adapter/fixture-weather.js), not the fixture's watch.now — so the target
  * has to move with the generation day for the capture to render "21d".
  * @returns {string} YYYY-MM-DD
  */

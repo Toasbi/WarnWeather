@@ -187,7 +187,6 @@ static void render_active_view(void) {
     // resolved on every render, so a font change in settings re-seats the clock with no extra
     // invalidation path (render_active_view runs before main_window_refresh re-measures text).
     LayoutMetrics metrics = LAYOUT_METRICS_NOW();
-    int fc_band = metrics.fc_band_h;
     MainLayout L;
 #if defined(WW_QUICK_VIEW)
     // Peek is derived LIVE from the unobstructed bounds every render (never a cached flag),

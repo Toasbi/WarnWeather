@@ -3,8 +3,7 @@
 
 This is the pipeline for the status/health outline family in resources/data/
 (STATUS_TEMP/UV/WIND/GUST/PRECIP/POLLEN/DISTANCE). Sources live in
-docs/superpowers/svg/*.svg (Tabler outline icons). It replaces the old
-gen-status-pdc.py, which is now a no-op.
+docs/superpowers/svg/*.svg (Tabler outline icons).
 
 Why a custom tool (vs pebble-examples' svg2pdc.py):
  - flattens Bezier/arc segments into many sub-points (the official tool keeps only
@@ -24,7 +23,7 @@ sane and give the polygonizer enough resolution; STROKE_W matters because a 1px
 stroke is the one width Pebble antialiases (keep it 1).
 
 Conventions (override via env for one-offs):
- - VIEWBOX 24 (test/status-pdc.test.js asserts 24 for this family)
+ - VIEWBOX 24 (test/watchface/status-pdc.test.js asserts 24 for this family)
  - SVG2PDC_MARGIN 2   -> ~20px content
  - SVG2PDC_STROKE 1   -> thin, antialiased
 

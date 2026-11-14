@@ -5,21 +5,21 @@
 // caller drives the same boot path, and a drifted copy would leave one of them quietly
 // booting something the page no longer is.
 //
-// Used by test/config-thresholds.test.js (threshold sheets: sliders, the inline
-// scale-max editor) and test/config-night-color-sheet.test.js (the dim-backlight colour
+// Used by test/page/alerts/config-thresholds.test.js (threshold sheets: sliders, the inline
+// scale-max editor) and test/page/theme/config-night-color-sheet.test.js (the dim-backlight colour
 // sheet) — the two places where a control has to be exercised INSIDE the edit-sheet
 // dialog, which renders outside #scroll and wires its own handlers — and by
-// test/config-provider-key-sheets.test.js (a weather provider's key sheet: a text
+// test/page/weather/config-provider-key-sheets.test.js (a weather provider's key sheet: a text
 // field, its Test button and a hint's copy button inside the dialog), by
-// test/config-key-status.test.js and test/config-radar-key-status.test.js (the key's
+// test/page/weather/config-key-status.test.js and test/page/weather/config-radar-key-status.test.js (the key's
 // status: the tab bar's dot and the Save button's confirm dialog, which needs `dialog`
-// below), and by test/config-radar-rainbow-options.test.js (the Radar tab's two Rainbow
+// below), and by test/page/weather/config-radar-rainbow-options.test.js (the Radar tab's two Rainbow
 // options, opened on and saved as radarProvider). The trigger stubs
 // below also report the engine's in-place relabel after a text commit (`relabels`).
 'use strict';
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const schema = require('../../src/pkjs/settings/schema.js');
+const schema = require('../../src/pkjs/page/settings/schema.js');
 const platformLib = require('../../src/pkjs/config-ui/lib/platform.js');
 
 // A select trigger as engine.js renderSelectTrigger writes it; the groups the fake below

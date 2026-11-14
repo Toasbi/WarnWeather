@@ -6,7 +6,7 @@
 // caller, and only off aplite: aplite is the frozen fork, it has no stripes, its insets are
 // constants and its labels sit where they always did. The settings preview mirrors the rules
 // (preview-axis.js, preview-forecast.js, draw-from.js forecastAnchors), pinned by
-// test/config-temp-axis-pad.test.js.
+// test/page/forecast-graphs/config-temp-axis-pad.test.js.
 //
 // WHAT TAKES PART (owner, 2026-10-02). Only a series with at least one value above 0 in the
 // window the graph draws takes part in the layout: the hours whose column starts on screen

@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 // Shared dual-use modules must populate global.PConf before engine.js reads them.
 require('../lib/schema-walk.js');
-require('../lib/color.js');
+require('../../lib/color.js');
 require('../lib/show-when.js');
 const E = require('../lib/engine.js');
 

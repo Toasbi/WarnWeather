@@ -4,7 +4,7 @@
 // tabs, toggles, selects, and the color picker all work. Reads shell.html + lib + app files fresh
 // each run, so it always reflects the current source (no need to regenerate page.generated.js).
 // Usage: node scripts/preview-config-page.js [out] [platform]
-//   platform: basalt | chalk | aplite | diorite | emery   (default basalt)
+//   platform: any of package.template.json's targetPlatforms   (default basalt)
 'use strict';
 var fs = require('fs');
 var path = require('path');
@@ -12,16 +12,17 @@ var build = require('../src/pkjs/config-ui/scripts/build-page.js');
 
 var ROOT = path.join(__dirname, '..');
 var platformLib = require(path.join(ROOT, 'src/pkjs/config-ui/lib/platform.js'));
-var schema = require(path.join(ROOT, 'src/pkjs/settings/schema.js'));
-var previewPalette = require(path.join(ROOT, 'src/pkjs/settings/preview-palette.js'));
-var notices = require(path.join(ROOT, 'src/pkjs/notices.js'));
-var gpsFailure = require(path.join(ROOT, 'src/pkjs/weather/location.js')).gpsFailure;
+var schema = require(path.join(ROOT, 'src/pkjs/page/settings/schema.js'));
+var previewPalette = require(path.join(ROOT, 'src/pkjs/theme/domain/preview-palette.js'));
+var notices = require(path.join(ROOT, 'src/pkjs/notices/adapter/notices.js'));
+var gpsFailure = require(path.join(ROOT, 'src/pkjs/weather/adapter/location.js')).gpsFailure;
 // The bundle IS the build's bundle: same files, same order. It used to be a
 // second copy of the list, which is exactly how the preview came to load the
 // Weather tab's stylesheet before the module whose settle curve it bakes in.
 var APP_FILES = require('./build-config-page.js').APP_FILES;
 var DEFAULT_OUT = path.join(ROOT, 'build/config-ui-preview.html');
-var PLATFORMS = ['basalt', 'chalk', 'aplite', 'diorite', 'emery'];
+// The watches the app builds for: a bare name among them picks the platform.
+var PLATFORMS = require(path.join(ROOT, 'package.template.json')).pebble.targetPlatforms;
 
 // Parse CLI positionals into { out, platform } order-independently. A bare platform
 // name (e.g. `mise preview-config aplite`) selects the platform and keeps the default

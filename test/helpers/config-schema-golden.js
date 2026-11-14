@@ -12,7 +12,7 @@
 //    rows' args carry voice copy into the resolvers, so an args reshape shows up in
 //    `schema` while this half proves the page still shows the same words.
 //
-// The golden is a byte-for-byte pin (test/config-schema-golden.test.js). After a
+// The golden is a byte-for-byte pin (test/scripts/config-schema-golden.test.js). After a
 // DELIBERATE schema change, rewrite it with
 //     node test/helpers/config-schema-golden.js
 // and review its diff like code. Never regenerate it to make an unexplained failure go
@@ -21,20 +21,19 @@
 const fs = require('fs');
 const path = require('path');
 
-const schema = require('../../src/pkjs/settings/schema.js');
+const schema = require('../../src/pkjs/page/settings/schema.js');
 const platform = require('../../src/pkjs/config-ui/lib/platform.js');
 const { eachItem } = require('../../src/pkjs/config-ui/lib/schema-walk.js');
-require('../../src/pkjs/config-ui/lib/color.js');
+require('../../src/pkjs/lib/color.js');
 require('../../src/pkjs/config-ui/lib/show-when.js');
 require('../../src/pkjs/config-ui/lib/engine.js');
-require('../../src/pkjs/settings/blocks.js');
+require('../../src/pkjs/page/settings/blocks.js');
 
 const PC = global.PConf;
 const GOLDEN_PATH = path.join(__dirname, '..', 'config-schema.golden.json');
 
-// Every platform config-ui/lib/platform.js distinguishes (chalk included: its env is
-// round, even though the app does not target it today).
-const PLATFORMS = ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint'];
+// Every platform the app builds for (package.template.json's targetPlatforms).
+const PLATFORMS = require('../../package.template.json').pebble.targetPlatforms;
 
 /**
  * The theme states the warn look's hint branches on (blocks.js warnLookHint): a colour

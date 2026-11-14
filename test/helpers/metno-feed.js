@@ -3,7 +3,7 @@
 // hourly buckets to a model time, then 6-hourly buckets on the 00/06/12/18 UTC grid. The
 // hourly ones carry next_1_hours (and next_6_hours), clear-sky UV and, in the Nordics, the
 // gust and the chance; the 6-hourly ones carry next_6_hours / next_12_hours only, and no UV
-// or gust (test/metno-tail.test.js, test/metno-gate.golden.json).
+// or gust (test/weather/domain/metno-tail.test.js, test/metno-gate.golden.json).
 
 const HOUR = 3600;
 

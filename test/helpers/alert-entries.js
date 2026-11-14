@@ -4,11 +4,11 @@
 // the way src/c/appendix/alert_set.c parses it (a header byte has bit 7, a value
 // runs to the next header), so the tests that decode what the phone bakes share
 // one reader instead of each re-deriving the header bits. The constants it reads
-// are the phone's, which test/alert-entries-contract.test.js pins to the C header.
+// are the phone's, which test/alerts/domain/alert-entries-contract.test.js pins to the C header.
 'use strict';
 const assert = require('node:assert');
-const th = require('../../src/pkjs/status-thresholds.js');
-const wire = require('../../src/pkjs/status-wire.js');
+const th = require('../../src/pkjs/alerts/domain/status-thresholds.js');
+const wire = require('../../src/pkjs/alerts/domain/status-wire.js');
 
 /**
  * Decode an ALERT_ENTRIES_UINT8 byte array. Asserts the tuple is well formed the
@@ -41,4 +41,17 @@ function decodeAlerts(bytes) {
   return out;
 }
 
-module.exports = { decodeAlerts };
+/**
+ * The ALERT_ENTRIES_UINT8 bytes for a watch with Alert settings: status-wire's bakedAlerts
+ * list, packed by packAlerts, as buildStatusLines (status-lines.js) does once its platform
+ * gate (env.thresholds) lets the bake run.
+ * @param {Object} payload weather payload (pre-transform, trends present)
+ * @param {Object} settings Clay settings blob
+ * @param {?Object} [env] platform env; omitted = a watch with every bar
+ * @returns {number[]} the entry bytes, [] when nothing is alerting
+ */
+function packedAlerts(payload, settings, env) {
+  return wire.packAlerts(wire.bakedAlerts(payload, settings, env));
+}
+
+module.exports = { decodeAlerts, packedAlerts };

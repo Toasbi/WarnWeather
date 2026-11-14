@@ -29,7 +29,7 @@ while (($#)); do
       emulator="${1#*=}"
       shift
       ;;
-    aplite|basalt|chalk|diorite|emery|flint|gabbro)
+    aplite|basalt|diorite|emery|flint)
       emulator="$1"
       shift
       ;;
