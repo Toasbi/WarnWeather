@@ -340,14 +340,111 @@ var FIT_PX = {
   cal2: [30, 40], cal3: [45, 60], availStrip: [155, 202], availNoStrip: [168, 222]
 };
 
+// The rest of layout.c's per-family numbers its placement uses (the settings page's pictures
+// of the watch, stackLayout), kept in lockstep with the C engine by the same check (its R
+// lines): the window's top pad (LAYOUT_PAD_TOP), the floor the stack ends on (the screen's
+// height less LAYOUT_PAD_BOTTOM), the large Gothic the strip, the calendar and the
+// COMPACT / NONE rows draw in (STATUS_LARGE_FONT_H), the ink lifts of a lone and a dense row
+// in the freed seat above the clock (COMPACT_{LONE,DENSE}_ROW_INK_LIFT), the rows between the
+// strip's ink and a calendar under it (STATUS_STRIP_CAL_GAP), and three shared constants:
+// COMPACT_SINGLE_STATUS_NUDGE, STATUS_TOP_STRIP_LIFT and the calendar's text lift
+// (CALENDAR_FONT_OFFSET, CALENDAR_TEXT_SHIFT_Y).
+var PLACE_PX = {
+  padTop: [0, 2], floor: [168, 224], height: [168, 228], largeFont: [18, 24],
+  loneLift: [0, 0], denseLift: [-1, 1], stripCalGap: [0, 2], nudge: 3, stripLift: 2, calLift: 5
+};
+
+/**
+ * Rows a sized seat takes (layout.c band_rows): 2 / 3 / 4, 0 for FILL, else the seat's own
+ * default; a forecast never takes fewer than 3 (its labels collide below that).
+ * @param {number} code SIZE_* code
+ * @param {number} dflt the seat's default rows (0 = fill)
+ * @param {boolean} fc a forecast seat
+ * @returns {number} rows, 0 = fill
+ */
+function sizeRows(code, dflt, fc) {
+  var r = code === SIZE_2 ? 2 : code === SIZE_3 ? 3 : code === SIZE_4 ? 4 : code === SIZE_FILL ? 0 : dflt;
+  return (fc && r === 2) ? 3 : r;
+}
+
+/**
+ * The top area (layout.c spec_top_rows): a calendar's rows by its tier, a radar or graph's
+ * by its size (3 by default; a filling one counts the 3 it folds back to).
+ * @param {!Object} s view spec
+ * @param {!Object} e its ext fields (extFields)
+ * @returns {{rows: number, fill: boolean, sized: boolean, fc: boolean}} its rows, whether it
+ *     fills, whether it is a radar or graph (sized), and whether it is the forecast graph
+ */
+function topShape(s, e) {
+  var sized = s.top === TOP_RADAR || s.top === TOP_GRAPH;
+  var fc = s.top === TOP_GRAPH && e.topKind === TOP_KIND_FORECAST;
+  var rows = 0, fill = false;
+  if (s.top === TOP_CAL) {
+    rows = s.tier === TIER_FULL ? 3 : s.tier === TIER_COMPACT ? 2 : 0;
+  } else if (sized) {
+    rows = sizeRows(e.topSize, 3, fc);
+    if (!rows) { fill = true; rows = 3; }
+  }
+  return { rows: rows, fill: fill, sized: sized, fc: fc };
+}
+
+/**
+ * The tier a view's status rows render at (layout.c status_tier_for): 3+ top rows FULL, 2
+ * COMPACT (a dual squeezes to FULL), none NONE; a removed clock, top bar or graph keeps the
+ * large font.
+ * @param {!Object} s view spec
+ * @param {number} topRows the top area's rows (topShape)
+ * @returns {number} TIER_*
+ */
+function rowTier(s, topRows) {
+  var dual = s.statusUpper !== STATUS_SRC_NONE && s.statusLower !== STATUS_SRC_NONE;
+  var tier = topRows >= 3 ? TIER_FULL : topRows === 2 ? (dual ? TIER_FULL : TIER_COMPACT) : TIER_NONE;
+  if (tier === TIER_FULL && (s.clockOff || s.stripOff || s.body === BODY_NONE)) { tier = TIER_COMPACT; }
+  return tier;
+}
+
+/**
+ * A status row's seat (layout.c row_seat) from its neighbours: the freed row above the
+ * clock (its band a fixed COMPACT_STATUS_TOP_ABOVE_CLOCK over the clock, less the row's
+ * ink lift), the reserve under the clock (the band on the reserve's floor; the next row
+ * stacks flush), else a plain band.
+ * @param {?string} prev the band above ('T', 'C', 'A', 'B'), null for none
+ * @param {?string} next the band below ('T', 'C', 'A', 'B', 'G'), null for none
+ * @param {boolean} prevUnder the row above is itself seated under the clock
+ * @param {number} f family index (0 = 144 px, 1 = emery)
+ * @param {number} tier the rows' tier (rowTier)
+ * @returns {{pitch: number, bandH: number, off: number, gap: number, under: boolean}} the
+ *     rows its slot takes, its band's height and top relative to the slot, the clearance it
+ *     owes the next band, and whether it is seated under the clock
+ */
+function rowSeat(prev, next, prevUnder, f, tier) {
+  var row = FIT_PX.row[f], full = tier === TIER_FULL;
+  var r = { pitch: 0, bandH: full ? FIT_PX.statusFull[f] : FIT_PX.statusLarge[f], off: 0, gap: 0, under: false };
+  if (prev === 'T' && next === 'C') {
+    if (full) { r.bandH = row; }
+    r.pitch = row;
+    r.off = row - (FIT_PX.statusLarge[f] - PLACE_PX.nudge)
+      - (full ? PLACE_PX.denseLift[f] : PLACE_PX.loneLift[f]);
+  } else if (prev === 'C' || prevUnder) {
+    r.under = true;
+    if (tier === TIER_NONE) { r.bandH = FIT_PX.noneRow[f]; }
+    r.pitch = (prev === 'C' && tier !== TIER_NONE) ? (full ? FIT_PX.reserve[f] : row) : r.bandH;
+    r.off = r.pitch - r.bandH;
+    if (next === 'T' && tier === TIER_COMPACT) { r.gap = FIT_PX.gap[f]; }
+  } else {
+    r.pitch = r.bandH;
+    r.gap = full ? 0 : FIT_PX.gap[f];
+  }
+  return r;
+}
+
 /**
  * The seats a stack's bands take on one screen family, in the watch's walk order: the
  * bands the compiled spec shows (STACK_ORDERS[order] + the body), each on its SEAT
  * (compute_layout's row_seat rules), with the clearance a band owes the next one. The
  * status rows' tier follows the top area's row count, like the watch (layout.c
  * status_tier_for). A FILL band is counted at its floor: 2 rows, or 3 for the forecast
- * (its labels collide below that). The walk stackNeed sums, and the settings page's
- * watch preview draws.
+ * (its labels collide below that). The walk stackNeed sums.
  * @param {!Object} s view spec as the watch lays it out (resolveForFit for a data state)
  * @param {number} f family index (0 = 144 px, 1 = emery)
  * @returns {{seats: !Array<{band: string, pitch: number, gap: number, fill: boolean}>,
@@ -359,32 +456,13 @@ var FIT_PX = {
 function stackSeats(s, f) {
   var e = extFields(s);
   var row = FIT_PX.row[f], slide = FIT_PX.slide[f], bodyFill = false;
-  var fcTop = s.top === TOP_GRAPH && e.topKind === TOP_KIND_FORECAST;
-  /** @param {number} code @param {number} dflt @param {boolean} fc @returns {number} rows, 0 = fill */
-  function sizeRows(code, dflt, fc) {
-    var r = code === SIZE_2 ? 2 : code === SIZE_3 ? 3 : code === SIZE_4 ? 4 : code === SIZE_FILL ? 0 : dflt;
-    return (fc && r === 2) ? 3 : r;
-  }
-  // The top area's rows (spec_top_rows): a calendar by its tier, a radar/graph by its size.
-  var topRows = 0, topFill = false, sizedTop = s.top === TOP_RADAR || s.top === TOP_GRAPH;
-  if (s.top === TOP_CAL) {
-    topRows = s.tier === TIER_FULL ? 3 : s.tier === TIER_COMPACT ? 2 : 0;
-  } else if (sizedTop) {
-    topRows = sizeRows(e.topSize, 3, fcTop);
-    if (!topRows) { topFill = true; topRows = 3; }
-  }
-  // The rows' tier (status_tier_for): 3+ rows FULL, 2 COMPACT (a dual squeezes to FULL),
-  // none NONE; a removed clock, top bar or graph keeps the large font.
-  var dual = s.statusUpper !== STATUS_SRC_NONE && s.statusLower !== STATUS_SRC_NONE;
-  var bodyOn = s.body !== BODY_NONE;
-  var tier = topRows >= 3 ? TIER_FULL : topRows === 2 ? (dual ? TIER_FULL : TIER_COMPACT) : TIER_NONE;
-  if (tier === TIER_FULL && (s.clockOff || s.stripOff || !bodyOn)) { tier = TIER_COMPACT; }
-  var full = tier === TIER_FULL, gap = FIT_PX.gap[f];
-  var bandH = full ? FIT_PX.statusFull[f] : FIT_PX.statusLarge[f];
+  var top = topShape(s, e);
+  var tier = rowTier(s, top.rows), gap = FIT_PX.gap[f];
   // Present bands in the watch's walk order.
   var seq = (STACK_ORDERS[s.order || 0] || 'TACB') + 'G', list = [], j, b;
-  var present = { T: s.top !== TOP_EMPTY && topRows > 0, C: !s.clockOff,
-                  A: s.statusUpper !== STATUS_SRC_NONE, B: s.statusLower !== STATUS_SRC_NONE, G: bodyOn };
+  var present = { T: s.top !== TOP_EMPTY && top.rows > 0, C: !s.clockOff,
+                  A: s.statusUpper !== STATUS_SRC_NONE, B: s.statusLower !== STATUS_SRC_NONE,
+                  G: s.body !== BODY_NONE };
   for (j = 0; j < seq.length; j++) { if (present[seq.charAt(j)]) { list.push(seq.charAt(j)); } }
   var need = 0, under = {}, seats = [], lead = 0;
   var isRow = { A: true, B: true };
@@ -398,13 +476,13 @@ function stackSeats(s, f) {
     var leads = j === 0 && !s.stripOff;
     if (b === 'T') {
       // A filling top at its floor; one leading under the bar loses the slide to it.
-      pitch = topFill ? (fcTop ? 3 : 2) * row + (leads ? slide : 0) : topRows * row;
+      pitch = top.fill ? (top.fc ? 3 : 2) * row + (leads ? slide : 0) : top.rows * row;
       var freedNext = Boolean(isRow[next]) && list[j + 2] === 'C';
       g = (next === 'C' || freedNext) ? 0 : gap;
       // A top leading under the bar is seated on the bar's ink, `slide` rows below its
       // slot: when nothing follows that overhang is the block's end, and a radar/graph
       // top (inking to its edge) pays its clearance from there.
-      if (leads && !topFill && (!next || (sizedTop && g > 0))) { pitch += slide; }
+      if (leads && !top.fill && (!next || (top.sized && g > 0))) { pitch += slide; }
     } else if (b === 'C') {
       pitch = FIT_PX.clock[f] + (leads ? 1 : 0);
     } else if (b === 'G') {
@@ -412,23 +490,15 @@ function stackSeats(s, f) {
       pitch = br ? br * row : (s.body === BODY_FC ? 3 : 2) * row;
       bodyFill = !br;
     } else {
-      // row_seat: the freed row above the clock, the reserve under it, else a plain band.
-      if (prev === 'T' && next === 'C') {
-        pitch = row;
-      } else if (prev === 'C' || (isRow[prev] && under[prev])) {
-        under[b] = true;
-        var h = tier === TIER_NONE ? FIT_PX.noneRow[f] : bandH;
-        pitch = (prev === 'C' && tier !== TIER_NONE) ? (full ? FIT_PX.reserve[f] : row) : h;
-        g = (next === 'T' && tier === TIER_COMPACT) ? gap : 0;
-      } else {
-        pitch = bandH;
-        g = full ? 0 : gap;
-      }
+      var rs = rowSeat(prev, next, Boolean(isRow[prev]) && Boolean(under[prev]), f, tier);
+      if (rs.under) { under[b] = true; }
+      pitch = rs.pitch;
+      g = rs.gap;
     }
     need += pitch;
     if (next) { need += g; }
     seats.push({ band: b, pitch: pitch, gap: next ? g : 0,
-                 fill: (b === 'T' && topFill) || (b === 'G' && bodyFill) });
+                 fill: (b === 'T' && top.fill) || (b === 'G' && bodyFill) });
   }
   return { seats: seats, lead: lead, tier: tier, need: need,
            avail: s.stripOff ? FIT_PX.availNoStrip[f] : FIT_PX.availStrip[f] };
@@ -446,6 +516,170 @@ function stackNeed(s, f) {
   return { need: st.need, avail: st.avail };
 }
 
+// status_metrics.h's Gothic model, in C's integer arithmetic: where a line of `ch` rows seats
+// in a band, its cap's height and the blank rows above the cap.
+/** @param {number} a @param {number} b @returns {number} C's truncating a / b */
+function cdiv(a, b) { var q = a / b; return q < 0 ? Math.ceil(q) : Math.floor(q); }
+/** @param {number} ch @returns {number} status_glyph_below */
+function statusGlyphBelow(ch) { return cdiv(ch + 6, 4); }
+/** @param {number} ch @returns {number} status_descender_h */
+function statusDescender(ch) { return cdiv(ch + 3, 6); }
+/** @param {number} ch @returns {number} status_cap_h */
+function statusCapH(ch) { return cdiv(ch, 2) + 2; }
+/** @param {number} ch @returns {number} status_ink_top */
+function statusInkTop(ch) { return ch - statusCapH(ch); }
+
+/**
+ * status_seat_y: the line's top in a band, its cap centred on the band's middle unless its
+ * descenders would leave the band.
+ * @param {number} bandH the band's height
+ * @param {number} ch the line's content height (its Gothic size)
+ * @returns {number} rows below the band's top
+ */
+function statusSeatY(bandH, ch) {
+  var y = cdiv(bandH, 2) - ch + statusGlyphBelow(ch);
+  var fit = bandH - ch - statusDescender(ch);
+  return y < fit ? y : fit;
+}
+
+/**
+ * calendar_metrics.h calendar_text_top: a date's line top in its cell (emery: the line centred
+ * in the cell, then lifted; the 144 px watches: lifted out of the cell's top).
+ * @param {number} cellY @param {number} cellH @param {number} ch @param {number} f
+ * @returns {number}
+ */
+function calendarTextTop(cellY, cellH, ch, f) {
+  return f ? cellY + cdiv(cellH - ch, 2) - PLACE_PX.calLift : cellY - PLACE_PX.calLift;
+}
+
+/**
+ * Where each band of a view lands on its screen: layout.c compute_layout, for the settings
+ * page's pictures of the watch. The seats of stackSeats' walk, placed from the strip's
+ * reserve down: a top area leading under the strip on the strip's ink, a row on the band
+ * row_seat gives it inside its slot (trimmed clear of a radar or graph above it), the band
+ * that fills taking what the others leave, the clock's ink centred between its neighbours'
+ * ink (clock_seat_y), and a stack that fills nothing moved by its Position
+ * (stack_align_offset). A preset-shaped view walks its tier's legacy order, as the watch.
+ * @param {!Object} s view spec as the watch lays it out
+ * @param {number} f family index (0 = 144 px, 1 = emery)
+ * @param {{centreOff: number, inkH: number}} ink the time font's ClockInk (clock_ink.c)
+ * @returns {{tier: number, fill: string, bands: !Array<{band: string, y: number, h: number}>}}
+ *     the rows' tier, the band that fills ('G' the body, 'T' the top area, '' none), and each
+ *     present band ('T' top, 'C' clock, 'A'/'B' status rows, 'G' body) top to bottom, with
+ *     its rows on the screen
+ */
+function stackLayout(s, f, ink) {
+  var e = extFields(s), top = topShape(s, e), tier = rowTier(s, top.rows);
+  var row = FIT_PX.row[f], timeH = FIT_PX.clock[f], strip = !s.stripOff;
+  var contentY = PLACE_PX.padTop[f], floor = PLACE_PX.floor[f];
+  var largeCh = PLACE_PX.largeFont[f], stripH = FIT_PX.statusLarge[f];
+  // The rows' Gothic: the full tier's is the squeezed band less its clearances.
+  var rowCh = tier === TIER_FULL ? FIT_PX.statusFull[f] - 2 * FIT_PX.gap[f] : largeCh;
+  var bodyOn = s.body !== BODY_NONE;
+  var bodyRows = bodyOn ? sizeRows(e.bodySize, 0, s.body === BODY_FC) : 0;
+  var bodyFill = bodyOn && !bodyRows;
+  var order = isStacked(s) ? (s.order || 0) : (s.tier === TIER_COMPACT ? 0 : 1);
+  var seq = (STACK_ORDERS[order] || 'TACB') + 'G', list = [], j, b;
+  var present = { T: s.top !== TOP_EMPTY && top.rows > 0, C: !s.clockOff,
+                  A: s.statusUpper !== STATUS_SRC_NONE, B: s.statusLower !== STATUS_SRC_NONE, G: bodyOn };
+  for (j = 0; j < seq.length; j++) { if (present[seq.charAt(j)]) { list.push(seq.charAt(j)); } }
+  var isRow = { A: true, B: true }, prevOf = {}, nextOf = {}, seat = {};
+  // Pass 1: each present band's seat.
+  for (j = 0; j < list.length; j++) {
+    b = list[j];
+    var prev = j > 0 ? list[j - 1] : null, next = j + 1 < list.length ? list[j + 1] : null;
+    prevOf[b] = prev;
+    nextOf[b] = next;
+    if (b === 'T') {
+      var tH = top.fill ? 0 : top.rows * row;
+      var freed = Boolean(isRow[next]) && list[j + 2] === 'C';
+      seat[b] = { pitch: tH, bandH: tH, off: 0, gap: (next === 'C' || freed) ? 0 : FIT_PX.gap[f] };
+    } else if (b === 'C') {
+      var cOff = (!prev && strip) ? 1 : 0;   // the noCal seat
+      seat[b] = { pitch: timeH + cOff, bandH: timeH, off: cOff, gap: 0 };
+    } else if (b === 'G') {
+      seat[b] = { pitch: bodyRows * row, bandH: bodyRows * row, off: 0, gap: 0 };
+    } else {
+      seat[b] = rowSeat(prev, next, Boolean(isRow[prev]) && seat[prev].under, f, tier);
+    }
+  }
+  // The strip's ink: its line's seat less the lift, and the rows it paints (descenders too).
+  var stripSeat = statusSeatY(stripH, largeCh) - PLACE_PX.stripLift;
+  var stripInkEnd = contentY + stripSeat + largeCh + statusDescender(largeCh);
+  var calY = stripInkEnd + PLACE_PX.stripCalGap[f];   // strip_calendar_seat
+  var start = floor - (strip ? FIT_PX.availStrip[f] : FIT_PX.availNoStrip[f]);
+  // A row or the graph leading under the strip starts on the first row the strip does not paint.
+  if (strip && list.length && (list[0] === 'G' || isRow[list[0]]) && start < stripInkEnd) { start = stripInkEnd; }
+  if (top.fill && present.T) {
+    var fixed = 0;
+    for (j = 0; j < list.length; j++) {
+      if (list[j] !== 'T') { fixed += seat[list[j]].pitch; }
+      if (j + 1 < list.length) { fixed += seat[list[j]].gap; }
+    }
+    seat.T.pitch = seat.T.bandH = Math.max(floor - start - fixed, 0);
+  }
+  // Pass 2: place, each slot after the clearance the one above owes, clamped to the floor.
+  var rect = {}, topSlot = start, y = start, pending = 0, blockEnd = start;
+  for (j = 0; j < list.length; j++) {
+    b = list[j];
+    var sb = seat[b];
+    y = Math.min(y + pending, floor);
+    var fills = b === 'G' && bodyFill;
+    var pitch = Math.max(Math.min(fills ? floor - y : sb.pitch, floor - y), 0);
+    var ry = y + sb.off, rh = fills ? pitch : sb.bandH;
+    if (b === 'T' && j === 0 && strip) {
+      ry = calY;   // on the strip's ink
+      if (top.fill) { rh = y + pitch - ry; }   // a fill still ends on its slot
+    }
+    // A row between a radar/graph top and the clock never overlaps it: its blank top is trimmed.
+    if (isRow[b] && prevOf[b] === 'T' && top.sized && ry < rect.T.y + rect.T.h) {
+      rh -= rect.T.y + rect.T.h - ry;
+      ry = rect.T.y + rect.T.h;
+    }
+    ry = Math.min(ry, floor);
+    rh = Math.max(Math.min(rh, floor - ry), 0);
+    rect[b] = { band: b, y: ry, h: rh };
+    if (b === 'T') { topSlot = y; }
+    y += pitch;
+    pending = sb.gap;
+    // A radar/graph top slid onto the strip's ink pays its clearance from where it ends.
+    if (b === 'T' && top.sized && sb.gap > 0 && ry + rh > y) { pending += ry + rh - y; }
+    blockEnd = Math.max(blockEnd, ry + rh, y);
+  }
+  // The clock's ink centred between its neighbours' ink (clock_seat_y); a top area counts as
+  // a calendar of its rows in the calendar's seat.
+  if (present.C) {
+    var above = prevOf.C, below = nextOf.C;
+    var calTop = (!prevOf.T && strip) ? calY : topSlot;
+    var calEnd = top.fill ? topSlot + seat.T.pitch : calTop + (seat.T ? seat.T.bandH : 0);
+    var aboveInk = !above ? (strip ? contentY + stripSeat + largeCh - 1 : contentY - 1)
+      : above === 'T' ? calendarTextTop(calEnd - row, row, largeCh, f) + largeCh - 1
+      : rect[above].y + statusSeatY(rect[above].h, rowCh) + statusInkTop(rowCh) + statusCapH(rowCh) - 1;
+    var belowInk = !below ? blockEnd
+      : below === 'G' ? rect.G.y
+      : below === 'T' ? calendarTextTop(calTop, row, largeCh, f) + statusInkTop(largeCh)
+      : rect[below].y + statusSeatY(rect[below].h, rowCh) + statusInkTop(rowCh);
+    var inkInBand = cdiv(rect.C.h, 2) + ink.centreOff - cdiv(ink.inkH, 2);
+    rect.C.y = cdiv(aboveInk + belowInk - ink.inkH + 1, 2) - inkInBand;
+  }
+  // Position: only a stack nothing fills moves (the strip is pinned).
+  var off = 0, fill = bodyFill ? 'G' : (top.fill && present.T) ? 'T' : '';
+  if (!fill) {
+    var slack = Math.max(floor - blockEnd, 0), align = s.align || ALIGN_CLOCK;
+    if (align === ALIGN_BOTTOM) {
+      off = slack;
+    } else if (align === ALIGN_CENTER || (align === ALIGN_CLOCK && !present.C)) {
+      off = cdiv(slack, 2);
+    } else if (align === ALIGN_CLOCK) {
+      var target = cdiv(PLACE_PX.height[f], 2) - cdiv(timeH, 2) - ink.centreOff;
+      off = Math.min(Math.max(target - rect.C.y, 0), slack);
+    }
+  }
+  return { tier: tier, fill: fill, bands: list.map(function (k) {
+    return { band: k, y: rect[k].y + off, h: rect[k].h };
+  }) };
+}
+
 /**
  * The view the watch lays out for one data state — the capability folds of layout.c
  * view_spec_resolve, mirrored: without health a health top empties and a health body falls
@@ -453,7 +687,9 @@ function stackNeed(s, f) {
  * the calendar of its rows (2 → 2-row, else 3-row) and a radar body the forecast; a graph
  * never shows twice. The status rows always stay: the Radar bar and the Health bar are status
  * bars like the others and stay without radar or health data (only the GRAPHS need their
- * data). The order rule stays the configured view's (the watch keeps it).
+ * data). The order rule stays the configured view's (the watch keeps it): a view the
+ * watch stacks keeps its order after a fold, marked `stacked` (layout.c's sticky
+ * ViewSpec.stacked), which isStacked honours.
  * @param {!Object} s compiled view spec
  * @param {boolean} hasRadar
  * @param {boolean} hasHealth
@@ -461,6 +697,7 @@ function stackNeed(s, f) {
  */
 function resolveForFit(s, hasRadar, hasHealth) {
   var r = cloneSpec(s);
+  if (isStacked(s)) { r.stacked = true; }
   var topSize = extFields(s).topSize;
   if (r.top === TOP_GRAPH && r.topKind === TOP_KIND_HEALTH && !hasHealth) { r.top = TOP_EMPTY; }
   if (r.body === BODY_GRAPH && !hasHealth) { r.body = BODY_FC; }
@@ -688,12 +925,14 @@ var STACK_ORDERS = [
  * band, or a non-default band size (read normalised, as the watch does). One layout engine
  * draws both; this decides only the ORDER. The settings preview and the editor's band
  * list both read it, so neither can drift from the watch. The calendar presets never carry
- * these → false; Weather only's Default view (no top bar) → true.
+ * these → false; Weather only's Default view (no top bar) → true. A view resolveForFit
+ * folded keeps its configured answer (`stacked`).
  * @param {?Object} s view spec (packSpec's shape)
  * @returns {boolean}
  */
 function isStacked(s) {
   if (!s) { return false; }
+  if (s.stacked) { return true; }
   if ((s.order >= 1) || Boolean(s.clockOff) || Boolean(s.stripOff)) { return true; }
   if (s.body === BODY_NONE || s.top === TOP_GRAPH) { return true; }
   var e = extFields(s);
@@ -1071,6 +1310,7 @@ var VIEW_CYCLE = {
   spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
   packExt: packExt, packWire: packWire, unpackWire: unpackWire, hasFill: hasFill,
   stackFits: stackFits, stackNeed: stackNeed, stackSeats: stackSeats, resolveForFit: resolveForFit, FIT_PX: FIT_PX,
+  PLACE_PX: PLACE_PX, stackLayout: stackLayout, statusSeatY: statusSeatY, statusGlyphBelow: statusGlyphBelow,
   swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
   STACK_ORDERS: STACK_ORDERS, orderCode: orderCode, isStacked: isStacked,
   RADAR_CHART_MODES: RADAR_CHART_MODES, RADAR_ROW_MODES: RADAR_ROW_MODES,

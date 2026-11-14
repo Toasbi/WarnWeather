@@ -49,11 +49,10 @@
         return PConf && PConf.blocks ? PConf.blocks.get(id) : null;
     }
 
-    // Each screen family (view-cycle.js FIT_PX's index): its grid, and the row the top bar
-    // ends on (the stack's cursor start under it, floor minus the rows a stack has).
+    // Each screen family's grid (view-cycle.js FIT_PX's index).
     var SCREEN = [
-        { w: 144, h: 168, floor: 168 },
-        { w: 200, h: 228, floor: 222 }
+        { w: 144, h: 168 },
+        { w: 200, h: 228 }
     ];
     // A screen's name (screens.js nameOf), the caption under its picture.
     var screens = NODE ? require('../screens.js') : window.Screens;
@@ -127,66 +126,37 @@
     }
 
     /**
-     * Where each band of one view sits on its screen: the walk stackSeats makes (a preset
-     * in its tier's legacy order: COMPACT top-row-clock, FULL and NONE top-clock-rows), the
-     * band that fills taking what the stack leaves, else the whole block moved by the
-     * view's Position (layout.c stack_align_offset).
+     * Where each band of one view sits on its screen: where the watch places it
+     * (view-cycle.js stackLayout, layout.c compute_layout, kept in lockstep with it), the
+     * clock's ink centred between its neighbours' for the time font drawn. A band that fills
+     * the stack and ends it runs on to the screen's bottom edge (emery's floor keeps 4 rows the
+     * forecast's hour labels end in: graphBand's foot).
      * @param {!Object} spec One ViewSpec of the cycle.
      * @param {number} f Screen family (0 = 144 px, 1 = emery).
+     * @param {{centreOff: number, inkH: number}} [ink] The time font's ink (clockInk), Roboto's
+     *     by default.
      * @returns {{strip: number, tier: number, bands: !Array<{band: string, y: number, h: number}>}}
      *     The top bar's height (0 without one), the status rows' tier and each band's rows.
      */
-    function layoutView(spec, f) {
-        var sc = SCREEN[f];
-        var walk = spec;
-        if (!VC.isStacked(spec)) {
-            walk = VC.cloneSpec(spec);
-            walk.order = spec.tier === VC.TIER_COMPACT ? 0 : 1;
-        }
-        var st = VC.stackSeats(walk, f);
-        var strip = spec.stripOff ? 0 : sc.floor - VC.FIT_PX.availStrip[f];
-        var slack = st.avail - st.need, fillAt = -1, i;
-        for (i = 0; i < st.seats.length; i++) { if (st.seats[i].fill) { fillAt = i; } }
-        var bands = [], y = (spec.stripOff ? sc.floor - VC.FIT_PX.availNoStrip[f] : strip) + st.lead, clock = null;
-        for (i = 0; i < st.seats.length; i++) {
-            var seat = st.seats[i];
-            var h = seat.pitch + (i === fillAt && slack > 0 ? slack : 0);
-            // A top area that leads under the strip seats on the strip's ink (layout.c
-            // strip_calendar_seat), not on its slot: a calendar keeps its height, a filling
-            // graph still ends on its slot; the bands after it keep theirs.
-            var by = i === 0 && seat.band === 'T' && !spec.stripOff ? STRIP[f].calY : y;
-            bands.push({ band: seat.band, y: by, h: i === fillAt ? h + y - by : h });
-            if (seat.band === 'C') { clock = bands[i]; }
-            y += h + seat.gap;
-        }
-        if (fillAt >= 0) {
-            // The filling band runs to the screen's bottom edge (emery's floor keeps 6 rows the
-            // graph's hour labels sit in).
-            var last = bands[bands.length - 1];
-            if (fillAt === bands.length - 1) { last.h = sc.h - last.y; }
-        } else if (slack > 0) {
-            var off = alignOffset(spec.align || 0, slack, clock, sc.h);
-            for (i = 0; i < bands.length; i++) { bands[i].y += off; }
-        }
-        return { strip: strip, tier: st.tier, bands: bands };
+    function layoutView(spec, f, ink) {
+        var lay = VC.stackLayout(spec, f, ink || clockInk(null, f, false));
+        var last = lay.bands[lay.bands.length - 1];
+        if (last && last.band === lay.fill) { last.h = SCREEN[f].h - last.y; }
+        return { strip: spec.stripOff ? 0 : STRIP[f].h, tier: lay.tier, bands: lay.bands };
     }
 
     /**
-     * How far a stack that fills nothing moves down (layout.c stack_align_offset): Top 0,
-     * Bottom all the slack, Centre half; the default seats the clock's middle on the
-     * screen's midline, clamped into the slack (Centre without a clock).
-     * @param {number} align ALIGN_* code.
-     * @param {number} slack Free rows under the stack.
-     * @param {?{y: number, h: number}} clock The clock's band, if any.
-     * @param {number} screenH The screen's height.
-     * @returns {number} Rows to move.
+     * The time font's ink as the watch seats its clock with it (clock_ink.c): its centre's
+     * offset in the band and the digits' ink height (clockSet's).
+     * @param {?Object} S Settings (timeFont), null for Roboto.
+     * @param {number} f Screen family.
+     * @param {boolean} bw A black-and-white watch or theme (the 1-bit faces).
+     * @returns {{centreOff: number, inkH: number}}
      */
-    function alignOffset(align, slack, clock, screenH) {
-        if (align === VC.ALIGN_TOP) { return 0; }
-        if (align === VC.ALIGN_BOTTOM) { return slack; }
-        if (align === VC.ALIGN_CENTER || !clock) { return Math.floor(slack / 2); }
-        var off = Math.round(screenH / 2 - (clock.y + clock.h / 2));
-        return off < 0 ? 0 : (off > slack ? slack : off);
+    function clockInk(S, f, bw) {
+        var font = S && (S.timeFont === 'leco' || S.timeFont === 'bitham') ? S.timeFont : 'roboto';
+        var row = clockGlyphs ? clockGlyphs.ink[f][font] : null, set = clockSet(font, { f: f, bw: bw });
+        return { centreOff: row ? row.centreOff : 0, inkH: set ? set.inkH : (f ? 46 : 35) };
     }
 
     /**
@@ -360,28 +330,8 @@
     // watch is not charging), a 17 × 10 body, a 2-column nub.
     var BATTERY = { w: 29, h: 10, lane: 10, nub: 2 };
 
-    /**
-     * status_metrics.h status_glyph_below: rows from the content box's bottom up to the
-     * digits' visual centre.
-     * @param {number} ch The line's content height (the Gothic size).
-     * @returns {number}
-     */
-    function glyphBelow(ch) {
-        return cdiv(ch + 6, 4);
-    }
-
-    /**
-     * status_metrics.h status_seat_y: the line's top in a band, its cap centred on the band's
-     * middle unless its descenders would leave the band.
-     * @param {number} bandH The band's height.
-     * @param {number} ch The line's content height.
-     * @returns {number} Rows below the band's top.
-     */
-    function seatY(bandH, ch) {
-        var y = cdiv(bandH, 2) - ch + glyphBelow(ch);
-        var fit = bandH - ch - cdiv(ch + 3, 6);
-        return y < fit ? y : fit;
-    }
+    // status_metrics.h's seat of a line in a band (view-cycle.js, the placement's own copy).
+    var seatY = VC.statusSeatY, glyphBelow = VC.statusGlyphBelow;
 
     /**
      * The Watch battery glyph at the sample's 80 % charge: its body outlined, the charge filled,
@@ -663,7 +613,7 @@
         var cx = { fg: ink.fg, color: resolveInk.drawsColor(env, theme), bw: Boolean(env && env.color === false),
                    f: f, now: now, fullDate: !statusBars.calendarShown(spec),
                    holidays: (userData && userData.holidays) || null };
-        var lay = layoutView(spec, f), e = '';
+        var lay = layoutView(spec, f, clockInk(S, f, cx.bw)), e = '';
         // The forecast graph draws the screen's graph style, as the watch does (the view's
         // style, where the watch has styles and the style exists); every other band the
         // settings as they are.
@@ -802,7 +752,7 @@
 
     if (PConf && PConf.blocks) { PConf.blocks.register('watchPreview', watchPreview); }
     if (PConf && PConf.pictureResolvers) { PConf.pictureResolvers.register('timeFontPicture', fontPicture); }
-    var api = { watchPreview: watchPreview, layoutView: layoutView, screenSvg: screenSvg,
+    var api = { watchPreview: watchPreview, layoutView: layoutView, clockInk: clockInk, screenSvg: screenSvg,
         graphKinds: graphKinds,
                 fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

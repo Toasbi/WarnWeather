@@ -14,8 +14,10 @@ cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE -DWW_CLOCK_INK -DPBL_PLATFORM_EMERY t
 build/host/layout_test "${1:-}"
 build/host/layout_test_emery "${1:-}"
 # The phone's fit check (view-cycle.js stackNeed) must measure every custom shape exactly as
-# the watch's layout engine lays it out: dump the engine's block heights per screen family
-# and compare them line by line (scripts/check-fit-lockstep.js).
+# the watch's layout engine lays it out, and the settings page's pictures of the watch
+# (view-cycle.js stackLayout) must put every band where the engine does: dump the engine's
+# block heights and band placements per screen family and compare them line by line
+# (scripts/check-fit-lockstep.js).
 cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE -DWW_CLOCK_INK test/c/fit_lockstep_dump.c src/c/windows/layout.c -o build/host/fit_lockstep_dump
 cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE -DWW_CLOCK_INK -DPBL_PLATFORM_EMERY test/c/fit_lockstep_dump.c src/c/windows/layout.c -o build/host/fit_lockstep_dump_emery
 { build/host/fit_lockstep_dump; build/host/fit_lockstep_dump_emery; } > build/host/fit_lockstep.txt
