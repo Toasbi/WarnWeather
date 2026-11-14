@@ -7,6 +7,8 @@ control types, COLOR-capability filtering, defaults, conditional visibility) and
 registries instead of imperative hooks. The library has no app-specific knowledge: each app that
 uses it supplies its schema, custom blocks and hooks.
 
+WarnWeather's own settings page, which uses it, is described in `src/pkjs/page/README.md`.
+
 ## Contents
 
 1. [Installation](#installation)
@@ -606,7 +608,7 @@ phone-runtime capabilities get in, because the library derives env from `watchIn
 never reads app storage. WarnWeather passes `phoneBattery`: whether this PKJS host exposes the
 Battery Status API, which only Android's Chromium WebView does.
 
-WarnWeather's platform table, `src/pkjs/config-ui/lib/platform.js`, holds these Pebble facts: the known 1-bit platforms (`aplite`,
+The library owns these Pebble facts in `lib/platform.js`: the known 1-bit platforms (`aplite`,
 `diorite`, `flint`), the platform without health, radar, theme polarity, thresholds and on
 demand (`aplite`), the heart-rate platforms (`emery`, `diorite`), the colour-backlight platform
 (`emery`), the 5 % battery-step platform (`emery`) and the forecast-time-span platform
