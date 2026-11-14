@@ -9,7 +9,7 @@ This folder holds the tools that make that work:
 
 | File | What it does |
 |---|---|
-| `watch_icons.py` | The icons, the sizes the watch draws each at, and the watch's own way of scaling and drawing a glyph (shared by the tools below) |
+| `watch_icons.py` | The icons, the sizes the watch draws each at, and the watch's own way of scaling and drawing a glyph (shared by the tools below). `python3 scripts/pixel-icons/watch_icons.py manifest` prints the icons, their sizes, the bars that draw each size and the bars' fonts as JSON, for the icon creator in WarnWeatherTools; `test/pixel-icons-manifest.test.js` holds it to `pixel-icons.json` and the editor |
 | `build_editor.py` | Builds the pixel icon editor, one HTML page |
 | `editor.html` | The editor's page; `build_editor.py` fills in its data |
 | `import_pixels.py` | Brings edits from the editor, and picks from the picker, into `resources/pixel-icons.json` |

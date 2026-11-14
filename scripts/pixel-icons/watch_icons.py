@@ -3,7 +3,11 @@ the watch's own way of scaling and drawing a glyph (README.md in this folder).
 
 Plain Python, no dependencies; build_editor.py adds svg.path (through ../svg2pdc.py) for the
 icon libraries, which ensure_library fetches with npm.
+
+    python3 scripts/pixel-icons/watch_icons.py manifest   the icons and their sizes as JSON, for
+                                                          the icon creator (WarnWeatherTools)
 """
+import json
 import os
 import re
 import struct
@@ -48,6 +52,13 @@ PLATFORMS = [
         ('bars with 24 px text', 16, False, 'GOTHIC_24'),
     ]),
 ]
+# Where a bar's text font puts the centre of its capitals, from the text frame's top: the line an
+# icon is seated on (status_row.c cap_cy).
+FONT_CAP_CY = {'GOTHIC_14': 9, 'GOTHIC_18': 12, 'GOTHIC_24': 17}
+FONT_HEIGHT = {'GOTHIC_14': 14, 'GOTHIC_18': 18, 'GOTHIC_24': 24}
+# The gap between an icon's ink and its text (STATUS_ROW_ICON_TEXT_GAP - 1, as the colour watches
+# count a glyph one column narrower than its ink).
+ICON_TEXT_GAP = 2
 # The watches each platform's resources go to (package.template.json targetPlatforms).
 PLATFORM_TARGETS = {'basalt': ['basalt', 'diorite', 'flint'], 'emery': ['emery']}
 
@@ -323,3 +334,31 @@ def aplite_masks():
         vals = [int(v, 16) for v in re.findall(r'0x[0-9a-fA-F]+', body)]
         out[name] = [''.join('#' if (v >> x) & 1 else '.' for x in range(16)) for v in vals]
     return out
+
+
+# ---- The manifest ---------------------------------------------------------------------------
+def manifest():
+    """The icons, the sizes the watch draws each at and where, for the icon creator: each size's
+    painted rows, the height the old scaling takes a source to for it (svg_h), and every bar that
+    draws it, with the bar's text font and the icon's seating weight (status_icon_weight.h). The
+    Pebble Classic and Steel bit masks are left out: they are no PDCs."""
+    icons = []
+    for row in ICONS:
+        it = icon(row[0])
+        sizes = {}
+        for u in uses(it['key']):
+            rows = painted_rows(u['h'])
+            s = sizes.setdefault(rows, {'rows': rows, 'scaleHeight': svg_h(it['key'], rows), 'uses': []})
+            s['uses'].append({'where': u['where'], 'platform': u['plat'], 'font': u['font'], 'weight': u['weight']})
+        icons.append({'id': it['key'], 'name': it['name'], 'group': it['group'], 'sample': it['sample'],
+                      'note': it['note'], 'sizes': [sizes[r] for r in sorted(sizes)]})
+    fonts = {f: {'height': FONT_HEIGHT[f], 'capCentre': FONT_CAP_CY[f]} for f in FONT_CAP_CY}
+    return {'app': 'WarnWeather', 'iconTextGap': ICON_TEXT_GAP, 'fonts': fonts, 'icons': icons}
+
+
+if __name__ == '__main__':
+    import sys
+    if sys.argv[1:] != ['manifest']:
+        sys.exit('usage: watch_icons.py manifest')
+    json.dump(manifest(), sys.stdout, indent=1)
+    sys.stdout.write('\n')
