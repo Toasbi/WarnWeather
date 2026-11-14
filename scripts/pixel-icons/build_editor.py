@@ -29,24 +29,12 @@ sys.path.insert(0, HERE)
 import watch_icons as W  # noqa: E402
 
 ROOT = W.ROOT
-LIB_DIR = os.path.join(ROOT, 'build', 'pixel-icons', 'lib')
-LIBRARIES = {'lucide': ('lucide-static', '1.72.0', 'icons'),
-             'tabler': ('@tabler/icons', '3.51.0', os.path.join('icons', 'outline'))}
+LIBRARIES = W.LIBRARIES
+ensure_library = W.ensure_library
 
 _spec = importlib.util.spec_from_file_location('svg2pdc', os.path.join(ROOT, 'scripts', 'svg2pdc.py'))
 svg2pdc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(svg2pdc)
-
-
-def ensure_library(lib):
-    """The library's package folder, fetched with npm pack the first time."""
-    pkg, version, _ = LIBRARIES[lib]
-    dest = os.path.join(LIB_DIR, lib)
-    if not os.path.isdir(os.path.join(dest, 'package')):
-        os.makedirs(dest, exist_ok=True)
-        tgz = subprocess.check_output(['npm', 'pack', '%s@%s' % (pkg, version), '--silent'], cwd=dest).decode().split()[-1]
-        subprocess.check_call(['tar', '-xzf', tgz], cwd=dest)
-    return os.path.join(dest, 'package')
 
 
 def element_d(elem):

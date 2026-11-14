@@ -2,15 +2,34 @@
 the watch's own way of scaling and drawing a glyph (README.md in this folder).
 
 Plain Python, no dependencies; build_editor.py adds svg.path (through ../svg2pdc.py) for the
-icon libraries.
+icon libraries, which ensure_library fetches with npm.
 """
 import os
 import re
 import struct
+import subprocess
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 PIXELS_JSON = os.path.join(ROOT, 'resources', 'pixel-icons.json')
+
+# ---- The two icon libraries (the editor's starting pixels, the picker's icon chooser) -------
+LIB_DIR = os.path.join(ROOT, 'build', 'pixel-icons', 'lib')
+# lib -> (npm package, version, the folder of its outline icons in the package)
+LIBRARIES = {'lucide': ('lucide-static', '1.72.0', 'icons'),
+             'tabler': ('@tabler/icons', '3.51.0', os.path.join('icons', 'outline'))}
+
+
+def ensure_library(lib):
+    """The library's package folder, fetched with npm pack the first time (not committed; the
+    licences are in THIRD_PARTY.md)."""
+    pkg, version, _ = LIBRARIES[lib]
+    dest = os.path.join(LIB_DIR, lib)
+    if not os.path.isdir(os.path.join(dest, 'package')):
+        os.makedirs(dest, exist_ok=True)
+        tgz = subprocess.check_output(['npm', 'pack', '%s@%s' % (pkg, version), '--silent'], cwd=dest).decode().split()[-1]
+        subprocess.check_call(['tar', '-xzf', tgz], cwd=dest)
+    return os.path.join(dest, 'package')
 
 PU = 8   # precise units per pixel (status_row_icons.c PRECISE_UNITS_PER_PX)
 

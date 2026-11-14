@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Icon Version Picker</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -68,6 +69,21 @@ h2 { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: v
 .svgpanel .primary { border: 0; border-radius: 8px; background: var(--accent); color: var(--on-accent); font: 600 12.5px var(--font); padding: 6px 12px; cursor: pointer; }
 .svgpanel .err { color: var(--flag); font-weight: 500; }
 .svgpanel .err:empty { display: none; }
+/* The chooser of library icons (icon-search.js): a library switch, a search, the icons that match. */
+.libpick { display: grid; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.libhead { font-size: 12.5px; font-weight: 600; }
+.librow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.librow input[type=search] { flex: 1 1 180px; min-width: 0; margin: 0; font: 13px var(--font); color: var(--fg);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.libgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; max-height: 330px;
+  overflow-y: auto; }
+.libgrid:empty { display: none; }
+.libicon { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 9px 4px 6px; min-width: 0;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg); cursor: pointer;
+  font: 500 10.5px/1.2 var(--font); }
+.libicon span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.libicon:hover { border-color: var(--accent); }
+.svgpanel .libcredit a { color: var(--accent); }
 .size { display: grid; grid-template-columns: 112px 1fr auto; gap: 10px 14px; align-items: center; padding: 10px 14px;
   border-top: 1px solid var(--line); }
 .svgpanel + .size, .head + .size, .svgnote + .size { border-top: 0; }
@@ -135,8 +151,9 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
     <strong>Redraw</strong> where you want to draw the pixels again. Pixel is your drawing; Half slant and
     Slant smooth its steps into slanted lines; Old is the icon from before the pixel drawings, scaled the old
     way. Pebble 2 and Pebble 2 Duo have no grey pixels, so they always show Pixel.</p>
-  <p class="lead"><strong>Add SVG</strong> on an icon to try your own drawing: the page makes it into a PDC,
-    scales it to every size the old way and adds it as an SVG version, drawn exactly as the watch draws it.</p>
+  <p class="lead"><strong>Add SVG</strong> on an icon to try another drawing, a Lucide or Tabler icon or your own
+    SVG: the page makes it into a PDC, scales it to every size the old way and adds it as an SVG version, drawn
+    exactly as the watch draws it.</p>
   <textarea id="json" hidden readonly aria-label="Picks as JSON"></textarea>
   <div id="list"></div>
 </main>
@@ -162,6 +179,18 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
   var svgInflight = {}, svgAgain = {}, lastPicks = null;
   var view = { light: false, zoom: window.innerWidth < 640 ? 3 : 5, filter: 'all' };
   var ZOOMS = [2, 3, 4, 5, 6];
+  // The chooser's libraries (icons-<id>.js beside the page, loaded when a chooser first opens),
+  // the one last picked, and what each icon's chooser searches for first: the first of its words
+  // that finds something in the library on show.
+  var LIBS = [['lucide', 'Lucide'], ['tabler', 'Tabler']], LIB_MAX = 48;
+  var libSet = readJson('ww-icon-lib') === 'tabler' ? 'tabler' : 'lucide', libLoads = {};
+  var SEEDS = { SUN: ['sun'], MOON: ['moon'], SUN_CLOUD: ['cloud sun', 'cloud'], MOON_CLOUD: ['cloud moon', 'moon'],
+    CLOUD: ['cloud'], FOG: ['fog'], HAZE: ['haze'], DRIZZLE: ['drizzle', 'rain'], RAIN: ['rain'], HEAVY_RAIN: ['rain'],
+    SLEET: ['snow'], SNOW: ['snow'], HAIL: ['hail', 'snow'], THUNDER: ['lightning'], TEMP: ['thermometer'],
+    DEW: ['droplet'], UV: ['uv', 'sun'], WIND: ['wind'], GUST: ['wind'], AQI: ['leaf'], POLLEN: ['flower'],
+    COUNTDOWN: ['hourglass'], PHONE_BATTERY: ['battery'], PHONE_BATTERY_CHG: ['battery charging'], STEPS: ['steps'],
+    DISTANCE: ['route'], SLEEP: ['bed'], HEART: ['heart'], QUIET: ['bell off'], BT: ['bluetooth'],
+    BT_OFF: ['bluetooth off'] };
 
   D.icons.forEach(function (ic) {
     byKey[ic.key] = ic;
@@ -270,6 +299,42 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
     writeJson('ww-icon-svgs', out);
   }
 
+  // ---- library icons ------------------------------------------------------------------------
+  /**
+   * A library's icon set, loading its script the first time (build_picker.py writes it beside the
+   * page); cb gets null when it can't be loaded, and the next call tries again.
+   * @param {string} id 'lucide' or 'tabler'. @param {function(?Object)} cb
+   * @returns {void}
+   */
+  function loadSet(id, cb) {
+    var sets = window.PICKER_ICON_SETS || {};
+    if (sets[id]) { cb(sets[id]); return; }
+    var l = libLoads[id];
+    if (!l) {
+      l = libLoads[id] = { waiters: [] };
+      var s = document.createElement('script');
+      var done = function (ok) {
+        delete libLoads[id];
+        if (!ok) s.remove();
+        var set = ok ? (window.PICKER_ICON_SETS || {})[id] || null : null;
+        l.waiters.forEach(function (w) { w(set); });
+      };
+      s.onload = function () { done(true); };
+      s.onerror = function () { done(false); };
+      s.src = 'icons-' + id + '.js';
+      document.head.appendChild(s);
+    }
+    l.waiters.push(cb);
+  }
+  /** The search an icon's chooser starts on in a set. @returns {string} */
+  function seedFor(ic, set) {
+    var seeds = SEEDS[ic.key] || [ic.name.toLowerCase().split(/[\s,]+/)[0]];
+    for (var i = 0; i < seeds.length; i++) {
+      if (window.IconSearch.findIcons(set, seeds[i], 1).total) return seeds[i];
+    }
+    return seeds[0];
+  }
+
   // ---- render -------------------------------------------------------------------------------
   var list = document.getElementById('list'), rows = {}, heads = {};
 
@@ -301,8 +366,9 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
   }
 
   /**
-   * An icon's SVG controls: Add SVG (or Change SVG) opens a panel to choose a file or paste the
-   * code; the panel also removes the SVG.
+   * An icon's SVG controls: Add SVG (or Change SVG) opens a panel to pick a Lucide or Tabler icon
+   * (searched by name and tags, icon-search.js), choose a file or paste the code; the panel also
+   * removes the SVG.
    * @param {!Object} ic An icon. @param {!Element} card Its card.
    * @returns {void}
    */
@@ -321,10 +387,68 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
     btn.setAttribute('aria-controls', panel.id);
     panel.setAttribute('role', 'group');
     panel.setAttribute('aria-label', 'SVG for ' + ic.name);
-    panel.appendChild(el('p', '', 'Choose an .svg file or paste its code. Outline icons (Lucide, Tabler) work best: '
-      + 'each stroke becomes a 1 px line, fitted into the icon box and scaled to every size the old way. '
+    panel.appendChild(el('p', '', 'Pick a Lucide or Tabler icon, choose an .svg file or paste its code. Outline icons '
+      + 'work best: each stroke becomes a 1 px line, fitted into the icon box and scaled to every size the old way. '
       + 'Fills, stroke widths and transforms are left out.'));
-    var fileLabel = el('label', '', 'SVG file'), file = el('input');
+    var libBox = el('div', 'libpick'), libRow = el('div', 'librow'), libSeg = el('div', 'seg'), libBtns = {};
+    libSeg.setAttribute('role', 'group');
+    libSeg.setAttribute('aria-label', 'Icon library');
+    LIBS.forEach(function (x) {
+      var b = el('button', '', x[1]);
+      b.type = 'button';
+      b.addEventListener('click', function () { libSet = x[0]; writeJson('ww-icon-lib', libSet); showLib(); });
+      libBtns[x[0]] = b;
+      libSeg.appendChild(b);
+    });
+    var find = el('input');
+    find.type = 'search';
+    find.placeholder = 'Search, like cloud or rain';
+    find.setAttribute('aria-label', 'Search the icons');
+    libRow.appendChild(libSeg); libRow.appendChild(find);
+    var grid = el('div', 'libgrid'), libNote = el('p', 'libnote'), libCredit = el('p', 'libcredit');
+    grid.setAttribute('role', 'group');
+    grid.setAttribute('aria-label', 'Icons');
+    libNote.setAttribute('aria-live', 'polite');
+    libBox.appendChild(el('div', 'libhead', 'Pick a library icon'));
+    libBox.appendChild(libRow); libBox.appendChild(grid); libBox.appendChild(libNote); libBox.appendChild(libCredit);
+    panel.appendChild(libBox);
+    var seeded = true;   // the search holds the icon's seed, not words typed
+    find.addEventListener('input', function () { seeded = false; showLib(); });
+    /** The chooser for the library on show and the search: the matching icons, a tap uses one. */
+    function showLib() {
+      var id = libSet, name = id === 'tabler' ? 'Tabler' : 'Lucide';
+      Object.keys(libBtns).forEach(function (k) { libBtns[k].setAttribute('aria-pressed', String(k === id)); });
+      grid.textContent = '';
+      libCredit.textContent = '';
+      libNote.textContent = 'Loading the ' + name + ' icons…';
+      loadSet(id, function (set) {
+        if (panel.hidden || id !== libSet) return;
+        if (!set) { libNote.textContent = 'The ' + name + ' icons could not be loaded. Close and open this panel to try again.'; return; }
+        if (seeded) find.value = seedFor(ic, set);
+        var r = window.IconSearch.findIcons(set, find.value, LIB_MAX), q = find.value.trim();
+        grid.textContent = '';
+        r.icons.forEach(function (icon) {
+          var b = el('button', 'libicon');
+          b.type = 'button';
+          b.title = icon[0];
+          b.setAttribute('aria-label', icon[0]);
+          b.innerHTML = window.IconSearch.preview(icon, 28);
+          b.appendChild(el('span', '', icon[0]));
+          b.addEventListener('click', function () { code.value = window.IconSearch.svgText(set, icon); apply(code.value); });
+          grid.appendChild(b);
+        });
+        libNote.textContent = !q ? 'Type to search the ' + set.icons.length + ' ' + name + ' icons.'
+          : !r.total ? 'No ' + name + ' icon matches “' + q + '”.'
+          : r.total > r.icons.length ? 'The first ' + r.icons.length + ' of ' + r.total + ' icons. Type more to narrow it down.'
+          : r.total + (r.total === 1 ? ' icon.' : ' icons.');
+        var link = el('a', '', set.name + ' ' + set.version);
+        link.href = set.home; link.target = '_blank'; link.rel = 'noopener';
+        libCredit.appendChild(document.createTextNode('Icons from '));
+        libCredit.appendChild(link);
+        libCredit.appendChild(document.createTextNode(id === 'tabler' ? ', MIT licence.' : ', ISC licence.'));
+      });
+    }
+    var fileLabel = el('label', '', 'Or choose an SVG file'), file = el('input');
     file.type = 'file'; file.accept = '.svg,image/svg+xml';
     fileLabel.appendChild(file);
     panel.appendChild(fileLabel);
@@ -348,7 +472,7 @@ textarea { width: 100%; min-height: 120px; margin-top: 8px; font: 12px var(--mon
       panel.hidden = !on;
       btn.setAttribute('aria-expanded', String(on));
       err.textContent = '';
-      if (on) { code.value = svgs[ic.key] ? svgs[ic.key].text : ''; file.value = ''; }
+      if (on) { code.value = svgs[ic.key] ? svgs[ic.key].text : ''; file.value = ''; showLib(); }
     }
     function apply(text) {
       text = String(text || '').trim();

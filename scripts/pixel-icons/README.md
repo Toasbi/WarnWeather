@@ -15,9 +15,10 @@ This folder holds the tools that make that work:
 | `import_pixels.py` | Brings edits from the editor, and picks from the picker, into `resources/pixel-icons.json` |
 | `variants.js` | The versions a size can be built in: pixel, half slant, slant, old, svg (below) |
 | `build_picker.py` | Builds the icon picker, one HTML page: every version of every size, drawn by the watch's renderer in the emulator |
-| `picker.html` | The picker's page; `build_picker.py` fills in its data and the two scripts below |
+| `picker.html` | The picker's page; `build_picker.py` fills in its data and the three scripts below |
 | `svg-icon.js` | An SVG made into a status icon the old way: `svg2pdc.py`'s conversion and the watch's old scaling, in JavaScript (the picker's **Add SVG**, and `import_pixels.py`) |
 | `pebble-draw.js` | The watch's own line drawing, ported from PebbleOS: the picker draws its SVG versions with it, exactly as the watch draws them |
+| `icon-search.js` | The picker's chooser of Lucide and Tabler icons: the search and the SVG a picked icon becomes |
 | `gallery/` | The small watch app `build_picker.py` renders the versions with |
 | `gen_watch_icons.js` | Builds the drawings into the watch |
 | `THIRD_PARTY.md` | The licences of the two icon libraries the weather icons start from, and of the code `pebble-draw.js` and `svg-icon.js` port |
@@ -56,7 +57,8 @@ built into the watch. **Keep them**: they are the editor's starting point (**Tod
    drawn by the Pebble Time 2 emulator, dark and light, zoomed and at actual size. Tap the one you
    like for each size, and mark **Redraw** where you want to draw the pixels again. **Add SVG**
    on an icon gives it one more version (An icon from an SVG, below). Claude publishes it as a
-   claude.ai page (same link each time) whose storage it reads back, or **Copy picks as JSON**
+   claude.ai page (same link each time), with the `icons-lucide.js` and `icons-tabler.js` the
+   script writes beside it as the page's files, and reads its storage back, or **Copy picks as JSON**
    takes the picks and SVGs out. Import them with
    `python3 scripts/pixel-icons/import_pixels.py --picks <dir>` (a dump of the page's storage,
    ArtifactData `list picks` and `list svgs ... out_dir`) or `--picks-export <file>`. Needs the
@@ -95,7 +97,12 @@ is your own mark, like Mark as done: it changes nothing in the build.
 
 ### An icon from an SVG
 
-In the picker, **Add SVG** on an icon takes an `.svg` file or its pasted code. The page makes it
+In the picker, **Add SVG** on an icon takes a Lucide or Tabler icon, an `.svg` file or its pasted
+code. The chooser searches a library's outline icons by name and by the library's tags, starting
+on a word for the icon (rain for Rain), and a tap on one uses it as if its file had been chosen.
+`build_picker.py` writes each library as `build/pixel-icons/icons-<lucide|tabler>.js` (the
+library's licence inside), each icon's shapes and their geometry alone (Tabler's invisible box
+left out), which the page loads the first time a chooser opens. The page makes the SVG
 into a PDC the way `scripts/svg2pdc.py` made the old icons (each stroke a 1 px line; curves cut
 into chords about 2.5 units long, at least 2; a circle a flat-top octagon; the ink fitted into the
 24-unit box with a 2-unit margin; points on the 1/8 grid), scales it to each size the way the
