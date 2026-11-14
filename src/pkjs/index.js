@@ -432,7 +432,9 @@ Pebble.addEventListener('ready',
         statusRebake.init({
             getSettings: function () { return app.settings; },
             getPhoneBattery: phoneBattery.bakeFacts,
-            sendWeather: outbox.sendWeather
+            sendWeather: outbox.sendWeather,
+            storage: localStorage,
+            now: function () { return Date.now(); }
         });
         phoneBattery.init({
             devConfig: app.devConfig,

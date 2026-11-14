@@ -28,11 +28,9 @@ const RUNTIME = [
   ['new Date()', /\bnew\s+Date\b(?!\s*\(\s*[^)\s])/],
 ];
 
-// Domain and application files that still reach the runtime (file: the globals they use).
+// Domain and application files that reach the runtime (file: the globals they use): none.
 // Only adapters, the shell and the settings page may.
-const RUNTIME_ALLOWED = {
-  'status-bars/application/status-rebake.js': ['localStorage', 'Date.now'],
-};
+const RUNTIME_ALLOWED = {};
 
 // Which roles each role may require, and the requires today that break it ("from -> to").
 const RULES = [

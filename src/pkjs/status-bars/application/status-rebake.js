@@ -118,15 +118,11 @@ var lastWritten = null;   // last serialized snapshot, to skip no-op flash write
 var bakedNight;           // day or night of the last bake (undefined: nothing baked yet)
 
 /**
- * @returns {?Storage} localStorage when the host has one (Node tests may not).
+ * @returns {?{getItem: Function, setItem: Function, removeItem: Function}} The injected
+ *   storage (index.js passes localStorage), or null without one.
  */
 function store() {
-    try {
-        return typeof localStorage !== 'undefined' ? localStorage : null;
-    }
-    catch (ex) {
-        return null;
-    }
+    return deps.storage || null;
 }
 
 /** @param {string} key @returns {?string} stored value or null */
@@ -338,14 +334,14 @@ function rememberBakeInputs(payload, watchInfo, now) {
 }
 
 /**
- * @returns {number} Now, in epoch milliseconds (the injected clock, else Date.now).
+ * @returns {number} Now, in epoch milliseconds (the injected clock).
  */
 function nowMs() {
-    return typeof deps.now === 'function' ? +deps.now() : Date.now();
+    return +deps.now();
 }
 
 /**
- * @returns {number} Now, in epoch seconds (the injected clock, else Date.now).
+ * @returns {number} Now, in epoch seconds (the injected clock).
  */
 function nowSec() {
     return nowMs() / 1000;
@@ -470,7 +466,9 @@ function invalidatePersisted() {
  * @param {function():Object} [options.getSettings] Current Clay settings supplier.
  * @param {function(Object, Function=, Function=):void} options.sendWeather The outbox's send (outbox.sendWeather).
  * @param {function(Object, Object, Object, Date, ?Object):Object} [options.buildStatusLines] Baker (default: status-lines).
- * @param {function():(Date|number)} [options.now] Clock for the day/night check and the re-bake (default: Date.now).
+ * @param {function():(Date|number)} options.now Clock for the day/night check and the re-bake.
+ * @param {?{getItem: Function, setItem: Function, removeItem: Function}} [options.storage] Where the
+ *   restart backstop lives (localStorage); absent = no backstop.
  * @param {function():?Object} [options.getPhoneBattery] The phone's battery facts for the re-bake
  *   (phone-battery.js bakeFacts); absent = a host that cannot read the phone's battery.
  * @returns {void}
