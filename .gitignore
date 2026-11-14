@@ -40,8 +40,9 @@ package.json
 !AGENTS.md
 # Ignore everything under docs/ (brainstorming specs & plans stay untracked)…
 /docs/*
-# …except tracked architecture decision records.
+# …except tracked architecture decision records and the quality goals.
 !/docs/adr/
+!/docs/quality-goals.md
 
 # Python bytecode from scripts/ (svg2pdc and friends)
 __pycache__/

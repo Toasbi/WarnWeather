@@ -8,6 +8,9 @@ contributor tool working in this repo. (Claude Code reads it through `CLAUDE.md`
 
 - **Commands / `mise` tasks** → `DEV.md`
 - **Setup & walkthrough prose** → `CONTRIBUTING.md`
+- **Architecture rules** → `docs/adr/0005-architecture-rules.md` (where new code goes and
+  which way it may depend); the context map is in `CONTEXT.md`, the quality goals in
+  `docs/quality-goals.md`.
 - **Pebble C SDK lookups** → the `pebble` skill in `.agents/skills/`. The C API is
   not in your training data — look up any SDK call you aren't certain of before using it.
 
@@ -80,8 +83,7 @@ platforms and in the build:
   spread/destructuring) fails to parse → the whole bundle dies on aplite.
 - **ES6 built-in methods/globals** (`Array.from`, `String.prototype.includes`/`startsWith`,
   `Object.values`/`entries`, `Promise`, `Map`, `Set`, …) are `undefined` → they throw
-  "undefined is not a function" at **runtime**, only when that line executes (e.g. the
-  v1.1.0 weather-fetch crash via `Object.assign`).
+  "undefined is not a function" at **runtime**, only when that line executes.
 
 Write watch-runtime PKJS as ES5: `var` + `function`, no arrow/template-literal syntax,
 and avoid ES6 built-ins. Already polyfilled and safe to call: `Object.assign`, `Math.trunc`, and
@@ -110,17 +112,15 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   all changed categories ride in one send, a new or enlarged payload key has to keep the *heaviest*
   bundle under budget on every platform. On aplite the buffer is allocated from its
   already-tiny heap, so 536 B is a hard ceiling there — you can't just bump it; the other
-  platforms have heap to spare, which is why they got a bigger inbox: 600 B when the
-  fourth metric line arrived, then 640 B when the weather alerts' `ALERT_ENTRIES_UINT8`
-  entry tuple (the On demand weather alert items; 7 B header + a 20 B entry cap) joined
-  the status category. Aplite draws
-  neither, is never sent either payload, and keeps 536 B. An overflow is dropped silently
+  platforms have heap to spare. An overflow is dropped silently
   (`APP_MSG_BUFFER_OVERFLOW` → "Message dropped!"). Worst realistic case is DWD with all
   four metric lines active, the radar's sky rows on, City in every status slot and a
-  full weather-alert entry tuple = 603 B of 640 B (37 B headroom);
-  emery's inbox was the owner's call twice: 1024 B for 2.2.0's forecast span (six trends of
-  up to 68 B; `src/pkjs/forecast-span.js`), then 1280 B for 3.0.0's bars 4 to 6 (New bar:
-  `STATUS_LINE_5..7_UINT8`, one more status line per bar a screen shows, up to 51 B each). Its
+  full weather-alert entry tuple (`ALERT_ENTRIES_UINT8`, the On demand weather alert items;
+  7 B header + a 20 B entry cap) = 603 B of 640 B (37 B headroom). Aplite draws neither
+  the fourth metric line nor the weather alerts and is never sent either payload.
+  Emery's inbox also holds the forecast span (six trends of up to 68 B;
+  `src/pkjs/forecast-span.js`) and bars 4 to 6 (New bar: `STATUS_LINE_5..7_UINT8`, one more
+  status line per bar a screen shows, up to 51 B each). Its
   heaviest bundle is 1095 B of 1280 B: the long span, the graph styles' seventh trend (the
   spare row, `SPARE_LINE_TREND_UINT8`, sent only while the screens' graphs draw five series
   between them) and all six bars on the screens, full of City. A bar no screen shows is sent
@@ -131,25 +131,21 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   sizes exactly per platform; keep them in sync). A side slot's weather condition may grow
   its line past City's 44 B to the 48 B line cap (its name with the short form, only while
   the line holds it: `status-lines.js` `widenEdgeConditions`); every line at that cap is
-  627 B of 640 B, and 1131 B of emery's 1280 B, which the test checks too. That headroom was 10 B until the settings-derived
-  tuples were moved off this message: the rain-bar and radar palettes first, then the
-  forecast line styling (line colours + fill flag, 4 × 11 B of scalars → one
-  `CLAY_LINE_STYLE_UINT8` array, since grown to 14 B so it also carries the four night
-  colours, the third- and fourth-metric line colours and the four
-  per-line marker-style bytes), both of which now ride the Clay/settings message.
-  `test/inbox-size.test.js` guards both the weather and Clay
+  627 B of 640 B, and 1131 B of emery's 1280 B, which the test checks too. The
+  settings-derived tuples — the rain-bar and radar palettes and the forecast line styling
+  (`CLAY_LINE_STYLE_UINT8`, 14 B: line colours, fill flag, the four night colours, the
+  third- and fourth-metric line colours and the four per-line marker-style bytes) — ride the
+  Clay/settings message, not this one. `test/inbox-size.test.js` guards both the weather and Clay
   bundles; when you grow the worst-case bundle, update its `buildHeaviestBundle()`, and
-  treat bumping `inbox_size` as a last resort (the 640 B step was the owner's call for
-  a feature-sized tuple that has no settings-side home — the weather alerts' entries are
-  weather-derived — and it stays off aplite; so are emery's 1024 B, for forecast hours, and
-  its 1280 B, for bars 4 to 6).
+  treat bumping `inbox_size` as a last resort and the owner's call (only for a feature-sized
+  tuple with no settings-side home, and never on aplite).
   Before spending weather-message bytes, ask whether the value is settings-derived — if
   it is, it belongs on the Clay message —
   but the Clay message ships to aplite too and is tight (the heaviest Clay message is
-  520 B — the thresholds blob grew 34 -> 48 B in 1.24.0 for the rain alert's look, the
-  On demand Battery item, the per-kind warn look and the ten On demand cells, paid for
-  by `CLAY_BATTERY_LOW_ONLY` riding a known aplite's bundle alone — sized
-  against aplite's 536 B inbox as the conservative floor; a known emery's bundle alone also
+  520 B, with the 48 B thresholds blob that carries the rain alert's look, the On demand
+  Battery item, the per-kind warn look and the ten On demand cells, sized against aplite's 536 B inbox as the
+  conservative floor; `CLAY_BATTERY_LOW_ONLY` rides a known aplite's bundle alone, and a
+  known emery's bundle alone also
   carries the graph styles' records, `CLAY_GRAPH_STYLE_1..3_UINT8`, and bars 4 to 6's On
   demand cells, `CLAY_OD_EXTRA_UINT8`, 681 B of its 1280 B at their heaviest — and the test
   enforces a 10 B headroom floor on each bundle), so check
@@ -157,25 +153,25 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
 - **Message boundary: settings ride the settings (Clay) message; weather data rides the
   weather message.** Config-derived values — colour palettes, formatting/display toggles,
   the holiday mask — belong in `sendClaySettings` (`outbox.sendClay`). The weather payload
-  carries only forecast/status/sun/radar/sleep. (The rain-bar/radar palette rides the Clay
-  message as of v1.4, and the forecast line styling — `CLAY_LINE_STYLE_UINT8` — joined it
-  later; `weather/graph-wire.js` packs both from `rain-tier.js`', `line-style.js`' and
+  carries only forecast/status/sun/radar/sleep. (The rain-bar/radar palette and the forecast
+  line styling — `CLAY_LINE_STYLE_UINT8` — ride the Clay message;
+  `weather/graph-wire.js` packs both from `rain-tier.js`', `line-style.js`' and
   `draw-from.js`' readings, and `clay-payload.js` sends them alongside the other settings.
   Colours pack as single `GColor8` argb bytes, not int32 hex: an array tuple costs 7 B + N,
   a scalar costs 7 B + 4, so packing several into one array is the cheap shape.)
 - **A new API host must be declared in `package.template.json`'s `usesPermissions`**, in an
   `Internet` entry of its own service (each domain covers its subdomains). SDK 4.44 builds
   manifest version 2 pbws. With the Pebble app's permissions preview on (its Settings ›
-  Plugins; on for everyone in a later release) the phone lets PKJS and the settings page reach
+  Plugins) the phone lets PKJS and the settings page reach
   only the declared domains the user allowed, and asks before the rest the app declares
   (`Location`; `ShowNotifications` for `Pebble.showSimpleNotificationOnPebble`, which goes
-  through `notify-watch.js`). Every entry carries a `reason` and `required` (app 1.18.0.1:
-  installing waits for an answer on the required ones, though a "no" counts and the install
+  through `notify-watch.js`). Every entry carries a `reason` and `required` (installing
+  waits for an answer on the required ones, though a "no" counts and the install
   goes on; the others are asked about on first use, and that first request fails). The phone
   lists each domain as a row of its own, "Connect to <domain>" with its entry's reason under
   it, so the reason is a short label that names the service and what it is for ("DWD weather
-  provider", the owner's, 2026-11-14), a few words more only where the name doesn't say it.
-  Required (the owner's, 2026-11-13 and 2026-11-14): every weather service the app can fetch
+  provider"), a few words more only where the name doesn't say it.
+  Required: every weather service the app can fetch
   from (forecast and radar, keyed or not, air quality, pollen), the town's name and the
   settings' place search, the public holidays (Nager.Date), Buy Me a Coffee (the Support me
   link: only linked, declared at the owner's wish) and the app's own backend; optional:
@@ -359,14 +355,15 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   `pkg.releaseNotification` only when the manifest holds the built version, and the watch
   shows the newest *unseen* entry at or below the running version — so 1.13.1 → 1.13.2
   shows nothing while 1.13.0 → 1.13.2 still shows the 1.13.1 toast it never saw. Watch for
-  `Release-As:` pinning a FEATURE to a patch version (1.13.1 did): the check reads the
+  `Release-As:` pinning a FEATURE to a patch version: the check reads the
   version, not the commits, so it won't ask for a toast on the release that most wants
   one — add it by hand there. Preview the copy locally with
   `forceShowReleaseNotificationOnBoot` in `dev-config.js`. See `RELEASE.md`.
 - **Every release — patches included — needs a news entry in the `public.news`
   Supabase table** (hosted news backend — the *News & Feedback* section of the settings
   screen, not the boot toast above). Unlike that toast, this one has no feature/patch
-  exemption and **nothing in CI enforces it**, so it is on you at release time. Insert one row with `target_version` left **`NULL`** so every watch
+  exemption and **nothing in CI enforces it**, so it is on you at release time. Insert one row with
+  `target_version` left **`NULL`** so every watch
   sees it, whatever version it runs — release news doubles as the nudge to update.
   (An exact version string like `'1.9.2'` limits a row to watches on that build;
   reserve that for version-specific notices, e.g. "this build broke X, update".)
@@ -375,8 +372,8 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   `"What's new in <version>"` and use only the supported markdown subset (`**bold**`
   section headers, `- ` bullets, `*italic*`, `[text](https://…)` links — see
   `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
-- **Changelog style: grouped by kind, one plain sentence per item** (the owner's,
-  2026-11-10). The news body and the appstore changelog both list the items under
+- **Changelog style: grouped by kind, one plain sentence per item**. The news body and the
+  appstore changelog both list the items under
   `New features`, `Improvements` and `Fixes`: bold headings in the news body, plain lines
   in the appstore text. Each item is one row of one sentence, about ten to fifteen words:
   what the user gets, named the way they see it, and what it does. No exclamation marks,
@@ -384,8 +381,7 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   parentheses at the end (`(Pebble Time 2)`), or after the heading when the whole group
   shares it. Fixes get one row per watchface bug a user would have noticed, then one
   grouped row for polish. Leave out mechanics, defaults and edge cases. The news body
-  renders flat `- ` bullets only (`news.js`), so no sub-bullets. The shape to match
-  (3.0.0's):
+  renders flat `- ` bullets only (`news.js`), so no sub-bullets. The shape to match:
 
   ```
   **New features** (not on Pebble Classic or Steel)
@@ -413,5 +409,5 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
 
 When you add, remove, or rename a user-visible feature, weather provider, or setting,
 update the feature lists in **both `README.md` and `STORE_LISTING.md`** — they are parallel
-copies that drift easily (Open-Meteo shipped but was missing from both). The live appstore
+copies that drift easily. The live appstore
 listing is a third copy that has to be updated by hand at release time.

@@ -147,7 +147,7 @@ mise install-phone <PHONE_IP> release
 # Pass through pebble install flags
 mise install-phone --logs
 
-# Legacy pass-through separator (still works)
+# Pass-through separator form
 mise install-phone -- --logs
 
 # Install dev build via CloudPebble (default profile)
@@ -174,7 +174,7 @@ mise install-emulator --logs
 # Set default emulator in environment
 PEBBLE_EMULATOR=basalt mise install-emulator
 
-# Legacy pass-through separator (still works)
+# Pass-through separator form
 mise install-emulator -- --logs
 
 # Stop running emulator and phone simulator
@@ -186,7 +186,7 @@ mise screenshot-emulator
 # Choose emulator platform
 mise screenshot-emulator basalt
 
-# Legacy flag form (still works)
+# Flag form
 mise screenshot-emulator -- --emulator chalk
 
 # Set default emulator in environment
