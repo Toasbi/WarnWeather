@@ -11,7 +11,7 @@ global.localStorage = {
   setItem: (k, v) => { store[k] = String(v); },
   removeItem: (k) => { delete store[k]; }
 };
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, type, onSuccess, onError); };
 const tomorrowioRadar = require('../../../../src/pkjs/weather/adapter/radar/tomorrowio-radar.js');

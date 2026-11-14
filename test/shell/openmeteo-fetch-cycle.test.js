@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const WeatherProvider = require('../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../src/pkjs/weather/adapter/provider.js');
 const fetchOptions = require('../../src/pkjs/weather/domain/fetch-options.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };

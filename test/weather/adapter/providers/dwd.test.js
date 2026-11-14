@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
 const DwdProvider = require('../../../../src/pkjs/weather/adapter/providers/dwd.js');

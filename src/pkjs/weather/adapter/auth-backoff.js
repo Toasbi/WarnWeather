@@ -25,7 +25,7 @@ var AUTH_BACKOFF_KEY = storageKeys.AUTH_BACKOFF_KEY;
  * it, while the auxiliary geocoders (the keyless ArcGIS city lookup, the app's
  * shared LocationIQ key) report under their own stages. A geocoder refusal is
  * not the user's key to fix, and must not stop fetching indefinitely — the
- * LocationIQ path arms its own time-limited backoff (weather/application/provider.js).
+ * LocationIQ path arms its own time-limited backoff (weather/adapter/provider.js).
  *
  * A failure that names its own retry (`retryAfterMs` > 0: Weather Underground
  * refusing even a freshly scraped key) is never permanent, whatever its code.

@@ -11,7 +11,7 @@
 // (opts.keyResult), and the transport records each answer as that key's verdict
 // for the settings page (key-result.js).
 
-var WeatherProvider = require('../../application/provider.js');
+var WeatherProvider = require('../provider.js');
 var keyResult = require('../../domain/keys/key-result.js');
 var keyResultsStore = require('../key-results-store.js');
 var radarWire = require('../../domain/radar/radar-wire.js');

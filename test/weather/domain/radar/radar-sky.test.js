@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 const radarSky = require('../../../../src/pkjs/weather/domain/radar/radar-sky.js');
 const stripeLevels = require('../../../../src/pkjs/forecast-graphs/domain/stripe-levels.js');
 

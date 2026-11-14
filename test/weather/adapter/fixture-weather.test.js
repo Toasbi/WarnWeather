@@ -22,7 +22,7 @@ const FIXTURE_NOW = new Date(2026, 5, 1, 12, 34);
 function getFixtureWeatherPayload(fixture, settings, watchInfo, now) {
   return fixtureWeather.getFixtureWeatherPayload(fixture, settings, watchInfo, now || FIXTURE_NOW);
 }
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 
 // A minimal-but-valid 3-hour fixture: temps/precipPct present, 2 sun events.
 function makeFixture(over) {

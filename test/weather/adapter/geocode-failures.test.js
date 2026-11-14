@@ -1,4 +1,4 @@
-// test/weather/application/geocode-failures.test.js
+// test/weather/adapter/geocode-failures.test.js
 // The two auxiliary geocoders — LocationIQ (forward: a typed address → lat/lon,
 // on the app's one shared key) and ArcGIS (reverse: lat/lon → the City slot's
 // name, keyless) — must never be mistaken for the weather provider, and must
@@ -33,7 +33,7 @@ global.XMLHttpRequest.prototype.send = function () {
 };
 
 const storageKeys = require('../../../src/pkjs/settings/domain/storage-keys.js');
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 const authBackoff = require('../../../src/pkjs/weather/adapter/auth-backoff.js');
 const notices = require('../../../src/pkjs/notices/adapter/notices.js');
 

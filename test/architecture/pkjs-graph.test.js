@@ -34,7 +34,6 @@ const RUNTIME_ALLOWED = {
   'settings/application/clay-migrations.js': ['localStorage'],
   'status-bars/application/status-rebake.js': ['localStorage', 'Date.now'],
   'telemetry/application/telemetry-settings.js': ['Date.now'],
-  'weather/application/provider.js': ['navigator', 'Date.now', 'new Date()'],
   'weather/domain/day-peaks.js': ['localStorage', 'Date.now'],
 };
 
@@ -42,16 +41,11 @@ const RUNTIME_ALLOWED = {
 const RULES = [
   { name: 'domain code requires only domain code and the shared library',
     from: ['domain'], to: ['domain', 'lib'], allowed: [
-      'weather/domain/radar/radar-sky.js -> weather/application/provider.js',
+      'weather/domain/radar/radar-sky.js -> weather/adapter/provider.js',
     ] },
   { name: 'application code requires no adapter, shell or settings page',
     from: ['application'], to: ['application', 'domain', 'lib'], allowed: [
       'settings/application/clay-migrations.js -> settings/adapter/clay-settings.js',
-      'weather/application/provider.js -> weather/adapter/air-quality.js',
-      'weather/application/provider.js -> weather/adapter/http.js',
-      'weather/application/provider.js -> weather/adapter/location.js',
-      'weather/application/provider.js -> weather/adapter/pollen.js',
-      'weather/application/provider.js -> wire/adapter/outbox.js',
     ] },
   { name: 'adapters require no shell or settings page',
     from: ['adapter'], to: ['adapter', 'application', 'domain', 'lib'], allowed: [

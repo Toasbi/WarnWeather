@@ -1,4 +1,4 @@
-// test/weather/application/fetch-watchdog.test.js
+// test/shell/fetch-watchdog.test.js
 // A weather fetch is asynchronous from the first geolocation call to the
 // AppMessage ACK, and app.fetchInProgress used to clear only when a completion
 // callback ran. A callback that threw (inside an XHR handler, beyond the
@@ -9,11 +9,11 @@
 // the watchdog, the single queued forced fetch, and the once-only completion.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { HARNESS_NOW, bootIndex, healthyNetwork } = require('../../helpers/index-harness.js');
+const { HARNESS_NOW, bootIndex, healthyNetwork } = require('../helpers/index-harness.js');
 
 const HOUR_MS = 60 * 60 * 1000;
 // A whole number of minutes, so the watchdog falls due with a scheduler tick.
-const WATCHDOG_MS = require('../../../src/pkjs/shell/fetch-cycle.js').FETCH_WATCHDOG_MS;
+const WATCHDOG_MS = require('../../src/pkjs/shell/fetch-cycle.js').FETCH_WATCHDOG_MS;
 const SKIP_IN_PROGRESS = /another fetch is already in progress/;
 const FETCHING = /^Fetching from /;
 
@@ -106,10 +106,10 @@ test('a GPS fix that arrives after the watchdog gave up starts nothing and sends
 // --- the async continuations report a throw as a failure --------------------
 
 test('fetchWithCoordinates reports a compose throw as a failure instead of stranding the fetch', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
-  const airQuality = require('../../../src/pkjs/weather/adapter/air-quality.js');
-  const pollen = require('../../../src/pkjs/weather/adapter/pollen.js');
-  const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
+  const WeatherProvider = require('../../src/pkjs/weather/adapter/provider.js');
+  const airQuality = require('../../src/pkjs/weather/adapter/air-quality.js');
+  const pollen = require('../../src/pkjs/weather/adapter/pollen.js');
+  const outbox = require('../../src/pkjs/wire/adapter/outbox.js');
   const saved = [airQuality.fetchAqiInto, pollen.fetchPollenInto, outbox.sendWeather];
   const p = new WeatherProvider();
   p.withCityName = (lat, lon, done) => { done('Tromso', 'NO'); };
@@ -132,10 +132,10 @@ test('fetchWithCoordinates reports a compose throw as a failure instead of stran
 });
 
 test('fetchWithCoordinates drops the payload of a fetch its caller abandoned', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
-  const airQuality = require('../../../src/pkjs/weather/adapter/air-quality.js');
-  const pollen = require('../../../src/pkjs/weather/adapter/pollen.js');
-  const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
+  const WeatherProvider = require('../../src/pkjs/weather/adapter/provider.js');
+  const airQuality = require('../../src/pkjs/weather/adapter/air-quality.js');
+  const pollen = require('../../src/pkjs/weather/adapter/pollen.js');
+  const outbox = require('../../src/pkjs/wire/adapter/outbox.js');
   const saved = [airQuality.fetchAqiInto, pollen.fetchPollenInto, outbox.sendWeather];
   const p = new WeatherProvider();
   p.withCityName = (lat, lon, done) => { done('Berlin', 'DE'); };
@@ -158,7 +158,7 @@ test('fetchWithCoordinates drops the payload of a fetch its caller abandoned', (
 });
 
 test('requestMapped reports a throwing map as <id>_map_error', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+  const WeatherProvider = require('../../src/pkjs/weather/adapter/provider.js');
   const realRequest = WeatherProvider.request;
   WeatherProvider.request = (url, method, onSuccess) => { onSuccess('{"hourly":{}}'); };
   const failures = [];
@@ -172,8 +172,8 @@ test('requestMapped reports a throwing map as <id>_map_error', () => {
 });
 
 test('a throwing radar interpret preserves the radar (null) instead of stranding the chain', () => {
-  const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
-  const radarFetch = require('../../../src/pkjs/weather/adapter/radar/radar-fetch.js');
+  const WeatherProvider = require('../../src/pkjs/weather/adapter/provider.js');
+  const radarFetch = require('../../src/pkjs/weather/adapter/radar/radar-fetch.js');
   const realRequest = WeatherProvider.request;
   WeatherProvider.request = (url, method, onSuccess) => { onSuccess('{}'); };
   const results = [];

@@ -17,7 +17,7 @@ global.localStorage = {
 
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 const record = require('../../../src/pkjs/weather/domain/day-peaks.js');
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
 // The UV slot's reader, in the (trend, peaks, mode) shape these tests grew up on.
 const uvShown = (trend, peaks, mode) => require('../../../src/pkjs/wire/domain/wire-units.js')

@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 // `var request = WeatherProvider.request;` at module-eval time. Each request
 // resolves synchronously with whatever `responder` returns, so the whole
 // withProviderData chain runs synchronously and a throw surfaces here.
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) {
   responder(url, onSuccess, onError);

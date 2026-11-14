@@ -40,7 +40,7 @@ global.localStorage = {
     removeItem: function (k) { delete store[k]; }
 };
 
-const WeatherProvider = require('../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../src/pkjs/weather/adapter/provider.js');
 const createFetchCycle = require('../../src/pkjs/shell/fetch-cycle.js');
 const fetchOptions = require('../../src/pkjs/weather/domain/fetch-options.js');
 const radarFactory = require('../../src/pkjs/weather/adapter/radar-factory.js');
@@ -1452,7 +1452,7 @@ test('throw: a counter write that throws is caught and recorded, and later ticks
 // the watch is (the record keeps no position), recorded before it goes out; the
 // throttled cycles of the slot re-serve its window. The stub outbox here does
 // not dedupe, so a re-served window shows up in the extras
-// (test/weather/application/rainbow-radar-throttle.test.js runs the real outbox).
+// (test/shell/rainbow-radar-throttle.test.js runs the real outbox).
 
 const RB_ENDPOINT = 'https://proxy.example/rainbow-nowcast';
 const RB_ENV = { waqiToken: 'W', rainbowEndpoint: RB_ENDPOINT };

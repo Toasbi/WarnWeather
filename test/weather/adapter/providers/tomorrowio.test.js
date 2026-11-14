@@ -49,7 +49,7 @@ test('mapResponse anchors at the current hour and converts units', () => {
 
 test('mapResponse emits only the mapped vocabulary (WeatherProvider.MAPPED_KEYS), core keys included', () => {
   const mapped = mapResponse(sampleResponse(), BASE + 3 * 3600 + 600);
-  const keys = require('../../../../src/pkjs/weather/application/provider.js').MAPPED_KEYS;
+  const keys = require('../../../../src/pkjs/weather/adapter/provider.js').MAPPED_KEYS;
   Object.keys(mapped).forEach((k) => assert.ok(keys.all.indexOf(k) !== -1, 'not a mapped key: ' + k));
   keys.core.forEach((k) => assert.ok(Object.prototype.hasOwnProperty.call(mapped, k), 'core key missing: ' + k));
 });
@@ -130,7 +130,7 @@ test('tomorrow.io names no condition when the anchor interval names none', () =>
   });
 });
 
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 const TomorrowIoProvider = tomorrowio.TomorrowIoProvider;
 
 test('TomorrowIoProvider identity, inheritance, base sun events', () => {

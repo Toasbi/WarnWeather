@@ -1,4 +1,4 @@
-var WeatherProvider = require('../../application/provider.js');
+var WeatherProvider = require('../provider.js');
 var nextSunEvents = require('../../domain/sun-events.js').nextSunEvents;
 var mphToKmh = require('../../../wire/domain/wire-units.js').mphToKmh;
 var condition = require('../../domain/condition.js');

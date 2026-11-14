@@ -10,7 +10,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 // Mock the shared XHR BEFORE requiring the radar module (it captures it at load).
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 let responder;
 WeatherProvider.request = function (url, type, onSuccess, onError, headers, body) {
   responder(url, type, onSuccess, onError, headers, body);

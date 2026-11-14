@@ -14,7 +14,7 @@ const KEYS = require('../../../../src/pkjs/settings/domain/storage-keys.js');
 // dwd-radar.js reaches the network through radar-fetch.js, which resolves
 // WeatherProvider.request at call time — stubbing it on the provider module
 // works at any point before a fetch runs (same pattern as rainbow-radar.test.js).
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 let responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, type, onSuccess, onError); };
 const radar = require('../../../../src/pkjs/weather/adapter/radar/dwd-radar.js');

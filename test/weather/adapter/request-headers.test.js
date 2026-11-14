@@ -1,4 +1,4 @@
-// test/weather/application/request-headers.test.js
+// test/weather/adapter/request-headers.test.js
 // The shared XHR wrapper accepts an optional 5th `headers` param (used by the
 // Met.no modules for api.met.no's identification requirement). A header the
 // runtime forbids (setRequestHeader throws, e.g. User-Agent) must not abort
@@ -23,7 +23,7 @@ MockXhr.prototype.setRequestHeader = function(name, value) {
 MockXhr.prototype.send = function(body) { this.sent = true; this.body = body; };
 
 global.XMLHttpRequest = MockXhr;
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 
 test('request sets each header after open() and still sends', () => {
   MockXhr.throwOn = {};

@@ -1,7 +1,7 @@
-// test/weather/application/provider-has-valid-data.test.js
+// test/weather/adapter/provider-has-valid-data.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 
 function makeProvider(over) {
   const p = new WeatherProvider();

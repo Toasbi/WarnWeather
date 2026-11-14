@@ -4,7 +4,7 @@
 require('./lib/polyfills.js');
 
 var notices = require('./notices/adapter/notices.js');
-var WeatherProvider = require('./weather/application/provider.js');
+var WeatherProvider = require('./weather/adapter/provider.js');
 var createTelemetryClient = require('./telemetry/adapter/telemetry.js');
 var settings = require('./page/settings');
 var storageKeys = require('./settings/domain/storage-keys.js');

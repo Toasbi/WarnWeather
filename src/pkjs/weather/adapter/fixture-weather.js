@@ -5,7 +5,7 @@
 // send it, bypassing live provider fetch. Pulled out of index.js so the
 // orchestrator stays focused on event wiring and live fetch.
 
-var WeatherProvider = require('../application/provider.js');
+var WeatherProvider = require('./provider.js');
 var fetchOptions = require('../domain/fetch-options.js');
 // The hours this watch is sent: the longest shown graph style's (forecast-span.js hours).
 var graphStyleWire = require('../../forecast-graphs/domain/graph-style-wire.js');

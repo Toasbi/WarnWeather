@@ -5,8 +5,8 @@ var outbox = require('../../wire/adapter/outbox.js');
 var wireUnits = require('../../wire/domain/wire-units.js');
 var scaleTrendToBytes = wireUnits.scaleTrendToBytes;
 var zeroFilledArray = wireUnits.zeroFilledArray;
-var airQuality = require('../adapter/air-quality.js');
-var pollen = require('../adapter/pollen.js');
+var airQuality = require('./air-quality.js');
+var pollen = require('./pollen.js');
 var dayPeaks = require('../domain/day-peaks.js');
 var feelsLike = require('../domain/feels-like.js');
 var fetchOptions = require('../domain/fetch-options.js');
@@ -17,12 +17,12 @@ var condition = require('../domain/condition.js');
 // fetches can require them without the old provider-cycle lazy-require hack);
 // the WeatherProvider.request/.failure statics below stay the adapters' (and
 // the tests') seam.
-var http = require('../adapter/http.js');
+var http = require('./http.js');
 var request = http.request;
 var failure = http.failure;
 // Location storage/parse helpers (GPS cache, geocode cache + backoff, override
 // parser) live in location.js; the orchestration below keeps their names.
-var locationLib = require('../adapter/location.js');
+var locationLib = require('./location.js');
 var readStoredJson = locationLib.readStoredJson;
 var parseLocationOverride = locationLib.parseLocationOverride;
 var readGeocodeCache = locationLib.readGeocodeCache;

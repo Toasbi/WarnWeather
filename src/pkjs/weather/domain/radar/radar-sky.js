@@ -25,7 +25,7 @@
 
 var SunCalc = require('suncalc');
 var cloudCover = require('../cloud-cover.js');
-var WeatherProvider = require('../../application/provider.js');
+var WeatherProvider = require('../../adapter/provider.js');
 var radarWire = require('./radar-wire.js');
 var stripeLevels = require('../../../forecast-graphs/domain/stripe-levels.js');
 

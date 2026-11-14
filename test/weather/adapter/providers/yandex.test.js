@@ -63,7 +63,7 @@ test('mapResponse flattens days, anchors at the current hour, returns 24-length 
 
 test('mapResponse emits only the mapped vocabulary (WeatherProvider.MAPPED_KEYS), core keys included', () => {
   const mapped = mapResponse(sampleResponse(), BASE + 600);
-  const keys = require('../../../../src/pkjs/weather/application/provider.js').MAPPED_KEYS;
+  const keys = require('../../../../src/pkjs/weather/adapter/provider.js').MAPPED_KEYS;
   Object.keys(mapped).forEach((k) => assert.ok(keys.all.indexOf(k) !== -1, 'not a mapped key: ' + k));
   keys.core.forEach((k) => assert.ok(Object.prototype.hasOwnProperty.call(mapped, k), 'core key missing: ' + k));
 });
@@ -129,7 +129,7 @@ test('mapResponse names no condition when now names none', () => {
   });
 });
 
-const WeatherProvider = require('../../../../src/pkjs/weather/application/provider.js');
+const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 const YandexProvider = yandex.YandexProvider;
 
 test('YandexProvider has the expected identity and inherits the base class', () => {
@@ -152,7 +152,7 @@ test('withProviderData fails fast without an API key and makes no request', () =
   assert.equal(failed.code, 'yandex_missing_api_key');
 });
 
-// Minimal XHR mock, following the pattern in test/weather/application/request-headers.test.js: records
+// Minimal XHR mock, following the pattern in test/weather/adapter/request-headers.test.js: records
 // open()'s method/url and setRequestHeader's names/values, and captures send()'s body
 // so onload() can be triggered manually to simulate a successful response.
 function MockXhr() {
