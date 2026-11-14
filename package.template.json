@@ -1545,8 +1545,8 @@
             "us1.locationiq.com"
           ]
         },
-        "reason": "To look up your town's name with your own LocationIQ key",
-        "required": false
+        "reason": "To find the place you typed as your location",
+        "required": true
       },
       {
         "name": "Internet",

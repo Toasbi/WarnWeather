@@ -136,8 +136,9 @@ test('every declared domain is one the code requests', () => {
 });
 
 // Required (the owner's, 2026-11-13): every weather service the app can fetch from (the
-// forecast and radar services, keyed or not, air quality, DWD pollen), place names and search,
-// and the app's own backend (the build adds its entry, required). Installing then waits for an
+// forecast and radar services, keyed or not, air quality, DWD pollen), place names and search
+// (LocationIQ too: it finds a typed Manual location, without which there is no forecast), and the
+// app's own backend (the build adds its entry, required). Installing then waits for an
 // answer on all of them, so switching services or opening settings never meets a first request
 // that fails while the phone asks; a "no" is an answer too, and the install goes on. Optional:
 // what is not weather data and only some installs use, asked about when first used.
@@ -145,10 +146,10 @@ test('every weather service and place lookup is required; holidays, updates, not
   ['api.weather.com', 'www.wunderground.com', 'api.open-meteo.com', 'api.met.no', 'api.brightsky.dev',
     'api.openweathermap.org', 'api.tomorrow.io', 'api.weather.yandex.ru', 'api.rainbow.ai',
     'api.waqi.info', 'air-quality-api.open-meteo.com', 'maps.dwd.de',
-    'geocode.arcgis.com', 'geocoding-api.open-meteo.com'].forEach((d) => {
+    'geocode.arcgis.com', 'geocoding-api.open-meteo.com', 'us1.locationiq.com'].forEach((d) => {
     assert.equal(entryOf(d).required, true, d + ' is required');
   });
-  ['us1.locationiq.com', 'date.nager.at', 'appstore-api.repebble.com', 'appstore-api.rebble.io'].forEach((d) => {
+  ['date.nager.at', 'appstore-api.repebble.com', 'appstore-api.rebble.io'].forEach((d) => {
     assert.equal(entryOf(d).required, false, d + ' is optional');
   });
   assert.equal(uses.find((p) => p.name === 'Location').required, true, 'the forecast is for where you are');
