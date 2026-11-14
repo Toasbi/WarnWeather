@@ -1,5 +1,5 @@
 // test/helpers/clay-harness.js — the fake-storage + upgraded-install harness shared by
-// test/settings/adapter/clay-settings.test.js (which owns the blob) and test/settings/application/clay-migrations.test.js
+// test/settings/adapter/clay-settings.test.js (which owns the blob) and test/settings/adapter/clay-migrations.test.js
 // (which owns the ledger). It lives here rather than being copied into both: the two
 // files exercise the SAME stored blob from opposite sides, and a drifted seed would
 // make one of them quietly stop testing the shape the other builds.
@@ -80,13 +80,13 @@ function bootUpgradedInstall(clayMigrations, createChannelScheduler, now, filter
 function loadUpgradeModules() {
   // clay-migrations must be reloaded WITH clay-settings: it captures the module
   // object at require time, so a stale copy would hold the previous test's instance.
-  ['../../src/pkjs/settings/adapter/clay-settings', '../../src/pkjs/settings/application/clay-migrations',
+  ['../../src/pkjs/settings/adapter/clay-settings', '../../src/pkjs/settings/adapter/clay-migrations',
     '../../src/pkjs/wire/adapter/channel-scheduler'].forEach((m) => {
     delete require.cache[require.resolve(m)];
   });
   return {
     claySettings: require('../../src/pkjs/settings/adapter/clay-settings'),
-    clayMigrations: require('../../src/pkjs/settings/application/clay-migrations'),
+    clayMigrations: require('../../src/pkjs/settings/adapter/clay-migrations'),
     createChannelScheduler: require('../../src/pkjs/wire/adapter/channel-scheduler'),
     KEYS: require('../../src/pkjs/settings/domain/storage-keys')
   };

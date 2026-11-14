@@ -1,6 +1,6 @@
 'use strict';
-// test/settings/application/clay-migrations.test.js — the marker-gated ledger (src/pkjs/settings/domain/migrations/registry.js)
-// and its runner (src/pkjs/settings/application/clay-migrations.js). Split from test/settings/adapter/clay-settings.test.js,
+// test/settings/adapter/clay-migrations.test.js — the marker-gated ledger (src/pkjs/settings/domain/migrations/registry.js)
+// and its runner (src/pkjs/settings/adapter/clay-migrations.js). Split from test/settings/adapter/clay-settings.test.js,
 // which keeps the blob-ownership tests; the shared fake-storage / upgraded-install
 // harness lives in helpers/clay-harness.js. A test about one entry runs the ledger with
 // {only: <its marker>} (loadLedger's run), so the other entries stay out of the verdict.
@@ -2035,7 +2035,7 @@ test('every entry but the alert levels: a re-run over the boot\'s output changes
 });
 
 test('every reset-safe entry, and no other, is marked by Reset watchface', () => {
-  const clayMigrations = require('../../../src/pkjs/settings/application/clay-migrations');
+  const clayMigrations = require('../../../src/pkjs/settings/adapter/clay-migrations');
   assert.deepEqual(clayMigrations.RESET_SAFE_MARKERS, ['v1.23.0_norain_default_text_migration',
     'v1.23.1_fifth_line_style_default_migration', 'v1.24.0_warn_look_migration',
     'v1.24.0_on_demand_migration', 'v1.24.0_rainbow_own_key_source_migration',

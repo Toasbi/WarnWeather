@@ -31,9 +31,7 @@ const RUNTIME = [
 // Domain and application files that still reach the runtime (file: the globals they use).
 // Only adapters, the shell and the settings page may.
 const RUNTIME_ALLOWED = {
-  'settings/application/clay-migrations.js': ['localStorage'],
   'status-bars/application/status-rebake.js': ['localStorage', 'Date.now'],
-  'telemetry/application/telemetry-settings.js': ['Date.now'],
 };
 
 // Which roles each role may require, and the requires today that break it ("from -> to").
@@ -43,7 +41,6 @@ const RULES = [
     ] },
   { name: 'application code requires no adapter, shell or settings page',
     from: ['application'], to: ['application', 'domain', 'lib'], allowed: [
-      'settings/application/clay-migrations.js -> settings/adapter/clay-settings.js',
     ] },
   { name: 'adapters require no shell or settings page',
     from: ['adapter'], to: ['adapter', 'application', 'domain', 'lib'], allowed: [

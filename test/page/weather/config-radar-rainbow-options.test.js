@@ -2,7 +2,7 @@
 // pane) offers Rainbow twice, one option per radar source: "Rainbow (limited)" ('rainbow', the
 // shared proxy) and "Rainbow (own key)" ('rainbowkey', the user's own key). The blob stores the
 // pick as radarProvider, the own key included; the 1.23.x pair ('rainbow' plus rainbowOwnKey) is
-// the boot migration's to fold in (settings/domain/migrations/radar.js, test/settings/application/clay-migrations.test.js), so the
+// the boot migration's to fold in (settings/domain/migrations/radar.js, test/settings/adapter/clay-migrations.test.js), so the
 // page reads and saves radarProvider as it stands. Pinned here against the REAL generated page
 // for a fresh install, an install on either Rainbow, a 1.23.2 install booted through the
 // migrations, and for the setup wizard's country pick.
