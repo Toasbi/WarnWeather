@@ -1,5 +1,5 @@
 'use strict';
-// A small fake DOM for the onboarding wizard (src/pkjs/settings/wizard.js): just the surface its
+// A small fake DOM for the onboarding wizard (src/pkjs/page/settings/wizard/wizard.js): just the surface its
 // controller touches, so its real event handlers can run in Node, and the one way the suites open it
 // (openSetup).
 //
@@ -312,9 +312,9 @@ function fakeWizardDom() {
 function openSetup(over) {
   const o = over || {};
   const engine = require('../../src/pkjs/config-ui/lib/engine.js');
-  const schema = require('../../src/pkjs/settings/schema.js');
+  const schema = require('../../src/pkjs/page/settings/schema.js');
   const platform = require('../../src/pkjs/config-ui/lib/platform.js');
-  const finish = require('../../src/pkjs/settings/wizard-finish.js');
+  const finish = require('../../src/pkjs/page/settings/wizard/wizard-finish.js');
   const dom = fakeWizardDom();
   const ENV = platform.computeEnv({ platform: o.platform || 'basalt' });
   const calls = { save: 0, render: 0 };

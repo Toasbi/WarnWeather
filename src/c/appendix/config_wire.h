@@ -9,7 +9,7 @@
 // from before the switch casts the tuple to uint8_t, so it drops the bit and keeps its
 // minutes exact. It sits in the low half the int16 read already covers (no int32 / length
 // guard needed). Bits 9-14 are free; never bit 15 (the int16 read's sign).
-// Lockstep with clay-payload.js VIEW_RESET_DOUBLE_FLICK (test/flick-presets.test.js).
+// Lockstep with clay-payload.js VIEW_RESET_DOUBLE_FLICK (test/settings/domain/flick-presets.test.js).
 #define VIEW_RESET_DOUBLE_FLICK 0x0100
 
 // CLAY_LARGE_GRAPH_FONT is emery's graph-options word (bit 0 Larger graph fonts, bits 1-7

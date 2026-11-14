@@ -12,7 +12,7 @@
 // only where the name doesn't say what it is for:
 // https://developer.repebble.com/guides/plugins/preview/ (Declaring).
 //
-// package.template.json lists every API host the code requests (test/uses-permissions.test.js
+// package.template.json lists every API host the code requests (test/repo/uses-permissions.test.js
 // keeps the list and the code in step); the hosts of the three endpoints
 // scripts/prepare-package.sh injects from the build's environment (telemetry, the Rainbow radar
 // proxy and news, the project's Supabase functions) are known only at build time, so

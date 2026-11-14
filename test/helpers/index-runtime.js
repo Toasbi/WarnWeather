@@ -130,7 +130,7 @@ function installIndexRuntime(opts) {
       const devConfigPath = require.resolve(SRC + 'dev-config.js');
       require.cache[devConfigPath] = { id: devConfigPath, filename: devConfigPath, loaded: true, exports: {} };
     } catch (e) { /* absent: getDevConfig() already falls back to {} */ }
-    const fixturePath = require.resolve(SRC + 'active-fixture.generated.js');
+    const fixturePath = require.resolve(SRC + 'weather/adapter/active-fixture.generated.js');
     require.cache[fixturePath] = { id: fixturePath, filename: fixturePath, loaded: true, exports: null };
     h.listeners = {};
     require(SRC + 'index.js');
@@ -143,8 +143,8 @@ function installIndexRuntime(opts) {
    * answers: colour keys travel as '#rrggbb' strings.
    */
   h.closeSettings = function (changes) {
-    const cfg = h.mod('settings');
-    const blob = h.mod('clay-settings.js').read();
+    const cfg = h.mod('page/settings');
+    const blob = h.mod('settings/adapter/clay-settings.js').read();
     Object.assign(blob, changes);
     const out = {};
     Object.keys(blob).forEach((k) => {

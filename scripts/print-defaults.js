@@ -7,35 +7,35 @@
 // Everything printed here is RENDERED FROM THE CODE THAT DECIDES IT — nothing is
 // retyped, so the page cannot drift from behaviour:
 //
-//   · situational rules  src/pkjs/settings/defaults-policy.js  RULES + resolveDefaults()
-//   · static defaults    src/pkjs/settings/schema.js           defaultValue, read through
+//   · situational rules  src/pkjs/page/settings/defaults-policy.js  RULES + resolveDefaults()
+//   · static defaults    src/pkjs/page/settings/schema.js           defaultValue, read through
 //                                                              config-ui/lib/defaults.js
-//   · per-watch defaults src/pkjs/settings/schema.js           defaultFrom, resolved through
+//   · per-watch defaults src/pkjs/page/settings/schema.js           defaultFrom, resolved through
 //                                                              engine.resolveDefaultFrom()
 //   · capabilities       config-ui/lib/platform.js             computeEnv() — the only place
 //                                                              that knows what a watch can do
 //   · platform list      package.template.json                 pebble.targetPlatforms
 //
 // To CHANGE a default: a rule row goes in defaults-policy.js, a flat default in schema.js.
-// Never here — this file only reports. test/print-defaults.test.js pins the report against
+// Never here — this file only reports. test/scripts/print-defaults.test.js pins the report against
 // the real wizard, so a rule that stops being printed (or starts lying) fails the suite.
 //
 // Node-only (scripts/ may use ES6); the modules it reads are the ES5 watch/webview ones.
 
 // The config-UI modules attach to a shared global PConf and must be required in this order:
 // blocks.js registers the 'statusSlotDefault' resolver that the schema's defaultFrom items
-// resolve through. Same boot as test/config-wizard.test.js.
+// resolve through. Same boot as test/page/settings/wizard/config-wizard.test.js.
 require('../src/pkjs/config-ui/lib/schema-walk.js');
-require('../src/pkjs/config-ui/lib/color.js');
+require('../src/pkjs/lib/color.js');
 require('../src/pkjs/config-ui/lib/engine.js');
-require('../src/pkjs/settings/blocks.js');
-require('../src/pkjs/settings/reset-status-defaults.js');
+require('../src/pkjs/page/settings/blocks.js');
+require('../src/pkjs/page/status-bars/reset-status-defaults.js');
 
 const eng = require('../src/pkjs/config-ui/lib/engine.js');
 const { eachItem } = require('../src/pkjs/config-ui/lib/schema-walk.js');
 const { deriveDefaults } = require('../src/pkjs/config-ui/lib/defaults.js');
 const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
-const policy = require('../src/pkjs/settings/defaults-policy.js');
+const policy = require('../src/pkjs/page/settings/defaults-policy.js');
 
 /**
  * Load the settings schema, explaining the one failure mode that isn't obvious: schema.js
@@ -44,7 +44,7 @@ const policy = require('../src/pkjs/settings/defaults-policy.js');
  */
 function loadSchema() {
   try {
-    return require('../src/pkjs/settings/schema.js');
+    return require('../src/pkjs/page/settings/schema.js');
   } catch (err) {
     if (String(err && err.message).indexOf('package.json') !== -1) {
       err.message += '\n\n  schema.js reads the generated package.json — run `mise prepare-package` first.';
@@ -245,7 +245,7 @@ function describeCondition(key, value) {
 function renderRules() {
   const out = heading('1 · SITUATIONAL RULES — defaults that depend on the moment');
   out.push(...wrap('Each row below applies only when its conditions hold, and later rows win. '
-    + 'Add or change one in the RULES table of src/pkjs/settings/defaults-policy.js; nothing '
+    + 'Add or change one in the RULES table of src/pkjs/page/settings/defaults-policy.js; nothing '
     + 'applies them on its own — the wizard resolves the table on its finish button.',
     WIDTH, '  '));
   policy.RULES.forEach((rule, i) => {
@@ -333,7 +333,7 @@ function renderComparison() {
   const out = heading('2 · WHAT A WATCH ENDS UP WITH — by platform and by scenario');
   out.push(...wrap('Only the ' + diff.keys.length + ' settings that differ somewhere are listed. The other '
     + diff.omitted + ' of ' + diff.total + ' read the same in all ' + (PLATFORMS.length * SCENARIOS.length)
-    + ' cases: they are plain `defaultValue` entries in src/pkjs/settings/schema.js, which is '
+    + ' cases: they are plain `defaultValue` entries in src/pkjs/page/settings/schema.js, which is '
     + 'where you change one (e.g. swapClockStatus). healthMode is the axis of the wizard '
     + 'columns, not a result, so it is not a row. A key marked * is not seeded into the '
     + 'settings blob at all — see section 3.', WIDTH, '  '));

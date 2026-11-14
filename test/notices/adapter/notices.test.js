@@ -1,0 +1,283 @@
+'use strict';
+var test = require('node:test');
+var assert = require('node:assert');
+
+// localStorage mock installed BEFORE the module loads (see change-detector.test.js).
+var store = {};
+global.localStorage = {
+  getItem: function (k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
+  setItem: function (k, v) { store[k] = String(v); },
+  removeItem: function (k) { delete store[k]; },
+  clear: function () { store = {}; }
+};
+
+var notices = require('../../../src/pkjs/notices/adapter/notices.js');
+
+test('add + list + dedupe by key preserves first since', function () {
+  global.localStorage.clear();
+  notices.add({ key: 'auth', type: 'error', watch: 'API key error', html: 'x', since: 100 });
+  notices.add({ key: 'auth', type: 'error', watch: 'API key error', html: 'x2', since: 200 });
+  var l = notices.list();
+  assert.strictEqual(l.length, 1);
+  assert.strictEqual(l[0].since, 100);       // first occurrence kept
+  assert.strictEqual(l[0].html, 'x2');       // content refreshed
+});
+
+test('clearErrors keeps infos', function () {
+  global.localStorage.clear();
+  notices.add({ key: 'auth', type: 'error', watch: 'API key error', html: 'e', since: 1 });
+  notices.add({ key: 'ratelimit', type: 'info', html: 'i', since: 2 });
+  notices.clearErrors();
+  var l = notices.list();
+  assert.strictEqual(l.length, 1);
+  assert.strictEqual(l[0].key, 'ratelimit');
+});
+
+test('watchText returns newest error watch, else empty', function () {
+  global.localStorage.clear();
+  assert.strictEqual(notices.watchText(), '');
+  notices.add({ key: 'ratelimit', type: 'info', html: 'i', since: 2 });
+  assert.strictEqual(notices.watchText(), '');   // info has no watch
+  notices.add({ key: 'auth', type: 'error', watch: 'API key error', html: 'e', since: 3 });
+  assert.strictEqual(notices.watchText(), 'API key error');
+});
+
+test('dismissAll empties the list', function () {
+  global.localStorage.clear();
+  notices.add({ key: 'auth', type: 'error', watch: 'w', html: 'e', since: 1 });
+  notices.dismissAll();
+  assert.deepStrictEqual(notices.list(), []);
+});
+
+test('noticeForFailure classifies auth/ratelimit/other', function () {
+  var auth = notices.noticeForFailure({ stage: 'provider_data', code: 'owm_status_401' }, 'OpenWeatherMap', 500);
+  assert.strictEqual(auth.key, 'auth');
+  assert.strictEqual(auth.type, 'error');
+  assert.strictEqual(auth.watch, 'API key error');
+  assert.strictEqual(auth.since, 500);
+  assert.ok(auth.html.indexOf('OpenWeatherMap') !== -1);
+  assert.ok(auth.html.indexOf('401') !== -1);
+
+  var rl = notices.noticeForFailure({ stage: 'provider_data', code: 'yandex_status_429' }, 'Yandex', 600);
+  assert.strictEqual(rl.key, 'ratelimit');
+  assert.strictEqual(rl.type, 'info');
+  assert.strictEqual(typeof rl.watch, 'undefined');
+
+  assert.strictEqual(notices.noticeForFailure({ stage: 'provider_data', code: 'network_error' }, 'X', 1), null);
+  assert.strictEqual(notices.noticeForFailure(null, 'X', 1), null);
+});
+
+test('noticeForFailure: no location raises the location notice, its text by reason', function () {
+  var noFix = function (reason) {
+    return notices.noticeForFailure({ stage: 'coordinates', code: 'gps_1', reason: reason }, 'Met.no', 700);
+  };
+  var refused = noFix('refused');
+  assert.strictEqual(refused.key, 'location');
+  assert.strictEqual(refused.type, 'error');
+  assert.strictEqual(refused.whenStale, true, 'the watch keeps a fresh forecast');
+  assert.strictEqual(refused.since, 700);
+  assert.strictEqual(refused.watch, 'No location access');
+  assert.match(refused.html, /Allow all the time/);
+  assert.strictEqual(noFix('off').watch, 'Location unavailable');
+  // The Pebble app's "Location not available": location off, or no fix and none from
+  // before, as when the Pebble app may only use location while it is open.
+  assert.match(noFix('off').html, /Location may be off, or the Pebble app may only use location while it is open\./);
+  assert.match(noFix('off').html, /Turn location on, .*“Allow all the time” \(iPhone: “Always”\)\./);
+  assert.strictEqual(noFix('timeout').watch, 'Location not found');
+  assert.match(noFix('timeout').html, /in time/);
+  assert.doesNotMatch(noFix('timeout').html, /Turn location on/);
+  ['refused', 'off', 'timeout'].forEach(function (reason) {
+    var n = noFix(reason);
+    assert.match(n.html, /^<b>No location:<\/b> .*Setup › Location\.$/, reason);
+    assert.ok(Buffer.byteLength(n.watch, 'utf8') <= notices.WATCH_TEXT_MAX_BYTES, n.watch);
+  });
+  // A coordinates failure with no GPS reason (runCycle's unknown_error) raises nothing.
+  assert.strictEqual(notices.noticeForFailure({ stage: 'coordinates', code: 'unknown_error' }, 'X', 1), null);
+  assert.strictEqual(noFix('toString'), null, 'only the table\'s own reasons');
+});
+
+test('applyFailure: adds the failure\'s notice and answers the watch line it calls for', function () {
+  global.localStorage.clear();
+  var ctx = function (fresh) {
+    return { providerName: 'OpenWeatherMap', watchName: 'OWM', failedUpdates: 0, now: 5, forecastFresh: fresh };
+  };
+  var gps = { stage: 'coordinates', code: 'gps_1', reason: 'refused' };
+  assert.strictEqual(notices.applyFailure(gps, ctx(true)), null, 'whenStale: a fresh forecast keeps the line back');
+  assert.deepStrictEqual(notices.list().map(function (n) { return n.key; }), ['location'], 'the panel has it');
+  assert.strictEqual(notices.applyFailure(gps, ctx(false)), 'No location access', 'a stale forecast: the line goes up');
+  assert.strictEqual(notices.applyFailure({ stage: 'provider_data', code: 'parse_error' }, ctx(true)), null,
+    'past the GPS step, no notice of its own, a fresh forecast: nothing on screen to take down');
+  assert.deepStrictEqual(notices.list(), [], 'the location notice is gone');
+
+  notices.applyFailure(gps, ctx(false));
+  assert.strictEqual(notices.applyFailure({ stage: 'forward_geocode', code: 'status_500' }, ctx(false)), '',
+    'a stale forecast: the location line comes down');
+  notices.applyFailure(gps, ctx(false));
+  assert.strictEqual(notices.applyFailure({ stage: 'fetch', code: 'watchdog_timeout' }, ctx(false)), null,
+    'the watchdog may be the GPS hanging: the notice stays');
+  assert.strictEqual(notices.applyFailure({ stage: 'provider_data', code: 'owm_status_401' }, ctx(true)),
+    'API key error', 'an error that is not whenStale shows at once, in place of the location line');
+  assert.deepStrictEqual(notices.list().map(function (n) { return n.key; }), ['auth']);
+  assert.strictEqual(notices.applyFailure({ stage: 'provider_data', code: 'owm_status_429' }, ctx(false)), null,
+    'an info notice has no watch line');
+});
+
+test('noticeForFailure raises nothing for a geocoder 401/403/429', function () {
+  // The ArcGIS city lookup and the shared LocationIQ key report bare
+  // status_<n> codes under their own stages. Neither is the weather provider,
+  // and neither is a key the user can fix — a notice naming the provider and
+  // pointing at its key field (plus the 'API key error' watch overlay) was
+  // wrong on both counts.
+  ['reverse_geocode', 'forward_geocode'].forEach(function (stage) {
+    ['status_401', 'status_403', 'status_429'].forEach(function (code) {
+      assert.strictEqual(notices.noticeForFailure({ stage: stage, code: code }, 'Open-Meteo', 1), null,
+        stage + ' ' + code);
+    });
+  });
+  // No stage at all is not a provider failure either.
+  assert.strictEqual(notices.noticeForFailure({ code: 'owm_status_401' }, 'OpenWeatherMap', 1), null);
+});
+
+test('gc drops notices older than 7 days, keeps fresh ones', function () {
+  global.localStorage.clear();
+  var DAY = 24 * 60 * 60 * 1000;
+  var now = 100 * DAY;
+  notices.add({ key: 'old', type: 'info', html: 'o', since: now - 8 * DAY });
+  notices.add({ key: 'fresh', type: 'error', watch: 'w', html: 'f', since: now - 6 * DAY });
+  notices.gc(now);
+  var l = notices.list();
+  assert.strictEqual(l.length, 1);
+  assert.strictEqual(l[0].key, 'fresh');
+  notices.gc(now);
+  assert.strictEqual(notices.list().length, 1, 'no-op when nothing expired');
+});
+
+test('gc drops entries with a missing or invalid since', function () {
+  global.localStorage.clear();
+  notices.add({ key: 'nosince', type: 'info', html: 'x' });
+  notices.gc(Date.now());
+  assert.deepStrictEqual(notices.list(), []);
+});
+
+test('isServerFailure: the provider\'s own 5xx, unreadable answer, timeout or no connection', function () {
+  ['openmeteo_status_503', 'wu_current_status_500', 'dwd_forecast_timeout', 'owm_network_error',
+    'metno_parse_error', 'dwd_current_parse_error'].forEach(function (code) {
+    assert.strictEqual(notices.isServerFailure({ stage: 'provider_data', code: code }), true, code);
+  });
+  // A missing field or a mapping throw can be our own bug or an API change.
+  ['owm_status_401', 'yandex_status_429', 'openmeteo_status_404', 'owm_missing_fields', 'openmeteo_map_error',
+    'dwd_map_error'].forEach(function (code) {
+    assert.strictEqual(notices.isServerFailure({ stage: 'provider_data', code: code }), false, code);
+  });
+  assert.strictEqual(notices.isServerFailure({ stage: 'forward_geocode', code: 'status_503' }), false,
+    'a geocoder is not the provider');
+  assert.strictEqual(notices.isServerFailure({ stage: 'forward_geocode', code: 'parse_error' }), false);
+  assert.strictEqual(notices.isServerFailure({ stage: 'coordinates', code: 'timeout' }), false);
+  assert.strictEqual(notices.isServerFailure(null), false);
+});
+
+test('noticeForFailure: a server failure raises nothing on the first update, the neutral notice from the second', function () {
+  var f503 = { stage: 'provider_data', code: 'openmeteo_status_503' };
+  assert.strictEqual(notices.noticeForFailure(f503, 'Open-Meteo', 1), null, 'no count: nothing');
+  assert.strictEqual(notices.noticeForFailure(f503, 'Open-Meteo', 1, 1), null, 'the first failed update: nothing');
+  var second = notices.noticeForFailure(f503, 'Open-Meteo', 700, 2);
+  assert.deepStrictEqual(second, {
+    key: 'server', type: 'error', watch: 'Open-Meteo not answering', whenStale: true, since: 700,
+    html: '<b>Open-Meteo</b> is not answering: the last 2 updates failed (HTTP 503). '
+      + 'The watch tries again at the next update.'
+  });
+  assert.ok(notices.noticeForFailure({ stage: 'provider_data', code: 'dwd_forecast_timeout' }, 'DWD', 1, 3)
+    .html.indexOf('the last 3 updates failed (no answer in time)') !== -1);
+  assert.ok(notices.noticeForFailure({ stage: 'provider_data', code: 'owm_network_error' }, 'OpenWeatherMap', 1, 2)
+    .html.indexOf('(no connection)') !== -1);
+  assert.strictEqual(notices.noticeForFailure({ stage: 'provider_data', code: 'metno_parse_error' }, 'Met.no', 1, 1), null,
+    'a first unreadable answer raises nothing either');
+  assert.ok(notices.noticeForFailure({ stage: 'provider_data', code: 'metno_parse_error' }, 'Met.no', 1, 2)
+    .html.indexOf('the last 2 updates failed (an unreadable answer)') !== -1);
+});
+
+test('noticeForFailure: a provider with no data for the place raises the coverage notice from the second update in a row, on the watch too', function () {
+  var noData = { stage: 'provider_data', code: 'dwd_forecast_status_404', noCoverage: true };
+  var dwd = 'Brightsky (Deutscher Wetterdienst)';
+  assert.strictEqual(notices.noticeForFailure(noData, dwd, 800, 1, 'DWD'), null, 'one 404 can be a hiccup');
+  assert.strictEqual(notices.noticeForFailure(noData, dwd, 800, undefined, 'DWD'), null, 'no run, no notice');
+  var n = notices.noticeForFailure(noData, dwd, 800, 2, 'DWD');
+  assert.deepStrictEqual(n, {
+    key: 'coverage', type: 'error', watch: 'DWD has no data here', since: 800,
+    html: '<b>Brightsky (Deutscher Wetterdienst)</b> has no weather data for this place. '
+      + 'Pick another weather provider in Setup › Data sources.'
+  }, 'no whenStale: waiting does not bring data to this place');
+  assert.strictEqual(notices.noticeForFailure(noData, dwd, 1, 3).watch, 'No weather data here',
+    'a name too long for the watch, without a short one, falls back to a generic line');
+  assert.strictEqual(notices.noticeForFailure({ stage: 'provider_data', code: 'dwd_forecast_status_404' }, 'DWD', 1, 2), null,
+    'only the mark says so: an unmarked 404 raises nothing');
+  assert.strictEqual(notices.noticeForFailure({ stage: 'forward_geocode', code: 'status_404', noCoverage: true }, 'DWD', 1, 2),
+    null, 'and only in the provider\'s own stage');
+
+  var providerFactory = require('../../../src/pkjs/weather/adapter/provider-factory.js');
+  var utf8 = require('../../../src/pkjs/lib/utf8.js');
+  providerFactory.PROVIDER_IDS.forEach(function (id) {
+    var p = providerFactory.createProvider(id, {});
+    var named = notices.noticeForFailure({ stage: 'provider_data', code: id + '_status_404', noCoverage: true },
+      p.name, 1, 2, p.shortName);
+    assert.strictEqual(named.watch, (p.shortName || p.name) + ' has no data here', id + ' is named on the watch');
+    assert.ok(utf8.byteLength(named.watch) <= notices.WATCH_TEXT_MAX_BYTES, id + ': "' + named.watch + '" fits');
+    assert.ok(named.html.indexOf('<b>' + p.name + '</b>') === 0, id + ': the panel names it in full');
+  });
+});
+
+test('applyFailure: the coverage notice\'s line goes on the watch from the second 404 in a row, over a fresh forecast too', function () {
+  global.localStorage.clear();
+  var ctx = { providerName: 'Brightsky (Deutscher Wetterdienst)', watchName: 'DWD', failedUpdates: 1, now: 5,
+    forecastFresh: true };
+  var noData = { stage: 'provider_data', code: 'dwd_forecast_status_404', noCoverage: true };
+  notices.applyFailure({ stage: 'coordinates', code: 'gps_1', reason: 'off' }, ctx);
+  assert.strictEqual(notices.applyFailure(noData, ctx), null, 'the first: nothing goes to the watch');
+  assert.deepStrictEqual(notices.list(), [], 'and the panel lists nothing either');
+  ctx.failedUpdates = 2;
+  assert.strictEqual(notices.applyFailure(noData, ctx), 'DWD has no data here');
+  assert.deepStrictEqual(notices.list().map(function (n) { return n.key; }), ['coverage'],
+    'past the GPS step: it takes the location notice\'s place');
+  notices.clearErrors();
+  assert.deepStrictEqual(notices.list(), [], 'an error notice, so a successful update clears it');
+});
+
+test('noticeForFailure: the neutral notice\'s watch line fits the watch for every provider, the panel keeps the full name', function () {
+  var providerFactory = require('../../../src/pkjs/weather/adapter/provider-factory.js');
+  var utf8 = require('../../../src/pkjs/lib/utf8.js');
+  assert.ok(providerFactory.PROVIDER_IDS.length >= 7, 'every registered provider');
+  providerFactory.PROVIDER_IDS.forEach(function (id) {
+    var p = providerFactory.createProvider(id, {});
+    var failures = [
+      { stage: 'provider_data', code: id + '_status_503' },
+      { stage: 'provider_data', code: id + '_status_401', retryAfterMs: 3600000 }
+    ];
+    failures.forEach(function (f) {
+      var n = notices.noticeForFailure(f, p.name, 1, 2, p.shortName);
+      assert.ok(utf8.byteLength(n.watch) <= notices.WATCH_TEXT_MAX_BYTES,
+        id + ': "' + n.watch + '" fits ' + notices.WATCH_TEXT_MAX_BYTES + ' B');
+      assert.match(n.watch, / not answering$/, id);
+      assert.notStrictEqual(n.watch, 'Weather not answering', id + ' is named on the watch');
+      assert.ok(n.html.indexOf('<b>' + p.name + '</b>') === 0, id + ': the panel names it in full');
+    });
+  });
+  var dwd = notices.noticeForFailure({ stage: 'provider_data', code: 'dwd_status_503' },
+    'Brightsky (Deutscher Wetterdienst)', 1, 2, 'DWD');
+  assert.strictEqual(dwd.watch, 'DWD not answering');
+  assert.strictEqual(notices.noticeForFailure({ stage: 'provider_data', code: 'x_status_503' },
+    'Brightsky (Deutscher Wetterdienst)', 1, 2).watch, 'Weather not answering',
+    'a name too long for the watch, without a short one, falls back to a generic line');
+  assert.strictEqual(notices.noticeForFailure({ stage: 'provider_data', code: 'x_status_503' }, '', 1, 2).watch,
+    'Weather not answering');
+});
+
+test('noticeForFailure: a provider\'s own retry delay raises the neutral notice at once, saying when it retries', function () {
+  var wu = notices.noticeForFailure({ stage: 'provider_data', code: 'wu_current_status_401', retryAfterMs: 3600000 },
+    'Weather Underground', 900, undefined, 'Wunderground');
+  assert.deepStrictEqual(wu, {
+    key: 'unavailable', type: 'error', watch: 'Wunderground not answering', whenStale: true, since: 900,
+    html: '<b>Weather Underground</b> is not answering. The watch tries again in about an hour.'
+  });
+  assert.ok(notices.noticeForFailure({ stage: 'provider_data', code: 'x', retryAfterMs: 30 * 60000 }, 'X', 1)
+    .html.indexOf('in about 30 minutes') !== -1);
+});

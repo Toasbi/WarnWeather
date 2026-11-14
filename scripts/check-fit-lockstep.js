@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Lockstep between the watch's layout engine and the phone's fit check. Reads the lines
 // test/c/fit_lockstep_dump.c prints — each custom shape laid out by src/c/windows/layout.c
-// in one data state — and checks src/pkjs/view-cycle.js agrees on every one:
+// in one data state — and checks src/pkjs/layout/domain/view-cycle.js agrees on every one:
 //   N <need>  stackNeed of the phone-resolved view (resolveForFit) equals the watch's height;
 //   F <0|1>   a fill band: the phone's verdict (need <= avail) equals whether the watch's fill
 //             band kept its floor;
 //   C <need>  the watch reached the floor: the phone never budgets less than it placed.
-//   R ...     every band where the watch placed it equals settings/watch-layout.js stackLayout's band,
+//   R ...     every band where the watch placed it equals page/layout/watch-layout.js stackLayout's band,
 //             which the settings page draws its pictures of the watch on (the clock's ink as
 //             the dump's metrics give it).
 // Run by scripts/test-c.sh for both screen families; any disagreement fails the build, so the
@@ -14,8 +14,8 @@
 // does), and the page never draws a band where the watch does not.
 'use strict';
 const fs = require('fs');
-const vc = require('../src/pkjs/view-cycle.js');
-const wl = require('../src/pkjs/settings/watch-layout.js');
+const vc = require('../src/pkjs/layout/domain/view-cycle.js');
+const wl = require('../src/pkjs/page/layout/watch-layout.js');
 
 const MIN_LINES = 40000;   // both families; a truncated or empty dump must not pass
 const MIN_RECTS = 40000;

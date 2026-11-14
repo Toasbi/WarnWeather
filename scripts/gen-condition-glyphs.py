@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the weather condition slot's glyphs (src/pkjs/weather/condition.js).
+"""Generate the weather condition slot's glyphs (src/pkjs/weather/domain/condition.js).
 
 Each glyph is composed from Tabler Icons outline shapes (https://tabler.io/icons, MIT License,
 Copyright (c) 2020-2024 Pawel Kuna), the family every other status glyph comes from, plus the

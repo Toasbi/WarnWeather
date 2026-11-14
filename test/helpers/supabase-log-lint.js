@@ -1,6 +1,6 @@
 // test/helpers/supabase-log-lint.js — the static half of AGENTS.md's "Privacy in Supabase
 // requests and logs" rule for the edge functions (supabase/functions/**), used by
-// test/supabase-log-hygiene.test.js. Supabase keeps every line a function prints
+// test/repo/supabase-log-hygiene.test.js. Supabase keeps every line a function prints
 // (function_logs), the Deno runtime prints an uncaught error's message and stack there, and the
 // gateway logs the full URL of every PostgREST call a function makes. So a function logs only
 // through its log.ts (a fixed tag plus at most a machine code), nothing it throws carries
@@ -23,7 +23,7 @@
 // It is not a type checker: it trusts a name declared `: LogTag` or `= safeCode(…)` in the same
 // file. The Deno suites pin the runtime half (log lines are 'tag[ code]'; a throw logs
 // 'unhandled'; no personal data in any URL supabase-js builds). The self-test in
-// test/supabase-log-hygiene.test.js pins what this catches and what it must leave alone.
+// test/repo/supabase-log-hygiene.test.js pins what this catches and what it must leave alone.
 'use strict';
 
 // Longest first, so '>>>=' wins over '>>' and '...' over '.'.

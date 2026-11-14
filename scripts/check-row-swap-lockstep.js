@@ -2,13 +2,13 @@
 // Lockstep between the watch's status row layout, the short forms the slots brought swapped
 // in, and the settings page's copy. Reads the lines test/c/row_swap_dump.c prints (three
 // slots' measures laid out in a row width by src/c/layers/status_row_layout.c
-// status_row_swap_short_forms) and checks src/pkjs/settings/preview-watch.js swapShortForms
+// status_row_swap_short_forms) and checks src/pkjs/page/layout/preview-watch.js swapShortForms
 // swaps the same slots and places every slot where the watch does. Run by scripts/test-c.sh;
 // a disagreement fails it, so the Status bars tab's pictures never show a short form where
 // the watch draws the whole name, or a slot where the watch doesn't.
 'use strict';
 const fs = require('fs');
-const pw = require('../src/pkjs/settings/preview-watch.js');
+const pw = require('../src/pkjs/page/layout/preview-watch.js');
 
 const MIN_LINES = 40000;   // a truncated or empty dump must not pass
 

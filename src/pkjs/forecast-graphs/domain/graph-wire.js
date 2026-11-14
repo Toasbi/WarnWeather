@@ -1,0 +1,243 @@
+// src/pkjs/forecast-graphs/domain/graph-wire.js — ES5, phone only (PKJS and the Node tests; not in the
+// settings-page bundle, whose previews read the settings, never the bytes). The graph's
+// three settings-derived Clay tuples: the forecast's and the radar's packed bar palettes
+// (BAR_PALETTE_UINT8, RADAR_PALETTE_UINT8) and the line styling (CLAY_LINE_STYLE_UINT8).
+// THE one packer, for the Clay settings send (clay-payload.js) and the dev fixture send
+// (fixture-weather.js), so the two cannot drift.
+//
+// The readings live elsewhere and are shared with the settings page: line-style.js
+// resolves the graph colours and the style bytes, draw-from.js reads Draw from / Bars
+// from, rain-tier.js builds the palettes. This file asks them about one watch, whose
+// capabilities come from config-ui's computeEnv (the platform table the page's env is
+// built from too), and encodes the answers.
+//
+// THE DRAW FROM BITS (Clay message only; no new tuple, no new length). A line's Draw
+// from: Top is bit 5 of its own style byte (CLAY_LINE_STYLE_UINT8 [9], [10], [11], [13];
+// persist.h LINE_STYLE_FROM_TOP), its float bit bit 6 (persist.h LINE_STYLE_FLOATING): the
+// encoder's bytes never reach either (kinds 0-3, width 0/1/3 in bits 2-4), and the watch's
+// decode of the style reads only bits 0-4. A chart's Bars from: Top is bit 7 of byte [1]
+// of its palette blob: stop 0's threshold, which rain-tier.js always starts at 0, so the
+// watch reads the flag as a negative stop-0 threshold (palette.h palette_from_top) and its
+// renderer clamps that stop to the zero row as it always has. With every key on Bottom
+// (or on aplite, which never gets a bit) both tuples are byte-identical to the build
+// before the setting, save the float bit on a drawn pressure, feels-like or dew point line.
+
+var rainTier = require('./rain-tier.js');
+var resolveInk = require('../../theme/domain/resolve-ink.js');
+var lineStyle = require('./line-style.js');
+var drawFrom = require('./draw-from.js');
+var platforms = require('../../config-ui/lib/platform.js');
+
+// Line-style flag byte (wire byte [3]), bit 0: the secondary line's area fill is on.
+var FLAG_SECONDARY_FILL = 0x01;
+// persist.h LINE_STYLE_FROM_TOP: bit 5 of a non-stripe line's style byte.
+var LINE_BIT = 0x20;
+// persist.h LINE_STYLE_FLOATING: bit 6 of a non-stripe line's style byte.
+var FLOAT_BIT = 0x40;
+// palette.h: bit 7 of a palette blob's byte [1] (stop 0's threshold, its bit 15).
+var PALETTE_BIT = 0x80;
+// Fixed vertical inset for the temperature axis (px) — the watch's
+// BOTTOM_VIEW_PRIMARY_LINE_INSET_Y. Deliberately NOT a user setting; the wire
+// carries one byte per series (five) so feels-like and dew point inherit it only
+// on the lines where they are selected.
+var CURVE_INSET_PX = 7;
+
+/**
+ * A packed line-style byte with the edge its line is drawn from: the Top flag (LINE_BIT)
+ * for TOP, the float bit (FLOAT_BIT) for FLOAT, neither for BOTTOM or null.
+ * @param {number} byte line-style.js lineStyleByte output.
+ * @param {?string} edge draw-from.js lineEdge: TOP, BOTTOM, FLOAT or null.
+ * @returns {number}
+ */
+function styleByte(byte, edge) {
+    if (edge === drawFrom.TOP) { return byte | LINE_BIT; }
+    return edge === drawFrom.FLOAT ? (byte | FLOAT_BIT) : byte;
+}
+
+/**
+ * A packed palette blob with its Bars from: Top flag (PALETTE_BIT in byte [1]) set
+ * when `on`: a marked copy, the blob itself otherwise.
+ * @param {number[]} blob rain-tier.js buildPackedPalette output (3 B per stop).
+ * @param {boolean} on The chart's bars hang from the top (draw-from.js barsFromTop).
+ * @returns {number[]}
+ */
+function markPalette(blob, on) {
+    if (!on || !blob || blob.length < 2) { return blob; }
+    var out = blob.slice();
+    out[1] = out[1] | PALETTE_BIT;
+    return out;
+}
+
+/**
+ * The packed palette tuples for both channels. Bars follow rainBarColor, the rain radar
+ * follows radarColor; each is an independent GColor8 blob (3 B per stop).
+ *
+ * The absent-key fallback is DEFENSIVE, not a live path: both keys carry a static
+ * schema defaultValue, so seedDefaults writes them on first boot, and the light theme
+ * is only reachable through a settings save that writes both concretely. It goes
+ * through barColorDefault anyway so the dark default is not spelled out a third time,
+ * and so an absent key would resolve to the right polarity rather than silently to
+ * multicolor if the seeding ever changes.
+ *
+ * Each blob also carries its chart's Bars from: Top (rainBarFrom, radarBarFrom) in bit 7
+ * of its byte [1] (markPalette; see the header). Never on aplite, and with Bottom the
+ * blobs are byte-identical to the ones sent before the setting existed.
+ *
+ * @param {Object} settings Clay settings (rainBarColor/radarColor/theme, rainBarFrom/
+ *   radarBarFrom).
+ * @param {Object|null} watchInfo Active watch info (platform read for packing).
+ * @returns {{BAR_PALETTE_UINT8: number[], RADAR_PALETTE_UINT8: number[]}} Packed tuples.
+ */
+function buildPaletteTuples(settings, watchInfo) {
+    var platform = watchInfo ? watchInfo.platform : 'basalt';
+    var resolved = settings || {};
+    var theme = resolved.theme || 'dark';
+    var env = platforms.computeEnv(watchInfo);
+    return {
+        BAR_PALETTE_UINT8: markPalette(
+            rainTier.buildPackedPalette(platform, resolveInk.barColorMode(resolved.rainBarColor, theme), theme),
+            drawFrom.barsFromTop(resolved, 'rain', env)),
+        RADAR_PALETTE_UINT8: markPalette(
+            rainTier.buildPackedPalette(platform, resolveInk.barColorMode(resolved.radarColor, theme), theme),
+            drawFrom.barsFromTop(resolved, 'radar', env))
+    };
+}
+
+/**
+ * Pack the line styling for the Clay wire — FOURTEEN bytes:
+ *
+ *   [0] main-metric line colour    (GColor8 argb)
+ *   [1] area fill colour           (GColor8 argb)
+ *   [2] second-metric line colour  (GColor8 argb)
+ *   [3] line flags — bit 0 = fill on
+ *   [4] full-height night hatch    (GColor8 argb)  ┐ bytes [4..7] are byte-for-byte
+ *   [5] day line at midnight       (GColor8 argb)  │ the watch's NIGHT_COLORS persist
+ *   [6] night-area underlay base   (GColor8 argb)  │ blob (NIGHT_COLOR_BYTES = 4);
+ *   [7] night-area hatch           (GColor8 argb)  ┘ app_message.c stores them through.
+ *   [8] third-metric line colour   (GColor8 argb)
+ *   [9] main-metric line style     ┐ bytes [9..11] are byte-for-byte the watch's
+ *   [10] second-metric line style  │ LINE_STYLES persist blob (kind | width << 2 —
+ *   [11] third-metric line style   ┘ see line-style.js LINE_STYLE_KINDS; persist.h).
+ *   [12] fourth-metric line colour (GColor8 argb)  ┐ the third tail block:
+ *   [13] fourth-metric line style  (kind | field)  ┘ FIFTH_LINE_COLOR / _STYLE.
+ *
+ * Each style byte [9], [10], [11], [13] also carries its line's Draw from: Top in
+ * bit 5 (LINE_BIT) and in bit 6 whether the drawn line floats, anchoring no edge of the
+ * graph (FLOAT_BIT: pressure, feels-like, dew point); bit 7 stays 0. Neither is ever set
+ * on a stripe or on aplite, so with every Draw from on Bottom and no floating line drawn
+ * the bytes are the ones this function always sent.
+ *
+ * The colours are line-style.js resolveGraphColors' answer for this watch, the one
+ * resolution the settings preview runs too (ADR-0003 §8). rgbToGColor8 matches Pebble's
+ * GColorFromHEX exactly, so the pixel is identical to sending the full 0xRRGGBB. The
+ * watch treats everything past byte [3] as OPTIONAL tail blocks (its length checks are
+ * minimums, one per block), so a shorter tuple still applies in full — which is the
+ * rule for growing this: append a block plus its own length check,
+ * never widen the minimum. ADR-0003 §7. Bytes [8..13] ship to every watch — aplite has
+ * no parse arm for them and simply ignores the tail, exactly as pre-feature watches
+ * ignore bytes they postdate.
+ *
+ * @param {Object} settings Clay settings blob.
+ * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null (an unknown
+ *   watch reads capable, as computeEnv does).
+ * @returns {number[]} The fourteen bytes above.
+ */
+function buildLineStyleBytes(settings, watchInfo) {
+    var env = platforms.computeEnv(watchInfo);
+    var s = lineStyle.resolveGraphColors(settings, env);
+    /**
+     * One line's style byte with its Draw from flag and its float bit.
+     * @param {string} lineKey secondaryLine|thirdLine|fourthLine|fifthLine.
+     * @returns {number} lineStyleByte, bit 5 set while the line hangs from the top, bit 6
+     *   while it is drawn but anchors no edge (pressure, feels-like, dew point).
+     */
+    function styleWithFrom(lineKey) {
+        return styleByte(lineStyle.lineStyleByte(settings, lineKey + 'Style'),
+            drawFrom.lineEdge(settings, lineKey, env));
+    }
+    return [
+        rainTier.rgbToGColor8(s.secondary),
+        rainTier.rgbToGColor8(s.fill),
+        rainTier.rgbToGColor8(s.third),
+        s.fillOn ? FLAG_SECONDARY_FILL : 0,
+        rainTier.rgbToGColor8(s.night.hatch),
+        rainTier.rgbToGColor8(s.night.dayLine),
+        rainTier.rgbToGColor8(s.night.areaBase),
+        rainTier.rgbToGColor8(s.night.areaHatch),
+        rainTier.rgbToGColor8(s.fourth),
+        styleWithFrom('secondaryLine'),
+        styleWithFrom('thirdLine'),
+        styleWithFrom('fourthLine'),
+        rainTier.rgbToGColor8(s.fifth),
+        styleWithFrom('fifthLine')
+    ];
+}
+
+/**
+ * One forecast line's curve-inset byte: the temp curve's inset for a
+ * temperature-axis metric (feels, dew), 0 (full-height) for every other metric.
+ * @param {Object} settings Clay settings (raw — see buildCurveInsetBytes).
+ * @param {string} key secondaryLine|thirdLine|fourthLine|fifthLine.
+ * @returns {number} Inset in px.
+ */
+function lineCurveInset(settings, key) {
+    return lineStyle.isTempAxisMetric(settings[key]) ? CURVE_INSET_PX : 0;
+}
+
+/**
+ * The CLAY_CURVE_INSET_UINT8 tuple (clay-payload.js; a graph style record carries the same
+ * five bytes, forecast-graphs/domain/graph-style-wire.js): the forecast graph's value-mapped lines' vertical
+ * insets, render-ready in px, in the watch's Series id order: [SERIES_FIRST (temp),
+ * SERIES_SECOND (main metric), SERIES_THIRD (second metric), SERIES_FOURTH (third metric),
+ * SERIES_FIFTH (fourth metric)]. The watch stays metric-agnostic — the phone decides here
+ * that feels-like and dew point share the temp curve's offset (the watch then maps them on
+ * the temperature's own scale, temp_axis_pad.h) while every other metric keeps the
+ * full-height mapping. Read from the RAW settings: a line that is off or repeats an earlier
+ * line's pick is not drawn on the watch, so its byte is never read and needs no
+ * effective-metric resolution.
+ * @param {Object} settings Clay settings.
+ * @returns {number[]} The five bytes.
+ */
+function buildCurveInsetBytes(settings) {
+    return [
+        CURVE_INSET_PX,
+        lineCurveInset(settings, 'secondaryLine'),
+        lineCurveInset(settings, 'thirdLine'),
+        lineCurveInset(settings, 'fourthLine'),
+        lineCurveInset(settings, 'fifthLine')
+    ];
+}
+
+/**
+ * The graph's three Clay tuples for one watch, keyed by their AppMessage names. Derived
+ * from the settings blob plus the watch's capabilities alone, never from weather data, so
+ * they ride the Clay message (test/repo/inbox-size.test.js budgets them). Deliberately NOT
+ * platform-gated, unlike the threshold blob or the curve insets: aplite renders the same
+ * two metric lines, so it needs their colours too.
+ * @param {Object} settings Clay settings blob.
+ * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null.
+ * @returns {{BAR_PALETTE_UINT8: number[], RADAR_PALETTE_UINT8: number[],
+ *   CLAY_LINE_STYLE_UINT8: number[]}} The tuples, in that (send) order.
+ */
+function buildGraphTuples(settings, watchInfo) {
+    var palette = buildPaletteTuples(settings, watchInfo);
+    return {
+        BAR_PALETTE_UINT8: palette.BAR_PALETTE_UINT8,
+        RADAR_PALETTE_UINT8: palette.RADAR_PALETTE_UINT8,
+        CLAY_LINE_STYLE_UINT8: buildLineStyleBytes(settings, watchInfo)
+    };
+}
+
+module.exports = {
+    FLAG_SECONDARY_FILL: FLAG_SECONDARY_FILL,
+    LINE_BIT: LINE_BIT,
+    FLOAT_BIT: FLOAT_BIT,
+    PALETTE_BIT: PALETTE_BIT,
+    styleByte: styleByte,
+    markPalette: markPalette,
+    buildPaletteTuples: buildPaletteTuples,
+    buildLineStyleBytes: buildLineStyleBytes,
+    CURVE_INSET_PX: CURVE_INSET_PX,
+    buildCurveInsetBytes: buildCurveInsetBytes,
+    buildGraphTuples: buildGraphTuples
+};

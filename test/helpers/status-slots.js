@@ -1,7 +1,7 @@
 'use strict';
 // A status bar's slots in the settings, for the suites that set one up or read it back. Built
 // from status-line-catalog.js LINES, so a renamed slot key fails here once.
-const catalog = require('../../src/pkjs/status-line-catalog.js');
+const catalog = require('../../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 /**
  * A bar's slot keys, left to right.

@@ -1,0 +1,319 @@
+// src/pkjs/weather/adapter/radar/dwd-radar.js — the DWD/Brightsky composite radar source
+// (renamed from radar.js: the generic-sounding name implied a base layer that
+// never existed — every source is <id>-radar.js behind radar-factory's table).
+// Unlike the point sources it samples a real composite, so the area
+// ("nearby") array carries data and the wire triple is built here, not via
+// radar-wire.pointRadarTuples.
+var radarFetch = require('./radar-fetch.js');
+var wireUnits = require('../../../wire/domain/wire-units.js');
+var clampByte = wireUnits.clampByte;
+var zeroFilledArray = wireUnits.zeroFilledArray;
+var radarWire = require('../../domain/radar/radar-wire.js');
+var radarCoverage = require('../../domain/radar/radar-coverage.js');
+var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
+var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
+
+var BRIGHTSKY_BASE = require('../providers/brightsky.js').BASE_URL;
+var DISTANCE_METERS = 2000;   // must match NEARBY_RADIUS_KM * 1000; Brightsky returns all cells within this radius
+var NEARBY_RADIUS_KM = 2;      // disk radius for the "nearby" max signal; radar grid is ~1 km/cell
+// Trailing slots past the newest nowcast run's horizon that repeat the last
+// frame instead of reading dry (see fetchRadarTuplesAt).
+var HORIZON_HOLD_SLOTS = 2;
+
+/**
+ * Build the URL for the Brightsky /radar request.
+ *
+ * A frame is stamped at the END of its 5 minutes: frame T holds the rain
+ * that fell in [T-5min, T) (Brightsky's RadarParser takes the RV product's
+ * enddate/endtime). Slot i is [slotZero + 5i, slotZero + 5i + 5), so it
+ * needs the frame stamped slotZero + 5(i + 1): the window runs from one
+ * frame past slot 0 through the frame closing the last slot (both bounds
+ * inclusive).
+ *
+ * @param {number} lat Latitude in decimal degrees.
+ * @param {number} lon Longitude in decimal degrees.
+ * @param {number} slotZeroEpoch Slot-0 wall-clock epoch seconds.
+ * @returns {string} Fully-formed request URL.
+ */
+function buildRadarUrl(lat, lon, slotZeroEpoch) {
+    var startIso = new Date((slotZeroEpoch + SLOT_SECONDS) * 1000).toISOString();
+    var endIso = new Date((slotZeroEpoch + NUM_BARS * SLOT_SECONDS) * 1000).toISOString();
+    return BRIGHTSKY_BASE + '/radar'
+        + '?lat=' + lat
+        + '&lon=' + lon
+        + '&distance=' + DISTANCE_METERS
+        + '&date=' + encodeURIComponent(startIso)
+        + '&last_date=' + encodeURIComponent(endIso)
+        + '&format=plain';
+}
+
+/**
+ * Clamp `value` to the integer range [min, max].
+ *
+ * @param {number} value Value.
+ * @param {number} min Lower bound (inclusive).
+ * @param {number} max Upper bound (inclusive).
+ * @returns {number} Clamped value.
+ */
+function clampInt(value, min, max) {
+    if (value < min) { return min; }
+    if (value > max) { return max; }
+    return value;
+}
+
+/**
+ * Bilinear-sample a 2-D grid at sub-pixel coordinates (xy.x, xy.y).
+ *
+ * `grid` is indexed `grid[row][col]` (outer = rows = y, inner = cols = x).
+ * Coordinates outside the grid are clamped so the 2x2 neighbourhood always
+ * lies fully inside.
+ *
+ * @param {number[][]} grid Rectangular 2-D array of numbers.
+ * @param {{x: number, y: number}} xy Sub-pixel position.
+ * @returns {number} Bilinearly interpolated value.
+ */
+function sampleBilinear(grid, xy) {
+    var rows = grid.length;
+    var cols = grid[0].length;
+    var ix = Math.floor(xy.x);
+    var iy = Math.floor(xy.y);
+    var fx = xy.x - ix;
+    var fy = xy.y - iy;
+    var ix0 = clampInt(ix, 0, cols - 1);
+    var ix1 = clampInt(ix + 1, 0, cols - 1);
+    var iy0 = clampInt(iy, 0, rows - 1);
+    var iy1 = clampInt(iy + 1, 0, rows - 1);
+    var v00 = grid[iy0][ix0];
+    var v10 = grid[iy0][ix1];
+    var v01 = grid[iy1][ix0];
+    var v11 = grid[iy1][ix1];
+    return v00 * (1 - fx) * (1 - fy)
+         + v10 * fx       * (1 - fy)
+         + v01 * (1 - fx) * fy
+         + v11 * fx       * fy;
+}
+
+/**
+ * Find the maximum value among all grid cells whose centre lies at or
+ * within `radius` grid units of the sub-pixel position (cx, cy)
+ * (boundary inclusive — matches the `<=` comparison below).
+ *
+ * Distance is computed in squared form to avoid a sqrt per cell. The
+ * helper is O(rows * cols) — fine on the small grids Brightsky returns
+ * (typically 3x3 for distance=1000).
+ *
+ * @param {number[][]} grid Rectangular 2-D array of cell values.
+ * @param {number} cx User sub-pixel column (Brightsky's latlon_position.x).
+ * @param {number} cy User sub-pixel row    (Brightsky's latlon_position.y).
+ * @param {number} radius Disk radius in grid units (1 grid unit ≈ 1 km).
+ * @returns {number} Max cell value among cells inside the disk; 0 if none qualify.
+ */
+function maxOverDisk(grid, cx, cy, radius) {
+    var rows = grid.length;
+    var cols = grid[0].length;
+    var r2 = radius * radius;
+    var best = 0;
+    var j;
+    var i;
+    var dx;
+    var dy;
+    var v;
+    for (j = 0; j < rows; j += 1) {
+        for (i = 0; i < cols; i += 1) {
+            dx = i - cx;
+            dy = j - cy;
+            if (dx * dx + dy * dy <= r2) {
+                v = grid[j][i];
+                if (v > best) {
+                    best = v;
+                }
+            }
+        }
+    }
+    return best;
+}
+
+/**
+ * Convert a radar cell value (0.01 mm per 5 min) into the watch's wire
+ * format for rain bars: uint8 representing mm/h * 10.
+ *
+ * Factor: 0.01 mm/5min * 12 (5min/h) * 10 = v * 1.2.
+ * Saturates at 255 (= 25.5 mm/h).
+ *
+ * @param {number} v Radar cell value in 0.01 mm / 5 min.
+ * @returns {number} Integer in [0, 255].
+ */
+function scaleToWireUnits(v) {
+    return clampByte(v * 1.2);
+}
+
+/**
+ * Default sub-pixel position when the response omits latlon_position.
+ * Falls back to the geometric centre of the supplied grid so we still
+ * return a sensible value rather than failing the whole fetch.
+ *
+ * @param {number[][]} grid Reference grid (used only for its dimensions).
+ * @returns {{x: number, y: number}} Centre sub-pixel coordinates.
+ */
+function gridCentre(grid) {
+    var rows = grid.length;
+    var cols = grid[0].length;
+    return {
+        x: (cols - 1) / 2,
+        y: (rows - 1) / 2
+    };
+}
+
+/**
+ * Sample one radar frame's precipitation grid into an (exact, nearby) pair in
+ * wire units (uint8, mm/h * 10). Returns null for a missing/malformed frame so
+ * the caller can leave that slot at its (0, 0) default instead of aborting.
+ *
+ * @param {Object} frame One body.radar frame (carries the precipitation_5 grid).
+ * @param {{x: number, y: number}} xy Cell position from latlon_position.
+ * @param {boolean} hasXy Whether xy is usable; falls back to the grid centre.
+ * @returns {{exact: number, nearby: number}|null} Wire-unit pair, or null to skip.
+ */
+function sampleFrame(frame, xy, hasXy) {
+    if (!frame) {
+        return null;
+    }
+    var grid = frame.precipitation_5;
+    if (!Array.isArray(grid) || grid.length === 0 || !Array.isArray(grid[0]) || grid[0].length === 0) {
+        return null;
+    }
+    var samplePos = hasXy ? xy : gridCentre(grid);
+    var exactRaw = sampleBilinear(grid, samplePos);
+    var nearbyRaw = maxOverDisk(grid, samplePos.x, samplePos.y, NEARBY_RADIUS_KM);
+    // Invariant guard. A pure disk-max can fall below the bilinear sample at
+    // corner sub-pixel positions, where the bilinear's diagonal neighbour sits
+    // ~sqrt(2) km away (outside the 1 km disk) yet still carries a small weight.
+    // Folding exactRaw into nearbyRaw keeps the UI invariant `nearby >= exact`
+    // true for every frame.
+    if (exactRaw > nearbyRaw) {
+        nearbyRaw = exactRaw;
+    }
+    return { exact: scaleToWireUnits(exactRaw), nearby: scaleToWireUnits(nearbyRaw) };
+}
+
+/**
+ * The slot a frame fills: the one its 5 minutes cover, by its timestamp
+ * (the END of those minutes — see buildRadarUrl). By timestamp, not by
+ * position, so a frame Brightsky skips cannot slide every later one a
+ * slot early. A frame with no readable timestamp falls back to its
+ * position in the requested window, which starts at slot 0's frame.
+ *
+ * @param {Object} frame One body.radar frame.
+ * @param {number} index The frame's position in body.radar.
+ * @param {number} slotZeroEpoch Slot-0 wall-clock epoch seconds.
+ * @returns {number} Slot index (may fall outside 0..NUM_BARS-1).
+ */
+function frameSlot(frame, index, slotZeroEpoch) {
+    var ms = frame && typeof frame.timestamp === 'string' ? Date.parse(frame.timestamp) : NaN;
+    if (!isFinite(ms)) {
+        return index;
+    }
+    var offset = Math.round(ms / 1000) - slotZeroEpoch;
+    if (offset % SLOT_SECONDS !== 0) {
+        return -1;   // off the 5-min grid: no slot is its
+    }
+    return offset / SLOT_SECONDS - 1;
+}
+
+/**
+ * Fetch 2-hour DWD rain-radar tuples for pre-resolved coordinates — the one
+ * seam every radar source exports (radar-factory). Coordinates come from the
+ * single per-cycle acquisition in the orchestrator. A place outside DWD's
+ * composite (radar-coverage.js: a box around Germany) gets no request: the
+ * out-of-coverage answer, so the watch says "DWD radar: Germany only". A
+ * 404 from a point inside the box is a miss (radar-coverage.js): Brightsky has
+ * no radar picture there (off the grid: Paris, Vienna) or hiccuped. The first
+ * calls back null; from the second in a row the answer is the clear carrying
+ * "DWD: no radar data" (radarWire.outOfCoverageRadarTuples), until an answer
+ * with radar data ends the run. Any other parse/transport failure or missing
+ * fields calls back null (transient: the watch keeps and self-advances its
+ * last window — see radar-fetch.js) and leaves a run of misses as it is; an
+ * empty frame list ships the flat 24-zero signal.
+ *
+ * @param {number} lat Latitude in decimal degrees.
+ * @param {number} lon Longitude in decimal degrees.
+ * @param {number} slotZeroEpoch The 5-min pinned slot-0 epoch.
+ * @param {Function} callback Receives the radar tuples object, or null.
+ * @returns {void}
+ */
+function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
+    if (radarCoverage.isOutside('dwd', lat, lon)) {
+        console.log('DWD radar: the location is outside its coverage, no request');
+        callback(radarWire.outOfCoverageRadarTuples(radarCoverage.watchText('dwd')));
+        return;
+    }
+    radarFetch.fetchRadarJson({
+        url: buildRadarUrl(lat, lon, slotZeroEpoch),
+        label: 'DWD',
+        onTransportError: function (error, cb) {
+            if (!error || error.code !== 'status_404') { return false; }
+            if (radarCoverage.countMiss('dwd')) {
+                console.log('[!] DWD radar: 404 again, no radar data for this location');
+                cb(radarWire.outOfCoverageRadarTuples(radarCoverage.noDataText('dwd')));
+            } else {
+                console.log('[!] DWD radar: 404, taken as transient this once');
+                cb(null);
+            }
+            return true;
+        }
+    }, function (body) {
+        if (!body || !Array.isArray(body.radar)) {
+            console.log('[!] DWD radar: missing fields');
+            return null;
+        }
+        // Brightsky answered with radar data for the place (frames, or none for this
+        // window): a run of 404s is over.
+        radarCoverage.endMisses('dwd');
+        if (body.radar.length === 0) {
+            // No frames for this window — a flat signal rather than a failure.
+            return radarWire.flatRadarTuples(slotZeroEpoch);
+        }
+        var frames = body.radar;
+        var xy = body.latlon_position;
+        var hasXy = Boolean(xy && isFinite(xy.x) && isFinite(xy.y));
+        var exactOut = zeroFilledArray(NUM_BARS);
+        var nearbyOut = zeroFilledArray(NUM_BARS);
+        var last = -1;
+        var i;
+        var slot;
+        var sampled;
+        for (i = 0; i < frames.length; i += 1) {
+            slot = frameSlot(frames[i], i, slotZeroEpoch);
+            if (slot < 0 || slot >= NUM_BARS) {
+                continue;
+            }
+            sampled = sampleFrame(frames[i], xy, hasXy);
+            // A malformed frame contributes a (0, 0) pair (the zero-filled
+            // default) rather than aborting the whole fetch.
+            if (sampled === null) {
+                continue;
+            }
+            exactOut[slot] = sampled.exact;
+            nearbyOut[slot] = sampled.nearby;
+            if (slot > last) { last = slot; }
+        }
+        // The last frame (slot 23's, stamped slotZero + 2 h) exists only
+        // once the nowcast run stamped slotZero is out: each run reaches 2 h
+        // ahead, and a fetch usually lands before it. Read as dry, that
+        // missing tail would cut a shower short at the window's edge, so
+        // the last frame's reading holds for up to HORIZON_HOLD_SLOTS.
+        for (slot = last + 1; last >= 0 && slot < NUM_BARS && slot <= last + HORIZON_HOLD_SLOTS; slot += 1) {
+            exactOut[slot] = exactOut[last];
+            nearbyOut[slot] = nearbyOut[last];
+        }
+        return {
+            RAIN_RADAR_TREND_UINT8: exactOut,
+            RAIN_RADAR_TREND_AREA_UINT8: nearbyOut,
+            RAIN_RADAR_START: slotZeroEpoch
+        };
+    }, callback);
+}
+
+module.exports = {
+    fetchRadarTuplesAt: fetchRadarTuplesAt
+};

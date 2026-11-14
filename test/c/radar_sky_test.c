@@ -1,6 +1,6 @@
 // Host-side pin of the radar sky blob decode (radar_sky.h): the phone's
 // radar-sky.js packSky writes it and the watch reads it back with these
-// inlines. The literal blob below mirrors test/radar-sky.test.js's packSky pin,
+// inlines. The literal blob below mirrors test/weather/domain/radar/radar-sky.test.js's packSky pin,
 // so the two ends of the wire cannot drift apart without one suite failing.
 #include <assert.h>
 #include <stdio.h>

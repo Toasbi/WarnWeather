@@ -8,7 +8,7 @@ const path = require('node:path');
 const { LIB_PAGE_FILES } = require('../scripts/build-page.js');
 // Shared dual-use modules must populate global.PConf before engine.js reads PConf.color/schemaWalk/showWhen.
 require('../lib/schema-walk.js');
-require('../lib/color.js');
+require('../../lib/color.js');
 require('../lib/show-when.js');
 const E = require('../lib/engine.js');
 
@@ -513,7 +513,7 @@ test('renderBody: a staticText with style info renders boxed, with its own class
   const rule = shell.match(/\.static\.info \.info-box \{([^}]*)\}/);
   assert.ok(rule, 'shell.html styles the box');
   // The amber comes from two theme variables the notice panel's info item shares
-  // (test/notices-panel.test.js pins that side). The text colour is explicit: a
+  // (test/page/notices/notices-panel.test.js pins that side). The text colour is explicit: a
   // tight-joined box would otherwise take the hint grey, too faint on the dark amber.
   ['background: var(--info-tint)', 'border-left: 3px solid var(--info-rule)', 'border-radius: 6px',
     'color: var(--static)']
@@ -592,7 +592,7 @@ test('renderSelectModal: duplicate messageKey resolves the VISIBLE block (theme 
     const html = E.renderSelectModal(SCH, cx);
     return (html.match(/data-select-pick="([^"]*)"/g) || []).map((s) => s.replace(/data-select-pick="|"/g, ''));
   }
-  // Color platform (basalt/chalk/emery): the visible block is the 4-option one — B&W + B&W Inverted must appear.
+  // Color platform (basalt/emery): the visible block is the 4-option one — B&W + B&W Inverted must appear.
   assert.deepEqual(modalPicks({ color: true, themePolarity: true }), ['dark', 'light', 'bw', 'bw-light']);
   // B/W platform with polarity (diorite/flint): the visible block is the 2-option one.
   assert.deepEqual(modalPicks({ color: false, themePolarity: true }), ['dark', 'light']);
@@ -2391,13 +2391,13 @@ test('boot(): a color swatch goes through setValue, so it fires the item\'s onCh
 });
 
 test('boot(): onLoad hook context exposes the injected platform environment', () => {
-  const env = { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false };
+  const env = { color: false, platform: 'aplite', health: false, radar: false, themePolarity: false };
   const result = bootWithCapturedListeners(THEME_SCHEMA, env);
   assert.strictEqual(result.loadEnv, env);
 });
 
 test('boot(): picking a modal option fires the item\'s registered onChange hook (replaces the native <select> change path)', () => {
-  const { modalListeners, onChange } = bootWithCapturedListeners(THEME_SCHEMA, { color: true, round: false, platform: 'basalt' });
+  const { modalListeners, onChange } = bootWithCapturedListeners(THEME_SCHEMA, { color: true, platform: 'basalt' });
   let captured = null;
   onChange.register('themeConvert', (S, oldV, newV, env, key) => { captured = { oldV, newV, sTheme: S.theme, key }; });
 
@@ -2605,7 +2605,7 @@ test('boot(): modal live-search on an optionsFrom searchSelect resolves options 
     { type: 'searchSelect', messageKey: 'region', label: 'Region', defaultValue: 'all',
       optionsFrom: { byKey: 'country', map: { DE: [['Whole country','all'],['Bavaria','DE-BY']] } } }
   ] }] }] };
-  const { modalListeners, sselList } = bootWithCapturedListeners(schema, { color: true, round: false, platform: 'basalt' });
+  const { modalListeners, sselList } = bootWithCapturedListeners(schema, { color: true, platform: 'basalt' });
   assert.equal(typeof modalListeners.input, 'function', 'a modal input listener was wired');
   const fakeSearch = { getAttribute: (a) => (a === 'data-select-search' ? 'region' : null), value: 'bav', closest: (sel) => (sel === '[data-select-search]' ? fakeSearch : null) };
   assert.doesNotThrow(() => {
@@ -2635,7 +2635,7 @@ test('resolveTheme: auto follows prefers-color-scheme, unknown falls back to dar
 });
 
 test('hydrate: configTheme defaults to auto when absent from the saved blob', () => {
-  const schema = require('../../settings/schema.js');
+  const schema = require('../../page/settings/schema.js');
   const S = E.hydrate(schema, {});
   assert.equal(S.configTheme, 'auto');
 });
@@ -3178,7 +3178,7 @@ test('single range: the dual and threshold variants are untouched', () => {
   assert.match(dual, /data-lo="2" data-hi="8"/);
 });
 
-// ── Graph styles' engine hooks (src/pkjs/settings/graph-styles-page.js holds a style's values
+// ── Graph styles' engine hooks (src/pkjs/page/forecast-graphs/graph-styles-page.js holds a style's values
 // in the flat keys while its dialog is open): onRender, normalize, gotoTab.
 
 test('boot(): an onRender hook runs first in every render, told the tab and the pane on screen', () => {

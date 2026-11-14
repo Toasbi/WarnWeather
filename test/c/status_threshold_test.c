@@ -341,7 +341,7 @@ static void bold_tests(void) {
     // the only widening since is 1.24.0's 34 -> 48 (the rain look, the Battery
     // item byte, the two warn-look bytes and the ten On demand cells) — every
     // extra byte rides the Clay message on every settings send (see
-    // test/inbox-size.test.js).
+    // test/repo/inbox-size.test.js).
     expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 48);
     expect("bold.kind_count_pinned", THRESH_KIND_COUNT, 21);
     // Byte 33 is FULL — kinds 16..19 claim all four cells — and the alert bytes

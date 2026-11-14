@@ -1,0 +1,277 @@
+var WeatherProvider = require('../../application/provider.js');
+var failure = WeatherProvider.failure;
+
+var hourlyWindow = require('../../domain/hourly-window.js');
+var condition = require('../../domain/condition.js');
+var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
+var YANDEX_ENDPOINT = 'https://api.weather.yandex.ru/graphql/query';
+
+// The failure codes a GraphQL query Yandex rejects comes back as: an HTTP 400, or a
+// 200 whose body holds errors and no data (requestMapped's missing fields).
+var REJECTED_QUERY_CODES = ['yandex_status_400', 'yandex_missing_fields'];
+
+// Set once Yandex has rejected the query with the condition field and taken it
+// without: later fetches of this app run leave the field out.
+var conditionRejected = false;
+
+/**
+ * Build the Yandex Weather GraphQL query. Units are requested server-side
+ * (FAHRENHEIT, KILOMETERS_PER_HOUR) so mapResponse does zero conversion, and
+ * days(limit: 3) guarantees >=24 future hourly buckets even late in the day
+ * (a distant day's hours list may be shorter than 24). A window past 24 h
+ * (emery's 26 or 68) asks for 4 days: limit 4 holds 1 + 3 × 24 = 73 hours at the
+ * latest anchor (the location's 23:00), past the 69 the long window and the bucket
+ * after it read (72 on a 23 h DST day). A short distant day's list just makes
+ * the feed short, and the watch widens its pitch to fill the plot.
+ * Coordinates are embedded as unquoted numeric literals (GraphQL Float), never
+ * quoted strings.
+ *
+ * @param {number|string} lat Latitude.
+ * @param {number|string} lon Longitude.
+ * @param {number} [hours] The graph's window (hourly-window.js windowHours); 24
+ *   when absent.
+ * @param {boolean} [withoutCondition] True leaves the condition field out.
+ * @returns {string} GraphQL query string.
+ */
+function buildQuery(lat, lon, hours, withoutCondition) {
+    var latNum = Number(lat);
+    var lonNum = Number(lon);
+    return '{ weatherByPoint(request: {lat: ' + latNum + ', lon: ' + lonNum + '}) {'
+        // condition is the weather condition slot's "now" (condition.js fromYandex).
+        // It matches Yandex's published GraphQL schema (Now.condition, a Condition!
+        // enum without arguments) but has not been seen in live traffic, so a query
+        // Yandex rejects is asked again without it (withProviderData).
+        + ' now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT)'
+        + (withoutCondition ? ' }' : ' condition }')
+        // No cloud cover either: its GraphQL field name can't be verified against
+        // live traffic, and a wrong one fails the whole query (see below) — the
+        // cloud line stays off on Yandex.
+        // No pressure field on purpose: Yandex exposes station-level pressure only,
+        // and a station reading at altitude is ~830 hPa where every other provider
+        // reports ~1013 MSL. Leaving pressureTrend empty degrades to a line-off and
+        // a '--' slot, rather than showing a number that means something different
+        // from the same slot on any other provider.
+        // No dew-point or wind-direction field either, and for a different reason:
+        // this is GraphQL, so a field name that does not exist fails the ENTIRE
+        // query rather than returning null for that one field — and production
+        // telemetry shows Yandex has logged a single event in its lifetime, so the
+        // change cannot be verified against live traffic. Guessing wrong costs
+        // Yandex users their weather altogether to gain a reading for effectively
+        // nobody. Both degrade exactly as pressure does: dewTrend/windDirTrend stay
+        // empty, the dew slot shows '--' and the wind slots draw no arrow. Revisit
+        // if Yandex traffic ever appears.
+        + ' forecast { days(limit: ' + (hours > FORECAST_HOURS ? 4 : 3) + ') { hours {'
+        + ' timestamp temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) precProbability prec'
+        + ' windSpeed(unit: KILOMETERS_PER_HOUR) windGust(unit: KILOMETERS_PER_HOUR) uvIndex'
+        + ' } } } } }';
+}
+
+/**
+ * Flatten weatherByPoint.forecast.days[].hours[] into a single ascending array.
+ * @param {Object} weatherByPoint The weatherByPoint object.
+ * @returns {Object[]|null} Flattened hours, or null when the shape is wrong.
+ */
+function flattenHours(weatherByPoint) {
+    var forecast = weatherByPoint && weatherByPoint.forecast;
+    var days = forecast && forecast.days;
+    if (!Array.isArray(days)) {
+        return null;
+    }
+    var hours = [];
+    var d;
+    var dayHours;
+    var h;
+    for (d = 0; d < days.length; d += 1) {
+        dayHours = days[d] && days[d].hours;
+        if (Array.isArray(dayHours)) {
+            for (h = 0; h < dayHours.length; h += 1) {
+                hours.push(dayHours[h]);
+            }
+        }
+    }
+    return hours;
+}
+
+/**
+ * @param {Object} hour A flattened Yandex hour.
+ * @returns {number} Its timestamp in epoch seconds (NaN when unparsable).
+ */
+function hourEpoch(hour) {
+    return parseInt(hour.timestamp, 10);
+}
+
+/**
+ * @param {Object} hour A flattened Yandex hour.
+ * @returns {number} Its UV index, 0 when unreported.
+ */
+function hourUv(hour) {
+    return typeof hour.uvIndex === 'number' ? hour.uvIndex : 0;
+}
+
+/**
+ * @param {Object} hour A Yandex hourly bucket.
+ * @returns {number} Its wind speed in km/h, 0 when unreported.
+ */
+function hourWind(hour) {
+    return typeof hour.windSpeed === 'number' ? hour.windSpeed : 0;
+}
+
+/**
+ * @param {Object} hour A Yandex hourly bucket.
+ * @returns {number} Its gust speed in km/h, 0 when unreported.
+ */
+function hourGust(hour) {
+    return typeof hour.windGust === 'number' ? hour.windGust : 0;
+}
+
+// hourly-window owns the anchor rule; Yandex hours carry unix-second strings.
+function anchorIndex(hours, nowEpoch) {
+    return hourlyWindow.anchorIndex(hours, nowEpoch, hourEpoch);
+}
+
+/**
+ * Map a Yandex GraphQL response into provider trend fields. Anchors the window
+ * (24 hours, or `want` for emery's long span, while the hours stay hourly) at
+ * the current wall-clock hour and slices forward. Units are already
+ * correct (server-side FAHRENHEIT/KILOMETERS_PER_HOUR), precProbability is
+ * already [0,1], and prec is already mm/h, so every field passes through. A
+ * missing/non-numeric optional field collapses to 0 (getPayload renders 0).
+ * The weather condition now is now.condition.
+ *
+ * @param {Object} json Parsed GraphQL response ({data:{weatherByPoint:...}}).
+ * @param {number} nowEpoch Current time in epoch seconds.
+ * @param {number} [want] The window to map (hourly-window.js windowHours);
+ *   FORECAST_HOURS when absent. (Not `hours`: that is the flattened array.)
+ * @returns {Object|null} Mapped fields, or null when malformed / <24 future buckets.
+ */
+function mapResponse(json, nowEpoch, want) {
+    var wbp = json && json.data && json.data.weatherByPoint;
+    var now = wbp && wbp.now;
+    if (!wbp || !now || typeof now.temperature !== 'number') {
+        return null;
+    }
+    var hours = flattenHours(wbp);
+    if (hours === null) {
+        return null;
+    }
+    var anchor = anchorIndex(hours, nowEpoch);
+    if (anchor < 0 || hours.length - anchor < FORECAST_HOURS) {
+        return null;
+    }
+
+    var tempTrend = [];
+    var precipTrend = [];
+    var rainTrend = [];
+    var feelsTrend = [];
+    var i;
+    var hr;
+    var count = hourlyWindow.hourlyRun(hours, anchor, want || FORECAST_HOURS, hourEpoch);
+    for (i = 0; i < count; i += 1) {
+        hr = hours[anchor + i];
+        tempTrend.push(typeof hr.temperature === 'number' ? hr.temperature : 0);
+        precipTrend.push(typeof hr.precProbability === 'number' ? hr.precProbability : 0);
+        rainTrend.push(typeof hr.prec === 'number' ? hr.prec : 0);
+        // Server-side °F like temperature; a missing hour falls back to the
+        // mapped temp so the series stays numeric. No humidityTrend on purpose
+        // (the GraphQL note in buildQuery), so the Units tab's Steadman
+        // feels-like option cannot apply here: adoptMapped ships this value
+        // under either formula.
+        feelsTrend.push(typeof hr.feelsLike === 'number' ? hr.feelsLike : tempTrend[i]);
+    }
+
+    return {
+        tempTrend: tempTrend,
+        precipTrend: precipTrend,
+        rainTrend: rainTrend,
+        // The day-max series (UV, wind, gusts) read on to PEAK_HOURS, or the
+        // graph's window when longer (hourly-window.js reachHours). days(limit: 3)
+        // carries the rest of today plus two full days, past the end of tomorrow;
+        // the long span's limit 4 a third.
+        windTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.reachHours(want), hourEpoch, hourWind),
+        gustTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.reachHours(want), hourEpoch, hourGust),
+        uvTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.reachHours(want), hourEpoch, hourUv),
+        feelsTrend: feelsTrend,
+        startTime: hourEpoch(hours[anchor]),
+        currentTemp: now.temperature,
+        // Missing → null so FEELS_CURRENT is omitted rather than echoing the temp.
+        currentFeels: typeof now.feelsLike === 'number' ? now.feelsLike : null,
+        currentCondition: condition.fromYandex(now.condition)
+    };
+}
+
+var YandexProvider = function(apiKey) {
+    this._super.call(this);
+    this.name = 'Yandex Weather';
+    this.id = 'yandex';
+    this.apiKey = apiKey;
+};
+
+YandexProvider.prototype = Object.create(WeatherProvider.prototype);
+YandexProvider.prototype.constructor = YandexProvider;
+YandexProvider.prototype._super = WeatherProvider;
+
+/**
+ * Fetch the Yandex forecast via a GraphQL POST and populate provider fields.
+ * UV is only adopted when this.options.fetchUv is set (adoptMapped's gate, the
+ * same on every provider), but costs no extra call — it rides the same response.
+ *
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {boolean} force Whether this is a forced refresh (unused; single call).
+ * @param {Function} onSuccess Called once provider data is populated.
+ * @param {Function} onFailure Called with a failure object on error.
+ * @returns {void}
+ */
+YandexProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
+    if (!this.apiKey) {
+        onFailure(failure('provider_data', 'yandex_missing_api_key'));
+        return;
+    }
+    // requestMapped owns the parse/missing-fields/error-code grammar; adoptMapped
+    // owns the field adoption and the feels/uv gates. The GraphQL response has no
+    // pressure, dew or bearing series — mapped simply lacks those keys, and
+    // adoptMapped sets each absent one to its documented empty value ([]).
+    // The graph's window: 24 hours, or emery's 26 or 68 (fetch-options.js).
+    var hours = hourlyWindow.windowHours(this.options);
+    var self = this;
+    var adopt = function(mapped) {
+        self.adoptMapped(mapped);
+        onSuccess();
+    };
+    var request = function(withoutCondition, onMapped, onFailed) {
+        WeatherProvider.requestMapped({
+            url: YANDEX_ENDPOINT, method: 'POST', id: 'yandex', label: 'Yandex',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Yandex-Weather-Key': self.apiKey
+            },
+            body: JSON.stringify({ query: buildQuery(lat, lon, hours, withoutCondition) }),
+            map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000), hours); }
+        }, onMapped, onFailed);
+    };
+    if (conditionRejected) {
+        request(true, adopt, onFailure);
+        return;
+    }
+    request(false, adopt, function(first) {
+        if (REJECTED_QUERY_CODES.indexOf(first.code) < 0) {
+            onFailure(first);
+            return;
+        }
+        // Asked again without the condition field: if that loads, the field was the
+        // cause. The weather shows without the condition slot, and the fetch's
+        // telemetry carries the rejection once (recoveredFailure).
+        request(true, function(mapped) {
+            conditionRejected = true;
+            self.recoveredFailure = failure('provider_data', 'yandex_condition_rejected');
+            adopt(mapped);
+        }, function() { onFailure(first); });
+    });
+};
+
+module.exports = {
+    _resetForTests: function() { conditionRejected = false; },
+    buildQuery: buildQuery,
+    mapResponse: mapResponse,
+    YandexProvider: YandexProvider
+};

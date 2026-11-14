@@ -1,5 +1,5 @@
 // test/helpers/es5-lint.js — a dependency-free ES5 guard for the shipped PKJS and
-// settings-page sources (test/config-es5.test.js). It replaces a list of source
+// settings-page sources (test/repo/config-es5.test.js). It replaces a list of source
 // regexes that only saw `=>`, const/let, backticks, class, for…of and ten named
 // built-ins: optional chaining, `??`, spread, destructuring, default parameters,
 // shorthand/computed object members, `**`, generators, async functions, 0b/0o

@@ -1,0 +1,227 @@
+// test/weather/application/provider-has-valid-data.test.js
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const WeatherProvider = require('../../../src/pkjs/weather/application/provider.js');
+
+function makeProvider(over) {
+  const p = new WeatherProvider();
+  return Object.assign(p, over);
+}
+
+test('hasValidData true when all fields present and trends long enough', () => {
+  const p = makeProvider({
+    tempTrend: new Array(24).fill(50),
+    precipTrend: new Array(24).fill(0.1),
+    startTime: 1000,
+    currentTemp: 60
+  });
+  assert.equal(p.hasValidData(), true);
+});
+
+test('hasValidData is strictly boolean false when a field is missing', () => {
+  const p = makeProvider({ precipTrend: new Array(24).fill(0.1), startTime: 1, currentTemp: 1 });
+  delete p.tempTrend;
+  assert.equal(p.hasValidData(), false);
+});
+
+test('hasValidData is strictly boolean false when trends too short', () => {
+  const p = makeProvider({
+    tempTrend: new Array(3).fill(50),
+    precipTrend: new Array(3).fill(0.1),
+    startTime: 1000,
+    currentTemp: 60
+  });
+  assert.equal(p.hasValidData(), false); // pre-fix this path returns undefined
+});
+
+test('getPayload emits WIND_TREND_UINT8 as rounded, clamped km/h', () => {
+  const p = makeProvider({
+    numEntries: 3,
+    tempTrend: [50, 51, 52],
+    precipTrend: [0, 0.5, 1],
+    rainTrend: [0, 0, 0],
+    windTrend: [0, 12.6, 300],   // 300 clamps to 255
+    startTime: 1000,
+    currentTemp: 60,
+    cityName: 'Testville',
+    sunEvents: [
+      { type: 'sunrise', date: new Date(1000 * 1000) },
+      { type: 'sunset', date: new Date(2000 * 1000) }
+    ]
+  });
+  const payload = p.getPayload();
+  assert.deepEqual(payload.WIND_TREND_UINT8, [0, 13, 255]);
+});
+
+test('constructor default windTrend is a zero-filled numEntries array', () => {
+  const p = new WeatherProvider();
+  assert.equal(p.windTrend.length, p.numEntries);
+  assert.ok(p.windTrend.every(function(v) { return v === 0; }));
+});
+
+// Locks the SUN_EVENTS wire encoding (leading sunrise/sunset byte + LE Int32
+// epoch-seconds per event) so the encodeSunEvents helper (sun-events.js) can't drift it.
+test('getPayload encodes SUN_EVENTS as [startByte, ...LE int32 epoch seconds]', () => {
+  const p = makeProvider({
+    numEntries: 3,
+    tempTrend: [50, 51, 52],
+    precipTrend: [0, 0.5, 1],
+    rainTrend: [0, 0, 0],
+    windTrend: [0, 0, 0],
+    gustTrend: [0, 0, 0],
+    startTime: 1000,
+    currentTemp: 60,
+    cityName: 'X',
+    sunEvents: [
+      { type: 'sunrise', date: new Date(1000 * 1000) }, // 1000 s
+      { type: 'sunset', date: new Date(2000 * 1000) }    // 2000 s
+    ]
+  });
+  // 0 = list starts on a sunrise; 1000 -> E8 03 00 00, 2000 -> D0 07 00 00 (LE).
+  assert.deepEqual(p.getPayload().SUN_EVENTS, [0, 232, 3, 0, 0, 208, 7, 0, 0]);
+});
+
+test('composeWeatherPayload merges extras then applies the transform', () => {
+  const p = makeProvider({
+    numEntries: 3,
+    tempTrend: [50, 51, 52],
+    precipTrend: [0, 0.5, 1],
+    rainTrend: [0, 0, 0],
+    windTrend: [0, 0, 0],
+    gustTrend: [0, 0, 0],
+    startTime: 1000,
+    currentTemp: 60,
+    cityName: 'Town',
+    sunEvents: [
+      { type: 'sunrise', date: new Date(1000 * 1000) },
+      { type: 'sunset', date: new Date(2000 * 1000) }
+    ]
+  });
+  const out = p.composeWeatherPayload({ IS_SLEEPING: 1, RAIN_RADAR_START: 42 }, function(payload) {
+    payload.TRANSFORMED = true;
+    return payload;
+  });
+  assert.equal(out.CITY, 'Town');         // base payload preserved
+  assert.equal(out.IS_SLEEPING, 1);       // extra merged
+  assert.equal(out.RAIN_RADAR_START, 42); // extra merged
+  assert.equal(out.TRANSFORMED, true);    // transform applied last
+});
+
+test('composeWeatherPayload works with no extras and no transform', () => {
+  const p = makeProvider({
+    numEntries: 3,
+    tempTrend: [50, 51, 52],
+    precipTrend: [0, 0.5, 1],
+    rainTrend: [0, 0, 0],
+    windTrend: [0, 0, 0],
+    gustTrend: [0, 0, 0],
+    startTime: 1000,
+    currentTemp: 60,
+    cityName: 'Town',
+    sunEvents: [
+      { type: 'sunrise', date: new Date(1000 * 1000) },
+      { type: 'sunset', date: new Date(2000 * 1000) }
+    ]
+  });
+  const out = p.composeWeatherPayload(null, undefined);
+  assert.equal(out.CITY, 'Town');
+  // Raw whole-degree temps: the transform (applyForecastSeries) owns the ONE
+  // encode into TEMP_TREND_UINT8; with no transform the raw series rides out.
+  assert.deepEqual(out.TEMP_RAW_TREND, [50, 51, 52]);
+});
+
+// Pressure rides as a transient non-byte series (hPa 950..1050 doesn't fit a
+// uint8), mirroring AQI_TREND rather than the *_TREND_UINT8 keys.
+function pressureProvider(over) {
+  return makeProvider(Object.assign({
+    numEntries: 24,
+    tempTrend: new Array(24).fill(50),
+    precipTrend: new Array(24).fill(0),
+    rainTrend: new Array(24).fill(0),
+    startTime: 1000,
+    currentTemp: 60,
+    cityName: 'Testville',
+    sunEvents: [
+      { type: 'sunrise', date: new Date(1000 * 1000) },
+      { type: 'sunset', date: new Date(2000 * 1000) }
+    ]
+  }, over));
+}
+
+test('getPayload emits an empty PRESSURE_TREND when no provider sourced it', () => {
+  assert.deepEqual(pressureProvider().getPayload().PRESSURE_TREND, []);
+});
+
+test('getPayload emits sourced pressure verbatim, trimmed to numEntries', () => {
+  const p = pressureProvider({ pressureTrend: new Array(30).fill(1013.5) });
+  const out = p.getPayload().PRESSURE_TREND;
+  assert.equal(out.length, 24);
+  assert.equal(out[0], 1013.5); // no byte-scaling: hPa stay real numbers
+});
+
+// Feels-like rides as transient keys, but unlike PRESSURE_TREND they are
+// emitted only when sourced — a feels-less payload has no keys to strip.
+test('getPayload omits FEELS_TREND/FEELS_CURRENT when no provider sourced them', () => {
+  const payload = pressureProvider().getPayload();
+  assert.equal('FEELS_TREND' in payload, false);
+  assert.equal('FEELS_CURRENT' in payload, false);
+});
+
+test('getPayload emits sourced feelsTrend as whole °F, trimmed to numEntries', () => {
+  const p = pressureProvider({ feelsTrend: new Array(30).fill(47.3) });
+  const out = p.getPayload();
+  assert.equal(out.FEELS_TREND.length, 24);
+  // Rounded at the source: fractional Steadman/apparent values would otherwise
+  // widen the joint band into the int32 TEMP_MIN/TEMP_MAX wire keys.
+  assert.equal(out.FEELS_TREND[0], 47);
+  assert.equal('FEELS_CURRENT' in out, false, 'current is independent of the trend');
+});
+
+// The weather condition now (weather/domain/condition.js) follows the feels keys' rule:
+// a transient key, present only when the provider named a condition.
+test('getPayload omits CURRENT_CONDITION when the provider named no condition', () => {
+  assert.equal('CURRENT_CONDITION' in pressureProvider().getPayload(), false, 'the constructor default');
+  assert.equal('CURRENT_CONDITION' in pressureProvider({ currentCondition: null }).getPayload(), false);
+});
+
+test('getPayload carries a named condition as CURRENT_CONDITION', () => {
+  assert.equal(pressureProvider({ currentCondition: 'partly' }).getPayload().CURRENT_CONDITION, 'partly');
+  assert.equal(pressureProvider({ currentCondition: 'heavysnow' }).getPayload().CURRENT_CONDITION, 'heavysnow');
+});
+
+test('getPayload passes CURRENT_TEMP and FEELS_CURRENT through unrounded (0 °F is a real value)', () => {
+  // Transient keys formatTemp rounds once, in the display unit — a whole-°F
+  // pre-round here made every °C reading round twice.
+  const out = pressureProvider({ currentTemp: 31.46, currentFeels: 46.6 }).getPayload();
+  assert.equal(out.CURRENT_TEMP, 31.46);
+  assert.equal(out.FEELS_CURRENT, 46.6);
+  assert.equal(pressureProvider({ currentFeels: 0 }).getPayload().FEELS_CURRENT, 0);
+});
+
+// UV_DAY_PEAKS: the UV slot's [rest of today, tomorrow] peaks, read off the FULL
+// uvTrend (PEAK_HOURS deep) that UV_TREND_UINT8 is cut short of, then the peak of
+// today's hours already begun (earlierPeaks.uv, set per fetch from the UV day record). Local-time start so
+// the day boundary is host-timezone-proof (see test/weather/domain/hourly-window.test.js).
+const LOCAL_9AM = new Date(2026, 6, 15, 9, 0, 0).getTime() / 1000;
+
+test('getPayload emits UV_DAY_PEAKS in tenths from the full 48 h uvTrend', () => {
+  const uv = new Array(48).fill(0);
+  uv[4] = 7.14;   // 13:00 today
+  uv[27] = 9.46;  // 12:00 tomorrow — beyond the 24 h UV_TREND_UINT8 window
+  const payload = pressureProvider({ uvTrend: uv, startTime: LOCAL_9AM }).getPayload();
+  assert.equal(payload.UV_TREND_UINT8.length, 24, 'the graph series keeps the 24 h window');
+  assert.deepEqual(payload.UV_DAY_PEAKS, [71, 95, null], 'no fetch recalled earlier hours: unknown');
+  const recalled = pressureProvider({ uvTrend: uv, startTime: LOCAL_9AM, earlierPeaks: { uv: 4.26 } }).getPayload();
+  assert.deepEqual(recalled.UV_DAY_PEAKS, [71, 95, 43], 'the earlier hours\' peak, in tenths');
+  const first = pressureProvider({ uvTrend: uv, startTime: LOCAL_9AM, earlierPeaks: { uv: 0 } }).getPayload();
+  assert.deepEqual(first.UV_DAY_PEAKS, [71, 95, 0], 'none earlier (today\'s first hour) is 0, not unknown');
+});
+
+test('getPayload reports an uncovered tomorrow as null, and omits UV_DAY_PEAKS without UV', () => {
+  const uv = new Array(24).fill(0);
+  uv[2] = 3;
+  assert.deepEqual(pressureProvider({ uvTrend: uv, startTime: LOCAL_9AM }).getPayload().UV_DAY_PEAKS,
+    [30, null, null]);
+  assert.equal('UV_DAY_PEAKS' in pressureProvider({ uvTrend: [], startTime: LOCAL_9AM }).getPayload(), false,
+    'no UV sourced: no key to strip, like the feels keys');
+});
