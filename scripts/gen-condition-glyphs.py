@@ -7,9 +7,8 @@ few arcs and marks Tabler has no icon for (a sun or moon behind a cloud, drizzle
 The parts are flattened and fitted exactly as scripts/svg2pdc.py does (its own functions), and
 written as resources/data/STATUS_COND_<NAME>.pdc. The watch no longer draws them: it draws the
 pixel drawings (scripts/pixel-icons/README.md), and the settings page draws those too
-(condition-pixels.generated.js). These glyphs are the pixel icon editor's starting point (its
-Today and Reset) and the old version scaled for the picker (watch_icons.py old_version). The
-wind condition reuses STATUS_WIND.pdc.
+(condition-pixels.generated.js). These glyphs are 3.1.1's condition icons, which the icon
+creator (WarnWeatherTools) takes as file sources. The wind condition reuses STATUS_WIND.pdc.
 
 Run by hand from the repo root after changing a glyph, and commit the output:
     python3 scripts/gen-condition-glyphs.py

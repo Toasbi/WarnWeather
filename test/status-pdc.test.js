@@ -84,9 +84,9 @@ for (const file of HEALTH_25) {
   });
 }
 
-// These PDCs are the pixel icon editor's starting point ("Today", scripts/pixel-icons/
-// watch_icons.py reads them), no longer the watch's: it draws the icons' pixel drawings
-// (PX_*, scripts/pixel-icons/gen_watch_icons.js) and nothing else. So none of them is
+// These PDCs are 3.1.1's icons, which the icon creator takes as file sources, no longer the
+// watch's: it draws the icons' drawings (PX_*, scripts/pixel-icons/gen_watch_icons.js) and
+// nothing else. So none of them is
 // declared in package.template.json's media: one there would cost every watch the
 // bytes for an icon it never loads.
 const MEDIA = require('../package.template.json').pebble.resources.media;

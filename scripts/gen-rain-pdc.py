@@ -10,8 +10,8 @@ output — no deps.
     python3 scripts/gen-rain-pdc.py
 
 Fill is authored white (0xFF) / stroke clear (0x00). The watch no longer draws these
-drops: RAIN_DOWNPOUR.pdc is the pixel icon editor's starting point for the Heavy rain
-icon, and the watch draws the editor's drawings (scripts/pixel-icons/README.md).
+drops: RAIN_DOWNPOUR.pdc is 3.1.1's Heavy rain icon, which the icon creator takes as a file
+source, and the watch draws the creator's drawings (scripts/pixel-icons/README.md).
 Precise-path points are in 1/8-pixel units (viewbox 25 px -> 0..200 units). Shape + arrangement were tuned against an offline PIL mock before
 authoring.
 """

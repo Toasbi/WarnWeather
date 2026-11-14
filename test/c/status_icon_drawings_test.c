@@ -12,7 +12,7 @@
 // the colour 144-px watch, with -DPBL_BW for the black and white ones (their own table: the pixel
 // drawings) and with -DPBL_PLATFORM_EMERY for the Pebble Time 2. A failure here means an
 // icon would draw a size smaller (the next smaller drawing), or not at all: draw the missing
-// size in the pixel icon editor (scripts/pixel-icons/README.md).
+// size in the icon creator (scripts/pixel-icons/README.md).
 
 static int s_failures = 0;
 

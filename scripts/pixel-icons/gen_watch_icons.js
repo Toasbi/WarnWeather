@@ -5,19 +5,17 @@
  *   node scripts/pixel-icons/gen_watch_icons.js           write the files below
  *   node scripts/pixel-icons/gen_watch_icons.js --check   exit 1 if any of them is stale
  *
- * From resources/pixel-icons.json, for every icon (Mark as done is the editor's checkmark alone):
- *   resources/data/PX_<KEY>_<rows>.pdc   each size in the version picked for it (variants.js;
- *                                        the icon picker): by default the pixel drawing as 1 px
- *                                        lines through pixel centres (level, upright and 45-degree
- *                                        runs, joined end to end, and single dots), which the
- *                                        watch draws exactly, smoothing on or off; or its slanted
- *                                        lines, or the old icon or an SVG (svg-icon.js) scaled the
- *                                        old way, or a drawing from the icon creator, smoothed;
- *   resources/data/PX_<KEY>_<rows>_BW.pdc   the pixel drawing again, for the black and white
- *                                        watches (Pebble 2, Pebble 2 Duo), where a size picked in
- *                                        another version: they have no grey pixels to smooth with
- *                                        (a creator drawing's pixels are that drawing as they draw
- *                                        it);
+ * From resources/pixel-icons.json, for every icon:
+ *   resources/data/PX_<KEY>_<rows>.pdc   each size in its version (VERSIONS): by default the pixel
+ *                                        drawing as 1 px lines through pixel centres (level,
+ *                                        upright and 45-degree runs, joined end to end, and single
+ *                                        dots), which the watch draws exactly, smoothing on or off;
+ *                                        or 3.1.1's icon scaled the old way (old), or a drawing
+ *                                        from the icon creator, by their kept lines;
+ *   resources/data/PX_<KEY>_<rows>_BW.pdc   for a creator drawing, its pixels again, for the black
+ *                                        and white watches (Pebble 2, Pebble 2 Duo): they have no
+ *                                        grey pixels to smooth with, and the pixels are the drawing
+ *                                        as they draw it;
  *   package.template.json                one raw resource per drawing, on the watches that draw
  *                                        it;
  *   src/c/layers/status_pixel_icons.generated.h   which drawing each icon id (and each rain
@@ -32,7 +30,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const variants = require('./variants.js');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const PIXELS = path.join(ROOT, 'resources', 'pixel-icons.json');
@@ -43,6 +40,10 @@ const APLITE_C = path.join(ROOT, 'src', 'c', 'layers', 'status_row_aplite.c');
 const PAGE_PIXELS = path.join(ROOT, 'src', 'pkjs', 'settings', 'condition-pixels.generated.js');
 // The size the settings page shows the condition icons at: one every watch with them draws.
 const PAGE_ROWS = '13';
+// The versions a size is built in: its pixel drawing; 3.1.1's icon scaled the old way (old), which
+// the black and white watches draw too, as they did before the pixel drawings; or a drawing from
+// the icon creator. The last two keep their lines in the file, under their name.
+const VERSIONS = ['pixel', 'old', 'drawing'];
 const PU = 8;
 
 // The watch's icon ids for each drawing (status_line.h, status_row_icons.h).
@@ -153,7 +154,19 @@ function paths(segs) {
 }
 
 /**
- * A PDC image of 1 px open precise paths through pixel centres (svg2pdc.py's layout).
+ * A size's kept lines (an old or drawing version's), a dot as a line of one point twice.
+ * @param {string} version 'old' or 'drawing'.
+ * @param {?{lines: !Array<!Array<!Array<number>>>, w: number, h: number}} kept The lines the file keeps.
+ * @returns {{lines: !Array<!Array<!Array<number>>>, w: number, h: number}}
+ */
+function keptLines(version, kept) {
+    if (!kept) throw new Error('no ' + version + ' version for this size');
+    return { lines: kept.lines.map((p) => (p.length === 1 ? [p[0], p[0]] : p)), w: kept.w, h: kept.h };
+}
+
+/**
+ * A PDC image of 1 px open precise paths, its points in pixels (on the 1/8 px grid), pixel (x, y)'s
+ * centre at (x + 1/2, y + 1/2): svg2pdc.py's layout.
  * @param {!Array<!Array<!Array<number>>>} lines The paths' points, [x, y] each (paths()).
  * @param {number} w The image's width in pixels, its view box.
  * @param {number} h Its height.
@@ -170,8 +183,8 @@ function pdc(lines, w, h) {
         b.writeUInt16LE(1, 5);     // open
         b.writeUInt16LE(pts.length, 7);
         pts.forEach(([x, y], k) => {
-            b.writeInt16LE(x * PU + PU / 2, 9 + 4 * k);
-            b.writeInt16LE(y * PU + PU / 2, 11 + 4 * k);
+            b.writeInt16LE(Math.round(x * PU + PU / 2), 9 + 4 * k);
+            b.writeInt16LE(Math.round(y * PU + PU / 2), 11 + 4 * k);
         });
         return b;
     });
@@ -224,13 +237,13 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
                 continue;
             }
             // The size is the painted height the watch looks it up by; the image is the ink alone
-            // (a drawing may leave its top or bottom row blank), seated by its ink as the editor
-            // seats it.
+            // (a drawing may leave its top or bottom row blank), seated by its ink as the icon
+            // creator's bar previews seat it.
             const rows = Number(id);
             const plats = s.platforms || ['basalt', 'emery'];
             if (!plats.length) continue;   // a size no watch draws any more
             const version = s.version || 'pixel';
-            if (!variants.VERSIONS.includes(version)) throw new Error(key + ' ' + id + ': unknown version ' + version);
+            if (!VERSIONS.includes(version)) throw new Error(key + ' ' + id + ': unknown version ' + version);
             const name = 'PX_' + key + '_' + id;
             const pixel = pdc(paths(runs(px)), w, h);
             // [resource name, its file's content, its watches, its header families]
@@ -241,12 +254,12 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
             } else if (version === 'old') {
                 // The old icon goes to the black and white watches too: they drew it before the
                 // pixel drawings, unsmoothed, exactly as these lines draw there.
-                const v = variants.versionLines(version, px, s[version]);
-                drawn.push([name, variants.pdc(v.lines, v.w, v.h), [].concat(...plats.map(p => TARGETS[p] || [])),
+                const v = keptLines(version, s[version]);
+                drawn.push([name, pdc(v.lines, v.w, v.h), [].concat(...plats.map(p => TARGETS[p] || [])),
                     [].concat(...plats.map(p => FAMILIES[p] || []))]);
             } else {
-                const v = variants.versionLines(version, px, s[version]);
-                drawn.push([name, variants.pdc(v.lines, v.w, v.h), [].concat(...plats.map(p => COLOUR_TARGETS[p] || [])),
+                const v = keptLines(version, s[version]);
+                drawn.push([name, pdc(v.lines, v.w, v.h), [].concat(...plats.map(p => COLOUR_TARGETS[p] || [])),
                     plats.filter(p => FAMILIES[p])]);
                 if (plats.includes('basalt')) {
                     drawn.push([name + '_BW', pixel, TARGETS.basalt.filter(t => !COLOUR_TARGETS.basalt.includes(t)), ['bw']]);
@@ -363,7 +376,7 @@ ${section('basalt')}
 
 /**
  * status_row_aplite.c with the icons' masks (and their sizes) written in. A mask is its ink
- * and nothing more, as the editor's preview shows it.
+ * and nothing more, as the icon creator shows it.
  * @param {!Object<string, {rows: !Array<number>, w: number}>} masks By icon key.
  * @param {string=} src The file's text; the file by default.
  * @returns {string} The file's new text.
@@ -412,5 +425,5 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { outputs, header, apliteSource, pagePixels, runs, paths, pdc, inkPixels, ICON_IDS, TARGETS,
+module.exports = { outputs, header, apliteSource, pagePixels, runs, paths, pdc, keptLines, inkPixels, VERSIONS, ICON_IDS, TARGETS,
     PACKAGE, HEADER, APLITE_C, PAGE_PIXELS, DATA_DIR };

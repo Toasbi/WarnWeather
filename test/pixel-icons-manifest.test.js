@@ -35,13 +35,6 @@ test('the manifest lists every icon with the sizes resources/pixel-icons.json ho
   }
 });
 
-test("the manifest's cap centres are the ones the pixel icon editor seats icons on", { skip }, () => {
-  const editor = fs.readFileSync(path.join(ROOT, 'scripts', 'pixel-icons', 'editor.html'), 'utf8');
-  const caps = JSON.parse(/var CAP_CY = (\{[^}]*\})/.exec(editor)[1].replace(/(\w+):/g, '"$1":'));
-  const m = manifest();
-  for (const [font, f] of Object.entries(m.fonts)) assert.equal(f.capCentre, caps[font], font);
-});
-
 test('the Pebble Classic and Steel masks are a size of their own, as many rows and columns as a mask takes', { skip }, () => {
   const m = manifest();
   const masked = m.icons.filter((i) => i.sizes.some((s) => s.key === 'A')).map((i) => i.id).sort();

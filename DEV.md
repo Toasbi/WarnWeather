@@ -439,12 +439,12 @@ committed) for manual upload. Re-assemble a single reel without recapturing with
 
 ### Pixel icons
 
-The status icons are drawn pixel by pixel, once per size, in the pixel icon editor:
+The status icons are drawn once per size in the icon creator (WarnWeatherTools,
+`icon-creator/`), whose export runs these here:
 
 ```bash
-python3 scripts/pixel-icons/build_editor.py          # -> build/pixel-icons/editor.html
-python3 scripts/pixel-icons/import_pixels.py --export editor-export.json
-node scripts/pixel-icons/gen_watch_icons.js          # the icons marked done, into the watch
+python3 scripts/pixel-icons/import_pixels.py --creator creator-export.json
+node scripts/pixel-icons/gen_watch_icons.js          # the drawings, into the watch
 ```
 
 The whole process, the sizes and the file formats: `scripts/pixel-icons/README.md`.
