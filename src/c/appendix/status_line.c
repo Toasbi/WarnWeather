@@ -62,8 +62,7 @@ static bool walk_slot(const uint8_t *blob, size_t len, int slot_index,
     if (kind > STATUS_SLOT_KIND_MAX) { return false; }
     if (icon & STATUS_ICON_CITY_GLYPH) {
         // The city with the current weather's glyph: a text slot, and a weather glyph.
-        uint8_t glyph = status_icon_glyph(icon);
-        if (kind != SLOT_TEXT || glyph < STATUS_ICON_COND_SUN || glyph > STATUS_ICON_COND_WIND) {
+        if (kind != SLOT_TEXT || !status_icon_is_weather_glyph(status_icon_glyph(icon))) {
             return false;
         }
     } else if (icon > STATUS_ICON_MAX) {

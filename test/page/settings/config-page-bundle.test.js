@@ -103,6 +103,38 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
   });
 });
 
+// preview-status-bars.js binds window.Condition while its body runs (its sample's names), and
+// blocks.js' list of every condition reads it at render: out of order, or missing, the Status bars
+// tab throws on a real phone while Node (require()) passes.
+test('the weather condition vocabulary reaches the page ahead of the Status bars preview and blocks', () => {
+  const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('weather/domain/condition.js') < idx('page/status-bars/preview-status-bars.js'),
+    'condition.js must precede preview-status-bars.js');
+  assert.ok(idx('weather/domain/condition.js') < idx('page/settings/blocks.js'), 'condition.js must precede blocks.js');
+  assert.ok(page().indexOf('window.Condition = api') !== -1, 'nothing assigns window.Condition');
+});
+
+// watch-layout.js binds VIEW_CYCLE while its body runs and preview-watch.js binds window.WatchLayout
+// while its own does: out of order, or missing, every picture of the watch throws on a real phone
+// while Node (require()) passes.
+test('the watch\'s band placement reaches the page after view-cycle and ahead of the watch preview', () => {
+  const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('layout/domain/view-cycle.js') < idx('page/layout/watch-layout.js'), 'view-cycle.js must precede watch-layout.js');
+  assert.ok(idx('page/layout/watch-layout.js') < idx('page/layout/preview-watch.js'),
+    'watch-layout.js must precede preview-watch.js');
+  assert.ok(page().indexOf('window.WatchLayout = api') !== -1, 'nothing assigns window.WatchLayout');
+});
+
 // preview-watch.js and wizard.js bind window.ScreenFrame while their bodies run: out of order, or
 // missing, every screen picture on the page throws on a real phone while Node (require()) passes.
 test('the screen pictures\' frame reaches the page ahead of the watch preview and the wizard', () => {
@@ -690,12 +722,16 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
   // And what it registers is what the module exports (the map the tests read).
   const icons = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
   assert.deepEqual(Object.keys(icons).sort(), IDS.slice().sort());
-  // The condition glyph reads window.ConditionGlyphs while its IIFE runs: the generated
-  // outlines have to be on the page first, or the page throws at boot on a real phone.
-  const glyphs = appFiles.findIndex((f) => f.endsWith('settings/condition-glyphs.generated.js'));
-  assert.ok(glyphs !== -1 && glyphs < at, 'condition-glyphs.generated.js must precede status-slot-icons.js');
-  assert.ok(src.indexOf('window.ConditionGlyphs = GLYPHS') < src.indexOf("icons.register('condition'"),
-    'the page carries the condition glyphs ahead of their registration');
+  // The weather icons read window.ConditionPixels and window.PixelIcon while its IIFE runs:
+  // both have to be on the page first, or the page throws at boot on a real phone.
+  ['settings/condition-pixels.generated.js', 'page/weather/pixel-icon.js'].forEach((dep) => {
+    const i = appFiles.findIndex((f) => f.endsWith(dep));
+    assert.ok(i !== -1 && i < at, dep + ' must precede status-slot-icons.js');
+  });
+  ['window.ConditionPixels = PIXELS', 'window.PixelIcon = api'].forEach((global) => {
+    assert.ok(src.indexOf(global) !== -1 && src.indexOf(global) < src.indexOf("icons.register('condition'"),
+      'the page carries ' + global + ' ahead of the weather icons\' registration');
+  });
 });
 
 // The update-interval budget modules are the same silent-no-op shape: blocks.js and

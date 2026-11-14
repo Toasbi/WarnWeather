@@ -345,7 +345,7 @@ static OdSlotIn slot_family(uint8_t kind, uint8_t icon, const char *full,
     snprintf(texts[0], STATUS_SHORT_CAP, "%s", full);
     uint8_t v = 1;
     while (v < OD_VARIANTS) {
-        uint8_t flags = status_short_member(kind, icon, full, false, false, v, texts[v],
+        uint8_t flags = status_short_member(kind, icon, full, NULL, false, false, v, texts[v],
                                             STATUS_SHORT_CAP);
         if (!flags) { break; }
         s.m[v] = (StatusSlotMeasure) { true, 0, (int16_t)(6 * strlen(texts[v])), 0 };

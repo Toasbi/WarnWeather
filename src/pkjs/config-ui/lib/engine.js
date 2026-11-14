@@ -1138,7 +1138,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var listId = 'ssel-list-' + key, titleId = 'ssel-ttl-' + key;
     // item.sheetTitle names the picker where the row's label alone would not: a slot row
     // reads "Middle slot" under its bar's card, and its picker also opens from a preview.
-    var title = esc(String(resolvedTitle(item.sheetTitleBy, cx) || item.sheetTitle || item.label || 'Selection'));
+    var title = esc(pickerTitle(item, cx));
     // The search box sits in a wrapper that owns the spacing as PADDING. A margin on the
     // input itself exposed the dialog's own box in the strips beside/under it, and a tap
     // there targets the <dialog> — which the click handler reads as a ::backdrop tap and
@@ -1164,6 +1164,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * A select's picker title, for its sheet: the title a setting gives it (sheetTitleBy), its
+   * own sheetTitle, its label, else 'Selection'.
+   * @param {Object} item The select's item.
+   * @param {Object} cx Render context.
+   * @returns {string} The title, unescaped.
+   */
+  function pickerTitle(item, cx) {
+    return String(resolvedTitle(item.sheetTitleBy, cx) || item.sheetTitle || item.label || 'Selection');
+  }
+
+  /**
    * The option list a `select` row expands IN PLACE inside an edit sheet: the colour
    * palette's in-place pattern, applied to a dropdown, so picking a value never takes the
    * sheet off the screen. The rows are the select modal's own (renderSelectOptions: .on
@@ -1175,10 +1186,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {Object} item The row's item with its options materialized (resolveRowItem).
    * @param {*} value The value the row shows.
    * @param {{S: Object, ENV: Object, evalCtx: Object}} cx Render context.
+   * @param {string} [titleHtml] The list's escaped title, for its aria-label: the row's label
+   *     by default; a bottom sheet's own title (renderPickSheet).
    * @returns {string} The list HTML.
    */
-  function renderInlineList(item, value, cx) {
-    var title = esc(String(item.label || 'Selection'));
+  function renderInlineList(item, value, cx, titleHtml) {
+    var title = titleHtml || esc(String(item.label || 'Selection'));
     return '<div id="ssel-list-' + esc(item.messageKey) + '" class="isel-list" role="listbox" aria-label="'
       + title + ' options">'
       + renderSelectOptions(item, value, '', resolveRecommended(item, cx.S, cx.ENV),
@@ -1205,16 +1218,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var found = findShownItem(schema, cx.openInline, cx.evalCtx);
     if (!found || found.type !== 'select' || !found.bottomSheet) { return ''; }
     var item = resolveRowItem(found, { value: cx.S[found.messageKey] }, cx);
-    var key = esc(item.messageKey), titleId = 'psheet-ttl-' + key;
-    var title = esc(String(resolvedTitle(item.sheetTitleBy, cx) || item.sheetTitle || item.label || 'Selection'));
+    var titleId = 'psheet-ttl-' + esc(item.messageKey), title = esc(pickerTitle(item, cx));
     return '<div class="psheet-scrim" data-psheet-close></div>'
       + '<div class="psheet" role="group" aria-labelledby="' + titleId + '">'
-      + '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">' + title + '</span>'
-      + '<button type="button" class="ssel-modal-close" data-psheet-close aria-label="Close">×</button></div>'
-      + '<div id="ssel-list-' + key + '" class="isel-list" role="listbox" aria-label="' + title + ' options">'
-      + renderSelectOptions(item, cx.S[item.messageKey], '', resolveRecommended(item, cx.S, cx.ENV),
-          disabledOptionValues(item, cx.evalCtx), resolvePictures(item, cx.S, cx.ENV, cx.USERDATA))
-      + '</div></div>';
+      + sheetHeader(titleId, title, '', 'data-psheet-close')
+      + renderInlineList(item, cx.S[item.messageKey], cx, title)
+      + '</div>';
   }
 
   /**

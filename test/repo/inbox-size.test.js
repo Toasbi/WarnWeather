@@ -321,7 +321,7 @@ test('bars 4 to 6: a shown bar\'s line rides the status category, one on no scre
 });
 
 // A side slot's weather condition takes the middle's room while its line still fits the line's
-// 48 bytes (status-lines.js widenEdgeConditions; the owner's, 2026-11-14), so a line can grow
+// 48 bytes (status-line-catalog.js widenEdges; the owner's, 2026-11-14), so a line can grow
 // past the heaviest bundle's (City in every slot: 44 B) up to that cap. Every line at the cap
 // still fits every inbox. aplite never widens: its edges keep their 8 bytes.
 test('every status line at its 48-byte cap still fits the inbox', () => {

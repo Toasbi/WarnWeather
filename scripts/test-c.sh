@@ -127,6 +127,10 @@ cc $CFLAGS -DPBL_BW test/c/status_icon_drawings_test.c -o build/host/status_icon
 build/host/status_icon_drawings_test_bw
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_icon_drawings_test.c -o build/host/status_icon_drawings_test_emery
 build/host/status_icon_drawings_test_emery
+# The heights the watch asks for, held to the sizes the icon scripts make drawings at, both ways
+# (scripts/check-icon-sizes.js): no height without its drawing, no drawing no height asks for.
+{ build/host/status_icon_drawings_test --sizes; build/host/status_icon_drawings_test_emery --sizes; } > build/host/icon_sizes.txt
+node scripts/check-icon-sizes.js build/host/icon_sizes.txt
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
 build/host/hr_scale_test
 # The health graph's step scale (header-only, step_scale.h): every mark it picks draws,
@@ -154,6 +158,11 @@ build/host/graph_style_test
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the
 # per-platform STATUS_STRIP_CAL_GAP.
 cc $CFLAGS test/c/status_row_layout_test.c src/c/appendix/status_row_layout.c -o build/host/status_row_layout_test
+# The row layout with the short forms swapped in, over a sweep of slots, checked against the
+# settings page's copy (scripts/check-row-swap-lockstep.js).
+cc $CFLAGS test/c/row_swap_dump.c src/c/appendix/status_row_layout.c -o build/host/row_swap_dump
+build/host/row_swap_dump > build/host/row_swap.txt
+node scripts/check-row-swap-lockstep.js build/host/row_swap.txt
 build/host/status_row_layout_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_row_layout_test.c src/c/appendix/status_row_layout.c -o build/host/status_row_layout_test_emery
 build/host/status_row_layout_test_emery

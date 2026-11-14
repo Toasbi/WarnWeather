@@ -483,15 +483,15 @@ automatic: aplite has no themes chapter and no radar or health frames, flint sho
 
 ### Pixel icons
 
-The status icons are drawn pixel by pixel, once per size, in the pixel icon editor:
+The status icons are drawn once per size, in `resources/pixel-icons.json`. After a change there,
+build them into the watch:
 
 ```bash
-python3 scripts/pixel-icons/build_editor.py          # -> build/pixel-icons/editor.html
-python3 scripts/pixel-icons/import_pixels.py --export editor-export.json
-node scripts/pixel-icons/gen_watch_icons.js          # the icons marked done, into the watch
+node scripts/pixel-icons/gen_watch_icons.js          # the drawings, into the watch
+node scripts/pixel-icons/gen_watch_icons.js --check  # exit 1 while the built files are stale
 ```
 
-The whole process, the sizes and the file formats: `scripts/pixel-icons/README.md`.
+How to change an icon, the sizes and the file formats: `scripts/pixel-icons/README.md`.
 
 ### Package generation
 

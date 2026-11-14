@@ -12,7 +12,7 @@
 // Legacy-order (preset-shaped) views get no fit line: they always fit.
 // And for every shape — the preset-shaped ones too — in every data state and, for a stack
 // nothing fills, every Position, the rows the engine placed each band on, for the settings
-// page's pictures of the watch (view-cycle.js stackLayout):
+// page's pictures of the watch (settings/watch-layout.js stackLayout):
 //   R <a> <top> <clock> <upper> <lower> <body>   each band "<y>,<h>", "-" for one the view
 //             does not show; <a> the Position it was placed with (its ext word's align).
 #include <stdio.h>

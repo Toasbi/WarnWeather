@@ -13,6 +13,7 @@ const eng = require('../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../src/pkjs/page/settings/blocks.js');
 require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
 const VC = require('../../../src/pkjs/layout/domain/view-cycle.js');
+const WL = require('../../../src/pkjs/page/layout/watch-layout.js');
 const plat = require('../../../src/pkjs/config-ui/lib/platform.js');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 const pw = require('../../../src/pkjs/page/layout/preview-watch.js');
@@ -48,7 +49,7 @@ function labels(html) {
 }
 
 test('every preset\'s views sit where the watch places them, the filling graph running to the screen\'s foot', () => {
-  // view-cycle.js stackLayout is the watch's placement: scripts/check-fit-lockstep.js holds it
+  // page/layout/watch-layout.js stackLayout is the watch's placement: scripts/check-fit-lockstep.js holds it
   // to layout.c for every shape, data state and Position.
   ['basalt', 'emery'].forEach((platform) => {
     const f = platform === 'emery' ? 1 : 0, sc = pw.SCREEN[f];
@@ -57,7 +58,7 @@ test('every preset\'s views sit where the watch places them, the filling graph r
       c.views.forEach((spec, i) => {
         if (!spec) { return; }
         const lay = pw.layoutView(spec, f), at = preset + ' ' + platform + ' view ' + i;
-        const placed = VC.stackLayout(spec, f, pw.clockInk(null, f, false));
+        const placed = WL.stackLayout(spec, f, pw.clockInk(null, f, false));
         assert.equal(lay.strip, spec.stripOff ? 0 : [17, 21][f], at + ': the top bar');
         assert.deepEqual(lay.bands.map((b) => b.band), placed.bands.map((b) => b.band), at + ': the bands, in order');
         lay.bands.forEach((b, j) => {
@@ -86,7 +87,7 @@ test('the Dense screen: the bar above the clock as far under the calendar as the
     assert.deepEqual(Object.keys(at), ['T', 'A', 'C', 'B', 'G'], p[0] + ': calendar, bar, clock, bar, graph');
     const cell = at.T.y + at.T.h / 2;   // the calendar's second row
     const calInk = (f ? cell + Math.trunc((at.T.h / 2 - large) / 2) - 5 : cell - 5) + large - 1;
-    const capTop = (b) => b.y + VC.statusSeatY(b.h, ch) + ch - (Math.trunc(ch / 2) + 2);
+    const capTop = (b) => b.y + WL.statusSeatY(b.h, ch) + ch - (Math.trunc(ch / 2) + 2);
     const capBottom = (b) => capTop(b) + Math.trunc(ch / 2) + 1;
     const clockTop = at.C.y + Math.trunc(at.C.h / 2) + ink.centreOff - Math.trunc(ink.inkH / 2);
     assert.deepEqual([capTop(at.A) - calInk - 1, clockTop - capBottom(at.A) - 1, capTop(at.B) - (clockTop + ink.inkH)],
@@ -201,7 +202,8 @@ test('a light theme draws black on white, the status rows print the Status bars 
 });
 
 // The owner's, 2026-11-14: a side slot's weather condition shows its whole name beside an empty
-// or a short middle, and gives way to the middle's text (status_row.c swap_in_short_forms).
+// or a short middle, and gives way to the middle's text (status_row_layout.h
+// status_row_swap_short_forms).
 test('a side slot\'s weather condition: the whole name beside an empty middle, the short form beside a long one', () => {
   const draw = (platform, mid) => pw.watchPreview(settings({ layoutPreset: 'compactCal', radarMode: 'off',
     healthMode: 'off', statusForecastLeft: 'condition', statusForecastMid: mid, statusForecastRight: 'empty',

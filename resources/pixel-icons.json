@@ -1,9 +1,8 @@
 {
   "format": 1,
-  "about": "The status icons' pixel drawings, per size (scripts/pixel-icons/README.md). Edit them in the pixel icon editor, not by hand; only icons marked done are built into the watch.",
+  "about": "The status icons' drawings, per size (scripts/pixel-icons/README.md). After a change, run node scripts/pixel-icons/gen_watch_icons.js, which builds them into the watch.",
   "icons": {
     "SUN": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "draft",
@@ -97,7 +96,6 @@
       }
     },
     "MOON": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "tabler",
@@ -191,7 +189,6 @@
       }
     },
     "SUN_CLOUD": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "lucide",
@@ -285,7 +282,6 @@
       }
     },
     "MOON_CLOUD": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "lucide",
@@ -379,7 +375,6 @@
       }
     },
     "CLOUD": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "lucide",
@@ -473,7 +468,6 @@
       }
     },
     "FOG": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "lucide",
@@ -567,7 +561,6 @@
       }
     },
     "HAZE": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "lucide",
@@ -661,7 +654,6 @@
       }
     },
     "DRIZZLE": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "lucide",
@@ -755,7 +747,6 @@
       }
     },
     "RAIN": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "lucide",
@@ -849,7 +840,6 @@
       }
     },
     "HEAVY_RAIN": {
-      "done": true,
       "sizes": {
         "15": {
           "source": "lucide",
@@ -899,25 +889,6 @@
             "emery"
           ]
         },
-        "11": {
-          "source": "lucide",
-          "pixels": [
-            "......####.........",
-            ".....#....#........",
-            "....#......#.......",
-            "....#......###.....",
-            "....#.........#....",
-            "....#..#....#.#....",
-            "....##.#.#.#..#....",
-            ".......#.#.#.#.....",
-            "......#.#.#........",
-            "......#.#.#........",
-            "........#.........."
-          ],
-          "platforms": [
-            "basalt"
-          ]
-        },
         "13": {
           "source": "lucide",
           "pixels": [
@@ -936,14 +907,12 @@
             "........#............"
           ],
           "platforms": [
-            "basalt",
             "emery"
           ]
         }
       }
     },
     "SLEET": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "lucide",
@@ -1037,7 +1006,6 @@
       }
     },
     "SNOW": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "lucide",
@@ -1131,7 +1099,6 @@
       }
     },
     "HAIL": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "lucide",
@@ -1225,7 +1192,6 @@
       }
     },
     "THUNDER": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "lucide",
@@ -1319,7 +1285,6 @@
       }
     },
     "TEMP": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -1680,7 +1645,6 @@
       }
     },
     "DEW": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -2322,7 +2286,6 @@
       }
     },
     "UV": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -2945,7 +2908,6 @@
       }
     },
     "WIND": {
-      "done": true,
       "sizes": {
         "9": {
           "source": "now",
@@ -3516,7 +3478,6 @@
       }
     },
     "GUST": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -3899,7 +3860,6 @@
       }
     },
     "AQI": {
-      "done": true,
       "sizes": {
         "9": {
           "source": "now",
@@ -4498,7 +4458,6 @@
       }
     },
     "POLLEN": {
-      "done": true,
       "sizes": {
         "17": {
           "source": "now",
@@ -5363,7 +5322,6 @@
       }
     },
     "COUNTDOWN": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -6140,7 +6098,6 @@
       }
     },
     "PHONE_BATTERY": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -6477,7 +6434,6 @@
       }
     },
     "PHONE_BATTERY_CHG": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -6795,7 +6751,6 @@
       }
     },
     "STEPS": {
-      "done": true,
       "sizes": {
         "9": {
           "source": "now",
@@ -7101,7 +7056,6 @@
       }
     },
     "DISTANCE": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -7657,7 +7611,6 @@
       }
     },
     "SLEEP": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -8083,7 +8036,6 @@
       }
     },
     "HEART": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -8373,7 +8325,6 @@
       }
     },
     "QUIET": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -8655,7 +8606,6 @@
       }
     },
     "BT": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",
@@ -8881,7 +8831,6 @@
       }
     },
     "BT_OFF": {
-      "done": true,
       "sizes": {
         "11": {
           "source": "now",

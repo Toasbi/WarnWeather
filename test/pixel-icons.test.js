@@ -1,5 +1,5 @@
 // test/pixel-icons.test.js — the pixel icons' watch build step (scripts/pixel-icons/
-// gen_watch_icons.js; scripts/pixel-icons/README.md): every drawing marked done in
+// gen_watch_icons.js; scripts/pixel-icons/README.md): every drawing in
 // resources/pixel-icons.json becomes a PDC of 1 px lines through pixel centres, a resource on the
 // watches that draw that size, an entry in the lookup table of each watch family that draws it,
 // and on Pebble Classic and Steel the icon's bit mask in status_row_aplite.c.
@@ -118,15 +118,17 @@ test('the generated files match resources/pixel-icons.json', () => {
   assert.equal(r.status, 0, r.stderr);
 });
 
-test('the generator knows every icon the editor offers, by an id the watch defines', () => {
-  const py = fs.readFileSync(path.join(ROOT, 'scripts', 'pixel-icons', 'watch_icons.py'), 'utf8');
-  const block = py.slice(py.indexOf('\nICONS = ['), py.indexOf('\n]', py.indexOf('\nICONS = [')));
-  const keys = [...block.matchAll(/^\s+\('([A-Z_]+)',/gm)].map(m => m[1]);
-  assert.ok(keys.length > 30, 'read the editor\'s icon list');
-  assert.deepEqual(Object.keys(gen.ICON_IDS).sort(), keys.sort());
+test('the icon catalogue gives every drawing the watch icon ids it serves, ids the watch defines, each once', () => {
+  const catalogue = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'pixel-icons', 'icons.json'), 'utf8')).icons;
+  const keys = catalogue.map((i) => i.key);
+  assert.ok(keys.length > 30, 'read the catalogue');
+  assert.equal(new Set(keys).size, keys.length, 'each key once');
+  assert.deepEqual(Object.keys(gen.ICON_IDS), keys, 'the build reads the catalogue');
+  const ids = [].concat(...catalogue.map((i) => i.ids));
+  assert.equal(new Set(ids).size, ids.length, 'an icon id takes one drawing');
   const headers = ['src/c/appendix/status_line.h', 'src/c/layers/status_icon_size.h']
     .map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
-  for (const id of [].concat(...Object.values(gen.ICON_IDS))) {
+  for (const id of ids) {
     assert.match(headers, new RegExp('(^\\s*' + id + ' = \\d+,|#define ' + id + ' )', 'm'), id);
   }
 });
@@ -178,8 +180,7 @@ test('each watch family lists only the drawings built for it', () => {
     [['STATUS_ICON_COND_SUN', 11, 'RESOURCE_ID_PX_SUN_11', ['basalt', 'bw']],
       ['STATUS_ICON_COND_SUN', 13, 'RESOURCE_ID_PX_SUN_13', ['basalt', 'emery']],
       ['STATUS_ICON_COND_SUN', 13, 'RESOURCE_ID_PX_SUN_13_BW', ['bw']],
-      ['STATUS_ICON_COND_SUN', 15, 'RESOURCE_ID_PX_SUN_15', ['emery']]],
-    [[2, 13, 'RESOURCE_ID_PX_RAIN_13', ['basalt', 'bw', 'emery']]]);
+      ['STATUS_ICON_COND_SUN', 15, 'RESOURCE_ID_PX_SUN_15', ['emery']]]);
   const { emery, bw, colour } = sections(h);
   assert.match(emery, /STATUS_PIXEL_ICON_COUNT 2\n/);
   assert.match(emery, /PX_SUN_13\)/);
@@ -193,33 +194,31 @@ test('each watch family lists only the drawings built for it', () => {
   assert.match(bw, /PX_SUN_11/);
   assert.match(bw, /PX_SUN_13_BW\)/, 'the black and white watches: their own drawing of a size');
   assert.doesNotMatch(bw, /PX_SUN_13\)|PX_SUN_15/);
-  for (const part of [emery, bw, colour]) {
-    assert.match(part, /STATUS_PIXEL_RAIN_COUNT 1\n[^}]*\{ 2, 13, PX_RES\(PX_RAIN_13\) \}/);
-  }
-  const none = gen.header([], []);
-  assert.equal(none.match(/COUNT 0\n/g).length, 6, 'no drawings: every table empty');
-  assert.equal(none.match(/\{ 0, 0, 0 \}/g).length, 6, 'and still an array C accepts');
+  assert.doesNotMatch(h, /RAIN/, 'one table: the rain alert takes its drawings by id (status_rain_glyph)');
+  const none = gen.header([]);
+  assert.equal(none.match(/COUNT 0\n/g).length, 3, 'no drawings: every family\'s table empty');
+  assert.equal(none.match(/\{ 0, 0, 0 \}/g).length, 3, 'and still an array C accepts');
 });
 
-test('every drawing becomes a resource and a table entry per size, keyed by the size, done or not', () => {
+test('every drawing becomes a resource and a table entry per size, keyed by the size', () => {
   // Drawings that leave their top and bottom rows blank: the watch looks a drawing up by the
   // size it is for, while the image is its ink alone.
   const art = (w, rows) => drawing(w, rows, (x, y) => y > 0 && y < rows - 1 && (x === 3 || y === 2));
   const doc = { icons: {
-    RAIN: { done: true, sizes: {
+    RAIN: { sizes: {
       '15': { platforms: ['emery'], pixels: art(23, 15) },
       '11': { platforms: ['basalt'], pixels: art(19, 11) },
       '13': { platforms: ['basalt', 'emery'], pixels: art(21, 13) },
     } },
-    HEAVY_RAIN: { done: true, sizes: { '17': { platforms: ['emery'], pixels: art(25, 17) } } },
-    SUN: { done: false, sizes: { '11': { platforms: ['basalt'], pixels: art(19, 11) } } },
-    MOON: { done: true, sizes: { '19': { platforms: [], pixels: art(27, 19) } } },
+    HEAVY_RAIN: { sizes: { '17': { platforms: ['emery'], pixels: art(25, 17) } } },
+    SUN: { sizes: { '11': { platforms: ['basalt'], pixels: art(19, 11) } } },
+    MOON: { sizes: { '19': { platforms: [], pixels: art(27, 19) } } },
   } };
   const files = gen.outputs(doc);
   const pdcs = Object.keys(files).filter(f => f.endsWith('.pdc'));
   assert.deepEqual(pdcs.map(f => path.basename(f)).sort(),
     ['PX_HEAVY_RAIN_17.pdc', 'PX_RAIN_11.pdc', 'PX_RAIN_13.pdc', 'PX_RAIN_15.pdc', 'PX_SUN_11.pdc'],
-    'Mark as done is the editor\'s checkmark: an icon not done is built too; a size no watch draws is not');
+    'every icon\'s sizes; a size no watch draws is not built');
   assert.ok(pdcs.every(f => path.dirname(f) === gen.DATA_DIR));
   assert.equal(readPdc(files[path.join(gen.DATA_DIR, 'PX_RAIN_11.pdc')]).h, 9, 'the image is the ink');
 
@@ -238,69 +237,63 @@ test('every drawing becomes a resource and a table entry per size, keyed by the 
   const h = files[gen.HEADER];
   const { emery, bw, colour } = sections(h);
   for (const others of [bw, colour]) {
-    assert.match(others, /\{ STATUS_ICON_COND_RAIN, 11, PX_RES\(PX_RAIN_11\) \}/);
-    assert.match(others, /\{ 2, 11, PX_RES\(PX_RAIN_11\) \}/, 'the rain alert\'s rain bucket');
-    assert.match(others, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_11\) \}/, 'an icon not done is drawn too');
+    assert.match(others, /\{ STATUS_ICON_COND_RAIN, 11, PX_RES\(PX_RAIN_11\) \}/, 'the condition icon\'s, and the rain alert\'s rain bucket\'s');
+    assert.match(others, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_11\) \}/);
   }
   const tables = (t) => t.replace(/^\/\/.*\n/gm, '');
   assert.equal(tables(bw), tables(colour), 'every size in its pixel drawing: both 144 px families draw the same');
   assert.match(emery, /\{ STATUS_ICON_COND_RAIN, 15, PX_RES\(PX_RAIN_15\) \}/);
-  assert.match(emery, /\{ 3, 17, PX_RES\(PX_HEAVY_RAIN_17\) \}/, 'the rain alert\'s heavy bucket');
+  assert.match(emery, /\{ STATUS_ROW_ICON_HEAVY_RAIN, 17, PX_RES\(PX_HEAVY_RAIN_17\) \}/, 'the rain alert\'s heavy bucket');
   assert.doesNotMatch(h, /STATUS_ICON_COND_\w+, 17, PX_RES\(PX_HEAVY_RAIN/, 'Heavy rain is the rain alert\'s only');
-  assert.equal(files[gen.APLITE_C], fs.readFileSync(gen.APLITE_C, 'utf8'), 'no mask done: the aplite file as it is');
+  assert.equal(files[gen.APLITE_C], fs.readFileSync(gen.APLITE_C, 'utf8'), 'no mask: the aplite file as it is');
 });
 
-test('a size picked in another version: that version on the colour watches, the pixel drawing on the black and white ones', () => {
-  const variants = require('../scripts/pixel-icons/variants.js');
-  // A drawing with a staircase, so the slanted versions differ from it.
+test('a size in another version: its kept lines; the black and white watches draw old\'s too, and a line drawing\'s pixels', () => {
+  // A drawing with a staircase, so its lines differ from its pixel drawing.
   const stairs = drawing(9, 9, (x, y) => y === Math.floor(x / 2) + 2 || x === 0);
   const old = { lines: [[[0, 0], [6, 3]], [[2, 5]]], w: 7, h: 6 };
+  const made = { lines: [[[0, 0], [8, 4], [0, 8]]], w: 9, h: 9 };
   const doc = { icons: {
-    SUN: { done: true, sizes: {
-      '11': { platforms: ['basalt'], pixels: stairs, version: 'half', redraw: true },
-      '13': { platforms: ['basalt', 'emery'], pixels: stairs, version: 'slant' },
+    SUN: { sizes: {
+      '9': { platforms: ['basalt'], pixels: stairs, version: 'old', old },
+      '11': { platforms: ['basalt'], pixels: stairs, version: 'drawing', drawing: made },
+      '13': { platforms: ['basalt', 'emery'], pixels: stairs, version: 'drawing', drawing: made },
       '15': { platforms: ['emery'], pixels: stairs, version: 'old', old },
-      '17': { platforms: ['emery'], pixels: stairs, redraw: true },
+      '17': { platforms: ['emery'], pixels: stairs },
     } },
   } };
   const files = gen.outputs(doc);
   const at = (name) => files[path.join(gen.DATA_DIR, name + '.pdc')];
   const px = gen.inkPixels(stairs), w = Math.max(...px.map(p => p[0])) + 1, h = Math.max(...px.map(p => p[1])) + 1;
   const pixel = gen.pdc(gen.paths(gen.runs(px)), w, h);
-  assert.deepEqual(at('PX_SUN_11'), variants.pdc(variants.bentLines(px, 0.5), w, h), 'half: bent halfway');
-  assert.deepEqual(at('PX_SUN_13'), variants.pdc(variants.bentLines(px, 1), w, h), 'slant: straight lines');
-  assert.deepEqual(at('PX_SUN_15'), variants.pdc([[[0, 0], [6, 3]], [[2, 5], [2, 5]]], 7, 6), 'old: its kept lines');
-  assert.deepEqual(at('PX_SUN_17'), pixel, 'no version: the pixel drawing; Redraw is only a mark');
-  assert.notDeepEqual(at('PX_SUN_11'), pixel, 'the half version is not the pixel drawing');
-  assert.deepEqual(at('PX_SUN_11_BW'), pixel, 'the black and white watches: the pixel drawing');
+  assert.deepEqual(at('PX_SUN_9'), gen.pdc([[[0, 0], [6, 3]], [[2, 5], [2, 5]]], 7, 6), 'old: its kept lines, a dot drawn as a point twice');
+  assert.equal(at('PX_SUN_9_BW'), undefined, 'old\'s lines go to the black and white watches too: they drew it so before');
+  assert.deepEqual(at('PX_SUN_11'), gen.pdc(made.lines, 9, 9), 'drawing: its kept lines');
+  assert.notDeepEqual(at('PX_SUN_11'), pixel, 'the drawing is not the pixel drawing');
+  assert.deepEqual(at('PX_SUN_11_BW'), pixel, 'the black and white watches: its pixels');
   assert.deepEqual(at('PX_SUN_13_BW'), pixel);
   assert.equal(at('PX_SUN_15_BW'), undefined, 'a size only the Pebble Time 2 draws needs none');
+  assert.deepEqual(at('PX_SUN_17'), pixel, 'no version: the pixel drawing');
   const media = JSON.parse(files[gen.PACKAGE]).pebble.resources.media.filter(m => /^PX_/.test(m.name));
   assert.deepEqual(media.map(m => [m.name, m.targetPlatforms]), [
+    ['PX_SUN_9', ['basalt', 'diorite', 'flint']],
     ['PX_SUN_11', ['basalt']], ['PX_SUN_11_BW', ['diorite', 'flint']],
     ['PX_SUN_13', ['basalt', 'emery']], ['PX_SUN_13_BW', ['diorite', 'flint']],
     ['PX_SUN_15', ['emery']], ['PX_SUN_17', ['emery']],
   ]);
   const { emery, bw, colour } = sections(files[gen.HEADER]);
+  assert.match(colour, /\{ STATUS_ICON_COND_SUN, 9, PX_RES\(PX_SUN_9\) \}/);
+  assert.match(bw, /\{ STATUS_ICON_COND_SUN, 9, PX_RES\(PX_SUN_9\) \}/);
   assert.match(colour, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_11\) \}/);
-  assert.match(colour, /\{ STATUS_ICON_COND_SUN, 13, PX_RES\(PX_SUN_13\) \}/);
   assert.match(bw, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_11_BW\) \}/);
   assert.match(bw, /\{ STATUS_ICON_COND_SUN, 13, PX_RES\(PX_SUN_13_BW\) \}/);
   assert.match(emery, /\{ STATUS_ICON_COND_SUN, 13, PX_RES\(PX_SUN_13\) \}/);
   assert.match(emery, /\{ STATUS_ICON_COND_SUN, 15, PX_RES\(PX_SUN_15\) \}/);
   assert.doesNotMatch(emery, /_BW/);
-  assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { '11': { platforms: ['basalt'], pixels: stairs,
-    version: 'smooth' } } } } }), /unknown version smooth/);
-  assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { '11': { platforms: ['basalt'], pixels: stairs,
-    version: 'old' } } } } }), /no old version/);
-  // A size picked svg: its kept lines (an SVG scaled the old way), like old.
-  const svg = { lines: [[[0, 0], [4, 2], [0, 4], [0, 0]]], w: 5, h: 5 };
-  const picked = gen.outputs({ icons: { SUN: { sizes: { '13': { platforms: ['basalt', 'emery'], pixels: stairs,
-    version: 'svg', svg } } } } });
-  assert.deepEqual(picked[path.join(gen.DATA_DIR, 'PX_SUN_13.pdc')], variants.pdc(svg.lines, 5, 5), 'svg: its kept lines');
-  assert.deepEqual(picked[path.join(gen.DATA_DIR, 'PX_SUN_13_BW.pdc')], pixel, 'the black and white watches: the pixel drawing');
-  assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { '11': { platforms: ['basalt'], pixels: stairs,
-    version: 'svg' } } } } }), /no svg version/);
+  assert.deepEqual(gen.VERSIONS, ['pixel', 'old', 'drawing']);
+  for (const [version, message] of [['half', /unknown version half/], ['old', /no old version/], ['drawing', /no drawing version/]]) {
+    assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { '11': { platforms: ['basalt'], pixels: stairs, version } } } } }), message);
+  }
 });
 
 // The settings page's list of conditions (the condition slot's dialog, blocks.js conditionList)
@@ -318,25 +311,20 @@ test('the settings page has every weather condition glyph\'s drawing, at 13 px',
   });
 });
 
-// A size picked svg in the icon picker keeps the lines its icon's SVG (resources/icon-svg/<KEY>.svg)
-// makes at that size (import_pixels.py, svg-icon.js): the SVG and the lines the watch draws agree.
-test('every size picked svg holds the lines its icon\'s SVG makes at that size', () => {
-  const SI = require('../scripts/pixel-icons/svg-icon.js');
-  const doc = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources', 'pixel-icons.json'), 'utf8'));
-  for (const [key, icon] of Object.entries(doc.icons)) {
-    for (const [id, s] of Object.entries(icon.sizes)) {
-      if (s.version !== 'svg') continue;
-      const file = path.join(ROOT, 'resources', 'icon-svg', key + '.svg');
-      assert.ok(fs.existsSync(file), key + ' ' + id + ': picked svg, so ' + path.relative(ROOT, file) + ' is there');
-      // `at`: the height the old scaling took it to (watch_icons.py svg_h), which paints `id` rows.
-      const { at, ...lines } = s.svg;
-      assert.equal(at % 2 === 0 ? at + 1 : at + 2, Number(id), key + ' ' + id + ': scaled to a height that paints ' + id + ' rows');
-      assert.deepEqual(lines, SI.atSize(fs.readFileSync(file, 'utf8'), at), key + ' ' + id + ': its SVG at that size');
-    }
+test('the Pebble Classic mask table reads the same after a second write, whatever a mask\'s height', () => {
+  for (const n of [9, 13]) {
+    const masks = { GUST: { rows: Array(n).fill(1), w: 1 } };
+    const once = gen.apliteSource(masks);
+    assert.equal(gen.apliteSource(masks, once), once, n + ' rows: the same file again');
+    assert.match(once, new RegExp('\\{ MASK_GUST, +' + n + ', +1 \\}'), n + ' rows: the numbers written');
   }
+  const src = fs.readFileSync(gen.APLITE_C, 'utf8');
+  const line = (text) => text.split('\n').find((l) => l.includes('{ MASK_GUST,'));
+  assert.equal(line(gen.apliteSource({ GUST: { rows: Array(9).fill(1), w: 1 } }, src)).length, line(src).length,
+    'the table keeps its columns');
 });
 
-test('a done Pebble Classic mask is written as its ink, and a mask that is only ink as it was', () => {
+test('a Pebble Classic mask is written as its ink, and a mask that is only ink as it was', () => {
   const src = fs.readFileSync(gen.APLITE_C, 'utf8');
   /**
    * The masks and their sizes in an aplite source.
@@ -355,11 +343,11 @@ test('a done Pebble Classic mask is written as its ink, and a mask that is only 
   const keys = Object.keys(before.masks);
   assert.deepEqual(keys.sort(), Object.keys(before.dims).sort(), 'every mask has its size');
   assert.ok(keys.length >= 7, 'read the masks');
-  // Every mask marked done as the editor holds it: 16 columns, bit x in column x.
+  // Every mask as the file holds it: 16 columns, bit x in column x.
   const doc = { icons: {} };
   for (const key of keys) {
     const pixels = before.masks[key].map(v => drawing(16, 1, x => Boolean((v >> x) & 1))[0]);
-    doc.icons[key] = { done: true, sizes: { A: { platforms: ['aplite'], pixels } } };
+    doc.icons[key] = { sizes: { A: { platforms: ['aplite'], pixels } } };
   }
   const files = gen.outputs(doc);
   assert.equal(Object.keys(files).filter(f => f.endsWith('.pdc')).length, 0, 'a mask is no PDC');
@@ -381,4 +369,11 @@ test('a done Pebble Classic mask is written as its ink, and a mask that is only 
     }
   }
   assert.ok(tight > 0, 'some mask is ink alone, so the unchanged case ran');
+});
+
+test('the build refuses a Pebble Classic mask larger than the Classic bars draw', () => {
+  const mask = (rows, cols) => ({ icons: { GUST: { sizes: { A: { pixels: Array(rows).fill('#'.repeat(cols)) } } } } });
+  assert.doesNotThrow(() => gen.outputs(mask(13, 16)), '13 rows of 16 columns: the largest');
+  assert.throws(() => gen.outputs(mask(13, 17)), /wider than 16 px/);
+  assert.throws(() => gen.outputs(mask(14, 16)), /taller than 13 rows/);
 });

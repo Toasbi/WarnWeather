@@ -3,7 +3,8 @@
 // config-ui icon registry (PConf.icons) so a schema row can lead its label with
 // the same picture the watch draws in that slot (item.icon: id).
 //
-// Hand-drawn page copies of the watch's PDC glyphs, NOT generated from them, so
+// Hand-drawn page copies of 3.1.1's PDC glyphs (the watch's status icons before
+// the pixel drawings, named below), NOT generated from the watch's drawings, so
 // a redraw on one side has to be carried to the other by hand (the rain alert's
 // icon is the exception: the condition slot's rain glyph, generated, below):
 //   uv     -> STATUS_UV.pdc      (sun: octagon core, eight 2 px rays)
@@ -61,16 +62,18 @@
         return '<svg viewBox="0 0 24 24"' + attrs + '>' + body + '</svg>';
     }
 
-    // The weather condition glyphs (scripts/gen-condition-glyphs.py writes them with the
-    // watch's PDCs, from one set of points).
-    var CONDITION_GLYPHS = (typeof require !== 'undefined') ? require('../../settings/condition-glyphs.generated.js')
-        : window.ConditionGlyphs;
+    // The weather icons as the watch draws them: its pixel drawings at 13 px
+    // (condition-pixels.generated.js, from scripts/pixel-icons/gen_watch_icons.js), each lit
+    // pixel a square (pixel-icon.js). Every other glyph here is a likeness of the watch's.
+    var PIXELS = (typeof require !== 'undefined') ? require('../../settings/condition-pixels.generated.js')
+        : window.ConditionPixels;
+    var PixelIcon = (typeof require !== 'undefined') ? require('../weather/pixel-icon.js') : window.PixelIcon;
 
     var ICONS = {
         // The rain alert's icon: the watch draws the rain cloud of the weather condition
         // slot (its Drizzle, Rain or Heavy rain drawing), in the foreground like every
-        // other icon. The rows show the Rain one (STATUS_COND_RAIN.pdc's outline).
-        rain: svg24(OUTLINE, '<path d="' + CONDITION_GLYPHS.RAIN + '"/>'),
+        // other icon. The rows show the Rain one.
+        rain: PixelIcon.svg(PIXELS.RAIN),
         uv: svg24(OUTLINE,
             '<circle cx="12" cy="12" r="4"/>'
             + '<path d="M12 2v2M12 20v2M2 12h2M20 12h2'
@@ -86,7 +89,7 @@
         aqi: svg24(OUTLINE,
             '<path d="M5 21c.5 -4.5 2.5 -8 7 -10"/>'
             + '<path d="M9 18c6.2 0 10.5 -3.3 11 -12v-2h-4c-9 0 -12 4 -12 9c0 1 0 3 2 5h3z"/>'),
-        // The watch glyph's own polyline (STATUS_POLLEN.pdc, points rounded to 0.1 px):
+        // The old watch glyph's own polyline (STATUS_POLLEN.pdc, points rounded to 0.1 px):
         // four petals around the stem's top, then the stem curving off to the lower left.
         pollen: svg24(OUTLINE,
             '<path d="M12.5 18.5L14.5 20.1L17.1 19.8L18.6 17.8L18.3 15.3L17.6 14.4'
@@ -155,9 +158,9 @@
         sun: svg24(OUTLINE,
             '<path d="M12 2v12.5"/>'
             + '<path d="M7 14.5L12 22L17 14.5Z" fill="currentColor"/>'),
-        // The weather condition slot's sample, a partly cloudy afternoon
-        // (STATUS_COND_SUN_CLOUD.pdc).
-        condition: svg24(OUTLINE, '<path d="' + CONDITION_GLYPHS.SUN_CLOUD + '"/>')
+        // The weather condition slot's sample, a partly cloudy afternoon (the city's weather
+        // icon too).
+        condition: PixelIcon.svg(PIXELS.SUN_CLOUD)
     };
 
     // Register into the engine's icon registry when it is there: always on the page

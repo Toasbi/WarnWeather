@@ -289,7 +289,7 @@ test('the condition slot: the bake\'s forms, split, and one place for the glyph'
   const [left, mid] = preview.barSlots(S, basalt, 'forecast');
   assert.deepEqual([mid.text, mid.alt], ['Partly cloudy', 'PCLDY']);
   assert.deepEqual([left.text, left.alt], ['Partly cloudy', 'PCLDY'], 'the line has the room: as the bake gives it');
-  // A full line leaves an edge one form, as the bake does (status-lines.js widenEdgeConditions).
+  // A full line leaves an edge one form, as the bake does (status-line-catalog.js widenEdges).
   const full = preview.barSlots(Object.assign({}, S, { statusForecastRight: 'condition' }), basalt, 'forecast');
   assert.deepEqual([full[0].text, full[0].alt, full[2].text], ['PCLDY', '', 'PCLDY']);
   assert.deepEqual([preview.barSlots(S, aplite, 'forecast')[0].text, preview.barSlots(S, aplite, 'forecast')[0].alt],

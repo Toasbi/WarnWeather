@@ -5,8 +5,8 @@
 
 // ── Per-icon optical-centre weight for the status-slot PDC glyphs ─────────────
 //
-// The companion knob to icon_scale_pct() in status_row_icons.c (which SIZES a
-// glyph): this one SEATS it vertically. Both are hand-tuned; neither is derived.
+// The companion knob to status_icon_scale_pct() in status_icon_size.h (which SIZES
+// a glyph): this one SEATS it vertically. Both are hand-tuned; neither is derived.
 //
 // The full design log — the measured ink-height grid, the phone pair's rung
 // ladder, why the table is per platform, the rejected per-tier table and the one
@@ -166,9 +166,9 @@ static inline int status_icon_weight_pct(uint8_t icon_id) {
 // moves a different glyph. See ADR-0002 §8.
 static inline int status_icon_top_y(int cap_cy, int bounds_h, int weight_pct) {
     int off = weight_pct - STATUS_ICON_WEIGHT_CENTRE;
-    // The painted ink is one row TALLER than the bounds box: icon_load() phases
-    // the minimum vertex onto a pixel centre, so a bounds height of h paints
-    // h + 1 rows. The percentage is of that painted height. (The test's 66-cell
+    // The painted ink is one row TALLER than the bounds box: icon_load_pixels()
+    // (status_row_icons.c) sets the bounds one row short of the drawing's rows, so
+    // a bounds height of h paints h + 1 rows. The percentage is of that painted height. (The test's 66-cell
     // matrix converts its measured ink column with `ink - 1` for the same reason —
     // drop this and the +1 reads as an off-by-one.)
     int lift = status_icon_div_round(off * (bounds_h + 1), 100);

@@ -1,11 +1,11 @@
 # Status-glyph sizes and seating are hand-tuned values
 
-The watch does not scale status icons. Every status icon is drawn pixel by pixel, once per
-painted height (`scripts/pixel-icons/README.md`), and shown 1:1. Each size is built in the
-version picked for it in the icon picker (`scripts/pixel-icons/README.md`, "Versions"): the pixel
-drawing, its strokes slanted halfway or fully, or the PDC icon baked at that size with the PDC
-scaling. The colour watches smooth the slanted lines; the black and white ones keep the pixel
-drawing. The size rules below pick which drawing to show.
+The watch does not scale status icons. Every status icon is drawn once per painted height
+(`scripts/pixel-icons/README.md`), and shown 1:1. Each size is built in its version
+(`scripts/pixel-icons/README.md`, "Versions"): the pixel drawing, 3.1.1's PDC icon baked at that
+size with the PDC scaling, or a drawing in lines. The colour watches smooth the slanted lines;
+the black and white ones draw a line drawing's pixels and 3.1.1's icon as it was. The size rules
+below pick which drawing to show.
 
 One knob (`status_icon_scale_pct()`, in `src/c/layers/status_icon_size.h`) picks the target
 height, and with it which pre-drawn size a slot shows. A second (`s_status_icon_weight_pct`, in

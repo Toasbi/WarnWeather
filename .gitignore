@@ -44,6 +44,6 @@ package.json
 !/docs/adr/
 !/docs/quality-goals.md
 
-# Python bytecode from scripts/ (svg2pdc and friends)
+# Python bytecode from scripts/
 __pycache__/
 *.pyc

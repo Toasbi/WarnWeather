@@ -155,6 +155,38 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
     place_group(&normalized[1], &mid, mid_x, &out[1]);
 }
 
+// Whether the layout cuts or hides a slot's text.
+static bool slot_text_cut(const StatusSlotMeasure *m, const StatusSlotPlace *place) {
+    return m->present && m->text_w > 0 && !(place->text_visible && place->text_w >= m->text_w);
+}
+
+uint8_t status_row_swap_short_forms(int16_t content_w, StatusSlotMeasure m[3],
+                                    const int16_t alt_w[3], StatusSlotPlace plain[3]) {
+    uint8_t left = 0;   // the slots whose short form is still theirs to swap in
+    for (int i = 0; i < 3; i++) {
+        if (alt_w[i] >= 0) { left |= (uint8_t)(1u << i); }
+    }
+    if (!left) { return 0; }
+    uint8_t swapped = 0;
+    status_row_layout(content_w, m, plain);
+    for (int round = 0; round < 3; round++) {
+        bool cut = false;
+        for (int i = 0; i < 3; i++) { cut = cut || slot_text_cut(&m[i], &plain[i]); }
+        if (!cut) { break; }
+        int pick = -1;
+        for (int i = 0; i < 3; i += 2) {
+            if (((left >> i) & 1u) && (pick < 0 || m[i].text_w > m[pick].text_w)) { pick = i; }
+        }
+        if (pick < 0 && ((left >> 1) & 1u) && slot_text_cut(&m[1], &plain[1])) { pick = 1; }
+        if (pick < 0) { break; }
+        left &= (uint8_t)~(1u << pick);
+        swapped |= (uint8_t)(1u << pick);
+        m[pick].text_w = alt_w[pick];
+        status_row_layout(content_w, m, plain);
+    }
+    return swapped;
+}
+
 int16_t status_slot_place_at(const StatusSlotMeasure *m, int16_t x, int16_t max_w,
                              StatusSlotPlace *out) {
     *out = (StatusSlotPlace) { false, false, 0, 0, 0, 0 };

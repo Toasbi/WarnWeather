@@ -49,8 +49,7 @@
   var CITY_GLYPH = 0x80;
   // EDGE_COND_TEXT_MAX: an edge slot's weather condition may take the middle slot's room, its
   // name with the short form after it, while the whole line still fits LINE_MAX
-  // (status-lines.js widenEdgeConditions), so a side slot shows the whole name beside an empty
-  // or a short middle.
+  // (widenEdges), so a side slot shows the whole name beside an empty or a short middle.
   var CAPS = { LINE_MAX: 48, EDGE_TEXT_MAX: 8, MID_TEXT_MAX: 19, EDGE_COND_TEXT_MAX: 19 };
 
   var ITEMS = [
@@ -568,8 +567,34 @@
     return (mode === 'max' || mode === 'both') && selectedCodes(settings, env).indexOf(kind) !== -1;
   }
 
+  /**
+   * Which edge slots take their weather condition's wide value, its name with the short form
+   * at the middle slot's room: the left first, then the right, each where the whole line still
+   * fits CAPS.LINE_MAX with it. The bake (status-lines.js widenEdgeConditions) and the settings
+   * page's pictures (preview-status-bars.js barSlots) both decide by it.
+   * @param {number[]} sizes Each of the three slots' bytes on the wire as packed, its header
+   *     included.
+   * @param {Array<?number>} wideSizes An edge slot's bytes with its wide value, by slot index;
+   *     not a number where the slot has none.
+   * @returns {boolean[]} Whether each slot takes its wide value.
+   */
+  function widenEdges(sizes, wideSizes) {
+    var take = [false, false, false];
+    var total = sizes[0] + sizes[1] + sizes[2];
+    [0, 2].forEach(function (s) {
+      if (typeof wideSizes[s] !== 'number') { return; }
+      var grown = total - sizes[s] + wideSizes[s];
+      if (grown <= CAPS.LINE_MAX) {
+        take[s] = true;
+        total = grown;
+      }
+    });
+    return take;
+  }
+
   var api = {
     KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, ALT_SEP: ALT_SEP, CITY_GLYPH: CITY_GLYPH, LINES: LINES,
+    widenEdges: widenEdges,
     SLOT_POSITIONS: SLOT_POSITIONS,
     EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,

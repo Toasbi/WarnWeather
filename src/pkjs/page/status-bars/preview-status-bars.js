@@ -34,6 +34,7 @@
     var esc = NODE ? require('../../config-ui/lib/html.js').esc : PConf.html.esc;
     var previewInk = (NODE ? require('../settings/preview-svg.js') : window.PreviewSvg).previewInk;
     var slotText = NODE ? require('../../status-bars/domain/slot-text.js') : window.SlotText;
+    var condition = NODE ? require('../../weather/domain/condition.js') : window.Condition;
     var utf8 = NODE ? require('../../lib/utf8.js') : window.Utf8;
     var dateFormat = NODE ? require('../../calendar/domain/date-format.js') : window.DateFormat;
     var VC = NODE ? require('../../layout/domain/view-cycle.js') : VIEW_CYCLE;
@@ -57,8 +58,8 @@
         tempF: 64.4,
         feelsF: 60.8,
         dewF: 48.2,
-        // A partly cloudy afternoon (weather/domain/condition.js names('partly')).
-        condition: {full: 'Partly cloudy', short: 'PCLDY'},
+        // A partly cloudy afternoon.
+        condition: condition.names('partly', false),
         uv: [3, 7],
         aqi: [42, 58],
         wind: {kph: [12, 30], mph: [7, 19], knots: [6, 16]},
@@ -291,18 +292,16 @@
         };
         var texts = codes.map(function (c, p) { return slotSample(c, SLOT_CAPS[p]); });
         // An edge slot's weather condition takes the middle slot's room where the whole line
-        // still fits, as the bake gives it (status-lines.js widenEdgeConditions).
+        // still fits, decided as the bake decides it (catalog.widenEdges).
         var bytes = codes.map(function (c, p) { return wireBytes(c.code, texts[p], st, env, SLOT_CAPS[p]); });
-        [0, 2].forEach(function (p) {
-            var c = codes[p];
-            if (!c || c.code !== 'condition' || (env && env.platform === 'aplite')) { return; }
-            var wide = slotSample(c, catalog.CAPS.EDGE_COND_TEXT_MAX);
-            var grown = wireBytes(c.code, wide, st, env, catalog.CAPS.EDGE_COND_TEXT_MAX);
-            if (bytes[0] + bytes[1] + bytes[2] - bytes[p] + grown <= catalog.CAPS.LINE_MAX) {
-                texts[p] = wide;
-                bytes[p] = grown;
-            }
+        var wide = codes.map(function (c, p) {
+            return p !== 1 && c.code === 'condition' && !(env && env.platform === 'aplite')
+                ? slotSample(c, catalog.CAPS.EDGE_COND_TEXT_MAX) : null;
         });
+        var take = catalog.widenEdges(bytes, wide.map(function (w, p) {
+            return w === null ? null : wireBytes(codes[p].code, w, st, env, catalog.CAPS.EDGE_COND_TEXT_MAX);
+        }));
+        take.forEach(function (t, p) { if (t) { texts[p] = wide[p]; } });
         return codes.map(function (c, p) {
             var forms = texts[p].split(catalog.ALT_SEP);
             return {pos: c.pos, key: c.key, code: c.code, text: forms[0], alt: forms[1] || '',

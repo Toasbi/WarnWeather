@@ -1,20 +1,8 @@
 # Third-party licences
 
-The pixel icon editor (this folder) starts weather icons from two open-source icon libraries,
-fetched at build time and not committed. Drawings in `resources/pixel-icons.json` that started
-from one of them (their `source` says `lucide` or `tabler`) are adapted from that library's
-icons and carry its licence below. The icon picker's chooser carries each library's outline
-icons in `icons-lucide.js` and `icons-tabler.js`, which `build_picker.py` writes with the
-library's licence inside, and an SVG picked there is that library's icon.
-
-Two of the icon picker's scripts port code:
-
-- `pebble-draw.js` ports PebbleOS' 1 px line drawing and colour blending (pebble/applib/graphics:
-  gdraw_command.c, gpath.c, graphics_line.c, graphics_private.c, gtypes.c), Copyright 2024
-  Google LLC, Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
-- `svg-icon.js` ports svg.path's arc, curve and length maths (https://github.com/regebro/svg.path),
-  Copyright (c) 2013-2014 Lennart Regebro, MIT License, so it cuts curves exactly as
-  `scripts/svg2pdc.py` does with svg.path.
+Some drawings in `resources/pixel-icons.json` started from two open-source icon libraries: their
+`source` says `lucide` or `tabler`. They are adapted from that library's icons and carry its
+licence below.
 
 ## Lucide (lucide-static 1.72.0), https://lucide.dev
 

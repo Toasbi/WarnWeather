@@ -677,7 +677,68 @@ static void placed_w_pins(void) {
     expect("placed_w.text_only", status_slot_placed_w(&p[1], &text[1]), 40);
 }
 
+// The short forms the slots brought (status_row_swap_short_forms), content_w 138: a
+// slot swaps where the plain row cuts or hides a text, the edges first, the wider name
+// first, the middle only where its own text is cut, each swap laid out again.
+static void swap_short_forms(void) {
+    // No slot brought one: nothing swaps, and the places are left as they were.
+    StatusSlotMeasure none[3] = { { true, 10, 30, 0 }, { true, 10, 200, 0 }, { true, 10, 20, 0 } };
+    const int16_t no_alt[3] = { -1, -1, -1 };
+    StatusSlotPlace p[3];
+    p[1].text_w = 77;
+    expect("swap.none", status_row_swap_short_forms(138, none, no_alt, p), 0);
+    expect("swap.none.untouched", p[1].text_w, 77);
+    expect("swap.none.text", none[1].text_w, 200);
+
+    // The middle's name is cut to 41 between the edges (typical_row): its short form fits.
+    StatusSlotMeasure mid[3] = { { true, 10, 30, 0 }, { true, 10, 200, 0 }, { true, 10, 20, 0 } };
+    const int16_t mid_alt[3] = { -1, 40, -1 };
+    expect("swap.mid", status_row_swap_short_forms(138, mid, mid_alt, p), 2);
+    expect("swap.mid.text", mid[1].text_w, 40);
+    expect("swap.mid.placed", p[1].text_w, 40);
+    expect("swap.mid.shows", p[1].text_visible, 1);
+
+    // The middle's name fits: it keeps it.
+    StatusSlotMeasure fits[3] = { { true, 10, 30, 0 }, { true, 10, 30, 0 }, { true, 10, 20, 0 } };
+    expect("swap.fits", status_row_swap_short_forms(138, fits, mid_alt, p), 0);
+    expect("swap.fits.text", fits[1].text_w, 30);
+
+    // A left edge's whole name (10+3+60) leaves the middle 61 for its 80: the edge gives
+    // way, and then the middle's text fits.
+    StatusSlotMeasure edge[3] = { { true, 10, 60, 0 }, { true, 0, 80, 0 }, { false, 0, 0, 0 } };
+    const int16_t edge_alt[3] = { 25, -1, -1 };
+    expect("swap.edge", status_row_swap_short_forms(138, edge, edge_alt, p), 1);
+    expect("swap.edge.text", edge[0].text_w, 25);
+    expect("swap.edge.mid", p[1].text_w, 80);
+
+    // Both edges brought one: the wider name (the right's 70) swaps first, then the left's;
+    // the middle, which brought none, stays cut.
+    StatusSlotMeasure both[3] = { { true, 10, 50, 0 }, { true, 0, 100, 0 }, { true, 10, 70, 0 } };
+    const int16_t both_alt[3] = { 20, -1, 30 };
+    expect("swap.both", status_row_swap_short_forms(138, both, both_alt, p), 5);
+    expect("swap.both.left", both[0].text_w, 20);
+    expect("swap.both.right", both[2].text_w, 30);
+    expect("swap.both.mid", p[1].text_w, 54);
+    // With a shorter middle the right's swap is enough, and the left keeps its name.
+    StatusSlotMeasure wider_first[3] = { { true, 10, 50, 0 }, { true, 0, 20, 0 }, { true, 10, 70, 0 } };
+    expect("swap.wider.first", status_row_swap_short_forms(138, wider_first, both_alt, p), 4);
+    expect("swap.wider.left", wider_first[0].text_w, 50);
+
+    // A middle hidden between two full edges has its text cut too: it swaps, though its
+    // short form finds no room either.
+    StatusSlotMeasure hidden[3] = { { true, 10, 80, 0 }, { true, 0, 30, 0 }, { true, 10, 80, 0 } };
+    const int16_t hidden_alt[3] = { -1, 10, -1 };
+    expect("swap.hidden", status_row_swap_short_forms(138, hidden, hidden_alt, p), 2);
+    expect("swap.hidden.text", hidden[1].text_w, 10);
+    expect("swap.hidden.still", p[1].visible, 0);
+
+    // A middle without text of its own is never cut, so its form waits.
+    StatusSlotMeasure blank[3] = { { true, 10, 80, 0 }, { true, 10, 0, 0 }, { true, 10, 80, 0 } };
+    expect("swap.blank", status_row_swap_short_forms(138, blank, hidden_alt, p), 0);
+}
+
 int main(void) {
+    swap_short_forms();
     place_at_matches_the_row_layout();
     placed_w_pins();
     empty_row();

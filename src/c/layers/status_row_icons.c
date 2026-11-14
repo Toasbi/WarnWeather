@@ -6,12 +6,12 @@
 
 #include "status_pixel_icons.generated.h"
 
-// Every status icon is drawn pixel by pixel in the pixel icon editor (scripts/pixel-icons/
-// README.md), once for every height a bar draws it at, and built in the version picked for that
-// size: the pixel drawing, 1 px lines through pixel centres that stay crisp under antialiasing,
-// or its lines slanted or the old icon, which antialiasing smooths with grey pixels on the colour
-// watches (the black and white ones keep the pixel drawing). Drawn 1:1, nothing is scaled. The
-// size rules that pick the drawing are status_icon_size.h's.
+// Every status icon is drawn once for every height a bar draws it at (scripts/pixel-icons/README.md),
+// and built in its version: the pixel drawing, 1 px lines through pixel centres that stay crisp
+// under antialiasing, or the old icon or a line drawing, whose slanted lines antialiasing smooths
+// with grey pixels on the colour watches (the black and white ones draw the old icon as it is and
+// a line drawing's pixels). Drawn 1:1, nothing is scaled. The size rules that pick the drawing are
+// status_icon_size.h's.
 
 static bool pixel_ink_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void) index;
@@ -37,13 +37,6 @@ GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top
     if (target_h <= 0) { return NULL; }
     return icon_load_pixels(status_icon_drawing(s_status_pixel_icons, STATUS_PIXEL_ICON_COUNT, icon_id,
                                                 status_icon_rows(icon_id, target_h, top_strip)),
-                            theme_fg());
-}
-
-GDrawCommandImage *status_row_icons_load_rain(uint8_t bucket, int target_h) {
-    if (target_h <= 0) { return NULL; }
-    return icon_load_pixels(status_icon_drawing(s_status_pixel_rain, STATUS_PIXEL_RAIN_COUNT, bucket,
-                                                status_icon_painted_rows(target_h)),
                             theme_fg());
 }
 

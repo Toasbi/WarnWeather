@@ -680,8 +680,8 @@ static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int conte
     bool env_changed = target_h != row->glyph_h || !gcolor_equal(fg, row->glyph_fg);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         // An id with no glyph (NONE, the drawn sun arrow, the text-only ids such as
-        // PRESSURE) loads as NULL (status_row_icons.c icon_resource), so its slot reserves
-        // no icon width and draws as bare text.
+        // PRESSURE) has no drawing and loads as NULL (status_row_icons.c), so its slot
+        // reserves no icon width and draws as bare text.
         uint8_t wanted = views[i].kind != SLOT_EMPTY ? views[i].icon : STATUS_ICON_NONE;
         if (!env_changed && wanted == row->glyph_icons[i]) { continue; }
         status_row_icons_destroy(row->glyphs[i]);
@@ -753,41 +753,25 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
     return GRect((int16_t)(x0 + lo - 2), v.y, (int16_t)((hi - lo) + 4), v.h);
 }
 
-// Whether the layout cuts or hides a slot's text.
-static bool slot_text_cut(const StatusSlotMeasure *m, const StatusSlotPlace *place) {
-    return m->present && m->text_w > 0 && !(place->text_visible && place->text_w >= m->text_w);
-}
-
-// A slot that brought its own short form (the weather condition: "Partly cloudy" with
-// "PCLDY") draws that form wherever the plain row would cut or hide a text. An edge slot's
-// whole name claims its width before the middle's (status_row_layout), so it gives way
-// whenever any text is cut: it shows beside an empty or a short middle and never squeezes
-// the middle's. The edges swap first, the wider name first, then the middle where its own
-// text is cut, each swap laid out again. Judged on the plain layout, before On demand makes
-// room, so the ladder starts from the form the slot draws; a slot that swaps has no short
-// member left (`alt` is spent). preview-watch.js rowBand draws the same.
+// The short forms the slots brought, swapped in where the plain row would cut or hide a
+// text (status_row_layout.h status_row_swap_short_forms has the rule). Judged on the plain
+// layout, before On demand makes room, so the ladder starts from the form the slot draws; a
+// slot that swaps has no short member left (`alt` is spent).
 static void swap_in_short_forms(const StatusRow *row, ResolvedSlot slots[STATUS_SLOT_COUNT],
                                 StatusSlotMeasure m[STATUS_SLOT_COUNT],
                                 StatusSlotPlace plain[STATUS_SLOT_COUNT], int16_t content_w) {
-    bool any = false;
-    for (int i = 0; i < STATUS_SLOT_COUNT; i++) { any = any || slots[i].alt[0] != '\0'; }
-    if (!any) { return; }
-    status_row_layout(content_w, m, plain);
-    for (int round = 0; round < STATUS_SLOT_COUNT; round++) {
-        bool cut = false;
-        for (int i = 0; i < STATUS_SLOT_COUNT; i++) { cut = cut || slot_text_cut(&m[i], &plain[i]); }
-        if (!cut) { return; }
-        int pick = -1;
-        for (int i = 0; i < STATUS_SLOT_COUNT; i += 2) {
-            if (slots[i].alt[0] != '\0' && (pick < 0 || m[i].text_w > m[pick].text_w)) { pick = i; }
-        }
-        if (pick < 0 && slots[1].alt[0] != '\0' && slot_text_cut(&m[1], &plain[1])) { pick = 1; }
-        if (pick < 0) { return; }
-        ResolvedSlot *s = &slots[pick];
+    int16_t alt_w[STATUS_SLOT_COUNT];
+    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
+        alt_w[i] = slots[i].alt[0] != '\0'
+            ? status_row_text_w(slots[i].alt, slots[i].font, content_w, row->bounds.size.h)
+            : -1;
+    }
+    uint8_t swapped = status_row_swap_short_forms(content_w, m, alt_w, plain);
+    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
+        if (!((swapped >> i) & 1u)) { continue; }
+        ResolvedSlot *s = &slots[i];
         copy_text(s->text, sizeof(s->text), s->alt, strlen(s->alt));
         s->alt[0] = '\0';
-        m[pick].text_w = status_row_text_w(s->text, s->font, content_w, row->bounds.size.h);
-        status_row_layout(content_w, m, plain);
     }
 }
 
@@ -913,9 +897,10 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         } else if (row->glyphs[i]) {
             // Seated on the cap centre at its per-icon optical-centre weight
             // (status_icon_weight.h). glyph_icons[i] is the id whose PDC is in
-            // glyphs[i] (ensure_glyphs keeps the two together).
+            // glyphs[i] (ensure_glyphs keeps the two together); the city's weather glyph
+            // seats as that glyph does (status_line.h STATUS_ICON_CITY_GLYPH).
             status_highlight_draw_glyph(ctx, row->glyphs[i], icon_x, glyph_cy,
-                                        row->glyph_icons[i], ink);
+                                        status_icon_glyph(row->glyph_icons[i]), ink);
         } else if (slots[i].slot.icon == STATUS_ICON_DRAWN_SUN
                    && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;

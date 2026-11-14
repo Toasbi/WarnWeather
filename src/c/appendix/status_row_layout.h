@@ -32,6 +32,20 @@ typedef struct {
 void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
                        StatusSlotPlace out[3]);
 
+// A slot that brought its own short form (the weather condition: "Partly cloudy" with
+// "PCLDY") draws that form wherever the plain row would cut or hide a text. An edge slot's
+// whole name claims its width before the middle's (status_row_layout), so it gives way
+// whenever any text is cut: it shows beside an empty or a short middle and never squeezes
+// the middle's. The edges swap first, the wider name first, then the middle where its own
+// text is cut, each swap laid out again. `alt_w[i]` is the text width of slot i's short
+// form, negative when it brought none; a slot that swaps takes it as its text width in `m`.
+// `plain` holds the last layout, and is left as it was when no slot brought a form. Returns
+// the slots that swapped, bit i for slot i. status_row.c draws with it, and the settings
+// page's copy (preview-watch.js swapShortForms) is held to it by
+// scripts/check-row-swap-lockstep.js.
+uint8_t status_row_swap_short_forms(int16_t content_w, StatusSlotMeasure m[3],
+                                    const int16_t alt_w[3], StatusSlotPlace plain[3]);
+
 // Place ONE slot's group with its left edge at content x `x`, inside a budget of
 // `max_w` px: the same fit (the text shrinks first, the suffix and the icon stay)
 // and the same placement status_row_layout() gives each of its three slots, so a
