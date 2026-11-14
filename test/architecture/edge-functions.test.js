@@ -5,6 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { codeOf } = require('./source-text.js');
 
 const FUNCTIONS = path.resolve(__dirname, '..', '..', 'supabase', 'functions');
 
@@ -15,33 +16,39 @@ const DIRECT_QUERY_ALLOWED = [
 ];
 
 /**
- * Every deployed module (tests left out), relative to supabase/functions.
+ * Every deployed module of every function, subfolders included (tests left out), relative to
+ * supabase/functions with forward slashes.
  * @returns {string[]}
  */
 function modules() {
   const out = [];
-  fs.readdirSync(FUNCTIONS, { withFileTypes: true }).forEach((d) => {
-    if (!d.isDirectory()) { return; }
-    fs.readdirSync(path.join(FUNCTIONS, d.name)).forEach((f) => {
-      if (f.endsWith('.ts') && !f.endsWith('_test.ts')) { out.push(`${d.name}/${f}`); }
+  (function walk(dir) {
+    fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(p); return; }
+      if (e.name.endsWith('.ts') && !/[_.]test\.ts$/.test(e.name)) {
+        out.push(path.relative(FUNCTIONS, p).split(path.sep).join('/'));
+      }
     });
-  });
+  })(FUNCTIONS);
   return out.sort();
 }
 
 /**
- * A module's source with comments and string contents blanked.
+ * A module's code with comments and string contents blanked.
  * @param {string} rel
  * @returns {string}
  */
 function code(rel) {
-  return fs.readFileSync(path.join(FUNCTIONS, rel), 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/.*$/gm, ' ')
-    .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+  return codeOf(path.join(FUNCTIONS, rel));
 }
 
 const MODULES = modules();
+/**
+ * A module's file name.
+ * @param {string} rel
+ * @returns {string}
+ */
 const base = (rel) => path.basename(rel);
 
 test('only an entry point creates the Supabase client', () => {
@@ -56,7 +63,7 @@ test('only an entry point creates the Supabase client', () => {
 
 test('Supabase is queried from the store modules only, except the listed handlers', () => {
   const direct = MODULES.filter((m) => base(m) !== 'supabase-store.ts'
-    && /\.(?:from|rpc)\s*\(\s*["']/.test(code(m)));
+    && /(?<!\bArray)\.(?:from|rpc)\s*\(/.test(code(m)));
   assert.deepEqual(direct, DIRECT_QUERY_ALLOWED,
     'a module queries Supabase directly, or a listed one moved to a store (then remove it)');
 });

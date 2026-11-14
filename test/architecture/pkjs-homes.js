@@ -1,6 +1,6 @@
 // Where each phone-app and settings-page file belongs (docs/adr/0005-architecture-rules.md):
-// its domain context and its role. A file placed at src/pkjs/<context>/<role>/… needs no entry:
-// its path says it. This table holds the files not yet moved there, so it only shrinks.
+// its domain context and its role. A file placed at src/pkjs/<context>/<role>/… or at
+// src/pkjs/lib/… needs no entry: its path says it. This table holds the files not yet moved there, so it only shrinks.
 //
 // Contexts: weather, forecast-graphs, status-bars, alerts, layout, calendar, theme, health,
 // settings, wire, notices, telemetry. Two homes are not contexts: shell (the composition root)
@@ -161,6 +161,7 @@ Object.keys(HOMES).forEach((home) => {
  */
 function homeOf(rel) {
   const parts = rel.split('/');
+  if (parts[0] === 'lib' && parts.length > 1) { return { context: 'lib', role: 'lib' }; }
   if (parts.length > 2 && CONTEXTS.indexOf(parts[0]) !== -1 && ROLES.indexOf(parts[1]) !== -1) {
     return { context: parts[0], role: parts[1] };
   }
