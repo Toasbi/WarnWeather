@@ -43,7 +43,8 @@ function sources() {
   (function walk(dir) {
     fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
       const p = path.join(dir, e.name);
-      if (e.isDirectory()) { walk(p); } else if (/\.[ch]$/.test(e.name)) { out.push(path.relative(SRC, p)); }
+      if (e.isDirectory()) { walk(p); return; }
+      if (/\.[ch]$/.test(e.name)) { out.push(path.relative(SRC, p).split(path.sep).join('/')); }
     });
   })(SRC);
   return out.sort();
@@ -64,7 +65,7 @@ function includesOf(rel) {
   while ((m = re.exec(text)) !== null) {
     const found = [path.resolve(path.dirname(path.join(SRC, rel)), m[1]), path.resolve(SRC, '..', m[1])]
       .find((p) => fs.existsSync(p) && !path.relative(SRC, p).startsWith('..'));
-    if (found) { out.push(path.relative(SRC, found)); }
+    if (found) { out.push(path.relative(SRC, found).split(path.sep).join('/')); }
   }
   return out;
 }
@@ -75,7 +76,7 @@ function includesOf(rel) {
  * @returns {number|undefined}
  */
 function rankOf(rel) {
-  return RANK[rel.split(path.sep)[0]];
+  return RANK[rel.split('/')[0]];
 }
 
 /**
@@ -130,7 +131,7 @@ test('the include graph has no cycles', () => {
 
 test('HealthService is called from services/health.c only', () => {
   const callers = FILES.filter((f) => /\bhealth_service_\w+\s*\(/.test(code(f)));
-  assert.deepEqual(callers, [path.join('services', 'health.c')]);
+  assert.deepEqual(callers, ['services/health.c']);
 });
 
 test('the watchface ticks by the minute (and the day), never by the second', () => {

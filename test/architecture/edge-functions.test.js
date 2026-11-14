@@ -51,9 +51,16 @@ const MODULES = modules();
  */
 const base = (rel) => path.basename(rel);
 
+/**
+ * Whether a module is a function's entry point, <function>/index.ts.
+ * @param {string} rel
+ * @returns {boolean}
+ */
+const isEntry = (rel) => /^[^/]+\/index\.ts$/.test(rel);
+
 test('only an entry point creates the Supabase client', () => {
   MODULES.forEach((m) => {
-    if (base(m) === 'index.ts') { return; }
+    if (isEntry(m)) { return; }
     assert.ok(!/\bcreateClient\s*\(/.test(code(m)), `${m} creates a Supabase client`);
     const src = fs.readFileSync(path.join(FUNCTIONS, m), 'utf8');
     assert.ok(!/^import\s+(?!type\b)[^;]*["']@supabase\/supabase-js["']/m.test(src),
@@ -63,14 +70,14 @@ test('only an entry point creates the Supabase client', () => {
 
 test('Supabase is queried from the store modules only, except the listed handlers', () => {
   const direct = MODULES.filter((m) => base(m) !== 'supabase-store.ts'
-    && /(?<!\bArray)\.(?:from|rpc)\s*\(/.test(code(m)));
+    && /(?<!\b(?:Array|Buffer|Object|Uint8Array))\.(?:from|rpc)\s*\(/.test(code(m)));
   assert.deepEqual(direct, DIRECT_QUERY_ALLOWED,
     'a module queries Supabase directly, or a listed one moved to a store (then remove it)');
 });
 
 test('only an entry point calls the global fetch; the rest take it as an argument', () => {
   MODULES.forEach((m) => {
-    if (base(m) === 'index.ts') { return; }
-    assert.ok(!/(^|[^.\w])fetch\s*\(/.test(code(m)), `${m} calls the global fetch`);
+    if (isEntry(m)) { return; }
+    assert.ok(!/(?<![\w$.])(?:globalThis\.)?fetch\s*\(/.test(code(m)), `${m} calls the global fetch`);
   });
 });

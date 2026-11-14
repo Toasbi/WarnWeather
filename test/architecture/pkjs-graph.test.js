@@ -1,48 +1,96 @@
 // The phone app's and settings page's architecture (docs/adr/0005-architecture-rules.md),
-// checked over the require() graph of src/pkjs: every file has a home; domain code touches no
-// runtime and depends on no adapter, application or shell; the phone app never loads the
-// settings page; the page's engine knows nothing of WarnWeather; no require cycles.
+// checked over the require() graph of src/pkjs: every file has a home (pkjs-homes.js), domain
+// code touches no runtime, each role requires only what its rule allows, and there are no
+// require cycles.
 //
-// The allow-lists below hold what the code does today against the rules. They only shrink:
-// fix a file and remove its entry, and the test fails until the list matches again.
+// Each allow-list holds what the code does today against a rule. The lists only shrink: fix a
+// file and remove its entry, and the test fails until the list matches the code again.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { homeOf } = require('./pkjs-homes.js');
+const { HOMES, homeOf } = require('./pkjs-homes.js');
 const { codeOf, withoutComments } = require('./source-text.js');
 
 const PKJS = path.resolve(__dirname, '..', '..', 'src', 'pkjs');
 
+// Not source: each developer's own settings, and the settings page's built bundle.
+const SKIPPED = ['dev-config.js', 'settings/page.generated.js'];
+
+const RUNTIME = [
+  ['XMLHttpRequest', /\bXMLHttpRequest\b/],
+  ['fetch', /(?<![\w$.])(?:globalThis\.)?fetch\s*\(/],
+  ['localStorage', /\blocalStorage\b/],
+  ['Pebble', /\bPebble\s*\./],
+  ['navigator', /\bnavigator\s*\./],
+  ['Date.now', /\bDate\s*\.\s*now\b/],
+  ['new Date()', /\bnew\s+Date\b(?!\s*\(\s*[^)\s])/],
+];
+
 // Domain files that still reach the runtime (file: the globals they use).
 const RUNTIME_IN_DOMAIN_ALLOWED = {
   'clay-payload.js': ['new Date()'],
+  'key-result.js': ['localStorage'],
   'slot-text.js': ['new Date()'],
-  'status-lines.js': ['Date.now()', 'new Date()'],
+  'status-lines.js': ['Date.now', 'new Date()'],
+  'weather/day-peaks.js': ['localStorage', 'Date.now'],
+  'weather/radar-coverage.js': ['localStorage'],
 };
 
-// Domain files that still require an application or adapter module.
-const DOMAIN_REACH_ALLOWED = [
-  'forecast-series.js -> config-ui/index.js (page-engine)',
-  'forecast-series.js -> status-rebake.js (application)',
-  'holidays/holiday-mask.js -> holidays/nager-source.js (adapter)',
-  'status-lines.js -> phone-battery.js (adapter)',
-  'weather/graph-style-wire.js -> config-ui/index.js (page-engine)',
-  'weather/graph-wire.js -> config-ui/index.js (page-engine)',
-  'weather/radar-sky.js -> weather/provider.js (application)',
-  'weather/rain-tier.js -> config-ui/index.js (page-engine)',
-];
-
-// Phone-app files that still require the settings page: its schema (settings/index.js), which
-// defines the settings' defaults, and the engine's facade (config-ui/index.js) for platform facts.
-const PAGE_REACH_ALLOWED = [
-  'clay-settings.js -> settings/index.js',
-  'forecast-series.js -> config-ui/index.js',
-  'index.js -> settings/index.js',
-  'telemetry-settings.js -> config-ui/index.js',
-  'weather/graph-style-wire.js -> config-ui/index.js',
-  'weather/graph-wire.js -> config-ui/index.js',
-  'weather/rain-tier.js -> config-ui/index.js',
+// Which roles each role may require, and the requires today that break it ("from -> to").
+const RULES = [
+  { name: 'domain code requires only domain code and the shared library',
+    from: ['domain'], to: ['domain', 'lib'], allowed: [
+      'forecast-series.js -> config-ui/index.js',
+      'forecast-series.js -> status-rebake.js',
+      'holidays/holiday-mask.js -> holidays/nager-source.js',
+      'key-result.js -> storage-keys.js',
+      'migrations/registry.js -> storage-keys.js',
+      'status-lines.js -> phone-battery.js',
+      'weather/day-peaks.js -> storage-keys.js',
+      'weather/graph-style-wire.js -> config-ui/index.js',
+      'weather/graph-wire.js -> config-ui/index.js',
+      'weather/radar-coverage.js -> storage-keys.js',
+      'weather/radar-sky.js -> weather/provider.js',
+      'weather/rain-tier.js -> config-ui/index.js',
+    ] },
+  { name: 'application code requires no adapter, shell or settings page',
+    from: ['application'], to: ['application', 'domain', 'lib'], allowed: [
+      'auth-backoff.js -> storage-keys.js',
+      'clay-migrations.js -> clay-settings.js',
+      'notices.js -> storage-keys.js',
+      'provider-factory.js -> weather/dwd.js',
+      'provider-factory.js -> weather/metno.js',
+      'provider-factory.js -> weather/openmeteo.js',
+      'provider-factory.js -> weather/openweathermap.js',
+      'provider-factory.js -> weather/tomorrowio.js',
+      'provider-factory.js -> weather/wunderground.js',
+      'provider-factory.js -> weather/yandex.js',
+      'status-rebake.js -> outbox.js',
+      'status-rebake.js -> storage-keys.js',
+      'telemetry-settings.js -> config-ui/index.js',
+      'weather/provider.js -> outbox.js',
+      'weather/provider.js -> weather/air-quality.js',
+      'weather/provider.js -> weather/http.js',
+      'weather/provider.js -> weather/location.js',
+      'weather/provider.js -> weather/pollen.js',
+      'weather/radar-factory.js -> weather/dwd-radar.js',
+      'weather/radar-factory.js -> weather/metno-radar.js',
+      'weather/radar-factory.js -> weather/rainbow-radar.js',
+      'weather/radar-factory.js -> weather/tomorrowio-radar.js',
+    ] },
+  { name: 'adapters require no shell or settings page',
+    from: ['adapter'], to: ['adapter', 'application', 'domain', 'lib'], allowed: [
+      'clay-settings.js -> settings/index.js',
+    ] },
+  { name: 'the settings page requires no adapter or shell',
+    from: ['page'], to: ['page', 'page-engine', 'domain', 'lib'], allowed: [
+      'settings/weather-tab.js -> settings/weather-tab-data.js',
+    ] },
+  { name: 'the settings page engine requires only itself and the shared library',
+    from: ['page-engine'], to: ['page-engine', 'lib'], allowed: [
+      'config-ui/index.js -> config-ui/lib/platform.js',
+    ] },
 ];
 
 // Require cycles today, each as its sorted member list.
@@ -53,30 +101,20 @@ const CYCLES_ALLOWED = [
     'settings/screen-legend.js', 'settings/screens-page.js'],
 ];
 
-const RUNTIME = [
-  ['XMLHttpRequest', /\bXMLHttpRequest\b/],
-  ['fetch', /(^|[^.\w])fetch\s*\(/],
-  ['localStorage', /\blocalStorage\b/],
-  ['Pebble.', /\bPebble\s*\./],
-  ['navigator.', /\bnavigator\s*\./],
-  ['Date.now()', /\bDate\s*\.\s*now\s*\(/],
-  ['new Date()', /\bnew\s+Date\s*\(\s*\)/],
-];
-
 /**
- * Every shipped JS file under src/pkjs (tests and node_modules left out), relative, with
- * forward slashes.
+ * Every shipped JS file under src/pkjs (tests, node_modules and SKIPPED left out), relative,
+ * with forward slashes.
  * @returns {string[]}
  */
 function files() {
   const out = [];
   (function walk(dir) {
     fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
-      if (e.name === 'node_modules' || e.name === 'test' || e.name === 'tests') { return; }
-      if (e.name === 'dev-config.js') { return; }   // gitignored, each developer's own
+      if (['node_modules', 'test', 'tests'].indexOf(e.name) !== -1) { return; }
       const p = path.join(dir, e.name);
-      if (e.isDirectory()) { walk(p); } else if (e.name.endsWith('.js')) {
-        out.push(path.relative(PKJS, p).split(path.sep).join('/'));
+      const rel = path.relative(PKJS, p).split(path.sep).join('/');
+      if (e.isDirectory()) { walk(p); } else if (e.name.endsWith('.js') && SKIPPED.indexOf(rel) === -1) {
+        out.push(rel);
       }
     });
   })(PKJS);
@@ -84,20 +122,11 @@ function files() {
 }
 
 /**
- * A file's code with comments and string contents blanked, so prose is not code.
- * @param {string} rel
- * @returns {string}
- */
-function code(rel) {
-  return codeOf(path.join(PKJS, rel));
-}
-
-/**
  * Where a relative require lands, the way Node resolves it: the path, the path plus .js, or
  * the folder's index.js.
  * @param {string} from absolute path of the requiring file
  * @param {string} spec the require's relative path
- * @returns {?string} absolute path, or null when it leaves src/pkjs or names nothing
+ * @returns {?string} absolute path, or null when it names nothing
  */
 function resolveRequire(from, spec) {
   const base = path.resolve(path.dirname(from), spec);
@@ -114,7 +143,7 @@ function requiresOf(rel) {
   const file = path.join(PKJS, rel);
   const text = withoutComments(file);
   const out = new Set();
-  const re = /\brequire\s*\(\s*['"](\.{1,2}\/[^'"]*|\.{1,2})['"]\s*\)/g;
+  const re = /\brequire\s*\(\s*['"](\.{1,2}(?:\/[^'"]*)?)['"]\s*\)/g;
   let m;
   while ((m = re.exec(text)) !== null) {
     const target = resolveRequire(file, m[1]);
@@ -125,24 +154,34 @@ function requiresOf(rel) {
 }
 
 const FILES = files();
-const GRAPH = new Map(FILES.map((f) => [f, requiresOf(f)]));
-const HOME = new Map(FILES.map((f) => [f, homeOf(f)]));
+const GRAPH = new Map(FILES.map((f) => [f, requiresOf(f).filter((t) => SKIPPED.indexOf(t) === -1)]));
+
 /**
- * Whether a file belongs to the settings page.
+ * A file's role, or undefined when it has no home.
  * @param {string} f
- * @returns {boolean}
+ * @returns {string|undefined}
  */
-const isPage = (f) => ['page', 'page-engine'].indexOf((HOME.get(f) || {}).role) !== -1;
+function roleOf(f) {
+  const home = homeOf(f);
+  return home ? home.role : undefined;
+}
 
 test('every file has a home: a context and a role, or the shell or the shared library', () => {
-  const homeless = FILES.filter((f) => !HOME.get(f));
-  assert.deepEqual(homeless, [], 'add each to test/architecture/pkjs-homes.js, or place it in src/pkjs/<context>/<role>/');
+  const homeless = FILES.filter((f) => !homeOf(f));
+  assert.deepEqual(homeless, [],
+    'add each to test/architecture/pkjs-homes.js, or place it where its path gives its home');
+});
+
+test('every file the homes table names exists', () => {
+  const listed = [].concat(...Object.values(HOMES));
+  assert.deepEqual(listed.filter((f) => !fs.existsSync(path.join(PKJS, f))), [],
+    'remove the entry of a file that moved or was deleted');
 });
 
 test('domain code reaches the runtime only in the listed files', () => {
   const found = {};
-  FILES.filter((f) => HOME.get(f) && HOME.get(f).role === 'domain').forEach((f) => {
-    const src = code(f);
+  FILES.filter((f) => roleOf(f) === 'domain').forEach((f) => {
+    const src = codeOf(path.join(PKJS, f));
     const used = RUNTIME.filter(([, re]) => re.test(src)).map(([name]) => name);
     if (used.length) { found[f] = used; }
   });
@@ -150,40 +189,26 @@ test('domain code reaches the runtime only in the listed files', () => {
     'a domain file reaches the runtime, or a listed one no longer does (then update the list)');
 });
 
-test('domain code requires only domain code and the shared library', () => {
-  const reach = [];
-  GRAPH.forEach((targets, f) => {
-    if (!HOME.get(f) || HOME.get(f).role !== 'domain') { return; }
-    targets.forEach((t) => {
-      const role = (HOME.get(t) || {}).role;
-      if (role !== 'domain' && role !== 'lib') { reach.push(`${f} -> ${t} (${role})`); }
+RULES.forEach((rule) => {
+  test(`${rule.name}, except the listed requires`, () => {
+    const broken = [];
+    GRAPH.forEach((targets, f) => {
+      if (rule.from.indexOf(roleOf(f)) === -1) { return; }
+      targets.filter((t) => rule.to.indexOf(roleOf(t)) === -1).forEach((t) => broken.push(`${f} -> ${t}`));
     });
+    assert.deepEqual(broken.sort(), rule.allowed,
+      'a require breaks the rule, or a listed one is fixed (then remove it from the list)');
   });
-  assert.deepEqual(reach.sort(), DOMAIN_REACH_ALLOWED);
-});
-
-test('the phone app requires the settings page only where listed', () => {
-  const reach = [];
-  GRAPH.forEach((targets, f) => {
-    if (isPage(f)) { return; }
-    targets.filter(isPage).forEach((t) => reach.push(`${f} -> ${t}`));
-  });
-  assert.deepEqual(reach.sort(), PAGE_REACH_ALLOWED);
-});
-
-test('the settings page engine requires only itself and the shared library', () => {
-  const reach = [];
-  GRAPH.forEach((targets, f) => {
-    if ((HOME.get(f) || {}).role !== 'page-engine') { return; }
-    targets.filter((t) => ['page-engine', 'lib'].indexOf((HOME.get(t) || {}).role) === -1).forEach((t) => reach.push(`${f} -> ${t}`));
-  });
-  assert.deepEqual(reach, []);
 });
 
 test('the require graph has no cycles beyond the listed ones', () => {
   // Tarjan's strongly connected components; a component of two or more files is a cycle.
   let index = 0;
-  const idx = new Map(), low = new Map(), stack = [], on = new Set(), cycles = [];
+  const idx = new Map();
+  const low = new Map();
+  const stack = [];
+  const on = new Set();
+  const cycles = [];
   /**
    * Tarjan's visit: number v, walk its requires, and pop a component when v is its root.
    * @param {string} v

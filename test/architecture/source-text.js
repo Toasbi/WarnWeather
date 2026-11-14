@@ -1,6 +1,8 @@
 // Source text for the architecture tests: comments and string contents blanked in one pass,
 // so prose and literals never read as code, and a "//" inside a string never hides the code
-// after it. C, JavaScript and TypeScript share the syntax this needs.
+// after it. C, JavaScript and TypeScript share the syntax this needs. A quote inside a regex
+// literal reads as the start of a string to the end of its line; the code has none that hide
+// a rule's call.
 const fs = require('node:fs');
 
 const TOKENS = /\/\*[\s\S]*?\*\/|\/\/[^\n]*|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
