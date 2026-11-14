@@ -2,7 +2,7 @@
 // Bars 4 to 6's wire and storage contract (Pebble Time 2, 3.0.0's New status bar): four appended
 // message keys, four appended persist slots, the watch's line and cell handlers behind
 // PBL_PLATFORM_EMERY, and the view word's row bits read on the watch where the phone packs
-// them (src/c/windows/layout.h, src/pkjs/layout/domain/view-cycle.js packExt). The phone's half of each:
+// them (src/c/appendix/view_spec.h, src/c/windows/layout.h, src/pkjs/layout/domain/view-cycle.js packExt). The phone's half of each:
 // test/status-bars/domain/extra-bars.test.js.
 
 const test = require('node:test');
@@ -16,6 +16,7 @@ const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalo
 
 const persistC = readC('src/c/appendix/persist.c');
 const appMessageC = readC('src/c/appendix/app_message.c');
+const viewSpecH = readC('src/c/appendix/view_spec.h');
 const layoutH = readC('src/c/windows/layout.h');
 const layoutC = readC('src/c/windows/layout.c');
 const statusLineH = readC('src/c/appendix/status_line.h');
@@ -91,10 +92,10 @@ test('the cells: CLAY_OD_EXTRA_UINT8 is one byte per item, checked before the wr
 });
 
 test('the view word: bars 4 to 6 ride the row fields plus ext bits 11 and 12, read where the phone packs them', () => {
-  assert.equal(cEnum(layoutH, 'STATUS_SRC_BAR4'), VC.STATUS_SRC_BAR4);
-  assert.equal(cEnum(layoutH, 'STATUS_SRC_BAR5'), VC.STATUS_SRC_BAR5);
-  assert.equal(cEnum(layoutH, 'STATUS_SRC_BAR6'), VC.STATUS_SRC_BAR6);
-  assert.ok(emeryOnly(layoutH, 'STATUS_SRC_BAR4 = 4'));
+  assert.equal(cEnum(viewSpecH, 'STATUS_SRC_BAR4'), VC.STATUS_SRC_BAR4);
+  assert.equal(cEnum(viewSpecH, 'STATUS_SRC_BAR5'), VC.STATUS_SRC_BAR5);
+  assert.equal(cEnum(viewSpecH, 'STATUS_SRC_BAR6'), VC.STATUS_SRC_BAR6);
+  assert.ok(emeryOnly(viewSpecH, 'STATUS_SRC_BAR4 = 4'));
   assert.match(layoutH, /#define VIEW_EXT_UPPER_BAR_HI \(1u << 11\)/);
   assert.match(layoutH, /#define VIEW_EXT_LOWER_BAR_HI \(1u << 12\)/);
   assert.equal(VC.EXT_UPPER_BAR_HI, 1 << 11);

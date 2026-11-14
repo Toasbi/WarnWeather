@@ -274,7 +274,7 @@
     /**
      * The clock: the samples' time in the time colour (the ink on a black-and-white watch or
      * theme), in the watch's own digits (clockSet), seated as time_layer.c seats them: the
-     * digits centred on the band by their advances (layout.h clock_seat_x), their first inked
+     * digits centred on the band by their advances (appendix/clock_seat.h clock_seat_x), their first inked
      * row where the band's ClockInk puts it (clock_ink_top_in_band), each glyph at its pen plus
      * its left bearing. A filter tints them, the time colour flooded through each glyph's
      * alpha, as the watch recolours the glyphs' palettes; a black-and-white theme or watch

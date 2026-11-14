@@ -86,7 +86,8 @@ Supabase from their handlers; the architecture test lists them.
 
 - Watchface: `windows` → `layers` → `appendix` and `services`; a lower layer never includes
   a higher one. Types that several layers share (the view spec, the layout tiers) live below
-  the layers, not in `windows/`. HealthService calls stay in `services/health.c`. No include
+  the layers, not in `windows/` (`appendix/view_spec.h`, and the clock's ink model in
+  `appendix/clock_seat.h`). HealthService calls stay in `services/health.c`. No include
   cycles. Aplite twins and contract files follow ADR 0001. Inside each layer, files group by
   domain context where the code has one (chart and graph, radar and rain, status row, calendar,
   palette and theme).

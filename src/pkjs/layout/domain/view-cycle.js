@@ -10,13 +10,13 @@ var TOP_EMPTY = 0, TOP_CAL = 1, TOP_RADAR = 2, TOP_GRAPH = 3;
 var TOP_KIND_FORECAST = 0, TOP_KIND_HEALTH = 1;
 // Unlike `top` above (deliberately renumbered and translated by view_spec_unpack()),
 // these numberings must stay bit-for-bit identical to BodyContent/StatusRowContent in
-// src/c/windows/layout.h — the packed wire byte passes them through untranslated.
+// src/c/appendix/view_spec.h — the packed wire byte passes them through untranslated.
 // RADAR_STATUS retired — radar flavor now lives in a status row (statusUpper/statusLower).
 // BODY_NONE (custom layouts only): the view has no graph band at all.
 var BODY_FC = 0, BODY_GRAPH = 1, BODY_RADAR = 2, BODY_NONE = 3;
 // Positional status sources: which content feeds the upper/lower status row.
 var STATUS_SRC_NONE = 0, STATUS_SRC_FORECAST = 1, STATUS_SRC_RADAR = 2, STATUS_SRC_HEALTH = 3;
-// Bars 4 to 6 (Pebble Time 2, 3.0.0's New status bar; src/c/windows/layout.h StatusSource): the
+// Bars 4 to 6 (Pebble Time 2, 3.0.0's New status bar; src/c/appendix/view_spec.h StatusSource): the
 // packed value's 2-bit row fields are full, so a row names one as FORECAST / RADAR / HEALTH
 // there plus an ext bit that adds 3 (packExt: bit 11 the upper row, bit 12 the lower).
 var STATUS_SRC_BAR4 = 4, STATUS_SRC_BAR5 = 5, STATUS_SRC_BAR6 = 6;
@@ -36,7 +36,7 @@ var BAR_OF_SRC = ['', 'forecast', 'radar', 'health'];
 EXTRA_BARS.forEach(function (b) { BAR_OF_SRC[b.src] = b.bar; });
 
 // Band size codes (the ext word's topSize / bodySize fields — one vocabulary for both
-// seats, mirroring BandSize in src/c/windows/layout.h). 0 = the seat's default: 3 rows
+// seats, mirroring BandSize in src/c/appendix/view_spec.h). 0 = the seat's default: 3 rows
 // for a radar/graph top, fill for the graph body. The settings keys store '2'|'3'|'4'|'fill'.
 var SIZE_DEFAULT = 0, SIZE_2 = 1, SIZE_3 = 2, SIZE_4 = 3, SIZE_FILL = 4;
 var SIZE_CODE = { '2': SIZE_2, '3': SIZE_3, '4': SIZE_4, fill: SIZE_FILL };

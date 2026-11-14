@@ -26,13 +26,6 @@ const UPWARD_ALLOWED = [
   'appendix/on_demand.h -> layers/status_row_layout.h',
   'appendix/step_scale.h -> layers/status_metrics.h',
   'appendix/temp_axis_pad.h -> layers/status_metrics.h',
-  'layers/clock_ink.h -> windows/layout.h',
-  'layers/status_bar.c -> windows/layout.h',
-  'layers/status_bar.h -> windows/layout.h',
-  'layers/status_row.c -> windows/layout.h',
-  'layers/status_row_aplite.c -> windows/layout.h',
-  'layers/top_status_layer.c -> windows/layout.h',
-  'layers/top_status_layer_aplite.c -> windows/layout.h',
 ];
 
 /**

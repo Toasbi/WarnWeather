@@ -10,7 +10,7 @@
 #include "../appendix/date_format.h"
 #include "../appendix/theme.h"
 #include "../appendix/status_threshold.h"
-#include "../windows/layout.h"   // LayoutTier (row_font)
+#include "../appendix/view_spec.h"   // LayoutTier (row_font)
 #include "../services/watch_services.h"
 #include "status_on_demand.h"
 #include "status_sig.h"
