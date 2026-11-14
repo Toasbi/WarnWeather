@@ -86,7 +86,10 @@
     // SLOT_LIVE_DATE renderer never cared about position).
     { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, category: 'datelocation' },
     { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, category: 'datelocation' },
-    { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE, category: 'datelocation' },
+    // iconLabel: the slot lists' name where the city draws the current weather's icon
+    // before it (every watch but aplite; slot-text.js cityIcon).
+    { code: 'city', label: 'City', iconLabel: 'City with weather icon', kind: KINDS.TEXT, icon: ICONS.NONE,
+      category: 'datelocation' },
     { code: 'countdown', label: 'Date countdown', kind: KINDS.TEXT,
       icon: ICONS.COUNTDOWN, category: 'datelocation' },
     { code: 'steps', label: 'Steps', kind: KINDS.LIVE_STEPS, icon: ICONS.STEPS, needsHealth: true, category: 'health' },
@@ -240,6 +243,15 @@
   }
 
   /**
+   * An item's name in the slot lists: its iconLabel where the watch draws that icon.
+   * @param {Object} item A catalog item. @param {Object} env Platform env.
+   * @returns {string}
+   */
+  function optionLabel(item, env) {
+    return item.iconLabel && !(env && env.platform === 'aplite') ? item.iconLabel : item.label;
+  }
+
+  /**
    * Option list for one slot dropdown: 'Empty' first, then available items per
    * category, minus args.excludeCodes. An item gated ONLY by the weather
    * provider stays in the list as a non-selectable row with {disabled: true}.
@@ -268,10 +280,10 @@
             || (taken[item.code] && item.code !== 'countdown')) { continue; }
         if (!itemAvailable(item, settings, env, slotCtx)) {
           if (!itemAvailableExceptProvider(item, settings, env, slotCtx)) { continue; }
-          children.push([item.label, item.code, { disabled: true }]);
+          children.push([optionLabel(item, env), item.code, { disabled: true }]);
           continue;
         }
-        children.push([item.label, item.code]);
+        children.push([optionLabel(item, env), item.code]);
       }
       if (!children.length) { continue; }
       if (children.length === 1) {

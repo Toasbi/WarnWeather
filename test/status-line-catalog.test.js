@@ -640,3 +640,10 @@ test('the four Battery rows are labelled Watch/Phone so none of them just reads 
   // indistinguishable in the dropdown.
   assert.equal(new Set(labels).size, labels.length, 'Battery labels must be unique');
 });
+
+test('the slot lists name the city with its weather icon, except on aplite', () => {
+  const label = (env) => catalog.slotOptions({}, env, { slotKey: 'statusTopLeft', position: 'left' })
+    .filter((o) => o[1] === 'city').map((o) => o[0])[0];
+  assert.equal(label(ENV_BASALT), 'City with weather icon');
+  assert.equal(label({ platform: 'aplite' }), 'City');
+});
