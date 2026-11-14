@@ -376,31 +376,41 @@ tomorrow.io, …) take coordinates or addresses in their URLs by their own desig
   section headers, `- ` bullets, `*italic*`, `[text](https://…)` links — see
   `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
 - **Changelog style: Keep a Changelog** (the owner's, 2026-11-14;
-  https://keepachangelog.com). The news body and the appstore changelog group their items
+  https://keepachangelog.com). The appstore changelog and the news body group their items
   under the Keep a Changelog types, in this order and only those that apply: `Added` (new
-  features), `Changed` (changes to existing features), `Removed`, `Fixed`. Headings are
-  bold in the news body and plain lines in the appstore text. Each item is one short line
-  without a full stop, about five to twelve words, naming the feature the way the user sees
-  it: `Added` and `Changed` items name the feature or what is different now ("Weather icon
-  before the city name in the City slot"); `Fixed` items name what was wrong ("Rain alert
-  icon drew in the wrong color") or what works again. No marketing words, no exclamation
-  marks, no how-to, no second sentence. A platform limit goes in parentheses at the end
-  (`(Pebble Time 2)`, `(not on Pebble Classic or Steel)`). Small fixes are one grouped
-  `Minor fixes` line at the end of `Fixed`. The news body renders flat `- ` bullets only
-  (`news.js`), so no sub-bullets. The shape to match:
+  features), `Changed` (changes to existing features), `Removed`, `Fixed`. Each item is one
+  line without a full stop, naming the feature the way the user sees it: `Added` and
+  `Changed` items name the feature or what is different now; `Fixed` items say what was wrong
+  ("The settings page opened blank on Android") or what works again. No marketing words, no
+  exclamation marks, no settings path or how-to, no second sentence. Small fixes and
+  settings-screen polish are one last `Minor fixes` line in `Fixed`.
+  - **Appstore changelog:** plain-line headings, items of about five to twelve words, a
+    platform limit in parentheses at the end (`(Pebble Time 2)`,
+    `(not on Pebble Classic or Steel)`).
+  - **News body** (`public.news`, RELEASE.md "News row"): the same items and groups as that
+    version's appstore changelog, each explained a little more (what it is and what it does
+    for the user), about eight to eighteen words. Bold headings with a blank line between
+    the groups, flat `- ` bullets (news.js renders `**bold**`, `*italic*`, `[text](https://…)`
+    links and `- ` bullets only: no `#` headings, no sub-bullets). An item not on Pebble
+    Classic or Steel ends with `*`, a Pebble Time 2 only item with `**`, and the body ends
+    with a blank line and only the footnotes it used: `* Not on Pebble Classic or Steel`,
+    `** Pebble Time 2 only` (a lone `*` or `**` prints as is). Other limits stay in
+    parentheses: `(color watches)`, `(Android)`, `(Pebble Classic and Steel: text only)`.
+    The shape to match (3.1.0's):
 
-  ```
-  Added
-  - Weather condition status slot with a sun or moon icon
-  - Up to six status bars (Pebble Time 2)
+    ```
+    **Added**
+    - Change layout in a screen's editor gives the screen another layout and keeps its name and place*
 
-  Changed
-  - Tap a status bar in the settings to open its settings
+    **Changed**
+    - Edit on a screen's forecast graph row opens the settings of that graph**
 
-  Fixed
-  - Settings did not open right after Reset watchface
-  - Minor fixes
-  ```
+    **Fixed**
+    - Visible values set on one graph no longer change the same metric on your other graphs**
+
+    * Not on Pebble Classic or Steel
+    ** Pebble Time 2 only
+    ```
 - **Write the changelog for users, not the diff** (both the toast and the news body). Call
   out individually only what a user can act on: a feature they can use, or a bug that
   affected the watchface itself. Group everything else — settings-screen polish, internal
