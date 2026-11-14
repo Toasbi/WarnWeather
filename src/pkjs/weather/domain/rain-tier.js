@@ -2,7 +2,7 @@
 // Height constants mirror C rain_tier.c (RAIN_TIER_MAX_TENTHS / RAIN_TIER_TOP_PCT_ARR);
 // they are duplicated there for the radar's on-watch height math — keep in sync.
 var COLORS = require('../../theme/domain/pebble-colors');
-var configUi = require('../../config-ui');
+var platforms = require('../../config-ui/lib/platform.js');
 var resolveInkLib = require('../../theme/domain/resolve-ink.js');
 var isBwTheme = resolveInkLib.isBwTheme;
 var isLightPolarity = resolveInkLib.isLightPolarity;
@@ -89,7 +89,7 @@ function rainPermille(tenths) {
  */
 function buildPalette(platform, colorMode, theme) {
     theme = theme || 'dark';
-    if (!configUi.isColorPlatform(platform) || isBwTheme(theme)) {
+    if (!platforms.isColorPlatform(platform) || isBwTheme(theme)) {
         return { from: [0], rgb: [isLightPolarity(theme) ? COLORS.GColorWhite : COLORS.GColorBlack] };
     }
     if (colorMode === 'white') {
