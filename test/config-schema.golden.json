@@ -8877,6 +8877,7 @@
                 "messageKey": "vibe",
                 "label": "Vibrate on disconnect",
                 "defaultValue": true,
+                "hint": "Stays quiet during Quiet Time.",
                 "joinPrevious": "loose",
                 "showWhen": {
                   "env": "onDemand"

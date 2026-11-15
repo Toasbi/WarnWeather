@@ -598,6 +598,8 @@ function bluetoothSheet() {
             // ON out of the box (2.2.0), as aplite's Watch Status Bar copy: the buzz is
             // how a lost phone link gets noticed. Fresh installs and a reset only.
             defaultValue: true,
+            // The watch skips the buzz while Quiet Time is on (services/disconnect_vibe.h).
+            hint: 'Stays quiet during Quiet Time.',
             joinPrevious: 'loose',
             showWhen: ON_DEMAND_WHEN
         }])
