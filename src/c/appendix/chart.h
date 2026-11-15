@@ -55,14 +55,8 @@ typedef struct {
 // =====================================================================
 // One public entry point: chart_draw(). A chart is a ChartDef (grid) plus
 // an ordered list of ChartLayers — z-order IS array order, bottom first.
-// A ChartLayer is NOT a Pebble Layer: no heap, no framebuffer, ~40 B of
-// caller stack describing one draw pass.
-
-#if defined(PBL_PLATFORM_EMERY)
-#define CHART_MAX_SLOTS 68   // emery: the long span (forecast_span.h FORECAST_MAX_ENTRIES)
-#else
-#define CHART_MAX_SLOTS 32   // engine point-buffer cap; both charts use 24
-#endif
+// A ChartLayer is NOT a Pebble Layer: no heap, no framebuffer, 28 B of the
+// caller's memory describing one draw pass.
 
 typedef struct {
     int num_slots;
@@ -201,7 +195,12 @@ typedef enum { CHART_LINE_SOLID = 0, CHART_LINE_DOTS = 1, CHART_LINE_X = 2,
 
 typedef struct {
     const int16_t *values;            // the points are computed from these
-    GPoint        *export_points;     // optional out: count points
+    GPoint        *points;            // a SOLID line's vertices, count of them: the caller's
+                                      // buffer (the engine keeps none; a point array is too
+                                      // large for aplite's stack). Layers drawn one after
+                                      // another may share one, since each computes its points
+                                      // before it uses them; a contour HATCH reads the buffer
+                                      // of the AREA drawn before it. The mark styles need none.
     uint16_t       count;
     int16_t        lo, hi;
     uint16_t       inset_top;         // top margin px: value==hi lands at plot_top + inset_top
@@ -231,7 +230,7 @@ typedef struct {
 
 typedef struct {
     const int16_t *values;
-    GPoint        *export_points;     // optional out: count + 2 points (closing pts)
+    GPoint        *points;            // the caller's buffer, count + 2 points (closing pts)
     uint16_t       count;
     int16_t        lo, hi;            // no insets: the contour maps lo..hi over the whole
                                       // plot, as an uninset line does (a temperature-axis

@@ -442,7 +442,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     const GColor hr_color     = theme_pick(GColorRed, theme_fg());
 
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
-        .values = s_hr, .count = visible_slots,
+        .values = s_hr, .points = paint->hr_pts, .count = visible_slots,
         .lo = s_hr_lo, .hi = s_hr_hi,
         .color = hr_color,
         .width = 3,

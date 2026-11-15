@@ -9,12 +9,6 @@
 // sits in the padding after the 1-byte type, so a layer must not grow past 28 B.
 _Static_assert(sizeof(ChartLayer) <= 28, "ChartLayer grew: narrow the new field (chart.h)");
 
-// Shared per-call point scratch for LINE and AREA layers (callers that don't
-// pass export_points). Static, not stack: aplite's small app stack overflows
-// otherwise. Safe to share — chart_draw runs layers sequentially and each
-// renderer consumes the points within its own call.
-static GPoint s_pts_scratch[CHART_MAX_SLOTS + 2];
-
 static void graph_frame_draw(GContext *ctx, GraphFrame f, GRect outer) {
     if (f.left.width > 0) {
         graphics_context_set_fill_color(ctx, f.left.color);
@@ -442,7 +436,7 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
     }
 
     const int16_t *vals = l->values;
-    GPoint *pts = l->export_points ? l->export_points : s_pts_scratch;
+    GPoint *pts = l->points;
     const GRect c          = r->geo.content;
     // The value range spans inner_h, seated between the two margins: value==lo
     // lands at plot_bottom - inset_bottom, value==hi at plot_top + inset_top.
@@ -581,7 +575,7 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
     const int count = chart_clamp_count(r, a->count);
     if (count < 1) return;
 
-    GPoint *pts = a->export_points ? a->export_points : s_pts_scratch;
+    GPoint *pts = a->points;
     const GRect c          = r->geo.content;
     const int  zero        = CHART_ZERO(r);
     const int  dir         = CHART_DIR(r);

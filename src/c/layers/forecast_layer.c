@@ -359,7 +359,7 @@ static void load_dataset(ForecastDataset *ds) {
  */
 static ChartLayer mark_line_layer(const Series *s, int count, int hi) {
     return (ChartLayer){ CHART_LAYER_LINE, .from_top = SERIES_FROM_TOP(s), .line = {
-        .values = s->line.values, .count = count,
+        .values = s->line.values, .points = g_paint_scratch.forecast.area_pts, .count = count,
         .lo = 0, .hi = hi,
         .inset_top = LINE_INSET(s->line.inset_y), .inset_bottom = LINE_INSET(s->line.inset_y),
         .color = s->line.color, .width = s->line.width,
@@ -818,7 +818,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const bool second_top = SERIES_FROM_TOP(second);
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .from_top = second_top, .area = {
-            .values = second->line.values, .export_points = area_pts,
+            .values = second->line.values, .points = area_pts,
             .count = ds->num_entries, .lo = 0, .hi = LINE_HI(second->line.inset_y),
             .fill_color = second->line.fill_color } };
     }
@@ -896,14 +896,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                   .lo = 0, .hi = LINE_HI(second->line.inset_y),
                   .inset_top = LINE_INSET(second->line.inset_y),
                   .inset_bottom = LINE_INSET(second->line.inset_y),
-                  .export_points = area_pts,
+                  .points = area_pts,
                   .color = second->line.color, .width = second->line.width,
                   .style = series_style_pick(second->line, CHART_LINE_SOLID),
                   .zero_absent = LINE_ZERO(second) } };
     }
 
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
-        .values = first->line.values, .count = ds->num_entries,
+        .values = first->line.values, .points = area_pts, .count = ds->num_entries,
         .lo = 0, .hi = TEMP_HI,
         .inset_top = LINE_INSET(first->line.inset_y), .inset_bottom = LINE_INSET(first->line.inset_y),
         .color = first->line.color, .width = first->line.width } };
