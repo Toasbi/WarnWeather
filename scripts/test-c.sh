@@ -325,3 +325,12 @@ build/host/status_line_persist_test_emery
 cc $CFLAGS test/c/status_line_persist_test.c src/c/appendix/persist.c \
    -o build/host/status_line_persist_test
 build/host/status_line_persist_test
+# persist.c's RAM copy of the store (emery only): a key's second read costs no flash call,
+# absent keys too, and every setter keeps the copy exact. Built again with an arena the test
+# fills, so the way back to the flash runs too.
+cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR test/c/persist_cache_test.c src/c/appendix/persist.c \
+   -o build/host/persist_cache_test_emery
+build/host/persist_cache_test_emery
+cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR -DPERSIST_CACHE_BYTES=384 test/c/persist_cache_test.c \
+   src/c/appendix/persist.c -o build/host/persist_cache_test_small
+build/host/persist_cache_test_small
