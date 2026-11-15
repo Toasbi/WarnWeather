@@ -227,29 +227,31 @@ static void load_dataset(ForecastDataset *ds) {
     persist_get_night_colors(s_night_ink);
 #endif
 
-    ds->series[SERIES_FIRST] = (Series){
-        .id = SERIES_FIRST, .kind = SERIES_KIND_LINE, .present = (n > 0),
-        .line = { .color = theme_pick(GColorRed, theme_fg()),
-                  .width = 3, .inset_y = curve_insets[SERIES_FIRST] } };
+    // The memset above cleared every series; each sets only what it draws with. The
+    // metric lines' colours are the raw per-metric ones (the SDK reduces them on B&W).
+    for (SeriesId s = SERIES_SECOND; s < SERIES_COUNT; ++s) {
+        ds->series[s].present = persist_series_present(s);
+    }
+    SeriesLine *const first = &ds->series[SERIES_FIRST].line;
+    ds->series[SERIES_FIRST].present = (n > 0);
+    first->color = theme_pick(GColorRed, theme_fg());
+    first->width = 3;
+    first->inset_y = curve_insets[SERIES_FIRST];
 
-    ds->series[SERIES_SECOND] = (Series){
-        .id = SERIES_SECOND, .kind = SERIES_KIND_LINE,
-        .present = persist_series_present(SERIES_SECOND),
-        .line = { .color      = persist_get_line_color(),   // raw stroke — SDK reduces on B&W
-                  .width      = 1,
-                  .inset_y    = curve_insets[SERIES_SECOND],
-                  .fill_on    = persist_get_line_fill(),
-                  .fill_color = persist_get_fill_color() } };  // raw per-metric fill — SDK reduces on B&W
+    SeriesLine *const second = &ds->series[SERIES_SECOND].line;
+    second->color = persist_get_line_color();
+    second->width = 1;
+    second->inset_y = curve_insets[SERIES_SECOND];
+    second->fill_on = persist_get_line_fill();
+    second->fill_color = persist_get_fill_color();
 
-    ds->series[SERIES_THIRD] = (Series){
-        .id = SERIES_THIRD, .kind = SERIES_KIND_LINE,
-        .present = persist_series_present(SERIES_THIRD),
-        .line = { .color  = persist_get_third_line_color(),   // raw per-metric — SDK reduces on B&W
-                  .width  = FORECAST_GRID_BAR_W,   // marks match the rain-bar columns
-                  .inset_y = curve_insets[SERIES_THIRD] } };
-        // No .style here: capable platforms overwrite it from the persisted
-        // blob just below, and aplite reads the frozen constant through
-        // series_style_pick at the layer-build site instead.
+    SeriesLine *const third = &ds->series[SERIES_THIRD].line;
+    third->color = persist_get_third_line_color();
+    third->width = FORECAST_GRID_BAR_W;   // marks match the rain-bar columns
+    third->inset_y = curve_insets[SERIES_THIRD];
+    // No style here: capable platforms overwrite it from the persisted
+    // blob just below, and aplite reads the frozen constant through
+    // series_style_pick at the layer-build site instead.
 
     // The block below indexes curve_insets[SERIES_FOURTH/FIFTH], slots that
     // exist only in the WW_CURVE_INSET tuple — the aplite #else array above is
@@ -261,38 +263,27 @@ static void load_dataset(ForecastDataset *ds) {
 #if defined(WW_LINE_STYLE)
     _Static_assert(SERIES_FIFTH < CURVE_INSET_BYTES,
                    "CLAY_CURVE_INSET_UINT8 must carry one byte per SeriesId up to SERIES_FIFTH");
-    ds->series[SERIES_FOURTH] = (Series){
-        .id = SERIES_FOURTH, .kind = SERIES_KIND_LINE,
-        .present = persist_series_present(SERIES_FOURTH),
-        .line = { .color  = persist_get_fourth_line_color(),   // raw per-metric — SDK reduces on B&W
-                  .width  = FORECAST_GRID_BAR_W,   // marks match the rain-bar columns
-                  .inset_y = curve_insets[SERIES_FOURTH] } };
+    SeriesLine *const fourth = &ds->series[SERIES_FOURTH].line;
+    fourth->color = persist_get_fourth_line_color();
+    fourth->inset_y = curve_insets[SERIES_FOURTH];
 
     // Per-line marker styles, phone-resolved (bytes [9..11] of
     // CLAY_LINE_STYLE_UINT8 → LINE_STYLES persist blob). The persisted
     // defaults ARE the pre-feature look, so this only moves lines the user
-    // restyled. A SOLID kind takes its stroke width from the byte; the mark
-    // kinds keep the bar-column width their renderers expect.
+    // restyled. It sets every metric line's width: a SOLID kind takes its stroke
+    // width from the byte; the mark kinds keep the bar-column width their
+    // renderers expect.
     uint8_t line_styles[LINE_STYLE_STYLE_BYTES];
     persist_get_line_styles(line_styles);
-    apply_line_style(&ds->series[SERIES_SECOND].line, line_styles[0], 1);
-    apply_line_style(&ds->series[SERIES_THIRD].line,  line_styles[1], 1);
-    apply_line_style(&ds->series[SERIES_FOURTH].line, line_styles[2], 1);
+    apply_line_style(second, line_styles[0], 1);
+    apply_line_style(third,  line_styles[1], 1);
+    apply_line_style(fourth, line_styles[2], 1);
 
-    ds->series[SERIES_FIFTH] = (Series){
-        .id = SERIES_FIFTH, .kind = SERIES_KIND_LINE,
-        .present = persist_series_present(SERIES_FIFTH),
-        .line = { .color  = persist_get_fifth_line_color(),   // raw per-metric — SDK reduces on B&W
-                  .width  = FORECAST_GRID_BAR_W,
-                  .inset_y = curve_insets[SERIES_FIFTH] } };
-    apply_line_style(&ds->series[SERIES_FIFTH].line, persist_get_fifth_line_style(), 1);
+    SeriesLine *const fifth = &ds->series[SERIES_FIFTH].line;
+    fifth->color = persist_get_fifth_line_color();
+    fifth->inset_y = curve_insets[SERIES_FIFTH];
+    apply_line_style(fifth, persist_get_fifth_line_style(), 1);
 #endif
-
-    ds->series[SERIES_BARS] = (Series){
-        .id = SERIES_BARS, .kind = SERIES_KIND_BARS,
-        .present = persist_series_present(SERIES_BARS),
-        .bars = { .style = BAR_OUTLINED } };
-    // .bars.stops/.num_stops are attached at render (scaled palette).
 
 #if defined(PBL_PLATFORM_EMERY)
     // emery: a graph style with a record restyles the lines, routes each to its trend and
@@ -867,9 +858,6 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM, .custom = {
             .fn = day_lines_draw, .user = ds } };
     }
-    // Attach the scaled rain-tier palette to the BARS series (computed above).
-    bars->bars.stops     = scaled_bar_stops;
-    bars->bars.num_stops = bar_num_stops;
     if (bars_on) {
         // "Bars from: Top" rides the bar palette (palette.h palette_from_top); the
         // scaled copy's stop 0 is negative too, and the renderer clamps it.
@@ -877,8 +865,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                                     .bars = {
             .values = bars->bars.values, .count = ds->num_entries,
             .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-            .stops = bars->bars.stops, .num_stops = bars->bars.num_stops,
-            .style = bars->bars.style } };
+            .stops = scaled_bar_stops, .num_stops = bar_num_stops,
+            .style = BAR_OUTLINED } };
     }
     // Mark lines (second + third metric): bar-aligned marks whose styles are
     // user-selectable off the LINE_STYLES blob on capable platforms. The loop
