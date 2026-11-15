@@ -18,8 +18,8 @@
 // through its own eval().
 //
 // Built twice (scripts/test-c.sh): at the 4 px gap between slots its bars and tables are
-// laid out for, every case; at the watch's own gap (OD_INVARIANTS_ONLY), the checks over
-// random bars, which hold at any gap.
+// laid out for (the middle's air at the same 4 px), every case; at the watch's own gaps
+// (OD_INVARIANTS_ONLY), the checks over random bars, which hold at any gap.
 #ifdef OD_INVARIANTS_ONLY
 static const bool s_fixture_gap = false;
 // Fewer random bars show the middle beside a shortened look at the wider gap.
@@ -789,11 +789,11 @@ int main(void) {
     item_decisions();
     no_overlap();
     if (s_failures) {
-        printf("%d on_demand ladder failure(s) at a %d px gap\n", s_failures,
-               STATUS_ROW_GROUP_GAP);
+        printf("%d on_demand ladder failure(s) at a %d px gap, %d px for the middle\n",
+               s_failures, STATUS_ROW_GROUP_GAP, STATUS_ROW_MIDDLE_GAP);
         return 1;
     }
-    printf("on_demand ladder OK (%d px gap%s)\n", STATUS_ROW_GROUP_GAP,
-           s_fixture_gap ? "" : ", random bars");
+    printf("on_demand ladder OK (%d px gap, %d px for the middle%s)\n", STATUS_ROW_GROUP_GAP,
+           STATUS_ROW_MIDDLE_GAP, s_fixture_gap ? "" : ", random bars");
     return 0;
 }

@@ -40,9 +40,10 @@ static GroupFit fit_group(const StatusSlotMeasure *m, int16_t max_w) {
         return fit;
     }
 
-    int16_t text_w = m->text_w;
-    int16_t gap = (m->icon_w > 0 && text_w > 0) ? STATUS_ROW_ICON_TEXT_GAP : 0;
-    int16_t suffix = suffix_lane_w(m->suffix_w, text_w);
+    // Plain ints, as in status_row_layout().
+    int text_w = m->text_w;
+    int gap = (m->icon_w > 0 && text_w > 0) ? STATUS_ROW_ICON_TEXT_GAP : 0;
+    int suffix = suffix_lane_w(m->suffix_w, (int16_t)text_w);
     if (m->icon_w + gap + text_w + suffix > max_w) {
         text_w = max_w - m->icon_w - gap - suffix;
         if (text_w < 0) {
@@ -55,8 +56,8 @@ static GroupFit fit_group(const StatusSlotMeasure *m, int16_t max_w) {
 
     fit.visible = true;
     fit.text_visible = text_w > 0;
-    fit.text_w = text_w;
-    fit.group_w = status_group_w(m->icon_w, text_w, m->suffix_w);
+    fit.text_w = (int16_t)text_w;
+    fit.group_w = status_group_w(m->icon_w, (int16_t)text_w, m->suffix_w);
     return fit;
 }
 
@@ -139,24 +140,32 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
     place_group(&normalized[2], &right, (int16_t)(content_w - right.group_w), &out[2]);
 
     // The mid group gets whatever remains, bounded by GROUP_GAP from each
-    // present neighbour, or the content edge when a side is empty.
-    int16_t avail_x0 = left.visible
-        ? (int16_t)(left.group_w + STATUS_ROW_GROUP_GAP)
-        : 0;
-    int16_t avail_x1 = right.visible
-        ? (int16_t)(content_w - right.group_w - STATUS_ROW_GROUP_GAP)
-        : content_w;
-    GroupFit mid = fit_group(&normalized[1], (int16_t)(avail_x1 - avail_x0));
+    // present neighbour, or the content edge when a side is empty. Plain ints, as
+    // above.
+    int lo = left.visible ? left.group_w + STATUS_ROW_GROUP_GAP : 0;
+    int hi = right.visible ? content_w - right.group_w - STATUS_ROW_GROUP_GAP : content_w;
+    GroupFit mid = fit_group(&normalized[1], (int16_t)(hi - lo));
     // Centre the mid group on the row's true centre (content_w/2) so a disabled or
     // absent edge slot doesn't pull it off-centre. Clamp into the span left free by
-    // any present neighbour(s) — [avail_x0, avail_x1 - group_w] — so it never
-    // overlaps them; fit_group already sized it to fit, so lo <= hi.
-    int16_t mid_x = (int16_t)((content_w - mid.group_w) / 2);
-    int16_t mid_lo = avail_x0;
-    int16_t mid_hi = (int16_t)(avail_x1 - mid.group_w);
-    if (mid_x < mid_lo) { mid_x = mid_lo; }
-    if (mid_x > mid_hi) { mid_x = mid_hi; }
-    place_group(&normalized[1], &mid, mid_x, &out[1]);
+    // any present neighbour(s) — [lo, hi - group_w] — so it never overlaps them;
+    // fit_group already sized it to fit, so that span is not empty. Inside it the
+    // middle keeps STATUS_ROW_MIDDLE_GAP from each present neighbour where the row has
+    // the room; where it has less, the air past the GROUP_GAP is split evenly between
+    // the two neighbours (to the pixel), or all of it goes to the one when only one is
+    // present. Branch-free, for the image bytes: the span is halved only when both
+    // neighbours show, and each bound moves by the ease times its side's 0 or 1. `>> 1`
+    // halves a non-negative width, as `/ 2` would, without its rounding.
+    hi -= mid.group_w;
+    int ease = (hi - lo) >> (left.visible & right.visible);
+    if (ease > STATUS_ROW_MIDDLE_GAP - STATUS_ROW_GROUP_GAP) {
+        ease = STATUS_ROW_MIDDLE_GAP - STATUS_ROW_GROUP_GAP;
+    }
+    lo += ease * left.visible;
+    hi -= ease * right.visible;
+    int mid_x = (content_w - mid.group_w) >> 1;
+    if (mid_x < lo) { mid_x = lo; }
+    if (mid_x > hi) { mid_x = hi; }
+    place_group(&normalized[1], &mid, (int16_t)mid_x, &out[1]);
 }
 
 // Whether the layout cuts or hides a slot's text.

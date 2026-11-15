@@ -13,6 +13,16 @@
 #ifndef STATUS_ROW_GROUP_GAP
 #define STATUS_ROW_GROUP_GAP 6
 #endif
+// The air the middle slot keeps from each neighbour wherever the row has the room: twice
+// the least air. A centred middle beside a wider edge slot used to sit hard against it,
+// STATUS_ROW_GROUP_GAP away, with three times that on its other side (the Pebble Time 2's
+// Radar bar: 36 px and 6). It only moves the middle; it never cuts a text, which still gives
+// way only at STATUS_ROW_GROUP_GAP (status_row_layout). The settings page's copy is
+// preview-watch.js MIDDLE_GAP. The On demand host suites set it with the least air, which
+// lays a row out as before it (scripts/test-c.sh).
+#ifndef STATUS_ROW_MIDDLE_GAP
+#define STATUS_ROW_MIDDLE_GAP 12
+#endif
 
 typedef struct {
     bool present;

@@ -107,11 +107,13 @@ node scripts/check-forecast-span-lockstep.js build/host/forecast_span.txt
 # adds the ladder row each side ends on (OdLayout.stage), which the tests read and the
 # watch build leaves out.
 # The suites' bars, sweeps and pinned cases are laid out for a 4 px gap between slots
-# (status_row_layout.h STATUS_ROW_GROUP_GAP), the gap they were found at; the engine reads
-# the gap as a parameter, so OD_FIXTURE_GAP builds them there, row layout and engine alike.
-# The ladder suite's checks over random bars then run again at the watch's own gap
-# (OD_INVARIANTS_ONLY), with the items' tighter OD_ITEM_GAP as the watch has it.
-OD_FIXTURE_GAP="-DSTATUS_ROW_GROUP_GAP=4"
+# (status_row_layout.h STATUS_ROW_GROUP_GAP), the gap they were found at, and for a middle
+# that keeps no more air than that (STATUS_ROW_MIDDLE_GAP at the same 4 px places it as
+# before that gap came in); the engine reads both as parameters, so OD_FIXTURE_GAP builds
+# them there, row layout and engine alike. The ladder suite's checks over random bars then
+# run again at the watch's own gaps (OD_INVARIANTS_ONLY), with the items' tighter
+# OD_ITEM_GAP as the watch has it.
+OD_FIXTURE_GAP="-DSTATUS_ROW_GROUP_GAP=4 -DSTATUS_ROW_MIDDLE_GAP=4"
 cc $CFLAGS $OD_FIXTURE_GAP -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_ladder_test.c \
    src/c/appendix/status_row_layout.c -o build/host/on_demand_ladder_test
 build/host/on_demand_ladder_test

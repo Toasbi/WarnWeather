@@ -319,9 +319,9 @@
     // is its icon, STATUS_ROW_ICON_TEXT_GAP, its text and, for a wind reading, the direction
     // arrow after another gap; the edge slots take their full width first, from
     // STATUS_ROW_MARGIN in and STATUS_ROW_GROUP_GAP apart, and the middle one is centred on
-    // the row in what they leave, STATUS_ROW_GROUP_GAP from each. Icons are 6/9 of the line's
-    // height (the top strip's 5/9).
-    var ROW_MARGIN = 2, ICON_GAP = 3, GROUP_GAP = 6;
+    // the row in what they leave, STATUS_ROW_GROUP_GAP from each and STATUS_ROW_MIDDLE_GAP
+    // where the row has the room. Icons are 6/9 of the line's height (the top strip's 5/9).
+    var ROW_MARGIN = 2, ICON_GAP = 3, GROUP_GAP = 6, MIDDLE_GAP = 12;
     // The top strip's band (layout.c L.top_status): from the window's top pad, as tall as a
     // clamp-free line of its font (STATUS_LARGE_BAND_H, status_min_band_h) — taller than the
     // rows it reserves above the next band, so its line's tails run on into them. calY: where a
@@ -432,7 +432,15 @@
         var left = fitSlot(m[0], b0), right = fitSlot(m[2], b2);
         var x0 = left ? left.w + GROUP_GAP : 0, x1 = right ? cw - right.w - GROUP_GAP : cw;
         var mid = fitSlot(m[1], x1 - x0), midX = 0;
-        if (mid) { midX = Math.min(Math.max(cdiv(cw - mid.w, 2), x0), x1 - mid.w); }
+        if (mid) {
+            // MIDDLE_GAP from each neighbour where the row has the room, else the air past
+            // GROUP_GAP split evenly between them (all of it to the one, when one is present).
+            var lo = x0, hi = x1 - mid.w;
+            var ease = Math.min(left && right ? (hi - lo) >> 1 : hi - lo, MIDDLE_GAP - GROUP_GAP);
+            if (left) { lo += ease; }
+            if (right) { hi -= ease; }
+            midX = Math.min(Math.max((cw - mid.w) >> 1, lo), hi);
+        }
         return [left ? { x: 0, tw: left.tw } : null, mid ? { x: midX, tw: mid.tw } : null,
             right ? { x: cw - right.w, tw: right.tw } : null];
     }
