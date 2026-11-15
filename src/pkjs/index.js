@@ -564,11 +564,16 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
  * (update-check-runner.js — the XHR/notify half; update-check.js stays the
  * pure decision), so the extra work per tick is a flag test.
  *
+ * It runs after the tick's fetch decision, so a fetch due this minute is in
+ * flight by then: the push and the day/night re-bake wait for a tick without
+ * one, as that fetch's message carries the same news.
+ *
  * @returns {void}
  */
 function onSchedulerTick() {
-    phoneBattery.onTick();
-    statusRebake.onTick();
+    var fetching = fetchCycle.isInFlight();
+    phoneBattery.onTick(fetching);
+    statusRebake.onTick(fetching);
     updateCheckRunner.runDailyUpdateCheck({
         stores: UPDATE_CHECK_STORES,
         appVersion: pkg.version,

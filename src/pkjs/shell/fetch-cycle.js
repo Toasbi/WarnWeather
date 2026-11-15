@@ -420,7 +420,8 @@ function runCycle(deps) {
  * @param {function():?Object} [deps.getPhoneBattery] The phone's battery facts for the bake
  *   (phone-battery.js bakeFacts); absent = a host that cannot read the phone's battery.
  * @param {function(Function, number):*} deps.setTimeout Timer function (the watchdog and the queued-force drain; wrap the native one — see index.js).
- * @returns {{shouldFetchNow: function():boolean, start: function(boolean):boolean}} The fetch cycle.
+ * @returns {{shouldFetchNow: function():boolean, start: function(boolean):boolean, isInFlight: function():boolean}}
+ *   The fetch cycle.
  */
 function createFetchCycle(deps) {
     var fetchInProgress = false;
@@ -999,9 +1000,20 @@ function createFetchCycle(deps) {
         return true;
     }
 
+    /**
+     * Whether a weather fetch is running: started and not yet settled. The minute tick's
+     * other jobs (index.js onSchedulerTick) leave to it what its bake will carry anyway.
+     *
+     * @returns {boolean} True while a fetch is in flight.
+     */
+    function isInFlight() {
+        return fetchInProgress;
+    }
+
     return {
         shouldFetchNow: shouldFetchNow,
-        start: start
+        start: start,
+        isInFlight: isInFlight
     };
 }
 

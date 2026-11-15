@@ -87,6 +87,7 @@ var KEYS = require('../../settings/domain/storage-keys.js');
 // outbox.sendWeather pushes (its change-detector still suppresses no-op sends).
 var statusLines = require('../domain/status-lines.js');
 var WEATHER_CATEGORIES = require('../../wire/domain/weather-categories.js');
+var batterySaver = require('../../wire/domain/battery-saver.js');
 
 /**
  * The AppMessage keys a micro-send may carry — the outbox's 'status' category,
@@ -379,14 +380,24 @@ function nightAt(payload, sec) {
  * on the side of the sky it is now: the fetch that runs on the return brings
  * the rest, and a resend before it would carry the old snapshot's values.
  *
+ * It waits while a weather fetch is in flight, whose bake latches the side of the
+ * sky it is on, and inside the battery saver's window (battery-saver.js), which
+ * wakes the watch for nothing: the first tick after it, or the fetch due then,
+ * brings the turn. Nothing is latched while it waits, so a fetch that fails
+ * leaves it to the next tick.
+ *
+ * @param {boolean} [fetchInFlight] Whether a weather fetch is running this tick.
  * @returns {boolean} True when a resend was attempted.
  */
-function onTick() {
+function onTick(fetchInFlight) {
     var src = snapshot || restored;
     var night;
     if (!src) { return false; }
     night = nightNow(src.payload);
     if (night === bakedNight) { return false; }
+    if (fetchInFlight || batterySaver.isWithinSleepWindow(new Date(nowMs()), currentSettings())) {
+        return false;
+    }
     bakedNight = night;
     return resendStatus(night ? 'sunset' : 'sunrise');
 }

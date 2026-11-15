@@ -621,10 +621,16 @@ function init(options) {
  * window predicate) means it survives a PKJS restart mid-window and never
  * depends on a tick having happened to land inside the window.
  *
+ * Not while a weather fetch is in flight (the window's first one is due the
+ * minute it closes): that fetch's message goes out and takes the exact reading
+ * along (statusRideAlong). The debt stays, so the next tick pays what that
+ * message did not carry, and the outbox drops a push it did.
+ *
+ * @param {boolean} [fetchInFlight] Whether a weather fetch is running this tick.
  * @returns {void}
  */
-function onTick() {
-    if (!pendingPush || isSuppressed()) { return; }
+function onTick(fetchInFlight) {
+    if (!pendingPush || isSuppressed() || fetchInFlight) { return; }
     pendingPush = false;
     showExact();
     statusRebake.resendStatus('post-saver-window');

@@ -189,8 +189,9 @@ reading after a PKJS restart when it lands in another bucket (`phone-battery.js`
 
 **Battery saver**:
 The night window (`sleepStartHour` to `sleepEndHour`) in which the phone fetches no weather and
-sends the watch no phone-battery updates, so the Bluetooth link stays quiet. The watch is told
-through `IS_SLEEPING`. It shares the Nighttime card's hours with the night theme and the
+sends the watch no phone-battery updates and no sunrise or sunset re-bakes, so the Bluetooth
+link stays quiet; what it held back goes out once the window ends, with the fetch due then
+when there is one. The watch is told through `IS_SLEEPING`. It shares the Nighttime card's hours with the night theme and the
 backlight dim, but owns its own pair.
 _Avoid_: sleep window, sleep mode (the stored keys keep the sleep names).
 

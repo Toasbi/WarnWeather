@@ -479,6 +479,21 @@ test('the first tick after the window closes pushes exactly once', () => {
     'and it carries both halves: the level AND the charging icon');
 });
 
+test('the post-window push waits out a fetch in flight, whose message carries the battery', () => {
+  const mgr = fakeManager(0.62, false);
+  const h = boot({ navigator: modernNavigator(mgr), settings: SAVER_ON,
+                   clock: new Date(2026, 0, 1, 3, 0, 0) });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, { platform: 'basalt' });
+  mgr.setLevel(0.42);
+  h.clock = new Date(2026, 0, 1, 7, 0, 0);
+  phoneBattery.onTick(true);   // the window's first fetch started this minute
+  assert.equal(h.sends.length, 0, 'no push beside the fetch');
+  phoneBattery.onTick(false);  // the fetch's message did not take it along: still owed
+  assert.equal(h.sends.length, 1, 'pushed on the next tick');
+  phoneBattery.onTick(false);
+  assert.equal(h.sends.length, 1, 'once');
+});
+
 test('a tick inside the window pushes nothing', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr), settings: SAVER_ON,
