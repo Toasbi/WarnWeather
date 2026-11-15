@@ -19,7 +19,8 @@
 // *out. Wire knowledge only — no persist, no layers, no side effects.
 //
 // *out is zeroed first so padding bytes compare deterministically in
-// persist_set_config's memcmp change detection.
+// persist_set_config's memcmp change detection. It holds nothing to use when the
+// parse returns false.
 //
 // Returns false when any CORE key is absent — the all-or-nothing presence
 // chain is the category detector ("this message carries no config", normal

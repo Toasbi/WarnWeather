@@ -32,28 +32,68 @@ static void read_view_tuple(const Tuple *t, int i, uint16_t *spec, uint16_t *ext
 }
 #endif
 
+// How a core key's tuple fills its Config field.
+enum {
+    CORE_FLAG,    // a bool: any non-zero int
+    CORE_BYTE,    // a uint8_t: the int's low byte
+    CORE_INT16,   // an int16_t
+    CORE_COLOR,   // a GColor, sent as its 0xRRGGBB int
+};
+
+// The core keys (config_wire.h): each with the field it fills. The parse stops at the
+// first one missing, so a message without config (every weather message) costs one
+// lookup here. New keys do not join this table; they are the optionals below it.
+typedef struct {
+    uint16_t key;
+    uint8_t  offset;
+    uint8_t  read;
+} CoreKey;
+_Static_assert(sizeof(Config) <= 255, "a core key's field offset is one byte");
+// The message key ids are small constants (message_key_ids.auto.h); one that does not
+// fit the table's 16 bits fails to compile here.
+#define CORE_KEY(id, field, read) \
+    { (uint16_t) ((id) + 0 * sizeof(char[(id) <= 0xFFFFu ? 1 : -1])), offsetof(Config, field), (read) }
+static const CoreKey CORE_KEYS[] = {
+    CORE_KEY(MESSAGE_KEY_CLAY_CELSIUS,                celsius,                    CORE_FLAG),
+    CORE_KEY(MESSAGE_KEY_CLAY_TIME_LEAD_ZERO,         time_lead_zero,             CORE_FLAG),
+    CORE_KEY(MESSAGE_KEY_CLAY_AXIS_12H,               axis_12h,                   CORE_FLAG),
+    CORE_KEY(MESSAGE_KEY_CLAY_START_MON,              start_mon,                  CORE_FLAG),
+    CORE_KEY(MESSAGE_KEY_CLAY_PREV_WEEK,              prev_week,                  CORE_FLAG),
+    CORE_KEY(MESSAGE_KEY_CLAY_VIBE,                   vibe,                       CORE_FLAG),
+    CORE_KEY(MESSAGE_KEY_CLAY_SHOW_QT,                show_qt,                    CORE_FLAG),
+    CORE_KEY(MESSAGE_KEY_CLAY_SHOW_BT,                show_bt,                    CORE_FLAG),
+    CORE_KEY(MESSAGE_KEY_CLAY_SHOW_BT_DISCONNECT,     show_bt_disconnect,         CORE_FLAG),
+    CORE_KEY(MESSAGE_KEY_CLAY_SHOW_AM_PM,             show_am_pm,                 CORE_FLAG),
+    CORE_KEY(MESSAGE_KEY_CLAY_DAY_NIGHT_SHADING,      day_night_shading,          CORE_FLAG),
+    CORE_KEY(MESSAGE_KEY_CLAY_HEALTH_MODE,            health_mode,                CORE_BYTE),
+    CORE_KEY(MESSAGE_KEY_CLAY_TOP_VIEW_MODE,          top_view_mode,              CORE_BYTE),
+    CORE_KEY(MESSAGE_KEY_CLAY_FETCH_INTERVAL_MIN,     fetch_interval_min,         CORE_INT16),
+    CORE_KEY(MESSAGE_KEY_CLAY_RAIN_COUNTDOWN_HORIZON, rain_countdown_horizon_min, CORE_INT16),
+    CORE_KEY(MESSAGE_KEY_CLAY_TIME_FONT,              time_font,                  CORE_INT16),
+    CORE_KEY(MESSAGE_KEY_CLAY_COLOR_TODAY,            color_today,                CORE_COLOR),
+    CORE_KEY(MESSAGE_KEY_CLAY_COLOR_SATURDAY,         color_saturday,             CORE_COLOR),
+    CORE_KEY(MESSAGE_KEY_CLAY_COLOR_SUNDAY,           color_sunday,               CORE_COLOR),
+    CORE_KEY(MESSAGE_KEY_CLAY_COLOR_US_FEDERAL,       color_us_federal,           CORE_COLOR),
+    CORE_KEY(MESSAGE_KEY_CLAY_COLOR_TIME,             color_time,                 CORE_COLOR),
+};
+
 bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
-    Tuple *clay_celsius_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_CELSIUS);
-    Tuple *clay_time_lead_zero_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TIME_LEAD_ZERO);
-    Tuple *clay_axis_12h_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_AXIS_12H);
-    Tuple *clay_start_mon_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_START_MON);
-    Tuple *clay_prev_week_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_PREV_WEEK);
-    Tuple *clay_color_today_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_TODAY);
-    Tuple *clay_time_font_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TIME_FONT);
-    Tuple *clay_vibe_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIBE);
-    Tuple *clay_show_qt_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_SHOW_QT);
-    Tuple *clay_show_bt_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_SHOW_BT);
-    Tuple *clay_show_bt_disconnect_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_SHOW_BT_DISCONNECT);
-    Tuple *clay_show_am_pm_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_SHOW_AM_PM);
-    Tuple *clay_color_saturday_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_SATURDAY);
-    Tuple *clay_color_sunday_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_SUNDAY);
-    Tuple *clay_color_us_federal_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_US_FEDERAL);
-    Tuple *clay_color_time_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_TIME);
-    Tuple *clay_day_night_shading_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DAY_NIGHT_SHADING);
-    Tuple *clay_fetch_interval_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_FETCH_INTERVAL_MIN);
-    Tuple *clay_health_mode_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_HEALTH_MODE);
-    Tuple *clay_rain_countdown_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_RAIN_COUNTDOWN_HORIZON);
-    Tuple *clay_top_view_mode_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TOP_VIEW_MODE);
+    // Zero the struct first so padding bytes compare deterministically in
+    // persist_set_config's change detection.
+    memset(out, 0, sizeof(*out));
+    for (unsigned i = 0; i < sizeof(CORE_KEYS) / sizeof(CORE_KEYS[0]); ++i) {
+        const Tuple *t = dict_find(iterator, CORE_KEYS[i].key);
+        if (!t) { return false; }
+        uint8_t *const field = (uint8_t *) out + CORE_KEYS[i].offset;
+        const int16_t v = t->value->int16;
+        switch (CORE_KEYS[i].read) {
+            case CORE_FLAG:  *field = (v != 0); break;
+            case CORE_BYTE:  *field = (uint8_t) v; break;
+            case CORE_INT16: memcpy(field, &v, sizeof(v)); break;
+            default:         *field = GColorFromHEX(t->value->int32).argb; break;
+        }
+    }
+
     // Optional (older phone builds omit these); view_spec2 then keeps its seeded
     // default (the phone re-sends the real cycle on connect).
     Tuple *clay_view_0_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_0);
@@ -84,35 +124,6 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     Tuple *clay_hr_scale_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_HR_SCALE);
 #endif
 
-    // The core-key presence chain — see config_wire.h. New keys go in the
-    // optional block above, never in here.
-    if (!(clay_celsius_tuple && clay_time_lead_zero_tuple && clay_axis_12h_tuple && clay_start_mon_tuple
-        && clay_prev_week_tuple && clay_color_today_tuple && clay_time_font_tuple && clay_vibe_tuple
-        && clay_show_qt_tuple && clay_show_bt_tuple && clay_show_bt_disconnect_tuple && clay_show_am_pm_tuple
-        && clay_color_saturday_tuple && clay_color_sunday_tuple && clay_color_us_federal_tuple
-        && clay_color_time_tuple && clay_day_night_shading_tuple && clay_fetch_interval_tuple
-        && clay_health_mode_tuple && clay_rain_countdown_tuple && clay_top_view_mode_tuple)) {
-        return false;
-    }
-
-    // Zero the struct first so padding bytes compare deterministically in
-    // persist_set_config's change detection.
-    memset(out, 0, sizeof(*out));
-    out->celsius = (bool) (clay_celsius_tuple->value->int16);
-    out->time_lead_zero = (bool) (clay_time_lead_zero_tuple->value->int16);
-    out->axis_12h = (bool) (clay_axis_12h_tuple->value->int16);
-    out->start_mon = (bool) (clay_start_mon_tuple->value->int16);
-    out->prev_week = (bool) (clay_prev_week_tuple->value->int16);
-    out->vibe = (bool) (clay_vibe_tuple->value->int16);
-    out->show_qt = (bool) (clay_show_qt_tuple->value->int16);
-    out->show_bt = (bool) (clay_show_bt_tuple->value->int16);
-    out->show_bt_disconnect = (bool) (clay_show_bt_disconnect_tuple->value->int16);
-    out->show_am_pm = (bool) (clay_show_am_pm_tuple->value->int16);
-    out->day_night_shading = (bool) (clay_day_night_shading_tuple->value->int16);
-    out->health_mode = (uint8_t) (clay_health_mode_tuple->value->int16);
-    out->fetch_interval_min = clay_fetch_interval_tuple->value->int16;
-    out->rain_countdown_horizon_min = clay_rain_countdown_tuple->value->int16;
-    out->top_view_mode = (uint8_t) (clay_top_view_mode_tuple->value->int16);
     // Packed view slots — read the full int16 tuple as uint16 (NOT truncated to a byte;
     // the tier bits 8-9 live above the low byte). See config.h view_spec2 / view_spec_unpack.
     // Off aplite the high half carries the view's ext word too (read_view_tuple above).
@@ -168,11 +179,5 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
         out->hr_scale = (uint16_t) clay_hr_scale_tuple->value->int32;
     }
 #endif
-    out->time_font = clay_time_font_tuple->value->int16;
-    out->color_today = GColorFromHEX(clay_color_today_tuple->value->int32);
-    out->color_saturday = GColorFromHEX(clay_color_saturday_tuple->value->int32);
-    out->color_sunday = GColorFromHEX(clay_color_sunday_tuple->value->int32);
-    out->color_us_federal = GColorFromHEX(clay_color_us_federal_tuple->value->int32);
-    out->color_time = GColorFromHEX(clay_color_time_tuple->value->int32);
     return true;
 }
