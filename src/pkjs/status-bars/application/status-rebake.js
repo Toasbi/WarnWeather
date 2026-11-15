@@ -49,16 +49,20 @@
 //     on flash came from the send that carried that same bake. So, under
 //     unchanged settings, a re-bake reproduces the text the watch is ALREADY
 //     displaying for every slot but the battery one.
-//   * Every weather-derived slot (temp/feels, city, uv, wind, gust, pressure,
-//     dew, aqi, pollen, plus the wind-direction sentinel byte), the packed
-//     STATUS_LEVELS_UINT8 threshold byte and the weather alerts'
+//   * Every weather-derived slot's text (temp/feels, city, uv, wind, gust,
+//     pressure, dew, aqi, pollen, plus the wind-direction sentinel byte), the
+//     packed STATUS_LEVELS_UINT8 threshold byte and the weather alerts'
 //     ALERT_ENTRIES_UINT8 read frozen payload values, so they re-bake
-//     byte-identically however old the snapshot is.
+//     byte-identically however old the snapshot is. The weather condition's
+//     glyph (the condition slot's, and the city slot's when it shows one) is
+//     the exception: it reads day or night from the frozen SUN_EVENTS at the
+//     re-bake's `now`, so a re-bake across sunrise or sunset switches sun and
+//     moon -- the same switch the sunrise/sunset re-bake (onTick) exists for.
 //   * The `sun` slot formats the epoch frozen in SUN_EVENTS, not the clock, so
 //     an old snapshot re-renders the identical string -- stale in precisely the
 //     way the watch is already stale, never differently stale.
-//   * Three things DO read the clock during a bake, and all three re-derive
-//     FORWARD rather than going stale: the countdown slot and aplite's
+//   * Besides that glyph, three things read the clock during a bake, and all
+//     three re-derive FORWARD rather than going stale: the countdown slot and aplite's
 //     phone-baked ISO week (both from the `now` the re-bake passes in, this
 //     module's clock), and the LIVE_* kinds (date, week, hr, steps,
 //     distance), which carry no baked text at all -- the watch draws them

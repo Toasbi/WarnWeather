@@ -162,8 +162,9 @@ function bakeEnv(now, phone) {
  * @param {Object} [env] Platform environment: a wind or gust slot keeps a byte free
  *   for the direction arrow only where packLine will draw one (arrowSector).
  *   Absent = a watch with the arrow (not aplite).
- * @param {BakeEnv} [bake] The time and the phone's battery (bakeEnv): required by the
- *   countdown, the weather condition and the phone-battery items, which read them.
+ * @param {BakeEnv} bake The time and the phone's battery (bakeEnv). Required: the
+ *   countdown, the weather condition and the phone-battery items read it, and a call
+ *   without it throws on those.
  * @returns {string} display text, '--' when the value is unavailable
  */
 function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, bake) {
