@@ -90,7 +90,9 @@ function sendChangedCategories(payload, categories, label, onSuccess, onFailure)
     var extra = changed.length > 0 && label === 'weather' ? askRideAlong() : null;
     if (extra) {
         // The message goes out: the ride-along's values join it, and the categories are
-        // judged again on them, so one they freshen rides along where it now differs.
+        // judged again on them, so one they freshen rides along where it now differs and
+        // its cache commit holds what was sent. The first judgement, on the payload alone,
+        // is what keeps a ride-along from ever sending a message by itself.
         result = detector.detect(Object.assign({}, payload, extra));
         changed = result.categories.filter(isChanged);
     }
