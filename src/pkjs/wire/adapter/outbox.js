@@ -32,6 +32,9 @@
  * known to go out, and its values join it wherever they differ from what was last
  * sent (the phone battery's exact reading, phone-battery.js statusRideAlong).
  *
+ * Each weather message's ACK or NACK is told to one listener (setWeatherOutcomeListener):
+ * the channel scheduler reads a weather ACK after a NACK as the link being back.
+ *
  * Every compare/send cycle is reported to dev-stats as a semantic descriptor
  * (skip immediately; ack/nack from the AppMessage callbacks).
  */
@@ -50,6 +53,8 @@ var WEATHER_CATEGORIES = require('../domain/weather-categories.js');
 
 // The weather message's ride-along (setRideAlong), or null.
 var rideAlong = null;
+// Told each weather message's outcome (setWeatherOutcomeListener), or null.
+var weatherOutcome = null;
 
 /**
  * Distill a comparison result into the dev-stats descriptor.
@@ -132,12 +137,14 @@ function sendChangedCategories(payload, categories, label, onSuccess, onFailure)
         });
         devStats.record(statsDescriptor(statsType, result, 'ack'));
         console.log('Outbox: ' + label + ' sent successfully.');
+        if (label === 'weather' && weatherOutcome) { weatherOutcome(true); }
         if (typeof onSuccess === 'function') {
             onSuccess();
         }
     }, function(e) {
         devStats.record(statsDescriptor(statsType, result, 'nack'));
         console.log('Outbox: ' + label + ' send failed: ' + JSON.stringify(e));
+        if (label === 'weather' && weatherOutcome) { weatherOutcome(false); }
         if (typeof onFailure === 'function') {
             onFailure(e);
         }
@@ -180,6 +187,19 @@ function askRideAlong() {
  */
 function setRideAlong(fn) {
     rideAlong = typeof fn === 'function' ? fn : null;
+}
+
+/**
+ * Register the listener told each weather message's outcome, before the sender's own
+ * callback: true on ACK, false on NACK. A skipped send is no message and tells it nothing,
+ * and settings messages are not told. index.js wires the channel scheduler's
+ * (channel-scheduler.js onWeatherOutcome).
+ *
+ * @param {?function(boolean): void} fn The listener, or null to drop it.
+ * @returns {void}
+ */
+function setWeatherOutcomeListener(fn) {
+    weatherOutcome = typeof fn === 'function' ? fn : null;
 }
 
 /**
@@ -253,6 +273,7 @@ module.exports = {
     sendWeather: sendWeather,
     sendClay: sendClay,
     setRideAlong: setRideAlong,
+    setWeatherOutcomeListener: setWeatherOutcomeListener,
     clearWeatherCaches: clearWeatherCaches,
     clearClayCache: clearClayCache,
     clearNoticeCache: clearNoticeCache

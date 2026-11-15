@@ -32,7 +32,7 @@ var CLAY_RETRY_MAX_TICKS = 30;
  * @param {function():?string} [deps.effectiveThemeId] The auto-switch theme in effect right now, or null while the switch is off (theme-schedule.js via index.js).
  * @param {function(Function, number):*} deps.setTimeout Timer function (injected so tests drive a fake queue).
  * @param {function():Date} deps.now Current-time supplier (injected for a fake clock).
- * @returns {{onWatchStatus: Function, onReady: Function, onConfigClosed: Function, onHolidaysUpdated: Function, onStorageReset: Function, start: Function}} The scheduler.
+ * @returns {{onWatchStatus: Function, onReady: Function, onConfigClosed: Function, onHolidaysUpdated: Function, onStorageReset: Function, onWeatherOutcome: Function, start: Function}} The scheduler.
  */
 function createChannelScheduler(deps) {
     // Readiness latch: replaces index.js's `app.settings && app.provider` peek.
@@ -60,9 +60,12 @@ function createChannelScheduler(deps) {
     // the n-th NACK in a row waits 2^(n-1) minute ticks, at most CLAY_RETRY_MAX_TICKS
     // (1, 2, 4, 8, 16, then 30). Each resend is the whole bundle (the outbox forgot it
     // before the NACKed send), and every minute of it woke a watch that was refusing.
-    // Any ACK ends it. Kept in memory: a PKJS restart retries at its first tick.
+    // A settings ACK ends it, and so does the link coming back (onWeatherOutcome). Kept
+    // in memory: a PKJS restart retries at its first tick.
     var clayFailures = 0;
     var clayRetryWait = 0;
+    // Whether the last weather message NACKed (onWeatherOutcome).
+    var weatherNacked = false;
 
     /**
      * Today's local-day stamp (year-month-date) for detecting a day rollover.
@@ -110,7 +113,8 @@ function createChannelScheduler(deps) {
      * policy here, so no send can miss it: a config-close Clay left to wait for
      * midnight would have the forced fetch after it land new alert entries
      * against the old thresholds blob. While NACKs come in a row, that resend
-     * backs off (clayRetryWait); an ACK, or the outbox's no-op, ends it.
+     * backs off (clayRetryWait); an ACK, the outbox's no-op, or a weather ACK after a
+     * weather NACK (onWeatherOutcome) ends it.
      *
      * @param {Function} [onSuccess] Called after ACK, or immediately when unchanged.
      * @param {Function} [onFailure] Called on NACK, after the retry is armed.
@@ -396,6 +400,24 @@ function createChannelScheduler(deps) {
     }
 
     /**
+     * A weather message's outcome (outbox.js setWeatherOutcomeListener). A weather ACK
+     * after a weather NACK says the link is back, so it ends the settings resend's
+     * backoff and the next tick resends at once, rather than up to 30 min later. Weather
+     * ACKs alone end nothing: a watch that takes the weather but refuses the settings
+     * keeps backing off.
+     *
+     * @param {boolean} acked True on ACK, false on NACK.
+     * @returns {void}
+     */
+    function onWeatherOutcome(acked) {
+        if (acked && weatherNacked) {
+            clayFailures = 0;
+            clayRetryWait = 0;
+        }
+        weatherNacked = !acked;
+    }
+
+    /**
      * The phone storage was just wiped ("Reset watchface"): drop the pending
      * migration commit, so the Clay send that follows the reset cannot write
      * migration markers back into the emptied store — the next launch boots as a
@@ -424,6 +446,7 @@ function createChannelScheduler(deps) {
         onConfigClosed: onConfigClosed,
         onHolidaysUpdated: onHolidaysUpdated,
         onStorageReset: onStorageReset,
+        onWeatherOutcome: onWeatherOutcome,
         start: start
     };
 }
