@@ -7,7 +7,7 @@
 #if defined(PBL_HEALTH)
 
 // The readings a status slot can show, one bit each: what a row reports for its slots
-// (status_row_live_health) and what health_summary_refresh reads.
+// (status_row_live_health) and what health_summary_sync reads.
 #define HEALTH_SUMMARY_STEPS    0x01
 #define HEALTH_SUMMARY_DISTANCE 0x02
 #define HEALTH_SUMMARY_SLEEP    0x04
@@ -19,22 +19,24 @@
 #define HEALTH_SUMMARY_SLEEP_PERIOD_S 300
 
 /**
- * Re-read the health readings in `kinds` (steps / distance / sleep / HR): the ones the
- * rows on screen show. The others keep the values they were last read at: each reading
- * is a HealthService read (services/health.c), so one no row shows is not read. Sleep is
- * read at most once per HEALTH_SUMMARY_SLEEP_PERIOD_S. Returns true iff a reading read
- * changed at DISPLAYED resolution — distance at 100 m, sleep at a minute, matching the
- * status-row formatting.
+ * Read the health readings in `shown` (steps / distance / sleep / HR: the ones the rows on
+ * screen show) that this minute has not read yet. The first call in a minute reads all of
+ * them, and a reading a row newly shows inside the minute is read at once; the others keep
+ * the values they were last read at. Each reading is a HealthService read
+ * (services/health.c), so one no row shows is not read, and none is read twice in a
+ * minute. Sleep is read at most once per HEALTH_SUMMARY_SLEEP_PERIOD_S. Returns true iff a
+ * reading read changed at DISPLAYED resolution — distance at 100 m, sleep at a minute,
+ * matching the status-row formatting.
  *
  * Reads via the health.h accessors today; the sleep source can later become
  * nap-inclusive (summing sleep activities across the day) with no change to any
  * caller. A reading's value is valid only after it has been read once.
  *
- * @param kinds HEALTH_SUMMARY_* bits.
- * @param now   The current time (time(NULL)); paces the sleep read.
+ * @param shown HEALTH_SUMMARY_* bits.
+ * @param now   The current time (time(NULL)); minutes the reads and paces the sleep read.
  * @return true if a reading read differs from its held value at display resolution.
  */
-bool health_summary_refresh(uint8_t kinds, time_t now);
+bool health_summary_sync(uint8_t shown, time_t now);
 
 /** Steps recorded today. */
 int health_summary_steps(void);

@@ -14,8 +14,12 @@ static int s_sleep_sec  = INT_MIN;
 static int s_hr         = INT_MIN;
 // When sleep was last read (meaningless while s_sleep_sec is still INT_MIN).
 static time_t s_sleep_read_at;
+// The minute (now / 60) the readings in s_synced were read in.
+static time_t s_synced_minute = -1;
+static uint8_t s_synced;
 
-bool health_summary_refresh(uint8_t kinds, time_t now) {
+// Re-read the readings in `kinds`; true iff one changed at display resolution.
+static bool refresh(uint8_t kinds, time_t now) {
     bool changed = false;
     if (kinds & HEALTH_SUMMARY_STEPS) {
         const int steps = health_steps_today();
@@ -47,6 +51,16 @@ bool health_summary_refresh(uint8_t kinds, time_t now) {
         s_hr = hr;
     }
     return changed;
+}
+
+bool health_summary_sync(uint8_t shown, time_t now) {
+    if (now / 60 != s_synced_minute) {
+        s_synced_minute = now / 60;
+        s_synced = 0;
+    }
+    const uint8_t fresh = shown & (uint8_t) ~s_synced;
+    s_synced |= fresh;
+    return fresh && refresh(fresh, now);
 }
 
 int health_summary_steps(void)         { return s_steps; }

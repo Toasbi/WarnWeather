@@ -820,6 +820,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         // next minute tick; the strip carries slots of its own.
         status_bar_refresh_all();
         top_status_layer_refresh();
+#if defined(PBL_HEALTH)
+        // A new line can show a health reading no row showed before: read it now.
+        main_window_sync_health();
+#endif
     }
     if (radar_dirty) {
 #if defined(WW_RAIN_RADAR)
