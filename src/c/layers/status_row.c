@@ -545,10 +545,6 @@ void status_row_set_full_date(StatusRow *row, bool full_date) {
     if (row) { row->full_date = full_date; }
 }
 
-bool status_row_uses_live_health(const StatusRow *row) {
-    return row && row->live_health != 0;
-}
-
 #if defined(PBL_HEALTH)
 uint8_t status_row_live_health(const StatusRow *row) {
     return row ? row->live_health : 0;

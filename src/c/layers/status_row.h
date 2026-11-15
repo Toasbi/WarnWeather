@@ -16,7 +16,6 @@ bool status_row_refresh(StatusRow *row);
 // ("Jul 4. 2026") instead of month-year ("Jul 2026"). Pushed window -> owner ->
 // row (tier push); the resolver reads only row state.
 void status_row_set_full_date(StatusRow *row, bool full_date);
-bool status_row_uses_live_health(const StatusRow *row);
 #if defined(PBL_HEALTH)
 // The health readings the row's slots show (services/health_summary.h HEALTH_SUMMARY_*),
 // as of its last refresh; 0 when it shows none. Health watches only: aplite's lean twin

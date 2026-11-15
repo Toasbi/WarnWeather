@@ -188,8 +188,7 @@ void status_bar_create_all(Layer *parent, const ViewSpec *spec, const MainLayout
 void status_bar_set_in_use(uint8_t sources) {
     const uint8_t joined = (uint8_t) (sources & ~s_in_use);
     s_in_use = sources;
-    // A bar that joins is read at once, so a live-health check for the incoming view
-    // (main_window's health_warm_for_incoming_view) sees what its slots hold.
+    // A bar that joins is read at once: its row stayed empty while it was out of use.
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
         if ((joined >> bar_source((StatusBarId) i)) & 1u) { refresh_row((StatusBarId) i); }
     }
@@ -240,30 +239,26 @@ void status_bar_refresh_all(void) {
 }
 
 #if defined(PBL_HEALTH)
-uint8_t status_bar_visible_live_health(const ViewSpec *spec) {
+// Visible = not hidden, as in status_bar_tick_on_demand: status_bar_apply_view wrote the
+// flag from the view on screen, a Quick View peek's included.
+uint8_t status_bar_visible_live_health(void) {
     uint8_t kinds = 0;
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
-        if (layout_status_visible(spec, bar_source((StatusBarId) i))) {
-            kinds |= status_row_live_health(s_bars[i].row);
-        }
+        const StatusBar *b = &s_bars[i];
+        if (b->row && !layer_get_hidden(b->layer)) { kinds |= status_row_live_health(b->row); }
     }
     return kinds;
 }
-#endif
 
-void status_bar_refresh_live_health(const ViewSpec *spec) {
+void status_bar_refresh_live_health(void) {
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
-        StatusBar *b = &s_bars[i];
-        if (!b->row) { continue; }
-        const uint8_t src = bar_source((StatusBarId) i);
-        // See status_bar.h: VISIBLE bars only — those carrying a live health slot,
-        // plus the health-source bar itself.
-        if (layout_status_visible(spec, src)
-                && (status_row_uses_live_health(b->row) || src == STATUS_SRC_HEALTH)) {
+        const StatusBar *b = &s_bars[i];
+        if (b->row && !layer_get_hidden(b->layer) && status_row_live_health(b->row)) {
             refresh_row((StatusBarId) i);
         }
     }
 }
+#endif
 
 #if defined(WW_ON_DEMAND)
 void status_bar_tick_on_demand(void) {

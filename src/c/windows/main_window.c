@@ -300,25 +300,18 @@ static void quick_view_on_change(void) {
 #endif
 
 #if defined(PBL_HEALTH)
-// Whether the strip is on screen right now: a stripless view hides it (render_active_view).
-static bool strip_shown(void) {
-#if defined(WW_VIEW_CYCLE)
-    return !layer_get_hidden(top_status_layer_get_root());
-#else
-    return true;
-#endif
-}
-
 // See main_window.h. Every row refresh ends here: the load, main_window_refresh() (a
 // settings apply, a flick, a Quick View peek, the auto-return), a status send and the
 // minute tick, whose sync is the minute's first and so reads everything shown. The
-// readings are those of the visible bars, and the strip's while it shows.
+// readings are those of the visible bars, and the strip's while it shows. What shows
+// is read off the layers' hidden flags, which render_active_view set from the view on
+// screen: no view is recomputed here, so no persist read either.
 void main_window_sync_health(void) {
     if (!health_renderable()) { return; }
-    ViewSpec spec = current_view_spec();
-    const uint8_t strip = strip_shown() ? top_status_layer_live_health() : 0;
-    if (health_summary_sync(status_bar_visible_live_health(&spec) | strip, time(NULL))) {
-        status_bar_refresh_live_health(&spec);
+    const uint8_t strip = layer_get_hidden(top_status_layer_get_root())
+                              ? 0 : top_status_layer_live_health();
+    if (health_summary_sync(status_bar_visible_live_health() | strip, time(NULL))) {
+        status_bar_refresh_live_health();
         if (strip) { top_status_layer_refresh(); }
     }
 }
@@ -581,9 +574,9 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     // (rollover-warm then; the 15-min current-hour re-read only while the graph is on
     // screen), and repaint the graph from it. The render path stays HealthService-free.
     // Asked here too, not only on a settings apply: health_available() latches its first
-    // yes on whichever check asks first.
-    ViewSpec aspec = current_view_spec();
-    const bool graph_shown = layout_visibility(&aspec).health_graph;
+    // yes on whichever check asks first. On screen = not hidden: render_active_view set
+    // the flag from the view on screen, a Quick View peek's included.
+    const bool graph_shown = !layer_get_hidden(health_graph_layer_get_root());
     health_cache_keep(health_graph_renderable());
     health_cache_tick(graph_shown);
     if (graph_shown) { health_graph_layer_refresh(); }
