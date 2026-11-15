@@ -59,6 +59,11 @@ bool health_cache_ready(void) {
 // (HR excludes the in-progress bucket N-1, which is set from live BPM at completion).
 static void health_cache_fill_range(int start, int len) {
     if (len < 1) { return; }
+    if (start + len == N) {
+        // The in-progress hour: its 15-minute slot counts as read, whichever path reads it
+        // (a build, a restore's top-up, a rollover, the flick's or the tick's re-read).
+        s_quarter = time(NULL) / HEALTH_CACHE_QUARTER_S;
+    }
     const time_t fa = s_end_hour + STEP;                 // exclusive end of bucket N-1
     health_fill_hourly_steps(&s_steps[start],
                              len,
@@ -220,7 +225,6 @@ void health_cache_refresh_current_hour(void) {
     if (!s_ready || s_build_pending) { return; }    // never built / build or refresh in flight
     const time_t now = time(NULL);
     if (now - (now % STEP) != s_end_hour) { return; } // rollover pending => leave it to the tick
-    s_quarter = now / HEALTH_CACHE_QUARTER_S;       // the tick's read for this slot is done
     health_cache_recalc(s_end_hour, 1);             // inline, cheap (steps + live BPM)
 }
 
@@ -234,7 +238,6 @@ void health_cache_tick(bool view_visible) {
     const time_t quarter  = now / HEALTH_CACHE_QUARTER_S;
 
     if (now_hour != s_end_hour) {
-        s_quarter = quarter;   // the rollover's refill reads the new in-progress hour
         if (!health_cache_rollover_to(now_hour)) {
             health_cache_recalc(now_hour, N);   // full rebuild
         }
@@ -245,7 +248,6 @@ void health_cache_tick(bool view_visible) {
     // The slot, not its first second: a tick that runs late (behind a busy event loop)
     // still gets its read, and a read the flick already made in this slot counts.
     if (view_visible && quarter != s_quarter) {
-        s_quarter = quarter;
         health_cache_recalc(now_hour, 1);
     }
 }

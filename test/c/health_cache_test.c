@@ -414,6 +414,10 @@ static void keeping_on_restores_or_builds(void) {
     expect_int("keep.restore.anchor", (long)health_cache_read(st, hr, sl, N), (long)(H + STEP));
     expect_int("keep.restore.slid_step0", st[0], 1001);
     drain("keep.restore");
+    // The top-up read the in-progress hour: its 15-minute slot counts as read.
+    reset_counters();
+    health_cache_tick(true);
+    expect_int("keep.restore.slot_read", s_reads + s_peeks, 0);
 
     reset_counters();
     health_cache_keep(true);                       // already kept
@@ -429,6 +433,9 @@ static void keeping_on_restores_or_builds(void) {
     drain("keep.build");
     expect_int("keep.build.reads", s_reads, N + N - 1);
     expect_int("keep.build.ready", health_cache_ready(), 1);
+    reset_counters();
+    health_cache_tick(true);
+    expect_int("keep.build.slot_read", s_reads + s_peeks, 0);
 
     s_now = H + 2 * STEP + 30;                     // kept: the tick rolls it again
     health_cache_tick(false);
