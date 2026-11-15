@@ -66,4 +66,16 @@ function createSkySource(skyId) {
     return (has ? SKY_FACTORIES[skyId] : SKY_FACTORIES[DEFAULT_SKY_ID])();
 }
 
-module.exports = { createSkySource: createSkySource };
+/**
+ * Minimum spacing between two requests of a sky source (0 = every cycle): Open-Meteo is
+ * asked once per UTC half hour (radar-sky.js REFRESH_SECONDS, which the sky's slots are
+ * sized for); the clearing source answers at once and is never throttled. fetch-cycle.js
+ * takeSkyRequestSlot applies it, the radar-factory.js minRequestIntervalMs pattern.
+ * @param {string} skyId 'openmeteo' or 'disabled'.
+ * @returns {number} Milliseconds.
+ */
+function minRequestIntervalMs(skyId) {
+    return skyId === 'openmeteo' ? radarSky.REFRESH_SECONDS * 1000 : 0;
+}
+
+module.exports = { createSkySource: createSkySource, minRequestIntervalMs: minRequestIntervalMs };

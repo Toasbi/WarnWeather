@@ -41,6 +41,7 @@ var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
 var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var KEY_RADAR_REQUEST = storageKeys.RADAR_REQUEST_THROTTLE_KEY;
+var KEY_SKY_REQUEST = storageKeys.SKY_REQUEST_THROTTLE_KEY;
 var KEY_SERVER_STREAK = storageKeys.SERVER_FAILURE_STREAK_KEY;
 // How long an in-flight weather fetch may run before it is presumed lost. A
 // healthy chain is bounded by its own timeouts, step after step: the GPS fix
@@ -294,6 +295,69 @@ function rememberRadarAnswer(radarId, atMs, tuples) {
     }
 }
 
+// --- sky request throttle ---------------------------------------------------
+// The radar's sky rows are asked once per UTC-aligned half hour (radar-sky-source.js
+// minRequestIntervalMs; radar-sky.js sizes a sky to last that long), the cycles between
+// re-serve that half hour's answer, and the outbox sends it only when it changed or the
+// one on the watch would run out (sky-dedupe.js). Like the radar's, the record keeps no
+// position and lives in localStorage, read and written at call time only.
+
+/**
+ * The persisted last sky answer, or null when missing or unreadable.
+ * @returns {?{id: string, at: number, tuple: {RADAR_SKY_UINT8: number[]}}} Record.
+ */
+function readSkyRequest() {
+    try {
+        var rec = JSON.parse(localStorage.getItem(KEY_SKY_REQUEST));
+        return (rec && typeof rec.id === 'string' && typeof rec.at === 'number' && isFinite(rec.at)
+            && rec.tuple && Array.isArray(rec.tuple.RADAR_SKY_UINT8)) ? rec : null;
+    } catch (e) { return null; }
+}
+
+/**
+ * Decide this cycle's sky request: none while this half hour's answer is kept (the cycle
+ * re-serves it), else one, and always when forced. A source that is not throttled (the
+ * clearing one) forgets the record.
+ * @param {string} skyId The sky source id ('openmeteo' or 'disabled').
+ * @param {number} nowMs Current epoch ms.
+ * @param {boolean} force Whether this fetch was forced.
+ * @returns {{request: boolean, tuple: ?Object}} request false = re-serve `tuple`.
+ */
+function takeSkyRequestSlot(skyId, nowMs, force) {
+    var minMs = radarSkySource.minRequestIntervalMs(skyId);
+    try {
+        if (!(minMs > 0)) {
+            if (localStorage.getItem(KEY_SKY_REQUEST) !== null) { localStorage.removeItem(KEY_SKY_REQUEST); }
+            return { request: true, tuple: null };
+        }
+        var last = readSkyRequest();
+        if (!force && last && last.id === skyId && nowMs >= last.at
+                && !isPastRefreshSlot(last.at, nowMs, minMs)) {
+            return { request: false, tuple: last.tuple };
+        }
+    } catch (e) {
+        // A broken store: request anyway (this runs in the async coordinates callback).
+    }
+    return { request: true, tuple: null };
+}
+
+/**
+ * Keep a throttled sky source's answer for the cycles of its half hour to re-serve. A
+ * transient failure (null) keeps nothing, so the next cycle asks again.
+ * @param {string} skyId The source that answered.
+ * @param {number} atMs The request's time.
+ * @param {?Object} tuple The answer ({RADAR_SKY_UINT8}), or null.
+ * @returns {void}
+ */
+function rememberSkyAnswer(skyId, atMs, tuple) {
+    if (!tuple || !(radarSkySource.minRequestIntervalMs(skyId) > 0)) { return; }
+    try {
+        localStorage.setItem(KEY_SKY_REQUEST, JSON.stringify({ id: skyId, at: atMs, tuple: tuple }));
+    } catch (e) {
+        // Best effort: without it the next cycle asks again.
+    }
+}
+
 // --- one cycle's chain ------------------------------------------------------
 // Resolve device coordinates ONCE per refresh cycle, then drive radar and
 // forecast from that single fix. Kept pure (deps injected), so the
@@ -433,11 +497,12 @@ function createFetchCycle(deps) {
         var source = radarFactory.createRadarSource(radarId, radarCfg);
         // The sky rows ride the radar graph: a radar source that can never answer draws
         // no graph, so the sky request would be wasted — clear the rows instead.
-        var skySource = radarSkySource.createSkySource(radarFactory.canAnswer(radarId, radarCfg)
-            ? radarSky.skySourceIdFor(settings) : 'disabled');
+        var skyId = radarFactory.canAnswer(radarId, radarCfg) ? radarSky.skySourceIdFor(settings) : 'disabled';
+        var skySource = radarSkySource.createSkySource(skyId);
         var nowMs = +deps.now();
         var slotZeroEpoch = radarWire.slotZeroEpochFor(nowMs);
         var slot = takeRadarRequestSlot(radarId, radarCfg, nowMs, force);
+        var skySlot = takeSkyRequestSlot(skyId, nowMs, force);
         // The sky request is independent of the radar's, so both go out at once and
         // the forecast waits for the slower one, not for one after the other.
         radarSky.joinRadarAndSky(function (cb) {
@@ -461,7 +526,16 @@ function createFetchCycle(deps) {
                 cb(tuples);
             });
         }, function (cb) {
-            skySource.fetchSkyTupleAt(lat, lon, slotZeroEpoch, cb);
+            if (!skySlot.request) {
+                console.log('Sky request skipped: asked once per ' + (radarSkySource.minRequestIntervalMs(skyId) / 60000)
+                    + ' min; re-serving this half hour\'s sky.');
+                cb(skySlot.tuple);
+                return;
+            }
+            skySource.fetchSkyTupleAt(lat, lon, slotZeroEpoch, function (tuple) {
+                rememberSkyAnswer(skyId, nowMs, tuple);
+                cb(tuple);
+            });
         }, function (tuples) {
             // Which regional radar sources can see this place (no position kept), for the
             // settings page's note under the Radar provider row; an update that did not

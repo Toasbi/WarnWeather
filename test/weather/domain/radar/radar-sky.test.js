@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const WeatherProvider = require('../../../../src/pkjs/weather/adapter/provider.js');
 const radarSky = require('../../../../src/pkjs/weather/domain/radar/radar-sky.js');
 const radarSkySource = require('../../../../src/pkjs/weather/adapter/radar/radar-sky-source.js');
+const radarWire = require('../../../../src/pkjs/weather/domain/radar/radar-wire.js');
 const stripeLevels = require('../../../../src/pkjs/forecast-graphs/domain/stripe-levels.js');
 
 const Q = radarSky.SLOT_SECONDS;
@@ -11,7 +12,7 @@ const SLOT0 = 1790200800 + 5 * 60;   // a 5-min radar slot, 5 min past a quarter
 // SLOT0 is 2026-09-23 22:05 UTC. Places whose sun suits a test over that window:
 // Honolulu around local noon (elevation 57-69 deg), Berlin at night (below -35 deg),
 // and Perth at sunrise (slot 0's quarter hour -0.3 deg at its middle, then +3 deg
-// a slot, 2.9 deg in slot 1 to 24.9 deg in slot 8).
+// a slot, 2.9 deg in slot 1 to 27.9 deg in slot 9).
 const HONOLULU = [21.3, -157.86];
 const BERLIN = [52.5, 13.4];
 const PERTH = [-31.95, 115.86];
@@ -37,10 +38,42 @@ function response(from, count, fields) {
   return { minutely_15: m };
 }
 
-test('nine quarter-hour slots always cover the two-hour radar window', () => {
-  assert.equal(radarSky.NUM_SLOTS, 9);
+test('the window spans nine quarter hours; a sky carries one more, and is asked every half hour', () => {
+  assert.equal(radarSky.WINDOW_SLOTS, 9);
+  assert.equal(radarSky.NUM_SLOTS, 10);
+  assert.equal(radarSky.REFRESH_SECONDS, 30 * 60);
   assert.equal(radarSky.skyStartFor(SLOT0), 1790200800, 'the quarter hour holding slot 0');
   assert.equal(radarSky.skyStartFor(1790200800), 1790200800);
+});
+
+test('a sky asked anywhere in a half hour covers the radar window until the next half hour', () => {
+  // The watch keeps the sky it holds between two requests (fetch-cycle.js takeSkyRequestSlot)
+  // and places it by time against its self-advancing radar window.
+  const R = radarSky.REFRESH_SECONDS;
+  const S = Math.floor(SLOT0 / R) * R;
+  const WINDOW = radarWire.NUM_BARS * radarWire.SLOT_SECONDS;
+  for (let asked = S; asked < S + R; asked += radarWire.SLOT_SECONDS) {
+    const start = radarSky.skyStartFor(asked);
+    const end = start + radarSky.NUM_SLOTS * Q;
+    for (let slot0 = asked; slot0 < S + R; slot0 += radarWire.SLOT_SECONDS) {
+      assert.ok(start <= slot0 && slot0 + WINDOW <= end,
+        'asked ' + (asked - S) / 60 + ' min into the half hour, the window at ' + (slot0 - S) / 60 + ' min');
+    }
+    // Nine slots always hold the window at the moment it is asked for.
+    assert.ok(asked + WINDOW <= start + radarSky.WINDOW_SLOTS * Q);
+  }
+  // Asked on the half hour, a sky of nine slots ends a quarter hour before the half hour does.
+  assert.ok(S + R - radarWire.SLOT_SECONDS + WINDOW > S + radarSky.WINDOW_SLOTS * Q, 'the tenth slot is needed');
+});
+
+test('unpackSky reads packSky\'s layout back; the clear and a malformed blob are null', () => {
+  const s = { start: 1799086560, clouds: [0, 125, 250], suns: [250, 0, 10], bolts: [false, true, false] };
+  assert.deepEqual(radarSky.unpackSky(radarSky.packSky(s)), s);
+  assert.equal(radarSky.unpackSky([]), null, 'the clear');
+  assert.equal(radarSky.unpackSky([0, 0, 0, 0, 2, 1, 2]), null, 'a length that disagrees with N');
+  assert.equal(radarSky.unpackSky([0, 0, 0, 0, 0, 0, 0]), null, 'no slots');
+  assert.equal(radarSky.unpackSky(null), null);
+  assert.equal(radarSky.unpackSky(undefined), null);
 });
 
 test('the Open-Meteo request asks for cloud by layer, the direct beam and lightning in unix time', () => {
@@ -95,7 +128,7 @@ test('maps weighted cloud, sun strength and lightning by timestamp onto the slot
   });
   const sky = radarSky.mapOpenMeteoSky(json, SLOT0, ...HONOLULU);
   assert.equal(sky.start, start);
-  assert.equal(sky.clouds.length, 9);
+  assert.equal(sky.clouds.length, radarSky.NUM_SLOTS);
   assert.deepEqual(sky.clouds.slice(0, 4), [L2, FULL, L1, NONE],
     'thin high cloud alone counts half (50 %, level 2); overcast is full; 20 % low cloud is level 1; '
     + 'clear is nothing');
@@ -149,10 +182,10 @@ test('the sun\'s elevation is taken half way through the quarter hour the beam w
 
 test('a clear low-sun morning draws a full sun row, a hazy one a weaker row', () => {
   // Perth's clear sunrise, slot by slot: a clear sky's direct beam rises from about
-  // 150 W/m² at 3 deg to 630 at 25 deg. Measured against the clear sky at each
+  // 150 W/m² at 3 deg to 660 at 28 deg. Measured against the clear sky at each
   // elevation, every slot with the sun up is full; the first, before sunrise, is
   // empty even with a stray reading.
-  const clear = [40, 150, 280, 380, 450, 520, 560, 600, 630];
+  const clear = [40, 150, 280, 380, 450, 520, 560, 600, 630, 660];
   const start = radarSky.skyStartFor(SLOT0);
   const json = response(start + Q, radarSky.NUM_SLOTS, {
     direct_normal_irradiance: (i) => clear[i]
@@ -298,6 +331,12 @@ test('packSky writes radar_sky.h\'s layout: LE start, N, clouds, suns, LE lightn
   assert.deepEqual(nine.slice(-2), [0x00, 0x01]);
 });
 
+test('Open-Meteo\'s sky is asked once per half hour; the clearing source has no cadence', () => {
+  assert.equal(radarSkySource.minRequestIntervalMs('openmeteo'), radarSky.REFRESH_SECONDS * 1000);
+  assert.equal(radarSkySource.minRequestIntervalMs('disabled'), 0);
+  assert.equal(radarSkySource.minRequestIntervalMs('bogus'), 0);
+});
+
 test('the source follows the radar graph and the toggle; disabled clears the rows', () => {
   assert.equal(radarSky.skySourceIdFor({ radarSky: true }), 'openmeteo', 'graph is the default mode');
   assert.equal(radarSky.skySourceIdFor({ radarSky: true, radarMode: 'graph' }), 'openmeteo');
@@ -329,13 +368,14 @@ test('the Open-Meteo source packs a response, and a failure is transient (null)'
     let got;
     radarSkySource.createSkySource('openmeteo').fetchSkyTupleAt(...HONOLULU, SLOT0, (t) => { got = t; });
     assert.equal(urls[0], radarSky.buildOpenMeteoSkyUrl(...HONOLULU));
-    assert.equal(got.RADAR_SKY_UINT8.length, 25);
+    const N = radarSky.NUM_SLOTS;
+    assert.equal(got.RADAR_SKY_UINT8.length, 5 + 2 * N + 2);
     assert.equal(got.RADAR_SKY_UINT8[5], L2, 'first slot: a veil of high cloud draws half');
-    assert.equal(got.RADAR_SKY_UINT8[5 + 9], FULL, 'first slot: full sun at Honolulu\'s noon');
+    assert.equal(got.RADAR_SKY_UINT8[5 + N], FULL, 'first slot: full sun at Honolulu\'s noon');
     // The same answer for Berlin, at night there: the source hands its location on
     // to the elevation, so the beam draws no sun.
     radarSkySource.createSkySource('openmeteo').fetchSkyTupleAt(...BERLIN, SLOT0, (t) => { got = t; });
-    assert.deepEqual(got.RADAR_SKY_UINT8.slice(14, 23), Array(9).fill(NONE));
+    assert.deepEqual(got.RADAR_SKY_UINT8.slice(5 + N, 5 + 2 * N), Array(N).fill(NONE));
     WeatherProvider.request = (url, method, onOk, onErr) => onErr({ code: 'network_error' });
     radarSkySource.createSkySource('openmeteo').fetchSkyTupleAt(52, 13, SLOT0, (t) => { got = t; });
     assert.equal(got, null);

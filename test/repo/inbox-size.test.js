@@ -232,13 +232,15 @@ function buildHeaviestBundle(platform, over) {
   payload.RAIN_RADAR_TREND_UINT8 = radarRange.map(function() { return 7; });
   payload.RAIN_RADAR_TREND_AREA_UINT8 = radarRange.map(function() { return 7; });
   payload.RAIN_RADAR_START = 1700000000;
-  // The radar's sky rows (radar-sky.js packSky: 5 B header + 9 cloud + 9 sun +
-  // 2 B lightning mask). Never sent to aplite: index.js skips the whole radar
-  // step there (no WW_RAIN_RADAR).
+  // The radar's sky rows (radar-sky.js packSky: 5 B header + 10 cloud + 10 sun +
+  // 2 B lightning mask: the window's nine quarter hours and the one that carries the
+  // sky to the next half-hour request). Never sent to aplite: index.js skips the whole
+  // radar step there (no WW_RAIN_RADAR).
   if ((platform || 'emery') !== 'aplite') {
-    payload.RADAR_SKY_UINT8 = require('../../src/pkjs/weather/domain/radar/radar-sky.js').packSky({
-      start: 1700000000, clouds: Array(9).fill(250), suns: Array(9).fill(250),
-      bolts: Array(9).fill(true)
+    const radarSky = require('../../src/pkjs/weather/domain/radar/radar-sky.js');
+    payload.RADAR_SKY_UINT8 = radarSky.packSky({
+      start: 1700000000, clouds: Array(radarSky.NUM_SLOTS).fill(250), suns: Array(radarSky.NUM_SLOTS).fill(250),
+      bolts: Array(radarSky.NUM_SLOTS).fill(true)
     });
   }
 
@@ -267,7 +269,7 @@ function buildHeaviestBundleWithNotice(platform) {
 // entries, the radar sky rows and the Radar and Health bars' lines (2 × 51 B), which aplite
 // cannot draw; emery's carries its long span's 68 hours, the graph styles' spare row and bars
 // 4 to 6's lines (below).
-const WEATHER_BUNDLES = { emery: 1095, basalt: 603, diorite: 603, flint: 603, aplite: 371 };
+const WEATHER_BUNDLES = { emery: 1097, basalt: 605, diorite: 605, flint: 605, aplite: 371 };
 const INBOXES = { emery: 1280, basalt: 640, diorite: 640, flint: 640, aplite: 536 };
 // One of bars 4 to 6's lines with a full city in every slot, as the other bars' lines carry
 // it: a 7 B tuple header and three slots' packed bytes (status-lines.js).
@@ -375,8 +377,8 @@ test('each platform\'s heaviest weather bundle and inbox, recorded', () => {
   // 6 three status lines.
   assert.equal(WEATHER_BUNDLES.emery, WEATHER_BUNDLES.basalt + 6 * (68 - 24) + 7 + 68 + 3 * EXTRA_LINE_BYTES);
   // With a cleared notice riding along (the inbox ceiling test above): +8 B.
-  assert.equal(dictSize(buildHeaviestBundleWithNotice('emery')), 1103);
-  assert.ok(INBOXES.emery - 1103 >= 10, 'the cleared-notice bundle keeps the 10 B floor');
+  assert.equal(dictSize(buildHeaviestBundleWithNotice('emery')), 1105);
+  assert.ok(INBOXES.emery - 1105 >= 10, 'the cleared-notice bundle keeps the 10 B floor');
 });
 
 // The entries ride the status category, so the heaviest bundle carries them

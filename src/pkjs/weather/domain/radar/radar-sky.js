@@ -22,6 +22,12 @@
 // watch self-advances the radar between fetches). Each cloud and sun byte is
 // already one of the stripe's five level bytes, the level picked on the row's own
 // scale (skyByte, ../stripe-levels.js), so the watch draws exactly that level.
+//
+// Cadence: the phone asks for the sky once per UTC half hour (REFRESH_SECONDS,
+// fetch-cycle.js takeSkyRequestSlot) and the watch draws the one it holds until the
+// next, so a sky carries one slot past the window (NUM_SLOTS). The outbox sends a sky
+// only when it changed, or when the one on the watch would stop covering the window
+// before the next request (sky-dedupe.js).
 
 var SunCalc = require('suncalc');
 var cloudCover = require('../cloud-cover.js');
@@ -29,10 +35,21 @@ var radarWire = require('./radar-wire.js');
 var stripeLevels = require('../../../forecast-graphs/domain/stripe-levels.js');
 
 var SLOT_SECONDS = 15 * 60;
-// Slots that always cover the radar window: 120 min from a 5-min pinned slot 0
-// spans at most nine quarter-hours when slot 0 is not itself on a quarter hour.
-var NUM_SLOTS = Math.ceil((radarWire.NUM_BARS * radarWire.SLOT_SECONDS + SLOT_SECONDS - radarWire.SLOT_SECONDS)
-    / SLOT_SECONDS);
+// The radar window, in seconds: 24 five-minute slots from slot 0.
+var WINDOW_SECONDS = radarWire.NUM_BARS * radarWire.SLOT_SECONDS;
+// The quarter hours the radar window spans: 120 min from a 5-min pinned slot 0
+// reach into nine of them when slot 0 is not itself on a quarter hour.
+var WINDOW_SLOTS = Math.ceil((WINDOW_SECONDS + SLOT_SECONDS - radarWire.SLOT_SECONDS) / SLOT_SECONDS);
+// How often the phone asks for the sky: once per UTC half hour, the shared Rainbow
+// radar's cadence (radar-factory.js RADAR_MIN_REQUEST_INTERVAL_MS). The rows are
+// cloud and sun forecasts for the next two hours, which a quarter hour more or less
+// of age does not change; between two requests the watch draws the sky it holds.
+var REFRESH_SECONDS = 30 * 60;
+// The slots a sky carries: enough to cover the window until the next refresh, wherever
+// in its half hour the sky was asked for. Asked on the half hour it starts there, and the
+// window's last radar slot just before the next one starts 25 min later: 145 min, ten
+// quarter hours, one past the window's nine. radar_sky.h takes up to 16.
+var NUM_SLOTS = Math.ceil((WINDOW_SECONDS + REFRESH_SECONDS - radarWire.SLOT_SECONDS) / SLOT_SECONDS);
 // The share of a clear sky's direct beam that already counts as 100 % sun
 // strength (the sun row's scale draws full colour from 90 % of that), fitted
 // in the same satellite comparison (2888 daytime quarter hours): a clear day
@@ -238,6 +255,28 @@ function packSky(sky) {
 }
 
 /**
+ * Read a packed sky back (packSky's inverse, radar_sky.h's radar_sky_count rules): null
+ * for the clear (an empty blob) and for anything that is not a well-formed blob — too
+ * short, no slots, or a length that disagrees with its slot count.
+ * @param {*} bytes RADAR_SKY_UINT8 bytes.
+ * @returns {?{start: number, clouds: number[], suns: number[], bolts: boolean[]}} The sky.
+ */
+function unpackSky(bytes) {
+    if (!Array.isArray(bytes) || bytes.length < 5) { return null; }
+    var n = bytes[4];
+    if (!(n >= 1) || bytes.length !== 5 + 2 * n + 2) { return null; }
+    var mask = bytes[5 + 2 * n] | (bytes[6 + 2 * n] << 8);
+    var bolts = [];
+    for (var k = 0; k < n; k += 1) { bolts.push(((mask >> k) & 1) === 1); }
+    return {
+        start: (bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24)) >>> 0,
+        clouds: bytes.slice(5, 5 + n),
+        suns: bytes.slice(5 + n, 5 + 2 * n),
+        bolts: bolts
+    };
+}
+
+/**
  * The tuple that removes the sky rows from the watch (the toggle is off, or the
  * radar graph is not shown).
  * @returns {{RADAR_SKY_UINT8: number[]}} An empty blob.
@@ -310,6 +349,8 @@ function joinRadarAndSky(startRadar, startSky, callback) {
 
 module.exports = {
     SLOT_SECONDS: SLOT_SECONDS,
+    WINDOW_SLOTS: WINDOW_SLOTS,
+    REFRESH_SECONDS: REFRESH_SECONDS,
     NUM_SLOTS: NUM_SLOTS,
     SUN_FULL_CLEAR_SHARE: SUN_FULL_CLEAR_SHARE,
     SUN_MIN_ELEVATION_DEG: SUN_MIN_ELEVATION_DEG,
@@ -323,6 +364,7 @@ module.exports = {
     mapOpenMeteoSky: mapOpenMeteoSky,
     isLightning: isLightning,
     packSky: packSky,
+    unpackSky: unpackSky,
     clearSkyTuple: clearSkyTuple,
     isClearSkyTuple: isClearSkyTuple,
     skySourceIdFor: skySourceIdFor,

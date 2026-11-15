@@ -307,7 +307,7 @@ test('a missing proxy (404/405): the clear takes the radar off, survives a NACK,
 // Index level: the real index.js on a 5-minute schedule, booted by the shared
 // harness (which swaps in its own Pebble/localStorage/XHR and a fresh copy of
 // every src/pkjs module; the globals above are put back afterwards).
-test('index level: a 5-minute schedule asks the proxy at :00 and :30 only, the sky rows every fetch', (t) => {
+test('index level: a 5-minute schedule asks the proxy and the sky rows at :00 and :30 only', (t) => {
   const { bootIndex, healthyNetwork } = require('../helpers/index-harness.js');
   const savedStorage = global.localStorage;
   const savedPebble = global.Pebble;
@@ -323,7 +323,15 @@ test('index level: a 5-minute schedule asks the proxy at :00 and :30 only, the s
       if (url === ENDPOINT && req.method === 'POST') {
         return { status: 200, body: proxyBody(JSON.parse(req.body).start, SHOWER) };
       }
-      if (url.indexOf('minutely_15') !== -1) { return { status: 200, body: { minutely_15: { time: [] } } }; }
+      if (url.indexOf('minutely_15') !== -1) {
+        // A quarter hour back and four hours on, overcast throughout.
+        const from = Math.floor(Date.now() / 1000 / 900) * 900 - 900;
+        const time = Array.from({ length: 17 }, function(_, i) { return from + i * 900; });
+        const all = function(v) { return time.map(function() { return v; }); };
+        return { status: 200, body: { minutely_15: { time: time, cloud_cover: all(100), cloud_cover_low: all(100),
+          cloud_cover_mid: all(0), cloud_cover_high: all(0), direct_normal_irradiance: all(0),
+          lightning_potential: all(0), weather_code: all(3) } } };
+      }
       if (/^https:\/\/api\.open-meteo\.com\/v1\/forecast/.test(url) && url.indexOf('current=apparent_temperature') === -1) {
         forecastCalls += 1;
         if (forecastCalls === 1) { return 'error'; }   // the first forecast fails; its retry is inside the slot
@@ -341,7 +349,10 @@ test('index level: a 5-minute schedule asks the proxy at :00 and :30 only, the s
   h.minutes(56);      // the retry at 10:01:20, then every 5 min to 10:55:20
   assert.equal(h.uncaught.length, 0);
   assert.equal(h.count(/Provider failed to update weather/), 1, 'the first forecast failed, and was retried');
-  assert.equal(h.requestsTo(/minutely_15/), 13, 'the sky rows are asked on every fetch, the retry included');
+  assert.equal(h.requestsTo(/minutely_15/), 2,
+    'the sky rows only in the :00 and :30 half hours too; the retry re-serves the first answer');
+  assert.equal(h.sends.filter(function(m) { return 'RADAR_SKY_UINT8' in m; }).length, 2,
+    'and the sky goes out once per half hour');
   assert.equal(h.requestsTo(/^https:\/\/proxy\.example\/rainbow-nowcast$/), 2, 'the proxy only in the :00 and :30 slots');
   const proxied = h.requests.filter(function(r) { return r.url === ENDPOINT; });
   assert.deepEqual(proxied.map(function(r) { return r.method; }), ['POST', 'POST']);
