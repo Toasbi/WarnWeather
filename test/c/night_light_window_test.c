@@ -5,7 +5,7 @@
 // appendix/night_light.c itself cannot be host-compiled: it drives the LED through
 // applib (light_set_color_rgb888 / the app focus service) and reads flash through
 // persist.h. That is exactly why the window rule lives in the header as a static
-// inline — the date_format.h / status_icon_weight.h / night_light_wire_ok pattern —
+// inline — the date_format.h / status_icon_size.h / night_light_wire_ok pattern —
 // so the one part that can be executed before it reaches hardware is executed here.
 //
 // Built TWICE by scripts/test-c.sh: plain, and with -DWW_COLOR_BACKLIGHT (the emery

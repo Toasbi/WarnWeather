@@ -483,8 +483,9 @@ automatic: aplite has no themes chapter and no radar or health frames, flint sho
 
 ### Pixel icons
 
-The status icons are drawn once per size, in `resources/pixel-icons.json`. After a change there,
-build them into the watch:
+The status icons are drawn once per watch family and box, in `resources/pixel-icons.json`; each
+drawing carries its size and seat (`docs/adr/0006-status-icons-carry-their-size-and-seat.md`).
+After a change there, build them into the watch:
 
 ```bash
 node scripts/pixel-icons/gen_watch_icons.js          # the drawings, into the watch

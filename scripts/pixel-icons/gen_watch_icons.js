@@ -5,26 +5,30 @@
  *   node scripts/pixel-icons/gen_watch_icons.js           write the files below
  *   node scripts/pixel-icons/gen_watch_icons.js --check   exit 1 if any of them is stale
  *
- * From resources/pixel-icons.json, for every icon:
- *   resources/data/PX_<KEY>_<rows>.pdc   each size in its version (VERSIONS): by default the pixel
- *                                        drawing as 1 px lines through pixel centres (level,
- *                                        upright and 45-degree runs, joined end to end, and single
- *                                        dots), which the watch draws exactly, smoothing on or off;
- *                                        or 3.1.1's icon scaled the old way (old), or a drawing
- *                                        in lines (drawing), by their kept lines;
- *   resources/data/PX_<KEY>_<rows>_BW.pdc   for a line drawing, its pixels again, for the black
- *                                        and white watches (Pebble 2, Pebble 2 Duo): they have no
- *                                        grey pixels to smooth with, and the pixels are the drawing
- *                                        as they draw it;
- *   package.template.json                one raw resource per drawing, on the watches that draw
- *                                        it;
- *   src/c/layers/status_pixel_icons.generated.h   which drawing each icon id uses at each painted
- *                                        height (the rain alert's too: status_rain_glyph);
+ * From resources/pixel-icons.json, for every icon, one drawing per watch family and box (a size
+ * keyed `<family>-<box>`: basalt for the 144 px watches, emery for the Pebble Time 2; the box is
+ * the rows a bar's icon height paints). A drawing is its box: the watch centres it on the text, so
+ * its blank rows above and below its ink are its seat, and how tall its ink is, its size.
+ *   resources/data/PX_<KEY>_<FAMILY>_<box>.pdc   each drawing in its version (VERSIONS): by
+ *                                        default the pixel drawing as 1 px lines through pixel
+ *                                        centres (level, upright and 45-degree runs, joined end to
+ *                                        end, and single dots), which the watch draws exactly,
+ *                                        smoothing on or off; or 3.1.1's icon scaled the old way
+ *                                        (old), or a drawing in lines (drawing), by their kept
+ *                                        lines; its view box as tall as the drawing's box, as wide
+ *                                        as its ink;
+ *   resources/data/PX_<KEY>_<FAMILY>_<box>_BW.pdc   for a line drawing, its pixels again, for
+ *                                        the black and white watches (Pebble 2, Pebble 2 Duo): they
+ *                                        have no grey pixels to smooth with, and the pixels are the
+ *                                        drawing as they draw it;
+ *   package.template.json                one raw resource per drawing, on its family's watches;
+ *   src/c/layers/status_pixel_icons.generated.h   which drawing each icon id uses at each box
+ *                                        (the rain alert's too: status_rain_glyph);
  *   src/c/layers/status_row_aplite.c     the Pebble Classic/Steel bit mask, when the icon has one;
  *   src/pkjs/settings/condition-pixels.generated.js   the weather condition icons' drawings at
  *                                        PAGE_ROWS, for the settings page's list of conditions.
- * The watch draws nothing else: an icon id without a drawing is text only, and a height without
- * one takes the icon's next smaller drawing (status_icon_size.h).
+ * The watch draws nothing else: an icon id without a drawing is text only, and a box without one
+ * takes the icon's next smaller drawing (status_icon_size.h).
  */
 'use strict';
 
@@ -38,8 +42,14 @@ const PACKAGE = path.join(ROOT, 'package.template.json');
 const HEADER = path.join(ROOT, 'src', 'c', 'layers', 'status_pixel_icons.generated.h');
 const APLITE_C = path.join(ROOT, 'src', 'c', 'layers', 'status_row_aplite.c');
 const PAGE_PIXELS = path.join(ROOT, 'src', 'pkjs', 'settings', 'condition-pixels.generated.js');
-// The size the settings page shows the condition icons at: one every watch with them draws.
-const PAGE_ROWS = '13';
+// The drawing the settings page shows the condition icons at: the 144 px watches' 13 px box.
+const PAGE_SIZE = 'basalt-13';
+// A size's key: its watch family and box, or A for the Pebble Classic and Steel mask.
+const SIZE_KEY = /^(basalt|emery)-(\d+)$/;
+// The tallest Pebble Classic and Steel mask ink the 14 px text's band draws uncut, and the
+// tallest box, its blank rows seating the ink.
+const MASK_INK_ROWS = 13;
+const MASK_BOX_ROWS = 17;
 // The versions a size is built in: its pixel drawing; 3.1.1's icon scaled the old way (old), which
 // the black and white watches draw too, as they did before the pixel drawings; or a drawing in
 // lines (drawing). The last two keep their lines in the file, under their name.
@@ -64,11 +74,24 @@ const COLOUR_TARGETS = { basalt: ['basalt'], emery: ['emery'] };
  * @returns {!Array<!Array<number>>} [x, y] of each set pixel; empty for a blank drawing.
  */
 function inkPixels(lines) {
+    const px = boxPixels(lines);
+    if (!px.length) return px;
+    const y0 = Math.min(...px.map(p => p[1]));
+    return px.map(([x, y]) => [x, y - y0]);
+}
+
+/**
+ * The set pixels of '#'/'.' rows in the drawing's box: moved left so the ink starts at column 0,
+ * its rows as they are, so the blank rows above and below the ink stay its seat.
+ * @param {!Array<string>} lines The drawing's rows.
+ * @returns {!Array<!Array<number>>} [x, y] of each set pixel; empty for a blank drawing.
+ */
+function boxPixels(lines) {
     const px = [];
     lines.forEach((s, y) => { for (let x = 0; x < s.length; x++) if (s[x] === '#') px.push([x, y]); });
     if (!px.length) return px;
-    const x0 = Math.min(...px.map(p => p[0])), y0 = Math.min(...px.map(p => p[1]));
-    return px.map(([x, y]) => [x - x0, y - y0]);
+    const x0 = Math.min(...px.map(p => p[0]));
+    return px.map(([x, y]) => [x - x0, y]);
 }
 
 /**
@@ -151,6 +174,19 @@ function keptLines(version, kept) {
 }
 
 /**
+ * A size's kept lines, in the same box as its pixels: the box seats both alike.
+ * @param {string} where The icon and size, for the error.
+ * @param {string} version 'old' or 'drawing'.
+ * @param {!Object} s The size's entry.
+ * @returns {{lines: !Array<!Array<!Array<number>>>, w: number, h: number}}
+ */
+function keptInBox(where, version, s) {
+    const v = keptLines(version, s[version]);
+    if (v.h !== s.pixels.length) throw new Error(where + ': its ' + version + ' lines are ' + v.h + ' rows tall, its box ' + s.pixels.length);
+    return v;
+}
+
+/**
  * A PDC image of 1 px open precise paths, its points in pixels (on the 1/8 px grid), pixel (x, y)'s
  * centre at (x + 1/2, y + 1/2).
  * @param {!Array<!Array<!Array<number>>>} lines The paths' points, [x, y] each (paths()).
@@ -199,7 +235,7 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
     for (const key of Object.keys(doc.icons)) {
         if (!ICON_IDS[key]) throw new Error('unknown icon ' + key);
         const sizes = doc.icons[key].sizes;
-        for (const id of Object.keys(sizes).sort((a, b) => (a === 'A') - (b === 'A') || Number(a) - Number(b))) {
+        for (const id of Object.keys(sizes).sort()) {
             const s = sizes[id];
             // A Pebble Classic/Steel mask kept as 3.1.1 drew it ('mask': its rows and width, blank
             // columns included), so the text beside it sits where it did.
@@ -207,12 +243,17 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
                 masks[key] = { rows: s.mask.rows.slice(), w: s.mask.w };
                 continue;
             }
-            const px = inkPixels(s.pixels);
+            const px = boxPixels(s.pixels);
             if (!px.length) continue;
-            const w = Math.max(...px.map(p => p[0])) + 1, h = Math.max(...px.map(p => p[1])) + 1;
+            // As wide as the ink, as tall as the box: the box's blank rows are the seat.
+            const w = Math.max(...px.map(p => p[0])) + 1, h = s.pixels.length;
             if (id === 'A') {
+                const ink = inkPixels(s.pixels);
                 if (w > 16) throw new Error(key + ': the Pebble Classic/Steel mask is wider than 16 px');
-                if (h > 13) throw new Error(key + ': the Pebble Classic/Steel mask is taller than 13 rows');
+                if (Math.max(...ink.map(p => p[1])) + 1 > MASK_INK_ROWS) {
+                    throw new Error(key + ': the Pebble Classic/Steel mask\'s ink is taller than ' + MASK_INK_ROWS + ' rows');
+                }
+                if (h > MASK_BOX_ROWS) throw new Error(key + ': the Pebble Classic/Steel mask\'s box is taller than ' + MASK_BOX_ROWS + ' rows');
                 const rows = [];
                 for (let y = 0; y < h; y++) {
                     let bits = 0;
@@ -222,14 +263,15 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
                 masks[key] = { rows, w };
                 continue;
             }
-            // The size is the painted height the watch looks it up by; the image is the ink alone
-            // (a drawing may leave its top or bottom row blank), seated by its ink.
-            const rows = Number(id);
-            const plats = s.platforms || ['basalt', 'emery'];
-            if (!plats.length) continue;   // a size no watch draws any more
+            // The box the watch looks it up by: the rows a bar's icon height paints, on one family.
+            const m = SIZE_KEY.exec(id);
+            if (!m) throw new Error(key + ' ' + id + ': a size is keyed <basalt|emery>-<box>, or A');
+            const plat = m[1], rows = Number(m[2]);
+            if (h % 2 !== 1) throw new Error(key + ' ' + id + ': a drawing\'s box has an odd number of rows, centred on the text');
+            const plats = [plat];
             const version = s.version || 'pixel';
             if (!VERSIONS.includes(version)) throw new Error(key + ' ' + id + ': unknown version ' + version);
-            const name = 'PX_' + key + '_' + id;
+            const name = 'PX_' + key + '_' + plat.toUpperCase() + '_' + rows;
             const pixel = pdc(paths(runs(px)), w, h);
             // [resource name, its file's content, its watches, its header families]
             const drawn = [];
@@ -239,11 +281,11 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
             } else if (version === 'old') {
                 // The old icon goes to the black and white watches too: they drew it before the
                 // pixel drawings, unsmoothed, exactly as these lines draw there.
-                const v = keptLines(version, s[version]);
+                const v = keptInBox(key + ' ' + id, version, s);
                 drawn.push([name, pdc(v.lines, v.w, v.h), [].concat(...plats.map(p => TARGETS[p] || [])),
                     [].concat(...plats.map(p => FAMILIES[p] || []))]);
             } else {
-                const v = keptLines(version, s[version]);
+                const v = keptInBox(key + ' ' + id, version, s);
                 drawn.push([name, pdc(v.lines, v.w, v.h), [].concat(...plats.map(p => COLOUR_TARGETS[p] || [])),
                     plats.filter(p => FAMILIES[p])]);
                 if (plats.includes('basalt')) {
@@ -269,29 +311,35 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
 }
 
 /**
- * condition-pixels.generated.js: each weather condition icon's pixel drawing at PAGE_ROWS rows,
+ * condition-pixels.generated.js: each weather condition icon's pixel drawing at PAGE_SIZE,
  * the ink alone, a row per number with bit x for column x, for the settings page's list of the
  * conditions (blocks.js conditionList). ES5, for the page.
  * @param {!Object} doc resources/pixel-icons.json's content.
  * @returns {string} The file.
  */
 function pagePixels(doc) {
-    const keys = Object.keys(ICON_IDS).filter(k => ICON_IDS[k].some(id => /^STATUS_ICON_COND_/.test(id)));
+    // Each condition glyph by its name (STATUS_ICON_COND_<name>), from the drawing its id takes:
+    // Windy weather (WIND) has a drawing of its own, WINDY.
+    const glyphs = [];
+    Object.keys(ICON_IDS).forEach((key) => ICON_IDS[key].forEach((id) => {
+        const m = /^STATUS_ICON_COND_(\w+)$/.exec(id);
+        if (m) glyphs.push([m[1], key]);
+    }));
     // An icon without a drawing at that size (or a blank one) is left out: the page draws its
     // row without an icon.
-    const lines = keys.filter((key) => {
-        const s = doc.icons[key] && doc.icons[key].sizes[PAGE_ROWS];
+    const lines = glyphs.filter(([, key]) => {
+        const s = doc.icons[key] && doc.icons[key].sizes[PAGE_SIZE];
         return Boolean(s && inkPixels(s.pixels).length);
-    }).map((key) => {
-        const px = inkPixels(doc.icons[key].sizes[PAGE_ROWS].pixels);
+    }).map(([name, key]) => {
+        const px = inkPixels(doc.icons[key].sizes[PAGE_SIZE].pixels);
         const w = Math.max(...px.map(p => p[0])) + 1, h = Math.max(...px.map(p => p[1])) + 1;
         const rows = [];
         for (let y = 0; y < h; y++) rows.push(px.filter(p => p[1] === y).reduce((m, p) => m | (1 << p[0]), 0));
-        return '        ' + key + ': {w: ' + w + ', rows: [' + rows.join(', ') + ']}';
+        return '        ' + name + ': {w: ' + w + ', rows: [' + rows.join(', ') + ']}';
     });
     return [
         '// GENERATED by scripts/pixel-icons/gen_watch_icons.js from resources/pixel-icons.json: do not',
-        '// edit. The weather condition icons as the watch draws them at ' + PAGE_ROWS + ' px, the ink alone, a',
+        '// edit. The weather condition icons as the watch draws them at 13 px, the ink alone, a',
         '// row per number (bit x lights column x), for the condition slot\'s list of conditions on the',
         '// settings page (blocks.js conditionList).',
         '(function () {',
@@ -327,8 +375,9 @@ ${rows(icons)}
     };
     return `// GENERATED by scripts/pixel-icons/gen_watch_icons.js from resources/pixel-icons.json: do not
 // edit. The status icons drawn pixel by pixel (scripts/pixel-icons/README.md): the drawing each
-// icon id uses at each painted height, drawn 1:1 by status_row_icons.c (status_icon_size.h picks
-// the height); the rain alert's buckets take theirs by id too (status_rain_glyph). Included by
+// icon id uses at each box (the rows a bar's icon height paints), drawn 1:1 by status_row_icons.c
+// and centred on the text: a drawing carries its size and seat. The rain alert's buckets take
+// theirs by id too (status_rain_glyph). Included by
 // status_row_icons.c alone, and by the host test
 // test/c/status_icon_drawings_test.c, which defines PX_RES itself.
 #pragma once
@@ -352,8 +401,8 @@ ${section('basalt')}
 }
 
 /**
- * status_row_aplite.c with the icons' masks (and their sizes) written in. A mask is its ink
- * and nothing more.
+ * status_row_aplite.c with the icons' masks (and their sizes) written in. A mask is as wide as
+ * its ink and as tall as its box: its blank rows above and below seat it.
  * @param {!Object<string, {rows: !Array<number>, w: number}>} masks By icon key.
  * @param {string=} src The file's text; the file by default.
  * @returns {string} The file's new text.
@@ -402,5 +451,5 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { outputs, header, apliteSource, pagePixels, runs, paths, pdc, keptLines, inkPixels, VERSIONS, ICON_IDS, TARGETS,
-    PACKAGE, HEADER, APLITE_C, PAGE_PIXELS, DATA_DIR };
+module.exports = { outputs, header, apliteSource, pagePixels, runs, paths, pdc, keptLines, inkPixels, boxPixels, VERSIONS, ICON_IDS, TARGETS,
+    SIZE_KEY, PAGE_SIZE, PACKAGE, HEADER, APLITE_C, PAGE_PIXELS, DATA_DIR };

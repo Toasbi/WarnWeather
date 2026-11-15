@@ -122,7 +122,7 @@ test('every condition glyph has its drawing and its watch mapping; the page has 
     assert.ok(drawings[key] && Object.keys(drawings[key].sizes).length, id + ': ' + key + ' has drawings');
     assert.ok(table.indexOf('{ ' + id + ', ') !== -1, id + ': built into the watch\'s table');
   });
-  assert.deepEqual(gen.ICON_IDS.WIND, ['STATUS_ICON_WIND', 'STATUS_ICON_COND_WIND'], 'windy borrows the flag');
+  assert.deepEqual(gen.ICON_IDS.WINDY, ['STATUS_ICON_COND_WIND'], 'Windy weather: drawings of its own, sized and seated apart from the wind speed\'s');
   assert.equal(table.indexOf('STATUS_ICON_COND_TEXT'), -1, 'the Text look maps to no glyph');
 });
 

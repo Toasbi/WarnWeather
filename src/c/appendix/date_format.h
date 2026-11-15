@@ -1,7 +1,7 @@
 #pragma once
 
 // Pure date-slot formatters for SLOT_LIVE_DATE — header-only (static inline, no
-// .c file), like status_icon_weight.h: plain libc string composition with no SDK
+// .c file), like status_icon_size.h: plain libc string composition with no SDK
 // binding, so the host test (test/c/date_format_test.c) pins every format string
 // without an emulator. The only caller is status_row.c's format_status_date,
 // which aplite never compiles (its frozen lean twin status_row_aplite.c keeps

@@ -693,7 +693,7 @@ static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int conte
         if (!env_changed && wanted == row->glyph_icons[i]) { continue; }
         status_row_icons_destroy(row->glyphs[i]);
         // The city's weather glyph loads as that glyph (status_line.h STATUS_ICON_CITY_GLYPH).
-        row->glyphs[i] = status_row_icons_load(status_icon_glyph(wanted), target_h, top);
+        row->glyphs[i] = status_row_icons_load(status_icon_glyph(wanted), target_h);
         row->glyph_icons[i] = wanted;
     }
     row->glyph_h = target_h;
@@ -902,12 +902,9 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
             battery_draw(ctx, GRect(icon_x - lane, glyph_cy - BATTERY_GLYPH_H / 2,
                                     BATTERY_GLYPH_W, BATTERY_GLYPH_H), ink);
         } else if (row->glyphs[i]) {
-            // Seated on the cap centre at its per-icon optical-centre weight
-            // (status_icon_weight.h). glyph_icons[i] is the id whose PDC is in
-            // glyphs[i] (ensure_glyphs keeps the two together); the city's weather glyph
-            // seats as that glyph does (status_line.h STATUS_ICON_CITY_GLYPH).
-            status_highlight_draw_glyph(ctx, row->glyphs[i], icon_x, glyph_cy,
-                                        status_icon_glyph(row->glyph_icons[i]), ink);
+            // Its box centred on the cap centre: the drawing carries its seat
+            // (status_icon_size.h status_icon_top_y).
+            status_highlight_draw_glyph(ctx, row->glyphs[i], icon_x, glyph_cy, ink);
         } else if (slots[i].slot.icon == STATUS_ICON_DRAWN_SUN
                    && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;

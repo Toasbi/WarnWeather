@@ -1,22 +1,29 @@
 # Pixel icons
 
 The status icons (weather, weather values, phone and health, Bluetooth and quiet time) and the
-rain alert's icons, drawn once for every size the watch draws them at. A drawing the watch shows
+rain alert's icons, drawn once for every box the watch draws them in. A drawing the watch shows
 at its own size is crisp: nothing gets scaled, so no line lands between two pixels and turns grey.
+Each drawing carries its size and its seat: the watch centres it on the text and knows nothing
+else about it ([ADR 0006](../../docs/adr/0006-status-icons-carry-their-size-and-seat.md)). The icon
+creator (WarnWeatherTools) draws and tunes them, and exports them here.
 
 | File | What it does |
 |---|---|
-| `resources/pixel-icons.json` | The source of truth: every size of every icon, and the version each is built in. The watch draws these and nothing else |
+| `resources/pixel-icons.json` | The source of truth: every drawing of every icon, its size and seat drawn in, and the version each is built in. The watch draws these and nothing else |
 | `icons.json` | The icons: each one's key and the watch icon ids its drawings serve |
 | `gen_watch_icons.js` | Builds the drawings into the watch |
 | `THIRD_PARTY.md` | The licences of the two icon libraries some drawings started from |
 
 ## Changing an icon
 
-1. **Edit the size** in `resources/pixel-icons.json`. Its `pixels` are its rows, `#` for a lit
-   pixel and `.` for a blank one, and its `platforms` are the watches that draw it. A size in
-   another version is built from its kept lines (Versions, below): take out its `version` and
-   its lines to build it from its pixels.
+1. **Edit the drawing** in `resources/pixel-icons.json`, best in the icon creator. A drawing is
+   keyed by its watch family and box: `basalt-11` is the 144 px watches' 11-row box, `emery-17`
+   the Pebble Time 2's 17-row one (Which boxes, below). Its `pixels` are the box's rows, `#` for a
+   lit pixel and `.` for a blank one: how tall the ink is, is the icon's size; the blank rows above
+   and below it are its seat. The box has an odd number of rows, so it has a middle row the watch
+   puts on the text's cap centre; it may be taller than the bar's box, to sit the ink higher or
+   lower. A drawing in another version is built from its kept lines (Versions, below), in the same
+   box: take out its `version` and its lines to build it from its pixels.
 2. **Build.** `node scripts/pixel-icons/gen_watch_icons.js` builds the drawings into the watch
    (below).
 3. **Check and commit.** `mise build`, check the icons in the emulator, and commit
@@ -24,11 +31,11 @@ at its own size is crisp: nothing gets scaled, so no line lands between two pixe
    fails while they are stale, and so does `test/pixel-icons.test.js`.
 
 A new icon id needs its drawings before it can show: add it to `icons.json` (a new icon, or the
-`ids` of the one whose drawings it shares), give it every size the watch draws it at, and list the
-id in `test/c/status_icon_drawings_test.c`, which fails while any height a bar asks for has no
-drawing. `scripts/check-icon-sizes.js` (run by `scripts/test-c.sh`) holds the heights the watch
-asks for (`status_icon_size.h`) to the sizes `resources/pixel-icons.json` has drawings at, both
-ways, so neither a height without its drawing nor a drawing no height asks for gets built.
+`ids` of the one whose drawings it shares), give it a drawing for every box the watch draws it in,
+and list the id in `test/c/status_icon_drawings_test.c`, which fails while any box a bar asks for
+has no drawing. `scripts/check-icon-sizes.js` (run by `scripts/test-c.sh`) holds the boxes the
+watch asks for (`status_icon_size.h`) to the drawings `resources/pixel-icons.json` has, both ways,
+so neither a box without its drawing nor a drawing no box asks for gets built.
 
 ## Versions
 
@@ -54,10 +61,11 @@ white, at most 13 rows (the tallest mask the 14 px text's band draws uncut) and 
 row is a `uint16_t`), seated in the Classic bars as `status_mask_draw` seats a mask. The build
 refuses a larger one, and an `A` for an icon the Classic draws no mask of.
 
-A mask is its ink: a blank row or column at its edge falls away, so the text sits right beside
-it. A size that keeps 3.1.1's mask (`mask` in its entry: the mask's rows and width, blank columns
-included) is written as it is instead, whatever its pixels; take out `mask` to build it from its
-pixels.
+A mask is as wide as its ink, so the text sits right beside it, and as tall as its box: its blank
+rows above and below stay and seat it, as `status_mask_draw` puts the box's middle by the text.
+Its ink is at most 13 rows and its box at most 17. A size that keeps 3.1.1's mask (`mask` in its
+entry: the mask's rows and width, blank columns included) is written as it is instead, whatever
+its pixels; take out `mask` to build it from its pixels.
 
 ## What the watch does with a drawing
 
@@ -65,43 +73,41 @@ pixels.
 
 | File | What |
 |---|---|
-| `resources/data/PX_<ICON>_<size>.pdc` | Each size in its version (Versions, above). The pixel version is 1 px lines through pixel centres: level, upright and 45-degree runs, and single dots, which the watch draws exactly, with smoothing on or off. Runs that touch are joined into one path, which keeps a drawing small on the watch's heap: about 170 bytes, against 140 for today's icons |
-| `resources/data/PX_<ICON>_<size>_BW.pdc` | A Drawing size's pixels, for the black and white watches |
-| `package.template.json` | One resource per size, only on the watches that draw that size |
-| `src/c/layers/status_pixel_icons.generated.h` | Which drawing each icon uses at each height, one table per watch family: the Pebble Time 2, the colour 144 px watch and the black and white ones |
+| `resources/data/PX_<ICON>_<FAMILY>_<box>.pdc` | Each drawing in its version (Versions, above), its view box as tall as its box and as wide as its ink. The pixel version is 1 px lines through pixel centres: level, upright and 45-degree runs, and single dots, which the watch draws exactly, with smoothing on or off. Runs that touch are joined into one path, which keeps a drawing small on the watch's heap: about 170 bytes, against 140 for today's icons |
+| `resources/data/PX_<ICON>_<FAMILY>_<box>_BW.pdc` | A Drawing size's pixels, for the black and white watches |
+| `package.template.json` | One resource per drawing, only on its family's watches |
+| `src/c/layers/status_pixel_icons.generated.h` | Which drawing each icon uses at each box, one table per watch family: the Pebble Time 2, the colour 144 px watch and the black and white ones |
 | `src/c/layers/status_row_aplite.c` | The Pebble Classic and Steel bit mask, for the seven icons that have one |
 | `src/pkjs/settings/condition-pixels.generated.js` | The weather condition icons at 13 px, which the settings page draws them with |
 
-The watch draws each drawing 1:1 wherever a bar asks for the height it was drawn for
-(`status_row_icons.c`; `status_icon_size.h` works out the height). Nothing is scaled. A height
-without a drawing takes the icon's next smaller drawing, and an icon id without any (the text-only
-ids) draws no icon. A drawing is its ink: rows and columns left blank fall away, and the watch
-seats the ink beside the text by the icon's seating weights (`status_icon_weight.h`). Icons draw
-in the theme's foreground colour.
+The watch draws each drawing 1:1 wherever a bar asks for the box it was drawn for
+(`status_row_icons.c`; `status_icon_size.h` works out the box), its box's middle row on the text's
+cap centre (`status_icon_top_y`). Nothing is scaled, and nothing is known about one icon or
+another: a drawing's size and seat are its own. A box without a drawing takes the icon's next
+smaller drawing, and an icon id without any (the text-only ids) draws no icon. Icons draw in the
+theme's foreground colour.
 
 The rain alert draws the Drizzle, Rain or Heavy rain drawing from the same table, in the
 foreground like every other icon (`status_icon_size.h` `status_rain_glyph`: the condition icons'
 Drizzle and Rain, and Heavy rain's own id, which only the Pebble Time 2 draws). A colour of its
 own reads too faintly on a thin outline; it would need filled drops.
 
-## Which sizes an icon gets
+## Which boxes an icon gets
 
-The watch picks an icon's height from the bar's text (`status_row.c` `icon_target_h`: 6/9 of
-the font's content height in a bar, 5/9 in the top bar), then applies the icon's own trim
-(`status_row_icons.c` `icon_scale_pct`, the small thermometer, the phone pair's rungs). A
-glyph scaled to height `h` paints `h + 1` rows when `h` is even and `h + 2` when odd
-(ADR-0002 §3), so the sizes are always odd:
+The watch picks a bar's icon height from its text (`status_row.c` `icon_target_h`: 6/9 of the
+font's content height in a bar, 5/9 in the top bar). A height `h` paints `h + 1` rows when `h` is
+even and `h + 2` when odd (ADR-0002 §3), so a box is always odd, and every icon in a bar gets the
+same box:
 
-| Watch | Bar | Text | Icon target |
-|---|---|---|---|
-| Pebble Time, Pebble 2 | bars with 14 px text | Gothic 14 | 9 |
-| Pebble Time, Pebble 2 | top bar | Gothic 18 | 10 |
-| Pebble Time, Pebble 2 | bars with 18 px text | Gothic 18 | 12 |
-| Pebble Time 2 | bars with 18 px text | Gothic 18 | 12 |
-| Pebble Time 2 | top bar | Gothic 24 | 13 |
-| Pebble Time 2 | bars with 24 px text | Gothic 24 | 16 |
+| Watch | Bar | Text | Icon height | Box | Drawing |
+|---|---|---|---|---|---|
+| Pebble Time, Pebble 2 | bars with 14 px text | Gothic 14 | 9 | 11 | `basalt-11` |
+| Pebble Time, Pebble 2 | top bar | Gothic 18 | 10 | 11 | `basalt-11` |
+| Pebble Time, Pebble 2 | bars with 18 px text | Gothic 18 | 12 | 13 | `basalt-13` |
+| Pebble Time 2 | bars with 18 px text | Gothic 18 | 12 | 13 | `emery-13` |
+| Pebble Time 2 | top bar | Gothic 24 | 13 | 15 | `emery-15` |
+| Pebble Time 2 | bars with 24 px text | Gothic 24 | 16 | 17 | `emery-17` |
 
-A weather icon (100 %) is drawn 11, 13, 15 and 17 px tall; the trimmed icons get their own
-set (UV 9, 11, 13 and 17, for example). `test/c/status_icon_drawings_test.c --sizes` prints the
-height every bar asks each icon for. Wind speed and the Windy weather icon share one drawing, so
-Wind has every size either uses.
+The two 11-row bars of the 144 px watches share one drawing. `test/c/status_icon_drawings_test.c
+--sizes` prints the box every bar asks each icon for. Wind speed (`WIND`) and the Windy weather
+icon (`WINDY`) have drawings of their own.

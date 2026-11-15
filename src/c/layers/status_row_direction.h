@@ -24,7 +24,7 @@
 // WHY A HEADER. This is pure integer decoding with no <pebble.h> dependency, so it
 // host-compiles under scripts/test-c.sh (test/c/status_line_test.c) while its only
 // caller, status_row.c, is SDK-bound and cannot. Same reason, same shape as
-// status_icon_weight.h next door.
+// status_icon_size.h next door.
 //
 // APLITE. Never reaches it: packLine suppresses the sentinel for that platform, and
 // the feature-frozen lean twin status_row_aplite.c (compiled INSTEAD of

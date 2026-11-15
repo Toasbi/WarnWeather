@@ -10,8 +10,8 @@
 // and built in its version: the pixel drawing, 1 px lines through pixel centres that stay crisp
 // under antialiasing, or the old icon or a line drawing, whose slanted lines antialiasing smooths
 // with grey pixels on the colour watches (the black and white ones draw the old icon as it is and
-// a line drawing's pixels). Drawn 1:1, nothing is scaled. The size rules that pick the drawing are
-// status_icon_size.h's.
+// a line drawing's pixels). Drawn 1:1, nothing is scaled; each drawing carries its size and seat
+// (status_icon_size.h).
 
 static bool pixel_ink_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void) index;
@@ -20,9 +20,9 @@ static bool pixel_ink_cb(GDrawCommand *command, uint32_t index, void *context) {
     return true;
 }
 
-// A pixel drawing in `ink`. Its bounds are one less than its painted size, the convention the
-// seat (status_icon_weight.h) and the text gap are built on; the generator writes the ink's size
-// as the image's own bounds.
+// A pixel drawing in `ink`. Its bounds are one less than its box, the convention the seat
+// (status_icon_size.h status_icon_top_y) and the text gap are built on; the generator writes the
+// box, as wide as the ink, as the image's own bounds.
 static GDrawCommandImage *icon_load_pixels(uint16_t resource_id, GColor ink) {
     if (resource_id == 0) { return NULL; }
     GDrawCommandImage *image = gdraw_command_image_create_with_resource(resource_id);
@@ -33,10 +33,10 @@ static GDrawCommandImage *icon_load_pixels(uint16_t resource_id, GColor ink) {
     return image;
 }
 
-GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top_strip) {
+GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h) {
     if (target_h <= 0) { return NULL; }
     return icon_load_pixels(status_icon_drawing(s_status_pixel_icons, STATUS_PIXEL_ICON_COUNT, icon_id,
-                                                status_icon_rows(icon_id, target_h, top_strip)),
+                                                status_icon_rows(target_h)),
                             theme_fg());
 }
 

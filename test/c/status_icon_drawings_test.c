@@ -8,8 +8,8 @@
 #include "c/layers/status_pixel_icons.generated.h"
 
 // Host test for the status icons' pixel drawings (status_icon_size.h, the tables
-// scripts/pixel-icons/gen_watch_icons.js writes): the watch scales no icon any more, so every
-// height a bar can ask for must have its own drawing. Built three times by scripts/test-c.sh: for
+// scripts/pixel-icons/gen_watch_icons.js writes): the watch scales no icon, so every box a bar
+// can ask for must have its own drawing, which carries the icon's size and seat. Built three times by scripts/test-c.sh: for
 // the colour 144-px watch, with -DPBL_BW for the black and white ones (their own table: the pixel
 // drawings) and with -DPBL_PLATFORM_EMERY for the Pebble Time 2. A failure here means an
 // icon would draw a size smaller (the next smaller drawing), or not at all: draw the missing
@@ -99,11 +99,11 @@ static void every_id_classified(void) {
     }
 }
 
-// Every drawn icon has its exact drawing at every height a bar asks for.
+// Every drawn icon has its exact drawing at every box a bar asks for.
 static void every_height_drawn(void) {
     for (int i = 0; i < (int)sizeof(DRAWN); i++) {
         for (int t = 0; t < TIER_COUNT; t++) {
-            int rows = status_icon_rows(DRAWN[i], TIERS[t].target, TIERS[t].top);
+            int rows = status_icon_rows(TIERS[t].target);
             if (!has_exact(s_status_pixel_icons, STATUS_PIXEL_ICON_COUNT, DRAWN[i], rows)) {
                 printf("FAIL drawn: icon %d has no %d-row drawing (icon height %d%s)\n",
                        DRAWN[i], rows, TIERS[t].target, TIERS[t].top ? ", top strip" : "");
@@ -114,7 +114,7 @@ static void every_height_drawn(void) {
     for (int bucket = 1; bucket <= RAIN_BUCKETS; bucket++) {
         uint8_t glyph = status_rain_glyph((uint8_t)bucket);
         for (int t = 0; t < TIER_COUNT; t++) {
-            int rows = status_icon_rows(glyph, TIERS[t].target, TIERS[t].top);
+            int rows = status_icon_rows(TIERS[t].target);
             if (!has_exact(s_status_pixel_icons, STATUS_PIXEL_ICON_COUNT, glyph, rows)) {
                 printf("FAIL rain: bucket %d (%s) has no %d-row drawing\n", bucket, glyph_name(glyph), rows);
                 s_failures++;
@@ -135,12 +135,24 @@ static void text_only_ids_draw_nothing(void) {
     for (int i = 0; i < (int)sizeof(TEXT_ONLY); i++) {
         for (int t = 0; t < TIER_COUNT; t++) {
             expect("text_only", status_icon_drawing(s_status_pixel_icons, STATUS_PIXEL_ICON_COUNT,
-                TEXT_ONLY[i], status_icon_rows(TEXT_ONLY[i], TIERS[t].target, TIERS[t].top)), 0);
+                TEXT_ONLY[i], status_icon_rows(TIERS[t].target)), 0);
         }
     }
 }
 
-// The lookup: the exact height, else the tallest drawing below it, else nothing.
+// A bar's box: the rows its icon height paints, always odd, the same for every icon; and a
+// drawing's box centred on the cap centre, its middle row on it.
+static void box_and_seat(void) {
+    expect("box.even", status_icon_rows(12), 13);
+    expect("box.odd", status_icon_rows(9), 11);
+    expect("box.top_strip_144", status_icon_rows(10), 11);
+    expect("box.none", status_icon_rows(0), 3);
+    // bounds_h is one row short of the box: a 13-row box (bounds 12) puts row 6 on cap_cy.
+    expect("seat.13", status_icon_top_y(40, 12) + 6, 40);
+    expect("seat.17", status_icon_top_y(40, 16) + 8, 40);
+}
+
+// The lookup: the exact box, else the tallest drawing below it, else nothing.
 static void lookup_falls_back_smaller(void) {
     const StatusPixelIcon table[] = { { 5, 11, 111 }, { 5, 15, 115 }, { 6, 13, 613 } };
     expect("lookup.exact", status_icon_drawing(table, 3, 5, 15), 115);
@@ -150,19 +162,19 @@ static void lookup_falls_back_smaller(void) {
     expect("lookup.other_key", status_icon_drawing(table, 3, 7, 13), 0);
 }
 
-// The painted height every drawn icon and rain bucket is asked for at every tier, a line each:
+// The box every drawn icon and rain bucket is asked for at every tier, a line each:
 // "<family> <icon id> <rows>", the rain alert's buckets by their glyphs' ids. scripts/check-icon-sizes.js holds them to the
 // sizes resources/pixel-icons.json has drawings at, both ways.
 static void print_sizes(void) {
     for (int i = 0; i < (int)sizeof(DRAWN); i++) {
         for (int t = 0; t < TIER_COUNT; t++) {
-            printf("%s %s %d\n", FAMILY, DRAWN_NAMES[i], status_icon_rows(DRAWN[i], TIERS[t].target, TIERS[t].top));
+            printf("%s %s %d\n", FAMILY, DRAWN_NAMES[i], status_icon_rows(TIERS[t].target));
         }
     }
     for (int bucket = 1; bucket <= RAIN_BUCKETS; bucket++) {
         uint8_t glyph = status_rain_glyph((uint8_t)bucket);
         for (int t = 0; t < TIER_COUNT; t++) {
-            printf("%s %s %d\n", FAMILY, glyph_name(glyph), status_icon_rows(glyph, TIERS[t].target, TIERS[t].top));
+            printf("%s %s %d\n", FAMILY, glyph_name(glyph), status_icon_rows(TIERS[t].target));
         }
     }
 }
@@ -173,6 +185,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     every_id_classified();
+    box_and_seat();
     every_height_drawn();
     rain_buckets_take_their_glyphs();
     text_only_ids_draw_nothing();

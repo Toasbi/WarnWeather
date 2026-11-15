@@ -1,5 +1,8 @@
 # Status-glyph sizes and seating are hand-tuned values
 
+> **Superseded** by [ADR 0006](0006-status-icons-carry-their-size-and-seat.md) (2026-11-15): each
+> drawing now carries its size and seat, and the watch centres it. The tables below are history.
+
 The watch does not scale status icons. Every status icon is drawn once per painted height
 (`scripts/pixel-icons/README.md`), and shown 1:1. Each size is built in its version
 (`scripts/pixel-icons/README.md`, "Versions"): the pixel drawing, 3.1.1's PDC icon baked at that

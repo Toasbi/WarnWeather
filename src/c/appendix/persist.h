@@ -302,7 +302,7 @@ void persist_get_night_colors(uint8_t out[NIGHT_COLOR_BYTES]);
 /**
  * Is an inbound CLAY_NIGHT_LIGHT_UINT8 payload usable exactly as received?
  *
- * Header-only and pure integer arithmetic (the date_format.h / status_icon_weight.h
+ * Header-only and pure integer arithmetic (the date_format.h / status_icon_size.h
  * pattern) so scripts/test-c.sh can pin it on the host: app_message.c itself cannot
  * be host-compiled — it needs the whole AppMessage + layer surface — and this is the
  * only decision in the unpack path that is not an SDK call. Unreferenced on a build

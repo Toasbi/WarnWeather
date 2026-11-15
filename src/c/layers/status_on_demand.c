@@ -80,10 +80,7 @@ static int find_key(const StatusOnDemandCache *cache, uint8_t key) {
 // longer wanted — resident only while its item is active, so an idle bar holds no
 // glyph heap. The foreground and the icon height are part of the key: a theme or tier
 // change reloads the glyphs.
-// `top_strip` is not: a row is the top strip's or a bar's for its whole life
-// (status_bar.c's bar_line, top_status_layer.c), and so is its cache.
-static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int target_h,
-                   bool top_strip) {
+static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int target_h) {
     GColor fg = theme_fg();
     bool env = target_h != cache->target_h || !gcolor_equal(fg, cache->fg);
     for (int i = 0; i < GLYPH_SLOTS; i++) {
@@ -105,7 +102,7 @@ static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int t
         // A failed load (OOM) leaves the slot free, so the next draw — the minute's
         // redraw at the latest — tries again, as the old strip's indicator icons did;
         // until then the item measures text-only, or not at all (Bluetooth, Quiet time).
-        cache->images[slot] = status_row_icons_load(key, target_h, top_strip);
+        cache->images[slot] = status_row_icons_load(key, target_h);
         if (cache->images[slot]) { cache->keys[slot] = key; }
     }
 }
@@ -366,7 +363,7 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     }
     if (!row->cache && nkeys > 0) { row->cache = cache_create(); }
     if (row->cache) {
-        ensure(row->cache, keys, nkeys, env->icon_h, env->top_strip);
+        ensure(row->cache, keys, nkeys, env->icon_h);
     }
     // Each side's active items, nearest the side's own slot first: the item order is
     // the priority.
@@ -465,8 +462,7 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
         uint8_t key = item_key(s, item);
         GDrawCommandImage *image = image_for(row->cache, key);
         if (image) {
-            // The system and rain glyphs are no StatusIconId: they seat on the centre.
-            status_highlight_draw_glyph(ctx, image, icon_x, env->glyph_cy, key,
+            status_highlight_draw_glyph(ctx, image, icon_x, env->glyph_cy,
                 item != OD_BLUETOOTH ? ink
                     : bt_ink(key == STATUS_ROW_ICON_BT ? GColorPictonBlue : GColorRed));
         }

@@ -243,12 +243,11 @@ void status_slot_ink(const StatusSlotPlace *place, const StatusSlotMeasure *m,
 //
 // Why the air grows with the font: the slot icons are 2/3 of the line (ICON_RATIO in
 // status_row.c), taller than the cap from Gothic 18 up, and the tallest (the wind flag
-// among them) rise 2 rows over the digits at Gothic 18 and 3 at Gothic 24 — ADR-0002's
-// ink grid through status_icon_top_y, and MEASURED — which is exactly pad - 1 there:
-// they sit just clear of the top stroke. At Gothic 14 most icons are the cap's height
-// and the 11-row ones (sleep, HR, pollen) just clear both strokes; the one exception
-// is the countdown hourglass, lifted a row by its weight, whose top row lands on the
-// stroke.
+// among them) rise 2 rows over the digits at Gothic 18 and 3 at Gothic 24 — the drawings'
+// boxes centred by status_icon_top_y, as 3.2.2 measured them — which is exactly pad - 1
+// there: they sit just clear of the top stroke. At Gothic 14 the 11-row icons just clear
+// both strokes; the countdown hourglass, drawn a row high in its box, has its top row on
+// the stroke.
 //
 // Clamps are PER SIDE, and only by the band:
 //   - top/bottom never cross the band (calendar above, forecast below);
