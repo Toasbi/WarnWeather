@@ -335,7 +335,7 @@ dedupe can treat a time-shifted but otherwise identical radar as unchanged.
 **Sky rows (radar)**:
 The radar graph's two thin stripes under its time axis, cloud and sun, with lightning
 bolts, one cell per quarter hour (`weather/domain/radar/radar-sky.js`; Open-Meteo,
-whatever the radar source). The phone asks for them once per UTC half hour and each sky
-carries ten quarter hours, one past the window's nine, so the one the watch holds covers
-the window until the next request; the outbox sends a sky only when it changed or would
-run out first (`sky-dedupe.js`). Only the radar graph draws them.
+whatever the radar source). The phone asks for them once per UTC half hour, the fetches
+in between re-serve that half hour's answer, and each sky carries ten quarter hours, one
+past the window's nine, so the one the watch holds covers the window until the next
+request: the outbox sends one per request at most. Only the radar graph draws them.

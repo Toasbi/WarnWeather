@@ -297,10 +297,10 @@ function rememberRadarAnswer(radarId, atMs, tuples) {
 
 // --- sky request throttle ---------------------------------------------------
 // The radar's sky rows are asked once per UTC-aligned half hour (radar-sky-source.js
-// minRequestIntervalMs; radar-sky.js sizes a sky to last that long), the cycles between
-// re-serve that half hour's answer, and the outbox sends it only when it changed or the
-// one on the watch would run out (sky-dedupe.js). Like the radar's, the record keeps no
-// position and lives in localStorage, read and written at call time only.
+// minRequestIntervalMs; radar-sky.js sizes a sky to last that long), and the cycles between
+// re-serve that half hour's answer byte for byte, so the outbox sends it once per request.
+// Like the radar's, the record keeps no position and lives in localStorage, read and
+// written at call time only.
 
 /**
  * The persisted last sky answer, or null when missing or unreadable.

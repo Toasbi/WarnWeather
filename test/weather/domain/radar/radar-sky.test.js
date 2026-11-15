@@ -38,8 +38,7 @@ function response(from, count, fields) {
   return { minutely_15: m };
 }
 
-test('the window spans nine quarter hours; a sky carries one more, and is asked every half hour', () => {
-  assert.equal(radarSky.WINDOW_SLOTS, 9);
+test('a sky carries ten quarter hours, one past the window\'s nine, and is asked every half hour', () => {
   assert.equal(radarSky.NUM_SLOTS, 10);
   assert.equal(radarSky.REFRESH_SECONDS, 30 * 60);
   assert.equal(radarSky.skyStartFor(SLOT0), 1790200800, 'the quarter hour holding slot 0');
@@ -59,21 +58,11 @@ test('a sky asked anywhere in a half hour covers the radar window until the next
       assert.ok(start <= slot0 && slot0 + WINDOW <= end,
         'asked ' + (asked - S) / 60 + ' min into the half hour, the window at ' + (slot0 - S) / 60 + ' min');
     }
-    // Nine slots always hold the window at the moment it is asked for.
-    assert.ok(asked + WINDOW <= start + radarSky.WINDOW_SLOTS * Q);
+    // One slot fewer always holds the window at the moment it is asked for...
+    assert.ok(asked + WINDOW <= start + (radarSky.NUM_SLOTS - 1) * Q);
   }
-  // Asked on the half hour, a sky of nine slots ends a quarter hour before the half hour does.
-  assert.ok(S + R - radarWire.SLOT_SECONDS + WINDOW > S + radarSky.WINDOW_SLOTS * Q, 'the tenth slot is needed');
-});
-
-test('unpackSky reads packSky\'s layout back; the clear and a malformed blob are null', () => {
-  const s = { start: 1799086560, clouds: [0, 125, 250], suns: [250, 0, 10], bolts: [false, true, false] };
-  assert.deepEqual(radarSky.unpackSky(radarSky.packSky(s)), s);
-  assert.equal(radarSky.unpackSky([]), null, 'the clear');
-  assert.equal(radarSky.unpackSky([0, 0, 0, 0, 2, 1, 2]), null, 'a length that disagrees with N');
-  assert.equal(radarSky.unpackSky([0, 0, 0, 0, 0, 0, 0]), null, 'no slots');
-  assert.equal(radarSky.unpackSky(null), null);
-  assert.equal(radarSky.unpackSky(undefined), null);
+  // ...but asked on the half hour, it ends a quarter hour before the window's last slot does.
+  assert.ok(S + R - radarWire.SLOT_SECONDS + WINDOW > S + (radarSky.NUM_SLOTS - 1) * Q, 'the tenth slot is needed');
 });
 
 test('the Open-Meteo request asks for cloud by layer, the direct beam and lightning in unix time', () => {

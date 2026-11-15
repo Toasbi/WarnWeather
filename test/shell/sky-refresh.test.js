@@ -2,12 +2,12 @@
 //
 // The radar's sky rows on the phone side, end to end: Open-Meteo is asked once per UTC half
 // hour (fetch-cycle.js takeSkyRequestSlot, radar-sky.js REFRESH_SECONDS), the cycles between
-// re-serve that half hour's sky, and the outbox sends a sky only when it changed or the one on
-// the watch would stop covering the window before the next request (sky-dedupe.js).
+// re-serve that half hour's sky byte for byte, and the outbox's exact compare sends it once
+// per request.
 //
-// Drives the real fetch-cycle → radar-sky-source → outbox → change-detector → sky-dedupe
-// chain, with the shared Rainbow radar asked through a proxy endpoint; only the HTTP
-// transport, the forecast provider and Pebble.sendAppMessage are stubbed.
+// Drives the real fetch-cycle → radar-sky-source → outbox → change-detector chain, with the
+// shared Rainbow radar asked through a proxy endpoint; only the HTTP transport, the forecast
+// provider and Pebble.sendAppMessage are stubbed.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
