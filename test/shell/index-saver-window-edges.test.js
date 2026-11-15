@@ -8,24 +8,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { bootIndex } = require('../helpers/index-harness.js');
-
-/**
- * A BatteryManager stand-in whose set() fires the levelchange its listeners re-read.
- * @param {number} level Charge fraction 0..1.
- * @returns {Object} The manager.
- */
-function fakeBattery(level) {
-  const listeners = {};
-  return {
-    level: level,
-    charging: false,
-    addEventListener(type, fn) { (listeners[type] || (listeners[type] = [])).push(fn); },
-    set(v) { this.level = v; (listeners.levelchange || []).forEach((fn) => fn()); }
-  };
-}
+const { fakeManager } = require('../helpers/fake-battery.js');
 
 test('the window closes with one message: the owed push rides the fetch due that minute', (t) => {
-  const battery = fakeBattery(0.84);
+  const battery = fakeManager(0.84, false);
   const h = bootIndex(t, {
     now: new Date(2026, 0, 6, 6, 40).getTime(),
     battery: battery,
@@ -39,7 +25,7 @@ test('the window closes with one message: the owed push rides the fetch due that
   assert.equal(h.weatherSends()[0].IS_SLEEPING, true, 'the watch is told it sleeps');
 
   h.sends.length = 0;
-  battery.set(0.79);            // a bucket move inside the window: owed, not sent
+  battery.setLevel(0.79);            // a bucket move inside the window: owed, not sent
   h.minutes(18);                // to 06:59:xx
   assert.equal(h.weatherSends().length, 0, 'the window stays quiet');
 

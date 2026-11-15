@@ -8,21 +8,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { bootIndex } = require('../helpers/index-harness.js');
-
-/**
- * A BatteryManager stand-in whose set() fires the levelchange its listeners re-read.
- * @param {number} level Charge fraction 0..1.
- * @returns {Object} The manager.
- */
-function fakeBattery(level) {
-  const listeners = {};
-  return {
-    level: level,
-    charging: false,
-    addEventListener(type, fn) { (listeners[type] || (listeners[type] = [])).push(fn); },
-    set(v) { this.level = v; (listeners.levelchange || []).forEach((fn) => fn()); }
-  };
-}
+const { fakeManager } = require('../helpers/fake-battery.js');
 
 /**
  * The phone battery slot's text in a send's Forecast bar line.
@@ -37,7 +23,7 @@ function batteryText(msg) {
 }
 
 test('the charge drifting inside its bucket wakes nothing; the next message going out carries it', (t) => {
-  const battery = fakeBattery(0.84);
+  const battery = fakeManager(0.84, false);
   // The harness's forecast holds still within each UTC hour and moves on with it.
   const h = bootIndex(t, { battery: battery,
     settings: { fetchIntervalMin: '15', statusForecastLeft: 'phoneBattery' } });
@@ -49,9 +35,9 @@ test('the charge drifting inside its bucket wakes nothing; the next message goin
   assert.equal(batteryText(boot[0]), '84%');
 
   h.sends.length = 0;
-  battery.set(0.83);            // still in the 80 bucket
+  battery.setLevel(0.83);            // still in the 80 bucket
   h.minutes(15);                // the 10:30 fetch: the same hour's forecast
-  battery.set(0.82);
+  battery.setLevel(0.82);
   h.minutes(15);                // the 10:45 fetch
   assert.equal(h.weatherSends().length, 0, 'only the battery moved, inside its bucket: no wake-up');
 
@@ -62,10 +48,10 @@ test('the charge drifting inside its bucket wakes nothing; the next message goin
   assert.equal(batteryText(hourly[0]), '82%', 'with the exact reading riding along in the status');
 
   h.sends.length = 0;
-  battery.set(0.81);
+  battery.setLevel(0.81);
   h.minutes(15);                // the 11:15 fetch: nothing new, and the watch shows 82% already
   assert.equal(h.weatherSends().length, 0);
-  battery.set(0.79);            // into the 75 bucket: a trigger
+  battery.setLevel(0.79);            // into the 75 bucket: a trigger
   const moved = h.weatherSends();
   assert.equal(moved.length, 1, 'a bucket move sends at once');
   assert.equal(batteryText(moved[0]), '79%', 'with the exact reading of that moment');

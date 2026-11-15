@@ -1,7 +1,7 @@
 'use strict';
 const { withHost } = require('../../helpers/rebake-host.js');
 // status-rebake.js' own contract, apart from its phone-battery trigger (whose
-// micro-send tests live in phone-battery.test.js): the resend reports back
+// micro-send tests live in status-rebake-battery.test.js): the resend reports back
 // through exactly one callback, which is what lets the config close chain the
 // forced fetch behind it on the half-duplex channel.
 const test = require('node:test');
