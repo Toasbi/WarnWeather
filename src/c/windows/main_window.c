@@ -45,6 +45,8 @@ static time_t s_flick_epoch;
 // Wrist-flick gate state (rules: layout.h view_flick_accept). RAM only, zeroed at launch:
 // a relaunch starts with no flick pending.
 static ViewFlickGate s_flick_gate;
+// Whether tap_handler is subscribed: only while the cycle can move (tap_follow_cycle).
+static bool s_tap_subscribed;
 #endif
 
 // Radar data present? — the ONE availability predicate the ViewSpec resolves
@@ -381,6 +383,20 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     render_active_view();
     main_window_refresh();
 }
+
+// Take tap events only while a flick can move the cursor (layout.h view_cycle_flickable),
+// so a face with one view is not woken by every wrist flick. The cycle changes only with a
+// settings apply, and each one calls this, as the load does; the unload passes NULL.
+static void tap_follow_cycle(const uint32_t *words) {
+    const bool want = words && view_cycle_flickable(words);
+    if (want == s_tap_subscribed) { return; }
+    s_tap_subscribed = want;
+    if (want) {
+        accel_tap_service_subscribe(tap_handler);
+    } else {
+        accel_tap_service_unsubscribe();
+    }
+}
 #endif
 
 static void main_window_load(Window *window) {
@@ -468,7 +484,7 @@ static void main_window_load(Window *window) {
     }
 #endif
 #if defined(WW_VIEW_CYCLE)
-    accel_tap_service_subscribe(tap_handler);
+    tap_follow_cycle(s_applied_view_word);   // the boot cycle, seeded above
 #endif
 #if defined(WW_QUICK_VIEW)
     // Switch to the peek view (and back) whenever a Timeline Quick View overlay appears or
@@ -488,7 +504,7 @@ static void main_window_load(Window *window) {
 
 static void main_window_unload(Window *window) {
 #if defined(WW_VIEW_CYCLE)
-    accel_tap_service_unsubscribe();
+    tap_follow_cycle(NULL);
 #endif
 #if defined(WW_QUICK_VIEW)
     quick_view_unsubscribe();
@@ -654,6 +670,7 @@ void main_window_apply_top_view() {
     config_view_words(words);
     s_view_index = view_cursor_after_config(s_view_index, s_applied_view_word, words);
     memcpy(s_applied_view_word, words, sizeof(s_applied_view_word));
+    tap_follow_cycle(words);
     // Only the bars the new views show are read from here on: one that joins is read now,
     // before the live-health check below looks at its slots; one that left is read no
     // more, not even by the reframe.
