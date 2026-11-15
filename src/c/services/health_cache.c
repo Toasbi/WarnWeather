@@ -223,8 +223,7 @@ bool health_cache_restore(void) {
 void health_cache_refresh_current_hour(void) {
     if (!s_kept) { return; }                        // the graph cannot show it
     if (!s_ready || s_build_pending) { return; }    // never built / build or refresh in flight
-    const time_t now = time(NULL);
-    if (now - (now % STEP) != s_end_hour) { return; } // rollover pending => leave it to the tick
+    if (current_hour_top() != s_end_hour) { return; } // rollover pending => leave it to the tick
     health_cache_recalc(s_end_hour, 1);             // inline, cheap (steps + live BPM)
 }
 

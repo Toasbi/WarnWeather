@@ -23,7 +23,7 @@ static bool refresh(uint8_t kinds, time_t now) {
     bool changed = false;
     if (kinds & HEALTH_SUMMARY_STEPS) {
         const int steps = health_steps_today();
-        changed = steps != s_steps;
+        if (steps != s_steps) { changed = true; }
         s_steps = steps;
     }
     if (kinds & HEALTH_SUMMARY_DISTANCE) {
