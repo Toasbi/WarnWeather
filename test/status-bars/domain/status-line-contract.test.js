@@ -100,7 +100,7 @@ test('the weather condition icon ids are 19..33 on both sides of the wire', () =
 
 // Each condition glyph is a pixel drawing the watch draws (scripts/pixel-icons: an icon in
 // resources/pixel-icons.json, mapped to its id in gen_watch_icons.js and built into the watch's
-// tables), which the settings page draws too (condition-pixels.generated.js). A glyph missing
+// tables), which the settings page draws too (status-pixels.generated.js). A glyph missing
 // its drawing draws as nothing, without an error (test/c/status_icon_drawings_test.c checks
 // every height).
 test('every condition glyph has its drawing and its watch mapping; the page has the ones it draws', () => {
@@ -110,9 +110,9 @@ test('every condition glyph has its drawing and its watch mapping; the page has 
   const gen = require('../../../scripts/pixel-icons/gen_watch_icons.js');
   const drawings = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources', 'pixel-icons.json'), 'utf8')).icons;
   const table = fs.readFileSync(path.join(ROOT, 'src/c/layers/status_pixel_icons.generated.h'), 'utf8');
-  const page = require('../../../src/pkjs/settings/condition-pixels.generated.js');
+  const page = require('../../../src/pkjs/settings/status-pixels.generated.js');
   const drawn = Object.keys(catalog.ICONS).filter((k) => /^COND_/.test(k) && k !== 'COND_TEXT');
-  assert.ok(page.SUN_CLOUD && page.RAIN,
+  assert.ok(page.icons[page.ids.STATUS_ICON_COND_SUN_CLOUD] && page.icons[page.ids.STATUS_ICON_COND_RAIN],
     'the page has the slot\'s picture and the rain alert\'s icon (status-slot-icons.js, preview-radar.js)');
   assert.ok(drawn.indexOf('COND_SUN_CLOUD') !== -1, 'a glyph the watch draws too');
   drawn.forEach((k) => {

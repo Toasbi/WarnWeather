@@ -16,11 +16,12 @@ const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js')
 const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze',
   'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun'];
 
-// The weather icons are the watch's own pixel drawings; every other glyph is a 24x24 outline.
-const WEATHER = ['rain', 'condition'];
-const OUTLINES = IDS.filter((id) => WEATHER.indexOf(id) === -1);
+// Every glyph the watch draws from a drawing is that drawing; the three it draws in code are
+// 24x24 outlines.
+const OUTLINES = ['battery', 'snooze', 'sun'];
+const DRAWN = IDS.filter((id) => OUTLINES.indexOf(id) === -1).concat(['condition']);
 
-test('every glyph is a 24x24 svg drawn in currentColor', () => {
+test('the glyphs the watch draws in code are 24x24 svgs drawn in currentColor', () => {
   OUTLINES.forEach((id) => {
     const svg = ICONS[id];
     assert.equal(typeof svg, 'string', id + ' is exported');
@@ -31,21 +32,25 @@ test('every glyph is a 24x24 svg drawn in currentColor', () => {
   });
 });
 
-test('the weather icons are the watch\'s own drawings: the rain alert\'s rain cloud, the condition slot\'s sample', () => {
+test('every glyph the watch draws from a drawing is that drawing, its ink at the 13-row box', () => {
   // The rain alert draws the weather condition slot's rain cloud on the watch, in the
-  // foreground like every other icon (status_icon_size.h status_rain_glyph); the condition slot's
-  // sample (and the city's weather icon) is a partly cloudy afternoon.
-  const pixels = require('../../../src/pkjs/settings/condition-pixels.generated.js');
+  // foreground like every other icon; the condition slot's sample (and the city's weather
+  // icon) is a partly cloudy afternoon.
   const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
-  assert.equal(ICONS.rain, PixelIcon.svg(pixels.RAIN), 'rain is the watch\'s rain cloud');
-  assert.equal(ICONS.condition, PixelIcon.svg(pixels.SUN_CLOUD), 'the condition is the watch\'s partly cloudy');
-  WEATHER.forEach((id) => {
+  const STATUS = require('../../../src/pkjs/settings/status-pixels.generated.js');
+  assert.deepEqual(Object.keys(ICONS.SLOT_KEYS).sort(), DRAWN.slice().sort(), 'a drawing for every drawn glyph');
+  assert.equal(ICONS.rain, PixelIcon.svg(PixelIcon.condition('RAIN')), 'rain is the watch\'s rain cloud');
+  assert.equal(ICONS.condition, PixelIcon.svg(PixelIcon.condition('SUN_CLOUD')), 'the condition is the watch\'s partly cloudy');
+  DRAWN.forEach((id) => {
+    const key = ICONS.SLOT_KEYS[id];
+    assert.ok(STATUS.icons[key], id + ': ' + key + ' is a drawing');
+    assert.equal(ICONS[id], PixelIcon.svg(PixelIcon.label(key)), id + ' is ' + key + '\'s drawing');
     assert.ok(ICONS[id].indexOf('fill="currentColor"') !== -1, id + ' takes its colour from the row chrome');
     assert.equal(/#[0-9a-fA-F]{3,6}\b/.test(ICONS[id]), false, id + ' hard-codes no colour');
   });
 });
 
-test('every other glyph is a Tabler-style outline', () => {
+test('those are Tabler-style outlines', () => {
   OUTLINES.forEach((id) => {
     assert.ok(ICONS[id].indexOf('fill="none" stroke="currentColor" stroke-width="1.8"') !== -1,
       id + ' is an unfilled 1.8 outline');
@@ -115,4 +120,21 @@ test('aplite draws only the glyphs of its lean row: the bitmap masks and the sun
   ['dew', 'battery', 'steps', 'distance', 'sleep', 'hr', 'phoneBattery'].forEach((code) => {
     assert.equal(slotIcon(code, aplite), null, code + ' draws no glyph on aplite');
   });
+});
+
+test('each slot item names the drawing the watch pictures draw at a bar\'s box, none for a glyph drawn in code', () => {
+  // The watch pictures (preview-watch.js) take the slot's drawing from barSlots and draw it at
+  // the bar's box and seat; the rows above draw its label (ICONS).
+  const preview = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
+  const basalt = { platform: 'basalt' }, aplite = { platform: 'aplite' };
+  const S = { statusForecastLeft: 'uv', statusForecastMid: 'empty', statusForecastRight: 'city', citySlotIcon: true };
+  assert.deepEqual(preview.barSlots(S, basalt, 'forecast').map((c) => c.drawing), ['UV', null, 'SUN_CLOUD'],
+    'the city draws the weather\'s icon');
+  assert.equal(preview.barSlots(Object.assign({}, S, { citySlotIcon: false }), basalt, 'forecast')[2].drawing, null,
+    'the city without its icon: none');
+  assert.equal(preview.barSlots(S, aplite, 'forecast')[2].drawing, null, 'no weather icon on the Classic');
+  assert.equal(preview.barSlots(Object.assign({}, S, { statusForecastLeft: 'sun' }), basalt, 'forecast')[0].drawing, null,
+    'the sun arrow is drawn in code');
+  const battery = preview.barSlots({ statusTopRight: 'battery' }, basalt, 'top')[2];
+  assert.deepEqual([battery.code, battery.drawing], ['battery', null], 'and the battery');
 });

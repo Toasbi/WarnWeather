@@ -60,3 +60,9 @@ The other 8 are the agreed change below.
   (90 before, plus Windy weather's three). Each drawing is 4 bytes in the table.
 - The icon creator reads the boxes and the drawings from WarnWeather, and exports them with
   their seats.
+- The settings page draws the same drawings (`status-pixels.generated.js`, written with them):
+  its labels take an icon's ink at the 144 px watches' 13 rows, and its pictures of the watch
+  take each bar's box and seat by the watch's rule. Its hand-drawn copies of the icons are gone;
+  only the battery, Battery saver's Z's and the sunrise arrow, which the watch draws in code,
+  stay outlines. A drawing drawn as lines on colour shows its pixels there, as the black and
+  white watches draw it.

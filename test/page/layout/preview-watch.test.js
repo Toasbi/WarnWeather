@@ -318,3 +318,81 @@ test('each screen sits in a margin of its own ground, so a card\'s round corners
   const html = pw.watchPreview(settings({ theme: 'light' }), plat.computeEnv({ platform: 'basalt' }), {});
   assert.match(html, /<div class="wpv-card" style="background:#FFFFFF">/, 'the card is the screen\'s white');
 });
+
+// The status icons in the pictures are the watch's own drawings (status-pixels.generated.js), at
+// the box the bar's icon height paints, placed as the watch places them: the box's middle row on
+// the text's cap centre (status_icon_size.h status_icon_top_y), the Pebble Classic's masks a row
+// lower (status_row_aplite.c). The seat is drawn into the box, so moving it in the icon creator
+// moves the picture.
+test('a status slot\'s icon is the family\'s drawing for the bar\'s box, a bit mask on the Classic', () => {
+  const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
+  const uv = PixelIcon.pixels.icons.UV;
+  assert.equal(pw._drawingAt('UV', 12, 'basalt'), uv['basalt-13'], 'an even height paints a row more');
+  assert.equal(pw._drawingAt('UV', 11, 'basalt'), uv['basalt-13'], 'an odd one two more');
+  assert.equal(pw._drawingAt('UV', 10, 'basalt'), uv['basalt-11']);
+  assert.equal(pw._drawingAt('UV', 14, 'emery'), uv['emery-15']);
+  assert.equal(pw._drawingAt('UV', 20, 'emery'), uv['emery-17'], 'the tallest box below, past the last');
+  assert.equal(pw._drawingAt('UV', 12, 'aplite'), uv.A, 'the Classic draws its mask at every height');
+  assert.equal(pw._drawingAt(null, 12, 'basalt'), null);
+});
+
+test('a drawing sits as the watch seats it: its box\'s middle row on the cap centre', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const C = (f) => fs.readFileSync(path.join(__dirname, '..', '..', '..', 'src', 'c', 'layers', f), 'utf8');
+  // The rules the picture follows, as the watch has them: a PDC's bounds are its box less a row.
+  assert.match(C('status_icon_size.h'), /status_icon_painted_rows\(int h\) \{ return \(h & 1\) \? h \+ 2 : h \+ 1; \}/);
+  assert.match(C('status_icon_size.h'), /status_icon_top_y\(int cap_cy, int bounds_h\) \{ return cap_cy - bounds_h \/ 2; \}/);
+  assert.match(C('status_row_aplite.c'), /int y0 = cy - m->n \/ 2 \+ 1;/);
+  const top = (svg) => Number(/translate\(\S+ (-?\d+)\)/.exec(svg)[1]);
+  const box = (n) => ({ w: 1, rows: Array(n).fill(1) });
+  assert.equal(top(pw._drawingOnRow(box(13), 0, 20, '#fff', false)), 20 - 6, '13 rows: row 6 on the cap centre');
+  assert.equal(top(pw._drawingOnRow(box(11), 0, 20, '#fff', false)), 20 - 5);
+  assert.equal(top(pw._drawingOnRow(box(9), 0, 20, '#fff', true)), 20 + 1 - 4, 'a mask of 9 rows');
+  assert.ok(pw._drawingOnRow({ w: 2, rows: [0, 3, 0] }, 5, 20, '#fff', false).indexOf('d="M0 1h2v1h-2z"') !== -1,
+    'the blank rows that seat it stay blank');
+});
+
+test('the pictures draw a slot\'s drawing, its seat with it, and set the text off by its width', () => {
+  const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
+  const S = settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off',
+    statusForecastLeft: 'uv', statusForecastMid: 'empty', statusForecastRight: 'empty' });
+  const drawn = (platform) => {
+    const html = pw.watchPreview(S, plat.computeEnv({ platform: platform }), {});
+    return (html.match(/<path transform="translate\(\S+ \S+\)" fill="[^"]*" d="[^"]*"/g) || []);
+  };
+  const uv = PixelIcon.pixels.icons.UV;
+  const fam = { basalt: ['basalt-11', 'basalt-13'], diorite: ['basalt-11', 'basalt-13'],
+    emery: ['emery-13', 'emery-15', 'emery-17'], aplite: ['A'] };
+  Object.keys(fam).forEach((platform) => {
+    const ds = fam[platform].map((size) => 'd="' + PixelIcon.path(uv[size]) + '"');
+    assert.ok(drawn(platform).some((p) => ds.some((d) => p.endsWith(d))), platform + ': one of its family\'s UV drawings');
+  });
+  // Drawings of the family's boxes in its place: a seat a pixel higher keeps the box where it is
+  // and lights its ink a row up inside it; a wider drawing sets the text off by its width.
+  const orig = { 'basalt-11': uv['basalt-11'], 'basalt-13': uv['basalt-13'] };
+  const seated = (w, seat) => Object.keys(orig).forEach((size) => {
+    const n = orig[size].rows.length, rows = Array(n).fill(0);
+    rows[(n - 1) / 2 - seat] = (1 << w) - 1;
+    uv[size] = { w: w, rows: rows };
+  });
+  const placed = (w, seat) => {
+    seated(w, seat);
+    const html = pw.watchPreview(S, plat.computeEnv({ platform: 'basalt' }), {});
+    const d = 'd="M0 ' + ((uv['basalt-13'].rows.length - 1) / 2 - seat) + 'h' + w + 'v1h-' + w + 'z"';
+    const d11 = 'd="M0 ' + ((uv['basalt-11'].rows.length - 1) / 2 - seat) + 'h' + w + 'v1h-' + w + 'z"';
+    const m = new RegExp('translate\\((\\S+) (\\S+)\\)" fill="[^"]*" (' + d + '|' + d11 + ')'
+      + ' shape-rendering="crispEdges"></path><text x="(\\d+)"').exec(html);
+    assert.ok(m, 'w ' + w + ', seat ' + seat + ': the drawing, then its text');
+    return { x: Number(m[1]), y: Number(m[2]), d: m[3], textX: Number(m[4]) };
+  };
+  try {
+    const centred = placed(5, 0), up = placed(5, 1), wide = placed(9, 0);
+    assert.equal(up.y, centred.y, 'the box stays put');
+    assert.notEqual(up.d, centred.d, 'its ink a row up');
+    assert.equal(centred.textX, centred.x + 5 + 3, 'the text after the drawing\'s width and the gap');
+    assert.equal(wide.textX - centred.textX, 4, 'four columns wider, the text four further');
+  } finally {
+    Object.assign(uv, orig);
+  }
+});

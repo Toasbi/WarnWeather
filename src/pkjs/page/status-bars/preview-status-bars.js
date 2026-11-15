@@ -249,6 +249,22 @@
     }
 
     /**
+     * The drawing a slot's text follows on this watch, by its key (status-pixels.generated.js),
+     * where the watch draws the slot's glyph from one: the watch pictures (preview-watch.js) draw
+     * it at the bar's box and seat. None for a glyph the watch draws in code (the battery, the
+     * sun arrow) or where slotIcon draws none.
+     * @param {string} code The slot's item.
+     * @param {Object} [env] Platform env.
+     * @param {Object} [S] Settings.
+     * @returns {?string} The drawing's key, or null for none.
+     */
+    function slotDrawing(code, env, S) {
+        if (!slotIcon(code, env, S)) { return null; }
+        var keys = (NODE ? require('./status-slot-icons.js') : window.StatusSlotIcons || {}).SLOT_KEYS || {};
+        return keys[code === 'city' ? 'condition' : code] || null;
+    }
+
+    /**
      * The item each of one bar's three slots holds, the catalog's resolution (defaults and
      * availability included), without the text barSlots draws for it. screens-page.js
      * fillNewBars reads a bar's slots here to tell one that shows nothing.
@@ -279,10 +295,10 @@
      *     date slot prints the full date there).
      * @param {Date} [now] Today (absent = the clock's).
      * @returns {Array<{pos: string, key: string, code: string, text: string, alt: string,
-     *     arrow: boolean, icon: ?string}>} The left, middle and right slots (pos 'left' | 'mid' |
-     *     'right', key the slot's setting, e.g. 'statusTopLeft'; alt the short form the text
-     *     brought after catalog.ALT_SEP, '' for none; icon its glyph's <svg>, slotIcon); [] for
-     *     an unknown bar.
+     *     arrow: boolean, icon: ?string, drawing: ?string}>} The left, middle and right slots (pos
+     *     'left' | 'mid' | 'right', key the slot's setting, e.g. 'statusTopLeft'; alt the short form
+     *     the text brought after catalog.ALT_SEP, '' for none; icon its glyph's <svg>, slotIcon;
+     *     drawing the watch's drawing of it, slotDrawing); [] for an unknown bar.
      */
     function barSlots(S, env, bar, fullDate, now) {
         var st = S || {}, when = now || new Date();
@@ -305,7 +321,8 @@
         return codes.map(function (c, p) {
             var forms = texts[p].split(catalog.ALT_SEP);
             return {pos: c.pos, key: c.key, code: c.code, text: forms[0], alt: forms[1] || '',
-                arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: slotIcon(c.code, env, st)};
+                arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: slotIcon(c.code, env, st),
+                drawing: slotDrawing(c.code, env, st)};
         });
     }
 

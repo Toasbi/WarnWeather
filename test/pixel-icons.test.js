@@ -307,19 +307,28 @@ test('a size in another version: its kept lines in the same box; the black and w
     /old lines are 9 rows tall, its box 11/);
 });
 
-// The settings page's list of conditions (the condition slot's dialog, blocks.js conditionList)
-// draws each condition's icon from the watch's own drawings (condition-pixels.generated.js).
-test('the settings page has every weather condition glyph\'s drawing, at 13 px', () => {
-  const pixels = require('../src/pkjs/settings/condition-pixels.generated.js');
+// The settings page draws the status icons from the watch's own drawings
+// (status-pixels.generated.js): its list of conditions (blocks.js conditionList), the slot rows
+// and the pictures of the watch, at each bar's box and seat.
+test('the settings page has every drawing the watch is built with, its whole box, by watch icon id', () => {
+  const page = require('../src/pkjs/settings/status-pixels.generated.js');
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources', 'pixel-icons.json'), 'utf8'));
   const condition = require('../src/pkjs/weather/domain/condition.js');
   const glyphs = new Set();
-  Object.values(condition.CONDITIONS).forEach((c) => c.glyph.forEach((g) => glyphs.add(g.replace(/^COND_/, ''))));
+  Object.values(condition.CONDITIONS).forEach((c) => c.glyph.forEach((g) => glyphs.add('STATUS_ICON_' + g)));
   assert.ok(glyphs.size >= 14, 'premise: every condition glyph');
-  glyphs.forEach((key) => {
-    const p = pixels[key];
-    assert.ok(p && p.rows.length >= 1 && p.rows.length <= 13, key + ': its 13 px drawing');
-    assert.ok(p.rows.some((r) => r & 1) && p.rows.every((r) => r < (1 << p.w)), key + ': the ink alone, inside its width');
-  });
+  glyphs.forEach((id) => assert.ok(page.icons[page.ids[id]], id + ': its drawings'));
+  let sizes = 0;
+  Object.keys(manifest.icons).forEach((key) => Object.keys(manifest.icons[key].sizes).forEach((size) => {
+    const p = page.icons[key] && page.icons[key][size];
+    const mask = manifest.icons[key].sizes[size].mask;
+    if (size === 'A' && mask) { assert.deepEqual(p, { w: mask.w, rows: mask.rows }, key + ': the Classic\'s mask as it is'); return; }
+    sizes++;
+    const box = Number(size.split('-')[1]);
+    assert.ok(p && p.rows.length >= box && (p.rows.length - box) % 2 === 0, key + ' ' + size + ': its whole box');
+    assert.ok(p.rows.some((r) => r & 1) && p.rows.every((r) => r < (1 << p.w)), key + ' ' + size + ': as wide as its ink');
+  }));
+  assert.ok(sizes >= 100, 'premise: every size');
 });
 
 test('the Pebble Classic mask table reads the same after a second write, whatever a mask\'s height', () => {

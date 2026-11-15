@@ -78,7 +78,7 @@ its pixels; take out `mask` to build it from its pixels.
 | `package.template.json` | One resource per drawing, only on its family's watches |
 | `src/c/layers/status_pixel_icons.generated.h` | Which drawing each icon uses at each box, one table per watch family: the Pebble Time 2, the colour 144 px watch and the black and white ones |
 | `src/c/layers/status_row_aplite.c` | The Pebble Classic and Steel bit mask, for the seven icons that have one |
-| `src/pkjs/settings/condition-pixels.generated.js` | The weather condition icons at 13 px, which the settings page draws them with |
+| `src/pkjs/settings/status-pixels.generated.js` | Every drawing's pixels, its seat rows kept, and the Classic's masks: the settings page draws its status icons with them (`src/pkjs/page/weather/pixel-icon.js`), the labels at the 144 px watches' 13 rows and the pictures of the watch at each bar's box and seat |
 
 The watch draws each drawing 1:1 wherever a bar asks for the box it was drawn for
 (`status_row_icons.c`; `status_icon_size.h` works out the box), its box's middle row on the text's

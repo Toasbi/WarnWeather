@@ -47,10 +47,8 @@ if (typeof require !== 'undefined') {
         ? require('../weather/budgets/interval-budget.js') : PConf.intervalBudget;
     // Country → recommended-provider mapping (shared with the wizard).
     var CD = (typeof require !== 'undefined') ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
-    // The weather condition icons as the watch draws them (gen_watch_icons.js), for the
-    // condition slot's list of conditions.
-    var conditionPixels = (typeof require !== 'undefined')
-        ? require('../../settings/condition-pixels.generated.js') : (window.ConditionPixels || {});
+    // The weather condition icons as the watch draws them (status-pixels.generated.js, through
+    // pixel-icon.js), for the condition slot's list of conditions.
     var PixelIcon = (typeof require !== 'undefined') ? require('../weather/pixel-icon.js') : window.PixelIcon;
     // The weather condition slot's vocabulary, for its list of every condition.
     var conditionLib = (typeof require !== 'undefined') ? require('../../weather/domain/condition.js') : window.Condition;
@@ -1071,7 +1069,7 @@ if (typeof require !== 'undefined') {
     PConf.hintResolvers.register('radarProviderNote', radarProviderNote);
 
     /**
-     * A pixel drawing (condition-pixels.generated.js) as a small SVG, each lit pixel a square,
+     * A pixel drawing (pixel-icon.js condition) as a small SVG, each lit pixel a square,
      * twice its size, in the text colour.
      * @param {{w: number, rows: !Array<number>}} p The drawing.
      * @returns {string} SVG markup; '' for none.
@@ -1086,7 +1084,7 @@ if (typeof require !== 'undefined') {
 
     /**
      * Every condition the weather condition slot shows (weather/condition.js), a row each: the
-     * name and short form, and the glyphs as pixel icon keys (condition-pixels.generated.js), the
+     * name and short form, and the glyphs by their names (pixel-icon.js condition), the
      * night's beside the day's where it differs. The clear sky's night has its own names (Clear,
      * CLR), so its own row.
      * @returns {!Array<{full: string, short: string, icons: !Array<string>, night: boolean}>}
@@ -1121,7 +1119,7 @@ if (typeof require !== 'undefined') {
             + '<tr style="font-size:12px;opacity:.7;text-align:left;"><th style="' + cell + 'font-weight:500;">Icon</th>'
             + '<th style="' + cell + 'font-weight:500;">Name</th><th style="' + cell + 'font-weight:500;">Short</th></tr>';
         rows.forEach(function (r) {
-            var icons = r.icons.map(function (k) { return pixelIconSvg(conditionPixels[k]); }).join('');
+            var icons = r.icons.map(function (k) { return pixelIconSvg(PixelIcon.condition(k)); }).join('');
             html += '<tr style="border-top:1px solid rgba(127,127,127,.25);">'
                 + '<td style="' + cell + '"><span style="display:inline-flex;gap:6px;align-items:center;">'
                 + icons + '</span></td>'

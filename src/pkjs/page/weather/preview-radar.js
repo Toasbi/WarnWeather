@@ -147,14 +147,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
     /**
      * The rain alert's icon as the watch draws it (status_on_demand.c): the weather condition
-     * slot's rain cloud, the watch's pixel drawing (condition-pixels.generated.js RAIN, the ink
+     * slot's rain cloud, the watch's pixel drawing (pixel-icon.js condition RAIN, the ink
      * alone, so its box is the drawing's). Read at draw time, once every page file has loaded.
      * @returns {{d: string, w: number, h: number}} Its pixels as a path, and its size.
      */
     function rainGlyph() {
-        var p = ((typeof require !== 'undefined') ? require('../../settings/condition-pixels.generated.js')
-            : window.ConditionPixels).RAIN;
         var PixelIcon = (typeof require !== 'undefined') ? require('./pixel-icon.js') : window.PixelIcon;
+        var p = PixelIcon.condition('RAIN');
         return {d: PixelIcon.path(p), w: p.w, h: p.rows.length};
     }
     /**

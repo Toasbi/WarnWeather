@@ -32,6 +32,8 @@
     // The watch's own clock digits (scripts/gen-clock-glyphs-page.js): Roboto and Bitham.
     var clockGlyphs = NODE ? require('./clock-glyphs.generated.js') : window.ClockGlyphs;
     var WT = NODE ? require('./watch-text.js') : window.WatchText;
+    // The watch's own status icon drawings (status-pixels.generated.js), at a bar's box.
+    var PixelIcon = NODE ? require('../weather/pixel-icon.js') : window.PixelIcon;
     var dateFormat = NODE ? require('../../calendar/domain/date-format.js') : window.DateFormat;
     var esc = NODE ? require('../../config-ui/lib/html.js').esc : PConf.html.esc;
     // The frame every screen picture sits in: the screen on its own ground, with a margin of it.
@@ -353,6 +355,51 @@
     }
 
     /**
+     * Which of the watch's drawings a platform draws: the Pebble Time 2's, the Pebble Classic and
+     * Steel's bit masks, or the 144 px watches' (status_pixel_icons.generated.h).
+     * @param {Object} env Platform env.
+     * @returns {string} 'emery', 'aplite' or 'basalt'.
+     */
+    function watchFamily(env) {
+        var p = env && env.platform;
+        return p === 'emery' ? 'emery' : p === 'aplite' ? 'aplite' : 'basalt';
+    }
+
+    /**
+     * The drawing the watch draws a slot's icon with in a row whose icon height is `iconH`: the
+     * family's drawing for the box that height paints (or the next smaller box's), the Pebble
+     * Classic and Steel's bit mask on aplite.
+     * @param {?string} key The drawing's key (preview-status-bars.js slotDrawing).
+     * @param {number} iconH The row's icon height.
+     * @param {string} fam 'basalt' (the 144 px watches), 'emery' or 'aplite'.
+     * @returns {?{w: number, rows: !Array<number>}} The drawing; null for none.
+     */
+    function drawingAt(key, iconH, fam) {
+        if (!key) { return null; }
+        if (fam === 'aplite') {
+            var sizes = PixelIcon.pixels.icons[key];
+            return sizes && sizes.A ? sizes.A : null;
+        }
+        return PixelIcon.forBox(key, fam, iconH & 1 ? iconH + 2 : iconH + 1);
+    }
+
+    /**
+     * A slot's drawing on the row, its lit pixels as the watch lights them: its box's middle row
+     * on the cap centre, its seat drawn into the box (status_icon_size.h status_icon_top_y); a
+     * bit mask its row n / 2 one below (status_row_aplite.c status_mask_draw).
+     * @param {{w: number, rows: !Array<number>}} p The drawing.
+     * @param {number} x Its left edge. @param {number} mid The row's cap centre.
+     * @param {string} fg Ink. @param {boolean} mask A bit mask.
+     * @returns {string} SVG markup.
+     */
+    function drawingOnRow(p, x, mid, fg, mask) {
+        var n = p.rows.length;
+        var top = mask ? mid + 1 - Math.floor(n / 2) : mid - Math.floor((n - 1) / 2);
+        return '<path transform="translate(' + r1(x) + ' ' + r1(top) + ')" fill="' + fg + '" d="' + PixelIcon.path(p)
+            + '" shape-rendering="crispEdges"></path>';
+    }
+
+    /**
      * A slot's icon (status-slot-icons.js' copy of the watch's), placed on the row.
      * @param {?string} svg The glyph (preview-status-bars.js slotIcon), null for none.
      * @param {number} x Left edge.
@@ -484,18 +531,22 @@
      * @param {Array<Object>} bars The bar's slots (preview-status-bars.js barSlots).
      * @param {number} cw The row's content width. @param {number} ch Its Gothic size.
      * @param {number} iconH Its icon height. @param {number} f Screen family.
+     * @param {string} fam The watch's drawings: 'basalt', 'emery' or 'aplite' (watchFamily).
      * @returns {{slots: Array<?Object>, placed: Array<?Object>}} Left, middle and right: each
      *     slot's measures and final label, and where it goes (placeSlots).
      */
-    function rowLayout(bars, cw, ch, iconH, f) {
+    function rowLayout(bars, cw, ch, iconH, f, fam) {
         var arrowW = f ? 8 : 6;
         var slots = [null, null, null], at = { left: 0, mid: 1, right: 2 };
         bars.forEach(function (c) {
             if (c.code === 'empty' || !(c.pos in at)) { return; }
             var glyph = c.code === 'battery' && !c.text;
             var icon = glyph ? null : c.icon;
-            slots[at[c.pos]] = { label: c.text || '', alt: c.alt, glyph: glyph, icon: icon,
-                iw: glyph ? BATTERY.w : (icon ? iconH : 0), tw: c.text ? WT.width(ch, false, c.text) : 0,
+            // A glyph the watch draws from a drawing takes the drawing's width, as the watch
+            // measures it (its bounds); one it draws in code the row's icon height.
+            var drawing = glyph ? null : drawingAt(c.drawing, iconH, fam);
+            slots[at[c.pos]] = { label: c.text || '', alt: c.alt, glyph: glyph, icon: icon, drawing: drawing,
+                iw: glyph ? BATTERY.w : (drawing ? drawing.w : (icon ? iconH : 0)), tw: c.text ? WT.width(ch, false, c.text) : 0,
                 sw: c.arrow ? arrowW : 0, aw: c.alt ? WT.width(ch, false, c.alt) : -1 };
         });
         var swap = swapShortForms(cw, slots);
@@ -525,7 +576,7 @@
                 && layoutView(spec, f, clockInk(S, f, Boolean(env && env.color === false))).tier === VC.TIER_FULL;
             ch = f ? (rowFull ? 18 : 24) : (rowFull ? 14 : 18);
         }
-        var slots = rowLayout(bars, sc.w - 2 * pad - 2 * ROW_MARGIN, ch, rowIconH(bar === 'top', ch, Infinity), f).slots;
+        var slots = rowLayout(bars, sc.w - 2 * pad - 2 * ROW_MARGIN, ch, rowIconH(bar === 'top', ch, Infinity), f, watchFamily(env)).slots;
         var out = { left: '', mid: '', right: '' };
         ['left', 'mid', 'right'].forEach(function (pos, i) { if (slots[i]) { out[pos] = slots[i].label; } });
         return out;
@@ -549,13 +600,15 @@
         var lineTop = box.y + seatY(box.h, ch) - (top ? 2 : 0);
         var mid = lineTop + ch - glyphBelow(ch);
         var iconH = rowIconH(top, ch, box.h);
+        var fam = watchFamily(env);
         var row = rowLayout(statusBars.barSlots(S, env, bar, cx.fullDate, cx.now), box.w - 2 * ROW_MARGIN,
-            ch, iconH, cx.f);
+            ch, iconH, cx.f, fam);
         var slots = row.slots, placed = row.placed, x0 = box.x + ROW_MARGIN;
         placed.forEach(function (p, i) {
             if (!p) { return; }
             var it = slots[i], x = x0 + p.x;
             if (it.glyph) { e += batteryGlyph(x, mid, cx.fg); }
+            else if (it.drawing) { e += drawingOnRow(it.drawing, x, mid, cx.fg, fam === 'aplite'); }
             else if (it.icon) { e += iconAt(it.icon, x, mid, iconH, cx.fg); }
             var tx = x + it.iw + (it.iw > 0 && p.tw > 0 ? ICON_GAP : 0);
             if (p.tw > 0) { e += WT.line(ch, false, tx, lineTop, cx.fg, WT.fit(ch, false, it.label, p.tw)); }
@@ -836,7 +889,8 @@
     var api = { watchPreview: watchPreview, layoutView: layoutView, clockInk: clockInk, screenSvg: screenSvg,
         barLabels: barLabels, swapShortForms: swapShortForms,
         graphKinds: graphKinds,
-                fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN };
+                fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN,
+        _drawingAt: drawingAt, _drawingOnRow: drawingOnRow };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PreviewWatch = api; }
 })();

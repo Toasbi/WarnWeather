@@ -173,11 +173,11 @@ var APP_FILES = [
   // blocks.js, and is only looked up at render time. Dropping it throws nothing —
   // an unregistered icon id just prints no glyph — so
   // test/page/settings/config-page-bundle.test.js pins its register() calls into the page.
-  // The weather condition icons as the watch draws them (window.ConditionPixels, from
+  // The status icons as the watch draws them (window.StatusPixels, from
   // scripts/pixel-icons/gen_watch_icons.js), and the SVG they draw as (window.PixelIcon):
-  // status-slot-icons.js reads both while its body runs; blocks.js's conditionList and the rain
-  // alert's preview draw with them at render time.
-  path.join(ROOT, 'src/pkjs/settings/condition-pixels.generated.js'),
+  // status-slot-icons.js reads both while its body runs; blocks.js's conditionList, the rain
+  // alert's preview and the watch pictures draw with them at render time.
+  path.join(ROOT, 'src/pkjs/settings/status-pixels.generated.js'),
   path.join(ROOT, 'src/pkjs/page/weather/pixel-icon.js'),
   path.join(ROOT, 'src/pkjs/page/status-bars/status-slot-icons.js'),
   // The tab bar's glyphs (tab.icon), into the same registry.

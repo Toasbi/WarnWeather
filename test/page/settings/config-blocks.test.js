@@ -862,8 +862,8 @@ test('radarPreview never shows the countdown band on aplite', () => {
 });
 
 /** The rain alert's icon as the page draws it: the watch's rain cloud, its pixels (pixel-icon.js). */
-const RAIN_PIXELS = require('../../../src/pkjs/page/weather/pixel-icon.js')
-  .path(require('../../../src/pkjs/settings/condition-pixels.generated.js').RAIN);
+const PIXEL_ICON = require('../../../src/pkjs/page/weather/pixel-icon.js');
+const RAIN_PIXELS = PIXEL_ICON.path(PIXEL_ICON.condition('RAIN'));
 
 test('the countdown band draws its icon and text in white on color and on B&W', () => {
   const color = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
