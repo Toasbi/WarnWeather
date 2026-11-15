@@ -480,8 +480,10 @@ static void main_window_load(Window *window) {
 #endif
     render_active_view();
 #if defined(PBL_HEALTH)
-    // Repaint the health view — graph AND any live-health status rows — when a
-    // deferred build finishes (see main_window_refresh_health_graph above).
+    // Repaint the health graph when the cache shows its loading frame, a rollover's
+    // paint-first or a finished deferred build (see main_window_refresh_health_graph
+    // above). The rows' live-health readings come from the health summary instead
+    // (main_window_sync_health), which this cache never changes.
     health_cache_set_repaint(main_window_refresh_health_graph);
     // Warm the cache at boot when a view can show the graph — restoring a fresh-enough
     // snapshot if we have one, so the graph doesn't reshow "Loading health data"
