@@ -32,6 +32,7 @@ static int16_t s_hr[N];
 static uint8_t s_sleep[N];
 static time_t  s_end_hour;        // top of the current hour = start of bucket N-1
 
+static bool       s_kept;         // can the graph show it? (health_cache_keep) — nothing runs while false
 static bool       s_ready;        // valid enough to paint? (stays true through a background refresh)
 static bool       s_build_pending;// a sliced build/refresh is armed or mid-flight
 static AppTimer  *s_timer;
@@ -186,7 +187,18 @@ void health_cache_reset(void) {
     health_cache_recalc(current_hour_top(), N);   // full build => sliced + loading
 }
 
+void health_cache_keep(bool keep) {
+    const bool was_kept = s_kept;
+    s_kept = keep;
+    // Turned on: fill it as the boot does. A cache the tick stopped rolling while keeping
+    // was off is replaced the same way (a snapshot slid to this hour, or a rebuild).
+    if (keep && !was_kept && !health_cache_restore()) {
+        health_cache_reset();
+    }
+}
+
 void health_cache_persist_save(void) {
+    if (!s_kept) { return; }                        // not kept: nothing current to save
     if (!s_ready || s_build_pending) { return; }   // never persist a mid-build/mid-refresh snapshot
     persist_set_health_cache_steps(s_steps, N);
     persist_set_health_cache_hr(s_hr, N);
@@ -204,6 +216,7 @@ bool health_cache_restore(void) {
 }
 
 void health_cache_refresh_current_hour(void) {
+    if (!s_kept) { return; }                        // the graph cannot show it
     if (!s_ready || s_build_pending) { return; }    // never built / build or refresh in flight
     const time_t now = time(NULL);
     if (now - (now % STEP) != s_end_hour) { return; } // rollover pending => leave it to the tick
@@ -212,6 +225,7 @@ void health_cache_refresh_current_hour(void) {
 }
 
 void health_cache_tick(bool view_visible) {
+    if (!s_kept) { return; }                             // the graph cannot show it
     if (s_build_pending) { return; }                     // build/refresh in flight: wait
     if (!s_ready) { health_cache_reset(); return; }      // defensive: shouldn't happen
 
