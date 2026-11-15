@@ -89,10 +89,10 @@ checks that no other module queries Supabase.
   a higher one. Types that several layers share (the view spec, the layout tiers) live below
   the layers, not in `windows/` (`appendix/view_spec.h`, and the clock's ink model in
   `appendix/clock_seat.h`). HealthService calls stay in `services/health.c`, and the SDK's
-  persist calls in `appendix/persist.c`, the one writer of the store, whose RAM copy of it on
-  emery only its own writes keep exact. No include cycles. Aplite twins and contract files follow ADR 0001. Inside each
-  layer, files group by domain context where the code has one (chart and graph, radar and
-  rain, status row, calendar, palette and theme).
+  persist calls in `appendix/persist_store.{c,h}`, the one writer of the store, whose RAM
+  copy of it on emery only its own writes keep exact. No include cycles. Aplite twins and
+  contract files follow ADR 0001. Inside each layer, files group by domain context where the
+  code has one (chart and graph, radar and rain, status row, calendar, palette and theme).
 - Settings page: `config-ui/` is the engine (rendering, show-when, controls) and knows
   nothing of WarnWeather's settings; `src/pkjs/page/<context>/` holds the schema, pages and
   previews that use it, grouped by context. A module both the page and the phone app use (a
@@ -153,8 +153,8 @@ Each rule above that a machine can check has an architecture test in `test/archi
   application code no adapter, the phone app never the settings page, the page no adapter, the
   page's engine only itself and the shared library; no cycles;
 - `c-includes.test.js`, over the watchface's `#include` graph: no upward include, no cycles,
-  HealthService only in `services/health.c`, the persist API only in `appendix/persist.c`, no
-  second ticks;
+  HealthService only in `services/health.c`, the persist API only in
+  `appendix/persist_store.{c,h}`, no second ticks;
 - `edge-functions.test.js`: only an entry point creates the Supabase client or calls the global
   `fetch`; queries go through the store modules.
 

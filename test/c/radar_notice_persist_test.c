@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "c/appendix/persist.h"
+#include "c/appendix/persist_store.h"
 
 // Pinned by NUMBER on purpose: an insertion above RADAR_NOTICE in the enum would
 // move it onto some other key's slot on every installed watch.
@@ -56,7 +57,7 @@ static void flash_reset(void) {
     memset(s_bool, 0, sizeof(s_bool));
     s_writes = 0;
     s_deletes = 0;
-    persist_cache_drop();   // persist.c's RAM copy of the flash cleared above
+    store_cache_drop();   // persist_store.c's RAM copy of the flash cleared above (emery)
 }
 
 bool persist_exists(const uint32_t key) {

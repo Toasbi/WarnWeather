@@ -453,9 +453,3 @@ time_t persist_get_health_cache_end_hour(void);
 
 void persist_migrate_trend_encoding(void);
 void persist_migrate_status_line_encoding(void);
-
-// Forget persist.c's RAM copy of the store (emery), so the next read of each key asks the
-// flash. Only the host tests need it, for the fake flash they change underneath it: on the
-// watch nothing but persist.c writes the store. Does nothing on the other watches, which
-// keep no copy.
-void persist_cache_drop(void);

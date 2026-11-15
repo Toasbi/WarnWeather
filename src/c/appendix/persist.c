@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "persist.h"
+#include "persist_store.h"
 #include "config.h"
 #include "status_line.h"
 #include "graph_style.h"
@@ -146,204 +147,22 @@ enum key {
     OD_EXTRA_CELLS                // 66 — OD_ITEM_COUNT bytes, absent = nothing ticked
 };
 
-// --- A RAM copy of the store: emery ----------------------------------------------------
-//
-// The firmware finds a key by walking the app's settings file record by record from where
-// its last search stopped, a flash read per record, so a key that is not there costs a
-// walk of the whole file, and persist_read_data searches twice (the length, then the
-// value). The face asks for the same few dozen keys on every paint and every minute.
-// Only this file calls the SDK's persist API, so each key changes only through the
-// setters below, and a copy filled on a key's first read and updated by every write here
-// stays exact. It holds what a key's first read found, while the arena has room: its
-// bytes, or that it is not stored, or that it is stored with its bytes in flash (a key
-// read only as the face starts, a value past PERSIST_CACHE_VALUE_MAX, one the arena had
-// no room for). There is no eviction: once the arena is full, a key it never noted asks
-// the flash, as every key did before. A write the firmware refuses forgets the key.
-// The persist_* calls in the rest of this file are the macros at the end of this block.
-// emery only: its 128 KB of app RAM holds every value the face reads while it runs, the
-// long span's trends and bars 4 to 6's lines among them, and its minute does the most
-// reads. On every other watch each RAM byte is a heap byte (scripts/check-aplite-size.sh,
-// scripts/check-64k-size.sh), so their calls go straight to the SDK.
-#if defined(PBL_PLATFORM_EMERY)
-#if !defined(PERSIST_CACHE_BYTES)
-#define PERSIST_CACHE_BYTES 1536   // the host test also builds a small one, to fill it
-#endif
-#define PERSIST_CACHE_VALUE_MAX FORECAST_MAX_ENTRIES
-_Static_assert(PERSIST_CACHE_VALUE_MAX <= 255, "a record's length is one byte");
-#define PC_KEYS (OD_EXTRA_CELLS + 1)
-
-static struct {
-    uint16_t used;
-    // [key][len][len bytes] records, packed. len 0: a key not stored, or, with PC_IN_FLASH
-    // on its key byte, one whose bytes are only in flash.
-    uint8_t arena[PERSIST_CACHE_BYTES];
-} s_pc;
-
-// Whether a stored value's bytes are copied: not for a key read once as the face starts
-// (CONFIG, which config.c holds; the palettes; the relaunch and health snapshots; the
-// encoding versions) or a retired one.
-#define PC_ONCE_LO ((1u << CITY) | (1u << CURRENT_TEMP) | (1u << CONFIG) \
-                    | (1u << TREND_ENCODING_VERSION) | (1u << BAR_PALETTE) \
-                    | (1u << RADAR_PALETTE) | (1u << VIEW_CURSOR))
-#define PC_ONCE_HI ((1u << (WATCHFACE_UNLOAD_EPOCH - 32)) | (1u << (HEALTH_CACHE_STEPS - 32)) \
-                    | (1u << (HEALTH_CACHE_HR - 32)) | (1u << (HEALTH_CACHE_SLEEP - 32)) \
-                    | (1u << (HEALTH_CACHE_END_HOUR - 32)) \
-                    | (1u << (STATUS_LINE_ENCODING_VERSION - 32)) | (1u << (RADAR_LIMITED - 32)))
-static bool pc_copies(uint32_t key, int len) {
-    if (len > PERSIST_CACHE_VALUE_MAX) { return false; }
-    if (key < 32) { return !((PC_ONCE_LO >> key) & 1); }
-    return key >= 64 || !((PC_ONCE_HI >> (key - 32)) & 1);
-}
-
-static uint8_t *pc_find(uint32_t key) {
-    for (uint8_t *rec = s_pc.arena; rec < s_pc.arena + s_pc.used; rec += 2 + rec[1]) {
-        if ((rec[0] & 0x7F) == key) { return rec; }
-    }
-    return NULL;
-}
-
-// On a record's key byte: the key is stored, its bytes only in flash (a key read once, a
-// value past the cap, or one the arena had no room for).
-#define PC_IN_FLASH 0x80
-_Static_assert(PC_KEYS <= PC_IN_FLASH, "a key and its flag share one byte");
-
-// The store now holds `len` bytes of `data` for `key` (0: nothing; `data` NULL: bytes not
-// to copy), or only the flash knows (len < 0, after a write it refused). Returns the key's
-// record, NULL when the arena keeps none.
-static uint8_t *pc_note(uint32_t key, const void *data, int len) {
-    uint8_t *rec = pc_find(key);
-    if (rec) {
-        const uint16_t size = 2 + rec[1];
-        s_pc.used -= size;
-        memmove(rec, rec + size, s_pc.used - (uint16_t) (rec - s_pc.arena));
-    }
-    if (len < 0 || key >= PC_KEYS || s_pc.used + 2 > PERSIST_CACHE_BYTES) { return NULL; }
-    int copied = (data && len > 0 && pc_copies(key, len)) ? len : 0;
-    if (s_pc.used + 2 + copied > PERSIST_CACHE_BYTES) { copied = 0; }
-    rec = &s_pc.arena[s_pc.used];
-    rec[0] = (uint8_t) (key | (len > copied ? PC_IN_FLASH : 0));
-    rec[1] = (uint8_t) copied;
-    if (copied) { memmove(rec + 2, data, (size_t) copied); }   // a first read already sits there
-    s_pc.used += 2 + copied;
-    return rec;
-}
-
-// `key` as RAM holds it, filled on its first ask: its length with *val at its bytes, 0
-// while it is not stored, -1 while it is stored and only the flash has its bytes, or -2
-// when RAM knows nothing (a key past the enum, or no room left to note one).
-static int pc_peek(uint32_t key, const uint8_t **val) {
-    uint8_t *rec = pc_find(key);
-    if (!rec && key < PC_KEYS && s_pc.used + 2 <= PERSIST_CACHE_BYTES) {
-        int len = persist_get_size(key);   // the one search: whether it is stored, how long
-        if (len < 0) { len = 0; }
-        uint8_t *tail = &s_pc.arena[s_pc.used + 2];
-        const bool read = len > 0 && pc_copies(key, len)
-                && s_pc.used + 2 + len <= PERSIST_CACHE_BYTES
-                && persist_read_data(key, tail, (size_t) len) == len;
-        rec = pc_note(key, read ? tail : NULL, len);   // read straight into its record's place
-    }
-    if (!rec) { return -2; }
-    if (rec[0] & PC_IN_FLASH) { return -1; }
-    *val = rec + 2;
-    return rec[1];
-}
-
-static bool pc_exists(uint32_t key) {
-    const uint8_t *val;
-    const int n = pc_peek(key, &val);
-    return n == -2 ? persist_exists(key) : n != 0;
-}
-
-static int pc_get_size(uint32_t key) {
-    const uint8_t *val;
-    const int n = pc_peek(key, &val);
-    if (n == 0) { return E_DOES_NOT_EXIST; }
-    return n > 0 ? n : persist_get_size(key);
-}
-
-// persist_read_data's contract: at most `size` bytes, how many it copied, or
-// E_DOES_NOT_EXIST.
-static int pc_read_data(uint32_t key, void *buffer, size_t size) {
-    const uint8_t *val;
-    const int n = pc_peek(key, &val);
-    if (n == 0) { return E_DOES_NOT_EXIST; }
-    if (n < 0) { return persist_read_data(key, buffer, size); }
-    const size_t copied = (size_t) n < size ? (size_t) n : size;
-    memcpy(buffer, val, copied);
-    return (int) copied;
-}
-
-// The firmware's reads of an int and a bool: 0 unless the stored value holds the whole
-// type, else its first bytes.
-static int32_t pc_read_int(uint32_t key) {
-    int32_t value = 0;
-    return pc_read_data(key, &value, sizeof(value)) == (int) sizeof(value) ? value : 0;
-}
-
-static bool pc_read_bool(uint32_t key) {
-    uint8_t byte = 0;
-    pc_read_data(key, &byte, 1);
-    return byte != 0;
-}
-
-// The firmware stores the first `r` bytes it reports (0 deletes the key).
-static int pc_write_data(uint32_t key, const void *data, size_t size) {
-    const int r = persist_write_data(key, data, size);
-    pc_note(key, data, r);
-    return r;
-}
-
-// An int or a bool goes in as its bytes: the firmware's persist_write_int and
-// persist_write_bool store exactly what persist_write_data does with them, and report the
-// same count (applib/persist.c: each is one settings_file_set).
-static status_t pc_write_int(uint32_t key, int32_t value) {
-    return pc_write_data(key, &value, sizeof(value));
-}
-
-static status_t pc_write_bool(uint32_t key, bool value) {
-    const uint8_t byte = value;
-    return pc_write_data(key, &byte, 1);
-}
-
-static status_t pc_delete(uint32_t key) {
-    const status_t r = persist_delete(key);
-    pc_note(key, NULL, (r >= 0 || r == E_DOES_NOT_EXIST) ? 0 : -1);
-    return r;
-}
-
-void persist_cache_drop(void) {
-    s_pc.used = 0;
-}
-
-#define persist_exists(key)                  pc_exists(key)
-#define persist_get_size(key)                pc_get_size(key)
-#define persist_read_int(key)                pc_read_int(key)
-#define persist_read_bool(key)               pc_read_bool(key)
-#define persist_read_data(key, buffer, size) pc_read_data((key), (buffer), (size))
-#define persist_write_int(key, value)        pc_write_int((key), (value))
-#define persist_write_bool(key, value)       pc_write_bool((key), (value))
-#define persist_write_data(key, data, size)  pc_write_data((key), (data), (size))
-#define persist_delete(key)                  pc_delete(key)
-#else
-void persist_cache_drop(void) {}
-#endif  // PBL_PLATFORM_EMERY
-
 // Setters report whether the stored value actually changed so callers can
 // refresh only the affected UI and skip redundant flash writes.
 
 static bool write_int_if_changed(const uint32_t key, int val) {
-    if (persist_exists(key) && persist_read_int(key) == val) {
+    if (store_exists(key) && store_read_int(key) == val) {
         return false;
     }
-    persist_write_int(key, val);
+    store_write_int(key, val);
     return true;
 }
 
 static bool write_bool_if_changed(const uint32_t key, bool val) {
-    if (persist_exists(key) && persist_read_bool(key) == val) {
+    if (store_exists(key) && store_read_bool(key) == val) {
         return false;
     }
-    persist_write_bool(key, val);
+    store_write_bool(key, val);
     return true;
 }
 
@@ -362,11 +181,11 @@ static bool write_data_if_changed(const uint32_t key, const void *data, const si
     // FORECAST_MAX_ENTRIES bytes); oversized blobs fall through to an unconditional write.
     uint8_t current[PERSIST_COMPARE_BYTES];
     if (size <= sizeof(current)
-            && persist_read_data(key, current, size) == (int) size
+            && store_read_data(key, current, size) == (int) size
             && memcmp(current, data, size) == 0) {
         return false;
     }
-    persist_write_data(key, data, size);
+    store_write_data(key, data, size);
     return true;
 }
 
@@ -377,13 +196,13 @@ static bool write_sized_data_if_changed(const uint32_t key, const void *data,
                                         const size_t size) {
     uint8_t current[STATUS_LINE_MAX_BYTES];
     if (size <= sizeof(current)
-            && persist_exists(key)
-            && persist_get_size(key) == (int) size
-            && persist_read_data(key, current, size) == (int) size
+            && store_exists(key)
+            && store_get_size(key) == (int) size
+            && store_read_data(key, current, size) == (int) size
             && memcmp(current, data, size) == 0) {
         return false;
     }
-    persist_write_data(key, data, size);
+    store_write_data(key, data, size);
     return true;
 }
 
@@ -393,8 +212,8 @@ static bool write_sized_data_if_changed(const uint32_t key, const void *data,
 // entries): a read gives its bytes, 0 while it is absent; an empty write deletes it.
 // The thresholds blob is read the same way.
 static int read_present_blob(const uint32_t key, uint8_t *out, const size_t cap) {
-    if (!persist_exists(key)) { return 0; }
-    const int n = persist_read_data(key, out, cap);
+    if (!store_exists(key)) { return 0; }
+    const int n = store_read_data(key, out, cap);
     return n > 0 ? n : 0;
 }
 #endif
@@ -402,8 +221,8 @@ static int read_present_blob(const uint32_t key, uint8_t *out, const size_t cap)
 #if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND) || defined(PBL_PLATFORM_EMERY)
 static bool write_present_blob(const uint32_t key, const uint8_t *data, const size_t len) {
     if (len == 0) {
-        if (!persist_exists(key)) { return false; }
-        persist_delete(key);
+        if (!store_exists(key)) { return false; }
+        store_delete(key);
         return true;
     }
     return write_sized_data_if_changed(key, data, len);
@@ -417,7 +236,7 @@ static uint8_t s_trend_widen[FORECAST_MAX_ENTRIES];
 
 static int read_trend_widened(uint32_t key, int16_t *out, size_t n) {
     if (n > sizeof(s_trend_widen)) { n = sizeof(s_trend_widen); }
-    int bytes = persist_read_data(key, s_trend_widen, n);
+    int bytes = store_read_data(key, s_trend_widen, n);
     if (bytes <= 0) { return bytes; }
     for (int i = 0; i < bytes; i++) { out[i] = (int16_t) s_trend_widen[i]; }
     return bytes;
@@ -428,7 +247,7 @@ static int read_trend_widened(uint32_t key, int16_t *out, size_t n) {
 // NOT the count-keyed LINE_/BAR_ one; see the key enum).
 static bool set_existence_keyed_trend(uint32_t key, uint8_t *data, size_t size) {
     if (size > 0) { return write_data_if_changed(key, data, size); }
-    if (persist_exists(key)) { persist_delete(key); return true; }
+    if (store_exists(key)) { store_delete(key); return true; }
     return false;
 }
 
@@ -445,7 +264,7 @@ int persist_get_third_line_trend(int16_t *buffer, const size_t buffer_size) {
 }
 
 bool persist_third_line_present(void) {
-    return persist_exists(THIRD_LINE_TREND);
+    return store_exists(THIRD_LINE_TREND);
 }
 
 int persist_get_bar_trend(int16_t *buffer, const size_t buffer_size) {
@@ -453,11 +272,11 @@ int persist_get_bar_trend(int16_t *buffer, const size_t buffer_size) {
 }
 
 int persist_get_line_count(void) {
-    return persist_exists(LINE_COUNT) ? persist_read_int(LINE_COUNT) : 0;
+    return store_exists(LINE_COUNT) ? store_read_int(LINE_COUNT) : 0;
 }
 
 int persist_get_bar_count(void) {
-    return persist_exists(BAR_COUNT) ? persist_read_int(BAR_COUNT) : 0;
+    return store_exists(BAR_COUNT) ? store_read_int(BAR_COUNT) : 0;
 }
 
 bool persist_series_present(SeriesId id) {
@@ -465,11 +284,11 @@ bool persist_series_present(SeriesId id) {
         case SERIES_SECOND: return persist_get_line_count() > 0;
         case SERIES_THIRD:  return persist_third_line_present();
 #if defined(WW_LINE_STYLE)
-        case SERIES_FOURTH: return persist_exists(FOURTH_LINE_TREND);
-        case SERIES_FIFTH:  return persist_exists(FIFTH_LINE_TREND);
+        case SERIES_FOURTH: return store_exists(FOURTH_LINE_TREND);
+        case SERIES_FIFTH:  return store_exists(FIFTH_LINE_TREND);
 #endif
 #if defined(PBL_PLATFORM_EMERY)
-        case SERIES_SPARE:  return persist_exists(SPARE_LINE_TREND);   // emery: graph styles
+        case SERIES_SPARE:  return store_exists(SPARE_LINE_TREND);   // emery: graph styles
 #endif
         case SERIES_BARS:   return persist_get_bar_count() > 0;
         default:            return false;  // FIRST: caller uses num_entries > 0
@@ -522,46 +341,46 @@ bool persist_series_set_color(SeriesId id, GColor c) {
 }
 
 GColor persist_get_line_color(void) {
-    if (!persist_exists(LINE_COLOR)) { return GColorPictonBlue; }
-    return (GColor){ .argb = (uint8_t) persist_read_int(LINE_COLOR) };
+    if (!store_exists(LINE_COLOR)) { return GColorPictonBlue; }
+    return (GColor){ .argb = (uint8_t) store_read_int(LINE_COLOR) };
 }
 
 GColor persist_get_third_line_color(void) {
-    if (!persist_exists(THIRD_LINE_COLOR)) { return theme_fg(); }
-    return (GColor){ .argb = (uint8_t) persist_read_int(THIRD_LINE_COLOR) };
+    if (!store_exists(THIRD_LINE_COLOR)) { return theme_fg(); }
+    return (GColor){ .argb = (uint8_t) store_read_int(THIRD_LINE_COLOR) };
 }
 
 GColor persist_get_fill_color(void) {
-    if (!persist_exists(FILL_COLOR)) { return GColorCobaltBlue; }
-    return (GColor){ .argb = (uint8_t) persist_read_int(FILL_COLOR) };
+    if (!store_exists(FILL_COLOR)) { return GColorCobaltBlue; }
+    return (GColor){ .argb = (uint8_t) store_read_int(FILL_COLOR) };
 }
 
 bool persist_get_line_fill(void) {
-    return persist_exists(LINE_FILL) ? persist_read_bool(LINE_FILL) : false;
+    return store_exists(LINE_FILL) ? store_read_bool(LINE_FILL) : false;
 }
 
 time_t persist_get_forecast_start() {
-    return (time_t) persist_read_int(FORECAST_START);
+    return (time_t) store_read_int(FORECAST_START);
 }
 
 int persist_get_num_entries() {
-    return persist_read_int(NUM_ENTRIES);
+    return store_read_int(NUM_ENTRIES);
 }
 
 int persist_get_sun_event_start_type() {
-    return persist_read_int(SUN_EVENT_START_TYPE);
+    return store_read_int(SUN_EVENT_START_TYPE);
 }
 
 int persist_get_sun_event_times(time_t *buffer, const size_t buffer_size) {
-    return persist_read_data(SUN_EVENT_TIMES, (void*) buffer, buffer_size * sizeof(time_t));
+    return store_read_data(SUN_EVENT_TIMES, (void*) buffer, buffer_size * sizeof(time_t));
 }
 
 int persist_get_config(Config *config) {
-    return persist_read_data(CONFIG, config, sizeof(Config));
+    return store_read_data(CONFIG, config, sizeof(Config));
 }
 
 bool persist_has_config() {
-    return persist_exists(CONFIG);
+    return store_exists(CONFIG);
 }
 
 bool persist_set_temp_trend(uint8_t *data, const size_t size) {
@@ -606,8 +425,8 @@ bool persist_set_line_fill(bool fill) {
 // shared helpers. Only the colour keeps named accessors (forecast_layer.c
 // reads it by name at paint time).
 GColor persist_get_fourth_line_color(void) {
-    if (!persist_exists(FOURTH_LINE_COLOR)) { return theme_fg(); }
-    return (GColor){ .argb = (uint8_t) persist_read_int(FOURTH_LINE_COLOR) };
+    if (!store_exists(FOURTH_LINE_COLOR)) { return theme_fg(); }
+    return (GColor){ .argb = (uint8_t) store_read_int(FOURTH_LINE_COLOR) };
 }
 
 bool persist_set_fourth_line_color(GColor color) {
@@ -615,8 +434,8 @@ bool persist_set_fourth_line_color(GColor color) {
 }
 
 GColor persist_get_fifth_line_color(void) {
-    if (!persist_exists(FIFTH_LINE_COLOR)) { return theme_fg(); }
-    return (GColor){ .argb = (uint8_t) persist_read_int(FIFTH_LINE_COLOR) };
+    if (!store_exists(FIFTH_LINE_COLOR)) { return theme_fg(); }
+    return (GColor){ .argb = (uint8_t) store_read_int(FIFTH_LINE_COLOR) };
 }
 
 bool persist_set_fifth_line_color(GColor color) {
@@ -624,12 +443,12 @@ bool persist_set_fifth_line_color(GColor color) {
 }
 
 uint8_t persist_get_fifth_line_style(void) {
-    if (!persist_exists(FIFTH_LINE_STYLE)) {
+    if (!store_exists(FIFTH_LINE_STYLE)) {
         // Unset: the line's built-in, x marks (line-style.js
         // LINE_STYLE_DEFAULTS.fifthLineStyle — the phone's byte for 'x').
         return (uint8_t) CHART_LINE_X;
     }
-    return (uint8_t) persist_read_int(FIFTH_LINE_STYLE);
+    return (uint8_t) store_read_int(FIFTH_LINE_STYLE);
 }
 
 bool persist_set_fifth_line_style(uint8_t style) {
@@ -641,7 +460,7 @@ bool persist_set_line_styles(const uint8_t styles[LINE_STYLE_STYLE_BYTES]) {
 }
 
 void persist_get_line_styles(uint8_t out[LINE_STYLE_STYLE_BYTES]) {
-    if (persist_read_data(LINE_STYLES, out, LINE_STYLE_STYLE_BYTES)
+    if (store_read_data(LINE_STYLES, out, LINE_STYLE_STYLE_BYTES)
             == LINE_STYLE_STYLE_BYTES) {
         return;
     }
@@ -654,7 +473,7 @@ void persist_get_line_styles(uint8_t out[LINE_STYLE_STYLE_BYTES]) {
 #endif  // WW_LINE_STYLE
 
 int persist_get_rain_radar_trend(uint8_t *buffer, const size_t buffer_size) {
-    return persist_read_data(RAIN_RADAR_TREND, (void*) buffer, buffer_size * sizeof(uint8_t));
+    return store_read_data(RAIN_RADAR_TREND, (void*) buffer, buffer_size * sizeof(uint8_t));
 }
 
 bool persist_set_rain_radar_trend(uint8_t *data, const size_t size) {
@@ -662,7 +481,7 @@ bool persist_set_rain_radar_trend(uint8_t *data, const size_t size) {
 }
 
 int persist_get_rain_radar_trend_area(uint8_t *buffer, const size_t buffer_size) {
-    return persist_read_data(RAIN_RADAR_TREND_AREA, (void*) buffer, buffer_size * sizeof(uint8_t));
+    return store_read_data(RAIN_RADAR_TREND_AREA, (void*) buffer, buffer_size * sizeof(uint8_t));
 }
 
 bool persist_set_rain_radar_trend_area(uint8_t *data, const size_t size) {
@@ -670,7 +489,7 @@ bool persist_set_rain_radar_trend_area(uint8_t *data, const size_t size) {
 }
 
 int persist_get_bar_palette(uint8_t *buffer, const size_t buffer_size) {
-    return persist_read_data(BAR_PALETTE, (void*) buffer, buffer_size * sizeof(uint8_t));
+    return store_read_data(BAR_PALETTE, (void*) buffer, buffer_size * sizeof(uint8_t));
 }
 
 bool persist_set_bar_palette(uint8_t *data, const size_t size) {
@@ -678,7 +497,7 @@ bool persist_set_bar_palette(uint8_t *data, const size_t size) {
 }
 
 int persist_get_radar_palette(uint8_t *buffer, const size_t buffer_size) {
-    return persist_read_data(RADAR_PALETTE, (void*) buffer, buffer_size * sizeof(uint8_t));
+    return store_read_data(RADAR_PALETTE, (void*) buffer, buffer_size * sizeof(uint8_t));
 }
 
 bool persist_set_radar_palette(uint8_t *data, const size_t size) {
@@ -699,8 +518,8 @@ static uint32_t status_line_key(uint8_t line_id) {
 int persist_get_status_line(uint8_t line_id, uint8_t *buffer, size_t buffer_size) {
     if (line_id >= STATUS_LINE_COUNT) { return 0; }
     uint32_t key = status_line_key(line_id);
-    if (!persist_exists(key)) { return 0; }
-    return persist_read_data(key, (void*) buffer, buffer_size);
+    if (!store_exists(key)) { return 0; }
+    return store_read_data(key, (void*) buffer, buffer_size);
 }
 
 bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len) {
@@ -712,8 +531,8 @@ bool persist_set_notice_text(const char *text) {
     size_t len = text ? strlen(text) : 0;
     if (len == 0) {
         // Empty = no notice. Delete the slot; report a change only when it existed.
-        if (persist_exists(NOTICE_TEXT)) {
-            persist_delete(NOTICE_TEXT);
+        if (store_exists(NOTICE_TEXT)) {
+            store_delete(NOTICE_TEXT);
             return true;
         }
         return false;
@@ -724,8 +543,8 @@ bool persist_set_notice_text(const char *text) {
 int persist_get_notice_text(char *buffer, size_t buffer_size) {
     if (buffer_size == 0) { return 0; }
     buffer[0] = '\0';
-    if (!persist_exists(NOTICE_TEXT)) { return 0; }
-    int n = persist_read_data(NOTICE_TEXT, buffer, buffer_size);
+    if (!store_exists(NOTICE_TEXT)) { return 0; }
+    int n = store_read_data(NOTICE_TEXT, buffer, buffer_size);
     if (n <= 0) { buffer[0] = '\0'; return 0; }
     buffer[buffer_size - 1] = '\0';  // guarantee termination
     return (int) strlen(buffer);
@@ -760,8 +579,8 @@ static bool write_bounded_text(const uint32_t key, const char *text, const size_
 static int read_text(const uint32_t key, char *buffer, const size_t buffer_size) {
     if (buffer_size == 0) { return -1; }
     buffer[0] = '\0';
-    if (!persist_exists(key)) { return -1; }
-    int n = persist_read_data(key, buffer, buffer_size);
+    if (!store_exists(key)) { return -1; }
+    int n = store_read_data(key, buffer, buffer_size);
     if (n <= 0) { buffer[0] = '\0'; return -1; }
     buffer[buffer_size - 1] = '\0';  // guarantee termination
     return (int) strlen(buffer);
@@ -792,7 +611,7 @@ bool persist_set_radar_sky(const uint8_t *data, size_t size) {
 // rain_radar_layer.c compiles on every platform and reads the getters; on aplite
 // the accessors are unreferenced and --gc-sections reaps them.
 bool persist_has_radar_notice(void) {
-    return persist_exists(RADAR_NOTICE);
+    return store_exists(RADAR_NOTICE);
 }
 
 int persist_get_radar_notice(char *buffer, size_t buffer_size) {
@@ -804,8 +623,8 @@ bool persist_set_radar_notice(const char *text) {
     // No notice is the ABSENT slot, so every window that arrives on an install
     // that never had one costs no flash write, and ending the notice deletes.
     if (!text || !text[0]) {
-        if (!persist_exists(RADAR_NOTICE)) { return false; }
-        persist_delete(RADAR_NOTICE);
+        if (!store_exists(RADAR_NOTICE)) { return false; }
+        store_delete(RADAR_NOTICE);
         return true;
     }
     return write_bounded_text(RADAR_NOTICE, text, RADAR_NOTICE_BUF_BYTES);
@@ -826,7 +645,7 @@ bool persist_set_graph_style(uint8_t k, const uint8_t *data, size_t len) {
 #endif
 
 time_t persist_get_rain_radar_start() {
-    return (time_t) persist_read_int(RAIN_RADAR_START);
+    return (time_t) store_read_int(RAIN_RADAR_START);
 }
 
 bool persist_set_rain_radar_start(time_t val) {
@@ -846,7 +665,7 @@ bool persist_set_holiday_anchor(int32_t val) {
 }
 
 int32_t persist_get_holiday_anchor(void) {
-    return persist_exists(HOLIDAY_ANCHOR) ? (int32_t) persist_read_int(HOLIDAY_ANCHOR) : 0;
+    return store_exists(HOLIDAY_ANCHOR) ? (int32_t) store_read_int(HOLIDAY_ANCHOR) : 0;
 }
 
 bool persist_set_holiday_mask(uint32_t val) {
@@ -854,45 +673,45 @@ bool persist_set_holiday_mask(uint32_t val) {
 }
 
 uint32_t persist_get_holiday_mask(void) {
-    return persist_exists(HOLIDAY_MASK) ? (uint32_t) persist_read_int(HOLIDAY_MASK) : 0u;
+    return store_exists(HOLIDAY_MASK) ? (uint32_t) store_read_int(HOLIDAY_MASK) : 0u;
 }
 
 bool persist_set_temp_min(int v) { return write_int_if_changed(TEMP_MIN, v); }
 bool persist_set_temp_max(int v) { return write_int_if_changed(TEMP_MAX, v); }
-int  persist_get_temp_min(void) { return persist_exists(TEMP_MIN) ? persist_read_int(TEMP_MIN) : 0; }
-int  persist_get_temp_max(void) { return persist_exists(TEMP_MAX) ? persist_read_int(TEMP_MAX) : 0; }
+int  persist_get_temp_min(void) { return store_exists(TEMP_MIN) ? store_read_int(TEMP_MIN) : 0; }
+int  persist_get_temp_max(void) { return store_exists(TEMP_MAX) ? store_read_int(TEMP_MAX) : 0; }
 
 void persist_migrate_trend_encoding(void) {
-    int v = persist_exists(TREND_ENCODING_VERSION) ? persist_read_int(TREND_ENCODING_VERSION) : 1;
+    int v = store_exists(TREND_ENCODING_VERSION) ? store_read_int(TREND_ENCODING_VERSION) : 1;
     if (v == TREND_ENCODING_VERSION_CURRENT) { return; }
     // Pre-uint8 watches hold int16 trends that would misread as uint8. Drop
     // them and delete FORECAST_START so loading_layer_data_is_fresh() — which
     // gates on FORECAST_START age (12 h) — reports false → watch signals
     // WATCH_HAS_FORECAST_DATA=false → phone calls clearWeatherCaches() and
-    // resends the full uint8 payload. persist_read_int() returns 0 for an
+    // resends the full uint8 payload. store_read_int() returns 0 for an
     // absent key, making now-0 always exceed the 12 h threshold. Zeroing
     // NUM_ENTRIES is kept as defence-in-depth so interim renders stay clean.
-    persist_delete(TEMP_TREND); persist_delete(LINE_TREND);
-    persist_delete(BAR_TREND);  persist_delete(THIRD_LINE_TREND);
-    persist_delete(LINE_COUNT); persist_delete(BAR_COUNT);
-    persist_delete(TEMP_MIN);   persist_delete(TEMP_MAX);
-    persist_delete(FORECAST_START);
+    store_delete(TEMP_TREND); store_delete(LINE_TREND);
+    store_delete(BAR_TREND);  store_delete(THIRD_LINE_TREND);
+    store_delete(LINE_COUNT); store_delete(BAR_COUNT);
+    store_delete(TEMP_MIN);   store_delete(TEMP_MAX);
+    store_delete(FORECAST_START);
     persist_set_num_entries(0);
-    persist_write_int(TREND_ENCODING_VERSION, TREND_ENCODING_VERSION_CURRENT);
+    store_write_int(TREND_ENCODING_VERSION, TREND_ENCODING_VERSION_CURRENT);
 }
 
 void persist_migrate_status_line_encoding(void) {
-    int version = persist_exists(STATUS_LINE_ENCODING_VERSION)
-        ? persist_read_int(STATUS_LINE_ENCODING_VERSION) : 0;
+    int version = store_exists(STATUS_LINE_ENCODING_VERSION)
+        ? store_read_int(STATUS_LINE_ENCODING_VERSION) : 0;
     if (version == STATUS_LINE_ENCODING_VERSION_CURRENT) { return; }
     // Unknown/old encoding: drop only the line blobs, and force the startup
     // handshake to report forecast data missing so the phone resends the
     // weather bundle (which now carries the lines).
     for (uint8_t line = 0; line < STATUS_LINE_COUNT; line++) {
-        persist_delete(status_line_key(line));
+        store_delete(status_line_key(line));
     }
-    persist_delete(FORECAST_START);
-    persist_write_int(STATUS_LINE_ENCODING_VERSION, STATUS_LINE_ENCODING_VERSION_CURRENT);
+    store_delete(FORECAST_START);
+    store_write_int(STATUS_LINE_ENCODING_VERSION, STATUS_LINE_ENCODING_VERSION_CURRENT);
 }
 
 bool persist_set_sun_event_start_type(int val) {
@@ -912,7 +731,7 @@ bool persist_set_config(Config config) {
 }
 
 bool persist_get_is_sleeping() {
-    return persist_read_bool(IS_SLEEPING);
+    return store_read_bool(IS_SLEEPING);
 }
 
 bool persist_set_is_sleeping(bool sleeping) {
@@ -922,7 +741,7 @@ bool persist_set_is_sleeping(bool sleeping) {
 // Radar-area snooze latch: set on sleep onset, cleared only once a radar
 // payload arrives while awake, so waking never reveals a stale chart.
 bool persist_get_radar_snooze() {
-    return persist_read_bool(RADAR_SNOOZE);
+    return store_read_bool(RADAR_SNOOZE);
 }
 
 bool persist_set_radar_snooze(bool snooze) {
@@ -934,7 +753,7 @@ bool persist_set_view_cursor(uint8_t val) {
 }
 
 uint8_t persist_get_view_cursor(void) {
-    return (uint8_t) persist_read_int(VIEW_CURSOR);
+    return (uint8_t) store_read_int(VIEW_CURSOR);
 }
 
 bool persist_set_watchface_unload_epoch(time_t val) {
@@ -942,11 +761,11 @@ bool persist_set_watchface_unload_epoch(time_t val) {
 }
 
 time_t persist_get_watchface_unload_epoch(void) {
-    return (time_t) persist_read_int(WATCHFACE_UNLOAD_EPOCH);
+    return (time_t) store_read_int(WATCHFACE_UNLOAD_EPOCH);
 }
 
 bool persist_health_cache_present(void) {
-    return persist_exists(HEALTH_CACHE_END_HOUR);
+    return store_exists(HEALTH_CACHE_END_HOUR);
 }
 
 bool persist_set_health_cache_steps(int16_t *data, const size_t count) {
@@ -954,7 +773,7 @@ bool persist_set_health_cache_steps(int16_t *data, const size_t count) {
 }
 
 int persist_get_health_cache_steps(int16_t *buffer, const size_t count) {
-    return persist_read_data(HEALTH_CACHE_STEPS, (void*) buffer, count * sizeof(int16_t));
+    return store_read_data(HEALTH_CACHE_STEPS, (void*) buffer, count * sizeof(int16_t));
 }
 
 bool persist_set_health_cache_hr(int16_t *data, const size_t count) {
@@ -962,7 +781,7 @@ bool persist_set_health_cache_hr(int16_t *data, const size_t count) {
 }
 
 int persist_get_health_cache_hr(int16_t *buffer, const size_t count) {
-    return persist_read_data(HEALTH_CACHE_HR, (void*) buffer, count * sizeof(int16_t));
+    return store_read_data(HEALTH_CACHE_HR, (void*) buffer, count * sizeof(int16_t));
 }
 
 bool persist_set_health_cache_sleep(uint8_t *data, const size_t count) {
@@ -970,7 +789,7 @@ bool persist_set_health_cache_sleep(uint8_t *data, const size_t count) {
 }
 
 int persist_get_health_cache_sleep(uint8_t *buffer, const size_t count) {
-    return persist_read_data(HEALTH_CACHE_SLEEP, (void*) buffer, count * sizeof(uint8_t));
+    return store_read_data(HEALTH_CACHE_SLEEP, (void*) buffer, count * sizeof(uint8_t));
 }
 
 bool persist_set_health_cache_end_hour(time_t val) {
@@ -978,13 +797,13 @@ bool persist_set_health_cache_end_hour(time_t val) {
 }
 
 time_t persist_get_health_cache_end_hour(void) {
-    return (time_t) persist_read_int(HEALTH_CACHE_END_HOUR);
+    return (time_t) store_read_int(HEALTH_CACHE_END_HOUR);
 }
 
 #if defined(WW_THRESHOLD_HIGHLIGHT)
 int persist_get_status_levels(void) {
-    if (!persist_exists(STATUS_LEVELS)) { return 0; }
-    return persist_read_int(STATUS_LEVELS);
+    if (!store_exists(STATUS_LEVELS)) { return 0; }
+    return store_read_int(STATUS_LEVELS);
 }
 
 bool persist_set_status_levels(int levels) {
@@ -1047,12 +866,12 @@ void persist_get_curve_insets(uint8_t out[CURVE_INSET_BYTES]) {
     // feels-like or dew point would draw full-height, misaligned with the
     // temperature curve, from the upgrade until the startup Clay message
     // arrives. Any other size is corrupt: keep the defaults.
-    const int size = persist_get_size(CURVE_INSETS);
+    const int size = store_get_size(CURVE_INSETS);
     if (size != CURVE_INSET_BYTES && size != CURVE_INSET_LEGACY_BYTES) { return; }
     // Read into a scratch first: a short read must not scribble on the
     // already-defaulted out[] bytes.
     uint8_t stored[CURVE_INSET_BYTES];
-    if (persist_read_data(CURVE_INSETS, stored, (size_t) size) != size) {
+    if (store_read_data(CURVE_INSETS, stored, (size_t) size) != size) {
         return;  // short/corrupt — keep the defaults
     }
     memcpy(out, stored, (size_t) size);
@@ -1074,11 +893,11 @@ void persist_get_night_colors(uint8_t out[NIGHT_COLOR_BYTES]) {
     out[1] = GColorDarkGray.argb;
     out[2] = GColorDukeBlue.argb;
     out[3] = GColorBlue.argb;
-    if (!persist_exists(NIGHT_COLORS)) { return; }
+    if (!store_exists(NIGHT_COLORS)) { return; }
     // Read into a scratch first: a short read must not scribble on the
     // already-defaulted out[] bytes.
     uint8_t stored[NIGHT_COLOR_BYTES];
-    if (persist_read_data(NIGHT_COLORS, stored, sizeof(stored)) < (int) sizeof(stored)) {
+    if (store_read_data(NIGHT_COLORS, stored, sizeof(stored)) < (int) sizeof(stored)) {
         return;  // short/corrupt — keep the defaults
     }
     memcpy(out, stored, sizeof(stored));
@@ -1099,11 +918,11 @@ void persist_get_night_light(uint8_t out[NIGHT_LIGHT_BYTES]) {
     // is the established "never" window (persist.h), so an install that has never
     // received the setting leaves the backlight on the user's own colour.
     memset(out, 0, NIGHT_LIGHT_BYTES);
-    if (!persist_exists(NIGHT_LIGHT)) { return; }
+    if (!store_exists(NIGHT_LIGHT)) { return; }
     // Read into a scratch first: a short read must not scribble on the
     // already-defaulted out[] bytes.
     uint8_t stored[NIGHT_LIGHT_BYTES];
-    if (persist_read_data(NIGHT_LIGHT, stored, sizeof(stored)) < (int) sizeof(stored)) {
+    if (store_read_data(NIGHT_LIGHT, stored, sizeof(stored)) < (int) sizeof(stored)) {
         return;  // short/corrupt — keep the default
     }
     memcpy(out, stored, sizeof(stored));
