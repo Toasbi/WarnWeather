@@ -19,7 +19,8 @@ bool health_available(void);
 /** Returns today's total step count, or 0 if unavailable. */
 int health_steps_today(void);
 
-/** Returns today's walked distance in meters, or -1 if unavailable. */
+/** Returns today's walked distance in meters, or -1 while unavailable (the first yes
+ *  is latched for the app's life, like health_available's: health.c). */
 int health_distance_today_m(void);
 
 /** Returns today's total sleep in seconds (last night, matching the phone

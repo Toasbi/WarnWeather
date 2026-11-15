@@ -23,12 +23,16 @@
 // is not a correctness concern — worst case a repaint lands one slice early.
 #define HEALTH_CACHE_BG_DELAY_MS 100
 
+// How often the in-progress hour's bucket is re-read while the graph is on screen.
+#define HEALTH_CACHE_QUARTER_S 900
+
 // --- Cache storage (module .bss, no heap) ---------------------------------
 static int16_t s_steps[N];
 static int16_t s_hr[N];
 static uint8_t s_sleep[N];
 static time_t  s_end_hour;        // top of the current hour = start of bucket N-1
 
+static bool       s_kept;         // can the graph show it? (health_cache_keep) — nothing runs while false
 static bool       s_ready;        // valid enough to paint? (stays true through a background refresh)
 static bool       s_build_pending;// a sliced build/refresh is armed or mid-flight
 static AppTimer  *s_timer;
@@ -36,6 +40,7 @@ static HealthCacheRepaintCb s_repaint;
 
 static int  s_build_next;       // next window-bucket index to fill (ascending)
 static bool s_build_sleep_done; // one-shot sleep iterate has run this build
+static time_t s_quarter;        // the 15-minute slot (time / QUARTER) the in-progress bucket was last read in
 
 static time_t current_hour_top(void) {
     const time_t now = time(NULL);
@@ -182,7 +187,18 @@ void health_cache_reset(void) {
     health_cache_recalc(current_hour_top(), N);   // full build => sliced + loading
 }
 
+void health_cache_keep(bool keep) {
+    const bool was_kept = s_kept;
+    s_kept = keep;
+    // Turned on: fill it as the boot does. A cache the tick stopped rolling while keeping
+    // was off is replaced the same way (a snapshot slid to this hour, or a rebuild).
+    if (keep && !was_kept && !health_cache_restore()) {
+        health_cache_reset();
+    }
+}
+
 void health_cache_persist_save(void) {
+    if (!s_kept) { return; }                        // not kept: nothing current to save
     if (!s_ready || s_build_pending) { return; }   // never persist a mid-build/mid-refresh snapshot
     persist_set_health_cache_steps(s_steps, N);
     persist_set_health_cache_hr(s_hr, N);
@@ -200,28 +216,36 @@ bool health_cache_restore(void) {
 }
 
 void health_cache_refresh_current_hour(void) {
+    if (!s_kept) { return; }                        // the graph cannot show it
     if (!s_ready || s_build_pending) { return; }    // never built / build or refresh in flight
-    if (current_hour_top() != s_end_hour) { return; } // rollover pending => leave it to the tick
+    const time_t now = time(NULL);
+    if (now - (now % STEP) != s_end_hour) { return; } // rollover pending => leave it to the tick
+    s_quarter = now / HEALTH_CACHE_QUARTER_S;       // the tick's read for this slot is done
     health_cache_recalc(s_end_hour, 1);             // inline, cheap (steps + live BPM)
 }
 
 void health_cache_tick(bool view_visible) {
+    if (!s_kept) { return; }                             // the graph cannot show it
     if (s_build_pending) { return; }                     // build/refresh in flight: wait
     if (!s_ready) { health_cache_reset(); return; }      // defensive: shouldn't happen
 
     const time_t now      = time(NULL);
     const time_t now_hour = now - (now % STEP);
+    const time_t quarter  = now / HEALTH_CACHE_QUARTER_S;
 
     if (now_hour != s_end_hour) {
+        s_quarter = quarter;   // the rollover's refill reads the new in-progress hour
         if (!health_cache_rollover_to(now_hour)) {
             health_cache_recalc(now_hour, N);   // full rebuild
         }
         return;
     }
 
-    // Same hour: re-read the in-progress bucket every 15 min while visible. The
-    // 900 s cadence rides minute ticks (which fire on the :00 second).
-    if (view_visible && (now % 900) == 0) {
+    // Same hour: re-read the in-progress bucket once per 15-minute slot while visible.
+    // The slot, not its first second: a tick that runs late (behind a busy event loop)
+    // still gets its read, and a read the flick already made in this slot counts.
+    if (view_visible && quarter != s_quarter) {
+        s_quarter = quarter;
         health_cache_recalc(now_hour, 1);
     }
 }

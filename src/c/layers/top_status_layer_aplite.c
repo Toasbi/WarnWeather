@@ -26,6 +26,7 @@
 #include "c/appendix/persist.h"
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
+#include "c/services/disconnect_vibe.h"
 #include "c/services/watch_services.h"
 #include "c/appendix/view_spec.h"   // LayoutTier (status_row tier param)
 
@@ -248,8 +249,9 @@ void top_status_layer_set_full_date(bool full_date) {
 
 static void bluetooth_callback(bool connected) {
     layer_mark_dirty(s_top_status_layer);
-    if (!connected && config_get()->vibe)
-        vibes_double_pulse();
+    // Ported bugfix: a drop buzzes only while Quiet Time is off (services/disconnect_vibe.h;
+    // aplite's SDK reports Quiet Time as always off, so this is the old test).
+    disconnect_vibe_on_connection(connected, config_get()->vibe);
 }
 
 // Low-battery takeover: when "show battery below 10%" is on and the charge is
@@ -305,10 +307,6 @@ void top_status_layer_refresh() {
     if (status_row_refresh(s_row)) {
         layer_mark_dirty(s_top_status_layer);
     }
-}
-
-bool top_status_layer_uses_live_health(void) {
-    return s_row && status_row_uses_live_health(s_row);
 }
 
 void top_status_layer_destroy() {

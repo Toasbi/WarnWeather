@@ -138,6 +138,14 @@ bool view_slot_available(uint32_t word, bool has_radar, bool has_health);
 // always a valid stop, so the cycle can never get stuck.
 uint8_t view_cursor_next(uint8_t from, const uint32_t word[3], bool has_radar, bool has_health);
 
+// Can a flick move the cursor at all before the next settings apply: is a slot besides the
+// default a stop? Data is not asked (radar and health count as present): it comes and goes
+// between applies, while the cycle changes only with one. main_window.c subscribes the tap
+// service only while this holds, so a face with one view takes no tap events.
+static inline bool view_cycle_flickable(const uint32_t word[3]) {
+    return view_cursor_next(0, word, true, true) != 0;
+}
+
 // The cursor to keep after a settings apply. A settings change can redefine the cycle
 // (each slot may now hold a different view), which makes the old cursor position
 // meaningless — snap back to the default view (0). An unchanged cycle keeps the cursor

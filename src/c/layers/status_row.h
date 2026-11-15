@@ -17,6 +17,12 @@ bool status_row_refresh(StatusRow *row);
 // row (tier push); the resolver reads only row state.
 void status_row_set_full_date(StatusRow *row, bool full_date);
 bool status_row_uses_live_health(const StatusRow *row);
+#if defined(PBL_HEALTH)
+// The health readings the row's slots show (services/health_summary.h HEALTH_SUMMARY_*),
+// as of its last refresh; 0 when it shows none. Health watches only: aplite's lean twin
+// need not answer it.
+uint8_t status_row_live_health(const StatusRow *row);
+#endif
 #if !defined(WW_ON_DEMAND)
 // Aplite only (its lean twin, status_row_aplite.c): when active, the row's right
 // slot (index 2) draws the battery glyph in place of its packed content — the top

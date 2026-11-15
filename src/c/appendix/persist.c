@@ -146,6 +146,188 @@ enum key {
     OD_EXTRA_CELLS                // 66 — OD_ITEM_COUNT bytes, absent = nothing ticked
 };
 
+// --- A RAM copy of the store: emery ----------------------------------------------------
+//
+// The firmware finds a key by walking the app's settings file record by record from where
+// its last search stopped, a flash read per record, so a key that is not there costs a
+// walk of the whole file, and persist_read_data searches twice (the length, then the
+// value). The face asks for the same few dozen keys on every paint and every minute.
+// Only this file calls the SDK's persist API, so each key changes only through the
+// setters below, and a copy filled on a key's first read and updated by every write here
+// stays exact. It holds what a key's first read found, while the arena has room: its
+// bytes, or that it is not stored, or that it is stored with its bytes in flash (a key
+// read only as the face starts, a value past PERSIST_CACHE_VALUE_MAX, one the arena had
+// no room for). There is no eviction: once the arena is full, a key it never noted asks
+// the flash, as every key did before. A write the firmware refuses forgets the key.
+// The persist_* calls in the rest of this file are the macros at the end of this block.
+// emery only: its 128 KB of app RAM holds every value the face reads while it runs, the
+// long span's trends and bars 4 to 6's lines among them, and its minute does the most
+// reads. On every other watch each RAM byte is a heap byte (scripts/check-aplite-size.sh,
+// scripts/check-64k-size.sh), so their calls go straight to the SDK.
+#if defined(PBL_PLATFORM_EMERY)
+#if !defined(PERSIST_CACHE_BYTES)
+#define PERSIST_CACHE_BYTES 1536   // the host test also builds a small one, to fill it
+#endif
+#define PERSIST_CACHE_VALUE_MAX FORECAST_MAX_ENTRIES
+_Static_assert(PERSIST_CACHE_VALUE_MAX <= 255, "a record's length is one byte");
+#define PC_KEYS (OD_EXTRA_CELLS + 1)
+
+static struct {
+    uint16_t used;
+    // [key][len][len bytes] records, packed. len 0: a key not stored, or, with PC_IN_FLASH
+    // on its key byte, one whose bytes are only in flash.
+    uint8_t arena[PERSIST_CACHE_BYTES];
+} s_pc;
+
+// Whether a stored value's bytes are copied: not for a key read once as the face starts
+// (CONFIG, which config.c holds; the palettes; the relaunch and health snapshots; the
+// encoding versions) or a retired one.
+#define PC_ONCE_LO ((1u << CITY) | (1u << CURRENT_TEMP) | (1u << CONFIG) \
+                    | (1u << TREND_ENCODING_VERSION) | (1u << BAR_PALETTE) \
+                    | (1u << RADAR_PALETTE) | (1u << VIEW_CURSOR))
+#define PC_ONCE_HI ((1u << (WATCHFACE_UNLOAD_EPOCH - 32)) | (1u << (HEALTH_CACHE_STEPS - 32)) \
+                    | (1u << (HEALTH_CACHE_HR - 32)) | (1u << (HEALTH_CACHE_SLEEP - 32)) \
+                    | (1u << (HEALTH_CACHE_END_HOUR - 32)) \
+                    | (1u << (STATUS_LINE_ENCODING_VERSION - 32)) | (1u << (RADAR_LIMITED - 32)))
+static bool pc_copies(uint32_t key, int len) {
+    if (len > PERSIST_CACHE_VALUE_MAX) { return false; }
+    if (key < 32) { return !((PC_ONCE_LO >> key) & 1); }
+    return key >= 64 || !((PC_ONCE_HI >> (key - 32)) & 1);
+}
+
+static uint8_t *pc_find(uint32_t key) {
+    for (uint8_t *rec = s_pc.arena; rec < s_pc.arena + s_pc.used; rec += 2 + rec[1]) {
+        if ((rec[0] & 0x7F) == key) { return rec; }
+    }
+    return NULL;
+}
+
+// On a record's key byte: the key is stored, its bytes only in flash (a key read once, a
+// value past the cap, or one the arena had no room for).
+#define PC_IN_FLASH 0x80
+_Static_assert(PC_KEYS <= PC_IN_FLASH, "a key and its flag share one byte");
+
+// The store now holds `len` bytes of `data` for `key` (0: nothing; `data` NULL: bytes not
+// to copy), or only the flash knows (len < 0, after a write it refused). Returns the key's
+// record, NULL when the arena keeps none.
+static uint8_t *pc_note(uint32_t key, const void *data, int len) {
+    uint8_t *rec = pc_find(key);
+    if (rec) {
+        const uint16_t size = 2 + rec[1];
+        s_pc.used -= size;
+        memmove(rec, rec + size, s_pc.used - (uint16_t) (rec - s_pc.arena));
+    }
+    if (len < 0 || key >= PC_KEYS || s_pc.used + 2 > PERSIST_CACHE_BYTES) { return NULL; }
+    int copied = (data && len > 0 && pc_copies(key, len)) ? len : 0;
+    if (s_pc.used + 2 + copied > PERSIST_CACHE_BYTES) { copied = 0; }
+    rec = &s_pc.arena[s_pc.used];
+    rec[0] = (uint8_t) (key | (len > copied ? PC_IN_FLASH : 0));
+    rec[1] = (uint8_t) copied;
+    if (copied) { memmove(rec + 2, data, (size_t) copied); }   // a first read already sits there
+    s_pc.used += 2 + copied;
+    return rec;
+}
+
+// `key` as RAM holds it, filled on its first ask: its length with *val at its bytes, 0
+// while it is not stored, -1 while it is stored and only the flash has its bytes, or -2
+// when RAM knows nothing (a key past the enum, or no room left to note one).
+static int pc_peek(uint32_t key, const uint8_t **val) {
+    uint8_t *rec = pc_find(key);
+    if (!rec && key < PC_KEYS && s_pc.used + 2 <= PERSIST_CACHE_BYTES) {
+        int len = persist_get_size(key);   // the one search: whether it is stored, how long
+        if (len < 0) { len = 0; }
+        uint8_t *tail = &s_pc.arena[s_pc.used + 2];
+        const bool read = len > 0 && pc_copies(key, len)
+                && s_pc.used + 2 + len <= PERSIST_CACHE_BYTES
+                && persist_read_data(key, tail, (size_t) len) == len;
+        rec = pc_note(key, read ? tail : NULL, len);   // read straight into its record's place
+    }
+    if (!rec) { return -2; }
+    if (rec[0] & PC_IN_FLASH) { return -1; }
+    *val = rec + 2;
+    return rec[1];
+}
+
+static bool pc_exists(uint32_t key) {
+    const uint8_t *val;
+    const int n = pc_peek(key, &val);
+    return n == -2 ? persist_exists(key) : n != 0;
+}
+
+static int pc_get_size(uint32_t key) {
+    const uint8_t *val;
+    const int n = pc_peek(key, &val);
+    if (n == 0) { return E_DOES_NOT_EXIST; }
+    return n > 0 ? n : persist_get_size(key);
+}
+
+// persist_read_data's contract: at most `size` bytes, how many it copied, or
+// E_DOES_NOT_EXIST.
+static int pc_read_data(uint32_t key, void *buffer, size_t size) {
+    const uint8_t *val;
+    const int n = pc_peek(key, &val);
+    if (n == 0) { return E_DOES_NOT_EXIST; }
+    if (n < 0) { return persist_read_data(key, buffer, size); }
+    const size_t copied = (size_t) n < size ? (size_t) n : size;
+    memcpy(buffer, val, copied);
+    return (int) copied;
+}
+
+// The firmware's reads of an int and a bool: 0 unless the stored value holds the whole
+// type, else its first bytes.
+static int32_t pc_read_int(uint32_t key) {
+    int32_t value = 0;
+    return pc_read_data(key, &value, sizeof(value)) == (int) sizeof(value) ? value : 0;
+}
+
+static bool pc_read_bool(uint32_t key) {
+    uint8_t byte = 0;
+    pc_read_data(key, &byte, 1);
+    return byte != 0;
+}
+
+// The firmware stores the first `r` bytes it reports (0 deletes the key).
+static int pc_write_data(uint32_t key, const void *data, size_t size) {
+    const int r = persist_write_data(key, data, size);
+    pc_note(key, data, r);
+    return r;
+}
+
+// An int or a bool goes in as its bytes: the firmware's persist_write_int and
+// persist_write_bool store exactly what persist_write_data does with them, and report the
+// same count (applib/persist.c: each is one settings_file_set).
+static status_t pc_write_int(uint32_t key, int32_t value) {
+    return pc_write_data(key, &value, sizeof(value));
+}
+
+static status_t pc_write_bool(uint32_t key, bool value) {
+    const uint8_t byte = value;
+    return pc_write_data(key, &byte, 1);
+}
+
+static status_t pc_delete(uint32_t key) {
+    const status_t r = persist_delete(key);
+    pc_note(key, NULL, (r >= 0 || r == E_DOES_NOT_EXIST) ? 0 : -1);
+    return r;
+}
+
+void persist_cache_drop(void) {
+    s_pc.used = 0;
+}
+
+#define persist_exists(key)                  pc_exists(key)
+#define persist_get_size(key)                pc_get_size(key)
+#define persist_read_int(key)                pc_read_int(key)
+#define persist_read_bool(key)               pc_read_bool(key)
+#define persist_read_data(key, buffer, size) pc_read_data((key), (buffer), (size))
+#define persist_write_int(key, value)        pc_write_int((key), (value))
+#define persist_write_bool(key, value)       pc_write_bool((key), (value))
+#define persist_write_data(key, data, size)  pc_write_data((key), (data), (size))
+#define persist_delete(key)                  pc_delete(key)
+#else
+void persist_cache_drop(void) {}
+#endif  // PBL_PLATFORM_EMERY
+
 // Setters report whether the stored value actually changed so callers can
 // refresh only the affected UI and skip redundant flash writes.
 

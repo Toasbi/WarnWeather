@@ -2753,6 +2753,20 @@ static void view_cursor_tests(void) {
     uint32_t oneSlot[3] = { B_CAL3_FC_W, 0x000, 0x000 };
     expect("next.1slot.stays0", view_cursor_next(0, oneSlot, true, true) == 0, true);
 
+    // The tap service is subscribed only while a flick can move the cursor: one view takes
+    // no tap events, a second view anywhere in the cycle does, and a graph view counts
+    // before its data arrives (data comes and goes between settings applies).
+    expect("flickable.one_view", view_cycle_flickable(oneSlot), false);
+    expect("flickable.two_views", view_cycle_flickable(fullCalRadar), true);
+    uint32_t lastSlotOnly[3] = { B_CAL3_FC_W, 0x000, B_NONE_FC_W };
+    expect("flickable.gap_then_view", view_cycle_flickable(lastSlotOnly), true);
+    uint32_t radarOnly[3] = { B_CAL3_FC_W, B_CAL3_RDR_W, 0x000 };
+    expect("flickable.radar_before_data", view_cycle_flickable(radarOnly), true);
+    uint32_t healthOnly[3] = { B_CAL3_FC_W, B_NONE_GRAPH_H, 0x000 };
+    expect("flickable.health_before_data", view_cycle_flickable(healthOnly), true);
+    uint32_t ghostSlots[3] = { B_CAL3_FC_W, 0x400, 0x0FF };   // no wire tier: disabled
+    expect("flickable.ghost_slots", view_cycle_flickable(ghostSlots), false);
+
     // A radar-status slot (the Radar bar on a forecast body) is a stop without radar data:
     // only the radar graph needs it. compact cal | forecast body | radar-upper | forecast-lower.
     uint32_t radarStatusSlot = pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST);

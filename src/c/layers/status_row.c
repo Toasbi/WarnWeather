@@ -69,7 +69,9 @@ struct StatusRow {
     int16_t glyph_h;
     GColor glyph_fg;
     uint16_t content_sig;
-    bool uses_live_health;
+    // The health readings its slots show (health_summary.h HEALTH_SUMMARY_*), as of the
+    // last refresh: what the minute handler reads for this row (status_row_live_health).
+    uint8_t live_health;
     // On demand: the items' glyph cache, and whether any item sits on this row's
     // bar, which every refresh reads from the blob (status_on_demand_fold).
     StatusOnDemandRow od;
@@ -544,37 +546,48 @@ void status_row_set_full_date(StatusRow *row, bool full_date) {
 }
 
 bool status_row_uses_live_health(const StatusRow *row) {
-    return row && row->uses_live_health;
+    return row && row->live_health != 0;
 }
+
+#if defined(PBL_HEALTH)
+uint8_t status_row_live_health(const StatusRow *row) {
+    return row ? row->live_health : 0;
+}
+#endif
 
 bool status_row_uses_on_demand(const StatusRow *row) {
     return row && row->od.assigned;
 }
 
-// The slot kinds whose value is read from HealthService — the ones that put a row
-// into the minute handler's health work. A POSITIVE list on purpose: it used to be
-// a range test (every kind from SLOT_LIVE_STEPS up, minus the two battery kinds),
-// so each appended kind fell into it by default — the calendar week did, putting
-// HealthService reads back on every tick of the strip for every health-enabled
-// user.
-static bool is_live_health_kind(uint8_t kind) {
+// The health reading a slot kind shows (health_summary.h HEALTH_SUMMARY_*), 0 for a
+// kind whose value HealthService does not give — the bits put a row into the minute
+// handler's health work, for exactly the readings it shows. A POSITIVE list on
+// purpose: it used to be a range test (every kind from SLOT_LIVE_STEPS up, minus the
+// two battery kinds), so each appended kind fell into it by default — the calendar
+// week did, putting HealthService reads back on every tick of the strip for every
+// health-enabled user. A health slot's threshold is judged on its own reading
+// (status_threshold_kind_for_slot), so these bits cover that too.
+static uint8_t live_health_bit(uint8_t kind) {
+#if defined(PBL_HEALTH)
     switch (kind) {
-        case SLOT_LIVE_STEPS:
-        case SLOT_LIVE_HR:
-        case SLOT_LIVE_SLEEP:
+        case SLOT_LIVE_STEPS:       return HEALTH_SUMMARY_STEPS;
+        case SLOT_LIVE_HR:          return HEALTH_SUMMARY_HR;
+        case SLOT_LIVE_SLEEP:       return HEALTH_SUMMARY_SLEEP;
         case SLOT_LIVE_DISTANCE:
-        case SLOT_LIVE_DISTANCE_MI:
-            return true;
-        default:
-            return false;
+        case SLOT_LIVE_DISTANCE_MI: return HEALTH_SUMMARY_DISTANCE;
+        default:                    return 0;
     }
+#else
+    (void) kind;
+    return 0;
+#endif
 }
 
 bool status_row_refresh(StatusRow *row) {
     if (!row) { return false; }
     uint16_t sig = 5381;
     bool has_drawn_sun = false;
-    row->uses_live_health = false;
+    row->live_health = 0;
     // The pass load comes first: it reads the thresholds whatever the line holds, so
     // the bar's On demand items are current even when the line has nothing to render
     // — a fresh install with no phone yet still shows Bluetooth disconnected.
@@ -642,9 +655,7 @@ bool status_row_refresh(StatusRow *row) {
             }
             // Off the FULLY resolved slot and blind to displacement like the folds
             // above: this gates whether health updates reach the row at all.
-            if (is_live_health_kind(slot->kind)) {
-                row->uses_live_health = true;
-            }
+            row->live_health |= live_health_bit(slot->kind);
         }
     }
     if (has_drawn_sun) {
