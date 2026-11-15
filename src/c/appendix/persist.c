@@ -244,15 +244,14 @@ static bool write_present_blob(const uint32_t key, const uint8_t *data, const si
 #endif
 
 // Trends are stored as uint8 (0..250) but the shared chart engine consumes
-// int16 (it also serves the radar at 0..1000). Widen at read into a reused
-// scratch — single-threaded, one redraw at a time.
-static uint8_t s_trend_widen[FORECAST_MAX_ENTRIES];
-
+// int16 (it also serves the radar at 0..1000). The bytes are read into the front
+// of `out` (n int16s hold n bytes) and widened in place from the last one down:
+// byte i lies at or before int16 i, so none is overwritten before it is read. A
+// missing trend leaves `out` untouched.
 static int read_trend_widened(uint32_t key, int16_t *out, size_t n) {
-    if (n > sizeof(s_trend_widen)) { n = sizeof(s_trend_widen); }
-    int bytes = store_read_data(key, s_trend_widen, n);
-    if (bytes <= 0) { return bytes; }
-    for (int i = 0; i < bytes; i++) { out[i] = (int16_t) s_trend_widen[i]; }
+    const uint8_t *const raw = (const uint8_t *) out;
+    const int bytes = store_read_data(key, out, n);
+    for (int i = bytes - 1; i >= 0; i--) { out[i] = (int16_t) raw[i]; }
     return bytes;
 }
 
