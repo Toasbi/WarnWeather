@@ -96,13 +96,18 @@ static inline int chart_def_slot_x(const ChartDef *d, int i) {
 // Every renderer takes a slot's x from these two, never i * slots.pitch: on emery the pitch
 // can be fractional (the long forecast span), and slots.pitch is then only its whole px.
 // emery: slot i's tick column through the one mapping (slot_x.h). Its bar sits bar_dx (tick +
-// pad) right of it, bar_w wide in every slot: at a fractional pitch the gap after a bar is pad
-// or pad + 1 px, and the bars keep one width.
+// pad) right of it, chart_slot_bar_w wide: at a fractional pitch a widened column's spare px
+// goes to its bar, so the gap from one bar to the next is always pad + tick + pad.
 static inline int chart_slot_tick_x(const ChartGeometry *g, int i) {
     return g->anchor_x + slot_x(g->pitch_q, i);
 }
 static inline int chart_slot_bar_x(const ChartGeometry *g, int i) {
     return chart_slot_tick_x(g, i) + g->slots.bar_dx;
+}
+// emery: slot i's bar width (slot_x.h slot_bar_w): slots.bar_w, or one more in a column the
+// fractional pitch widens.
+static inline int chart_slot_bar_w(const ChartGeometry *g, int i) {
+    return slot_bar_w(g->pitch_q, i, g->slots.pitch, g->slots.bar_w);
 }
 #else
 static inline int chart_slot_tick_x(const ChartGeometry *g, int i) {

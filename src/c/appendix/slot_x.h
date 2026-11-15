@@ -27,6 +27,17 @@ static inline int slot_x(int pitch_q, int i) {
 }
 
 /**
+ * emery: slot i's bar width in a grid of whole pitch `pitch` px whose bar is `bar_w` px: its
+ * column, [slot_x(i), slot_x(i + 1)), less the tick and the two pads. A column the fraction
+ * widens gives its spare px to the bar, so neighbouring bars always keep the same gap (the
+ * owner's, 2026-11-15: "the gap between each bar sitting next to each other should be the
+ * same"): bar_w, or one more. At a whole pitch every bar is bar_w.
+ */
+static inline int slot_bar_w(int pitch_q, int i, int pitch, int bar_w) {
+    return bar_w + slot_x(pitch_q, i + 1) - slot_x(pitch_q, i) - pitch;
+}
+
+/**
  * emery: the column `secs` seconds after slot 0's hour: floor(secs * pitch / 3600), the same
  * line through the ticks, so hour i lands exactly on slot_x(pitch_q, i) and everything between
  * is monotonic. secs in [0, 68 h]: 68 * 3600 * 2048 (an 8 px pitch) is about 5e8, under 2^31.

@@ -209,14 +209,18 @@ static void test_invariants(void) {
                       >= LABEL_MIN_PX, "n=%d w=%d: labels at %d too close", n, w, i);
             }
             CHECK(s.tick_every * p >= TICK_MIN_PX, "n=%d w=%d: ticks", n, w);
-            // The columns tile: each is p or p + 1 px wide (p only at a whole pitch), and a bar
-            // ends pad px or more before the next slot's tick: one bar width, the gap varies.
+            // The columns tile: each is p or p + 1 px wide (p only at a whole pitch), and its bar
+            // (slot_x.h slot_bar_w) fills it less the tick and the pads: bar_w, or one more in a
+            // widened column. So every bar ends exactly pad px before the next slot's tick, and
+            // neighbouring bars keep one gap, tick + 2 pads (the owner's, 2026-11-15).
             for (int i = 0; i < s.slots; ++i) {
                 const int cw = forecast_span_x(s, i + 1) - forecast_span_x(s, i);
                 CHECK(cw == p || (cw == p + 1 && s.pitch_frac), "n=%d w=%d: column %d %d px",
                       n, w, i, cw);
-                CHECK(forecast_span_x(s, i) + s.bar_pad + s.bar_w
-                      <= forecast_span_x(s, i + 1) - 1 - s.bar_pad, "n=%d w=%d: bar %d", n, w, i);
+                const int bw = slot_bar_w(pq, i, p, s.bar_w);
+                CHECK(bw == s.bar_w + (cw - p), "n=%d w=%d: bar %d is %d px", n, w, i, bw);
+                CHECK(forecast_span_x(s, i) + 1 + s.bar_pad + bw + s.bar_pad
+                      == forecast_span_x(s, i + 1), "n=%d w=%d: bar %d", n, w, i);
             }
             // The hours on screen: the slots whose tick the mapping puts on the plot's columns.
             int on = 0;
@@ -611,6 +615,30 @@ static void test_mapping(void) {
 // Daylight saving: the axis reads each slot's own local hour. A zone whose clocks jump at
 // 03:00 (forward to 04:00 in March, back from 04:00 to 03:00 in October), so the jumps touch a
 // 3-hour mark.
+// The owner's screenshot (2026-11-15): about 50 hours on the full 200 px plot, a pitch of 4
+// and 1/16 px. Every 16th column is 5 px wide, and its bar takes the spare px (4 px, the others
+// 3), so every bar keeps the same 1 px, the tick, to the next. They used to keep one width,
+// with a 2 px gap after each widened column.
+static void test_bar_gaps(void) {
+    const ForecastSpan s = forecast_span(50, 200);
+    const int p = forecast_span_pitch(s);
+    const int pq = forecast_span_pitch_q(s);
+    CHECK(p == 4 && s.bar_pad == 0 && s.bar_w == 3 && pq == 4 * 256 + 16,
+          "50 hours: pitch %d (%d/256) pad %d bar %d", p, pq, s.bar_pad, s.bar_w);
+    for (int i = 0; i + 1 < s.slots; ++i) {
+        const int bw = slot_bar_w(pq, i, p, s.bar_w);
+        const bool wide = i == 15 || i == 31 || i == 47;
+        CHECK(bw == (wide ? 4 : 3), "50 hours: bar %d is %d px", i, bw);
+        const int end = forecast_span_x(s, i) + 1 + s.bar_pad + bw;
+        const int next = forecast_span_x(s, i + 1) + 1 + s.bar_pad;
+        CHECK(next - end == 1, "50 hours: %d px after bar %d", next - end, i);
+    }
+    // A whole pitch keeps every bar bar_w (the 24 h grid's 5 px), as before.
+    for (int i = 0; i < 24; ++i) {
+        CHECK(slot_bar_w(SLOT_X_PITCH_Q(8), i, 8, 5) == 5, "24 h: bar %d", i);
+    }
+}
+
 static void test_daylight_saving(void) {
     set_zone("XST-1XDT,M3.5.0/3,M10.5.0/4");
     ChartAxisSlot slots[FORECAST_MAX_ENTRIES];
@@ -682,6 +710,7 @@ int main(void) {
     test_label_fits();
     test_marks();
     test_mapping();
+    test_bar_gaps();
     test_daylight_saving();
 #else
     test_basalt();
