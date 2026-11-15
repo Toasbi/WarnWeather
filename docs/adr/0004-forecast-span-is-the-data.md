@@ -160,11 +160,11 @@ of its own for the span. On emery the graph styles' records (a wire byte and per
 
 ### The inbox
 
-- emery's inbox is 1280 B (the heap has the room in 128 KB). Its heaviest weather bundle is
-  1095 B: the long span's six 68-byte trends, the graph styles' spare row (a seventh 68-byte
+- emery's inbox is 1280 B (the heap has the room in 128 KB). Its heaviest weather bundle
+  holds the long span's six 68-byte trends, the graph styles' spare row (a seventh 68-byte
   trend, sent while the screens' graphs draw five series) and bars 4 to 6's status lines.
   `test/repo/inbox-size.test.js` `WEATHER_BUNDLES` records every platform's bundle and is the one
-  place the sizes are asserted. The span changes no other watch's bundle and no Clay message.
+  place the sizes are written down and asserted. The span changes no other watch's bundle and no Clay message.
 
 ## Rejected
 
