@@ -19,7 +19,7 @@
 # through the heaviest realistic run: three custom screens with every graph and bar kind,
 # four metric lines, radar sky rows and health on; a settings apply and a full weather
 # bundle at launch; three flicks; a Quick View show and hide. Lowest free heap: basalt
-# 5152 B, diorite 7228 B, flint 7180 B, with no failed allocation, so all three clear the
+# 5264 B, diorite 7340 B, flint 7300 B, with no failed allocation, so all three clear the
 # 4.5 KB gate. The peak use is basalt 5744 B, diorite 5852 B, flint 5788 B: the face's
 # own allocations plus the firmware's 2 KB health cache, which a health read holds for a
 # moment.
@@ -54,9 +54,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-54909}"
-  "diorite:${DIORITE_IMAGE_CEILING:-52725}"
-  "flint:${FLINT_IMAGE_CEILING:-52833}"
+  "basalt:${BASALT_IMAGE_CEILING:-54793}"
+  "diorite:${DIORITE_IMAGE_CEILING:-52609}"
+  "flint:${FLINT_IMAGE_CEILING:-52717}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).
