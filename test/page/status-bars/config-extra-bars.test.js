@@ -117,6 +117,18 @@ test('Delete status bar: the bar unmade, its dialog closed, the screens that sho
   assert.equal(page.scroll.innerHTML.indexOf('Wind bar deleted.'), -1, 'the Undo line goes');
 });
 
+test('Revert takes a deleted status bar\'s Undo with it: a tap on Undo then brings back nothing Revert put back', () => {
+  const page = statusTab({ statusBar4Made: true, statusBar4Name: 'Wind bar', statusBar4Left: 'uv', viewLower0: 'bar4' });
+  const opened = page.stored();
+  page.tapAction('deleteBar', 'bar4');
+  assert.ok(page.scroll.innerHTML.indexOf('Wind bar deleted.') !== -1, 'the Undo line');
+  page.revert();
+  assert.deepEqual(page.stored(), opened, 'every setting back, the bar among them');
+  assert.equal(page.scroll.innerHTML.indexOf('Wind bar deleted.'), -1, 'the Undo goes with the change it undid');
+  page.tapAction('undoDeleteBar');
+  assert.deepEqual(page.stored(), opened, 'an Undo tapped anyway changes nothing');
+});
+
 test('the Forecast, Health and Radar bars rename but never go: no Delete status bar in their dialogs', () => {
   const page = statusTab();
   ['forecast', 'health', 'radar'].forEach((bar) => {

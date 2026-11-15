@@ -637,6 +637,21 @@ test('the page: Delete in a graph\'s dialog closes it and moves its screens to t
   assert.equal(p.modal.innerHTML, '', 'and no dialog opens');
 });
 
+test('Revert takes a deleted graph\'s Undo with it: a tap on Undo then brings back nothing Revert put back', () => {
+  const p = bootGeneratedPage(TWO, 'emery', { dialog: true });
+  const opened = p.stored();
+  p.clickTab('graphs');
+  p.tapAction('openGraph', 2);
+  p.tapAction('deleteGraphStyle', undefined, 'modal');
+  assert.match(p.scroll.innerHTML, /Long deleted\./);
+  p.revert();
+  assert.deepEqual(p.stored(), opened, 'every setting back, the graph among them');
+  assert.equal(GS.count(p.S), 2);
+  assert.equal(p.scroll.innerHTML.indexOf('deleted.'), -1, 'the Undo goes with the change it undid');
+  p.tapAction('undoDeleteGraphStyle');
+  assert.deepEqual(p.stored(), opened, 'an Undo tapped anyway changes nothing');
+});
+
 test('the screen editor: with several graphs a chip per graph adds the forecast graph, and its row is named after its graph', () => {
   const M = require('../../../src/pkjs/layout/domain/screens.js');
   const p = bootGeneratedPage(TWO, 'emery');

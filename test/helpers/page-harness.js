@@ -474,6 +474,27 @@ function bootGeneratedPage(cfg, platformName, opts) {
       }, closest: sel => (sel === '[data-se]' ? t : null) };
       ed.dispatch('click', { target: t });
     },
+    // Tap Revert, then its dialog's "Undo changes" (engine.js requestRevert); a page with no
+    // <dialog> (opts.dialog off) reverts at once.
+    revert() {
+      sandbox.document.getElementById('revert').dispatch('click', {});
+      if (els.modal.innerHTML.indexOf('data-confirm="action"') === -1) { return; }
+      const btn = { getAttribute: (n) => (n === 'data-confirm' ? 'action' : null) };
+      els.modal.dispatch('click', { target: { closest: (sel) => (sel === '[data-confirm]' ? btn : null) } });
+    },
+    // The settings as Save would store them, what Save and Revert compare (engine.js blobOf):
+    // the normalized state through serialize, the page's own stamps (item.stamp) left out.
+    stored() {
+      const blob = sandbox.PConf.engine.serialize(ready.schema,
+        sandbox.PConf.hooks.runNormalize(ready.S, ready.ENV), ready.ENV);
+      (function dropStamps(node) {
+        if (!node || typeof node !== 'object') { return; }
+        if (Array.isArray(node)) { node.forEach(dropStamps); return; }
+        if (node.stamp && node.messageKey) { delete blob[node.messageKey]; }
+        Object.keys(node).forEach((k) => dropStamps(node[k]));
+      })(ready.schema);
+      return JSON.parse(JSON.stringify(blob));
+    },
     // Tap Save: the submit hooks run, the state serializes, and after the toast delay the
     // page navigates to RETURN_TO ('#') + the encoded blob. Resolves with that blob.
     save() {

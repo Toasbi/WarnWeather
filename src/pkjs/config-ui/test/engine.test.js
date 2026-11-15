@@ -1226,9 +1226,11 @@ function bootWithCapturedListeners(schema, env, opts) {
   const ids = { scroll, modal, tabs, save, revert, appTitle: generic(), toast };
   // Resolve the selectors boot() issues against `document`: live-search lists and the fresh
   // select/date/edit-sheet triggers that closeModal() may restore focus to after render.
+  // The document's own listeners, by event type (Save and Revert's check after every event).
+  const docListeners = {};
   const document = {
     getElementById: (id) => ids[id] || generic(),
-    addEventListener: () => {},
+    addEventListener: (type, fn) => { (docListeners[type] = docListeners[type] || []).push(fn); },
     querySelector: (sel) => {
       var m = /^\[data-ssel-list="(.+)"\]$/.exec(sel);
       if (m) { return sselList; }
@@ -1252,7 +1254,7 @@ function bootWithCapturedListeners(schema, env, opts) {
   const mod = { exports: {} };
   fn(document, schema, env, (opts && opts.cfg) || {}, {}, 'pebblejs://close#', mod, location);
   return {
-    listeners, modalListeners, tabsListeners, scroll, modal, tabs, sselList, focusCounts,
+    listeners, modalListeners, tabsListeners, docListeners, scroll, modal, tabs, sselList, focusCounts,
     save, revert, headerListeners, location,
     onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv,
     openSheet: mod.exports.openSheet, getValue: mod.exports.getValue, setValue: mod.exports.setValue,
@@ -1311,6 +1313,52 @@ test('boot(): Save stays quiet until a setting changes; Revert asks, then undoes
   tapSegment(r, 'mode', 'b');
   tapSegment(r, 'mode', 'a');
   assert.ok(r.save.classes.has('idle'), 'a change taken back by hand is no change');
+});
+
+test('boot(): Revert runs the page\'s onRevert hooks once the settings are back, before the repaint', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'a', options: [['A', 'a'], ['B', 'b']] }
+  ] }] }] };
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true, prelude:
+    'PConf.hooks.onRevert(function (ctx) {'
+    + ' module.exports.reverted = (module.exports.reverted || []).concat([ctx.S.mode + "/" + Boolean(ctx.env)]); });'
+    + 'PConf.hooks.onRender(function (ctx) {'
+    + ' if (module.exports.reverted) { module.exports.renderedAfter = true; } });' });
+  tapSegment(r, 'mode', 'b');
+  assert.equal(r.page.reverted, undefined, 'a change runs none');
+  r.headerListeners.revert.click({});
+  tapConfirm(r, 'save');
+  assert.equal(r.page.reverted, undefined, 'nor does Keep editing');
+  r.headerListeners.revert.click({});
+  tapConfirm(r, 'action');
+  assert.deepEqual(r.page.reverted, ['a/true'], 'Undo changes runs them once, the settings back, with the env');
+  assert.equal(r.page.renderedAfter, true, 'and repaints after them');
+});
+
+test('boot(): a change no render follows (a value painted in place) lights Save and Revert at the next event', async () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'a', options: [['A', 'a'], ['B', 'b']] }
+  ] }] }] };
+  const r = bootWithCapturedListeners(schema, {}, { dialog: true });
+  const fire = async (type) => {
+    (r.docListeners[type] || []).forEach((fn) => fn({ type, target: { closest: () => null } }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+  // As a slider's arrow-key nudge writes its value: S, with no render after it.
+  r.S.mode = 'b';
+  assert.equal(r.revert.hidden, true, 'nothing has asked yet');
+  await fire('keyup');
+  assert.equal(r.revert.hidden, false, 'the key\'s event shows Revert');
+  assert.ok(!r.save.classes.has('idle'), 'and lights Save');
+  r.S.mode = 'a';
+  await fire('click');
+  assert.equal(r.revert.hidden, true, 'taken back: Revert goes again');
+  assert.ok(r.save.classes.has('idle'));
+  for (const type of ['input', 'change', 'pointerup']) {
+    r.S.mode = type === 'change' ? 'a' : 'b';
+    await fire(type);
+    assert.equal(r.revert.hidden, r.S.mode === 'a', type + ' checks too');
+  }
 });
 
 test('boot(): a value the page stamps itself (item.stamp) never lights Save, and Revert keeps it', () => {

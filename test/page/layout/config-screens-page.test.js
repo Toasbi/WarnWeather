@@ -301,6 +301,19 @@ test('a ✕ deletes a flick screen at once, and Undo puts it back', (t) => {
   assert.equal(page.scroll.innerHTML.indexOf('ui-toast'), -1, 'gone after five seconds');
 });
 
+test('Revert takes a deleted screen\'s Undo with it: a tap on Undo then brings back nothing Revert put back', () => {
+  const page = bootGeneratedPage(THREE, 'basalt', { dialog: true });
+  const opened = page.stored();
+  page.tapAction('deleteScreen', 1);
+  assert.ok(page.scroll.innerHTML.indexOf('data-action="undoDeleteScreen"') !== -1, 'the Undo shows');
+  page.revert();
+  assert.deepEqual(page.stored(), opened, 'every setting back');
+  assert.equal(cardRows(page.scroll.innerHTML).length, 3, 'all three screens');
+  assert.equal(page.scroll.innerHTML.indexOf('ui-toast'), -1, 'the Undo goes with the change it undid');
+  page.tapAction('undoDeleteScreen');
+  assert.deepEqual(page.stored(), opened, 'an Undo tapped anyway changes nothing');
+});
+
 test('a new install: the Default screen alone; + Add screen adds a screen and opens its editor', () => {
   const page = bootGeneratedPage({ provider: 'dwd' });   // the shipped defaults
   assert.deepEqual(cardRows(page.scroll.innerHTML).map((r) => r[0]), ['Default']);

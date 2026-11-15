@@ -968,6 +968,22 @@ PConf.hooks.onSubmit(function (ctx) {
 
 Several `onLoad`/`onSubmit` registrations are allowed; they fire in registration order.
 
+**Save and Revert.** The page takes the settings it holds once it is ready (after the `onReady`
+hooks) as where it started. Save looks quiet and Revert hides while the settings Save would
+store (normalized, then serialized; `stamp` items left out) equal that start. The check runs
+after every render and after every `click`, `input`, `change`, `keyup` and `pointerup` on the
+document, so a control that paints in place, a module's own overlay or a dialog never leaves the
+two behind. Revert asks first, then puts every setting back and runs the `onRevert` hooks before
+it repaints:
+
+```js
+PConf.hooks.onRevert(function (ctx) {
+  // ctx: {S, env}, the settings already put back. Drop what the module holds beside them
+  // that a later tap would write back, such as the Undo after a delete.
+  undoBox.v = null;
+});
+```
+
 ## Shared parts (PConf.ui)
 
 `lib/ui.js` has one builder for each piece that more than one place draws, so a tab's rows, a
