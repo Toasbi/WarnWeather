@@ -239,7 +239,7 @@ static void tick_waits_while_pending(void) {
     const time_t H = ANCHOR(4);
     fresh_cache(H);
 
-    s_now = H + STEP;                              // :00 → also (now % 900) == 0
+    s_now = H + STEP;                              // :00, a new 15-minute slot too
     health_cache_tick(false);
     expect_int("wait.bg_armed", timer_pending(), 1);
     reset_counters();
@@ -340,6 +340,35 @@ static void visible_quarter_hour_reread(void) {
     s_now = H + 1800;            // on the cadence but not visible
     health_cache_tick(false);
     expect_int("q15.not_visible", s_reads, 0);
+
+    // A tick that runs late still reads once in its slot: the slot is compared, not
+    // its first second.
+    s_now = H + 1800 + 61;
+    health_cache_tick(true);
+    expect_int("q15.late_tick_reads", s_reads, 1);
+    reset_counters();
+    s_now = H + 1800 + 120;
+    health_cache_tick(true);
+    expect_int("q15.once_per_slot", s_reads, 0);
+
+    // A flick's warm read counts for its slot: the next tick in it reads nothing more.
+    s_now = H + 2700 + 5;
+    health_cache_refresh_current_hour();
+    expect_int("q15.warm_reads", s_reads, 1);
+    reset_counters();
+    s_now = H + 2700 + 60;
+    health_cache_tick(true);
+    expect_int("q15.warm_counts_for_slot", s_reads, 0);
+
+    // The hourly rollover's refill reads the new in-progress hour: its slot counts as read,
+    // so the next visible tick in it reads nothing more.
+    s_now = H + STEP;
+    health_cache_tick(true);
+    drain("q15.rollover");
+    reset_counters();
+    s_now = H + STEP + 60;
+    health_cache_tick(true);
+    expect_int("q15.rollover_counts_for_slot", s_reads, 0);
 }
 
 int main(void) {
