@@ -42,53 +42,36 @@ static uint8_t s_in_use = STATUS_BAR_ALL_IN_USE;
 #endif
 
 // ── Per-bar identity ─────────────────────────────────────────────────────────
-// Each of these is a switch on evolving platforms and a single constant on
-// aplite, where STATUS_BAR_COUNT is 1. The #if tests the capability macros
-// directly rather than STATUS_BAR_COUNT, which is an enum constant and therefore
-// invisible to the preprocessor.
-
-static inline uint8_t bar_line(StatusBarId id) {
-#if defined(WW_RAIN_RADAR) || defined(PBL_HEALTH)
-    switch (id) {
+// The bars are declared in the order of their sources (view_spec.h StatusSource,
+// which starts at 1: 0 is "no bar") and of their lines (status_line.h, where the
+// strip's line sits between the Radar bar's and the Health bar's), so both are
+// arithmetic on the bar's id, and a single constant on aplite, where
+// STATUS_BAR_COUNT is 1. The asserts below hold every bar a build has to that order.
+#define BAR_SOURCE(id) ((int) (id) + (int) STATUS_SRC_FORECAST)
+#define BAR_LINE(id)   ((int) (id) < (int) STATUS_LINE_TOP ? (int) (id) : (int) (id) + 1)
+#define BAR_IS(id, source, line) \
+    _Static_assert(BAR_SOURCE(id) == (int) (source) && BAR_LINE(id) == (int) (line), \
+                   "status_bar.h's bars follow their sources and lines")
+BAR_IS(STATUS_BAR_FORECAST, STATUS_SRC_FORECAST, STATUS_LINE_FORECAST);
 #if defined(WW_RAIN_RADAR)
-        case STATUS_BAR_RADAR:  return STATUS_LINE_RADAR;
+BAR_IS(STATUS_BAR_RADAR, STATUS_SRC_RADAR, STATUS_LINE_RADAR);
 #endif
 #if defined(PBL_HEALTH)
-        case STATUS_BAR_HEALTH: return STATUS_LINE_HEALTH;
+BAR_IS(STATUS_BAR_HEALTH, STATUS_SRC_HEALTH, STATUS_LINE_HEALTH);
 #endif
 #if defined(PBL_PLATFORM_EMERY)
-        case STATUS_BAR_4:      return STATUS_LINE_BAR4;   // emery: bars 4 to 6
-        case STATUS_BAR_5:      return STATUS_LINE_BAR5;
-        case STATUS_BAR_6:      return STATUS_LINE_BAR6;
+// emery: bars 4 to 6
+BAR_IS(STATUS_BAR_4, STATUS_SRC_BAR4, STATUS_LINE_BAR4);
+BAR_IS(STATUS_BAR_5, STATUS_SRC_BAR5, STATUS_LINE_BAR5);
+BAR_IS(STATUS_BAR_6, STATUS_SRC_BAR6, STATUS_LINE_BAR6);
 #endif
-        default: return STATUS_LINE_FORECAST;
-    }
-#else
-    (void) id;
-    return STATUS_LINE_FORECAST;
-#endif
+
+static inline uint8_t bar_line(StatusBarId id) {
+    return (uint8_t) BAR_LINE(id);
 }
 
 static inline uint8_t bar_source(StatusBarId id) {
-#if defined(WW_RAIN_RADAR) || defined(PBL_HEALTH)
-    switch (id) {
-#if defined(WW_RAIN_RADAR)
-        case STATUS_BAR_RADAR:  return STATUS_SRC_RADAR;
-#endif
-#if defined(PBL_HEALTH)
-        case STATUS_BAR_HEALTH: return STATUS_SRC_HEALTH;
-#endif
-#if defined(PBL_PLATFORM_EMERY)
-        case STATUS_BAR_4:      return STATUS_SRC_BAR4;   // emery: bars 4 to 6
-        case STATUS_BAR_5:      return STATUS_SRC_BAR5;
-        case STATUS_BAR_6:      return STATUS_SRC_BAR6;
-#endif
-        default: return STATUS_SRC_FORECAST;
-    }
-#else
-    (void) id;
-    return STATUS_SRC_FORECAST;
-#endif
+    return (uint8_t) BAR_SOURCE(id);
 }
 
 // ── Update procs ─────────────────────────────────────────────────────────────
