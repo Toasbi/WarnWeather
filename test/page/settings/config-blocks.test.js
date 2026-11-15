@@ -861,16 +861,29 @@ test('radarPreview never shows the countdown band on aplite', () => {
   assert.ok(svg.indexOf('viewBox="0 0 200 81"') >= 0, 'aplite frame stays at the no-band height');
 });
 
-/** The rain alert's icon as the page draws it: the watch's rain cloud, its pixels (pixel-icon.js). */
-const RAIN_PIXELS = require('../../../src/pkjs/page/weather/pixel-icon.js')
-  .path(require('../../../src/pkjs/settings/condition-pixels.generated.js').RAIN);
+/**
+ * The rain alert's icons in a preview, as the page draws them: the rain cloud (condition-icons.js
+ * RAIN) in a group of its own (preview-radar.js rainIcon).
+ * @param {string} svg radarPreview markup
+ * @returns {Array<{x: number, stroke: string}>} each icon's left edge and colour, in order
+ */
+function rainIcons(svg) {
+  const RAIN = require('../../../src/pkjs/page/weather/condition-icons.js').body('RAIN');
+  const out = [];
+  const re = /<g data-rain-icon="1" transform="translate\(([-\d.]+),[^"]*\)"[^>]*stroke="([^"]*)"[^>]*>/g;
+  let m;
+  while ((m = re.exec(svg))) {
+    assert.ok(svg.indexOf(RAIN + '</g>', m.index) === m.index + m[0].length, 'the group holds the rain cloud');
+    out.push({ x: Number(m[1]), stroke: m[2] });
+  }
+  return out;
+}
 
 test('the countdown band draws its icon and text in white on color and on B&W', () => {
   const color = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
   const bw = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false });
   [['color', color], ['B&W', bw]].forEach(([name, svg]) => {
-    assert.ok(svg.indexOf(' d="' + RAIN_PIXELS + '" fill="#FFFFFF"') >= 0,
-      name + ': the rain cloud in white');
+    assert.deepEqual(rainIcons(svg).map((i) => i.stroke), ['#FFFFFF'], name + ': the rain cloud in white');
     assert.equal(/<path[^>]*fill="#00FF00"/.test(svg), false, name + ': no green drop');
   });
   assert.ok(color.indexOf('fill="#FFFFFF"') >= 0, 'white band text present on color');
@@ -882,13 +895,11 @@ test('the countdown band draws its icon and text in white on color and on B&W', 
  * @returns {?{x: number, text: ?string}} null when the band is absent
  */
 function rainBand(svg) {
-  const at = svg.indexOf(' d="' + RAIN_PIXELS + '"');
-  if (at < 0) { return null; }
-  const start = svg.lastIndexOf('<path', at);
-  const m = /^<path transform="translate\(([-\d.]+),/.exec(svg.slice(start));
-  const after = svg.slice(start);
+  const icons = rainIcons(svg);
+  if (!icons.length) { return null; }
+  const after = svg.slice(svg.indexOf('</g>', svg.indexOf('<g data-rain-icon="1"')));
   const t = /<text[^>]*>([^<]*)<\/text>/.exec(after.slice(0, after.indexOf('<line')));
-  return { x: Number(m[1]), text: t ? t[1] : null };
+  return { x: icons[0].x, text: t ? t[1] : null };
 }
 
 test('radarPreview draws the rain entry in its Look, at the side of the Watch bar that ticks Rain', () => {
@@ -915,12 +926,8 @@ test('the rain alert icon is the rain cloud in the theme\'s foreground, whatever
     ['white', 'multicolor'].forEach((radarColor) => {
       const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor, radarMode: 'graph', theme },
         { color: true, platform: 'basalt' }, userData);
-      const icons = [];
-      svg.replace(/<path transform="[^"]*" d="([^"]*)" fill="([^"]*)"/g, (m, d, fill) => {
-        if (d === RAIN_PIXELS) { icons.push(fill); }
-        return m;
-      });
-      assert.deepEqual(icons, [fg[theme]], theme + ', ' + radarColor + ': one rain cloud in the foreground');
+      assert.deepEqual(rainIcons(svg).map((i) => i.stroke), [fg[theme]],
+        theme + ', ' + radarColor + ': one rain cloud in the foreground');
     });
   });
 });
@@ -1328,11 +1335,10 @@ test('light colour theme: rain and radar bars carry the watch\'s black silhouett
     assert.equal(countMatches(rd, EDGE_MARK), rdBars, 'radar ' + mode + ': every exact bar outlined');
     const interior = mode === 'white' ? /width="9"[^>]*fill="#555555"/ : /fill="#00FF00"/;
     assert.ok(interior.test(fc), 'forecast ' + mode + ': the colour interior is kept under the outline');
-    // (The radar's countdown band prints its text and its rain cloud in theme-fg black, so only
-    // the bars count.)
-    const rdShapes = rd.split(' d="' + RAIN_PIXELS + '" fill="#000000"').join('');
+    // (The radar's countdown band prints its text and outlines its rain cloud in theme-fg black:
+    // neither is a filled shape.)
     assert.equal(/<(rect|path)[^>]*fill="#000000"/.test(fc), false, 'forecast ' + mode + ': the outline is a stroke, never a black fill');
-    assert.equal(/<(rect|path)[^>]*fill="#000000"/.test(rdShapes), false, 'radar ' + mode + ': the outline is a stroke, never a black fill');
+    assert.equal(/<(rect|path)[^>]*fill="#000000"/.test(rd), false, 'radar ' + mode + ': the outline is a stroke, never a black fill');
     // Colour-dark opts out of the silhouette on the watch, so it stays unoutlined here.
     const fcDark = FC.forecastPreview(Object.assign({}, fcBase, { rainBarColor: mode, theme: 'dark' }), env);
     const rdDark = RD.radarPreview(Object.assign({}, rdBase, { radarColor: mode, theme: 'dark' }), env);

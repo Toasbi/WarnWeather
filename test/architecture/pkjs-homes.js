@@ -21,8 +21,6 @@ const HOMES = {
   'shell': ['index.js'],
   // which watch has which capability, so which settings it gets
   'settings/domain': ['config-ui/lib/platform.js'],
-  // the icon pipeline's generated glyphs, moved once that work is on main
-  'weather/page': ['settings/condition-pixels.generated.js'],
 };
 
 const CONTEXTS = ['weather', 'forecast-graphs', 'status-bars', 'alerts', 'layout', 'calendar',

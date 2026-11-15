@@ -722,16 +722,14 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
   // And what it registers is what the module exports (the map the tests read).
   const icons = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
   assert.deepEqual(Object.keys(icons).sort(), IDS.slice().sort());
-  // The weather icons read window.ConditionPixels and window.PixelIcon while its IIFE runs:
-  // both have to be on the page first, or the page throws at boot on a real phone.
-  ['settings/condition-pixels.generated.js', 'page/weather/pixel-icon.js'].forEach((dep) => {
-    const i = appFiles.findIndex((f) => f.endsWith(dep));
-    assert.ok(i !== -1 && i < at, dep + ' must precede status-slot-icons.js');
-  });
-  ['window.ConditionPixels = PIXELS', 'window.PixelIcon = api'].forEach((global) => {
-    assert.ok(src.indexOf(global) !== -1 && src.indexOf(global) < src.indexOf("icons.register('condition'"),
-      'the page carries ' + global + ' ahead of the weather icons\' registration');
-  });
+  // The weather icons read window.ConditionIcons while its IIFE runs: it has to be on the page
+  // first, or the page throws at boot on a real phone.
+  const dep = 'page/weather/condition-icons.js';
+  const i = appFiles.findIndex((f) => f.endsWith(dep));
+  assert.ok(i !== -1 && i < at, dep + ' must precede status-slot-icons.js');
+  const global = 'window.ConditionIcons = api';
+  assert.ok(src.indexOf(global) !== -1 && src.indexOf(global) < src.indexOf("icons.register('condition'"),
+    'the page carries ' + global + ' ahead of the weather icons\' registration');
 });
 
 // The update-interval budget modules are the same silent-no-op shape: blocks.js and

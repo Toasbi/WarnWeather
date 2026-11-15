@@ -5,8 +5,8 @@
 //
 // Hand-drawn page copies of 3.1.1's PDC glyphs (the watch's status icons before
 // the pixel drawings, named below), NOT generated from the watch's drawings, so
-// a redraw on one side has to be carried to the other by hand (the rain alert's
-// icon is the exception: the condition slot's rain glyph, generated, below):
+// a redraw on one side has to be carried to the other by hand (the weather ones,
+// the rain alert's and the condition slot's, are condition-icons.js', below):
 //   uv     -> STATUS_UV.pdc      (sun: octagon core, eight 2 px rays)
 //   wind   -> STATUS_WIND.pdc    (three curled wind lines)
 //   gust   -> STATUS_GUST.pdc    (windsock — the watch's gust glyph, which is
@@ -62,18 +62,17 @@
         return '<svg viewBox="0 0 24 24"' + attrs + '>' + body + '</svg>';
     }
 
-    // The weather icons as the watch draws them: its pixel drawings at 13 px
-    // (condition-pixels.generated.js, from scripts/pixel-icons/gen_watch_icons.js), each lit
-    // pixel a square (pixel-icon.js). Every other glyph here is a likeness of the watch's.
-    var PIXELS = (typeof require !== 'undefined') ? require('../../settings/condition-pixels.generated.js')
-        : window.ConditionPixels;
-    var PixelIcon = (typeof require !== 'undefined') ? require('../weather/pixel-icon.js') : window.PixelIcon;
+    // The weather icons: the condition slot's (condition-icons.js, Tabler's weather in this
+    // family; the owner's ask, 2026-11-15: proper SVGs, the watch's own pixel drawings another
+    // time).
+    var CONDITION = (typeof require !== 'undefined') ? require('../weather/condition-icons.js')
+        : window.ConditionIcons;
 
     var ICONS = {
         // The rain alert's icon: the watch draws the rain cloud of the weather condition
         // slot (its Drizzle, Rain or Heavy rain drawing), in the foreground like every
         // other icon. The rows show the Rain one.
-        rain: PixelIcon.svg(PIXELS.RAIN),
+        rain: CONDITION.svg('RAIN'),
         uv: svg24(OUTLINE,
             '<circle cx="12" cy="12" r="4"/>'
             + '<path d="M12 2v2M12 20v2M2 12h2M20 12h2'
@@ -160,7 +159,7 @@
             + '<path d="M7 14.5L12 22L17 14.5Z" fill="currentColor"/>'),
         // The weather condition slot's sample, a partly cloudy afternoon (the city's weather
         // icon too).
-        condition: PixelIcon.svg(PIXELS.SUN_CLOUD)
+        condition: CONDITION.svg('SUN_CLOUD')
     };
 
     // Register into the engine's icon registry when it is there: always on the page

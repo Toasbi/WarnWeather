@@ -13,7 +13,7 @@ same contexts as the phone app:
 | Folder | What it holds |
 | --- | --- |
 | `settings/` | the page's entry (`index.js`, which calls `createConfig`), the schema (`schema.js`), the custom blocks (`blocks.js`), the build-time hook (`onbuild.js`), the defaults policy, the setup wizard (`wizard/`) and the shared SVG helpers |
-| `weather/` | the provider and radar rows, the key status and Test buttons (`keys/`), the request budgets (`budgets/`), the Weather tab (`weather-tab/`) and the radar preview |
+| `weather/` | the provider and radar rows, the key status and Test buttons (`keys/`), the request budgets (`budgets/`), the Weather tab (`weather-tab/`), the radar preview and the weather condition icons (`condition-icons.js`) |
 | `forecast-graphs/` | the graph styles page, the line and metric rows, the forecast, axis, rain and stripe previews |
 | `status-bars/` | the status bar preview, the slot icons and the reset to defaults |
 | `alerts/` | the Alerts tab and its level rows |

@@ -70,7 +70,9 @@ pixels.
 | `package.template.json` | One resource per size, only on the watches that draw that size |
 | `src/c/layers/status_pixel_icons.generated.h` | Which drawing each icon uses at each height, one table per watch family: the Pebble Time 2, the colour 144 px watch and the black and white ones |
 | `src/c/layers/status_row_aplite.c` | The Pebble Classic and Steel bit mask, for the seven icons that have one |
-| `src/pkjs/settings/condition-pixels.generated.js` | The weather condition icons at 13 px, which the settings page draws them with |
+
+The settings page does not draw these: its weather icons are outlines of its own
+(`src/pkjs/page/weather/condition-icons.js`).
 
 The watch draws each drawing 1:1 wherever a bar asks for the height it was drawn for
 (`status_row_icons.c`; `status_icon_size.h` works out the height). Nothing is scaled. A height

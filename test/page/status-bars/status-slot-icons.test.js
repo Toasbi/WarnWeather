@@ -16,12 +16,11 @@ const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js')
 const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze',
   'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun'];
 
-// The weather icons are the watch's own pixel drawings; every other glyph is a 24x24 outline.
+// The weather icons are condition-icons.js'; every glyph is a 24x24 outline.
 const WEATHER = ['rain', 'condition'];
-const OUTLINES = IDS.filter((id) => WEATHER.indexOf(id) === -1);
 
 test('every glyph is a 24x24 svg drawn in currentColor', () => {
-  OUTLINES.forEach((id) => {
+  IDS.concat(['condition']).forEach((id) => {
     const svg = ICONS[id];
     assert.equal(typeof svg, 'string', id + ' is exported');
     assert.ok(svg.indexOf('<svg viewBox="0 0 24 24"') === 0, id + ' opens a 24x24 svg');
@@ -31,22 +30,22 @@ test('every glyph is a 24x24 svg drawn in currentColor', () => {
   });
 });
 
-test('the weather icons are the watch\'s own drawings: the rain alert\'s rain cloud, the condition slot\'s sample', () => {
+test('the weather icons are the condition slot\'s: the rain alert\'s rain cloud, the condition slot\'s sample', () => {
   // The rain alert draws the weather condition slot's rain cloud on the watch, in the
   // foreground like every other icon (status_icon_size.h status_rain_glyph); the condition slot's
-  // sample (and the city's weather icon) is a partly cloudy afternoon.
-  const pixels = require('../../../src/pkjs/settings/condition-pixels.generated.js');
-  const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
-  assert.equal(ICONS.rain, PixelIcon.svg(pixels.RAIN), 'rain is the watch\'s rain cloud');
-  assert.equal(ICONS.condition, PixelIcon.svg(pixels.SUN_CLOUD), 'the condition is the watch\'s partly cloudy');
+  // sample (and the city's weather icon) is a partly cloudy afternoon. The page draws both as
+  // condition-icons.js' outlines (the owner's ask, 2026-11-15), not the watch's pixels.
+  const CONDITION = require('../../../src/pkjs/page/weather/condition-icons.js');
+  assert.equal(ICONS.rain, CONDITION.svg('RAIN'), 'rain is the rain cloud');
+  assert.equal(ICONS.condition, CONDITION.svg('SUN_CLOUD'), 'the condition is partly cloudy');
   WEATHER.forEach((id) => {
-    assert.ok(ICONS[id].indexOf('fill="currentColor"') !== -1, id + ' takes its colour from the row chrome');
     assert.equal(/#[0-9a-fA-F]{3,6}\b/.test(ICONS[id]), false, id + ' hard-codes no colour');
+    assert.equal(ICONS[id].indexOf('crispEdges'), -1, id + ' is no pixel drawing');
   });
 });
 
-test('every other glyph is a Tabler-style outline', () => {
-  OUTLINES.forEach((id) => {
+test('every glyph is a Tabler-style outline', () => {
+  IDS.concat(['condition']).forEach((id) => {
     assert.ok(ICONS[id].indexOf('fill="none" stroke="currentColor" stroke-width="1.8"') !== -1,
       id + ' is an unfilled 1.8 outline');
     assert.ok(ICONS[id].indexOf('stroke-linecap="round" stroke-linejoin="round"') !== -1,
