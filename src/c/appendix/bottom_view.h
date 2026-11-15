@@ -59,6 +59,10 @@ TickSide bottom_view_tick_style(void);
 // draw/measure, never cache it (same reason bottom_view_tick_style() is a function).
 GFont bottom_view_label_font(void);
 
+// A left-axis label's drawn size in that font: what both views size their strips from
+// (the forecast its two temperatures, the health graph its step marks).
+GSize bottom_view_label_size(const char *text);
+
 // The two tiers, each font key beside its measured content height. Nothing in C links a font
 // key to its size, so each height is the key's size transcribed by hand (a Gothic line measures
 // its nominal size: layers/layer_util.h status_content_h), and changing a face means changing

@@ -24,6 +24,13 @@ GFont bottom_view_label_font(void) {
                                                            : BOTTOM_VIEW_LABEL_FONT_KEY);
 }
 
+GSize bottom_view_label_size(const char *text) {
+    // A box no label fills, so the content size is the text's own.
+    return graphics_text_layout_get_content_size(text, bottom_view_label_font(),
+                                                 GRect(0, 0, 200, 40), GTextOverflowModeFill,
+                                                 GTextAlignmentRight);
+}
+
 // Latest reported content width per graph; 0 = "this graph has not reported".
 static int s_reported_w[2] = { 0, 0 };
 

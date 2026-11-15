@@ -19,8 +19,6 @@
 #include "paint_scratch.h"
 
 #define TEMP_LABEL_PAD 2
-#define TEMP_LABEL_MEASURE_BOX_W 200
-#define TEMP_LABEL_MEASURE_BOX_H 40
 // Base 6 on effectively-colour builds, 7 on B&W (a sparser dot pattern reads better
 // without hue to separate it), then scaled up for taller plots — see hatch.h.
 //
@@ -409,8 +407,6 @@ static void day_lines_draw(const ChartRender *r, void *user) {
     }
 }
 
-static GSize temp_label_string_size(const char *text);
-
 // curve[0..count): the temperature curve as its layer draws it, rows out from baseline_y
 // (fit_temp_axis), which the labels line up with when there is space. aplite, the frozen
 // fork, has no fit: its labels keep today's places and never read the curve.
@@ -426,8 +422,8 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
 
     graphics_context_set_text_color(ctx, theme_fg());
     const GFont font = bottom_view_label_font();
-    GSize hi_size = temp_label_string_size(s_buffer_hi);
-    GSize lo_size = temp_label_string_size(s_buffer_lo);
+    GSize hi_size = bottom_view_label_size(s_buffer_hi);
+    GSize lo_size = bottom_view_label_size(s_buffer_lo);
     // The lo label sits on the PLOT's baseline, which a bottom stripe band lifts
     // off the hour axis (forecast_update_proc) — it names the plot's floor.
     const int16_t axis_y = baseline_y;
@@ -499,8 +495,8 @@ static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const For
     }
     if (mode == GRAPH_OPT_NUMS_GRAPH) {
         forecast_numbers_on_graph(ctx, ds, grid, e, hi_s, lo_s, zero_y, top, graph_left,
-                                  screen_w, s_buffer_hi, temp_label_string_size(s_buffer_hi),
-                                  s_buffer_lo, temp_label_string_size(s_buffer_lo));
+                                  screen_w, s_buffer_hi, bottom_view_label_size(s_buffer_hi),
+                                  s_buffer_lo, bottom_view_label_size(s_buffer_lo));
     }
 }
 #endif
@@ -971,14 +967,6 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     MEMORY_LOG_HEAP("forecast_update:exit");
 }
 
-static GSize temp_label_string_size(const char *text)
-{
-    const GFont font = bottom_view_label_font();
-    const GRect box = GRect(0, 0, TEMP_LABEL_MEASURE_BOX_W, TEMP_LABEL_MEASURE_BOX_H);
-    return graphics_text_layout_get_content_size(text, font, box, GTextOverflowModeFill,
-                                                 GTextAlignmentRight);
-}
-
 static void text_labels_refresh()
 {
     // Lo/hi are read from the dedicated persisted keys (set by PKJS alongside the trend).
@@ -993,8 +981,8 @@ static void text_labels_refresh()
         return;
     }
 
-    int content_w = temp_label_string_size(s_buffer_hi).w;
-    const int w_lo = temp_label_string_size(s_buffer_lo).w;
+    int content_w = bottom_view_label_size(s_buffer_hi).w;
+    const int w_lo = bottom_view_label_size(s_buffer_lo).w;
     if (w_lo > content_w)
     {
         content_w = w_lo;
