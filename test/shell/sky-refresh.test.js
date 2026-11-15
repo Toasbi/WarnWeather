@@ -1,7 +1,7 @@
 // test/shell/sky-refresh.test.js
 //
 // The radar's sky rows on the phone side, end to end: Open-Meteo is asked once per UTC half
-// hour (fetch-cycle.js takeSkyRequestSlot, radar-sky.js REFRESH_SECONDS), the cycles between
+// hour (fetch-cycle.js's sky throttle, radar-sky.js REFRESH_SECONDS), the cycles between
 // re-serve that half hour's sky byte for byte, and the outbox's exact compare sends it once
 // per request.
 //

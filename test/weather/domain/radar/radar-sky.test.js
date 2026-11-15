@@ -46,7 +46,7 @@ test('a sky carries ten quarter hours, one past the window\'s nine, and is asked
 });
 
 test('a sky asked anywhere in a half hour covers the radar window until the next half hour', () => {
-  // The watch keeps the sky it holds between two requests (fetch-cycle.js takeSkyRequestSlot)
+  // The watch keeps the sky it holds between two requests (fetch-cycle.js's sky throttle)
   // and places it by time against its self-advancing radar window.
   const R = radarSky.REFRESH_SECONDS;
   const S = Math.floor(SLOT0 / R) * R;

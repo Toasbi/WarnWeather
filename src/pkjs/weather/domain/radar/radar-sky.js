@@ -24,7 +24,7 @@
 // scale (skyByte, ../stripe-levels.js), so the watch draws exactly that level.
 //
 // Cadence: the phone asks for the sky once per UTC half hour (REFRESH_SECONDS,
-// fetch-cycle.js takeSkyRequestSlot) and the watch draws the one it holds until the
+// fetch-cycle.js's sky throttle) and the watch draws the one it holds until the
 // next, so a sky carries one slot past the window (NUM_SLOTS). The fetches in between
 // re-serve that half hour's sky byte for byte, so the outbox's exact compare sends it
 // once per request.

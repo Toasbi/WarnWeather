@@ -1447,8 +1447,8 @@ test('throw: a counter write that throws is caught and recorded, and later ticks
 });
 
 // --- radar throttle: the shared Rainbow proxy at most once per 30-min slot ------
-// radar-factory.js RADAR_MIN_REQUEST_INTERVAL_MS + fetch-cycle.js
-// takeRadarRequestSlot: one proxy request per UTC-aligned 30-min slot, wherever
+// radar-factory.js RADAR_MIN_REQUEST_INTERVAL_MS + fetch-cycle.js's radar
+// throttle: one proxy request per UTC-aligned 30-min slot, wherever
 // the watch is (the record keeps no position), recorded before it goes out; the
 // throttled cycles of the slot re-serve its window. The stub outbox here does
 // not dedupe, so a re-served window shows up in the extras
