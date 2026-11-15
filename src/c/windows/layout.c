@@ -5,11 +5,12 @@
 
 // Weights of the three content bands (calendar : time : bottom graph). On the 168px
 // watches content_h is exactly 141 = 45+45+51, so the proportional split reproduces the
-// historical fixed pixel bands bit-for-bit; emery (content 188) scales them. These become
-// per-user data when the à-la-carte layout ships (ViewSpec.weights).
+// historical fixed pixel bands bit-for-bit; emery (content 188) scales them. The bottom
+// band takes what the other two leave, so only its weight in the sum is used.
 #define WEIGHT_CALENDAR 45
 #define WEIGHT_TIME 45
 #define WEIGHT_BOTTOM 51
+#define WEIGHT_SUM (WEIGHT_CALENDAR + WEIGHT_TIME + WEIGHT_BOTTOM)
 
 #define WEATHER_STATUS_HEIGHT 14
 // How far the REFERENCE compact status band's bottom overhangs the clock band's blank top
@@ -119,16 +120,6 @@
 #define COMPACT_LONE_ROW_INK_LIFT 0
 #define COMPACT_DENSE_ROW_INK_LIFT (-1)
 #endif
-
-// Partition the content height by the three band weights; the bottom band absorbs
-// the integer remainder. Integer math only.
-static void split_content(int content_h, const uint8_t weights[3],
-                          int *calendar_h, int *time_h, int *bottom_h) {
-    int weight_sum = weights[0] + weights[1] + weights[2];
-    *calendar_h = (content_h * weights[0]) / weight_sum;
-    *time_h = (content_h * weights[1]) / weight_sum;
-    *bottom_h = content_h - *calendar_h - *time_h;
-}
 
 // ── Strip-adjacent seats ────────────────────────────────────────────────────
 // Two rows the engine seats against the strip — the clock centred under it and the
@@ -270,9 +261,6 @@ ViewSpec view_spec_unpack(uint16_t v) {
     // disagree — and through status_tier_for, the one rule unpack, apply_ext and resolve
     // share (base squeeze rule in layout.h's layout_status_tier; exemptions above).
     spec.status_tier = status_tier_for(&spec);
-    spec.weights[0] = WEIGHT_CALENDAR;
-    spec.weights[1] = WEIGHT_TIME;
-    spec.weights[2] = WEIGHT_BOTTOM;
     spec.stacked = 0;
     spec.stacked = spec_is_stacked(&spec);
     return spec;
@@ -613,9 +601,8 @@ static MainLayout compute_layout(GRect bounds, const ViewSpec *spec, LayoutMetri
     // removing the strip moves bands without resizing them.
     int content_h = h - LAYOUT_PAD_TOP - LAYOUT_PAD_BOTTOM
                     - CALENDAR_STATUS_HEIGHT - WEATHER_STATUS_HEIGHT;
-    int calendar_h, time_h, bottom_h;
-    split_content(content_h, spec->weights, &calendar_h, &time_h, &bottom_h);
-    (void) bottom_h;   // the body fills to the pad
+    int calendar_h = content_h * WEIGHT_CALENDAR / WEIGHT_SUM;
+    int time_h = content_h * WEIGHT_TIME / WEIGHT_SUM;   // the body fills to the pad
     int row_h = calendar_h / 3;
     uint8_t tier = spec->status_tier;
     // Content height of the font the rows render in: the full-tier row's is recovered from
