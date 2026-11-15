@@ -237,25 +237,3 @@ test('the ride-along rides weather messages only, and one that throws is ignored
   }
 });
 
-// The weather outcome listener (setWeatherOutcomeListener): the channel scheduler reads a
-// weather ACK after a NACK as the link being back.
-test('the weather outcome listener hears each weather message\'s ACK and NACK, before the sender', () => {
-  reset();
-  var heard = [];
-  outbox.setWeatherOutcomeListener(function(acked) { heard.push(acked); });
-  try {
-    outbox.sendWeather(FORECAST_AND_STATUS, function() { heard.push('sender ack'); },
-      function() { heard.push('sender nack'); });
-    sent[0].nack({ error: true });
-    outbox.sendWeather(FORECAST_AND_STATUS, function() { heard.push('sender ack'); });
-    sent[1].ack();
-    assert.deepEqual(heard, [false, 'sender nack', true, 'sender ack']);
-    outbox.sendWeather(FORECAST_AND_STATUS);
-    assert.equal(sent.length, 2, 'unchanged: no message');
-    outbox.sendClay({ CLAY_CELSIUS: true });
-    sent[2].nack({ error: true });
-    assert.deepEqual(heard, [false, 'sender nack', true, 'sender ack'], 'a skip and a settings NACK tell it nothing');
-  } finally {
-    outbox.setWeatherOutcomeListener(null);
-  }
-});

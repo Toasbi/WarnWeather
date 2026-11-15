@@ -173,9 +173,9 @@ on the phone side follows from this.
 **Channel scheduler**:
 The module that decides when anything is sent over the channel: the startup handshake,
 config-close chaining, the day-change resend and the minute tick. The tick resends a
-NACKed settings message after 1, 2, 4, 8, 16, then every 30 minutes, until a settings ACK
-or the link coming back (a weather ACK after a weather NACK). The outbox decides
-what is sent (dedupe, one-message bundling, ACK-gated cache commit).
+NACKed settings message after 1, 2, then every 4 minutes until a settings ACK, so settings
+saved while the watch was out of reach arrive at most 4 minutes after it answers again. The
+outbox decides what is sent (dedupe, one-message bundling, ACK-gated cache commit).
 _Avoid_: send queue.
 
 **Ride-along (outbox)**:

@@ -1,10 +1,10 @@
 // test/shell/index-settings-backoff-link.test.js
 //
-// End to end: the tick resends a NACKed settings message after 1, 2, 4, 8, 16, then every
-// 30 minutes (channel-scheduler.js). When the link comes back, a weather ACK after a
-// weather NACK (outbox.js setWeatherOutcomeListener) ends that wait, so settings saved
-// during an outage reach the watch the minute after it answers again, not up to 30 min
-// later. A watch that takes the weather but refuses only the settings keeps backing off.
+// End to end: the tick resends a NACKed settings message after 1, 2, then every 4 minutes
+// (channel-scheduler.js). PKJS has no sign that an unreachable watch is back, so that cap
+// is what bounds the wait: settings saved during an outage reach the watch at most 4
+// minutes after it answers again, whether or not a weather message went out meanwhile. A
+// watch that refuses the settings is asked every 4 minutes, not every minute.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { HARNESS_NOW, HOUR, bootIndex, isWeatherMessage } = require('../helpers/index-harness.js');
@@ -48,19 +48,23 @@ function firstAfter(sends, after, kind) {
   return sends.find((s) => s.at > after && s.kind === kind) || null;
 }
 
-test('settings NACKed through an outage go out the minute after a weather message lands again', (t) => {
-  // The link is down from minute 1 to minute 40: the settings resends back off to 30 min
-  // (minute 32, then 62), and the 11:00 refresh NACKs at minute 40 and lands at minute 41.
-  const sends = runOutage(t, (kind, at) => (at >= 1 && at <= 40 ? 'nack' : 'ack'));
-  const landed = sends.find((s) => s.kind === 'weather' && s.ack && s.at > 1);
-  assert.equal(landed.at, 41);
-  assert.ok(sends.some((s) => s.kind === 'weather' && !s.ack && s.at === 40), 'the refresh NACKed first');
-  assert.deepEqual(firstAfter(sends, 32, 'settings'), { at: 42, kind: 'settings', ack: true });
+test('settings NACKed through a quiet outage reach the watch within four minutes of its return', (t) => {
+  // The link is down from minute 1 to minute 20 and no weather message is due in it (the
+  // hourly refresh is next due at minute 40): the settings resends NACK at 2, 4, 8, 12, 16
+  // and 20, and the one at 24, three minutes after the link is back, lands.
+  const sends = runOutage(t, (kind, at) => (at >= 1 && at <= 20 ? 'nack' : 'ack'));
+  assert.ok(!sends.some((s) => s.kind === 'weather' && s.at >= 1 && s.at <= 20),
+    'no weather message in the outage');
+  assert.deepEqual(sends.filter((s) => s.kind === 'settings' && s.at >= 1 && s.at <= 20).map((s) => s.at),
+    [1, 2, 4, 8, 12, 16, 20]);
+  assert.deepEqual(firstAfter(sends, 20, 'settings'), { at: 24, kind: 'settings', ack: true });
 });
 
-test('a watch that takes the weather but refuses the settings keeps backing off', (t) => {
+test('a watch that takes the weather but refuses the settings is asked every 4 minutes', (t) => {
   const sends = runOutage(t, (kind, at) => (kind === 'settings' && at >= 1 ? 'nack' : 'ack'));
   assert.ok(sends.some((s) => s.kind === 'weather' && s.ack && s.at === 40), 'the refresh lands');
+  const every4 = [];
+  for (let at = 8; at <= 68; at += 4) { every4.push(at); }
   assert.deepEqual(sends.filter((s) => s.kind === 'settings' && s.at >= 1).map((s) => s.at),
-    [1, 2, 4, 8, 16, 32, 62]);
+    [1, 2, 4].concat(every4));
 });

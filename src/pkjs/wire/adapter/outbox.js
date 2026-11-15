@@ -32,9 +32,6 @@
  * known to go out, and its values join it wherever they differ from what was last
  * sent (the phone battery's exact reading, phone-battery.js statusRideAlong).
  *
- * Each weather message's ACK or NACK is told to one listener (setWeatherOutcomeListener):
- * the channel scheduler reads a weather ACK after a NACK as the link being back.
- *
  * Every compare/send cycle is reported to dev-stats as a semantic descriptor
  * (skip immediately; ack/nack from the AppMessage callbacks).
  */
@@ -51,10 +48,11 @@ var newestSend = {};
 
 var WEATHER_CATEGORIES = require('../domain/weather-categories.js');
 
-// The weather message's ride-along (setRideAlong), or null.
-var rideAlong = null;
-// Told each weather message's outcome (setWeatherOutcomeListener), or null.
-var weatherOutcome = null;
+// The two kinds of message, and what sets them apart: the label a send logs, the type
+// dev-stats records it as, and the ride-along a weather message asks (setRideAlong) and
+// a settings message never takes.
+var WEATHER = { label: 'weather', statsType: 'weather', rideAlong: null };
+var CLAY = { label: 'clay', statsType: 'setting', rideAlong: null };
 
 /**
  * Distill a comparison result into the dev-stats descriptor.
@@ -77,17 +75,17 @@ function statsDescriptor(type, result, outcome) {
  *
  * @param {Object} payload Full candidate payload.
  * @param {Array} categories Category descriptors to dedupe against.
- * @param {string} label Log prefix ('weather' or 'clay').
+ * @param {{label: string, statsType: string, rideAlong: ?Function}} kind WEATHER or CLAY.
  * @param {Function} [onSuccess] Called after ACK, or immediately when nothing changed.
  * @param {Function} [onFailure] Called on NACK.
  * @returns {void}
  */
-function sendChangedCategories(payload, categories, label, onSuccess, onFailure) {
-    var statsType = label === 'clay' ? 'setting' : 'weather';
+function sendChangedCategories(payload, categories, kind, onSuccess, onFailure) {
+    var label = kind.label;
     var detector = new ChangeDetector(categories);
     var result = detector.detect(payload);
     var changed = result.categories.filter(isChanged);
-    var extra = changed.length > 0 && label === 'weather' ? askRideAlong() : null;
+    var extra = changed.length > 0 ? askRideAlong(kind.rideAlong) : null;
     if (extra) {
         // The message goes out: the ride-along's values join it, and the categories are
         // judged again on them, so one they freshen rides along where it now differs and
@@ -111,7 +109,7 @@ function sendChangedCategories(payload, categories, label, onSuccess, onFailure)
 
     if (changed.length === 0) {
         console.log('Outbox: ' + label + ' unchanged, skipping send.');
-        devStats.record(statsDescriptor(statsType, result, 'skip'));
+        devStats.record(statsDescriptor(kind.statsType, result, 'skip'));
         if (typeof onSuccess === 'function') {
             onSuccess();
         }
@@ -137,16 +135,14 @@ function sendChangedCategories(payload, categories, label, onSuccess, onFailure)
                 localStorage.setItem(entry.cacheKey, entry.serialized);
             }
         });
-        devStats.record(statsDescriptor(statsType, result, 'ack'));
+        devStats.record(statsDescriptor(kind.statsType, result, 'ack'));
         console.log('Outbox: ' + label + ' sent successfully.');
-        if (label === 'weather' && weatherOutcome) { weatherOutcome(true); }
         if (typeof onSuccess === 'function') {
             onSuccess();
         }
     }, function(e) {
-        devStats.record(statsDescriptor(statsType, result, 'nack'));
+        devStats.record(statsDescriptor(kind.statsType, result, 'nack'));
         console.log('Outbox: ' + label + ' send failed: ' + JSON.stringify(e));
-        if (label === 'weather' && weatherOutcome) { weatherOutcome(false); }
         if (typeof onFailure === 'function') {
             onFailure(e);
         }
@@ -162,11 +158,12 @@ function isChanged(entry) {
 }
 
 /**
- * The ride-along's values for a weather message that goes out, or null. One that throws
- * brings nothing: a ride-along must never cost the message it would ride.
+ * The ride-along's values for a message that goes out, or null. One that throws brings
+ * nothing: a ride-along must never cost the message it would ride.
+ * @param {?Function} rideAlong The message kind's ride-along (WEATHER's alone has one).
  * @returns {?Object} AppMessage keys of weather categories.
  */
-function askRideAlong() {
+function askRideAlong(rideAlong) {
     if (typeof rideAlong !== 'function') { return null; }
     try {
         return rideAlong() || null;
@@ -188,20 +185,7 @@ function askRideAlong() {
  * @returns {void}
  */
 function setRideAlong(fn) {
-    rideAlong = typeof fn === 'function' ? fn : null;
-}
-
-/**
- * Register the listener told each weather message's outcome, before the sender's own
- * callback: true on ACK, false on NACK. A skipped send is no message and tells it nothing,
- * and settings messages are not told. index.js wires the channel scheduler's
- * (channel-scheduler.js onWeatherOutcome).
- *
- * @param {?function(boolean): void} fn The listener, or null to drop it.
- * @returns {void}
- */
-function setWeatherOutcomeListener(fn) {
-    weatherOutcome = typeof fn === 'function' ? fn : null;
+    WEATHER.rideAlong = typeof fn === 'function' ? fn : null;
 }
 
 /**
@@ -214,7 +198,7 @@ function setWeatherOutcomeListener(fn) {
  * @returns {void}
  */
 function sendWeather(payload, onSuccess, onFailure) {
-    sendChangedCategories(payload, WEATHER_CATEGORIES, 'weather', onSuccess, onFailure);
+    sendChangedCategories(payload, WEATHER_CATEGORIES, WEATHER, onSuccess, onFailure);
 }
 
 /**
@@ -232,7 +216,7 @@ function sendClay(payload, onSuccess, onFailure) {
         cacheKey: KEYS.LAST_SENT_CLAY_KEY,
         keys: Object.keys(payload)
     };
-    sendChangedCategories(payload, [clayCategory], 'clay', onSuccess, onFailure);
+    sendChangedCategories(payload, [clayCategory], CLAY, onSuccess, onFailure);
 }
 
 /**
@@ -275,7 +259,6 @@ module.exports = {
     sendWeather: sendWeather,
     sendClay: sendClay,
     setRideAlong: setRideAlong,
-    setWeatherOutcomeListener: setWeatherOutcomeListener,
     clearWeatherCaches: clearWeatherCaches,
     clearClayCache: clearClayCache,
     clearNoticeCache: clearNoticeCache
