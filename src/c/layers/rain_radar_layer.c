@@ -449,7 +449,9 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
         // without sky rows one free row kept under the tick row (`gap`), so a hanging
         // bar never meets the ticks and the nearby-area outline in a tick column never
         // continues a tick.
-        layers[1].bars.stops = palette_radar_stops(&layers[1].bars.num_stops);
+        int num_stops;
+        layers[1].bars.stops = palette_radar_stops(&num_stops);
+        layers[1].bars.num_stops = (uint8_t) num_stops;
         const bool bars_top = palette_from_top(layers[1].bars.stops);
         layers[0].from_top = layers[1].from_top = bars_top;
         const int gap = !sky_band && bars_top;

@@ -6,8 +6,8 @@
 #include "chart_stripe.h"
 
 // The forecast keeps 12 of these in a static array: the from_top byte
-// sits in the padding after the 1-byte type, so a layer must not grow past 44 B.
-_Static_assert(sizeof(ChartLayer) <= 44, "ChartLayer grew: from_top must stay in padding");
+// sits in the padding after the 1-byte type, so a layer must not grow past 28 B.
+_Static_assert(sizeof(ChartLayer) <= 28, "ChartLayer grew: narrow the new field (chart.h)");
 
 // Shared per-call point scratch for LINE and AREA layers (callers that don't
 // pass export_points). Static, not stack: aplite's small app stack overflows
