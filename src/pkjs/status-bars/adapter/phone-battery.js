@@ -18,11 +18,18 @@
 // Two numbers, two jobs — do not collapse them back into one. The 5-point
 // BUCKET is the SEND TRIGGER and nothing else: a resend fires only when it
 // moves (or charging flips), which is the deliberate BLE-wake-up budget. The
-// cached LEVEL the baker renders is the EXACT percentage, rewritten on every
-// reading, so whenever a send does go out the number on the watch is the
-// phone's real charge: 31 % reads "31%", not the bucket's "30%". Using the
-// bucket for both jobs is what shipped first, and it threw away accuracy the
-// phone already had in hand for no saving whatsoever.
+// cached LEVEL is the EXACT percentage, rewritten on every reading, and every
+// reading the watch is sent is one of those: 31 % reads "31%", not the bucket's
+// "30%".
+//
+// What a bake reads is the SHOWN reading (bakeFacts): the exact one as of the
+// last time the watch was sent it. A trigger shows the reading of its moment;
+// so does a weather message that goes out anyway, through the outbox's
+// ride-along (statusRideAlong), which costs bytes and never a wake-up. Between
+// those the charge drifting inside its bucket bakes the same status, so the
+// outbox's change detector sends nothing for it. Baking the exact reading on
+// every fetch dirtied the status category on nearly every fetch, one wake-up
+// each.
 //
 // The resend itself is status-rebake.js's job: render-payload.js hands it the
 // bake inputs before every bake, and this module only pulls the trigger
@@ -80,6 +87,16 @@ function levelBucket(level) {
     if (pct < 0) { pct = 0; }
     if (pct > 100) { pct = 100; }
     return pct;
+}
+
+/**
+ * A whole percentage's 5-point bucket (levelBucket's, for a percentage already rounded).
+ *
+ * @param {number} pct Percentage 0..100.
+ * @returns {number} Bucketed percentage.
+ */
+function percentBucket(pct) {
+    return Math.floor(pct / BUCKET_STEP) * BUCKET_STEP;
 }
 
 /**
@@ -275,18 +292,76 @@ function read() {
 }
 
 /**
+ * The shown reading: the exact one as of the last time the watch was sent it (a trigger,
+ * a ride-along or the first reading; see the header), persisted so a PKJS restart keeps
+ * baking what the watch shows. Missing (nothing shown yet), it is the cached reading.
+ *
+ * @returns {{available: boolean, level: (number|null), charging: boolean}} Shown reading.
+ */
+function readShown() {
+    var shown = loadShown();
+    if (!shown) { return read(); }
+    return { available: true, level: shown.level, charging: shown.charging };
+}
+
+/**
+ * @returns {?{level: number, charging: boolean}} The stored shown reading, or null when
+ *   missing or unreadable.
+ */
+function loadShown() {
+    var raw = load(KEYS.PHONE_BATTERY_SHOWN);
+    var rec;
+    if (raw === null) { return null; }
+    try {
+        rec = JSON.parse(raw);
+    }
+    catch (ex) {
+        return null;
+    }
+    return (rec && typeof rec.level === 'number' && isFinite(rec.level)) ? { level: rec.level, charging: rec.charging === true } : null;
+}
+
+/**
+ * Make the cached exact reading the shown one, when there is one and it differs.
+ *
+ * @returns {boolean} True when the shown reading changed.
+ */
+function showExact() {
+    var exact = read();
+    var shown = loadShown();
+    if (!exact.available || (shown && shown.level === exact.level && shown.charging === exact.charging)) {
+        return false;
+    }
+    save(KEYS.PHONE_BATTERY_SHOWN, JSON.stringify({ level: exact.level, charging: exact.charging }));
+    return true;
+}
+
+/**
+ * The outbox's ride-along for the phone's battery (outbox.js setRideAlong, wired in
+ * index.js): asked once a weather message goes out anyway, it brings the status re-baked
+ * with the exact reading when that differs from the shown one, which it becomes. Bytes
+ * on a message already on its way, never a wake-up of its own.
+ *
+ * @returns {?Object} The status keys to ride along, or null when there is nothing new.
+ */
+function statusRideAlong() {
+    if (!isSupported() || !showExact()) { return null; }
+    return statusRebake.bakeStatus();
+}
+
+/**
  * The phone's battery facts a status-line bake reads (status-lines.js
  * buildStatusLines' `phone`): whether this host can read the battery at all,
- * and, where it can, the cached reading. A host that cannot has no slot to
- * show it in (the bake collapses those slots), so read() is not asked there.
+ * and, where it can, the shown reading (readShown). A host that cannot has no
+ * slot to show it in (the bake collapses those slots), so it is not asked there.
  *
  * @returns {{supported: boolean, reading: ?function(): ?Object}}
- *   The verdict and the function that reads the cached reading (null where unsupported).
+ *   The verdict and the function that reads the shown reading (null where unsupported).
  */
 function bakeFacts() {
     var supported = Boolean(isSupported());
     // The reading is read only when a bar shows it (status-lines.js buildStatusLines).
-    return { supported: supported, reading: supported ? read : null };
+    return { supported: supported, reading: supported ? readShown : null };
 }
 
 /**
@@ -365,8 +440,16 @@ function ingest(reading) {
     lastBucket = bucket;
     lastCharging = charging;
 
-    // The seed reading is a baseline, not news: see the note above.
-    if (seeding) { return; }
+    // The seed reading is a baseline, not news: see the note above. It becomes the
+    // shown reading only when there is none, or it lands in another bucket or charging
+    // state than the shown one (a move while PKJS was down): the next message carries it.
+    if (seeding) {
+        var shown = loadShown();
+        if (!shown || percentBucket(shown.level) !== percentBucket(percent) || shown.charging !== charging) {
+            showExact();
+        }
+        return;
+    }
     if (!bucketMoved && !chargingFlipped) { return; }
     console.log('phone-battery: ' + percent + '% (bucket ' + bucket + ')'
         + (charging ? ' charging' : ''));
@@ -380,6 +463,7 @@ function ingest(reading) {
         return;
     }
     pendingPush = false;
+    showExact();
     statusRebake.resendStatus(bucketMoved ? 'level' : 'charging');
 }
 
@@ -542,6 +626,7 @@ function init(options) {
 function onTick() {
     if (!pendingPush || isSuppressed()) { return; }
     pendingPush = false;
+    showExact();
     statusRebake.resendStatus('post-saver-window');
 }
 
@@ -550,6 +635,7 @@ module.exports = {
     onTick: onTick,
     read: read,
     bakeFacts: bakeFacts,
+    statusRideAlong: statusRideAlong,
     isSupported: isSupported,
     levelBucket: levelBucket,
     levelPercent: levelPercent

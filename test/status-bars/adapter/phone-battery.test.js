@@ -382,19 +382,20 @@ test('the cache stores the exact percentage, never the send-trigger bucket', () 
   assert.equal(storage[KEYS.PHONE_BATTERY_CHARGING], 'false');
 });
 
-test('the trigger baseline is never persisted: only the three phone-battery keys exist', () => {
+test('the trigger baseline is never persisted: the reading, the verdict and the shown reading are', () => {
   // The bucket lives in module state alone. init() drops the cached reading and
-  // re-takes the detector verdict on every boot, so a restart's first reading
-  // counts as a move and re-sends the true state -- right when the phone was
-  // plugged in while PKJS was down, and free otherwise, because the outbox drops
-  // a status category whose bytes match the last send. Persisting the baseline
-  // would buy that nothing and add one more thing that can go stale. (Nothing
-  // has been baked here, so the snapshot key is absent too; the restart section
-  // below covers the one key that IS written, and only once a bake has run.)
+  // re-takes the detector verdict on every boot; the shown reading (what the watch
+  // was last sent) survives, so a restart keeps baking what the watch shows, and the
+  // first reading replaces it only from another bucket (the shown-reading section
+  // below). Persisting the baseline would add one more thing that can go stale.
+  // (Nothing has been baked here, so the snapshot key is absent too; the restart
+  // section below covers it, written only once a bake has run.)
   boot({ navigator: modernNavigator(fakeManager(0.87, false)) });
   assert.deepEqual(Object.keys(storage).sort(), [
-    KEYS.PHONE_BATTERY_CHARGING, KEYS.PHONE_BATTERY_LEVEL, KEYS.PHONE_BATTERY_SUPPORTED
+    KEYS.PHONE_BATTERY_CHARGING, KEYS.PHONE_BATTERY_LEVEL, KEYS.PHONE_BATTERY_SHOWN,
+    KEYS.PHONE_BATTERY_SUPPORTED
   ].sort());
+  assert.deepEqual(JSON.parse(storage[KEYS.PHONE_BATTERY_SHOWN]), { level: 87, charging: false });
 });
 
 // --- Charging --------------------------------------------------------------
@@ -654,11 +655,12 @@ test('31% and plugged in: the charging send carries 31%, not the 30 bucket', () 
     '...but the watch shows the phone\'s real 31%');
 });
 
-test('a 31% -> 30% drop inside one bucket does not send, and the next bake shows 30%', () => {
+test('a 31% -> 30% drop inside one bucket does not send, and the next trigger shows 30%', () => {
   // Both halves of the split in one test: the trigger is untouched (no send for
-  // a move within the 30 bucket), while the cached value the baker reads follows
-  // the phone exactly, so whatever sends next — here the charging flip, in the
-  // field usually just the next 15-minute weather fetch — carries the truth.
+  // a move within the 30 bucket), while the cached value follows the phone
+  // exactly, so whatever carries the battery next — here the charging flip, in
+  // the field as often a weather message going out anyway (the ride-along) —
+  // carries the truth.
   const mgr = fakeManager(0.31, false);
   const h = boot({ navigator: modernNavigator(mgr), realBake: true,
                    settings: { temperatureUnits: 'c', axisTimeFormat: '24h',
@@ -948,4 +950,65 @@ test('a restored snapshot with no settings supplier degrades to no snapshot', ()
   });
   assert.doesNotThrow(() => mgr2.setCharging(true));
   assert.equal(sends.length, 0);
+});
+
+// --- The reading a weather message bakes -------------------------------------
+// A fetch's bake reads the SHOWN reading: the one the watch was last sent. It moves only at a
+// trigger (a bucket move, a charging flip), at the first reading of a PKJS life that lands in
+// another bucket than it, and when a weather message that goes out anyway takes the exact
+// reading along (statusRideAlong, the outbox's ride-along). So the charge drifting inside its
+// bucket never changes the status by itself, and costs no wake-up.
+
+test('a fetch bakes the reading the watch was last sent: drift inside a bucket leaves it', () => {
+  const mgr = fakeManager(0.62, false);
+  boot({ navigator: modernNavigator(mgr) });
+  assert.equal(phoneBattery.bakeFacts().reading().level, 62, 'the first reading is the shown one');
+  mgr.setLevel(0.61);
+  assert.equal(phoneBattery.read().level, 61, 'the cache follows the phone');
+  assert.equal(phoneBattery.bakeFacts().reading().level, 62, 'a bake still reads what the watch shows');
+});
+
+test('a trigger shows the exact reading of its moment, level and charging alike', () => {
+  const mgr = fakeManager(0.62, false);
+  const h = boot({ navigator: modernNavigator(mgr) });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, { platform: 'basalt' });
+  mgr.setLevel(0.61);
+  mgr.setLevel(0.59);   // 60 -> 55: a bucket move
+  assert.equal(h.sends.length, 1);
+  assert.equal(phoneBattery.bakeFacts().reading().level, 59);
+  mgr.setCharging(true);
+  assert.equal(h.sends.length, 2);
+  assert.deepEqual([phoneBattery.bakeFacts().reading().level, phoneBattery.bakeFacts().reading().charging],
+    [59, true]);
+});
+
+test('the ride-along brings the exact reading once it differs, and the watch shows it from then', () => {
+  const mgr = fakeManager(0.62, false);
+  boot({ navigator: modernNavigator(mgr), realBake: true, settings: SLOT_SETTINGS });
+  statusRebake.rememberBakeInputs(bakePayload(), { platform: 'basalt' });
+  assert.equal(phoneBattery.statusRideAlong(), null, 'nothing new to bring');
+  mgr.setLevel(0.61);
+  const extra = phoneBattery.statusRideAlong();
+  assert.deepEqual(Object.keys(extra).sort(), statusRebake.STATUS_KEYS.filter((k) => k in extra).sort(),
+    'only status keys');
+  assert.equal(decodeLine(extra.STATUS_LINE_1_UINT8)[0].text, '61%');
+  assert.equal(phoneBattery.bakeFacts().reading().level, 61, 'the exact reading is the shown one now');
+  assert.equal(phoneBattery.statusRideAlong(), null, 'and there is nothing new to bring again');
+});
+
+test('a phone without a battery API, or with no reading yet, brings nothing to ride along', () => {
+  boot({ navigator: {} });
+  assert.equal(phoneBattery.statusRideAlong(), null);
+  boot({ navigator: { getBattery: function () { return { then: function () {} }; } } });
+  assert.equal(phoneBattery.statusRideAlong(), null, 'getBattery has not answered yet');
+});
+
+test('a restart keeps the shown reading while its bucket holds; a first reading elsewhere replaces it', () => {
+  boot({ navigator: modernNavigator(fakeManager(0.62, false)) });
+  boot({ navigator: modernNavigator(fakeManager(0.61, false)), keepStorage: true });
+  assert.equal(phoneBattery.bakeFacts().reading().level, 62, 'the watch still shows 62%: a bake keeps it');
+  boot({ navigator: modernNavigator(fakeManager(0.58, false)), keepStorage: true });
+  assert.equal(phoneBattery.bakeFacts().reading().level, 58, 'another bucket: the next message carries 58%');
+  boot({ navigator: modernNavigator(fakeManager(0.58, true)), keepStorage: true });
+  assert.equal(phoneBattery.bakeFacts().reading().charging, true, 'plugged in while PKJS was down');
 });

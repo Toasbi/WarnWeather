@@ -125,6 +125,9 @@ function isWeatherMessage(dict) {
  * @param {number} [opts.latencyMs] Network latency (default 100 ms).
  * @param {Object} [opts.watchInfo] What Pebble.getActiveWatchInfo() answers (default a
  *   basalt).
+ * @param {Object} [opts.battery] A BatteryManager stand-in ({level, charging,
+ *   addEventListener}) that navigator.getBattery() resolves to, as on Android; absent, the
+ *   navigator has no battery API (iOS, the emulator).
  * @returns {Object} Harness handles. teardown() ends this life, restoring every
  *   global it set (a t.after hook also runs it), so the test can boot again.
  */
@@ -186,10 +189,10 @@ function bootIndex(t, opts) {
   const realNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
   Object.defineProperty(globalThis, 'navigator', {
     configurable: true, writable: true,
-    value: { geolocation: { getCurrentPosition: (ok, err) => {
+    value: Object.assign({ geolocation: { getCurrentPosition: (ok, err) => {
       geoRequests.push({ ok, err });
       if (opts.geolocate) { opts.geolocate(ok, err); }
-    } } },
+    } } }, opts.battery ? { getBattery: () => ({ then: (ok) => { ok(opts.battery); } }) } : {}),
   });
 
   const listeners = {};

@@ -116,6 +116,11 @@ module.exports = {
     PHONE_BATTERY_SUPPORTED: 'phoneBatterySupported',
     PHONE_BATTERY_LEVEL: 'phoneBatteryLevel',
     PHONE_BATTERY_CHARGING: 'phoneBatteryCharging',
+    // The phone's battery as the watch was last sent it ({level, charging}; phone-battery.js
+    // readShown): what a weather fetch's bake shows, so the charge drifting inside its
+    // 5-point bucket does not change the status. Kept across PKJS restarts, unlike the two
+    // above, because the watch keeps showing it.
+    PHONE_BATTERY_SHOWN: 'phoneBatteryShown',
     // The re-bake snapshot: the handful of payload keys buildStatusLines reads,
     // plus the watchInfo its platform env is derived from, version-stamped as
     // one JSON blob. PKJS is torn down whenever the user leaves the watchface,

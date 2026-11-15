@@ -408,6 +408,50 @@ function onTick() {
  * @returns {boolean} True when a send was attempted.
  */
 function resendStatus(reason, onSuccess, onFailure) {
+    var baked = rebake();
+    if (baked.error) {
+        console.log('status-rebake: re-bake failed, skipping ' + reason + ' send: ' + baked.error.message);
+        if (typeof onFailure === 'function') { onFailure(baked.error); }
+        return false;
+    }
+    if (!baked.status) {
+        // Nothing has ever been baked on this phone (no fetch has completed
+        // since install, or the stored blob was unusable): there is nothing to
+        // re-bake, and the next fetch carries the value anyway.
+        console.log('status-rebake: no bake snapshot yet, skipping ' + reason + ' send.');
+        if (typeof onSuccess === 'function') { onSuccess(); }
+        return false;
+    }
+    console.log('status-rebake: status micro-send (' + reason + ').');
+    deps.sendWeather(baked.status, onSuccess, onFailure);
+    return true;
+}
+
+/**
+ * The status keys re-baked from the last bake inputs against the live settings, the clock
+ * and the phone's battery facts: what resendStatus would send, without sending it. The
+ * phone battery's ride-along (phone-battery.js statusRideAlong) hands them to a weather
+ * message that goes out anyway.
+ *
+ * @returns {?Object} The status keys, or null when there is nothing to re-bake or the bake throws.
+ */
+function bakeStatus() {
+    var baked = rebake();
+    if (baked.error) {
+        console.log('status-rebake: re-bake failed: ' + baked.error.message);
+        return null;
+    }
+    return baked.status;
+}
+
+/**
+ * Re-bake a fresh clone of the bake inputs and pick the status category's keys, latching
+ * the day or night it was baked at.
+ *
+ * @returns {{status: ?Object, error: ?Error}} The status keys (null without bake inputs),
+ *   or the error the bake threw.
+ */
+function rebake() {
     var inputs = bakeInputs();
     var payload;
     var build;
@@ -415,12 +459,7 @@ function resendStatus(reason, onSuccess, onFailure) {
     var i;
 
     if (!inputs) {
-        // Nothing has ever been baked on this phone (no fetch has completed
-        // since install, or the stored blob was unusable): there is nothing to
-        // re-bake, and the next fetch carries the value anyway.
-        console.log('status-rebake: no bake snapshot yet, skipping ' + reason + ' send.');
-        if (typeof onSuccess === 'function') { onSuccess(); }
-        return false;
+        return { status: null, error: null };
     }
     payload = shallowClone(inputs.payload);
     var at = nowMs();   // one instant for the latch and the bake
@@ -430,18 +469,14 @@ function resendStatus(reason, onSuccess, onFailure) {
         build(payload, inputs.settings, inputs.watchInfo, new Date(at), phoneFacts());
     }
     catch (ex) {
-        console.log('status-rebake: re-bake failed, skipping ' + reason + ' send: ' + ex.message);
-        if (typeof onFailure === 'function') { onFailure(ex); }
-        return false;
+        return { status: null, error: ex };
     }
     for (i = 0; i < STATUS_KEYS.length; i += 1) {
         if (Object.prototype.hasOwnProperty.call(payload, STATUS_KEYS[i])) {
             outgoing[STATUS_KEYS[i]] = payload[STATUS_KEYS[i]];
         }
     }
-    console.log('status-rebake: status micro-send (' + reason + ').');
-    deps.sendWeather(outgoing, onSuccess, onFailure);
-    return true;
+    return { status: outgoing, error: null };
 }
 
 /**
@@ -489,6 +524,7 @@ module.exports = {
     init: init,
     rememberBakeInputs: rememberBakeInputs,
     resendStatus: resendStatus,
+    bakeStatus: bakeStatus,
     onTick: onTick,
     invalidatePersisted: invalidatePersisted,
     STATUS_KEYS: STATUS_KEYS

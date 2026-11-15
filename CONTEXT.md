@@ -176,6 +176,17 @@ config-close chaining, the day-change resend and the minute tick. The outbox dec
 what is sent (dedupe, one-message bundling, ACK-gated cache commit).
 _Avoid_: send queue.
 
+**Ride-along (outbox)**:
+Fresher values a weather message takes along once it goes out anyway, for bytes and never
+a wake-up of their own (`outbox.js` setRideAlong). The phone battery's is its exact
+reading (`phone-battery.js` statusRideAlong).
+
+**Shown reading (phone battery)**:
+The phone's charge as the watch was last sent it: what a weather fetch's bake shows, so
+the charge drifting inside its 5-point bucket changes nothing by itself. A bucket move, a
+charging flip and the ride-along make the exact reading the shown one; so does the first
+reading after a PKJS restart when it lands in another bucket (`phone-battery.js` readShown).
+
 **Battery saver**:
 The night window (`sleepStartHour` to `sleepEndHour`) in which the phone fetches no weather and
 sends the watch no phone-battery updates, so the Bluetooth link stays quiet. The watch is told

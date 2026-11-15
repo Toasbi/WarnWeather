@@ -27,6 +27,11 @@
  * replaced on the watch. The send numbers live in memory, like the callbacks
  * they guard: a PKJS restart drops both.
  *
+ * A weather message that goes out anyway can take fresher values along for bytes
+ * only, never a wake-up: the ride-along (setRideAlong) is asked once the message is
+ * known to go out, and its values join it wherever they differ from what was last
+ * sent (the phone battery's exact reading, phone-battery.js statusRideAlong).
+ *
  * Every compare/send cycle is reported to dev-stats as a semantic descriptor
  * (skip immediately; ack/nack from the AppMessage callbacks).
  */
@@ -42,6 +47,9 @@ var sendCount = 0;
 var newestSend = {};
 
 var WEATHER_CATEGORIES = require('../domain/weather-categories.js');
+
+// The weather message's ride-along (setRideAlong), or null.
+var rideAlong = null;
 
 /**
  * Distill a comparison result into the dev-stats descriptor.
@@ -71,10 +79,16 @@ function statsDescriptor(type, result, outcome) {
  */
 function sendChangedCategories(payload, categories, label, onSuccess, onFailure) {
     var statsType = label === 'clay' ? 'setting' : 'weather';
-    var result = new ChangeDetector(categories).detect(payload);
-    var changed = result.categories.filter(function(entry) {
-        return entry.changed;
-    });
+    var detector = new ChangeDetector(categories);
+    var result = detector.detect(payload);
+    var changed = result.categories.filter(isChanged);
+    var extra = changed.length > 0 && label === 'weather' ? askRideAlong() : null;
+    if (extra) {
+        // The message goes out: the ride-along's values join it, and the categories are
+        // judged again on them, so one they freshen rides along where it now differs.
+        result = detector.detect(Object.assign({}, payload, extra));
+        changed = result.categories.filter(isChanged);
+    }
     var outgoing = {};
     var changedNames = [];
 
@@ -128,6 +142,44 @@ function sendChangedCategories(payload, categories, label, onSuccess, onFailure)
             onFailure(e);
         }
     });
+}
+
+/**
+ * @param {{changed: boolean}} entry A ChangeDetector result entry.
+ * @returns {boolean} Whether its category changed.
+ */
+function isChanged(entry) {
+    return entry.changed;
+}
+
+/**
+ * The ride-along's values for a weather message that goes out, or null. One that throws
+ * brings nothing: a ride-along must never cost the message it would ride.
+ * @returns {?Object} AppMessage keys of weather categories.
+ */
+function askRideAlong() {
+    if (typeof rideAlong !== 'function') { return null; }
+    try {
+        return rideAlong() || null;
+    }
+    catch (ex) {
+        console.log('Outbox: ride-along failed: ' + ex.message);
+        return null;
+    }
+}
+
+/**
+ * Register the weather message's ride-along: a function asked, once a weather message is
+ * known to go out (some category changed), for fresher values of keys it carries. They
+ * join the message wherever they differ from the last-sent content, as part of their
+ * category, so they cost bytes and never a send of their own. index.js wires the phone
+ * battery's (phone-battery.js statusRideAlong).
+ *
+ * @param {?function(): ?Object} fn The ride-along, or null to drop it.
+ * @returns {void}
+ */
+function setRideAlong(fn) {
+    rideAlong = typeof fn === 'function' ? fn : null;
 }
 
 /**
@@ -200,6 +252,7 @@ module.exports = {
     WEATHER_CATEGORIES: WEATHER_CATEGORIES,
     sendWeather: sendWeather,
     sendClay: sendClay,
+    setRideAlong: setRideAlong,
     clearWeatherCaches: clearWeatherCaches,
     clearClayCache: clearClayCache,
     clearNoticeCache: clearNoticeCache

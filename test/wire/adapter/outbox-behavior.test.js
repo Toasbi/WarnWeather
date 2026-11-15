@@ -166,3 +166,73 @@ test('sendClay sends only the Clay payload keys and commits to the Clay cache', 
   assert.ok(global.localStorage.getItem(KEYS.LAST_SENT_CLAY_KEY) !== null, 'commits to the Clay cache');
   assert.equal(global.localStorage.getItem(KEYS.LAST_SENT_FORECAST_KEY), null, 'does not touch weather caches');
 });
+
+// The ride-along (setRideAlong): fresher values a weather message carries once it goes out
+// anyway, for bytes and never a wake-up (the phone battery's exact reading, phone-battery.js
+// statusRideAlong).
+test('a ride-along never sends a message by itself', () => {
+  reset();
+  outbox.sendWeather(FORECAST_AND_STATUS);
+  sent[0].ack();
+  sent = [];
+  var asked = 0;
+  outbox.setRideAlong(function() { asked += 1; return { STATUS_LINE_1_UINT8: [9] }; });
+  try {
+    outbox.sendWeather(FORECAST_AND_STATUS);
+    assert.equal(sent.length, 0, 'nothing changed: no send');
+    assert.equal(asked, 0, 'and the ride-along is not even asked');
+  } finally {
+    outbox.setRideAlong(null);
+  }
+});
+
+test('once a weather message goes out, the ride-along\'s values ride in it and are what gets cached', () => {
+  reset();
+  outbox.sendWeather(FORECAST_AND_STATUS);
+  sent[0].ack();
+  sent = [];
+  outbox.setRideAlong(function() { return { STATUS_LINE_1_UINT8: [9] }; });
+  try {
+    outbox.sendWeather(Object.assign({}, FORECAST_AND_STATUS, { FORECAST_START: 200 }));
+    assert.equal(sent.length, 1, 'one message');
+    assert.equal(sent[0].payload.FORECAST_START, 200, 'the change that sent it');
+    assert.deepEqual(sent[0].payload.STATUS_LINE_1_UINT8, [9], 'the status rode along with the fresher line');
+    assert.deepEqual(sent[0].payload.STATUS_LINE_4_UINT8, [4], 'the whole status category, as always');
+    assert.equal(global.localStorage.getItem(KEYS.LAST_SENT_STATUS_KEY), null, 'its cache forgotten until the ACK');
+    sent[0].ack();
+    assert.deepEqual(JSON.parse(global.localStorage.getItem(KEYS.LAST_SENT_STATUS_KEY)).STATUS_LINE_1_UINT8, [9]);
+  } finally {
+    outbox.setRideAlong(null);
+  }
+});
+
+test('a ride-along that brings what the watch has adds nothing', () => {
+  reset();
+  outbox.sendWeather(FORECAST_AND_STATUS);
+  sent[0].ack();
+  sent = [];
+  outbox.setRideAlong(function() { return { STATUS_LINE_1_UINT8: [1] }; });
+  try {
+    outbox.sendWeather(Object.assign({}, FORECAST_AND_STATUS, { FORECAST_START: 200 }));
+    assert.equal(sent.length, 1);
+    assert.equal('STATUS_LINE_1_UINT8' in sent[0].payload, false, 'the status is unchanged, so it stays out');
+  } finally {
+    outbox.setRideAlong(null);
+  }
+});
+
+test('the ride-along rides weather messages only, and one that throws is ignored', () => {
+  reset();
+  var asked = 0;
+  outbox.setRideAlong(function() { asked += 1; throw new Error('boom'); });
+  try {
+    outbox.sendClay({ CLAY_CELSIUS: true });
+    assert.equal(asked, 0, 'not asked for the settings message');
+    outbox.sendWeather(FORECAST_AND_STATUS);
+    assert.equal(asked, 1);
+    assert.equal(sent.length, 2, 'the weather message still went out');
+    assert.ok('TEMP_TREND_UINT8' in sent[1].payload);
+  } finally {
+    outbox.setRideAlong(null);
+  }
+});
