@@ -19,8 +19,6 @@
 #include "paint_scratch.h"
 
 #define TEMP_LABEL_PAD 2
-#define TEMP_LABEL_MEASURE_BOX_W 200
-#define TEMP_LABEL_MEASURE_BOX_H 40
 // Base 6 on effectively-colour builds, 7 on B&W (a sparser dot pattern reads better
 // without hue to separate it), then scaled up for taller plots — see hatch.h.
 //
@@ -227,29 +225,31 @@ static void load_dataset(ForecastDataset *ds) {
     persist_get_night_colors(s_night_ink);
 #endif
 
-    ds->series[SERIES_FIRST] = (Series){
-        .id = SERIES_FIRST, .kind = SERIES_KIND_LINE, .present = (n > 0),
-        .line = { .color = theme_pick(GColorRed, theme_fg()),
-                  .width = 3, .inset_y = curve_insets[SERIES_FIRST] } };
+    // The memset above cleared every series; each sets only what it draws with. The
+    // metric lines' colours are the raw per-metric ones (the SDK reduces them on B&W).
+    for (SeriesId s = SERIES_SECOND; s < SERIES_COUNT; ++s) {
+        ds->series[s].present = persist_series_present(s);
+    }
+    SeriesLine *const first = &ds->series[SERIES_FIRST].line;
+    ds->series[SERIES_FIRST].present = (n > 0);
+    first->color = theme_pick(GColorRed, theme_fg());
+    first->width = 3;
+    first->inset_y = curve_insets[SERIES_FIRST];
 
-    ds->series[SERIES_SECOND] = (Series){
-        .id = SERIES_SECOND, .kind = SERIES_KIND_LINE,
-        .present = persist_series_present(SERIES_SECOND),
-        .line = { .color      = persist_get_line_color(),   // raw stroke — SDK reduces on B&W
-                  .width      = 1,
-                  .inset_y    = curve_insets[SERIES_SECOND],
-                  .fill_on    = persist_get_line_fill(),
-                  .fill_color = persist_get_fill_color() } };  // raw per-metric fill — SDK reduces on B&W
+    SeriesLine *const second = &ds->series[SERIES_SECOND].line;
+    second->color = persist_get_line_color();
+    second->width = 1;
+    second->inset_y = curve_insets[SERIES_SECOND];
+    second->fill_on = persist_get_line_fill();
+    second->fill_color = persist_get_fill_color();
 
-    ds->series[SERIES_THIRD] = (Series){
-        .id = SERIES_THIRD, .kind = SERIES_KIND_LINE,
-        .present = persist_series_present(SERIES_THIRD),
-        .line = { .color  = persist_get_third_line_color(),   // raw per-metric — SDK reduces on B&W
-                  .width  = FORECAST_GRID_BAR_W,   // marks match the rain-bar columns
-                  .inset_y = curve_insets[SERIES_THIRD] } };
-        // No .style here: capable platforms overwrite it from the persisted
-        // blob just below, and aplite reads the frozen constant through
-        // series_style_pick at the layer-build site instead.
+    SeriesLine *const third = &ds->series[SERIES_THIRD].line;
+    third->color = persist_get_third_line_color();
+    third->width = FORECAST_GRID_BAR_W;   // marks match the rain-bar columns
+    third->inset_y = curve_insets[SERIES_THIRD];
+    // No style here: capable platforms overwrite it from the persisted
+    // blob just below, and aplite reads the frozen constant through
+    // series_style_pick at the layer-build site instead.
 
     // The block below indexes curve_insets[SERIES_FOURTH/FIFTH], slots that
     // exist only in the WW_CURVE_INSET tuple — the aplite #else array above is
@@ -261,38 +261,27 @@ static void load_dataset(ForecastDataset *ds) {
 #if defined(WW_LINE_STYLE)
     _Static_assert(SERIES_FIFTH < CURVE_INSET_BYTES,
                    "CLAY_CURVE_INSET_UINT8 must carry one byte per SeriesId up to SERIES_FIFTH");
-    ds->series[SERIES_FOURTH] = (Series){
-        .id = SERIES_FOURTH, .kind = SERIES_KIND_LINE,
-        .present = persist_series_present(SERIES_FOURTH),
-        .line = { .color  = persist_get_fourth_line_color(),   // raw per-metric — SDK reduces on B&W
-                  .width  = FORECAST_GRID_BAR_W,   // marks match the rain-bar columns
-                  .inset_y = curve_insets[SERIES_FOURTH] } };
+    SeriesLine *const fourth = &ds->series[SERIES_FOURTH].line;
+    fourth->color = persist_get_fourth_line_color();
+    fourth->inset_y = curve_insets[SERIES_FOURTH];
 
     // Per-line marker styles, phone-resolved (bytes [9..11] of
     // CLAY_LINE_STYLE_UINT8 → LINE_STYLES persist blob). The persisted
     // defaults ARE the pre-feature look, so this only moves lines the user
-    // restyled. A SOLID kind takes its stroke width from the byte; the mark
-    // kinds keep the bar-column width their renderers expect.
+    // restyled. It sets every metric line's width: a SOLID kind takes its stroke
+    // width from the byte; the mark kinds keep the bar-column width their
+    // renderers expect.
     uint8_t line_styles[LINE_STYLE_STYLE_BYTES];
     persist_get_line_styles(line_styles);
-    apply_line_style(&ds->series[SERIES_SECOND].line, line_styles[0], 1);
-    apply_line_style(&ds->series[SERIES_THIRD].line,  line_styles[1], 1);
-    apply_line_style(&ds->series[SERIES_FOURTH].line, line_styles[2], 1);
+    apply_line_style(second, line_styles[0], 1);
+    apply_line_style(third,  line_styles[1], 1);
+    apply_line_style(fourth, line_styles[2], 1);
 
-    ds->series[SERIES_FIFTH] = (Series){
-        .id = SERIES_FIFTH, .kind = SERIES_KIND_LINE,
-        .present = persist_series_present(SERIES_FIFTH),
-        .line = { .color  = persist_get_fifth_line_color(),   // raw per-metric — SDK reduces on B&W
-                  .width  = FORECAST_GRID_BAR_W,
-                  .inset_y = curve_insets[SERIES_FIFTH] } };
-    apply_line_style(&ds->series[SERIES_FIFTH].line, persist_get_fifth_line_style(), 1);
+    SeriesLine *const fifth = &ds->series[SERIES_FIFTH].line;
+    fifth->color = persist_get_fifth_line_color();
+    fifth->inset_y = curve_insets[SERIES_FIFTH];
+    apply_line_style(fifth, persist_get_fifth_line_style(), 1);
 #endif
-
-    ds->series[SERIES_BARS] = (Series){
-        .id = SERIES_BARS, .kind = SERIES_KIND_BARS,
-        .present = persist_series_present(SERIES_BARS),
-        .bars = { .style = BAR_OUTLINED } };
-    // .bars.stops/.num_stops are attached at render (scaled palette).
 
 #if defined(PBL_PLATFORM_EMERY)
     // emery: a graph style with a record restyles the lines, routes each to its trend and
@@ -368,7 +357,7 @@ static void load_dataset(ForecastDataset *ds) {
  */
 static ChartLayer mark_line_layer(const Series *s, int count, int hi) {
     return (ChartLayer){ CHART_LAYER_LINE, .from_top = SERIES_FROM_TOP(s), .line = {
-        .values = s->line.values, .count = count,
+        .values = s->line.values, .points = g_paint_scratch.forecast.area_pts, .count = count,
         .lo = 0, .hi = hi,
         .inset_top = LINE_INSET(s->line.inset_y), .inset_bottom = LINE_INSET(s->line.inset_y),
         .color = s->line.color, .width = s->line.width,
@@ -418,8 +407,6 @@ static void day_lines_draw(const ChartRender *r, void *user) {
     }
 }
 
-static GSize temp_label_string_size(const char *text);
-
 // curve[0..count): the temperature curve as its layer draws it, rows out from baseline_y
 // (fit_temp_axis), which the labels line up with when there is space. aplite, the frozen
 // fork, has no fit: its labels keep today's places and never read the curve.
@@ -435,8 +422,8 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
 
     graphics_context_set_text_color(ctx, theme_fg());
     const GFont font = bottom_view_label_font();
-    GSize hi_size = temp_label_string_size(s_buffer_hi);
-    GSize lo_size = temp_label_string_size(s_buffer_lo);
+    GSize hi_size = bottom_view_label_size(s_buffer_hi);
+    GSize lo_size = bottom_view_label_size(s_buffer_lo);
     // The lo label sits on the PLOT's baseline, which a bottom stripe band lifts
     // off the hour axis (forecast_update_proc) — it names the plot's floor.
     const int16_t axis_y = baseline_y;
@@ -508,8 +495,8 @@ static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const For
     }
     if (mode == GRAPH_OPT_NUMS_GRAPH) {
         forecast_numbers_on_graph(ctx, ds, grid, e, hi_s, lo_s, zero_y, top, graph_left,
-                                  screen_w, s_buffer_hi, temp_label_string_size(s_buffer_hi),
-                                  s_buffer_lo, temp_label_string_size(s_buffer_lo));
+                                  screen_w, s_buffer_hi, bottom_view_label_size(s_buffer_hi),
+                                  s_buffer_lo, bottom_view_label_size(s_buffer_lo));
     }
 }
 #endif
@@ -827,7 +814,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const bool second_top = SERIES_FROM_TOP(second);
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .from_top = second_top, .area = {
-            .values = second->line.values, .export_points = area_pts,
+            .values = second->line.values, .points = area_pts,
             .count = ds->num_entries, .lo = 0, .hi = LINE_HI(second->line.inset_y),
             .fill_color = second->line.fill_color } };
     }
@@ -867,9 +854,6 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM, .custom = {
             .fn = day_lines_draw, .user = ds } };
     }
-    // Attach the scaled rain-tier palette to the BARS series (computed above).
-    bars->bars.stops     = scaled_bar_stops;
-    bars->bars.num_stops = bar_num_stops;
     if (bars_on) {
         // "Bars from: Top" rides the bar palette (palette.h palette_from_top); the
         // scaled copy's stop 0 is negative too, and the renderer clamps it.
@@ -877,8 +861,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                                     .bars = {
             .values = bars->bars.values, .count = ds->num_entries,
             .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-            .stops = bars->bars.stops, .num_stops = bars->bars.num_stops,
-            .style = bars->bars.style } };
+            .stops = scaled_bar_stops, .num_stops = bar_num_stops,
+            .style = BAR_OUTLINED } };
     }
     // Mark lines (second + third metric): bar-aligned marks whose styles are
     // user-selectable off the LINE_STYLES blob on capable platforms. The loop
@@ -908,14 +892,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                   .lo = 0, .hi = LINE_HI(second->line.inset_y),
                   .inset_top = LINE_INSET(second->line.inset_y),
                   .inset_bottom = LINE_INSET(second->line.inset_y),
-                  .export_points = area_pts,
+                  .points = area_pts,
                   .color = second->line.color, .width = second->line.width,
                   .style = series_style_pick(second->line, CHART_LINE_SOLID),
                   .zero_absent = LINE_ZERO(second) } };
     }
 
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
-        .values = first->line.values, .count = ds->num_entries,
+        .values = first->line.values, .points = area_pts, .count = ds->num_entries,
         .lo = 0, .hi = TEMP_HI,
         .inset_top = LINE_INSET(first->line.inset_y), .inset_bottom = LINE_INSET(first->line.inset_y),
         .color = first->line.color, .width = first->line.width } };
@@ -983,14 +967,6 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     MEMORY_LOG_HEAP("forecast_update:exit");
 }
 
-static GSize temp_label_string_size(const char *text)
-{
-    const GFont font = bottom_view_label_font();
-    const GRect box = GRect(0, 0, TEMP_LABEL_MEASURE_BOX_W, TEMP_LABEL_MEASURE_BOX_H);
-    return graphics_text_layout_get_content_size(text, font, box, GTextOverflowModeFill,
-                                                 GTextAlignmentRight);
-}
-
 static void text_labels_refresh()
 {
     // Lo/hi are read from the dedicated persisted keys (set by PKJS alongside the trend).
@@ -1005,8 +981,8 @@ static void text_labels_refresh()
         return;
     }
 
-    int content_w = temp_label_string_size(s_buffer_hi).w;
-    const int w_lo = temp_label_string_size(s_buffer_lo).w;
+    int content_w = bottom_view_label_size(s_buffer_hi).w;
+    const int w_lo = bottom_view_label_size(s_buffer_lo).w;
     if (w_lo > content_w)
     {
         content_w = w_lo;

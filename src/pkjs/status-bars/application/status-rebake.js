@@ -49,16 +49,20 @@
 //     on flash came from the send that carried that same bake. So, under
 //     unchanged settings, a re-bake reproduces the text the watch is ALREADY
 //     displaying for every slot but the battery one.
-//   * Every weather-derived slot (temp/feels, city, uv, wind, gust, pressure,
-//     dew, aqi, pollen, plus the wind-direction sentinel byte), the packed
-//     STATUS_LEVELS_UINT8 threshold byte and the weather alerts'
+//   * Every weather-derived slot's text (temp/feels, city, uv, wind, gust,
+//     pressure, dew, aqi, pollen, plus the wind-direction sentinel byte), the
+//     packed STATUS_LEVELS_UINT8 threshold byte and the weather alerts'
 //     ALERT_ENTRIES_UINT8 read frozen payload values, so they re-bake
-//     byte-identically however old the snapshot is.
+//     byte-identically however old the snapshot is. The weather condition's
+//     glyph (the condition slot's, and the city slot's when it shows one) is
+//     the exception: it reads day or night from the frozen SUN_EVENTS at the
+//     re-bake's `now`, so a re-bake across sunrise or sunset switches sun and
+//     moon -- the same switch the sunrise/sunset re-bake (onTick) exists for.
 //   * The `sun` slot formats the epoch frozen in SUN_EVENTS, not the clock, so
 //     an old snapshot re-renders the identical string -- stale in precisely the
 //     way the watch is already stale, never differently stale.
-//   * Three things DO read the clock during a bake, and all three re-derive
-//     FORWARD rather than going stale: the countdown slot and aplite's
+//   * Besides that glyph, three things read the clock during a bake, and all
+//     three re-derive FORWARD rather than going stale: the countdown slot and aplite's
 //     phone-baked ISO week (both from the `now` the re-bake passes in, this
 //     module's clock), and the LIVE_* kinds (date, week, hr, steps,
 //     distance), which carry no baked text at all -- the watch draws them
@@ -87,6 +91,7 @@ var KEYS = require('../../settings/domain/storage-keys.js');
 // outbox.sendWeather pushes (its change-detector still suppresses no-op sends).
 var statusLines = require('../domain/status-lines.js');
 var WEATHER_CATEGORIES = require('../../wire/domain/weather-categories.js');
+var batterySaver = require('../../wire/domain/battery-saver.js');
 
 /**
  * The AppMessage keys a micro-send may carry — the outbox's 'status' category,
@@ -379,14 +384,24 @@ function nightAt(payload, sec) {
  * on the side of the sky it is now: the fetch that runs on the return brings
  * the rest, and a resend before it would carry the old snapshot's values.
  *
+ * It waits while a weather fetch is in flight, whose bake latches the side of the
+ * sky it is on, and inside the battery saver's window (battery-saver.js), which
+ * wakes the watch for nothing: the first tick after it, or the fetch due then,
+ * brings the turn. Nothing is latched while it waits, so a fetch that fails
+ * leaves it to the next tick.
+ *
+ * @param {boolean} [fetchInFlight] Whether a weather fetch is running this tick.
  * @returns {boolean} True when a resend was attempted.
  */
-function onTick() {
+function onTick(fetchInFlight) {
     var src = snapshot || restored;
     var night;
     if (!src) { return false; }
     night = nightNow(src.payload);
     if (night === bakedNight) { return false; }
+    if (fetchInFlight || batterySaver.isWithinSleepWindow(new Date(nowMs()), currentSettings())) {
+        return false;
+    }
     bakedNight = night;
     return resendStatus(night ? 'sunset' : 'sunrise');
 }
@@ -408,13 +423,13 @@ function onTick() {
  * @returns {boolean} True when a send was attempted.
  */
 function resendStatus(reason, onSuccess, onFailure) {
-    var inputs = bakeInputs();
-    var payload;
-    var build;
-    var outgoing = {};
-    var i;
-
-    if (!inputs) {
+    var baked = rebake();
+    if (baked.error) {
+        console.log('status-rebake: re-bake failed, skipping ' + reason + ' send: ' + baked.error.message);
+        if (typeof onFailure === 'function') { onFailure(baked.error); }
+        return false;
+    }
+    if (!baked.status) {
         // Nothing has ever been baked on this phone (no fetch has completed
         // since install, or the stored blob was unusable): there is nothing to
         // re-bake, and the next fetch carries the value anyway.
@@ -422,26 +437,65 @@ function resendStatus(reason, onSuccess, onFailure) {
         if (typeof onSuccess === 'function') { onSuccess(); }
         return false;
     }
+    console.log('status-rebake: status micro-send (' + reason + ').');
+    deps.sendWeather(baked.status, onSuccess, onFailure);
+    return true;
+}
+
+/**
+ * The status keys re-baked from the last bake inputs against the live settings, the clock
+ * and the phone's battery facts: what resendStatus would send, without sending it. The
+ * phone battery's ride-along (phone-battery.js statusRideAlong) hands them to a weather
+ * message that goes out anyway.
+ *
+ * @param {?{supported: boolean, reading: ?Function}} [phone] Battery facts to bake in place
+ *   of the supplier's (phone-battery.js bakeFacts' shape): the ride-along bakes the exact
+ *   reading before it makes it the shown one.
+ * @returns {?Object} The status keys, or null when there is nothing to re-bake or the bake throws.
+ */
+function bakeStatus(phone) {
+    var baked = rebake(phone);
+    if (baked.error) {
+        console.log('status-rebake: re-bake failed: ' + baked.error.message);
+        return null;
+    }
+    return baked.status;
+}
+
+/**
+ * Re-bake a fresh clone of the bake inputs and pick the status category's keys, latching
+ * the day or night it was baked at.
+ *
+ * @param {?Object} [phone] Battery facts to bake in place of the supplier's (bakeStatus).
+ * @returns {{status: ?Object, error: ?Error}} The status keys (null without bake inputs),
+ *   or the error the bake threw.
+ */
+function rebake(phone) {
+    var inputs = bakeInputs();
+    var payload;
+    var build;
+    var outgoing = {};
+    var i;
+
+    if (!inputs) {
+        return { status: null, error: null };
+    }
     payload = shallowClone(inputs.payload);
     var at = nowMs();   // one instant for the latch and the bake
     bakedNight = nightAt(payload, at / 1000);
     build = deps.buildStatusLines || statusLines.buildStatusLines;
     try {
-        build(payload, inputs.settings, inputs.watchInfo, new Date(at), phoneFacts());
+        build(payload, inputs.settings, inputs.watchInfo, new Date(at), phone || phoneFacts());
     }
     catch (ex) {
-        console.log('status-rebake: re-bake failed, skipping ' + reason + ' send: ' + ex.message);
-        if (typeof onFailure === 'function') { onFailure(ex); }
-        return false;
+        return { status: null, error: ex };
     }
     for (i = 0; i < STATUS_KEYS.length; i += 1) {
         if (Object.prototype.hasOwnProperty.call(payload, STATUS_KEYS[i])) {
             outgoing[STATUS_KEYS[i]] = payload[STATUS_KEYS[i]];
         }
     }
-    console.log('status-rebake: status micro-send (' + reason + ').');
-    deps.sendWeather(outgoing, onSuccess, onFailure);
-    return true;
+    return { status: outgoing, error: null };
 }
 
 /**
@@ -489,6 +543,7 @@ module.exports = {
     init: init,
     rememberBakeInputs: rememberBakeInputs,
     resendStatus: resendStatus,
+    bakeStatus: bakeStatus,
     onTick: onTick,
     invalidatePersisted: invalidatePersisted,
     STATUS_KEYS: STATUS_KEYS

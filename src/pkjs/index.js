@@ -441,6 +441,10 @@ Pebble.addEventListener('ready',
             getSettings: function () { return app.settings; },
             now: function () { return new Date(); }
         });
+        // A weather message that goes out anyway takes the phone battery's exact reading
+        // along (bytes, never a wake-up); a fetch's bake shows the reading the watch was
+        // last sent, so the charge drifting inside its bucket sends nothing by itself.
+        outbox.setRideAlong(phoneBattery.statusRideAlong);
         refreshProvider();
         // 7-day localStorage cache GC: caches are re-derivable, so entries older
         // than a week are dropped instead of building up (stale notices, the
@@ -560,11 +564,16 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
  * (update-check-runner.js — the XHR/notify half; update-check.js stays the
  * pure decision), so the extra work per tick is a flag test.
  *
+ * It runs after the tick's fetch decision, so a fetch due this minute is in
+ * flight by then: the push and the day/night re-bake wait for a tick without
+ * one, as that fetch's message carries the same news.
+ *
  * @returns {void}
  */
 function onSchedulerTick() {
-    phoneBattery.onTick();
-    statusRebake.onTick();
+    var fetching = fetchCycle.isInFlight();
+    phoneBattery.onTick(fetching);
+    statusRebake.onTick(fetching);
     updateCheckRunner.runDailyUpdateCheck({
         stores: UPDATE_CHECK_STORES,
         appVersion: pkg.version,

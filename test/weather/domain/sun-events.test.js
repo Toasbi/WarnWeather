@@ -488,3 +488,28 @@ test('the JS night twin matches forecast_night.h\'s emery night arm', () => {
   assert.deepEqual(arms('FORECAST_NIGHT_PAST_LAST'), [1, 0]);
   assert.match(layer, /forecast_start\s*\+ \(ds->num_entries - 1 \+ FORECAST_NIGHT_PAST_LAST\)\s*\* BOTTOM_VIEW_STEP_SECONDS/);
 });
+
+// SUN_EVENTS on the wire: whole minutes. The watch shades the forecast's nights by them, well
+// under a pixel a minute, and the sun slot prints HH:MM; in whole seconds a fix that wandered
+// by a few metres moved the bytes now and then and woke the watch for the same sky.
+test('the sun events ride the wire in whole minutes, the nearest one', () => {
+  const { encodeSunEvents } = require('../../../src/pkjs/weather/domain/sun-events');
+  const bytes = encodeSunEvents([
+    { type: 'sunrise', date: new Date('2026-11-17T06:42:29.700Z') },
+    { type: 'sunset', date: new Date('2026-11-17T15:13:30Z') }
+  ]);
+  assert.equal(bytes[0], 0, 'still opens on a sunrise');
+  const epochs = new Int32Array(new Uint8Array(bytes.slice(1)).buffer);
+  assert.equal(epochs[0], Date.UTC(2026, 10, 17, 6, 42) / 1000, '06:42:29.7 rounds down to 06:42');
+  assert.equal(epochs[1], Date.UTC(2026, 10, 17, 15, 14) / 1000, '15:13:30 rounds up to 15:14');
+});
+
+test('a phone fix that wanders by some metres sends the same sun events', () => {
+  const { encodeSunEvents, nextSunEvents } = require('../../../src/pkjs/weather/domain/sun-events');
+  const now = new Date(Date.UTC(2026, 10, 17, 9, 0));
+  const at = (dLat, dLon) => JSON.stringify(encodeSunEvents(nextSunEvents(now, 52.52 + dLat, 13.405 + dLon)));
+  const here = at(0, 0);
+  // Up to about 45 m off; in whole seconds the last of these packed a sunrise a second later.
+  [[0.0002, 0.0002], [-0.0002, 0.0003], [0.0004, -0.0001], [0.0001, 0.0005], [-0.0004, -0.0004]]
+    .forEach(([dLat, dLon]) => assert.equal(at(dLat, dLon), here, dLat + ', ' + dLon));
+});

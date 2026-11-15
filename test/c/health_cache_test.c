@@ -239,7 +239,7 @@ static void tick_waits_while_pending(void) {
     const time_t H = ANCHOR(4);
     fresh_cache(H);
 
-    s_now = H + STEP;                              // :00 → also (now % 900) == 0
+    s_now = H + STEP;                              // :00, a new 15-minute slot too
     health_cache_tick(false);
     expect_int("wait.bg_armed", timer_pending(), 1);
     reset_counters();
@@ -340,10 +340,116 @@ static void visible_quarter_hour_reread(void) {
     s_now = H + 1800;            // on the cadence but not visible
     health_cache_tick(false);
     expect_int("q15.not_visible", s_reads, 0);
+
+    // A tick that runs late still reads once in its slot: the slot is compared, not
+    // its first second.
+    s_now = H + 1800 + 61;
+    health_cache_tick(true);
+    expect_int("q15.late_tick_reads", s_reads, 1);
+    reset_counters();
+    s_now = H + 1800 + 120;
+    health_cache_tick(true);
+    expect_int("q15.once_per_slot", s_reads, 0);
+
+    // A flick's warm read counts for its slot: the next tick in it reads nothing more.
+    s_now = H + 2700 + 5;
+    health_cache_refresh_current_hour();
+    expect_int("q15.warm_reads", s_reads, 1);
+    reset_counters();
+    s_now = H + 2700 + 60;
+    health_cache_tick(true);
+    expect_int("q15.warm_counts_for_slot", s_reads, 0);
+
+    // The hourly rollover's refill reads the new in-progress hour: its slot counts as read,
+    // so the next visible tick in it reads nothing more.
+    s_now = H + STEP;
+    health_cache_tick(true);
+    drain("q15.rollover");
+    reset_counters();
+    s_now = H + STEP + 60;
+    health_cache_tick(true);
+    expect_int("q15.rollover_counts_for_slot", s_reads, 0);
+}
+
+// Not kept (no configured view can show the graph): the current-hour read, the tick and
+// the save do nothing, so a face showing health only in status rows reads no hourly
+// history and writes no snapshot.
+static void unkept_cache_reads_and_writes_nothing(void) {
+    const time_t H = ANCHOR(9);
+    fresh_cache(H);
+    health_cache_keep(false);
+
+    s_now = H + 900 + 30;          // same hour, a new 15-minute slot
+    health_cache_refresh_current_hour();
+    expect_int("unkept.warm_reads", s_reads, 0);
+    health_cache_tick(true);
+    expect_int("unkept.quarter_reads", s_reads, 0);
+
+    s_now = H + STEP;              // the hour rollover
+    health_cache_tick(true);
+    expect_int("unkept.rollover_reads", s_reads + s_sleep_iters + s_peeks, 0);
+    expect_int("unkept.rollover_no_timer", timer_pending(), 0);
+
+    p_present = 0;
+    health_cache_persist_save();
+    expect_int("unkept.no_save", p_present, 0);
+}
+
+// Keeping turned on fills the cache as the boot does: a fresh-enough snapshot slid to
+// this hour, else a full build behind the loading frame. Asked again while kept, it
+// does nothing. Runs after the test above, so the cache starts unkept and stale.
+static void keeping_on_restores_or_builds(void) {
+    const time_t H = ANCHOR(10);
+    for (int i = 0; i < N; i++) { p_steps[i] = (int16_t)(1000 + i); p_hr[i] = 50; p_sleep[i] = HEALTH_SLEEP_DEEP; }
+    p_end_hour = H;
+    p_present = 1;
+    s_now = H + STEP + 30;                         // an hour on: fresh enough
+    reset_counters();
+    health_cache_keep(true);
+    expect_int("keep.restore.inline_reads", s_reads, 0);
+    expect_int("keep.restore.ready_now", health_cache_ready(), 1);
+    expect_int("keep.restore.bg_armed", timer_pending(), 1);
+    int16_t st[N], hr[N];
+    uint8_t sl[N];
+    expect_int("keep.restore.anchor", (long)health_cache_read(st, hr, sl, N), (long)(H + STEP));
+    expect_int("keep.restore.slid_step0", st[0], 1001);
+    drain("keep.restore");
+    // The top-up read the in-progress hour: its 15-minute slot counts as read.
+    reset_counters();
+    health_cache_tick(true);
+    expect_int("keep.restore.slot_read", s_reads + s_peeks, 0);
+
+    reset_counters();
+    health_cache_keep(true);                       // already kept
+    expect_int("keep.again.reads", s_reads + s_sleep_iters + s_peeks, 0);
+    expect_int("keep.again.no_timer", timer_pending(), 0);
+
+    health_cache_keep(false);                      // off, then on with no snapshot
+    p_present = 0;
+    reset_counters();
+    health_cache_keep(true);
+    expect_int("keep.build.loading", health_cache_ready(), 0);
+    expect_int("keep.build.defer_ms", (long)s_timer_ms, 1500);
+    drain("keep.build");
+    expect_int("keep.build.reads", s_reads, N + N - 1);
+    expect_int("keep.build.ready", health_cache_ready(), 1);
+    reset_counters();
+    health_cache_tick(true);
+    expect_int("keep.build.slot_read", s_reads + s_peeks, 0);
+
+    s_now = H + 2 * STEP + 30;                     // kept: the tick rolls it again
+    health_cache_tick(false);
+    expect_int("keep.tick_rolls", timer_pending(), 1);
+    drain("keep.tick");
+    health_cache_persist_save();
+    expect_int("keep.saves", p_present, 1);
 }
 
 int main(void) {
     health_cache_set_repaint(count_repaint);
+    // The face keeps the cache while a view can show the graph; these tests do.
+    health_cache_keep(true);
+    drain("keep.boot");
     tick_rollover_is_sliced();
     full_build_slices();
     refresh_current_hour_inline_and_guarded();
@@ -352,6 +458,8 @@ int main(void) {
     restore_fresh_paints_first();
     restore_stale_and_too_old();
     visible_quarter_hour_reread();
+    unkept_cache_reads_and_writes_nothing();
+    keeping_on_restores_or_builds();
     if (s_failures) { printf("%d health_cache failure(s)\n", s_failures); return 1; }
     printf("health_cache OK\n");
     return 0;

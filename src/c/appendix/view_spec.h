@@ -70,7 +70,6 @@ typedef struct {
     uint8_t status_upper;   // StatusSource feeding the upper status band
     uint8_t status_lower;   // StatusSource feeding the lower (forecast-abutting) band
     uint8_t status_tier;    // LayoutTier the status rows render at
-    uint8_t weights[3];     // calendar/time/bottom band weights
 #if defined(WW_VIEW_CYCLE)
     // Custom-layout fields, decoded from wire bits 10/11/12-15 (view-cycle.js packSpec).
     // Guarded on the flick-cycle feature macro because custom layouts are a colour-platform

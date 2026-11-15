@@ -378,6 +378,67 @@ test('config close: a NACKed re-bake still runs the overlay clear', function () 
 // used to arm none, so its settings waited for the next midnight while the
 // forced fetch after it still landed — alert entries against an old blob.
 
+// A NACKed settings message is resent by the tick (the day-change resend, or the theme
+// flip with Theme switching on), backing off while it keeps NACKing: after 1 and 2
+// minutes, then every 4, each resend the whole bundle. Any ACK ends it. The cap stays
+// short: PKJS cannot see an unreachable watch come back, so it bounds how late settings
+// saved during an outage arrive.
+test('a settings message that keeps NACKing is resent after 1, 2, then every 4 minutes', function () {
+    resetStore();
+    var h = makeHarness();
+    localStorage.setItem(KEYS.LAST_HOLIDAY_DAY_KEY, '2026-6-7');
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    h.nackClay();
+    h.flushTimers();                   // the re-bake
+    var resentAt = [];
+    h.scheduler.start();               // minute 1
+    for (var minute = 1; minute <= 30; minute += 1) {
+        if (h.calls.sendClay.length > 1 + resentAt.length) {
+            resentAt.push(minute);
+            h.nackClay();
+        }
+        h.flushTimers();               // the next minute's tick
+    }
+    assert.deepEqual(resentAt, [1, 3, 7, 11, 15, 19, 23, 27]);
+});
+
+test('an ACK ends the backoff: the next NACK is resent a minute later again', function () {
+    resetStore();
+    var h = makeHarness();
+    localStorage.setItem(KEYS.LAST_HOLIDAY_DAY_KEY, '2026-6-7');
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    h.nackClay();
+    h.flushTimers();
+    h.scheduler.start();               // resend 1
+    h.nackClay();
+    h.flushTimers();                   // waits
+    h.flushTimers();                   // resend 2
+    assert.equal(h.calls.sendClay.length, 3);
+    h.ackClay();
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    assert.equal(h.calls.sendClay.length, 4, 'a config close sends at once, backoff or not');
+    h.nackClay();
+    h.flushTimers();                   // the re-bake and the next tick
+    assert.equal(h.calls.sendClay.length, 5, 'the backoff starts over at one minute');
+});
+
+test('the theme flip waits out a settings backoff too, then rides the resend', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.stampToday();
+    h.themeId.value = 'light';
+    h.scheduler.start();
+    h.nackClay();                      // the first tick's reconcile send
+    h.tick();                          // resend 1
+    assert.equal(h.calls.sendClay.length, 2);
+    h.nackClay();
+    h.themeId.value = 'dark';          // a sunset meanwhile
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'the flip waits out the two-minute backoff');
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 3, 'then one send carries it');
+});
+
 test('a NACKed config-close Clay is retried by the next tick, until one is ACKed', function () {
     resetStore();
     var h = makeHarness();
@@ -392,7 +453,9 @@ test('a NACKed config-close Clay is retried by the next tick, until one is ACKed
     assert.equal(h.calls.sendClay.length, 2, 'the tick re-delivers the settings');
     h.nackClay();
     h.flushTimers();
-    assert.equal(h.calls.sendClay.length, 3, 'and keeps retrying while it NACKs');
+    assert.equal(h.calls.sendClay.length, 2, 'a second NACK waits two minutes');
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'and then retries');
     h.ackClay();
     assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), '2026-6-7');
     h.flushTimers();
@@ -641,7 +704,9 @@ test('holiday data: a NACKed resend is retried by the next tick, until one is AC
     assert.equal(h.calls.sendClay.length, 2, 'the tick resends the mask');
     h.nackClay();                       // still no link
     h.flushTimers();
-    assert.equal(h.calls.sendClay.length, 3, 'and keeps retrying while it NACKs');
+    assert.equal(h.calls.sendClay.length, 2, 'a second NACK waits two minutes');
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'and then retries');
     h.ackClay();
     assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), '2026-11-1');
     h.flushTimers();
@@ -732,7 +797,9 @@ test('a NACKed handshake Clay is retried by the next tick with Theme switching o
     assert.equal(h.calls.sendClay.length, 2, 'the tick re-delivers the config');
     h.nackClay();
     h.flushTimers();
-    assert.equal(h.calls.sendClay.length, 3, 'and keeps retrying while it NACKs');
+    assert.equal(h.calls.sendClay.length, 2, 'a second NACK waits two minutes');
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'and then retries');
     h.ackClay();
     h.flushTimers();
     assert.equal(h.calls.sendClay.length, 3, 'an ACK ends the retries');

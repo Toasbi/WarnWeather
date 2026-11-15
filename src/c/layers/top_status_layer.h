@@ -23,5 +23,8 @@ void top_status_layer_refresh();
 
 void top_status_layer_destroy();
 
-// Whether the active packed line(s) contain a live health slot.
-bool top_status_layer_uses_live_health(void);
+#if defined(PBL_HEALTH)
+// The health readings the strip's active packed line shows (services/health_summary.h
+// HEALTH_SUMMARY_*), 0 for none. Health watches only: aplite's lean twin has no health.
+uint8_t top_status_layer_live_health(void);
+#endif

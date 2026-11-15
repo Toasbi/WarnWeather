@@ -217,11 +217,6 @@ void status_row_set_battery_override(StatusRow *row, bool active) {
     }
 }
 
-bool status_row_uses_live_health(const StatusRow *row) {
-    (void)row;
-    return false;
-}
-
 bool status_row_refresh(StatusRow *row) {
     if (!row) { return false; }
     uint16_t sig = 5381;

@@ -43,8 +43,9 @@ var WEATHER_CATEGORIES = [
         comparator: radarDedupe.radarComparator
     },
     {
-        // The radar's sky rows (radar-sky.js): an absolute-start blob, so an
-        // exact compare is right — it only changes when the sky or its slot does.
+        // The radar's sky rows (radar-sky.js): an absolute-start blob, so an exact compare
+        // is right. Asked once per half hour and re-served byte for byte in between
+        // (fetch-cycle.js), it changes when a new half hour's request brings it.
         name: 'sky',
         cacheKey: KEYS.LAST_SENT_SKY_KEY,
         keys: ['RADAR_SKY_UINT8']

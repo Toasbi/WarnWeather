@@ -1,6 +1,7 @@
 // The watchface's layering (docs/adr/0005-architecture-rules.md, section 4), checked over its
 // #include graph: windows -> layers -> appendix and services, never upward; no include cycles;
-// HealthService only in services/health.c; minute ticks only.
+// HealthService only in services/health.c; the persist API only in appendix/persist_store.{c,h};
+// minute ticks only.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -91,6 +92,15 @@ test('the include graph has no cycles', () => {
 test('HealthService is called from services/health.c only', () => {
   const callers = FILES.filter((f) => /\bhealth_service_\w+\s*\(/.test(code(f)));
   assert.deepEqual(callers, ['services/health.c']);
+});
+
+// persist_store.c keeps a RAM copy of the store (emery) that only its own writes keep exact:
+// a read or a write anywhere else would go around it. Its header forwards each call to the
+// SDK on the other watches.
+test('the persist API is called from appendix/persist_store.{c,h} only', () => {
+  const sdk = /\bpersist_(exists|get_size|read_\w+|write_\w+|delete)\s*\(/;
+  const callers = FILES.filter((f) => sdk.test(code(f)));
+  assert.deepEqual(callers, ['appendix/persist_store.c', 'appendix/persist_store.h']);
 });
 
 test('the watchface ticks by the minute (and the day), never by the second', () => {

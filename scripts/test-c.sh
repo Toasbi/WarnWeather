@@ -37,6 +37,13 @@ build/host/config_size_test_emery
 cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
    test/c/config_size_test.c -o build/host/config_size_test_aplite
 build/host/config_size_test_aplite
+# The Bluetooth disconnect vibe (services/disconnect_vibe.h): a drop buzzes only while Quiet
+# Time is off.
+cc $CFLAGS test/c/disconnect_vibe_test.c -o build/host/disconnect_vibe_test
+build/host/disconnect_vibe_test
+# Timeline Quick View (services/quick_view.c): one re-render per show or hide, once it settles.
+cc $CFLAGS -DWW_QUICK_VIEW test/c/quick_view_test.c src/c/services/quick_view.c -o build/host/quick_view_test
+build/host/quick_view_test
 cc $CFLAGS test/c/health_build_test.c src/c/services/health_build.c -o build/host/health_build_test
 build/host/health_build_test
 cc $CFLAGS test/c/health_test.c src/c/services/health.c -o build/host/health_test
@@ -254,18 +261,18 @@ cc $CFLAGS -DWW_COLOR_BACKLIGHT test/c/night_light_window_test.c -o build/host/n
 build/host/night_light_window_test_color
 
 # The third side of the same feature: the NIGHT_LIGHT persist accessors, run for
-# real. appendix/persist.c needs nothing from the SDK but the persistent-storage
-# syscalls, so the test fakes those over a RAM map and EXECUTES
+# real. appendix/persist.c (through persist_store.c) needs nothing from the SDK but the
+# persistent-storage syscalls, so the test fakes those over a RAM map and EXECUTES
 # persist_set/get_night_light — which is what pins the change gating (a re-save of
 # identical bytes must not reach flash) and the getter's short-read guard, neither
 # of which any header-only test can reach. Built TWICE, once per term of persist.h's
 # NIGHT_LIGHT_SUPPORTED gate, so both spellings are proven to DEFINE the accessors
 # rather than merely declare them.
 cc $CFLAGS -DPBL_RGB_BACKLIGHT test/c/night_light_persist_test.c src/c/appendix/persist.c \
-   -o build/host/night_light_persist_test
+   src/c/appendix/persist_store.c -o build/host/night_light_persist_test
 build/host/night_light_persist_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR test/c/night_light_persist_test.c src/c/appendix/persist.c \
-   -o build/host/night_light_persist_test_emery
+   src/c/appendix/persist_store.c -o build/host/night_light_persist_test_emery
 build/host/night_light_persist_test_emery
 
 # The LINE_STYLES byte decode (per-line marker styles, wire bytes [9..11] of
@@ -306,15 +313,24 @@ build/host/radar_sky_test
 # bound). The accessors are unguarded, so the plain host build must define them.
 cc $CFLAGS test/c/radar_limit_test.c -o build/host/radar_limit_test
 build/host/radar_limit_test
-cc $CFLAGS test/c/radar_notice_persist_test.c src/c/appendix/persist.c \
+cc $CFLAGS test/c/radar_notice_persist_test.c src/c/appendix/persist.c src/c/appendix/persist_store.c \
    -o build/host/radar_notice_persist_test
 build/host/radar_notice_persist_test
 # Where the status lines live in flash: the first four side by side, bars 4 to 6's lines and
 # On demand cells in the slots appended for them (emery). Built for emery, with On demand
 # (whose accessors the cells ride), and plain.
 cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR -DWW_ON_DEMAND test/c/status_line_persist_test.c \
-   src/c/appendix/persist.c -o build/host/status_line_persist_test_emery
+   src/c/appendix/persist.c src/c/appendix/persist_store.c -o build/host/status_line_persist_test_emery
 build/host/status_line_persist_test_emery
-cc $CFLAGS test/c/status_line_persist_test.c src/c/appendix/persist.c \
+cc $CFLAGS test/c/status_line_persist_test.c src/c/appendix/persist.c src/c/appendix/persist_store.c \
    -o build/host/status_line_persist_test
 build/host/status_line_persist_test
+# persist_store.c's RAM copy of the store (emery only): a key's second read costs no flash
+# call, absent keys too, and every write keeps the copy exact. Built again with an arena the
+# test fills, so the way back to the flash runs too.
+cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR test/c/persist_store_test.c src/c/appendix/persist_store.c \
+   -o build/host/persist_store_test_emery
+build/host/persist_store_test_emery
+cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR -DSTORE_CACHE_BYTES=384 test/c/persist_store_test.c \
+   src/c/appendix/persist_store.c -o build/host/persist_store_test_small
+build/host/persist_store_test_small

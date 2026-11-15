@@ -6,6 +6,7 @@
 #include "c/appendix/radar_sky.h"
 #include "c/appendix/status_line.h"
 #include "c/appendix/status_threshold.h"
+#include "c/services/health.h"
 #include "rain_radar_layer.h"
 #include "status_on_demand.h"
 
@@ -15,7 +16,10 @@
 // update procs and event handlers one at a time and never nests them, and every user
 // fills its member at the start of its pass before reading it, so the members can
 // overlay: the block is as big as the largest one, the forecast's, not their sum.
-// Never keep a pointer into it past the pass that filled it.
+// Never keep a pointer into it past the pass that filled it. The health service's
+// hourly reads are such a pass too, in an event handler: the window lends them the
+// block for their minute records (services/health.h health_set_minute_scratch), which
+// they fill and consume within one call.
 //
 // The member types live here, with their owners named, so the union sees them all.
 // aplite links only the forecast's (its status row is the twin, it has no health
@@ -45,8 +49,9 @@ typedef struct {
 #endif
 
 // forecast_update_proc: the dataset, its layer list (the plot's, then each stripe
-// band's), the area fill's exported contour, the hour axis, the night bands and the
-// rain bars' palette rescaled to the wire range.
+// band's), the lines' vertices and the area fill's contour (one buffer: chart.h
+// ChartLineLayer.points), the hour axis, the night bands and the rain bars' palette
+// rescaled to the wire range.
 typedef struct {
     ForecastDataset ds;
     ChartLayer      layers[SERIES_COUNT + 6];
@@ -61,9 +66,10 @@ typedef struct {
 } ForecastPaint;
 
 // health_graph_update_proc: its layer list (sleep, gridlines, bars, HR, clamp dots,
-// frame, axis), the hour axis and the bars' one colour stop.
+// frame, axis), the HR line's vertices, the hour axis and the bars' one colour stop.
 typedef struct {
     ChartLayer     layers[7];
+    GPoint         hr_pts[MAX_BOTTOM_VIEW_ENTRIES];
     ChartAxisSlot  axis_slots[MAX_BOTTOM_VIEW_ENTRIES];
     ChartColorStop step_stops[1];
 } HealthPaint;
@@ -89,6 +95,9 @@ typedef union {
     HealthPaint   health;
     RadarPaint    radar;
     StatusRowPass row;
+#if defined(PBL_HEALTH)
+    HealthMinuteData health_minutes[HEALTH_MINUTE_RECORDS];   // services/health.c's reads
+#endif
 } PaintScratch;
 
 extern PaintScratch g_paint_scratch;

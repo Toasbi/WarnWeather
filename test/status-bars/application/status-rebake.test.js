@@ -1,7 +1,7 @@
 'use strict';
 const { withHost } = require('../../helpers/rebake-host.js');
 // status-rebake.js' own contract, apart from its phone-battery trigger (whose
-// micro-send tests live in phone-battery.test.js): the resend reports back
+// micro-send tests live in status-rebake-battery.test.js): the resend reports back
 // through exactly one callback, which is what lets the config close chain the
 // forced fetch behind it on the half-duplex channel.
 const test = require('node:test');
@@ -204,10 +204,59 @@ test('a resend for another reason counts as the bake of its side of sunset', () 
   assert.equal(sends.length, 1);
 });
 
-test('the scheduler\'s minute tick runs the day/night check (index.js onSchedulerTick)', () => {
+test('the battery saver: no sunrise or sunset re-bake inside its window; the first tick after sends', () => {
+  storage = {};
+  const at = (h, m) => new Date(2026, 5, 16, h, m).getTime();
+  const SUNRISE = at(4, 45) / 1000;
+  const SUNSET = at(21, 30) / 1000;
+  let now = at(0, 30);
+  const sends = [];
+  const settings = { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' };
+  statusRebake.init(withHost({ getSettings: () => settings, sendWeather: (p) => sends.push(p),
+    buildStatusLines: fakeBake, now: () => now }));
+  statusRebake.rememberBakeInputs({ SUN_EVENTS: sunEvents(0, SUNRISE, SUNSET) }, null);
+  now = SUNRISE * 1000;
+  assert.equal(statusRebake.onTick(false), false, 'sunrise inside [0, 7): nothing goes out');
+  now = at(6, 59);
+  assert.equal(statusRebake.onTick(false), false);
+  assert.equal(sends.length, 0);
+  now = at(7, 0);
+  assert.equal(statusRebake.onTick(false), true, 'the window over, the day shows');
+  assert.equal(sends.length, 1);
+  assert.equal(statusRebake.onTick(false), false, 'once');
+  now = SUNSET * 1000;
+  assert.equal(statusRebake.onTick(false), true, 'a sunset outside the window turns it at once');
+});
+
+test('a tick with a fetch in flight leaves the sunset to that fetch\'s bake', () => {
+  storage = {};
+  const T = 1700000000;
+  const SUNSET = T + 3600;
+  let now = T * 1000;
+  const sends = [];
+  statusRebake.init(withHost({ getSettings: () => ({}), sendWeather: (p) => sends.push(p),
+    buildStatusLines: fakeBake, now: () => now }));
+  const payload = { SUN_EVENTS: sunEvents(1, SUNSET, T + 13 * 3600) };
+  statusRebake.rememberBakeInputs(payload, null);
+  now = SUNSET * 1000;
+  assert.equal(statusRebake.onTick(true), false, 'the fetch in flight bakes the night');
+  assert.equal(sends.length, 0);
+  statusRebake.rememberBakeInputs(payload, null, new Date(now));   // ...and it did
+  assert.equal(statusRebake.onTick(false), false, 'nothing left to turn');
+  // A fetch that never bakes (it failed) leaves it to the next tick without one.
+  now = (T + 13 * 3600) * 1000;
+  assert.equal(statusRebake.onTick(true), false);
+  assert.equal(statusRebake.onTick(false), true, 'the next tick turns it');
+  assert.equal(sends.length, 1);
+});
+
+test('the scheduler\'s minute tick runs the day/night check, told whether a fetch is in flight', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
   const body = src.slice(src.indexOf('function onSchedulerTick() {'));
-  assert.ok(body.slice(0, body.indexOf('\n}')).indexOf('statusRebake.onTick();') > 0);
+  const tick = body.slice(0, body.indexOf('\n}'));
+  assert.ok(tick.indexOf('statusRebake.onTick(fetching);') > 0);
+  assert.ok(tick.indexOf('phoneBattery.onTick(fetching);') > 0);
+  assert.ok(tick.indexOf('fetchCycle.isInFlight()') > 0);
 });
 
 test('init without a clock is refused at once, not at the first tick', () => {

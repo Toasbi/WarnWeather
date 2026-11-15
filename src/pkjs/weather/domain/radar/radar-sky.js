@@ -22,6 +22,12 @@
 // watch self-advances the radar between fetches). Each cloud and sun byte is
 // already one of the stripe's five level bytes, the level picked on the row's own
 // scale (skyByte, ../stripe-levels.js), so the watch draws exactly that level.
+//
+// Cadence: the phone asks for the sky once per UTC half hour (REFRESH_SECONDS,
+// fetch-cycle.js's sky throttle) and the watch draws the one it holds until the
+// next, so a sky carries one slot past the window (NUM_SLOTS). The fetches in between
+// re-serve that half hour's sky byte for byte, so the outbox's exact compare sends it
+// once per request.
 
 var SunCalc = require('suncalc');
 var cloudCover = require('../cloud-cover.js');
@@ -29,10 +35,19 @@ var radarWire = require('./radar-wire.js');
 var stripeLevels = require('../../../forecast-graphs/domain/stripe-levels.js');
 
 var SLOT_SECONDS = 15 * 60;
-// Slots that always cover the radar window: 120 min from a 5-min pinned slot 0
-// spans at most nine quarter-hours when slot 0 is not itself on a quarter hour.
-var NUM_SLOTS = Math.ceil((radarWire.NUM_BARS * radarWire.SLOT_SECONDS + SLOT_SECONDS - radarWire.SLOT_SECONDS)
-    / SLOT_SECONDS);
+// The radar window, in seconds: 24 five-minute slots from slot 0. It reaches into nine
+// quarter hours when slot 0 is not itself on a quarter hour.
+var WINDOW_SECONDS = radarWire.NUM_BARS * radarWire.SLOT_SECONDS;
+// How often the phone asks for the sky: once per UTC half hour, the shared Rainbow
+// radar's cadence (radar-factory.js RADAR_MIN_REQUEST_INTERVAL_MS). The rows are
+// cloud and sun forecasts for the next two hours, which a quarter hour more or less
+// of age does not change; between two requests the watch draws the sky it holds.
+var REFRESH_SECONDS = 30 * 60;
+// The slots a sky carries: enough to cover the window until the next refresh, wherever
+// in its half hour the sky was asked for. Asked on the half hour it starts there, and the
+// window's last radar slot just before the next one starts 25 min later: 145 min, ten
+// quarter hours, one past the window's nine. radar_sky.h takes up to 16.
+var NUM_SLOTS = Math.ceil((WINDOW_SECONDS + REFRESH_SECONDS - radarWire.SLOT_SECONDS) / SLOT_SECONDS);
 // The share of a clear sky's direct beam that already counts as 100 % sun
 // strength (the sun row's scale draws full colour from 90 % of that), fitted
 // in the same satellite comparison (2888 daytime quarter hours): a clear day
@@ -310,6 +325,7 @@ function joinRadarAndSky(startRadar, startSky, callback) {
 
 module.exports = {
     SLOT_SECONDS: SLOT_SECONDS,
+    REFRESH_SECONDS: REFRESH_SECONDS,
     NUM_SLOTS: NUM_SLOTS,
     SUN_FULL_CLEAR_SHARE: SUN_FULL_CLEAR_SHARE,
     SUN_MIN_ELEVATION_DEG: SUN_MIN_ELEVATION_DEG,

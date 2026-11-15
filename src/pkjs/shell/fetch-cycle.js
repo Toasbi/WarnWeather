@@ -30,6 +30,7 @@ var radarFactory = require('../weather/adapter/radar-factory.js');
 var radarWire = require('../weather/domain/radar/radar-wire.js');
 var radarSky = require('../weather/domain/radar/radar-sky.js');
 var radarSkySource = require('../weather/adapter/radar/radar-sky-source.js');
+var requestThrottle = require('../weather/adapter/radar/request-throttle.js');
 var radarCoverageStore = require('../weather/adapter/radar/radar-coverage-store.js');
 var WeatherProvider = require('../weather/adapter/provider.js');
 var renderPayload = require('../weather/application/render-payload.js');
@@ -40,7 +41,6 @@ var KEY_FETCH_ATTEMPT = storageKeys.FETCH_ATTEMPT_KEY;
 var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
 var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
-var KEY_RADAR_REQUEST = storageKeys.RADAR_REQUEST_THROTTLE_KEY;
 var KEY_SERVER_STREAK = storageKeys.SERVER_FAILURE_STREAK_KEY;
 // How long an in-flight weather fetch may run before it is presumed lost. A
 // healthy chain is bounded by its own timeouts, step after step: the GPS fix
@@ -62,21 +62,10 @@ var FAILURE_BACKOFF_BASE_MS = 60 * 1000;
 
 // --- fetch cadence ----------------------------------------------------------
 // When-do-we-fetch vocabulary, read by shouldFetchNow (isRefreshDue and
-// isFailureBackoffActive). It sat in battery-saver.js by historical accident,
-// then in channel-scheduler.js; it lives with its only reader now. Static on
-// the factory: the cadence probe is stateless and shared.
-/**
- * Slot-boundary check: true when `nowMs` sits in a later interval slot than
- * `lastTimeMs`. Slots are UTC-aligned chunks of `intervalMs` since the epoch.
- *
- * @param {number} lastTimeMs Last successful fetch epoch ms.
- * @param {number} nowMs Current epoch ms.
- * @param {number} intervalMs Refresh interval in ms.
- * @returns {boolean} True when a new slot has begun.
- */
-function isPastRefreshSlot(lastTimeMs, nowMs, intervalMs) {
-    return Math.floor(nowMs / intervalMs) > Math.floor(lastTimeMs / intervalMs);
-}
+// isFailureBackoffActive). A refresh slot is a request throttle's slot
+// (request-throttle.js isPastSlot: UTC-aligned chunks of the interval since the
+// epoch). Static on the factory: the cadence probe is stateless and shared.
+var isPastRefreshSlot = requestThrottle.isPastSlot;
 
 /**
  * How long a scheduled (non-forced) refresh waits after a failed attempt: one
@@ -205,94 +194,24 @@ function watchMayShowForecast(now) {
     }
 }
 
-// --- radar request throttle -------------------------------------------------
-// A throttled radar source (radar-factory.js RADAR_MIN_REQUEST_INTERVAL_MS: the
-// shared Rainbow proxy) is asked once per UTC-aligned slot, wherever the watch is:
-// the throttle is purely time-based and keeps no position. The record of that
-// request lives in localStorage (RADAR_REQUEST_THROTTLE_KEY), read and written at
-// call time only (see the load-time invariant above).
-
-/**
- * The persisted last radar request of a throttled source, or null when missing/unreadable.
- * Only id and at are required; any other field (the lat/lon an earlier dev build stored)
- * is ignored.
- * @returns {?{id: string, at: number, tuples: ?Object}} Record.
- */
-function readRadarRequest() {
-    try {
-        var rec = JSON.parse(localStorage.getItem(KEY_RADAR_REQUEST));
-        return (rec && typeof rec.id === 'string' && typeof rec.at === 'number' && isFinite(rec.at)) ? rec : null;
-    } catch (e) { return null; }
-}
-
-/**
- * Decide this cycle's radar request, recording it when it goes out. Throttled sources
- * (radarFactory.minRequestIntervalMs > 0) get one request per UTC-aligned slot of that
- * length — the isPastRefreshSlot rule, so a 5/10/15-min cadence asks at :00 and :30 with
- * no tick-drift skips. Recorded BEFORE the request: failures and timeouts count, so a
- * failing proxy is not hammered. It asks anyway when forced (settings change incl.
- * switching to the source, the watch reporting no forecast, reset). Any other radar step
- * (another source, radar off, a source that can never answer) forgets the record.
- *
- * Accepted edge cases:
- * - A forced fetch next to a slot boundary (say 10:28) plus the scheduled one right after
- *   it (10:30) make two requests: at most one extra request per forced fetch.
- * - A move within the slot does not ask again: the throttle keeps no position, so the
- *   throttled cycles re-serve the slot's answer (its window, limit notice or clear) for
- *   the place it was asked for, and the next slot asks for the new position.
- * @param {string} radarId Resolved radar id ('disabled' when radar is off).
- * @param {Object} radarCfg The radar config createRadarSource got.
- * @param {number} nowMs Current epoch ms.
- * @param {boolean} force Whether this fetch was forced.
- * @returns {{request: boolean, tuples: ?Object}} request false = throttled; tuples = the
- *   slot's answer to re-serve then, a real window, the limit notice or the clear (null =
- *   none: the radar branch answers null).
- */
-function takeRadarRequestSlot(radarId, radarCfg, nowMs, force) {
-    var minMs = radarFactory.minRequestIntervalMs(radarId);
-    try {
-        if (!(minMs > 0) || !radarFactory.canAnswer(radarId, radarCfg)) {
-            if (localStorage.getItem(KEY_RADAR_REQUEST) !== null) { localStorage.removeItem(KEY_RADAR_REQUEST); }
-            return { request: true, tuples: null };
-        }
-        var last = readRadarRequest();
-        if (!force && last && last.id === radarId && nowMs >= last.at
-                && !isPastRefreshSlot(last.at, nowMs, minMs)) {
-            return { request: false, tuples: last.tuples || null };
-        }
-        localStorage.setItem(KEY_RADAR_REQUEST, JSON.stringify({ id: radarId, at: nowMs }));
-    } catch (e) {
-        // A full/broken store: request anyway. This runs inside the async coordinates
-        // callback, outside start()'s try, so it must not throw.
-    }
-    return { request: true, tuples: null };
-}
-
-/**
- * Keep a throttled source's answer on the request record that asked for it, for the
- * throttled cycles of the same slot to re-serve (the outbox dedupe makes that a no-op once
- * it is on the watch; after a failed forecast, a NACK or the watchdog it is what gets it
- * there). A real window is kept, and so is the limit notice (radarWire.limitedRadarTuples):
- * the source refused this slot, and the watch should say so until the next slot asks
- * again. So is the clear (radarWire.clearRadarTuples; e.g. a proxy 404/405, the proxy
- * missing): without it a NACKed clear would leave the watch rolling its old window
- * forward until the next slot asks again. A null (transient) is not kept.
- * @param {string} radarId The source that answered.
- * @param {number} atMs The request's record time (takeRadarRequestSlot's nowMs).
- * @param {?Object} tuples The source's answer.
- * @returns {void}
- */
-function rememberRadarAnswer(radarId, atMs, tuples) {
-    if (!tuples) { return; }
-    try {
-        var rec = readRadarRequest();
-        if (!rec || rec.id !== radarId || rec.at !== atMs) { return; }   // a later request owns the record
-        rec.tuples = tuples;
-        localStorage.setItem(KEY_RADAR_REQUEST, JSON.stringify(rec));
-    } catch (e) {
-        // Best effort: without it a throttled cycle answers null, as before.
-    }
-}
+// --- request throttles ------------------------------------------------------
+// One request per UTC-aligned slot of a source's interval, the cycles in between
+// re-serving the slot's answer (request-throttle.js).
+// The radar's (radar-factory.js minRequestIntervalMs: the shared Rainbow proxy) records
+// its request before it goes out, so failures and timeouts count and a failing proxy is
+// not hammered. It keeps a real window, the limit notice (radarWire.limitedRadarTuples:
+// the source refused this slot, and the watch should say so until the next slot asks
+// again) and the clear (radarWire.clearRadarTuples; e.g. a proxy 404/405, the proxy
+// missing: without it a NACKed clear would leave the watch rolling its old window forward
+// until the next slot asks again).
+var radarThrottle = requestThrottle.createRequestThrottle({
+    key: storageKeys.RADAR_REQUEST_THROTTLE_KEY, answerField: 'tuples', failuresCount: true
+});
+// The sky rows' (radar-sky-source.js minRequestIntervalMs, with its accepted edge case)
+// keeps a request only with its answer, so a failed one asks again next cycle.
+var skyThrottle = requestThrottle.createRequestThrottle({
+    key: storageKeys.SKY_REQUEST_THROTTLE_KEY, answerField: 'tuple', failuresCount: false
+});
 
 // --- one cycle's chain ------------------------------------------------------
 // Resolve device coordinates ONCE per refresh cycle, then drive radar and
@@ -356,7 +275,8 @@ function runCycle(deps) {
  * @param {function():?Object} [deps.getPhoneBattery] The phone's battery facts for the bake
  *   (phone-battery.js bakeFacts); absent = a host that cannot read the phone's battery.
  * @param {function(Function, number):*} deps.setTimeout Timer function (the watchdog and the queued-force drain; wrap the native one — see index.js).
- * @returns {{shouldFetchNow: function():boolean, start: function(boolean):boolean}} The fetch cycle.
+ * @returns {{shouldFetchNow: function():boolean, start: function(boolean):boolean, isInFlight: function():boolean}}
+ *   The fetch cycle.
  */
 function createFetchCycle(deps) {
     var fetchInProgress = false;
@@ -396,7 +316,7 @@ function createFetchCycle(deps) {
      * @param {number} lat Latitude in decimal degrees.
      * @param {number} lon Longitude in decimal degrees.
      * @param {boolean} force Whether this fetch was forced (bypasses the radar
-     *   request throttle, see takeRadarRequestSlot).
+     *   request throttle, see request-throttle.js).
      * @param {Function} callback Receives the radar and/or sky tuples, or null.
      * @returns {void}
      */
@@ -433,11 +353,15 @@ function createFetchCycle(deps) {
         var source = radarFactory.createRadarSource(radarId, radarCfg);
         // The sky rows ride the radar graph: a radar source that can never answer draws
         // no graph, so the sky request would be wasted — clear the rows instead.
-        var skySource = radarSkySource.createSkySource(radarFactory.canAnswer(radarId, radarCfg)
-            ? radarSky.skySourceIdFor(settings) : 'disabled');
+        var radarCanAnswer = radarFactory.canAnswer(radarId, radarCfg);
+        var skyId = radarCanAnswer ? radarSky.skySourceIdFor(settings) : 'disabled';
+        var skySource = radarSkySource.createSkySource(skyId);
         var nowMs = +deps.now();
         var slotZeroEpoch = radarWire.slotZeroEpochFor(nowMs);
-        var slot = takeRadarRequestSlot(radarId, radarCfg, nowMs, force);
+        // A source that can never answer forgets its record (interval 0).
+        var radarIntervalMs = radarCanAnswer ? radarFactory.minRequestIntervalMs(radarId) : 0;
+        var slot = radarThrottle.take(radarId, radarIntervalMs, nowMs, force);
+        var skySlot = skyThrottle.take(skyId, radarSkySource.minRequestIntervalMs(skyId), nowMs, force);
         // The sky request is independent of the radar's, so both go out at once and
         // the forecast waits for the slower one, not for one after the other.
         radarSky.joinRadarAndSky(function (cb) {
@@ -446,22 +370,31 @@ function createFetchCycle(deps) {
                 // request), which may be behind this cycle's slot 0: radar-dedupe.js
                 // aligns it by k, and the watch persists the start as-is and shifts
                 // it to the grid on its minute tick.
-                var reserved = !slot.tuples ? 'the watch advances its window.'
-                    : radarWire.isLimitedRadarTuples(slot.tuples) ? 're-serving this slot\'s limit notice.'
-                    : radarWire.isClearRadarTuples(slot.tuples) ? 're-serving this slot\'s clear.'
+                var reserved = !slot.answer ? 'the watch advances its window.'
+                    : radarWire.isLimitedRadarTuples(slot.answer) ? 're-serving this slot\'s limit notice.'
+                    : radarWire.isClearRadarTuples(slot.answer) ? 're-serving this slot\'s clear.'
                     : 're-serving this slot\'s window.';
                 console.log('Radar request skipped: ' + radarId + ' is limited to one request per '
-                    + (radarFactory.minRequestIntervalMs(radarId) / 60000) + ' min; ' + reserved);
+                    + (slot.intervalMs / 60000) + ' min; ' + reserved);
                 // A limit notice an older build kept (the 1 it sent) goes out as today's line.
-                cb(radarWire.isLimitedRadarTuples(slot.tuples) ? radarWire.limitedRadarTuples() : slot.tuples);
+                cb(radarWire.isLimitedRadarTuples(slot.answer) ? radarWire.limitedRadarTuples() : slot.answer);
                 return;
             }
             source.fetchRadarTuplesAt(lat, lon, slotZeroEpoch, function (tuples) {
-                if (radarFactory.minRequestIntervalMs(radarId) > 0) { rememberRadarAnswer(radarId, nowMs, tuples); }
+                radarThrottle.remember(slot, tuples);
                 cb(tuples);
             });
         }, function (cb) {
-            skySource.fetchSkyTupleAt(lat, lon, slotZeroEpoch, cb);
+            if (!skySlot.request) {
+                console.log('Sky request skipped: asked once per ' + (skySlot.intervalMs / 60000)
+                    + ' min; re-serving this half hour\'s sky.');
+                cb(skySlot.answer);
+                return;
+            }
+            skySource.fetchSkyTupleAt(lat, lon, slotZeroEpoch, function (tuple) {
+                skyThrottle.remember(skySlot, tuple);
+                cb(tuple);
+            });
         }, function (tuples) {
             // Which regional radar sources can see this place (no position kept), for the
             // settings page's note under the Radar provider row; an update that did not
@@ -925,9 +858,20 @@ function createFetchCycle(deps) {
         return true;
     }
 
+    /**
+     * Whether a weather fetch is running: started and not yet settled. The minute tick's
+     * other jobs (index.js onSchedulerTick) leave to it what its bake will carry anyway.
+     *
+     * @returns {boolean} True while a fetch is in flight.
+     */
+    function isInFlight() {
+        return fetchInProgress;
+    }
+
     return {
         shouldFetchNow: shouldFetchNow,
-        start: start
+        start: start,
+        isInFlight: isInFlight
     };
 }
 

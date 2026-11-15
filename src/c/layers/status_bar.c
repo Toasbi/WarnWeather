@@ -42,53 +42,36 @@ static uint8_t s_in_use = STATUS_BAR_ALL_IN_USE;
 #endif
 
 // ── Per-bar identity ─────────────────────────────────────────────────────────
-// Each of these is a switch on evolving platforms and a single constant on
-// aplite, where STATUS_BAR_COUNT is 1. The #if tests the capability macros
-// directly rather than STATUS_BAR_COUNT, which is an enum constant and therefore
-// invisible to the preprocessor.
-
-static inline uint8_t bar_line(StatusBarId id) {
-#if defined(WW_RAIN_RADAR) || defined(PBL_HEALTH)
-    switch (id) {
+// The bars are declared in the order of their sources (view_spec.h StatusSource,
+// which starts at 1: 0 is "no bar") and of their lines (status_line.h, where the
+// strip's line sits between the Radar bar's and the Health bar's), so both are
+// arithmetic on the bar's id, and a single constant on aplite, where
+// STATUS_BAR_COUNT is 1. The asserts below hold every bar a build has to that order.
+#define BAR_SOURCE(id) ((int) (id) + (int) STATUS_SRC_FORECAST)
+#define BAR_LINE(id)   ((int) (id) < (int) STATUS_LINE_TOP ? (int) (id) : (int) (id) + 1)
+#define BAR_IS(id, source, line) \
+    _Static_assert(BAR_SOURCE(id) == (int) (source) && BAR_LINE(id) == (int) (line), \
+                   "status_bar.h's bars follow their sources and lines")
+BAR_IS(STATUS_BAR_FORECAST, STATUS_SRC_FORECAST, STATUS_LINE_FORECAST);
 #if defined(WW_RAIN_RADAR)
-        case STATUS_BAR_RADAR:  return STATUS_LINE_RADAR;
+BAR_IS(STATUS_BAR_RADAR, STATUS_SRC_RADAR, STATUS_LINE_RADAR);
 #endif
 #if defined(PBL_HEALTH)
-        case STATUS_BAR_HEALTH: return STATUS_LINE_HEALTH;
+BAR_IS(STATUS_BAR_HEALTH, STATUS_SRC_HEALTH, STATUS_LINE_HEALTH);
 #endif
 #if defined(PBL_PLATFORM_EMERY)
-        case STATUS_BAR_4:      return STATUS_LINE_BAR4;   // emery: bars 4 to 6
-        case STATUS_BAR_5:      return STATUS_LINE_BAR5;
-        case STATUS_BAR_6:      return STATUS_LINE_BAR6;
+// emery: bars 4 to 6
+BAR_IS(STATUS_BAR_4, STATUS_SRC_BAR4, STATUS_LINE_BAR4);
+BAR_IS(STATUS_BAR_5, STATUS_SRC_BAR5, STATUS_LINE_BAR5);
+BAR_IS(STATUS_BAR_6, STATUS_SRC_BAR6, STATUS_LINE_BAR6);
 #endif
-        default: return STATUS_LINE_FORECAST;
-    }
-#else
-    (void) id;
-    return STATUS_LINE_FORECAST;
-#endif
+
+static inline uint8_t bar_line(StatusBarId id) {
+    return (uint8_t) BAR_LINE(id);
 }
 
 static inline uint8_t bar_source(StatusBarId id) {
-#if defined(WW_RAIN_RADAR) || defined(PBL_HEALTH)
-    switch (id) {
-#if defined(WW_RAIN_RADAR)
-        case STATUS_BAR_RADAR:  return STATUS_SRC_RADAR;
-#endif
-#if defined(PBL_HEALTH)
-        case STATUS_BAR_HEALTH: return STATUS_SRC_HEALTH;
-#endif
-#if defined(PBL_PLATFORM_EMERY)
-        case STATUS_BAR_4:      return STATUS_SRC_BAR4;   // emery: bars 4 to 6
-        case STATUS_BAR_5:      return STATUS_SRC_BAR5;
-        case STATUS_BAR_6:      return STATUS_SRC_BAR6;
-#endif
-        default: return STATUS_SRC_FORECAST;
-    }
-#else
-    (void) id;
-    return STATUS_SRC_FORECAST;
-#endif
+    return (uint8_t) BAR_SOURCE(id);
 }
 
 // ── Update procs ─────────────────────────────────────────────────────────────
@@ -205,8 +188,7 @@ void status_bar_create_all(Layer *parent, const ViewSpec *spec, const MainLayout
 void status_bar_set_in_use(uint8_t sources) {
     const uint8_t joined = (uint8_t) (sources & ~s_in_use);
     s_in_use = sources;
-    // A bar that joins is read at once, so a live-health check for the incoming view
-    // (main_window's health_warm_for_incoming_view) sees what its slots hold.
+    // A bar that joins is read at once: its row stayed empty while it was out of use.
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
         if ((joined >> bar_source((StatusBarId) i)) & 1u) { refresh_row((StatusBarId) i); }
     }
@@ -256,29 +238,27 @@ void status_bar_refresh_all(void) {
     }
 }
 
-bool status_bar_any_visible_uses_live_health(const ViewSpec *spec) {
+#if defined(PBL_HEALTH)
+// Visible = not hidden, as in status_bar_tick_on_demand: status_bar_apply_view wrote the
+// flag from the view on screen, a Quick View peek's included.
+uint8_t status_bar_visible_live_health(void) {
+    uint8_t kinds = 0;
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
-        if (status_row_uses_live_health(s_bars[i].row)
-                && layout_status_visible(spec, bar_source((StatusBarId) i))) {
-            return true;
-        }
+        const StatusBar *b = &s_bars[i];
+        if (b->row && !layer_get_hidden(b->layer)) { kinds |= status_row_live_health(b->row); }
     }
-    return false;
+    return kinds;
 }
 
-void status_bar_refresh_live_health(const ViewSpec *spec) {
+void status_bar_refresh_live_health(void) {
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
-        StatusBar *b = &s_bars[i];
-        if (!b->row) { continue; }
-        const uint8_t src = bar_source((StatusBarId) i);
-        // See status_bar.h: VISIBLE bars only — those carrying a live health slot,
-        // plus the health-source bar itself.
-        if (layout_status_visible(spec, src)
-                && (status_row_uses_live_health(b->row) || src == STATUS_SRC_HEALTH)) {
+        const StatusBar *b = &s_bars[i];
+        if (b->row && !layer_get_hidden(b->layer) && status_row_live_health(b->row)) {
             refresh_row((StatusBarId) i);
         }
     }
 }
+#endif
 
 #if defined(WW_ON_DEMAND)
 void status_bar_tick_on_demand(void) {

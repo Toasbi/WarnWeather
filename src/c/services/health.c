@@ -36,12 +36,12 @@ static time_t s_start_of_today(void) {
    step history there, and two calls here used that copy: the steps sum and
    health_available()'s StepCount accessibility check. Without it, each reads the
    history from the activity settings file (open, look the record up, close), as
-   the distance and sleep sums always do. health_available() latches its first yes,
-   so it stops reading after that; the steps sum reads the file once per summary
-   refresh, the fourth such read there next to the distance check and the distance
-   and sleep sums. When the heap cannot spare 2 KB at that moment the firmware goes
-   without: the sums and the peek still answer, and the sleep iterate reports
-   nothing (health_fill_hourly_sleep). */
+   the distance and sleep sums always do. health_available() and the distance check
+   latch their first yes, so they stop reading after that; a summary refresh reads
+   the file once for each sum it makes, and only for the readings a row on screen
+   shows (health_summary.h). When the heap cannot spare 2 KB at that moment the
+   firmware goes without: the sums and the peek still answer, and the sleep iterate
+   reports nothing (health_fill_hourly_sleep). */
 static void health_release_service_cache(void) {
     health_service_events_unsubscribe();
 }
@@ -54,23 +54,29 @@ __attribute__((noinline)) static int sum_today(HealthMetric metric) {
     return v;
 }
 
-/* The firmware answers from activity_is_initialized(), set once at its own boot and
-   never cleared, and today's entry of the 30-day step history, which costs an
-   activity settings file read whenever its cache holds no copy of that history
-   (health_release_service_cache). While the firmware held its cache, every call
-   after the first was answered from that copy, so the answer stayed yes (bar a no
-   at exactly 00:00:00, when the range from midnight to now is empty). The latch
-   keeps that yes for the app's life without the read: while health is on,
-   main_window.c asks through health_renderable() twice per minute tick, about four
-   times per flick and about five times per settings apply. A no is asked again on
-   the next call. */
+/* Whether `metric` has data today, asked until the first yes and that yes kept in
+   *latch. The firmware answers from activity_is_initialized(), set once at its own
+   boot and never cleared, and today's entry of the metric's 30-day history, which
+   costs an activity settings file read whenever its cache holds no copy of that
+   history (health_release_service_cache; it only ever holds the steps'). While the
+   firmware held its cache, every steps call after the first was answered from that
+   copy, so the answer stayed yes (bar a no at exactly 00:00:00, when the range from
+   midnight to now is empty). The latch keeps that yes for the app's life without the
+   read: while health is on, main_window.c asks health_available() through
+   health_renderable() twice per minute tick, about four times per flick and about
+   five times per settings apply, and a shown distance slot asks for its metric on
+   every minute. A no is asked again on the next call. */
+static bool latched_accessible(bool *latch, HealthMetric metric) {
+    if (!*latch) {
+        *latch = (health_service_metric_accessible(metric, s_start_of_today(), time(NULL))
+                  & HealthServiceAccessibilityMaskAvailable) != 0;
+    }
+    return *latch;
+}
+
 bool health_available(void) {
     static bool s_available;
-    if (!s_available) {
-        s_available = (health_service_metric_accessible(HealthMetricStepCount,
-            s_start_of_today(), time(NULL)) & HealthServiceAccessibilityMaskAvailable) != 0;
-    }
-    return s_available;
+    return latched_accessible(&s_available, HealthMetricStepCount);
 }
 
 int health_steps_today(void) {
@@ -78,11 +84,8 @@ int health_steps_today(void) {
 }
 
 int health_distance_today_m(void) {
-    const time_t start = s_start_of_today();
-    const time_t end = time(NULL);
-    HealthServiceAccessibilityMask access = health_service_metric_accessible(
-        HealthMetricWalkedDistanceMeters, start, end);
-    if (!(access & HealthServiceAccessibilityMaskAvailable)) {
+    static bool s_distance_available;
+    if (!latched_accessible(&s_distance_available, HealthMetricWalkedDistanceMeters)) {
         return -1;
     }
     return sum_today(HealthMetricWalkedDistanceMeters);
@@ -153,17 +156,21 @@ int health_hr_current(void) {
  * @param h1 UTC end of the hour (exclusive).
  * @return Total steps recorded in the window.
  */
-/* Shared minute-history scratch. Module .bss, not stack: 60 *
-   sizeof(HealthMinuteData) is too large for the app stack (mirrors the layer
-   modules' static-scratch convention). One buffer serves both readers below —
-   they run serialized on the single event loop and consume the records within
-   their own call. */
-static HealthMinuteData s_minute_data[60];
+/* The minute-history scratch, HEALTH_MINUTE_RECORDS long: lent by the window
+   (health_set_minute_scratch), not this module's .bss and not stack, since 60 *
+   sizeof(HealthMinuteData) is too large for either to spare. One buffer serves both
+   readers below — they run serialized on the single event loop and consume the
+   records within their own call. */
+static HealthMinuteData *s_minute_data;
+
+void health_set_minute_scratch(HealthMinuteData *records) {
+    s_minute_data = records;
+}
 
 static int s_minute_steps(time_t h0, time_t h1) {
     HealthMinuteData *md = s_minute_data;
     time_t   ts = h0, te = h1;
-    uint32_t n   = health_service_get_minute_history(md, 60, &ts, &te);
+    uint32_t n   = health_service_get_minute_history(md, HEALTH_MINUTE_RECORDS, &ts, &te);
     int      sum = 0;
     for (uint32_t k = 0; k < n; k++) {
         const time_t rec = ts + (time_t)k * 60;   // start of record k's minute
@@ -193,7 +200,7 @@ static int s_minute_steps(time_t h0, time_t h1) {
 static int s_minute_hr_avg(time_t h0, time_t h1) {
     HealthMinuteData *md = s_minute_data;
     time_t   ts = h0, te = h1;
-    uint32_t n   = health_service_get_minute_history(md, 60, &ts, &te);
+    uint32_t n   = health_service_get_minute_history(md, HEALTH_MINUTE_RECORDS, &ts, &te);
     int      sum = 0, cnt = 0;
     for (uint32_t k = 0; k < n; k++) {
         const time_t rec = ts + (time_t)k * 60;   // start of record k's minute

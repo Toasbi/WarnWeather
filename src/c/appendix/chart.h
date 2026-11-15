@@ -8,10 +8,14 @@
 
 // Chart engine — shared types and the one public entry point chart_draw().
 
+// The layer records below hold px sizes, slot counts and value ranges in the narrowest
+// type that fits them, pointers first: a ChartLayer is 28 B, and the forecast keeps
+// twelve in the paint scratch (paint_scratch.h), which is RAM on every watch.
+
 // --- Frame ----------------------------------------------------------
 
 typedef struct {
-    int    width;     // border thickness in px; 0 = no border on this side
+    uint8_t width;    // border thickness in px; 0 = no border on this side
     GColor color;
 } Border;
 
@@ -25,10 +29,10 @@ typedef struct {
 // --- Ticks ----------------------------------------------------------
 
 typedef struct {
-    int    length;       // px perpendicular to the side; 0 = side disabled
-    GColor color;
-    int    big_length;   // length for "big" ticks
-    GColor big_color;
+    uint8_t length;      // px perpendicular to the side; 0 = side disabled
+    GColor  color;
+    uint8_t big_length;  // length for "big" ticks
+    GColor  big_color;
 } TickSide;
 
 typedef enum {
@@ -51,14 +55,8 @@ typedef struct {
 // =====================================================================
 // One public entry point: chart_draw(). A chart is a ChartDef (grid) plus
 // an ordered list of ChartLayers — z-order IS array order, bottom first.
-// A ChartLayer is NOT a Pebble Layer: no heap, no framebuffer, ~40 B of
-// caller stack describing one draw pass.
-
-#if defined(PBL_PLATFORM_EMERY)
-#define CHART_MAX_SLOTS 68   // emery: the long span (forecast_span.h FORECAST_MAX_ENTRIES)
-#else
-#define CHART_MAX_SLOTS 32   // engine point-buffer cap; both charts use 24
-#endif
+// A ChartLayer is NOT a Pebble Layer: no heap, no framebuffer, 28 B of the
+// caller's memory describing one draw pass.
 
 typedef struct {
     int num_slots;
@@ -156,9 +154,9 @@ typedef struct {
 } ChartFrameLayer;
 
 typedef struct {
-    GraphSide            side;        // GRAPH_SIDE_BOTTOM / GRAPH_SIDE_TOP
-    TickSide             style;       // small/big tick length+color
     const ChartAxisSlot *slots;       // exactly def->num_slots entries
+    TickSide             style;       // small/big tick length+color
+    GraphSide            side;        // GRAPH_SIDE_BOTTOM / GRAPH_SIDE_TOP
     ChartSlotAlign       label_align; // text centered on slot start / middle
     ChartSlotAlign       tick_align;  // tick line on slot start / middle
 } ChartAxisLayer;
@@ -169,13 +167,14 @@ typedef enum   { BAR_SOLID, BAR_OUTLINED } ChartBarStyle;      // OUTLINED: +1px
                                                                // but colour-dark
 typedef struct {
     const int16_t        *values;
-    int                   count;      // clamped to def->num_slots
-    int                   lo, hi;     // linear range map; lo = baseline value
     const ChartColorStop *stops;      // >=1, ascending, stops[0].from <= lo: a negative
                                       // stop-0 threshold is a palette's "Bars from: Top"
                                       // flag (chart_flip_palette_top); the renderer
                                       // clamps every stop under lo to the zero row
-    int                   num_stops;
+    int                   lo, hi;     // linear range map; lo = baseline value. An int:
+                                      // the step bars' top passes 32767 (step_scale_hi)
+    uint16_t              count;      // clamped to def->num_slots
+    uint8_t               num_stops;
     ChartBarStyle         style;
 } ChartBarsLayer;
 
@@ -196,11 +195,16 @@ typedef enum { CHART_LINE_SOLID = 0, CHART_LINE_DOTS = 1, CHART_LINE_X = 2,
 
 typedef struct {
     const int16_t *values;            // the points are computed from these
-    GPoint        *export_points;     // optional out: count points
-    int            count;
-    int            lo, hi;
-    int            inset_top;         // top margin px: value==hi lands at plot_top + inset_top
-    int            inset_bottom;      // bottom margin px: value==lo lands at plot_bottom -
+    GPoint        *points;            // a SOLID line's vertices, count of them: the caller's
+                                      // buffer (the engine keeps none; a point array is too
+                                      // large for aplite's stack). Layers drawn one after
+                                      // another may share one, since each computes its points
+                                      // before it uses them; a contour HATCH reads the buffer
+                                      // of the AREA drawn before it. The mark styles need none.
+    uint16_t       count;
+    int16_t        lo, hi;
+    uint16_t       inset_top;         // top margin px: value==hi lands at plot_top + inset_top
+    uint16_t       inset_bottom;      // bottom margin px: value==lo lands at plot_bottom -
                                       // inset_bottom. Set larger than inset_top to lift the
                                       // baseline clear of a bottom band (e.g. the health
                                       // sleep stripe). Equal top/bottom = a symmetric inset.
@@ -210,9 +214,8 @@ typedef struct {
                                       // health HR line and aplite's temperature curve
                                       // carry insets, and they never hang.
     GColor         color;
-    int            width;
-    uint8_t        style;             // ChartLineStyle — uint8_t so the layer keeps the
-                                      // 1-byte slot the old `dotted` bool sat in
+    uint8_t        width;
+    uint8_t        style;             // ChartLineStyle
     uint8_t        zero_absent;       // CHART_ZERO_* (chart_runs.h): GAP or JOIN, a value
                                       // at or below `lo` draws nothing — the SOLID path
                                       // breaks into runs there, matching the skip the mark
@@ -222,14 +225,14 @@ typedef struct {
                                       // invariant reserves byte 0 for "nothing"
                                       // (forecast-series.js metricBytes); the temperature
                                       // curve and the HR line leave it DATA (0) — their
-                                      // floor is real data. Sits in the struct's tail padding.
+                                      // floor is real data.
 } ChartLineLayer;
 
 typedef struct {
     const int16_t *values;
-    GPoint        *export_points;     // optional out: count + 2 points (closing pts)
-    int            count;
-    int            lo, hi;            // no insets: the contour maps lo..hi over the whole
+    GPoint        *points;            // the caller's buffer, count + 2 points (closing pts)
+    uint16_t       count;
+    int16_t        lo, hi;            // no insets: the contour maps lo..hi over the whole
                                       // plot, as an uninset line does (a temperature-axis
                                       // line's rows are fitted before it reaches a layer)
     GColor         fill_color;
@@ -241,20 +244,20 @@ typedef struct {
 
 typedef struct {
     const ChartBand *bands;
-    int              num_bands;
-    GColor           hatch_color;
-    int              spacing;            // hatch stride
-    GColor           underlay_color;     // per-column solid fill before hatch (area re-shade)
-    bool             has_underlay;
+    const GPoint    *contour;            // NULL => full-height bands; else per-column top y
+    uint16_t         contour_count;
+    uint16_t         spacing;            // hatch stride
 #if defined(WW_LINE_STYLE)
     int16_t          extend_top;         // full-height bands only: rows ABOVE the content
                                          // that the hatch covers too
                                          // (the forecast's top stripe band), so the night
-                                         // shading runs to the top of the graph. Sits in
-                                         // padding; aplite compiles it out (no stripes).
+                                         // shading runs to the top of the graph. aplite
+                                         // compiles it out (no stripes).
 #endif
-    const GPoint    *contour;            // NULL => full-height bands; else per-column top y
-    int              contour_count;
+    uint8_t          num_bands;
+    GColor           hatch_color;
+    GColor           underlay_color;     // per-column solid fill before hatch (area re-shade)
+    bool             has_underlay;
 } ChartHatchLayer;
 
 typedef struct {
@@ -269,11 +272,11 @@ typedef struct {
 // (WW_LINE_STYLE) — its lines have no selectable styles.
 typedef struct {
     const int16_t *values;
-    int            count;
-    int            lo, hi;
-    GColor         color;             // the line colour; level 4 paints exactly this
+    uint16_t       count;
+    int16_t        lo, hi;
     int16_t        y_offset;          // px in from the edge — stacks stripes sharing one
     int16_t        height;            // px
+    GColor         color;             // the line colour; level 4 paints exactly this
     bool           top;               // top edge (else bottom, over the baseline)
 } ChartStripeLayer;
 #endif
@@ -288,8 +291,7 @@ typedef struct {
                                // layer through CHART_ZERO/CHART_DIR) hang from the content's
                                // top instead of standing on its bottom (chart_flip.h).
                                // FRAME, AXIS, STRIPE and a full-height HATCH ignore it. On
-                               // every platform, in the short enum's padding (ChartLayer
-                               // stays 44 B):
+                               // every platform, in the padding after the short enum:
                                // rain_radar_layer.c still compiles on aplite, where nothing
                                // reads it.
     union {

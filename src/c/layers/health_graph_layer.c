@@ -292,14 +292,11 @@ static void health_graph_compute(void) {
     // Measured over every mark, the halfway one too where its plot draws the top one alone
     // (step_scale_grid, at draw time): the plot's height is the view's, and the strip stays
     // where it is as the views change.
-    const GFont font = bottom_view_label_font();
-    const GRect box  = GRect(0, 0, 200, 40);
     int max_w = 0;
     for (int i = 0; i < s_step_mark_n; ++i) {
         char label[6];
         step_mark_label(s_step_marks[i], label, sizeof label);
-        const GSize sz = graphics_text_layout_get_content_size(
-            label, font, box, GTextOverflowModeFill, GTextAlignmentRight);
+        const GSize sz = bottom_view_label_size(label);
         if (sz.w > max_w) { max_w = sz.w; }
     }
     bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
@@ -442,7 +439,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     const GColor hr_color     = theme_pick(GColorRed, theme_fg());
 
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
-        .values = s_hr, .count = visible_slots,
+        .values = s_hr, .points = paint->hr_pts, .count = visible_slots,
         .lo = s_hr_lo, .hi = s_hr_hi,
         .color = hr_color,
         .width = 3,

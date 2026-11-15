@@ -70,19 +70,25 @@ static GRect calendar_text_rect(GRect cell_rect, const char *text, GFont font) {
 }
 #endif
 
-/* Copy struct tm out of localtime's static buffer — see localtime(3). */
-static struct tm relative_tm(int days_from_today)
-{
-    /* Get a time structure for n days from today (only accurate to the day)
-    Use this function to avoid edge cases from daylight savings time
-    */
+// The moment a paint's cells count their days from: today at an arbitrary hour well
+// inside the day, so that whole days from it never round onto another date over a
+// daylight-saving change. One mktime per paint, not one per cell.
+static time_t today_anchor(void) {
     struct tm base_time = watch_services_localtime();
-    // Set arbitrary hour so there's no daylight savings rounding error:
     base_time.tm_hour = 5;
-    time_t timestamp = mktime(&base_time) + days_from_today * SECONDS_PER_DAY;
-    struct tm *result = localtime(&timestamp);
-    struct tm out = *result;
-    return out;
+    return mktime(&base_time);
+}
+
+// The date n days from today (only accurate to the day), copied out of localtime's
+// static buffer — see localtime(3). Kept out of line on the colour watches, where
+// today's colour reads a date too and two inlined copies cost more than the call; on
+// the B&W ones the loop is its only caller.
+#if defined(PBL_COLOR)
+__attribute__((noinline))
+#endif
+static struct tm relative_tm(time_t anchor, int days_from_today) {
+    time_t timestamp = anchor + days_from_today * SECONDS_PER_DAY;
+    return *localtime(&timestamp);
 }
 
 // Days-from-civil (Howard Hinnant) — must match src/pkjs/calendar/domain/serial-day.js
@@ -126,12 +132,12 @@ static GColor date_color(struct tm *t) {
     return theme_fg();
 }
 
-static GColor today_color() {
+static GColor today_color(time_t anchor) {
     // Either follow the date color or override to configured value.
     if (theme_is_bw()) {
         return theme_fg();
     }
-    struct tm t = relative_tm(0);
+    struct tm t = relative_tm(anchor, 0);
     return gcolor_equal(config_get()->color_today, GColorBlack) ? date_color(&t) : config_get()->color_today;
 }
 
@@ -150,17 +156,19 @@ static void calendar_update_proc(Layer *layer, GContext *ctx) {
     s_holiday_anchor = persist_get_holiday_anchor();
 
     const int i_today = config_n_today(s_rows);
+    const time_t anchor = today_anchor();
 
-    graphics_context_set_fill_color(ctx, today_color());
+    const GColor today_fill = today_color(anchor);
+    graphics_context_set_fill_color(ctx, today_fill);
     graphics_fill_rect(ctx, calendar_cell_rect(bounds, i_today, rows), 1, GCornersAll);
 
     for (int i = 0; i < rows * DAYS_PER_WEEK; ++i) {
-        struct tm t = relative_tm(i - i_today);
+        struct tm t = relative_tm(anchor, i - i_today);
         bool highlight_holiday = cell_is_holiday(&t);
         bool highlight_sunday = (config_highlight_sundays() && t.tm_wday == 0);
         bool highlight_saturday = (config_highlight_saturdays() && t.tm_wday == 6);
         bool bold = (i == i_today) || highlight_holiday || highlight_sunday || highlight_saturday;
-        GColor text_color = (i == i_today) ? gcolor_legible_over(today_color())
+        GColor text_color = (i == i_today) ? gcolor_legible_over(today_fill)
                                            : date_color(&t);
         char buffer[4];
         snprintf(buffer, sizeof(buffer), "%d", t.tm_mday);

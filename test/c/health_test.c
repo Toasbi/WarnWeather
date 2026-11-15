@@ -59,6 +59,7 @@ static HealthMetric s_access_metric;
 static HealthMetric s_sum_metric;
 static int s_sum_calls;
 static int s_step_access_calls;
+static int s_distance_access_calls;
 static HealthServiceAccessibilityMask s_hr_access = HealthServiceAccessibilityMaskNotAvailable;
 static HealthValue s_peek;
 static int s_peek_calls;
@@ -98,6 +99,7 @@ HealthServiceAccessibilityMask health_service_metric_accessible(
     (void)time_end;
     s_access_metric = metric;
     if (metric == HealthMetricStepCount) { s_step_access_calls++; }
+    if (metric == HealthMetricWalkedDistanceMeters) { s_distance_access_calls++; }
     return s_access;
 }
 
@@ -233,11 +235,29 @@ static void accessible_distance_returns_today_sum(void) {
 static void inaccessible_distance_returns_sentinel_without_sum(void) {
     s_access = HealthServiceAccessibilityMaskNoPermission;
     s_sum_calls = 0;
+    s_distance_access_calls = 0;
 
     expect_int("distance.inaccessible.value", health_distance_today_m(), -1);
     expect_int("distance.inaccessible.metric", s_access_metric,
                HealthMetricWalkedDistanceMeters);
     expect_int("distance.inaccessible.sum_calls", s_sum_calls, 0);
+    // A no is asked again on the next call.
+    expect_int("distance.inaccessible.again", health_distance_today_m(), -1);
+    expect_int("distance.inaccessible.asks", s_distance_access_calls, 2);
+}
+
+// The distance check latches its first yes, as health_available() does: each ask reads
+// the 30-day history from the activity settings file, and a shown distance slot asks on
+// every minute.
+static void distance_availability_is_latched_at_the_first_yes(void) {
+    s_access = HealthServiceAccessibilityMaskNoPermission;
+    s_sum = 2500;
+    s_sum_calls = 0;
+    s_distance_access_calls = 0;
+
+    expect_int("distance.latched.value", health_distance_today_m(), 2500);
+    expect_int("distance.latched.no_ask", s_distance_access_calls, 0);
+    expect_int("distance.latched.sums", s_sum_calls, 1);
 }
 
 static void health_minute_schema_fields_are_usable(void) {
@@ -263,8 +283,9 @@ static void health_minute_schema_fields_are_usable(void) {
 
 int main(void) {
     availability_is_latched_at_the_first_yes();
-    accessible_distance_returns_today_sum();
     inaccessible_distance_returns_sentinel_without_sum();
+    accessible_distance_returns_today_sum();
+    distance_availability_is_latched_at_the_first_yes();
     health_minute_schema_fields_are_usable();
     each_read_frees_the_firmware_cache();
     sleep_fill_frees_the_firmware_cache();

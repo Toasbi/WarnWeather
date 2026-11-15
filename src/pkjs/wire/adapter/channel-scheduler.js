@@ -12,6 +12,11 @@
 
 var storageKeys = require('../../settings/domain/storage-keys.js');
 
+// The longest wait, in minute ticks, between two resends of a settings message that keeps
+// NACKing (see clayRetryWait). Short on purpose: PKJS has no sign that an unreachable watch
+// is back, so this cap is what bounds how late settings saved during an outage arrive.
+var CLAY_RETRY_MAX_TICKS = 4;
+
 /**
  * Create a channel scheduler.
  *
@@ -52,6 +57,15 @@ function createChannelScheduler(deps) {
     // the next launch would re-run the migration over whatever the user chose in
     // between (it cannot tell a post-migration pick from the old seeded value).
     var pendingClayAck = null;
+    // The tick's resend of a NACKed settings message backs off while it keeps NACKing:
+    // the n-th NACK in a row waits 2^(n-1) minute ticks, at most CLAY_RETRY_MAX_TICKS
+    // (1, 2, then every 4). Each resend is the whole bundle (the outbox forgot it before
+    // the NACKed send), and a resend every minute woke a watch that was refusing. A
+    // settings ACK ends it; settings saved while the watch was out of reach arrive at
+    // most 4 minutes after it answers again. Kept in memory: a PKJS restart retries at
+    // its first tick.
+    var clayFailures = 0;
+    var clayRetryWait = 0;
 
     /**
      * Today's local-day stamp (year-month-date) for detecting a day rollover.
@@ -75,8 +89,8 @@ function createChannelScheduler(deps) {
 
     /**
      * Forget the day stamp after a NACKed Clay send (every one carries the
-     * HOLIDAYS mask), so the next tick's day-change resend retries it (and keeps
-     * retrying, once a minute, until one is ACKed).
+     * HOLIDAYS mask), so the tick's day-change resend retries it (and keeps
+     * retrying, backing off, until one is ACKed).
      *
      * @returns {void}
      */
@@ -92,13 +106,14 @@ function createChannelScheduler(deps) {
      * A NACK of ANY of them — the startup handshake, a migration, a config
      * close, the day-change or holiday-data resend, a theme flip — arms one
      * retry policy before onFailure runs: forget the theme stamp and today's
-     * holiday day stamp, so the next tick's day-change resend re-delivers the
-     * settings the watch never got, once a minute until one is ACKed, whether
+     * holiday day stamp, so the tick's day-change resend re-delivers the
+     * settings the watch never got until one is ACKed, whether
      * or not Theme switching is on (that ACK also commits a pending migration's
      * markers; the outbox dedupes it when a later send already landed). One
      * policy here, so no send can miss it: a config-close Clay left to wait for
      * midnight would have the forced fetch after it land new alert entries
-     * against the old thresholds blob.
+     * against the old thresholds blob. While NACKs come in a row, that resend
+     * backs off (clayRetryWait); an ACK or the outbox's no-op ends it.
      *
      * @param {Function} [onSuccess] Called after ACK, or immediately when unchanged.
      * @param {Function} [onFailure] Called on NACK, after the retry is armed.
@@ -108,6 +123,8 @@ function createChannelScheduler(deps) {
         deps.sendClay(function () {
             var commit = pendingClayAck;
             pendingClayAck = null;
+            clayFailures = 0;
+            clayRetryWait = 0;
             if (commit) {
                 commit();
             }
@@ -117,6 +134,8 @@ function createChannelScheduler(deps) {
         }, function (e) {
             lastEffectiveTheme = null;
             forgetHolidayDaySent();
+            clayFailures += 1;
+            clayRetryWait = Math.min(Math.pow(2, Math.min(clayFailures, 6) - 1), CLAY_RETRY_MAX_TICKS) - 1;
             if (typeof onFailure === 'function') {
                 onFailure(e);
             }
@@ -279,10 +298,10 @@ function createChannelScheduler(deps) {
      * outbox dedupes by content, so only week boundaries actually transmit.
      * The send also carries the auto theme in effect (sendClaySettings builds
      * from the effective settings), so its ACK records the flip stamp. A NACK
-     * forgets both stamps (sendClay), so this resend retries next tick instead
-     * of leaving the mask stale, or swallowing a coincident theme flip (BT down
-     * at midnight), until the next boundary. It is also the retry of every
-     * other NACKed scheduler Clay send.
+     * forgets both stamps (sendClay), so this resend retries, after the NACK
+     * backoff, instead of leaving the mask stale, or swallowing a coincident
+     * theme flip (BT down at midnight), until the next boundary. It is also the
+     * retry of every other NACKed scheduler Clay send.
      *
      * @returns {boolean} True when this tick sent a Clay message.
      */
@@ -365,8 +384,11 @@ function createChannelScheduler(deps) {
         console.log('Tick from PKJS!');
         // One Clay send per tick keeps the half-duplex channel clean: when the
         // day-change resend fires it also carries the effective theme, and its
-        // ACK/NACK callbacks own the flip stamp.
-        if (!maybeResendHolidaysOnDayChange()) {
+        // ACK/NACK callbacks own the flip stamp. Both are the resend of a NACKed
+        // settings message, so both wait out its backoff.
+        if (clayRetryWait > 0) {
+            clayRetryWait -= 1;
+        } else if (!maybeResendHolidaysOnDayChange()) {
             maybeResendThemeOnFlip();
         }
         if (deps.shouldFetchNow()) {

@@ -27,6 +27,11 @@
  * replaced on the watch. The send numbers live in memory, like the callbacks
  * they guard: a PKJS restart drops both.
  *
+ * A weather message that goes out anyway can take fresher values along for bytes
+ * only, never a wake-up: the ride-along (setRideAlong) is asked once the message is
+ * known to go out, and its values join it wherever they differ from what was last
+ * sent (the phone battery's exact reading, phone-battery.js statusRideAlong).
+ *
  * Every compare/send cycle is reported to dev-stats as a semantic descriptor
  * (skip immediately; ack/nack from the AppMessage callbacks).
  */
@@ -42,6 +47,12 @@ var sendCount = 0;
 var newestSend = {};
 
 var WEATHER_CATEGORIES = require('../domain/weather-categories.js');
+
+// The two kinds of message, and what sets them apart: the label a send logs, the type
+// dev-stats records it as, and the ride-along a weather message asks (setRideAlong) and
+// a settings message never takes.
+var WEATHER = { label: 'weather', statsType: 'weather', rideAlong: null };
+var CLAY = { label: 'clay', statsType: 'setting', rideAlong: null };
 
 /**
  * Distill a comparison result into the dev-stats descriptor.
@@ -64,17 +75,25 @@ function statsDescriptor(type, result, outcome) {
  *
  * @param {Object} payload Full candidate payload.
  * @param {Array} categories Category descriptors to dedupe against.
- * @param {string} label Log prefix ('weather' or 'clay').
+ * @param {{label: string, statsType: string, rideAlong: ?Function}} kind WEATHER or CLAY.
  * @param {Function} [onSuccess] Called after ACK, or immediately when nothing changed.
  * @param {Function} [onFailure] Called on NACK.
  * @returns {void}
  */
-function sendChangedCategories(payload, categories, label, onSuccess, onFailure) {
-    var statsType = label === 'clay' ? 'setting' : 'weather';
-    var result = new ChangeDetector(categories).detect(payload);
-    var changed = result.categories.filter(function(entry) {
-        return entry.changed;
-    });
+function sendChangedCategories(payload, categories, kind, onSuccess, onFailure) {
+    var label = kind.label;
+    var detector = new ChangeDetector(categories);
+    var result = detector.detect(payload);
+    var changed = result.categories.filter(isChanged);
+    var extra = changed.length > 0 ? askRideAlong(kind.rideAlong) : null;
+    if (extra) {
+        // The message goes out: the ride-along's values join it, and the categories are
+        // judged again on them, so one they freshen rides along where it now differs and
+        // its cache commit holds what was sent. The first judgement, on the payload alone,
+        // is what keeps a ride-along from ever sending a message by itself.
+        result = detector.detect(Object.assign({}, payload, extra));
+        changed = result.categories.filter(isChanged);
+    }
     var outgoing = {};
     var changedNames = [];
 
@@ -90,7 +109,7 @@ function sendChangedCategories(payload, categories, label, onSuccess, onFailure)
 
     if (changed.length === 0) {
         console.log('Outbox: ' + label + ' unchanged, skipping send.');
-        devStats.record(statsDescriptor(statsType, result, 'skip'));
+        devStats.record(statsDescriptor(kind.statsType, result, 'skip'));
         if (typeof onSuccess === 'function') {
             onSuccess();
         }
@@ -116,18 +135,57 @@ function sendChangedCategories(payload, categories, label, onSuccess, onFailure)
                 localStorage.setItem(entry.cacheKey, entry.serialized);
             }
         });
-        devStats.record(statsDescriptor(statsType, result, 'ack'));
+        devStats.record(statsDescriptor(kind.statsType, result, 'ack'));
         console.log('Outbox: ' + label + ' sent successfully.');
         if (typeof onSuccess === 'function') {
             onSuccess();
         }
     }, function(e) {
-        devStats.record(statsDescriptor(statsType, result, 'nack'));
+        devStats.record(statsDescriptor(kind.statsType, result, 'nack'));
         console.log('Outbox: ' + label + ' send failed: ' + JSON.stringify(e));
         if (typeof onFailure === 'function') {
             onFailure(e);
         }
     });
+}
+
+/**
+ * @param {{changed: boolean}} entry A ChangeDetector result entry.
+ * @returns {boolean} Whether its category changed.
+ */
+function isChanged(entry) {
+    return entry.changed;
+}
+
+/**
+ * The ride-along's values for a message that goes out, or null. One that throws brings
+ * nothing: a ride-along must never cost the message it would ride.
+ * @param {?Function} rideAlong The message kind's ride-along (WEATHER's alone has one).
+ * @returns {?Object} AppMessage keys of weather categories.
+ */
+function askRideAlong(rideAlong) {
+    if (typeof rideAlong !== 'function') { return null; }
+    try {
+        return rideAlong() || null;
+    }
+    catch (ex) {
+        console.log('Outbox: ride-along failed: ' + ex.message);
+        return null;
+    }
+}
+
+/**
+ * Register the weather message's ride-along: a function asked, once a weather message is
+ * known to go out (some category changed), for fresher values of keys it carries. They
+ * join the message wherever they differ from the last-sent content, as part of their
+ * category, so they cost bytes and never a send of their own. index.js wires the phone
+ * battery's (phone-battery.js statusRideAlong).
+ *
+ * @param {?function(): ?Object} fn The ride-along, or null to drop it.
+ * @returns {void}
+ */
+function setRideAlong(fn) {
+    WEATHER.rideAlong = typeof fn === 'function' ? fn : null;
 }
 
 /**
@@ -140,7 +198,7 @@ function sendChangedCategories(payload, categories, label, onSuccess, onFailure)
  * @returns {void}
  */
 function sendWeather(payload, onSuccess, onFailure) {
-    sendChangedCategories(payload, WEATHER_CATEGORIES, 'weather', onSuccess, onFailure);
+    sendChangedCategories(payload, WEATHER_CATEGORIES, WEATHER, onSuccess, onFailure);
 }
 
 /**
@@ -158,7 +216,7 @@ function sendClay(payload, onSuccess, onFailure) {
         cacheKey: KEYS.LAST_SENT_CLAY_KEY,
         keys: Object.keys(payload)
     };
-    sendChangedCategories(payload, [clayCategory], 'clay', onSuccess, onFailure);
+    sendChangedCategories(payload, [clayCategory], CLAY, onSuccess, onFailure);
 }
 
 /**
@@ -200,6 +258,7 @@ module.exports = {
     WEATHER_CATEGORIES: WEATHER_CATEGORIES,
     sendWeather: sendWeather,
     sendClay: sendClay,
+    setRideAlong: setRideAlong,
     clearWeatherCaches: clearWeatherCaches,
     clearClayCache: clearClayCache,
     clearNoticeCache: clearNoticeCache

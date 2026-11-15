@@ -38,13 +38,25 @@ void health_cache_set_repaint(HealthCacheRepaintCb cb);
 void health_cache_recalc(time_t end_hour, int count);
 
 /**
- * Per-minute upkeep, called from minute_handler while health is enabled. At an
- * hour rollover it slides the window and refills the trailing bucket(s) in
- * background slices — the cache stays ready and the slid data stays on screen;
- * no HealthService call runs inside the tick itself. When `view_visible`, it
- * also re-reads the in-progress hour (inline, single read) on a 15-min
- * cadence. While a build/refresh is in flight it waits; self-heals (reset) if
- * it ever finds the cache neither ready nor building.
+ * Keep the cache only while the graph, its one reader (health_graph_layer.c), can
+ * show it: main_window.c passes health_graph_renderable() at load, at every settings
+ * apply and on every minute tick (health_available() can latch its first yes at any
+ * of them). The call that turns keeping on fills the cache as the boot always did:
+ * a fresh-enough snapshot restored (health_cache_restore), otherwise a full build.
+ * While keeping is off, the tick, the current-hour read and the save do nothing, so a
+ * face that shows health only in status rows reads no hourly history and writes no
+ * snapshot. Off until the first call.
+ */
+void health_cache_keep(bool keep);
+
+/**
+ * Per-minute upkeep, called from minute_handler; does nothing while the cache is
+ * not kept (health_cache_keep). At an hour rollover it slides the window and
+ * refills the trailing bucket(s) in background slices — the cache stays ready and
+ * the slid data stays on screen; no HealthService call runs inside the tick
+ * itself. When `view_visible`, it also re-reads the in-progress hour (inline,
+ * single read) on a 15-min cadence. While a build/refresh is in flight it waits;
+ * self-heals (reset) if it ever finds the cache neither ready nor building.
  */
 void health_cache_tick(bool view_visible);
 
@@ -56,8 +68,8 @@ void health_cache_reset(void);
 
 /**
  * Cheap in-progress-hour re-read for the flick path. No-op unless the cache is
- * ready, no build/refresh is in flight, and it is still aligned to the current
- * hour (a pending rollover is left to the tick).
+ * kept and ready, no build/refresh is in flight, and it is still aligned to the
+ * current hour (a pending rollover is left to the tick).
  */
 void health_cache_refresh_current_hour(void);
 
@@ -74,7 +86,8 @@ time_t health_cache_read(int16_t *steps_out, int16_t *hr_out,
 
 /**
  * Snapshot the current cache (steps/HR/sleep/anchor hour) to persist storage.
- * No-op unless the cache is ready (never persists a mid-build snapshot).
+ * No-op unless the cache is kept and ready (never persists a mid-build snapshot,
+ * nor one the tick stopped rolling).
  * Call from main_window_unload() — must not call config_get(), which is already
  * NULL by then (watchface.c unloads config before the window).
  */

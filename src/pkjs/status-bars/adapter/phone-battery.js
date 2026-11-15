@@ -18,22 +18,28 @@
 // Two numbers, two jobs — do not collapse them back into one. The 5-point
 // BUCKET is the SEND TRIGGER and nothing else: a resend fires only when it
 // moves (or charging flips), which is the deliberate BLE-wake-up budget. The
-// cached LEVEL the baker renders is the EXACT percentage, rewritten on every
-// reading, so whenever a send does go out the number on the watch is the
-// phone's real charge: 31 % reads "31%", not the bucket's "30%". Using the
-// bucket for both jobs is what shipped first, and it threw away accuracy the
-// phone already had in hand for no saving whatsoever.
+// cached LEVEL is the EXACT percentage, rewritten on every reading, and every
+// reading the watch is sent is one of those: 31 % reads "31%", not the bucket's
+// "30%".
+//
+// What a bake reads is the SHOWN reading (bakeFacts): the exact one as of the
+// last time the watch was sent it. A trigger shows the reading of its moment;
+// so does a weather message that goes out anyway, through the outbox's
+// ride-along (statusRideAlong), which costs bytes and never a wake-up. Between
+// those the charge drifting inside its bucket bakes the same status, so the
+// outbox's change detector sends nothing for it. Baking the exact reading on
+// every fetch dirtied the status category on nearly every fetch, one wake-up
+// each.
 //
 // The resend itself is status-rebake.js's job: render-payload.js hands it the
 // bake inputs before every bake, and this module only pulls the trigger
 // (statusRebake.resendStatus). The full why-a-restored-re-bake-is-byte-safe
 // rationale lives in that module's header now.
 //
-// One deliberate consequence of the backstop: the FIRST reading after a restart
-// can now send, because the trigger baseline is still in-memory only and so
-// counts as a move. That is a refresh, not spam -- the outbox's change detector
-// drops a status category whose bytes match the last send outright, so it wakes
-// the radio only when the phone's charge really did change while PKJS was down.
+// The FIRST reading after a restart (the seed) never sends by itself. It becomes
+// the shown reading only when there is none yet, or when it lands in another
+// bucket or charging state than the shown one (the charge really moved while PKJS
+// was down); the next message that goes out then carries it.
 //
 // ES5 only (aplite's JavaScriptCore) — var + function, and never *construct* a
 // Promise. `getBattery()` hands back a host-provided thenable; calling .then()
@@ -80,6 +86,16 @@ function levelBucket(level) {
     if (pct < 0) { pct = 0; }
     if (pct > 100) { pct = 100; }
     return pct;
+}
+
+/**
+ * A whole percentage's 5-point bucket (levelBucket's, for a percentage already rounded).
+ *
+ * @param {number} pct Percentage 0..100.
+ * @returns {number} Bucketed percentage.
+ */
+function percentBucket(pct) {
+    return Math.floor(pct / BUCKET_STEP) * BUCKET_STEP;
 }
 
 /**
@@ -233,9 +249,10 @@ function setSupported(supported) {
  * bake `--` rather than a made-up number.
  *
  * The value can be fresher than the last thing the watch was told, and that is
- * the point: ingest() rewrites it on every reading, so the next send of any
- * kind — a battery trigger or the next weather fetch's bake — carries the
- * phone's real charge.
+ * the point: ingest() rewrites it on every reading, so the next battery trigger,
+ * or the ride-along of the next weather message that goes out anyway
+ * (statusRideAlong), carries the phone's real charge. A bake itself reads the
+ * shown reading (readShown), which falls back to this one while none is stored.
  *
  * SELF-HEALING when the cache is gone but a BatteryManager is in hand: "Reset
  * watchface" (clay-settings.js resetAll) wipes these keys with the rest of
@@ -275,18 +292,99 @@ function read() {
 }
 
 /**
+ * The shown reading: the exact one as of the last time the watch was sent it (a trigger,
+ * a ride-along or the first reading; see the header), persisted so a PKJS restart keeps
+ * baking what the watch shows. Missing (nothing shown yet), it is the cached reading.
+ *
+ * @returns {{available: boolean, level: (number|null), charging: boolean}} Shown reading.
+ */
+function readShown() {
+    var shown = loadShown();
+    if (!shown) { return read(); }
+    return { available: true, level: shown.level, charging: shown.charging };
+}
+
+/**
+ * @returns {?{level: number, charging: boolean}} The stored shown reading, or null when
+ *   missing or unreadable.
+ */
+function loadShown() {
+    var raw = load(KEYS.PHONE_BATTERY_SHOWN);
+    var rec;
+    if (raw === null) { return null; }
+    try {
+        rec = JSON.parse(raw);
+    }
+    catch (ex) {
+        return null;
+    }
+    return (rec && typeof rec.level === 'number' && isFinite(rec.level)) ? { level: rec.level, charging: rec.charging === true } : null;
+}
+
+/**
+ * @returns {?{available: boolean, level: number, charging: boolean}} The cached exact
+ *   reading when there is one and it differs from the shown one, else null.
+ */
+function unshownExact() {
+    var exact = read();
+    var shown = loadShown();
+    if (!exact.available || (shown && shown.level === exact.level && shown.charging === exact.charging)) {
+        return null;
+    }
+    return exact;
+}
+
+/**
+ * @param {{level: number, charging: boolean}} reading The reading the watch is sent now.
+ * @returns {void}
+ */
+function saveShown(reading) {
+    save(KEYS.PHONE_BATTERY_SHOWN, JSON.stringify({ level: reading.level, charging: reading.charging }));
+}
+
+/**
+ * Make the cached exact reading the shown one, when there is one and it differs.
+ *
+ * @returns {void}
+ */
+function showExact() {
+    var exact = unshownExact();
+    if (exact) { saveShown(exact); }
+}
+
+/**
+ * The outbox's ride-along for the phone's battery (outbox.js setRideAlong, wired in
+ * index.js): asked once a weather message goes out anyway, it brings the status re-baked
+ * with the exact reading when that differs from the shown one. Bytes on a message already
+ * on its way, never a wake-up of its own. The exact reading becomes the shown one only
+ * once that status is baked: with nothing to re-bake (no fetch has baked yet, or the bake
+ * throws) the message carries its own bake, of the shown reading, and the shown reading
+ * stays what the watch shows.
+ *
+ * @returns {?Object} The status keys to ride along, or null when there is nothing new.
+ */
+function statusRideAlong() {
+    var exact = isSupported() ? unshownExact() : null;
+    var status = exact
+        ? statusRebake.bakeStatus({ supported: true, reading: function () { return exact; } })
+        : null;
+    if (status) { saveShown(exact); }
+    return status;
+}
+
+/**
  * The phone's battery facts a status-line bake reads (status-lines.js
  * buildStatusLines' `phone`): whether this host can read the battery at all,
- * and, where it can, the cached reading. A host that cannot has no slot to
- * show it in (the bake collapses those slots), so read() is not asked there.
+ * and, where it can, the shown reading (readShown). A host that cannot has no
+ * slot to show it in (the bake collapses those slots), so it is not asked there.
  *
  * @returns {{supported: boolean, reading: ?function(): ?Object}}
- *   The verdict and the function that reads the cached reading (null where unsupported).
+ *   The verdict and the function that reads the shown reading (null where unsupported).
  */
 function bakeFacts() {
     var supported = Boolean(isSupported());
     // The reading is read only when a bar shows it (status-lines.js buildStatusLines).
-    return { supported: supported, reading: supported ? read : null };
+    return { supported: supported, reading: supported ? readShown : null };
 }
 
 /**
@@ -318,9 +416,10 @@ function isSuppressed() {
  * is the bug this shape exists to prevent:
  *
  * - CACHE, always. Every readable reading rewrites the stored exact percentage
- *   and charging flag, trigger or not. The baker reads that cache on every
- *   weather fetch, so an untriggered 31 % still reaches the watch on the next
- *   ordinary send instead of being frozen at the last bucket's number.
+ *   and charging flag, trigger or not. The ride-along reads that cache whenever a
+ *   weather message goes out anyway (statusRideAlong), so an untriggered 31 % still
+ *   reaches the watch with the next message sent instead of being frozen at the
+ *   last bucket's number.
  * - TRIGGER, rarely. A resend fires only when the 5-point bucket moves, or on
  *   any charging flip — plugging in is the one event a user looks at the watch
  *   to confirm. That cadence is a deliberate BLE-wake-up budget: caching a
@@ -365,8 +464,16 @@ function ingest(reading) {
     lastBucket = bucket;
     lastCharging = charging;
 
-    // The seed reading is a baseline, not news: see the note above.
-    if (seeding) { return; }
+    // The seed reading is a baseline, not news: see the note above. It becomes the
+    // shown reading only when there is none, or it lands in another bucket or charging
+    // state than the shown one (a move while PKJS was down): the next message carries it.
+    if (seeding) {
+        var shown = loadShown();
+        if (!shown || percentBucket(shown.level) !== percentBucket(percent) || shown.charging !== charging) {
+            showExact();
+        }
+        return;
+    }
     if (!bucketMoved && !chargingFlipped) { return; }
     console.log('phone-battery: ' + percent + '% (bucket ' + bucket + ')'
         + (charging ? ' charging' : ''));
@@ -380,6 +487,7 @@ function ingest(reading) {
         return;
     }
     pendingPush = false;
+    showExact();
     statusRebake.resendStatus(bucketMoved ? 'level' : 'charging');
 }
 
@@ -392,8 +500,10 @@ function ingest(reading) {
  * watchface, so a sending seed would mean a BLE wake-up on essentially every
  * visit — the charge is almost always a percent or two off the last one — which
  * is exactly the spend the 5-point bucket exists to prevent. The reading is
- * still cached, so the next weather fetch's bake carries it, and the first real
- * levelchange/chargingchange after the seed sends normally.
+ * still cached, so the next weather message that goes out carries it along, and
+ * it becomes the shown reading at once when it moved bucket or charging state
+ * while PKJS was down (ingest). The first real levelchange/chargingchange after
+ * the seed sends normally.
  *
  * @param {Object} reading Battery manager (or fake) with .level and .charging.
  * @returns {void}
@@ -537,11 +647,18 @@ function init(options) {
  * window predicate) means it survives a PKJS restart mid-window and never
  * depends on a tick having happened to land inside the window.
  *
+ * Not while a weather fetch is in flight (the window's first one is due the
+ * minute it closes): that fetch's message goes out and takes the exact reading
+ * along (statusRideAlong). The debt stays, so the next tick pays what that
+ * message did not carry, and the outbox drops a push it did.
+ *
+ * @param {boolean} [fetchInFlight] Whether a weather fetch is running this tick.
  * @returns {void}
  */
-function onTick() {
-    if (!pendingPush || isSuppressed()) { return; }
+function onTick(fetchInFlight) {
+    if (!pendingPush || isSuppressed() || fetchInFlight) { return; }
     pendingPush = false;
+    showExact();
     statusRebake.resendStatus('post-saver-window');
 }
 
@@ -550,6 +667,7 @@ module.exports = {
     onTick: onTick,
     read: read,
     bakeFacts: bakeFacts,
+    statusRideAlong: statusRideAlong,
     isSupported: isSupported,
     levelBucket: levelBucket,
     levelPercent: levelPercent

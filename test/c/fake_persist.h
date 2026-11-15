@@ -22,11 +22,16 @@ static uint8_t s_blob[FAKE_KEYS][FAKE_MAX];
 static size_t s_len[FAKE_KEYS];
 static int s_data_writes;   // persist_write_data calls that actually reached flash
 
+// On emery persist_store.c keeps a RAM copy of what it read and wrote; a test that changes
+// the flash underneath it drops the copy.
+#include "c/appendix/persist_store.h"
+
 static void flash_reset(void) {
     memset(s_present, 0, sizeof(s_present));
     memset(s_blob, 0, sizeof(s_blob));
     memset(s_len, 0, sizeof(s_len));
     s_data_writes = 0;
+    store_cache_drop();
 }
 
 // Seed a slot without going through the setter, to build states the setter itself
@@ -35,6 +40,7 @@ static void flash_seed(uint32_t key, const uint8_t *bytes, size_t len) {
     s_present[key] = true;
     memcpy(s_blob[key], bytes, len);
     s_len[key] = len;
+    store_cache_drop();
 }
 
 bool persist_exists(const uint32_t key) {

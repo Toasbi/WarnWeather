@@ -9,6 +9,7 @@
 #include "c/layers/loading_layer.h"
 #include "c/layers/layer_util.h"
 #include "c/layers/health_graph_layer.h"
+#include "c/layers/paint_scratch.h"
 #include "c/services/health.h"
 #include "c/services/health_cache.h"
 #include "c/services/health_summary.h"
@@ -45,12 +46,8 @@ static time_t s_flick_epoch;
 // Wrist-flick gate state (rules: layout.h view_flick_accept). RAM only, zeroed at launch:
 // a relaunch starts with no flick pending.
 static ViewFlickGate s_flick_gate;
-#endif
-
-#if defined(PBL_HEALTH)
-// Tracks the last-seen health_mode so an off->on flip (settings, boot)
-// triggers exactly one cache rebuild.
-static uint8_t s_health_mode_prev;
+// Whether tap_handler is subscribed: only while the cycle can move (tap_follow_cycle).
+static bool s_tap_subscribed;
 #endif
 
 // Radar data present? — the ONE availability predicate the ViewSpec resolves
@@ -82,15 +79,8 @@ static bool health_renderable(void) {
 }
 
 #if defined(PBL_HEALTH)
-// Can the health GRAPH itself render — is a view carrying the graph body in the
-// configured cycle at all, on top of health being renderable? Mode != OFF is NOT
-// the graph's own gate: HEALTH_STATUS and HEALTH_SLOT keep health_renderable()
-// true (rows still resolve live health slots) while the phone compiles them to
-// cycles with no BODY_HEALTH_GRAPH view (view-cycle.js). Every
-// health_graph_layer_refresh() call site gates on THIS, so an unreachable graph
-// never computes.
-static bool health_graph_renderable(void) {
-    if (!health_renderable()) { return false; }
+// Does a configured view carry the health graph? health_graph_renderable's config half.
+static bool graph_in_cycle(void) {
     for (int i = 0; i < 3; i++) {
         // Through layout_visibility (layout.c's recommended pattern), not a body test:
         // a custom layout can seat the health graph in the TOP band too, and a graph
@@ -102,6 +92,18 @@ static bool health_graph_renderable(void) {
         if (layout_visibility(&s).health_graph) { return true; }
     }
     return false;
+}
+
+// Can the health GRAPH itself render — is a view carrying the graph body in the
+// configured cycle at all, on top of health being renderable? Mode != OFF is NOT
+// the graph's own gate: HEALTH_STATUS and HEALTH_SLOT keep health_renderable()
+// true (rows still resolve live health slots) while the phone compiles them to
+// cycles with no BODY_HEALTH_GRAPH view (view-cycle.js). Every
+// health_graph_layer_refresh() call site gates on THIS, so an unreachable graph
+// never computes, and the health cache, the graph's data, is kept only while it
+// holds (health_cache_keep).
+static bool health_graph_renderable(void) {
+    return health_renderable() && graph_in_cycle();
 }
 #endif
 
@@ -298,47 +300,70 @@ static void quick_view_on_change(void) {
 #endif
 
 #if defined(PBL_HEALTH)
-// health_cache repaint hook. Fires for the loading frame, a rollover's
-// paint-first, and a sliced build's completion. The graph repaints whenever it is
-// reachable; once the cache is ready, also recompute the summary and repaint any
-// VISIBLE status row carrying LIVE health slots — otherwise a finished build
-// (fresh install, stale restore) leaves the rows holding boot-primed values until
-// the next minute tick. Same read set as the minute handler's inline refresh, so
-// it is safe on the timer callback path.
-static void health_cache_repaint(void) {
-    // The health_graph_renderable() gate keeps an unreachable graph
-    // (HEALTH_STATUS/SLOT — cache still warm for the rows) from computing at all.
-    if (health_graph_renderable()) { health_graph_layer_refresh(); }
-    if (!health_cache_ready()) { return; }   // loading frame: no new data for the rows
-    if (health_summary_refresh()) {
-        ViewSpec spec = current_view_spec();
-        status_bar_refresh_live_health(&spec);
-        if (top_status_layer_uses_live_health()) { top_status_layer_refresh(); }
+// See main_window.h. Every row refresh ends here: the load, main_window_refresh() (a
+// settings apply, a flick, a Quick View peek, the auto-return), a status send and the
+// minute tick, whose sync is the minute's first and so reads everything shown. The
+// readings are those of the visible bars, and the strip's while it shows. What shows
+// is read off the layers' hidden flags, which render_active_view set from the view on
+// screen: no view is recomputed here, so no persist read either.
+void main_window_sync_health(void) {
+    if (!health_renderable()) { return; }
+    const uint8_t strip = layer_get_hidden(top_status_layer_get_root())
+                              ? 0 : top_status_layer_live_health();
+    if (health_summary_sync(status_bar_visible_live_health() | strip, time(NULL))) {
+        status_bar_refresh_live_health();
+        if (strip) { top_status_layer_refresh(); }
     }
+}
+
+// See main_window.h. Called once from app_message.c's config_dirty block, and kept OUT
+// of main_window_refresh() on purpose: that refresh is also the flick, quick-view-peek
+// and auto-return path. The flick warms and repaints the graph itself, and only when the
+// incoming view actually shows it (health_warm_for_incoming_view); peek and
+// auto-return do not touch the graph at all. Folding this in would put an unconditional
+// 24-bucket health compute plus its label measurements on all three — most visibly on
+// every wrist flick. No visibility gate on purpose: the compute re-measures the graph's
+// left-axis labels (its own strip, bottom_view.h), and a settings apply that changed the
+// label font must refresh that even while the health view is hidden; the repaint half is
+// free while hidden. health_graph_renderable() gates it: an unreachable graph (health
+// off, no sensors, or no graph view in the configured cycle) has nothing to compute, and
+// current_view_spec() resolves the graph away in exactly those cases, so this can never
+// skip a visible graph's repaint.
+//
+// Also the health_cache repaint hook, which fires for the loading frame, a rollover's
+// paint-first, and a sliced build's completion. The cache is kept only while the graph is
+// reachable, but a build already under way finishes after a settings apply took the graph
+// away: the same gate keeps that graph from computing.
+void main_window_refresh_health_graph(void) {
+    if (health_graph_renderable()) { health_graph_layer_refresh(); }
 }
 #endif
 
 #if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
-// A view transition (flick, auto-return, a config/availability re-apply) can
-// bring live-health content on screen while the minute handler's visible-only
-// gate had been skipping summary work —
-// the held steps/sleep/HR would then be rollover-old (up to ~an hour) on the
-// incoming view's first paint, healing only on the next tick with a visible
-// jump. So warm BOTH halves for the incoming view before the render+refresh
-// pair resolves its rows: the cache (the graph's data) and the summary (the
-// rows'). Same read set as the minute handler's gated arm, paid once per
-// transition instead of every tick — which is the whole point of the gate.
+// A view transition (flick, auto-return, a config/availability re-apply) can bring the
+// health graph on screen while the minute tick's 15-minute re-read skipped it (that read
+// runs only while the graph shows), so re-read the in-progress hour before the render:
+// the graph's first paint is current. The rows' readings follow the render's refresh
+// (main_window_sync_health).
 static void health_warm_for_incoming_view(void) {
-    if (!health_renderable()) { return; }
     ViewSpec ns = current_view_spec();
-    LayerVisibility nv = layout_visibility(&ns);
-    if (nv.health_graph || status_bar_any_visible_uses_live_health(&ns)) {
+    if (layout_visibility(&ns).health_graph) {
         health_cache_refresh_current_hour();
-        health_summary_refresh();
-        if (nv.health_graph) { health_graph_layer_refresh(); }
+        health_graph_layer_refresh();
     }
 }
 #endif
+
+// Put the current view on screen after the cursor or the configured views changed (a
+// flick, the auto-return, a settings or availability re-apply): the graph's transition
+// heal above, then the reframe and a refresh of everything shown.
+static void show_view(void) {
+#if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
+    health_warm_for_incoming_view();
+#endif
+    render_active_view();
+    main_window_refresh();
+}
 
 #if defined(WW_VIEW_CYCLE)
 static void tap_handler(AccelAxisType axis, int32_t direction) {
@@ -357,11 +382,21 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     s_view_index = next;
     s_flick_epoch = now_s;                   // restart the auto-return timer (time_ms's
                                              // seconds are time(NULL)'s UTC epoch)
-#if defined(PBL_HEALTH)
-    health_warm_for_incoming_view();
-#endif
-    render_active_view();
-    main_window_refresh();
+    show_view();
+}
+
+// Take tap events only while a flick can move the cursor (layout.h view_cycle_flickable),
+// so a face with one view is not woken by every wrist flick. The cycle changes only with a
+// settings apply, and each one calls this, as the load does; the unload passes NULL.
+static void tap_follow_cycle(const uint32_t *words) {
+    const bool want = words && view_cycle_flickable(words);
+    if (want == s_tap_subscribed) { return; }
+    s_tap_subscribed = want;
+    if (want) {
+        accel_tap_service_subscribe(tap_handler);
+    } else {
+        accel_tap_service_unsubscribe();
+    }
 }
 #endif
 
@@ -369,6 +404,11 @@ static void main_window_load(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_bounds(window_layer);
     main_window_apply_theme();
+#if defined(PBL_HEALTH)
+    // Before any health read: the hourly reads borrow the paint scratch for their
+    // minute records (paint_scratch.h), instead of 720 B of their own.
+    health_set_minute_scratch(g_paint_scratch.health_minutes);
+#endif
 
 #if defined(WW_VIEW_CYCLE)
     // Restore the view cursor across a relaunch, gated on the same window the
@@ -433,26 +473,21 @@ static void main_window_load(Window *window) {
 #endif
     render_active_view();
 #if defined(PBL_HEALTH)
-    // Repaint the health view — graph AND any live-health status rows — when a
-    // deferred build finishes (see health_cache_repaint above).
-    health_cache_set_repaint(health_cache_repaint);
-    // Warm the cache at boot when health is enabled — restoring a fresh-enough
+    // Repaint the health graph when the cache shows its loading frame, a rollover's
+    // paint-first or a finished deferred build (see main_window_refresh_health_graph
+    // above). The rows' live-health readings come from the health summary instead
+    // (main_window_sync_health), which this cache never changes.
+    health_cache_set_repaint(main_window_refresh_health_graph);
+    // Warm the cache at boot when a view can show the graph — restoring a fresh-enough
     // snapshot if we have one, so the graph doesn't reshow "Loading health data"
     // for a relaunch that changed little; otherwise a full build, as before.
-    s_health_mode_prev = config_get()->health_mode;
-    if (config_get()->health_mode != HEALTH_OFF) {
-        if (!health_cache_restore()) {
-            health_cache_reset();
-        }
-        // Prime the summary (steps/sleep/HR) immediately: it otherwise only refreshes
-        // from minute_handler's tick, so the first paint (before the first minute
-        // boundary) would show the INT_MIN-derived "0"/"--" sentinel values instead of
-        // real data.
-        health_summary_refresh();
-    }
+    health_cache_keep(health_graph_renderable());
+    // The readings the boot view's rows show, which their create-time refreshes have
+    // resolved: the first paint shows them, not the summary's unread "0"/"--".
+    main_window_sync_health();
 #endif
 #if defined(WW_VIEW_CYCLE)
-    accel_tap_service_subscribe(tap_handler);
+    tap_follow_cycle(s_applied_view_word);   // the boot cycle, seeded above
 #endif
 #if defined(WW_QUICK_VIEW)
     // Switch to the peek view (and back) whenever a Timeline Quick View overlay appears or
@@ -472,7 +507,7 @@ static void main_window_load(Window *window) {
 
 static void main_window_unload(Window *window) {
 #if defined(WW_VIEW_CYCLE)
-    accel_tap_service_unsubscribe();
+    tap_follow_cycle(NULL);
 #endif
 #if defined(WW_QUICK_VIEW)
     quick_view_unsubscribe();
@@ -492,7 +527,7 @@ static void main_window_unload(Window *window) {
     persist_set_watchface_unload_epoch(time(NULL));
 #endif
 #if defined(PBL_HEALTH)
-    health_cache_persist_save();
+    health_cache_persist_save();   // only while kept: no config here to ask
 #endif
     MEMORY_LOG_HEAP("before_window_unload");
     time_layer_destroy();
@@ -535,36 +570,19 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
 #endif
     loading_layer_refresh();
 #if defined(PBL_HEALTH)
-    // Keep the cache warm whenever health is enabled (rollover-warm always; the
-    // 15-min current-hour re-read only while the health graph, its one reader, is on
-    // screen). The render path stays HealthService-free. A status bar is what it holds,
-    // the Health bar too (3.0.0's named bars): its rows count below only while they
-    // carry a live health slot, so a Health bar given weather items reads no health.
-    ViewSpec aspec = current_view_spec();
-    LayerVisibility av = layout_visibility(&aspec);
-    bool health_on_screen = av.health_graph;
-    // Status rows may carry LIVE health slots on any line — but only VISIBLE rows
-    // (plus the top strip, visible on most views) gate the minute work. The hidden health bar's
-    // default line is all live-health slots, so an any-bar scan would be ~always
-    // true and spend 4-5 HealthService reads on every tick with no health content
-    // on screen; a bar that unhides is re-resolved by that path's refresh_all.
-    bool bars_need_health = status_bar_any_visible_uses_live_health(&aspec);
-    bool top_needs_health = top_status_layer_uses_live_health();
-    bool status_needs_health = bars_need_health || top_needs_health;
-    if (config_get()->health_mode != HEALTH_OFF) {
-        health_cache_tick(health_on_screen);
-    }
-    // Repaint the on-screen health view from the (now-warm) cache. The summary
-    // (steps/sleep/HR) recomputes here, on the minute cadence, rather than in
-    // status_bar_refresh_live_health() — so an unrelated main_window_refresh() (e.g. a
-    // settings save) repaints from held values with zero HealthService reads.
-    if (health_renderable() && (health_on_screen || status_needs_health)) {
-        if (av.health_graph) { health_graph_layer_refresh(); }
-        if (health_summary_refresh()) {
-            status_bar_refresh_live_health(&aspec);
-            if (top_needs_health) { top_status_layer_refresh(); }
-        }
-    }
+    // Keep the cache warm while a view can show the health graph, its one reader
+    // (rollover-warm then; the 15-min current-hour re-read only while the graph is on
+    // screen), and repaint the graph from it. The render path stays HealthService-free.
+    // Asked here too, not only on a settings apply: health_available() latches its first
+    // yes on whichever check asks first. On screen = not hidden: render_active_view set
+    // the flag from the view on screen, a Quick View peek's included.
+    const bool graph_shown = !layer_get_hidden(health_graph_layer_get_root());
+    health_cache_keep(health_graph_renderable());
+    health_cache_tick(graph_shown);
+    if (graph_shown) { health_graph_layer_refresh(); }
+    // The rows' readings: the minute's first sync reads every one the visible rows show
+    // (only VISIBLE rows: the hidden Health bar's default line is all health slots).
+    main_window_sync_health();
 #endif
 #if defined(WW_VIEW_CYCLE)
     // Auto-return to the default view once view_reset_min minutes of real time have
@@ -574,13 +592,7 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
             && view_auto_return_due(time(NULL), s_flick_epoch, config_get()->view_reset_min)) {
         s_flick_epoch = 0;
         s_view_index = 0;
-#if defined(PBL_HEALTH)
-        // The default view can carry live-health rows the outgoing view hid —
-        // same transition heal as the flick.
-        health_warm_for_incoming_view();
-#endif
-        render_active_view();
-        main_window_refresh();
+        show_view();
     }
 #endif
 #if !defined(WW_FIXTURE_NOW_YEAR) && defined(WW_RAIN_RADAR)
@@ -618,13 +630,10 @@ void main_window_create() {
 
 void main_window_apply_top_view() {
 #if defined(PBL_HEALTH)
-    // A settings flip enabling health (false->true) warms the cache immediately; the
-    // status summary is recomputed on the minute tick (the row shows values held from
-    // the boot prime / last tick until then).
-    if (config_get()->health_mode != HEALTH_OFF && s_health_mode_prev == HEALTH_OFF) {
-        health_cache_reset();
-    }
-    s_health_mode_prev = config_get()->health_mode;
+    // A settings change that brings the graph into the cycle (health on, or a graph
+    // view added) warms the cache immediately, and one that takes it away stops it; the
+    // rows' readings follow the refresh below (main_window_sync_health).
+    health_cache_keep(health_graph_renderable());
 #endif
     // Re-apply the current view after radar availability or config changed. A radar/health
     // view whose data or capability vanished degrades in place via view_spec_resolve. But a
@@ -637,21 +646,14 @@ void main_window_apply_top_view() {
     config_view_words(words);
     s_view_index = view_cursor_after_config(s_view_index, s_applied_view_word, words);
     memcpy(s_applied_view_word, words, sizeof(s_applied_view_word));
+    tap_follow_cycle(words);
     // Only the bars the new views show are read from here on: one that joins is read now,
     // before the live-health check below looks at its slots; one that left is read no
     // more, not even by the reframe.
     status_bar_set_in_use(config_bar_sources());
 #endif
-#if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
-    // Same transition heal as the flick: a save can add a live-health slot to a
-    // visible row, and an availability flip can unhide one, while the minute
-    // gate had been skipping summary work. After the cursor re-resolution above,
-    // before the render below, so the repaint resolves fresh values instead of
-    // healing on the next tick — which lands exactly when the user is looking.
-    health_warm_for_incoming_view();
-#endif
-    render_active_view();
-    main_window_refresh();
+    // After the cursor re-resolution above: the heal reads the view it lands on.
+    show_view();
 }
 
 void main_window_apply_theme(void) {
@@ -687,26 +689,12 @@ void main_window_refresh() {
     // paths can afford it; on aplite (no flick — WW_VIEW_CYCLE is compiled out)
     // this runs on the settings/fetch checkpoints only.
     loading_layer_refresh();
-}
-
 #if defined(PBL_HEALTH)
-// See main_window.h. Called once from app_message.c's config_dirty block, and kept OUT
-// of main_window_refresh() on purpose: that refresh is also the flick, quick-view-peek
-// and auto-return path. The flick warms and repaints the graph itself, and only when the
-// incoming view actually shows it (tap_handler gates on nv.health_graph); peek and
-// auto-return do not touch the graph at all. Folding this in would put an unconditional
-// 24-bucket health compute plus its label measurements on all three — most visibly on
-// every wrist flick. No visibility gate on purpose: the compute re-measures the graph's
-// left-axis labels (its own strip, bottom_view.h), and a settings apply that changed the
-// label font must refresh that even while the health view is hidden; the repaint half is
-// free while hidden. health_graph_renderable() gates it: an unreachable graph (health
-// off, no sensors, or no graph view in the configured cycle) has nothing to compute, and
-// current_view_spec() resolves the graph away in exactly those cases, so this can never
-// skip a visible graph's repaint.
-void main_window_refresh_health_graph(void) {
-    if (health_graph_renderable()) { health_graph_layer_refresh(); }
-}
+    // The rows above can newly show a health reading (a settings change, a flick, the
+    // strip a Quick View peek brings back): read it now, not at the next tick.
+    main_window_sync_health();
 #endif
+}
 
 void main_window_destroy() {
     tick_timer_service_unsubscribe();

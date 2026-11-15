@@ -43,8 +43,6 @@ typedef enum {
 #define series_style_pick(line, frozen) (frozen)
 #endif
 
-typedef enum { SERIES_KIND_LINE, SERIES_KIND_BARS } SeriesKind;
-
 typedef struct {                       // FIRST / SECOND / THIRD (/ FOURTH / FIFTH)
     int16_t values[FORECAST_MAX_ENTRIES];
     GColor  color;                      // stroke (resolved at load)
@@ -68,20 +66,15 @@ typedef struct {                       // FIRST / SECOND / THIRD (/ FOURTH / FIF
     GColor  fill_color;                 // SECOND only (B&W override already applied)
 } SeriesLine;
 
-typedef struct {                       // BARS
-    int16_t               values[FORECAST_MAX_ENTRIES];
-    const ChartColorStop *stops;        // filled at render (scaled palette)
-    int                   num_stops;
-    ChartBarStyle         style;
+typedef struct {                       // BARS; its palette is scaled at render
+    int16_t values[FORECAST_MAX_ENTRIES];
 } SeriesBars;
 
 typedef struct {
-    SeriesId   id;
-    SeriesKind kind;
     bool       present;
     union { SeriesLine line; SeriesBars bars; };
 } Series;
 
 // values[] is the first member of BOTH union arms, so this returns the right
-// buffer regardless of kind. (Documented invariant: keep values[] first.)
+// buffer for a line and for the bars. (Documented invariant: keep values[] first.)
 static inline int16_t *series_values(Series *s) { return s->line.values; }

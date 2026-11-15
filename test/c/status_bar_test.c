@@ -58,7 +58,9 @@ static int s_pending_create_seq;
 static int s_pending_add_seq;
 
 static bool s_refresh_changed;
-static bool s_live_health[STATUS_LINE_COUNT];
+// Each line's health readings (services/health_summary.h HEALTH_SUMMARY_* bits). The
+// aplite build, without health, reads none of them.
+static uint8_t s_live_health[STATUS_LINE_COUNT] __attribute__((unused));
 
 static void expect_int(const char *name, int got, int want) {
     if (got != want) {
@@ -170,9 +172,11 @@ void status_row_set_full_date(StatusRow *row, bool full_date) {
     if (row) { s_last_full_date[row->line_id] = full_date; }
 }
 
-bool status_row_uses_live_health(const StatusRow *row) {
-    return row && s_live_health[row->line_id];
+#if defined(PBL_HEALTH)
+uint8_t status_row_live_health(const StatusRow *row) {
+    return row ? s_live_health[row->line_id] : 0;
 }
+#endif
 
 #if defined(WW_ON_DEMAND)
 static bool s_uses_on_demand[STATUS_LINE_COUNT];
@@ -331,6 +335,9 @@ static void tier_and_full_date_are_change_gated(void) {
     status_bar_destroy_all();
 }
 
+#if defined(PBL_HEALTH)
+// Visible = not hidden: the bars a view shows are the ones status_bar_apply_view left
+// unhidden, so each case applies its view first.
 static void live_health_gate(void) {
     Layer parent = {0};
     s_refresh_changed = true;
@@ -339,37 +346,41 @@ static void live_health_gate(void) {
     ViewSpec spec = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
     MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
     status_bar_create_all(&parent, &spec, &L);
+    status_bar_apply_view(&spec, &L);
 
-    expect_int("health.none_initially", status_bar_any_visible_uses_live_health(&spec), 0);
+    expect_int("health.none_initially", status_bar_visible_live_health(), 0);
 
     // A live health slot on the FORECAST bar must be seen. Before the collapse the
     // radar bar had no accessor at all, so the same slot there went unnoticed —
     // this gate now covers every bar by construction.
-    s_live_health[STATUS_LINE_FORECAST] = true;
-    expect_int("health.forecast_seen", status_bar_any_visible_uses_live_health(&spec), 1);
+    s_live_health[STATUS_LINE_FORECAST] = 1;
+    expect_int("health.forecast_seen", status_bar_visible_live_health(), 1);
 
     reset_records();
-    status_bar_refresh_live_health(&spec);
+    status_bar_refresh_live_health();
     expect_int("health.forecast_refreshed", s_refresh_count[STATUS_LINE_FORECAST] >= 1, 1);
 
-    // The same live slot on a bar the SPEC does not show must gate nothing: the
+    // The same live slot on a bar the view on screen hides must gate nothing: the
     // minute handler asks about the view on screen, not about configured lines,
     // and a hidden bar is re-resolved by the refresh_all that unhides it.
     ViewSpec hidden = spec_of(2, STATUS_SRC_NONE, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
-    expect_int("health.hidden_not_seen", status_bar_any_visible_uses_live_health(&hidden), 0);
+    status_bar_apply_view(&hidden, &L);
+    expect_int("health.hidden_not_seen", status_bar_visible_live_health(), 0);
     reset_records();
-    status_bar_refresh_live_health(&hidden);
+    status_bar_refresh_live_health();
     expect_int("health.hidden_not_refreshed", s_refresh_count[STATUS_LINE_FORECAST], 0);
 
-    s_live_health[STATUS_LINE_FORECAST] = false;
+    status_bar_apply_view(&spec, &L);
+    s_live_health[STATUS_LINE_FORECAST] = 0;
     reset_records();
-    status_bar_refresh_live_health(&spec);
+    status_bar_refresh_live_health();
     expect_int("health.no_slot_no_refresh", s_refresh_count[STATUS_LINE_FORECAST], 0);
 
     status_bar_destroy_all();
     memset(s_live_health, 0, sizeof(s_live_health));
-    expect_int("destroy.live_health_false", status_bar_any_visible_uses_live_health(&spec), 0);
+    expect_int("destroy.live_health_false", status_bar_visible_live_health(), 0);
 }
+#endif
 
 #if defined(WW_ON_DEMAND)
 // The minute tick (and a radar rescan, and a Bluetooth or battery change) must reach
@@ -418,8 +429,10 @@ static void tick_on_demand_refreshes_visible_item_bars(void) {
     status_bar_tick_on_demand();
     expect_int("on_demand.shown_again_refreshed", s_refresh_count[fc], 1);
 
+#if defined(PBL_HEALTH)
     // Independent of the live-health gate in both directions.
-    expect_int("on_demand.not_live_health", status_bar_any_visible_uses_live_health(&spec), 0);
+    expect_int("on_demand.not_live_health", status_bar_visible_live_health(), 0);
+#endif
 
     status_bar_destroy_all();
     memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
@@ -451,11 +464,21 @@ static void radar_bar_is_a_first_class_bar(void) {
     // the radar bar into the health-refresh set. The old radar owner had no
     // uses-live-health accessor, so it never refreshed on a health update and a
     // Steps slot there froze for an unbounded time.
-    s_live_health[rd] = true;
-    expect_int("radar.live_health_seen", status_bar_any_visible_uses_live_health(&spec), 1);
+#if defined(PBL_HEALTH)
+    status_bar_apply_view(&spec, &L);
+    s_live_health[rd] = 1;
+    expect_int("radar.live_health_seen", status_bar_visible_live_health(), 1);
     reset_records();
-    status_bar_refresh_live_health(&spec);
+    status_bar_refresh_live_health();
     expect_int("radar.live_health_refreshed", s_refresh_count[rd] >= 1, 1);
+    // The readings add up over the visible bars, each its own: the summary reads exactly
+    // these (steps on the radar bar, sleep on the forecast bar here).
+    s_live_health[fc] = 4;
+    expect_int("radar.readings_or", status_bar_visible_live_health(), 1 | 4);
+    ViewSpec radar_only = spec_of(2, STATUS_SRC_RADAR, STATUS_SRC_NONE, LAYOUT_TIER_FULL);
+    status_bar_apply_view(&radar_only, &L);
+    expect_int("radar.hidden_bar_reads_none", status_bar_visible_live_health(), 1);
+#endif
 
     status_bar_destroy_all();
     memset(s_live_health, 0, sizeof(s_live_health));
@@ -517,10 +540,11 @@ static void health_bar_sits_in_its_band(void) {
     status_bar_destroy_all();
 }
 
-// The health-source bar refreshes on VISIBILITY alone (its line is health by
-// construction but may be configured to anything); hidden it must not spend the
-// persist reads — the refresh_all that unhides it re-resolves it then.
-static void health_bar_refreshes_on_visibility(void) {
+// The health-source bar follows every bar's rule: its line is health by default but
+// may be configured to anything, so it refreshes on a health change only while it
+// shows and its line holds a live-health slot. Hidden it must not spend the persist
+// reads — the refresh_all that unhides it re-resolves it then.
+static void health_bar_refreshes_like_every_bar(void) {
     Layer parent = {0};
     s_refresh_changed = true;
     memset(s_live_health, 0, sizeof(s_live_health));
@@ -528,18 +552,26 @@ static void health_bar_refreshes_on_visibility(void) {
     ViewSpec spec = spec_of(2, STATUS_SRC_HEALTH, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
     MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
     status_bar_create_all(&parent, &spec, &L);
+    status_bar_apply_view(&spec, &L);
 
     const int hl = STATUS_LINE_HEALTH;
     reset_records();
-    status_bar_refresh_live_health(&spec);
+    status_bar_refresh_live_health();
+    expect_int("health_bar.no_health_slot_not_refreshed", s_refresh_count[hl], 0);
+
+    s_live_health[hl] = 1;
+    reset_records();
+    status_bar_refresh_live_health();
     expect_int("health_bar.visible_refreshed", s_refresh_count[hl] >= 1, 1);
 
     ViewSpec off = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    status_bar_apply_view(&off, &L);
     reset_records();
-    status_bar_refresh_live_health(&off);
+    status_bar_refresh_live_health();
     expect_int("health_bar.hidden_not_refreshed", s_refresh_count[hl], 0);
 
     status_bar_destroy_all();
+    memset(s_live_health, 0, sizeof(s_live_health));
 }
 #endif
 
@@ -573,12 +605,12 @@ static void extra_bars_are_bars_too(void) {
     expect_int("extra.bar5_draws_its_row", s_draw_count[b5] == 1 && s_draw_count[b4] == 0
                && s_draw_count[b6] == 0, 1);
     // Live health on bar 6: seen while shown, refreshed; on bar 5 (hidden) not seen.
-    s_live_health[b5] = true;
-    expect_int("extra.hidden_live_health_unseen", status_bar_any_visible_uses_live_health(&spec), 0);
-    s_live_health[b6] = true;
-    expect_int("extra.live_health_seen", status_bar_any_visible_uses_live_health(&spec), 1);
+    s_live_health[b5] = 1;
+    expect_int("extra.hidden_live_health_unseen", status_bar_visible_live_health(), 0);
+    s_live_health[b6] = 1;
+    expect_int("extra.live_health_seen", status_bar_visible_live_health(), 1);
     reset_records();
-    status_bar_refresh_live_health(&spec);
+    status_bar_refresh_live_health();
     expect_int("extra.live_health_refreshed", s_refresh_count[b6] >= 1 && s_refresh_count[b5] == 0, 1);
     // On demand: a shown bar with items refreshes on the tick, a hidden one does not.
     s_uses_on_demand[b4] = true;
@@ -692,7 +724,9 @@ int main(void) {
     create_wires_every_bar_in_order();
     apply_view_assigns_bands_and_visibility();
     tier_and_full_date_are_change_gated();
+#if defined(PBL_HEALTH)
     live_health_gate();
+#endif
 #if defined(WW_ON_DEMAND)
     tick_on_demand_refreshes_visible_item_bars();
 #endif
@@ -701,7 +735,7 @@ int main(void) {
 #endif
 #if defined(PBL_HEALTH)
     health_bar_sits_in_its_band();
-    health_bar_refreshes_on_visibility();
+    health_bar_refreshes_like_every_bar();
 #endif
 #if defined(PBL_PLATFORM_EMERY)
     extra_bars_are_bars_too();

@@ -19,7 +19,8 @@ bool health_available(void);
 /** Returns today's total step count, or 0 if unavailable. */
 int health_steps_today(void);
 
-/** Returns today's walked distance in meters, or -1 if unavailable. */
+/** Returns today's walked distance in meters, or -1 while unavailable (the first yes
+ *  is latched for the app's life, like health_available's: health.c). */
 int health_distance_today_m(void);
 
 /** Returns today's total sleep in seconds (last night, matching the phone
@@ -28,6 +29,17 @@ int health_sleep_today_seconds(void);
 
 /** Returns the most recent raw heart-rate sample in BPM, or 0 if unavailable. */
 int health_hr_current(void);
+
+/** One hour of minute records: what an hourly step or heart-rate read asks the firmware for. */
+#define HEALTH_MINUTE_RECORDS 60
+
+/**
+ * Hands the hourly step and heart-rate reads their record buffer, HEALTH_MINUTE_RECORDS
+ * long (720 B: too large for the app stack). Each read fills it and consumes it within its
+ * own call, so the caller may lend a block that other passes use between reads
+ * (layers/paint_scratch.h). Call it before the first hourly read.
+ */
+void health_set_minute_scratch(HealthMinuteData *records);
 
 /**
  * Fills `count` hourly step-count buckets.

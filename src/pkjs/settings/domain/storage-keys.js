@@ -116,6 +116,11 @@ module.exports = {
     PHONE_BATTERY_SUPPORTED: 'phoneBatterySupported',
     PHONE_BATTERY_LEVEL: 'phoneBatteryLevel',
     PHONE_BATTERY_CHARGING: 'phoneBatteryCharging',
+    // The phone's battery as the watch was last sent it ({level, charging}; phone-battery.js
+    // readShown): what a weather fetch's bake shows, so the charge drifting inside its
+    // 5-point bucket does not change the status. Kept across PKJS restarts, unlike the two
+    // above, because the watch keeps showing it.
+    PHONE_BATTERY_SHOWN: 'phoneBatteryShown',
     // The re-bake snapshot: the handful of payload keys buildStatusLines reads,
     // plus the watchInfo its platform env is derived from, version-stamped as
     // one JSON blob. PKJS is torn down whenever the user leaves the watchface,
@@ -156,6 +161,11 @@ module.exports = {
     // cycles of that slot re-serve its answer. Persisted so a PKJS relaunch doesn't reset
     // it; a reset's localStorage.clear() drops it (the next fetch then requests).
     RADAR_REQUEST_THROTTLE_KEY: 'radarRequestThrottle',
+    // The last sky request of the radar's sky rows ({id, at: epoch ms, tuple}, no position;
+    // radar-sky-source.js minRequestIntervalMs): Open-Meteo is asked at most once per UTC
+    // half hour, and the cycles of that half hour re-serve its answer. Kept only once an
+    // answer came, so a failed request is asked again on the next cycle.
+    SKY_REQUEST_THROTTLE_KEY: 'skyRequestThrottle',
     // The last answer each keyed source gave the user's own API key ({<id>: {keyHash,
     // status}}: the key's fingerprint — never the key — and the HTTP status that answered
     // it, per weather provider or radar source; key-result.js). The settings page reads it

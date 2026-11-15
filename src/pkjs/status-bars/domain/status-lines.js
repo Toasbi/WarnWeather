@@ -109,13 +109,14 @@ var isoWeek = slotText.isoWeek;
 
 /**
  * The phone's battery facts a bake reads: whether this PKJS host can read the phone's
- * battery at all, and its cached reading. The caller asks phone-battery.js for them
+ * battery at all, and the reading to show. The caller asks phone-battery.js for them
  * (bakeFacts) and passes them in, so the bake itself never touches the adapter.
  * @typedef {Object} PhoneBattery
  * @property {boolean} supported Whether this host has the Battery Status API (the
  *   persisted PHONE_BATTERY_SUPPORTED verdict, true only inside Android's Chromium WebView).
  * @property {?function(): ?{available: boolean, level: (number|null), charging: boolean}} reading
- *   Reads the cached EXACT percentage and charging flag (called once per bake, only when a
+ *   Reads the exact percentage and charging flag to show, as of the last time the watch was
+ *   sent the battery (phone-battery.js readShown; called once per bake, only when a
  *   bar it bakes shows the phone's battery); `available` is false until a real
  *   reading has landed, and null when the module cannot answer at all (storage blocked:
  *   the slot then bakes '--' instead of taking the whole status bar down).
@@ -161,8 +162,9 @@ function bakeEnv(now, phone) {
  * @param {Object} [env] Platform environment: a wind or gust slot keeps a byte free
  *   for the direction arrow only where packLine will draw one (arrowSector).
  *   Absent = a watch with the arrow (not aplite).
- * @param {BakeEnv} [bake] The time and the phone's battery (bakeEnv): required by the
- *   countdown, the weather condition and the phone-battery items, which read them.
+ * @param {BakeEnv} bake The time and the phone's battery (bakeEnv). Required: the
+ *   countdown, the weather condition and the phone-battery items read it, and a call
+ *   without it throws on those.
  * @returns {string} display text, '--' when the value is unavailable
  */
 function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, bake) {
@@ -261,19 +263,16 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
     // Bluetooth is down (status_row.c's freshness rule), so the two paths agree
     // by construction and a dead phone never leaves a stale percentage on flash.
     if (!pb || !pb.available || typeof pb.level !== 'number') { return '--'; }
-    // The EXACT percentage, never phone-battery.js's 5-point bucket: the bucket
+    // An exact percentage, never phone-battery.js's 5-point bucket: the bucket
     // is that module's SEND TRIGGER (a BLE-wake-up budget) and has no business
     // deciding what the slot says. A phone at 31% that gets plugged in shows
     // '31%', not the '30%' the trigger happens to be named after.
     //
-    // Intended consequence, and it is the good half of the trade: this bake runs
-    // on EVERY weather fetch (render-payload.js toRenderPayload, default
-    // every 15 min), so the displayed number now also refreshes on those fetches
-    // rather than only when the bucket moves. Max staleness drops from "until the
-    // next 5-point step" to about one fetch interval. The cost is that the
-    // outbox's all-or-nothing 'status' category goes dirty more often, so a
-    // cycle that would have skipped its send entirely may now send it -- paid
-    // only on Android, and only when a slot actually holds this item.
+    // Which exact reading is the caller's: a weather fetch's bake gets the one the
+    // watch was last sent (phone-battery.js bakeFacts), so the charge drifting
+    // inside its bucket bakes the same status and sends nothing; a trigger, or a
+    // weather message that goes out anyway (the outbox's ride-along), brings the
+    // phone's reading of that moment.
     //
     // '%' is part of the value, not a per-kind unit: there is no bare-number
     // reading of a battery charge, so it takes no unitEnabled toggle and no

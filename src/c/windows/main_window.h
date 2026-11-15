@@ -24,6 +24,13 @@ void main_window_apply_theme(void);
 bool main_window_radar_has_data(void);
 
 #if defined(PBL_HEALTH)
+// Read the health readings the status rows on screen show that this minute has not read
+// yet (services/health_summary.h health_summary_sync), and repaint the rows a changed
+// reading feeds. Call after the rows are refreshed: a line that newly shows a reading (a
+// settings change adds a Heart rate slot, which a status send delivers after the settings)
+// gets its value at once instead of at the next minute tick.
+void main_window_sync_health(void);
+
 // Re-derive the health graph from the cache + repaint. Call after a settings save
 // that can change the graph's compute (e.g. the HR scale or the label font) so it
 // re-derives instead of rendering stale statics until the next minute tick. Runs

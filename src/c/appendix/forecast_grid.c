@@ -15,9 +15,6 @@ _Static_assert(FORECAST_SPAN_DAY_PAD == FORECAST_GRID_PAD
                && FORECAST_SPAN_DAY_BAR_W == FORECAST_GRID_BAR_W
                && FORECAST_SPAN_DAY_SLOTS == MAX_BOTTOM_VIEW_ENTRIES,
                "forecast_span.h's 24 h class must be FORECAST_GRID_DEF's grid");
-// emery: the chart's point scratch holds the longest forecast line.
-_Static_assert(FORECAST_MAX_ENTRIES <= CHART_MAX_SLOTS,
-               "the chart's point buffer must hold the longest forecast");
 // emery: slot_x.h's time mapping steps one slot per hour, as the forecast's slots do.
 _Static_assert(SLOT_X_STEP_S == BOTTOM_VIEW_STEP_SECONDS, "slot_x.h steps the forecast's hours");
 // emery: forecast_span_mark speaks ChartTickKind.

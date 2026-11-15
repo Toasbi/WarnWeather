@@ -39,6 +39,22 @@ GRect layer_get_frame(const Layer *layer);
 void layer_set_hidden(Layer *layer, bool hidden);
 bool layer_get_hidden(const Layer *layer);
 
+// --- UnobstructedArea (services/quick_view.c's whole surface), as in SDK 4.44 ----
+typedef int32_t AnimationProgress;
+#define ANIMATION_NORMALIZED_MAX 65535
+typedef void (*UnobstructedAreaWillChangeHandler)(GRect final_unobstructed_screen_area,
+                                                  void *context);
+typedef void (*UnobstructedAreaChangeHandler)(AnimationProgress progress, void *context);
+typedef void (*UnobstructedAreaDidChangeHandler)(void *context);
+typedef struct UnobstructedAreaHandlers {
+    UnobstructedAreaWillChangeHandler will_change;
+    UnobstructedAreaChangeHandler change;
+    UnobstructedAreaDidChangeHandler did_change;
+} UnobstructedAreaHandlers;
+void unobstructed_area_service_subscribe(UnobstructedAreaHandlers handlers, void *context);
+void unobstructed_area_service_unsubscribe(void);
+GRect layer_get_unobstructed_bounds(const Layer *layer);
+
 // --- HealthService stand-ins -----------------------------------------------
 // Keep these declarations aligned with SDK 4.17 so the real health.c can be
 // host-compiled against fakes in health_test.c.
@@ -149,6 +165,12 @@ typedef struct AppTimer AppTimer;
 typedef void (*AppTimerCallback)(void *data);
 AppTimer *app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, void *callback_data);
 void app_timer_cancel(AppTimer *timer_handle);
+
+// --- disconnect_vibe_test.c additions ----------------------------------------
+// The Quiet Time and vibe calls services/disconnect_vibe.h makes (the test supplies the
+// bodies).
+bool quiet_time_is_active(void);
+void vibes_double_pulse(void);
 
 // --- night_light_persist_test.c additions -----------------------------------
 // The persistent-storage syscalls, so appendix/persist.c itself can be

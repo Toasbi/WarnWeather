@@ -233,6 +233,10 @@ build and release steps.
   redraws. The `persist_set_*()` helpers compare first and return whether they wrote; gate
   `layer_mark_dirty` on that result. The phone side does the same through the outbox's
   change-detector, so both ends suppress no-op writes and sends.
+- Call the SDK's persist API from `src/c/appendix/persist_store.{c,h}` only
+  (`test/architecture/c-includes.test.js`); `persist.c` goes through its `store_*` calls. On
+  emery it keeps a RAM copy of the store that only its own writes keep exact, so a read or a
+  write anywhere else would go around it.
 
 ### Constraints
 

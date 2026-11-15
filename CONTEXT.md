@@ -143,7 +143,7 @@ The settings AppMessage on the wire: all watch-bound settings keys
 
 **Guarded key (of the Clay bundle)**:
 A key in `config_parse_wire`'s all-or-nothing presence chain
-(`src/c/appendix/config_wire.c`). The chain is the category detector: it tells a
+(the `CORE_KEYS` table in `src/c/appendix/config_wire.c`). The chain is the category detector: it tells a
 message that carries no config (normal for weather messages) from one that carries
 config. Holidays and palettes are left unguarded on purpose. They have their own
 handlers and dirty flags, so a parse problem there cannot take the whole config down.
@@ -172,14 +172,28 @@ on the phone side follows from this.
 
 **Channel scheduler**:
 The module that decides when anything is sent over the channel: the startup handshake,
-config-close chaining, the day-change resend and the minute tick. The outbox decides
-what is sent (dedupe, one-message bundling, ACK-gated cache commit).
+config-close chaining, the day-change resend and the minute tick. The tick resends a
+NACKed settings message after 1, 2, then every 4 minutes until a settings ACK, so settings
+saved while the watch was out of reach arrive at most 4 minutes after it answers again. The
+outbox decides what is sent (dedupe, one-message bundling, ACK-gated cache commit).
 _Avoid_: send queue.
+
+**Ride-along (outbox)**:
+Fresher values a weather message takes along once it goes out anyway, for bytes and never
+a wake-up of their own (`outbox.js` setRideAlong). The phone battery's is its exact
+reading (`phone-battery.js` statusRideAlong).
+
+**Shown reading (phone battery)**:
+The phone's charge as the watch was last sent it: what a weather fetch's bake shows, so
+the charge drifting inside its 5-point bucket changes nothing by itself. A bucket move, a
+charging flip and the ride-along make the exact reading the shown one; so does the first
+reading after a PKJS restart when it lands in another bucket (`phone-battery.js` readShown).
 
 **Battery saver**:
 The night window (`sleepStartHour` to `sleepEndHour`) in which the phone fetches no weather and
-sends the watch no phone-battery updates, so the Bluetooth link stays quiet. The watch is told
-through `IS_SLEEPING`. It shares the Nighttime card's hours with the night theme and the
+sends the watch no phone-battery updates and no sunrise or sunset re-bakes, so the Bluetooth
+link stays quiet; what it held back goes out once the window ends, with the fetch due then
+when there is one. The watch is told through `IS_SLEEPING`. It shares the Nighttime card's hours with the night theme and the
 backlight dim, but owns its own pair.
 _Avoid_: sleep window, sleep mode (the stored keys keep the sleep names).
 
@@ -319,3 +333,12 @@ _Avoid_: sending flat zeros for it, which draws a made-up "no rain".
 One five-minute bucket of the two-hour nowcast window. Slot 0 is pinned to the
 most recent wall-clock five-minute boundary. Because slots are aligned, the
 dedupe can treat a time-shifted but otherwise identical radar as unchanged.
+
+**Sky rows (radar)**:
+The radar graph's two thin stripes under its time axis, cloud and sun, with lightning
+bolts, one cell per quarter hour (`weather/domain/radar/radar-sky.js`; Open-Meteo,
+whatever the radar source). The phone asks for them once per UTC half hour, the fetches
+in between re-serve that half hour's answer (after a move within the half hour, the rows
+show the old place until the next one), and each sky carries ten quarter hours, one
+past the window's nine, so the one the watch holds covers the window until the next
+request: the outbox sends one per request at most. Only the radar graph draws them.

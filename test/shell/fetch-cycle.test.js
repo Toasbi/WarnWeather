@@ -1447,8 +1447,8 @@ test('throw: a counter write that throws is caught and recorded, and later ticks
 });
 
 // --- radar throttle: the shared Rainbow proxy at most once per 30-min slot ------
-// radar-factory.js RADAR_MIN_REQUEST_INTERVAL_MS + fetch-cycle.js
-// takeRadarRequestSlot: one proxy request per UTC-aligned 30-min slot, wherever
+// radar-factory.js RADAR_MIN_REQUEST_INTERVAL_MS + fetch-cycle.js's radar
+// throttle: one proxy request per UTC-aligned 30-min slot, wherever
 // the watch is (the record keeps no position), recorded before it goes out; the
 // throttled cycles of the slot re-serve its window. The stub outbox here does
 // not dedupe, so a re-served window shows up in the extras
@@ -1628,7 +1628,7 @@ test('radar throttle: an unusable record does not throttle', () => {
     assert.equal(rbCycle(rbHarness(), RB_T0 + 5 * MIN).requested, false, 'a usable record throttles');
 });
 
-test('radar throttle: the sky rows are not throttled — they ride a throttled cycle without radar keys', () => {
+test('radar throttle: the sky rows keep their own half hour, re-served even when the radar\'s request failed', () => {
     resetStore();
     const h = rbHarness({ settings: Object.assign({}, RB_SETTINGS, { radarSky: true }) });
     h.setNow(RB_T0);
@@ -1638,19 +1638,25 @@ test('radar throttle: the sky rows are not throttled — they ride a throttled c
     assert.equal(skyRequests().length, 1);
     proxyRequests()[0].onError({ code: 'status_502', detail: 'http_status' });
     skyRequests()[0].onSuccess(skyBody(RB_T0));
+    const sky = h.provider.lastForecast().extras.RADAR_SKY_UINT8;
+    assert.ok(Array.isArray(sky) && sky.length > 0, 'the sky rows ride');
     h.provider.succeed();
 
     h.setNow(RB_T0 + 15 * MIN);
     h.cycle.start(false);
     h.provider.fix(52.5, 13.4);
     assert.equal(proxyRequests().length, 1, 'the radar is throttled');
-    assert.equal(skyRequests().length, 2, 'the sky rows are asked every cycle');
-    assert.equal(h.provider.calls.fetchWithCoordinates.length, 1, 'the forecast waits for the sky answer');
-    skyRequests()[1].onSuccess(skyBody(RB_T0 + 15 * MIN));
+    assert.equal(skyRequests().length, 1, 'and so are the sky rows: their half hour\'s answer is re-served');
+    assert.equal(h.provider.calls.fetchWithCoordinates.length, 2, 'nothing to wait for');
     const extras = h.provider.lastForecast().extras;
-    assert.ok(Array.isArray(extras.RADAR_SKY_UINT8) && extras.RADAR_SKY_UINT8.length > 0, 'the sky rows ride');
+    assert.deepEqual(extras.RADAR_SKY_UINT8, sky, 'the half hour\'s sky rides again');
     assert.deepEqual(radarKeysOf(extras), {}, 'no radar keys: T0\'s request failed, so there is nothing to re-serve');
     h.provider.succeed();
+
+    h.setNow(RB_T0 + 30 * MIN);
+    h.cycle.start(false);
+    h.provider.fix(52.5, 13.4);
+    assert.equal(skyRequests().length, 2, 'the next half hour asks again');
 });
 
 test('radar throttle: Rainbow on your own key, tomorrow.io and DWD ask every cycle and keep no record', () => {

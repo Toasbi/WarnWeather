@@ -33,6 +33,7 @@
 #define WEIGHT_CALENDAR 45
 #define WEIGHT_TIME 45
 #define WEIGHT_BOTTOM 51
+#define WEIGHT_SUM (WEIGHT_CALENDAR + WEIGHT_TIME + WEIGHT_BOTTOM)
 #define WEATHER_STATUS_HEIGHT 14
 #define COMPACT_SINGLE_STATUS_NUDGE 3
 #define LAYOUT_PAD_X 0
@@ -56,14 +57,6 @@
 // band's top rather than its bottom). aplite has a single compact band shape, so here this is
 // just the lone band's existing position restated — kept in lockstep with the base file.
 #define COMPACT_STATUS_TOP_ABOVE_CLOCK (STATUS_LARGE_BAND_H - COMPACT_SINGLE_STATUS_NUDGE)
-
-static void split_content(int content_h, const uint8_t weights[3],
-                          int *calendar_h, int *time_h, int *bottom_h) {
-    int weight_sum = weights[0] + weights[1] + weights[2];
-    *calendar_h = (content_h * weights[0]) / weight_sum;
-    *time_h = (content_h * weights[1]) / weight_sum;
-    *bottom_h = content_h - *calendar_h - *time_h;
-}
 
 ViewSpec view_spec_unpack(uint16_t v) {
     uint8_t tier = (v >> 8) & 3;   // 0=off,1=none,2=compact,3=full
@@ -93,9 +86,6 @@ ViewSpec view_spec_unpack(uint16_t v) {
     // never has one — so this is layout_tier_for_rows() alone, without layout.c's
     // layout_status_tier() promotion step.
     spec.status_tier = layout_tier_for_rows(rows);
-    spec.weights[0] = WEIGHT_CALENDAR;
-    spec.weights[1] = WEIGHT_TIME;
-    spec.weights[2] = WEIGHT_BOTTOM;
     return spec;
 }
 
@@ -136,9 +126,8 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics
     int strip_h = STATUS_LARGE_BAND_H;   // font-sized; taller than CALENDAR_STATUS_HEIGHT
     int content_h = h - LAYOUT_PAD_TOP - LAYOUT_PAD_BOTTOM
                     - CALENDAR_STATUS_HEIGHT - WEATHER_STATUS_HEIGHT;
-    int calendar_h, time_h, bottom_h;
-    split_content(content_h, spec->weights, &calendar_h, &time_h, &bottom_h);
-    (void) bottom_h;
+    int calendar_h = content_h * WEIGHT_CALENDAR / WEIGHT_SUM;
+    int time_h = content_h * WEIGHT_TIME / WEIGHT_SUM;
 
     // The strip's reserve anchors everything below it (clock, status, graph keep their pixels);
     // the calendar slides down under the strip's real band into the calendar→clock gap.

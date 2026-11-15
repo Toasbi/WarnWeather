@@ -60,7 +60,8 @@ test('constructor default windTrend is a zero-filled numEntries array', () => {
 });
 
 // Locks the SUN_EVENTS wire encoding (leading sunrise/sunset byte + LE Int32
-// epoch-seconds per event) so the encodeSunEvents helper (sun-events.js) can't drift it.
+// epoch-seconds per event, whole minutes) so the encodeSunEvents helper (sun-events.js)
+// can't drift it.
 test('getPayload encodes SUN_EVENTS as [startByte, ...LE int32 epoch seconds]', () => {
   const p = makeProvider({
     numEntries: 3,
@@ -73,12 +74,12 @@ test('getPayload encodes SUN_EVENTS as [startByte, ...LE int32 epoch seconds]', 
     currentTemp: 60,
     cityName: 'X',
     sunEvents: [
-      { type: 'sunrise', date: new Date(1000 * 1000) }, // 1000 s
-      { type: 'sunset', date: new Date(2000 * 1000) }    // 2000 s
+      { type: 'sunrise', date: new Date(1020 * 1000) }, // 1020 s, 17 min
+      { type: 'sunset', date: new Date(2040 * 1000) }    // 2040 s, 34 min
     ]
   });
-  // 0 = list starts on a sunrise; 1000 -> E8 03 00 00, 2000 -> D0 07 00 00 (LE).
-  assert.deepEqual(p.getPayload().SUN_EVENTS, [0, 232, 3, 0, 0, 208, 7, 0, 0]);
+  // 0 = list starts on a sunrise; 1020 -> FC 03 00 00, 2040 -> F8 07 00 00 (LE).
+  assert.deepEqual(p.getPayload().SUN_EVENTS, [0, 252, 3, 0, 0, 248, 7, 0, 0]);
 });
 
 test('composeWeatherPayload merges extras then applies the transform', () => {
