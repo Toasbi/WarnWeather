@@ -36,11 +36,10 @@
 // (statusRebake.resendStatus). The full why-a-restored-re-bake-is-byte-safe
 // rationale lives in that module's header now.
 //
-// One deliberate consequence of the backstop: the FIRST reading after a restart
-// can now send, because the trigger baseline is still in-memory only and so
-// counts as a move. That is a refresh, not spam -- the outbox's change detector
-// drops a status category whose bytes match the last send outright, so it wakes
-// the radio only when the phone's charge really did change while PKJS was down.
+// The FIRST reading after a restart (the seed) never sends by itself. It becomes
+// the shown reading only when there is none yet, or when it lands in another
+// bucket or charging state than the shown one (the charge really moved while PKJS
+// was down); the next message that goes out then carries it.
 //
 // ES5 only (aplite's JavaScriptCore) — var + function, and never *construct* a
 // Promise. `getBattery()` hands back a host-provided thenable; calling .then()
@@ -250,9 +249,10 @@ function setSupported(supported) {
  * bake `--` rather than a made-up number.
  *
  * The value can be fresher than the last thing the watch was told, and that is
- * the point: ingest() rewrites it on every reading, so the next send of any
- * kind — a battery trigger or the next weather fetch's bake — carries the
- * phone's real charge.
+ * the point: ingest() rewrites it on every reading, so the next battery trigger,
+ * or the ride-along of the next weather message that goes out anyway
+ * (statusRideAlong), carries the phone's real charge. A bake itself reads the
+ * shown reading (readShown), which falls back to this one while none is stored.
  *
  * SELF-HEALING when the cache is gone but a BatteryManager is in hand: "Reset
  * watchface" (clay-settings.js resetAll) wipes these keys with the rest of
@@ -416,9 +416,10 @@ function isSuppressed() {
  * is the bug this shape exists to prevent:
  *
  * - CACHE, always. Every readable reading rewrites the stored exact percentage
- *   and charging flag, trigger or not. The baker reads that cache on every
- *   weather fetch, so an untriggered 31 % still reaches the watch on the next
- *   ordinary send instead of being frozen at the last bucket's number.
+ *   and charging flag, trigger or not. The ride-along reads that cache whenever a
+ *   weather message goes out anyway (statusRideAlong), so an untriggered 31 % still
+ *   reaches the watch with the next message sent instead of being frozen at the
+ *   last bucket's number.
  * - TRIGGER, rarely. A resend fires only when the 5-point bucket moves, or on
  *   any charging flip — plugging in is the one event a user looks at the watch
  *   to confirm. That cadence is a deliberate BLE-wake-up budget: caching a
@@ -499,8 +500,10 @@ function ingest(reading) {
  * watchface, so a sending seed would mean a BLE wake-up on essentially every
  * visit — the charge is almost always a percent or two off the last one — which
  * is exactly the spend the 5-point bucket exists to prevent. The reading is
- * still cached, so the next weather fetch's bake carries it, and the first real
- * levelchange/chargingchange after the seed sends normally.
+ * still cached, so the next weather message that goes out carries it along, and
+ * it becomes the shown reading at once when it moved bucket or charging state
+ * while PKJS was down (ingest). The first real levelchange/chargingchange after
+ * the seed sends normally.
  *
  * @param {Object} reading Battery manager (or fake) with .level and .charging.
  * @returns {void}
