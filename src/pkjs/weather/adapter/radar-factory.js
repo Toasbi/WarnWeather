@@ -123,8 +123,8 @@ function canAnswer(radarId, cfg) {
 /**
  * Minimum spacing between two requests of a radar source (0 = every cycle).
  * The table lives here, not in fetch-cycle.js, so the cycle never learns
- * source names; fetch-cycle.js takeRadarRequestSlot applies it as UTC-aligned
- * slots of this length.
+ * source names; fetch-cycle.js applies it as UTC-aligned slots of this length
+ * (request-throttle.js).
  * @param {string} radarId Clay radarProvider id.
  * @returns {number} Milliseconds.
  */

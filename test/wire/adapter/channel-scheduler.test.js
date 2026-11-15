@@ -420,6 +420,49 @@ test('an ACK ends the backoff: the next NACK is resent a minute later again', fu
     assert.equal(h.calls.sendClay.length, 5, 'the backoff starts over at one minute');
 });
 
+// The link coming back ends the backoff: a weather ACK after a weather NACK (outbox.js
+// setWeatherOutcomeListener) says the watch answers again. Weather ACKs alone do not: a
+// watch that takes the weather but refuses the settings keeps backing off.
+function nackThreeSettingsInARow(h) {
+    localStorage.setItem(KEYS.LAST_HOLIDAY_DAY_KEY, '2026-6-7');
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    h.nackClay();
+    h.flushTimers();                   // the re-bake
+    h.scheduler.start();               // minute 1: resend 1
+    h.nackClay();
+    h.flushTimers();                   // minute 2: waits
+    h.flushTimers();                   // minute 3: resend 2
+    h.nackClay();                      // the third NACK in a row waits four minutes
+    assert.equal(h.calls.sendClay.length, 3);
+}
+
+test('a weather ACK after a weather NACK ends the backoff: the next tick resends the settings', function () {
+    resetStore();
+    var h = makeHarness();
+    nackThreeSettingsInARow(h);
+    h.scheduler.onWeatherOutcome(false);   // a weather message NACKs too: the link is down
+    h.scheduler.onWeatherOutcome(true);    // and the next one lands: the link is back
+    h.flushTimers();                       // minute 4
+    assert.equal(h.calls.sendClay.length, 4, 'resent at once, not after the four-minute wait');
+    h.nackClay();
+    h.flushTimers();                       // minute 5
+    assert.equal(h.calls.sendClay.length, 5, 'the backoff starts over at one minute');
+});
+
+test('weather ACKs alone do not end the backoff of a watch that refuses only the settings', function () {
+    resetStore();
+    var h = makeHarness();
+    nackThreeSettingsInARow(h);
+    h.scheduler.onWeatherOutcome(true);
+    h.flushTimers();                       // minute 4
+    h.flushTimers();                       // minute 5
+    h.flushTimers();                       // minute 6
+    assert.equal(h.calls.sendClay.length, 3, 'still waiting');
+    h.scheduler.onWeatherOutcome(true);
+    h.flushTimers();                       // minute 7
+    assert.equal(h.calls.sendClay.length, 4, 'resent on the backoff\'s own schedule');
+});
+
 test('the theme flip waits out a settings backoff too, then rides the resend', function () {
     resetStore();
     var h = makeThemeHarness();

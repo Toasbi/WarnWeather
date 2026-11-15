@@ -322,31 +322,54 @@ function loadShown() {
 }
 
 /**
- * Make the cached exact reading the shown one, when there is one and it differs.
- *
- * @returns {boolean} True when the shown reading changed.
+ * @returns {?{available: boolean, level: number, charging: boolean}} The cached exact
+ *   reading when there is one and it differs from the shown one, else null.
  */
-function showExact() {
+function unshownExact() {
     var exact = read();
     var shown = loadShown();
     if (!exact.available || (shown && shown.level === exact.level && shown.charging === exact.charging)) {
-        return false;
+        return null;
     }
-    save(KEYS.PHONE_BATTERY_SHOWN, JSON.stringify({ level: exact.level, charging: exact.charging }));
-    return true;
+    return exact;
+}
+
+/**
+ * @param {{level: number, charging: boolean}} reading The reading the watch is sent now.
+ * @returns {void}
+ */
+function saveShown(reading) {
+    save(KEYS.PHONE_BATTERY_SHOWN, JSON.stringify({ level: reading.level, charging: reading.charging }));
+}
+
+/**
+ * Make the cached exact reading the shown one, when there is one and it differs.
+ *
+ * @returns {void}
+ */
+function showExact() {
+    var exact = unshownExact();
+    if (exact) { saveShown(exact); }
 }
 
 /**
  * The outbox's ride-along for the phone's battery (outbox.js setRideAlong, wired in
  * index.js): asked once a weather message goes out anyway, it brings the status re-baked
- * with the exact reading when that differs from the shown one, which it becomes. Bytes
- * on a message already on its way, never a wake-up of its own.
+ * with the exact reading when that differs from the shown one. Bytes on a message already
+ * on its way, never a wake-up of its own. The exact reading becomes the shown one only
+ * once that status is baked: with nothing to re-bake (no fetch has baked yet, or the bake
+ * throws) the message carries its own bake, of the shown reading, and the shown reading
+ * stays what the watch shows.
  *
  * @returns {?Object} The status keys to ride along, or null when there is nothing new.
  */
 function statusRideAlong() {
-    if (!isSupported() || !showExact()) { return null; }
-    return statusRebake.bakeStatus();
+    var exact = isSupported() ? unshownExact() : null;
+    var status = exact
+        ? statusRebake.bakeStatus({ supported: true, reading: function () { return exact; } })
+        : null;
+    if (status) { saveShown(exact); }
+    return status;
 }
 
 /**

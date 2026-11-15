@@ -1,7 +1,7 @@
 // test/shell/rainbow-radar-throttle.test.js
 //
 // End to end on the phone side: the shared Rainbow radar is asked at most once
-// per 30-minute slot (fetch-cycle.js takeRadarRequestSlot), and the throttled
+// per 30-minute slot (fetch-cycle.js's radar throttle), and the throttled
 // cycles of a slot re-serve that slot's window. Once the window is on the watch
 // the real outbox dedupe skips the re-served copy (radar-dedupe.js: k = 0, the
 // overlap equal, no tail), so re-serving costs nothing; when the window never

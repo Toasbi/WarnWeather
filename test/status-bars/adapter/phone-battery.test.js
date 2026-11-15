@@ -1011,6 +1011,18 @@ test('the ride-along brings the exact reading once it differs, and the watch sho
   assert.equal(phoneBattery.statusRideAlong(), null, 'and there is nothing new to bring again');
 });
 
+test('with nothing to re-bake, the ride-along brings nothing and the shown reading stays', () => {
+  // No fetch has baked yet: the message going out carries its own bake, of the shown reading.
+  const mgr = fakeManager(0.62, false);
+  boot({ navigator: modernNavigator(mgr), realBake: true, settings: SLOT_SETTINGS });
+  mgr.setLevel(0.61);
+  assert.equal(phoneBattery.statusRideAlong(), null);
+  assert.equal(phoneBattery.bakeFacts().reading().level, 62, 'the watch still shows 62%');
+  statusRebake.rememberBakeInputs(bakePayload(), { platform: 'basalt' });
+  assert.equal(decodeLine(phoneBattery.statusRideAlong().STATUS_LINE_1_UINT8)[0].text, '61%',
+    'the first message with a bake to re-bake takes it along');
+});
+
 test('a phone without a battery API, or with no reading yet, brings nothing to ride along', () => {
   boot({ navigator: {} });
   assert.equal(phoneBattery.statusRideAlong(), null);

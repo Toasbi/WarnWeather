@@ -6,7 +6,6 @@
 
 var KEYS = require('../../settings/domain/storage-keys');
 var radarDedupe = require('../../weather/domain/radar/radar-dedupe');
-var skyDedupe = require('../../weather/domain/radar/sky-dedupe');
 
 var WEATHER_CATEGORIES = [
     {
@@ -44,13 +43,12 @@ var WEATHER_CATEGORIES = [
         comparator: radarDedupe.radarComparator
     },
     {
-        // The radar's sky rows (radar-sky.js): an absolute-start blob whose start moves
-        // every quarter hour, so the comparator aligns it against the last-sent one and
-        // skips it while that one still covers the window with the same sky (sky-dedupe.js).
+        // The radar's sky rows (radar-sky.js): an absolute-start blob, so an exact compare
+        // is right. Asked once per half hour and re-served byte for byte in between
+        // (fetch-cycle.js), it changes when a new half hour's request brings it.
         name: 'sky',
         cacheKey: KEYS.LAST_SENT_SKY_KEY,
-        keys: ['RADAR_SKY_UINT8'],
-        comparator: skyDedupe.skyComparator
+        keys: ['RADAR_SKY_UINT8']
     },
     {
         name: 'sleep',

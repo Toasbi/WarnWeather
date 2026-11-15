@@ -172,7 +172,9 @@ on the phone side follows from this.
 
 **Channel scheduler**:
 The module that decides when anything is sent over the channel: the startup handshake,
-config-close chaining, the day-change resend and the minute tick. The outbox decides
+config-close chaining, the day-change resend and the minute tick. The tick resends a
+NACKed settings message after 1, 2, 4, 8, 16, then every 30 minutes, until a settings ACK
+or the link coming back (a weather ACK after a weather NACK). The outbox decides
 what is sent (dedupe, one-message bundling, ACK-gated cache commit).
 _Avoid_: send queue.
 
@@ -335,7 +337,8 @@ dedupe can treat a time-shifted but otherwise identical radar as unchanged.
 **Sky rows (radar)**:
 The radar graph's two thin stripes under its time axis, cloud and sun, with lightning
 bolts, one cell per quarter hour (`weather/domain/radar/radar-sky.js`; Open-Meteo,
-whatever the radar source). The phone asks for them once per UTC half hour and each sky
-carries ten quarter hours, one past the window's nine, so the one the watch holds covers
-the window until the next request; the outbox sends a sky only when it changed or would
-run out first (`sky-dedupe.js`). Only the radar graph draws them.
+whatever the radar source). The phone asks for them once per UTC half hour, the fetches
+in between re-serve that half hour's answer (after a move within the half hour, the rows
+show the old place until the next one), and each sky carries ten quarter hours, one
+past the window's nine, so the one the watch holds covers the window until the next
+request: the outbox sends one per request at most. Only the radar graph draws them.

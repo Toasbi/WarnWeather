@@ -140,6 +140,9 @@ var scheduler = createChannelScheduler({
     setTimeout: function (fn, ms) { return setTimeout(fn, ms); },
     now: function () { return new Date(); }
 });
+// A weather ACK after a weather NACK says the link is back: the scheduler ends a settings
+// resend's backoff then (channel-scheduler.js onWeatherOutcome).
+outbox.setWeatherOutcomeListener(scheduler.onWeatherOutcome);
 
 Pebble.addEventListener('appmessage', function(e) {
     var payload = e && e.payload;

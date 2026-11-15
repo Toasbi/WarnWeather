@@ -448,10 +448,13 @@ function resendStatus(reason, onSuccess, onFailure) {
  * phone battery's ride-along (phone-battery.js statusRideAlong) hands them to a weather
  * message that goes out anyway.
  *
+ * @param {?{supported: boolean, reading: ?Function}} [phone] Battery facts to bake in place
+ *   of the supplier's (phone-battery.js bakeFacts' shape): the ride-along bakes the exact
+ *   reading before it makes it the shown one.
  * @returns {?Object} The status keys, or null when there is nothing to re-bake or the bake throws.
  */
-function bakeStatus() {
-    var baked = rebake();
+function bakeStatus(phone) {
+    var baked = rebake(phone);
     if (baked.error) {
         console.log('status-rebake: re-bake failed: ' + baked.error.message);
         return null;
@@ -463,10 +466,11 @@ function bakeStatus() {
  * Re-bake a fresh clone of the bake inputs and pick the status category's keys, latching
  * the day or night it was baked at.
  *
+ * @param {?Object} [phone] Battery facts to bake in place of the supplier's (bakeStatus).
  * @returns {{status: ?Object, error: ?Error}} The status keys (null without bake inputs),
  *   or the error the bake threw.
  */
-function rebake() {
+function rebake(phone) {
     var inputs = bakeInputs();
     var payload;
     var build;
@@ -481,7 +485,7 @@ function rebake() {
     bakedNight = nightAt(payload, at / 1000);
     build = deps.buildStatusLines || statusLines.buildStatusLines;
     try {
-        build(payload, inputs.settings, inputs.watchInfo, new Date(at), phoneFacts());
+        build(payload, inputs.settings, inputs.watchInfo, new Date(at), phone || phoneFacts());
     }
     catch (ex) {
         return { status: null, error: ex };

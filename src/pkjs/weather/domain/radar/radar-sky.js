@@ -24,10 +24,10 @@
 // scale (skyByte, ../stripe-levels.js), so the watch draws exactly that level.
 //
 // Cadence: the phone asks for the sky once per UTC half hour (REFRESH_SECONDS,
-// fetch-cycle.js takeSkyRequestSlot) and the watch draws the one it holds until the
-// next, so a sky carries one slot past the window (NUM_SLOTS). The outbox sends a sky
-// only when it changed, or when the one on the watch would stop covering the window
-// before the next request (sky-dedupe.js).
+// fetch-cycle.js's sky throttle) and the watch draws the one it holds until the
+// next, so a sky carries one slot past the window (NUM_SLOTS). The fetches in between
+// re-serve that half hour's sky byte for byte, so the outbox's exact compare sends it
+// once per request.
 
 var SunCalc = require('suncalc');
 var cloudCover = require('../cloud-cover.js');
@@ -35,11 +35,9 @@ var radarWire = require('./radar-wire.js');
 var stripeLevels = require('../../../forecast-graphs/domain/stripe-levels.js');
 
 var SLOT_SECONDS = 15 * 60;
-// The radar window, in seconds: 24 five-minute slots from slot 0.
+// The radar window, in seconds: 24 five-minute slots from slot 0. It reaches into nine
+// quarter hours when slot 0 is not itself on a quarter hour.
 var WINDOW_SECONDS = radarWire.NUM_BARS * radarWire.SLOT_SECONDS;
-// The quarter hours the radar window spans: 120 min from a 5-min pinned slot 0
-// reach into nine of them when slot 0 is not itself on a quarter hour.
-var WINDOW_SLOTS = Math.ceil((WINDOW_SECONDS + SLOT_SECONDS - radarWire.SLOT_SECONDS) / SLOT_SECONDS);
 // How often the phone asks for the sky: once per UTC half hour, the shared Rainbow
 // radar's cadence (radar-factory.js RADAR_MIN_REQUEST_INTERVAL_MS). The rows are
 // cloud and sun forecasts for the next two hours, which a quarter hour more or less
@@ -255,28 +253,6 @@ function packSky(sky) {
 }
 
 /**
- * Read a packed sky back (packSky's inverse, radar_sky.h's radar_sky_count rules): null
- * for the clear (an empty blob) and for anything that is not a well-formed blob — too
- * short, no slots, or a length that disagrees with its slot count.
- * @param {*} bytes RADAR_SKY_UINT8 bytes.
- * @returns {?{start: number, clouds: number[], suns: number[], bolts: boolean[]}} The sky.
- */
-function unpackSky(bytes) {
-    if (!Array.isArray(bytes) || bytes.length < 5) { return null; }
-    var n = bytes[4];
-    if (!(n >= 1) || bytes.length !== 5 + 2 * n + 2) { return null; }
-    var mask = bytes[5 + 2 * n] | (bytes[6 + 2 * n] << 8);
-    var bolts = [];
-    for (var k = 0; k < n; k += 1) { bolts.push(((mask >> k) & 1) === 1); }
-    return {
-        start: (bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24)) >>> 0,
-        clouds: bytes.slice(5, 5 + n),
-        suns: bytes.slice(5 + n, 5 + 2 * n),
-        bolts: bolts
-    };
-}
-
-/**
  * The tuple that removes the sky rows from the watch (the toggle is off, or the
  * radar graph is not shown).
  * @returns {{RADAR_SKY_UINT8: number[]}} An empty blob.
@@ -349,7 +325,6 @@ function joinRadarAndSky(startRadar, startSky, callback) {
 
 module.exports = {
     SLOT_SECONDS: SLOT_SECONDS,
-    WINDOW_SLOTS: WINDOW_SLOTS,
     REFRESH_SECONDS: REFRESH_SECONDS,
     NUM_SLOTS: NUM_SLOTS,
     SUN_FULL_CLEAR_SHARE: SUN_FULL_CLEAR_SHARE,
@@ -364,7 +339,6 @@ module.exports = {
     mapOpenMeteoSky: mapOpenMeteoSky,
     isLightning: isLightning,
     packSky: packSky,
-    unpackSky: unpackSky,
     clearSkyTuple: clearSkyTuple,
     isClearSkyTuple: isClearSkyTuple,
     skySourceIdFor: skySourceIdFor,

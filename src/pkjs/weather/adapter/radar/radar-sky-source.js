@@ -70,7 +70,12 @@ function createSkySource(skyId) {
  * Minimum spacing between two requests of a sky source (0 = every cycle): Open-Meteo is
  * asked once per UTC half hour (radar-sky.js REFRESH_SECONDS, which the sky's slots are
  * sized for); the clearing source answers at once and is never throttled. fetch-cycle.js
- * takeSkyRequestSlot applies it, the radar-factory.js minRequestIntervalMs pattern.
+ * applies it through its sky throttle (request-throttle.js), the radar-factory.js
+ * minRequestIntervalMs pattern.
+ *
+ * Accepted edge case: the throttle keeps no position, so after a GPS move inside the half
+ * hour the sky rows show the old place for up to 30 min, even under a radar source that
+ * asks every cycle. The next half hour asks for the new place.
  * @param {string} skyId 'openmeteo' or 'disabled'.
  * @returns {number} Milliseconds.
  */
