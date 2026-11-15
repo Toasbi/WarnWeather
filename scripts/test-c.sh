@@ -41,6 +41,9 @@ build/host/config_size_test_aplite
 # Time is off.
 cc $CFLAGS test/c/disconnect_vibe_test.c -o build/host/disconnect_vibe_test
 build/host/disconnect_vibe_test
+# Timeline Quick View (services/quick_view.c): one re-render per show or hide, once it settles.
+cc $CFLAGS -DWW_QUICK_VIEW test/c/quick_view_test.c src/c/services/quick_view.c -o build/host/quick_view_test
+build/host/quick_view_test
 cc $CFLAGS test/c/health_build_test.c src/c/services/health_build.c -o build/host/health_build_test
 build/host/health_build_test
 cc $CFLAGS test/c/health_test.c src/c/services/health.c -o build/host/health_test
