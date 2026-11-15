@@ -7,24 +7,22 @@
 # heap is what the image leaves: every image byte is a heap byte, 1:1, as on aplite
 # (check-aplite-size.sh). That heap then holds the AppMessage inbox (640 B) and outbox
 # and every window, layer, font and PDC the watchface creates. The gate is the LOWEST
-# free heap at runtime, measured with ENABLE_MEMORY_LOGGING=1 on the emulator: 4.5 KB
-# on basalt and diorite (the custom-layout v2 heap gate, c24da813).
+# free heap at runtime, measured on the emulator (below): 4.5 KB on basalt and diorite
+# (the custom-layout v2 heap gate, c24da813).
 #
 # The ceilings below are the measured release images; the script prints the boot free
 # heap each leaves (65536 B less the image). Lower a ceiling when bytes are reclaimed;
 # never raise one without a measured runtime low point that allows it. A ceiling change
 # edits only the numbers below: why it moved, and by how much, is in its commit message.
 #
-# The runtime low point, measured in November 2026 with the battery fixes in, in release
-# builds on the emulator through the heaviest realistic run: three custom screens with
-# every graph and bar kind, four metric lines, radar sky rows and health on; a settings
-# apply and a full weather bundle at launch; three flicks; a Quick View show and hide.
-# Lowest free heap: basalt 2936 B (3184 B before the fixes), diorite 4996 B (5252 B),
-# flint 4956 B (5204 B), with no failed allocation. The peak use is the same with and
-# without the fixes (basalt 5744 B, diorite 5852 B, flint 5788 B): the face's own
-# allocations plus the firmware's 2 KB health cache, which a health read holds for a
-# moment. So BASALT IS BELOW THE 4.5 KB GATE ON MAIN TOO; the owner chose to ship the
-# fixes on the 64 KB watches anyway, and the ceilings were set to their images.
+# The runtime low point, measured in November 2026 in release builds on the emulator
+# through the heaviest realistic run: three custom screens with every graph and bar kind,
+# four metric lines, radar sky rows and health on; a settings apply and a full weather
+# bundle at launch; three flicks; a Quick View show and hide. Lowest free heap: basalt
+# 5152 B, diorite 7228 B, flint 7180 B, with no failed allocation, so all three clear the
+# 4.5 KB gate. The peak use is basalt 5744 B, diorite 5852 B, flint 5788 B: the face's
+# own allocations plus the firmware's 2 KB health cache, which a health read holds for a
+# moment.
 #
 # Earlier, provisionally: "Draw from: Top" (basalt +144 B, diorite/flint +192 B; stack
 # +16 B on the forecast paint path, +16 B on the radar's), the temperature curve's margins
