@@ -1342,7 +1342,7 @@ test('boot(): a change no render follows (a value painted in place) lights Save 
   const r = bootWithCapturedListeners(schema, {}, { dialog: true });
   const fire = async (type) => {
     (r.docListeners[type] || []).forEach((fn) => fn({ type, target: { closest: () => null } }));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 120));
   };
   // As a slider's arrow-key nudge writes its value: S, with no render after it.
   r.S.mode = 'b';

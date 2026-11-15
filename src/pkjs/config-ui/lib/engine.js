@@ -4125,12 +4125,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // module's own overlay (the screen editor, setup) and the dialogs all end in one of these
       // events. Captured on the document, so the check runs whatever handled the event; on the
       // next tick, so it sees what the handlers wrote. One timer serves a burst (a tap's
-      // pointerup and click). A check costs well under a millisecond.
+      // pointerup and click, a slider's drag, typing): the check normalizes and serializes
+      // every setting, so it runs at most once per PAINT_SOON_MS.
       if (!document.addEventListener) { return; }
+      var PAINT_SOON_MS = 100;
       var paintTimer = null;
+      /**
+       * Repaint Save and Revert once the burst of events this one belongs to is handled.
+       * @returns {void}
+       */
       var paintSoon = function () {
         if (paintTimer) { return; }
-        paintTimer = setTimeout(function () { paintTimer = null; paintSave(); }, 0);
+        paintTimer = setTimeout(function () { paintTimer = null; paintSave(); }, PAINT_SOON_MS);
       };
       ['click', 'input', 'change', 'keyup', 'pointerup'].forEach(function (type) {
         document.addEventListener(type, paintSoon, true);
