@@ -39,43 +39,54 @@ enum {
     CORE_INT16,   // an int16_t
     CORE_COLOR,   // a GColor, sent as its 0xRRGGBB int
 };
+// The field size each read writes. A kind on a field of another size would write past it
+// or leave part of it unset, so every row below is checked against these as it compiles.
+#define CORE_SIZE_CORE_FLAG  sizeof(bool)
+#define CORE_SIZE_CORE_BYTE  sizeof(uint8_t)
+#define CORE_SIZE_CORE_INT16 sizeof(int16_t)
+#define CORE_SIZE_CORE_COLOR sizeof(GColor)
 
-// The core keys (config_wire.h): each with the field it fills. The parse stops at the
-// first one missing, so a message without config (every weather message) costs one
-// lookup here. New keys do not join this table; they are the optionals below it.
+// The core keys (config_wire.h): each with the field it fills and how. The parse stops at
+// the first one missing, so a message without config (every weather message) costs one
+// lookup here. New keys do not join this list; they are the optionals below it.
+#define CORE_KEY_LIST(X) \
+    X(MESSAGE_KEY_CLAY_CELSIUS,                celsius,                    CORE_FLAG)  \
+    X(MESSAGE_KEY_CLAY_TIME_LEAD_ZERO,         time_lead_zero,             CORE_FLAG)  \
+    X(MESSAGE_KEY_CLAY_AXIS_12H,               axis_12h,                   CORE_FLAG)  \
+    X(MESSAGE_KEY_CLAY_START_MON,              start_mon,                  CORE_FLAG)  \
+    X(MESSAGE_KEY_CLAY_PREV_WEEK,              prev_week,                  CORE_FLAG)  \
+    X(MESSAGE_KEY_CLAY_VIBE,                   vibe,                       CORE_FLAG)  \
+    X(MESSAGE_KEY_CLAY_SHOW_QT,                show_qt,                    CORE_FLAG)  \
+    X(MESSAGE_KEY_CLAY_SHOW_BT,                show_bt,                    CORE_FLAG)  \
+    X(MESSAGE_KEY_CLAY_SHOW_BT_DISCONNECT,     show_bt_disconnect,         CORE_FLAG)  \
+    X(MESSAGE_KEY_CLAY_SHOW_AM_PM,             show_am_pm,                 CORE_FLAG)  \
+    X(MESSAGE_KEY_CLAY_DAY_NIGHT_SHADING,      day_night_shading,          CORE_FLAG)  \
+    X(MESSAGE_KEY_CLAY_HEALTH_MODE,            health_mode,                CORE_BYTE)  \
+    X(MESSAGE_KEY_CLAY_TOP_VIEW_MODE,          top_view_mode,              CORE_BYTE)  \
+    X(MESSAGE_KEY_CLAY_FETCH_INTERVAL_MIN,     fetch_interval_min,         CORE_INT16) \
+    X(MESSAGE_KEY_CLAY_RAIN_COUNTDOWN_HORIZON, rain_countdown_horizon_min, CORE_INT16) \
+    X(MESSAGE_KEY_CLAY_TIME_FONT,              time_font,                  CORE_INT16) \
+    X(MESSAGE_KEY_CLAY_COLOR_TODAY,            color_today,                CORE_COLOR) \
+    X(MESSAGE_KEY_CLAY_COLOR_SATURDAY,         color_saturday,             CORE_COLOR) \
+    X(MESSAGE_KEY_CLAY_COLOR_SUNDAY,           color_sunday,               CORE_COLOR) \
+    X(MESSAGE_KEY_CLAY_COLOR_US_FEDERAL,       color_us_federal,           CORE_COLOR) \
+    X(MESSAGE_KEY_CLAY_COLOR_TIME,             color_time,                 CORE_COLOR)
+
 typedef struct {
     uint16_t key;
     uint8_t  offset;
     uint8_t  read;
 } CoreKey;
 _Static_assert(sizeof(Config) <= 255, "a core key's field offset is one byte");
-// The message key ids are small constants (message_key_ids.auto.h); one that does not
-// fit the table's 16 bits fails to compile here.
-#define CORE_KEY(id, field, read) \
-    { (uint16_t) ((id) + 0 * sizeof(char[(id) <= 0xFFFFu ? 1 : -1])), offsetof(Config, field), (read) }
-static const CoreKey CORE_KEYS[] = {
-    CORE_KEY(MESSAGE_KEY_CLAY_CELSIUS,                celsius,                    CORE_FLAG),
-    CORE_KEY(MESSAGE_KEY_CLAY_TIME_LEAD_ZERO,         time_lead_zero,             CORE_FLAG),
-    CORE_KEY(MESSAGE_KEY_CLAY_AXIS_12H,               axis_12h,                   CORE_FLAG),
-    CORE_KEY(MESSAGE_KEY_CLAY_START_MON,              start_mon,                  CORE_FLAG),
-    CORE_KEY(MESSAGE_KEY_CLAY_PREV_WEEK,              prev_week,                  CORE_FLAG),
-    CORE_KEY(MESSAGE_KEY_CLAY_VIBE,                   vibe,                       CORE_FLAG),
-    CORE_KEY(MESSAGE_KEY_CLAY_SHOW_QT,                show_qt,                    CORE_FLAG),
-    CORE_KEY(MESSAGE_KEY_CLAY_SHOW_BT,                show_bt,                    CORE_FLAG),
-    CORE_KEY(MESSAGE_KEY_CLAY_SHOW_BT_DISCONNECT,     show_bt_disconnect,         CORE_FLAG),
-    CORE_KEY(MESSAGE_KEY_CLAY_SHOW_AM_PM,             show_am_pm,                 CORE_FLAG),
-    CORE_KEY(MESSAGE_KEY_CLAY_DAY_NIGHT_SHADING,      day_night_shading,          CORE_FLAG),
-    CORE_KEY(MESSAGE_KEY_CLAY_HEALTH_MODE,            health_mode,                CORE_BYTE),
-    CORE_KEY(MESSAGE_KEY_CLAY_TOP_VIEW_MODE,          top_view_mode,              CORE_BYTE),
-    CORE_KEY(MESSAGE_KEY_CLAY_FETCH_INTERVAL_MIN,     fetch_interval_min,         CORE_INT16),
-    CORE_KEY(MESSAGE_KEY_CLAY_RAIN_COUNTDOWN_HORIZON, rain_countdown_horizon_min, CORE_INT16),
-    CORE_KEY(MESSAGE_KEY_CLAY_TIME_FONT,              time_font,                  CORE_INT16),
-    CORE_KEY(MESSAGE_KEY_CLAY_COLOR_TODAY,            color_today,                CORE_COLOR),
-    CORE_KEY(MESSAGE_KEY_CLAY_COLOR_SATURDAY,         color_saturday,             CORE_COLOR),
-    CORE_KEY(MESSAGE_KEY_CLAY_COLOR_SUNDAY,           color_sunday,               CORE_COLOR),
-    CORE_KEY(MESSAGE_KEY_CLAY_COLOR_US_FEDERAL,       color_us_federal,           CORE_COLOR),
-    CORE_KEY(MESSAGE_KEY_CLAY_COLOR_TIME,             color_time,                 CORE_COLOR),
-};
+// Every key id fits the table's 16 bits (message_key_ids.auto.h: small constants), and
+// every field is the size its read writes.
+#define CORE_KEY_CHECK(id, field, read) \
+    _Static_assert((id) <= 0xFFFFu, #id " does not fit a core key's 16 bits"); \
+    _Static_assert(sizeof(((Config *) 0)->field) == CORE_SIZE_##read, \
+                   "Config." #field " is not the size a " #read " read writes");
+CORE_KEY_LIST(CORE_KEY_CHECK)
+#define CORE_KEY_ROW(id, field, read) { (uint16_t) (id), offsetof(Config, field), (read) },
+static const CoreKey CORE_KEYS[] = { CORE_KEY_LIST(CORE_KEY_ROW) };
 
 bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     // Zero the struct first so padding bytes compare deterministically in
@@ -94,89 +105,72 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
         }
     }
 
-    // Optional (older phone builds omit these); view_spec2 then keeps its seeded
-    // default (the phone re-sends the real cycle on connect).
-    Tuple *clay_view_0_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_0);
-    Tuple *clay_view_1_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_1);
-    Tuple *clay_view_2_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_2);
-    Tuple *clay_view_reset_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_RESET_MIN);
-    // Optional (older phone builds omit it); config.theme then stays 0 = dark.
-    Tuple *clay_theme_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_THEME);
-    // Optional (older phone builds omit it); battery_low_only then stays false.
-    Tuple *clay_battery_low_only_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_BATTERY_LOW_ONLY);
-    // Optional (older phone builds omit it); date_month_first then stays false = day-first.
-    Tuple *clay_date_month_first_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DATE_MONTH_FIRST);
-#if defined(PBL_PLATFORM_EMERY)
-    // Optional (older phone builds omit it); large_graph_font then stays false.
-    // emery-only, like the field (config.h): the tuple still RIDES to every platform,
-    // but only emery pays the dict_find to look it up.
-    Tuple *clay_large_graph_font_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_LARGE_GRAPH_FONT);
-#endif
-#if !defined(PBL_PLATFORM_APLITE)
-    // Optional (older phone builds omit it); both date formats then stay 0 = Auto.
-    // Not on aplite, like the fields (config.h): the phone omits the tuple for an
-    // aplite watch too (clay-payload gates it with the threshold blob).
-    Tuple *clay_date_format_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DATE_FORMAT_UINT8);
-#endif
-#if defined(PBL_HEALTH)
-    // Optional (older phone builds omit it); hr_scale then stays 0 = unset, and
-    // health_graph_layer falls back to its own HEALTH_HR_LO/HEALTH_HR_HI.
-    Tuple *clay_hr_scale_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_HR_SCALE);
-#endif
-
+    // The optional keys: older phone builds omit them, and each field then keeps its
+    // zero from the memset above. Each is looked up where it is read.
+    const Tuple *t;
     // Packed view slots — read the full int16 tuple as uint16 (NOT truncated to a byte;
     // the tier bits 8-9 live above the low byte). See config.h view_spec2 / view_spec_unpack.
-    // Off aplite the high half carries the view's ext word too (read_view_tuple above).
+    // Without them the phone re-sends the real cycle on connect. Off aplite the high half
+    // carries the view's ext word too (read_view_tuple above).
 #if !defined(PBL_PLATFORM_APLITE)
-    read_view_tuple(clay_view_0_tuple, 0, &out->view_spec2[0], &out->view_ext[0]);
-    read_view_tuple(clay_view_1_tuple, 1, &out->view_spec2[1], &out->view_ext[1]);
-    read_view_tuple(clay_view_2_tuple, 2, &out->view_spec2[2], &out->view_ext[2]);
+    read_view_tuple(dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_0), 0, &out->view_spec2[0], &out->view_ext[0]);
+    read_view_tuple(dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_1), 1, &out->view_spec2[1], &out->view_ext[1]);
+    read_view_tuple(dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_2), 2, &out->view_spec2[2], &out->view_ext[2]);
 #else
-    if (clay_view_0_tuple) { out->view_spec2[0] = (uint16_t) clay_view_0_tuple->value->int16; }
-    if (clay_view_1_tuple) { out->view_spec2[1] = (uint16_t) clay_view_1_tuple->value->int16; }
-    if (clay_view_2_tuple) { out->view_spec2[2] = (uint16_t) clay_view_2_tuple->value->int16; }
+    if ((t = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_0))) { out->view_spec2[0] = (uint16_t) t->value->int16; }
+    if ((t = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_1))) { out->view_spec2[1] = (uint16_t) t->value->int16; }
+    if ((t = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_2))) { out->view_spec2[2] = (uint16_t) t->value->int16; }
 #endif
-    if (clay_view_reset_tuple) {
+    if ((t = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_RESET_MIN))) {
         // Low byte: the auto-return minutes; the cast drops the flag bits (config_wire.h).
-        out->view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16;
+        out->view_reset_min = (uint8_t) t->value->int16;
 #if !defined(PBL_PLATFORM_APLITE)
         // Bit 8: Double flick (an older phone never sets it).
-        out->view_double_flick = (clay_view_reset_tuple->value->int16 & VIEW_RESET_DOUBLE_FLICK) != 0;
+        out->view_double_flick = (t->value->int16 & VIEW_RESET_DOUBLE_FLICK) != 0;
 #endif
     }
-    if (clay_theme_tuple) { out->theme = (uint8_t) clay_theme_tuple->value->int16; }
-    if (clay_battery_low_only_tuple) {
-        out->battery_low_only = (bool) (clay_battery_low_only_tuple->value->int16);
+    // Without it, config.theme stays 0 = dark.
+    if ((t = dict_find(iterator, MESSAGE_KEY_CLAY_THEME))) { out->theme = (uint8_t) t->value->int16; }
+    if ((t = dict_find(iterator, MESSAGE_KEY_CLAY_BATTERY_LOW_ONLY))) {
+        out->battery_low_only = (bool) (t->value->int16);
     }
-    if (clay_date_month_first_tuple) {
-        out->date_month_first = (bool) (clay_date_month_first_tuple->value->int16);
+    // Without it, date_month_first stays false = day-first.
+    if ((t = dict_find(iterator, MESSAGE_KEY_CLAY_DATE_MONTH_FIRST))) {
+        out->date_month_first = (bool) (t->value->int16);
     }
 #if defined(PBL_PLATFORM_EMERY)
-    if (clay_large_graph_font_tuple) {
+    // emery-only, like the field (config.h): the tuple still RIDES to every platform,
+    // but only emery pays the dict_find to look it up.
+    if ((t = dict_find(iterator, MESSAGE_KEY_CLAY_LARGE_GRAPH_FONT))) {
         // emery: the graph-options word (config.h GRAPH_OPT_*): bit 0 Larger graph fonts,
         // bits 1-7 the forecast's left axis, stored as sent. Read through the low half
         // like CLAY_VIEW_RESET_MIN: the bare boolean the phone sends while every axis option is
         // at its default (and sent before 2.2) reads as bit 0 alone.
-        const uint16_t word = (uint16_t) clay_large_graph_font_tuple->value->int16;
+        const uint16_t word = (uint16_t) t->value->int16;
         out->large_graph_font = (word & GRAPH_OPT_LARGE_FONT) != 0;
         out->forecast_axis = (uint8_t) (word & GRAPH_OPT_AXIS_MASK);
     }
 #endif
 #if !defined(PBL_PLATFORM_APLITE)
-    if (clay_date_format_tuple && clay_date_format_tuple->type == TUPLE_BYTE_ARRAY
-        && clay_date_format_tuple->length >= 2) {
+    // Not on aplite, like the fields (config.h): the phone omits the tuple for an
+    // aplite watch too (clay-payload gates it with the threshold blob). Without it,
+    // both date formats stay 0 = Auto.
+    t = dict_find(iterator, MESSAGE_KEY_CLAY_DATE_FORMAT_UINT8);
+    if (t && t->type == TUPLE_BYTE_ARRAY && t->length >= 2) {
         // [0] month-year format, [1] full-date format (date_format.h wire
         // vocabulary). Length is a MINIMUM, the line-style tuple's growth
         // contract: a future byte appends with its own check.
-        out->date_month_format = clay_date_format_tuple->value->data[0];
-        out->date_full_format = clay_date_format_tuple->value->data[1];
+        out->date_month_format = t->value->data[0];
+        out->date_full_format = t->value->data[1];
     }
 #endif
 #if defined(PBL_HEALTH)
-    if (clay_hr_scale_tuple) {
+    // Without it, hr_scale stays 0 = unset, and health_graph_layer falls back to its own
+    // HEALTH_HR_LO/HEALTH_HR_HI.
+    if ((t = dict_find(iterator, MESSAGE_KEY_CLAY_HR_SCALE))) {
         // Read as int32 (like the colour tuples): PKJS sends numbers as 32-bit,
         // and the packed value can exceed int16's range (hi 220 -> 56 3xx).
-        out->hr_scale = (uint16_t) clay_hr_scale_tuple->value->int32;
+        out->hr_scale = (uint16_t) t->value->int32;
     }
 #endif
     return true;
