@@ -11,8 +11,9 @@
 // Default screen with the selected option, with the options as a segmented control below it (a
 // radio group: tap, swipe the watch, or use the arrow keys). Every step draws the watch's own
 // screens live (preview-watch.js, as the Watchface tab does), from the settings as they stand.
-// Nothing is written until the user picks. The layout picks the Default screen and the Screens step the flick
-// screens (screens-page.js writes both, as the Watchface tab's screen editor does).
+// Nothing is written until the user picks. The forecast graph comes first, then the layout picks the
+// Default screen around it and the Screens step the flick screens (screens-page.js writes both, as the
+// Watchface tab's screen editor does).
 /* global PConf, Intl, navigator, document, console, VIEW_CYCLE, COUNTRY_DEFAULTS */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
@@ -43,16 +44,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * screen to flick to (radar, false on aplite, whose one screen leaves nothing to add); the theme
      * where the watch ships the light polarity (themePolarity, compiled out on aplite); the forecast
      * step where it draws the line styles its looks are made of (lineStyles, false on aplite). The
-     * layout makes the Default screen the Screens and forecast steps draw; the forecast step follows
-     * the theme, so its preview is drawn in it. `summary` gives the last step's rows.
+     * forecast graph comes first, the screen the rest is chosen around (the owner's ask, 2026-11-15):
+     * the layout then makes the Default screen around it, and the Screens step adds flick screens to
+     * it, on the Pebble Time 2 a second forecast over the other length. The theme comes last; a pick
+     * lays the forecast's look on again where its conversion moved it (pickTheme). `summary` gives
+     * the last step's rows.
      */
     var STEPS = [
         { id: 'welcome', title: 'Welcome to WarnWeather', body: stepWelcome, summary: welcomeRows },
+        { id: 'forecast', when: 'lineStyles', title: 'Choose a forecast graph', body: stepForecast, summary: forecastRow },
         { id: 'layout', title: 'Choose your layout', body: stepLayout, summary: pickerRow('Layout', 'layoutPreset', 'layout') },
         { id: 'screens', when: 'radar', title: 'Flick to switch screens', body: stepScreens, summary: screensRows },
         { id: 'theme', when: 'themePolarity', title: 'Choose a theme', body: stepTheme,
             summary: pickerRow('Theme', 'theme', 'theme') },
-        { id: 'forecast', when: 'lineStyles', title: 'Choose a forecast graph', body: stepForecast, summary: forecastRow },
         { id: 'done', title: 'You’re all set', body: stepDone }
     ];
     var STEP = {};
@@ -158,9 +162,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // this run turned the rain radar on for the Rain radar screen it added (addTemplate).
             screenIdx: 0, radarOnForScreen: false,
             // The screens this run added (their template ids: a layout picked after follows them
-            // with its calendar), and the Long forecast screen's graph this run made: its index
-            // and the length the Default graph had before it (addTemplate, removeScreen).
-            added: [], long: null,
+            // with its calendar), and the second forecast screen's graph this run made: its index
+            // (addTemplate, removeScreen, followSecond).
+            added: [], second: null,
             // Where a swipe on the picker's preview started; the latest redraw of its watch.
             touch: null, picSeq: 0,
             // The summary has been shown (footer); a Tomorrow.io key was typed in this run.
@@ -299,25 +303,45 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         } else {
             run.ctx.setValue('graphStyles', GS.withStyle(S, k, Object.assign(GS.valuesOf(S, k), values)));
         }
-        followLong();
+        followSecond();
     }
     /**
-     * The Long forecast screen's graph (made in this run) as the forecast step's graph draws it,
-     * over the long span: a look, a theme or a colour picked for the one shows on both.
+     * The second forecast screen's graph (made in this run) as the forecast step's graph draws it,
+     * over the other length (secondValues), the screen and the graph named for it: a look, a
+     * length, a theme or a colour picked for the one shows on both, and a length picked for the
+     * Default turns the second to the other one.
      * @returns {void}
      */
-    function followLong() {
-        var S = run.ctx.S, k = run.long ? run.long.k : -1;
+    function followSecond() {
+        var S = run.ctx.S, k = run.second ? run.second.k : -1;
         if (k < 1 || k === lookStyle() || !GS.exists(S, k)) { return; }
-        run.ctx.setValue('graphStyles', GS.withStyle(S, k, longValues(S)));
+        var values = secondValues(S), name = SCREENS.forecastName(values.forecastHours);
+        run.ctx.setValue('graphStyles', GS.withStyle(S, k, values));
+        if (GS.name(S, k) !== name) { run.ctx.setValue('graphStyles', GS.withName(S, k, name)); }
+        screens().forEach(function (scr, i) {
+            var fc = i > 0 ? scr[M.idxOf(scr, 'fc')] : null;
+            if (fc && GS.styleOf(fc.style) === k) { S['viewName' + i] = name; }
+        });
     }
     /**
-     * The Long forecast screen's graph's values: the forecast step's graph's, over the long span.
-     * @param {Object} S Settings.
+     * The second forecast screen's graph's values: the forecast step's graph's, over the other
+     * length than its own (wizard-screens.js otherSpan: the long span beside 12 or 24 hours, 24
+     * hours beside the long span).
+     * @param {Object} S Settings (the live ones, or a copy with the screen in).
      * @returns {Object} governed key -> value
      */
-    function longValues(S) {
-        return Object.assign(GS.valuesOf(S, lookStyle()), { forecastHours: SCREENS.LONG_SPAN });
+    function secondValues(S) {
+        var k = lookStyle();
+        return Object.assign(GS.valuesOf(S, k), { forecastHours: SCREENS.otherSpan(FORECAST.spanOf(GS.settingsFor(S, k))) });
+    }
+    /**
+     * What a screen setup offers is called as it would go in now: the second forecast after the
+     * other length than the Default graph's.
+     * @param {Object} t A wizard-screens.js TEMPLATES entry.
+     * @returns {string}
+     */
+    function templateName(t) {
+        return t.id === 'forecast2' ? SCREENS.forecastName(secondValues(run.ctx.S).forecastHours) : t.name;
     }
     /**
      * The forecast looks for the settings now: their values follow the theme (the bars' colour it
@@ -347,15 +371,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Pick a look: its graph, and on emery, when it is another look than the one the picker marks
      * (currentLook), the length it starts on (its span). The look marked keeps a length picked
-     * under it, the first record too where a graph changed under setup draws none; so does the
-     * graph beside a Long forecast screen this run added, which shows the long span itself.
+     * under it, the first record too where a graph changed under setup draws none. A second
+     * forecast screen this run added follows, over the other length (followSecond).
      * @param {string} id The look.
      * @returns {void}
      */
     function pickLook(id) {
         var look = lookById(id), anew = currentLook().id !== look.id;
         run.lookId = look.id;
-        writeGraph(anew && run.env.forecastSpan && !run.long ? Object.assign({}, look.values, { forecastHours: look.span })
+        writeGraph(anew && run.env.forecastSpan ? Object.assign({}, look.values, { forecastHours: look.span })
             : look.values);
     }
     /**
@@ -372,7 +396,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (run.own) { FORECAST.followTheme(run.own.values, oldTheme, theme); }
         refreshLooks();
         var look = lookById(before);
-        if (!FORECAST.same(lookSettings(), look.values, run.env)) { writeGraph(look.values); } else { followLong(); }
+        if (!FORECAST.same(lookSettings(), look.values, run.env)) { writeGraph(look.values); } else { followSecond(); }
     }
     /**
      * The forecast look as its picker names it (the summary, the preview's label), and on emery
@@ -608,9 +632,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Put a screen setup offers in where it goes (screens-page.js insertScreen, as + Add screen
      * writes one), on the Default screen's calendar (the Layout step's: the owner's ask,
-     * 2026-11-09), named after its template. The Long forecast screen draws a graph of its own,
+     * 2026-11-09), named after its template. The second forecast screen draws a graph of its own,
      * made here in the first free graph slot and named as the screen: the forecast step's graph
-     * over the long span (longValues). Writes top-level keys only, so a shallow copy of the
+     * over the other length (secondValues). Writes top-level keys only, so a shallow copy of the
      * settings takes it as the live ones do.
      * @param {Object} S Settings (the live ones, or a copy to draw it).
      * @param {string} id A template.
@@ -619,18 +643,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function putTemplate(S, id, list) {
         var t = SCREENS.byId(id), at = SCREENS.insertAt(list, id), screen = SCREENS.listOf(t, PRESETS.calOf(list[0]));
-        var k = id === 'long' ? GS.freeSlot(S) : -1, before = S.graphStyles;
-        if (id === 'long') {
+        var k = id === 'forecast2' ? GS.freeSlot(S) : -1, before = S.graphStyles, name = t.name;
+        if (id === 'forecast2') {
             if (k < 1) { return -1; }
-            S.graphStyles = GS.withStyle(S, k, longValues(S));
-            S.graphStyles = GS.withName(S, k, t.name);
+            var values = secondValues(S);
+            name = SCREENS.forecastName(values.forecastHours);
+            S.graphStyles = GS.withStyle(S, k, values);
+            S.graphStyles = GS.withName(S, k, name);
             screen[M.idxOf(screen, 'fc')].style = GS.codeOf(k);
         }
         if (!SP.insertScreen(S, at, screen, run.env)) {
             S.graphStyles = before;
             return -1;
         }
-        S['viewName' + at] = t.name;
+        S['viewName' + at] = name;
         return at;
     }
     /**
@@ -697,11 +723,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         SCREENS.offered(run.env).forEach(function (t) {
             if (SCREENS.slotOf(list, t.id) >= 0) { return; }
             var w = withTemplate(t.id, list);
-            if (w.at < 0) { return; }   // the Long forecast screen with every graph slot taken
-            var pic = screenPic(w.S, w.at, 'wt' + t.id + '-');
+            if (w.at < 0) { return; }   // the second forecast screen with every graph slot taken
+            var pic = screenPic(w.S, w.at, 'wt' + t.id + '-'), name = templateName(t);
             h += '<button type="button" class="wiz-scr-it off" data-wiz-scr-add="' + t.id + '" aria-label="Add the '
-                + esc(t.name) + ' screen"><span class="wiz-watch sm" aria-hidden="true">' + pic.svg + '</span>'
-                + '<span class="wiz-scr-plus" aria-hidden="true">+</span><span class="wiz-scr-n">' + esc(t.name) + '</span></button>';
+                + esc(name) + ' screen"><span class="wiz-watch sm" aria-hidden="true">' + pic.svg + '</span>'
+                + '<span class="wiz-scr-plus" aria-hidden="true">+</span><span class="wiz-scr-n">' + esc(name) + '</span></button>';
         });
         return h;
     }
@@ -720,9 +746,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     /**
      * Add a screen setup offers (putTemplate) and show it big. The Rain radar screen turns the
-     * rain radar on (and taking it out again turns it back off: removeScreen). The Long forecast
-     * screen's graph shows the long span, so a Default graph that showed it too goes to 24 hours
-     * (taking the screen out again gives it back).
+     * rain radar on (and taking it out again turns it back off: removeScreen). The second forecast
+     * screen's graph is this run's to keep beside the Default's (followSecond).
      * @param {string} id A template.
      * @returns {void}
      */
@@ -736,10 +761,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             run.screenIdx = at;
             run.added.push(id);
             if (turnOn) { run.radarOnForScreen = true; }
-            if (id === 'long') {
-                var fc = screens()[at][M.idxOf(screens()[at], 'fc')], span = FORECAST.spanOf(lookSettings());
-                run.long = { k: GS.styleOf(fc.style), span: span };
-                if (span === SCREENS.LONG_SPAN) { writeGraph({ forecastHours: '24' }); }
+            if (id === 'forecast2') {
+                var fc = screens()[at][M.idxOf(screens()[at], 'fc')];
+                run.second = { k: GS.styleOf(fc.style) };
             }
         }
         repaintScreens(['[data-wiz-scr-rm="' + at + '"]', '[data-wiz-flick]']);
@@ -758,13 +782,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 run.radarOnForScreen = false;
                 SP.setRadarEnabled(S, false, run.env);
             }
-            // The Long forecast screen this run added takes its graph with it, and gives the
-            // Default graph back the length it had.
-            if (t && t.id === 'long' && run.long && fc && GS.styleOf(fc.style) === run.long.k) {
-                var span = run.long.span;
-                GS.deleteStyle(S, run.long.k);
-                run.long = null;
-                if (span && span !== FORECAST.spanOf(lookSettings())) { writeGraph({ forecastHours: span }); }
+            // The second forecast screen this run added takes its graph with it.
+            if (t && t.id === 'forecast2' && run.second && fc && GS.styleOf(fc.style) === run.second.k) {
+                GS.deleteStyle(S, run.second.k);
+                run.second = null;
             }
             if (t) { run.added = run.added.filter(function (id) { return id !== t.id; }); }
         }

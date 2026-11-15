@@ -45,7 +45,7 @@ const defaultLayout = (ctx) => SCREENS.layoutOf(M.screensOf(ctx.S, ctx.ENV)[0]);
  * @param {Object} ctx The wizard's ctx.
  * @returns {string[]}
  */
-const screenNames = (ctx) => M.screensOf(ctx.S, ctx.ENV).map((l, i) => SCREENS.nameOf(l, i));
+const screenNames = (ctx) => M.screensOf(ctx.S, ctx.ENV).map((l, i) => SCREENS.nameOf(l, i, ctx.S));
 /**
  * Walk forward to the step titled `title`.
  * @param {Object} dom Fake DOM.
@@ -493,57 +493,67 @@ test('the screens setup offers show the Layout\'s calendar; a layout picked late
     'a Health screen setup did not add keeps its calendar');
 });
 
-test('on emery Long forecast adds a second graph over the long span; the Default\'s goes to 24 hours', () => {
+test('on emery the second forecast takes the other length: beside a Default of the long span, 24 hours', () => {
   const { ctx, dom } = openSetup({ platform: 'emery', fresh: true });
-  walkToTitle(dom, 'Flick to switch screens');
-  assert.deepEqual(dom.findAll('[data-wiz-scr-add]').map((b) => b.getAttribute('data-wiz-scr-add')), ['long', 'health', 'radar']);
   assert.equal(FORECAST.spanOf(ctx.S), '48', 'premise: a new install\'s graph shows the long span');
-  addScreen(dom, 'long');
-  assert.deepEqual(screenNames(ctx), ['Default', 'Long forecast']);
-  assert.equal(ctx.S.viewName1, 'Long forecast');
+  walkToTitle(dom, 'Flick to switch screens');
+  assert.deepEqual(dom.findAll('[data-wiz-scr-add]').map((b) => b.getAttribute('data-wiz-scr-add')),
+    ['forecast2', 'health', 'radar']);
+  assert.equal(dom.find('[data-wiz-scr-add="forecast2"]').getAttribute('aria-label'), 'Add the 24 h forecast screen',
+    'offered by the length it adds');
+  addScreen(dom, 'forecast2');
+  assert.deepEqual(screenNames(ctx), ['Default', '24 h forecast']);
+  assert.equal(ctx.S.viewName1, '24 h forecast');
   assert.equal(ctx.S.viewStyle1, '2', 'it draws a graph of its own');
-  assert.equal(GS.name(ctx.S, 1), 'Long forecast', 'named as the screen');
-  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48', 'over the long span');
-  assert.equal(ctx.S.forecastHours, '24', 'the Default\'s graph shows the next day now');
+  assert.equal(GS.name(ctx.S, 1), '24 h forecast', 'named as the screen');
+  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '24', 'over the next day');
+  assert.equal(ctx.S.forecastHours, '48', 'the Default keeps the length picked for it');
   assert.deepEqual(GS.stylesShown(ctx.S, ctx.ENV), [0, 1]);
   // Health goes in after it.
   addScreen(dom, 'health');
-  assert.deepEqual(screenNames(ctx), ['Default', 'Long forecast', 'Health']);
-  // The forecast step's look shows on both; the Default keeps its 24 hours.
-  walkTo(dom, 'forecastLook');
-  const lookOf = (id) => FORECAST.looks(ctx.S, ctx.ENV, PConf.engine.themedDefaults(ctx.schema, ctx.S, ctx.ENV), null)
-    .filter((r) => r.id === id)[0];
-  dom.pick('forecastLook', 'stripes');
-  assert.ok(FORECAST.same(GS.settingsFor(ctx.S, 1), lookOf('stripes').values, ctx.ENV), 'the long graph draws Stripes too');
-  dom.pick('forecastLook', 'clean');
-  assert.equal(ctx.S.forecastHours, '24', 'a look picked keeps the Default\'s length beside the long one');
-  assert.ok(FORECAST.same(GS.settingsFor(ctx.S, 1), lookOf('clean').values, ctx.ENV), 'and Clean');
-  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48');
-  dom.nav('back');
+  assert.deepEqual(screenNames(ctx), ['Default', '24 h forecast', 'Health']);
+  // A theme picked after shows on both.
+  walkTo(dom, 'theme');
   dom.pick('theme', 'light');
   assert.equal(ctx.S.theme, 'light');
-  assert.deepEqual(GS.valuesOf(ctx.S, 1), Object.assign(GS.valuesOf(ctx.S, 0), { forecastHours: '48' }),
-    'a theme picked after shows on both');
-  // Taken out again: its graph goes, and the Default's length comes back.
-  dom.nav('back');
+  assert.deepEqual(GS.valuesOf(ctx.S, 1), Object.assign(GS.valuesOf(ctx.S, 0), { forecastHours: '24' }));
+  // Back on the forecast step: a look shows on both, and the second keeps the other length.
+  const lookOf = (id) => FORECAST.looks(ctx.S, ctx.ENV, PConf.engine.themedDefaults(ctx.schema, ctx.S, ctx.ENV), null)
+    .filter((r) => r.id === id)[0];
+  dom.goto('forecast');
+  dom.pick('forecastLook', 'stripes');
+  assert.ok(FORECAST.same(GS.settingsFor(ctx.S, 1), lookOf('stripes').values, ctx.ENV), 'the second draws Stripes too');
+  assert.equal(ctx.S.forecastHours, '24', 'Stripes starts on 24 hours');
+  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48', 'so the second turns to the long span');
+  assert.deepEqual([ctx.S.viewName1, GS.name(ctx.S, 1)], ['Long forecast', 'Long forecast'], 'named for it');
+  dom.pick('forecastHours', '12');
+  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48', 'beside 12 hours too');
+  dom.pick('forecastHours', '48');
+  assert.deepEqual([GS.settingsFor(ctx.S, 1).forecastHours, ctx.S.viewName1], ['24', '24 h forecast'], 'and back');
+  // Taken out again: its graph goes, and the Default keeps its own length.
+  dom.goto('screens');
   removeScreen(dom, 1);
   assert.deepEqual(screenNames(ctx), ['Default', 'Health']);
   assert.equal(GS.count(ctx.S), 1, 'its graph went with it');
-  assert.equal(ctx.S.forecastHours, '48', 'the Default shows the long span again');
+  assert.equal(ctx.S.forecastHours, '48');
 });
 
-test('Long forecast beside a Default graph of 24 hours leaves the Default as it is', () => {
-  const { ctx, dom } = openSetup({ platform: 'emery', saved: { forecastHours: '24' } });
-  walkToTitle(dom, 'Flick to switch screens');
-  addScreen(dom, 'long');
-  assert.equal(ctx.S.forecastHours, '24');
-  assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48');
-  removeScreen(dom, 1);
-  assert.equal(ctx.S.forecastHours, '24');
+test('on emery a Default graph of 12 or 24 hours gets a Long forecast beside it, and keeps its length', () => {
+  ['12', '24'].forEach((span) => {
+    const { ctx, dom } = openSetup({ platform: 'emery', saved: { forecastHours: span } });
+    walkToTitle(dom, 'Flick to switch screens');
+    assert.equal(dom.find('[data-wiz-scr-add="forecast2"]').getAttribute('aria-label'), 'Add the Long forecast screen', span);
+    addScreen(dom, 'forecast2');
+    assert.deepEqual(screenNames(ctx), ['Default', 'Long forecast'], span);
+    assert.equal(ctx.S.forecastHours, span);
+    assert.equal(GS.settingsFor(ctx.S, 1).forecastHours, '48');
+    removeScreen(dom, 1);
+    assert.equal(ctx.S.forecastHours, span);
+  });
   // Not on a watch with one graph.
   const basalt = openSetup();
   walkToTitle(basalt.dom, 'Flick to switch screens');
-  assert.equal(basalt.dom.findAll('[data-wiz-scr-add="long"]').length, 0);
+  assert.equal(basalt.dom.findAll('[data-wiz-scr-add="forecast2"]').length, 0);
 });
 
 test('a screen setup adds brings its bar with the bar\'s default readings, not an empty row', () => {
@@ -1100,7 +1110,7 @@ test('the summary names the forecast look, and on emery its length; Change goes 
   const basalt = openSetup();
   walkTo(basalt.dom, 'forecastLook');
   basalt.dom.pick('forecastLook', 'stripes');
-  basalt.dom.nav('next');
+  basalt.dom.walkToSummary();
   assert.equal(row(basalt.dom.body.innerHTML, 'Forecast'), 'Stripes');
   basalt.dom.goto('forecast');
   assert.equal(basalt.dom.picker().group, 'forecastLook');
@@ -1181,18 +1191,17 @@ test('a look holds through a theme picked after it, the bars converted as the th
   const { ctx, dom } = openSetup({ saved: { theme: 'light', rainBarColor: 'white' } });
   walkTo(dom, 'forecastLook');
   dom.pick('forecastLook', 'clean');
-  dom.nav('back');
-  assert.equal(dom.picker().group, 'theme');
+  walkTo(dom, 'theme');
   dom.pick('theme', 'dark');
   assert.equal(ctx.S.rainBarColor, 'white', 'still Solid: still Clean, though Classic drew alike on the light theme');
-  dom.nav('next');
+  dom.goto('forecast');
   assert.equal(dom.picker().selected, 'clean');
   dom.pick('forecastLook', 'classic');
   assert.equal(ctx.S.rainBarColor, 'multicolor', 'Classic in the dark theme');
-  dom.nav('back');
+  walkTo(dom, 'theme');
   dom.pick('theme', 'light');
   assert.equal(ctx.S.rainBarColor, 'white', 'the theme converted Classic\'s bars to the light start');
-  dom.nav('next');
+  dom.goto('forecast');
   assert.equal(dom.picker().selected, 'classic');
 });
 
@@ -1212,7 +1221,7 @@ test('"Your own" follows a theme picked after it, as the settings do', () => {
   dom.walkTo('theme');
   dom.pick('theme', 'light');
   assert.equal(ctx.S.rainBarColor, 'white', 'guard: the theme moved the bars to its own start');
-  dom.nav('next');
+  dom.goto('forecast');
   assert.equal(dom.picker().selected, 'own', 'still the user\'s own graph');
   dom.pick('forecastLook', 'clean');
   dom.pick('forecastLook', 'own');
