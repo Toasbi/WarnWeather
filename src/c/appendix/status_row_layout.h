@@ -4,7 +4,15 @@
 #include <stdint.h>
 
 #define STATUS_ROW_ICON_TEXT_GAP 3
-#define STATUS_ROW_GROUP_GAP 4
+// The least air between two slots of a row: between the middle and each edge slot, and
+// between the two edge slots where they share the row. Twice the icon-to-text gap, so
+// every slot reads as its own group (at 4 px, one more than that gap, a crowded row ran
+// its slots together). The settings page's copy is preview-watch.js GROUP_GAP. Only the
+// On demand host suites set it, to the 4 px their fixtures were laid out at
+// (scripts/test-c.sh); the watch build never does.
+#ifndef STATUS_ROW_GROUP_GAP
+#define STATUS_ROW_GROUP_GAP 6
+#endif
 
 typedef struct {
     bool present;

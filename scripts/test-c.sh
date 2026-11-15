@@ -106,24 +106,33 @@ node scripts/check-forecast-span-lockstep.js build/host/forecast_span.txt
 # layouts through the engine's own eval()), so the other four link it. OD_TEST_PROBES
 # adds the ladder row each side ends on (OdLayout.stage), which the tests read and the
 # watch build leaves out.
-cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_ladder_test.c \
+# The suites' bars, sweeps and pinned cases are laid out for a 4 px gap between slots
+# (status_row_layout.h STATUS_ROW_GROUP_GAP), the gap they were found at; the engine reads
+# the gap as a parameter, so OD_FIXTURE_GAP builds them there, row layout and engine alike.
+# The ladder suite's checks over random bars then run again at the watch's own gap
+# (OD_INVARIANTS_ONLY), with the items' tighter OD_ITEM_GAP as the watch has it.
+OD_FIXTURE_GAP="-DSTATUS_ROW_GROUP_GAP=4"
+cc $CFLAGS $OD_FIXTURE_GAP -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_ladder_test.c \
    src/c/appendix/status_row_layout.c -o build/host/on_demand_ladder_test
 build/host/on_demand_ladder_test
-cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_sides_test.c src/c/appendix/on_demand.c \
+cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES -DOD_INVARIANTS_ONLY test/c/on_demand_ladder_test.c \
+   src/c/appendix/status_row_layout.c -o build/host/on_demand_ladder_test_watch_gap
+build/host/on_demand_ladder_test_watch_gap
+cc $CFLAGS $OD_FIXTURE_GAP -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_sides_test.c src/c/appendix/on_demand.c \
    src/c/appendix/status_row_layout.c -o build/host/on_demand_sides_test
 build/host/on_demand_sides_test
-cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_battery_test.c src/c/appendix/on_demand.c \
+cc $CFLAGS $OD_FIXTURE_GAP -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_battery_test.c src/c/appendix/on_demand.c \
    src/c/appendix/status_row_layout.c -o build/host/on_demand_battery_test
 build/host/on_demand_battery_test
-cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_merge_test.c src/c/appendix/on_demand.c \
+cc $CFLAGS $OD_FIXTURE_GAP -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_merge_test.c src/c/appendix/on_demand.c \
    src/c/appendix/status_row_layout.c -o build/host/on_demand_merge_test
 build/host/on_demand_merge_test
-cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_short_test.c src/c/appendix/on_demand.c \
+cc $CFLAGS $OD_FIXTURE_GAP -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_short_test.c src/c/appendix/on_demand.c \
    src/c/appendix/status_row_layout.c -o build/host/on_demand_short_test
 build/host/on_demand_short_test
 # The Rain alert's "Replaces the slot" (on_demand.h od_replace_slots): a side with a rain
 # alert lays out as though its own slot were empty; the metric alerts never take it.
-cc $CFLAGS -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_replace_test.c src/c/appendix/on_demand.c \
+cc $CFLAGS $OD_FIXTURE_GAP -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_replace_test.c src/c/appendix/on_demand.c \
    src/c/appendix/status_row_layout.c -o build/host/on_demand_replace_test
 build/host/on_demand_replace_test
 # Every height a bar asks for has its pixel drawing (status_icon_size.h, the generated tables),

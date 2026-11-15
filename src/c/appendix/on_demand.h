@@ -53,9 +53,10 @@ typedef enum { OD_SIDE_NONE = 0, OD_SIDE_LEFT = 1, OD_SIDE_RIGHT = 2 } OdSide;
 // family has OD_VARIANTS - 1 members; test/c/status_short_text_test.c fails when one
 // would have more.
 #define OD_VARIANTS 4
-// The air between two items: the row's group gap, or less beside a boxed alert
-// (whose padding already sits inside its footprint).
-#define OD_ITEM_GAP STATUS_ROW_GROUP_GAP
+// The air between two items of a run, or less beside a boxed alert (whose padding
+// already sits inside its footprint). Tighter than the row's group gap, which a run
+// keeps from the slots beside it: a side's items read as one cluster of icons.
+#define OD_ITEM_GAP 4
 #define OD_PADDED_GAP 2
 // A status glyph inks one column past its bounds: icon_load (status_row_icons.c)
 // snaps its vertices to pixel centres 0.5 .. w + 0.5 px, and the 1-px stroke covers

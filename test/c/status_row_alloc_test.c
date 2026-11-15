@@ -27,17 +27,17 @@ static void empty_left_gives_middle_its_space(void) {
     expect("el.right.x", gx[2], 71);              // right-anchored: 100-29
     expect("el.right.w", dw[2], 29);
     expect("el.mid.w", dw[1], 60);                // fits: full desired width
-    expect("el.mid.x", gx[1], (67 - 60) / 2);     // centred in [0..67]
+    expect("el.mid.x", gx[1], (65 - 60) / 2);     // centred in [0..65]: 71 less the gap
     expect_within("el", 100, gx, dw);
 }
 
 static void both_edges_present(void) {
-    int gw[3] = {40, 30, 40}, mn[3] = {10, 10, 10}, gx[3], dw[3];
+    int gw[3] = {38, 30, 38}, mn[3] = {10, 10, 10}, gx[3], dw[3];
     status_row_alloc(100, gw, mn, gx, dw);
     expect("be.left.x", gx[0], 0);
-    expect("be.left.w", dw[0], 40);
-    expect("be.right.x", gx[2], 60);              // 100-40
-    expect("be.right.w", dw[2], 40);
+    expect("be.left.w", dw[0], 38);
+    expect("be.right.x", gx[2], 62);              // 100-38
+    expect("be.right.w", dw[2], 38);
     expect("be.mid.w", dw[1], 12);                // span [44..56] -> clamp 30 to 12
     expect("be.mid.x", gx[1], 44);
     expect_within("be", 100, gx, dw);
@@ -60,7 +60,7 @@ static void right_wins_over_left_on_overflow(void) {
     expect("ov.right.x", gx[2], 30);              // 100-70, anchored
     expect("ov.right.w", dw[2], 70);              // full desired width, NOT overrunning
     expect("ov.left.x", gx[0], 0);
-    expect("ov.left.w", dw[0], 26);              // clamped to [0 .. 30-GAP]
+    expect("ov.left.w", dw[0], 30 - STATUS_ROW_ALLOC_GROUP_GAP);   // clamped to [0 .. 30-GAP]
     expect("ov.mid.w", dw[1], 0);                // no room -> dropped
     expect_within("ov", 100, gx, dw);            // the invariant the old code broke
 }
@@ -72,7 +72,7 @@ static void slot_dropped_below_min(void) {
     status_row_alloc(100, gw, mn, gx, dw);
     expect("dr.right.w", dw[2], 90);
     expect("dr.right.x", gx[2], 10);
-    expect("dr.left.w", dw[0], 0);               // only 6px available (< min 20) -> dropped
+    expect("dr.left.w", dw[0], 0);               // only 4px available (< min 20) -> dropped
     expect_within("dr", 100, gx, dw);
 }
 

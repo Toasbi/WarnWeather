@@ -105,23 +105,27 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 
     // Edge-priority: the two edge slots claim their full desired width first;
     // the middle slot takes the remaining span. Only when both edges together
-    // out-desire the row do they split it max-min-fairly (neither truncates
-    // while the other has surplus).
+    // out-desire the row, less the GROUP_GAP they keep between them, do they split
+    // it max-min-fairly (neither truncates while the other has surplus).
     int16_t d0 = desired_group_w(&normalized[0]);
     int16_t d2 = desired_group_w(&normalized[2]);
     int16_t b0, b2;
     if (d0 > 0 && d2 > 0) {
-        if (d0 + d2 <= content_w) {
+        // Plain ints: an int16_t local costs a sign extension around each step on Thumb.
+        // `>> 1` skips signed division's rounding; it differs from `/ 2` only for a negative
+        // room, where neither edge gets a budget to show in either way.
+        int room = content_w - STATUS_ROW_GROUP_GAP;
+        if (d0 + d2 <= room) {
             b0 = d0;
             b2 = d2;
         } else {
-            int16_t half = (int16_t)(content_w / 2);
+            int half = room >> 1;
             if (d0 <= d2) {
-                b0 = d0 < half ? d0 : half;
-                b2 = (int16_t)(content_w - b0);
+                b0 = (int16_t)(d0 < half ? d0 : half);
+                b2 = (int16_t)(room - b0);
             } else {
-                b2 = d2 < half ? d2 : half;
-                b0 = (int16_t)(content_w - b2);
+                b2 = (int16_t)(d2 < half ? d2 : half);
+                b0 = (int16_t)(room - b2);
             }
         }
     } else {

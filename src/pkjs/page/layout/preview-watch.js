@@ -318,9 +318,10 @@
     // A status row as status_row.c lays it out (status_row_layout.c, status_metrics.h): a slot
     // is its icon, STATUS_ROW_ICON_TEXT_GAP, its text and, for a wind reading, the direction
     // arrow after another gap; the edge slots take their full width first, from
-    // STATUS_ROW_MARGIN in, and the middle one is centred on the row in what they leave,
-    // STATUS_ROW_GROUP_GAP from each. Icons are 6/9 of the line's height (the top strip's 5/9).
-    var ROW_MARGIN = 2, ICON_GAP = 3, GROUP_GAP = 4;
+    // STATUS_ROW_MARGIN in and STATUS_ROW_GROUP_GAP apart, and the middle one is centred on
+    // the row in what they leave, STATUS_ROW_GROUP_GAP from each. Icons are 6/9 of the line's
+    // height (the top strip's 5/9).
+    var ROW_MARGIN = 2, ICON_GAP = 3, GROUP_GAP = 6;
     // The top strip's band (layout.c L.top_status): from the window's top pad, as tall as a
     // clamp-free line of its font (STATUS_LARGE_BAND_H, status_min_band_h) — taller than the
     // rows it reserves above the next band, so its line's tails run on into them. calY: where a
@@ -420,11 +421,12 @@
         function desired(q) { return q && (q.iw > 0 || q.tw > 0) ? groupW(q.iw, q.tw, q.sw) : 0; }
         var d0 = desired(m[0]), d2 = desired(m[2]), b0, b2;
         if (d0 > 0 && d2 > 0) {
-            if (d0 + d2 <= cw) { b0 = d0; b2 = d2; }
+            var room = cw - GROUP_GAP;
+            if (d0 + d2 <= room) { b0 = d0; b2 = d2; }
             else {
-                var half = cdiv(cw, 2);
-                if (d0 <= d2) { b0 = d0 < half ? d0 : half; b2 = cw - b0; }
-                else { b2 = d2 < half ? d2 : half; b0 = cw - b2; }
+                var half = room >> 1;
+                if (d0 <= d2) { b0 = d0 < half ? d0 : half; b2 = room - b0; }
+                else { b2 = d2 < half ? d2 : half; b0 = room - b2; }
             }
         } else { b0 = d0 > 0 ? cw : 0; b2 = d2 > 0 ? cw : 0; }
         var left = fitSlot(m[0], b0), right = fitSlot(m[2], b2);
