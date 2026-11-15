@@ -156,17 +156,21 @@ int health_hr_current(void) {
  * @param h1 UTC end of the hour (exclusive).
  * @return Total steps recorded in the window.
  */
-/* Shared minute-history scratch. Module .bss, not stack: 60 *
-   sizeof(HealthMinuteData) is too large for the app stack (mirrors the layer
-   modules' static-scratch convention). One buffer serves both readers below —
-   they run serialized on the single event loop and consume the records within
-   their own call. */
-static HealthMinuteData s_minute_data[60];
+/* The minute-history scratch, HEALTH_MINUTE_RECORDS long: lent by the window
+   (health_set_minute_scratch), not this module's .bss and not stack, since 60 *
+   sizeof(HealthMinuteData) is too large for either to spare. One buffer serves both
+   readers below — they run serialized on the single event loop and consume the
+   records within their own call. */
+static HealthMinuteData *s_minute_data;
+
+void health_set_minute_scratch(HealthMinuteData *records) {
+    s_minute_data = records;
+}
 
 static int s_minute_steps(time_t h0, time_t h1) {
     HealthMinuteData *md = s_minute_data;
     time_t   ts = h0, te = h1;
-    uint32_t n   = health_service_get_minute_history(md, 60, &ts, &te);
+    uint32_t n   = health_service_get_minute_history(md, HEALTH_MINUTE_RECORDS, &ts, &te);
     int      sum = 0;
     for (uint32_t k = 0; k < n; k++) {
         const time_t rec = ts + (time_t)k * 60;   // start of record k's minute
@@ -196,7 +200,7 @@ static int s_minute_steps(time_t h0, time_t h1) {
 static int s_minute_hr_avg(time_t h0, time_t h1) {
     HealthMinuteData *md = s_minute_data;
     time_t   ts = h0, te = h1;
-    uint32_t n   = health_service_get_minute_history(md, 60, &ts, &te);
+    uint32_t n   = health_service_get_minute_history(md, HEALTH_MINUTE_RECORDS, &ts, &te);
     int      sum = 0, cnt = 0;
     for (uint32_t k = 0; k < n; k++) {
         const time_t rec = ts + (time_t)k * 60;   // start of record k's minute

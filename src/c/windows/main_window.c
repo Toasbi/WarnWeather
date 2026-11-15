@@ -9,6 +9,7 @@
 #include "c/layers/loading_layer.h"
 #include "c/layers/layer_util.h"
 #include "c/layers/health_graph_layer.h"
+#include "c/layers/paint_scratch.h"
 #include "c/services/health.h"
 #include "c/services/health_cache.h"
 #include "c/services/health_summary.h"
@@ -410,6 +411,11 @@ static void main_window_load(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_bounds(window_layer);
     main_window_apply_theme();
+#if defined(PBL_HEALTH)
+    // Before any health read: the hourly reads borrow the paint scratch for their
+    // minute records (paint_scratch.h), instead of 720 B of their own.
+    health_set_minute_scratch(g_paint_scratch.health_minutes);
+#endif
 
 #if defined(WW_VIEW_CYCLE)
     // Restore the view cursor across a relaunch, gated on the same window the

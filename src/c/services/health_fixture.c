@@ -44,6 +44,11 @@ bool health_available(void) {
     return true;
 }
 
+// The canned hours read no minute history, so the lent buffer goes unused.
+void health_set_minute_scratch(HealthMinuteData *records) {
+    (void) records;
+}
+
 int health_steps_today(void) {
     return FIXTURE_STEPS_TODAY;
 }
