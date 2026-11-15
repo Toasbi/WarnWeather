@@ -166,6 +166,24 @@ static bool write_bool_if_changed(const uint32_t key, bool val) {
     return true;
 }
 
+// A missing int or bool reads as 0 / false (the SDK's persist_read_int and
+// persist_read_bool, and persist_store.c's on emery), so the getters whose default is 0
+// read without asking whether the key exists first.
+
+// Removes a slot whose absence is its "nothing" value. True when it was there: the
+// change report of every setter that clears by deleting.
+static bool delete_if_present(const uint32_t key) {
+    if (!store_exists(key)) { return false; }
+    store_delete(key);
+    return true;
+}
+
+// A colour stored as its argb byte in an int slot, or `fallback` while nothing is stored.
+static GColor read_color(const uint32_t key, const GColor fallback) {
+    if (!store_exists(key)) { return fallback; }
+    return (GColor){ .argb = (uint8_t) store_read_int(key) };
+}
+
 // The compare buffer of write_data_if_changed: the largest blob it skips a no-op write of.
 // A forecast trend is one byte per hour, FORECAST_MAX_ENTRIES of them (68 on emery).
 #if defined(PBL_PLATFORM_EMERY)
@@ -220,11 +238,7 @@ static int read_present_blob(const uint32_t key, uint8_t *out, const size_t cap)
 
 #if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND) || defined(PBL_PLATFORM_EMERY)
 static bool write_present_blob(const uint32_t key, const uint8_t *data, const size_t len) {
-    if (len == 0) {
-        if (!store_exists(key)) { return false; }
-        store_delete(key);
-        return true;
-    }
+    if (len == 0) { return delete_if_present(key); }
     return write_sized_data_if_changed(key, data, len);
 }
 #endif
@@ -247,8 +261,7 @@ static int read_trend_widened(uint32_t key, int16_t *out, size_t n) {
 // NOT the count-keyed LINE_/BAR_ one; see the key enum).
 static bool set_existence_keyed_trend(uint32_t key, uint8_t *data, size_t size) {
     if (size > 0) { return write_data_if_changed(key, data, size); }
-    if (store_exists(key)) { store_delete(key); return true; }
-    return false;
+    return delete_if_present(key);
 }
 
 int persist_get_temp_trend(int16_t *buffer, const size_t buffer_size) {
@@ -272,11 +285,11 @@ int persist_get_bar_trend(int16_t *buffer, const size_t buffer_size) {
 }
 
 int persist_get_line_count(void) {
-    return store_exists(LINE_COUNT) ? store_read_int(LINE_COUNT) : 0;
+    return store_read_int(LINE_COUNT);
 }
 
 int persist_get_bar_count(void) {
-    return store_exists(BAR_COUNT) ? store_read_int(BAR_COUNT) : 0;
+    return store_read_int(BAR_COUNT);
 }
 
 bool persist_series_present(SeriesId id) {
@@ -341,22 +354,19 @@ bool persist_series_set_color(SeriesId id, GColor c) {
 }
 
 GColor persist_get_line_color(void) {
-    if (!store_exists(LINE_COLOR)) { return GColorPictonBlue; }
-    return (GColor){ .argb = (uint8_t) store_read_int(LINE_COLOR) };
+    return read_color(LINE_COLOR, GColorPictonBlue);
 }
 
 GColor persist_get_third_line_color(void) {
-    if (!store_exists(THIRD_LINE_COLOR)) { return theme_fg(); }
-    return (GColor){ .argb = (uint8_t) store_read_int(THIRD_LINE_COLOR) };
+    return read_color(THIRD_LINE_COLOR, theme_fg());
 }
 
 GColor persist_get_fill_color(void) {
-    if (!store_exists(FILL_COLOR)) { return GColorCobaltBlue; }
-    return (GColor){ .argb = (uint8_t) store_read_int(FILL_COLOR) };
+    return read_color(FILL_COLOR, GColorCobaltBlue);
 }
 
 bool persist_get_line_fill(void) {
-    return store_exists(LINE_FILL) ? store_read_bool(LINE_FILL) : false;
+    return store_read_bool(LINE_FILL);
 }
 
 time_t persist_get_forecast_start() {
@@ -425,8 +435,7 @@ bool persist_set_line_fill(bool fill) {
 // shared helpers. Only the colour keeps named accessors (forecast_layer.c
 // reads it by name at paint time).
 GColor persist_get_fourth_line_color(void) {
-    if (!store_exists(FOURTH_LINE_COLOR)) { return theme_fg(); }
-    return (GColor){ .argb = (uint8_t) store_read_int(FOURTH_LINE_COLOR) };
+    return read_color(FOURTH_LINE_COLOR, theme_fg());
 }
 
 bool persist_set_fourth_line_color(GColor color) {
@@ -434,8 +443,7 @@ bool persist_set_fourth_line_color(GColor color) {
 }
 
 GColor persist_get_fifth_line_color(void) {
-    if (!store_exists(FIFTH_LINE_COLOR)) { return theme_fg(); }
-    return (GColor){ .argb = (uint8_t) store_read_int(FIFTH_LINE_COLOR) };
+    return read_color(FIFTH_LINE_COLOR, theme_fg());
 }
 
 bool persist_set_fifth_line_color(GColor color) {
@@ -527,27 +535,28 @@ bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len) {
     return write_sized_data_if_changed(status_line_key(line_id), data, len);
 }
 
+// A stored text into `buffer`: its length in bytes, or -1 while the slot is
+// absent (the buffer then holds "").
+static int read_text(const uint32_t key, char *buffer, const size_t buffer_size) {
+    if (buffer_size == 0) { return -1; }
+    buffer[0] = '\0';
+    if (!store_exists(key)) { return -1; }
+    int n = store_read_data(key, buffer, buffer_size);
+    if (n <= 0) { buffer[0] = '\0'; return -1; }
+    buffer[buffer_size - 1] = '\0';  // guarantee termination
+    return (int) strlen(buffer);
+}
+
 bool persist_set_notice_text(const char *text) {
     size_t len = text ? strlen(text) : 0;
-    if (len == 0) {
-        // Empty = no notice. Delete the slot; report a change only when it existed.
-        if (store_exists(NOTICE_TEXT)) {
-            store_delete(NOTICE_TEXT);
-            return true;
-        }
-        return false;
-    }
+    // Empty = no notice. Delete the slot; report a change only when it existed.
+    if (len == 0) { return delete_if_present(NOTICE_TEXT); }
     return write_sized_data_if_changed(NOTICE_TEXT, text, len + 1); // include NUL
 }
 
 int persist_get_notice_text(char *buffer, size_t buffer_size) {
-    if (buffer_size == 0) { return 0; }
-    buffer[0] = '\0';
-    if (!store_exists(NOTICE_TEXT)) { return 0; }
-    int n = store_read_data(NOTICE_TEXT, buffer, buffer_size);
-    if (n <= 0) { buffer[0] = '\0'; return 0; }
-    buffer[buffer_size - 1] = '\0';  // guarantee termination
-    return (int) strlen(buffer);
+    const int n = read_text(NOTICE_TEXT, buffer, buffer_size);
+    return n > 0 ? n : 0;
 }
 
 // Unguarded on purpose (see persist.h): rain_radar_layer.c compiles on every
@@ -572,18 +581,6 @@ static bool write_bounded_text(const uint32_t key, const char *text, const size_
     if (len > 0) { memcpy(bounded, text, len); }
     bounded[len] = '\0';
     return write_sized_data_if_changed(key, bounded, len + 1); // include NUL
-}
-
-// A stored radar text into `buffer`: its length in bytes, or -1 while the slot is
-// absent (the buffer then holds "").
-static int read_text(const uint32_t key, char *buffer, const size_t buffer_size) {
-    if (buffer_size == 0) { return -1; }
-    buffer[0] = '\0';
-    if (!store_exists(key)) { return -1; }
-    int n = store_read_data(key, buffer, buffer_size);
-    if (n <= 0) { buffer[0] = '\0'; return -1; }
-    buffer[buffer_size - 1] = '\0';  // guarantee termination
-    return (int) strlen(buffer);
 }
 
 bool persist_set_norain_text(const char *text) {
@@ -622,11 +619,7 @@ int persist_get_radar_notice(char *buffer, size_t buffer_size) {
 bool persist_set_radar_notice(const char *text) {
     // No notice is the ABSENT slot, so every window that arrives on an install
     // that never had one costs no flash write, and ending the notice deletes.
-    if (!text || !text[0]) {
-        if (!store_exists(RADAR_NOTICE)) { return false; }
-        store_delete(RADAR_NOTICE);
-        return true;
-    }
+    if (!text || !text[0]) { return delete_if_present(RADAR_NOTICE); }
     return write_bounded_text(RADAR_NOTICE, text, RADAR_NOTICE_BUF_BYTES);
 }
 
@@ -665,7 +658,7 @@ bool persist_set_holiday_anchor(int32_t val) {
 }
 
 int32_t persist_get_holiday_anchor(void) {
-    return store_exists(HOLIDAY_ANCHOR) ? (int32_t) store_read_int(HOLIDAY_ANCHOR) : 0;
+    return store_read_int(HOLIDAY_ANCHOR);
 }
 
 bool persist_set_holiday_mask(uint32_t val) {
@@ -673,13 +666,13 @@ bool persist_set_holiday_mask(uint32_t val) {
 }
 
 uint32_t persist_get_holiday_mask(void) {
-    return store_exists(HOLIDAY_MASK) ? (uint32_t) store_read_int(HOLIDAY_MASK) : 0u;
+    return (uint32_t) store_read_int(HOLIDAY_MASK);
 }
 
 bool persist_set_temp_min(int v) { return write_int_if_changed(TEMP_MIN, v); }
 bool persist_set_temp_max(int v) { return write_int_if_changed(TEMP_MAX, v); }
-int  persist_get_temp_min(void) { return store_exists(TEMP_MIN) ? store_read_int(TEMP_MIN) : 0; }
-int  persist_get_temp_max(void) { return store_exists(TEMP_MAX) ? store_read_int(TEMP_MAX) : 0; }
+int  persist_get_temp_min(void) { return store_read_int(TEMP_MIN); }
+int  persist_get_temp_max(void) { return store_read_int(TEMP_MAX); }
 
 void persist_migrate_trend_encoding(void) {
     int v = store_exists(TREND_ENCODING_VERSION) ? store_read_int(TREND_ENCODING_VERSION) : 1;
@@ -701,8 +694,7 @@ void persist_migrate_trend_encoding(void) {
 }
 
 void persist_migrate_status_line_encoding(void) {
-    int version = store_exists(STATUS_LINE_ENCODING_VERSION)
-        ? store_read_int(STATUS_LINE_ENCODING_VERSION) : 0;
+    int version = store_read_int(STATUS_LINE_ENCODING_VERSION);
     if (version == STATUS_LINE_ENCODING_VERSION_CURRENT) { return; }
     // Unknown/old encoding: drop only the line blobs, and force the startup
     // handshake to report forecast data missing so the phone resends the
@@ -802,7 +794,6 @@ time_t persist_get_health_cache_end_hour(void) {
 
 #if defined(WW_THRESHOLD_HIGHLIGHT)
 int persist_get_status_levels(void) {
-    if (!store_exists(STATUS_LEVELS)) { return 0; }
     return store_read_int(STATUS_LEVELS);
 }
 
@@ -893,9 +884,8 @@ void persist_get_night_colors(uint8_t out[NIGHT_COLOR_BYTES]) {
     out[1] = GColorDarkGray.argb;
     out[2] = GColorDukeBlue.argb;
     out[3] = GColorBlue.argb;
-    if (!store_exists(NIGHT_COLORS)) { return; }
     // Read into a scratch first: a short read must not scribble on the
-    // already-defaulted out[] bytes.
+    // already-defaulted out[] bytes. A missing slot reads short too.
     uint8_t stored[NIGHT_COLOR_BYTES];
     if (store_read_data(NIGHT_COLORS, stored, sizeof(stored)) < (int) sizeof(stored)) {
         return;  // short/corrupt — keep the defaults
@@ -918,9 +908,8 @@ void persist_get_night_light(uint8_t out[NIGHT_LIGHT_BYTES]) {
     // is the established "never" window (persist.h), so an install that has never
     // received the setting leaves the backlight on the user's own colour.
     memset(out, 0, NIGHT_LIGHT_BYTES);
-    if (!store_exists(NIGHT_LIGHT)) { return; }
     // Read into a scratch first: a short read must not scribble on the
-    // already-defaulted out[] bytes.
+    // already-defaulted out[] bytes. A missing slot reads short too.
     uint8_t stored[NIGHT_LIGHT_BYTES];
     if (store_read_data(NIGHT_LIGHT, stored, sizeof(stored)) < (int) sizeof(stored)) {
         return;  // short/corrupt — keep the default
