@@ -2,6 +2,7 @@
 var SunCalc = require('suncalc');
 
 var DAY_MS = 24 * 60 * 60 * 1000;
+var MINUTE_MS = 60 * 1000;
 // SunCalc's sunrise/sunset altitude (upper limb on the horizon, refraction
 // included). A day whose solar-noon altitude stays below it has no sunrise.
 var SUNRISE_ALTITUDE_RAD = -0.833 * Math.PI / 180;
@@ -24,7 +25,12 @@ function isValidSunEvent(sunEvent) {
 /**
  * Encode sun events into the SUN_EVENTS wire array: a leading byte (0 when the
  * series starts on a sunrise, else 1) followed by each event's epoch-seconds
- * reinterpreted as little-endian Int32 bytes.
+ * reinterpreted as little-endian Int32 bytes, rounded to the nearest whole
+ * minute. Nothing reads them finer: the sun slot prints HH:MM, and the watch
+ * shades the forecast's nights (forecast_night.h) at far less than a pixel a
+ * minute. In whole seconds a phone fix that wandered by a few metres moved the
+ * sunrise across a second now and then, and the changed bytes woke the watch
+ * for the same sky.
  *
  * Null when fewer than two events carry a real date, and getPayload then
  * leaves the key out. The watch needs the start byte plus two epochs
@@ -41,7 +47,7 @@ function encodeSunEvents(sunEvents) {
         return null;
     }
     var intView = new Int32Array(sunEvents.map(function(sunEvent) {
-        return sunEvent.date.getTime() / 1000; // Seconds since epoch
+        return Math.round(sunEvent.date.getTime() / MINUTE_MS) * 60; // Seconds since epoch, whole minutes
     }));
     var byteArray = Array.prototype.slice.call(new Uint8Array(intView.buffer));
     return [sunEvents[0].type === 'sunrise' ? 0 : 1].concat(byteArray);
