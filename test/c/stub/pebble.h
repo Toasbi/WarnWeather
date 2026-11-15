@@ -150,6 +150,12 @@ typedef void (*AppTimerCallback)(void *data);
 AppTimer *app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, void *callback_data);
 void app_timer_cancel(AppTimer *timer_handle);
 
+// --- disconnect_vibe_test.c additions ----------------------------------------
+// The Quiet Time and vibe calls services/disconnect_vibe.h makes (the test supplies the
+// bodies).
+bool quiet_time_is_active(void);
+void vibes_double_pulse(void);
+
 // --- night_light_persist_test.c additions -----------------------------------
 // The persistent-storage syscalls, so appendix/persist.c itself can be
 // host-compiled against a RAM-backed fake (the test supplies the bodies:

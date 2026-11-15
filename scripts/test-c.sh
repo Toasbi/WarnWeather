@@ -37,6 +37,10 @@ build/host/config_size_test_emery
 cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
    test/c/config_size_test.c -o build/host/config_size_test_aplite
 build/host/config_size_test_aplite
+# The Bluetooth disconnect vibe (services/disconnect_vibe.h): a drop buzzes only while Quiet
+# Time is off.
+cc $CFLAGS test/c/disconnect_vibe_test.c -o build/host/disconnect_vibe_test
+build/host/disconnect_vibe_test
 cc $CFLAGS test/c/health_build_test.c src/c/services/health_build.c -o build/host/health_build_test
 build/host/health_build_test
 cc $CFLAGS test/c/health_test.c src/c/services/health.c -o build/host/health_test

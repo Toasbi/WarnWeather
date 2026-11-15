@@ -5,6 +5,7 @@
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/status_line.h"
+#include "c/services/disconnect_vibe.h"
 #include "c/services/watch_services.h"
 #include "c/appendix/view_spec.h"   // LayoutTier (status_row tier param)
 
@@ -108,8 +109,8 @@ static void system_changed(void) {
 
 static void bluetooth_callback(bool connected) {
     system_changed();
-    if (!connected && config_get()->vibe)
-        vibes_double_pulse();
+    // A drop buzzes only while Quiet Time is off (services/disconnect_vibe.h).
+    disconnect_vibe_on_connection(connected, config_get()->vibe);
 }
 
 static void battery_state_callback(BatteryChargeState charge) {
