@@ -256,15 +256,17 @@ void status_bar_refresh_all(void) {
     }
 }
 
-bool status_bar_any_visible_uses_live_health(const ViewSpec *spec) {
+#if defined(PBL_HEALTH)
+uint8_t status_bar_visible_live_health(const ViewSpec *spec) {
+    uint8_t kinds = 0;
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
-        if (status_row_uses_live_health(s_bars[i].row)
-                && layout_status_visible(spec, bar_source((StatusBarId) i))) {
-            return true;
+        if (layout_status_visible(spec, bar_source((StatusBarId) i))) {
+            kinds |= status_row_live_health(s_bars[i].row);
         }
     }
-    return false;
+    return kinds;
 }
+#endif
 
 void status_bar_refresh_live_health(const ViewSpec *spec) {
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {

@@ -138,9 +138,11 @@ void top_status_layer_refresh() {
     layer_mark_dirty(s_top_status_layer);
 }
 
-bool top_status_layer_uses_live_health(void) {
-    return s_row && status_row_uses_live_health(s_row);
+#if defined(PBL_HEALTH)
+uint8_t top_status_layer_live_health(void) {
+    return status_row_live_health(s_row);
 }
+#endif
 
 void top_status_layer_destroy() {
     MEMORY_LOG_HEAP("top_status_layer_destroy:before");

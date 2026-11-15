@@ -78,7 +78,7 @@ void status_bar_destroy_all(void);
 // line too (status-line-catalog.js bakedLines). Call it before status_bar_create_all,
 // which then reads the bars in use alone, and whenever the configured views change
 // (main_window_apply_top_view), before that change's live-health check and render: a bar
-// that joins is read at once, so status_bar_any_visible_uses_live_health knows its slots.
+// that joins is read at once, so status_bar_visible_live_health knows its slots.
 // Every bar is in use until the first call and again after status_bar_destroy_all. Absent
 // on aplite, whose one bar is the forecast row.
 void status_bar_set_in_use(uint8_t sources);
@@ -93,15 +93,19 @@ void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L);
 // Re-resolve and repaint every bar — the settings / weather / flick checkpoint.
 void status_bar_refresh_all(void);
 
-// True when any VISIBLE bar's active packed line holds a live health slot. Gates
-// the minute handler's health work — visibility matters: the health bar's default
-// line is all live-health slots, so an any-bar scan would be ~always true for
-// every health-enabled user and put HealthService reads on every minute tick even
-// with no health content on screen. A hidden bar can't show a stale value, and
+#if defined(PBL_HEALTH)
+// The health readings the VISIBLE bars' active packed lines show, as
+// services/health_summary.h's HEALTH_SUMMARY_* mask: 0 when none shows any. Gates the
+// minute handler's health work, reading by reading — visibility matters: the health
+// bar's default line is all live-health slots, so an any-bar scan would be ~always
+// true for every health-enabled user and put HealthService reads on every minute tick
+// even with no health content on screen. A hidden bar can't show a stale value, and
 // every path that unhides one (status_bar_apply_view is the only visibility
 // writer, and each of its callers pairs it with main_window_refresh() ->
-// status_bar_refresh_all()) re-resolves the row then. Constant-false on aplite.
-bool status_bar_any_visible_uses_live_health(const ViewSpec *spec);
+// status_bar_refresh_all()) re-resolves the row then. Absent on aplite, which has no
+// health.
+uint8_t status_bar_visible_live_health(const ViewSpec *spec);
+#endif
 
 // Repaint the VISIBLE bars whose content depends on live health: those whose
 // packed line holds a live health slot, plus the health-source bar itself (its

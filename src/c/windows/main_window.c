@@ -298,6 +298,22 @@ static void quick_view_on_change(void) {
 #endif
 
 #if defined(PBL_HEALTH)
+// The health readings the rows of `spec` show (services/health_summary.h HEALTH_SUMMARY_*):
+// its visible bars', and the strip's while `strip` says it shows. The summary reads these
+// and no other, so a reading no row on screen shows costs no HealthService read.
+static uint8_t visible_live_health(const ViewSpec *spec, bool strip) {
+    return status_bar_visible_live_health(spec) | (strip ? top_status_layer_live_health() : 0);
+}
+
+// Whether the strip is on screen right now: a stripless view hides it (render_active_view).
+static bool strip_shown(void) {
+#if defined(WW_VIEW_CYCLE)
+    return !layer_get_hidden(top_status_layer_get_root());
+#else
+    return true;
+#endif
+}
+
 // health_cache repaint hook. Fires for the loading frame, a rollover's
 // paint-first, and a sliced build's completion. The graph repaints whenever it is
 // reachable; once the cache is ready, also recompute the summary and repaint any
@@ -310,10 +326,11 @@ static void health_cache_repaint(void) {
     // (HEALTH_STATUS/SLOT — cache still warm for the rows) from computing at all.
     if (health_graph_renderable()) { health_graph_layer_refresh(); }
     if (!health_cache_ready()) { return; }   // loading frame: no new data for the rows
-    if (health_summary_refresh()) {
-        ViewSpec spec = current_view_spec();
+    ViewSpec spec = current_view_spec();
+    const uint8_t kinds = visible_live_health(&spec, strip_shown());
+    if (kinds && health_summary_refresh(kinds, time(NULL))) {
         status_bar_refresh_live_health(&spec);
-        if (top_status_layer_uses_live_health()) { top_status_layer_refresh(); }
+        if (top_status_layer_live_health()) { top_status_layer_refresh(); }
     }
 }
 #endif
@@ -332,9 +349,11 @@ static void health_warm_for_incoming_view(void) {
     if (!health_renderable()) { return; }
     ViewSpec ns = current_view_spec();
     LayerVisibility nv = layout_visibility(&ns);
-    if (nv.health_graph || status_bar_any_visible_uses_live_health(&ns)) {
+    // The incoming view's rows: the render that follows hides or shows the strip by it.
+    const uint8_t kinds = visible_live_health(&ns, !ns.strip_off);
+    if (nv.health_graph || kinds) {
         health_cache_refresh_current_hour();
-        health_summary_refresh();
+        if (kinds) { health_summary_refresh(kinds, time(NULL)); }
         if (nv.health_graph) { health_graph_layer_refresh(); }
     }
 }
@@ -447,8 +466,9 @@ static void main_window_load(Window *window) {
         // Prime the summary (steps/sleep/HR) immediately: it otherwise only refreshes
         // from minute_handler's tick, so the first paint (before the first minute
         // boundary) would show the INT_MIN-derived "0"/"--" sentinel values instead of
-        // real data.
-        health_summary_refresh();
+        // real data. The readings the boot view's rows show, which their create-time
+        // refreshes have resolved.
+        health_summary_refresh(visible_live_health(&spec, strip_shown()), time(NULL));
     }
 #endif
 #if defined(WW_VIEW_CYCLE)
@@ -544,25 +564,26 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     LayerVisibility av = layout_visibility(&aspec);
     bool health_on_screen = av.health_graph;
     // Status rows may carry LIVE health slots on any line — but only VISIBLE rows
-    // (plus the top strip, visible on most views) gate the minute work. The hidden health bar's
-    // default line is all live-health slots, so an any-bar scan would be ~always
-    // true and spend 4-5 HealthService reads on every tick with no health content
-    // on screen; a bar that unhides is re-resolved by that path's refresh_all.
-    bool bars_need_health = status_bar_any_visible_uses_live_health(&aspec);
-    bool top_needs_health = top_status_layer_uses_live_health();
-    bool status_needs_health = bars_need_health || top_needs_health;
+    // (plus the top strip while it shows) gate the minute work, and only for the
+    // readings they show. The hidden health bar's default line is all live-health
+    // slots, so an any-bar scan would be ~always true and spend 4-5 HealthService
+    // reads on every tick with no health content on screen; a bar that unhides is
+    // re-resolved by that path's refresh_all.
+    const uint8_t top_kinds = strip_shown() ? top_status_layer_live_health() : 0;
+    const uint8_t kinds = status_bar_visible_live_health(&aspec) | top_kinds;
     if (config_get()->health_mode != HEALTH_OFF) {
         health_cache_tick(health_on_screen);
     }
     // Repaint the on-screen health view from the (now-warm) cache. The summary
     // (steps/sleep/HR) recomputes here, on the minute cadence, rather than in
     // status_bar_refresh_live_health() — so an unrelated main_window_refresh() (e.g. a
-    // settings save) repaints from held values with zero HealthService reads.
-    if (health_renderable() && (health_on_screen || status_needs_health)) {
+    // settings save) repaints from held values with zero HealthService reads. The graph
+    // alone reads no summary: it draws from the cache.
+    if (health_renderable() && (health_on_screen || kinds)) {
         if (av.health_graph) { health_graph_layer_refresh(); }
-        if (health_summary_refresh()) {
+        if (kinds && health_summary_refresh(kinds, time(NULL))) {
             status_bar_refresh_live_health(&aspec);
-            if (top_needs_health) { top_status_layer_refresh(); }
+            if (top_kinds) { top_status_layer_refresh(); }
         }
     }
 #endif
