@@ -236,10 +236,15 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         // same halo + BAR_OUTLINED silhouette anatomy; only the interior differs
         // (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
         // ones). Color-dark opts out of both — no halo, no silhouette: the exact
-        // pre-theme look the user tuned before theming existed. On B&W builds
-        // theme_is_bw() is constant-true, so the dark-only skips compile out.
+        // pre-theme look the user tuned before theming existed. BAR_RINGED bars (the
+        // forecast's rain bars) keep the halo there, black: it cuts a bar out of the
+        // area fill, night hatch and day line behind it (the owner's, 2026-11-16: the long
+        // span's thin white bars over the blue rain-probability fill). It lands on the
+        // pad columns beside the bar, or on the tick column in a grid without pads, so
+        // the bar keeps its full width. On B&W builds theme_is_bw() is constant-true, so
+        // the dark-only skips compile out.
         const bool dark = !theme_is_bw() && !theme_is_light();
-        if (!dark) {
+        if (!dark || b->style == BAR_RINGED) {
             graphics_context_set_fill_color(r->ctx, theme_bg());
             graphics_fill_rect(r->ctx,
                 GRect(bar_x - 1, chart_flip_span_y(zero, dir, 0, bar_h + 1), w + 2, bar_h + 1),
@@ -262,7 +267,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
                 0, GCornerNone);
         }
 
-        if (b->style == BAR_OUTLINED && !dark) {
+        if (b->style != BAR_SOLID && !dark) {   // OUTLINED and RINGED alike
             // theme_fg() silhouette around the bar interior — the shared bar look in
             // every theme (all three call sites: rain bars, radar bars, health step
             // bars). Draw only the free-end + side walls and leave the anchored end

@@ -862,7 +862,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .values = bars->bars.values, .count = ds->num_entries,
             .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
             .stops = scaled_bar_stops, .num_stops = bar_num_stops,
-            .style = BAR_OUTLINED } };
+            // The black ring in the dark theme too (chart.c): the bars share the plot
+            // with the area fill, the night hatch and the day line.
+            .style = BAR_RINGED } };
     }
     // Mark lines (second + third metric): bar-aligned marks whose styles are
     // user-selectable off the LINE_STYLES blob on capable platforms. The loop

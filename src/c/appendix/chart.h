@@ -167,9 +167,10 @@ typedef struct {
 } ChartAxisLayer;
 
 typedef struct { int16_t from; GColor color; } ChartColorStop; // value-space threshold
-typedef enum   { BAR_SOLID, BAR_OUTLINED } ChartBarStyle;      // OUTLINED: +1px theme_fg()
-                                                               // silhouette, every theme
-                                                               // but colour-dark
+// OUTLINED: +1px theme_fg() silhouette, every theme but colour-dark. RINGED: OUTLINED, and
+// colour-dark keeps the 1px theme_bg() ring round the bar too, which every other theme draws
+// round every bar (chart.c chart_render_bars): the forecast's rain bars, over the area fill.
+typedef enum   { BAR_SOLID, BAR_OUTLINED, BAR_RINGED } ChartBarStyle;
 typedef struct {
     const int16_t        *values;
     const ChartColorStop *stops;      // >=1, ascending, stops[0].from <= lo: a negative
