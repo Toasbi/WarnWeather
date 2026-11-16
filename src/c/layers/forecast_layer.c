@@ -778,18 +778,22 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #if defined(PBL_PLATFORM_EMERY)
     // emery: the 12 h and long grids, and the 24 h grid past 24 slots (26 hours on the
     // screen-wide plot), fit the scale and name the labels over the hours on screen, every
-    // hour whose tick is (forecast_span_drawn); the 24-slot grid keeps every hour sent, as it
-    // always has, its last one or two past the edge (an On axis plot, or 9 px). Its labels are
-    // TEMP_MIN / TEMP_MAX as sent (pixel-identical) unless its graph style draws fewer hours
-    // than were sent, or the scale's ends lie on a trend the style draws no line of
-    // (graph_style.h): then it names its own too. Before fit_temp_axis: the relabel reads the
-    // bytes, which it turns into rows.
+    // hour whose tick is (forecast_span_drawn); the 24-slot grid at its 8 px keeps every hour
+    // sent, as it always has, its last one or two past the edge On axis. At 9 px (no label
+    // strip and fewer than 26 hours, forecast_span.h) its last hour lies wholly past the edge,
+    // so it fits over the hours on screen too: the numbers On graph never name a point off the
+    // screen. The 8 px grid's labels are TEMP_MIN / TEMP_MAX as sent (pixel-identical) unless
+    // its graph style draws fewer hours than were sent, or the scale's ends lie on a trend the
+    // style draws no line of (graph_style.h): then it names its own too. Before fit_temp_axis:
+    // the relabel reads the bytes, which it turns into rows.
     const bool scale_nums = (axis_opts & GRAPH_OPT_SCALE_NUMS) != 0;
+    const bool day8 = span.slots == FORECAST_SPAN_DAY_SLOTS
+                      && forecast_span_pitch(span) == FORECAST_SPAN_DAY_PITCH;
     ds->fit_entries = ds->num_entries;
-    if (span.slots != FORECAST_SPAN_DAY_SLOTS) {
+    if (!day8) {
         ds->fit_entries = forecast_span_drawn(span, ds->num_entries, bounds.size.w - graph_left);
     }
-    if (span.slots != FORECAST_SPAN_DAY_SLOTS || ds->num_entries < ds->sent_entries
+    if (!day8 || ds->num_entries < ds->sent_entries
             || (scale_nums && ds->scale_undrawn)) {
         forecast_numbers_relabel(ds, scale_nums, paint->scale_trend,   // every paint
                                  s_buffer_hi, s_buffer_lo, sizeof(s_buffer_hi));

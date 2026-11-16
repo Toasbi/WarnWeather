@@ -67,7 +67,8 @@ of its own for the span. On emery the graph styles' records (a wire byte and per
     14th hour's vertex at or past the edge for every W 145..200.
   - 15..26, the 24 h grid: `FORECAST_GRID_DEF` (pitch 8, pad 1, bar 5), 24 slots up to 24
     hours and one per hour past it. Only where its last slot's tick would stop short of the
-    plot's last column does it take the edge pitch below, 9 px (pad 1, bar 6). That happens
+    plot's last column does it take the edge pitch below, 9 px (pad 1, bar 6), and then its
+    scale and labels cover the hours on screen, as the other classes' do. That happens
     only on the screen-wide plot (W 200) holding fewer than the 26 hours: an unknown watch is
     sent 24, and so is a known one until the refetch a numbers move forces. With a label strip
     (W ≤ 183 px) the 24 slots always reach past the edge, so 24 h On axis keeps every pixel.
@@ -76,7 +77,8 @@ of its own for the span. On emery the graph styles' records (a wire byte and per
     whole pitch that puts the last hour's point on or past the plot's last column, so the line,
     the area and the night shading reach the edge and the hours past it are cut.
     OpenWeatherMap's 48 hours and Weather Underground's 49 draw at 4 px beside a label strip
-    (43 whole hours at 174 px, 45 at 180) and at 5 px on the screen-wide plot (40). A full
+    (43 to 45 whole hours over 174 to 180 px: the label's "44 h" at the settings page's 176 px
+    plot with Larger graph fonts) and at 5 px on the screen-wide plot (40). A full
     68-hour feed is held at the 3 px floor (a tick plus a 2 px bar): 58 whole hours at the
     default 174 px plot, 66 with no left axis. The 8 px cap never binds on emery (27 hours at
     200 px: 8 px); it stays as a guard.
