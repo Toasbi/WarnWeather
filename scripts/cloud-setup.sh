@@ -14,6 +14,10 @@ if [ -d WarnWeather ]; then
   mise exec -- scripts/ensure-pebble-sdk.sh || echo "setup: installing the Pebble SDK failed"
   # pebble (and the uv its SDK installs need) on PATH outside mise tasks too
   for t in pebble uv; do p=$(mise which "$t") && ln -sf "$p" "$HOME/.local/bin/$t"; done
+  # the emulator's pypkjs listens on IPv6, which these containers lack: listen on IPv4
+  sed -i 's/WSGIServer(("", self.port)/WSGIServer(("0.0.0.0", self.port)/' \
+    "$(mise where pipx:pebble-tool)"/pebble-tool/lib/python3*/site-packages/pypkjs/runner/websocket.py \
+    || echo "setup: patching pypkjs for IPv4 failed"
   { mise run prepare-package -- dev && npm ci && node scripts/prepare-fixture.js \
     && node scripts/build-config-page.js; } || echo "setup: generating the build files failed"
 fi
