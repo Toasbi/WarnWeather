@@ -19,6 +19,15 @@ Create the local env file, then fill in the values:
 cp .env.example .env
 ```
 
+### Cloud sessions
+
+Claude Code cloud sessions run on the "Pebble" cloud environment, whose setup script is a verbatim copy of `scripts/cloud-setup.sh`. On every fresh container, before the session starts, it installs mise with the tools above, the Pebble SDK and the generated files `mise test` needs, and puts `pebble` on the PATH. The environment keeps its own copy, so change the two together.
+
+It runs from the directory that holds the checkout, and it restores `mise.lock` after installing (a newer mise rewrites the lock's format), so commit a lock change before you re-run it in a session:
+```bash
+cd .. && bash WarnWeather/scripts/cloud-setup.sh
+```
+
 ## mise tasks
 
 Build `.pbw` (dev profile):
