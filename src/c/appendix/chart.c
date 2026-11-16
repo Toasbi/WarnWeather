@@ -237,7 +237,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         // (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
         // ones). Color-dark opts out of both — no halo, no silhouette: the exact
         // pre-theme look the user tuned before theming existed. BAR_RINGED bars (the
-        // forecast's rain bars) keep the halo there, dark gray: it cuts a bar out of the
+        // forecast's rain bars) keep the halo there, black: it cuts a bar out of the
         // area fill, night hatch and day line behind it (the owner's, 2026-11-16: the long
         // span's thin white bars over the blue rain-probability fill). It lands on the
         // pad columns beside the bar, or on the tick column in a grid without pads, so
@@ -245,7 +245,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         // the dark-only skips compile out.
         const bool dark = !theme_is_bw() && !theme_is_light();
         if (!dark || b->style == BAR_RINGED) {
-            graphics_context_set_fill_color(r->ctx, dark ? GColorDarkGray : theme_bg());
+            graphics_context_set_fill_color(r->ctx, theme_bg());
             graphics_fill_rect(r->ctx,
                 GRect(bar_x - 1, chart_flip_span_y(zero, dir, 0, bar_h + 1), w + 2, bar_h + 1),
                 0, GCornerNone);
