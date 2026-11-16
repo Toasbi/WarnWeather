@@ -24,8 +24,9 @@ static void expect_hidden_zero(const char *name, const StatusSlotPlace *p) {
 }
 
 // content_w = 138 unless noted. Policy: edges claim their full desired width
-// first (they split max-min only when their combined desire > content_w); the
-// middle takes the remaining span and truncates.
+// first (they split max-min only when their combined desire > content_w less the
+// STATUS_ROW_GROUP_GAP they keep between them); the middle takes the remaining span,
+// that gap from each, and truncates.
 
 static void empty_row(void) {
     StatusSlotMeasure m[3] = {{0}};
@@ -38,7 +39,7 @@ static void empty_row(void) {
 
 static void typical_row(void) {
     // temp (10+3+30=43) | long city | sun (10+3+20=33). Edges fit fully
-    // (76 <= 138); city gets the remainder.
+    // (76 <= 138 - 6); city gets the remainder, [49,99] = 50.
     StatusSlotMeasure m[3] = { { true, 10, 30, 0 }, { true, 0, 200, 0 }, { true, 10, 20, 0 } };
     StatusSlotPlace p[3];
     status_row_layout(138, m, p);
@@ -47,8 +48,8 @@ static void typical_row(void) {
     expect("typ.l.text_w", p[0].text_w, 30);
     expect("typ.r.icon_x", p[2].icon_x, 105);
     expect("typ.r.text_x", p[2].text_x, 118);
-    expect("typ.m.text_w", p[1].text_w, 54);
-    expect("typ.m.text_x", p[1].text_x, 47);
+    expect("typ.m.text_w", p[1].text_w, 50);
+    expect("typ.m.text_x", p[1].text_x, 49);
     expect("typ.m.visible", p[1].visible, 1);
 }
 
@@ -77,8 +78,8 @@ static void edge_priority_over_long_mid(void) {
     expect("prio.l.text_x", p[0].text_x, 17);
     expect("prio.r.text_w", p[2].text_w, 20);
     expect("prio.r.icon_x", p[2].icon_x, 105);
-    expect("prio.m.text_w", p[1].text_w, 36);        // mid span [65,101] = 36
-    expect("prio.m.text_x", p[1].text_x, 65);
+    expect("prio.m.text_w", p[1].text_w, 32);        // mid span [67,99] = 32
+    expect("prio.m.text_x", p[1].text_x, 67);
     expect("prio.m.visible", p[1].visible, 1);
 }
 
@@ -105,31 +106,124 @@ static void mid_stays_centered_when_one_edge_disabled(void) {
     expect("centered.rightpresent.mid_w", p[1].text_w, 40);
     expect("centered.rightpresent.r_icon_x", p[2].icon_x, 109);   // right stays right-aligned
 
-    // Left present (temp 10+3+30=43), right empty. Same true centre 49 (clears the
-    // left group at [0,43]).
+    // Left present (temp 10+3+24=37), right empty. Same true centre 49, which leaves
+    // the left group at [0,37] the middle's 12 px.
     StatusSlotMeasure left_only[3] =
-        { { true, 10, 30, 0 }, { true, 0, 40, 0 }, { false, 0, 0, 0 } };
+        { { true, 10, 24, 0 }, { true, 0, 40, 0 }, { false, 0, 0, 0 } };
     status_row_layout(138, left_only, p);
     expect("centered.leftpresent.mid_x", p[1].text_x, 49);
     expect("centered.leftpresent.l_icon_x", p[0].icon_x, 0);
 
-    // A wide present edge would collide with the true-centred mid: clamp so it
-    // just clears the edge (left group 80 -> avail_x0 = 84) instead of overlapping.
+    // A wide present edge would collide with the true-centred mid: clamp so it keeps
+    // STATUS_ROW_MIDDLE_GAP from the edge (left group 80 -> 92) instead of overlapping.
     StatusSlotMeasure wide_left[3] =
         { { true, 0, 80, 0 }, { true, 0, 40, 0 }, { false, 0, 0, 0 } };
     status_row_layout(138, wide_left, p);
-    expect("centered.clamp.mid_x", p[1].text_x, 84);
+    expect("centered.clamp.mid_x", p[1].text_x, 92);
+}
+
+// The middle keeps STATUS_ROW_MIDDLE_GAP (12) from a present neighbour wherever the row
+// has the room, and else splits the air evenly between its neighbours: it is never left
+// hard against one slot with air to spare on its other side. It only moves the middle:
+// its text gives way at STATUS_ROW_GROUP_GAP (6), as before.
+static void middle_keeps_its_air(void) {
+    StatusSlotPlace p[3];
+
+    // Room for 12 on both sides: the true-centred middle (49) would sit 6 px from the
+    // right slot at 95 with 26 on its left, so it moves left to keep 12 from it, 43.
+    StatusSlotMeasure lopsided[3] =
+        { { true, 10, 10, 0 }, { true, 0, 40, 0 }, { true, 10, 30, 0 } };
+    status_row_layout(138, lopsided, p);
+    expect("air.lopsided.r_icon_x", p[2].icon_x, 95);
+    expect("air.lopsided.mid_x", p[1].text_x, 43);
+    expect("air.lopsided.mid_w", p[1].text_w, 40);
+
+    // Room for less: the span 6 px from each neighbour is [29, 34], and the middle splits
+    // the 5 px past them to the pixel, nearest the centre: 32, 9 px of air on its left (to
+    // 23) and 8 on its right (from 72 to 80).
+    StatusSlotMeasure tight[3] =
+        { { true, 10, 10, 0 }, { true, 0, 40, 0 }, { true, 10, 45, 0 } };
+    status_row_layout(138, tight, p);
+    expect("air.tight.r_icon_x", p[2].icon_x, 80);
+    expect("air.tight.mid_x", p[1].text_x, 32);
+
+    // No room past the 6 px: the middle fits exactly between them, text whole.
+    StatusSlotMeasure exact[3] =
+        { { true, 10, 10, 0 }, { true, 0, 40, 0 }, { true, 10, 50, 0 } };
+    status_row_layout(138, exact, p);
+    expect("air.exact.mid_x", p[1].text_x, 29);
+    expect("air.exact.mid_w", p[1].text_w, 40);
+
+    // One neighbour and room for less than 12: all the air goes to it, the middle at the
+    // row's far edge (left group 80, middle 50: [86, 88], so 88, 8 px from the group).
+    StatusSlotMeasure one[3] =
+        { { true, 0, 80, 0 }, { true, 0, 50, 0 }, { false, 0, 0, 0 } };
+    status_row_layout(138, one, p);
+    expect("air.one.mid_x", p[1].text_x, 88);
+    StatusSlotMeasure one_mirror[3] =
+        { { false, 0, 0, 0 }, { true, 0, 50, 0 }, { true, 0, 80, 0 } };
+    status_row_layout(138, one_mirror, p);
+    expect("air.one.mirror.mid_x", p[1].text_x, 0);
+}
+
+// Property sweep (the shapes of slots_keep_the_gap): the middle sits on the row's true
+// centre wherever that leaves it STATUS_ROW_MIDDLE_GAP from each present neighbour; else
+// as far from the nearer one as the row allows, up to that gap. Measured on the groups, the
+// widths the layout sums.
+static void middle_air_sweep(void) {
+    static const int16_t TEXT[] = { -1, 0, 12, 33, 60, 150 };   // -1: the slot is absent
+    const int n = (int)(sizeof(TEXT) / sizeof(TEXT[0]));
+    int checked = 0;
+    for (int16_t content_w = 1; content_w <= 200; content_w++) {
+        for (int o = 0; o < n * n * n; o++) {
+            const int16_t t[3] = { TEXT[o % n], TEXT[(o / n) % n], TEXT[o / (n * n)] };
+            StatusSlotMeasure m[3];
+            for (int i = 0; i < 3; i++) {
+                m[i] = (StatusSlotMeasure) { t[i] >= 0, i == 1 ? 0 : 10, t[i] > 0 ? t[i] : 0,
+                                             i == 2 ? 8 : 0 };
+                if (i == 1 && t[i] <= 0) { m[i].present = false; }
+            }
+            StatusSlotPlace p[3];
+            status_row_layout(content_w, m, p);
+            if (!p[1].visible || (!p[0].visible && !p[2].visible)) { continue; }
+            const int w = status_slot_placed_w(&p[1], &m[1]);
+            const int x = p[1].icon_x;
+            // The room on each side: from the left group's end, or the row's left edge,
+            // to the right slot, or the row's right edge.
+            const int l_end = p[0].visible ? p[0].icon_x + status_slot_placed_w(&p[0], &m[0]) : 0;
+            const int r_x = p[2].visible ? p[2].icon_x : content_w;
+            const int centre = (content_w - w) / 2;
+            const bool centre_fits = (!p[0].visible || centre - l_end >= STATUS_ROW_MIDDLE_GAP)
+                && (!p[2].visible || r_x - centre - w >= STATUS_ROW_MIDDLE_GAP);
+            int want;   // the least air the middle must keep from a present neighbour
+            if (p[0].visible && p[2].visible) { want = (r_x - l_end - w) / 2; }
+            else { want = p[0].visible ? content_w - w - l_end : r_x - w; }
+            if (want > STATUS_ROW_MIDDLE_GAP) { want = STATUS_ROW_MIDDLE_GAP; }
+            const int air = (!p[0].visible) ? r_x - x - w
+                : (!p[2].visible) ? x - l_end
+                : (x - l_end < r_x - x - w ? x - l_end : r_x - x - w);
+            checked++;
+            if ((centre_fits && x != centre) || air < want) {
+                printf("FAIL air.sweep w=%d texts=%d,%d,%d: middle at %d (%d wide), air %d, want %d%s\n",
+                       content_w, t[0], t[1], t[2], x, w, air, want, centre_fits ? ", centre fits" : "");
+                s_failures++;
+                return;
+            }
+        }
+    }
+    expect("air.sweep.checked", checked > 10000, 1);
 }
 
 static void both_edges_oversized_split_mid_yields(void) {
-    // Two very wide edges (unusual): split content_w max-min (69/69); mid yields.
+    // Two very wide edges (unusual): split content_w less the gap between them max-min
+    // (66/66, 6 px apart); mid yields.
     StatusSlotMeasure m[3] = { { true, 0, 100, 0 }, { true, 10, 40, 0 }, { true, 0, 100, 0 } };
     StatusSlotPlace p[3];
     status_row_layout(138, m, p);
-    expect("split.l.text_w", p[0].text_w, 69);
-    expect("split.r.text_w", p[2].text_w, 69);
-    expect("split.r.icon_x", p[2].icon_x, 69);
-    expect("split.m.visible", p[1].visible, 0);       // span [73,65] < 0 -> omitted
+    expect("split.l.text_w", p[0].text_w, 66);
+    expect("split.r.text_w", p[2].text_w, 66);
+    expect("split.r.icon_x", p[2].icon_x, 72);
+    expect("split.m.visible", p[1].visible, 0);       // span [72,66] < 0 -> omitted
 }
 
 static void component_shapes(void) {
@@ -170,13 +264,14 @@ static void non_positive_and_narrow_content(void) {
     expect_hidden_zero("width.negative.m", &p[1]);
     expect_hidden_zero("width.negative.r", &p[2]);
 
-    // Ultra-narrow (2 px): edge icons win under edge-priority; mid yields.
+    // Ultra-narrow (8 px: two 1 px icons and the gap between them): edge icons win
+    // under edge-priority; mid yields.
     StatusSlotMeasure narrow[3] = { { true, 1, 0, 0 }, { true, 0, 5, 0 }, { true, 1, 0, 0 } };
-    status_row_layout(2, narrow, p);
+    status_row_layout(2 + STATUS_ROW_GROUP_GAP, narrow, p);
     expect("width.narrow.l_visible", p[0].visible, 1);
     expect("width.narrow.l_icon_x", p[0].icon_x, 0);
     expect("width.narrow.r_visible", p[2].visible, 1);
-    expect("width.narrow.r_icon_x", p[2].icon_x, 1);
+    expect("width.narrow.r_icon_x", p[2].icon_x, 1 + STATUS_ROW_GROUP_GAP);
     expect("width.narrow.mid_visible", p[1].visible, 0);
 }
 
@@ -277,6 +372,47 @@ static void suffix_survives_while_text_shrinks(void) {
     expect_hidden_zero("squeeze.drop", &p[0]);
 }
 
+// Property sweep over every row width and a spread of slots (absent, icon only, short to
+// far too long, the right one with a wind arrow): wherever two slots show side by side —
+// the middle beside an edge, or the two edges with the middle out — their ink keeps
+// STATUS_ROW_GROUP_GAP between them.
+static void slots_keep_the_gap(void) {
+    static const int16_t TEXT[] = { -1, 0, 12, 33, 60, 150 };   // -1: the slot is absent
+    const int n = (int)(sizeof(TEXT) / sizeof(TEXT[0]));
+    int checked = 0;
+    for (int16_t content_w = 1; content_w <= 200; content_w++) {
+        for (int o = 0; o < n * n * n; o++) {
+            const int16_t t[3] = { TEXT[o % n], TEXT[(o / n) % n], TEXT[o / (n * n)] };
+            StatusSlotMeasure m[3];
+            for (int i = 0; i < 3; i++) {
+                m[i] = (StatusSlotMeasure) { t[i] >= 0, i == 1 ? 0 : 10, t[i] > 0 ? t[i] : 0,
+                                             i == 2 ? 8 : 0 };
+                if (i == 1 && t[i] <= 0) { m[i].present = false; }
+            }
+            StatusSlotPlace p[3];
+            status_row_layout(content_w, m, p);
+            int prev_hi = -1;
+            for (int i = 0; i < 3; i++) {
+                if (!p[i].visible) { continue; }
+                int16_t lo;
+                int16_t hi;
+                status_slot_ink(&p[i], &m[i], &lo, &hi);
+                if (prev_hi >= 0) {
+                    checked++;
+                    if (lo - prev_hi < STATUS_ROW_GROUP_GAP) {
+                        printf("FAIL gap.sweep w=%d texts=%d,%d,%d slot=%d: %d px from the one before\n",
+                               content_w, t[0], t[1], t[2], i, lo - prev_hi);
+                        s_failures++;
+                        return;
+                    }
+                }
+                prev_hi = hi;
+            }
+        }
+    }
+    expect("gap.sweep.checked", checked > 10000, 1);
+}
+
 static void suffix_zero_is_byte_identical(void) {
     // REGRESSION GUARD: a suffix_w of 0 must place every slot exactly where it did
     // before the lane existed. These are the typical_row / edge_priority goldens
@@ -290,8 +426,8 @@ static void suffix_zero_is_byte_identical(void) {
     expect("zero.l.text_x", p[0].text_x, 13);
     expect("zero.l.text_w", p[0].text_w, 30);
     expect("zero.l.suffix_x", p[0].suffix_x, 0);
-    expect("zero.m.text_x", p[1].text_x, 47);
-    expect("zero.m.text_w", p[1].text_w, 54);
+    expect("zero.m.text_x", p[1].text_x, 49);
+    expect("zero.m.text_w", p[1].text_w, 50);
     expect("zero.m.suffix_x", p[1].suffix_x, 0);
     expect("zero.r.icon_x", p[2].icon_x, 105);
     expect("zero.r.text_x", p[2].text_x, 118);
@@ -690,12 +826,12 @@ static void swap_short_forms(void) {
     expect("swap.none.untouched", p[1].text_w, 77);
     expect("swap.none.text", none[1].text_w, 200);
 
-    // The middle's name is cut to 41 between the edges (typical_row): its short form fits.
+    // The middle's name is cut to 37 between the edges (typical_row): its short form fits.
     StatusSlotMeasure mid[3] = { { true, 10, 30, 0 }, { true, 10, 200, 0 }, { true, 10, 20, 0 } };
-    const int16_t mid_alt[3] = { -1, 40, -1 };
+    const int16_t mid_alt[3] = { -1, 30, -1 };
     expect("swap.mid", status_row_swap_short_forms(138, mid, mid_alt, p), 2);
-    expect("swap.mid.text", mid[1].text_w, 40);
-    expect("swap.mid.placed", p[1].text_w, 40);
+    expect("swap.mid.text", mid[1].text_w, 30);
+    expect("swap.mid.placed", p[1].text_w, 30);
     expect("swap.mid.shows", p[1].text_visible, 1);
 
     // The middle's name fits: it keeps it.
@@ -703,7 +839,7 @@ static void swap_short_forms(void) {
     expect("swap.fits", status_row_swap_short_forms(138, fits, mid_alt, p), 0);
     expect("swap.fits.text", fits[1].text_w, 30);
 
-    // A left edge's whole name (10+3+60) leaves the middle 61 for its 80: the edge gives
+    // A left edge's whole name (10+3+60) leaves the middle 59 for its 80: the edge gives
     // way, and then the middle's text fits.
     StatusSlotMeasure edge[3] = { { true, 10, 60, 0 }, { true, 0, 80, 0 }, { false, 0, 0, 0 } };
     const int16_t edge_alt[3] = { 25, -1, -1 };
@@ -718,9 +854,9 @@ static void swap_short_forms(void) {
     expect("swap.both", status_row_swap_short_forms(138, both, both_alt, p), 5);
     expect("swap.both.left", both[0].text_w, 20);
     expect("swap.both.right", both[2].text_w, 30);
-    expect("swap.both.mid", p[1].text_w, 54);
+    expect("swap.both.mid", p[1].text_w, 50);
     // With a shorter middle the right's swap is enough, and the left keeps its name.
-    StatusSlotMeasure wider_first[3] = { { true, 10, 50, 0 }, { true, 0, 20, 0 }, { true, 10, 70, 0 } };
+    StatusSlotMeasure wider_first[3] = { { true, 10, 50, 0 }, { true, 0, 16, 0 }, { true, 10, 70, 0 } };
     expect("swap.wider.first", status_row_swap_short_forms(138, wider_first, both_alt, p), 4);
     expect("swap.wider.left", wider_first[0].text_w, 50);
 
@@ -747,6 +883,8 @@ int main(void) {
     edge_priority_over_long_mid();
     mid_uses_free_edges();
     mid_stays_centered_when_one_edge_disabled();
+    middle_keeps_its_air();
+    middle_air_sweep();
     both_edges_oversized_split_mid_yields();
     component_shapes();
     non_positive_and_narrow_content();
@@ -756,6 +894,7 @@ int main(void) {
     suffix_survives_while_text_shrinks();
     suffix_zero_is_byte_identical();
     suffix_sweep_stays_in_bounds();
+    slots_keep_the_gap();
     highlight_extent_is_font_sized();
     slot_ink_pins();
     if (s_failures) { printf("%d status_row_layout failure(s)\n", s_failures); return 1; }

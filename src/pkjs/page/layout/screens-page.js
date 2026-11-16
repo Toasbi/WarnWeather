@@ -2602,6 +2602,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 }
             });
         }
+        if (PConf.hooks && PConf.hooks.onRevert) {
+            // Revert puts the page back as it opened: the Undo of a deleted screen or status bar
+            // would write the settings from before the delete back over it, and a note on why a
+            // move went back speaks of a move no longer there.
+            PConf.hooks.onRevert(function () {
+                kit.unflash(UI.toast);
+                kit.unflash(BAR_UNDO);
+                kit.unflash(UI.note);
+            });
+        }
         if (PConf.hooks && PConf.hooks.onSubmit) {
             // Save writes the modes the screens need, whatever changed them (a screen, the
             // radar, a slot's health item, the rain alert's ticks).

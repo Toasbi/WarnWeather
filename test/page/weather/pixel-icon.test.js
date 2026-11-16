@@ -1,5 +1,6 @@
-// test/page/weather/pixel-icon.test.js — the settings page's pictures of the watch's pixel drawings
-// (src/pkjs/page/weather/pixel-icon.js): each lit pixel, and nothing else, filled.
+// test/page/weather/pixel-icon.test.js — the watch's pixel drawings as the settings page's pictures
+// of the watch draw them (src/pkjs/page/weather/pixel-icon.js): each lit pixel, and nothing else,
+// filled; the drawing the watch picks for a box.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
@@ -28,18 +29,6 @@ test('a pixel drawing draws exactly its lit pixels, a rectangle per run', () => 
   }));
 });
 
-test('a drawing\'s svg fills the box it is given, in the current colour', () => {
-  assert.equal(PixelIcon.svg({ w: 4, rows: [6, 9] }), '<svg viewBox="0 0 4 2" shape-rendering="crispEdges" aria-hidden="true">'
-    + '<path fill="currentColor" d="M1 0h2v1h-2zM0 1h1v1h-1zM3 1h1v1h-1z"/></svg>');
-  assert.equal(PixelIcon.svg(null), '', 'nothing for no drawing');
-});
-
-test('a drawing\'s ink leaves out the blank rows that seat it', () => {
-  assert.deepEqual(PixelIcon.ink({ w: 3, rows: [0, 0, 5, 0, 2, 0] }), { w: 3, rows: [5, 0, 2] }, 'a blank row inside stays');
-  assert.equal(PixelIcon.ink({ w: 3, rows: [0, 0] }), null, 'nothing for a blank drawing');
-  assert.equal(PixelIcon.ink(null), null);
-});
-
 test('a watch family draws a box\'s own drawing, else the one for the tallest smaller box', () => {
   const sizes = STATUS.icons.SUN;
   assert.equal(PixelIcon.forBox('SUN', 'emery', 15), sizes['emery-15'], 'its own');
@@ -48,15 +37,6 @@ test('a watch family draws a box\'s own drawing, else the one for the tallest sm
   assert.equal(PixelIcon.forBox('SUN', 'basalt', 99), sizes['basalt-13']);
   assert.equal(PixelIcon.forBox('SUN', 'basalt', 9), null, 'none below the smallest box');
   assert.equal(PixelIcon.forBox('NO_SUCH_ICON', 'basalt', 13), null);
-});
-
-test('a label is the ink of the 144 px watches\' 13-row drawing; a condition is found by its glyph\'s name', () => {
-  assert.deepEqual(PixelIcon.label('SUN'), PixelIcon.ink(STATUS.icons.SUN['basalt-13']));
-  assert.equal(PixelIcon.label('NO_SUCH_ICON'), null);
-  const key = STATUS.ids.STATUS_ICON_COND_RAIN;
-  assert.ok(key, 'premise: the rain glyph has a drawing');
-  assert.deepEqual(PixelIcon.condition('RAIN'), PixelIcon.label(key));
-  assert.equal(PixelIcon.condition('NO_SUCH_GLYPH'), null);
 });
 
 test('the page draws the very drawings the watch is built with', () => {

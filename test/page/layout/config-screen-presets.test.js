@@ -607,7 +607,7 @@ test('a watch with one graph: the Forecast screen brings its rows and keeps your
 test('setup\'s screens are Add a screen\'s, on a calendar; setup names what it adds', () => {
   assert.deepEqual(WS.listOf(WS.byId('health'), ''), HEALTH);
   assert.deepEqual(WS.listOf(WS.byId('radar'), '3'), P.listOf('radar', '3'));
-  assert.deepEqual(WS.listOf(WS.byId('long'), '2'), P.listOf('fc', '2'));
+  assert.deepEqual(WS.listOf(WS.byId('forecast2'), '2'), P.listOf('fc', '2'));
   assert.equal(WS.nameOf(HEALTH, 1), 'Health', 'a screen added before names: its template');
   assert.equal(WS.nameOf(HEALTH, 1, { viewName1: 'Steps' }), 'Steps', 'its own name first');
   assert.equal(WS.nameOf([b('strip'), b('clock')], 0, { viewName0: 'Home' }), 'Home');

@@ -307,9 +307,8 @@ test('a size in another version: its kept lines in the same box; the black and w
     /old lines are 9 rows tall, its box 11/);
 });
 
-// The settings page draws the status icons from the watch's own drawings
-// (status-pixels.generated.js): its list of conditions (blocks.js conditionList), the slot rows
-// and the pictures of the watch, at each bar's box and seat.
+// The settings page's pictures of the watch draw the status icons from the watch's own drawings
+// (status-pixels.generated.js), at each bar's box and seat (preview-watch.js).
 test('the settings page has every drawing the watch is built with, its whole box, by watch icon id', () => {
   const page = require('../src/pkjs/settings/status-pixels.generated.js');
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources', 'pixel-icons.json'), 'utf8'));

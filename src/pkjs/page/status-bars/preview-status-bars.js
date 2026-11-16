@@ -248,6 +248,17 @@
         return (PConf && PConf.icons && PConf.icons.get && PConf.icons.get(code)) || null;
     }
 
+    // The drawing each slot item's glyph is on the watch (status-pixels.generated.js keys, from
+    // scripts/pixel-icons/icons.json). The condition slot's is the sample's, a partly cloudy
+    // afternoon (the city's weather icon too); the rain alert's the condition slot's rain cloud.
+    // The battery, Battery saver's Z's and the sun arrow are drawn in code: none.
+    var SLOT_DRAWINGS = {
+        rain: 'RAIN', uv: 'UV', wind: 'WIND', gust: 'GUST', aqi: 'AQI', pollen: 'POLLEN',
+        bluetooth: 'BT', quiet: 'QUIET', temp: 'TEMP', dew: 'DEW', countdown: 'COUNTDOWN',
+        phoneBattery: 'PHONE_BATTERY', distance: 'DISTANCE', steps: 'STEPS', sleep: 'SLEEP', hr: 'HEART',
+        condition: 'SUN_CLOUD'
+    };
+
     /**
      * The drawing a slot's text follows on this watch, by its key (status-pixels.generated.js),
      * where the watch draws the slot's glyph from one: the watch pictures (preview-watch.js) draw
@@ -260,8 +271,7 @@
      */
     function slotDrawing(code, env, S) {
         if (!slotIcon(code, env, S)) { return null; }
-        var keys = (NODE ? require('./status-slot-icons.js') : window.StatusSlotIcons || {}).SLOT_KEYS || {};
-        return keys[code === 'city' ? 'condition' : code] || null;
+        return SLOT_DRAWINGS[code === 'city' ? 'condition' : code] || null;
     }
 
     /**
@@ -500,7 +510,7 @@
     if (PConf && PConf.blocks) { PConf.blocks.register('statusBarsPreview', statusBarsPreview); }
     var api = {statusBarsPreview: statusBarsPreview, barPicture: barPicture, sample: sample, arrowDue: arrowDue,
         arrowShown: arrowShown, calendarShown: calendarShown, barCodes: barCodes, barSlots: barSlots,
-        slotIcon: slotIcon};
+        slotIcon: slotIcon, SLOT_DRAWINGS: SLOT_DRAWINGS};
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     // The page: the Watchface tab's watch reads the slots too (preview-watch.js).
     if (typeof window !== 'undefined') { window.PreviewStatusBars = api; }

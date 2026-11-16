@@ -722,16 +722,23 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
   // And what it registers is what the module exports (the map the tests read).
   const icons = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
   assert.deepEqual(Object.keys(icons).sort(), IDS.slice().sort());
-  // The icons read window.StatusPixels and window.PixelIcon while its IIFE runs:
-  // both have to be on the page first, or the page throws at boot on a real phone.
-  ['settings/status-pixels.generated.js', 'page/weather/pixel-icon.js'].forEach((dep) => {
-    const i = appFiles.findIndex((f) => f.endsWith(dep));
-    assert.ok(i !== -1 && i < at, dep + ' must precede status-slot-icons.js');
-  });
-  ['window.StatusPixels = api', 'window.PixelIcon = api'].forEach((global) => {
-    assert.ok(src.indexOf(global) !== -1 && src.indexOf(global) < src.indexOf("icons.register('condition'"),
-      'the page carries ' + global + ' ahead of the weather icons\' registration');
-  });
+  // The weather icons read window.ConditionIcons while its IIFE runs: it has to be on the page
+  // first, or the page throws at boot on a real phone.
+  const dep = 'page/weather/condition-icons.js';
+  const i = appFiles.findIndex((f) => f.endsWith(dep));
+  assert.ok(i !== -1 && i < at, dep + ' must precede status-slot-icons.js');
+  const global = 'window.ConditionIcons = api';
+  assert.ok(src.indexOf(global) !== -1 && src.indexOf(global) < src.indexOf("icons.register('condition'"),
+    'the page carries ' + global + ' ahead of the weather icons\' registration');
+  // The pictures of the watch read window.PixelIcon while preview-watch.js's IIFE runs, and
+  // PixelIcon reads window.StatusPixels while its own does: both ahead, in that order.
+  const pw = appFiles.findIndex((f) => f.endsWith('page/layout/preview-watch.js'));
+  const pixels = appFiles.findIndex((f) => f.endsWith('settings/status-pixels.generated.js'));
+  const pixelIcon = appFiles.findIndex((f) => f.endsWith('page/weather/pixel-icon.js'));
+  assert.ok(pixels !== -1 && pixels < pixelIcon && pixelIcon < pw,
+    'status-pixels.generated.js, then pixel-icon.js, ahead of preview-watch.js');
+  assert.ok(src.indexOf('window.StatusPixels = api') !== -1 && src.indexOf('window.PixelIcon = api') !== -1,
+    'the page carries the watch\'s drawings');
 });
 
 // The update-interval budget modules are the same silent-no-op shape: blocks.js and

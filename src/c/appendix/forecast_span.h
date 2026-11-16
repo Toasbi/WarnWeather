@@ -61,7 +61,9 @@
 typedef struct {
     int8_t slots;        // ChartDef.num_slots: 2..14 (12 h), 24..26, or the hours received (27..68)
     int8_t bar_pad;      // ChartDef.bar_pad
-    int8_t bar_w;        // ChartDef.bar_w; the dots and x marks match it
+    int8_t bar_w;        // ChartDef.bar_w: the narrowest bar (a column the fractional pitch
+                         // widens holds one a px wider, slot_x.h slot_bar_w); the dots and
+                         // x marks match it
     int8_t label_every;  // an hour label + big tick on every Nth unit
     int8_t tick_every;   // a small tick on every Nth unit between labels
     int8_t by_clock;     // the units are clock hours (the long class), else slots from slot 0
@@ -116,8 +118,11 @@ typedef struct {
  *   (slot_x(n - 1) >= visible_w - 1), held to [3, 8] px. Unheld, the line runs exactly to the
  *   edge, the last hour's bar lies past it and n - 1 hours show whole; a feed too long for
  *   that (a full 68 for every visible_w <= 202) stays at the 3 px floor, today's grid, and runs
- *   further past. The bars keep one width, floor(pitch) - 1 - 2 * pad (2 px at the floor), so
- *   the gap after each is pad or pad + 1 px; 1 px pads from a whole pitch of 6. Clock-aligned
+ *   further past. A bar is its column less the tick and the pads: floor(pitch) - 1 - 2 * pad
+ *   (2 px at the floor), or a px more in a column the fraction widens, so neighbouring bars
+ *   always keep one gap, tick + 2 pads (slot_x.h slot_bar_w; the owner's, 2026-11-15, where the
+ *   bars used to keep one width and the gap after each was pad or pad + 1 px); 1 px pads from
+ *   a whole pitch of 6. Clock-aligned
  *   marks: a label every 6 clock hours, every 3 once 3 hours span 18 px; a small tick on the
  *   other 3-hour marks. n slots: the area fill closes on slot n's tick (chart.c
  *   chart_render_area).

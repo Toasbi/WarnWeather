@@ -16,6 +16,18 @@
 // measures against and places through. The engine's source is included rather than
 // linked, so the invariants on the middle can measure the layouts it did not pick
 // through its own eval().
+//
+// Built twice (scripts/test-c.sh): at the 4 px gap between slots its bars and tables are
+// laid out for (the middle's air at the same 4 px), every case; at the watch's own gaps
+// (OD_INVARIANTS_ONLY), the checks over random bars, which hold at any gap.
+#ifdef OD_INVARIANTS_ONLY
+static const bool s_fixture_gap = false;
+// Fewer random bars show the middle beside a shortened look at the wider gap.
+#define MIDDLE_LOOK_TRIALS 30000
+#else
+static const bool s_fixture_gap = true;
+#define MIDDLE_LOOK_TRIALS 20000
+#endif
 
 // --- a quiet bar is the plain layout ----------------------------------------------
 
@@ -425,7 +437,7 @@ static void inside_half_keeps_all(void) {
 // without the middle instead, so the middle does not show there either.)
 static void middle_never_costs_a_look(void) {
     int checked = 0;
-    for (int trial = 0; trial < 20000; trial++) {
+    for (int trial = 0; trial < MIDDLE_LOOK_TRIALS; trial++) {
         OdSlotIn slots[3];
         OdSideIn sides[2];
         int8_t bleed[2];
@@ -657,8 +669,12 @@ static void item_decisions(void) {
 
 // --- invariants over random bars ------------------------------------------------------
 
-typedef struct { int lo; int hi; } Span;
+// `group`: the slot's index, or 3 + d for an item of side d's run.
+typedef struct { int lo; int hi; int group; } Span;
 
+// Nothing overlaps, and two groups keep the row's group gap between them: a slot from
+// the next slot, and a side's run from every slot (its own one included) and from the
+// other side's run. The items of one run keep their own, tighter gaps.
 static void no_overlap(void) {
     for (int trial = 0; trial < 6000; trial++) {
         bool strip = rnd(3) == 0;
@@ -719,7 +735,7 @@ static void no_overlap(void) {
                 s_failures++;
                 return;
             }
-            spans[count++] = (Span) { x, x + sw };
+            spans[count++] = (Span) { x, x + sw, i };
         }
         for (int d = 0; d < 2; d++) {
             for (int k = out.first[d]; k < out.first[d] + out.n[d]; k++) {
@@ -730,7 +746,7 @@ static void no_overlap(void) {
                     s_failures++;
                     return;
                 }
-                spans[count++] = (Span) { x, x + iw };
+                spans[count++] = (Span) { x, x + iw, 3 + d };
             }
         }
         for (int a = 0; a < count; a++) {
@@ -741,6 +757,14 @@ static void no_overlap(void) {
                     s_failures++;
                     return;
                 }
+                const int air = spans[a].lo >= spans[b].hi ? spans[a].lo - spans[b].hi
+                                                           : spans[b].lo - spans[a].hi;
+                if (spans[a].group != spans[b].group && air < STATUS_ROW_GROUP_GAP) {
+                    printf("FAIL overlap.gap trial %d w %d: [%d,%d) and [%d,%d) %d px apart\n",
+                           trial, w, spans[a].lo, spans[a].hi, spans[b].lo, spans[b].hi, air);
+                    s_failures++;
+                    return;
+                }
             }
         }
     }
@@ -748,22 +772,28 @@ static void no_overlap(void) {
 
 int main(void) {
     quiet_is_plain();
-    ladder_every_row_in_order();
-    ladder_looks_last();
-    value_alert_keeps_its_value();
-    looks_come_back();
+    if (s_fixture_gap) {
+        ladder_every_row_in_order();
+        ladder_looks_last();
+        value_alert_keeps_its_value();
+        looks_come_back();
+    }
     looks_outrank_slots();
     inside_half_keeps_all();
     middle_never_costs_a_look();
     middle_hides_only_at_a_cost();
-    bleed_and_order();
-    drops();
+    if (s_fixture_gap) {
+        bleed_and_order();
+        drops();
+    }
     item_decisions();
     no_overlap();
     if (s_failures) {
-        printf("%d on_demand ladder failure(s)\n", s_failures);
+        printf("%d on_demand ladder failure(s) at a %d px gap, %d px for the middle\n",
+               s_failures, STATUS_ROW_GROUP_GAP, STATUS_ROW_MIDDLE_GAP);
         return 1;
     }
-    printf("on_demand ladder OK\n");
+    printf("on_demand ladder OK (%d px gap, %d px for the middle%s)\n", STATUS_ROW_GROUP_GAP,
+           STATUS_ROW_MIDDLE_GAP, s_fixture_gap ? "" : ", random bars");
     return 0;
 }

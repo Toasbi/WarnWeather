@@ -16,13 +16,11 @@ const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js')
 const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze',
   'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun'];
 
-// Every glyph the watch draws from a drawing is that drawing; the three it draws in code are
-// 24x24 outlines.
-const OUTLINES = ['battery', 'snooze', 'sun'];
-const DRAWN = IDS.filter((id) => OUTLINES.indexOf(id) === -1).concat(['condition']);
+// The weather icons are condition-icons.js'; every glyph is a 24x24 outline.
+const WEATHER = ['rain', 'condition'];
 
-test('the glyphs the watch draws in code are 24x24 svgs drawn in currentColor', () => {
-  OUTLINES.forEach((id) => {
+test('every glyph is a 24x24 svg drawn in currentColor', () => {
+  IDS.concat(['condition']).forEach((id) => {
     const svg = ICONS[id];
     assert.equal(typeof svg, 'string', id + ' is exported');
     assert.ok(svg.indexOf('<svg viewBox="0 0 24 24"') === 0, id + ' opens a 24x24 svg');
@@ -32,26 +30,22 @@ test('the glyphs the watch draws in code are 24x24 svgs drawn in currentColor', 
   });
 });
 
-test('every glyph the watch draws from a drawing is that drawing, its ink at the 13-row box', () => {
+test('the weather icons are the condition slot\'s: the rain alert\'s rain cloud, the condition slot\'s sample', () => {
   // The rain alert draws the weather condition slot's rain cloud on the watch, in the
-  // foreground like every other icon; the condition slot's sample (and the city's weather
-  // icon) is a partly cloudy afternoon.
-  const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
-  const STATUS = require('../../../src/pkjs/settings/status-pixels.generated.js');
-  assert.deepEqual(Object.keys(ICONS.SLOT_KEYS).sort(), DRAWN.slice().sort(), 'a drawing for every drawn glyph');
-  assert.equal(ICONS.rain, PixelIcon.svg(PixelIcon.condition('RAIN')), 'rain is the watch\'s rain cloud');
-  assert.equal(ICONS.condition, PixelIcon.svg(PixelIcon.condition('SUN_CLOUD')), 'the condition is the watch\'s partly cloudy');
-  DRAWN.forEach((id) => {
-    const key = ICONS.SLOT_KEYS[id];
-    assert.ok(STATUS.icons[key], id + ': ' + key + ' is a drawing');
-    assert.equal(ICONS[id], PixelIcon.svg(PixelIcon.label(key)), id + ' is ' + key + '\'s drawing');
-    assert.ok(ICONS[id].indexOf('fill="currentColor"') !== -1, id + ' takes its colour from the row chrome');
+  // foreground like every other icon (status_icon_size.h status_rain_glyph); the condition slot's
+  // sample (and the city's weather icon) is a partly cloudy afternoon. The page draws both as
+  // condition-icons.js' outlines (the owner's ask, 2026-11-15), not the watch's pixels.
+  const CONDITION = require('../../../src/pkjs/page/weather/condition-icons.js');
+  assert.equal(ICONS.rain, CONDITION.svg('RAIN'), 'rain is the rain cloud');
+  assert.equal(ICONS.condition, CONDITION.svg('SUN_CLOUD'), 'the condition is partly cloudy');
+  WEATHER.forEach((id) => {
     assert.equal(/#[0-9a-fA-F]{3,6}\b/.test(ICONS[id]), false, id + ' hard-codes no colour');
+    assert.equal(ICONS[id].indexOf('crispEdges'), -1, id + ' is no pixel drawing');
   });
 });
 
-test('those are Tabler-style outlines', () => {
-  OUTLINES.forEach((id) => {
+test('every glyph is a Tabler-style outline', () => {
+  IDS.concat(['condition']).forEach((id) => {
     assert.ok(ICONS[id].indexOf('fill="none" stroke="currentColor" stroke-width="1.8"') !== -1,
       id + ' is an unfilled 1.8 outline');
     assert.ok(ICONS[id].indexOf('stroke-linecap="round" stroke-linejoin="round"') !== -1,
@@ -124,7 +118,7 @@ test('aplite draws only the glyphs of its lean row: the bitmap masks and the sun
 
 test('each slot item names the drawing the watch pictures draw at a bar\'s box, none for a glyph drawn in code', () => {
   // The watch pictures (preview-watch.js) take the slot's drawing from barSlots and draw it at
-  // the bar's box and seat; the rows above draw its label (ICONS).
+  // the bar's box and seat; the rows above draw its outline (ICONS).
   const preview = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
   const basalt = { platform: 'basalt' }, aplite = { platform: 'aplite' };
   const S = { statusForecastLeft: 'uv', statusForecastMid: 'empty', statusForecastRight: 'city', citySlotIcon: true };
@@ -137,4 +131,12 @@ test('each slot item names the drawing the watch pictures draw at a bar\'s box, 
     'the sun arrow is drawn in code');
   const battery = preview.barSlots({ statusTopRight: 'battery' }, basalt, 'top')[2];
   assert.deepEqual([battery.code, battery.drawing], ['battery', null], 'and the battery');
+  // Every slot with a glyph of the watch's drawings names a drawing the page has.
+  const STATUS = require('../../../src/pkjs/settings/status-pixels.generated.js');
+  Object.keys(preview.SLOT_DRAWINGS).forEach((code) => {
+    assert.ok(STATUS.icons[preview.SLOT_DRAWINGS[code]], code + ': ' + preview.SLOT_DRAWINGS[code] + ' is a drawing');
+  });
+  assert.deepEqual(Object.keys(preview.SLOT_DRAWINGS).sort(),
+    IDS.filter((id) => ['battery', 'snooze', 'sun'].indexOf(id) === -1).concat(['condition']).sort(),
+    'every glyph but the three drawn in code');
 });

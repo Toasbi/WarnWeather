@@ -95,9 +95,11 @@ test('applyDerived leaves pollen intact when the wizard derives DWD', () => {
   assert.equal(S.statusForecastMid, 'wind');
 });
 
-test('buildSteps: Welcome, Layout, Screens, Theme, Forecast, Done; each gated by what the watch has', () => {
+test('buildSteps: Welcome, Forecast, Layout, Screens, Theme, Done; each gated by what the watch has', () => {
+  // The forecast graph first, the screen the layout and the flick screens are chosen around (the
+  // owner's ask, 2026-11-15).
   assert.deepEqual(W.buildSteps({ radar: true, health: true, themePolarity: true, lineStyles: true }),
-    ['welcome', 'layout', 'screens', 'theme', 'forecast', 'done']);
+    ['welcome', 'forecast', 'layout', 'screens', 'theme', 'done']);
   // No Health step any more: a Health screen is one the Screens step adds.
   assert.deepEqual(W.buildSteps({ radar: true, health: false, themePolarity: true }),
     ['welcome', 'layout', 'screens', 'theme', 'done']);
@@ -106,7 +108,7 @@ test('buildSteps: Welcome, Layout, Screens, Theme, Forecast, Done; each gated by
   assert.deepEqual(W.buildSteps({ radar: false, health: false, themePolarity: false }), ['welcome', 'layout', 'done']);
   ['basalt', 'diorite', 'emery', 'flint'].forEach((p) => {
     assert.deepEqual(W.buildSteps(platform.computeEnv({ platform: p })),
-      ['welcome', 'layout', 'screens', 'theme', 'forecast', 'done'], p);
+      ['welcome', 'forecast', 'layout', 'screens', 'theme', 'done'], p);
   });
   assert.deepEqual(W.buildSteps(platform.computeEnv({ platform: 'aplite' })), ['welcome', 'layout', 'done']);
 });
@@ -263,7 +265,8 @@ test('opening the wizard never rewrites a stored preset; a layout pick makes the
   const saved = { layoutPreset: 'compactDense', healthMode: 'status', radarMode: 'graph' };
   const { ctx, dom } = openSetup({ saved });
   assert.equal(ctx.S.layoutPreset, 'compactDense', 'opening the wizard must not rewrite the stored preset');
-  dom.nav('next');
+  dom.walkTo('layoutPreset');
+  assert.equal(ctx.S.layoutPreset, 'compactDense', 'nor walking past the forecast step');
   const picker = dom.picker();
   assert.equal(picker.group, 'layoutPreset', 'the layout picker rendered');
   assert.equal(picker.selected, 'compactCal', 'the Default screen\'s two-row calendar reads as Compact');
@@ -286,11 +289,14 @@ test('opening the wizard never rewrites a stored preset; a layout pick makes the
   assert.equal(aplite.ctx.S.layoutPreset, 'noCal');
 });
 
-test('the Screens step\'s screens: Long forecast, Health and Rain radar where the watch draws them, in that order', () => {
+test('the Screens step\'s screens: a second forecast, Health and Rain radar where the watch draws them, in that order', () => {
   const basalt = platform.computeEnv({ platform: 'basalt' });
   assert.deepEqual(SCREENS.offered(basalt).map((t) => t.id), ['health', 'radar']);
-  assert.deepEqual(SCREENS.offered(platform.computeEnv({ platform: 'emery' })).map((t) => t.id), ['long', 'health', 'radar'],
-    'the Pebble Time 2 adds a second graph over the long span');
+  assert.deepEqual(SCREENS.offered(platform.computeEnv({ platform: 'emery' })).map((t) => t.id), ['forecast2', 'health', 'radar'],
+    'the Pebble Time 2 adds a second graph over the other length');
+  // The other length than the Default graph's (the owner's ask, 2026-11-15), named for it.
+  assert.deepEqual(['12', '24', '48'].map(SCREENS.otherSpan), ['48', '48', '24']);
+  assert.deepEqual(['24', '48'].map(SCREENS.forecastName), ['24 h forecast', 'Long forecast']);
   assert.deepEqual(SCREENS.offered(platform.computeEnv({ platform: 'aplite' })), []);
   const b = (k, o) => Object.assign({ k }, o || {});
   assert.deepEqual(SCREENS.listOf(SCREENS.byId('health'), ''),
@@ -299,14 +305,14 @@ test('the Screens step\'s screens: Long forecast, Health and Rain radar where th
     [b('strip'), b('clock'), b('radarbar'), b('radar', { size: 'fill' })]);
   assert.deepEqual(SCREENS.listOf(SCREENS.byId('health'), '3'),
     [b('strip'), b('cal', { rows: '3' }), b('clock'), b('healthbar'), b('health', { size: 'fill' })], 'on the Layout\'s calendar');
-  // A screen reads as its template whatever its calendar; the Long forecast screen by a graph of its own.
+  // A screen reads as its template whatever its calendar; the second forecast screen by a graph of its own.
   assert.equal(SCREENS.templateOf(SCREENS.listOf(SCREENS.byId('radar'), '2')).id, 'radar');
-  const long = SCREENS.listOf(SCREENS.byId('long'), '');
-  assert.equal(SCREENS.templateOf(long), null, 'a forecast screen on the first graph is the user\'s own');
-  long[3].style = '2';
-  assert.equal(SCREENS.templateOf(long).id, 'long');
-  assert.equal(SCREENS.insertAt([[], long.slice(), SCREENS.listOf(SCREENS.byId('health'), '')], 'radar'), 3);
-  assert.equal(SCREENS.insertAt([[], SCREENS.listOf(SCREENS.byId('health'), '')], 'long'), 1, 'before the Health screen');
+  const second = SCREENS.listOf(SCREENS.byId('forecast2'), '');
+  assert.equal(SCREENS.templateOf(second), null, 'a forecast screen on the first graph is the user\'s own');
+  second[3].style = '2';
+  assert.equal(SCREENS.templateOf(second).id, 'forecast2');
+  assert.equal(SCREENS.insertAt([[], second.slice(), SCREENS.listOf(SCREENS.byId('health'), '')], 'radar'), 3);
+  assert.equal(SCREENS.insertAt([[], SCREENS.listOf(SCREENS.byId('health'), '')], 'forecast2'), 1, 'before the Health screen');
   // An upgraded install's flick screens ARE the two (today's Flick 1 and Flick 2).
   const three = M.screensOf({ layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'graph' }, basalt);
   assert.deepEqual(three.map((l, i) => SCREENS.nameOf(l, i)), ['Default', 'Health', 'Rain radar']);

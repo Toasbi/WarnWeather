@@ -146,28 +146,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     function labelAdvance(text, s) { return Math.round(text.length * s * 0.52); }
 
     /**
-     * The rain alert's icon as the watch draws it (status_on_demand.c): the weather condition
-     * slot's rain cloud, the watch's pixel drawing (pixel-icon.js condition RAIN, the ink
-     * alone, so its box is the drawing's). Read at draw time, once every page file has loaded.
-     * @returns {{d: string, w: number, h: number}} Its pixels as a path, and its size.
-     */
-    function rainGlyph() {
-        var PixelIcon = (typeof require !== 'undefined') ? require('./pixel-icon.js') : window.PixelIcon;
-        var p = PixelIcon.condition('RAIN');
-        return {d: PixelIcon.path(p), w: p.w, h: p.rows.length};
-    }
-    /**
-     * The rain alert's icon, its pixels filled, its top-left at (gx, gy) and `h` px tall.
-     * @param {Object} g rainGlyph().
-     * @param {number} gx Left edge of the ink.
-     * @param {number} gy Top edge of the ink.
-     * @param {number} h Ink height.
-     * @param {string} color Fill colour.
+     * The rain alert's icon (the watch's, status_on_demand.c, is the weather condition slot's
+     * rain cloud): condition-icons.js RAIN, its 24-unit box drawn `size` units square with its
+     * top-left at (x, y), outlined in `color`. Read at draw time, once every page file has loaded.
+     * @param {number} x Left edge of its box.
+     * @param {number} y Top edge of its box.
+     * @param {number} size Its box's side.
+     * @param {string} color Stroke colour.
      * @returns {string} SVG markup.
      */
-    function rainIcon(g, gx, gy, h, color) {
-        return '<path transform="translate(' + gx + ',' + gy + ') scale(' + (h / g.h) + ')"'
-            + ' d="' + g.d + '" fill="' + color + '" shape-rendering="crispEdges"></path>';
+    function rainIcon(x, y, size, color) {
+        var icons = (typeof require !== 'undefined') ? require('./condition-icons.js') : window.ConditionIcons;
+        return '<g data-rain-icon="1" transform="translate(' + x + ',' + y + ') scale(' + (size / 24) + ')"'
+            + icons.OUTLINE.replace('currentColor', color) + '>' + icons.body('RAIN') + '</g>';
     }
 
     // The preview's vertical budget, in its 200-wide viewBox units. It sits pinned above the
@@ -388,14 +379,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             return svgFrame(e, frameH);
         }
         var label = rain.look === 'icon' ? '' : (rain.look === 'minutes' ? "15'" : "Rain in 15'");
-        var glyph = rainGlyph(), bandH = ALERT_BAND_H, iconH = 9, edge = 4, size = 8.5;
-        var iconW = iconH * glyph.w / glyph.h;
-        var groupW = iconW + (label ? 3 + labelAdvance(label, size) : 0);
+        // The icon's 24-unit box 12 units square: its cloud and drops about 10 wide and 9 tall.
+        var bandH = ALERT_BAND_H, iconW = 12, edge = 3, size = 8.5;
+        var groupW = iconW + (label ? 2 + labelAdvance(label, size) : 0);
         var groupX = side === 'left' ? edge : 200 - edge - groupW;
         var band = rect(0, 0, 200, bandH, ink.bg);
-        band += rainIcon(glyph, groupX, (bandH - iconH) / 2, iconH, ink.fg);
+        band += rainIcon(groupX, (bandH - iconW) / 2, iconW, ink.fg);
         if (label) {
-            band += txt(groupX + iconW + 3, bandH / 2 + 3, size, ink.fg, 'start', 700, label);
+            band += txt(groupX + iconW + 2, bandH / 2 + 3, size, ink.fg, 'start', 700, label);
         }
         band += '<line x1="0" y1="' + bandH + '" x2="200" y2="' + bandH + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
         return svgFrame(band + '<g transform="translate(0,' + bandH + ')">' + e + '</g>', frameH + bandH);

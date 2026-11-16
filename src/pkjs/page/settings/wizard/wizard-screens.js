@@ -1,9 +1,9 @@
 // src/pkjs/page/settings/wizard/wizard-screens.js — ES5, WebView. The setup wizard's Screens step, as data: the
-// flick screens setup offers (Long forecast, Health and Rain radar, each where the watch draws it),
+// flick screens setup offers (a second forecast, Health and Rain radar, each where the watch draws it),
 // their rows on the calendar the Layout step picked (the owner's ask, 2026-11-09: a screen setup
 // adds shows the Default screen's calendar, none, two or three rows), which of them a watch's
 // screens already hold, where one goes in, what the step calls each screen, and the layout a
-// Default screen reads as. The DOM half (the pictures, the flick, the Long forecast screen's
+// Default screen reads as. The DOM half (the pictures, the flick, the second forecast screen's
 // graph, the writes through screens-page.js) is wizard.js'.
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings-page
@@ -19,19 +19,40 @@
     // only (no calendar either, a big forecast). Neither has a screenshot of its own.
     var NEAREST_LAYOUT = { compactDense: 'compactCal', weatherOnly: 'noCal' };
 
-    // The flick screens setup offers, in the order they go in: the Long forecast screen (Pebble Time
-    // 2: a second graph over the long span, the owner's ask, 2026-11-09; its graph is wizard.js'),
-    // the Health screen, then the Rain radar screen (today's Flick 1 and Flick 2): Add a screen's
-    // screens (screen-presets.js listOf). `env` names the watch's fact each needs, `graph` the
-    // graph it shows. Each is named after its template as it goes in.
+    // The flick screens setup offers, in the order they go in: the second forecast screen (Pebble
+    // Time 2: a second graph over the other length than the Default's, the owner's asks, 2026-11-09
+    // and 2026-11-15; its graph is wizard.js'), the Health screen, then the Rain radar screen
+    // (today's Flick 1 and Flick 2): Add a screen's screens (screen-presets.js listOf). `env` names
+    // the watch's fact each needs, `graph` the graph it shows. Each is named after its template as
+    // it goes in, the second forecast after its length (forecastName); `name` is what a screen of
+    // it that has no name of its own is called.
     var TEMPLATES = [
-        { id: 'long', name: 'Long forecast', env: 'graphStyles', graph: 'fc' },
+        { id: 'forecast2', name: 'Long forecast', env: 'graphStyles', graph: 'fc' },
         { id: 'health', name: 'Health', env: 'health', graph: 'health' },
         { id: 'radar', name: 'Rain radar', env: 'radar', graph: 'radar' }
     ];
-    // The length the Long forecast screen's graph shows: the long span's stored option
-    // (forecast-span-hours.js CHOICES).
+    // The long span's stored option (forecast-span-hours.js CHOICES), and the day's.
     var LONG_SPAN = '48';
+    var DAY_SPAN = '24';
+
+    /**
+     * The second forecast's length beside a Default graph of `span`: the long span beside 12 or 24
+     * hours, 24 hours beside the long span (the owner's ask, 2026-11-15).
+     * @param {string} span The Default graph's length: '12' | '24' | '48'.
+     * @returns {string} '24' | '48'
+     */
+    function otherSpan(span) {
+        return String(span) === LONG_SPAN ? DAY_SPAN : LONG_SPAN;
+    }
+
+    /**
+     * What the second forecast screen, and its graph, are called over a length.
+     * @param {string} span Its graph's length.
+     * @returns {string}
+     */
+    function forecastName(span) {
+        return String(span) === LONG_SPAN ? 'Long forecast' : '24 h forecast';
+    }
 
     /**
      * The templates this watch can show.
@@ -44,7 +65,7 @@
 
     /**
      * A template by its id.
-     * @param {string} id 'health' | 'radar'.
+     * @param {string} id 'forecast2' | 'health' | 'radar'.
      * @returns {?Object}
      */
     function byId(id) {
@@ -53,7 +74,7 @@
     }
 
     /**
-     * A template's screen on a calendar (screen-presets.js listOf). The Long forecast screen's
+     * A template's screen on a calendar (screen-presets.js listOf). The second forecast screen's
      * graph is put on it as it goes in (wizard.js).
      * @param {Object} t A TEMPLATES entry.
      * @param {string} cal The calendar's rows: '' (none), '2' or '3'.
@@ -65,7 +86,7 @@
 
     /**
      * The template a screen is, its calendar aside (screen-presets.js graphOf): the Health and
-     * Rain radar screens by their rows, the Long forecast screen by its rows and a graph other
+     * Rain radar screens by their rows, the second forecast screen by its rows and a graph other
      * than the first (a forecast screen on the first graph is the user's own). Null for a screen
      * of the user's own.
      * @param {Array<Object>} list A screen.
@@ -75,7 +96,7 @@
         var graph = PRESETS.graphOf(list);
         if (graph === 'fc') {
             var fc = list[M.idxOf(list, 'fc')];
-            return fc && fc.style && fc.style !== '1' ? byId('long') : null;
+            return fc && fc.style && fc.style !== '1' ? byId('forecast2') : null;
         }
         for (var i = 0; i < TEMPLATES.length; i += 1) {
             if (graph && TEMPLATES[i].graph === graph) { return TEMPLATES[i]; }
@@ -101,7 +122,7 @@
 
     /**
      * Where a template goes in among the screens: before the first screen of a template that comes
-     * after it (TEMPLATES' order: Long forecast, Health, Rain radar), so they keep that order;
+     * after it (TEMPLATES' order: the second forecast, Health, Rain radar), so they keep that order;
      * else after the others.
      * @param {Array<Array<Object>>} screens The screens, the Default first.
      * @param {string} id The template.
@@ -146,6 +167,8 @@
         NEAREST_LAYOUT: NEAREST_LAYOUT,
         TEMPLATES: TEMPLATES,
         LONG_SPAN: LONG_SPAN,
+        otherSpan: otherSpan,
+        forecastName: forecastName,
         offered: offered,
         byId: byId,
         listOf: listOf,

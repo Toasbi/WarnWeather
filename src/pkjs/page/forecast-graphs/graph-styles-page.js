@@ -1285,6 +1285,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (PConf.hooks && PConf.hooks.onRender) { PConf.hooks.onRender(onRender); }
         if (PConf.hooks && PConf.hooks.onNormalize) { PConf.hooks.onNormalize(normalize); }
         if (PConf.hooks && PConf.hooks.onReady) { PConf.hooks.onReady(function (ctx) { UI.ctx = ctx; }); }
+        // Revert puts the page back as it opened: the Undo of a deleted graph, and the line a
+        // pick over the limit would put back, would write settings from before it back over it.
+        if (PConf.hooks && PConf.hooks.onRevert) {
+            PConf.hooks.onRevert(function () {
+                kit.unflash(UI.toast);
+                UI.last = null;
+            });
+        }
         if (PConf.blocks) {
             PConf.blocks.register('graphList', listBlock);
             PConf.blocks.register('graphShowOn', showOnBlock);

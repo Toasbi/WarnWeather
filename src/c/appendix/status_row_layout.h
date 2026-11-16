@@ -4,7 +4,25 @@
 #include <stdint.h>
 
 #define STATUS_ROW_ICON_TEXT_GAP 3
-#define STATUS_ROW_GROUP_GAP 4
+// The least air between two slots of a row: between the middle and each edge slot, and
+// between the two edge slots where they share the row. Twice the icon-to-text gap, so
+// every slot reads as its own group (at 4 px, one more than that gap, a crowded row ran
+// its slots together). The settings page's copy is preview-watch.js GROUP_GAP. Only the
+// On demand host suites set it, to the 4 px their fixtures were laid out at
+// (scripts/test-c.sh); the watch build never does.
+#ifndef STATUS_ROW_GROUP_GAP
+#define STATUS_ROW_GROUP_GAP 6
+#endif
+// The air the middle slot keeps from each neighbour wherever the row has the room: twice
+// the least air. A centred middle beside a wider edge slot used to sit hard against it,
+// STATUS_ROW_GROUP_GAP away, with three times that on its other side (the Pebble Time 2's
+// Radar bar: 36 px and 6). It only moves the middle; it never cuts a text, which still gives
+// way only at STATUS_ROW_GROUP_GAP (status_row_layout). The settings page's copy is
+// preview-watch.js MIDDLE_GAP. The On demand host suites set it with the least air, which
+// lays a row out as before it (scripts/test-c.sh).
+#ifndef STATUS_ROW_MIDDLE_GAP
+#define STATUS_ROW_MIDDLE_GAP 12
+#endif
 
 typedef struct {
     bool present;

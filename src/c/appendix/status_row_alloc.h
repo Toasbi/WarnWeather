@@ -5,7 +5,9 @@
 // Deliberately NOT status_row_layout / StatusSlotMeasure: the aplite twin must stay
 // independent of the shared layout module (see docs/adr/0001). Plain ints only so it
 // host-compiles with no Pebble SDK.
-#define STATUS_ROW_ALLOC_GROUP_GAP 4
+// The least air between two slots: status_row_layout.h STATUS_ROW_GROUP_GAP's value, kept
+// here as its own number for the independence above.
+#define STATUS_ROW_ALLOC_GROUP_GAP 6
 
 // Distributes content_w across the three slots in strict PRIORITY ORDER: right first,
 // then left, then middle. The right slot is right-anchored at content_w, the left slot

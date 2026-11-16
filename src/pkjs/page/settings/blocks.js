@@ -47,9 +47,9 @@ if (typeof require !== 'undefined') {
         ? require('../weather/budgets/interval-budget.js') : PConf.intervalBudget;
     // Country → recommended-provider mapping (shared with the wizard).
     var CD = (typeof require !== 'undefined') ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
-    // The weather condition icons as the watch draws them (status-pixels.generated.js, through
-    // pixel-icon.js), for the condition slot's list of conditions.
-    var PixelIcon = (typeof require !== 'undefined') ? require('../weather/pixel-icon.js') : window.PixelIcon;
+    // The weather condition icons (condition-icons.js), for the condition slot's list of conditions.
+    var conditionIcons = (typeof require !== 'undefined')
+        ? require('../weather/condition-icons.js') : window.ConditionIcons;
     // The weather condition slot's vocabulary, for its list of every condition.
     var conditionLib = (typeof require !== 'undefined') ? require('../../weather/domain/condition.js') : window.Condition;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
@@ -1069,24 +1069,10 @@ if (typeof require !== 'undefined') {
     PConf.hintResolvers.register('radarProviderNote', radarProviderNote);
 
     /**
-     * A pixel drawing (pixel-icon.js condition) as a small SVG, each lit pixel a square,
-     * twice its size, in the text colour.
-     * @param {{w: number, rows: !Array<number>}} p The drawing.
-     * @returns {string} SVG markup; '' for none.
-     */
-    function pixelIconSvg(p) {
-        if (!p) { return ''; }
-        var d = PixelIcon.path(p);
-        return '<svg viewBox="0 0 ' + p.w + ' ' + p.rows.length + '" width="' + 2 * p.w + '" height="'
-            + 2 * p.rows.length + '" shape-rendering="crispEdges" aria-hidden="true" style="display:block">'
-            + '<path fill="currentColor" d="' + d + '"/></svg>';
-    }
-
-    /**
      * Every condition the weather condition slot shows (weather/condition.js), a row each: the
-     * name and short form, and the glyphs by their names (pixel-icon.js condition), the
-     * night's beside the day's where it differs. The clear sky's night has its own names (Clear,
-     * CLR), so its own row.
+     * name and short form, and the glyphs as icon keys (condition-icons.js), the night's beside
+     * the day's where it differs. The clear sky's night has its own names (Clear, CLR), so its
+     * own row.
      * @returns {!Array<{full: string, short: string, icons: !Array<string>, night: boolean}>}
      */
     function conditionRows() {
@@ -1106,7 +1092,7 @@ if (typeof require !== 'undefined') {
 
     /**
      * The weather condition slot dialog's list of every condition (its staticText's textFrom):
-     * the icon the watch draws (the night's beside the day's where it differs), the full name and
+     * its icon (the night's beside the day's where it differs), the full name and
      * the short form the slot switches to, one row each (conditionRows).
      * @param {Object} S Live settings state (unused).
      * @param {Object} env Platform env (unused).
@@ -1119,7 +1105,7 @@ if (typeof require !== 'undefined') {
             + '<tr style="font-size:12px;opacity:.7;text-align:left;"><th style="' + cell + 'font-weight:500;">Icon</th>'
             + '<th style="' + cell + 'font-weight:500;">Name</th><th style="' + cell + 'font-weight:500;">Short</th></tr>';
         rows.forEach(function (r) {
-            var icons = r.icons.map(function (k) { return pixelIconSvg(PixelIcon.condition(k)); }).join('');
+            var icons = r.icons.map(function (k) { return conditionIcons.svg(k, 24); }).join('');
             html += '<tr style="border-top:1px solid rgba(127,127,127,.25);">'
                 + '<td style="' + cell + '"><span style="display:inline-flex;gap:6px;align-items:center;">'
                 + icons + '</span></td>'

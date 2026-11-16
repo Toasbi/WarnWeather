@@ -202,7 +202,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   PConf.checkWriters = makeRegistry();
 
   // --- hook registry ---
-  var loadFns = [], submitFns = [], readyFns = [], renderFns = [], normalizeFns = [];
+  var loadFns = [], submitFns = [], readyFns = [], renderFns = [], normalizeFns = [], revertFns = [];
   PConf.hooks = {
     onLoad: function (fn) { loadFns.push(fn); },
     onSubmit: function (fn) { submitFns.push(fn); },
@@ -222,10 +222,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // compare the normalized state (blobOf), so a value only moved for the screen never
     // lights them, and save() settles S into it before the submit hooks run.
     onNormalize: function (fn) { normalizeFns.push(fn); },
+    // onRevert runs when Revert has put every setting back, before the repaint, with {S, env}:
+    // a page module drops what it holds beside the settings that a later tap would write back
+    // (the Undo after a delete restores the settings as they were before the delete).
+    onRevert: function (fn) { revertFns.push(fn); },
     runLoad: function (ctx) { loadFns.forEach(function (fn) { fn(ctx); }); },
     runSubmit: function (ctx) { submitFns.forEach(function (fn) { fn(ctx); }); },
     runReady: function (ctx) { readyFns.forEach(function (fn) { fn(ctx); }); },
     runRender: function (ctx) { renderFns.forEach(function (fn) { fn(ctx); }); },
+    runRevert: function (ctx) { revertFns.forEach(function (fn) { fn(ctx); }); },
     runNormalize: function (state, env) {
       return normalizeFns.reduce(function (s, fn) { return fn(s, env) || s; }, state);
     }
@@ -3313,7 +3318,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     /**
      * Put every setting back as the page held it once ready (restoreState keeps S the same
-     * object), stamps aside, repaint, and say so.
+     * object), stamps aside; let the page modules drop what they hold beside the settings
+     * (PConf.hooks.onRevert: an Undo would write a deleted thing's settings back), repaint, and
+     * say so.
      * @returns {void}
      */
     function revertAll() {
@@ -3324,6 +3331,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       for (i = 0; i < stampKeys.length; i++) {
         if (stamps[stampKeys[i]] !== undefined) { S[stampKeys[i]] = stamps[stampKeys[i]]; }
       }
+      PConf.hooks.runRevert({ S: S, env: ENV });
       render();
       var el = document.getElementById('toast');
       if (el && el.classList) {
@@ -4112,6 +4120,27 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       document.getElementById('save').addEventListener('click', requestSave);
       var revertEl = document.getElementById('revert');
       if (revertEl && revertEl.addEventListener) { revertEl.addEventListener('click', requestRevert); }
+      // Save and Revert follow every change, not only the ones a render() ends: a control
+      // that paints in place (a slider's arrow-key nudge, a text field's commit), a page
+      // module's own overlay (the screen editor, setup) and the dialogs all end in one of these
+      // events. Captured on the document, so the check runs whatever handled the event; on the
+      // next tick, so it sees what the handlers wrote. One timer serves a burst (a tap's
+      // pointerup and click, a slider's drag, typing): the check normalizes and serializes
+      // every setting, so it runs at most once per PAINT_SOON_MS.
+      if (!document.addEventListener) { return; }
+      var PAINT_SOON_MS = 100;
+      var paintTimer = null;
+      /**
+       * Repaint Save and Revert once the burst of events this one belongs to is handled.
+       * @returns {void}
+       */
+      var paintSoon = function () {
+        if (paintTimer) { return; }
+        paintTimer = setTimeout(function () { paintTimer = null; paintSave(); }, PAINT_SOON_MS);
+      };
+      ['click', 'input', 'change', 'keyup', 'pointerup'].forEach(function (type) {
+        document.addEventListener(type, paintSoon, true);
+      });
     }
 
     document.getElementById('appTitle').textContent = SCHEMA.appName;
