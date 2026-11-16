@@ -8,8 +8,10 @@
 // them can drift from the others.
 //
 // Every pitch is whole px (forecast_span.h: the owner's, 2026-11-16, every bar and every gap
-// one width), SLOT_X_PITCH_Q(p), and slot_x is then exactly i * p. The 1/256 px unit stays
-// for slot_time_x, which places a time inside an hour.
+// one width), SLOT_X_PITCH_Q(p), so slot_x is exactly i * p, slot_time_x exactly
+// secs * p / 3600 and slot_x_count temp_axis_pad.h temp_axis_drawn_entries (all host-tested):
+// the 1/256 px unit is a leftover of the fractional pitch the long span used to draw, and
+// changes no pixel. The chart engine maps its slots in whole px (chart.h chart_slot_tick_x).
 #include <stdint.h>
 
 #define SLOT_X_Q 8                              // fraction bits: 1/256 px

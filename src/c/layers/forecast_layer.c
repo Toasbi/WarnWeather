@@ -599,13 +599,13 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         SeriesLine *const line = &ds->series[sid].line;
         if (line->style != CHART_LINE_SOLID) { line->width = span.bar_w; }
     }
-// emery: slot i's tick column right of the plot's left edge: the one mapping (slot_x.h).
+    // emery: the night bands' time mapping (slot_x.h slot_time_x) takes the pitch in 1/256 px.
     const int pitch_q = forecast_span_pitch_q(span);
-#define GRID_X(i) slot_x(pitch_q, (i))
 #else
     const ChartDef *const grid = &FORECAST_GRID_DEF;
-#define GRID_X(i) ((i) * chart_def_pitch(grid))
 #endif
+    // Slot i's tick column right of the plot's left edge (every pitch is whole px).
+#define GRID_X(i) ((i) * chart_def_pitch(grid))
     // The night shading's graph ends on the last hour's tick, or on emery a column further
     // (forecast_span.h FORECAST_NIGHT_PAST_LAST).
     const time_t forecast_start = ds->forecast_start;
@@ -639,9 +639,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // so it takes no band and the stripe layout below never sees it: the plot grows into its
     // rows.
 #if defined(PBL_PLATFORM_EMERY)
-    // emery: the hours whose bar starts on screen, through the one mapping (slot_x.h): the edge
-    // rule's last hour, cut at its tick column on the plot's last one, takes no part. The 24 h
-    // grid at its whole 8 px counts its started columns, as here off emery (forecast_span.h).
+    // emery: the hours whose bar starts on screen (forecast_span.h): an hour cut at its tick
+    // column takes no part. The 24 h grid at its 8 px counts its started columns, as here off
+    // emery.
     const int drawn = forecast_span_laid_out(span, ds->num_entries, bounds.size.w - graph_left);
 #else
     const int drawn = temp_axis_drawn_entries(ds->num_entries, bounds.size.w - graph_left,
@@ -722,10 +722,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     int num_night_bands = 0;
     if (night_on) {
 #if defined(PBL_PLATFORM_EMERY)
-        // emery: through the one mapping (graph_x_for_time), to slot num_entries' tick.
+        // emery: through the one mapping (graph_x_for_time), to slot num_entries' tick, and
+        // no further than the screen's right edge, past which every column is clipped.
         num_night_bands = build_night_bands(night_bands, FORECAST_NIGHTS_MAX, &night_segments,
-                                            outer.origin.x, pitch_q, forecast_start,
-                                            forecast_end);
+                                            outer.origin.x, (int16_t)bounds.size.w, pitch_q,
+                                            forecast_start, forecast_end);
 #else
         num_night_bands = build_night_bands(night_bands, FORECAST_NIGHTS_MAX, &night_segments,
                                             night_plot_rect, forecast_start, forecast_end);
@@ -777,8 +778,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #if defined(PBL_PLATFORM_EMERY)
     // emery: the 12 h and long grids, and the 24 h grid past 24 slots (26 hours on the
     // screen-wide plot), fit the scale and name the labels over the hours on screen, every
-    // hour whose tick is (forecast_span_drawn: the edge rule's last hour's point is on the
-    // plot's last column); the 24-slot grid keeps every hour it draws. Its labels are
+    // hour whose tick is (forecast_span_drawn); the 24-slot grid keeps every hour sent, as it
+    // always has, its last one or two past the edge (an On axis plot, or 9 px). Its labels are
     // TEMP_MIN / TEMP_MAX as sent (pixel-identical) unless its graph style draws fewer hours
     // than were sent, or the scale's ends lie on a trend the style draws no line of
     // (graph_style.h): then it names its own too. Before fit_temp_axis: the relabel reads the

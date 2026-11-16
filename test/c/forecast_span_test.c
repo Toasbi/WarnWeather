@@ -67,18 +67,12 @@ static int whole_hours(ForecastSpan s, int w) {
     return whole;
 }
 
-// The long class's rule, written out on its own: the smallest whole pitch that puts slot
-// n - 1's tick on or past the plot's last column ((n - 1) * p >= w - 1), held to [3, 8] px.
-static int fill_pitch(int n, int w) {
-    int p = 3;
-    while (p < 8 && (n - 1) * p < w - 1) { ++p; }
-    return p;
-}
-
-// The 24 h class's: its 8 px, or the smallest whole pitch past it that reaches that column.
-static int day_pitch(int slots, int w) {
-    int p = 8;
-    while ((slots - 1) * p < w - 1) { ++p; }
+// The long and 24 h classes' rule, written out on its own: the smallest whole pitch from `lo`
+// that puts slot `last`'s tick on or past the plot's last column (last * p >= w - 1), held to
+// `hi`. The long class takes 3..8 px, the 24 h grid 8 px and up.
+static int edge_pitch(int last, int w, int lo, int hi) {
+    int p = lo;
+    while (p < hi && last * p < w - 1) { ++p; }
     return p;
 }
 
@@ -104,11 +98,10 @@ static void test_classes(void) {
                 // the rest.
                 const int slots = n > 24 ? n : 24;
                 const bool short_of_edge = (slots - 1) * 8 < w - 1;
-                const int want = day_pitch(slots, w);
+                const int want = edge_pitch(slots - 1, w, 8, w);
                 CHECK(s.slots == slots && s.bar_pad == 1 && pitch == want && s.bar_w == want - 3
                       && s.label_every == 3 && s.tick_every == 1 && !s.by_clock,
                       "24 h n=%d w=%d: pitch %d want %d", n, w, pitch, want);
-                CHECK(short_of_edge == (want > 8), "24 h n=%d w=%d: 8 px unless short", n, w);
                 if (n <= FORECAST_SPAN_DAY_SLOTS && !short_of_edge) {
                     const ChartDef d = forecast_grid_def_for(s);
                     CHECK(memcmp(&d, &FORECAST_GRID_DEF, sizeof(d)) == 0,
@@ -116,14 +109,14 @@ static void test_classes(void) {
                 }
                 // A label strip is at least 17 px (BOTTOM_VIEW_LABEL_STRIP_MIN_W + its gap), so
                 // On axis the plot is at most 183 px wide (a quick-view peek's 200 px frame):
-                // 24 h On axis is never stretched.
+                // 24 h On axis keeps 8 px.
                 if (w <= 183) {
                     CHECK(!short_of_edge, "24 h n=%d w=%d: On axis keeps 8 px", n, w);
                 }
             } else {
                 // Long: one slot per hour received, the fill rule, the clock's marks: a tick
                 // every 3 clock hours, a label every 6, or every 3 once 3 hours span 18 px.
-                const int p = fill_pitch(n, w);
+                const int p = edge_pitch(n - 1, w, 3, 8);
                 const int pad = p >= 6 ? 1 : 0;
                 CHECK(s.slots == n && pitch == p && s.bar_pad == pad && s.bar_w == p - 1 - 2 * pad,
                       "long n=%d w=%d: pitch %d want %d", n, w, pitch, p);
@@ -132,7 +125,8 @@ static void test_classes(void) {
             }
             // Every class keeps a whole pitch (the owner's, 2026-11-16): x(i) is i * pitch, so
             // every column, bar and gap is one width.
-            CHECK(forecast_span_pitch_q(s) == pitch * 256, "n=%d w=%d: a whole pitch", n, w);
+            CHECK(forecast_span_pitch_q(s) == SLOT_X_PITCH_Q(pitch), "n=%d w=%d: a whole pitch", n,
+                  w);
             for (int i = 0; i <= s.slots; ++i) {
                 CHECK(forecast_span_x(s, i) == i * pitch, "n=%d w=%d: x(%d)", n, w, i);
             }
@@ -168,6 +162,13 @@ static void test_classes(void) {
           "48 at 174");
     s = forecast_span(48, EMERY_SCREEN_W);
     CHECK(forecast_span_pitch(s) == 5 && s.bar_w == 4 && s.bar_pad == 0, "48 at 200");
+    // The owner's screenshots (2026-11-15 and 16): about 50 hours on the full 200 px plot. At
+    // the 4 1/16 px that would fit them, every 16th column was a px wider, so its gap or its bar
+    // was. Now 5 px (199 / 49 = 4.06, rounded up): every bar 4 px, every gap 1 px, 40 hours on
+    // screen and the rest cut.
+    s = forecast_span(50, EMERY_SCREEN_W);
+    CHECK(forecast_span_pitch(s) == 5 && s.bar_w == 4 && s.bar_pad == 0
+          && forecast_span_drawn(s, 50, EMERY_SCREEN_W) == 40, "50 at 200");
     // 3 hours of 18 px or more (a pitch of 6): a label on every 3-hour mark, 1 px pads. 30
     // hours at W 174 take 6 px (173 / 29 = 5.97), at W 176 7 px (175 / 29 = 6.03).
     s = forecast_span(30, 174);
@@ -204,14 +205,12 @@ static void test_invariants(void) {
                       >= LABEL_MIN_PX, "n=%d w=%d: labels at %d too close", n, w, i);
             }
             CHECK(s.tick_every * p >= TICK_MIN_PX, "n=%d w=%d: ticks", n, w);
-            // The owner's first goal (2026-11-16): every column is exactly p px wide, so every bar
-            // is bar_w and ends exactly pad px before the next slot's tick: every gap between
-            // neighbouring bars is the same tick + 2 pads.
+            // The owner's first goal (2026-11-16): every column is exactly p px wide, and p is the
+            // tick + 2 pads + bar_w (forecast_span_pitch), so every bar is bar_w and every gap
+            // between neighbouring bars the same tick + 2 pads.
             for (int i = 0; i < s.slots; ++i) {
                 const int cw = forecast_span_x(s, i + 1) - forecast_span_x(s, i);
                 CHECK(cw == p, "n=%d w=%d: column %d %d px", n, w, i, cw);
-                CHECK(forecast_span_x(s, i) + 1 + s.bar_pad + s.bar_w + s.bar_pad
-                      == forecast_span_x(s, i + 1), "n=%d w=%d: bar %d", n, w, i);
             }
             // The hours on screen: the slots whose tick the mapping puts on the plot's columns.
             int on = 0;
@@ -219,7 +218,7 @@ static void test_invariants(void) {
             CHECK(forecast_span_drawn(s, n, w) == on, "n=%d w=%d: %d on screen, want %d", n, w,
                   forecast_span_drawn(s, n, w), on);
             // The hours the layout reads: those whose bar starts on screen; the 24 h grid at its
-            // whole 8 px keeps the started columns (today's count, today's pixels).
+            // 8 px keeps the started columns (today's count, today's pixels).
             int laid = 0;
             while (laid < n && forecast_span_x(s, laid) + 1 + s.bar_pad <= w - 1) { ++laid; }
             const bool day8 = !s.by_clock && pq == 8 * 256;
@@ -574,20 +573,17 @@ static void test_mapping(void) {
     d.bar_w = 6;
     CHECK(chart_def_pitch_q(&d) == 7 * 256 && chart_def_slot_x(&d, 5) == 35, "a re-padded copy");
     // The renderers' half (chart.h chart_slot_tick_x / chart_slot_bar_x: the bars, marks, line
-    // and area vertices, ticks and stripe cells): the geometry's pitch_q through the mapping,
-    // never i * slots.pitch, and each bar bar_dx right of its tick. The pitches the span
-    // classes draw: the long class's 3..8 px and the 24 h grid's 9.
-    static const int pqs[] = { 768, 1024, 1280, 1536, 1792, 2048, 2304 };
-    for (unsigned k = 0; k < sizeof(pqs) / sizeof(pqs[0]); ++k) {
-        const int px = pqs[k] / 256;
+    // and area vertices, ticks and stripe cells) maps in whole px and lands on the same columns
+    // as the mapping, each bar bar_dx right of its tick. The pitches the span classes draw: the
+    // long class's 3..8 px and the 24 h grid's 9.
+    for (int px = 3; px <= 9; ++px) {
         const int pad = px >= 6 ? 1 : 0;
         const ChartGeometry g = { .anchor_x = 24,
-                                  .slots = slot_geometry(68, 1, pad, px - 1 - 2 * pad),
-                                  .pitch_q = pqs[k] };
+                                  .slots = slot_geometry(68, 1, pad, px - 1 - 2 * pad) };
         for (int i = 0; i <= FORECAST_MAX_ENTRIES; ++i) {
-            CHECK(chart_slot_tick_x(&g, i) == 24 + slot_x(pqs[k], i)
+            CHECK(chart_slot_tick_x(&g, i) == 24 + slot_x(SLOT_X_PITCH_Q(px), i)
                   && chart_slot_bar_x(&g, i) == chart_slot_tick_x(&g, i) + 1 + pad,
-                  "chart.h pq=%d slot %d: tick %d bar %d", pqs[k], i, chart_slot_tick_x(&g, i),
+                  "chart.h %d px slot %d: tick %d bar %d", px, i, chart_slot_tick_x(&g, i),
                   chart_slot_bar_x(&g, i));
         }
     }
@@ -599,34 +595,6 @@ static void test_mapping(void) {
 // Daylight saving: the axis reads each slot's own local hour. A zone whose clocks jump at
 // 03:00 (forward to 04:00 in March, back from 04:00 to 03:00 in October), so the jumps touch a
 // 3-hour mark.
-// The owner's screenshots (2026-11-15 and 16): about 50 hours on the full 200 px plot. At the
-// 4 1/16 px that would fit them, every 16th column was 5 px wide, so either its gap (2 px
-// instead of 1) or its bar (4 px instead of 3) was a px wider than the others. The pitch is
-// whole now, 5 px (199 / 49 = 4.06, rounded up): every bar 4 px and every gap 1 px, 40 hours
-// on screen and the rest cut. Likewise the 24 h grid that 8 px leaves short of the edge: 9 px,
-// every bar 6 px.
-static void test_bar_gaps(void) {
-    static const struct { int n, w, pitch, bar, gap, drawn; } rows[] = {
-        { 50, 200, 5, 4, 1, 40 },
-        { 48, 174, 4, 3, 1, 44 },
-        { 68, 200, 3, 2, 1, 67 },
-        { 24, 200, 9, 6, 3, 23 },
-    };
-    for (unsigned k = 0; k < sizeof(rows) / sizeof(rows[0]); ++k) {
-        const ForecastSpan s = forecast_span(rows[k].n, rows[k].w);
-        CHECK(forecast_span_pitch(s) == rows[k].pitch && s.bar_w == rows[k].bar
-              && forecast_span_drawn(s, rows[k].n, rows[k].w) == rows[k].drawn,
-              "%d hours at %d: pitch %d bar %d", rows[k].n, rows[k].w, forecast_span_pitch(s),
-              s.bar_w);
-        for (int i = 0; i + 1 < s.slots; ++i) {
-            const int end = forecast_span_x(s, i) + 1 + s.bar_pad + s.bar_w;
-            const int next = forecast_span_x(s, i + 1) + 1 + s.bar_pad;
-            CHECK(next - end == rows[k].gap, "%d hours at %d: %d px after bar %d", rows[k].n,
-                  rows[k].w, next - end, i);
-        }
-    }
-}
-
 static void test_daylight_saving(void) {
     set_zone("XST-1XDT,M3.5.0/3,M10.5.0/4");
     ChartAxisSlot slots[FORECAST_MAX_ENTRIES];
@@ -698,7 +666,6 @@ int main(void) {
     test_label_fits();
     test_marks();
     test_mapping();
-    test_bar_gaps();
     test_daylight_saving();
 #else
     test_basalt();

@@ -82,9 +82,11 @@ of its own for the span. On emery the graph styles' records (a wire byte and per
     200 px: 8 px); it stays as a guard.
 - One slot→x mapping (`src/c/appendix/slot_x.h`): x = floor(i · pitch_q / 256) for slot i, and
   floor(t · pitch_q / (3600 · 256)) for a time t after slot 0's hour, so hour i lands exactly on
-  slot i's tick. Every x the forecast derives from an hour or a time goes through it, so none
+  slot i's tick. Every x the forecast derives from an hour or a time goes through it, or through
+  the chart engine's whole-px i · pitch, which is the same column at every whole pitch, so none
   can drift from the others:
-  - the bars, marks, line and area vertices and stripe cells (`chart.h` `chart_slot_tick_x`)
+  - the bars, marks, line and area vertices and stripe cells (`chart.h` `chart_slot_tick_x`,
+    i · pitch)
   - the hour ticks and labels, and the drop of a label either edge would cut
   - the night bands (`forecast_night.h` `graph_x_for_time`)
   - the frame and its zero line, which end on slot n's tick
@@ -216,8 +218,10 @@ or if the last hour is cut off as long we have perfect bars and spacing."
   puts the last hour's point on or past the plot's last column (`forecast_span_edge_px`), and
   the hours past the edge are cut. There is no blank tail, and every bar and gap is one width.
 - `ChartDef.pitch_frac`, `ForecastSpan.pitch_frac` and the per-column bar width
-  (`slot_bar_w`, `chart_slot_bar_w`) are gone, so a fractional pitch cannot come back by
-  accident. The slot→x mapping keeps its 1/256 px unit for times inside an hour.
+  (`slot_bar_w`, `chart_slot_bar_w`) are gone, and the chart engine maps its slots in whole px
+  (`ChartGeometry.pitch_q` is gone too), so a fractional pitch cannot come back by accident.
+  `slot_x.h` keeps its 1/256 px unit, which at a whole pitch changes no pixel: removing it is a
+  cleanup left for later.
 - A full 68-hour feed was already at the whole 3 px floor and draws the same pixels. The short
   feeds show fewer hours: OpenWeatherMap's 48 and Weather Underground's 49 show 40 to 45 whole
   hours by layout, where they showed 47 and 48, and the long option's label follows
