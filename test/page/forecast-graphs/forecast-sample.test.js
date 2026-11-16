@@ -86,8 +86,8 @@ test('without a sample a span watch draws the hours its graph shows, any other w
   assert.deepEqual(drawn['12'], { hours: 12, labels: [15, 17, 19, 21, 23, 1, 3], nights: 1 });
   assert.deepEqual(drawn['24'], { hours: 22, labels: [15, 18, 21, 0, 3, 6, 9, 12], nights: 1 },
     '22 whole hours beside the left axis');
-  assert.deepEqual(drawn['48'], { hours: 48, labels: [18, 0, 6, 12, 18, 0, 6, 12], nights: 2 },
-    'Weather Underground\'s 49-hour feed');
+  assert.deepEqual(drawn['48'], { hours: 44, labels: [18, 0, 6, 12, 18, 0, 6], nights: 2 },
+    'Weather Underground\'s 49-hour feed: 44 whole hours at a whole 4 px');
   // The owner's 66 h: a full feed with no left axis, its three nights.
   const full = Object.assign({}, S0, { forecastHours: '48', provider: 'openmeteo', forecastAxisNumbers: 'graph' });
   assert.equal(spanHours.shownHours(full, EMERY), 66);

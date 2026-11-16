@@ -148,7 +148,7 @@ static NightSegments compute_night_segments(time_t graph_start, time_t graph_end
 
 #if defined(PBL_PLATFORM_EMERY)
 // emery: a time's column through the grid's one mapping (slot_x.h slot_time_x): hour i lands on
-// slot i's tick at any pitch, the long span's fractional one too, so the night bands meet the
+// slot i's tick at any pitch, so the night bands meet the
 // columns the bars, the lines and the hour ticks use. Clamped to [slot 0's tick, slot n's]:
 // the graph's end is n hours after its start (forecast_span.h FORECAST_NIGHT_PAST_LAST).
 static int16_t graph_x_for_time(time_t timestamp, time_t graph_start, time_t graph_end,

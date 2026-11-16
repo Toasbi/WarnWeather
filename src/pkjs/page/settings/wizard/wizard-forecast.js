@@ -314,7 +314,7 @@
      * The length a look starts on, or another length of its graph, as the Forecast length picker
      * names it on these settings (forecast-span-hours.js spanLabel): "24 h", or the long span by
      * the hours it shows for the user's weather service and the look's Left axis values ("66 h",
-     * "47 h" with OpenWeatherMap). On a watch with a Forecast length (emery) only.
+     * "40 h" with OpenWeatherMap). On a watch with a Forecast length (emery) only.
      * @param {string} id A look's id.
      * @param {?Object} env Platform env.
      * @param {?Object} S The user's settings (the weather service and the layout).

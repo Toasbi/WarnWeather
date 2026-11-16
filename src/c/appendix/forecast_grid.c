@@ -26,7 +26,6 @@ ChartDef forecast_grid_def_for(ForecastSpan span) {
     d.num_slots = span.slots;
     d.bar_pad   = span.bar_pad;
     d.bar_w     = span.bar_w;
-    d.pitch_frac = span.pitch_frac;   // the long span's fractional pitch (slot_x.h)
     return d;
 }
 

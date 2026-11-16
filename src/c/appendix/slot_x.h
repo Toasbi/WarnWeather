@@ -4,11 +4,12 @@
 // an hour's index or from a time goes through it: the chart engine's ticks, bars, marks, line
 // and area vertices and stripe cells (chart.h chart_slot_tick_x), the hour axis's ticks and
 // labels (forecast_grid.c), the night bands (forecast_night.h graph_x_for_time), the frame's
-// zero line, the numbers On graph, and the count of hours on screen (slot_x_count). So a
-// fractional pitch (the long span's, forecast_span.h) cannot drift between them.
+// zero line, the numbers On graph, and the count of hours on screen (slot_x_count), so none of
+// them can drift from the others.
 //
-// A whole pitch p is SLOT_X_PITCH_Q(p), and slot_x is then exactly i * p: the 12 h and 24 h
-// grids, the health graph and the radar draw the pixels they always did.
+// Every pitch is whole px (forecast_span.h: the owner's, 2026-11-16, every bar and every gap
+// one width), SLOT_X_PITCH_Q(p), and slot_x is then exactly i * p. The 1/256 px unit stays
+// for slot_time_x, which places a time inside an hour.
 #include <stdint.h>
 
 #define SLOT_X_Q 8                              // fraction bits: 1/256 px
@@ -18,23 +19,13 @@
                                                 // BOTTOM_VIEW_STEP_SECONDS, asserted equal)
 
 /**
- * emery: slot i's tick column, px right of the grid's anchor: floor(i * pitch). Columns tile
- * with no gap or overlap: slot i spans [slot_x(i), slot_x(i + 1)), floor(pitch) or one more
- * px wide. i * pitch_q stays under 2^31 for any i <= 68 and pitch under 64 px.
+ * emery: slot i's tick column, px right of the grid's anchor: floor(i * pitch), i * pitch at
+ * the whole pitches every grid draws. Columns tile with no gap or overlap: slot i spans
+ * [slot_x(i), slot_x(i + 1)). i * pitch_q stays under 2^31 for any i <= 68 and pitch under
+ * 64 px.
  */
 static inline int slot_x(int pitch_q, int i) {
     return (int)(((unsigned)i * (unsigned)pitch_q) >> SLOT_X_Q);
-}
-
-/**
- * emery: slot i's bar width in a grid of whole pitch `pitch` px whose bar is `bar_w` px: its
- * column, [slot_x(i), slot_x(i + 1)), less the tick and the two pads. A column the fraction
- * widens gives its spare px to the bar, so neighbouring bars always keep the same gap (the
- * owner's, 2026-11-15: "the gap between each bar sitting next to each other should be the
- * same"): bar_w, or one more. At a whole pitch every bar is bar_w.
- */
-static inline int slot_bar_w(int pitch_q, int i, int pitch, int bar_w) {
-    return bar_w + slot_x(pitch_q, i + 1) - slot_x(pitch_q, i) - pitch;
 }
 
 /**

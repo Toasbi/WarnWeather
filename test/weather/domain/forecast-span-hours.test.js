@@ -83,7 +83,6 @@ test('the geometry is the watch\'s', () => {
   assert.match(forecastC,
     /graph_left = axis_on \? bottom_view_graph_inset\(BOTTOM_VIEW_SRC_FORECAST\) : screen_left;/);
   // The long class's pitch.
-  assert.equal(spanHours.SLOT_ONE, 1 << cDefine(read('src/c/appendix/slot_x.h'), 'SLOT_X_Q'));
   assert.equal(spanHours.PITCH_MIN, cDefine(SPAN_H, 'FORECAST_SPAN_LONG_PITCH_MIN'));
   assert.equal(spanHours.PITCH_MAX, cDefine(SPAN_H, 'FORECAST_SPAN_LONG_PITCH_MAX'));
   assert.equal(spanHours.PAD_FROM, cDefine(SPAN_H, 'FORECAST_SPAN_LONG_PAD_FROM'));
@@ -170,36 +169,39 @@ test('feedHours: OpenWeatherMap 48, Weather Underground 49, every other provider
 test('longHours and spanOptions: the label for each provider and layout', () => {
   const FULL = ['dwd', 'metno', 'openmeteo', 'tomorrowio', 'yandex', 'nope', undefined];
   const layouts = [
-    // [settings, a full feed's label]
-    [{ largeGraphFont: true, healthMode: 'all' }, 58],                  // the default layout
-    [{ largeGraphFont: true }, 58],                                     // no health graph
-    [{ largeGraphFont: true, forecastAxisNumbers: 'axis' }, 58],
-    [{ largeGraphFont: false, healthMode: 'all' }, 60],                 // GOTHIC_18, health graph too
-    [{ largeGraphFont: false }, 60],                                    // GOTHIC_18 labels
-    [{ largeGraphFont: false, healthMode: 'status' }, 60],
-    [{ largeGraphFont: true, forecastAxisNumbers: 'graph' }, 66],
-    [{ largeGraphFont: true, forecastAxisNumbers: 'off' }, 66],
-    [{ largeGraphFont: true, forecastAxisNumbers: 'off', healthMode: 'all' }, 66],
-    [{ largeGraphFont: false, forecastAxisNumbers: 'off' }, 66],
-    [Object.assign({ largeGraphFont: true, forecastAxisNumbers: 'off' }, SHARED_VIEW), 66],
-    [Object.assign({ largeGraphFont: false, forecastAxisNumbers: 'graph' }, SHARED_VIEW), 66],
-    [Object.assign({ largeGraphFont: true }, SHARED_VIEW), 58]
+    // [settings, a full feed's label, a short feed's label]. A full feed holds at the 3 px
+    // floor; OWM's 48 and WU's 49 take the whole pitch that reaches the edge (4 px beside the
+    // label strip, 5 px on the whole screen), and the hours past it are cut.
+    [{ largeGraphFont: true, healthMode: 'all' }, 58, 44],              // the default layout
+    [{ largeGraphFont: true }, 58, 44],                                 // no health graph
+    [{ largeGraphFont: true, forecastAxisNumbers: 'axis' }, 58, 44],
+    [{ largeGraphFont: false, healthMode: 'all' }, 60, 45],             // GOTHIC_18, health graph too
+    [{ largeGraphFont: false }, 60, 45],                                // GOTHIC_18 labels
+    [{ largeGraphFont: false, healthMode: 'status' }, 60, 45],
+    [{ largeGraphFont: true, forecastAxisNumbers: 'graph' }, 66, 40],
+    [{ largeGraphFont: true, forecastAxisNumbers: 'off' }, 66, 40],
+    [{ largeGraphFont: true, forecastAxisNumbers: 'off', healthMode: 'all' }, 66, 40],
+    [{ largeGraphFont: false, forecastAxisNumbers: 'off' }, 66, 40],
+    [Object.assign({ largeGraphFont: true, forecastAxisNumbers: 'off' }, SHARED_VIEW), 66, 40],
+    [Object.assign({ largeGraphFont: false, forecastAxisNumbers: 'graph' }, SHARED_VIEW), 66, 40],
+    [Object.assign({ largeGraphFont: true }, SHARED_VIEW), 58, 44]
   ];
-  layouts.forEach(([layout, full]) => {
+  layouts.forEach(([layout, full, short]) => {
     FULL.forEach((provider) => {
       const s = Object.assign({ provider: provider }, layout);
       assert.equal(spanHours.longHours(s), full, JSON.stringify(s));
       assert.deepEqual(spanHours.spanOptions(s),
         [['12 h', '12'], ['24 h', '24'], [full + ' h', '48']]);
     });
-    // The short feeds fill every layout: 47 and 48 whole hours.
-    assert.equal(spanHours.longHours(Object.assign({ provider: 'openweathermap' }, layout)), 47);
-    assert.equal(spanHours.longHours(Object.assign({ provider: 'wunderground' }, layout)), 48);
+    ['openweathermap', 'wunderground'].forEach((provider) => {
+      const s = Object.assign({ provider: provider }, layout);
+      assert.equal(spanHours.longHours(s), short, JSON.stringify(s));
+    });
   });
   assert.deepEqual(spanHours.spanOptions({ provider: 'openweathermap', largeGraphFont: true }),
-    [['12 h', '12'], ['24 h', '24'], ['47 h', '48']]);
+    [['12 h', '12'], ['24 h', '24'], ['44 h', '48']]);
   assert.deepEqual(spanHours.spanOptions({ provider: 'wunderground', largeGraphFont: true }),
-    [['12 h', '12'], ['24 h', '24'], ['48 h', '48']]);
+    [['12 h', '12'], ['24 h', '24'], ['44 h', '48']]);
 });
 
 test('shownHours: the hours each span draws, as the watch fits its grid to the plot', () => {

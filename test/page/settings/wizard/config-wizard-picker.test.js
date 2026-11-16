@@ -1210,7 +1210,7 @@ test('a Tomorrow.io key renames the summary\'s weather provider and its long spa
     rainBarColor: 'white' } });
   dom.walkToSummary();
   const row = dom.find('[data-wiz-sum-forecast]');
-  assert.equal(row.textContent, 'Clean, 47 h', 'OpenWeatherMap\'s 48-hour feed');
+  assert.equal(row.textContent, 'Clean, 40 h', 'OpenWeatherMap\'s 48-hour feed at a whole 5 px');
   dom.type('tomorrowioApiKey', 'key');
   assert.equal(dom.find('[data-wiz-sum-weather]').textContent, 'Tomorrow.io');
   assert.equal(row.textContent, 'Clean, 66 h', 'Tomorrow.io\'s full feed');
