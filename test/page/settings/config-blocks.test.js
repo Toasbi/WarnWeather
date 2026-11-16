@@ -1315,8 +1315,9 @@ test('forecastPreview: rainBarColor=Solid in the light theme uses DarkGray, not 
   assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black fill in the light theme');
 });
 
-// chart.c draws the forecast rain bars (BAR_RINGED) and the radar bars (BAR_OUTLINED) alike with
-// a theme_fg() top+side silhouette in every theme except colour-dark. So the light COLOUR
+// chart.c draws the forecast rain bars (BAR_RINGED when multicolour, BAR_OUTLINED when Solid)
+// and the radar bars (BAR_OUTLINED) alike with a theme_fg() top+side silhouette in every theme
+// except colour-dark. So the light COLOUR
 // theme outlines its bars in black too — over the palette interior, not instead of it.
 const EDGE_MARK = /<path d="M[^"]+" fill="none" stroke="#000000" stroke-width="1"><\/path>/g;
 function countMatches(svg, re) { return (svg.match(re) || []).length; }

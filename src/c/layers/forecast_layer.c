@@ -863,9 +863,13 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .values = bars->bars.values, .count = ds->num_entries,
             .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
             .stops = scaled_bar_stops, .num_stops = bar_num_stops,
-            // The black ring in the dark theme too (chart.c): the bars share the plot
-            // with the area fill, the night hatch and the day line.
-            .style = BAR_RINGED } };
+            // The black ring in the dark theme too (chart.c), round multicolour bars only
+            // (the owner's, 2026-11-16): their tiers share the plot with the area fill, the
+            // night hatch and the day line. Solid is a one-stop palette (rain-tier.js
+            // buildPalette) and keeps the plain bar. Every other theme rings every bar, so
+            // the B&W builds need no test.
+            .style = PBL_IF_COLOR_ELSE(bar_num_stops > 1 ? BAR_RINGED : BAR_OUTLINED,
+                                       BAR_OUTLINED) } };
     }
     // Mark lines (second + third metric): bar-aligned marks whose styles are
     // user-selectable off the LINE_STYLES blob on capable platforms. The loop

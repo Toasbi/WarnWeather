@@ -145,7 +145,8 @@ typedef struct {
 typedef struct { int16_t from; GColor color; } ChartColorStop; // value-space threshold
 // OUTLINED: +1px theme_fg() silhouette, every theme but colour-dark. RINGED: OUTLINED, and
 // colour-dark keeps the 1px theme_bg() ring round the bar too, which every other theme draws
-// round every bar (chart.c chart_render_bars): the forecast's rain bars, over the area fill.
+// round every bar (chart.c chart_render_bars): the forecast's multicolour rain bars, over the
+// area fill (forecast_layer.c; Solid bars are OUTLINED).
 typedef enum   { BAR_OUTLINED, BAR_RINGED } ChartBarStyle;
 typedef struct {
     const int16_t        *values;
