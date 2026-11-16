@@ -323,7 +323,8 @@ test('the settings page has every drawing the watch is built with, its whole box
     const mask = manifest.icons[key].sizes[size].mask;
     if (size === 'A' && mask) { assert.deepEqual(p, { w: mask.w, rows: mask.rows }, key + ': the Classic\'s mask as it is'); return; }
     sizes++;
-    const box = Number(size.split('-')[1]);
+    // A Classic mask built from its pixels (no kept `mask`) is as tall as its drawing: its box.
+    const box = size === 'A' ? manifest.icons[key].sizes[size].pixels.length : Number(size.split('-')[1]);
     assert.ok(p && p.rows.length >= box && (p.rows.length - box) % 2 === 0, key + ' ' + size + ': its whole box');
     assert.ok(p.rows.some((r) => r & 1) && p.rows.every((r) => r < (1 << p.w)), key + ' ' + size + ': as wide as its ink');
   }));

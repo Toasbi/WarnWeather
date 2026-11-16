@@ -248,7 +248,7 @@ bool status_row_refresh(StatusRow *row) {
 // Weather-slot pictograms as bit-packed rows (bit x = column x). Monochrome,
 // allocation-free; drawn by run-length below. Authored as ASCII in the design
 // spec; keep these in sync with it.
-static const uint16_t MASK_TEMP[]   = {0x01c,0x022,0x02a,0x02a,0x02a,0x02a,0x02a,0x02a,0x02a,0x05d,0x05d,0x022,0x01c};
+static const uint16_t MASK_TEMP[]   = {0x01c,0x022,0x02a,0x02a,0x02a,0x02a,0x02a,0x02a,0x02a,0x05d,0x05d,0x022,0x01c,0x000,0x000};
 static const uint16_t MASK_WIND[]   = {0x080,0x100,0x500,0x8fe,0x800,0x7ff,0x000,0x1fe,0x200,0x200,0x100};
 static const uint16_t MASK_GUST[]   = {0x002,0x1fe,0x202,0x202,0x1fe,0x002,0x002,0x002,0x002,0x002,0x007};
 static const uint16_t MASK_UV[]     = {0x040,0x842,0x404,0x0e0,0x110,0x1913,0x110,0x0e0,0x404,0x842,0x040};
@@ -279,7 +279,7 @@ typedef struct { const uint16_t *rows; uint8_t n, w; } StatusMask;
 // Returns the pictogram for a weather icon id, or NULL when the slot has none
 // (Date/City text-only, DRAWN_SUN handled separately, health ids absent on aplite).
 static const StatusMask *status_mask_for(uint8_t icon_id) {
-    static const StatusMask temp   = { MASK_TEMP,   13,  7 };
+    static const StatusMask temp   = { MASK_TEMP,   15,  7 };
     static const StatusMask wind   = { MASK_WIND,   11, 12 };
     static const StatusMask gust   = { MASK_GUST,   11, 11 };
     static const StatusMask uv     = { MASK_UV,     11, 13 };

@@ -533,7 +533,14 @@
           "name": "PX_CLOUD_BASALT_13",
           "file": "data/PX_CLOUD_BASALT_13.pdc",
           "targetPlatforms": [
-            "basalt",
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_CLOUD_BASALT_13_BW",
+          "file": "data/PX_CLOUD_BASALT_13_BW.pdc",
+          "targetPlatforms": [
             "diorite",
             "flint"
           ]
@@ -699,7 +706,14 @@
           "name": "PX_RAIN_BASALT_11",
           "file": "data/PX_RAIN_BASALT_11.pdc",
           "targetPlatforms": [
-            "basalt",
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_RAIN_BASALT_11_BW",
+          "file": "data/PX_RAIN_BASALT_11_BW.pdc",
+          "targetPlatforms": [
             "diorite",
             "flint"
           ]
@@ -940,6 +954,50 @@
         },
         {
           "type": "raw",
+          "name": "PX_WINDY_BASALT_11",
+          "file": "data/PX_WINDY_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WINDY_BASALT_13",
+          "file": "data/PX_WINDY_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WINDY_EMERY_13",
+          "file": "data/PX_WINDY_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WINDY_EMERY_15",
+          "file": "data/PX_WINDY_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WINDY_EMERY_17",
+          "file": "data/PX_WINDY_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
           "name": "PX_TEMP_BASALT_11",
           "file": "data/PX_TEMP_BASALT_11.pdc",
           "targetPlatforms": [
@@ -1110,50 +1168,6 @@
           "type": "raw",
           "name": "PX_WIND_EMERY_17",
           "file": "data/PX_WIND_EMERY_17.pdc",
-          "targetPlatforms": [
-            "emery"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "PX_WINDY_BASALT_11",
-          "file": "data/PX_WINDY_BASALT_11.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "PX_WINDY_BASALT_13",
-          "file": "data/PX_WINDY_BASALT_13.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "PX_WINDY_EMERY_13",
-          "file": "data/PX_WINDY_EMERY_13.pdc",
-          "targetPlatforms": [
-            "emery"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "PX_WINDY_EMERY_15",
-          "file": "data/PX_WINDY_EMERY_15.pdc",
-          "targetPlatforms": [
-            "emery"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "PX_WINDY_EMERY_17",
-          "file": "data/PX_WINDY_EMERY_17.pdc",
           "targetPlatforms": [
             "emery"
           ]
