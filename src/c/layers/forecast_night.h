@@ -166,14 +166,18 @@ static int16_t graph_x_for_time(time_t timestamp, time_t graph_start, time_t gra
 }
 
 // emery: night time-segments as plot-x bands through graph_x_for_time (which clamps them to the
-// graph).
+// graph), each ending no further than `right`, the screen's right edge: the hours past it are cut,
+// so their columns would only be clipped (a band wholly past it comes out empty, x1 <= x0).
 static int build_night_bands(ChartBand *out, int max, const NightSegments *seg,
-                             int16_t graph_left, int pitch_q, time_t gstart, time_t gend) {
+                             int16_t graph_left, int16_t right, int pitch_q, time_t gstart,
+                             time_t gend) {
     if (!seg) return 0;
     int n = 0;
     for (int i = 0; i < seg->count && n < max; ++i) {
+        const int16_t x1 = graph_x_for_time(seg->segments[i].end, gstart, gend, graph_left,
+                                            pitch_q);
         out[n].x0 = graph_x_for_time(seg->segments[i].start, gstart, gend, graph_left, pitch_q);
-        out[n].x1 = graph_x_for_time(seg->segments[i].end,   gstart, gend, graph_left, pitch_q);
+        out[n].x1 = x1 < right ? x1 : right;
         ++n;
     }
     return n;

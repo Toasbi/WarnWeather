@@ -134,12 +134,12 @@
     function wholeHours(n, w) {
         // The smallest whole pitch that puts hour n - 1's point on or past column w - 1
         // (forecast_span_edge_px), held to PITCH_MIN..PITCH_MAX.
-        var px = Math.floor((w - 1 + n - 2) / (n - 1));
+        var px = Math.ceil((w - 1) / (n - 1));
         px = Math.min(Math.max(px, PITCH_MIN), PITCH_MAX);
         var pad = px >= PAD_FROM ? 1 : 0;
         var bar = px - 1 - 2 * pad;
         // slot_x_count over the columns a bar can start its pad on and still end on screen.
-        var shown = Math.floor((w - pad - bar + px - 1) / px);
+        var shown = Math.ceil((w - pad - bar) / px);
         return Math.min(shown, n);
     }
 

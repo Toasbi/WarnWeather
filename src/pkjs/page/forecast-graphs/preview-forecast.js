@@ -1356,9 +1356,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         if (state.barSource === 'rain') {
             // White (or theme-flipped) when the setting says so OR effectively-B&W. The watch
-            // draws every one of these bars BAR_OUTLINED: B&W as a theme_bg()-filled
+            // draws every one of these bars BAR_RINGED: B&W as a theme_bg()-filled
             // silhouette, colour-light as the palette/Solid interior with the theme_fg()
-            // silhouette over it (barEdge), colour-dark with no outline at all.
+            // silhouette over it (barEdge), colour-dark with no outline. This preview leaves out
+            // the 1 px theme_bg() ring the watch draws round each bar (black in colour-dark),
+            // in every theme.
             var rainWhite = state.rainBarColor === 'white' || !isColor;
             // Bars from: Top hangs them from the plot's top (PTL: under a top stripe band),
             // the way the watch anchors them under its content's top row.

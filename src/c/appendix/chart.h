@@ -46,10 +46,6 @@ typedef struct {
     int          anchor_x;  // outer.origin.x — THE column anchor
     GRect        content;   // rect inside the frame's borders
     SlotGeometry slots;     // num_slots, pitch, bar_dx, bar_w
-#if defined(PBL_PLATFORM_EMERY)
-    int          pitch_q;   // emery: the column pitch in 1/256 px (chart_def_pitch_q), which
-                            // chart_slot_tick_x maps through: slots.pitch, whole px
-#endif
 } ChartGeometry;
 
 // =====================================================================
@@ -87,25 +83,16 @@ static inline int chart_def_slot_x(const ChartDef *d, int i) {
 }
 #endif
 
-#if defined(PBL_PLATFORM_EMERY)
-// Every renderer takes a slot's x from these two, never i * slots.pitch.
-// emery: slot i's tick column through the one mapping (slot_x.h), the axis, the night shading
-// and the numbers On graph share. Every pitch is whole px (forecast_span.h), so every column,
-// every bar (bar_w) and every gap (pad + tick + pad) is one width.
-static inline int chart_slot_tick_x(const ChartGeometry *g, int i) {
-    return g->anchor_x + slot_x(g->pitch_q, i);
-}
-static inline int chart_slot_bar_x(const ChartGeometry *g, int i) {
-    return chart_slot_tick_x(g, i) + g->slots.bar_dx;
-}
-#else
+// Every renderer takes a slot's x from these two: slot i's tick column, and its bar bar_dx
+// (tick + pad) right of it. Every pitch is whole px (emery: forecast_span.h), so every column,
+// every bar (bar_w) and every gap (pad + tick + pad) is one width, and on emery these land
+// exactly where slot_x.h puts the axis, the night shading and the numbers On graph.
 static inline int chart_slot_tick_x(const ChartGeometry *g, int i) {
     return g->anchor_x + i * g->slots.pitch;
 }
 static inline int chart_slot_bar_x(const ChartGeometry *g, int i) {
     return g->anchor_x + i * g->slots.pitch + g->slots.bar_dx;
 }
-#endif
 
 // The vertical rule every value-mapped renderer shares (Bottom | Top, chart_flip.h).
 #include "c/appendix/chart_flip.h"
@@ -159,7 +146,7 @@ typedef struct { int16_t from; GColor color; } ChartColorStop; // value-space th
 // OUTLINED: +1px theme_fg() silhouette, every theme but colour-dark. RINGED: OUTLINED, and
 // colour-dark keeps the 1px theme_bg() ring round the bar too, which every other theme draws
 // round every bar (chart.c chart_render_bars): the forecast's rain bars, over the area fill.
-typedef enum   { BAR_SOLID, BAR_OUTLINED, BAR_RINGED } ChartBarStyle;
+typedef enum   { BAR_OUTLINED, BAR_RINGED } ChartBarStyle;
 typedef struct {
     const int16_t        *values;
     const ChartColorStop *stops;      // >=1, ascending, stops[0].from <= lo: a negative

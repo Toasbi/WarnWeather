@@ -50,9 +50,6 @@ static ChartGeometry chart_geometry(const ChartDef *def, GRect outer) {
                           outer.size.h - def->inset_top  - def->inset_bottom),
         .slots    = slot_geometry(def->num_slots, def->tick_w,
                                   def->bar_pad, def->bar_w),
-#if defined(PBL_PLATFORM_EMERY)
-        .pitch_q  = chart_def_pitch_q(def),   // emery: the mapping's pitch (slot_x.h)
-#endif
     };
 }
 
@@ -260,7 +257,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
                 0, GCornerNone);
         }
 
-        if (b->style != BAR_SOLID && !dark) {   // OUTLINED and RINGED alike
+        if (!dark) {   // the silhouette: OUTLINED and RINGED alike
             // theme_fg() silhouette around the bar interior — the shared bar look in
             // every theme (all three call sites: rain bars, radar bars, health step
             // bars). Draw only the free-end + side walls and leave the anchored end
@@ -717,25 +714,15 @@ void chart_stripe_fill_cell(GContext *ctx, GRect cell, GColor color, int level) 
 static void chart_render_stripe(const ChartRender *r, const ChartStripeLayer *s) {
     const int   count = chart_clamp_count(r, s->count);
     const GRect c     = r->geo.content;
-#if !defined(PBL_PLATFORM_EMERY)
     const int   pitch = r->geo.slots.pitch;
-#endif
     const int   y     = s->top ? c.origin.y + s->y_offset
                                : c.origin.y + c.size.h - s->height - s->y_offset;
     if (s->height <= 0 || y < c.origin.y) return;
 
     for (int i = 0; i < count; ++i) {
-#if defined(PBL_PLATFORM_EMERY)
-        // emery: tick to tick through the one mapping, so the cells tile the columns.
-        const int x = chart_slot_tick_x(&r->geo, i);
-        chart_stripe_fill_cell(r->ctx,
-            GRect(x, y, chart_slot_tick_x(&r->geo, i + 1) - x, s->height),
-            s->color, chart_stripe_level(s->values[i], s->lo, s->hi));
-#else
         chart_stripe_fill_cell(r->ctx,
             GRect(chart_slot_tick_x(&r->geo, i), y, pitch, s->height),
             s->color, chart_stripe_level(s->values[i], s->lo, s->hi));
-#endif
     }
 }
 #endif
