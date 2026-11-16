@@ -210,9 +210,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
     const int  plot_h      = r->geo.content.size.h;
     const int  zero        = CHART_ZERO(r);
     const int  dir         = CHART_DIR(r);
-#if !defined(PBL_PLATFORM_EMERY)
-    const int  w           = r->def->bar_w;
-#endif
+    const int  w           = r->def->bar_w;   // every bar: every pitch is whole px
     const int  count       = chart_clamp_count(r, b->count);
     if (plot_h <= 0 || b->num_stops < 1) return;
 
@@ -222,11 +220,6 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         int bar_h = chart_scale_h(v, b->lo, b->hi, plot_h);
         if (bar_h < 1) bar_h = 1;
         const int bar_x   = chart_slot_bar_x(&r->geo, i);
-#if defined(PBL_PLATFORM_EMERY)
-        // emery: the bar fills its column less the tick and the pads (chart.h
-        // chart_slot_bar_w), so a fractional pitch widens a bar, never a gap.
-        const int w       = chart_slot_bar_w(&r->geo, i);
-#endif
 
         // Bar-separation halo: a 1px ring outside the bar's left/right/free-end edges,
         // painted before the segment fills so the colored segments keep their full
@@ -282,10 +275,8 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
             // emery: a bar under 3 px (the long forecast's 2 px) has no interior between
             // its walls; colour themes keep the cap only so the tier colours show, a bw
             // theme keeps the walls (they ARE the bar). Health (6 px), radar (5 px) and the
-            // 12 / 24 h forecast bars are 5 px or wider and unaffected. Judged by the grid's
-            // bar width, not this bar's: a bar its widened column made a px wider keeps
-            // its neighbours' look.
-            if (r->def->bar_w >= 3 || theme_is_bw())
+            // 12 / 24 h forecast bars are 5 px or wider and unaffected.
+            if (w >= 3 || theme_is_bw())
 #endif
             {
                 graphics_draw_line(r->ctx, GPoint(x0, y_free), GPoint(x0, y_base));  // left wall
@@ -418,14 +409,6 @@ static void chart_draw_bar_marks(const ChartRender *r, const ChartLineLayer *l) 
         if (top < plot_top)    { bot += plot_top - top; top = plot_top; }       // slide down off the top
         if (bot > plot_bottom) { top -= bot - plot_bottom; bot = plot_bottom; } // slide up off the x-axis
         if (bot > top) {
-#if defined(PBL_PLATFORM_EMERY)
-            // emery: a dot is as wide as its column's bar (chart.h chart_slot_bar_w), a px
-            // wider where the fractional pitch widens the column, so a row of dots keeps
-            // one gap as the bars do. An x stays its odd, symmetric box.
-            const int dw = w + chart_slot_bar_w(&r->geo, i) - r->geo.slots.bar_w;
-#else
-            const int dw = w;
-#endif
             if (theme_is_bw()) {
                 // B&W: an fg-colored dot vanishes over an fg-territory surface behind it
                 // (the checkerboard area fill from chart_render_area, or an fg bar
@@ -435,10 +418,10 @@ static void chart_draw_bar_marks(const ChartRender *r, const ChartLineLayer *l) 
                 // empty background) is a no-op, so this reads as "black behind the dot
                 // on the area fill, unchanged over the bars" for free.
                 graphics_context_set_fill_color(r->ctx, theme_bg());
-                graphics_fill_rect(r->ctx, GRect(x - 1, top - 1, dw + 2, bot - top + 2), 0, GCornerNone);
+                graphics_fill_rect(r->ctx, GRect(x - 1, top - 1, w + 2, bot - top + 2), 0, GCornerNone);
                 graphics_context_set_fill_color(r->ctx, l->color);
             }
-            graphics_fill_rect(r->ctx, GRect(x, top, dw, bot - top), 0, GCornerNone);
+            graphics_fill_rect(r->ctx, GRect(x, top, w, bot - top), 0, GCornerNone);
         }
     }
 }
@@ -738,7 +721,7 @@ static void chart_render_stripe(const ChartRender *r, const ChartStripeLayer *s)
 
     for (int i = 0; i < count; ++i) {
 #if defined(PBL_PLATFORM_EMERY)
-        // emery: tick to tick through the one mapping, so the cells tile at a fractional pitch.
+        // emery: tick to tick through the one mapping, so the cells tile the columns.
         const int x = chart_slot_tick_x(&r->geo, i);
         chart_stripe_fill_cell(r->ctx,
             GRect(x, y, chart_slot_tick_x(&r->geo, i + 1) - x, s->height),

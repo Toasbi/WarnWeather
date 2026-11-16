@@ -258,8 +258,8 @@ lies on the plot of width W, through the one slot→x mapping
 (`src/c/appendix/slot_x.h`, in 1/256 px: min(n, ceil(W · 256 / pitch_q))). W
 runs from the plot's left edge to the screen's right edge, so the label strip
 (or its absence, with no left axis) sets it. Every grid runs the data to the right
-edge or past it, so there is no blank tail; the long grid's fractional pitch puts
-the last hour's point on the plot's last column. How many hours show for each class,
+edge or past it, so there is no blank tail; every pitch is whole px, so every bar
+and every gap is one width, and the hours past the edge are cut. How many hours show for each class,
 feed and layout is set by the rule in `src/c/appendix/forecast_span.h` (see
 `docs/adr/0004-forecast-span-is-the-data.md`). The settings page labels the long
 option with the whole hours (`forecast_span_whole`, mirrored by

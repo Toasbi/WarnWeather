@@ -2,7 +2,7 @@
 #include <pebble.h>
 #include "c/appendix/slot_geometry.h"
 #if defined(PBL_PLATFORM_EMERY)
-// emery: the one slot/time -> x mapping (a fractional pitch: the forecast's long span).
+// emery: the one slot/time -> x mapping (slot_x.h).
 #include "c/appendix/slot_x.h"
 #endif
 
@@ -48,7 +48,7 @@ typedef struct {
     SlotGeometry slots;     // num_slots, pitch, bar_dx, bar_w
 #if defined(PBL_PLATFORM_EMERY)
     int          pitch_q;   // emery: the column pitch in 1/256 px (chart_def_pitch_q), which
-                            // chart_slot_tick_x maps through; slots.pitch is its whole px
+                            // chart_slot_tick_x maps through: slots.pitch, whole px
 #endif
 } ChartGeometry;
 
@@ -68,11 +68,6 @@ typedef struct {
     // derived from the content rect, so these are grid geometry, not
     // frame styling.
     int inset_left, inset_right, inset_top, inset_bottom;
-#if defined(PBL_PLATFORM_EMERY)
-    int pitch_frac;    // emery: the pitch's fraction past chart_def_pitch(), in 1/256 px
-                       // (slot_x.h): the long forecast span's (forecast_grid_def_for), 0 in
-                       // every other grid, whose columns are then whole px wide
-#endif
 } ChartDef;
 
 // Pitch math lives here exactly once; callers size their outer rect from
@@ -82,9 +77,9 @@ static inline int chart_def_pitch(const ChartDef *d) {
 }
 
 #if defined(PBL_PLATFORM_EMERY)
-// emery: the def's pitch in 1/256 px: chart_def_pitch() px and pitch_frac.
+// emery: the def's pitch in 1/256 px, the unit slot_x.h maps in: chart_def_pitch() px.
 static inline int chart_def_pitch_q(const ChartDef *d) {
-    return SLOT_X_PITCH_Q(chart_def_pitch(d)) + d->pitch_frac;
+    return SLOT_X_PITCH_Q(chart_def_pitch(d));
 }
 // emery: slot i's tick column, px right of the def's anchor (slot_x.h, the one mapping).
 static inline int chart_def_slot_x(const ChartDef *d, int i) {
@@ -93,21 +88,15 @@ static inline int chart_def_slot_x(const ChartDef *d, int i) {
 #endif
 
 #if defined(PBL_PLATFORM_EMERY)
-// Every renderer takes a slot's x from these two, never i * slots.pitch: on emery the pitch
-// can be fractional (the long forecast span), and slots.pitch is then only its whole px.
-// emery: slot i's tick column through the one mapping (slot_x.h). Its bar sits bar_dx (tick +
-// pad) right of it, chart_slot_bar_w wide: at a fractional pitch a widened column's spare px
-// goes to its bar, so the gap from one bar to the next is always pad + tick + pad.
+// Every renderer takes a slot's x from these two, never i * slots.pitch.
+// emery: slot i's tick column through the one mapping (slot_x.h), the axis, the night shading
+// and the numbers On graph share. Every pitch is whole px (forecast_span.h), so every column,
+// every bar (bar_w) and every gap (pad + tick + pad) is one width.
 static inline int chart_slot_tick_x(const ChartGeometry *g, int i) {
     return g->anchor_x + slot_x(g->pitch_q, i);
 }
 static inline int chart_slot_bar_x(const ChartGeometry *g, int i) {
     return chart_slot_tick_x(g, i) + g->slots.bar_dx;
-}
-// emery: slot i's bar width (slot_x.h slot_bar_w): slots.bar_w, or one more in a column the
-// fractional pitch widens.
-static inline int chart_slot_bar_w(const ChartGeometry *g, int i) {
-    return slot_bar_w(g->pitch_q, i, g->slots.pitch, g->slots.bar_w);
 }
 #else
 static inline int chart_slot_tick_x(const ChartGeometry *g, int i) {

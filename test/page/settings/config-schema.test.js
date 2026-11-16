@@ -1502,8 +1502,8 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
   const emery = platform.computeEnv({ platform: 'emery' });
   const labels = (over) => resolve(Object.assign({}, settings.getDefaults(), over), emery, {});
   assert.deepEqual(labels({}).map((o) => o[1]), forecastSpan.CHOICES, 'the stored values are CHOICES');
-  assert.deepEqual(labels({}), [['12 h', '12'], ['24 h', '24'], ['48 h', '48']],
-    'a fresh install: Weather Underground\'s 48 hours');
+  assert.deepEqual(labels({}), [['12 h', '12'], ['24 h', '24'], ['40 h', '48']],
+    'a fresh install: Weather Underground\'s 49 hours at a whole 5 px, the rest cut');
   // A new install's graph draws the high and low on the graph: no left axis.
   assert.deepEqual(labels({ provider: 'openmeteo' }).map((o) => o[0]), ['12 h', '24 h', '66 h']);
   assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'off' }).map((o) => o[0]),
@@ -1511,7 +1511,7 @@ test('forecastHours: the Forecast length row closes the Other card, emery only',
   assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'axis' }).map((o) => o[0]),
     ['12 h', '24 h', '58 h']);
   assert.deepEqual(labels({ provider: 'openweathermap', forecastAxisNumbers: 'axis' }).map((o) => o[0]),
-    ['12 h', '24 h', '47 h']);
+    ['12 h', '24 h', '44 h']);
   // A Health screen (Status + Graph) puts the health graph in the cycle, and its step marks
   // never widen the forecast's strip: GOTHIC_18's two-digit hi/lo label leaves 60 either way.
   assert.deepEqual(labels({ provider: 'openmeteo', forecastAxisNumbers: 'axis', largeGraphFont: false,

@@ -7,17 +7,19 @@
 // axisCadence), here because the settings page cannot load forecast-span.js.
 //
 // THE LABEL: the whole hours the watch will show for the picked weather provider and the
-// graph's layout. "47 h" with OpenWeatherMap, "48 h" with Weather Underground, "58 h" with
-// a full feed at the default layout, "66 h" with the Left axis values On graph or Off. Only
-// the label moves: the option's stored value stays '48' (CHOICES), so the wire, the fetch,
-// telemetry and storage are unchanged.
+// graph's layout. "58 h" with a full feed at the default layout, "66 h" with the Left axis
+// values On graph or Off; "44 h" with OpenWeatherMap's or Weather Underground's short feed at
+// the default layout, "40 h" On graph or Off. Only the label moves: the option's stored value
+// stays '48' (CHOICES), so the wire, the fetch, telemetry and storage are unchanged.
 //
 // THE COUNT is the watch's (src/c/appendix/forecast_span.h forecast_span_whole): the hours
-// whose bar is wholly on screen. Under the edge rule a feed the plot can hold is widened until
-// its last hour's point sits on the last column, so it shows n - 1 whole hours; a full feed
-// stays at the 3 px floor and runs past the edge. wholeHours() is that rule for the long class
-// (27..68 hours); scripts/test-c.sh holds it to the watch's count for every n 27..68 on every
-// plot width 145..200 (test/c/forecast_span_dump.c, scripts/check-forecast-span-lockstep.js).
+// whose bar is wholly on screen. The watch draws every bar and every gap one width (the
+// owner's, 2026-11-16), so the pitch is whole px: the smallest that puts the last hour's point
+// on or past the plot's last column, held to 3..8 px, and the hours past the edge are cut. A
+// full feed stays at the 3 px floor and runs past the edge. wholeHours() is that rule for the
+// long class (27..68 hours); scripts/test-c.sh holds it to the watch's count for every n
+// 27..68 on every plot width 145..200 (test/c/forecast_span_dump.c,
+// scripts/check-forecast-span-lockstep.js).
 //
 // THE FEED (feedHours): the hours the provider's adapter delivers for the long span's request.
 // OpenWeatherMap's One Call hourly list holds 48 hours (openweathermap.js); Weather
@@ -38,8 +40,8 @@
 // forecast claims no strip and spans the whole 200 px screen on every view (forecast_layer.c
 // forecast_update_proc).
 // What only the watch knows moves W a little: a one-digit, negative or three-digit temperature
-// moves the count by an hour or so, never the short feeds' 47 / 48
-// (docs/adr/0004-forecast-span-is-the-data.md, "The long option names the hours it shows").
+// moves the count by an hour or so (docs/adr/0004-forecast-span-is-the-data.md, "The long
+// option names the hours it shows").
 //
 // Dual-context: a CommonJS module on the phone and in the tests, a plain concatenated
 // <script> in the settings-page webview (scripts/build-config-page.js' APP_FILES, after
@@ -73,9 +75,8 @@
     // FORECAST_LABEL_ADVANCE(true)).
     var DIGIT_W = { large: 9, small: 7 };
     var LABEL_DIGITS = 2;
-    // forecast_span.h's long class: the pitch in 1/256 px (slot_x.h SLOT_X_ONE), held to
-    // FORECAST_SPAN_LONG_PITCH_MIN..MAX whole px, 1 px pads from FORECAST_SPAN_LONG_PAD_FROM.
-    var SLOT_ONE = 256;
+    // forecast_span.h's long class: a whole px pitch held to FORECAST_SPAN_LONG_PITCH_MIN..MAX,
+    // 1 px pads from FORECAST_SPAN_LONG_PAD_FROM.
     var PITCH_MIN = 3;
     var PITCH_MAX = 8;
     var PAD_FROM = 6;
@@ -131,14 +132,14 @@
      * @returns {number} Whole hours on screen.
      */
     function wholeHours(n, w) {
-        // The edge rule: the smallest pitch that puts hour n - 1's point on column w - 1.
-        var pq = Math.floor(((w - 1) * SLOT_ONE + n - 2) / (n - 1));
-        pq = Math.min(Math.max(pq, PITCH_MIN * SLOT_ONE), PITCH_MAX * SLOT_ONE);
-        var px = Math.floor(pq / SLOT_ONE);
+        // The smallest whole pitch that puts hour n - 1's point on or past column w - 1
+        // (forecast_span_edge_px), held to PITCH_MIN..PITCH_MAX.
+        var px = Math.floor((w - 1 + n - 2) / (n - 1));
+        px = Math.min(Math.max(px, PITCH_MIN), PITCH_MAX);
         var pad = px >= PAD_FROM ? 1 : 0;
         var bar = px - 1 - 2 * pad;
         // slot_x_count over the columns a bar can start its pad on and still end on screen.
-        var shown = Math.floor(((w - pad - bar) * SLOT_ONE + pq - 1) / pq);
+        var shown = Math.floor((w - pad - bar + px - 1) / px);
         return Math.min(shown, n);
     }
 
@@ -221,7 +222,7 @@
 
     /**
      * The stored length as the Forecast length row names it (spanOptions): "12 h", "24 h", or the
-     * long span by the hours it shows ("66 h", "47 h" with OpenWeatherMap).
+     * long span by the hours it shows ("66 h", "40 h" with OpenWeatherMap on the same plot).
      * @param {?Object} settings Clay settings.
      * @returns {string}
      */
@@ -242,7 +243,6 @@
         STRIP_GAP: STRIP_GAP,
         LABEL_PAD: LABEL_PAD,
         DIGIT_W: DIGIT_W,
-        SLOT_ONE: SLOT_ONE,
         PITCH_MIN: PITCH_MIN,
         PITCH_MAX: PITCH_MAX,
         PAD_FROM: PAD_FROM,
