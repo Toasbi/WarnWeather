@@ -55,6 +55,10 @@ Watch for `Release-As:` pinning a feature to a patch version. The check reads th
 not the commits, so it does not ask for a toast on that release, which needs one most. Add
 the entry by hand then.
 
+A `Release-As: x.y.z` trailer pins the next version. Its commit has to change a file outside
+`plugins/`: release-please skipped an empty one (`git commit --allow-empty`, 3.2.4's first
+try) and kept proposing the feature bump.
+
 Preview the copy locally with `forceShowReleaseNotificationOnBoot` in `src/pkjs/dev-config.js`
 ([DEV.md](DEV.md#debug-flags-srcpkjsdev-configjs)).
 
