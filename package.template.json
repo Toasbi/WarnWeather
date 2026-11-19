@@ -401,7 +401,14 @@
           "name": "PX_MOON_BASALT_13",
           "file": "data/PX_MOON_BASALT_13.pdc",
           "targetPlatforms": [
-            "basalt",
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_BASALT_13_BW",
+          "file": "data/PX_MOON_BASALT_13_BW.pdc",
+          "targetPlatforms": [
             "diorite",
             "flint"
           ]
@@ -435,7 +442,14 @@
           "name": "PX_SUN_CLOUD_BASALT_11",
           "file": "data/PX_SUN_CLOUD_BASALT_11.pdc",
           "targetPlatforms": [
-            "basalt",
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SUN_CLOUD_BASALT_11_BW",
+          "file": "data/PX_SUN_CLOUD_BASALT_11_BW.pdc",
+          "targetPlatforms": [
             "diorite",
             "flint"
           ]
@@ -445,7 +459,14 @@
           "name": "PX_SUN_CLOUD_BASALT_13",
           "file": "data/PX_SUN_CLOUD_BASALT_13.pdc",
           "targetPlatforms": [
-            "basalt",
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SUN_CLOUD_BASALT_13_BW",
+          "file": "data/PX_SUN_CLOUD_BASALT_13_BW.pdc",
+          "targetPlatforms": [
             "diorite",
             "flint"
           ]
@@ -662,7 +683,14 @@
           "name": "PX_DRIZZLE_BASALT_11",
           "file": "data/PX_DRIZZLE_BASALT_11.pdc",
           "targetPlatforms": [
-            "basalt",
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DRIZZLE_BASALT_11_BW",
+          "file": "data/PX_DRIZZLE_BASALT_11_BW.pdc",
+          "targetPlatforms": [
             "diorite",
             "flint"
           ]
@@ -672,7 +700,14 @@
           "name": "PX_DRIZZLE_BASALT_13",
           "file": "data/PX_DRIZZLE_BASALT_13.pdc",
           "targetPlatforms": [
-            "basalt",
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DRIZZLE_BASALT_13_BW",
+          "file": "data/PX_DRIZZLE_BASALT_13_BW.pdc",
+          "targetPlatforms": [
             "diorite",
             "flint"
           ]
@@ -1011,7 +1046,14 @@
           "name": "PX_TEMP_BASALT_13",
           "file": "data/PX_TEMP_BASALT_13.pdc",
           "targetPlatforms": [
-            "basalt",
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_TEMP_BASALT_13_BW",
+          "file": "data/PX_TEMP_BASALT_13_BW.pdc",
+          "targetPlatforms": [
             "diorite",
             "flint"
           ]
