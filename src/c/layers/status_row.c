@@ -873,14 +873,15 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     // as the resolver's look says: filled at danger, and at warn the kind's warn look
     // (none: the bold text IS the highlight, no box). Every box goes down before any
     // slot's content; the paint hands back the ink that slot's content then draws
-    // in, so ink and fill cannot disagree. Paint-only — no allocations.
-    GColor inks[STATUS_SLOT_COUNT];
+    // in, and the paper under it, so ink and fill cannot disagree. Paint-only — no
+    // allocations.
+    StatusPaint paints[STATUS_SLOT_COUNT];
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        inks[i] = theme_fg();
+        paints[i] = (StatusPaint){ theme_fg(), theme_bg() };
         if (!places[i].visible || slots[i].look.box == THRESH_BOX_NONE) { continue; }
         GRect box = slot_highlight_box(row, &places[i], &measures[i], x0, glyph_cy,
                                        content_h, slots[i].text);
-        inks[i] = status_highlight_paint(ctx, box, slots[i].look);
+        paints[i] = status_highlight_paint(ctx, box, slots[i].look);
     }
 
     // The On demand items, over the slot boxes and under the slot content. A slot the
@@ -891,7 +892,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         if (!places[i].visible) { continue; }
         // Filled slots (danger, or a warn look of fill) draw legible over the fill;
         // outlined and plain slots keep the theme foreground.
-        const GColor ink = inks[i];
+        const GColor ink = paints[i].ink;
         graphics_context_set_text_color(ctx, ink);
         int16_t icon_x = (int16_t)(x0 + places[i].icon_x);
         if (slots[i].slot.kind == SLOT_LIVE_BATTERY) {
@@ -904,7 +905,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         } else if (row->glyphs[i]) {
             // Its box centred on the cap centre: the drawing carries its seat
             // (status_icon_size.h status_icon_top_y).
-            status_highlight_draw_glyph(ctx, row->glyphs[i], icon_x, glyph_cy, ink);
+            status_highlight_draw_glyph(ctx, row->glyphs[i], icon_x, glyph_cy, paints[i]);
         } else if (slots[i].slot.icon == STATUS_ICON_DRAWN_SUN
                    && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;

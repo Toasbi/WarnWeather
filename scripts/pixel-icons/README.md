@@ -52,6 +52,26 @@ Smoothing needs grey pixels, which only the colour watches have: on the black an
 its own (`PX_<ICON>_<size>_BW`). A size in the old version keeps the pixels redrawn for it under
 that version (`pixels`), which the pixel version would draw.
 
+## Faded pixels
+
+A size may carry faded pixels (`faded` in its entry): single pixels the colour watches draw a
+third or two thirds of the way from what is behind the icon to its ink, beside the ink or on it.
+They soften an outline's steps and its small dots as smoothing softens a slanted line. The icon
+creator's Fade and touch-ups set them, and its export brings them
+([ADR 0007](../../docs/adr/0007-status-icons-draw-faded-pixels.md)).
+
+`faded` is rows over the ink the colour watches draw (an Old or Drawing size's kept lines, else
+its pixels) and a pixel round it: `1` a third, `2` two thirds, `.` none. The first row and column
+are the pixels above and left of the ink. The build refuses rows of another size, and faded
+pixels on a mask.
+
+`gen_watch_icons.js` writes them after the drawing's own lines, each shade's pixels as 1 px paths
+joined where they touch, and marks each path by its fill: a colour with no alpha, which draws
+nothing, `0x01` for a third and `0x02` for two thirds. The watch strokes them in their shade
+whenever it paints the drawing (`src/c/layers/faded_pixel.h`): on the bar, in a filled highlight
+box, and in the Bluetooth icon's blue or red. The black and white watches hide them; a Drawing
+size's `_BW` file has none.
+
 ## The Pebble Classic and Steel masks
 
 Pebble Classic and Steel draw seven icons (thermometer, wind, gusts, UV, air quality, pollen,
@@ -73,12 +93,12 @@ its pixels; take out `mask` to build it from its pixels.
 
 | File | What |
 |---|---|
-| `resources/data/PX_<ICON>_<FAMILY>_<box>.pdc` | Each drawing in its version (Versions, above), its view box as tall as its box and as wide as its ink. The pixel version is 1 px lines through pixel centres: level, upright and 45-degree runs, and single dots, which the watch draws exactly, with smoothing on or off. Runs that touch are joined into one path, which keeps a drawing small on the watch's heap: about 170 bytes, against 140 for today's icons |
+| `resources/data/PX_<ICON>_<FAMILY>_<box>.pdc` | Each drawing in its version (Versions, above), its view box as tall as its box and as wide as its ink. The pixel version is 1 px lines through pixel centres: level, upright and 45-degree runs, and single dots, which the watch draws exactly, with smoothing on or off. Runs that touch are joined into one path, which keeps a drawing small on the watch's heap: about 170 bytes, against 140 for today's icons. Its faded pixels follow its own lines (Faded pixels, above) |
 | `resources/data/PX_<ICON>_<FAMILY>_<box>_BW.pdc` | A Drawing size's pixels, for the black and white watches |
 | `package.template.json` | One resource per drawing, only on its family's watches |
 | `src/c/layers/status_pixel_icons.generated.h` | Which drawing each icon uses at each box, one table per watch family: the Pebble Time 2, the colour 144 px watch and the black and white ones |
 | `src/c/layers/status_row_aplite.c` | The Pebble Classic and Steel bit mask, for the seven icons that have one |
-| `src/pkjs/settings/status-pixels.generated.js` | Every drawing's pixels, its seat rows kept, and the Classic's masks: the settings page's pictures of the watch draw the status icons with them (`src/pkjs/page/weather/pixel-icon.js`), at each bar's box and seat |
+| `src/pkjs/settings/status-pixels.generated.js` | Every drawing's pixels, its seat rows kept, and the Classic's masks: the settings page's pictures of the watch draw the status icons with them (`src/pkjs/page/weather/pixel-icon.js`), at each bar's box and seat, without their faded pixels |
 
 The settings page's labels do not draw these: its icons there are outlines of its own
 (`src/pkjs/page/weather/condition-icons.js`, `src/pkjs/page/status-bars/status-slot-icons.js`).
@@ -88,7 +108,7 @@ The watch draws each drawing 1:1 wherever a bar asks for the box it was drawn fo
 cap centre (`status_icon_top_y`). Nothing is scaled, and nothing is known about one icon or
 another: a drawing's size and seat are its own. A box without a drawing takes the icon's next
 smaller drawing, and an icon id without any (the text-only ids) draws no icon. Icons draw in the
-theme's foreground colour.
+theme's foreground colour, their faded pixels shaded towards what is behind them.
 
 The rain alert draws the Drizzle, Rain or Heavy rain drawing from the same table, in the
 foreground like every other icon (`status_icon_size.h` `status_rain_glyph`: the condition icons'

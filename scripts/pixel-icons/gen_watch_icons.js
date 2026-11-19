@@ -17,6 +17,8 @@
  *                                        (old), or a drawing in lines (drawing), by their kept
  *                                        lines; its view box as tall as the drawing's box, as wide
  *                                        as its ink;
+ *                                        and after its own lines its faded pixels (FADED), which the
+ *                                        colour watches shade between the ink and what is behind it;
  *   resources/data/PX_<KEY>_<FAMILY>_<box>_BW.pdc   for a line drawing, its pixels again, for
  *                                        the black and white watches (Pebble 2, Pebble 2 Duo): they
  *                                        have no grey pixels to smooth with, and the pixels are the
@@ -54,6 +56,15 @@ const MASK_BOX_ROWS = 17;
 // lines (drawing). The last two keep their lines in the file, under their name.
 const VERSIONS = ['pixel', 'old', 'drawing'];
 const PU = 8;
+// A faded pixel, by its thirds of the ink: a 1 px line or dot after the drawing's own, so it goes
+// over them, whose fill marks it: a colour with no alpha, which draws nothing, its thirds in the
+// low two bits (src/c/layers/faded_pixel.h). Its stroke is the shade the dark theme draws it in,
+// as the drawing's own are its white ink; the watch paints both for its theme and for what is
+// behind the icon, and hides a faded pixel on the black and white watches.
+const FADED = {
+    1: { fill: 0x01, stroke: 0xD5 },   // GColorDarkGray
+    2: { fill: 0x02, stroke: 0xEA },   // GColorLightGray
+};
 
 // The icon catalogue: the watch's icon ids each drawing serves
 // (status_line.h, status_row_icons.h), by the icon's key.
@@ -186,21 +197,49 @@ function keptInBox(where, version, s) {
 }
 
 /**
+ * A size's faded pixels in its drawing's view box. The file keeps them as rows over the ink the
+ * colour watches draw, its kept lines' or else its pixels', and a pixel round it, where the
+ * creator works them out: '1' a third of the ink, '2' two thirds, '.' none.
+ * @param {string} where The icon and size, for the error.
+ * @param {*} faded The size's `faded` rows; none when undefined.
+ * @param {!Array<!Array<number>>} ink The colour watches' ink in the view box: the pixels, or the
+ *     kept lines' points, [x, y] each.
+ * @returns {!Array<!Array<number>>} [x, y, thirds] each, in the view box.
+ */
+function fadedInBox(where, faded, ink) {
+    if (faded === undefined) return [];
+    const xs = ink.map(p => p[0]), ys = ink.map(p => p[1]);
+    const x0 = Math.min(...xs), y0 = Math.min(...ys);
+    const w = Math.max(...xs) - x0 + 1, h = Math.max(...ys) - y0 + 1;
+    if (!Array.isArray(faded) || faded.length !== h + 2
+        || !faded.every(r => typeof r === 'string' && r.length === w + 2 && /^[.12]*$/.test(r))
+        || !faded.some(r => /[12]/.test(r))) {
+        throw new Error(where + ': faded is ' + (h + 2) + ' rows of ' + (w + 2) + ' of ".", "1" and "2", over its ink and a pixel round it, with a faded pixel');
+    }
+    const out = [];
+    faded.forEach((r, y) => [...r].forEach((c, x) => { if (c !== '.') out.push([x0 + x - 1, y0 + y - 1, Number(c)]); }));
+    return out;
+}
+
+/**
  * A PDC image of 1 px open precise paths, its points in pixels (on the 1/8 px grid), pixel (x, y)'s
- * centre at (x + 1/2, y + 1/2).
+ * centre at (x + 1/2, y + 1/2): the drawing's lines, then its faded pixels (FADED), each shade's
+ * as runs joined end to end like the lines.
  * @param {!Array<!Array<!Array<number>>>} lines The paths' points, [x, y] each (paths()).
  * @param {number} w The image's width in pixels, its view box.
  * @param {number} h Its height.
+ * @param {!Array<!Array<number>>=} faded Its faded pixels, [x, y, thirds] each, in the view box
+ *     (fadedInBox).
  * @returns {!Buffer} The .pdc file.
  */
-function pdc(lines, w, h) {
-    const cmds = lines.map((pts) => {
+function pdc(lines, w, h, faded = []) {
+    const command = (pts, stroke, fill) => {
         const b = Buffer.alloc(9 + 4 * pts.length);
         b.writeUInt8(3, 0);        // precise path
         b.writeUInt8(0, 1);        // not hidden
-        b.writeUInt8(0xFF, 2);     // stroke colour, recoloured on load
+        b.writeUInt8(stroke, 2);   // stroke colour, painted on load
         b.writeUInt8(1, 3);        // stroke width
-        b.writeUInt8(0x00, 4);     // fill clear
+        b.writeUInt8(fill, 4);     // fill: none, or a faded pixel's mark
         b.writeUInt16LE(1, 5);     // open
         b.writeUInt16LE(pts.length, 7);
         pts.forEach(([x, y], k) => {
@@ -208,7 +247,12 @@ function pdc(lines, w, h) {
             b.writeInt16LE(Math.round(y * PU + PU / 2), 11 + 4 * k);
         });
         return b;
-    });
+    };
+    const cmds = lines.map((pts) => command(pts, 0xFF, 0x00));
+    for (const thirds of Object.keys(FADED).map(Number)) {
+        const px = faded.filter(p => p[2] === thirds).map(([x, y]) => [x, y]);
+        if (px.length) paths(runs(px)).forEach((pts) => cmds.push(command(pts, FADED[thirds].stroke, FADED[thirds].fill)));
+    }
     const head = Buffer.alloc(8);
     head.writeUInt8(1, 0);         // version
     head.writeUInt8(0, 1);
@@ -236,6 +280,7 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
         const sizes = doc.icons[key].sizes;
         for (const id of Object.keys(sizes).sort()) {
             const s = sizes[id];
+            if (id === 'A' && s.faded !== undefined) throw new Error(key + ': the Pebble Classic/Steel mask has no faded pixels');
             // A Pebble Classic/Steel mask kept as 3.1.1 drew it ('mask': its rows and width, blank
             // columns included), so the text beside it sits where it did.
             if (id === 'A' && s.mask) {
@@ -271,22 +316,26 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
             const version = s.version || 'pixel';
             if (!VERSIONS.includes(version)) throw new Error(key + ' ' + id + ': unknown version ' + version);
             const name = 'PX_' + key + '_' + plat.toUpperCase() + '_' + rows;
-            const pixel = pdc(paths(runs(px)), w, h);
-            // [resource name, its file's content, its watches, its header families]
+            const where = key + ' ' + id;
+            const own = paths(runs(px));
+            const pixel = pdc(own, w, h);
+            // [resource name, its file's content, its watches, its header families]. The colour
+            // watches' drawing takes the faded pixels; on the black and white ones the watch hides
+            // them, and a line drawing's pixels there have none.
             const drawn = [];
             if (version === 'pixel') {
-                drawn.push([name, pixel, [].concat(...plats.map(p => TARGETS[p] || [])),
-                    [].concat(...plats.map(p => FAMILIES[p] || []))]);
+                drawn.push([name, pdc(own, w, h, fadedInBox(where, s.faded, px)),
+                    [].concat(...plats.map(p => TARGETS[p] || [])), [].concat(...plats.map(p => FAMILIES[p] || []))]);
             } else if (version === 'old') {
                 // The old icon goes to the black and white watches too: they drew it before the
                 // pixel drawings, unsmoothed, exactly as these lines draw there.
-                const v = keptInBox(key + ' ' + id, version, s);
-                drawn.push([name, pdc(v.lines, v.w, v.h), [].concat(...plats.map(p => TARGETS[p] || [])),
-                    [].concat(...plats.map(p => FAMILIES[p] || []))]);
+                const v = keptInBox(where, version, s);
+                drawn.push([name, pdc(v.lines, v.w, v.h, fadedInBox(where, s.faded, v.lines.flat())),
+                    [].concat(...plats.map(p => TARGETS[p] || [])), [].concat(...plats.map(p => FAMILIES[p] || []))]);
             } else {
-                const v = keptInBox(key + ' ' + id, version, s);
-                drawn.push([name, pdc(v.lines, v.w, v.h), [].concat(...plats.map(p => COLOUR_TARGETS[p] || [])),
-                    plats.filter(p => FAMILIES[p])]);
+                const v = keptInBox(where, version, s);
+                drawn.push([name, pdc(v.lines, v.w, v.h, fadedInBox(where, s.faded, v.lines.flat())),
+                    [].concat(...plats.map(p => COLOUR_TARGETS[p] || [])), plats.filter(p => FAMILIES[p])]);
                 if (plats.includes('basalt')) {
                     drawn.push([name + '_BW', pixel, TARGETS.basalt.filter(t => !COLOUR_TARGETS.basalt.includes(t)), ['bw']]);
                 }
@@ -471,5 +520,5 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { outputs, header, apliteSource, pagePixels, runs, paths, pdc, keptLines, inkPixels, boxPixels, VERSIONS, ICON_IDS, TARGETS,
+module.exports = { outputs, header, apliteSource, pagePixels, runs, paths, pdc, keptLines, inkPixels, boxPixels, VERSIONS, FADED, ICON_IDS, TARGETS,
     SIZE_KEY, PACKAGE, HEADER, APLITE_C, PAGE_PIXELS, DATA_DIR };

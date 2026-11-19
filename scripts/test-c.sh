@@ -137,6 +137,10 @@ build/host/on_demand_short_test
 cc $CFLAGS $OD_FIXTURE_GAP -DWW_ON_DEMAND -DOD_TEST_PROBES test/c/on_demand_replace_test.c src/c/appendix/on_demand.c \
    src/c/appendix/status_row_layout.c -o build/host/on_demand_replace_test
 build/host/on_demand_replace_test
+# A status icon's faded pixels: read off their mark, shaded between the paper and the ink on the
+# colour watches (layers/faded_pixel.h).
+cc $CFLAGS -DPBL_COLOR test/c/faded_pixel_test.c -o build/host/faded_pixel_test
+build/host/faded_pixel_test
 # Every height a bar asks for has its pixel drawing (status_icon_size.h, the generated tables),
 # on the colour 144-px watch, the black and white ones (PBL_BW) and the Pebble Time 2.
 cc $CFLAGS test/c/status_icon_drawings_test.c -o build/host/status_icon_drawings_test

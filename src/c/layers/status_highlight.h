@@ -13,15 +13,23 @@
 // WW_THRESHOLD_HIGHLIGHT (wscript) and compiles to an empty object there; these
 // declarations emit nothing.
 
+// What a cell's glyph and text draw in, and what is behind them: the paper a status
+// icon's faded pixels shade towards (faded_pixel.h).
+typedef struct {
+    GColor ink;
+    GColor paper;
+} StatusPaint;
+
 // Paint `look`'s box over `frame`: a rounded-rect outline in the look's accent, filled
 // first for THRESH_BOX_FILL; nothing for THRESH_BOX_NONE. Returns the ink the cell's
-// glyph and text draw in: legible over a fill, the theme foreground otherwise.
-GColor status_highlight_paint(GContext *ctx, GRect frame, ThreshLook look);
+// glyph and text draw in, legible over a fill, the theme foreground otherwise; and its
+// paper, the fill, or the theme background inside an outline or without a box.
+StatusPaint status_highlight_paint(GContext *ctx, GRect frame, ThreshLook look);
 
-// Draw a cached status glyph in `ink`, its left edge at `x`, its box centred on the digits'
-// cap centre `cap_cy`: the drawing carries its seat (status_icon_size.h). The glyph caches hold every
-// glyph stroked in the theme foreground, so any other ink is restroked for the draw
-// and restored after; a foreground ink draws the glyph as cached, which is also what
-// keeps the rain drops' tinted fills intact (they are never boxed).
+// Draw a cached status glyph `paint`ed, its left edge at `x`, its box centred on the digits'
+// cap centre `cap_cy`: the drawing carries its seat (status_icon_size.h). The glyph caches hold
+// every glyph painted in the theme foreground on its background (status_row_icons_load), so
+// any other ink or paper is painted for the draw and restored after; the theme's draw the
+// glyph as cached.
 void status_highlight_draw_glyph(GContext *ctx, GDrawCommandImage *image, int16_t x,
-                                 int16_t cap_cy, GColor ink);
+                                 int16_t cap_cy, StatusPaint paint);

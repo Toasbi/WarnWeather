@@ -5,6 +5,7 @@
 #include <pebble.h>
 #include "status_highlight.h"
 #include "status_icon_size.h"
+#include "status_row_icons.h"
 #include "../appendix/theme.h"
 
 #if defined(WW_THRESHOLD_HIGHLIGHT)
@@ -22,8 +23,9 @@ static GColor accent(uint8_t color8) {
 #endif
 }
 
-GColor status_highlight_paint(GContext *ctx, GRect frame, ThreshLook look) {
-    if (look.box == THRESH_BOX_NONE) { return theme_fg(); }
+StatusPaint status_highlight_paint(GContext *ctx, GRect frame, ThreshLook look) {
+    StatusPaint plain = { theme_fg(), theme_bg() };
+    if (look.box == THRESH_BOX_NONE) { return plain; }
     GColor c = accent(look.color8);
     if (look.box == THRESH_BOX_FILL) {
         graphics_context_set_fill_color(ctx, c);
@@ -32,32 +34,20 @@ GColor status_highlight_paint(GContext *ctx, GRect frame, ThreshLook look) {
     graphics_context_set_stroke_color(ctx, c);
     graphics_draw_round_rect(ctx, frame, 2);
     // A filled cell flips its ink legible over the fill (the calendar's today
-    // pattern); an outlined one keeps the foreground.
-    return look.box == THRESH_BOX_FILL ? gcolor_legible_over(c) : theme_fg();
-}
-
-static bool stroke_cb(GDrawCommand *command, uint32_t index, void *context) {
-    (void)index;
-    gdraw_command_set_stroke_color(command, *(GColor *)context);
-    return true;
-}
-
-// Restroke every command in a cached glyph (outline art: its fills were cleared at
-// load — status_row_icons.c).
-static void set_stroke(GDrawCommandImage *image, GColor color) {
-    gdraw_command_list_iterate(gdraw_command_image_get_command_list(image),
-                               stroke_cb, &color);
+    // pattern); an outlined one keeps the foreground on the background inside it.
+    if (look.box == THRESH_BOX_FILL) { return (StatusPaint){ gcolor_legible_over(c), c }; }
+    return plain;
 }
 
 void status_highlight_draw_glyph(GContext *ctx, GDrawCommandImage *image, int16_t x,
-                                 int16_t cap_cy, GColor ink) {
+                                 int16_t cap_cy, StatusPaint paint) {
     GSize gs = gdraw_command_image_get_bounds_size(image);
-    GColor fg = theme_fg();
-    bool restroke = !gcolor_equal(ink, fg);
-    if (restroke) { set_stroke(image, ink); }
+    GColor fg = theme_fg(), bg = theme_bg();
+    bool repaint = !gcolor_equal(paint.ink, fg) || !gcolor_equal(paint.paper, bg);
+    if (repaint) { status_row_icons_paint(image, paint.ink, paint.paper); }
     gdraw_command_image_draw(ctx, image,
                              GPoint(x, status_icon_top_y(cap_cy, gs.h)));
-    if (restroke) { set_stroke(image, fg); }
+    if (repaint) { status_row_icons_paint(image, fg, bg); }
 }
 
 #endif

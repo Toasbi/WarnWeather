@@ -438,7 +438,7 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
     int16_t text_w = buf[0] == '\0' ? 0 : (int16_t)(x + w - text_x - (od_item_boxed(item)
         ? STATUS_ON_DEMAND_BOX_PAD_X - OD_TEXT_TRAIL_SPACING : 0));
     int16_t icon_top = (int16_t)(env->glyph_cy - env->icon_h / 2);
-    GColor ink = theme_fg();
+    StatusPaint paint = { theme_fg(), theme_bg() };
     // A metric entry is boxed at DANGER always (filled) and at WARN per its kind's
     // warn look, painted as its slot would be (status_highlight_paint), judged at the
     // entry's real level — the slot's Highlight switch does not touch the alert. The
@@ -451,20 +451,21 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
             StatusHighlightExtent v = status_highlight_extent(
                 env->band.origin.y, env->band.size.h, env->glyph_cy, env->content_h,
                 env->top_strip, text_w > 0 && status_text_has_descender(buf));
-            ink = status_highlight_paint(ctx, GRect(x, v.y, w, v.h), look);
+            paint = status_highlight_paint(ctx, GRect(x, v.y, w, v.h), look);
         }
     }
     if (item == OD_BATTERY) {
-        battery_item_draw(ctx, GPoint(icon_x, icon_top), env->icon_h, s->charge, s->charging, ink);
+        battery_item_draw(ctx, GPoint(icon_x, icon_top), env->icon_h, s->charge, s->charging, paint.ink);
     } else if (item == OD_SLEEP) {
-        snooze_draw(ctx, GRect(icon_x, icon_top, env->icon_h, env->icon_h), ink);
+        snooze_draw(ctx, GRect(icon_x, icon_top, env->icon_h, env->icon_h), paint.ink);
     } else {
         uint8_t key = item_key(s, item);
         GDrawCommandImage *image = image_for(row->cache, key);
         if (image) {
             status_highlight_draw_glyph(ctx, image, icon_x, env->glyph_cy,
-                item != OD_BLUETOOTH ? ink
-                    : bt_ink(key == STATUS_ROW_ICON_BT ? GColorPictonBlue : GColorRed));
+                item != OD_BLUETOOTH ? paint
+                    : (StatusPaint){ bt_ink(key == STATUS_ROW_ICON_BT ? GColorPictonBlue : GColorRed),
+                                     paint.paper });
         }
     }
     if (text_w > 0 && buf[0] != '\0') {
@@ -472,7 +473,7 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
         // boxed footprint leaves out is blank and sits inside the pad, so the text
         // never ellipsises against the width it was measured at.
         int16_t band_bottom = (int16_t)(env->band.origin.y + env->band.size.h);
-        graphics_context_set_text_color(ctx, ink);
+        graphics_context_set_text_color(ctx, paint.ink);
         graphics_draw_text(ctx, buf, font,
             GRect(text_x, env->text_y, text_w, (int16_t)(band_bottom - env->text_y)),
             GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
