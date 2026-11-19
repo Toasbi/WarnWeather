@@ -72,6 +72,12 @@ whenever it paints the drawing (`src/c/layers/faded_pixel.h`): on the bar, in a 
 box, and in the Bluetooth icon's blue or red. The black and white watches hide them; a Drawing
 size's `_BW` file has none.
 
+A Drawing size's pixels hold the touch-ups the black and white watches ink (the creator's Black
+and white inks), and the colour watches draw each such touch-up as a faded pixel. So
+`test/pixel-icons.test.js` fails on a Drawing size with black and white ink the colour watches
+draw nothing at: not on its lines, in any shade, and without a faded pixel. Exporting the icons
+again brings the missing faded pixels.
+
 ## The Pebble Classic and Steel masks
 
 Pebble Classic and Steel draw seven icons (thermometer, wind, gusts, UV, air quality, pollen,

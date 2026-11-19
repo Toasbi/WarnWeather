@@ -367,6 +367,88 @@ test('a size\'s faded pixels go over the colour watches\' drawing, from the top 
   assert.throws(() => gen.outputs({ icons: { GUST: { sizes: { A: { pixels: ['#'], faded: ['...', '.1.', '...'] } } } } }), /mask has no faded pixels/);
 });
 
+/**
+ * Adds to `lit` the pixels the watch's own 1 px line between two whole pixels lights, in any
+ * shade, as "x,y" keys: graphics_line_draw_1px_non_aa, Bresenham's, as the black and white
+ * watches draw it, and graphics_line_draw_1px_aa, Wu-Xiang's, as the colour ones do. The icon
+ * creator mirrors both (server/domain/drawing/pebble-renderer.ts).
+ * @param {!Array<number>} a One end, [x, y].
+ * @param {!Array<number>} b The other end.
+ * @param {!Set<string>} lit Where the pixels go.
+ */
+function lineLights(a, b, lit) {
+  let [x0, y0, x1, y1] = [a[0], a[1], b[0], b[1]];
+  const steep = Math.abs(y1 - y0) > Math.abs(x1 - x0);
+  if (steep) { [x0, y0, x1, y1] = [y0, x0, y1, x1]; }
+  if (x0 > x1) { [x0, x1, y0, y1] = [x1, x0, y1, y0]; }
+  const ystep = y0 < y1 ? 1 : -1;
+  let err = Math.trunc((x1 - x0) / 2);
+  for (let x = x0, y = y0; x <= x1; x++) {
+    lit.add(steep ? y + ',' + x : x + ',' + y);
+    err -= Math.abs(y1 - y0);
+    if (err < 0) { y += ystep; err += x1 - x0; }
+  }
+  // Wu-Xiang's: a level, upright or 45-degree line lights Bresenham's pixels; any other, two
+  // pixels a step, each at an opacity of 0 (the line's colour) to 3 (nothing).
+  let [x, y, xEnd, yEnd] = a[1] > b[1] ? [b[0], b[1], a[0], a[1]] : [a[0], a[1], b[0], b[1]];
+  let dx = Math.abs(xEnd - x), dy = yEnd - y;
+  const xi = xEnd < x ? -1 : 1;
+  if (dx === 0 || dy === 0 || dx === dy) { return; }
+  const plot = (px, py, opacity) => { if (opacity < 3) { lit.add(px + ',' + py); } };
+  let acc = 0;
+  if (dy > dx) {
+    const adj = Math.floor((dx * 65536) / dy) & 0xffff;
+    while (--dy) {
+      const before = acc;
+      acc = (acc + adj) & 0xffff;
+      if (acc <= before) { x += xi; }
+      y++;
+      plot(x, y, acc >> 14);
+      plot(x + xi, y, (acc >> 14) ^ 3);
+    }
+  } else {
+    const adj = Math.floor((dy * 65536) / dx) & 0xffff;
+    while (--dx) {
+      const before = acc;
+      acc = (acc + adj) & 0xffff;
+      if (acc <= before) { y++; }
+      x += xi;
+      plot(x, y, acc >> 14);
+      plot(x, y + 1, (acc >> 14) ^ 3);
+    }
+  }
+}
+
+// A line drawing's pixels are what the black and white watches draw, the touch-ups they ink
+// included (the icon creator's Black and white inks); the colour watches draw its lines and a
+// faded pixel at each such touch-up. A touch-up without its faded pixel is not drawn there at
+// all: 3.2.5's first moon and thermometer drew half their outline on the colour watches.
+test('a line drawing\'s black and white ink is drawn on the colour watches: by its lines, in any shade, or by a faded pixel', () => {
+  const undrawn = [];
+  for (const [key, icon] of Object.entries(PIXELS.icons)) {
+    for (const [id, s] of Object.entries(icon.sizes)) {
+      if (s.version !== 'drawing') { continue; }
+      const { lines } = gen.keptLines('drawing', s.drawing);
+      const lit = new Set();
+      lines.forEach((line) => line.slice(1).forEach((p, i) => lineLights(line[i], p, lit)));
+      // The faded rows lie over the lines' box and a pixel round it (gen_watch_icons.js fadedInBox).
+      const x0 = Math.min(...lines.flat().map((p) => p[0]));
+      const y0 = Math.min(...lines.flat().map((p) => p[1]));
+      (s.faded || []).forEach((row, y) => [...row].forEach((c, x) => {
+        if (c !== '.') { lit.add((x0 + x - 1) + ',' + (y0 + y - 1)); }
+      }));
+      // The ink's left is the lines' box's left; the rows are the same box's.
+      const left = Math.min(...s.pixels.map((row) => row.indexOf('#')).filter((x) => x >= 0));
+      let n = 0;
+      s.pixels.forEach((row, y) => [...row].forEach((c, x) => {
+        if (c === '#' && !lit.has((x - left + x0) + ',' + y)) { n++; }
+      }));
+      if (n > 0) { undrawn.push(key + ' ' + id + ': ' + n + ' px'); }
+    }
+  }
+  assert.deepEqual(undrawn, [], 'the colour watches draw nothing at these black and white pixels: export the icons from the icon creator again');
+});
+
 // The settings page's pictures of the watch draw the status icons from the watch's own drawings
 // (status-pixels.generated.js), at each bar's box and seat (preview-watch.js).
 test('the settings page has every drawing the watch is built with, its whole box, by watch icon id', () => {
