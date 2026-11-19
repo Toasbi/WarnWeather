@@ -23,12 +23,13 @@ outline's steps and its small dots as smoothing softens a slanted line. The icon
   to end where they touch, as the drawing's lines are. A path's fill marks it: a colour with no
   alpha, which draws nothing, its thirds in the low two bits (`0x01`, `0x02`). Its stroke is the
   shade the dark theme draws it in.
-- **The colour watches shade them whenever they paint the drawing.** `status_row_icons_paint`
-  strokes the drawing's own paths in the ink and each faded one in
+- **The colour watches shade them whenever they paint the drawing.** The paint in
+  `status_row_icons.c` strokes the drawing's own paths in the ink and each faded one in
   `faded_pixel_shade(ink, paper, thirds)`: per colour channel,
-  `(thirds × ink + (3 − thirds) × paper + 1) / 3` (`faded_pixel.h`). The paper is what is behind
-  the icon (`StatusPaint`): the theme's background, a filled highlight box's colour, and under the
-  Bluetooth icon's blue or red ink the bar's paper.
+  `(thirds × ink + (3 − thirds) × paper + 1) / 3`, the blend the chart stripes take in quarters
+  (`gcolor8_mix`, `faded_pixel.h`). The paper is what is behind the icon (the `StatusPaint`
+  `status_row_icons_draw` takes): the theme's background, a filled highlight box's colour, and
+  under the Bluetooth icon's blue or red ink the bar's paper.
 - **The black and white watches hide them.** The paint hides a faded path there. A pixel drawing
   stays one resource for basalt, diorite and flint; a drawing in lines keeps its `_BW` file,
   which never has them.

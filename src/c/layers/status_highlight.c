@@ -4,8 +4,6 @@
 // emits no code, so aplite still compiles this file to an empty object.
 #include <pebble.h>
 #include "status_highlight.h"
-#include "status_icon_size.h"
-#include "status_row_icons.h"
 #include "../appendix/theme.h"
 
 #if defined(WW_THRESHOLD_HIGHLIGHT)
@@ -24,7 +22,7 @@ static GColor accent(uint8_t color8) {
 }
 
 StatusPaint status_highlight_paint(GContext *ctx, GRect frame, ThreshLook look) {
-    StatusPaint plain = { theme_fg(), theme_bg() };
+    const StatusPaint plain = status_paint_theme();
     if (look.box == THRESH_BOX_NONE) { return plain; }
     GColor c = accent(look.color8);
     if (look.box == THRESH_BOX_FILL) {
@@ -37,17 +35,6 @@ StatusPaint status_highlight_paint(GContext *ctx, GRect frame, ThreshLook look) 
     // pattern); an outlined one keeps the foreground on the background inside it.
     if (look.box == THRESH_BOX_FILL) { return (StatusPaint){ gcolor_legible_over(c), c }; }
     return plain;
-}
-
-void status_highlight_draw_glyph(GContext *ctx, GDrawCommandImage *image, int16_t x,
-                                 int16_t cap_cy, StatusPaint paint) {
-    GSize gs = gdraw_command_image_get_bounds_size(image);
-    GColor fg = theme_fg(), bg = theme_bg();
-    bool repaint = !gcolor_equal(paint.ink, fg) || !gcolor_equal(paint.paper, bg);
-    if (repaint) { status_row_icons_paint(image, paint.ink, paint.paper); }
-    gdraw_command_image_draw(ctx, image,
-                             GPoint(x, status_icon_top_y(cap_cy, gs.h)));
-    if (repaint) { status_row_icons_paint(image, fg, bg); }
 }
 
 #endif

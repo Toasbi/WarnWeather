@@ -438,7 +438,7 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
     int16_t text_w = buf[0] == '\0' ? 0 : (int16_t)(x + w - text_x - (od_item_boxed(item)
         ? STATUS_ON_DEMAND_BOX_PAD_X - OD_TEXT_TRAIL_SPACING : 0));
     int16_t icon_top = (int16_t)(env->glyph_cy - env->icon_h / 2);
-    StatusPaint paint = { theme_fg(), theme_bg() };
+    StatusPaint paint = status_paint_theme();
     // A metric entry is boxed at DANGER always (filled) and at WARN per its kind's
     // warn look, painted as its slot would be (status_highlight_paint), judged at the
     // entry's real level — the slot's Highlight switch does not touch the alert. The
@@ -462,10 +462,11 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
         uint8_t key = item_key(s, item);
         GDrawCommandImage *image = image_for(row->cache, key);
         if (image) {
-            status_highlight_draw_glyph(ctx, image, icon_x, env->glyph_cy,
-                item != OD_BLUETOOTH ? paint
-                    : (StatusPaint){ bt_ink(key == STATUS_ROW_ICON_BT ? GColorPictonBlue : GColorRed),
-                                     paint.paper });
+            StatusPaint glyph = paint;
+            if (item == OD_BLUETOOTH) {
+                glyph.ink = bt_ink(key == STATUS_ROW_ICON_BT ? GColorPictonBlue : GColorRed);
+            }
+            status_row_icons_draw(ctx, image, icon_x, env->glyph_cy, glyph);
         }
     }
     if (text_w > 0 && buf[0] != '\0') {

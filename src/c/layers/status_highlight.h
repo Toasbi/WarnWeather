@@ -1,6 +1,7 @@
 #pragma once
 #include <pebble.h>
 #include "../appendix/status_threshold.h"
+#include "status_row_icons.h"
 
 // How a highlighted cell is painted, shared by the two paths that draw one: a status
 // slot (status_row.c) and a weather alert item (status_on_demand.c). WHAT a cell
@@ -13,23 +14,9 @@
 // WW_THRESHOLD_HIGHLIGHT (wscript) and compiles to an empty object there; these
 // declarations emit nothing.
 
-// What a cell's glyph and text draw in, and what is behind them: the paper a status
-// icon's faded pixels shade towards (faded_pixel.h).
-typedef struct {
-    GColor ink;
-    GColor paper;
-} StatusPaint;
-
 // Paint `look`'s box over `frame`: a rounded-rect outline in the look's accent, filled
-// first for THRESH_BOX_FILL; nothing for THRESH_BOX_NONE. Returns the ink the cell's
-// glyph and text draw in, legible over a fill, the theme foreground otherwise; and its
-// paper, the fill, or the theme background inside an outline or without a box.
+// first for THRESH_BOX_FILL; nothing for THRESH_BOX_NONE. Returns the paint the cell's
+// glyph (status_row_icons_draw) and text draw in: the ink legible over a fill, the theme
+// foreground otherwise; and the paper, the fill, or the theme background inside an
+// outline or without a box.
 StatusPaint status_highlight_paint(GContext *ctx, GRect frame, ThreshLook look);
-
-// Draw a cached status glyph `paint`ed, its left edge at `x`, its box centred on the digits'
-// cap centre `cap_cy`: the drawing carries its seat (status_icon_size.h). The glyph caches hold
-// every glyph painted in the theme foreground on its background (status_row_icons_load), so
-// any other ink or paper is painted for the draw and restored after; the theme's draw the
-// glyph as cached.
-void status_highlight_draw_glyph(GContext *ctx, GDrawCommandImage *image, int16_t x,
-                                 int16_t cap_cy, StatusPaint paint);

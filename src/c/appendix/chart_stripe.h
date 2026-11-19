@@ -6,6 +6,7 @@
 // the forecast and radar previews), so they shade the same cells the same way.
 #include <stdbool.h>
 #include <stdint.h>
+#include "color_mix.h"
 
 // Intensity steps a stripe cell can take; 0 means "draw nothing".
 #define CHART_STRIPE_LEVELS 4
@@ -21,26 +22,12 @@ static inline int chart_stripe_level(int v, int lo, int hi) {
     return level > CHART_STRIPE_LEVELS ? CHART_STRIPE_LEVELS : level;
 }
 
-// One 2-bit colour channel blended from `bg` toward `fg` by level/4, rounded
-// half away from `bg` so level 1 always moves off the background when the two
-// channels differ by at least two steps.
-static inline uint8_t chart_stripe_channel(uint8_t bg, uint8_t fg, int level) {
-    const int d = ((int)fg - (int)bg) * level;
-    const int step = d >= 0 ? (d + 2) / 4 : -((-d + 2) / 4);
-    return (uint8_t)((int)bg + step);
-}
-
-// The GColor8 argb byte for one level: each of r/g/b blended channel-wise
-// (chart_stripe_channel), alpha forced opaque. Level CHART_STRIPE_LEVELS
-// returns the line colour itself.
+// The GColor8 argb byte for one level: level/CHART_STRIPE_LEVELS of the way from the
+// background to the line colour, each channel rounded a half away from the background
+// (gcolor8_mix), so level 1 always moves off the background when the two channels differ
+// by at least two steps. Level CHART_STRIPE_LEVELS returns the line colour itself.
 static inline uint8_t chart_stripe_blend(uint8_t bg_argb, uint8_t fg_argb, int level) {
-    uint8_t out = 0xC0;   // alpha 0b11
-    for (int shift = 4; shift >= 0; shift -= 2) {
-        const uint8_t b = (uint8_t)((bg_argb >> shift) & 0x03);
-        const uint8_t f = (uint8_t)((fg_argb >> shift) & 0x03);
-        out |= (uint8_t)(chart_stripe_channel(b, f, level) << shift);
-    }
-    return out;
+    return gcolor8_mix(bg_argb, fg_argb, level, CHART_STRIPE_LEVELS);
 }
 
 // Colour: a cell is a tint of the line colour with vertical lines in the full

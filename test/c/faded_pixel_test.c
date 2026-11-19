@@ -22,7 +22,7 @@ int main(void) {
     expect_int("mark.two_thirds", faded_pixel_thirds((GColor){ .argb = 0x02 }), 2);
     expect_int("mark.an_opaque_fill_is_none", faded_pixel_thirds((GColor){ .argb = 0xC1 }), 0);
 
-    // The dark theme: white ink on black, as gen_watch_icons.js strokes them (FADED).
+    // The dark theme: white ink on black, as gen_watch_icons.js strokes them (FADED_STROKE).
     expect_int("dark.third_dark_grey", shade(0xFF, 0xC0, 1), 0xD5);
     expect_int("dark.two_thirds_light_grey", shade(0xFF, 0xC0, 2), 0xEA);
     // The light theme: black ink on white, a third of the way from the white.

@@ -680,7 +680,6 @@ static int16_t icon_target_h(const StatusRow *row, int content_h) {
 // `views` are the caller's already-walked slots (load_pass filled them);
 // glyph_icons[] tracks the PACKED icon.
 static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int content_h) {
-    bool top = (row->line_id == STATUS_LINE_TOP);
     int16_t target_h = icon_target_h(row, content_h);
 
     GColor fg = theme_fg();
@@ -877,7 +876,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     // allocations.
     StatusPaint paints[STATUS_SLOT_COUNT];
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        paints[i] = (StatusPaint){ theme_fg(), theme_bg() };
+        paints[i] = status_paint_theme();
         if (!places[i].visible || slots[i].look.box == THRESH_BOX_NONE) { continue; }
         GRect box = slot_highlight_box(row, &places[i], &measures[i], x0, glyph_cy,
                                        content_h, slots[i].text);
@@ -905,7 +904,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         } else if (row->glyphs[i]) {
             // Its box centred on the cap centre: the drawing carries its seat
             // (status_icon_size.h status_icon_top_y).
-            status_highlight_draw_glyph(ctx, row->glyphs[i], icon_x, glyph_cy, paints[i]);
+            status_row_icons_draw(ctx, row->glyphs[i], icon_x, glyph_cy, paints[i]);
         } else if (slots[i].slot.icon == STATUS_ICON_DRAWN_SUN
                    && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;

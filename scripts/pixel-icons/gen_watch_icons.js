@@ -17,7 +17,7 @@
  *                                        (old), or a drawing in lines (drawing), by their kept
  *                                        lines; its view box as tall as the drawing's box, as wide
  *                                        as its ink;
- *                                        and after its own lines its faded pixels (FADED), which the
+ *                                        and after its own lines its faded pixels (FADED_STROKE), which the
  *                                        colour watches shade between the ink and what is behind it;
  *   resources/data/PX_<KEY>_<FAMILY>_<box>_BW.pdc   for a line drawing, its pixels again, for
  *                                        the black and white watches (Pebble 2, Pebble 2 Duo): they
@@ -56,15 +56,13 @@ const MASK_BOX_ROWS = 17;
 // lines (drawing). The last two keep their lines in the file, under their name.
 const VERSIONS = ['pixel', 'old', 'drawing'];
 const PU = 8;
-// A faded pixel, by its thirds of the ink: a 1 px line or dot after the drawing's own, so it goes
-// over them, whose fill marks it: a colour with no alpha, which draws nothing, its thirds in the
-// low two bits (src/c/layers/faded_pixel.h). Its stroke is the shade the dark theme draws it in,
-// as the drawing's own are its white ink; the watch paints both for its theme and for what is
-// behind the icon, and hides a faded pixel on the black and white watches.
-const FADED = {
-    1: { fill: 0x01, stroke: 0xD5 },   // GColorDarkGray
-    2: { fill: 0x02, stroke: 0xEA },   // GColorLightGray
-};
+// A faded pixel's stroke, by its thirds of the ink. A faded pixel is a 1 px line or dot after the
+// drawing's own, so it goes over them, whose fill marks it: a colour with no alpha, which draws
+// nothing, its thirds in the low two bits (0x01, 0x02; src/c/layers/faded_pixel.h). Its stroke is
+// the shade the dark theme draws it in, as the drawing's own are its white ink; the watch paints
+// both for its theme and for what is behind the icon, and hides a faded pixel on the black and
+// white watches.
+const FADED_STROKE = { 1: 0xD5, 2: 0xEA };   // GColorDarkGray, GColorLightGray
 
 // The icon catalogue: the watch's icon ids each drawing serves
 // (status_line.h, status_row_icons.h), by the icon's key.
@@ -223,7 +221,7 @@ function fadedInBox(where, faded, ink) {
 
 /**
  * A PDC image of 1 px open precise paths, its points in pixels (on the 1/8 px grid), pixel (x, y)'s
- * centre at (x + 1/2, y + 1/2): the drawing's lines, then its faded pixels (FADED), each shade's
+ * centre at (x + 1/2, y + 1/2): the drawing's lines, then its faded pixels (FADED_STROKE), each shade's
  * as runs joined end to end like the lines.
  * @param {!Array<!Array<!Array<number>>>} lines The paths' points, [x, y] each (paths()).
  * @param {number} w The image's width in pixels, its view box.
@@ -233,6 +231,13 @@ function fadedInBox(where, faded, ink) {
  * @returns {!Buffer} The .pdc file.
  */
 function pdc(lines, w, h, faded = []) {
+    /**
+     * One 1 px open path command.
+     * @param {!Array<!Array<number>>} pts Its points, [x, y] each, in pixels.
+     * @param {number} stroke Its stroke colour, a GColor8 byte.
+     * @param {number} fill Its fill: clear, or a faded pixel's mark (FADED_STROKE).
+     * @returns {!Buffer} The command's bytes.
+     */
     const command = (pts, stroke, fill) => {
         const b = Buffer.alloc(9 + 4 * pts.length);
         b.writeUInt8(3, 0);        // precise path
@@ -249,9 +254,9 @@ function pdc(lines, w, h, faded = []) {
         return b;
     };
     const cmds = lines.map((pts) => command(pts, 0xFF, 0x00));
-    for (const thirds of Object.keys(FADED).map(Number)) {
-        const px = faded.filter(p => p[2] === thirds).map(([x, y]) => [x, y]);
-        if (px.length) paths(runs(px)).forEach((pts) => cmds.push(command(pts, FADED[thirds].stroke, FADED[thirds].fill)));
+    for (const thirds of [1, 2]) {
+        const px = faded.filter(p => p[2] === thirds);
+        if (px.length) paths(runs(px)).forEach((pts) => cmds.push(command(pts, FADED_STROKE[thirds], thirds)));
     }
     const head = Buffer.alloc(8);
     head.writeUInt8(1, 0);         // version
@@ -312,33 +317,23 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
             if (!m) throw new Error(key + ' ' + id + ': a size is keyed <basalt|emery>-<box>, or A');
             const plat = m[1], rows = Number(m[2]);
             if (h % 2 !== 1) throw new Error(key + ' ' + id + ': a drawing\'s box has an odd number of rows, centred on the text');
-            const plats = [plat];
             const version = s.version || 'pixel';
             if (!VERSIONS.includes(version)) throw new Error(key + ' ' + id + ': unknown version ' + version);
             const name = 'PX_' + key + '_' + plat.toUpperCase() + '_' + rows;
             const where = key + ' ' + id;
             const own = paths(runs(px));
-            const pixel = pdc(own, w, h);
-            // [resource name, its file's content, its watches, its header families]. The colour
-            // watches' drawing takes the faded pixels; on the black and white ones the watch hides
-            // them, and a line drawing's pixels there have none.
-            const drawn = [];
-            if (version === 'pixel') {
-                drawn.push([name, pdc(own, w, h, fadedInBox(where, s.faded, px)),
-                    [].concat(...plats.map(p => TARGETS[p] || [])), [].concat(...plats.map(p => FAMILIES[p] || []))]);
-            } else if (version === 'old') {
-                // The old icon goes to the black and white watches too: they drew it before the
-                // pixel drawings, unsmoothed, exactly as these lines draw there.
-                const v = keptInBox(where, version, s);
-                drawn.push([name, pdc(v.lines, v.w, v.h, fadedInBox(where, s.faded, v.lines.flat())),
-                    [].concat(...plats.map(p => TARGETS[p] || [])), [].concat(...plats.map(p => FAMILIES[p] || []))]);
-            } else {
-                const v = keptInBox(where, version, s);
-                drawn.push([name, pdc(v.lines, v.w, v.h, fadedInBox(where, s.faded, v.lines.flat())),
-                    [].concat(...plats.map(p => COLOUR_TARGETS[p] || [])), plats.filter(p => FAMILIES[p])]);
-                if (plats.includes('basalt')) {
-                    drawn.push([name + '_BW', pixel, TARGETS.basalt.filter(t => !COLOUR_TARGETS.basalt.includes(t)), ['bw']]);
-                }
+            // The colour watches' drawing, then its faded pixels: the pixel drawing's own lines, or
+            // the old icon's or the line drawing's kept lines. The pixel drawing and the old icon go
+            // to the black and white watches too, which draw the old icon as before the pixel
+            // drawings, unsmoothed, exactly as these lines draw there, and hide the faded pixels. A
+            // line drawing goes to the colour watches alone, its pixels in a _BW file without any.
+            const v = version === 'pixel' ? { lines: own, w, h } : keptInBox(where, version, s);
+            const smoothed = version === 'drawing';
+            // [resource name, its file's content, its watches, its header families].
+            const drawn = [[name, pdc(v.lines, v.w, v.h, fadedInBox(where, s.faded, v.lines.flat())),
+                [...(smoothed ? COLOUR_TARGETS : TARGETS)[plat]], smoothed ? [plat] : FAMILIES[plat]]];
+            if (smoothed && plat === 'basalt') {
+                drawn.push([name + '_BW', pdc(own, w, h), TARGETS.basalt.filter(t => !COLOUR_TARGETS.basalt.includes(t)), ['bw']]);
             }
             for (const [res, buf, targets, fams] of drawn) {
                 files[path.join(DATA_DIR, res + '.pdc')] = buf;
@@ -520,5 +515,5 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { outputs, header, apliteSource, pagePixels, runs, paths, pdc, keptLines, inkPixels, boxPixels, VERSIONS, FADED, ICON_IDS, TARGETS,
+module.exports = { outputs, header, apliteSource, pagePixels, runs, paths, pdc, keptLines, inkPixels, boxPixels, VERSIONS, ICON_IDS, TARGETS, COLOUR_TARGETS,
     SIZE_KEY, PACKAGE, HEADER, APLITE_C, PAGE_PIXELS, DATA_DIR };
