@@ -1686,6 +1686,53 @@ test('boot(): closing a date sheet restores focus to its date trigger', () => {
   assert.equal(result.focusCounts.date.trip, 1);
 });
 
+// A date in a full-screen dialog (a status bar's Countdown date): its wheels rise from the
+// bottom over the dialog, as a bar's slot list does (renderPickSheet); the dialog stays.
+const DATE_IN_DIALOG_SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+  { title: 'S', items: [{ type: 'sheet', sheetId: 'bar', label: 'Bar' }] },
+  { sheetOnly: true, sheetId: 'bar', title: 'Bar', items: [
+    { type: 'date', messageKey: 'trip', label: 'Countdown date', defaultValue: '2026-12-24' }
+  ] }
+] }] };
+
+/**
+ * Boot with the dialog open, and count the focus its date row gets.
+ * @returns {Object} The bootWithCapturedListeners result, and `rowFocus()`.
+ */
+function bootDateInDialog() {
+  let rowFocus = 0;
+  const r = bootWithCapturedListeners(DATE_IN_DIALOG_SCHEMA, {}, { dialog: true,
+    modalQuery: (sel) => (sel === '[data-date="trip"]' ? { focus: () => { rowFocus += 1; } } : null) });
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'bar' });
+  r.rowFocus = () => rowFocus;
+  return r;
+}
+
+test('boot(): a date in a dialog opens its wheels over the dialog, and a tapped day sets it', () => {
+  const r = bootDateInDialog();
+  assert.ok(r.modal.innerHTML.indexOf('data-date="trip"') >= 0, 'the dialog shows the date row');
+  clickMatching(r.modalListeners.click, '[data-date]', { 'data-date': 'trip' });
+  assert.match(r.modal.innerHTML, /class="psheet"[\s\S]*data-date-picker="trip"/, 'its wheels rise over the dialog');
+  assert.match(r.modal.innerHTML, /data-date="trip"[^>]*aria-expanded="true"/, 'its row says they are open');
+  tapDateOption(r, 'day', 26);
+  assert.equal(r.getValue('trip'), '2026-12-26', 'the tapped day lands');
+  assert.match(r.modal.innerHTML, /data-date-picker="trip"/, 'and the wheels stay open');
+  clickMatching(r.modalListeners.click, '[data-psheet-close]', {});
+  assert.equal(r.modal.innerHTML.indexOf('data-date-picker'), -1, 'the dim layer or the × closes the wheels');
+  assert.equal(r.modal.open, true, 'and leaves the dialog open');
+  assert.equal(r.rowFocus(), 1, 'focus goes back to the date row');
+});
+
+test('boot(): Escape closes a dialog\'s date wheels alone, keeping the day a wheel was left on', () => {
+  const r = bootDateInDialog();
+  clickMatching(r.modalListeners.click, '[data-date]', { 'data-date': 'trip' });
+  r.modalListeners.scroll({ target: dateWheel('day', 25) });
+  r.modalListeners.cancel({ preventDefault: () => {} });
+  assert.equal(r.getValue('trip'), '2026-12-25', 'the wheel\'s pending day is kept');
+  assert.equal(r.modal.innerHTML.indexOf('data-date-picker'), -1, 'the wheels closed');
+  assert.equal(r.modal.open, true, 'the dialog stays open');
+});
+
 const THEME_SCHEMA = {
   appName: 'X', versionLabel: 'v0',
   tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [

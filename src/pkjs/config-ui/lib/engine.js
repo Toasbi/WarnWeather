@@ -1212,7 +1212,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * pushed the rest of the dialog away). It is the in-place list's state all the same — the
    * dialog's open key (cx.openInline), the same picks, Escape and focus — drawn elsewhere:
    * the list keeps the id and the class render() looks for. A tap on the dim layer or the ×
-   * closes it (data-psheet-close). '' when no such list is open.
+   * closes it (data-psheet-close). A date in a dialog always opens so: its wheels (the date
+   * sheet's on a tab, renderDateWheels) rise over the dialog. '' when no such sheet is open.
    *
    * @param {Object} schema Config schema.
    * @param {{S: Object, ENV: Object, evalCtx: Object, openInline: ?string}} cx Render context.
@@ -1221,13 +1222,30 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   function renderPickSheet(schema, cx) {
     if (!cx.openInline) { return ''; }
     var found = findShownItem(schema, cx.openInline, cx.evalCtx);
-    if (!found || found.type !== 'select' || !found.bottomSheet) { return ''; }
+    if (!found || !(found.type === 'date' || (found.type === 'select' && found.bottomSheet))) { return ''; }
+    var titleId = 'psheet-ttl-' + esc(found.messageKey);
+    if (found.type === 'date') {
+      return pickSheet(titleId, esc(found.label || 'Date'), datePicker.renderDateWheels(found.messageKey, cx.S[found.messageKey]));
+    }
     var item = resolveRowItem(found, { value: cx.S[found.messageKey] }, cx);
-    var titleId = 'psheet-ttl-' + esc(item.messageKey), title = esc(pickerTitle(item, cx));
+    var title = esc(pickerTitle(item, cx));
+    return pickSheet(titleId, title, renderInlineList(item, cx.S[item.messageKey], cx, title));
+  }
+
+  /**
+   * A sheet over the open dialog (renderPickSheet): its clear layer, its header with its ×,
+   * and what it holds.
+   *
+   * @param {string} titleId The header title's id.
+   * @param {string} title The escaped title.
+   * @param {string} body Its contents' HTML.
+   * @returns {string} The layer and sheet HTML.
+   */
+  function pickSheet(titleId, title, body) {
     return '<div class="psheet-scrim" data-psheet-close></div>'
       + '<div class="psheet" role="group" aria-labelledby="' + titleId + '">'
       + sheetHeader(titleId, title, '', 'data-psheet-close')
-      + renderInlineList(item, cx.S[item.messageKey], cx, title)
+      + body
       + '</div>';
   }
 
@@ -2765,6 +2783,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // render()'s scroll memory across dialogs: the dialog rendered last, and the offset to
     // land the next one on (0 for a dialog just opened, the parent's for a step back).
     var lastShownEdit = null, nextEditScroll = 0;
+    // The date whose sheet over a dialog was shown last render (syncDialog), so its wheels
+    // re-centre once more only as a sheet rises.
+    var shownPickDate = null;
     // The dialog whose title is a name field right now (sec.rename), null for none: a pencil
     // tap or ctx.openDialog's rename sets it, OK, Enter, Escape, leaving the field or the
     // dialog going clear it.
@@ -2798,25 +2819,42 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      */
     function openKey(kind) { return sheetIs(kind) ? sheet.key : null; }
     /**
+     * The type of the expanded control: 'color' for a palette, 'select' for an option list,
+     * 'date' for a dialog's date wheels (renderPickSheet).
+     * @returns {?string} Its schema type, or null when nothing is expanded.
+     */
+    function expandedType() {
+      var item = expanded ? findItem(expanded) : null;
+      return item ? item.type : null;
+    }
+    /**
      * Whether the expanded control is a colour's palette rather than a select's option list.
      * @returns {boolean} True for a palette; false for a list or when nothing is expanded.
      */
-    function expandedIsPalette() {
-      var item = expanded ? findItem(expanded) : null;
-      return Boolean(item && item.type === 'color');
-    }
+    function expandedIsPalette() { return expandedType() === 'color'; }
     /**
-     * The trigger of the expanded control: the palette's swatch or the select's button.
+     * The trigger of the expanded control: the palette's swatch, the select's button or the
+     * date's row.
      * @returns {string} Its selector (call only while something is expanded).
      */
     function expandedTrigger() {
-      return (expandedIsPalette() ? '[data-color="' : '[data-select="') + expanded + '"]';
+      var attr = { color: 'data-color', date: 'data-date' }[expandedType()] || 'data-select';
+      return '[' + attr + '="' + expanded + '"]';
+    }
+    /**
+     * The date whose wheels are open: a tab's date sheet, or a dialog's date sheet over it
+     * (the dialog's expanded control, renderPickSheet).
+     * @returns {?string} Its messageKey, or null.
+     */
+    function openDateKey() {
+      if (sheetIs('date')) { return sheet.key; }
+      return sheetIs('edit') && expandedType() === 'date' ? expanded : null;
     }
     // The date wheel-settle machinery lives with the picker (createDateWiring);
     // the engine hands it the live accessors and calls in through this instance.
     var dateWiring = datePicker.createDateWiring({
       S: S,
-      getOpenDateKey: function () { return openKey('date'); },
+      getOpenDateKey: openDateKey,
       render: render
     });
     // Same shape for the slider's drag machinery (createRangeWiring); the
@@ -2868,6 +2906,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         } else {
           dlg.classList.remove('picking');
         }
+        // A date in a dialog (renderPickSheet): its wheels centre on the date as a tab's date
+        // sheet's do, and once more as their sheet finishes rising.
+        var pickDate = sheetIs('date') ? null : openDateKey();
+        if (pickDate) { dateWiring.scheduleAlign(dlg, pickDate !== shownPickDate); }
+        shownPickDate = pickDate;
         if (sheetIs('date')) {
           dlg.classList.remove('search');
           dlg.classList.add('date');
@@ -3188,7 +3231,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // openInline in the edit sheet only (renderEditModal).
       var cx = {
         S: S, ENV: ENV, USERDATA: USERDATA, openColor: expandedIsPalette() ? expanded : null,
-        openSelect: openKey('select'), openDate: openKey('date'), openEdit: openKey('edit'),
+        openSelect: openKey('select'), openDate: openDateKey(), openEdit: openKey('edit'),
         selectQuery: selectQuery,
         collapsed: collapsed, evalCtx: evalCtx(),
         INITIAL: INITIAL, MORE_BASE: MORE_BASE, infoOpen: infoOpen, infoIcons: infoIconsOn(SCHEMA, S), moreOpen: moreOpen,
@@ -3226,14 +3269,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (undo && undo.focus) { undo.focus(); }
         return;
       }
-      // An open list lives only while its row renders live. A row hidden by its showWhen
-      // or muted by its disabledWhen (one tap away, in the same sheet) draws no list, and
-      // a key left open would keep .picking on, the scroll nudge hunting, and Escape's
-      // first press collapsing a list that isn't there — or bring it back pre-opened.
+      // An open list, or a date's wheels, lives only while its row renders live. A row hidden
+      // by its showWhen or muted by its disabledWhen (one tap away, in the same sheet) draws
+      // no list, and a key left open would keep .picking on, the scroll nudge hunting, and
+      // Escape's first press collapsing a list that isn't there — or bring it back pre-opened.
       // Read off the HTML, not the DOM, so the check holds in the Node DOM shims too.
       // A palette is exempt: it stays expanded while its row is hidden, as in the tab body.
       if (expanded && !expandedIsPalette()
-          && modalHtml.indexOf('id="ssel-list-' + esc(expanded) + '" class="isel-list"') < 0) {
+          && modalHtml.indexOf('id="ssel-list-' + esc(expanded) + '" class="isel-list"') < 0
+          && modalHtml.indexOf('data-date-picker="' + esc(expanded) + '"') < 0) {
         expanded = null;
       }
       modalEl.innerHTML = modalHtml;
@@ -3811,6 +3855,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      */
     function collapseSheetExpander() {
       if (!sheetIs('edit') || !expanded) { return false; }
+      // A date's wheels keep the day a spin left them on, as every close of a date sheet does.
+      dateWiring.flushPending();
       var sel = expandedTrigger();
       expanded = null;
       render();
@@ -3845,6 +3891,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           // and colors"): it stacks on top, ‹ comes back.
           if ((t = e.target.closest('[data-edit-sheet]'))) {
             openDialog(t.getAttribute('data-edit-sheet'), kickerFrom(t, true), true);
+            return;
+          }
+          // A date row (a status bar's Countdown date): its wheels rise from the bottom over the
+          // dialog (renderPickSheet), as a date's sheet does on a tab; the dialog stays.
+          if ((t = e.target.closest('[data-date]'))) {
+            dateWiring.flushPending();
+            expanded = t.getAttribute('data-date');
+            render();
+            focusInModal(['.psheet .date-opt.on'], true);
             return;
           }
         }
@@ -3884,10 +3939,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           return;
         }
         if (sheetIs('edit') && e.target.closest && controlClick(e)) { return; }
-        if (e.target.closest && (t = e.target.closest('.date-opt')) && sheetIs('date')) {
+        var dateKey = openDateKey();
+        if (dateKey && e.target.closest && (t = e.target.closest('.date-opt'))) {
           var wheel = t.closest('[data-date-wheel]');
           if (!wheel) { return; }
-          var dateKey = sheet.key;
           dateWiring.flushPending();
           var parts = parseDateParts(S[dateKey]);
           parts[wheel.getAttribute('data-date-wheel')] =

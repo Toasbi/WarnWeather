@@ -137,7 +137,21 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (it.type === 'date' && it.messageKey === cx.openDate) { found = it; }
     });
     if (!found) { return ''; }
-    var p = parseDateParts(cx.S[found.messageKey]);
+    return sheetHeader('date-ttl-' + esc(found.messageKey), esc(found.label || 'Date'))
+      + renderDateWheels(found.messageKey, cx.S[found.messageKey]);
+  }
+
+  /**
+   * A date's three wheels, day, month and year, each on the value's part: the date sheet's
+   * on a tab (renderDateModal), and the sheet a date in a dialog opens over it (the engine's
+   * renderPickSheet).
+   *
+   * @param {string} key The date's messageKey.
+   * @param {*} value Its value, YYYY-MM-DD.
+   * @returns {string} The wheels' HTML.
+   */
+  function renderDateWheels(key, value) {
+    var p = parseDateParts(value);
     var days = [], months = [], years = [], i;
     for (i = 1; i <= daysInMonth(p.year, p.month); i++) { days.push(i); }
     for (i = 1; i <= 12; i++) { months.push(i); }
@@ -145,11 +159,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var firstYear = Math.min(currentYear, p.year);
     var lastYear = Math.max(currentYear + 10, p.year);
     for (i = firstYear; i <= lastYear; i++) { years.push(i); }
-    var key = esc(found.messageKey);
-    var titleId = 'date-ttl-' + key;
-    return sheetHeader(titleId, esc(found.label || 'Date'))
-      + '<div class="date-picker"'
-      + ' data-date-picker="' + key + '"><div class="date-band"></div>'
+    return '<div class="date-picker"'
+      + ' data-date-picker="' + esc(key) + '"><div class="date-band"></div>'
       + renderDateWheel('day', days, p.day)
       + renderDateWheel('month', months, p.month)
       + renderDateWheel('year', years, p.year) + '</div>';
@@ -363,6 +374,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     dateValueFromParts: dateValueFromParts,
     renderDateTrigger: renderDateTrigger,
     renderDateWheel: renderDateWheel,
+    renderDateWheels: renderDateWheels,
     renderDateModal: renderDateModal,
     createDateWiring: createDateWiring
   };

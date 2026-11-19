@@ -598,10 +598,12 @@
      rising over the dialog from its bottom edge. The layer under it is clear, as a select sheet's
      backdrop is on a tab; a tap on it closes the list. Both sit above the dialog's pinned
      picture (.pin, z-index 6). Class isel-list on the list, never ssel-list: that is the
-     dialog's own scroll container. */
+     dialog's own scroll container. A date in a dialog rises the same way, its wheels at their
+     full height. */
   dialog#modal .psheet-scrim { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 10; background: transparent; }
   dialog#modal .psheet { position: absolute; z-index: 10; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; max-height: 80%; background: var(--card); border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,0.5); overflow: hidden; }
   dialog#modal .psheet .isel-list { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; background: var(--ctl); border-top: 1px solid var(--row-line); }
+  dialog#modal .psheet .date-picker { flex: none; }
   @media (prefers-reduced-motion: no-preference) {
     dialog#modal .psheet { animation: sheet-up .22s ease-out; }
   }
