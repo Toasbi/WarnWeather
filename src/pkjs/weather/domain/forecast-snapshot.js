@@ -224,7 +224,6 @@ function stored(entries) {
 module.exports = {
     UV_REUSE_MS: UV_REUSE_MS,
     MAX_ENTRIES: MAX_ENTRIES,
-    SAME_PLACE_KM: SAME_PLACE_KM,
     ANSWER_NEUTRAL: ANSWER_NEUTRAL,
     queryOf: queryOf,
     snapshotOf: snapshotOf,
