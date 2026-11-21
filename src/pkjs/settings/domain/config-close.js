@@ -14,7 +14,10 @@
  * - Any provider/location, radar-provider/mode, or render-signature change
  *   makes the watch's current data (or chart) wrong: drop the last-sent
  *   weather caches (needsRefetch) and force a fetch.
- * - The "Force weather fetch" toggle forces a fetch on its own.
+ * - The "Force weather fetch" toggle forces a fetch on its own, and drops the forecast
+ *   snapshots (dropSnapshots), so that fetch asks every provider again as the toggle's
+ *   hint says; every other forced fetch may reuse this refresh slot's answers
+ *   (weather/domain/forecast-snapshot.js).
  * - An ACTIVE auth backoff also forces one: closing the config is an explicit
  *   user action (they likely just fixed the key/subscription), and a forced
  *   fetch clears the backoff — EXCEPT on a pure ack. A pure ack (notice
@@ -40,8 +43,9 @@
  *     BEFORE notices.dismissAll() empties the list.
  *   {boolean} authBackoffActive authBackoff.isActive().
  * @returns {{needsRefetch: boolean, pureAck: boolean, forceFetch: boolean,
- *   clearNotice: boolean}} needsRefetch: drop the weather caches; forceFetch/
- *   clearNotice: the scheduler.onConfigClosed arguments.
+ *   clearNotice: boolean, dropSnapshots: boolean}} needsRefetch: drop the weather caches;
+ *   forceFetch/clearNotice: the scheduler.onConfigClosed arguments; dropSnapshots: clear
+ *   the forecast snapshots.
  */
 function decideConfigClose(input) {
     var needsRefetch = Boolean(input.providerOrLocationChanged
@@ -53,7 +57,8 @@ function decideConfigClose(input) {
         needsRefetch: needsRefetch,
         pureAck: pureAck,
         forceFetch: forceFetch,
-        clearNotice: Boolean(input.hadWatchNotice)
+        clearNotice: Boolean(input.hadWatchNotice),
+        dropSnapshots: Boolean(input.fetchToggle)
     };
 }
 

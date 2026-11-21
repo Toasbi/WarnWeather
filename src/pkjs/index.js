@@ -367,9 +367,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // (including radar) so the next fetch resends every category.
         outbox.clearWeatherCaches();
     }
-    if (app.settings.fetch === true) {
-        // Force weather fetch asks every provider again, as its hint says: any other
-        // fetch in this refresh slot reuses their last answers (forecast-snapshot.js).
+    if (decision.dropSnapshots) {
         forecastSnapshots.clear();
     }
     // Send Clay settings, then re-bake the status category from the last payload
