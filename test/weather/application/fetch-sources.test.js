@@ -242,6 +242,19 @@ function whileAsking(during) {
   };
 }
 
+/**
+ * Change the stored snapshots, as damage in the phone's storage would.
+ * @param {Function} mod The world's mod().
+ * @param {function(Object): void} change Receives each stored snapshot.
+ * @returns {void}
+ */
+function damage(mod, change) {
+  const key = mod('settings/domain/storage-keys.js').FORECAST_SNAPSHOTS_KEY;
+  const stored = JSON.parse(localStorage.getItem(key));
+  stored.entries.forEach(change);
+  localStorage.setItem(key, JSON.stringify(stored));
+}
+
 test('a drop while a source answers keeps nothing asked before it, so the fetch it forces asks again', () => {
   // Force weather fetch drops the store, and its fetch waits for one already on its way.
   const drop = whileAsking((mod) => { mod('weather/adapter/forecast-snapshots.js').clear(); });
@@ -274,4 +287,22 @@ test('a keep writes over the store as it is then, not as the fetch read it', () 
     return saved.map((s) => ({ providers: s.entries.map((e) => e.provider), drops: s.drops }));
   });
   assert.deepEqual(kept, [{ providers: ['metno', 'yandex'], drops: 0 }]);
+});
+
+test('a stored forecast that does not hold one is asked for again, and the answer takes its place', () => {
+  const short = (p, mod) => { damage(mod, (e) => { e.fields.tempTrend = e.fields.tempTrend.slice(0, 3); }); };
+  const [first, damaged, next] = fetchesOf('metno', [{}, { at: MIN, before: short }, { at: 2 * MIN }]);
+  assert.equal(damaged.outcome, 'ok');
+  assert.equal(damaged.requests.length, 1, 'Met.no is asked again');
+  assert.equal(damaged.forecast, first.forecast, 'every field from the new answer');
+  assert.deepEqual(next.requests, [], 'which is kept');
+});
+
+test('a stored UV fill that holds no UV is asked for again', () => {
+  const empty = (p, mod) => { damage(mod, (e) => { if (e.kind === 'uv') { e.fields.uvTrend = 'none'; } }); };
+  const [, damaged] = fetchesOf('dwd', [{}, { at: MIN, before: empty }]);
+  assert.equal(damaged.outcome, 'ok');
+  assert.deepEqual(damaged.requests.map(endpoint), ['https://api.open-meteo.com/v1/forecast'],
+    'DWD\'s forecast from its snapshot, the UV asked again');
+  assert.equal(damaged.p.uvTrend.length, 49);
 });

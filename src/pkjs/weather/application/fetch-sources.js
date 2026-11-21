@@ -23,44 +23,61 @@ function failure(code) {
     return { stage: 'provider_data', code: code };
 }
 
-// How each kind of step asks its source: it calls back with a failure value, or null once the
-// anchor holds what the step brings.
-var ASK = {
-    /**
-     * The anchor's own request, and only an answer the rest of the fetch can use
-     * (hasValidData: the core fields, a day's hours of temperature and rain chance).
-     * @param {Object} ports The source ports.
-     * @param {Object} anchor The Weather picker's provider.
-     * @param {number} lat Latitude.
-     * @param {number} lon Longitude.
-     * @param {boolean} force Whether this is a forced refresh.
-     * @param {function(?Object): void} done Receives a failure value or null.
-     * @returns {void}
-     */
-    forecast: function (ports, anchor, lat, lon, force, done) {
-        anchor.withProviderData(lat, lon, force, function () {
-            done(anchor.hasValidData() ? null : failure('invalid_data'));
-        }, function (providerFailure) {
-            done(providerFailure || failure('unknown_error'));
-        });
+// Each kind of step (a plan step's `ask`): how it asks its source (run: it calls back with a
+// failure value, or null once the source answered), and whether the anchor then holds what the
+// kind brings (holds). A source's answer, or a stored snapshot, that does not hold it is none:
+// `empty` is its failure code.
+var ASKS = {
+    forecast: {
+        /**
+         * The anchor's own request.
+         * @param {Object} ports The source ports.
+         * @param {Object} anchor The Weather picker's provider.
+         * @param {number} lat Latitude.
+         * @param {number} lon Longitude.
+         * @param {boolean} force Whether this is a forced refresh.
+         * @param {function(?Object): void} done Receives a failure value or null.
+         * @returns {void}
+         */
+        run: function (ports, anchor, lat, lon, force, done) {
+            anchor.withProviderData(lat, lon, force, function () {
+                done(null);
+            }, function (providerFailure) {
+                done(providerFailure || failure('unknown_error'));
+            });
+        },
+        /**
+         * What the rest of the fetch can use (hasValidData: the core fields, a day's hours of
+         * temperature and rain chance).
+         * @param {Object} anchor The Weather picker's provider.
+         * @returns {boolean}
+         */
+        holds: function (anchor) { return anchor.hasValidData(); },
+        empty: 'invalid_data'
     },
-    /**
-     * Open-Meteo's UV-only request into the anchor's uvTrend, aligned to its startTime: it always
-     * calls back, an answer it could not use leaving the UV empty. The UV is cleared first, so
-     * what the anchor holds afterwards is the fill's alone.
-     * @param {Object} ports The source ports.
-     * @param {Object} anchor The Weather picker's provider.
-     * @param {number} lat Latitude.
-     * @param {number} lon Longitude.
-     * @param {boolean} force Unused: a fill has no forced form.
-     * @param {function(?Object): void} done Receives a failure value or null.
-     * @returns {void}
-     */
-    uv: function (ports, anchor, lat, lon, force, done) {
-        anchor.uvTrend = [];
-        ports.fillUv(anchor, lat, lon, function () {
-            done(anchor.uvTrend.length ? null : failure('openmeteo_uv_empty'));
-        });
+    uv: {
+        /**
+         * Open-Meteo's UV-only request into the anchor's uvTrend, aligned to its startTime: it
+         * always calls back, an answer it could not use leaving the UV empty. The UV is cleared
+         * first, so what the anchor holds afterwards is the fill's alone.
+         * @param {Object} ports The source ports.
+         * @param {Object} anchor The Weather picker's provider.
+         * @param {number} lat Latitude.
+         * @param {number} lon Longitude.
+         * @param {boolean} force Unused: a fill has no forced form.
+         * @param {function(?Object): void} done Receives null.
+         * @returns {void}
+         */
+        run: function (ports, anchor, lat, lon, force, done) {
+            anchor.uvTrend = [];
+            ports.fillUv(anchor, lat, lon, function () { done(null); });
+        },
+        /**
+         * @param {Object} anchor The Weather picker's provider.
+         * @returns {boolean} Whether it holds UV hours.
+         */
+        holds: function (anchor) { return Array.isArray(anchor.uvTrend) && anchor.uvTrend.length > 0; },
+        empty: 'openmeteo_uv_empty'
     }
 };
 
@@ -101,16 +118,22 @@ function storeOf(ports) {
  * @returns {void}
  */
 function runStep(store, ports, step, anchor, lat, lon, force, done) {
+    var ask = ASKS[step.ask];
     var query = forecastSnapshot.queryOf(step.provider, step.ask, anchor, lat, lon);
     var fields = forecastSnapshot.reuse(store.entries, query, ports.now(), ports.refreshMs, anchor);
     if (fields) {
         Object.assign(anchor, fields);
-        done(null);
-        return;
+        // Only an answer that held is kept, so a snapshot that does not was damaged where it
+        // was stored: the source is asked, and its answer replaces every field.
+        if (ask.holds(anchor)) {
+            done(null);
+            return;
+        }
     }
-    ASK[step.ask](ports, anchor, lat, lon, force, function (stepFailure) {
-        if (!stepFailure && query) { store.keep(forecastSnapshot.snapshotOf(query, anchor, ports.now())); }
-        done(stepFailure);
+    ask.run(ports, anchor, lat, lon, force, function (stepFailure) {
+        var outcome = stepFailure || (ask.holds(anchor) ? null : failure(ask.empty));
+        if (!outcome && query) { store.keep(forecastSnapshot.snapshotOf(query, anchor, ports.now())); }
+        done(outcome);
     });
 }
 
