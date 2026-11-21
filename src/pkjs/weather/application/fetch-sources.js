@@ -11,7 +11,7 @@
 // a fetch later in the same refresh slot reuses the anchor's instead of asking again, and
 // DWD's UV fill is reused for 3 hours.
 //
-// The plan runs through ports (weather/adapter/weather-sources.js create), so this file
+// The plan runs through ports (weather/adapter/source-ports.js create), so this file
 // touches no runtime.
 
 var sourcePlan = require('../domain/source-plan.js');

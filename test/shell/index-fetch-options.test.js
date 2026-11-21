@@ -92,7 +92,7 @@ test('a placed UV alert with no UV slot or line sends the UV request too', (t) =
 });
 
 // DWD sends no UV: the source plan takes it from Open-Meteo's UV request, through the
-// sources the fetch hands the provider beside its options (weather/adapter/weather-sources.js).
+// sources the fetch hands the provider beside its options (weather/adapter/source-ports.js).
 test('DWD with a UV slot gets its UV from Open-Meteo\'s UV request', (t) => {
   // Bright Sky answers as in the provider world, which follows the hours a request asks for.
   const network = (url, req) => (/^https:\/\/api\.brightsky\.dev\//.test(url)

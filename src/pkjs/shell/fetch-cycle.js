@@ -33,7 +33,7 @@ var radarSkySource = require('../weather/adapter/radar/radar-sky-source.js');
 var requestThrottle = require('../weather/adapter/radar/request-throttle.js');
 var radarCoverageStore = require('../weather/adapter/radar/radar-coverage-store.js');
 var WeatherProvider = require('../weather/adapter/provider.js');
-var weatherSources = require('../weather/adapter/weather-sources.js');
+var sourcePorts = require('../weather/adapter/source-ports.js');
 var renderPayload = require('../weather/application/render-payload.js');
 var keyResult = require('../weather/domain/keys/key-result.js');
 var keyResultsStore = require('../weather/adapter/key-results-store.js');
@@ -502,7 +502,7 @@ function createFetchCycle(deps) {
         // And what it may ask of other providers for the readings this one lacks, with
         // the snapshots of their last answers (the source plan:
         // weather/application/fetch-sources.js).
-        provider.sources = weatherSources.create(deps.getSettings());
+        provider.sources = sourcePorts.create(deps.getSettings());
         fetchInProgress = true;
         // This fetch's once-guard: set by the first of success, failure or the
         // watchdog, after which every later completion from this fetch is a no-op.

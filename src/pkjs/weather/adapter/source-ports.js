@@ -1,4 +1,4 @@
-// src/pkjs/weather/adapter/weather-sources.js — ES5, watch runtime.
+// src/pkjs/weather/adapter/source-ports.js — ES5, watch runtime.
 //
 // The ports the source plan runs through (weather/application/fetch-sources.js): what a fetch
 // asks of providers other than the Weather picker's, and where every provider's last answer

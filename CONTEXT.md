@@ -366,7 +366,7 @@ pollen, the day records, the payload) reads it. It serves the readings it sends;
 it lacks comes from Open-Meteo while the screens draw it (so far DWD's UV, by Open-Meteo's
 UV-only request). `src/pkjs/weather/application/fetch-sources.js` runs the plan through the
 weather sources the fetch cycle hands the provider beside its options
-(`src/pkjs/weather/adapter/weather-sources.js`).
+(`src/pkjs/weather/adapter/source-ports.js`).
 _Avoid_: provider chain, fallback provider (a fallback is what By location tries when a
 provider fails).
 

@@ -28,7 +28,7 @@ function run(id, options, opts) {
     localStorage.setItem(mod('settings/domain/storage-keys.js').WU_API_KEY, 'stored-key');
     const p = mod('weather/adapter/provider-factory.js').createProvider(id, KEYS);
     p.options = mod('weather/domain/fetch-options.js').defaults(Object.assign({ dayPeakCodes: [] }, options));
-    p.sources = o.noPorts ? null : mod('weather/adapter/weather-sources.js').create({ fetchIntervalMin: '15' });
+    p.sources = o.noPorts ? null : mod('weather/adapter/source-ports.js').create({ fetchIntervalMin: '15' });
     if (o.before) { o.before(p, mod); }
     let outcome = 'pending';
     let failure = null;
@@ -142,7 +142,7 @@ function fetchesOf(id, fetches, opts) {
         p = mod('weather/adapter/provider-factory.js').createProvider(id, Object.assign({}, KEYS, f.keys));
       }
       p.options = fetchOptions.defaults(Object.assign({ fetchUv: true, dayPeakCodes: [] }, f.options));
-      p.sources = mod('weather/adapter/weather-sources.js').create({ fetchIntervalMin: '15' });
+      p.sources = mod('weather/adapter/source-ports.js').create({ fetchIntervalMin: '15' });
       if (f.before) { f.before(p); }
       let outcome = 'pending';
       mod('weather/application/fetch-sources.js').fetchSources(p, p.sources, f.lat || world.PLACE.lat,
@@ -216,7 +216,7 @@ test('a UV fill that failed is not kept: the next fetch asks again', () => {
     const from = requests.length;
     const p = mod('weather/adapter/provider-factory.js').createProvider('dwd', {});
     p.options = fetchOptions.defaults({ fetchUv: true, dayPeakCodes: [] });
-    p.sources = mod('weather/adapter/weather-sources.js').create({ fetchIntervalMin: '15' });
+    p.sources = mod('weather/adapter/source-ports.js').create({ fetchIntervalMin: '15' });
     mod('weather/application/fetch-sources.js').fetchSources(p, p.sources, world.PLACE.lat, world.PLACE.lon, false,
       () => {}, (f) => { throw new Error(JSON.stringify(f)); });
     refuse = false;
@@ -238,7 +238,7 @@ test('a reused forecast sends the watch the same payload, byte for byte, and onl
     outbox.sendWeather = (payload, onAck) => { sent = payload; onAck(); };
     const p = mod('weather/adapter/provider-factory.js').createProvider('dwd', settings);
     p.options = fetchOptions.build(settings, watchInfo, { waqiToken: '' });
-    p.sources = mod('weather/adapter/weather-sources.js').create(settings);
+    p.sources = mod('weather/adapter/source-ports.js').create(settings);
     const render = mod('weather/application/render-payload.js');
     p.fetchWithCoordinates(world.PLACE.lat, world.PLACE.lon, () => {}, (f) => { throw new Error(JSON.stringify(f)); },
       false, { IS_SLEEPING: false }, (payload) => render.toRenderPayload(payload, settings, watchInfo, new Date(), null));

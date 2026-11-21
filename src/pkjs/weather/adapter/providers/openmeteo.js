@@ -526,7 +526,7 @@ function mapUv(json, startTime, hours) {
  * at '--' rather than failing the whole forecast, or, on a reused provider
  * instance, shipping the previous cycle's window against the new startTime.
  * Shared by the Open-Meteo provider and the source plan's UV fill for a provider
- * that sends none (weather/adapter/weather-sources.js: DWD's).
+ * that sends none (weather/adapter/source-ports.js: DWD's).
  * @param {Object} provider Active provider (reads .options.fetchUv/.startTime, writes .uvTrend).
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.

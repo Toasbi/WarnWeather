@@ -61,7 +61,7 @@ var WeatherProvider = function() {
     // is never handed one runs on the defaults.
     this.options = fetchOptions.defaults();
     // What this fetch may ask of other providers, for the readings this one lacks
-    // (weather/adapter/weather-sources.js): the fetch cycle sets it beside the options
+    // (weather/adapter/source-ports.js): the fetch cycle sets it beside the options
     // before each fetch. Null fetches this provider's own data alone.
     this.sources = null;
     // The status slots' day max (the Day max / Both modes, day-peaks.js): each
