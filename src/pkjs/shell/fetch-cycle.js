@@ -63,10 +63,10 @@ var FAILURE_BACKOFF_BASE_MS = 60 * 1000;
 
 // --- fetch cadence ----------------------------------------------------------
 // When-do-we-fetch vocabulary, read by shouldFetchNow (isRefreshDue and
-// isFailureBackoffActive). A refresh slot is a request throttle's slot
-// (request-throttle.js isPastSlot: UTC-aligned chunks of the interval since the
-// epoch). Static on the factory: the cadence probe is stateless and shared.
-var isPastRefreshSlot = requestThrottle.isPastSlot;
+// isFailureBackoffActive). A refresh slot is a UTC-aligned chunk of the interval
+// since the epoch (weather/domain/refresh-slot.js). Static on the factory: the
+// cadence probe is stateless and shared.
+var isPastRefreshSlot = require('../weather/domain/refresh-slot.js').isPastSlot;
 
 /**
  * How long a scheduled (non-forced) refresh waits after a failed attempt: one
