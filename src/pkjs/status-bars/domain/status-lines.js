@@ -142,10 +142,10 @@ var isoWeek = slotText.isoWeek;
  * @property {number} nowSec The same instant in epoch seconds (day or night now).
  * @property {?{available: boolean, level: (number|null)}} phone The
  *   phone's battery reading, read once by buildStatusLines and only when a bar it bakes
- *   shows a phone-battery item; null when there is none.
- * @property {?number} batteryDays The whole days the watch battery's percentage slot
- *   shows in place of the percentage (battery-days.js daysLeft); null when it shows the
- *   percentage.
+ *   shows the phone battery; null when there is none.
+ * @property {?number} batteryDays The whole days the watch battery's Text look shows, in
+ *   place of the percentage or beside it (battery-days.js daysLeft); null when it shows
+ *   the percentage alone.
  */
 
 /**
@@ -268,12 +268,12 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
     if (pollen !== null) { return pollen; }
     return band === null ? '--' : band;
   }
-  // Both phone-battery items render the same text; they differ only in the icon
+  // The phone battery's two looks render the same text; they differ only in the icon
   // id they pack (see iconFor). The value is baked here from the phone's own
   // cached reading rather than sourced from the payload -- it is the one status
   // item that has nothing to do with the weather fetch, which is exactly what
   // lets a battery event re-send it while a provider key is expired.
-  if (code === 'phoneBattery' || code === 'phoneBatteryPlain') {
+  if (code === 'phoneBattery') {
     var pb = bake.phone;
     // '--' covers both "this phone has no source of its charge" and "no
     // reading has landed yet". It is also what the watch substitutes whenever
@@ -387,10 +387,11 @@ function arrowSector(code, payload, settings, env, dayMax) {
 /**
  * The icon id to pack for one resolved item.
  *
- * Every other item packs the static `icon` off its catalog entry. Two items choose
+ * Every other item packs the static `icon` off its catalog entry. Three items choose
  * theirs PER BAKE, inside a byte the slot already pays for -- no wire field, no
  * watch-side logic, no C plumbing: 'condition' draws the glyph of the weather now, by
- * day or night, and 'city' may draw it before its name.
+ * day or night, 'city' may draw it before its name, and 'phoneBattery' packs the id of
+ * its Text look, which draws none.
  *
  * Resolved into a local exactly like `kind` is for the imperial distance slot --
  * the catalog entry itself is shared and must never be mutated.
@@ -417,6 +418,11 @@ function iconFor(code, item, payload, settings, env, bake) {
     var cn = conditionNow(payload, bake.nowSec);
     return cn && slotText.conditionLook(settings, env) !== 'text'
       ? catalog.ICONS[condition.glyph(cn.id, cn.night)] : catalog.ICONS.COND_TEXT;
+  }
+  // The phone battery in its Text look: the id that loads no glyph, and that keeps the
+  // slot the phone battery's on the watch (its bold mode, its "--" out of reach).
+  if (code === 'phoneBattery' && slotText.phoneBatteryLook(settings) === 'text') {
+    return catalog.ICONS.PHONE_BATTERY_PLAIN;
   }
   return item.icon;
 }
@@ -470,7 +476,7 @@ function slotCode(line, s, settings, env) {
 }
 
 /**
- * Whether any slot of the given lines shows the phone's battery (either item).
+ * Whether any slot of the given lines shows the phone's battery (in either look).
  * @param {Array<Object>} lines catalog line definitions
  * @param {Object} settings Clay settings blob
  * @param {Object} env platform environment
@@ -479,26 +485,26 @@ function slotCode(line, s, settings, env) {
 function showsPhoneBattery(lines, settings, env) {
   for (var l = 0; l < lines.length; l++) {
     for (var s = 0; s < 3; s++) {
-      var code = slotCode(lines[l], s, settings, env);
-      if (code === 'phoneBattery' || code === 'phoneBatteryPlain') { return true; }
+      if (slotCode(lines[l], s, settings, env) === 'phoneBattery') { return true; }
     }
   }
   return false;
 }
 
 /**
- * Whether any slot of the given lines shows the watch battery's days left: its
- * percentage slot, set to show them (battery-days.js wanted).
+ * Whether any slot of the given lines shows the watch battery's days left: the watch
+ * battery in its Text look (slot-text.js batteryLook; never on aplite), set to show them
+ * alone or beside the percentage (battery-days.js wanted).
  * @param {Array<Object>} lines catalog line definitions
  * @param {Object} settings Clay settings blob
  * @param {Object} env platform environment
  * @returns {boolean}
  */
 function showsBatteryDays(lines, settings, env) {
-  if (!batteryDays.wanted(settings)) { return false; }
+  if (!batteryDays.wanted(settings) || slotText.batteryLook(settings, env) !== 'text') { return false; }
   for (var l = 0; l < lines.length; l++) {
     for (var s = 0; s < 3; s++) {
-      if (slotCode(lines[l], s, settings, env) === 'batteryPct') { return true; }
+      if (slotCode(lines[l], s, settings, env) === 'battery') { return true; }
     }
   }
   return false;
@@ -543,6 +549,11 @@ function packLine(line, payload, settings, env, alerts, bake) {
     var kind = item.kind;
     if (code === 'distance' && settings && settings.distanceUnits === 'imperial') {
       kind = catalog.KINDS.LIVE_DISTANCE_MI;
+    }
+    // So does the watch battery its look: the battery the watch draws (the entry's kind), or
+    // its charge as text (never on aplite: slot-text.js batteryLook).
+    if (code === 'battery' && slotText.batteryLook(settings, env) === 'text') {
+      kind = catalog.KINDS.LIVE_BATTERY_PCT;
     }
     // Likewise resolved per bake rather than read straight off the entry: the weather
     // condition's glyph (see iconFor).
@@ -597,12 +608,13 @@ function packLine(line, payload, settings, env, alerts, bake) {
       }
     } else {
       // The watch draws a live kind from its own readings, so it carries no bytes. One
-      // exception: the watch battery's percentage slot carries the days the watch has
-      // left while it is to show them (battery-days.js), which the watch prints in place
-      // of its percentage while they can be current (status_line.h
-      // status_slot_kind_has_text).
-      var daysBytes = code === 'batteryPct' && bake.batteryDays !== null
-        ? utf8Truncate(utf8Encode(batteryDays.text(bake.batteryDays)), textCap(s)) : [];
+      // exception: the watch battery's text look carries the days the watch has left
+      // while it is to show them, alone or with the place of the percentage beside them
+      // (battery-days.js slotText), which the watch prints in place of its percentage
+      // while they can be current (status_line.h status_slot_kind_has_text).
+      var daysBytes = kind === catalog.KINDS.LIVE_BATTERY_PCT
+        ? utf8Truncate(utf8Encode(batteryDays.slotText(bake.batteryDays, settings, textCap(s))), textCap(s))
+        : [];
       bytes.push(kind, icon, daysBytes.length);
       for (var db = 0; db < daysBytes.length; db++) { bytes.push(daysBytes[db]); }
     }

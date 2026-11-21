@@ -1976,7 +1976,8 @@ test('the ledger order and marker policies are pinned: a released entry never mo
     ['v2.0.1_alert_defaults_migration', 'now', true],
     ['v2.6.0_screens_migration', 'now', false],
     ['v2.7.0_slot_defaults_migration', 'now', true],
-    ['v3.3.0_city_slot_icon_migration', 'now', true]
+    ['v3.3.0_city_slot_icon_migration', 'now', true],
+    ['v3.3.0_battery_slots_merge_migration', 'now', true]
   ]);
 });
 
@@ -2060,7 +2061,7 @@ test('every reset-safe entry, and no other, is marked by Reset watchface', () =>
     'v1.23.1_fifth_line_style_default_migration', 'v1.24.0_warn_look_migration',
     'v1.24.0_on_demand_migration', 'v1.24.0_rainbow_own_key_source_migration',
     'v2.0.1_alert_defaults_migration', 'v2.7.0_slot_defaults_migration',
-    'v3.3.0_city_slot_icon_migration']);
+    'v3.3.0_city_slot_icon_migration', 'v3.3.0_battery_slots_merge_migration']);
   const L = loadLedger({ theme: 'dark' });
   L.claySettings.resetAll(L.clayMigrations.RESET_SAFE_MARKERS);
   REGISTRY.forEach((e) => assert.equal(L.store[e.key], e.markOnReset ? '1' : undefined, e.key));

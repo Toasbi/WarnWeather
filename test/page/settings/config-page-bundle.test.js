@@ -615,6 +615,17 @@ test('the Status bars preview and the Night hours reach the page, in dependency 
   assert.ok(idx('lib/utf8.js') < idx('status-bars/domain/status-pair.js'), 'status-pair.js reads window.Utf8');
   assert.ok(idx('status-bars/domain/status-pair.js') < idx('status-bars/domain/slot-text.js'), 'slot-text.js reads window.StatusPair');
   assert.ok(idx('status-bars/domain/slot-text.js') < idx('page/status-bars/preview-status-bars.js'));
+  // The watch battery's text: battery-days.js binds window.StatusPair while its body runs,
+  // the preview binds window.BatteryDays while its own does, and blocks.js window.SlotText
+  // (the battery's Look, for its Edit badge). Out of order the page throws at boot on a
+  // real phone.
+  assert.ok(idx('status-bars/domain/status-pair.js') < idx('status-bars/domain/battery-days.js'),
+    'battery-days.js reads window.StatusPair');
+  assert.ok(idx('status-bars/domain/battery-days.js') < idx('page/status-bars/preview-status-bars.js'),
+    'preview-status-bars.js reads window.BatteryDays');
+  assert.ok(idx('status-bars/domain/slot-text.js') < idx('page/settings/blocks.js'), 'blocks.js reads window.SlotText');
+  assert.ok(page().indexOf('window.BatteryDays = api') !== -1, 'nothing assigns window.BatteryDays');
+  assert.ok(page().indexOf('window.SlotText = api') !== -1, 'nothing assigns window.SlotText');
   assert.ok(idx('calendar/domain/date-format.js') < idx('page/status-bars/preview-status-bars.js'));
   idx('page/theme/night-hours.js');
   const src = page();

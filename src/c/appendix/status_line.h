@@ -53,18 +53,51 @@ typedef enum {
     SLOT_LIVE_BATTERY = 9,      // watch draws the battery glyph; state read on-device
     SLOT_LIVE_BATTERY_PCT = 10, // watch formats the charge as "NN%" text; icon NONE. May
                                 // carry text all the same: the days the watch has left
-                                // ("5d"), which the watch shows in place of the percentage
-                                // while they can be current (status_slot_kind_has_text)
+                                // ("5d"), alone or beside the percentage
+                                // (STATUS_BATTERY_PCT_MARK), which the watch shows in
+                                // place of the percentage while they can be current
+                                // (status_slot_kind_has_text)
 } StatusSlotKind;
 #define STATUS_SLOT_KIND_MAX SLOT_LIVE_BATTERY_PCT
 
-// Whether a kind's slot carries value bytes: a text slot, and the watch battery's
-// percentage slot. Into that one the phone may bake the days the watch has left, another
-// app's estimate (src/pkjs/status-bars/domain/battery-days.js); zero bytes there is the
-// percentage alone, as every watch before knew the kind. Every other kind carries none,
-// and a line that gives it some is malformed.
+// Whether a kind's slot carries value bytes: a text slot, and the watch battery as text
+// (SLOT_LIVE_BATTERY_PCT). Into that one the phone may bake the days the watch has left,
+// another app's estimate (src/pkjs/status-bars/domain/battery-days.js); zero bytes there
+// is the percentage alone, as every watch before knew the kind. Every other kind carries
+// none, and a line that gives it some is malformed.
 static inline bool status_slot_kind_has_text(uint8_t kind) {
     return kind == SLOT_TEXT || kind == SLOT_LIVE_BATTERY_PCT;
+}
+
+// In a SLOT_LIVE_BATTERY_PCT value: where the watch prints its own percentage, for a slot
+// that shows the percentage and the days together ("83%|5d", "5d (83%)"). The phone bakes
+// the days and what stands between the two around it (battery-days.js PCT_MARK); a value
+// without it is the days alone. Below 0x80, so the line stays well-formed UTF-8.
+#define STATUS_BATTERY_PCT_MARK 0x1E
+
+// The watch battery slot's carried text as the watch draws it: `value` with "<percent>%" in
+// place of each STATUS_BATTERY_PCT_MARK, cut to `cap` bytes with its NUL. `percent` is the
+// watch's charge, read as 0..100.
+static inline void status_battery_text(char *buf, size_t cap, const char *value, size_t len,
+                                       int percent) {
+    if (cap == 0) { return; }
+    size_t o = 0;
+    for (size_t i = 0; i < len && o + 1 < cap; i++) {
+        if ((uint8_t)value[i] != STATUS_BATTERY_PCT_MARK) {
+            buf[o++] = value[i];
+            continue;
+        }
+        int p = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
+        char digits[3];
+        int n = 0;
+        do {
+            digits[n++] = (char)('0' + p % 10);
+            p /= 10;
+        } while (p > 0);
+        while (n > 0 && o + 1 < cap) { buf[o++] = digits[--n]; }
+        if (o + 1 < cap) { buf[o++] = '%'; }
+    }
+    buf[o] = '\0';
 }
 
 typedef enum {
@@ -93,10 +126,10 @@ typedef enum {
     STATUS_ICON_PHONE_BATTERY = 16,      // phone glyph; the PHONE's charge, baked
                                          // as "NN%" text by the phone (SLOT_TEXT)
     STATUS_ICON_PHONE_BATTERY_PLAIN = 18,
-                                // TEXT-ONLY: the no-icon phone-battery item, for
+                                // TEXT-ONLY: the phone battery's Text look, for
                                 // which no PDC/bit-mask glyph exists and none may
                                 // load — exactly like STATUS_ICON_PRESSURE above.
-                                // The id is what stops the no-icon variant from
+                                // The id is what stops the Text look from
                                 // arriving as SLOT_TEXT + STATUS_ICON_NONE, falling
                                 // through to THRESH_CITY and silently driving
                                 // City's Bold row (status_threshold.h)

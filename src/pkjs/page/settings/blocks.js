@@ -52,6 +52,10 @@ if (typeof require !== 'undefined') {
         ? require('../weather/condition-icons.js') : window.ConditionIcons;
     // The weather condition slot's vocabulary, for its list of every condition.
     var conditionLib = (typeof require !== 'undefined') ? require('../../weather/domain/condition.js') : window.Condition;
+    // The slots' looks as the bake reads them (slot-text.js, concatenated ahead of this file):
+    // the watch battery's, for its Edit badge.
+    var slotText = (typeof require !== 'undefined')
+        ? require('../../status-bars/domain/slot-text.js') : window.SlotText;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
     // the same module the watch's wire is packed from, so the row badges below preview
     // exactly what the graph draws. Same dual-context rule as the preview blocks:
@@ -669,8 +673,10 @@ if (typeof require !== 'undefined') {
             'dateSlotMonthFormat',
             'windSlotDirection', 'gustSlotDirection']
             // ...and every day-max kind's mode, pair and tomorrow-mark rows (UV,
-            // wind, gusts, AQI), from the catalog's one table.
-            .concat(statusLineCatalog.dayMaxSettingKeys());
+            // wind, gusts, AQI), from the catalog's one table...
+            .concat(statusLineCatalog.dayMaxSettingKeys())
+            // ...and the two battery slots' looks and the watch battery's text rows.
+            .concat(statusLineCatalog.batterySettingKeys());
         // The Watch Status Bar's own toggles exist only where On demand does not.
         if (env && env.onDemand === false) {
             schemaKeys.push('batteryLowOnly', 'showQt', 'vibe', 'btIcons');
@@ -805,7 +811,9 @@ if (typeof require !== 'undefined') {
         // watch will actually render — so All lights every slot's B and Off
         // none.
         var boldAlways = (S.statusBoldAll === 'all'
-            || (S.statusBoldAll !== 'off' && S['thresh' + key + 'BoldMode'] === 'always'));
+            || (S.statusBoldAll !== 'off' && S['thresh' + key + 'BoldMode'] === 'always'))
+            // The watch battery in its Icon look is a drawn battery: no text to print bold.
+            && !(key === 'BatteryPct' && slotText.batteryLook(S, env) !== 'text');
         var notes = [];
         if (enabled) { notes.push('highlighting on'); }
         if (boldAlways) { notes.push('always bold'); }

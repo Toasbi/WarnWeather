@@ -190,7 +190,7 @@ test('kind indices are in lockstep with the ThreshKind enum', () => {
     distance: 'THRESH_DISTANCE', uv: 'THRESH_UV',
     temp: 'THRESH_TEMP', pressure: 'THRESH_PRESSURE', sun: 'THRESH_SUN',
     date: 'THRESH_DATE', week: 'THRESH_WEEK', city: 'THRESH_CITY',
-    countdown: 'THRESH_COUNTDOWN', hr: 'THRESH_HR', batteryPct: 'THRESH_BATTERY_PCT',
+    countdown: 'THRESH_COUNTDOWN', hr: 'THRESH_HR', battery: 'THRESH_BATTERY_PCT',
     dew: 'THRESH_DEW', phoneBattery: 'THRESH_PHONE_BATTERY',
     phoneBatteryPlain: 'THRESH_PHONE_BATTERY_PLAIN', condition: 'THRESH_CONDITION' };
   th.KINDS.forEach((k, i) => {

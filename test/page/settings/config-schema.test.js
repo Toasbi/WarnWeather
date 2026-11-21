@@ -129,9 +129,10 @@ const EXPECTED_KEYS = [
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
   'statusTopLeft','statusTopLeftCountdown','statusTopMid','statusTopMidCountdown','statusTopRight','statusTopRightCountdown',
   'batteryLowOnly','statusHealthLeft','statusHealthLeftCountdown','statusHealthMid','statusHealthMidCountdown','statusHealthRight','statusHealthRightCountdown',
-  // What the watch battery's percentage slot shows: the percentage, or the days left
-  // (battery-days.js).
-  'batteryPctSlotShow'
+  // The two battery slots' Look rows, and what the watch battery's text shows (the
+  // percentage, the days left or both, and the pair's look: battery-days.js).
+  'batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
+  'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced', 'phoneBatterySlotLook'
 ].concat(THRESH_KEYS).concat(UNIT_KEYS).concat(GRAPH_COLOR_KEYS).concat(ALERT_KEYS);
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
@@ -2072,13 +2073,15 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
     'per-slot edit sheets follow the bars, in kind order');
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
   // the contract's wire-id order (KINDS 8..19). 'Phone battery slot' is last and
-  // serves BOTH phone-battery kinds (18 and 19) — they share key 'PhoneBattery',
-  // so there are eleven sheets for twelve bold-only kinds. The weather condition slot's
+  // serves BOTH phone-battery kinds (18 and 19, the Icon + text and the Text look) —
+  // they share key 'PhoneBattery', so there are eleven sheets for twelve bold-only
+  // kinds. The watch battery's sheet ('Watch battery slot', kind 16) serves both of its
+  // looks. The weather condition slot's
   // dialog, its Look and no Bold row, closes the tab.
   assert.deepEqual(titles.slice(17),
     ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
-      'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
+      'Heart rate slot', 'Watch battery slot', 'Dew point slot',
       'Phone battery slot', 'Weather condition slot'],
     'bold-only slot sheets follow, in wire-id order, then the condition slot\'s');
   // Every slot sheet previews the bars while it is open (the bar it came from, when it came
@@ -2528,15 +2531,14 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   });
 });
 
-// The phone-battery slot's Bold sheet. Unlike every other bold-only sheet this ONE
-// section serves TWO catalog items and TWO wire kinds: 'phoneBattery' (icon + NN%,
-// kind 18) and 'phoneBatteryPlain' (NN%, no icon, kind 19). The no-icon variant needs
-// its own wire kind so it can't fall through to City's bold row (the pressure-slot bug,
-// d22581f/0a05a7a), but both KINDS entries carry key 'PhoneBattery', so the resolver
-// lands both pencils on this one sheet and the packer writes the one mode into both
-// cells. If someone ever splits them into two keys, this test is what says the sheet
-// list has to grow with them.
-test('the Phone battery sheet exists once and BOTH phone-battery slot codes resolve to it', () => {
+// The phone-battery slot's sheet: its Look and its Bold row. The ONE catalog item has
+// TWO wire kinds, by Look: 'phoneBattery' (icon + NN%, kind 18) and 'phoneBatteryPlain'
+// (NN%, no icon, kind 19; no catalog item since 3.3.0). The Text look needs its own wire
+// kind so it can't fall through to City's bold row (the pressure-slot bug,
+// d22581f/0a05a7a), but both KINDS entries carry key 'PhoneBattery', so the packer
+// writes the one mode into both cells. If someone ever splits them into two keys, this
+// test is what says the sheet list has to grow with them.
+test('the Phone battery sheet exists once and the phone-battery slot code resolves to it in both looks', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const sheets = watch.sections.filter((s) => s.sheetId === 'threshPhoneBattery');
   assert.equal(sheets.length, 1, 'exactly one Phone battery sheet, shared by both kinds');
@@ -2545,10 +2547,14 @@ test('the Phone battery sheet exists once and BOTH phone-battery slot codes reso
   assert.equal(sheet.sheetOnly, true, 'opened from a slot pencil, never rendered as a card');
   assert.deepEqual(sheet.showWhen, { env: 'thresholds' },
     'aplite compiles the highlight machinery out, so the sheet must not exist there');
-  // Bold is its whole sheet: no thresholds, no levels, no extra rows.
-  assert.deepEqual(sheet.items.map((i) => i.messageKey), ['threshPhoneBatteryBoldMode'],
-    'one Bold row and nothing else — the slot has no levels to threshold');
-  const bold = sheet.items[0];
+  // The Look, then Bold: no thresholds, no levels, no other rows.
+  assert.deepEqual(sheet.items.map((i) => i.messageKey), ['phoneBatterySlotLook', 'threshPhoneBatteryBoldMode'],
+    'the Look row and one Bold row — the slot has no levels to threshold');
+  const look = sheet.items[0];
+  assert.equal(look.type, 'segmented');
+  assert.equal(look.defaultValue, 'both');
+  assert.deepEqual(look.options, [['Icon + text', 'both'], ['Text', 'text']]);
+  const bold = sheet.items[1];
   assert.equal(bold.type, 'segmented');
   assert.equal(bold.defaultValue, 'off');
   assert.deepEqual(bold.options, [['Off', 'off'], ['Always', 'always']]);
@@ -2558,10 +2564,11 @@ test('the Phone battery sheet exists once and BOTH phone-battery slot codes reso
   // the shared key really does collapse two codes onto one sheet.
   const resolve = PConf.sheetResolvers.get('statusSlotEditSheet');
   assert.ok(resolve, 'blocks.js registered statusSlotEditSheet');
-  ['phoneBattery', 'phoneBatteryPlain'].forEach((code) => {
+  ['both', 'text'].forEach((look) => {
     assert.equal(
-      resolve({ statusForecastLeft: code }, { thresholds: true }, { messageKey: 'statusForecastLeft' }),
-      'threshPhoneBattery', code + ' opens the shared Phone battery sheet');
+      resolve({ statusForecastLeft: 'phoneBattery', phoneBatterySlotLook: look }, { thresholds: true },
+        { messageKey: 'statusForecastLeft' }),
+      'threshPhoneBattery', look + ' look opens the Phone battery sheet');
   });
   // The gate is the same env flag the section carries — no pencil on aplite.
   assert.equal(

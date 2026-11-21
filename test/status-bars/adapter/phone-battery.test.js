@@ -136,9 +136,9 @@ test('a stored false is a real verdict and is never re-probed', () => {
 
 test('after a wipe the items are still offered in EVERY slot, not just top-right', () => {
   // The user-visible shape of the bug: needsPhoneBattery OMITS rather than
-  // disables, so a false verdict strips both items from all twelve dropdowns and
-  // leaves the top-right slot's Battery group -- made of the two WATCH items --
-  // as the only trace, which reads as "the phone item only works top-right".
+  // disables, so a false verdict strips the item from all twelve dropdowns and
+  // leaves the top-right slot's Watch battery as the only trace, which reads as
+  // "the phone item only works top-right".
   boot({ navigator: modernNavigator(fakeManager(0.62)) });
   clearStorage();
   const env = { color: true, platform: 'basalt', health: true,
@@ -148,7 +148,6 @@ test('after a wipe the items are still offered in EVERY slot, not just top-right
       const codes = catalog.slotOptions({}, env,
         { slotKey: slotKey, position: catalog.SLOT_POSITIONS[i] }).map((o) => o[1]);
       assert.ok(codes.includes('phoneBattery'), slotKey + ' offers Phone battery');
-      assert.ok(codes.includes('phoneBatteryPlain'), slotKey + ' offers the no-icon variant');
     });
   });
 });

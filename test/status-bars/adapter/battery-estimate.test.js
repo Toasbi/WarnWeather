@@ -18,6 +18,7 @@ global.localStorage = {
 const batteryEstimate = require('../../../src/pkjs/status-bars/adapter/battery-estimate.js');
 const statusRebake = require('../../../src/pkjs/status-bars/application/status-rebake.js');
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
+const batteryDays = require('../../../src/pkjs/status-bars/domain/battery-days.js');
 const { decodeLine } = require('../../helpers/status-line-bytes.js');
 
 const realLog = console.log;
@@ -26,7 +27,9 @@ test.after(() => { console.log = realLog; });
 
 const MIN = 60 * 1000;
 const DAY = 24 * 60 * MIN;
-const DAYS_ON = { statusTopRight: 'batteryPct', batteryPctSlotShow: 'days' };
+// The watch battery in its Text look, set to show the days left.
+const TEXT_LOOK = { statusTopRight: 'battery', batterySlotLook: 'text' };
+const DAYS_ON = Object.assign({ batterySlotDisplay: 'days' }, TEXT_LOOK);
 /** The Night battery saver, on with its shipped 0:00-07:00 window. */
 const SAVER_ON = { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' };
 
@@ -109,8 +112,9 @@ test('wanted: Muninn is asked once at start, for its days and when it made them'
 });
 
 test('not wanted: nothing is read', () => {
-  [{ statusTopRight: 'batteryPct' },                              // the percentage
-    { statusTopRight: 'battery', batteryPctSlotShow: 'days' },    // another item in the slot
+  [TEXT_LOOK,                                                      // the percentage
+    { statusTopRight: 'battery', batterySlotDisplay: 'days' },     // the Icon look
+    { statusTopRight: 'aqi', batterySlotLook: 'text', batterySlotDisplay: 'days' },   // another item in the slot
     {}].forEach((settings) => {
     const h = boot({ settings: settings });
     assert.equal(h.pebble.subs.length, 0, JSON.stringify(settings));
@@ -160,6 +164,19 @@ test('other days heard are sent', () => {
   h.pebble.subs[1].push(stats(4, h.clock));
   assert.equal(h.sends.length, 2);
   assert.equal(sentDays(h), '4d');
+});
+
+test('set to both: Muninn is read the same, and the watch gets the days beside the place of its percentage', () => {
+  const h = boot({ settings: Object.assign({ batterySlotDisplay: 'both' }, TEXT_LOOK) });
+  assert.equal(h.pebble.subs.length, 1);
+  h.pebble.subs[0].push(stats(5, h.clock));
+  assert.equal(h.sends.length, 1);
+  assert.equal(sentDays(h), batteryDays.PCT_MARK + '|5d');
+  h.clock += batteryEstimate.READ_INTERVAL_MS;
+  batteryEstimate.onTick(false);
+  h.pebble.subs[1].push(stats(4, h.clock));
+  assert.equal(h.sends.length, 2, 'other days are news to the pair too');
+  assert.equal(sentDays(h), batteryDays.PCT_MARK + '|4d');
 });
 
 test('Muninn without an estimate yet (-1) reads as none', () => {
@@ -223,7 +240,7 @@ test('the tick asks again only after the read interval', () => {
 });
 
 test('saving the settings asks at once, whenever the last read was', () => {
-  const h = boot({ settings: { statusTopRight: 'batteryPct' } });
+  const h = boot({ settings: TEXT_LOOK });
   assert.equal(h.pebble.subs.length, 0, 'the percentage: nothing read');
   h.settings = DAYS_ON;
   batteryEstimate.refresh();

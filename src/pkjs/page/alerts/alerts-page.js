@@ -312,7 +312,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 var slotKey = bar.prefix + positions[p][0];
                 var code = statusLineCatalog.resolveSelection(S[slotKey], S, env,
                     {slotKey: slotKey, position: positions[p][1]});
-                if (code === 'battery' || code === 'batteryPct') { return true; }
+                if (code === 'battery') { return true; }
             }
         }
         return false;

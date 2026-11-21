@@ -219,8 +219,8 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // renders the news pill from this instead of fetching the list itself.
         newsCache: newsCache.readBody() || ''
     };
-    // Logged, not just passed: false here silently OMITS both phone-battery slot
-    // items from all twelve slot dropdowns, and nothing on the page says why. This
+    // Logged, not just passed: false here silently OMITS the phone battery slot
+    // item from all twelve slot dropdowns, and nothing on the page says why. This
     // is the only place that verdict is read, so it is the only place it can be
     // observed at the moment it decides what the user is offered.
     var phoneBatteryEnv = phoneBattery.isSupported();
@@ -456,7 +456,7 @@ Pebble.addEventListener('ready',
         // last sent, so the charge drifting inside its bucket sends nothing by itself.
         outbox.setRideAlong(phoneBattery.statusRideAlong);
         // The estimate of the days the watch has left (another app's plugin), read only
-        // while the watch battery's percentage slot is set to show them.
+        // while the watch battery's Text look is set to show them.
         batteryEstimate.init({
             getSettings: function () { return app.settings; },
             getWatchInfo: function () { return app.watchInfo; },

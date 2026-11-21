@@ -699,11 +699,11 @@ test('Battery: the warn level on the watch\'s step, the Look, where it shows, an
 test('Battery: "Hidden while a battery slot shows the charge" only where the item and a battery slot share a bar', () => {
   const t = hint('onDemandBatteryText');
   const SUFFIX = ' · Hidden while a battery slot shows the charge';
-  ['battery', 'batteryPct'].forEach((slot) => ['icon', 'value'].forEach((look) => {
-    const S = state({ statusTopRight: slot, batteryLowDisplay: look });
+  ['icon', 'text'].forEach((slotLook) => ['icon', 'value'].forEach((look) => {
+    const S = state({ statusTopRight: 'battery', batterySlotLook: slotLook, batteryLowDisplay: look });
     const want = 'At 10% or below' + (look === 'value' ? ' · Icon + value' : '') + SUFFIX + TOP_RIGHT;
-    assert.equal(t(S, ENV.basalt), want, slot + ' / ' + look);
-    assert.equal(t(S, ENV.emery), want, slot + ' / ' + look + ' on emery');
+    assert.equal(t(S, ENV.basalt), want, slotLook + ' slot look / ' + look);
+    assert.equal(t(S, ENV.emery), want, slotLook + ' slot look / ' + look + ' on emery');
   }));
   // The phone battery is not the watch battery.
   const phone = Object.assign({ phoneBattery: true }, ENV.basalt);

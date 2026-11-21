@@ -169,6 +169,17 @@
     }
 
     /**
+     * What the bake carries in the watch battery's Text look for the sample's days
+     * (battery-days.js slotText): none for the percentage alone, the days, or the pair
+     * around the place of the percentage.
+     * @param {Object} S Settings. @param {number} cap The slot's byte cap.
+     * @returns {string}
+     */
+    function batteryCarried(S, cap) {
+        return batteryDays.slotText(SAMPLE.batteryDays, S, cap);
+    }
+
+    /**
      * One slot's sample text, exactly as the watch would print the sample reading.
      * @param {string} code The catalog item the slot shows.
      * @param {Object} S Settings.
@@ -214,14 +225,16 @@
         case 'distance': return S.distanceUnits === 'imperial' ? '2.6mi' : '4.2km';
         case 'hr': return '64';
         case 'sleep': return '7h12';
-        // The days the watch has left where the slot is set to show them (the watch prints
-        // its percentage instead while there is no estimate; battery-days.js).
-        case 'batteryPct': return batteryDays.wanted(S) ? batteryDays.text(SAMPLE.batteryDays) : '80%';
         case 'phoneBattery': return '72%';
-        case 'phoneBatteryPlain': return '72%';
-        // The battery item is its glyph alone, except on aplite, whose lean twin prints
-        // the charge (status_row_aplite.c format_live_value).
-        case 'battery': return c.env && c.env.platform === 'aplite' ? '80%' : '';
+        // The watch battery: in its Icon look the glyph alone, except on aplite, whose lean
+        // twin prints the charge (status_row_aplite.c format_live_value); in its Text look
+        // the percentage, the days the watch has left or both, as the watch draws what the
+        // bake carries (battery-days.js; the watch prints its percentage alone while there
+        // is no estimate).
+        case 'battery':
+            if (c.env && c.env.platform === 'aplite') { return '80%'; }
+            if (slotText.batteryLook(S, c.env) !== 'text') { return ''; }
+            return batteryDays.drawn(batteryCarried(S, cap), '80%');
         default: return '';
         }
     }
@@ -238,12 +251,16 @@
      * watch pictures (preview-watch.js) both ask here.
      * @param {string} code The slot's item.
      * @param {Object} [env] Platform env.
-     * @param {Object} [S] Settings: the weather condition in its Text look draws none.
+     * @param {Object} [S] Settings: the weather condition and the two batteries in their
+     *     Text look draw none.
      * @returns {?string} The glyph's <svg>, or null for none.
      */
     function slotIcon(code, env, S) {
         if (env && env.platform === 'aplite' && !APLITE_GLYPHS[code]) { return null; }
         if (code === 'condition' && slotText.conditionLook(S, env) === 'text') { return null; }
+        if (code === 'phoneBattery' && slotText.phoneBatteryLook(S) === 'text') { return null; }
+        // The watch battery's Text look is its text alone; its Icon look the battery itself.
+        if (code === 'battery' && slotText.batteryLook(S, env) === 'text') { return null; }
         // The city draws the current weather's icon before its name (citySlotIcon); the
         // sample's weather is the condition slot's, partly cloudy.
         if (code === 'city') {
@@ -350,8 +367,11 @@
      */
     function wireBytes(code, text, S, env, cap) {
         var item = catalog.byCode(code);
-        // A live kind carries no bytes, but for the watch battery's days (packLine).
-        if (code === 'batteryPct' && batteryDays.wanted(S)) { return 3 + utf8.byteLength(text || ''); }
+        // A live kind carries no bytes, but for what the watch battery's Text look carries
+        // (packLine): the days, with the one-byte place of the percentage in a pair.
+        if (code === 'battery' && slotText.batteryLook(S, env) === 'text') {
+            return 3 + utf8.byteLength(batteryCarried(S, cap));
+        }
         if (!item || item.kind !== catalog.KINDS.TEXT) { return 3; }
         return 3 + utf8.byteLength(text || '') + (arrowShown(code, text, S, env, cap) ? 1 : 0);
     }

@@ -177,9 +177,6 @@ function renderSignature(settings, watchInfo) {
         settings.conditionSlotLook, settings.conditionSlotName,
         // ...the city slot's weather icon (baked into its icon byte)...
         settings.citySlotIcon,
-        // ...what the watch battery's percentage slot shows (the days left are baked
-        // into it; the percentage is not)...
-        settings.batteryPctSlotShow,
         // ...and the night weather-pause window (a change flips whether fetching pauses
         // and the IS_SLEEPING glyph the forced fetch pushes). The battery saver's own
         // toggle and hour pair — battery-saver.js reads no others — or an edit sits
@@ -205,6 +202,13 @@ function renderSignature(settings, watchInfo) {
     var dayMaxKeys = statusCatalog.dayMaxSettingKeys();
     for (var d = 0; d < dayMaxKeys.length; d++) {
         parts.push(settings[dayMaxKeys[d]]);
+    }
+    // ...the two battery slots' looks, and what the watch battery's text shows and how its
+    // pair reads (the kind, the icon and the days left are baked into the line; the
+    // percentage is the watch's own), from the catalog's list for the same reason...
+    var batteryKeys = statusCatalog.batterySettingKeys();
+    for (var b = 0; b < batteryKeys.length; b++) {
+        parts.push(settings[batteryKeys[b]]);
     }
     // ...and the slot selections of every line the bake sends (catalog bakedLines: the
     // Watch bar's and each bar a screen shows), each line's id and then its slots, each

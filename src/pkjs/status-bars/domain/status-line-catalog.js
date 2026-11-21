@@ -31,7 +31,7 @@
     // (PHONE_BATTERY_CHG, the glyph of a phone that charges; the slot shows the charge
     // alone now) — never reuse it.
     PHONE_BATTERY: 16,
-    // Text-only, exactly like PRESSURE: the no-icon phone-battery item never
+    // Text-only, exactly like PRESSURE: the phone battery in its Text look never
     // loads a glyph, and the id exists so it does not arrive as TEXT + NONE and
     // inherit city's bold mode.
     PHONE_BATTERY_PLAIN: 18,
@@ -96,27 +96,30 @@
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
     { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, needsHr: true, category: 'health' },
     { code: 'sleep', label: 'Sleep', kind: KINDS.LIVE_SLEEP, icon: ICONS.SLEEP, needsHealth: true, category: 'health' },
+    // The watch's own battery, one item with two looks (its dialog's Look,
+    // slot-text.js batteryLook): the battery the watch draws (this entry's kind), or its
+    // charge as text, which the bake packs as LIVE_BATTERY_PCT (status-lines.js packLine)
+    // and which can show the days the watch has left (battery-days.js). Until 3.3.0 the
+    // text look was an item of its own, 'batteryPct'
+    // (settings/domain/migrations/status-slots.js mergeBatterySlots).
     { code: 'battery', label: 'Watch battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnly: true, category: 'battery' },
-    { code: 'batteryPct', label: 'Watch battery percentage', kind: KINDS.LIVE_BATTERY_PCT, icon: ICONS.NONE, topRightOnly: true, notAplite: true, category: 'battery' },
-    // The PHONE's battery: phone-baked TEXT, so unlike the watch items above it
-    // is NOT corner-pinned — those sit top-right because that corner already
-    // reads as the watch's battery, while these carry their own icon (or, for
-    // the plain variant, deliberately none) and fit any slot.
+    // The PHONE's battery: phone-baked TEXT, so unlike the watch item above it
+    // is NOT corner-pinned — that one sits top-right because that corner already
+    // reads as the watch's battery, while this one carries its own icon (or, in its Text
+    // look, deliberately none: slot-text.js phoneBatteryLook, status-lines.js iconFor)
+    // and fits any slot. Until 3.3.0 the Text look was an item of its own,
+    // 'phoneBatteryPlain'.
     { code: 'phoneBattery', label: 'Phone battery', kind: KINDS.TEXT,
-      icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' },
-    { code: 'phoneBatteryPlain', label: 'Phone battery (no icon)', kind: KINDS.TEXT,
-      icon: ICONS.PHONE_BATTERY_PLAIN, needsPhoneBattery: true, notAplite: true, category: 'battery' }
+      icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' }
   ];
 
   // Dropdown grouping order + header labels (Part F). A category with no
   // available item for a slot emits no header, so gated items never leave an
-  // orphan heading. 'battery' holds four items: the WATCH glyph item and the
-  // watch "NN%" text item — both top-right only (the watch battery belongs in
-  // the corner already read as its own), the "NN%" one additionally absent on
-  // aplite — plus the two PHONE-battery items, which are selectable in any slot
-  // but exist only where the phone can report its charge (needsPhoneBattery)
-  // and never on aplite. The labels carry the Watch/Phone
-  // qualifier because all four otherwise read as "battery".
+  // orphan heading. 'battery' holds two items: the WATCH's — top-right only (the
+  // watch battery belongs in the corner already read as its own) — and the
+  // PHONE's, which is selectable in any slot but exists only where the phone can
+  // report its charge (needsPhoneBattery) and never on aplite. The labels carry the
+  // Watch/Phone qualifier because both otherwise read as "battery".
   var CATEGORIES = [
     ['weather', 'Weather'], ['datelocation', 'Date and location'],
     ['health', 'Health'], ['battery', 'Battery']
@@ -206,10 +209,10 @@
     // disabled row: there is no setting the user could change to earn it.
     if (item.needsPhoneBattery && (!env || !env.phoneBattery)) { return false; }
     // Items whose watch-side C rendering is compiled out on aplite (frozen
-    // image budget): batteryPct — the lean status-row twin never learned kind
-    // 10, and aplite's glyph battery slot already renders as "NN%" text anyway
-    // — and the two phone-battery items, which ship no aplite glyph at all.
-    // (Calendar-week used this gate once — the watch-side iso_week() is
+    // image budget): the phone battery, which ships no aplite glyph at all. (The
+    // watch battery's Text look is not an item: aplite's lean status-row twin never
+    // learned kind 10, so its bake keeps the battery kind, which that twin prints as
+    // "NN%" anyway. Calendar-week used this gate once — the watch-side iso_week() is
     // aplite-excluded — but the phone now bakes that slot as phone-side TEXT
     // for aplite instead; status-lines.js.)
     if (item.notAplite && env && env.platform === 'aplite') { return false; }
@@ -552,6 +555,19 @@
   }
 
   /**
+   * The settings the two battery slots own on their Edit sheets: the watch battery's Look,
+   * what its text shows and how its pair reads (slot-text.js batteryLook, battery-days.js),
+   * and the phone battery's Look (slot-text.js phoneBatteryLook). ONE list for the rows
+   * schema.js builds, the keys resetStatusSlots clears and the ones renderSignature
+   * watches (every one of them is baked into the line).
+   * @returns {string[]}
+   */
+  function batterySettingKeys() {
+    return ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
+      'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced', 'phoneBatterySlotLook'];
+  }
+
+  /**
    * Whether a day-max kind's slot needs its day peaks: it sits in a status slot
    * whose display mode prints one. The slot half of the fetch gate — the metric
    * alerts, which judge the day whatever any slot shows, join it in
@@ -603,7 +619,8 @@
     lineOf: lineOf, siblingHolds: siblingHolds, healthSlots: healthSlots,
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,
-    DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse
+    DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
+    batterySettingKeys: batterySettingKeys
   };
 
   // Dual-context export - mirror the exact tail of src/pkjs/layout/domain/view-cycle.js.

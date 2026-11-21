@@ -150,6 +150,59 @@ static void validate_tests(void) {
         }
     }
 
+    // The percentage and the days together: the phone bakes the days and what stands between
+    // the two around STATUS_BATTERY_PCT_MARK, and the watch prints its own charge there.
+    {
+        const char both[] = { STATUS_BATTERY_PCT_MARK, '|', '5', 'd', '\0' };
+        n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+        n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+        n = put_slot(b, n, SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, both);
+        expect("battery-both.valid", status_line_validate(b, n), 1);
+        StatusSlotView bv[STATUS_SLOT_COUNT];
+        const int walked = status_line_slots(b, n, bv);
+        expect("battery-both.slots", walked, STATUS_SLOT_COUNT);
+        if (walked == STATUS_SLOT_COUNT) {
+            // The mark is no wind arrow's byte either (status_row_direction.h: 0x01..0x10).
+            expect("battery-both.no-direction", status_slot_direction(&bv[2]), -1);
+            char out[20];
+            status_battery_text(out, sizeof(out), bv[2].value, bv[2].value_len, 83);
+            expect("battery-both.text", strcmp(out, "83%|5d"), 0);
+        }
+    }
+    {
+        char out[20];
+        const char days_first[] = { '5', 'd', ' ', '(', STATUS_BATTERY_PCT_MARK, ')' };
+        status_battery_text(out, sizeof(out), days_first, sizeof(days_first), 83);
+        expect("battery-text.days-first", strcmp(out, "5d (83%)"), 0);
+        // No mark: the days alone, as the slot carried them before it could show both.
+        status_battery_text(out, sizeof(out), "12d", 3, 83);
+        expect("battery-text.days-alone", strcmp(out, "12d"), 0);
+        const char spaced[] = { STATUS_BATTERY_PCT_MARK, ' ', '\xC2', '\xB7', ' ', '9', '9', 'd' };
+        status_battery_text(out, sizeof(out), spaced, sizeof(spaced), 100);
+        expect("battery-text.full", strcmp(out, "100% \xC2\xB7 99d"), 0);
+        const char bare[] = { STATUS_BATTERY_PCT_MARK };
+        status_battery_text(out, sizeof(out), bare, sizeof(bare), 5);
+        expect("battery-text.one-digit", strcmp(out, "5%"), 0);
+        status_battery_text(out, sizeof(out), bare, sizeof(bare), 0);
+        expect("battery-text.zero", strcmp(out, "0%"), 0);
+        // A charge outside 0..100 is read into it, never printed as it came.
+        status_battery_text(out, sizeof(out), bare, sizeof(bare), 250);
+        expect("battery-text.over", strcmp(out, "100%"), 0);
+        status_battery_text(out, sizeof(out), bare, sizeof(bare), -3);
+        expect("battery-text.under", strcmp(out, "0%"), 0);
+        status_battery_text(out, sizeof(out), "", 0, 83);
+        expect("battery-text.empty", strcmp(out, ""), 0);
+        // Cut to its buffer, the NUL included, wherever the cut falls.
+        char small[6];
+        memset(small, 'x', sizeof(small));
+        const char wide[] = { '9', 'd', '|', STATUS_BATTERY_PCT_MARK };
+        status_battery_text(small, 5, wide, sizeof(wide), 100);
+        expect("battery-text.cut", strcmp(small, "9d|1"), 0);
+        expect("battery-text.cut.no-overrun", small[5], 'x');
+        status_battery_text(small, 1, wide, sizeof(wide), 100);
+        expect("battery-text.cap-one", small[0], '\0');
+    }
+
     // TEXT with zero len: a glyph alone (the weather condition slot's Icon look), accepted.
     // Rejecting it threw the whole line away, so the watch kept the old icon and text.
     n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_SUN, NULL);

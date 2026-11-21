@@ -255,9 +255,9 @@ function probe(pebble, nav) {
  * logged the env verdict with no detect() line before it), and "Reset watchface"
  * wipes the verdict outright via localStorage.clear() (clay-settings.js
  * resetAll). Either way the next config open would read a missing key as false
- * and silently OMIT both phone-battery items from all twelve slot dropdowns --
- * leaving only the top-right slot's Battery group, which is made of the two WATCH
- * items and reads as "the phone item only works there".
+ * and silently OMIT the phone battery item from all twelve slot dropdowns --
+ * leaving only the top-right slot's watch battery, which reads as "a battery only
+ * works there".
  *
  * A stored 'false' is NEVER re-probed: that is a real verdict, including the one
  * detect() writes when getBattery() exists but REJECTS or the Phone plugin does not

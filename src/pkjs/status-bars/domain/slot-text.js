@@ -286,6 +286,31 @@
     }
 
     /**
+     * The watch battery slot's Look (its dialog's batterySlotLook): 'icon', the battery the
+     * watch draws (the default, and what anything unknown reads as), or 'text', its charge in
+     * words (battery-days.js). Always 'icon' on aplite, whose lean row has the one battery
+     * slot and prints it its own way.
+     * @param {Object} settings Settings.
+     * @param {Object} [env] Platform env.
+     * @returns {string} 'icon' or 'text'
+     */
+    function batteryLook(settings, env) {
+        if (env && env.platform === 'aplite') { return 'icon'; }
+        return settings && settings.batterySlotLook === 'text' ? 'text' : 'icon';
+    }
+
+    /**
+     * The phone battery slot's Look (its dialog's phoneBatterySlotLook): 'both', the phone's
+     * icon before the charge (the default, and what anything unknown reads as), or 'text',
+     * the charge alone.
+     * @param {Object} settings Settings.
+     * @returns {string} 'both' or 'text'
+     */
+    function phoneBatteryLook(settings) {
+        return settings && settings.phoneBatterySlotLook === 'text' ? 'text' : 'both';
+    }
+
+    /**
      * The weather condition slot's Name (its dialog's conditionSlotName): 'auto' (the full name,
      * the short form where the slot runs out of room; the default, and what anything unknown
      * reads as), 'full' or 'short'.
@@ -339,6 +364,8 @@
         conditionLook: conditionLook,
         conditionName: conditionName,
         cityIcon: cityIcon,
+        batteryLook: batteryLook,
+        phoneBatteryLook: phoneBatteryLook,
         conditionText: conditionText
     };
 

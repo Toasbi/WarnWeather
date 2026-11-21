@@ -5,6 +5,7 @@
 // clay-migrations.js owns the marker, the save and the send.
 
 var platformLib = require('../../../config-ui/lib/platform.js');   // isHrPlatform (emery + diorite)
+var catalog = require('../../../status-bars/domain/status-line-catalog.js');   // every bar's slot keys
 
 /**
  * Upgrade the seeded health-line defaults to the HR-capable triple (emery +
@@ -100,10 +101,51 @@ function migrateCitySlotIconOn(blob) {
     return { changed: true, send: false };
 }
 
+// The slot items 3.3.0 merged into another item's Text look: the item each became, and the
+// Look setting that keeps what the slot showed (slot-text.js batteryLook, phoneBatteryLook).
+var MERGED_BATTERY_ITEMS = {
+    batteryPct: { code: 'battery', lookKey: 'batterySlotLook' },
+    phoneBatteryPlain: { code: 'phoneBattery', lookKey: 'phoneBatterySlotLook' }
+};
+
+/**
+ * 3.3.0 made one slot item of each battery's two: the watch battery's percentage
+ * ('batteryPct') is the Watch battery's Text look, and the phone battery without its icon
+ * ('phoneBatteryPlain') the Phone battery's. A slot holding an old item takes the merged
+ * one, and that item's Look is set to Text, so the slot shows what it showed. The Look is
+ * the item's, not a slot's: an install that showed the phone battery with its icon in one
+ * slot and without it in another shows it without in both.
+ *
+ * No send: the line bakes to the bytes it had (the kind and the icon come from the Look
+ * now), but for that one case, which the next weather bake brings.
+ *
+ * @param {Object} blob Stored settings, mutated in place.
+ * @returns {{changed: boolean, send: boolean}}
+ */
+function mergeBatterySlots(blob) {
+    var changed = false;
+    catalog.ALL_LINES.forEach(function (line) {
+        line.slots.forEach(function (key) {
+            var stored = blob[key];
+            if (typeof stored !== 'string'
+                    || !Object.prototype.hasOwnProperty.call(MERGED_BATTERY_ITEMS, stored)) {
+                return;
+            }
+            var merged = MERGED_BATTERY_ITEMS[stored];
+            blob[key] = merged.code;
+            blob[merged.lookKey] = 'text';
+            changed = true;
+        });
+    });
+    if (changed) { console.log('Migrated the battery slots onto their merged items'); }
+    return { changed: changed, send: false };
+}
+
 module.exports = {
     migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults,
     migrateStatusTopRightBattery: migrateStatusTopRightBattery,
     keepSlotDefaults27: keepSlotDefaults27,
     migrateCitySlotIconOn: migrateCitySlotIconOn,
+    mergeBatterySlots: mergeBatterySlots,
     SLOT_DEFAULTS_BEFORE_2_7: SLOT_DEFAULTS_BEFORE_2_7
 };

@@ -269,13 +269,20 @@ var WIND_DIRECTION_HINT = 'Draws an arrow after the speed that points the way th
 // default (pairFallbackHints).
 /**
  * The Separator row's hints: the fit rule, for every value but the kind's default.
- * @param {string} prefix Key prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {string} prefix Key prefix: 'temp' | 'battery' | 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {string} first Sample of the value that leads by default, e.g. '12'.
  * @param {string} second Sample of the other value, e.g. '10'.
  * @param {Array<string>} values Every value the row offers.
  * @returns {Object} hintByValue: value → hint, the default absent.
  */
 function pairFallbackHints(prefix, first, second, values) {
+    // The watch battery's pair is short (the place of the percentage and at most '99d'):
+    // every preset fits its slot, spaced too, and only a custom separator of two wide
+    // characters can outgrow it with its spaces, which it then drops. So that is all its
+    // row has to say (test/status-bars/domain/battery-days.test.js walks every form).
+    if (prefix === 'battery') {
+        return {custom: 'If the pair doesn\'t fit, the slot drops the spaces.'};
+    }
     var def = STATUS_PAIR.defaultSeparator(prefix);
     var preset = STATUS_PAIR.SEPARATORS[def];
     // Only a day-max pair can still be too wide in its default form (a mark and two
@@ -294,7 +301,7 @@ function pairFallbackHints(prefix, first, second, values) {
 // only those, then the first two. Spaces are kept, not trimmed: ', ' is a real separator.
 /**
  * The Custom separator row's hint. Empty falls back to the kind's default separator.
- * @param {string} prefix Key prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {string} prefix Key prefix: 'temp' | 'battery' | 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {string} first Sample of the value that leads by default, e.g. '12'.
  * @param {string} second Sample of the other value, e.g. '10'.
  * @returns {string} The hint.
@@ -312,7 +319,7 @@ function pairCustomHint(prefix, first, second) {
  * A two-value slot's Order row: which value leads the pair. Shown only in the kind's
  * "Both" mode — the one mode that prints a pair — and joined tight to the row above,
  * the way every group of rows revealed by a control joins that control.
- * @param {string} prefix Key prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {string} prefix Key prefix: 'temp' | 'battery' | 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {Array<Array<string>>} orderOptions The order pills as [label, value]; the
  *     first one is the default (the order the slot has always printed).
  * @returns {Object} The Order row.
@@ -341,7 +348,7 @@ function orderRow(prefix, orderOptions) {
  * alike, so the dropdown stays one entry per separator instead of doubling (with the
  * toggle on, the slot prints the label's spaced form).
  *
- * @param {string} prefix Key prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {string} prefix Key prefix: 'temp' | 'battery' | 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {string} first Sample of the value that leads by default, e.g. '12'.
  * @param {string} second Sample of the other value, e.g. '10'.
  * @returns {Object[]} The separator select, the custom-separator text field, the spacing
@@ -677,7 +684,18 @@ function alertLevelsRow(keyStem) {
  * @returns {Object} Schema section (sheetOnly).
  */
 function boldSection(title, keyStem, gate, extraItems, afterItems) {
-    var bold = {
+    // Bold closes the sheet, as it does in the alert kinds' sheets: the rows that
+    // shape what the slot shows come first, then how boldly it prints.
+    var items = (extraItems || []).concat([boldOnlyRow(keyStem)], afterItems || []);
+    return sheetOf(keyStem, title, gateAll(items, gate));
+}
+/**
+ * A level-less kind's Bold row: Off or Always.
+ * @param {string} keyStem Kind key stem, e.g. 'City' (thresh<Stem>BoldMode).
+ * @returns {Object} The row.
+ */
+function boldOnlyRow(keyStem) {
+    return {
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'BoldMode',
         label: 'Bold',
@@ -687,15 +705,72 @@ function boldSection(title, keyStem, gate, extraItems, afterItems) {
         options: [['Off', 'off'], ['Always', 'always']],
         disabledWhen: BOLD_MASTER_WHEN
     };
-    // Bold closes the sheet, as it does in the alert kinds' sheets: the rows that
-    // shape what the slot shows come first, then how boldly it prints.
-    var items = (extraItems || []).concat([bold], afterItems || []);
-    return sheetOf(keyStem, title, gateAll(items, gate));
 }
 
-// The watch battery's days left: where they come from, and when the percentage shows
-// instead (battery-days.js daysLeft, status_row.c shows_battery_days).
-var BATTERY_DAYS_HINT = 'The days your watch has left, as the <a href=\'https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5\'>Muninn app</a> estimates them. Needs Muninn on your watch. Shows the percentage while Muninn has no estimate, while the watch charges and while your phone is out of reach.';
+// The watch battery slot's dialog. One slot, two looks (slot-text.js batteryLook): the
+// battery the watch draws, or its charge as text. The text shows the percentage, which the
+// watch reads itself, the days it has left, which the Muninn app estimates and the phone
+// bakes in (battery-days.js), or both as a pair shaped like the temperature slot's (the
+// Order and Separator rows, status-pair.js formatBatteryPair). The days need a Pebble app
+// that can read another app's plugin, so Value selection and the pair's rows show only
+// there (PLUGINS_WHEN), and only in the Text look, like Bold: a drawn battery has no text.
+var MUNINN_LINK = '<a href=\'https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5\'>Muninn app</a>';
+// Where the days come from, and when the percentage shows instead (battery-days.js
+// daysLeft, status_row.c shows_battery_days).
+var BATTERY_DAYS_HINT = 'Shows the days your watch has left, as the ' + MUNINN_LINK +
+    ' estimates them. Needs Muninn on your watch. Shows the percentage while Muninn has ' +
+    'no estimate, while the watch charges and while your phone is out of reach.';
+var BATTERY_BOTH_HINT = 'Shows the percentage and the days your watch has left, like 80%' +
+    STATUS_PAIR.SEPARATORS[STATUS_PAIR.defaultSeparator('battery')].mid + '5d. Order and ' +
+    'Separator set how the pair looks. The days are the ' + MUNINN_LINK + '\'s estimate ' +
+    'and need Muninn on your watch. Shows the percentage alone while Muninn has no ' +
+    'estimate, while the watch charges and while your phone is out of reach.';
+var BATTERY_TEXT_WHEN = {key: 'batterySlotLook', eq: 'text'};
+/**
+ * Add a condition to every row: each shows only while `gate` holds and its own showWhen,
+ * if it has one, does too (gateAll leaves a row with a showWhen of its own alone).
+ * @param {Object[]} items Schema items (mutated).
+ * @param {Object} gate showWhen predicate.
+ * @returns {Object[]} The same array.
+ */
+function alsoWhen(items, gate) {
+    items.forEach(function (item) {
+        item.showWhen = item.showWhen ? {all: [gate, item.showWhen]} : gate;
+    });
+    return items;
+}
+/**
+ * @returns {Object} The watch battery slot's sheet (sheetOnly).
+ */
+function batterySlotSheet() {
+    var daysWhen = {all: [BATTERY_TEXT_WHEN, PLUGINS_WHEN]};
+    var look = {
+        type: 'segmented',
+        messageKey: 'batterySlotLook',
+        label: 'Look',
+        hintByValue: {
+            icon: 'Shows a battery that empties with the charge.',
+            text: 'Shows the charge as text.'
+        },
+        defaultValue: 'icon',
+        options: [['Icon', 'icon'], ['Text', 'text']]
+    };
+    var pairRows = alsoWhen([{
+        // Global, like the temperature slot's: the watch battery sits in one slot. The
+        // phone bakes the days and the pair's separator (status-lines.js packLine) and it
+        // rides renderSignature(), so a change re-bakes without waiting for the next fetch.
+        type: 'segmented',
+        messageKey: 'batterySlotDisplay',
+        label: 'Value selection',
+        // The selected mode only; the percentage (the default) needs none.
+        hintByValue: {days: BATTERY_DAYS_HINT, both: BATTERY_BOTH_HINT},
+        defaultValue: 'percent',
+        options: [['Percentage', 'percent'], ['Days left', 'days'], ['Both', 'both']]
+    }, orderRow('battery', [['Percentage first', 'percent'], ['Days left first', 'days']])]
+        .concat(separatorRows('battery', '80%', '5d')), daysWhen);
+    var bold = alsoWhen([boldOnlyRow('BatteryPct')], BATTERY_TEXT_WHEN);
+    return sheetOf('BatteryPct', 'Watch battery', [look].concat(pairRows, bold));
+}
 
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
 var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
@@ -2131,29 +2206,27 @@ module.exports = {
         boldSection('Date countdown', 'Countdown', null,
             [unitRow('countdownSlotUnit', '5d', '5')]),
         boldSection('Heart rate', 'Hr', HR_SLOT_WHEN),
-        // What the slot shows: the charge the watch reads itself, or the days it has left,
-        // which the Muninn app estimates and the phone bakes in (battery-days.js). Only
-        // where the Pebble app can read another app's plugin.
-        boldSection('Battery percentage', 'BatteryPct', null, [{
-            type: 'segmented',
-            messageKey: 'batteryPctSlotShow',
-            label: 'Show',
-            defaultValue: 'percent',
-            options: [['Percentage', 'percent'], ['Days left', 'days']],
-            hintByValue: {days: BATTERY_DAYS_HINT},
-            showWhen: PLUGINS_WHEN
-        }]),
+        // The watch battery: its Look, what its text shows and how (batterySlotSheet).
+        batterySlotSheet(),
         // Dew point shares temperature's degree sign and its reasoning.
         boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', '12°', '12')]),
-        // ONE dialog for TWO catalog items: 'phoneBattery' (icon + NN%) and
-        // 'phoneBatteryPlain' (NN%, no icon) are separate wire kinds (18/19) so the
-        // no-icon variant can't drive City's bold row, but both KINDS entries share
-        // key 'PhoneBattery' — and the sheet resolver returns 'thresh' + key
-        // (blocks.js statusSlotEditSheet), so both Edit buttons open this dialog and the
-        // one mode packs into both cells. Only where the phone can tell its charge on the
-        // slot side; the dialog needs no extra gate, because a slot that can't be chosen
-        // never opens it.
-        boldSection('Phone battery', 'PhoneBattery'),
+        // The phone battery: its Look (slot-text.js phoneBatteryLook), the phone's icon
+        // before the charge or the charge alone, then Bold. The two looks are separate
+        // wire kinds (18/19), so the Text look can't drive City's bold row, and both
+        // KINDS entries share key 'PhoneBattery': the one mode packs into both cells.
+        // Only where the phone can tell its charge on the slot side; the dialog needs no
+        // extra gate, because a slot that can't be chosen never opens it.
+        boldSection('Phone battery', 'PhoneBattery', null, [{
+            type: 'segmented',
+            messageKey: 'phoneBatterySlotLook',
+            label: 'Look',
+            hintByValue: {
+                both: 'Shows a phone symbol before the charge.',
+                text: 'Shows the charge alone.'
+            },
+            defaultValue: 'both',
+            options: [['Icon + text', 'both'], ['Text', 'text']]
+        }]),
         // The weather condition slot's dialog: its Look (slot-text.js conditionLook) and the
         // length of its Name (conditionName, hidden while the Look shows no name), which every
         // condition slot shares, then Bold like every text slot (kind 20, whose cell rides the

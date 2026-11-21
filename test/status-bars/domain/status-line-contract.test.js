@@ -159,12 +159,12 @@ test('STATUS_SLOT_KIND_MAX is unchanged — the phone battery adds no slot kind'
   const kinds = Object.keys(catalog.KINDS).map(k => catalog.KINDS[k]);
   assert.equal(Math.max.apply(null, kinds), cEnum(m[1]),
     'the highest catalog kind must be STATUS_SLOT_KIND_MAX');
-  // Both phone-battery items ride SLOT_TEXT; only the icon id tells them apart.
-  ['phoneBattery', 'phoneBatteryPlain'].forEach((code) => {
-    const item = catalog.byCode(code);
-    assert.ok(item, code + ' missing from catalog');
-    assert.equal(item.kind, catalog.KINDS.TEXT, code + ' must be SLOT_TEXT');
-  });
+  // The phone battery rides SLOT_TEXT in both looks; only the icon id (16 or 18,
+  // by its Look) tells them apart. 'phoneBatteryPlain' is no catalog item.
+  const item = catalog.byCode('phoneBattery');
+  assert.ok(item, 'phoneBattery missing from catalog');
+  assert.equal(item.kind, catalog.KINDS.TEXT, 'phoneBattery must be SLOT_TEXT');
+  assert.equal(catalog.byCode('phoneBatteryPlain'), undefined, 'the Text look is no item');
 });
 
 test('every dropdown item maps kind+icon consistently', () => {
@@ -188,10 +188,10 @@ test('every dropdown item maps kind+icon consistently', () => {
     date: [catalog.KINDS.LIVE_DATE, catalog.ICONS.NONE],
     week: [catalog.KINDS.LIVE_WEEK, catalog.ICONS.NONE],
     battery: [catalog.KINDS.LIVE_BATTERY, catalog.ICONS.NONE],
-    batteryPct: [catalog.KINDS.LIVE_BATTERY_PCT, catalog.ICONS.NONE],
-    // Two items, two icon ids: 17 (the retired charging glyph) is a hole.
-    phoneBattery: [catalog.KINDS.TEXT, catalog.ICONS.PHONE_BATTERY],
-    phoneBatteryPlain: [catalog.KINDS.TEXT, catalog.ICONS.PHONE_BATTERY_PLAIN]
+    // The item's own kind and icon (its Icon look); the Text look re-packs them
+    // in the bake (kind 10 / icon 18), which status-lines.test.js checks.
+    // Icon 17 (the retired charging glyph) is a hole.
+    phoneBattery: [catalog.KINDS.TEXT, catalog.ICONS.PHONE_BATTERY]
   };
   Object.keys(expected).forEach(code => {
     const item = catalog.byCode(code);

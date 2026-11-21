@@ -78,15 +78,15 @@ test('every Alerts item names a registered glyph (an unknown id would print noth
 });
 
 test('every slot item the watch draws a glyph for has the page copy, and no other item has one', () => {
-  // status-line-catalog.js names each item's watch glyph. NONE, PRESSURE and
-  // PHONE_BATTERY_PLAIN are text on the watch; everything else, the drawn sun arrow
-  // included, is a picture the previews must show too.
+  // status-line-catalog.js names each item's watch glyph. NONE and PRESSURE are text on
+  // the watch; everything else, the drawn sun arrow included, is a picture the previews
+  // must show too. The phone battery's Text look (icon 18) is a setting, checked below.
   const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
   const { slotIcon } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
   const C = catalog.ICONS, basalt = { platform: 'basalt' };
-  const TEXT = [C.NONE, C.PRESSURE, C.PHONE_BATTERY_PLAIN];
+  const TEXT = [C.NONE, C.PRESSURE];
   ['empty', 'temp', 'wind', 'gust', 'pressure', 'dew', 'uv', 'aqi', 'pollen', 'sun', 'date', 'week', 'city',
-    'countdown', 'steps', 'distance', 'hr', 'sleep', 'batteryPct', 'phoneBattery', 'phoneBatteryPlain'].forEach((code) => {
+    'countdown', 'steps', 'distance', 'hr', 'sleep', 'phoneBattery'].forEach((code) => {
     const item = catalog.byCode(code);
     assert.ok(item, code + ' is a catalog item');
     if (code === 'city') {
@@ -99,6 +99,11 @@ test('every slot item the watch draws a glyph for has the page copy, and no othe
       assert.equal(slotIcon(code, basalt), null, code + ': text on the watch, text in the preview');
     }
   });
+  // The phone battery in its Text look is text on the watch, text in the preview.
+  assert.equal(slotIcon('phoneBattery', basalt, { phoneBatterySlotLook: 'text' }), null,
+    'phoneBattery, Text look: no glyph');
+  assert.equal(slotIcon('phoneBattery', basalt, { phoneBatterySlotLook: 'both' }), ICONS.phoneBattery,
+    'phoneBattery, Icon + text look: the glyph');
   // The watch battery is its own drawn glyph on the bars (preview-watch.js batteryGlyph);
   // its registered outline is the Alerts rows' and the Status bars tab's.
   assert.equal(slotIcon('battery', basalt), ICONS.battery);

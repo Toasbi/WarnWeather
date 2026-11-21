@@ -190,13 +190,24 @@ ride-along make the exact reading the shown one; so does the first reading after
 when it lands in another bucket (`phone-battery.js` readShown). The reading comes from the Pebble
 app's Phone plugin, or from the Android WebView's battery API where the app has no plugins.
 
+**Look (battery slots)**:
+How a battery slot draws, set in its dialog for the item, not per slot (`slot-text.js`
+batteryLook, phoneBatteryLook). The Watch battery is the battery the watch draws (Icon) or
+its charge as text (Text); the Phone battery is the phone's icon before its charge, or the
+charge alone. One slot item each: the bake picks the wire kind or the icon id by the Look
+(`status-lines.js` packLine, iconFor).
+_Avoid_: battery percentage slot, phone battery (no icon), which were items of their own
+until 3.3.0.
+
 **Days left (watch battery)**:
-What the watch battery's percentage slot shows in place of the percentage when it is set to:
-the days the watch has left, an estimate the Muninn app makes and serves as a plugin of the
+What the Watch battery's Text look can show in place of the percentage, or beside it: the
+days the watch has left, an estimate the Muninn app makes and serves as a plugin of the
 Pebble app (`battery-estimate.js` reads it, once at a time, never subscribed). The phone
 counts it down and bakes it into the slot (`battery-days.js`, the one live kind that carries
-text), and the watch shows it only while it can be current: the phone in reach and the watch
-not charging (`status_row.c` shows_battery_days). Otherwise the slot shows the percentage.
+text). Beside the percentage it bakes the pair's separator and the place of the percentage
+too (the percentage mark), since only the watch knows its charge of the moment. The watch
+shows the days only while they can be current: the phone in reach and the watch not charging
+(`status_row.c` shows_battery_days). Otherwise the slot shows the percentage alone.
 
 **Battery saver**:
 The night window (`sleepStartHour` to `sleepEndHour`) in which the phone fetches no weather and

@@ -290,7 +290,7 @@ static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, siz
 // The phone-battery slots. Two icon ids mark a slot whose text the PHONE baked
 // from its OWN charge; there is no kind-level marker, the kind is plain SLOT_TEXT
 // exactly like a city name, so the icon id is the only discriminator. Id 16 is the
-// item with its phone glyph; id 18 is the no-icon variant.
+// phone battery with its phone glyph; id 18 is its Text look, which draws none.
 static bool is_phone_battery_slot(const StatusSlotView *slot) {
     return slot->kind == SLOT_TEXT
         && (slot->icon == STATUS_ICON_PHONE_BATTERY
@@ -305,7 +305,8 @@ static void copy_text(char *buf, size_t cap, const char *src, size_t n) {
 }
 
 // Whether the watch battery's percentage slot carries the days the watch has left (the
-// phone bakes another app's estimate into it, status_line.h status_slot_kind_has_text).
+// phone bakes another app's estimate into it, status_line.h status_slot_kind_has_text),
+// alone or with the place of the percentage beside them (STATUS_BATTERY_PCT_MARK).
 static bool carries_battery_days(const StatusSlotView *slot) {
     return slot->kind == SLOT_LIVE_BATTERY_PCT && slot->value_len > 0;
 }
@@ -364,7 +365,10 @@ static int8_t resolve_slot_text(const StatusRow *row, const StatusSlotView *slot
         // arm — it renders its charge as text via format_live_value below.
         buf[0] = '\0';
     } else if (shows_battery_days(slot)) {
-        copy_text(buf, cap, slot->value, slot->value_len);
+        // The days as the phone baked them, with the watch's own percentage where the
+        // phone left its place ("83%|5d").
+        status_battery_text(buf, cap, slot->value, slot->value_len,
+                            watch_services_battery_state().charge_percent);
     } else {
         format_live_value(row, slot->kind, buf, cap);
     }

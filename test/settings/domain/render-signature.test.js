@@ -65,6 +65,27 @@ test('the temp pair separator, its custom text, the spacing and the order change
     renderSignature({ tempSlotOrder: 'actual' }));
 });
 
+// The two battery slots' looks are baked into the line (the watch battery's kind, the phone
+// battery's icon id), and so is what the watch battery's text carries: the days left and the
+// pair's order, separator and spacing. Each of the catalog's battery keys forces the rebake.
+test('the battery slots\' looks and the watch battery\'s text rows change the render signature', () => {
+  const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
+  const base = renderSignature({});
+  const changed = { batterySlotLook: 'text', batterySlotDisplay: 'both', batterySlotOrder: 'days',
+    batterySlotSeparator: 'brackets', batterySlotSeparatorCustom: '~', batterySlotSeparatorSpaced: true,
+    phoneBatterySlotLook: 'text' };
+  assert.deepEqual(Object.keys(changed).sort(), catalog.batterySettingKeys().slice().sort(),
+    'every battery key the catalog lists is walked below');
+  Object.keys(changed).forEach((key) => {
+    const settings = {};
+    settings[key] = changed[key];
+    assert.notEqual(renderSignature(settings), base, key);
+  });
+  assert.notEqual(renderSignature({ batterySlotDisplay: 'days' }), renderSignature({ batterySlotDisplay: 'both' }));
+  assert.notEqual(renderSignature({ batterySlotSeparator: 'custom', batterySlotSeparatorCustom: '-' }),
+    renderSignature({ batterySlotSeparator: 'custom', batterySlotSeparatorCustom: '~' }));
+});
+
 test('the UV pair separator, its custom text, the spacing, the order and the next-day mark change the render signature', () => {
   const base = renderSignature({});
   assert.notEqual(renderSignature({ uvSlotSeparator: 'dot' }), base);
