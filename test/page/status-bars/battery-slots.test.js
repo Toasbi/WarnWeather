@@ -138,9 +138,9 @@ test('the watch battery\'s Look leads its dialog in every look; its slot keeps t
 test('every slot has a Phone battery dialog of its own: the slot\'s Look, then Bold', () => {
   assert.equal(SLOT_KEYS.length, 21, 'the four bars and bars 4 to 6');
   assert.equal(new Set(SLOT_KEYS.map(catalog.phoneBatterySheet)).size, 21, 'one dialog per slot');
+  assert.equal(catalog.phoneBatterySheet('statusForecastLeft'), 'threshPhoneBatteryForecastLeft', 'named after its slot');
   SLOT_KEYS.forEach((slotKey) => {
     const dialog = sheet(catalog.phoneBatterySheet(slotKey));
-    assert.equal(dialog.sheetId, 'threshPhoneBattery' + slotKey.replace(/^status/, ''));
     assert.equal(dialog.title, 'Phone battery slot', slotKey);
     assert.equal(dialog.sheetOnly, true, slotKey + ': opened by its slot\'s Edit button, never a card');
     assert.deepEqual(dialog.showWhen, { env: 'thresholds' }, slotKey + ': no slot dialogs on aplite');

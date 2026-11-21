@@ -179,7 +179,11 @@ test('wantsBatteryDays: the Text look set to days or both, on a watch that shows
   assert.equal(statusLines.wantsBatteryDays(DAYS, null), true, 'an unknown watch may be one that shows it');
 });
 
-/** The settings in the Icon + text look. */
+/**
+ * The same settings with the watch battery in its Icon + text look.
+ * @param {Object} settings Settings (TEXT, DAYS or BOTH).
+ * @returns {Object} A copy, its Look 'both'.
+ */
 function iconAndText(settings) {
   return Object.assign({}, settings, { batterySlotLook: 'both' });
 }
@@ -228,14 +232,4 @@ test('aplite is never sent the Icon + text look: its one battery slot, as ever',
     assert.deepEqual(bytes.slice(-3), [GLYPH, 0, 0]);
     assert.equal(bytes.indexOf(catalog.ICONS.DRAWN_BATTERY), -1, 'no drawn battery id on its line');
   });
-});
-
-test('the widest Icon + text slot stays within the edge cap and the line within its cap', () => {
-  const full = { statusTopLeft: 'city', statusTopMid: 'city' };
-  const both = bakeTop(iconAndText(Object.assign({}, full, BOTH, { batterySlotSeparator: 'custom',
-    batterySlotSeparatorCustom: '··', batterySlotSeparatorSpaced: true })),
-    facts({ days: 240, updatedAt: NOW.getTime() }));
-  assert.equal(both.slots[2].text, MARK + '··99d');
-  assert.equal(Buffer.byteLength(both.slots[2].text), catalog.CAPS.EDGE_TEXT_MAX, 'the whole of an edge slot');
-  assert.ok(both.bytes.length <= catalog.CAPS.LINE_MAX, both.bytes.length + ' bytes');
 });

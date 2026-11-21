@@ -177,7 +177,8 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
       'tomorrowioApiKey', 'tomorrowioFitBudget', 'uvLineFrom', 'uvLineShow', 'vibe',
       'windLineFrom', 'windLineShow', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
-  assert.equal(counts.threshPhoneBatteryBoldMode, 21, 'the phone battery\'s Bold, in each of the 21 slots\' dialogs');
+  assert.equal(counts.threshPhoneBatteryBoldMode, slotCatalog.ALL_LINES.reduce((n, line) => n + line.slots.length, 0),
+    'the phone battery\'s Bold, in each slot\'s dialog (bars 4 to 6\'s too)');
   ['windLineShow', 'gustLineShow', 'uvLineShow',
     'precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom'].forEach((k) =>
     assert.equal(counts[k], 4, k + ' appears in four slots (one per metric picker)'));
@@ -2503,7 +2504,7 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct', 'threshDew']
-      .concat(SLOT_KEYS.map((slotKey) => 'threshPhoneBattery' + slotKey.replace(/^status/, '')), ['threshCondition']),
+      .concat(SLOT_KEYS.map(slotCatalog.phoneBatterySheet), ['threshCondition']),
     'sheet ids follow the thresh<Stem> convention the slot resolver derives, a slot\'s own after it');
   // The On demand sheets (the side lists' section + 10 item sheets) moved with the alerts
   // to the Alerts tab, and carry the On demand gate (aplite has no On demand).
