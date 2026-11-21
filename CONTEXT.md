@@ -208,8 +208,9 @@ until 3.3.0.
 What the Watch battery's text (its Text and Icon + text looks) can show in place of the
 percentage, or beside it: the days the watch has left, an estimate the Muninn app makes at
 its watch app's wakeups, every 6 hours, and serves as a plugin of the Pebble app.
-`battery-estimate.js` reads it once at a time, never subscribed, and about twice a day,
-timed for just after one of those wakeups (`estimate-reads.js`): every read runs Muninn's
+`battery-estimate.js` reads each estimate once, never subscribed, about 20 minutes after the
+wakeup that makes it, worked out from the time Muninn stamped on the estimate before
+(`estimate-reads.js`): about four reads a day. Never more, since every read runs Muninn's
 plugin script, and while it runs the Pebble app brings back the permissions Muninn asked for
 that the user has not answered. Switching the days on reads at once; a restart or a settings
 save reads nothing before the next read is due. The phone bakes Muninn's figure into the
@@ -222,8 +223,10 @@ watch not charging, and not charged since the days arrived (`status_row.c`
 shows_battery_days). Otherwise the slot shows the percentage alone. For the last of the
 three the watch keeps a mark of the carried text and the lowest charge since it arrived
 (`status_line.h` StatusBatteryDaysMark): an estimate from before a charge stays hidden until
-another one arrives, which can take about half a day. A new estimate is owed to the watch,
-not sent at once: the re-bake's next tick sends it (`status-rebake.js` oweStatus).
+another one arrives, after Muninn's next wakeup and the read that follows it, up to about six
+and a half hours (longer when that read falls in the Night battery saver's window). A new
+estimate is owed to the watch, not sent at once: the re-bake's next tick sends it
+(`status-rebake.js` oweStatus).
 
 **Feature tip**:
 One entry of the settings page's "New in this update" card: a feature the user has to switch

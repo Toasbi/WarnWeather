@@ -19,7 +19,8 @@
 //     read costs the user something: while the script runs, the Pebble app counts that app
 //     as running, and every permission it asked for that the user has not answered comes
 //     back as a notification on the phone and on the watch. So read another app's plugin
-//     rarely (battery-estimate.js reads Muninn's about twice a day).
+//     only when it has something new (battery-estimate.js reads each of Muninn's estimates
+//     once, about four times a day).
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 

@@ -8,12 +8,13 @@
 // when it made them). Reading it needs no permission. Muninn makes a new estimate at each of
 // its watch app's wakeups, every 6 hours, so nothing here stays subscribed: the Pebble app
 // would run Muninn's plugin script again every minute for as long as anything were
-// (plugin-reader.js). It is read once at a time, about twice a day: each read brings back
-// the permissions Muninn asked for that the user has not answered, as a notification on the
-// phone and on the watch. domain/estimate-reads.js says when. The time of the last read is
-// kept in storage, so neither a PKJS restart nor a settings save reads again before it is
-// due, and switching the days on reads at once. Inside the Night battery saver's window only
-// that read goes ahead; any other waits for the first tick after it.
+// (plugin-reader.js). Each estimate is read once, about 20 minutes after the wakeup that
+// makes it, so about four times a day, and not more: each read brings back the permissions
+// Muninn asked for that the user has not answered, as a notification on the phone and on the
+// watch. domain/estimate-reads.js says when, from when Muninn made the estimate last heard.
+// The last read is kept in storage, so neither a PKJS restart nor a settings save reads again
+// before the next is due, and switching the days on reads at once. Inside the Night battery
+// saver's window only that read goes ahead; any other waits for the first tick after it.
 //
 // Only while it is wanted: the slot is set to show the days, on a bar the watch is sent
 // (status-lines.js wantsBatteryDays). Otherwise this module reads nothing and sends
@@ -46,8 +47,8 @@ var deps = {
     now: function () { return Date.now(); }
 };
 var reading = false;      // a read is under way
-// The last read ({at, failures}; estimate-reads.js recordOf), or null for none: read from
-// storage at init and kept here as it is written, so a write that storage refuses still
+// The last read ({at, failures, made}; estimate-reads.js recordOf), or null for none: read
+// from storage at init and kept here as it is written, so a write that storage refuses still
 // counts for the rest of this PKJS life.
 var record = null;
 
@@ -90,8 +91,8 @@ function readEstimate() {
 
 /**
  * The record of the last read, as stored.
- * @returns {?{at: number, failures: number}} The record, or null when there is none or what
- *   is stored is unreadable (estimate-reads.js recordOf).
+ * @returns {?{at: number, failures: number, made: ?number}} The record, or null when there is
+ *   none or what is stored is unreadable (estimate-reads.js recordOf).
  */
 function storedRecord() {
     var raw = localStorage.getItem(KEYS.BATTERY_ESTIMATE_READ);
@@ -105,13 +106,18 @@ function storedRecord() {
 }
 
 /**
- * Record a read, here and in storage.
+ * Record a read, here and in storage. Writes nothing when the record is the one held.
  * @param {number} at When it started, in epoch milliseconds.
  * @param {number} failures The failed reads in a row it ends with.
+ * @param {?number} made When Muninn made the estimate it heard (estimate-reads.js madeOf),
+ *   or null for none.
  * @returns {void}
  */
-function stamp(at, failures) {
-    record = { at: at, failures: failures };
+function stamp(at, failures, made) {
+    if (record && record.at === at && record.failures === failures && record.made === made) {
+        return;
+    }
+    record = { at: at, failures: failures, made: made };
     try {
         localStorage.setItem(KEYS.BATTERY_ESTIMATE_READ, JSON.stringify(record));
     }
@@ -172,38 +178,46 @@ function keep(estimate) {
 /**
  * Ask Muninn for its estimate, once.
  *
+ * Every answer records when Muninn made the estimate it heard, which says when its next is
+ * due (estimate-reads.js nextReadAt). That time is kept even where the days cannot be shown
+ * (Muninn with no estimate yet, or less than a day left, as just before a charge), so the read
+ * after the next wakeup still comes.
+ *
  * A Muninn that is not installed answers as a plugin that is not there: the estimate kept
- * from when it was is dropped, and the slot shows the percentage. That is an answer, so the
- * next read waits as long as after any other. Any other failure keeps what was heard last,
- * which a bake drops by itself once it is too old, and is tried again sooner
- * (estimate-reads.js retryWait).
+ * from when it was is dropped, and the slot shows the percentage. That is an answer with no
+ * time, so the next read waits as long as after any other such one. Any other failure keeps
+ * what was heard last, which a bake drops by itself once it is too old, and is tried again
+ * sooner (estimate-reads.js retryWait).
  *
  * @param {number} at Now, in epoch milliseconds.
  * @returns {void}
  */
 function read(at) {
     var failures = record ? record.failures : 0;
+    var made = record ? record.made : null;
     reading = true;
     // Stamped before Muninn answers: a read that PKJS ends before the answer still counts,
     // or leaving the watchface and coming back every few seconds would read at every start.
-    stamp(at, failures);
+    stamp(at, failures, made);
     pluginReader.readOnce(pluginReader.pebbleOf(deps), MUNINN_STATS, function (envelope, fail) {
+        var updatedAt;
         reading = false;
         // record is null when the days were switched off while Muninn answered: there is no
         // read to keep the time of then.
         if (fail && fail.code !== 'PLUGIN_UNAVAILABLE') {
             console.log('battery-estimate: Muninn did not answer (' + fail.code + ').');
-            if (record) { stamp(at, failures + 1); }
+            if (record) { stamp(at, failures + 1, made); }
             return;
         }
-        if (record && failures > 0) { stamp(at, 0); }
         if (fail) {
             console.log('battery-estimate: Muninn is not installed.');
+            if (record) { stamp(at, 0, null); }
             keep(null);
             return;
         }
-        keep(batteryDays.estimateOf(pluginReader.numberOf(envelope, 'daysRemaining'),
-            pluginReader.numberOf(envelope, 'updatedAt')));
+        updatedAt = pluginReader.numberOf(envelope, 'updatedAt');
+        if (record) { stamp(at, 0, estimateReads.madeOf(updatedAt)); }
+        keep(batteryDays.estimateOf(pluginReader.numberOf(envelope, 'daysRemaining'), updatedAt));
     }, deps.timers);
 }
 
@@ -233,10 +247,10 @@ function consider(fromSave) {
     if (reading) { return; }
     at = nowMs();
     if (record && estimateReads.clockWentBack(record, at)) {
-        stamp(at, record.failures);
+        stamp(at, record.failures, record.made);
         return;
     }
-    if (record && at < estimateReads.nextReadAt(record, readEstimate())) { return; }
+    if (record && at < estimateReads.nextReadAt(record)) { return; }
     // The window keeps the watch's link quiet, and a read is not quiet: a permission Muninn
     // asked for comes back to the watch with it.
     if ((record || !fromSave) && saverWindowOpen(at)) { return; }
@@ -301,7 +315,6 @@ function init(options) {
 }
 
 module.exports = {
-    READ_INTERVAL_MS: estimateReads.READ_INTERVAL_MS,
     init: init,
     onTick: onTick,
     refresh: refresh,

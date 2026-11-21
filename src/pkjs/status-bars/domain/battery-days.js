@@ -15,7 +15,7 @@
 
   var DAY_MS = 24 * 60 * 60 * 1000;
   // An estimate older than this is not shown, and the slot shows the percentage again.
-  // Muninn makes one every 6 hours and the phone reads it twice a day (estimate-reads.js), so
+  // Muninn makes one every 6 hours and the phone reads each soon after (estimate-reads.js), so
   // one this old means it has stopped telling: it was removed, its watch app no longer runs,
   // or the watch no longer reaches the phone. The days are not counted down (daysLeft), and a
   // day is as long as days left that stand still stay about right.
