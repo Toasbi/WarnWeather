@@ -442,14 +442,7 @@
           "name": "PX_SUN_CLOUD_BASALT_11",
           "file": "data/PX_SUN_CLOUD_BASALT_11.pdc",
           "targetPlatforms": [
-            "basalt"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "PX_SUN_CLOUD_BASALT_11_BW",
-          "file": "data/PX_SUN_CLOUD_BASALT_11_BW.pdc",
-          "targetPlatforms": [
+            "basalt",
             "diorite",
             "flint"
           ]
