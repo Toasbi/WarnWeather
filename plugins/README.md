@@ -5,9 +5,12 @@ separately from the WarnWeather watchface. Each one is a plugin-only pbw (no wat
 answers `weather/location` for any watchface or watchapp, for the Pebble app's own weather
 (Settings > Weather > Weather provider) and for Index.
 
-Plugins are a preview. The Pebble app ships with them off (Settings > Plugins > Plugins / permissions
-preview turns them on), the API will still change, and only invited developers can publish plugins.
-See the [plugin guide](https://developer.repebble.com/guides/plugins/preview/).
+The Pebble app runs plugins for everyone from version 2.0.0. Versions 1.16 to 1.18 run them only
+with Settings > Plugins > Plugins / permissions preview on, which is off by default. Any developer
+can publish a plugin (the guide's
+[Publishing Plugins](https://developer.repebble.com/guides/plugins/publishing-plugins/) page). The
+[plugin guide](https://developer.repebble.com/guides/plugins/preview/) has the API, and its
+changelog says what changed in each version of the Pebble app.
 
 The watchface doesn't read plugins yet. For hourly data the shared weather vocabulary has only
 temperature and condition, with no rain, wind or UV, which is too little for the watchface's graphs.
@@ -94,7 +97,7 @@ node --test 'plugins/test/**/*.test.js'  # also part of `mise test`
 ```
 
 Each build writes `plugins/<folder>/build/<name>.pbw`, with the bundled `plugin.js` beside it. To
-try a plugin, turn on the plugin preview in the Pebble app and install the pbw, for example
+try a plugin, install the pbw on a phone with Pebble app 2.0.0 or later, for example
 `pebble install --phone <ip> plugins/dwd/build/dwd-weather.pbw`. Its logs show in `pebble logs`.
 
 ## Releasing
