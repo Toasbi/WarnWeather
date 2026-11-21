@@ -330,6 +330,12 @@
     // top area leading under it starts, on the strip's ink (strip_calendar_seat: the pad, the
     // band less STATUS_TOP_STRIP_LIFT, and emery's STATUS_STRIP_CAL_GAP).
     var STRIP = [{ y: 0, h: 17, calY: 15 }, { y: 2, h: 21, calY: 23 }];
+    // The Watch bar's row sits inset in its strip (top_status_layer.c content_rect): PADDING
+    // columns at the left, and at the right on the 144 px watches, where a flush right slot
+    // would clip the battery's nub; emery's right is flush. The other bars' rows span their
+    // band (status_bar.c), so only the Watch bar has these. test/page/layout/
+    // watch-bar-geometry.test.js reads both from the C.
+    var STRIP_INSET = [{ left: 4, right: 4 }, { left: 4, right: 0 }];
     // The Watch battery glyph (battery_glyph.h): the charging bolt's lane (empty while the
     // watch is not charging), a 17 × 10 body, a 2-column nub.
     var BATTERY = { w: 29, h: 10, lane: 10, nub: 2 };
@@ -575,6 +581,20 @@
     }
 
     /**
+     * The box a bar's row is laid out in, as the watch hands it to its row (status_row_apply):
+     * the band less emery's LAYOUT_PAD_X columns at each side, and for the Watch bar its
+     * strip's inset too (STRIP_INSET). The row keeps ROW_MARGIN inside it.
+     * @param {string} bar 'top' (the Watch bar) or another bar.
+     * @param {number} f Screen family (0: 144 px, 1: emery).
+     * @param {number} y The band's top. @param {number} h Its height.
+     * @returns {{x: number, y: number, w: number, h: number}}
+     */
+    function barRowBox(bar, f, y, h) {
+        var pad = f ? 2 : 0, inset = bar === 'top' ? STRIP_INSET[f] : { left: 0, right: 0 };
+        return { x: pad + inset.left, y: y, w: SCREEN[f].w - 2 * pad - inset.left - inset.right, h: h };
+    }
+
+    /**
      * The text each slot of a bar shows on the watch, short forms swapped in where the watch
      * swaps them: on the first screen showing the bar (spec), in its row's font and width.
      * The status bar pictures on the Status bars tab print these.
@@ -584,14 +604,15 @@
      * @returns {{left: string, mid: string, right: string}} Each slot's text.
      */
     function barLabels(S, env, bar, spec, bars) {
-        var f = env && env.platform === 'emery' ? 1 : 0, sc = SCREEN[f], pad = f ? 2 : 0, ch;
+        var f = env && env.platform === 'emery' ? 1 : 0, ch;
         if (bar === 'top') { ch = f ? 24 : 18; }
         else {
             var rowFull = Boolean(spec)
                 && layoutView(spec, f, clockInk(S, f, Boolean(env && env.color === false))).tier === VC.TIER_FULL;
             ch = f ? (rowFull ? 18 : 24) : (rowFull ? 14 : 18);
         }
-        var slots = rowLayout(bars, sc.w - 2 * pad - 2 * ROW_MARGIN, ch, rowIconH(bar === 'top', ch, Infinity), f, watchFamily(env)).slots;
+        var slots = rowLayout(bars, barRowBox(bar, f, 0, 0).w - 2 * ROW_MARGIN, ch, rowIconH(bar === 'top', ch, Infinity), f,
+            watchFamily(env)).slots;
         var out = { left: '', mid: '', right: '' };
         ['left', 'mid', 'right'].forEach(function (pos, i) { if (slots[i]) { out[pos] = slots[i].label; } });
         return out;
@@ -774,7 +795,7 @@
         // emery's window keeps LAYOUT_PAD_X columns clear at each side of its text bands (layout.c).
         var pad = f ? 2 : 0;
         if (lay.strip) {
-            e += rowBand(S, env, 'top', { x: pad, y: STRIP[f].y, w: sc.w - 2 * pad, h: STRIP[f].h }, f ? 24 : 18, cx);
+            e += rowBand(S, env, 'top', barRowBox('top', f, STRIP[f].y, STRIP[f].h), f ? 24 : 18, cx);
         }
         lay.bands.forEach(function (b, bi) {
             var box = { x: 0, y: b.y, w: sc.w, h: b.h }, tag = (idPrefix || 'w' + vi) + bi;
@@ -910,7 +931,7 @@
         barLabels: barLabels, swapShortForms: swapShortForms,
         graphKinds: graphKinds,
                 fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN, CSS: CSS,
-        _drawingAt: drawingAt, _drawingOnRow: drawingOnRow };
+        _drawingAt: drawingAt, _drawingOnRow: drawingOnRow, _barRowBox: barRowBox, ROW_MARGIN: ROW_MARGIN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PreviewWatch = api; }
 })();
