@@ -1,15 +1,16 @@
 // src/pkjs/notices/adapter/notify-watch.js — a notification on the watch (Pebble.showSimpleNotificationOnPebble),
 // as far as the phone app's permissions let it show. ES5 only (aplite PKJS).
 //
-// With the Pebble app's permissions preview on (app 1.18.0 and later), a notification needs
-// ShowNotifications (package.template.json usesPermissions). While the user has not answered
+// From Pebble app 2.0.0 (1.18.0 to 1.18.0.3: only with its permissions preview on), a notification
+// needs ShowNotifications (package.template.json usesPermissions). While the user has not answered
 // yet, the phone drops the notification and asks them instead; once they turned it off, it drops
 // every one. The callers remember what they have shown (the release toast's and the update
 // notice's version keys), so a notification the phone dropped while it asked must stay
 // unremembered, to show on a later run. The phone is asked once: a user who dismisses the
 // question without answering is not asked again on every run, and the notification then counts
-// as shown. Pebble.permissions.query (app 1.17.0 and later) tells the three apart; an app without
-// it, or with the preview off, shows everything.
+// as shown. Pebble.permissions.query (app 1.17.0 and later) tells the three apart. An app without
+// it shows everything, and so does one from before 2.0.0 with that preview off, whose query
+// answers granted.
 var NOTIFY_ASKED_KEY = require('../../settings/domain/storage-keys.js').NOTIFY_ASKED_KEY;
 
 /**

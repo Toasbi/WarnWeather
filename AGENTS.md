@@ -156,12 +156,15 @@ README.md.
     (`CLAY_OD_EXTRA_UINT8`). Check `test/repo/inbox-size.test.js` either way.
 - Declare every new API host in the `usesPermissions` of `package.template.json`, in an
   `Internet` entry of its own service (each domain covers its subdomains).
-  - SDK 4.44 builds manifest version 2 pbws. With the Pebble app's permissions preview on
-    (its Settings › Plugins), the phone lets PKJS and the settings page reach only the
-    declared domains the user allowed, and asks before the other permissions the app
+  - SDK 4.44 builds manifest version 2 pbws. From Pebble app 2.0.0 the phone checks such an
+    app's permissions for every user: PKJS and the settings page reach only the declared
+    domains the user allowed, and the phone asks before the other permissions the app
     declares (`Location`; `ShowNotifications` for `Pebble.showSimpleNotificationOnPebble`,
-    which goes through `notify-watch.js`). With the preview off, the phone grants
-    everything and ignores `reason` and `required`.
+    which goes through `notify-watch.js`). The Pebble app's Settings › Apps › Ask before apps
+    use permissions says when the phone asks: When needed (the default), Always, or Never,
+    which allows everything but reading notifications without asking. A Pebble app from
+    before 2.0.0 checks only with Settings › Plugins › Plugins / permissions preview on, which
+    is off by default; with it off, it grants everything and ignores `reason` and `required`.
   - Every entry carries a `reason` and `required`. Installing waits for an answer on the
     required ones, though a "no" counts and the install goes on. The others are asked
     about on first use, and that first request fails.
@@ -185,8 +188,11 @@ README.md.
 - Read a plugin of the Pebble app (its own, like the phone's state, or another app's)
   through `src/pkjs/status-bars/adapter/plugin-reader.js`, never by calling
   `Pebble.subscribeToSource` directly.
-  - An older Pebble app has no plugins: feature-detect with `available()`, and fall back
-    or keep the setting hidden there (`env.plugins` on the settings page).
+  - A Pebble app from before 2.0.0 may have no plugins. Before 1.11.0 it has no
+    `subscribeToSource`: feature-detect with `available()`, and fall back or keep the
+    setting hidden there (`env.plugins` on the settings page). From 1.11.0 to 1.18.0.3 it has
+    the function but runs plugins only with a setting that is off by default, and a read
+    then fails with `PLUGIN_UNAVAILABLE`, as for a plugin that is not installed.
   - `watch()` stays subscribed and is for a source the Pebble app pushes by itself (its
     built-in ones). Use `readOnce()` for another app's plugin: the Pebble app runs such a
     plugin's script again at every refresh interval for as long as anything is subscribed.
@@ -213,7 +219,8 @@ README.md.
 
 ## Weather plugins (`plugins/`)
 
-The weather plugins are plugin-only pbws for the Pebble app's plugin system (a preview).
+The weather plugins are plugin-only pbws for the Pebble app's plugin system, which is on for
+everyone from Pebble app 2.0.0.
 They are released separately from the watchface, with their own UUID, version and
 CHANGELOG. The watchface doesn't read plugins yet. `plugins/README.md` has the layout,
 build and release steps.

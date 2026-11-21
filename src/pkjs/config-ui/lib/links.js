@@ -1,14 +1,15 @@
 // src/pkjs/config-ui/lib/links.js — the page's links to other sites, opened through the Pebble
 // app where it asks for that. ES5 (README "ES5 constraint").
 //
-// With the Pebble app's permissions preview on (app 1.18.0 and later), a settings page loads only
-// the domains the app declares in Internet and the user allowed, links included, so a tap on a
-// link anywhere else (a sign-up page, a reference, GitHub) opens nothing. The app gives the page
-// Pebble.openUrl instead, which shows the user the address and opens it in their browser
-// (https://developer.repebble.com/guides/plugins/preview/, Settings pages). Without it (the
-// preview off, an older app, the emulator, a desktop browser) a link works as it always did, so
-// this steps in only where the page has Pebble.openUrl. A leaf: loaded before engine.js in the
-// page concat (build-page.js LIB_PAGE_FILES), whose boot wires it; required under Node.
+// From Pebble app 2.0.0 (1.18.0 to 1.18.0.3: only with its permissions preview on), a settings
+// page loads only the domains the app declares in Internet and the user allowed, links included,
+// so a tap on a link anywhere else (a sign-up page, a reference, GitHub) opens nothing. The app
+// gives the page Pebble.openUrl instead, which shows the user the address and opens it in their
+// browser (https://developer.repebble.com/guides/plugins/preview/, Settings pages). Without it (an
+// app from before 2.0.0 with that preview off, an older app, the emulator, a desktop browser) a
+// link works as it always did, so this steps in only where the page has Pebble.openUrl. A leaf:
+// loaded before engine.js in the page concat (build-page.js LIB_PAGE_FILES), whose boot wires it;
+// required under Node.
 var PConf = (typeof PConf !== 'undefined') ? PConf
   : (typeof global !== 'undefined') ? (global.PConf = global.PConf || {}) : {};
 

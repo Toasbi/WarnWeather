@@ -5,9 +5,11 @@
 // item: phone/phone_state has one instance, the phone, whose battery_level offers a
 // numericValue ({value: 84, unit: '%'}).
 //
-// A Pebble app without plugins has no subscribeToSource (available() is false there), and
-// every reader here then fails as a plugin that is not installed does, so a caller has one
-// failure path. Failures are values ({stage: 'plugin', code}), never throws.
+// Every Pebble app from 2.0.0 runs plugins. One from before 1.11.0 has no subscribeToSource
+// (available() is false there), and every reader here then fails as a plugin that is not
+// installed does, so a caller has one failure path. From 1.11.0 to 1.18.0.3 the app has the
+// function but runs plugins only with a setting that is off by default; a read there fails with
+// PLUGIN_UNAVAILABLE, the same path. Failures are values ({stage: 'plugin', code}), never throws.
 //
 // Two ways to read, because they cost differently on the phone:
 //   - watch(): a subscription that stays. Right for a source the Pebble app pushes by

@@ -1,8 +1,9 @@
 // src/pkjs/config-ui/test/links.test.js
-// lib/links.js: with the Pebble app's permissions preview on, the settings page can follow no link
-// to a site the app has not declared, and the app gives the page Pebble.openUrl instead. A tap on a
-// link to another site goes through it where the page has it; everywhere else (no Pebble global, an
-// older app) the link works as before, and so does every tap that is not on such a link.
+// lib/links.js: from Pebble app 2.0.0 (before it, with its permissions preview on), the settings
+// page can follow no link to a site the app has not declared, and the app gives the page
+// Pebble.openUrl instead. A tap on a link to another site goes through it where the page has it;
+// everywhere else (no Pebble global, an older app) the link works as before, and so does every tap
+// that is not on such a link.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const links = require('../lib/links.js');

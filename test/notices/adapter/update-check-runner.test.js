@@ -76,7 +76,7 @@ test('a newer version in EVERY store notifies once and persists the version', ()
   assert.equal(run().length, 0, 'throttled — the slot was already claimed today');
 });
 
-// Pebble app 1.18.0 with its permissions preview on: while the user has not answered for
+// Pebble app 2.0.0, or 1.18.0 with its permissions preview on: while the user has not answered for
 // ShowNotifications, the phone drops the notification and asks (notify-watch.js calls back false).
 // The version stays unremembered, so the next daily check tells them.
 test('a notification the phone dropped while asking for the permission is not remembered', () => {
