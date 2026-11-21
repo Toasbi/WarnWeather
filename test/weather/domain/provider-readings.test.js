@@ -91,6 +91,13 @@ providerFactory.PROVIDER_IDS.forEach((id) => {
   });
 });
 
+test('the settings page\'s key rows name the same key settings as the table, for the same providers', () => {
+  const pageRows = require('../../../src/pkjs/page/weather/keys/key-sources.js').provider.sources;
+  const keyed = providerFactory.PROVIDER_IDS.filter((id) => readings.keySetting(id));
+  assert.deepEqual(Object.keys(pageRows).sort(), keyed.sort());
+  keyed.forEach((id) => { assert.equal(pageRows[id].keyField, readings.keySetting(id), id); });
+});
+
 test('DWD covers Germany and its neighbours only; the others cover everywhere', () => {
   assert.equal(readings.covers('dwd', 52.52, 13.405), true, 'Berlin');
   assert.equal(readings.covers('dwd', 47.37, 8.54), true, 'Zurich');
