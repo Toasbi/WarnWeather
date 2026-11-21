@@ -272,6 +272,29 @@ test('barCodes reads each bar\'s slots as barSlots does, without the sample text
   assert.deepEqual(preview.barCodes(S, basalt, 'unknown'), []);
 });
 
+// How much room a line has left for an edge's wide weather condition is counted in the bytes
+// the bake packs. An item the watch draws from its own readings carries none, whatever its
+// sample prints, so the picture gives the edges the room the bake does.
+test('a slot the watch draws itself costs the line no text bytes, as in the bake', () => {
+  const statusLines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
+  const { decodeLine } = require('../../helpers/status-line-bytes.js');
+  const basalt = { platform: 'basalt' };
+  // Two wide conditions (22 bytes each) fill the 48 beside a middle of 3. The date's sample
+  // is nine characters: counted, the right edge would be left its short form.
+  const S = { statusForecastLeft: 'condition', statusForecastMid: 'date', statusForecastRight: 'condition' };
+  const drawn = preview.barSlots(S, basalt, 'forecast', false, SEP_7_2026);
+  assert.equal(drawn[1].text, 'Sep 2026', 'the middle shows the watch\'s own date');
+  assert.deepEqual([drawn[0].text, drawn[0].alt], ['Partly cloudy', 'PCLDY']);
+  assert.deepEqual([drawn[2].text, drawn[2].alt], ['Partly cloudy', 'PCLDY']);
+  // The bake, for the same line and a partly cloudy afternoon.
+  const noon = Math.floor(SEP_7_2026.getTime() / 1000);
+  const payload = statusLines.buildStatusLines({ CITY: 'Bonn', CURRENT_CONDITION: 'partly',
+    SUN_EVENTS: [1, noon + 3600, 0, 0, 0] }, S, basalt, SEP_7_2026);
+  const baked = decodeLine(payload.STATUS_LINE_1_UINT8);
+  const forms = 'Partly cloudy' + catalog.ALT_SEP + 'PCLDY';
+  assert.deepEqual([baked[0].text, baked[1].text, baked[2].text], [forms, '', forms]);
+});
+
 // The weather condition slot's picture prints the sample partly cloudy afternoon as the bake
 // does (slot-text.js conditionText): the name with its short form where the slot has the
 // bytes, split into the text and the form the watch picture swaps in where the row would cut

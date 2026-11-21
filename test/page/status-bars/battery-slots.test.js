@@ -280,7 +280,7 @@ test('the picture prints what the bake carries, drawn as the watch draws it', ()
               batterySlotOrder: order, batterySlotSeparator: separator, batterySlotSeparatorCustom: '··',
               batterySlotSeparatorSpaced: spaced };
             const baked = decodeLine(statusLines.buildStatusLines({ CITY: 'Bonn', SUN_EVENTS: [1, 0, 0, 0, 0] }, S,
-              { platform: 'basalt' }, now, null, watch).STATUS_LINE_3_UINT8)[2];
+              { platform: 'basalt' }, now, { watch: watch }).STATUS_LINE_3_UINT8)[2];
             const drawn = baked.kind === catalog.KINDS.LIVE_BATTERY ? '' : batteryDays.drawn(baked.text, '80%');
             const right = preview.barSlots(S, BASALT, 'top', false, now)[2];
             assert.equal(right.code, 'battery');
@@ -312,7 +312,7 @@ test('the phone battery\'s picture follows its slot\'s Look: the phone\'s icon, 
   assert.ok(slots[2].icon);
   const phone = { supported: true, reading: () => ({ available: true, level: 72 }) };
   const baked = decodeLine(statusLines.buildStatusLines({ CITY: 'Bonn', SUN_EVENTS: [1, 0, 0, 0, 0] }, S,
-    { platform: 'basalt' }, now, phone, null).STATUS_LINE_1_UINT8);
+    { platform: 'basalt' }, now, { phone: phone }).STATUS_LINE_1_UINT8);
   assert.deepEqual([baked[0].icon, baked[2].icon], [catalog.ICONS.PHONE_BATTERY_PLAIN, catalog.ICONS.PHONE_BATTERY]);
   assert.deepEqual([baked[0].text, baked[2].text], ['72%', '72%']);
 });

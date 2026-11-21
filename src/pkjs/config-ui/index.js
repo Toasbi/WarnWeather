@@ -20,7 +20,19 @@ require('../lib/polyfills.js');                    // Object.assign / Array.find
  * @returns {string} JSON text safe inside an HTML <script> element.
  */
 function inlineScriptJson(value) {
-  return String(JSON.stringify(value)).replace(/</g, '\\u003c')
+  return scriptSafe(String(JSON.stringify(value)));
+}
+
+/**
+ * Escape what may not stand raw in the page's inline <script>: '<' and the two line
+ * separators (inlineScriptJson says why). All three can only stand inside a string of JSON
+ * or of a literal made from it, where the escape reads as the same character.
+ *
+ * @param {string} text JSON text, or inlineScriptLiteral's.
+ * @returns {string} The text, safe inside an HTML <script> element.
+ */
+function scriptSafe(text) {
+  return text.replace(/</g, '\\u003c')
     .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
@@ -81,8 +93,8 @@ function leanKey(body) {
  *
  * The scan is by indexOf, not by a regex over each token: a stored string can be tens of
  * thousands of characters long (the news cache), which a repeated group does not survive on
- * every engine. '<' and U+2028/2029 are escaped as inlineScriptJson escapes them; they can
- * only stand inside a string here too.
+ * every engine. '<' and U+2028/2029 are escaped as inlineScriptJson escapes them
+ * (scriptSafe).
  *
  * @param {*} value Any JSON-serialisable value.
  * @returns {string} JavaScript source for the value, safe inside an HTML <script> element.
@@ -115,8 +127,29 @@ function inlineScriptLiteral(value) {
     open = json.indexOf('"', at);
   }
   out.push(json.slice(at));
-  return out.join('').replace(/</g, '\\u003c')
-    .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+  return scriptSafe(out.join(''));
+}
+
+/**
+ * A page with its injected line filled in: the five variables the shell declares
+ * (shell.html INJECTED_*), assigned where its marker stands. The one writer of that line,
+ * for the page a phone opens (generateUrl) and for the desktop preview (build-page.js
+ * previewPage). The return target stays JSON text: the emulator helper finds its
+ * placeholder there, and it is a few characters either way.
+ *
+ * @param {string} pageStr The built page, with its marker.
+ * @param {{schema: *, cfg: *, env: *, userData: *, returnTo: string}} parts What each
+ *   variable holds.
+ * @returns {string} The page.
+ */
+function injectPage(pageStr, parts) {
+  var snippet =
+    'INJECTED_SCHEMA='   + inlineScriptLiteral(parts.schema)   + ';' +
+    'INJECTED_CFG='      + inlineScriptLiteral(parts.cfg)      + ';' +
+    'INJECTED_ENV='      + inlineScriptLiteral(parts.env)      + ';' +
+    'INJECTED_USERDATA=' + inlineScriptLiteral(parts.userData) + ';' +
+    'INJECTED_RETURN='   + inlineScriptJson(parts.returnTo)    + ';';
+  return pageStr.replace('/*__PCONF_INJECT__*/', function () { return snippet; });
 }
 
 function createConfig(cfg) {
@@ -154,15 +187,8 @@ function createConfig(cfg) {
     var valuesHex = Object.assign({}, opts.values), i, ck;
     for (i = 0; i < colorKeys.length; i += 1) { ck = colorKeys[i];
       if (typeof valuesHex[ck] === 'number') { valuesHex[ck] = color.intToHex(valuesHex[ck]); } }
-    // inlineScriptLiteral: see its doc. The return target stays JSON text: the emulator
-    // helper finds its placeholder there, and it is a few characters either way.
-    var snippet =
-      'INJECTED_SCHEMA='   + inlineScriptLiteral(schema)               + ';' +
-      'INJECTED_CFG='      + inlineScriptLiteral(valuesHex)            + ';' +
-      'INJECTED_ENV='      + inlineScriptLiteral(opts.env || null)     + ';' +
-      'INJECTED_USERDATA=' + inlineScriptLiteral(opts.userData || null)+ ';' +
-      'INJECTED_RETURN='   + inlineScriptJson(opts.returnTo || 'pebblejs://close#') + ';';
-    return pageStr.replace('/*__PCONF_INJECT__*/', function () { return snippet; });
+    return injectPage(pageStr, { schema: schema, cfg: valuesHex, env: opts.env || null,
+      userData: opts.userData || null, returnTo: opts.returnTo || 'pebblejs://close#' });
   }
 
   function isEmulator() {                                 // matches Clay's pypkjs check
@@ -226,6 +252,7 @@ module.exports = {                                        // factory + reusable 
   isLineStylePlatform: platform.isLineStylePlatform,
   intToHex: color.intToHex, hexToInt: color.hexToInt,
   deriveDefaults: defaults.deriveDefaults, deriveColorKeys: defaults.deriveColorKeys,
-  // scripts/build-page.js previewPage fills the same markers for the dev preview.
+  // scripts/build-page.js previewPage fills the same marker for the dev preview.
+  injectPage: injectPage,
   inlineScriptJson: inlineScriptJson, inlineScriptLiteral: inlineScriptLiteral
 };

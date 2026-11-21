@@ -40,6 +40,22 @@ test('slot kinds are in lockstep with status_line.h', () => {
   assert.equal(catalog.KINDS.LIVE_BATTERY_PCT, cEnum('SLOT_LIVE_BATTERY_PCT'));
 });
 
+test('the kinds whose slot carries text are in lockstep with status_slot_kind_has_text', () => {
+  // The watch refuses a line that gives bytes to any other kind, so the two must agree.
+  const m = header.match(/static inline bool status_slot_kind_has_text\(uint8_t kind\) \{\s*return ([^;]+);/);
+  assert.ok(m, 'status_slot_kind_has_text missing from status_line.h');
+  const named = m[1].split('||').map((term) => {
+    const t = /^\s*kind == (SLOT_[A-Z_]+)\s*$/.exec(term);
+    assert.ok(t, 'a term of another shape: ' + term);
+    return cEnum(t[1]);
+  });
+  Object.keys(catalog.KINDS).forEach((name) => {
+    const kind = catalog.KINDS[name];
+    assert.equal(catalog.kindHasText(kind), named.indexOf(kind) !== -1, name);
+  });
+  assert.deepEqual(named.slice().sort((a, b) => a - b), [catalog.KINDS.TEXT, catalog.KINDS.LIVE_BATTERY_PCT]);
+});
+
 test('icon ids are in lockstep with status_line.h', () => {
   assert.equal(catalog.ICONS.NONE, cEnum('STATUS_ICON_NONE'));
   assert.equal(catalog.ICONS.DRAWN_SUN, cEnum('STATUS_ICON_DRAWN_SUN'));

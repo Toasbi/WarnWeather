@@ -874,7 +874,7 @@ function copyBtn(url, label) {
 function countdownDateItem(slotKey, barWhen) {
     return {
         type: 'date',
-        messageKey: slotKey + 'Countdown',
+        messageKey: STATUS_LINE_CATALOG.countdownKey(slotKey),
         label: 'Countdown date',
         defaultFrom: {resolver: 'todayDate'},
         joinPrevious: true,

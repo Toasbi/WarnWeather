@@ -115,8 +115,7 @@ var fetchCycle = createFetchCycle({
         rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || ''
     },
     now: function () { return new Date(); },
-    getPhoneBattery: phoneBattery.bakeFacts,
-    getWatchBattery: batteryEstimate.bakeFacts,
+    getBakeFacts: bakeFacts,
     // Wrapped like the scheduler's below (WebView receiver check).
     setTimeout: function (fn, ms) { return setTimeout(fn, ms); }
 });
@@ -453,8 +452,7 @@ Pebble.addEventListener('ready',
         // subscribe can fire a micro-send synchronously (see status-rebake.js).
         statusRebake.init({
             getSettings: function () { return app.settings; },
-            getPhoneBattery: phoneBattery.bakeFacts,
-            getWatchBattery: batteryEstimate.bakeFacts,
+            getBakeFacts: bakeFacts,
             sendWeather: outbox.sendWeather,
             storage: localStorage,
             now: function () { return Date.now(); }
@@ -491,7 +489,7 @@ Pebble.addEventListener('ready',
         if (activeFixture) {
             var sendFixture = function () {
                 fixtureWeather.sendFixtureWeather(activeFixture, { settings: app.settings, watchInfo: app.watchInfo,
-                    now: new Date(), phone: phoneBattery.bakeFacts() });
+                    now: new Date(), facts: bakeFacts() });
             };
             // After the settings send, whether the watch ACKs it or not.
             sendClaySettings(sendFixture, sendFixture);
@@ -529,6 +527,15 @@ function getRuntimeTelemetryConfig() {
         appVersion: pkg.version,
         buildProfile: pkg.buildProfile
     };
+}
+
+/**
+ * What every status-line bake reads of the two batteries (status-lines.js BakeFacts): a
+ * fetch's, the fixture's and a re-bake's.
+ * @returns {{phone: Object, watch: Object}}
+ */
+function bakeFacts() {
+    return { phone: phoneBattery.bakeFacts(), watch: batteryEstimate.bakeFacts() };
 }
 
 /**

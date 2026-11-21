@@ -72,10 +72,12 @@ test('less than a day left reads as the percentage', () => {
   assert.equal(batteryDays.daysLeft({ days: 2, updatedAt: T0 }, T0 + 2 * DAY), null);
 });
 
-test('no estimate, or one that is none, reads as the percentage', () => {
-  [null, undefined, {}, { days: -1, updatedAt: T0 }, { days: 5, updatedAt: -1 },
-    { days: 5 }, { updatedAt: T0 }].forEach((estimate) =>
-    assert.equal(batteryDays.daysLeft(estimate, T0), null, JSON.stringify(estimate)));
+test('no estimate reads as the percentage; what counts as one is estimateOf\'s to say, once', () => {
+  [null, undefined].forEach((estimate) =>
+    assert.equal(batteryDays.daysLeft(estimate, T0), null, String(estimate)));
+  // What a plugin sent or what was stored passes estimateOf before it is an estimate.
+  [[-1, T0], [5, -1], [5, undefined], [undefined, T0], ['5', T0], [NaN, T0]].forEach((raw) =>
+    assert.equal(batteryDays.daysLeft(batteryDays.estimateOf(raw[0], raw[1]), T0), null, JSON.stringify(raw)));
 });
 
 test('a clock that went backwards counts no age', () => {
@@ -113,8 +115,7 @@ test('the carried text: nothing for the percentage alone, the days, or the pair 
 
 test('no days to show: nothing is carried, whatever the text is set to', () => {
   ['percent', 'days', 'both'].forEach((shown) => {
-    [null, undefined, '5'].forEach((days) =>
-      assert.equal(batteryDays.slotText(days, { batterySlotDisplay: shown }, EDGE), '', shown + ' ' + String(days)));
+    assert.equal(batteryDays.slotText(null, { batterySlotDisplay: shown }, EDGE), '', shown);
   });
 });
 

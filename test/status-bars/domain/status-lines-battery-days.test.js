@@ -36,7 +36,7 @@ function payload() {
  * @returns {{bytes: number[], slots: Object[]}}
  */
 function bakeTop(settings, watch, watchInfo) {
-  const p = statusLines.buildStatusLines(payload(), settings, watchInfo || BASALT, NOW, null, watch);
+  const p = statusLines.buildStatusLines(payload(), settings, watchInfo || BASALT, NOW, { watch: watch });
   return { bytes: p.STATUS_LINE_3_UINT8, slots: decodeLine(p.STATUS_LINE_3_UINT8) };
 }
 

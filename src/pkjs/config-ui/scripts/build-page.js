@@ -108,23 +108,16 @@ function writeGenerated(opts) {
   return opts.out;
 }
 
-// Build the page and fill the INJECTED_* runtime markers, yielding a standalone HTML page that
-// renders itself in a browser (no watch / Clay host needed). schema/cfg/env/userData are inlined
-// as JSON — the same contract config-ui/index.js fills at runtime. For dev preview, not shipping.
+// Build the page and fill the INJECTED_* runtime marker, yielding a standalone HTML page that
+// renders itself in a browser (no watch / Clay host needed). schema/cfg/env/userData are
+// written by the same writer the page a phone opens gets (config-ui/index.js injectPage).
+// For dev preview, not shipping.
 function previewPage(opts) {
   opts = opts || {};
   var page = buildPage({ appFiles: opts.appFiles });
   if (page.indexOf('/*__PCONF_INJECT__*/') === -1) { throw new Error('shell.html missing /*__PCONF_INJECT__*/'); }
-  // '<' / U+2028-safe inside the inline <script>, and written as generateUrl writes them
-  // (see index.js inlineScriptLiteral).
-  var literal = configUi.inlineScriptLiteral;
-  var snippet =
-    'INJECTED_SCHEMA='   + literal(opts.schema || null)  + ';' +
-    'INJECTED_CFG='      + literal(opts.cfg || {})       + ';' +
-    'INJECTED_ENV='      + literal(opts.env || null)     + ';' +
-    'INJECTED_USERDATA=' + literal(opts.userData || {})  + ';' +
-    'INJECTED_RETURN='   + configUi.inlineScriptJson(opts.returnTo || '#') + ';';
-  return page.replace('/*__PCONF_INJECT__*/', function () { return snippet; });
+  return configUi.injectPage(page, { schema: opts.schema || null, cfg: opts.cfg || {},
+    env: opts.env || null, userData: opts.userData || {}, returnTo: opts.returnTo || '#' });
 }
 
 if (require.main === module) {

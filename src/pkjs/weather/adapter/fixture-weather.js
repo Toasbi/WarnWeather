@@ -92,11 +92,11 @@ function mapFixtureWeather(weather) {
  * @param {Object} settings Clay settings used for the forecast-series transform.
  * @param {Object} [watchInfo] Pebble watchInfo object; used to resolve platform-aware colours.
  * @param {Date} now The instant the payload is baked at (the caller's clock).
- * @param {?Object} [phone] The phone's battery facts (phone-battery.js bakeFacts); absent on a
- *   host that cannot read them.
+ * @param {?Object} [facts] The two batteries' facts (status-lines.js BakeFacts); absent on a
+ *   host that can read neither.
  * @returns {Object|null} Pebble weather payload, or null when invalid.
  */
-function getFixtureWeatherPayload(fixture, settings, watchInfo, now, phone) {
+function getFixtureWeatherPayload(fixture, settings, watchInfo, now, facts) {
     var weather;
     var provider;
     var sunEvents;
@@ -165,7 +165,7 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo, now, phone) {
     // watch.now: the showcase's countdown target moves with the generation day
     // (scripts/gen-showcase-fixtures.js).
     return renderPayload.toRenderPayload(provider.getPayload(), settings, watchInfo,
-        now, phone || null);
+        now, facts || null);
 }
 
 /**
@@ -244,12 +244,12 @@ function getFixtureRadarTuples(fixture) {
  * Send fixture weather directly to the watch, bypassing live provider fetch logic.
  *
  * @param {Object} fixture Active fixture loaded from fixtures/<name>.json.
- * @param {{settings: Object, watchInfo: Object|null, now: Date, phone: (Object|undefined)}} deps
- *   Clay settings, watch info, the time and the phone's battery facts (phone-battery.js bakeFacts).
+ * @param {{settings: Object, watchInfo: Object|null, now: Date, facts: (Object|undefined)}} deps
+ *   Clay settings, watch info, the time and the two batteries' facts (status-lines.js BakeFacts).
  * @returns {void}
  */
 function sendFixtureWeather(fixture, deps) {
-    var payload = getFixtureWeatherPayload(fixture, deps.settings, deps.watchInfo, deps.now, deps.phone);
+    var payload = getFixtureWeatherPayload(fixture, deps.settings, deps.watchInfo, deps.now, deps.facts);
     var radarTuples;
     var radarKey;
 

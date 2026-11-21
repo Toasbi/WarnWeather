@@ -1322,7 +1322,7 @@ test('buildStatusLines derives env.phoneBattery from the phone\'s detector verdi
 
   setPhoneBattery(47, false);
   let p = basePayload();
-  statusLines.buildStatusLines(p, settings, WATCH_BASALT, NOW, phone);
+  statusLines.buildStatusLines(p, settings, WATCH_BASALT, NOW, { phone: phone });
   let slot = decodeLine(p.STATUS_LINE_1_UINT8)[0];
   assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY);
   assert.equal(slot.text, '47%');
@@ -1331,7 +1331,7 @@ test('buildStatusLines derives env.phoneBattery from the phone\'s detector verdi
   // resolves to 'empty' rather than baking a made-up value.
   clearPhoneBattery();
   p = basePayload();
-  statusLines.buildStatusLines(p, settings, WATCH_BASALT, NOW, phone);
+  statusLines.buildStatusLines(p, settings, WATCH_BASALT, NOW, { phone: phone });
   slot = decodeLine(p.STATUS_LINE_1_UINT8)[0];
   assert.equal(slot.kind, catalog.KINDS.EMPTY);
   assert.equal(slot.text, '');
@@ -1511,13 +1511,13 @@ test('the bake reads the phone battery only when a slot shows it, and once per b
   const lazyPhone = { supported: true,
     reading: () => { reads++; return { available: true, level: 52 }; } };
   // No phone-battery slot anywhere: nothing reads the battery.
-  statusLines.buildStatusLines(basePayload(), baseSettings({}), WATCH_BASALT, NOW, lazyPhone);
+  statusLines.buildStatusLines(basePayload(), baseSettings({}), WATCH_BASALT, NOW, { phone: lazyPhone });
   assert.equal(reads, 0, 'a bake without a battery slot must not read the battery');
   // Two phone-battery slots: one read serves both.
   const p = basePayload();
   statusLines.buildStatusLines(p, baseSettings({ statusForecastLeft: 'phoneBattery',
     statusForecastMid: 'phoneBattery', statusForecastRight: 'empty' }), WATCH_BASALT, NOW,
-    lazyPhone);
+    { phone: lazyPhone });
   assert.equal(reads, 1);
   assert.equal(decodeLine(p.STATUS_LINE_1_UINT8)[0].text, '52%');
 });
@@ -1526,6 +1526,6 @@ test('a phone-battery reader that answers null (storage blocked) bakes its slots
   const p = basePayload();
   const blocked = { supported: true, reading: () => null };
   statusLines.buildStatusLines(p, baseSettings({ statusForecastLeft: 'phoneBattery',
-    statusForecastMid: 'empty', statusForecastRight: 'empty' }), WATCH_BASALT, NOW, blocked);
+    statusForecastMid: 'empty', statusForecastRight: 'empty' }), WATCH_BASALT, NOW, { phone: blocked });
   assert.equal(decodeLine(p.STATUS_LINE_1_UINT8)[0].text, '--');
 });

@@ -89,7 +89,7 @@ test('a migrated install bakes the bytes it baked: kind 10 for the percentage, i
   merge(blob);
   const phone = { supported: true, reading: () => ({ available: true, level: 84 }) };
   const payload = statusLines.buildStatusLines({ CITY: 'Bonn', SUN_EVENTS: [1, 0, 0, 0, 0] }, blob,
-    { platform: 'basalt' }, new Date(2026, 10, 21, 12, 0, 0), phone, null);
+    { platform: 'basalt' }, new Date(2026, 10, 21, 12, 0, 0), { phone: phone });
   const slots = decodeLine(payload.STATUS_LINE_3_UINT8);
   assert.deepEqual(slots[0], { kind: catalog.KINDS.TEXT, icon: catalog.ICONS.PHONE_BATTERY_PLAIN, text: '84%' });
   assert.deepEqual(slots[2], { kind: catalog.KINDS.LIVE_BATTERY_PCT, icon: catalog.ICONS.NONE, text: '' });

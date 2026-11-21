@@ -218,7 +218,7 @@
             if (slotText.conditionLook(S, c.env) === 'icon') { return ''; }
             return slotText.conditionText(SAMPLE.condition, cap, c.env, slotText.conditionName(S));
         case 'countdown':
-            return slotText.formatCountdown(c.slotKey ? S[c.slotKey + 'Countdown'] : undefined, now,
+            return slotText.formatCountdown(c.slotKey ? S[catalog.countdownKey(c.slotKey)] : undefined, now,
                 slotText.unitEnabled(S, 'countdownSlotUnit'), cap);
         // The watch-rendered kinds, in status_row.c format_live_value's shapes.
         case 'steps': return '6.2k';
@@ -369,13 +369,12 @@
      */
     function wireBytes(code, text, S, env, cap) {
         var item = catalog.byCode(code);
-        // A live kind carries no bytes, but for what the watch battery's Text look carries
-        // (packLine): the days, with the one-byte place of the percentage in a pair.
-        if (code === 'battery' && slotText.batteryLook(S, env) === 'text') {
-            return 3 + utf8.byteLength(batteryCarried(S, cap));
-        }
-        if (!item || item.kind !== catalog.KINDS.TEXT) { return 3; }
-        return 3 + utf8.byteLength(text || '') + (arrowShown(code, text, S, env, cap) ? 1 : 0);
+        // A kind the watch draws from its own readings carries no bytes.
+        if (!item || !catalog.kindHasText(slotText.wireKind(code, item, S, env))) { return 3; }
+        // The watch battery's value is what the bake carries (the days, with the one-byte
+        // place of the percentage in a pair), not the text the watch draws from it.
+        var value = code === 'battery' ? batteryCarried(S, cap) : (text || '');
+        return 3 + utf8.byteLength(value) + (arrowShown(code, text, S, env, cap) ? 1 : 0);
     }
 
     /**

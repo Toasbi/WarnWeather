@@ -257,6 +257,38 @@ test('the scheduler\'s minute tick runs the re-bake\'s, told whether a fetch is 
   assert.ok(tick.indexOf('statusRebake.onTick(fetchCycle.isInFlight());') > 0);
 });
 
+test('index.js composes the batteries\' facts once: the fetch\'s bake, the re-bake\'s and the fixture\'s read the same', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
+  assert.match(src, /function bakeFacts\(\) \{\n    return \{ phone: phoneBattery\.bakeFacts\(\), watch: batteryEstimate\.bakeFacts\(\) \};\n\}/);
+  assert.equal((src.match(/getBakeFacts: bakeFacts,/g) || []).length, 2, 'the fetch cycle and the re-bake');
+  assert.ok(src.indexOf('facts: bakeFacts() });') > 0, 'the fixture send');
+});
+
+test('a re-bake reads the supplier\'s facts, the phone\'s replaced where the caller brings its own', () => {
+  storage = {};
+  const seen = [];
+  const supplied = { phone: { supported: true }, watch: { estimate: () => null } };
+  statusRebake.init(withHost({ getSettings: () => ({}), sendWeather: () => {}, getBakeFacts: () => supplied,
+    buildStatusLines: (payload, settings, watchInfo, now, facts) => { seen.push(facts); return fakeBake(payload); } }));
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null);
+  statusRebake.resendStatus('test');
+  assert.equal(seen[0], supplied, 'as supplied');
+  const exact = { supported: true, reading: () => ({ available: true, level: 62 }) };
+  statusRebake.bakeStatus(exact);
+  assert.equal(seen[1].phone, exact, 'the ride-along\'s exact reading');
+  assert.equal(seen[1].watch, supplied.watch, 'beside the watch battery\'s, untouched');
+  assert.equal(supplied.phone.reading, undefined, 'and the supplier\'s object is not written to');
+
+  // A host that supplies none: the bake is handed null, or the caller's phone alone.
+  statusRebake.init(withHost({ getSettings: () => ({}), sendWeather: () => {},
+    buildStatusLines: (payload, settings, watchInfo, now, facts) => { seen.push(facts); return fakeBake(payload); } }));
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null);
+  statusRebake.resendStatus('test');
+  assert.equal(seen[2], null);
+  statusRebake.bakeStatus(exact);
+  assert.deepEqual(Object.keys(seen[3]), ['phone']);
+});
+
 // --- News that can wait for the morning (resendStatusAwake) -------------------
 // A battery reading that moved is sent at once by day. Inside the Night battery saver's
 // window its send is owed, and the first tick after the window pays it.

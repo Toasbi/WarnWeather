@@ -74,6 +74,32 @@ test('the fixture send bundles the line styling, threaded with watchInfo', () =>
   assert.equal(style[3] & 0x01, 1, 'secondaryLineFill rides the line flag byte');
 });
 
+test('the fixture send bakes with the batteries\' facts it is handed, as a fetch does', () => {
+  const { decodeLine } = require('../../helpers/status-line-bytes.js');
+  const sent = [];
+  const origPebble = global.Pebble;
+  global.Pebble = { sendAppMessage: function(payload) { sent.push(payload); } };
+  const settings = { barSource: 'off', statusTopRight: 'battery', batterySlotLook: 'text',
+    batterySlotDisplay: 'days', statusForecastLeft: 'phoneBattery' };
+  const facts = {
+    phone: { supported: true, reading: () => ({ available: true, level: 62 }) },
+    watch: { estimate: () => ({ days: 5, updatedAt: FIXTURE_NOW.getTime() }) }
+  };
+  try {
+    sendFixtureWeather(makeFixture(), { settings: settings, watchInfo: { platform: 'basalt' },
+      now: FIXTURE_NOW, facts: facts });
+    sendFixtureWeather(makeFixture(), { settings: settings, watchInfo: { platform: 'basalt' },
+      now: FIXTURE_NOW });
+  } finally {
+    global.Pebble = origPebble;
+  }
+  assert.equal(decodeLine(sent[0].STATUS_LINE_3_UINT8)[2].text, '5d', 'the days the watch has left');
+  assert.equal(decodeLine(sent[0].STATUS_LINE_1_UINT8)[0].text, '62%', 'the phone\'s charge');
+  // Without facts: the percentage alone, and no phone battery to show.
+  assert.equal(decodeLine(sent[1].STATUS_LINE_3_UINT8)[2].text, '');
+  assert.notEqual(decodeLine(sent[1].STATUS_LINE_1_UINT8)[0].text, '62%');
+});
+
 test('fixture without windKmh still produces a valid (flat) wind line', () => {
   const fixture = makeFixture({});  // no windKmh
   const out = getFixtureWeatherPayload(fixture, { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' });

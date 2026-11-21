@@ -729,8 +729,9 @@ function detect() {
     // whose own verdict replaces this one.
     setSupported(true);
     subscription = pluginReader.watch(pebble, PHONE_STATE, onPluginData, onPluginFailure);
-    // Still asked and not yet answered: the wait for its first answer starts.
-    if (source === null && subscription.live()) {
+    // Asked and not yet answered: the wait for its first answer starts. (A subscription
+    // that could not start has handed over by now: detectNavigator set the source.)
+    if (source === null) {
         silenceTimer = ((deps.timers && deps.timers.setTimeout) || setTimeout)(onPluginSilence, PLUGIN_ANSWER_MS);
     }
 }

@@ -15,6 +15,17 @@
     LIVE_STEPS: 3, LIVE_HR: 4, LIVE_SLEEP: 5, LIVE_DISTANCE: 6, LIVE_WEEK: 7,
     LIVE_DISTANCE_MI: 8, LIVE_BATTERY: 9, LIVE_BATTERY_PCT: 10
   };
+  /**
+   * Whether a kind's slot carries value bytes: a text slot, and the watch battery as text,
+   * into which the phone may bake the days the watch has left. Every other kind carries
+   * none (status_line.h status_slot_kind_has_text, kept in lockstep by
+   * test/status-bars/domain/status-line-contract.test.js).
+   * @param {number} kind A KINDS value.
+   * @returns {boolean}
+   */
+  function kindHasText(kind) {
+    return kind === KINDS.TEXT || kind === KINDS.LIVE_BATTERY_PCT;
+  }
   var ICONS = {
     NONE: 0, DRAWN_SUN: 1, TEMP: 2, UV: 3, WIND: 4, GUST: 5,
     STEPS: 7, SLEEP: 8, HR: 9, DISTANCE: 10, AQI: 11,
@@ -568,6 +579,16 @@
   }
 
   /**
+   * The setting a slot keeps its countdown's target date in (status-lines.js): the slot's
+   * own, so each countdown slot counts down to its own day.
+   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
+   * @returns {string}
+   */
+  function countdownKey(slotKey) {
+    return slotKey + 'Countdown';
+  }
+
+  /**
    * The setting a slot keeps its phone battery's Look in (slot-text.js phoneBatteryLook): the
    * slot's own, like its countdown date, so the phone battery can show its icon in one slot
    * and not in another.
@@ -588,7 +609,7 @@
    */
   function slotCompanions(slotKey) {
     return [
-      { code: 'countdown', key: slotKey + 'Countdown' },
+      { code: 'countdown', key: countdownKey(slotKey) },
       { code: 'phoneBattery', key: phoneBatteryLookKey(slotKey) }
     ];
   }
@@ -635,7 +656,7 @@
   }
 
   var api = {
-    KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, ALT_SEP: ALT_SEP, CITY_GLYPH: CITY_GLYPH, LINES: LINES,
+    KINDS: KINDS, kindHasText: kindHasText, ICONS: ICONS, CAPS: CAPS, ALT_SEP: ALT_SEP, CITY_GLYPH: CITY_GLYPH, LINES: LINES,
     widenEdges: widenEdges,
     SLOT_POSITIONS: SLOT_POSITIONS,
     EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
@@ -646,7 +667,8 @@
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
-    batterySettingKeys: batterySettingKeys, phoneBatteryLookKey: phoneBatteryLookKey,
+    batterySettingKeys: batterySettingKeys, countdownKey: countdownKey,
+    phoneBatteryLookKey: phoneBatteryLookKey,
     slotCompanions: slotCompanions
   };
 

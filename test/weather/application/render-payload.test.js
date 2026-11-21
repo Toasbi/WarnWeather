@@ -111,13 +111,11 @@ test('a phone-battery event re-bakes from the stash after the payload has been p
   try {
     statusRebake.init(withHost({
       getSettings: function() { return settings; },
-      getPhoneBattery: phoneBattery.bakeFacts,
+      getBakeFacts: function() { return { phone: phoneBattery.bakeFacts() }; },
       sendWeather: function(p) { sends.push(p); }
     }));
     phoneBattery.init({
-      navigator: { getBattery: function() { return { then: function(ok) { ok(mgr); } }; } },
-      getSettings: function() { return settings; },
-      now: function() { return new Date(2026, 0, 1, 12, 0, 0); }  // saver window shut
+      navigator: { getBattery: function() { return { then: function(ok) { ok(mgr); } }; } }
     });
     const payload = {
       CURRENT_TEMP: 68, CITY: 'Bonn', SUN_EVENTS: [1, 0, 0, 0, 0],
@@ -127,7 +125,7 @@ test('a phone-battery event re-bakes from the stash after the payload has been p
       FORECAST_START: 1700000000, NUM_ENTRIES: 1
     };
     const out = toRenderPayload(payload, settings, { platform: 'basalt' }, NOW,
-      phoneBattery.bakeFacts());
+      { phone: phoneBattery.bakeFacts() });
     const baked = decodeStatusLine(out.STATUS_LINE_1_UINT8);
     // The bucket is only the SEND trigger; the baked text is the exact reading.
     assert.equal(baked[0].text, '62%', 'the fetch itself carries the exact charge');

@@ -78,7 +78,7 @@ function boot(opts) {
   };
   statusRebake.init(withHost({
     getSettings: () => h.settings,
-    getWatchBattery: batteryEstimate.bakeFacts,
+    getBakeFacts: () => ({ watch: batteryEstimate.bakeFacts() }),
     sendWeather: (p) => { h.sends.push(p); },
     now: () => h.clock
   }));
@@ -112,6 +112,12 @@ function minute() {
 function sentDays(h) {
   return decodeLine(h.sends[h.sends.length - 1].STATUS_LINE_3_UINT8)[2].text;
 }
+
+test('init refuses to start without its suppliers', () => {
+  assert.throws(() => batteryEstimate.init(), /init needs getSettings, getWatchInfo and now/);
+  assert.throws(() => batteryEstimate.init({ getSettings: () => ({}), now: () => 0 }), /init needs/);
+  assert.throws(() => batteryEstimate.init({ getSettings: () => ({}), getWatchInfo: () => null }), /init needs/);
+});
 
 test('wanted: Muninn is asked once at start, for its days and when it made them', () => {
   const h = boot();

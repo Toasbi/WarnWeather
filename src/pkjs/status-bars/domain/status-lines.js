@@ -135,6 +135,17 @@ var isoWeek = slotText.isoWeek;
  */
 
 /**
+ * What a bake reads that neither the payload nor the settings hold: the two batteries'
+ * facts. The app composes them once (index.js bakeFacts) for every bake: a fetch's, the
+ * fixture's and a re-bake's.
+ * @typedef {Object} BakeFacts
+ * @property {?PhoneBattery} [phone] The phone's battery facts; absent = a host that cannot
+ *   read the phone's battery.
+ * @property {?WatchBattery} [watch] The watch battery's facts; absent = no estimate of the
+ *   days it has left.
+ */
+
+/**
  * The bake's environment besides the watch's: the time and the phone's battery, read
  * once per bake so every slot judges the same instant and the same reading.
  * @typedef {Object} BakeEnv
@@ -162,7 +173,8 @@ function bakeEnv(now, phone, days) {
 
 /**
  * Format one catalog item's display text from the payload.
- * @param {string} code catalog item code (TEXT kinds only)
+ * @param {string} code catalog item code: an item whose slot carries text (slot-text.js
+ *   wireKind, catalog kindHasText)
  * @param {Object} payload weather payload (pre-transform)
  * @param {Object} settings Clay settings blob
  * @param {string} slotKey Owning status-slot settings key.
@@ -188,7 +200,7 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
   var v;
   if (code === 'countdown') {
     return formatCountdown(settings && slotKey
-      ? settings[slotKey + 'Countdown'] : undefined, bake.now,
+      ? settings[catalog.countdownKey(slotKey)] : undefined, bake.now,
       unitEnabled(settings, 'countdownSlotUnit'), cap);
   }
   if (code === 'temp') {
@@ -296,6 +308,13 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
     // withUnit cap check. '100%' is 4 of the edge slot's 8 bytes at worst.
     return String(pb.level) + '%';
   }
+  // The watch battery in its Text look: the days the watch has left while it is to show
+  // them, alone or with the place of the percentage beside them (battery-days.js
+  // slotText), which the watch prints in place of its percentage while they can be
+  // current. No text is the percentage alone, which the watch prints itself.
+  if (code === 'battery') { return batteryDays.slotText(bake.batteryDays, settings, cap); }
+  // The ISO week, where the phone bakes it (slot-text.js wireKind: aplite).
+  if (code === 'week') { return 'W' + isoWeek(bake.now); }
   return '--';
 }
 
@@ -551,28 +570,14 @@ function packLine(line, payload, settings, env, alerts, bake) {
     var key = line.slots[s];
     var code = slotCode(line, s, settings, env);
     var item = catalog.byCode(code) || catalog.byCode('empty');
-    // Distance carries its unit in the wire kind (phone-only distanceUnits): the
-    // watch renders km for LIVE_DISTANCE and mi for LIVE_DISTANCE_MI. Every other
-    // item keeps its catalog kind unchanged.
-    var kind = item.kind;
-    if (code === 'distance' && settings && settings.distanceUnits === 'imperial') {
-      kind = catalog.KINDS.LIVE_DISTANCE_MI;
-    }
-    // So does the watch battery its look: the battery the watch draws (the entry's kind), or
-    // its charge as text (never on aplite: slot-text.js batteryLook).
-    if (code === 'battery' && slotText.batteryLook(settings, env) === 'text') {
-      kind = catalog.KINDS.LIVE_BATTERY_PCT;
-    }
-    // Likewise resolved per bake rather than read straight off the entry: the weather
-    // condition's glyph (see iconFor).
+    // Both resolved per bake rather than read straight off the entry: the kind the item
+    // packs as (slot-text.js wireKind) and its glyph (iconFor).
+    var kind = slotText.wireKind(code, item, settings, env);
     var icon = iconFor(code, item, payload, settings, env, bake, key);
-    if (env.platform === 'aplite' && item.kind === catalog.KINDS.LIVE_WEEK) {
-      // aplite has no watch-side iso_week() (reaped for image budget), so the
-      // phone bakes the ISO week as an ordinary TEXT slot instead.
-      var weekBytes = utf8Truncate(utf8Encode('W' + isoWeek(bake.now)), textCap(s));
-      bytes.push(catalog.KINDS.TEXT, icon, weekBytes.length);
-      for (var wb = 0; wb < weekBytes.length; wb++) { bytes.push(weekBytes[wb]); }
-    } else if (item.kind === catalog.KINDS.TEXT) {
+    if (!catalog.kindHasText(kind)) {
+      // The watch draws a live kind from its own readings: no bytes.
+      bytes.push(kind, icon, 0);
+    } else {
       // A day-max kind's pick (null for every other kind), read once: the text
       // and the wind arrow below must judge the same peak.
       var dayMax = wireUnits.dayMaxShown(code, payload, settings);
@@ -604,7 +609,7 @@ function packLine(line, payload, settings, env, alerts, bake) {
       // the byte before measuring or drawing the text.
       var dirByte = directionSentinel(code, payload, settings, env, text, dayMax);
       if (dirByte && valueBytes.length < textCap(s)) { valueBytes.push(dirByte); }
-      bytes.push(item.kind, icon, valueBytes.length);
+      bytes.push(kind, icon, valueBytes.length);
       for (var b = 0; b < valueBytes.length; b++) { bytes.push(valueBytes[b]); }
       // An edge slot's weather condition at the middle's room: its name with the short form
       // after it (slot-text.js conditionText). Not on a known aplite, whose lean row reads one
@@ -614,17 +619,6 @@ function packLine(line, payload, settings, env, alerts, bake) {
           catalog.CAPS.EDGE_COND_TEXT_MAX, dayMax, alert, env, bake)), catalog.CAPS.EDGE_COND_TEXT_MAX);
         if (wideBytes.join() !== valueBytes.join()) { wide[s] = wideBytes; }
       }
-    } else {
-      // The watch draws a live kind from its own readings, so it carries no bytes. One
-      // exception: the watch battery's text look carries the days the watch has left
-      // while it is to show them, alone or with the place of the percentage beside them
-      // (battery-days.js slotText), which the watch prints in place of its percentage
-      // while they can be current (status_line.h status_slot_kind_has_text).
-      var daysBytes = kind === catalog.KINDS.LIVE_BATTERY_PCT
-        ? utf8Truncate(utf8Encode(batteryDays.slotText(bake.batteryDays, settings, textCap(s))), textCap(s))
-        : [];
-      bytes.push(kind, icon, daysBytes.length);
-      for (var db = 0; db < daysBytes.length; db++) { bytes.push(daysBytes[db]); }
     }
   }
   return widenEdgeConditions(bytes, starts, wide);
@@ -663,13 +657,12 @@ function widenEdgeConditions(bytes, starts, wide) {
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
  * @param {Date} now The current time: the countdown, aplite's ISO week and whether it is
  *   night now read it, one instant for the whole bake.
- * @param {?PhoneBattery} [phone] The phone's battery facts (phone-battery.js bakeFacts);
- *   absent = a host that cannot read the phone's battery.
- * @param {?WatchBattery} [watch] The watch battery's facts (battery-estimate.js
- *   bakeFacts); absent = no estimate of the days it has left.
+ * @param {?BakeFacts} [facts] The two batteries' facts; absent = neither.
  * @returns {Object} the same payload
  */
-function buildStatusLines(payload, settings, watchInfo, now, phone, watch) {
+function buildStatusLines(payload, settings, watchInfo, now, facts) {
+  var phone = (facts && facts.phone) || null;
+  var watch = (facts && facts.watch) || null;
   var env = platformLib.computeEnv(watchInfo);
   // The weather alerts' entries, judged before the lines: a slot showing an alert's
   // metric on the alert's side merges it (packLine). Only for a watch they ride to

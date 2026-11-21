@@ -21,8 +21,8 @@
 // weather pipeline (forecast-series.js) had to require a BATTERY module just
 // to stash bake inputs — and forced lazy-require contortions around the
 // status-lines cycle. The load graph here is clean: status-lines requires no
-// adapter (the bake takes the phone's battery facts and the time as
-// arguments: deps.getPhoneBattery and deps.now here), and outbox has no path
+// adapter (the bake takes the batteries' facts and the time as
+// arguments: deps.getBakeFacts and deps.now here), and outbox has no path
 // back at all, so both are plain top-level requires.
 
 // The micro-send mechanics: `buildStatusLines()` runs in the forecast
@@ -358,19 +358,14 @@ function nowSec() {
 }
 
 /**
- * @returns {?Object} The phone's battery facts for a re-bake (the injected
- *   supplier, phone-battery.js bakeFacts in the app), or null without one.
+ * The two batteries' facts for a re-bake: the injected supplier's (index.js bakeFacts in
+ * the app), with the phone's replaced where the caller brings its own.
+ * @param {?Object} [phone] The phone's battery facts to bake instead (bakeStatus).
+ * @returns {?Object} The facts (status-lines.js BakeFacts), or null without a supplier.
  */
-function phoneFacts() {
-    return typeof deps.getPhoneBattery === 'function' ? deps.getPhoneBattery() : null;
-}
-
-/**
- * @returns {?Object} The watch battery's facts for a re-bake (the injected supplier,
- *   battery-estimate.js bakeFacts in the app), or null without one.
- */
-function watchFacts() {
-    return typeof deps.getWatchBattery === 'function' ? deps.getWatchBattery() : null;
+function bakeFacts(phone) {
+    var facts = typeof deps.getBakeFacts === 'function' ? deps.getBakeFacts() : null;
+    return phone ? Object.assign({}, facts, { phone: phone }) : facts;
 }
 
 /**
@@ -559,8 +554,7 @@ function rebake(phone) {
     bakedNight = nightAt(payload, at / 1000);
     build = deps.buildStatusLines || statusLines.buildStatusLines;
     try {
-        build(payload, inputs.settings, inputs.watchInfo, new Date(at), phone || phoneFacts(),
-            watchFacts());
+        build(payload, inputs.settings, inputs.watchInfo, new Date(at), bakeFacts(phone));
     }
     catch (ex) {
         return { status: null, error: ex };
@@ -594,14 +588,12 @@ function invalidatePersisted() {
  * @param {Object} [options] Injected environment; every field has a default.
  * @param {function():Object} [options.getSettings] Current Clay settings supplier.
  * @param {function(Object, Function=, Function=):void} options.sendWeather The outbox's send (outbox.sendWeather).
- * @param {function(Object, Object, Object, Date, ?Object, ?Object):Object} [options.buildStatusLines] Baker (default: status-lines).
+ * @param {function(Object, Object, Object, Date, ?Object):Object} [options.buildStatusLines] Baker (default: status-lines).
  * @param {function():(Date|number)} options.now Clock for the day/night check and the re-bake.
  * @param {?{getItem: Function, setItem: Function, removeItem: Function}} [options.storage] Where the
  *   restart backstop lives (localStorage); absent = no backstop.
- * @param {function():?Object} [options.getPhoneBattery] The phone's battery facts for the re-bake
- *   (phone-battery.js bakeFacts); absent = a host that cannot read the phone's battery.
- * @param {function():?Object} [options.getWatchBattery] The watch battery's facts for the
- *   re-bake (battery-estimate.js bakeFacts); absent = no estimate of the days it has left.
+ * @param {function():?Object} [options.getBakeFacts] The two batteries' facts for the re-bake
+ *   (status-lines.js BakeFacts); absent = a host that can read neither.
  * @returns {void}
  */
 function init(options) {

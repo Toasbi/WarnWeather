@@ -300,6 +300,35 @@
     }
 
     /**
+     * The kind a slot's item packs as on this watch, under these settings: its catalog
+     * kind, but for the three items whose kind follows something else. The bake packs by
+     * it (status-lines.js packLine), and the page's pictures count a slot's bytes by it.
+     * @param {string} code The item's catalog code.
+     * @param {Object} item Its catalog entry.
+     * @param {Object} settings Settings.
+     * @param {Object} [env] Platform env.
+     * @returns {number} A catalog KINDS value.
+     */
+    function wireKind(code, item, settings, env) {
+        // Distance carries its unit in the wire kind (phone-only distanceUnits): the watch
+        // renders km for LIVE_DISTANCE and mi for LIVE_DISTANCE_MI.
+        if (code === 'distance' && settings && settings.distanceUnits === 'imperial') {
+            return catalog.KINDS.LIVE_DISTANCE_MI;
+        }
+        // The watch battery, its Look: the battery the watch draws (the entry's kind), or
+        // its charge as text.
+        if (code === 'battery' && batteryLook(settings, env) === 'text') {
+            return catalog.KINDS.LIVE_BATTERY_PCT;
+        }
+        // aplite has no watch-side iso_week() (reaped for image budget), so the phone
+        // bakes the ISO week as an ordinary TEXT slot instead.
+        if (item.kind === catalog.KINDS.LIVE_WEEK && env && env.platform === 'aplite') {
+            return catalog.KINDS.TEXT;
+        }
+        return item.kind;
+    }
+
+    /**
      * The phone battery's Look in one slot (the slot's own setting, catalog
      * phoneBatteryLookKey): 'both', the phone's icon before the charge (the default, and
      * what anything unknown reads as), or 'text', the charge alone.
@@ -366,6 +395,7 @@
         conditionName: conditionName,
         cityIcon: cityIcon,
         batteryLook: batteryLook,
+        wireKind: wireKind,
         phoneBatteryLook: phoneBatteryLook,
         conditionText: conditionText
     };

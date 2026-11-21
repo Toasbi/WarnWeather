@@ -68,17 +68,18 @@
    * passed since it was made (an estimate of 5 days reads 4 a day later, with nothing new
    * heard). Null, and the slot shows the percentage, while there is no estimate, it is
    * older than MAX_AGE_MS, or less than a day is left.
-   * @param {?{days: number, updatedAt: number}} estimate The estimate (estimateOf).
+   * @param {?{days: number, updatedAt: number}} estimate The estimate, as estimateOf made
+   *   it (what a plugin sent, or what was stored, is checked there, once), or null.
    * @param {number} nowMs The current time, in epoch milliseconds.
    * @returns {?number} 1..MAX_DAYS, or null.
    */
   function daysLeft(estimate, nowMs) {
-    if (!estimate || estimateOf(estimate.days, estimate.updatedAt) === null) { return null; }
+    if (!estimate) { return null; }
     var age = nowMs - estimate.updatedAt;
     // A clock that went backwards, or an estimate stamped ahead of this phone: no age.
     if (!(age > 0)) { age = 0; }
     if (age > MAX_AGE_MS) { return null; }
-    var left = Math.floor(estimate.days) - Math.floor(age / DAY_MS);
+    var left = estimate.days - Math.floor(age / DAY_MS);
     if (left < 1) { return null; }
     return left > MAX_DAYS ? MAX_DAYS : left;
   }
@@ -103,7 +104,7 @@
    */
   function slotText(days, settings, cap) {
     var shown = display(settings);
-    if (shown === 'percent' || days === null || typeof days !== 'number') { return ''; }
+    if (shown === 'percent' || days === null) { return ''; }
     if (shown === 'days') { return text(days); }
     return statusPair.formatBatteryPair(PCT_MARK, text(days), settings, cap);
   }

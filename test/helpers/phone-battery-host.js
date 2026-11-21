@@ -63,7 +63,7 @@ function boot(opts) {
   // order; see status-rebake.js init).
   statusRebake.init(withHost({
     getSettings: function () { return h.settings; },
-    getPhoneBattery: phoneBattery.bakeFacts,
+    getBakeFacts: function () { return { phone: phoneBattery.bakeFacts() }; },
     sendWeather: function (p) { h.sends.push(p); },
     // The re-baker's clock decides whether the Night battery saver's window is open.
     now: function () { return h.clock; },

@@ -272,10 +272,8 @@ function runCycle(deps) {
  * @param {function(Object):void} deps.trackWeatherFetch Receives each fetch's telemetry event (the caller owns the telemetry-enabled gate).
  * @param {{waqiToken: string, rainbowEndpoint: string}} deps.env Build-injected secrets (package.json's waqi.token and rainbow.endpoint; '' when absent).
  * @param {function():Date} deps.now Current-time supplier (same contract as the channel scheduler's deps.now).
- * @param {function():?Object} [deps.getPhoneBattery] The phone's battery facts for the bake
- *   (phone-battery.js bakeFacts); absent = a host that cannot read the phone's battery.
- * @param {function():?Object} [deps.getWatchBattery] The watch battery's facts for the bake
- *   (battery-estimate.js bakeFacts); absent = no estimate of the days it has left.
+ * @param {function():?Object} [deps.getBakeFacts] The two batteries' facts for the bake
+ *   (status-lines.js BakeFacts); absent = a host that can read neither.
  * @param {function(Function, number):*} deps.setTimeout Timer function (the watchdog and the queued-force drain; wrap the native one — see index.js).
  * @returns {{shouldFetchNow: function():boolean, start: function(boolean):boolean, isInFlight: function():boolean}}
  *   The fetch cycle.
@@ -677,8 +675,7 @@ function createFetchCycle(deps) {
          */
         function toRenderPayload(payload) {
             return renderPayload.toRenderPayload(payload, deps.getSettings(), deps.getWatchInfo(),
-                deps.now(), typeof deps.getPhoneBattery === 'function' ? deps.getPhoneBattery() : null,
-                typeof deps.getWatchBattery === 'function' ? deps.getWatchBattery() : null);
+                deps.now(), typeof deps.getBakeFacts === 'function' ? deps.getBakeFacts() : null);
         }
 
         // Watchdog: the chain is asynchronous, so a callback that throws — or a

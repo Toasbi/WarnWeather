@@ -36,30 +36,21 @@ var MUNINN_STATS = { category: 'muninn', item: 'stats', properties: ['daysRemain
 /** The least time between two reads of the estimate from the minute tick. */
 var READ_INTERVAL_MS = 30 * 60 * 1000;
 
-var deps = {};            // injected environment (see init)
+// The injected environment (init). Before it, the module is inert: no settings, so
+// nothing is wanted.
+var deps = {
+    getSettings: function () { return null; },
+    getWatchInfo: function () { return null; },
+    now: function () { return Date.now(); }
+};
 var lastReadAt = null;    // when this PKJS life last asked, in epoch ms (null: not yet)
 var reading = false;      // a read is under way
-
-/**
- * localStorage, or null where the host has none (Node, in tests that never needed it).
- * @returns {Object|null} The storage object, or null.
- */
-function store() {
-    return (typeof localStorage !== 'undefined' && localStorage) ? localStorage : null;
-}
 
 /**
  * @returns {number} Now, in epoch milliseconds (the injected clock).
  */
 function nowMs() {
-    return typeof deps.now === 'function' ? +deps.now() : Date.now();
-}
-
-/**
- * @returns {?Object} Current Clay settings, via the injected supplier.
- */
-function currentSettings() {
-    return typeof deps.getSettings === 'function' ? deps.getSettings() : null;
+    return +deps.now();
 }
 
 /**
@@ -67,10 +58,9 @@ function currentSettings() {
  *   this watch is sent, and this Pebble app can read plugins at all.
  */
 function wanted() {
-    var settings = currentSettings();
-    var watchInfo = typeof deps.getWatchInfo === 'function' ? deps.getWatchInfo() : null;
+    var settings = deps.getSettings();
     return Boolean(settings) && pluginReader.available(pluginReader.pebbleOf(deps))
-        && statusLines.wantsBatteryDays(settings, watchInfo);
+        && statusLines.wantsBatteryDays(settings, deps.getWatchInfo());
 }
 
 /**
@@ -79,8 +69,7 @@ function wanted() {
  *   or what is stored is unreadable.
  */
 function readEstimate() {
-    var s = store();
-    var raw = s ? s.getItem(KEYS.BATTERY_ESTIMATE) : null;
+    var raw = localStorage.getItem(KEYS.BATTERY_ESTIMATE);
     var rec;
     if (raw === null) { return null; }
     try {
@@ -108,7 +97,6 @@ function sameEstimate(a, b) {
  * @returns {void}
  */
 function keep(estimate) {
-    var s = store();
     var at = nowMs();
     var kept = readEstimate();
     var before;
@@ -118,12 +106,10 @@ function keep(estimate) {
     if (sameEstimate(kept, estimate)) { return; }
     before = batteryDays.daysLeft(kept, at);
     after = batteryDays.daysLeft(estimate, at);
-    if (s) {
-        if (estimate) {
-            s.setItem(KEYS.BATTERY_ESTIMATE, JSON.stringify(estimate));
-        } else {
-            s.removeItem(KEYS.BATTERY_ESTIMATE);
-        }
+    if (estimate) {
+        localStorage.setItem(KEYS.BATTERY_ESTIMATE, JSON.stringify(estimate));
+    } else {
+        localStorage.removeItem(KEYS.BATTERY_ESTIMATE);
     }
     if (before === after) { return; }
     console.log('battery-estimate: ' + (after === null ? 'no estimate' : after + ' days left') + '.');
@@ -195,18 +181,22 @@ function onTick() {
  * Wire the module up. Call once, from the 'ready' handler, after statusRebake.init().
  * Re-calling resets all module state, which is what the tests rely on.
  *
- * @param {Object} [options] Injected environment; every field has a default.
+ * @param {Object} options Injected environment.
+ * @param {function():Object} options.getSettings Current Clay settings supplier.
+ * @param {function():?Object} options.getWatchInfo Pebble.getActiveWatchInfo() result supplier.
+ * @param {function():(Date|number)} options.now Clock.
  * @param {Object} [options.pebble] The Pebble object to read plugins through (default: the
  *   global one, if any).
- * @param {function():Object} [options.getSettings] Current Clay settings supplier.
- * @param {function():?Object} [options.getWatchInfo] Pebble.getActiveWatchInfo() result supplier.
- * @param {function():(Date|number)} [options.now] Clock.
  * @param {Object} [options.timers] {setTimeout, clearTimeout, timeoutMs} for the read
  *   (plugin-reader.js readOnce; tests).
  * @returns {void}
  */
 function init(options) {
-    deps = options || {};
+    if (!options || typeof options.getSettings !== 'function'
+            || typeof options.getWatchInfo !== 'function' || typeof options.now !== 'function') {
+        throw new Error('battery-estimate: init needs getSettings, getWatchInfo and now');
+    }
+    deps = options;
     lastReadAt = null;
     reading = false;
     if (wanted()) { read(); }
