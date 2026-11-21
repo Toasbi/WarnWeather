@@ -111,6 +111,110 @@
       "BAR_TREND_UINT8": [0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0]
     }
   },
+  "metno@basalt": {
+    "outcome": "ok",
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24},
+    "requests": [
+      "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
+      "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
+    ],
+    "payload": {
+      "TEMP_MIN": 52,
+      "TEMP_MAX": 70,
+      "FORECAST_START": 1781942400,
+      "NUM_ENTRIES": 24,
+      "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
+      "IS_SLEEPING": false,
+      "STATUS_LINE_1_UINT8": [1,2,2,49,55,1,152,5,77,105,116,116,101,1,1,5,50,49,58,51,52],
+      "STATUS_LINE_3_UINT8": [1,11,2,52,54,2,0,0,9,0,0],
+      "STATUS_LEVELS_UINT8": [0,0],
+      "ALERT_ENTRIES_UINT8": [135,55],
+      "TEMP_TREND_UINT8": [139,181,208,222,236,250,236,236,208,181,153,111,83,56,42,28,28,14,0,0,14,42,69,111],
+      "SECONDARY_LINE_TREND_UINT8": [50,75,138,188,225,238,175,100,50,25,25,13,13,13,13,13,13,13,13,13,13,25,25,38],
+      "THIRD_LINE_TREND_UINT8": [],
+      "FOURTH_LINE_TREND_UINT8": [],
+      "FIFTH_LINE_TREND_UINT8": [],
+      "BAR_TREND_UINT8": [0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    }
+  },
+  "metno@aplite": {
+    "outcome": "ok",
+    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24},
+    "requests": [
+      "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
+      "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=2"
+    ],
+    "payload": {
+      "TEMP_MIN": 52,
+      "TEMP_MAX": 70,
+      "FORECAST_START": 1781942400,
+      "NUM_ENTRIES": 24,
+      "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
+      "IS_SLEEPING": false,
+      "STATUS_LINE_1_UINT8": [1,2,2,49,55,1,0,5,77,105,116,116,101,1,1,5,50,49,58,51,52],
+      "STATUS_LINE_3_UINT8": [1,11,2,52,54,2,0,0,9,0,0],
+      "TEMP_TREND_UINT8": [139,181,208,222,236,250,236,236,208,181,153,111,83,56,42,28,28,14,0,0,14,42,69,111],
+      "SECONDARY_LINE_TREND_UINT8": [50,75,138,188,225,238,175,100,50,25,25,13,13,13,13,13,13,13,13,13,13,25,25,38],
+      "THIRD_LINE_TREND_UINT8": [],
+      "BAR_TREND_UINT8": [0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    }
+  },
+  "metno@lines": {
+    "outcome": "ok",
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24},
+    "requests": [
+      "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
+      "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
+    ],
+    "payload": {
+      "TEMP_MIN": 52,
+      "TEMP_MAX": 70,
+      "FORECAST_START": 1781942400,
+      "NUM_ENTRIES": 24,
+      "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
+      "IS_SLEEPING": false,
+      "STATUS_LINE_1_UINT8": [1,2,5,49,55,124,49,52,1,152,5,77,105,116,116,101,1,1,5,50,49,58,51,52],
+      "STATUS_LINE_3_UINT8": [1,11,2,52,54,2,0,0,9,0,0],
+      "STATUS_LEVELS_UINT8": [0,0],
+      "ALERT_ENTRIES_UINT8": [135,55],
+      "TEMP_TREND_UINT8": [150,188,213,225,238,250,238,238,213,188,163,125,100,75,63,50,50,38,25,25,38,63,88,125],
+      "SECONDARY_LINE_TREND_UINT8": [50,75,138,188,225,238,175,100,50,25,25,13,13,13,13,13,13,13,13,13,13,25,25,38],
+      "THIRD_LINE_TREND_UINT8": [75,90,105,120,130,125,110,95,80,65,55,45,40,40,35,35,35,30,30,25,30,40,50,60],
+      "FOURTH_LINE_TREND_UINT8": [88,113,125,138,163,188,200,188,163,138,113,88,63,38,25,13,13,1,1,1,1,25,50,75],
+      "FIFTH_LINE_TREND_UINT8": [145,170,195,220,235,230,200,175,150,125,110,90,85,85,75,75,75,65,65,60,65,85,100,115],
+      "BAR_TREND_UINT8": [0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    }
+  },
+  "metno@everything": {
+    "outcome": "ok",
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68},
+    "requests": [
+      "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
+      "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
+    ],
+    "payload": {
+      "TEMP_MIN": 52,
+      "TEMP_MAX": 71,
+      "FORECAST_START": 1781942400,
+      "NUM_ENTRIES": 68,
+      "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
+      "IS_SLEEPING": false,
+      "STATUS_LINE_1_UINT8": [1,2,5,49,55,124,49,52,1,15,2,49,49,1,24,11,67,108,111,117,100,121,31,67,76,68,89],
+      "STATUS_LINE_3_UINT8": [0,0,0,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
+      "STATUS_LEVELS_UINT8": [0,0],
+      "ALERT_ENTRIES_UINT8": [135,55],
+      "TEMP_TREND_UINT8": [175,200,217,225,233,242,233,233,217,200,183,158,142,125,117,108,108,100,92,92,100,117,133,158,183,200,217,233,242,242,242,233,225,208,183,167,150,133,117,108,108,108,100,100,100,117,142,167,192,208,225,233,250,250,250,242,233,217,192,175,158,150,142,125,117,125,125,133],
+      "SECONDARY_LINE_TREND_UINT8": [138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,166,188,200,205,205,194,166,138,113,88,75,70,65,60,55,50,54,58,63],
+      "THIRD_LINE_TREND_UINT8": [75,105,130,146,150,141,121,93,64,36,16,5,0,0,0,0,0,0,0,0,2,9,23,46,75,105,130,146,150,141,121,93,64,36,16,5,0,0,0,0,0,0,0,0,2,9,23,46,75,105,130,146,150,141,121,93,64,36,16,5,0,0,0,0,0,0,0,0],
+      "FOURTH_LINE_TREND_UINT8": [96,119,123,138,150,158,159,140,131,117,99,81,51,39,30,24,27,9,8,8,15,35,45,72,99,122,141,141,153,161,162,158,134,120,102,84,69,42,33,27,30,27,11,11,18,38,63,75,102,125,144,159,156,164,165,161,152,123,105,87,76,66,55,44,33,39,44,50],
+      "FIFTH_LINE_TREND_UINT8": [85,82,80,77,69,72,74,77,80,82,85,88,85,82,80,77,79,81,84,87,89,92,95,97,95,92,89,87,79,81,84,87,89,92,95,97,95,92,89,87,88,91,94,96,99,101,104,107,104,101,99,96,88,91,94,96,99,101,104,107,105,103,101,100,98,101,103,106],
+      "BAR_TREND_UINT8": [0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0]
+    }
+  },
   "openmeteo@basalt": {
     "outcome": "ok",
     "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24},
@@ -219,110 +323,6 @@
       "THIRD_LINE_TREND_UINT8": [75,105,130,146,150,141,121,93,64,36,16,5,0,0,0,0,0,0,0,0,2,9,23,46,75,105,130,146,150,141,121,93,64,36,16,5,0,0,0,0,0,0,0,0,2,9,23,46,75,105,130,146,150,141,121,93,64,36,16,5,0,0,0,0,0,0,0,0],
       "FOURTH_LINE_TREND_UINT8": [96,118,123,138,150,158,159,139,131,117,99,81,51,39,30,24,27,9,8,8,15,34,45,72,99,122,141,141,153,161,162,158,133,120,102,84,69,42,33,27,30,27,11,11,18,38,63,75,102,124,144,159,156,163,165,161,152,123,105,87,72,60,36,30,33,30,28,13],
       "FIFTH_LINE_TREND_UINT8": [85,82,80,77,69,72,74,77,80,82,85,88,85,82,80,77,79,81,84,87,89,92,95,97,95,92,89,87,79,81,84,87,89,92,95,97,95,92,89,87,88,91,94,96,99,101,104,107,104,101,99,96,88,91,94,96,99,101,104,107,104,101,99,96,98,101,103,106],
-      "BAR_TREND_UINT8": [0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0]
-    }
-  },
-  "metno@basalt": {
-    "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24},
-    "requests": [
-      "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
-      "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
-    ],
-    "payload": {
-      "TEMP_MIN": 52,
-      "TEMP_MAX": 70,
-      "FORECAST_START": 1781942400,
-      "NUM_ENTRIES": 24,
-      "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
-      "IS_SLEEPING": false,
-      "STATUS_LINE_1_UINT8": [1,2,2,49,55,1,152,5,77,105,116,116,101,1,1,5,50,49,58,51,52],
-      "STATUS_LINE_3_UINT8": [1,11,2,52,54,2,0,0,9,0,0],
-      "STATUS_LEVELS_UINT8": [0,0],
-      "ALERT_ENTRIES_UINT8": [135,55],
-      "TEMP_TREND_UINT8": [139,181,208,222,236,250,236,236,208,181,153,111,83,56,42,28,28,14,0,0,14,42,69,111],
-      "SECONDARY_LINE_TREND_UINT8": [50,75,138,188,225,238,175,100,50,25,25,13,13,13,13,13,13,13,13,13,13,25,25,38],
-      "THIRD_LINE_TREND_UINT8": [],
-      "FOURTH_LINE_TREND_UINT8": [],
-      "FIFTH_LINE_TREND_UINT8": [],
-      "BAR_TREND_UINT8": [0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-    }
-  },
-  "metno@aplite": {
-    "outcome": "ok",
-    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24},
-    "requests": [
-      "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
-      "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=2"
-    ],
-    "payload": {
-      "TEMP_MIN": 52,
-      "TEMP_MAX": 70,
-      "FORECAST_START": 1781942400,
-      "NUM_ENTRIES": 24,
-      "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
-      "IS_SLEEPING": false,
-      "STATUS_LINE_1_UINT8": [1,2,2,49,55,1,0,5,77,105,116,116,101,1,1,5,50,49,58,51,52],
-      "STATUS_LINE_3_UINT8": [1,11,2,52,54,2,0,0,9,0,0],
-      "TEMP_TREND_UINT8": [139,181,208,222,236,250,236,236,208,181,153,111,83,56,42,28,28,14,0,0,14,42,69,111],
-      "SECONDARY_LINE_TREND_UINT8": [50,75,138,188,225,238,175,100,50,25,25,13,13,13,13,13,13,13,13,13,13,25,25,38],
-      "THIRD_LINE_TREND_UINT8": [],
-      "BAR_TREND_UINT8": [0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-    }
-  },
-  "metno@lines": {
-    "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24},
-    "requests": [
-      "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
-      "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
-    ],
-    "payload": {
-      "TEMP_MIN": 52,
-      "TEMP_MAX": 70,
-      "FORECAST_START": 1781942400,
-      "NUM_ENTRIES": 24,
-      "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
-      "IS_SLEEPING": false,
-      "STATUS_LINE_1_UINT8": [1,2,5,49,55,124,49,52,1,152,5,77,105,116,116,101,1,1,5,50,49,58,51,52],
-      "STATUS_LINE_3_UINT8": [1,11,2,52,54,2,0,0,9,0,0],
-      "STATUS_LEVELS_UINT8": [0,0],
-      "ALERT_ENTRIES_UINT8": [135,55],
-      "TEMP_TREND_UINT8": [150,188,213,225,238,250,238,238,213,188,163,125,100,75,63,50,50,38,25,25,38,63,88,125],
-      "SECONDARY_LINE_TREND_UINT8": [50,75,138,188,225,238,175,100,50,25,25,13,13,13,13,13,13,13,13,13,13,25,25,38],
-      "THIRD_LINE_TREND_UINT8": [75,90,105,120,130,125,110,95,80,65,55,45,40,40,35,35,35,30,30,25,30,40,50,60],
-      "FOURTH_LINE_TREND_UINT8": [88,113,125,138,163,188,200,188,163,138,113,88,63,38,25,13,13,1,1,1,1,25,50,75],
-      "FIFTH_LINE_TREND_UINT8": [145,170,195,220,235,230,200,175,150,125,110,90,85,85,75,75,75,65,65,60,65,85,100,115],
-      "BAR_TREND_UINT8": [0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-    }
-  },
-  "metno@everything": {
-    "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68},
-    "requests": [
-      "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
-      "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
-    ],
-    "payload": {
-      "TEMP_MIN": 52,
-      "TEMP_MAX": 71,
-      "FORECAST_START": 1781942400,
-      "NUM_ENTRIES": 68,
-      "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
-      "IS_SLEEPING": false,
-      "STATUS_LINE_1_UINT8": [1,2,5,49,55,124,49,52,1,15,2,49,49,1,24,11,67,108,111,117,100,121,31,67,76,68,89],
-      "STATUS_LINE_3_UINT8": [0,0,0,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
-      "STATUS_LEVELS_UINT8": [0,0],
-      "ALERT_ENTRIES_UINT8": [135,55],
-      "TEMP_TREND_UINT8": [175,200,217,225,233,242,233,233,217,200,183,158,142,125,117,108,108,100,92,92,100,117,133,158,183,200,217,233,242,242,242,233,225,208,183,167,150,133,117,108,108,108,100,100,100,117,142,167,192,208,225,233,250,250,250,242,233,217,192,175,158,150,142,125,117,125,125,133],
-      "SECONDARY_LINE_TREND_UINT8": [138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,166,188,200,205,205,194,166,138,113,88,75,70,65,60,55,50,54,58,63],
-      "THIRD_LINE_TREND_UINT8": [75,105,130,146,150,141,121,93,64,36,16,5,0,0,0,0,0,0,0,0,2,9,23,46,75,105,130,146,150,141,121,93,64,36,16,5,0,0,0,0,0,0,0,0,2,9,23,46,75,105,130,146,150,141,121,93,64,36,16,5,0,0,0,0,0,0,0,0],
-      "FOURTH_LINE_TREND_UINT8": [96,119,123,138,150,158,159,140,131,117,99,81,51,39,30,24,27,9,8,8,15,35,45,72,99,122,141,141,153,161,162,158,134,120,102,84,69,42,33,27,30,27,11,11,18,38,63,75,102,125,144,159,156,164,165,161,152,123,105,87,76,66,55,44,33,39,44,50],
-      "FIFTH_LINE_TREND_UINT8": [85,82,80,77,69,72,74,77,80,82,85,88,85,82,80,77,79,81,84,87,89,92,95,97,95,92,89,87,79,81,84,87,89,92,95,97,95,92,89,87,88,91,94,96,99,101,104,107,104,101,99,96,88,91,94,96,99,101,104,107,105,103,101,100,98,101,103,106],
       "BAR_TREND_UINT8": [0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,35,85,132,148,105,35,0,0,0,0,0,0,0,0,0,0,0,0]
     }
   },

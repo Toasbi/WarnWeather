@@ -63,10 +63,9 @@ var FAILURE_BACKOFF_BASE_MS = 60 * 1000;
 
 // --- fetch cadence ----------------------------------------------------------
 // When-do-we-fetch vocabulary, read by shouldFetchNow (isRefreshDue and
-// isFailureBackoffActive). A refresh slot is a UTC-aligned chunk of the interval
-// since the epoch (weather/domain/refresh-slot.js). Static on the factory: the
-// cadence probe is stateless and shared.
-var isPastRefreshSlot = require('../weather/domain/refresh-slot.js').isPastSlot;
+// isFailureBackoffActive). A refresh slot is a UTC-aligned chunk of the update interval
+// since the epoch (weather/domain/refresh-slot.js).
+var refreshSlot = require('../weather/domain/refresh-slot.js');
 
 /**
  * How long a scheduled (non-forced) refresh waits after a failed attempt: one
@@ -220,6 +219,25 @@ var skyThrottle = requestThrottle.createRequestThrottle({
 // single-acquisition invariant stays visible in one place.
 
 /**
+ * Prepare a provider for one fetch, as start() does: its options from the settings, and the
+ * source ports its fetch runs through.
+ *
+ * @param {Object} provider The weather provider.
+ * @param {Object} settings Clay settings.
+ * @param {?Object} watchInfo getActiveWatchInfo() result, or null.
+ * @param {{waqiToken: string}} env Build-injected secrets (package.json's waqi.token).
+ * @param {function(): number} now The clock, epoch ms.
+ * @returns {Object} The source ports (weather/adapter/source-ports.js), fetchWithCoordinates'
+ *   last argument.
+ */
+function prepareFetch(provider, settings, watchInfo, env, now) {
+    // This fetch's knobs (UV/AQI/pollen requests, feels work + formula, day-max codes, units,
+    // the WAQI token) as one value — set before any request is built.
+    provider.options = fetchOptions.build(settings, watchInfo, { waqiToken: env.waqiToken });
+    return sourcePorts.create(now, refreshSlot.updateIntervalMs(settings));
+}
+
+/**
  * @param {Object} deps
  * @param {Object} deps.provider Provider exposing withCoordinates + fetchWithCoordinates.
  * @param {Function} deps.fetchRadar fetchRadar(lat, lon, cb) -> cb(radarTuples|null).
@@ -234,6 +252,7 @@ var skyThrottle = requestThrottle.createRequestThrottle({
  * @param {function(): boolean} [deps.isCurrent] False once the caller gave up on
  *   this cycle (its watchdog fired): the rest of the chain then stops instead of
  *   spending requests and sending a stale payload.
+ * @param {Object} deps.ports The source ports (prepareFetch).
  * @returns {void}
  */
 function runCycle(deps) {
@@ -249,7 +268,7 @@ function runCycle(deps) {
             deps.provider.fetchWithCoordinates(
                 lat, lon, deps.onSuccess,
                 function(failure) { deps.onFailure(failure, radarTuples); },
-                deps.force, extras, deps.payloadTransform, deps.isCurrent
+                deps.force, extras, deps.payloadTransform, deps.isCurrent, deps.ports
             );
         });
     }, function(coordinateFailure) {
@@ -496,13 +515,8 @@ function createFetchCycle(deps) {
         }
 
         console.log('Fetching from ' + provider.name);
-        // This fetch's knobs (UV/AQI/pollen requests, feels work + formula, day-max
-        // codes, units, the WAQI token) as one value — set before any request is built.
-        provider.options = fetchOptions.build(deps.getSettings(), deps.getWatchInfo(), { waqiToken: deps.env.waqiToken });
-        // And what it may ask of other providers for the readings this one lacks, with
-        // the snapshots of their last answers (the source plan:
-        // weather/application/fetch-sources.js).
-        provider.sources = sourcePorts.create(deps.getSettings());
+        var ports = prepareFetch(provider, deps.getSettings(), deps.getWatchInfo(), deps.env,
+            function () { return +deps.now(); });
         fetchInProgress = true;
         // This fetch's once-guard: set by the first of success, failure or the
         // watchdog, after which every later completion from this fetch is a no-op.
@@ -709,7 +723,8 @@ function createFetchCycle(deps) {
                 onFailure: onFetchFailure,
                 force: force,
                 payloadTransform: toRenderPayload,
-                isCurrent: isCurrent
+                isCurrent: isCurrent,
+                ports: ports
             });
         }
         catch (e) {
@@ -786,7 +801,7 @@ function createFetchCycle(deps) {
      */
     function shouldFetchNow() {
         if (!isRefreshDue()) { return false; }
-        return !isFailureBackoffActive(deps.getSettings().fetchIntervalMin * 60 * 1000);
+        return !isFailureBackoffActive(refreshSlot.updateIntervalMs(deps.getSettings()));
     }
 
     /**
@@ -857,8 +872,8 @@ function createFetchCycle(deps) {
         if (isNaN(lastTimeMs)) {
             return true;
         }
-        var intervalMs = deps.getSettings().fetchIntervalMin * 60 * 1000;
-        if (!isPastRefreshSlot(lastTimeMs, +deps.now(), intervalMs)) { return false; }
+        var intervalMs = refreshSlot.updateIntervalMs(deps.getSettings());
+        if (!refreshSlot.isPastSlot(lastTimeMs, +deps.now(), intervalMs)) { return false; }
         if (isSleepingNow() && lastIsSleeping === true) { return false; }
         return true;
     }
@@ -880,7 +895,7 @@ function createFetchCycle(deps) {
     };
 }
 
-createFetchCycle.isPastRefreshSlot = isPastRefreshSlot;
+createFetchCycle.prepareFetch = prepareFetch;
 createFetchCycle.failureBackoffMs = failureBackoffMs;
 createFetchCycle.FETCH_WATCHDOG_MS = FETCH_WATCHDOG_MS;
 createFetchCycle.FAILURE_BACKOFF_SLACK_MS = FAILURE_BACKOFF_SLACK_MS;

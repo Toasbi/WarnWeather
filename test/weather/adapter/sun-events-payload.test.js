@@ -4,6 +4,7 @@
 // use. Above the Arctic Circle SunCalc has no sunrise/sunset during midnight
 // sun and polar night; the empty list used to throw inside the XHR callback
 // chain, so the fetch never finished and every later fetch was skipped.
+const { testPorts } = require('../../helpers/source-ports.js');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -97,7 +98,7 @@ function runFetch(t, isoNow) {
   p.fetchWithCoordinates(TROMSO.lat, TROMSO.lon,
     function () { outcome.success += 1; },
     function (f) { outcome.failure.push(f); },
-    false, null, null);
+    false, null, null, undefined, testPorts());
   outcome.sent = sent;
   return outcome;
 }

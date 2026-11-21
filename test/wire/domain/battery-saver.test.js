@@ -2,8 +2,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { isWithinSleepWindow, parseHour } = require('../../../src/pkjs/wire/domain/battery-saver');
-// Fetch-cadence logic lives in its when-do-we-fetch home now (fetch-cycle.js).
-const isPastRefreshSlot = require('../../../src/pkjs/shell/fetch-cycle.js').isPastRefreshSlot;
 
 function at(hour) { const d = new Date(); d.setHours(hour, 0, 0, 0); return d; }
 const ON = { sleepNightEnabled: true, sleepStartHour: '22', sleepEndHour: '7' };
@@ -119,9 +117,3 @@ test('parseHour is exported as THE hour parse rule (night-light.js imports it)',
   });
 });
 
-test('isPastRefreshSlot trips only when now is in a later slot', () => {
-  const interval = 30 * 60 * 1000;
-  assert.equal(isPastRefreshSlot(0, interval, interval), true);
-  assert.equal(isPastRefreshSlot(interval, interval + 1, interval), false);
-  assert.equal(isPastRefreshSlot(interval, 2 * interval, interval), true);
-});

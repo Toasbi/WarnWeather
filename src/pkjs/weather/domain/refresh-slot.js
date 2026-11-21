@@ -2,7 +2,8 @@
 //
 // The refresh slot: a UTC-aligned chunk of an interval since the epoch. A weather fetch is
 // due once the clock is in a later slot of the update interval than the last success
-// (shell/fetch-cycle.js), and a throttled source asks once per slot of its own interval
+// (shell/fetch-cycle.js), a forecast snapshot serves the rest of its slot
+// (forecast-snapshot.js), and a throttled source asks once per slot of its own interval
 // (weather/adapter/radar/request-throttle.js).
 
 /**
@@ -19,4 +20,14 @@ function isPastSlot(lastTimeMs, nowMs, intervalMs) {
     return Math.floor(nowMs / intervalMs) > Math.floor(lastTimeMs / intervalMs);
 }
 
-module.exports = { isPastSlot: isPastSlot };
+/**
+ * The update interval, whose slots the weather fetches follow.
+ *
+ * @param {Object} settings Clay settings (fetchIntervalMin, minutes, as stored: a string).
+ * @returns {number} The interval in ms; NaN for a value that is no number.
+ */
+function updateIntervalMs(settings) {
+    return settings.fetchIntervalMin * 60 * 1000;
+}
+
+module.exports = { isPastSlot: isPastSlot, updateIntervalMs: updateIntervalMs };

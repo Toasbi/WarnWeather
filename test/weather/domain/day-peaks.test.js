@@ -20,6 +20,8 @@ const record = require('../../../src/pkjs/weather/domain/day-peaks.js');
 const recordStore = require('../../../src/pkjs/weather/adapter/day-peaks-store.js');
 const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
+const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
+const { testPorts } = require('../../helpers/source-ports.js');
 // The UV slot's reader, in the (trend, peaks, mode) shape these tests grew up on.
 const uvShown = (trend, peaks, mode) => require('../../../src/pkjs/wire/domain/wire-units.js')
   .dayMaxShown('uv', { UV_TREND_UINT8: trend, UV_DAY_PEAKS: peaks }, { uvSlotDisplay: mode });
@@ -102,7 +104,8 @@ const CURVE = TODAY.concat(TOMORROW, [0, 0]);
 
 /**
  * One fetch at `hour`:10 on the 15th; resolves with the composed payload, or
- * null when it was abandoned before sending.
+ * null when it was abandoned before sending. A provider that sends UV brings the
+ * curve itself; for one that does not (DWD), the source plan's UV fill brings it.
  */
 function fetchAt(provider, hour, opts) {
   const o = opts || {};
@@ -115,16 +118,18 @@ function fetchAt(provider, hour, opts) {
   provider.withCityName = (lat, lon, cb) => cb('Testville', 'DE');
   provider.withSunEvents = (lat, lon, cb) => cb([{ type: 'sunrise', date: new Date(0) },
     { type: 'sunset', date: new Date(1000) }]);
+  const uv = (o.curve || CURVE).slice(hour, hour + 49);
   provider.withProviderData = function (lat, lon, force, ok) {
     Object.assign(this, { numEntries: 24, startTime: start, currentTemp: 60,
       tempTrend: new Array(24).fill(60), precipTrend: new Array(24).fill(0),
-      uvTrend: (o.curve || CURVE).slice(hour, hour + 49) });
+      uvTrend: providerReadings.serves(this.id, 'uv') ? uv : [] });
     ok();
   };
+  const ports = testPorts({ fillUv: (p, lat, lon, done) => { p.uvTrend = uv; done(); } });
   try {
     provider.fetchWithCoordinates(o.lat || SRC.lat, SRC.lon, () => {}, (f) => {
       throw new Error('fetch failed: ' + JSON.stringify(f));
-    }, false, null, null, o.abandoned ? () => false : undefined);
+    }, false, null, null, o.abandoned ? () => false : undefined, ports);
   } finally {
     Date.now = realNow;
     outbox.sendWeather = realSend;

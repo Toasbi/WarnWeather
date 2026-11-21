@@ -20,7 +20,7 @@ test('DWD maps Brightsky forecast/current with °C→°F and km/h passthrough', 
       { temperature: 10, precipitation_probability: 40, precipitation: 1.2, wind_speed: 0, wind_gust_speed: 30, timestamp: '2023-11-14T23:00:00+00:00' }
     ] }));
   };
-  const p = new DwdProvider();   // options.fetchUv defaults off → no UV request, onSuccess fires after current
+  const p = new DwdProvider();   // onSuccess fires after the current weather
   var ok = false;
   p.withProviderData(0, 0, false, function() { ok = true; }, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
 
@@ -611,7 +611,7 @@ function runSpan(hourly, options) {
 
 test('48 h: DWD asks for 48 h + the record after it and maps 48 slots', () => {
   const recs = stampedRecords(Array.from({ length: 49 }, (_, i) => i), 47);
-  const { p, forecastUrl, ok } = runSpan(recs, { forecastHours: 48, dayPeakCodes: [], fetchUv: true });
+  const { p, forecastUrl, ok } = runSpan(recs, { forecastHours: 48, dayPeakCodes: [] });
   assert.equal(ok, true);
   assert.ok(forecastUrl.indexOf('last_date=' + new Date(SLOT0 + 48 * 3600000).toISOString() + '&') !== -1,
     forecastUrl);
@@ -640,7 +640,7 @@ test('long span: DWD asks for 68 h + the record after it and maps 68 slots; peak
   const recs = stampedRecords(Array.from({ length: 70 }, (_, i) => i), -1);
   recs.forEach((r, i) => { r.wind_speed = 100 + i; r.wind_gust_speed = 200 + i; });
   // With a wind day max: the end of local tomorrow + 1 h lies before start + 68 h.
-  const { p, forecastUrl, ok } = runSpan(recs, { forecastHours: 68, fetchUv: true });
+  const { p, forecastUrl, ok } = runSpan(recs, { forecastHours: 68 });
   assert.equal(ok, true);
   assert.ok(forecastUrl.indexOf('last_date=' + new Date(SLOT0 + 68 * 3600000).toISOString() + '&') !== -1,
     forecastUrl);

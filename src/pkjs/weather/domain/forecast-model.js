@@ -162,11 +162,13 @@ function buildPayload(forecast, nowEpoch) {
  *            in epoch seconds (OpenWeatherMap's daily), which the sun events use
  *            in place of SunCalc's; null when the response names none.
  */
+// The feels-like resolvers' inputs: adoptMapped reads them and never keeps them.
+var FEELS_INPUTS = ['humidityTrend', 'currentHumidity', 'currentWindKmh'];
 var MAPPED_KEYS = {
     core: ['tempTrend', 'precipTrend', 'startTime', 'currentTemp'],
     zeroed: ['rainTrend', 'windTrend', 'gustTrend'],
     empty: ['pressureTrend', 'cloudTrend', 'dewTrend', 'windDirTrend'],
-    feels: ['feelsTrend', 'currentFeels', 'humidityTrend', 'currentHumidity', 'currentWindKmh'],
+    feels: ['feelsTrend', 'currentFeels'].concat(FEELS_INPUTS),
     uv: ['uvTrend'],
     condition: ['currentCondition'],
     sun: ['sunTimes']
@@ -181,11 +183,11 @@ MAPPED_KEYS.all = [].concat(
     MAPPED_KEYS.sun
 );
 
-// The fields adoptMapped writes on the instance: every mapped key but the feels-like
-// resolvers' inputs, which it reads and never keeps.
-var ADOPTED_KEYS = MAPPED_KEYS.all.filter(function (key) {
-    return ['humidityTrend', 'currentHumidity', 'currentWindKmh'].indexOf(key) === -1;
-});
+// The fields adoptMapped writes on the instance: every mapped key but the feels-like inputs.
+var ADOPTED_KEYS = MAPPED_KEYS.all.filter(function (key) { return FEELS_INPUTS.indexOf(key) === -1; });
+// The adopted fields that hold one value per hour, from startTime on.
+var HOURLY_KEYS = ['tempTrend', 'precipTrend'].concat(MAPPED_KEYS.zeroed, MAPPED_KEYS.empty, ['feelsTrend'],
+    MAPPED_KEYS.uv);
 
 /**
  * Own-key presence on a mapped object (a key set to undefined still counts:
@@ -290,6 +292,7 @@ module.exports = {
     GRAPH_SERIES: GRAPH_SERIES,
     MAPPED_KEYS: MAPPED_KEYS,
     ADOPTED_KEYS: ADOPTED_KEYS,
+    HOURLY_KEYS: HOURLY_KEYS,
     adoptMapped: adoptMapped,
     payloadEntries: payloadEntries,
     buildPayload: buildPayload

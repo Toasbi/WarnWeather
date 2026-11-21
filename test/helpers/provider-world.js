@@ -8,7 +8,9 @@
 // request it gets (the hours a URL asks for, Yandex's days), as the services do. A request
 // no service here knows gets a 404 and is marked, so a new request shows up in the pins.
 'use strict';
-const path = require('path');
+const { installIndexRuntime } = require('./index-runtime.js');
+const { COLORS } = require('./clay-harness.js');
+const { iso } = require('./metno-feed.js');
 
 const HOUR = 3600;
 // 10:20 in Berlin (CEST, UTC+2): a summer morning before a midday shower.
@@ -75,11 +77,6 @@ function metresPerSecond(kmh) { return round1(kmh / 3.6); }
  */
 function milesPerHour(kmh) { return round2(kmh / 1.609344); }
 
-/**
- * @param {number} t Epoch seconds.
- * @returns {string} t as an ISO time, as most services stamp their hours.
- */
-function iso(t) { return new Date(t * 1000).toISOString().replace('.000Z', 'Z'); }
 
 /**
  * The weather in the hour that starts at `t`.
@@ -270,11 +267,6 @@ const SERVICES = [
     }
   },
   {
-    // WAQI's station reading (only with a token).
-    match: (url) => url.indexOf('https://api.waqi.info/') === 0,
-    answer: () => ({ status: 'ok', data: { aqi: 31 } })
-  },
-  {
     // DWD's pollen forecast for the place: today and tomorrow, local dates.
     match: (url) => url.indexOf('https://maps.dwd.de/geoserver/dwd/Pollenflug/wfs?') === 0,
     answer: () => ({ type: 'FeatureCollection', features: [
@@ -452,43 +444,26 @@ function respond(method, url, body) {
   return { status: 404, text: '', known: false };
 }
 
-const SRC = path.resolve(__dirname, '../../src/pkjs') + path.sep;
+// The keyed providers' keys, so every provider fetches.
+const KEYS = { owmApiKey: 'owm-test-key', tomorrowioApiKey: 'tio-test-key', yandexApiKey: 'ydx-test-key' };
 
 /**
- * Run `fn` in this world: the pinned clock, an empty localStorage, a Pebble that names
- * `watchInfo`, an XMLHttpRequest the services above answer at once, and every src/pkjs module
- * loaded afresh, so nothing carries over from another run. Each request is recorded as
+ * Run `fn` in this world: the phone app's runtime (test/helpers/index-runtime.js) at NOW_MS,
+ * with an XMLHttpRequest the services above answer at once, and every src/pkjs module loaded
+ * afresh, so nothing carries over from another run. Each request is recorded as
  * '<method> <url>' (and its body), with a line under it when no service answers it.
  * @param {Object} watchInfo getActiveWatchInfo()'s answer.
- * @param {function({mod: function(string): *, requests: string[]}): *} fn Gets the module
- *   loader (a path under src/pkjs) and the requests so far; its result is returned.
- * @param {{answers: function(string): boolean, now: function(): number}} [opts] answers(url)
- *   false refuses a request with a 503 (a service that is down); now() moves the clock (epoch
- *   ms; NOW_MS when absent). The services answer for NOW_MS whatever the clock says.
+ * @param {function({mod: function(string): *, requests: string[], setNow: function(number): void}): *} fn
+ *   Gets the module loader (a path under src/pkjs), the requests so far, and the clock (epoch
+ *   ms; the services answer for NOW_MS whatever it says); its result is returned.
+ * @param {{answers: function(string): boolean}} [opts] answers(url) false refuses a request
+ *   with a 503 (a service that is down).
  * @returns {*} fn's result.
  */
 function inWorld(watchInfo, fn, opts) {
   const answers = (opts && opts.answers) || (() => true);
-  const clock = (opts && opts.now) || (() => NOW_MS);
-  const saved = { Date: global.Date, localStorage: global.localStorage, Pebble: global.Pebble,
-    XMLHttpRequest: global.XMLHttpRequest, log: console.log };
-  const RealDate = saved.Date;
-  class PinnedDate extends RealDate {
-    constructor(...args) { if (args.length === 0) { super(clock()); } else { super(...args); } }
-    static now() { return clock(); }
-  }
-  const store = {};
+  const runtime = installIndexRuntime({ now: NOW_MS, watchInfo: watchInfo });
   const requests = [];
-  global.Date = PinnedDate;
-  global.localStorage = {
-    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
-    setItem: (k, v) => { store[k] = String(v); },
-    removeItem: (k) => { delete store[k]; },
-    clear: () => { Object.keys(store).forEach((k) => { delete store[k]; }); },
-    key: (i) => { const ks = Object.keys(store); return i >= 0 && i < ks.length ? ks[i] : null; },
-    get length() { return Object.keys(store).length; }
-  };
-  global.Pebble = { getActiveWatchInfo: () => watchInfo };
   global.XMLHttpRequest = function WorldXhr() {
     const xhr = this;
     xhr.open = (method, url) => { xhr.method = method; xhr.url = url; };
@@ -503,21 +478,51 @@ function inWorld(watchInfo, fn, opts) {
       xhr.onload();
     };
   };
-  console.log = () => {};
-  const purge = () => {
-    Object.keys(require.cache).forEach((k) => { if (k.indexOf(SRC) === 0) { delete require.cache[k]; } });
-  };
-  purge();
+  runtime.purge();
   try {
-    return fn({ mod: (name) => require(SRC + name), requests: requests });
+    return fn({ mod: runtime.mod, requests: requests, setNow: runtime.setNow });
   } finally {
-    purge();
-    global.Date = saved.Date;
-    global.localStorage = saved.localStorage;
-    global.Pebble = saved.Pebble;
-    global.XMLHttpRequest = saved.XMLHttpRequest;
-    console.log = saved.log;
+    runtime.restore();
   }
 }
 
-module.exports = { NOW_MS, PLACE, HOUR0, hourAt, respond, inWorld };
+/**
+ * A fresh install's settings with the test keys, `over` on top, and `providerId` picked.
+ * @param {function(string): *} mod inWorld's module loader.
+ * @param {string} providerId A provider id.
+ * @param {Object} [over] Settings over the defaults.
+ * @returns {Object} Clay settings.
+ */
+function settingsFor(mod, providerId, over) {
+  return Object.assign(mod('settings/adapter/clay-settings.js').getDefaults(COLORS), KEYS, over,
+    { provider: providerId });
+}
+
+/**
+ * One weather fetch as the fetch cycle runs it: the provider the settings name, prepared by
+ * shell/fetch-cycle.js prepareFetch, then fetchWithCoordinates at the world's place with the
+ * cycle's extras and render transform.
+ * @param {function(string): *} mod inWorld's module loader.
+ * @param {Object} settings Clay settings (settingsFor).
+ * @param {Object} watchInfo getActiveWatchInfo()'s answer.
+ * @returns {{provider: Object, outcome: string, payload: ?Object}} The provider after the fetch,
+ *   'ok' or the failure, and the payload the outbox got.
+ */
+function fetchLikeTheCycle(mod, settings, watchInfo) {
+  const outbox = mod('wire/adapter/outbox.js');
+  let payload = null;
+  outbox.sendWeather = (sent, onAck) => { payload = sent; onAck(); };
+  const provider = mod('weather/adapter/provider-factory.js').createProvider(settings.provider, settings);
+  const ports = mod('shell/fetch-cycle.js').prepareFetch(provider, settings, watchInfo, { waqiToken: '' },
+    () => Date.now());
+  const render = mod('weather/application/render-payload.js');
+  let outcome = 'pending';
+  provider.fetchWithCoordinates(PLACE.lat, PLACE.lon,
+    () => { outcome = 'ok'; },
+    (failure) => { outcome = 'failed ' + JSON.stringify(failure); },
+    false, { IS_SLEEPING: false },
+    (raw) => render.toRenderPayload(raw, settings, watchInfo, new Date(), null), undefined, ports);
+  return { provider: provider, outcome: outcome, payload: payload };
+}
+
+module.exports = { NOW_MS, PLACE, HOUR0, KEYS, hourAt, respond, inWorld, settingsFor, fetchLikeTheCycle };

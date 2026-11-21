@@ -1,6 +1,7 @@
 // test/weather/domain/forecast-snapshot.test.js — when a provider's last answer serves a
-// fetch: the same provider, place and request, from the same refresh slot (a UV fill: the
-// last 3 hours), re-anchored to the new fetch's first hour unless that leaves it short.
+// fetch: the same provider and request, a place close enough, while its kind serves it (a
+// forecast: the same refresh slot; a UV fill: UV_REUSE_MS), re-anchored to the new fetch's
+// first hour unless that leaves it short; and what is kept.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -14,10 +15,18 @@ const MIN_MS = 60 * 1000;
 const QUARTER = 15 * MIN_MS;
 const T0 = Date.UTC(2026, 5, 20, 8, 0, 0);   // on a slot and an hour boundary
 const START = T0 / 1000;
+const PLACE = { lat: 52.5214, lon: 13.4049 };
+
+/**
+ * @param {number} n Hours.
+ * @param {number} from The first hour's value; each hour after adds 1.
+ * @returns {number[]}
+ */
+function series(n, from) { return Array.from({ length: n }, (_, i) => from + i); }
 
 /**
  * A provider as a fetch leaves it: options, a key, and 24 hours from START.
- * @param {Object} [over] Fields over the defaults (options: fetch-options overrides).
+ * @param {Object} [over] {id, apiKey, options: fetch-options overrides}.
  * @returns {Object} The provider.
  */
 function provider(over) {
@@ -33,120 +42,140 @@ function provider(over) {
 }
 
 /**
- * @param {number} n Hours.
- * @param {number} from The first hour's value; each hour after adds 1.
- * @returns {number[]}
- */
-function series(n, from) { return Array.from({ length: n }, (_, i) => from + i); }
-
-/**
- * A snapshot of a provider, kept at `at`.
+ * The query of a fetch of `p` at a place.
  * @param {Object} p provider().
- * @param {number} at Epoch ms.
  * @param {string} [kind] 'forecast' (default) or 'uv'.
- * @returns {Object} The snapshot.
- */
-function kept(p, at, kind) {
-  const k = kind || 'forecast';
-  return snap.snapshotOf(snap.queryOf(k === 'uv' ? 'openmeteo' : p.id, k, p, 52.5214, 13.4049), p, at);
-}
-
-/**
- * The snapshot a fetch at `now` finds for provider `p`.
+ * @param {Object} [place] {lat, lon}; PLACE by default.
  * @returns {?Object}
  */
-function found(entries, p, now, opts) {
-  const o = opts || {};
-  const k = o.kind || 'forecast';
-  return snap.find(entries, snap.queryOf(k === 'uv' ? 'openmeteo' : p.id, k, p, o.lat || 52.5214, o.lon || 13.4049),
-    now, o.refreshMs === undefined ? QUARTER : o.refreshMs);
+function queryFor(p, kind, place) {
+  const k = kind || 'forecast';
+  const at = place || PLACE;
+  return snap.queryOf(k === 'uv' ? 'openmeteo' : p.id, k, p, at.lat, at.lon);
 }
 
-test('a query keeps the place to two decimals and what the answer depends on, the key only as a fingerprint', () => {
-  const q = snap.queryOf('openweathermap', 'forecast', provider(), '52.5249', 13.4051);
-  assert.deepEqual(q.place, { lat: 52.52, lon: 13.41 });
+/**
+ * The snapshot of `p`, kept at `at`.
+ * @returns {Object}
+ */
+function kept(p, at, kind) { return snap.snapshotOf(queryFor(p, kind), p, at); }
+
+/**
+ * The fields a fetch of `p` at `now` takes from `entries`, or null.
+ * @returns {?Object}
+ */
+function reused(entries, p, now, opts) {
+  const o = opts || {};
+  return snap.reuse(entries, queryFor(p, o.kind, o.place), now, o.refreshMs === undefined ? QUARTER : o.refreshMs,
+    o.anchor || p);
+}
+
+test('a query keeps the place to three decimals, and what the answer depends on, the key only as a fingerprint', () => {
+  const q = snap.queryOf('openweathermap', 'forecast', provider(), '52.52491', 13.40512);
+  assert.deepEqual(q.place, { lat: 52.525, lon: 13.405 });
   assert.deepEqual(q.request, { hours: 24, peaks: [], uv: true, feels: true, formula: 'provider',
     key: fingerprint('secret-key') });
   assert.equal(JSON.stringify(q).indexOf('secret-key'), -1, 'the key itself is never kept');
-  assert.deepEqual(snap.queryOf('openmeteo', 'uv', provider({ options: { dayPeakCodes: ['uv', 'wind'] } }), 1, 2).request,
-    { hours: 24, peaks: ['uv'] }, 'a UV fill depends on its hours and the UV day max alone');
+  assert.deepEqual(snap.queryOf('openmeteo', 'uv', provider({ options: { dayPeakCodes: ['uv', 'wind', 'aqi'] } }), 1, 2)
+    .request, { hours: 24, peaks: ['uv'] }, 'a UV fill depends on its hours and the UV day max alone');
+  assert.deepEqual(snap.queryOf('dwd', 'forecast', provider({ options: { dayPeakCodes: ['gust', 'aqi', 'uv'] } }), 1, 2)
+    .request.peaks, ['uv', 'gust'], 'the day maxima of the series a forecast keeps, air quality not among them');
+  ['', null, true, 'north'].forEach((lat) => {
+    assert.equal(snap.queryOf('dwd', 'forecast', provider(), lat, 13.4), null, 'no place: ' + JSON.stringify(lat));
+  });
+});
+
+test('every fetch option either changes the request or is one no answer depends on', () => {
+  const base = provider();
+  const changed = { fetchUv: false, fetchAqi: true, fetchPollen: true, fetchFeels: false, feelsFormula: 'steadman',
+    dayPeakCodes: ['wind'], windUnits: 'mph', aqiScale: 'us', aqiSource: 'openmeteo', aqicnToken: 'x', forecastHours: 68 };
+  assert.deepEqual(Object.keys(changed).sort(), Object.keys(fetchOptions.defaults()).sort(),
+    'every option has a changed value here');
+  Object.keys(changed).forEach((key) => {
+    const over = {};
+    over[key] = changed[key];
+    const same = JSON.stringify(queryFor(base).request) === JSON.stringify(queryFor(provider({ options: over })).request);
+    assert.equal(same, snap.ANSWER_NEUTRAL.indexOf(key) !== -1, key);
+  });
 });
 
 test('a forecast serves the rest of its refresh slot, and only that', () => {
   const p = provider();
   const entries = [kept(p, T0 + 2 * MIN_MS)];
-  assert.ok(found(entries, p, T0 + 2 * MIN_MS), 'at once');
-  assert.ok(found(entries, p, T0 + QUARTER - 1), 'until the slot ends');
-  assert.equal(found(entries, p, T0 + QUARTER), null, 'the next slot asks again');
-  assert.equal(found(entries, p, T0 + MIN_MS), null, 'a clock that went back asks again');
-  assert.ok(found(entries, p, T0 + 20 * MIN_MS, { refreshMs: 30 * MIN_MS }), 'the slot of the interval now');
+  assert.ok(reused(entries, p, T0 + 2 * MIN_MS), 'at once');
+  assert.ok(reused(entries, p, T0 + QUARTER - 1), 'until the slot ends');
+  assert.equal(reused(entries, p, T0 + QUARTER), null, 'the next slot asks again');
+  assert.equal(reused(entries, p, T0 + MIN_MS), null, 'a clock that went back asks again');
+  assert.ok(reused(entries, p, T0 + 20 * MIN_MS, { refreshMs: 30 * MIN_MS }), 'the slot of the interval now');
   [NaN, 0, -1].forEach((ms) => {
-    assert.equal(found(entries, p, T0 + 3 * MIN_MS, { refreshMs: ms }), null, 'no interval, no reuse: ' + ms);
+    assert.equal(reused(entries, p, T0 + 3 * MIN_MS, { refreshMs: ms }), null, 'no interval, no reuse: ' + ms);
   });
 });
 
-test('another provider, kind, place, key, span, day max, series or formula asks again', () => {
+test('another provider, kind, key, span, day max, series or formula asks again; a place nearby does not', () => {
   const p = provider();
   const entries = [kept(p, T0)];
   const now = T0 + MIN_MS;
-  assert.equal(found(entries, provider({ id: 'tomorrowio' }), now), null, 'provider');
-  assert.equal(found(entries, p, now, { kind: 'uv' }), null, 'kind');
-  assert.equal(found(entries, p, now, { lat: 52.5351 }), null, 'a place 1.5 km on');
-  assert.ok(found(entries, p, now, { lat: 52.5181 }), 'a GPS fix 300 m off is the same place');
-  assert.equal(found(entries, provider({ apiKey: 'new-key' }), now), null, 'a new key is tried at once');
-  assert.equal(found(entries, provider({ options: { forecastHours: 68 } }), now), null, 'the span');
-  assert.equal(found(entries, provider({ options: { dayPeakCodes: ['gust'] } }), now), null, 'a day max');
-  assert.equal(found(entries, provider({ options: { fetchUv: false } }), now), null, 'UV');
-  assert.equal(found(entries, provider({ options: { fetchFeels: false } }), now), null, 'the feels-like');
-  assert.equal(found(entries, provider({ options: { feelsFormula: 'steadman' } }), now), null, 'the formula');
-  assert.ok(found(entries, provider({ options: { windUnits: 'mph' } }), now), 'the wind unit: the answer is the same');
+  assert.equal(reused(entries, provider({ id: 'tomorrowio' }), now), null, 'provider');
+  assert.equal(reused(entries, p, now, { kind: 'uv' }), null, 'kind');
+  assert.ok(reused(entries, p, now, { place: { lat: 52.5303, lon: 13.4049 } }), 'a GPS fix 1 km off');
+  assert.equal(reused(entries, p, now, { place: { lat: 52.5394, lon: 13.4049 } }), null, '2 km off is another place');
+  assert.equal(reused(entries, provider({ apiKey: 'new-key' }), now), null, 'a new key is tried at once');
+  assert.equal(reused(entries, provider({ options: { forecastHours: 68 } }), now), null, 'the span');
+  assert.equal(reused(entries, provider({ options: { dayPeakCodes: ['gust'] } }), now), null, 'a day max');
+  assert.equal(reused(entries, provider({ options: { fetchUv: false } }), now), null, 'UV');
+  assert.equal(reused(entries, provider({ options: { fetchFeels: false } }), now), null, 'the feels-like');
+  assert.equal(reused(entries, provider({ options: { feelsFormula: 'steadman' } }), now), null, 'the formula');
 });
 
-test('a UV fill serves three hours, whatever the slot', () => {
+test('a UV fill serves UV_REUSE_MS, whatever the slot, aligned to the forecast it fills', () => {
+  assert.equal(snap.UV_REUSE_MS, 3 * HOUR * 1000, 'three hours: UV forecasts change slowly');
   const p = provider({ id: 'dwd', apiKey: '' });
   const entries = [kept(p, T0, 'uv')];
-  assert.ok(found(entries, p, T0 + 3 * HOUR * 1000, { kind: 'uv' }), 'three hours on');
-  assert.equal(found(entries, p, T0 + 3 * HOUR * 1000 + 1, { kind: 'uv' }), null, 'then it asks again');
-  assert.ok(found(entries, p, T0 + HOUR * 1000, { kind: 'uv', refreshMs: NaN }), 'the interval does not matter');
+  assert.ok(reused(entries, p, T0 + snap.UV_REUSE_MS, { kind: 'uv' }), 'until it ends');
+  assert.equal(reused(entries, p, T0 + snap.UV_REUSE_MS + 1, { kind: 'uv' }), null, 'then it asks again');
+  const later = reused(entries, p, T0 + 2 * HOUR * 1000, { kind: 'uv', refreshMs: NaN,
+    anchor: Object.assign({}, p, { startTime: START + 2 * HOUR }) });
+  assert.equal(later.uvTrend.length, 47);
+  assert.equal(later.uvTrend[0], p.uvTrend[2], 'entry 0 is the hour the new forecast starts at');
 });
 
 test('re-anchoring drops the hours already past, and gives up when a series would come up short', () => {
   const p = provider();
   const e = kept(p, T0);
-  assert.deepEqual(snap.reanchored(e, START), e.fields, 'the same hour: as kept');
-  assert.equal(snap.reanchored(e, START + HOUR), null, 'an hour on, the 24-hour series would be 23');
-  const uv = kept(provider({ id: 'dwd', apiKey: '' }), T0, 'uv');
-  const later = snap.reanchored(uv, START + 2 * HOUR);
-  assert.equal(later.uvTrend.length, 47);
-  assert.equal(later.uvTrend[0], p.uvTrend[2], 'entry 0 is the hour the new fetch starts at');
-  const long = kept(provider({ id: 'dwd', apiKey: '', options: { forecastHours: 68 } }), T0, 'uv');
-  long.fields.uvTrend = series(68, 0);
-  assert.equal(snap.reanchored(long, START + HOUR), null, 'the long span would lose its last hour');
-  assert.equal(snap.reanchored(e, START - HOUR), null, 'an hour before it');
-  assert.equal(snap.reanchored(e, START + 1800), null, 'off the hour grid');
-  const empty = Object.assign(kept(p, T0), {});
-  empty.fields = Object.assign({}, e.fields, { tempTrend: series(30, 50), precipTrend: series(30, 0),
-    cloudTrend: series(30, 40), windTrend: series(49, 1), gustTrend: series(49, 1), rainTrend: series(30, 0) });
-  const shifted = snap.reanchored(empty, START + HOUR);
+  assert.deepEqual(reused([e], p, T0 + 5 * MIN_MS), e.fields, 'the same hour: as kept');
+  const hourly = Object.assign(kept(p, T0), { fields: Object.assign({}, e.fields, {
+    tempTrend: series(30, 50), precipTrend: series(30, 0), cloudTrend: series(30, 40), rainTrend: series(30, 0) }) });
+  const shifted = reused([hourly], p, T0 + 70 * MIN_MS, { refreshMs: 2 * HOUR * 1000 });
   assert.equal(shifted.startTime, START + HOUR);
   assert.equal(shifted.tempTrend[0], 51);
   assert.deepEqual(shifted.dewTrend, [], 'a series the provider does not send stays empty');
   assert.equal(shifted.currentTemp, 61, 'the values of the moment stay as they were');
+  assert.equal(reused([e], p, T0 + 70 * MIN_MS, { refreshMs: 2 * HOUR * 1000 }), null,
+    'an hour on, a 24-hour series would be 23');
+  const long = kept(provider({ id: 'dwd', apiKey: '', options: { forecastHours: 68 } }), T0, 'uv');
+  long.fields.uvTrend = series(68, 0);
+  assert.equal(reused([long], provider({ id: 'dwd', apiKey: '', options: { forecastHours: 68 } }), T0 + HOUR * 1000,
+    { kind: 'uv', anchor: { startTime: START + HOUR } }), null, 'the long span would lose its last hour');
+  assert.equal(reused([long], provider({ id: 'dwd', apiKey: '', options: { forecastHours: 68 } }), T0 + HOUR * 1000,
+    { kind: 'uv', anchor: { startTime: START + 1800 } }), null, 'off the hour grid');
 });
 
-test('a new snapshot replaces its provider\'s and kind\'s; six at most, none older than six hours', () => {
+test('a new snapshot replaces its provider\'s and kind\'s; only those that can still serve stay, six at most', () => {
   const ids = ['dwd', 'openmeteo', 'metno', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex'];
+  const hour = 60 * MIN_MS;
   let entries = [];
-  ids.forEach((id, i) => { entries = snap.remember(entries, kept(provider({ id: id }), T0 + i * MIN_MS), T0 + i * MIN_MS); });
+  ids.forEach((id, i) => {
+    entries = snap.remember(entries, kept(provider({ id: id }), T0 + i * MIN_MS), T0 + i * MIN_MS, hour);
+  });
   assert.deepEqual(entries.map((e) => e.provider), ids.slice(1).reverse(), 'the newest six, newest first');
-  entries = snap.remember(entries, kept(provider({ id: 'metno' }), T0 + 10 * MIN_MS), T0 + 10 * MIN_MS);
+  assert.equal(entries.length, snap.MAX_ENTRIES);
+  entries = snap.remember(entries, kept(provider({ id: 'metno' }), T0 + 10 * MIN_MS), T0 + 10 * MIN_MS, hour);
   assert.equal(entries.filter((e) => e.provider === 'metno').length, 1, 'one per provider and kind');
-  assert.equal(entries[0].at, T0 + 10 * MIN_MS);
-  const uv = snap.remember(entries, kept(provider({ id: 'dwd' }), T0, 'uv'), T0 + 11 * MIN_MS);
-  assert.equal(uv.length, 6);
-  const late = T0 + 6 * HOUR * 1000 + 6 * MIN_MS;   // wunderground's, kept at 5 past, is 6 h 1 min old
-  assert.deepEqual(snap.remember(uv, kept(provider({ id: 'yandex' }), late), late).map((e) => e.provider),
-    ['yandex', 'metno'], 'past six hours they go; metno was kept at 10 past');
+  const uv = snap.remember(entries, kept(provider({ id: 'dwd' }), T0 + 11 * MIN_MS, 'uv'), T0 + 11 * MIN_MS, hour);
+  const next = T0 + hour + 5 * MIN_MS;
+  assert.deepEqual(snap.remember(uv, kept(provider({ id: 'yandex' }), next), next, hour).map((e) => e.kind + ' ' + e.provider),
+    ['forecast yandex', 'uv openmeteo'], 'in the next slot the forecasts can no longer serve; the UV fill still can');
 });
 
 test('a stored value of another version, or a snapshot that cannot be read, serves nothing', () => {
@@ -159,7 +188,7 @@ test('a stored value of another version, or a snapshot that cannot be read, serv
     Object.assign({}, e, { kind: 'constructor' }),
     Object.assign({}, e, { at: 'soon' }),
     Object.assign({}, e, { place: { lat: '52.52', lon: 13.4 } }),
-    Object.assign({}, e, { fields: Object.assign({}, e.fields, { tempTrend: undefined }) })
+    Object.assign({}, e, { fields: Object.assign({}, e.fields) })
   ];
   delete broken[3].fields.tempTrend;
   assert.deepEqual(snap.entriesOf(snap.stored(broken.concat([e]))), [e]);

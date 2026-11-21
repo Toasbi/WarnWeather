@@ -60,10 +60,6 @@ var WeatherProvider = function() {
     // with fetchOptions.build(settings, ...) before each fetch; a provider that
     // is never handed one runs on the defaults.
     this.options = fetchOptions.defaults();
-    // What this fetch may ask of other providers, for the readings this one lacks
-    // (weather/adapter/source-ports.js): the fetch cycle sets it beside the options
-    // before each fetch. Null fetches this provider's own data alone.
-    this.sources = null;
     // The status slots' day max (the Day max / Both modes, day-peaks.js): each
     // metric's peak of today's hours already begun, which tells a running peak
     // from one behind us (day-peaks' recall, in fetchWithCoordinates; getPayload
@@ -581,21 +577,17 @@ WeatherProvider.prototype.composeWeatherPayload = function(extraPayload, payload
  * @param {Function} [payloadTransform] Optional PKJS render transform.
  * @param {function(): boolean} [isCurrent] False once the caller abandoned this
  *   fetch; the composed payload is then dropped instead of sent.
+ * @param {Object} ports The source ports the fetch's sources run through
+ *   (shell/fetch-cycle.js prepareFetch).
  * @returns {void}
  */
-WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, onFailure, force, extraPayload, payloadTransform, isCurrent) {
+WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, onFailure, force, extraPayload, payloadTransform, isCurrent, ports) {
     // Note: withCoordinates() already reset usedGpsCache/gpsErrorCode/locationMode/countryCode
     // for this cycle; this method relies on those resets having already happened.
     this.withCityName(lat, lon, (function(cityName, countryCode) {
         this.countryCode = countryCode;
-        fetchSources.fetchSources(this, this.sources, lat, lon, force, (function() {
-            // if `this` (the provider) contains valid weather details,
-            // then we can safely call this.getPayload()
-            if (!this.hasValidData()) {
-                console.log('Fetch cancelled: insufficient data.');
-                onFailure(failure('provider_data', 'invalid_data'));
-                return;
-            }
+        // The sources leave a valid forecast on this provider, or fail the fetch.
+        fetchSources.fetchSources(this, ports, lat, lon, force, (function() {
             this.withSunEvents(lat, lon, (function(sunEvents) {
                 console.log('Lets get the payload for ' + cityName);
                 this.cityName = cityName;
@@ -663,9 +655,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
             }).bind(this), function(sunFailure) {
                 onFailure(sunFailure || failure('sun_events', 'unknown_error'));
             });
-        }).bind(this), function(providerFailure) {
-            onFailure(providerFailure || failure('provider_data', 'unknown_error'));
-        });
+        }).bind(this), onFailure);
     }).bind(this));
 };
 

@@ -21,7 +21,6 @@ const HOSTS = {
   wunderground: ['api.weather.com', 'www.wunderground.com'],
   yandex: ['api.weather.yandex.ru']
 };
-const KEYS = { owmApiKey: 'owm-test-key', tomorrowioApiKey: 'tio-test-key', yandexApiKey: 'ydx-test-key' };
 
 /**
  * One fetch of a provider's own data (withProviderData) in the world.
@@ -34,7 +33,7 @@ function fetchOwn(id, withUv) {
   return world.inWorld({ platform: 'basalt' }, ({ mod, requests }) => {
     // A key Weather Underground fetched before, so it asks only for the weather.
     localStorage.setItem(mod('settings/domain/storage-keys.js').WU_API_KEY, 'stored-key');
-    const provider = mod('weather/adapter/provider-factory.js').createProvider(id, KEYS);
+    const provider = mod('weather/adapter/provider-factory.js').createProvider(id, world.KEYS);
     provider.options = mod('weather/domain/fetch-options.js').defaults({ fetchUv: withUv, fetchFeels: true, dayPeakCodes: [] });
     let outcome = 'pending';
     provider.withProviderData(world.PLACE.lat, world.PLACE.lon, false,
@@ -72,8 +71,7 @@ providerFactory.PROVIDER_IDS.forEach((id) => {
       .filter((k) => forecastModel.ADOPTED_KEYS.indexOf(k) !== -1)   // the fields the instance keeps
       .every((k) => holdsReading(provider[k])));
     assert.deepEqual(sent, readings.PROVIDERS[id].readings);
-    assert.deepEqual(readings.lacks(id), readings.READING_IDS.filter((r) => sent.indexOf(r) === -1));
-    sent.forEach((r) => { assert.equal(readings.serves(id, r), true, r); });
+    readings.READING_IDS.forEach((r) => { assert.equal(readings.serves(id, r), sent.indexOf(r) !== -1, r); });
   });
 
   test(id + ' makes the requests its row counts, with and without UV', () => {
@@ -101,7 +99,7 @@ test('DWD covers Germany and its neighbours only; the others cover everywhere', 
   assert.equal(readings.covers('dwd', 44.49, 11.34), false, 'Bologna, south of it');
   assert.equal(readings.covers('dwd', 48.86, 2.35), false, 'Paris, west of it');
   assert.equal(readings.covers('dwd', 47.50, 19.04), false, 'Budapest, east of it');
-  ['openmeteo', 'metno', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex'].forEach((id) => {
+  providerFactory.PROVIDER_IDS.filter((id) => !readings.PROVIDERS[id].area).forEach((id) => {
     assert.equal(readings.covers(id, -33.87, 151.21), true, id + ' in Sydney');
   });
 });
@@ -109,7 +107,6 @@ test('DWD covers Germany and its neighbours only; the others cover everywhere', 
 test('a provider the table does not know serves nothing and covers nothing', () => {
   ['', 'constructor', 'toString', undefined, null].forEach((id) => {
     assert.equal(readings.serves(id, 'temperature'), false);
-    assert.deepEqual(readings.lacks(id), readings.READING_IDS);
     assert.equal(readings.keySetting(id), null);
     assert.equal(readings.covers(id, 52.52, 13.405), false);
     assert.equal(readings.requests(id, true), 0);

@@ -359,25 +359,32 @@ fetch makes. Air quality, pollen and the rain radar are no readings: each has it
 _Avoid_: metric (a metric is what a graph line or slot draws), field.
 
 **Source plan**:
-Which provider serves each reading of one fetch, and what the fetch asks for, in order
-(`src/pkjs/weather/domain/source-plan.js`). The Weather picker's provider is the fetch's
-anchor: its instance holds every reading at the end, and the rest of the fetch (air quality,
-pollen, the day records, the payload) reads it. It serves the readings it sends; a reading
-it lacks comes from Open-Meteo while the screens draw it (so far DWD's UV, by Open-Meteo's
-UV-only request). `src/pkjs/weather/application/fetch-sources.js` runs the plan through the
-weather sources the fetch cycle hands the provider beside its options
-(`src/pkjs/weather/adapter/source-ports.js`).
+What one fetch asks for, in order (`src/pkjs/weather/domain/source-plan.js`): its steps. The
+Weather picker's provider is the fetch's anchor: its instance holds every reading at the end,
+and the rest of the fetch (the sun events, air quality, pollen, the day records, the payload)
+reads it. Its own forecast is the first step, and a fetch without it fails; it serves the
+readings it sends, and a reading it lacks comes from Open-Meteo while the screens draw it (so
+far DWD's UV, by Open-Meteo's UV-only request). `src/pkjs/weather/application/fetch-sources.js`
+runs the steps through the source ports.
 _Avoid_: provider chain, fallback provider (a fallback is what By location tries when a
 provider fails).
 
+**Source ports**:
+What a fetch's source plan runs through (`src/pkjs/weather/adapter/source-ports.js`): the
+requests to providers other than the Weather picker's, the forecast snapshots, the clock and
+the update interval. The fetch cycle builds a set for each fetch (`shell/fetch-cycle.js`
+prepareFetch) and hands it to `fetchWithCoordinates`.
+_Avoid_: sources (the radar, air quality and plugins have sources of their own).
+
 **Forecast snapshot**:
-What a provider answered, kept so a fetch later in the same refresh slot (a start-up, a
-settings save) asks nobody again (`src/pkjs/weather/domain/forecast-snapshot.js`, stored by
-`src/pkjs/weather/adapter/forecast-snapshots.js`). It holds the fields the provider's instance
-has after its fetch, the place to two decimals, the time and what the request asked for
-(the hours, the day maxima, the optional series, the feels-like formula, the key's
-fingerprint); a fetch reuses it only while all of these match. DWD's UV fill serves three
-hours, re-anchored to the hour the new forecast starts at. Force weather fetch drops them.
+What a provider answered, kept so a fetch soon after (a start-up, a settings save) asks nobody
+again (`src/pkjs/weather/domain/forecast-snapshot.js`, stored by
+`src/pkjs/weather/adapter/forecast-snapshots.js`). It holds what its kind keeps of a valid
+answer (a provider's whole forecast, or a UV fill), the place, the time and what the request
+asked for (the hours, the day maxima, the optional series, the feels-like formula, the key's
+fingerprint). A fetch reuses it for the same request at a place close by while its kind
+serves it: a forecast for the rest of its refresh slot, DWD's UV fill for a few hours,
+re-anchored to the hour the new forecast starts at. Force weather fetch drops them.
 _Avoid_: forecast cache (the Weather tab has a cache of its own), response cache.
 
 ## Radar

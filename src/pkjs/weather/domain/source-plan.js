@@ -1,10 +1,10 @@
 // src/pkjs/weather/domain/source-plan.js — ES5, watch runtime and settings page.
 //
-// The source plan: which provider serves each reading of one fetch, and what the fetch asks
-// for, in order. The Weather picker's provider (the anchor, the instance the rest of the
-// fetch reads) serves every reading it sends (provider-readings.js). A reading it lacks comes
-// from Open-Meteo while the screens draw it; for now that is DWD's UV, by Open-Meteo's
-// UV-only request. weather/application/fetch-sources.js runs the plan.
+// The source plan: what one fetch asks for, in order. The Weather picker's provider (the
+// anchor, the instance the rest of the fetch reads) fetches its own forecast first, and a
+// fetch without it fails. It serves every reading it sends (provider-readings.js); a reading
+// it lacks comes from Open-Meteo while the screens draw it. For now that is DWD's UV, by
+// Open-Meteo's UV-only request. weather/application/fetch-sources.js runs the steps.
 //
 // Dual-context like provider-readings.js: a CommonJS module on the phone and in the tests, a
 // plain <script> on the settings page once it lists it (window.SourcePlan).
@@ -16,31 +16,21 @@
     var FILL_PROVIDER = 'openmeteo';
 
     /**
-     * Plan one fetch. A provider the table does not know (a test's stand-in) is taken to send
-     * every reading, and nothing is filled for it.
+     * Plan one fetch.
      * @param {{provider: string, fetchUv: boolean}} input The Weather picker's provider id, and
      *   whether the screens draw UV (fetch options' fetchUv).
-     * @returns {{anchor: string, readings: Object<string, ?string>,
-     *   steps: Array<{provider: string, ask: string, readings: string[]}>}} Each reading's
-     *   provider (null: none, as it is not drawn), and the requests in order: the anchor's
-     *   forecast first ('forecast'), then the fills ('uv': Open-Meteo's UV-only request).
+     * @returns {{steps: Array<{provider: string, ask: string, required: (boolean|undefined),
+     *   feedField: (string|undefined)}>}} The requests in order. `ask` is what a step asks
+     *   for: 'forecast', the anchor's own forecast, which the fetch requires; 'uv', Open-Meteo's
+     *   UV-only request, whose provider becomes the anchor's UV feed (feedField: the day
+     *   record's key, day-peaks.js feedOf).
      */
     function plan(input) {
-        var anchor = input.provider;
-        var known = Object.prototype.hasOwnProperty.call(providerReadings.PROVIDERS, anchor);
-        var byReading = {};
-        var own = [];
-        providerReadings.READING_IDS.forEach(function (id) {
-            var sent = !known || providerReadings.serves(anchor, id);
-            byReading[id] = sent ? anchor : null;
-            if (sent) { own.push(id); }
-        });
-        var steps = [{ provider: anchor, ask: 'forecast', readings: own }];
-        if (byReading.uv === null && input.fetchUv) {
-            byReading.uv = FILL_PROVIDER;
-            steps.push({ provider: FILL_PROVIDER, ask: 'uv', readings: ['uv'] });
+        var steps = [{ provider: input.provider, ask: 'forecast', required: true }];
+        if (input.fetchUv && !providerReadings.serves(input.provider, 'uv')) {
+            steps.push({ provider: FILL_PROVIDER, ask: 'uv', feedField: 'uvFeedId' });
         }
-        return { anchor: anchor, readings: byReading, steps: steps };
+        return { steps: steps };
     }
 
     var api = { FILL_PROVIDER: FILL_PROVIDER, plan: plan };

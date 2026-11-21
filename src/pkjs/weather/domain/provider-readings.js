@@ -79,16 +79,6 @@
     }
 
     /**
-     * The readings a provider does not send, in READINGS order.
-     * @param {*} providerId A provider id.
-     * @returns {string[]} every reading for an unknown provider
-     */
-    function lacks(providerId) {
-        var row = rowOf(providerId);
-        return without(ALL, row ? row.readings : []);
-    }
-
-    /**
      * The mapped keys a reading is made of.
      * @param {string} readingId A READINGS id.
      * @returns {string[]} [] for an unknown reading
@@ -141,7 +131,6 @@
         READING_IDS: ALL,
         PROVIDERS: PROVIDERS,
         serves: serves,
-        lacks: lacks,
         keysOf: keysOf,
         keySetting: keySetting,
         covers: covers,

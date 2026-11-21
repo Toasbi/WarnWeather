@@ -1,4 +1,5 @@
 // test/weather/adapter/provider-fetch.test.js
+const { testPorts } = require('../../helpers/source-ports.js');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
@@ -11,7 +12,7 @@ test('fetchWithCoordinates drives the chain from the passed coords, never resolv
   // Stub the first link in the chain to capture coords and stop (no network).
   p.withCityName = function (lat, lon) { seen = { lat: lat, lon: lon }; };
 
-  p.fetchWithCoordinates(52.5, 13.4, function () {}, function () {}, false, {}, null);
+  p.fetchWithCoordinates(52.5, 13.4, function () {}, function () {}, false, {}, null, undefined, testPorts());
 
   assert.deepEqual(seen, { lat: 52.5, lon: 13.4 });
   assert.equal(resolvedAgain, false);
@@ -71,7 +72,7 @@ function composeHarness(t, payloadTransform, onAckHook) {
     p.fetchWithCoordinates(52.5, 13.4,
       function () { outcome.success += 1; if (onAckHook) { onAckHook(); } },
       function (f) { outcome.failures.push(f); },
-      false, null, payloadTransform);
+      false, null, payloadTransform, undefined, testPorts());
   } catch (ex) {
     outcome.escaped = ex;
   }
@@ -114,7 +115,7 @@ test('the sun events follow the sources, so a provider\'s own sun times count', 
   };
   let ok = false;
   p.fetchWithCoordinates(52.5, 13.4, function () { ok = true; },
-    function (f) { throw new Error('failed: ' + JSON.stringify(f)); }, false, null, null);
+    function (f) { throw new Error('failed: ' + JSON.stringify(f)); }, false, null, null, undefined, testPorts());
   assert.equal(ok, true);
   assert.deepEqual(p.sunEvents.map((e) => e.date.getTime() / 1000), [START + 3600, START + 10 * 3600],
     'the provider\'s next sunrise and sunset, not SunCalc\'s');

@@ -24,14 +24,14 @@ function load() {
 }
 
 /**
- * Store snapshots, writing only when they changed.
+ * Store snapshots. Each save holds a snapshot just taken, so it always differs from what is
+ * stored: no read to compare first.
  * @param {Object[]} entries Snapshots (forecastSnapshot.remember).
  * @returns {void}
  */
 function save(entries) {
     try {
-        var text = JSON.stringify(forecastSnapshot.stored(entries));
-        if (localStorage.getItem(KEY) !== text) { localStorage.setItem(KEY, text); }
+        localStorage.setItem(KEY, JSON.stringify(forecastSnapshot.stored(entries)));
     }
     catch (ex) {
         console.log('[!] Keeping the forecast snapshots failed: ' + ex.message);

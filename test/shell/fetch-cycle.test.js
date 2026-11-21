@@ -22,8 +22,8 @@
 // The shared Rainbow radar throttle (the "radar throttle:" cases at the end)
 // runs with a proxy endpoint set (RB_ENV) and counts the requests to it.
 //
-// isPastRefreshSlot / failureBackoffMs are covered in place (battery saver and
-// fetch-backoff tests) and are not re-tested here.
+// The refresh slot (test/weather/domain/refresh-slot.test.js) and failureBackoffMs
+// (the fetch-backoff tests) are covered in place and are not re-tested here.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

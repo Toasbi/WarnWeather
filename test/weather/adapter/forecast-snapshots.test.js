@@ -1,6 +1,6 @@
-// test/weather/adapter/forecast-snapshots.test.js — where the forecast snapshots are kept: an
-// unreadable store holds none, an unchanged one is not written again, and a store that fails
-// never fails the fetch.
+// test/weather/adapter/forecast-snapshots.test.js — where the forecast snapshots are kept: what
+// is saved loads back, an unreadable store holds none, and a store that fails never fails the
+// fetch.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -21,9 +21,8 @@ const ENTRY = { provider: 'metno', kind: 'uv', place: { lat: 52.52, lon: 13.4 },
 
 test.beforeEach(() => { Object.keys(store).forEach((k) => { delete store[k]; }); writes = 0; failing = false; });
 
-test('what is saved loads back, and an unchanged save writes nothing', () => {
+test('what is saved loads back, in one write', () => {
   snapshots.save([ENTRY]);
-  snapshots.save([JSON.parse(JSON.stringify(ENTRY))]);
   assert.equal(writes, 1);
   assert.deepEqual(snapshots.load(), [ENTRY]);
   assert.deepEqual(JSON.parse(store[KEYS.FORECAST_SNAPSHOTS_KEY]).v, 1);

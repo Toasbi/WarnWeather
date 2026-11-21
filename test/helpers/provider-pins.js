@@ -1,8 +1,8 @@
 // test/helpers/provider-pins.js — one weather fetch per provider and watch, end to end, as
 // data: the requests it makes, in order, and the payload it hands the outbox. A fetch runs
-// the real chain (provider.js fetchWithCoordinates: the city, the sun events, the provider's
-// own requests, DWD's UV from Open-Meteo, air quality, pollen, the day records and the
-// render transform the fetch cycle passes), with every request answered by
+// the real chain as the fetch cycle runs it (provider-world.js fetchLikeTheCycle: the city,
+// the provider's own requests, DWD's UV from Open-Meteo, the sun events, air quality,
+// pollen, the day records and the render transform), with every request answered by
 // test/helpers/provider-world.js at its fixed clock and place.
 //
 // The pins are test/provider-pins.golden.json, checked byte for byte by
@@ -21,16 +21,14 @@ const world = require('./provider-world.js');
 
 const GOLDEN_PATH = path.join(__dirname, '..', 'provider-pins.golden.json');
 const ZONE = 'Europe/Berlin';
-const PROVIDERS = ['dwd', 'openmeteo', 'metno', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex'];
+// Every provider the factory builds, so a new one is pinned (and its pins written) at once.
+const PROVIDERS = require('../../src/pkjs/weather/adapter/provider-factory.js').PROVIDER_IDS.slice().sort();
 
 const WATCHES = {
   basalt: { platform: 'basalt', model: 'qemu_platform_basalt', language: 'en' },
   emery: { platform: 'emery', model: 'qemu_platform_emery', language: 'en' },
   aplite: { platform: 'aplite', model: 'qemu_platform_aplite', language: 'en' }
 };
-
-// The keyed providers' keys, so every provider fetches.
-const KEYS = { owmApiKey: 'owm-test-key', tomorrowioApiKey: 'tio-test-key', yandexApiKey: 'ydx-test-key' };
 
 // What a fresh install draws on a Pebble Time and on a Classic (the chance of rain line, the
 // rain bars and air quality), the wind, feels-like and gust lines with the feels-like slot
@@ -57,9 +55,8 @@ const SCENARIOS = {
 };
 
 /**
- * One pinned fetch: the provider the settings pick, its options built as the fetch cycle
- * builds them, then fetchWithCoordinates at the pinned place with the fetch cycle's extras
- * and render transform.
+ * One pinned fetch: the provider on a scenario's watch and settings, fetched as the fetch
+ * cycle fetches.
  * @param {string} providerId A provider-factory.js id.
  * @param {string} scenarioName A SCENARIOS key.
  * @returns {{options: Object, outcome: string, requests: string[], payload: ?Object}} The pin.
@@ -68,29 +65,8 @@ function runPin(providerId, scenarioName) {
   const scenario = SCENARIOS[scenarioName];
   const watchInfo = WATCHES[scenario.watch];
   return world.inWorld(watchInfo, ({ mod, requests }) => {
-    const claySettings = mod('settings/adapter/clay-settings.js');
-    const settings = Object.assign(claySettings.getDefaults({ white: 0xFFFFFF, folly: 0xFF0055, holiday: 0x0055FF }),
-      KEYS, scenario.settings, { provider: providerId });
-    const outbox = mod('wire/adapter/outbox.js');
-    const sent = [];
-    outbox.sendWeather = (payload, onAck) => { sent.push(payload); onAck(); };
-    const provider = mod('weather/adapter/provider-factory.js').createProvider(providerId, settings);
-    // As shell/fetch-cycle.js start() prepares it.
-    provider.options = mod('weather/domain/fetch-options.js').build(settings, watchInfo, { waqiToken: '' });
-    provider.sources = mod('weather/adapter/source-ports.js').create(settings);
-    const renderPayload = mod('weather/application/render-payload.js');
-    let outcome = 'pending';
-    provider.fetchWithCoordinates(world.PLACE.lat, world.PLACE.lon,
-      () => { outcome = 'ok'; },
-      (failure) => { outcome = 'failed ' + JSON.stringify(failure); },
-      false, { IS_SLEEPING: false },
-      (payload) => renderPayload.toRenderPayload(payload, settings, watchInfo, new Date(), null));
-    return {
-      options: provider.options,
-      outcome: outcome,
-      requests: requests,
-      payload: sent.length === 1 ? sent[0] : null
-    };
+    const run = world.fetchLikeTheCycle(mod, world.settingsFor(mod, providerId, scenario.settings), watchInfo);
+    return { options: run.provider.options, outcome: run.outcome, requests: requests, payload: run.payload };
   });
 }
 

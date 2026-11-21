@@ -122,9 +122,13 @@ function installIndexRuntime(opts) {
     x.responseText = typeof body === 'string' ? body : JSON.stringify(body);
     x.onload();
   };
+  /** Drop every src/pkjs module from the require cache: the next require loads it afresh. */
+  h.purge = function () {
+    Object.keys(require.cache).forEach((k) => { if (k.indexOf(SRC) === 0) { delete require.cache[k]; } });
+  };
   /** Fresh-require index.js (a watchface relaunch); returns the listeners. */
   h.boot = function () {
-    Object.keys(require.cache).forEach((k) => { if (k.indexOf(SRC) === 0) { delete require.cache[k]; } });
+    h.purge();
     timers = [];
     try {
       const devConfigPath = require.resolve(SRC + 'dev-config.js');
@@ -162,7 +166,7 @@ function installIndexRuntime(opts) {
     store.last_update_check = String(clock.now);
   };
   h.restore = function () {
-    Object.keys(require.cache).forEach((k) => { if (k.indexOf(SRC) === 0) { delete require.cache[k]; } });
+    h.purge();
     global.Date = saved.Date;
     global.setTimeout = saved.setTimeout;
     global.clearTimeout = saved.clearTimeout;

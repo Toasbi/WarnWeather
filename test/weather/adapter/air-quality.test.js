@@ -10,6 +10,7 @@ global.localStorage = (function () {
   };
 })();
 
+const { testPorts } = require('../../helpers/source-ports.js');
 const test = require('node:test');
 // The aux fetches call http.request through the module object, so stubbing
 // the property here intercepts them (the old seam was WeatherProvider.request).
@@ -215,7 +216,7 @@ function fetchCyclesOnOneProvider(aqiSettings, responders, between) {
     responders.forEach((responder, i) => {
       if (i > 0 && between) { between(); }
       http.request = responder;
-      provider.fetchWithCoordinates(49.2, 7.0, () => {}, assert.fail, false, null, null);
+      provider.fetchWithCoordinates(49.2, 7.0, () => {}, assert.fail, false, null, null, undefined, testPorts());
       cycleStart += H;
     });
   } finally {
