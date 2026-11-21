@@ -402,42 +402,29 @@ test('DWD leaves currentFeels null when current_weather lacks the Steadman input
   assert.equal(p.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
 });
 
-test('DWD drops the previous UV window when the shared UV fetch fails on a reused instance', () => {
-  // DWD borrows Open-Meteo's UV fetch; index.js re-fetches on one provider
-  // instance, so a failed UV call must not leave cycle 1's window in place.
-  const HOUR = 3600;
-  const START = Math.floor(Date.parse('2023-11-14T08:00:00+00:00') / 1000);
-  function respond(startEpoch, uvFails) {
-    return function(url, onSuccess, onError) {
-      if (url.indexOf('hourly=uv_index') !== -1) {
-        if (uvFails) { onError({ code: 0, message: 'timeout' }); return; }
-        const time = [], uv_index = [];
-        for (let i = 0; i < 72; i += 1) { time.push(START + i * HOUR); uv_index.push(i); }
-        onSuccess(JSON.stringify({ hourly: { time, uv_index } }));
-        return;
-      }
-      if (url.indexOf('/current_weather') !== -1) {
-        onSuccess(JSON.stringify({ weather: { temperature: 20 } }));
-        return;
-      }
-      onSuccess(JSON.stringify({ weather: [
-        { temperature: 0, precipitation_probability: 0, precipitation: 0, wind_speed: 0, wind_gust_speed: 0,
-          timestamp: new Date(startEpoch * 1000).toISOString() }
-      ] }));
-    };
-  }
+test('DWD asks nobody for UV itself: its two requests, and the UV left empty', () => {
+  // DWD sends no UV. The source plan fills it from Open-Meteo when the screens draw
+  // it (test/weather/application/fetch-sources.test.js).
+  const urls = [];
+  responder = function(url, onSuccess) {
+    urls.push(url);
+    if (url.indexOf('/current_weather') !== -1) {
+      onSuccess(JSON.stringify({ weather: { temperature: 20 } }));
+      return;
+    }
+    onSuccess(JSON.stringify({ weather: [
+      { temperature: 0, precipitation_probability: 0, precipitation: 0, wind_speed: 0, wind_gust_speed: 0,
+        timestamp: '2023-11-14T08:00:00+00:00' }
+    ] }));
+  };
   const p = new DwdProvider();
   p.options = fetchOptions.defaults({ fetchUv: true });
-  responder = respond(START, false);
-  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('cycle 1 failed: ' + JSON.stringify(f)); });
-  // Entry 0 is the 08:00-09:00 hour, whose GFS mean is stamped 09:00 (value 1).
-  assert.equal(p.uvTrend[0], 1, 'cycle 1 adopted the UV window aligned to 08:00');
-  assert.ok(p.uvTrend.length > 0);
-
-  responder = respond(START + HOUR, true);
-  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('cycle 2 failed: ' + JSON.stringify(f)); });
-  assert.equal(p.startTime, START + HOUR);
-  assert.deepEqual(p.uvTrend, [], 'stale UV dropped when the UV call fails');
+  let ok = false;
+  p.withProviderData(0, 0, false, function() { ok = true; }, function(f) { throw new Error('failed: ' + JSON.stringify(f)); });
+  assert.equal(ok, true);
+  assert.deepEqual(urls.map((u) => u.split('?')[0]),
+    ['https://api.brightsky.dev/weather', 'https://api.brightsky.dev/current_weather']);
+  assert.deepEqual(p.uvTrend, []);
 });
 
 // --- the adoptMapped seam -----------------------------------------------------
@@ -447,26 +434,21 @@ test('DWD drops the previous UV window when the shared UV fetch fails on a reuse
 
 /**
  * Drive a DwdProvider at 09:20 Berlin and capture every `mapped` object it hands
- * to adoptMapped, plus the order of the adopt and the Open-Meteo UV request.
+ * to adoptMapped, and every request besides Bright Sky's (an 'other' event).
  * @param {Object[]} hourly Brightsky forecast records
  * @param {Object} [opts]
  * @param {Object} [opts.provider] reuse this instance instead of a fresh one
  * @param {Object} [opts.options] fetchOptions.defaults() overrides
  * @param {Object} [opts.current] Brightsky current_weather record
- * @param {boolean} [opts.uvFails] fail the UV request
  * @returns {{p: Object, mapped: Object[], events: string[], ok: boolean}}
  */
 function runSeam(hourly, opts) {
   opts = opts || {};
   const events = [];
   const mapped = [];
-  responder = function(url, onSuccess, onError) {
-    if (url.indexOf('hourly=uv_index') !== -1) {
-      events.push('uv');
-      if (opts.uvFails) { onError({ code: 0, message: 'timeout' }); return; }
-      const time = [], uv_index = [];
-      for (let i = 0; i < 72; i += 1) { time.push(SLOT0 / 1000 + i * 3600); uv_index.push(i % 11); }
-      onSuccess(JSON.stringify({ hourly: { time, uv_index } }));
+  responder = function(url, onSuccess) {
+    if (url.indexOf('https://api.brightsky.dev/') !== 0) {
+      events.push('other');
       return;
     }
     if (url.indexOf('/current_weather') !== -1) {
@@ -517,8 +499,8 @@ test('DWD hands adoptMapped one mapped forecast: MAPPED_KEYS only, core present,
   WeatherProvider.MAPPED_KEYS.core.forEach((k) => assert.ok(keys.indexOf(k) !== -1, 'core key ' + k + ' missing'));
   assert.equal(keys.indexOf('humidityTrend'), -1,
     'no humidityTrend: the Steadman series must not route through the formula resolvers');
-  assert.equal(keys.indexOf('uvTrend'), -1, 'UV is Open-Meteo\'s, fetched after the adopt');
-  assert.deepEqual(events, ['adopt', 'uv'], 'adopt first, then the shared UV fetch, last');
+  assert.equal(keys.indexOf('uvTrend'), -1, 'DWD sends no UV');
+  assert.deepEqual(events, ['adopt'], 'and asks Open-Meteo for none: the source plan does');
 });
 
 test('DWD builds the 49-long day-max wind/gust series on mapped, before adopting', () => {
@@ -583,49 +565,28 @@ test('DWD on a reused instance: turning fetchFeels off drops the previous feels'
   assert.equal(second.p.currentFeels, null);
 });
 
-test('DWD on a reused instance: UV turned off leaves uvTrend [] (declared change: was left stale)', () => {
-  const first = runSeam(fullRecords(), { options: { fetchUv: true } });
-  assert.ok(first.p.uvTrend.length > 0, 'cycle 1 adopted Open-Meteo UV');
-  const second = runSeam(fullRecords(), { provider: first.p, options: { fetchUv: false } });
-  assert.deepEqual(second.events, ['adopt'], 'no UV request with fetchUv off');
+test('DWD on a reused instance: a UV window from the last fetch never survives its adopt', () => {
+  // The source plan's UV fill lands on the instance after the adopt
+  // (fetch-sources.test.js); the next fetch's adopt drops it before any fill.
+  const first = runSeam(fullRecords());
+  first.p.uvTrend = [1, 2, 3];
+  const second = runSeam(fullRecords(), { provider: first.p, options: { fetchUv: true } });
   assert.equal(second.ok, true);
   assert.deepEqual(second.p.uvTrend, []);
-});
-
-test('DWD on a reused instance: a failed UV call after adopt leaves uvTrend []', () => {
-  const first = runSeam(fullRecords(), { options: { fetchUv: true } });
-  assert.ok(first.p.uvTrend.length > 0);
-  const second = runSeam(fullRecords(), { provider: first.p, options: { fetchUv: true }, uvFails: true });
-  assert.equal(second.ok, true, 'the UV failure is non-fatal');
-  assert.deepEqual(second.p.uvTrend, []);
-});
-
-test('DWD keeps uvFeedId on the instance, off the mapped forecast', () => {
-  const { p, mapped } = runSeam(fullRecords());
-  assert.equal(p.uvFeedId, 'openmeteo');
-  assert.equal(Object.prototype.hasOwnProperty.call(mapped[0], 'uvFeedId'), false);
 });
 
 // Emery's long span (forecast-span.js): the window is windowHours(options), 68 (48 reads the
 // same way, a feed's own limit).
 /**
  * Drive a DwdProvider at 09:20 Berlin over canned records with the given options, capturing
- * the Brightsky forecast and the UV URLs.
+ * the Brightsky forecast URL.
  * @param {Object[]} hourly Brightsky forecast records
  * @param {Object} options fetch-options overrides
- * @returns {{p: Object, forecastUrl: string, uvUrl: ?string, ok: boolean}}
+ * @returns {{p: Object, forecastUrl: string, ok: boolean}}
  */
 function runSpan(hourly, options) {
   let forecastUrl = null;
-  let uvUrl = null;
   responder = function(url, onSuccess) {
-    if (url.indexOf('hourly=uv_index') !== -1) {
-      uvUrl = url;
-      const time = [], uv_index = [];
-      for (let i = 0; i < 96; i += 1) { time.push(SLOT0 / 1000 + i * 3600); uv_index.push(i % 11); }
-      onSuccess(JSON.stringify({ hourly: { time, uv_index } }));
-      return;
-    }
     if (url.indexOf('/current_weather') !== -1) {
       onSuccess(JSON.stringify({ weather: { temperature: 15 } }));
       return;
@@ -645,20 +606,18 @@ function runSpan(hourly, options) {
   } finally {
     Date.now = realNow;
   }
-  return { p, forecastUrl, uvUrl, ok };
+  return { p, forecastUrl, ok };
 }
 
 test('48 h: DWD asks for 48 h + the record after it and maps 48 slots', () => {
   const recs = stampedRecords(Array.from({ length: 49 }, (_, i) => i), 47);
-  const { p, forecastUrl, uvUrl, ok } = runSpan(recs, { forecastHours: 48, dayPeakCodes: [], fetchUv: true });
+  const { p, forecastUrl, ok } = runSpan(recs, { forecastHours: 48, dayPeakCodes: [], fetchUv: true });
   assert.equal(ok, true);
   assert.ok(forecastUrl.indexOf('last_date=' + new Date(SLOT0 + 48 * 3600000).toISOString() + '&') !== -1,
     forecastUrl);
   ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend', 'gustTrend', 'pressureTrend', 'dewTrend',
     'windDirTrend', 'feelsTrend'].forEach((k) => assert.equal(p[k].length, 48, k));
   assert.equal(p.rainTrend[46], 3, 'the 47th slot reads the record stamped at its end');
-  assert.match(uvUrl, /&forecast_days=3(&|$)/, 'the shared Open-Meteo UV call reads the span too');
-  assert.equal(p.uvTrend.length, 49);
   assert.equal(p.getPayload().NUM_ENTRIES, 48);
 });
 
@@ -681,7 +640,7 @@ test('long span: DWD asks for 68 h + the record after it and maps 68 slots; peak
   const recs = stampedRecords(Array.from({ length: 70 }, (_, i) => i), -1);
   recs.forEach((r, i) => { r.wind_speed = 100 + i; r.wind_gust_speed = 200 + i; });
   // With a wind day max: the end of local tomorrow + 1 h lies before start + 68 h.
-  const { p, forecastUrl, uvUrl, ok } = runSpan(recs, { forecastHours: 68, fetchUv: true });
+  const { p, forecastUrl, ok } = runSpan(recs, { forecastHours: 68, fetchUv: true });
   assert.equal(ok, true);
   assert.ok(forecastUrl.indexOf('last_date=' + new Date(SLOT0 + 68 * 3600000).toISOString() + '&') !== -1,
     forecastUrl);
@@ -689,8 +648,6 @@ test('long span: DWD asks for 68 h + the record after it and maps 68 slots; peak
     'windDirTrend', 'feelsTrend'].forEach((k) => assert.equal(p[k].length, 68, k));
   assert.equal(p.windTrend[67], 167, 'the slots run past PEAK_HOURS: no tail');
   assert.equal(p.gustTrend[67], 268, 'the gust from the record an hour on');
-  assert.match(uvUrl, /&forecast_days=4(&|$)/, 'the shared Open-Meteo UV call reads four days');
-  assert.equal(p.uvTrend.length, 68);
   assert.equal(p.getPayload().NUM_ENTRIES, 68);
   // Without a day max the same window and slots.
   const plain = runSpan(recs, { forecastHours: 68, dayPeakCodes: [] });
@@ -718,7 +675,7 @@ test('the default span keeps DWD\'s 24 slots and 25-record window', () => {
 
 /**
  * Drive a DwdProvider at 09:20 Berlin over canned records, answering /current_weather
- * with `current` and the shared UV request with three days of values.
+ * with `current`.
  * @param {Object[]} hourly Brightsky forecast records
  * @param {function(Function, Function)} current Answers /current_weather (onSuccess, onError)
  * @param {Object} [options] fetchOptions.defaults() overrides
@@ -728,12 +685,6 @@ function runCurrent(hourly, current, options) {
   const urls = [];
   responder = function(url, onSuccess, onError) {
     urls.push(url);
-    if (url.indexOf('hourly=uv_index') !== -1) {
-      const time = [], uv_index = [];
-      for (let i = 0; i < 72; i += 1) { time.push(SLOT0 / 1000 + i * 3600); uv_index.push(i % 11); }
-      onSuccess(JSON.stringify({ hourly: { time, uv_index } }));
-      return;
-    }
     if (url.indexOf('/current_weather') !== -1) {
       current(onSuccess, onError);
       return;
@@ -779,8 +730,7 @@ test('DWD with no station near enough: the current hour\'s forecast stands in an
     'feels-like the way the hourly series computes it (the dew route: no relative humidity)');
   assert.equal(p.currentFeels, p.feelsTrend[0]);
   assert.equal(p.windDirTrend[0], 225);
-  assert.ok(urls.some((u) => u.indexOf('hourly=uv_index') !== -1), 'the UV request still goes out');
-  assert.ok(p.uvTrend.length > 0);
+  assert.equal(urls.length, 2, 'the forecast and the current weather, nothing more');
 });
 
 test('DWD with no station near enough: fetchFeels off leaves no feels-like, and slot 0 no bearing it lacks', () => {

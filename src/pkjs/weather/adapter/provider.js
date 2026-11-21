@@ -9,6 +9,7 @@ var dayPeaks = require('../domain/day-peaks.js');
 var dayPeaksStore = require('./day-peaks-store.js');
 var fetchOptions = require('../domain/fetch-options.js');
 var forecastModel = require('../domain/forecast-model.js');
+var fetchSources = require('../application/fetch-sources.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
 // fetches can require them without the old provider-cycle lazy-require hack);
@@ -59,6 +60,10 @@ var WeatherProvider = function() {
     // with fetchOptions.build(settings, ...) before each fetch; a provider that
     // is never handed one runs on the defaults.
     this.options = fetchOptions.defaults();
+    // What this fetch may ask of other providers, for the readings this one lacks
+    // (weather/adapter/weather-sources.js): the fetch cycle sets it beside the options
+    // before each fetch. Null fetches this provider's own data alone.
+    this.sources = null;
     // The status slots' day max (the Day max / Both modes, day-peaks.js): each
     // metric's peak of today's hours already begun, which tells a running peak
     // from one behind us (day-peaks' recall, in fetchWithCoordinates; getPayload
@@ -551,8 +556,10 @@ WeatherProvider.prototype.composeWeatherPayload = function(extraPayload, payload
 
 /**
  * Run the weather-fetch chain for already-resolved coordinates: reverse-geocode
- * the city (never fatal — see withCityName), compute sun events, fetch provider
- * data, then send the composed payload via the deduping outbox. Callers MUST
+ * the city (never fatal — see withCityName), compute sun events, fetch the
+ * weather sources (this provider's data, and what the source plan fills in for
+ * it: weather/application/fetch-sources.js), then send the composed payload via
+ * the deduping outbox. Callers MUST
  * resolve coordinates via withCoordinates() first — it owns the
  * usedGpsCache/gpsErrorCode/locationMode resets this method relies on.
  *
@@ -573,7 +580,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
     this.withCityName(lat, lon, (function(cityName, countryCode) {
         this.countryCode = countryCode;
         this.withSunEvents(lat, lon, (function(sunEvents) {
-            this.withProviderData(lat, lon, force, (function() {
+            fetchSources.fetchSources(this, this.sources, lat, lon, force, (function() {
                 // if `this` (the provider) contains valid weather details,
                 // then we can safely call this.getPayload()
                 if (!this.hasValidData()) {

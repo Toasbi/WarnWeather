@@ -179,6 +179,8 @@ test('a switch between DWD and Open-Meteo keeps the record: both read Open-Meteo
   fetchAt(om, 0);
   fetchAt(om, 11);
   const dwd = new Dwd();
+  // DWD sends no UV: with UV drawn the source plan takes it from Open-Meteo (source-plan.js).
+  dwd.options = require('../../../src/pkjs/weather/domain/fetch-options.js').defaults({ fetchUv: true });
   assert.equal(both(fetchAt(dwd, 13)), '5/5');
 });
 

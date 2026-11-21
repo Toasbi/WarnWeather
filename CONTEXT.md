@@ -358,6 +358,18 @@ pressure; DWD no UV), the setting that holds its key, the area it covers and the
 fetch makes. Air quality, pollen and the rain radar are no readings: each has its own source.
 _Avoid_: metric (a metric is what a graph line or slot draws), field.
 
+**Source plan**:
+Which provider serves each reading of one fetch, and what the fetch asks for, in order
+(`src/pkjs/weather/domain/source-plan.js`). The Weather picker's provider is the fetch's
+anchor: its instance holds every reading at the end, and the rest of the fetch (air quality,
+pollen, the day records, the payload) reads it. It serves the readings it sends; a reading
+it lacks comes from Open-Meteo while the screens draw it (so far DWD's UV, by Open-Meteo's
+UV-only request). `src/pkjs/weather/application/fetch-sources.js` runs the plan through the
+weather sources the fetch cycle hands the provider beside its options
+(`src/pkjs/weather/adapter/weather-sources.js`).
+_Avoid_: provider chain, fallback provider (a fallback is what By location tries when a
+provider fails).
+
 ## Radar
 
 **Radar source**:
