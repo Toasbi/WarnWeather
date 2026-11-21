@@ -75,7 +75,11 @@ var DEFAULTS = {
     // source plan fills one the Weather picker's provider lacks only while it is drawn
     // (source-plan.js fills). None by default, so nothing is filled but UV (fetchUv). Frozen:
     // defaults() hands every caller this one list.
-    drawn: Object.freeze([])
+    drawn: Object.freeze([]),
+    // Where the forecast comes from (Setup › Data sources, Weather from): 'one', the Weather
+    // picker's provider; 'auto' (By location), the place's regional provider first
+    // (source-plan.js candidates).
+    sourceMode: 'one'
 };
 // Shared and exported: frozen so no consumer can shift every later provider's
 // default by writing to it (Object.freeze is ES5).
@@ -142,6 +146,8 @@ function build(settings, watchInfo, env) {
         // demand: a known aplite never fetches for alerts (watchInfo).
         fetchUv: drawn.indexOf('uv') !== -1,
         drawn: drawn,
+        // Any value but By location's is One provider, the row's default.
+        sourceMode: settings && settings.weatherSourceMode === 'auto' ? 'auto' : DEFAULTS.sourceMode,
         fetchAqi: forecastSeries.needsAqi(settings, watchInfo),
         fetchPollen: forecastSeries.needsPollen(settings, watchInfo),
         // Apparent temperature: no provider spends an extra REQUEST on it (it always

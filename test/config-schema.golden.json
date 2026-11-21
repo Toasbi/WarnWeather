@@ -16354,6 +16354,25 @@
             "title": "Data sources",
             "items": [
               {
+                "type": "segmented",
+                "messageKey": "weatherSourceMode",
+                "label": "Weather from",
+                "defaultValue": "one",
+                "hintByValue": {
+                  "auto": "Uses DWD in Germany, Met.no in the Nordic countries and the Weather provider below everywhere else. When one fails, the next one fills in, with Open-Meteo last. A reading a provider lacks comes from Open-Meteo."
+                },
+                "options": [
+                  [
+                    "One provider",
+                    "one"
+                  ],
+                  [
+                    "By location",
+                    "auto"
+                  ]
+                ]
+              },
+              {
                 "type": "select",
                 "messageKey": "provider",
                 "label": "Weather",

@@ -82,7 +82,8 @@ var onDemandRow = alertsSchema.onDemandRow;
 // picker carries (Line style, Draw from, the graph scales, Visible values), the metric
 // pickers' derived hint and the two stripe styles the Area fill row reads.
 var forecastLines = require('../forecast-graphs/forecast-lines-schema.js');
-// Where the weather comes from: the note under the Weather picker (Setup › Data sources).
+// Where the weather comes from: the Weather from row and the note under the Weather picker
+// (Setup › Data sources).
 var weatherSources = require('../weather/weather-sources-schema.js');
 var METRIC_HINT_FROM = forecastLines.METRIC_HINT_FROM;
 var STRIPE_STYLES = forecastLines.STRIPE_STYLES;
@@ -2683,7 +2684,7 @@ module.exports = {
             // often the phone asks.
             id: 'dataSources',
             title: 'Data sources',
-            items: [{
+            items: [weatherSources.WEATHER_FROM, {
                 type: 'select',
                 messageKey: 'provider',
                 label: 'Weather',

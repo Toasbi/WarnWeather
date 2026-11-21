@@ -30,6 +30,11 @@ test('feelsFormula joins the signature', () => {
 // tempSlotDisplay changes the phone-side temp-slot bake (formatValue), so per the
 // force-fetch rule it must be part of the signature or switching Temp/Feels like/Both
 // would not show until the next scheduled fetch.
+test('Weather from joins the signature: the source plan asks again', () => {
+  assert.notEqual(renderSignature({ weatherSourceMode: 'one' }), renderSignature({ weatherSourceMode: 'auto' }));
+  assert.equal(renderSignature({ weatherSourceMode: 'auto' }), renderSignature({ weatherSourceMode: 'auto' }));
+});
+
 test('tempSlotDisplay changes the render signature (forces a rebake)', () => {
   const base = renderSignature({});
   assert.notEqual(renderSignature({ tempSlotDisplay: 'feels' }), base);

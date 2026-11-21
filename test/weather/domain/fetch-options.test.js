@@ -10,14 +10,14 @@ const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js'
 const forecastSeries = require('../../../src/pkjs/weather/domain/forecast-series.js');
 
 const KNOBS = ['fetchUv', 'fetchAqi', 'fetchPollen', 'fetchFeels', 'feelsFormula',
-  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours', 'drawn'];
+  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours', 'drawn', 'sourceMode'];
 
 test('DEFAULTS names every knob with its fail-safe default', () => {
   assert.deepEqual(Object.keys(fetchOptions.DEFAULTS).sort(), KNOBS.slice().sort());
   assert.deepEqual(fetchOptions.DEFAULTS, {
     fetchUv: false, fetchAqi: false, fetchPollen: false, fetchFeels: true,
     feelsFormula: 'provider', dayPeakCodes: null, windUnits: 'kph',
-    aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24, drawn: []
+    aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24, drawn: [], sourceMode: 'one'
   });
   assert.ok(Object.isFrozen(fetchOptions.DEFAULTS.drawn), 'one default list, shared by every defaults(), stays empty');
 });
@@ -137,6 +137,14 @@ test('build() returns every knob and a fresh object per call', () => {
   const b = fetchOptions.build({});
   assert.deepEqual(Object.keys(a).sort(), KNOBS.slice().sort());
   assert.notEqual(a, b);
+});
+
+test('build() reads Weather from: By location, else One provider', () => {
+  assert.equal(fetchOptions.build({ weatherSourceMode: 'auto' }).sourceMode, 'auto');
+  ['one', 'reading', undefined, 'x'].forEach((mode) => {
+    assert.equal(fetchOptions.build({ weatherSourceMode: mode }).sourceMode, 'one', String(mode));
+  });
+  assert.equal(fetchOptions.build(null).sourceMode, 'one');
 });
 
 test('build() names the drawn readings (drawn-readings.js), and asks for UV exactly when it is one', () => {

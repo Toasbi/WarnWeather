@@ -214,8 +214,10 @@ function wanted(provider, code) {
 }
 
 /**
- * The feed a metric's series comes from — what its record is keyed by. Null
- * when a feedRequired metric has none (AQI from WAQI): no day max at all.
+ * The feed a metric's series comes from — what its record is keyed by: a fill's
+ * provider (feedField), else the provider whose forecast the fetching one holds
+ * (servedBy: another provider's, By location; fetch-sources.js), else its own.
+ * Null when a feedRequired metric has none (AQI from WAQI): no day max at all.
  *
  * @param {Object} provider The fetching provider.
  * @param {Object} metric A METRICS row.
@@ -224,7 +226,7 @@ function wanted(provider, code) {
 function feedOf(provider, metric) {
     var feed = metric.feedField ? provider[metric.feedField] : null;
     if (metric.feedRequired) { return feed || null; }
-    return feed || provider.id;
+    return feed || provider.servedBy || provider.id;
 }
 
 /**

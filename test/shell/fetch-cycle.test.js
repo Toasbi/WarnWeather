@@ -789,6 +789,23 @@ test('a keyed provider\'s answers are kept by key fingerprint under its id; the 
     assert.equal(store[KEYS.KEY_RESULTS_KEY], undefined);
 });
 
+test('a forecast another provider served (By location) says nothing about the Weather picker\'s key', () => {
+    resetStore();
+    const keyed = makeProvider('openweathermap');
+    keyed.apiKey = 'OWMSECRET_abcdef';
+    const h = makeHarness({ provider: keyed });
+    assert.equal(h.cycle.start(false), true);
+    keyed.fix(52.5, 13.4);
+    keyed.servedBy = 'dwd';
+    keyed.succeed();
+    assert.equal(store[KEYS.KEY_RESULTS_KEY], undefined, 'its key was not asked');
+    assert.equal(h.cycle.start(true), true);
+    keyed.fix(52.5, 13.4);
+    keyed.servedBy = 'openweathermap';
+    keyed.succeed();
+    assert.equal(readJson(KEYS.KEY_RESULTS_KEY).openweathermap.status, 200, 'its own forecast served');
+});
+
 // The owner-approved fix (thermo-js-2 PHONE-3): the auth backoff is the "stop fetching" gate, and a
 // forced fetch (the Force toggle, a location or key change) clears it. It used to be the key's
 // verdict too, so a forced fetch that then failed for another reason (offline, a timeout, no

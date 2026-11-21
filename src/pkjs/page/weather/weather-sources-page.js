@@ -29,14 +29,17 @@
     /**
      * The note under the Weather picker: which readings the watch draws that the picked
      * provider sends none of, and that they come from Open-Meteo. "Sends no", as the page's
-     * other gap sentences say it (forecast-metrics.js gapSentence).
+     * other gap sentences say it (forecast-metrics.js gapSentence). None in By location, whose
+     * provider follows the place the page does not know: the Weather from row's hint says it.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @returns {string} HTML; '' while nothing comes from Open-Meteo
      */
     function fillNote(S, env) {
-        var provider = S && S.provider;
-        if (!Object.prototype.hasOwnProperty.call(NAMES, provider)) { return ''; }
+        if (!S || S.weatherSourceMode === 'auto' || !Object.prototype.hasOwnProperty.call(NAMES, S.provider)) {
+            return '';
+        }
+        var provider = S.provider;
         var drawn = drawnReadings.drawn(S, env || {});
         var filled = sourcePlan.fills(provider, drawn.indexOf('uv') !== -1, drawn);
         if (!filled.length) { return ''; }

@@ -370,6 +370,17 @@ wind direction, cloud cover and air pressure by one request for all four.
 _Avoid_: provider chain, fallback provider (a fallback is what By location tries when a
 provider fails).
 
+**Weather from**:
+Where the forecast comes from (Setup › Data sources, the `weatherSourceMode` setting): One
+provider, the Weather picker's, as before the row; or By location: the place's regional
+provider by the setup wizard's map (DWD in Germany, Met.no in the Nordic countries, from the
+country the reverse geocode names), then the Weather picker's, then Open-Meteo, each only when
+the one before failed and only where it covers the place and has its key
+(`src/pkjs/weather/domain/source-plan.js` candidates). The Weather picker's provider stays the
+fetch's anchor either way; the provider whose forecast it holds is its `servedBy`, which the day
+records follow.
+_Avoid_: source mode, auto mode.
+
 **Drawn reading**:
 A reading only some screens draw that the watch draws now
 (`src/pkjs/weather/domain/drawn-readings.js`): UV, the dew point, the cloud cover and the air

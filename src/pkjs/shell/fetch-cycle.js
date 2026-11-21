@@ -234,7 +234,7 @@ function prepareFetch(provider, settings, watchInfo, env, now) {
     // This fetch's knobs (UV/AQI/pollen requests, feels work + formula, day-max codes, units,
     // the WAQI token) as one value — set before any request is built.
     provider.options = fetchOptions.build(settings, watchInfo, { waqiToken: env.waqiToken });
-    return sourcePorts.create(now, refreshSlot.updateIntervalMs(settings));
+    return sourcePorts.create(now, refreshSlot.updateIntervalMs(settings), settings, provider.options);
 }
 
 /**
@@ -574,8 +574,11 @@ function createFetchCycle(deps) {
             // Success: record the fetch time and reset the attempt counter.
             localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
             // A keyed provider served the key this fetch carried: the settings page's key
-            // status (key-result.js; a keyless provider records nothing).
-            keyResultsStore.record(provider.id, provider.apiKey, 200);
+            // status (key-result.js; a keyless provider records nothing). Only when its own
+            // forecast served: By location may not have asked it.
+            if (!provider.servedBy || provider.servedBy === provider.id) {
+                keyResultsStore.record(provider.id, provider.apiKey, 200);
+            }
             resetFetchAttemptCounter();
             // The payload reached the watch (ACK, or unchanged since the last ACK):
             // only now is its IS_SLEEPING the watch's state.

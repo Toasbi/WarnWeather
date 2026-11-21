@@ -1,11 +1,13 @@
 // src/pkjs/weather/application/fetch-sources.js — ES5, watch runtime.
 //
-// One fetch's weather sources: the source plan's steps (weather/domain/source-plan.js), run in
-// order onto the Weather picker's provider (the anchor, the instance the rest of the fetch
-// chain reads: provider.js fetchWithCoordinates). Each step reuses its source's forecast
+// One fetch's weather sources: the source plan's steps (weather/domain/source-plan.js), onto
+// the Weather picker's provider (the anchor, the instance the rest of the fetch chain reads:
+// provider.js fetchWithCoordinates). The forecast comes from the first of the forecast step's
+// providers that serves it: the anchor's own answer, or another provider's put on the anchor
+// (By location). Then come the fills for that provider. Each step reuses its source's forecast
 // snapshot when one serves (weather/domain/forecast-snapshot.js), else asks the source and
-// keeps a valid answer. A required step that fails fails the fetch; any other leaves its
-// reading empty, as a reading a provider does not send is everywhere.
+// keeps a valid answer. A forecast no provider serves fails the fetch; a fill that fails leaves
+// its reading empty, as a reading a provider does not send is everywhere.
 //
 // The steps run through the source ports (weather/adapter/source-ports.js create, which the
 // fetch cycle hands the provider: shell/fetch-cycle.js prepareFetch), so this file touches no
@@ -14,6 +16,7 @@
 var sourcePlan = require('../domain/source-plan.js');
 var forecastSnapshot = require('../domain/forecast-snapshot.js');
 var providerReadings = require('../domain/provider-readings.js');
+var forecastModel = require('../domain/forecast-model.js');
 
 /**
  * A failure value, in the shape every fetch stage reports (weather/adapter/http.js failure).
@@ -55,18 +58,19 @@ function holdsHours(anchor, id) {
 var ASKS = {
     forecast: {
         /**
-         * The anchor's own request.
+         * A provider's own request.
          * @param {Object} ports The source ports.
          * @param {Object} step The plan step.
-         * @param {Object} anchor The Weather picker's provider.
+         * @param {Object} provider The provider asked: the anchor, or another provider's
+         *   instance (By location).
          * @param {number} lat Latitude.
          * @param {number} lon Longitude.
          * @param {boolean} force Whether this is a forced refresh.
          * @param {function(?Object): void} done Receives a failure value or null.
          * @returns {void}
          */
-        run: function (ports, step, anchor, lat, lon, force, done) {
-            anchor.withProviderData(lat, lon, force, function () {
+        run: function (ports, step, provider, lat, lon, force, done) {
+            provider.withProviderData(lat, lon, force, function () {
                 done(null);
             }, function (providerFailure) {
                 done(providerFailure || failure('unknown_error'));
@@ -162,20 +166,41 @@ function storeOf(ports) {
 }
 
 /**
+ * Put another provider's forecast on the anchor, as adoptMapped would: every field its answer
+ * adopted (one it lacks is deleted, so hasValidData judges the anchor as it would the
+ * provider), and a failure it recovered from, which telemetry reports once (provider.js
+ * recoveredFailure).
+ * @param {Object} anchor The Weather picker's provider.
+ * @param {Object} source The provider that answered.
+ * @returns {void}
+ */
+function adopt(anchor, source) {
+    forecastModel.ADOPTED_KEYS.forEach(function (key) {
+        if (Object.prototype.hasOwnProperty.call(source, key)) { anchor[key] = source[key]; }
+        else { delete anchor[key]; }
+    });
+    if (source.recoveredFailure && !anchor.recoveredFailure) { anchor.recoveredFailure = source.recoveredFailure; }
+}
+
+/**
  * One plan step: its source's snapshot when one serves, else the source's own answer, kept.
+ * What the step brings lands on the anchor. A forecast is asked of `source`, the instance of
+ * the provider that answers (the anchor itself while it is the Weather picker's), and put on
+ * the anchor (adopt); a fill is asked onto the anchor.
  * @param {Object} store storeOf().
  * @param {Object} ports The source ports.
  * @param {{provider: string, ask: string, readings: (string[]|undefined)}} step The plan step.
  * @param {Object} anchor The Weather picker's provider.
+ * @param {Object} source The provider asked: the anchor, or another provider's instance.
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
  * @param {boolean} force Whether this is a forced refresh.
  * @param {function(?Object): void} done Receives a failure value or null.
  * @returns {void}
  */
-function runStep(store, ports, step, anchor, lat, lon, force, done) {
+function runStep(store, ports, step, anchor, source, lat, lon, force, done) {
     var ask = ASKS[step.ask];
-    var query = forecastSnapshot.queryOf(step, anchor, lat, lon);
+    var query = forecastSnapshot.queryOf(step, source, lat, lon);
     var fields = forecastSnapshot.reuse(store.entries, query, ports.now(), ports.refreshMs, anchor);
     if (fields) {
         Object.assign(anchor, fields);
@@ -186,7 +211,8 @@ function runStep(store, ports, step, anchor, lat, lon, force, done) {
             return;
         }
     }
-    ask.run(ports, step, anchor, lat, lon, force, function (stepFailure) {
+    ask.run(ports, step, source, lat, lon, force, function (stepFailure) {
+        if (!stepFailure && source !== anchor) { adopt(anchor, source); }
         var outcome = stepFailure || (ask.holds(anchor, step) ? null : failure(ask.empty));
         if (!outcome && query) { store.keep(forecastSnapshot.snapshotOf(query, anchor, ports.now())); }
         done(outcome);
@@ -194,48 +220,114 @@ function runStep(store, ports, step, anchor, lat, lon, force, done) {
 }
 
 /**
- * Run the plan's steps for the anchor, from snapshots where they serve.
- *
- * @param {Object} anchor The Weather picker's provider (provider.js), its options set for
- *   this fetch.
- * @param {{fillUv: function(Object, number, number, Function): void,
- *   fillReadings: function(Object, number, number, string[], Function): void, now: function(): number,
- *   refreshMs: number, snapshots: {load: function(): {entries: Object[], drops: number},
- *   save: function({entries: Object[], drops: number}): void}}} ports The source ports.
+ * The forecast step: its providers in turn until one serves. A fetch a later provider saved
+ * keeps the first failure as the anchor's recovered one (reported to telemetry once, never a
+ * notice: shell/fetch-cycle.js); when every provider fails, the last one's failure fails the
+ * fetch.
+ * @param {Object} store storeOf().
+ * @param {Object} ports The source ports (providerFor: another provider's instance).
+ * @param {{ask: string, providers: string[]}} step sourcePlan.forecastStep().
+ * @param {Object} anchor The Weather picker's provider.
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
- * @param {boolean} force Whether this is a forced refresh (the anchor's withProviderData).
- * @param {Function} onSuccess Called once every step has run: the anchor holds a valid forecast.
- * @param {Function} onFailure Called with a required step's failure.
+ * @param {boolean} force Whether this is a forced refresh.
+ * @param {function(string): void} onServed Receives the provider that served.
+ * @param {function(Object): void} onFailure Receives the last provider's failure.
  * @returns {void}
  */
-function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
-    var steps = sourcePlan.plan({ provider: anchor.id, fetchUv: Boolean(anchor.options.fetchUv),
-        drawn: anchor.options.drawn || [] }).steps;
-    var store = storeOf(ports);
-    // The UV day record is kept per feed (day-peaks.js feedOf): the anchor's own unless a fill
-    // brings its UV.
-    anchor.uvFeedId = null;
+function runForecast(store, ports, step, anchor, lat, lon, force, onServed, onFailure) {
+    var firstFailure = null;
     /**
-     * Run step i, then the ones after it.
-     * @param {number} i The step's index.
+     * Ask provider i, then the next while it fails.
+     * @param {number} i Its index in step.providers.
+     * @returns {void}
+     */
+    function attempt(i) {
+        var id = step.providers[i];
+        var source = id === anchor.id ? anchor : ports.providerFor(id);
+        runStep(store, ports, { provider: id, ask: step.ask }, anchor, source, lat, lon, force, function (stepFailure) {
+            if (!stepFailure) {
+                if (firstFailure && !anchor.recoveredFailure) { anchor.recoveredFailure = firstFailure; }
+                onServed(id);
+                return;
+            }
+            firstFailure = firstFailure || stepFailure;
+            if (i + 1 < step.providers.length) {
+                attempt(i + 1);
+                return;
+            }
+            onFailure(stepFailure);
+        });
+    }
+    attempt(0);
+}
+
+/**
+ * The fills, in order. A fill that fails leaves its reading empty, as a reading a provider
+ * does not send is everywhere; one that brings it names its provider as the reading's feed
+ * where it has one (feedField).
+ * @param {Object} store storeOf().
+ * @param {Object} ports The source ports.
+ * @param {Object[]} steps sourcePlan.fillSteps().
+ * @param {Object} anchor The Weather picker's provider.
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {boolean} force Whether this is a forced refresh.
+ * @param {Function} onDone Called once every fill has run.
+ * @returns {void}
+ */
+function runFills(store, ports, steps, anchor, lat, lon, force, onDone) {
+    /**
+     * Run fill i, then the ones after it.
+     * @param {number} i The fill's index.
      * @returns {void}
      */
     function next(i) {
         if (i === steps.length) {
-            onSuccess();
+            onDone();
             return;
         }
-        runStep(store, ports, steps[i], anchor, lat, lon, force, function (stepFailure) {
-            if (stepFailure && steps[i].required) {
-                onFailure(stepFailure);
-                return;
-            }
+        runStep(store, ports, steps[i], anchor, anchor, lat, lon, force, function (stepFailure) {
             if (!stepFailure && steps[i].feedField) { anchor[steps[i].feedField] = steps[i].provider; }
             next(i + 1);
         });
     }
     next(0);
+}
+
+/**
+ * Run the plan's steps for the anchor, from snapshots where they serve: the forecast from the
+ * first provider that serves it, then the fills for that provider.
+ *
+ * @param {Object} anchor The Weather picker's provider (provider.js), its options set for
+ *   this fetch and its countryCode for this place.
+ * @param {{fillUv: function(Object, number, number, Function): void,
+ *   fillReadings: function(Object, number, number, string[], Function): void,
+ *   providerFor: function(string): Object, keyed: string[], now: function(): number,
+ *   refreshMs: number, snapshots: {load: function(): {entries: Object[], drops: number},
+ *   save: function({entries: Object[], drops: number}): void}}} ports The source ports.
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {boolean} force Whether this is a forced refresh (withProviderData).
+ * @param {Function} onSuccess Called once every step has run: the anchor holds a valid forecast,
+ *   and servedBy names the provider whose forecast it is.
+ * @param {Function} onFailure Called with the forecast's failure.
+ * @returns {void}
+ */
+function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
+    var options = anchor.options;
+    var store = storeOf(ports);
+    // The day records are kept per feed (day-peaks.js feedOf): the provider that served the
+    // forecast, and for the UV the fill's provider when one brings it.
+    anchor.uvFeedId = null;
+    anchor.servedBy = null;
+    var forecast = sourcePlan.forecastStep({ mode: options.sourceMode, provider: anchor.id,
+        country: anchor.countryCode || null, lat: Number(lat), lon: Number(lon), keyed: ports.keyed });
+    runForecast(store, ports, forecast, anchor, lat, lon, force, function (served) {
+        anchor.servedBy = served;
+        runFills(store, ports, sourcePlan.fillSteps(served, Boolean(options.fetchUv), options.drawn || []),
+            anchor, lat, lon, force, onSuccess);
+    }, onFailure);
 }
 
 module.exports = { fetchSources: fetchSources };

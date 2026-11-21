@@ -294,6 +294,9 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         dateSlotFullFormat: safe.dateSlotFullFormat,
         aqiScale: safe.aqiScale,
         aqiSource: safe.aqiSource,
+        // Weather from ('one' | 'auto'), raw like aqiSource: an absent key reads as the
+        // default, One provider.
+        weatherSourceMode: safe.weatherSourceMode,
         windUnits: safe.windUnits,
         distanceUnits: safe.distanceUnits,
         gustSlotDirection: Boolean(safe.gustSlotDirection),

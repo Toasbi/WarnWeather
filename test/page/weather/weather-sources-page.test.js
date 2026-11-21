@@ -47,6 +47,24 @@ test('no note while nothing comes from Open-Meteo', () => {
   assert.equal(page.fillNote(null, BASALT), '');
 });
 
+test('By location names no reading: the page does not know the place, and the row\'s hint says it', () => {
+  assert.equal(note({ provider: 'yandex', secondaryLine: 'cloud', weatherSourceMode: 'auto' }), '');
+  assert.equal(note({ provider: 'yandex', secondaryLine: 'cloud', weatherSourceMode: 'one' }),
+    'Yandex Weather sends no cloud cover, so it comes from Open-Meteo.');
+});
+
+test('the Weather from row opens the section: One provider by default, a hint for By location alone', () => {
+  const card = schema.tabs.find((t) => t.id === 'setup').sections.find((s) => s.id === 'dataSources');
+  const row = card.items[0];
+  assert.equal(row.messageKey, 'weatherSourceMode');
+  assert.equal(card.items[1].messageKey, 'provider', 'right above the Weather picker');
+  assert.equal(row.type, 'segmented');
+  assert.equal(row.defaultValue, 'one');
+  assert.deepEqual(row.options, [['One provider', 'one'], ['By location', 'auto']]);
+  assert.deepEqual(Object.keys(row.hintByValue), ['auto']);
+  assert.match(row.hintByValue.auto, /DWD in Germany, Met\.no in the Nordic countries/);
+});
+
 test('every provider and reading has its words', () => {
   providerFactory.PROVIDER_IDS.forEach((id) => { assert.ok(page.NAMES[id], id); });
   providerReadings.READING_IDS.forEach((id) => { assert.ok(page.WORDS[id], id); });

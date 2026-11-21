@@ -32,8 +32,9 @@ function forecastOf(p) {
  * of a 15-minute update interval.
  * @param {string} id A provider id.
  * @param {Array<{at: (number|undefined), options: (Object|undefined), keys: (Object|undefined),
- *   lat: (number|undefined), before: (function(Object, Function): void|undefined)}>} fetches
- *   When (ms after the world's now) and with what; before(p, mod) runs on the instance first.
+ *   lat: (number|undefined), country: (string|undefined), before: (function(Object, Function): void|undefined)}>}
+ *   fetches When (ms after the world's now) and with what (the country the place's reverse
+ *   geocode found); before(p, mod) runs on the instance first.
  * @param {{reuse: boolean, answers: function(string): boolean}} [opts] One instance for every
  *   fetch (a scheduled refresh); which requests the services answer.
  * @returns {Array<{p: Object, outcome: string, failure: ?Object, requests: string[], forecast: string}>}
@@ -47,11 +48,13 @@ function fetchesOf(id, fetches, opts) {
     return fetches.map((f) => {
       setNow(world.NOW_MS + (f.at || 0));
       const from = requests.length;
+      const settings = Object.assign({}, world.KEYS, f.keys);
       if (!p || !o.reuse) {
-        p = mod('weather/adapter/provider-factory.js').createProvider(id, Object.assign({}, world.KEYS, f.keys));
+        p = mod('weather/adapter/provider-factory.js').createProvider(id, settings);
       }
       p.options = mod('weather/domain/fetch-options.js').defaults(Object.assign({ fetchUv: true, dayPeakCodes: [] }, f.options));
-      const ports = mod('weather/adapter/source-ports.js').create(() => Date.now(), QUARTER);
+      p.countryCode = f.country || null;
+      const ports = mod('weather/adapter/source-ports.js').create(() => Date.now(), QUARTER, settings, p.options);
       if (f.before) { f.before(p, mod); }
       const run = { p: p, outcome: 'pending', failure: null };
       mod('weather/application/fetch-sources.js').fetchSources(p, ports, f.lat || world.PLACE.lat, world.PLACE.lon,
@@ -380,4 +383,92 @@ test('a gap fill that brings nothing leaves its readings empty, whatever the anc
     { answers: (url) => url.indexOf('hourly=dew_point_2m') === -1 });
   assert.equal(outcome, 'ok');
   assert.deepEqual([p.dewTrend, p.cloudTrend], [[], []]);
+});
+
+// --- By location ----------------------------------------------------------------------------
+
+const BY_LOCATION = { sourceMode: 'auto' };
+const DWD_HOSTS = ['https://api.brightsky.dev/weather', 'https://api.brightsky.dev/current_weather'];
+
+test('By location in Germany: DWD\'s forecast on the Weather picker\'s provider, then the fills for DWD', () => {
+  const [{ p, outcome, requests, forecast }] = fetchesOf('openweathermap', [{ options: BY_LOCATION, country: 'DE' }]);
+  assert.equal(outcome, 'ok');
+  assert.deepEqual(requests.map(endpoint), DWD_HOSTS.concat(['https://api.open-meteo.com/v1/forecast']),
+    'DWD\'s two, then its UV fill: OpenWeatherMap is not asked');
+  assert.equal(p.id, 'openweathermap', 'the anchor stays the Weather picker\'s');
+  assert.equal(p.servedBy, 'dwd');
+  assert.equal(p.uvFeedId, 'openmeteo');
+  assert.equal(forecast, fetchesOf('dwd', [{}])[0].forecast, 'DWD\'s forecast, field for field');
+});
+
+test('By location: a provider that fails hands over to the next; its failure is recovered', () => {
+  const [{ p, outcome, requests }] = fetchesOf('openweathermap', [{ options: BY_LOCATION, country: 'DE' }],
+    { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
+  assert.equal(outcome, 'ok');
+  assert.equal(p.servedBy, 'openweathermap');
+  assert.deepEqual(p.recoveredFailure, { stage: 'provider_data', code: 'dwd_forecast_status_503' }, 'DWD\'s, the first');
+  assert.ok(requests.some((r) => r.indexOf('api.openweathermap.org') !== -1));
+  const [last] = fetchesOf('openweathermap', [{ options: BY_LOCATION, country: 'DE' }],
+    { answers: (url) => url.indexOf('api.brightsky.dev') === -1 && url.indexOf('api.openweathermap.org') === -1 });
+  assert.equal(last.p.servedBy, 'openmeteo', 'Open-Meteo last');
+});
+
+test('By location: when every provider fails, the last one\'s failure fails the fetch', () => {
+  const [{ outcome, failure, requests }] = fetchesOf('openweathermap', [{ options: BY_LOCATION, country: 'DE' }],
+    { answers: () => false });
+  assert.equal(outcome, 'failed');
+  assert.equal(failure.code, 'openmeteo_status_503');
+  assert.deepEqual(requests.map((r) => new URL(r.split(' ')[1]).host),
+    ['api.brightsky.dev', 'api.openweathermap.org', 'api.open-meteo.com'], 'each once, in order');
+});
+
+test('By location skips a keyed Weather picker without its key, and asks the Weather picker without a country', () => {
+  const [noKey] = fetchesOf('openweathermap', [{ options: BY_LOCATION, country: 'DE', keys: { owmApiKey: '' } }],
+    { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
+  assert.equal(noKey.p.servedBy, 'openmeteo');
+  assert.ok(noKey.requests.every((r) => r.indexOf('api.openweathermap.org') === -1));
+  const [noCountry] = fetchesOf('openweathermap', [{ options: BY_LOCATION }]);
+  assert.equal(noCountry.p.servedBy, 'openweathermap');
+  const [one] = fetchesOf('openweathermap', [{ country: 'DE' }]);
+  assert.equal(one.p.servedBy, 'openweathermap', 'One provider stays with the Weather picker');
+});
+
+test('By location: the regional provider\'s snapshot serves the next fetch in the slot', () => {
+  const both = { options: BY_LOCATION, country: 'DE' };
+  const [first, second] = fetchesOf('openweathermap', [both, Object.assign({ at: 5 * MIN }, both)]);
+  assert.deepEqual(second.requests, []);
+  assert.equal(second.forecast, first.forecast);
+  assert.equal(second.p.servedBy, 'dwd');
+});
+
+test('another provider\'s answer replaces every field of the anchor: one it lacks is gone, never left from before', () => {
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
+  const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
+  const { testPorts } = require('../../helpers/source-ports.js');
+  const hours = (v) => new Array(24).fill(v);
+  /**
+   * A provider whose answer is a day of hours, with or without the temperature now.
+   * @param {string} id Its id.
+   * @param {boolean} withNow Whether its answer holds currentTemp.
+   * @returns {Object}
+   */
+  const answering = (id, withNow) => Object.assign(new WeatherProvider(), { id: id,
+    withProviderData(lat, lon, force, ok) {
+      Object.assign(this, { tempTrend: hours(60), precipTrend: hours(0), startTime: 3600 });
+      if (withNow) { this.currentTemp = 61; } else { delete this.currentTemp; }
+      ok();
+    } });
+  // The anchor holds the last fetch's forecast, the temperature now among it, and fails now.
+  const anchor = Object.assign(new WeatherProvider(), { id: 'openweathermap', countryCode: 'DE', currentTemp: 99,
+    tempTrend: hours(1), precipTrend: hours(1), startTime: 1,
+    withProviderData(lat, lon, force, ok, fail) { fail({ stage: 'provider_data', code: 'owm_status_503' }); } });
+  anchor.options = fetchOptions.defaults({ sourceMode: 'auto', fetchUv: false });
+  const ports = Object.assign(testPorts(), { keyed: ['openweathermap'],
+    providerFor: (id) => Object.assign(answering(id, id !== 'dwd'), { options: anchor.options }) });
+  let outcome = null;
+  require('../../../src/pkjs/weather/application/fetch-sources.js').fetchSources(anchor, ports, 52.52, 13.405, false,
+    () => { outcome = 'ok'; }, (f) => { outcome = f; });
+  assert.equal(outcome, 'ok');
+  assert.equal(anchor.servedBy, 'openmeteo', 'DWD\'s answer without the temperature now is none');
+  assert.equal(anchor.currentTemp, 61, 'Open-Meteo\'s, not the last fetch\'s');
 });
