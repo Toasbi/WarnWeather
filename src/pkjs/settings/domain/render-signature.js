@@ -104,7 +104,8 @@ function mergedSlots(settings, env) {
 
 /**
  * Sign slot selections: each slot's code, then its countdown date while it shows the
- * countdown, '' otherwise (renderSignature says why).
+ * countdown and its phone battery's Look while it shows the phone battery, '' otherwise
+ * (renderSignature says why).
  * @param {Array} parts The signature's parts; pushed to.
  * @param {Object} settings Clay settings.
  * @param {string[]} keys Slot settings keys.
@@ -112,7 +113,8 @@ function mergedSlots(settings, env) {
  */
 function signSlots(parts, settings, keys) {
     keys.forEach(function (slotKey) {
-        parts.push(settings[slotKey], settings[slotKey] === 'countdown' ? settings[slotKey + 'Countdown'] : '');
+        parts.push(settings[slotKey], settings[slotKey] === 'countdown' ? settings[slotKey + 'Countdown'] : '',
+            settings[slotKey] === 'phoneBattery' ? settings[statusCatalog.phoneBatteryLookKey(slotKey)] : '');
     });
 }
 
@@ -203,9 +205,10 @@ function renderSignature(settings, watchInfo) {
     for (var d = 0; d < dayMaxKeys.length; d++) {
         parts.push(settings[dayMaxKeys[d]]);
     }
-    // ...the two battery slots' looks, and what the watch battery's text shows and how its
-    // pair reads (the kind, the icon and the days left are baked into the line; the
-    // percentage is the watch's own), from the catalog's list for the same reason...
+    // ...the watch battery's Look, and what its text shows and how its pair reads (the kind
+    // and the days left are baked into the line; the percentage is the watch's own), from
+    // the catalog's list for the same reason. The phone battery's Look is each slot's own
+    // and signed with the slot (signSlots)...
     var batteryKeys = statusCatalog.batterySettingKeys();
     for (var b = 0; b < batteryKeys.length; b++) {
         parts.push(settings[batteryKeys[b]]);
@@ -213,7 +216,8 @@ function renderSignature(settings, watchInfo) {
     // ...and the slot selections of every line the bake sends (catalog bakedLines: the
     // Watch bar's and each bar a screen shows), each line's id and then its slots, each
     // slot followed by its countdown target date (status-lines.js bakes the day count
-    // from '<slot>Countdown') — but only while that slot shows the countdown. The page
+    // from '<slot>Countdown') — but only while that slot shows the countdown — and its
+    // phone battery's Look (baked into the slot's icon), only while it shows that. The page
     // hydrates every slot's date to today whether it is used or not, so signing the
     // inert ones would force a needless fetch on the first save that writes them. The ''
     // keeps the position fixed, so no two keys can ever share a signature slot. A bar a

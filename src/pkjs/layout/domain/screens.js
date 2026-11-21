@@ -695,7 +695,9 @@
     S[barNameKey(bar)] = taken.indexOf(own) === -1 ? '' : freeName(taken, own);
     catalog.lineById(bar).slots.forEach(function (key) {
       S[key] = catalog.slotDefault(key, env);
-      if (S[key + 'Countdown'] !== undefined) { S[key + 'Countdown'] = undefined; }
+      catalog.slotCompanionKeys(key).forEach(function (companion) {
+        if (S[companion] !== undefined) { S[companion] = undefined; }
+      });
     });
     onDemand.SIDES.forEach(function (side) { S[onDemand.itemsKey(bar, side)] = ''; });
     return bar;
@@ -731,8 +733,11 @@
     write(barNameKey(bar), '');
     catalog.lineById(bar).slots.forEach(function (key) {
       write(key, catalog.slotDefault(key));
-      // A date only a countdown slot reads; gone, the date row starts on today again.
-      if (S[key + 'Countdown'] !== undefined) { write(key + 'Countdown', undefined); }
+      // What only the slot's item reads (a countdown's date, the phone battery's Look); gone,
+      // the date row starts on today again and the Look on its default.
+      catalog.slotCompanionKeys(key).forEach(function (companion) {
+        if (S[companion] !== undefined) { write(companion, undefined); }
+      });
     });
     onDemand.SIDES.forEach(function (side) { write(onDemand.itemsKey(bar, side), ''); });
     redone.forEach(function (keys) {

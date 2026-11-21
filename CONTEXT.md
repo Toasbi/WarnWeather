@@ -191,11 +191,13 @@ when it lands in another bucket (`phone-battery.js` readShown). The reading come
 app's Phone plugin, or from the Android WebView's battery API where the app has no plugins.
 
 **Look (battery slots)**:
-How a battery slot draws, set in its dialog for the item, not per slot (`slot-text.js`
+How a battery slot draws, set on the row under the slot that holds it (`slot-text.js`
 batteryLook, phoneBatteryLook). The Watch battery is the battery the watch draws (Icon) or
 its charge as text (Text); the Phone battery is the phone's icon before its charge, or the
-charge alone. One slot item each: the bake picks the wire kind or the icon id by the Look
-(`status-lines.js` packLine, iconFor).
+charge alone. The Phone battery's Look is each slot's own setting, like a countdown's date,
+so two slots can differ; the Watch battery sits in one slot, so its Look is the item's. One
+slot item each: the bake picks the wire kind or the icon id by the Look (`status-lines.js`
+packLine, iconFor).
 _Avoid_: battery percentage slot, phone battery (no icon), which were items of their own
 until 3.3.0.
 

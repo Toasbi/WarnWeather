@@ -286,7 +286,7 @@
     }
 
     /**
-     * The watch battery slot's Look (its dialog's batterySlotLook): 'icon', the battery the
+     * The watch battery's Look (batterySlotLook, the row under its slot): 'icon', the battery the
      * watch draws (the default, and what anything unknown reads as), or 'text', its charge in
      * words (battery-days.js). Always 'icon' on aplite, whose lean row has the one battery
      * slot and prints it its own way.
@@ -300,14 +300,15 @@
     }
 
     /**
-     * The phone battery slot's Look (its dialog's phoneBatterySlotLook): 'both', the phone's
-     * icon before the charge (the default, and what anything unknown reads as), or 'text',
-     * the charge alone.
+     * The phone battery's Look in one slot (the slot's own setting, catalog
+     * phoneBatteryLookKey): 'both', the phone's icon before the charge (the default, and
+     * what anything unknown reads as), or 'text', the charge alone.
      * @param {Object} settings Settings.
+     * @param {string} slotKey The slot's settings key, e.g. 'statusForecastLeft'.
      * @returns {string} 'both' or 'text'
      */
-    function phoneBatteryLook(settings) {
-        return settings && settings.phoneBatterySlotLook === 'text' ? 'text' : 'both';
+    function phoneBatteryLook(settings, slotKey) {
+        return settings && settings[catalog.phoneBatteryLookKey(slotKey)] === 'text' ? 'text' : 'both';
     }
 
     /**

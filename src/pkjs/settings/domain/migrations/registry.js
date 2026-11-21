@@ -144,9 +144,9 @@ module.exports = [
     { key: KEYS.CITY_SLOT_ICON_MIGRATION_KEY, markOn: 'now', markOnReset: true,
       run: statusSlots.migrateCitySlotIconOn },
     // 3.3.0: each battery's two slot items are one with a Look. A slot holding an old item
-    // ('batteryPct', 'phoneBatteryPlain') takes the merged one in its Text look. Asks for
-    // no send: the line bakes as it did. Reset-safe: no blob saved after a reset can hold
-    // an old item, since the page no longer offers one.
+    // ('batteryPct', 'phoneBatteryPlain') takes the merged one in its Text look, the phone
+    // battery's per slot. Asks for no send: the line bakes as it did. Reset-safe: no blob
+    // saved after a reset can hold an old item, since the page no longer offers one.
     { key: KEYS.BATTERY_SLOTS_MERGE_MIGRATION_KEY, markOn: 'now', markOnReset: true,
       run: statusSlots.mergeBatterySlots }
 ];

@@ -124,15 +124,19 @@ const EXPECTED_KEYS = [
   // countdown dates (its side lists are on-demand.js DEFAULTS', ALERT_KEYS).
   ...['statusBar4', 'statusBar5', 'statusBar6'].reduce((all, p) => all.concat([p + 'Made', p + 'Name',
     p + 'Left', p + 'LeftCountdown', p + 'Mid', p + 'MidCountdown', p + 'Right', p + 'RightCountdown']), []),
+  // Every slot's phone battery Look, the slot's own like its countdown date (the row under
+  // the slot while it holds the phone battery).
+  ...['statusForecast', 'statusRadar', 'statusTop', 'statusHealth', 'statusBar4', 'statusBar5', 'statusBar6']
+    .reduce((all, p) => all.concat(['Left', 'Mid', 'Right'].map((slot) => p + slot + 'PhoneBatteryLook')), []),
   'statusBoldAll',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
   'statusTopLeft','statusTopLeftCountdown','statusTopMid','statusTopMidCountdown','statusTopRight','statusTopRightCountdown',
   'batteryLowOnly','statusHealthLeft','statusHealthLeftCountdown','statusHealthMid','statusHealthMidCountdown','statusHealthRight','statusHealthRightCountdown',
-  // The two battery slots' Look rows, and what the watch battery's text shows (the
+  // The watch battery's Look (the row under its slot), and what its text shows (the
   // percentage, the days left or both, and the pair's look: battery-days.js).
   'batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
-  'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced', 'phoneBatterySlotLook'
+  'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced'
 ].concat(THRESH_KEYS).concat(UNIT_KEYS).concat(GRAPH_COLOR_KEYS).concat(ALERT_KEYS);
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
@@ -2110,7 +2114,11 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
   const alertsIdx = wsb.findIndex((i) => i.type === 'button' && i.label === 'Alerts');
   const battIdx = wsb.findIndex((i) => i.messageKey === 'batteryLowOnly');
   assert.equal(countdownIdx, rightIdx + 1, 'top-right countdown date follows its slot');
-  assert.equal(alertsIdx, countdownIdx + 1, 'the Alerts row follows the slots');
+  // Then the slot's two Look rows: its phone battery's, and the watch battery's, which
+  // sits in this slot alone.
+  assert.deepEqual(wsb.slice(countdownIdx + 1, alertsIdx).map((i) => i.messageKey),
+    ['statusTopRightPhoneBatteryLook', 'batterySlotLook'], 'the slot\'s Look rows follow its date');
+  assert.equal(alertsIdx, countdownIdx + 3, 'the Alerts row follows the slots and their rows');
   assert.deepEqual(wsb[alertsIdx + 1], { type: 'subheader', text: 'Icons and vibration', showWhen: { not: ON_DEMAND_WHEN } },
     'then aplite\'s card of its own');
   assert.equal(battIdx, alertsIdx + 2, 'aplite\'s battery toggle leads it');
@@ -2538,7 +2546,7 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
 // d22581f/0a05a7a), but both KINDS entries carry key 'PhoneBattery', so the packer
 // writes the one mode into both cells. If someone ever splits them into two keys, this
 // test is what says the sheet list has to grow with them.
-test('the Phone battery sheet exists once and the phone-battery slot code resolves to it in both looks', () => {
+test('the Phone battery sheet exists once and the phone battery resolves to it in both looks', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const sheets = watch.sections.filter((s) => s.sheetId === 'threshPhoneBattery');
   assert.equal(sheets.length, 1, 'exactly one Phone battery sheet, shared by both kinds');
@@ -2547,14 +2555,11 @@ test('the Phone battery sheet exists once and the phone-battery slot code resolv
   assert.equal(sheet.sheetOnly, true, 'opened from a slot pencil, never rendered as a card');
   assert.deepEqual(sheet.showWhen, { env: 'thresholds' },
     'aplite compiles the highlight machinery out, so the sheet must not exist there');
-  // The Look, then Bold: no thresholds, no levels, no other rows.
-  assert.deepEqual(sheet.items.map((i) => i.messageKey), ['phoneBatterySlotLook', 'threshPhoneBatteryBoldMode'],
-    'the Look row and one Bold row — the slot has no levels to threshold');
-  const look = sheet.items[0];
-  assert.equal(look.type, 'segmented');
-  assert.equal(look.defaultValue, 'both');
-  assert.deepEqual(look.options, [['Icon + text', 'both'], ['Text', 'text']]);
-  const bold = sheet.items[1];
+  // Bold alone: no thresholds, no levels, no other rows. (The Look is each slot's own, a
+  // row under the slot: test/page/status-bars/battery-slots.test.js.)
+  assert.deepEqual(sheet.items.map((i) => i.messageKey), ['threshPhoneBatteryBoldMode'],
+    'one Bold row — the slot has no levels to threshold');
+  const bold = sheet.items[0];
   assert.equal(bold.type, 'segmented');
   assert.equal(bold.defaultValue, 'off');
   assert.deepEqual(bold.options, [['Off', 'off'], ['Always', 'always']]);
@@ -2566,7 +2571,7 @@ test('the Phone battery sheet exists once and the phone-battery slot code resolv
   assert.ok(resolve, 'blocks.js registered statusSlotEditSheet');
   ['both', 'text'].forEach((look) => {
     assert.equal(
-      resolve({ statusForecastLeft: 'phoneBattery', phoneBatterySlotLook: look }, { thresholds: true },
+      resolve({ statusForecastLeft: 'phoneBattery', statusForecastLeftPhoneBatteryLook: look }, { thresholds: true },
         { messageKey: 'statusForecastLeft' }),
       'threshPhoneBattery', look + ' look opens the Phone battery sheet');
   });

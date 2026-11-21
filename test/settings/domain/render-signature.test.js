@@ -65,15 +65,14 @@ test('the temp pair separator, its custom text, the spacing and the order change
     renderSignature({ tempSlotOrder: 'actual' }));
 });
 
-// The two battery slots' looks are baked into the line (the watch battery's kind, the phone
-// battery's icon id), and so is what the watch battery's text carries: the days left and the
-// pair's order, separator and spacing. Each of the catalog's battery keys forces the rebake.
-test('the battery slots\' looks and the watch battery\'s text rows change the render signature', () => {
+// The watch battery's Look is baked into the line (its kind), and so is what its text
+// carries: the days left and the pair's order, separator and spacing. Each of the catalog's
+// battery keys forces the rebake.
+test('the watch battery\'s Look and its text rows change the render signature', () => {
   const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
   const base = renderSignature({});
   const changed = { batterySlotLook: 'text', batterySlotDisplay: 'both', batterySlotOrder: 'days',
-    batterySlotSeparator: 'brackets', batterySlotSeparatorCustom: '~', batterySlotSeparatorSpaced: true,
-    phoneBatterySlotLook: 'text' };
+    batterySlotSeparator: 'brackets', batterySlotSeparatorCustom: '~', batterySlotSeparatorSpaced: true };
   assert.deepEqual(Object.keys(changed).sort(), catalog.batterySettingKeys().slice().sort(),
     'every battery key the catalog lists is walked below');
   Object.keys(changed).forEach((key) => {
@@ -84,6 +83,22 @@ test('the battery slots\' looks and the watch battery\'s text rows change the re
   assert.notEqual(renderSignature({ batterySlotDisplay: 'days' }), renderSignature({ batterySlotDisplay: 'both' }));
   assert.notEqual(renderSignature({ batterySlotSeparator: 'custom', batterySlotSeparatorCustom: '-' }),
     renderSignature({ batterySlotSeparator: 'custom', batterySlotSeparatorCustom: '~' }));
+});
+
+// The phone battery's Look is each slot's own, baked into that slot's icon id. Like the
+// countdown's date it is signed only while its slot shows the phone battery: the page writes
+// every slot's Look whether it is used or not, and an unused one must force no fetch.
+test('a slot\'s phone battery Look changes the render signature only while the slot shows the phone battery', () => {
+  const shown = { statusTopLeft: 'phoneBattery' };
+  const look = (value, more) => Object.assign({ statusTopLeftPhoneBatteryLook: value }, more);
+  assert.notEqual(renderSignature(look('text', shown)), renderSignature(look('both', shown)));
+  assert.notEqual(renderSignature(look('text', shown)), renderSignature(shown));
+  assert.equal(renderSignature(look('text', { statusTopLeft: 'aqi' })), renderSignature({ statusTopLeft: 'aqi' }),
+    'another item in the slot: its stored Look is inert');
+  assert.equal(renderSignature(look('text')), renderSignature({}), 'the slot\'s default item is no phone battery');
+  // A slot's Look never signs as another slot's.
+  assert.notEqual(renderSignature({ statusTopLeft: 'phoneBattery', statusTopMid: 'phoneBattery', statusTopLeftPhoneBatteryLook: 'text' }),
+    renderSignature({ statusTopLeft: 'phoneBattery', statusTopMid: 'phoneBattery', statusTopMidPhoneBatteryLook: 'text' }));
 });
 
 test('the UV pair separator, its custom text, the spacing, the order and the next-day mark change the render signature', () => {

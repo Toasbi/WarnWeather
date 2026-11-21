@@ -51,7 +51,7 @@ function bakeNow() {
  * @returns {string}
  */
 function batteryText(look) {
-  return statusLines.formatValue('phoneBattery', {}, { phoneBatterySlotLook: look },
+  return statusLines.formatValue('phoneBattery', {}, { statusForecastLeftPhoneBatteryLook: look },
     'statusForecastLeft', undefined, undefined, undefined, undefined, bakeNow());
 }
 
@@ -1270,15 +1270,22 @@ test('the packed icon id never varies with the reading: 16 in the Icon + text lo
 
   // The Text look draws no icon, so its id never varies either.
   // It still needs an id of its own: TEXT + ICON_NONE maps to THRESH_CITY on the
-  // watch, so without one its Bold row would silently drive City.
+  // watch, so without one its Bold row would silently drive City. The Look is the
+  // slot's own (catalog phoneBatteryLookKey).
   for (const pct of [63, 5, 100]) {
     setPhoneBattery(pct);
     const slot = decodeLine(statusLines.packLine(line, {},
-      Object.assign(sel('phoneBattery'), { phoneBatterySlotLook: 'text' }), env, null, bakeNow()))[0];
+      Object.assign(sel('phoneBattery'), { statusForecastLeftPhoneBatteryLook: 'text' }), env, null, bakeNow()))[0];
     assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY_PLAIN, `plain at ${pct}%`);
     assert.equal(slot.icon, 18);
     assert.equal(slot.text, pct + '%');
   }
+  // Another slot's Look, and a look of the item as a whole, say nothing about this slot.
+  setPhoneBattery(63);
+  [{ statusForecastRightPhoneBatteryLook: 'text' }, { phoneBatterySlotLook: 'text' }].forEach((other) => {
+    const slot = decodeLine(statusLines.packLine(line, {}, Object.assign(sel('phoneBattery'), other), env, null, bakeNow()))[0];
+    assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY, JSON.stringify(other));
+  });
 });
 
 test('the watch battery bakes kind 9 in the Icon look and kind 10 in the Text look, never 10 on aplite', () => {

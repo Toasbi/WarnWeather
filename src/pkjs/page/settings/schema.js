@@ -707,13 +707,13 @@ function boldOnlyRow(keyStem) {
     };
 }
 
-// The watch battery slot's dialog. One slot, two looks (slot-text.js batteryLook): the
-// battery the watch draws, or its charge as text. The text shows the percentage, which the
-// watch reads itself, the days it has left, which the Muninn app estimates and the phone
-// bakes in (battery-days.js), or both as a pair shaped like the temperature slot's (the
-// Order and Separator rows, status-pair.js formatBatteryPair). The days need a Pebble app
-// that can read another app's plugin, so Value selection and the pair's rows show only
-// there (PLUGINS_WHEN), and only in the Text look, like Bold: a drawn battery has no text.
+// The watch battery's dialog, for its Text look (its Look row sits under its slot:
+// batteryLookItem; the drawn battery of the Icon look has nothing to set). The text shows the
+// percentage, which the watch reads itself, the days it has left, which the Muninn app
+// estimates and the phone bakes in (battery-days.js), or both as a pair shaped like the
+// temperature slot's (the Order and Separator rows, status-pair.js formatBatteryPair). The
+// days need a Pebble app that can read another app's plugin, so Value selection and the
+// pair's rows show only there (PLUGINS_WHEN).
 var MUNINN_LINK = '<a href=\'https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5\'>Muninn app</a>';
 // Under Days left and Both: when the percentage shows instead (battery-days.js daysLeft,
 // status_row.c shows_battery_days) and, set apart on a line of its own, where the days come
@@ -724,7 +724,6 @@ var MUNINN_NOTE = '<span style="display:block;margin-top:6px">The days are an es
 var BATTERY_FALLBACK = ' while the watch charges, your phone is out of reach or there is no estimate.';
 var BATTERY_DAYS_HINT = 'Shows the percentage instead' + BATTERY_FALLBACK + MUNINN_NOTE;
 var BATTERY_BOTH_HINT = 'Shows the percentage alone' + BATTERY_FALLBACK + MUNINN_NOTE;
-var BATTERY_TEXT_WHEN = {key: 'batterySlotLook', eq: 'text'};
 /**
  * Add a condition to every row: each shows only while `gate` holds and its own showWhen,
  * if it has one, does too (gateAll leaves a row with a showWhen of its own alone).
@@ -742,18 +741,6 @@ function alsoWhen(items, gate) {
  * @returns {Object} The watch battery slot's sheet (sheetOnly).
  */
 function batterySlotSheet() {
-    var daysWhen = {all: [BATTERY_TEXT_WHEN, PLUGINS_WHEN]};
-    var look = {
-        type: 'segmented',
-        messageKey: 'batterySlotLook',
-        label: 'Look',
-        hintByValue: {
-            icon: 'Shows a battery that empties with the charge.',
-            text: 'Shows the charge as text.'
-        },
-        defaultValue: 'icon',
-        options: [['Icon', 'icon'], ['Text', 'text']]
-    };
     var pairRows = alsoWhen([{
         // Global, like the temperature slot's: the watch battery sits in one slot. The
         // phone bakes the days and the pair's separator (status-lines.js packLine) and it
@@ -766,9 +753,8 @@ function batterySlotSheet() {
         defaultValue: 'percent',
         options: [['Percentage', 'percent'], ['Days left', 'days'], ['Both', 'both']]
     }, orderRow('battery', [['Percentage first', 'percent'], ['Days left first', 'days']])]
-        .concat(separatorRows('battery', '80%', '5d')), daysWhen);
-    var bold = alsoWhen([boldOnlyRow('BatteryPct')], BATTERY_TEXT_WHEN);
-    return sheetOf('BatteryPct', 'Watch battery', [look].concat(pairRows, bold));
+        .concat(separatorRows('battery', '80%', '5d')), PLUGINS_WHEN);
+    return sheetOf('BatteryPct', 'Watch battery', pairRows.concat([boldOnlyRow('BatteryPct')]));
 }
 
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
@@ -909,6 +895,45 @@ function countdownDateItem(slotKey, barWhen) {
 }
 
 /**
+ * The phone battery's Look in one slot (slot-text.js phoneBatteryLook), shown only while its
+ * owning slot holds the phone battery. The slot's own setting, like its countdown date, so
+ * one slot can show the phone's icon and another the charge alone.
+ * @param {string} slotKey Owning status-slot message key.
+ * @param {Object} [barWhen] Existing Radar/Health bar visibility predicate.
+ * @returns {Object} Segmented schema item.
+ */
+function phoneBatteryLookItem(slotKey, barWhen) {
+    var holds = {key: slotKey, eq: 'phoneBattery'};
+    return {
+        type: 'segmented',
+        messageKey: STATUS_LINE_CATALOG.phoneBatteryLookKey(slotKey),
+        label: 'Look',
+        defaultValue: 'both',
+        options: [['Icon + text', 'both'], ['Text', 'text']],
+        joinPrevious: true,
+        showWhen: barWhen ? {all: [barWhen, holds]} : holds
+    };
+}
+/**
+ * The watch battery's Look (slot-text.js batteryLook), under the one slot it can sit in, the
+ * Watch bar's right: the battery the watch draws, or its charge as text, whose rows the
+ * slot's Edit button then opens (batterySlotSheet). Not on aplite, whose lean row draws its
+ * one battery slot its own way (THRESHOLD_WHEN, the gate of every slot dialog).
+ * @returns {Object} Segmented schema item.
+ */
+function batteryLookItem() {
+    return {
+        type: 'segmented',
+        messageKey: 'batterySlotLook',
+        label: 'Look',
+        defaultValue: 'icon',
+        options: [['Icon', 'icon'], ['Text', 'text']],
+        joinPrevious: true,
+        showWhen: {all: [{key: 'statusTopRight', eq: 'battery'}, THRESHOLD_WHEN]}
+    };
+}
+
+/**
  * One status-bar slot select: the identical five-resolver wiring every slot
  * carries (platform-aware default, row dedupe on pick, edit sheet, Edit-button
  * badge, catalog options) — hand-copied twelve times before this helper.
@@ -944,25 +969,27 @@ function slotItem(slotKey, position, barWhen, joins) {
 }
 
 /**
- * A status bar's seven items — left/mid/right selects, each followed by its countdown
- * companion date row, then its read-only Alerts row (onDemandRow) — all sharing the bar's
- * gate. Mid, right and the Alerts row always join the row above; the left slot joins only when
- * the bar opens with its own intro row.
+ * A status bar's items — left/mid/right selects, each followed by its companion rows (the
+ * countdown's date and the phone battery's Look, each shown while the slot holds that item;
+ * the Watch bar's right slot also the watch battery's Look), then its read-only Alerts row
+ * (onDemandRow) — all sharing the bar's gate. Mid, right and the Alerts row always join the
+ * row above; the left slot joins only when the bar opens with its own intro row.
  * @param {string} prefix Slot-key prefix, e.g. 'statusForecast'.
  * @param {?Object} barWhen The bar's shared visibility gate (null = always).
  * @param {boolean} [leftJoins] The left slot joins the previous row too.
- * @returns {Object[]} Seven schema items in render order.
+ * @returns {Object[]} The schema items in render order.
  */
 function barSlots(prefix, barWhen, leftJoins) {
-    return [
-        slotItem(prefix + 'Left', 'left', barWhen, Boolean(leftJoins)),
-        countdownDateItem(prefix + 'Left', barWhen),
-        slotItem(prefix + 'Mid', 'mid', barWhen, true),
-        countdownDateItem(prefix + 'Mid', barWhen),
-        slotItem(prefix + 'Right', 'right', barWhen, true),
-        countdownDateItem(prefix + 'Right', barWhen),
-        onDemandRow(prefix, barWhen)
-    ];
+    var items = [];
+    [['Left', 'left'], ['Mid', 'mid'], ['Right', 'right']].forEach(function (slot, i) {
+        var slotKey = prefix + slot[0];
+        items.push(slotItem(slotKey, slot[1], barWhen, i > 0 || Boolean(leftJoins)),
+            countdownDateItem(slotKey, barWhen), phoneBatteryLookItem(slotKey, barWhen));
+        // The watch battery sits in this one slot (status-line-catalog.js topRightOnly).
+        if (slotKey === 'statusTopRight') { items.push(batteryLookItem()); }
+    });
+    items.push(onDemandRow(prefix, barWhen));
+    return items;
 }
 /**
  * A status bar's dialog (the owner's pick, 2026-11-09): the Status bars tab's Your status bars card
@@ -2205,27 +2232,17 @@ module.exports = {
         boldSection('Date countdown', 'Countdown', null,
             [unitRow('countdownSlotUnit', '5d', '5')]),
         boldSection('Heart rate', 'Hr', HR_SLOT_WHEN),
-        // The watch battery: its Look, what its text shows and how (batterySlotSheet).
+        // The watch battery's text: what it shows and how (batterySlotSheet).
         batterySlotSheet(),
         // Dew point shares temperature's degree sign and its reasoning.
         boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', '12°', '12')]),
-        // The phone battery: its Look (slot-text.js phoneBatteryLook), the phone's icon
-        // before the charge or the charge alone, then Bold. The two looks are separate
-        // wire kinds (18/19), so the Text look can't drive City's bold row, and both
-        // KINDS entries share key 'PhoneBattery': the one mode packs into both cells.
-        // Only where the phone can tell its charge on the slot side; the dialog needs no
-        // extra gate, because a slot that can't be chosen never opens it.
-        boldSection('Phone battery', 'PhoneBattery', null, [{
-            type: 'segmented',
-            messageKey: 'phoneBatterySlotLook',
-            label: 'Look',
-            hintByValue: {
-                both: 'Shows a phone symbol before the charge.',
-                text: 'Shows the charge alone.'
-            },
-            defaultValue: 'both',
-            options: [['Icon + text', 'both'], ['Text', 'text']]
-        }]),
+        // The phone battery: Bold, for both of its looks (its Look row sits under each slot
+        // that holds it: phoneBatteryLookItem). The two looks are separate wire kinds
+        // (18/19), so the Text look can't drive City's bold row, and both KINDS entries
+        // share key 'PhoneBattery': the one mode packs into both cells. Only where the
+        // phone can tell its charge on the slot side; the dialog needs no extra gate,
+        // because a slot that can't be chosen never opens it.
+        boldSection('Phone battery', 'PhoneBattery'),
         // The weather condition slot's dialog: its Look (slot-text.js conditionLook) and the
         // length of its Name (conditionName, hidden while the Look shows no name), which every
         // condition slot shares, then Bold like every text slot (kind 20, whose cell rides the

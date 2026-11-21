@@ -1572,9 +1572,9 @@ test('the slot button is labelled Edit for every kind', () => {
 });
 
 // --- bold-only slot sheets: every level-less kind, one Bold row each ---------
-// (wire ids 8..16 in status-thresholds.js; the watch battery's sheet holds its Look
-// as well as Bold. Its Bold row shows only in the Text look: a drawn battery has no
-// text to bold, so a Bold option there would be a no-op lie.
+// (wire ids 8..16 in status-thresholds.js; the watch battery's sheet is its Text look's:
+// in the Icon look the watch draws a battery, which has no text to set or to bold, so
+// its slot then has no pencil. Its Look is the row under its slot.
 // Temp's sheet additionally carries the tempSlotDisplay row and the rows shaping
 // its Both pair — see below and test/page/status-bars/config-slot-pair.test.js.)
 
@@ -1584,6 +1584,9 @@ const BOLD_CODES = {
   week: 'Week', city: 'City', countdown: 'Countdown', hr: 'Hr',
   battery: 'BatteryPct'
 };
+// What the pencil's resolver also reads for a code: the watch battery opens its sheet in
+// its Text look only.
+const BOLD_CODE_SETTINGS = { battery: { batterySlotLook: 'text' } };
 // Rows a bold-only sheet carries BELOW its Bold row, in order. Absent stem = Bold
 // alone. The unit toggles exist only for the kinds the phone bakes the text for
 // (status-lines.js); the watch-formatted ones — Hr, BatteryPct — have no such row.
@@ -1594,7 +1597,7 @@ const BOLD_SHEET_EXTRA_ROWS = {
   Countdown: ['countdownSlotUnit'],
   Date: ['dateSlotMonthFormat', 'dateSlotFullFormat'],
   City: ['citySlotIcon'],
-  BatteryPct: ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
+  BatteryPct: ['batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
     'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced']
 };
 
@@ -1892,29 +1895,25 @@ test('the Hr sheet row mirrors the hr slot availability (health + sensor)', () =
     assert.equal(showWhen.isVisible(it, ctx(true, true, mode)), true,
       'shown in healthMode ' + mode);
   });
-  // The other bold-only kinds need no availability gate at all, the watch battery's
-  // apart: its Bold row shows only in the Text look.
-  BOLD_STEMS.filter(stem => stem !== 'Hr' && stem !== 'BatteryPct').forEach(stem => {
+  // The other bold-only kinds need no availability gate at all.
+  BOLD_STEMS.filter(stem => stem !== 'Hr').forEach(stem => {
     assert.equal(boldFor(stem).showWhen, undefined, stem + ' needs no gate');
   });
-  assert.deepEqual(boldFor('BatteryPct').showWhen, { key: 'batterySlotLook', eq: 'text' },
-    'BatteryPct: Bold only in the Text look');
 });
 
-test('the watch battery has one sheet for both looks: the Look row, and Bold only for the text', () => {
+test('the watch battery\'s sheet is its Text look\'s: a drawn battery (the Icon look) has no pencil', () => {
   assert.equal(sheetSections().find(s => s.sheetId === 'threshBattery'), undefined,
     'no threshBattery sheet exists: the one sheet is threshBatteryPct (wire id 16)');
   const resolve = PC.sheetResolvers.get('statusSlotEditSheet');
-  // The Look lives on the sheet, so the slot has a pencil in the Icon look too.
-  ['icon', 'text'].forEach(look => {
-    assert.equal(resolve({ statusTopRight: 'battery', batterySlotLook: look }, ENV,
-      { messageKey: 'statusTopRight' }), 'threshBatteryPct', look + ' look: the pencil opens the sheet');
-  });
+  const pencil = (settings) => resolve(Object.assign({ statusTopRight: 'battery' }, settings), ENV,
+    { messageKey: 'statusTopRight' });
+  assert.equal(pencil({}), null, 'the Icon look (the default) draws a glyph, not text');
+  assert.equal(pencil({ batterySlotLook: 'icon' }), null);
+  assert.equal(pencil({ batterySlotLook: 'text' }), 'threshBatteryPct', 'the Text look renders text');
   const sheet = sheetFor('BatteryPct');
   assert.ok(sheet, 'threshBatteryPct sheet exists');
-  assert.equal(sheet.items[0].messageKey, 'batterySlotLook', 'the Look leads the sheet');
-  assert.deepEqual(sheet.items[0].options, [['Icon', 'icon'], ['Text', 'text']]);
-  assert.equal(sheet.items[0].showWhen, undefined, 'the Look is always shown');
+  assert.equal(sheet.items.some(i => i.messageKey === 'batterySlotLook'), false,
+    'the Look is no row of the sheet: it sits under the slot');
   // The retired item no longer resolves.
   assert.equal(resolve({ statusTopRight: 'batteryPct' }, ENV, { messageKey: 'statusTopRight' }),
     null, 'batteryPct is no slot item any more');
@@ -2113,8 +2112,8 @@ test('dayMaxHint: picking Day max on a Now slot brings the hint in', () => {
 test('the slot pencil resolves the bold-only sheet for every new kind', () => {
   const resolve = PC.sheetResolvers.get('statusSlotEditSheet');
   Object.keys(BOLD_CODES).forEach(code => {
-    assert.equal(resolve({ statusLine1Left: code }, ENV, { messageKey: 'statusLine1Left' }),
-      'thresh' + BOLD_CODES[code], code + ' resolves its sheet');
+    assert.equal(resolve(Object.assign({ statusLine1Left: code }, BOLD_CODE_SETTINGS[code]), ENV,
+      { messageKey: 'statusLine1Left' }), 'thresh' + BOLD_CODES[code], code + ' resolves its sheet');
   });
   assert.equal(resolve({ statusLine1Left: 'wind' }, ENV, { messageKey: 'statusLine1Left' }),
     'threshWind', 'threshold kinds keep their sheets');
@@ -2233,13 +2232,10 @@ test('the generated page renders the Temp display pills and the watch battery sh
   assert.ok(page.modal.innerHTML.indexOf('data-k="threshTempBoldMode"') !== -1,
     'the Temp sheet still renders its Bold row');
   page.openEditSheet('threshBatteryPct');
-  assert.ok(page.modal.innerHTML.indexOf('data-k="batterySlotLook"') !== -1,
-    'the watch battery sheet renders its Look row');
-  assert.equal(page.modal.innerHTML.indexOf('data-k="threshBatteryPctBoldMode"'), -1,
-    'no Bold row in the Icon look: a drawn battery has no text');
-  page.tapSegment('batterySlotLook', 'text', 'modal');
   assert.ok(page.modal.innerHTML.indexOf('data-k="threshBatteryPctBoldMode"') !== -1,
-    'the Text look renders its Bold row');
+    'the watch battery sheet renders its Bold row');
+  assert.equal(page.modal.innerHTML.indexOf('data-k="batterySlotLook"'), -1,
+    'its Look is no row of the sheet: it sits under the slot');
 });
 
 // --- the status-card reset button (blocks.js resetStatusSlots) ---------------

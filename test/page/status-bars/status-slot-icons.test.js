@@ -100,10 +100,13 @@ test('every slot item the watch draws a glyph for has the page copy, and no othe
     }
   });
   // The phone battery in its Text look is text on the watch, text in the preview.
-  assert.equal(slotIcon('phoneBattery', basalt, { phoneBatterySlotLook: 'text' }), null,
+  // The phone battery's Look is each slot's own (catalog phoneBatteryLookKey).
+  assert.equal(slotIcon('phoneBattery', basalt, { statusTopLeftPhoneBatteryLook: 'text' }, 'statusTopLeft'), null,
     'phoneBattery, Text look: no glyph');
-  assert.equal(slotIcon('phoneBattery', basalt, { phoneBatterySlotLook: 'both' }), ICONS.phoneBattery,
-    'phoneBattery, Icon + text look: the glyph');
+  assert.equal(slotIcon('phoneBattery', basalt, { statusTopLeftPhoneBatteryLook: 'both' }, 'statusTopLeft'),
+    ICONS.phoneBattery, 'phoneBattery, Icon + text look: the glyph');
+  assert.equal(slotIcon('phoneBattery', basalt, { statusTopLeftPhoneBatteryLook: 'text' }, 'statusTopMid'),
+    ICONS.phoneBattery, 'another slot keeps its own look');
   // The watch battery is its own drawn glyph on the bars (preview-watch.js batteryGlyph);
   // its registered outline is the Alerts rows' and the Status bars tab's.
   assert.equal(slotIcon('battery', basalt), ICONS.battery);

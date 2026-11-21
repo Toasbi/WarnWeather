@@ -1,7 +1,8 @@
 'use strict';
 // 3.3.0 made one slot item of each battery's two (migrations/status-slots.js
 // mergeBatterySlots): a slot that held the watch battery's percentage or the phone battery
-// without its icon holds the merged item, in its Text look, and bakes what it baked.
+// without its icon holds the merged item, in its Text look, and bakes what it baked. The
+// phone battery's Look is each slot's own, so every slot keeps what it showed.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const statusSlots = require('../../../../src/pkjs/settings/domain/migrations/status-slots.js');
@@ -29,31 +30,45 @@ test('the phone battery without its icon becomes the Phone battery in its Text l
     const blob = {};
     blob[key] = 'phoneBatteryPlain';
     assert.deepEqual(merge(blob), { changed: true, send: false }, key);
-    const want = { phoneBatterySlotLook: 'text' };
+    const want = {};
     want[key] = 'phoneBattery';
-    assert.deepEqual(blob, want, key);
+    want[key + 'PhoneBatteryLook'] = 'text';
+    assert.deepEqual(blob, want, key + ': the Look is written for this slot alone');
+    assert.equal(catalog.phoneBatteryLookKey(key), key + 'PhoneBatteryLook');
   });
 });
 
 test('the merged items themselves, and every other item, stay as they are', () => {
   [{ statusTopRight: 'battery' }, { statusForecastLeft: 'phoneBattery', statusTopRight: 'aqi' }, {},
-    { statusTopRight: 'battery', batterySlotLook: 'icon', phoneBatterySlotLook: 'both' }].forEach((stored) => {
+    { statusTopRight: 'battery', batterySlotLook: 'icon', statusForecastLeftPhoneBatteryLook: 'both' }].forEach((stored) => {
     const blob = Object.assign({}, stored);
     assert.deepEqual(merge(blob), { changed: false, send: false }, JSON.stringify(stored));
     assert.deepEqual(blob, stored, 'no Look is written where nothing merged');
   });
 });
 
-test('the Look is the item\'s: the phone battery with and without its icon ends up without in both', () => {
-  const blob = { statusForecastLeft: 'phoneBattery', statusRadarRight: 'phoneBatteryPlain' };
+test('each slot keeps its own look: the phone battery with its icon in one slot and without in another', () => {
+  // Across bars, and in one bar, where the two old items could sit side by side.
+  const blob = { statusForecastLeft: 'phoneBattery', statusRadarRight: 'phoneBatteryPlain',
+    statusHealthLeft: 'phoneBatteryPlain', statusHealthRight: 'phoneBattery' };
   merge(blob);
   assert.deepEqual(blob, { statusForecastLeft: 'phoneBattery', statusRadarRight: 'phoneBattery',
-    phoneBatterySlotLook: 'text' });
+    statusRadarRightPhoneBatteryLook: 'text', statusHealthLeft: 'phoneBattery',
+    statusHealthLeftPhoneBatteryLook: 'text', statusHealthRight: 'phoneBattery' });
+  // And the bake draws each as it was drawn: icon 16 with the phone glyph, 18 without.
+  const phone = { supported: true, reading: () => ({ available: true, level: 84 }) };
+  const settings = Object.assign({ viewCount: '1', healthMode: 'all', viewBody0: 'health', viewUpper0: 'health' }, blob);
+  const icons = (line) => decodeLine(line).map((slot) => slot.icon);
+  const baked = statusLines.packLine(catalog.lineById('health'), {}, settings,
+    { platform: 'basalt', phoneBattery: true, health: true },
+    null, statusLines.bakeEnv(new Date(2026, 10, 21, 12, 0, 0), phone.reading(), null));
+  assert.deepEqual([icons(baked)[0], icons(baked)[2]],
+    [catalog.ICONS.PHONE_BATTERY_PLAIN, catalog.ICONS.PHONE_BATTERY]);
 });
 
 test('only slots are read: an old item\'s name under any other key is left alone', () => {
   const blob = { statusTopRight: 'battery', provider: 'batteryPct', statusBoldAll: 'phoneBatteryPlain',
-    statusTopRightCountdown: 'batteryPct' };
+    statusTopRightCountdown: 'batteryPct', statusTopLeftPhoneBatteryLook: 'phoneBatteryPlain' };
   const before = Object.assign({}, blob);
   assert.deepEqual(merge(blob), { changed: false, send: false });
   assert.deepEqual(blob, before);

@@ -101,23 +101,16 @@ function migrateCitySlotIconOn(blob) {
     return { changed: true, send: false };
 }
 
-// The slot items 3.3.0 merged into another item's Text look: the item each became, and the
-// Look setting that keeps what the slot showed (slot-text.js batteryLook, phoneBatteryLook).
-var MERGED_BATTERY_ITEMS = {
-    batteryPct: { code: 'battery', lookKey: 'batterySlotLook' },
-    phoneBatteryPlain: { code: 'phoneBattery', lookKey: 'phoneBatterySlotLook' }
-};
-
 /**
  * 3.3.0 made one slot item of each battery's two: the watch battery's percentage
  * ('batteryPct') is the Watch battery's Text look, and the phone battery without its icon
  * ('phoneBatteryPlain') the Phone battery's. A slot holding an old item takes the merged
- * one, and that item's Look is set to Text, so the slot shows what it showed. The Look is
- * the item's, not a slot's: an install that showed the phone battery with its icon in one
- * slot and without it in another shows it without in both.
+ * one in its Text look, so every slot shows what it showed: the watch battery's Look is
+ * the item's (it sits in one slot), the phone battery's each slot's own (catalog
+ * phoneBatteryLookKey), so one slot can keep the phone's icon while another shows none.
  *
- * No send: the line bakes to the bytes it had (the kind and the icon come from the Look
- * now), but for that one case, which the next weather bake brings.
+ * No send: the lines bake to the bytes they had (the kind and the icon come from the Look
+ * now).
  *
  * @param {Object} blob Stored settings, mutated in place.
  * @returns {{changed: boolean, send: boolean}}
@@ -126,15 +119,15 @@ function mergeBatterySlots(blob) {
     var changed = false;
     catalog.ALL_LINES.forEach(function (line) {
         line.slots.forEach(function (key) {
-            var stored = blob[key];
-            if (typeof stored !== 'string'
-                    || !Object.prototype.hasOwnProperty.call(MERGED_BATTERY_ITEMS, stored)) {
-                return;
+            if (blob[key] === 'batteryPct') {
+                blob[key] = 'battery';
+                blob.batterySlotLook = 'text';
+                changed = true;
+            } else if (blob[key] === 'phoneBatteryPlain') {
+                blob[key] = 'phoneBattery';
+                blob[catalog.phoneBatteryLookKey(key)] = 'text';
+                changed = true;
             }
-            var merged = MERGED_BATTERY_ITEMS[stored];
-            blob[key] = merged.code;
-            blob[merged.lookKey] = 'text';
-            changed = true;
         });
     });
     if (changed) { console.log('Migrated the battery slots onto their merged items'); }

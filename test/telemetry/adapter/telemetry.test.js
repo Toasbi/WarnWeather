@@ -257,33 +257,31 @@ test('snapshot reports rainReplacesSlot where On demand exists', () => {
     'alertsReplaceSlot'), 'the 3.2.0 field is gone');
 });
 
-// The two battery slots' looks and what the watch battery's text shows, read as the bake
-// reads them (slot-text.js batteryLook / phoneBatteryLook, battery-days.js display), absent on
-// aplite. Lockstep: they are also in the Deno .strip() schema (telemetry-ingest/handler.ts);
-// 3.3.0's batteryPctSlotShow never shipped and is not sent.
-test('snapshot reports the battery slots\' looks and the watch battery\'s text', () => {
+// The watch battery's Look and what its text shows, read as the bake reads them
+// (slot-text.js batteryLook, battery-days.js display), absent on aplite. Lockstep: they are
+// also in the Deno .strip() schema (telemetry-ingest/handler.ts). The phone battery's Look
+// is each slot's own and is not reported; 3.3.0's batteryPctSlotShow never shipped.
+test('snapshot reports the watch battery\'s Look and what its text shows', () => {
   const fresh = buildSettingsSnapshot({}, { platform: 'basalt' });
   assert.equal(fresh.batterySlotLook, 'icon', 'absent: the drawn battery');
   assert.equal(fresh.batterySlotDisplay, 'percent');
-  assert.equal(fresh.phoneBatterySlotLook, 'both');
-  const set = buildSettingsSnapshot({ batterySlotLook: 'text', batterySlotDisplay: 'both',
-    phoneBatterySlotLook: 'text' }, { platform: 'basalt' });
-  assert.deepEqual([set.batterySlotLook, set.batterySlotDisplay, set.phoneBatterySlotLook], ['text', 'both', 'text']);
+  const set = buildSettingsSnapshot({ batterySlotLook: 'text', batterySlotDisplay: 'both' }, { platform: 'basalt' });
+  assert.deepEqual([set.batterySlotLook, set.batterySlotDisplay], ['text', 'both']);
   assert.equal(buildSettingsSnapshot({ batterySlotDisplay: 'days' }, { platform: 'basalt' }).batterySlotDisplay, 'days');
-  const junk = buildSettingsSnapshot({ batterySlotLook: 7, batterySlotDisplay: 'weeks', phoneBatterySlotLook: null },
-    { platform: 'basalt' });
-  assert.deepEqual([junk.batterySlotLook, junk.batterySlotDisplay, junk.phoneBatterySlotLook], ['icon', 'percent', 'both'],
+  const junk = buildSettingsSnapshot({ batterySlotLook: 7, batterySlotDisplay: 'weeks' }, { platform: 'basalt' });
+  assert.deepEqual([junk.batterySlotLook, junk.batterySlotDisplay], ['icon', 'percent'],
     'anything unknown reads as the default, as the bake reads it');
-  const aplite = buildSettingsSnapshot({ batterySlotLook: 'text', batterySlotDisplay: 'both',
-    phoneBatterySlotLook: 'text' }, { platform: 'aplite' });
-  ['batterySlotLook', 'batterySlotDisplay', 'phoneBatterySlotLook'].forEach((key) => {
+  const aplite = buildSettingsSnapshot({ batterySlotLook: 'text', batterySlotDisplay: 'both' }, { platform: 'aplite' });
+  ['batterySlotLook', 'batterySlotDisplay'].forEach((key) => {
     assert.strictEqual(aplite[key], undefined, key + ': aplite draws its one battery slot its own way');
   });
-  assert.ok(!Object.prototype.hasOwnProperty.call(set, 'batteryPctSlotShow'), 'the unreleased field is gone');
+  ['batteryPctSlotShow', 'phoneBatterySlotLook'].forEach((key) => {
+    assert.ok(!Object.prototype.hasOwnProperty.call(set, key), key + ' is not sent');
+  });
   // The server keeps what the phone sends: each field is in the function's schema.
   const handler = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', '..',
     'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
-  ['batterySlotLook', 'batterySlotDisplay', 'phoneBatterySlotLook'].forEach((key) => {
+  ['batterySlotLook', 'batterySlotDisplay'].forEach((key) => {
     assert.ok(handler.indexOf('    ' + key + ': z.string().optional(),') !== -1, key + ' is in handler.ts');
   });
   assert.equal(handler.indexOf('batteryPctSlotShow'), -1);

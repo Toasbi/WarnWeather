@@ -53,7 +53,7 @@ if (typeof require !== 'undefined') {
     // The weather condition slot's vocabulary, for its list of every condition.
     var conditionLib = (typeof require !== 'undefined') ? require('../../weather/domain/condition.js') : window.Condition;
     // The slots' looks as the bake reads them (slot-text.js, concatenated ahead of this file):
-    // the watch battery's, for its Edit badge.
+    // the watch battery's, whose dialog is its Text look's.
     var slotText = (typeof require !== 'undefined')
         ? require('../../status-bars/domain/slot-text.js') : window.SlotText;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
@@ -162,13 +162,28 @@ if (typeof require !== 'undefined') {
     // list to drift. env gate mirrors the sheets' own showWhen (aplite compiles the
     // highlight out).
     PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
-        if (!env || !env.thresholds) { return null; }
-        var code = S[args.messageKey];
-        for (var i = 0; i < thresholds.KINDS.length; i++) {
-            if (thresholds.KINDS[i].code === code) { return 'thresh' + thresholds.KINDS[i].key; }
-        }
-        return null;
+        var kind = slotKindIndex(S, env, S[args.messageKey]);
+        return kind === -1 ? null : 'thresh' + thresholds.KINDS[kind].key;
     });
+
+    /**
+     * The threshold kind a slot's item opens a dialog for: the contract's index of its code,
+     * -1 for an item without one, on a watch without dialogs (aplite) and for the watch
+     * battery in its Icon look, whose drawn battery has no text to set or to print bold
+     * (its dialog is its Text look's).
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {*} code The slot's item code.
+     * @returns {number} Index into thresholds.KINDS, or -1.
+     */
+    function slotKindIndex(S, env, code) {
+        if (!env || !env.thresholds) { return -1; }
+        if (code === 'battery' && slotText.batteryLook(S, env) !== 'text') { return -1; }
+        for (var i = 0; i < thresholds.KINDS.length; i++) {
+            if (thresholds.KINDS[i].code === code) { return i; }
+        }
+        return -1;
+    }
 
     // --- threshold sliders (the per-slot edit sheets' controls) ------------------
 
@@ -675,8 +690,10 @@ if (typeof require !== 'undefined') {
             // ...and every day-max kind's mode, pair and tomorrow-mark rows (UV,
             // wind, gusts, AQI), from the catalog's one table...
             .concat(statusLineCatalog.dayMaxSettingKeys())
-            // ...and the two battery slots' looks and the watch battery's text rows.
-            .concat(statusLineCatalog.batterySettingKeys());
+            // ...and the watch battery's Look and text rows, and every slot's phone
+            // battery Look.
+            .concat(statusLineCatalog.batterySettingKeys())
+            .concat(slotKeys.map(statusLineCatalog.phoneBatteryLookKey));
         // The Watch Status Bar's own toggles exist only where On demand does not.
         if (env && env.onDemand === false) {
             schemaKeys.push('batteryLowOnly', 'showQt', 'vibe', 'btIcons');
@@ -811,9 +828,7 @@ if (typeof require !== 'undefined') {
         // watch will actually render — so All lights every slot's B and Off
         // none.
         var boldAlways = (S.statusBoldAll === 'all'
-            || (S.statusBoldAll !== 'off' && S['thresh' + key + 'BoldMode'] === 'always'))
-            // The watch battery in its Icon look is a drawn battery: no text to print bold.
-            && !(key === 'BatteryPct' && slotText.batteryLook(S, env) !== 'text');
+            || (S.statusBoldAll !== 'off' && S['thresh' + key + 'BoldMode'] === 'always'));
         var notes = [];
         if (enabled) { notes.push('highlighting on'); }
         if (boldAlways) { notes.push('always bold'); }
@@ -836,12 +851,8 @@ if (typeof require !== 'undefined') {
     // its Edit button, and a 'B' when the slot prints always-bold. Same env gate +
     // code→kind mapping as the sheet resolver above.
     PConf.badgeResolvers.register('thresholdPenState', function (S, env, args) {
-        if (!env || !env.thresholds) { return null; }
-        var code = S[args.messageKey];
-        for (var i = 0; i < thresholds.KINDS.length; i++) {
-            if (thresholds.KINDS[i].code === code) { return penStateForKind(S, env, i); }
-        }
-        return null;
+        var kind = slotKindIndex(S, env, S[args.messageKey]);
+        return kind === -1 ? null : penStateForKind(S, env, kind);
     });
 
     // Platform-aware slot default (Approach A single-source): a status slot's fresh-install

@@ -402,9 +402,10 @@ function arrowSector(code, payload, settings, env, dayMax) {
  * @param {Object} settings Clay settings blob
  * @param {?Object} env platform environment
  * @param {BakeEnv} bake the time and the phone's battery (bakeEnv)
+ * @param {string} slotKey the slot's settings key: the phone battery's Look is the slot's
  * @returns {number} STATUS_ICON_* id to pack
  */
-function iconFor(code, item, payload, settings, env, bake) {
+function iconFor(code, item, payload, settings, env, bake, slotKey) {
   // The city with the current weather's glyph before its name (citySlotIcon): the glyph's id
   // with the city's bit, which keeps the slot the city's on the watch. No glyph while no
   // condition is known, nor on aplite.
@@ -421,7 +422,7 @@ function iconFor(code, item, payload, settings, env, bake) {
   }
   // The phone battery in its Text look: the id that loads no glyph, and that keeps the
   // slot the phone battery's on the watch (its bold mode, its "--" out of reach).
-  if (code === 'phoneBattery' && slotText.phoneBatteryLook(settings) === 'text') {
+  if (code === 'phoneBattery' && slotText.phoneBatteryLook(settings, slotKey) === 'text') {
     return catalog.ICONS.PHONE_BATTERY_PLAIN;
   }
   return item.icon;
@@ -557,7 +558,7 @@ function packLine(line, payload, settings, env, alerts, bake) {
     }
     // Likewise resolved per bake rather than read straight off the entry: the weather
     // condition's glyph (see iconFor).
-    var icon = iconFor(code, item, payload, settings, env, bake);
+    var icon = iconFor(code, item, payload, settings, env, bake, key);
     if (env.platform === 'aplite' && item.kind === catalog.KINDS.LIVE_WEEK) {
       // aplite has no watch-side iso_week() (reaped for image budget), so the
       // phone bakes the ISO week as an ordinary TEXT slot instead.

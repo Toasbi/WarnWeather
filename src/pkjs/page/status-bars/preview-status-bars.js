@@ -253,12 +253,13 @@
      * @param {Object} [env] Platform env.
      * @param {Object} [S] Settings: the weather condition and the two batteries in their
      *     Text look draw none.
+     * @param {string} [slotKey] The slot's settings key: the phone battery's Look is the slot's.
      * @returns {?string} The glyph's <svg>, or null for none.
      */
-    function slotIcon(code, env, S) {
+    function slotIcon(code, env, S, slotKey) {
         if (env && env.platform === 'aplite' && !APLITE_GLYPHS[code]) { return null; }
         if (code === 'condition' && slotText.conditionLook(S, env) === 'text') { return null; }
-        if (code === 'phoneBattery' && slotText.phoneBatteryLook(S) === 'text') { return null; }
+        if (code === 'phoneBattery' && slotText.phoneBatteryLook(S, slotKey) === 'text') { return null; }
         // The watch battery's Text look is its text alone; its Icon look the battery itself.
         if (code === 'battery' && slotText.batteryLook(S, env) === 'text') { return null; }
         // The city draws the current weather's icon before its name (citySlotIcon); the
@@ -289,10 +290,11 @@
      * @param {string} code The slot's item.
      * @param {Object} [env] Platform env.
      * @param {Object} [S] Settings.
+     * @param {string} [slotKey] The slot's settings key (slotIcon).
      * @returns {?string} The drawing's key, or null for none.
      */
-    function slotDrawing(code, env, S) {
-        if (!slotIcon(code, env, S)) { return null; }
+    function slotDrawing(code, env, S, slotKey) {
+        if (!slotIcon(code, env, S, slotKey)) { return null; }
         return SLOT_DRAWINGS[code === 'city' ? 'condition' : code] || null;
     }
 
@@ -353,8 +355,8 @@
         return codes.map(function (c, p) {
             var forms = texts[p].split(catalog.ALT_SEP);
             return {pos: c.pos, key: c.key, code: c.code, text: forms[0], alt: forms[1] || '',
-                arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: slotIcon(c.code, env, st),
-                drawing: slotDrawing(c.code, env, st)};
+                arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: slotIcon(c.code, env, st, c.key),
+                drawing: slotDrawing(c.code, env, st, c.key)};
         });
     }
 

@@ -375,14 +375,12 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         conditionSlotLook: isAplite ? undefined : slotText.conditionLook(safe),
         conditionSlotName: isAplite ? undefined : slotText.conditionName(safe),
         citySlotIcon: isAplite ? undefined : slotText.cityIcon(safe),
-        // The watch battery slot's Look ('icon' the drawn battery, 'text') and what its
-        // text shows ('percent', 'days' left from another app's estimate, 'both'), and the
-        // phone battery slot's Look ('both' icon and text, 'text'). Absent on aplite, which
-        // draws its one battery slot its own way and has no phone battery slot.
-        // Lockstep with handler.ts -- deploy it first.
+        // The watch battery's Look ('icon' the drawn battery, 'text') and what its text
+        // shows ('percent', 'days' left from another app's estimate, 'both'). Absent on
+        // aplite, which draws its one battery slot its own way. (The phone battery's Look
+        // is each slot's own and not reported.) Lockstep with handler.ts -- deploy it first.
         batterySlotLook: isAplite ? undefined : slotText.batteryLook(safe),
         batterySlotDisplay: isAplite ? undefined : batteryDays.display(safe),
-        phoneBatterySlotLook: isAplite ? undefined : slotText.phoneBatteryLook(safe),
         // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),

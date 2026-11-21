@@ -107,8 +107,9 @@
     // is NOT corner-pinned — that one sits top-right because that corner already
     // reads as the watch's battery, while this one carries its own icon (or, in its Text
     // look, deliberately none: slot-text.js phoneBatteryLook, status-lines.js iconFor)
-    // and fits any slot. Until 3.3.0 the Text look was an item of its own,
-    // 'phoneBatteryPlain'.
+    // and fits any slot. Its Look is each slot's own (phoneBatteryLookKey), so it can
+    // show its icon in one slot and not in another. Until 3.3.0 the Text look was an
+    // item of its own, 'phoneBatteryPlain'.
     { code: 'phoneBattery', label: 'Phone battery', kind: KINDS.TEXT,
       icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' }
   ];
@@ -555,16 +556,37 @@
   }
 
   /**
-   * The settings the two battery slots own on their Edit sheets: the watch battery's Look,
-   * what its text shows and how its pair reads (slot-text.js batteryLook, battery-days.js),
-   * and the phone battery's Look (slot-text.js phoneBatteryLook). ONE list for the rows
-   * schema.js builds, the keys resetStatusSlots clears and the ones renderSignature
-   * watches (every one of them is baked into the line).
+   * The settings the watch battery owns: its Look, what its text shows and how its pair
+   * reads (slot-text.js batteryLook, battery-days.js). The item's own, since it sits in one
+   * slot. ONE list for the rows schema.js builds, the keys resetStatusSlots clears and the
+   * ones renderSignature watches (every one of them is baked into the line).
    * @returns {string[]}
    */
   function batterySettingKeys() {
     return ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
-      'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced', 'phoneBatterySlotLook'];
+      'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced'];
+  }
+
+  /**
+   * The setting a slot keeps its phone battery's Look in (slot-text.js phoneBatteryLook): the
+   * slot's own, like its countdown date, so the phone battery can show its icon in one slot
+   * and not in another.
+   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
+   * @returns {string}
+   */
+  function phoneBatteryLookKey(slotKey) {
+    return slotKey + 'PhoneBatteryLook';
+  }
+
+  /**
+   * What a slot keeps beside its item, whichever item it holds: its countdown date
+   * (status-lines.js) and its phone battery's Look. A bar that is made or deleted clears
+   * them with the slot (screens.js makeBar, unmakeBar).
+   * @param {string} slotKey A slot's settings key.
+   * @returns {string[]}
+   */
+  function slotCompanionKeys(slotKey) {
+    return [slotKey + 'Countdown', phoneBatteryLookKey(slotKey)];
   }
 
   /**
@@ -620,7 +642,8 @@
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
-    batterySettingKeys: batterySettingKeys
+    batterySettingKeys: batterySettingKeys, phoneBatteryLookKey: phoneBatteryLookKey,
+    slotCompanionKeys: slotCompanionKeys
   };
 
   // Dual-context export - mirror the exact tail of src/pkjs/layout/domain/view-cycle.js.
