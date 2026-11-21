@@ -1,7 +1,8 @@
 // test/weather/domain/forecast-snapshot.test.js — when a provider's last answer serves a
 // fetch: the same provider and request, a place close enough, while its kind serves it (a
-// forecast: the same refresh slot; a UV fill: UV_REUSE_MS), re-anchored to the new fetch's
-// first hour unless that leaves it short; and what is kept.
+// forecast: the rest of its refresh slot within the hour it was kept in, as it was kept; a UV
+// fill: UV_REUSE_MS, re-anchored to the forecast it fills unless that leaves it short); and
+// what is kept.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -99,7 +100,7 @@ test('every fetch option either changes the request or is one no answer depends 
   });
 });
 
-test('a forecast serves the rest of its refresh slot, and only that', () => {
+test('a forecast serves the rest of its refresh slot, within the hour it was kept in', () => {
   const p = provider();
   const entries = [kept(p, T0 + 2 * MIN_MS)];
   assert.ok(reused(entries, p, T0 + 2 * MIN_MS), 'at once');
@@ -107,6 +108,10 @@ test('a forecast serves the rest of its refresh slot, and only that', () => {
   assert.equal(reused(entries, p, T0 + QUARTER), null, 'the next slot asks again');
   assert.equal(reused(entries, p, T0 + MIN_MS), null, 'a clock that went back asks again');
   assert.ok(reused(entries, p, T0 + 20 * MIN_MS, { refreshMs: 30 * MIN_MS }), 'the slot of the interval now');
+  const twoHours = { refreshMs: 2 * HOUR * 1000 };
+  assert.ok(reused(entries, p, T0 + HOUR * 1000 - 1, twoHours), 'a longer slot: the rest of the hour');
+  assert.equal(reused(entries, p, T0 + HOUR * 1000, twoHours), null,
+    'the next hour asks again: a new answer would start an hour on');
   [NaN, 0, -1].forEach((ms) => {
     assert.equal(reused(entries, p, T0 + 3 * MIN_MS, { refreshMs: ms }), null, 'no interval, no reuse: ' + ms);
   });
@@ -140,19 +145,20 @@ test('a UV fill serves UV_REUSE_MS, whatever the slot, aligned to the forecast i
   assert.equal(later.uvTrend[0], p.uvTrend[2], 'entry 0 is the hour the new forecast starts at');
 });
 
-test('re-anchoring drops the hours already past, and gives up when a series would come up short', () => {
+test('a forecast is reused as it was kept; a UV fill drops the hours past, unless that leaves it short', () => {
   const p = provider();
   const e = kept(p, T0);
-  assert.deepEqual(reused([e], p, T0 + 5 * MIN_MS), e.fields, 'the same hour: as kept');
-  const hourly = Object.assign(kept(p, T0), { fields: Object.assign({}, e.fields, {
-    tempTrend: series(30, 50), precipTrend: series(30, 0), cloudTrend: series(30, 40), rainTrend: series(30, 0) }) });
-  const shifted = reused([hourly], p, T0 + 70 * MIN_MS, { refreshMs: 2 * HOUR * 1000 });
-  assert.equal(shifted.startTime, START + HOUR);
-  assert.equal(shifted.tempTrend[0], 51);
-  assert.deepEqual(shifted.dewTrend, [], 'a series the provider does not send stays empty');
-  assert.equal(shifted.currentTemp, 61, 'the values of the moment stay as they were');
-  assert.equal(reused([e], p, T0 + 70 * MIN_MS, { refreshMs: 2 * HOUR * 1000 }), null,
-    'an hour on, a 24-hour series would be 23');
+  assert.deepEqual(reused([e], p, T0 + 5 * MIN_MS), e.fields, 'as kept');
+  const startingAt = (startTime, at) => kept(Object.assign(provider(), { startTime: startTime }), at);
+  assert.deepEqual(reused([startingAt(START + HOUR, T0 + 5 * MIN_MS)], p, T0 + 10 * MIN_MS).startTime, START + HOUR,
+    'a feed with no bucket for the hour now starts at the next one, and so would a new answer');
+  assert.deepEqual(reused([startingAt(START + 1800, T0 + 40 * MIN_MS)], p, T0 + 50 * MIN_MS,
+    { refreshMs: HOUR * 1000 }).startTime, START + 1800, 'buckets on the half hour (India, +5:30)');
+  const uvOf = provider({ id: 'dwd', apiKey: '' });
+  const shifted = reused([kept(uvOf, T0, 'uv')], uvOf, T0 + 70 * MIN_MS,
+    { kind: 'uv', anchor: { startTime: START + HOUR } });
+  assert.equal(shifted.uvTrend[0], uvOf.uvTrend[1], 'a fill takes the hour its new forecast starts at');
+  assert.equal(shifted.uvTrend.length, 48);
   const long = kept(provider({ id: 'dwd', apiKey: '', options: { forecastHours: 68 } }), T0, 'uv');
   long.fields.uvTrend = series(68, 0);
   assert.equal(reused([long], provider({ id: 'dwd', apiKey: '', options: { forecastHours: 68 } }), T0 + HOUR * 1000,

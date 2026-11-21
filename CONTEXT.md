@@ -383,9 +383,9 @@ again (`src/pkjs/weather/domain/forecast-snapshot.js`, stored by
 answer (a provider's whole forecast, or a UV fill), the place, the time and what the request
 asked for (the hours, the day maxima, the optional series, the feels-like formula, the key's
 fingerprint). A fetch reuses it for the same request at a place close by while its kind
-serves it: a forecast for the rest of its refresh slot, DWD's UV fill for a few hours,
-re-anchored to the hour the new forecast starts at. Force weather fetch drops them, and a fetch
-on its way then keeps nothing it asked for before.
+serves it: a forecast as it was kept, for the rest of its refresh slot within the hour it was
+kept in; DWD's UV fill for a few hours, re-anchored to the hour the new forecast starts at.
+Force weather fetch drops them, and a fetch on its way then keeps nothing it asked for before.
 _Avoid_: forecast cache (the Weather tab has a cache of its own), response cache.
 
 ## Radar
