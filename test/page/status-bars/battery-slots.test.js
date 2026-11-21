@@ -170,8 +170,11 @@ test('the keys the rows write are the catalog\'s: the watch battery\'s list and 
   const lookRows = nodes((node) => /PhoneBatteryLook$/.test(String(node.messageKey || ''))).map((i) => i.messageKey);
   assert.deepEqual(lookRows.slice().sort(), SLOT_KEYS.map(catalog.phoneBatteryLookKey).sort());
   SLOT_KEYS.forEach((slotKey) => {
-    assert.deepEqual(catalog.slotCompanions(slotKey), [{ code: 'countdown', key: slotKey + 'Countdown' },
-      { code: 'phoneBattery', key: slotKey + 'PhoneBatteryLook' }]);
+    assert.deepEqual(catalog.slotCompanions(slotKey), [
+      { code: 'countdown', key: slotKey + 'Countdown', defaultValue: undefined },
+      { code: 'phoneBattery', key: slotKey + 'PhoneBatteryLook', defaultValue: 'both' }]);
+    // The value a new bar's slot starts on is the one its Look row has.
+    assert.equal(row(catalog.phoneBatteryLookKey(slotKey)).defaultValue, catalog.slotCompanions(slotKey)[1].defaultValue);
   });
 });
 
@@ -468,16 +471,27 @@ test('Reset status bars puts the batteries back: the drawn battery, the percenta
   });
 });
 
-test('a bar that is made or deleted clears its slots\' Looks with them', () => {
-  const env = platform.computeEnv({ platform: 'emery' });
-  const S = { statusBar4Made: false, statusBar4LeftPhoneBatteryLook: 'text', statusBar4LeftCountdown: '2026-12-24' };
+test('a bar that is made or deleted puts its slots\' Looks back on their default, which the dialog shows picked', () => {
+  const env = Object.assign(platform.computeEnv({ platform: 'emery' }), { phoneBattery: true });
+  // The page as it opens: every row on its default, and a Look left from an earlier bar 4.
+  const S = PConf.engine.hydrate(schema, { statusBar4Made: false, statusBar4LeftPhoneBatteryLook: 'text',
+    statusBar4LeftCountdown: '2026-12-24' }, env);
   const bar = screens.makeBar(S, env);
   assert.equal(bar, 'bar4');
-  assert.equal(S.statusBar4LeftPhoneBatteryLook, undefined, 'a Look left from an earlier bar 4 is gone');
-  assert.equal(S.statusBar4LeftCountdown, undefined);
+  assert.equal(S.statusBar4LeftPhoneBatteryLook, 'both', 'the earlier bar 4\'s Look is gone: Icon + text');
+  assert.equal(S.statusBar4MidPhoneBatteryLook, 'both', 'and a slot on its default keeps it');
+  assert.equal(S.statusBar4LeftCountdown, undefined, 'the countdown date row starts on today');
+  // The slot's Phone battery dialog marks its Look as picked.
   S.statusBar4Left = 'phoneBattery';
+  const dialog = (id) => PConf.engine.renderEditModal(schema, { S: S, ENV: env, USERDATA: {}, openColor: null,
+    openSelect: null, openEdit: id, selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: env }) });
+  const html = dialog(catalog.phoneBatterySheet('statusBar4Left'));
+  assert.ok(html.indexOf('class="on" data-k="statusBar4LeftPhoneBatteryLook" data-v="both"') !== -1, 'Icon + text picked');
+  // Delete status bar: the same, and Undo puts the Look back.
   S.statusBar4LeftPhoneBatteryLook = 'text';
   const was = screens.unmakeBar(S, 'bar4', env);
-  assert.equal(S.statusBar4LeftPhoneBatteryLook, undefined);
+  assert.equal(S.statusBar4LeftPhoneBatteryLook, 'both');
   assert.equal(was.statusBar4LeftPhoneBatteryLook, 'text', 'Undo puts it back');
+  assert.equal(Object.prototype.hasOwnProperty.call(was, 'statusBar4MidPhoneBatteryLook'), false,
+    'a Look already on its default is not written');
 });

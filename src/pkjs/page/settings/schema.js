@@ -791,7 +791,8 @@ function phoneBatterySlotSheet(slotKey) {
         label: 'Look',
         // What the dialog does not show: Bold below is every phone battery slot's.
         hint: 'For this slot only.',
-        defaultValue: 'both',
+        // 'both': the value a new or deleted bar's slot starts on too (screens.js makeBar).
+        defaultValue: STATUS_LINE_CATALOG.PHONE_BATTERY_LOOK_DEFAULT,
         options: [['Icon + text', 'both'], ['Text', 'text']]
     }, boldOnlyRow('PhoneBattery')], STATUS_LINE_CATALOG.phoneBatterySheet(slotKey));
 }

@@ -616,18 +616,26 @@
     return 'threshPhoneBattery' + slotKey.replace(/^status/, '');
   }
 
+  // The phone battery's Look in a slot that has none set: the phone's icon before its charge
+  // (the Look row's default, schema.js phoneBatterySlotSheet; slot-text.js phoneBatteryLook
+  // reads anything but 'text' as it too).
+  var PHONE_BATTERY_LOOK_DEFAULT = 'both';
+
   /**
    * What a slot keeps beside its item: a setting of the slot's own that one item reads, its
    * countdown's date (status-lines.js) and its phone battery's Look. ONE list for what a
-   * bar that is made or deleted clears with the slot (screens.js makeBar, unmakeBar) and
-   * what renderSignature watches while the slot holds the item (signSlots).
+   * bar that is made or deleted puts back on its default with the slot (screens.js makeBar,
+   * unmakeBar) and what renderSignature watches while the slot holds the item (signSlots).
    * @param {string} slotKey A slot's settings key.
-   * @returns {Array<{code: string, key: string}>} Each companion's item and settings key.
+   * @returns {Array<{code: string, key: string, defaultValue: (string|undefined)}>} Each
+   *   companion's item, settings key and the value it starts on: the Look's default, which
+   *   its row marks as picked; none for the countdown's date, which its row and the bake read
+   *   as today.
    */
   function slotCompanions(slotKey) {
     return [
-      { code: 'countdown', key: countdownKey(slotKey) },
-      { code: 'phoneBattery', key: phoneBatteryLookKey(slotKey) }
+      { code: 'countdown', key: countdownKey(slotKey), defaultValue: undefined },
+      { code: 'phoneBattery', key: phoneBatteryLookKey(slotKey), defaultValue: PHONE_BATTERY_LOOK_DEFAULT }
     ];
   }
 
@@ -686,7 +694,7 @@
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
     batterySettingKeys: batterySettingKeys, countdownKey: countdownKey,
     phoneBatteryLookKey: phoneBatteryLookKey, phoneBatterySheet: phoneBatterySheet,
-    slotCompanions: slotCompanions
+    PHONE_BATTERY_LOOK_DEFAULT: PHONE_BATTERY_LOOK_DEFAULT, slotCompanions: slotCompanions
   };
 
   // Dual-context export - mirror the exact tail of src/pkjs/layout/domain/view-cycle.js.

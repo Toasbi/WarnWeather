@@ -679,7 +679,8 @@
 
   /**
    * New status bar: make the next of bars 4 to 6 (freeBar), empty (its slots' defaults: Empty), with
-   * no countdown date and no alerts, and on no screen yet. It is called "Bar <n>" (its own name,
+   * no countdown date, each slot's phone battery Look on its default, no alerts, and on no screen
+   * yet. It is called "Bar <n>" (its own name,
    * so '' is stored), unless another bar was renamed to that: then a name none of your bars has
    * (freeName). Mutates S.
    * @param {Object} S Settings.
@@ -695,8 +696,10 @@
     S[barNameKey(bar)] = taken.indexOf(own) === -1 ? '' : freeName(taken, own);
     catalog.lineById(bar).slots.forEach(function (key) {
       S[key] = catalog.slotDefault(key, env);
+      // What only the slot's item reads, on its default: the phone battery's Look as its row
+      // marks it picked, the countdown's date unset (today).
       catalog.slotCompanions(key).forEach(function (companion) {
-        if (S[companion.key] !== undefined) { S[companion.key] = undefined; }
+        if (S[companion.key] !== companion.defaultValue) { S[companion.key] = companion.defaultValue; }
       });
     });
     onDemand.SIDES.forEach(function (side) { S[onDemand.itemsKey(bar, side)] = ''; });
@@ -733,10 +736,10 @@
     write(barNameKey(bar), '');
     catalog.lineById(bar).slots.forEach(function (key) {
       write(key, catalog.slotDefault(key));
-      // What only the slot's item reads (a countdown's date, the phone battery's Look); gone,
-      // the date row starts on today again and the Look on its default.
+      // What only the slot's item reads (a countdown's date, the phone battery's Look), back
+      // on its default: the date row starts on today again and the Look on Icon + text.
       catalog.slotCompanions(key).forEach(function (companion) {
-        if (S[companion.key] !== undefined) { write(companion.key, undefined); }
+        if (S[companion.key] !== companion.defaultValue) { write(companion.key, companion.defaultValue); }
       });
     });
     onDemand.SIDES.forEach(function (side) { write(onDemand.itemsKey(bar, side), ''); });
