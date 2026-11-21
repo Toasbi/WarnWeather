@@ -10,11 +10,13 @@ var LIB_PAGE_FILES = ['schema-walk.js', '../../lib/color.js', 'show-when.js', 'h
   'rgb-control.js', 'checklist.js', 'links.js', 'engine.js'];
 
 /**
- * Drop the whole-line comments and the leading indentation of one JS file.
+ * Drop the whole-line comments, the blank lines and the leading indentation of one JS file.
  *
  * The page reaches a real phone as ONE data: URL, which Android's WebView refuses past
- * 2 MiB, and every comment character and indentation space costs URL budget (a space
- * encodes as '%20'). Line-based and conservative, so the code itself is untouched:
+ * 2 MiB, and every comment character, indentation space and line break costs URL budget
+ * (a space encodes as '%20', a line break as '%0A'). Line-based and conservative, so the
+ * code itself is untouched:
+ *  - a blank line goes (the file's last line break stays);
  *  - a line whose first non-blank text is '//' goes, unless it also holds a '*' + '/'
  *    (it could be closing a block comment opened mid-line above);
  *  - a block comment goes when it starts a line and nothing but blanks follows its
@@ -27,7 +29,7 @@ var LIB_PAGE_FILES = ['schema-walk.js', '../../lib/color.js', 'show-when.js', 'h
  * line breaks included, before and after.
  *
  * @param {string} src JavaScript source.
- * @returns {string} The same program without whole-line comments or indentation.
+ * @returns {string} The same program without whole-line comments, blank lines or indentation.
  */
 function stripJs(src) {
   var lines = src.split('\n');
@@ -41,6 +43,7 @@ function stripJs(src) {
       continue;
     }
     var t = line.trim();
+    if (t === '' && i < lines.length - 1) { continue; }
     if (t.slice(0, 2) === '//' && t.indexOf('*/') === -1) { continue; }
     if (t.slice(0, 2) === '/*' && t.indexOf('__PCONF_') === -1) {
       var j = i;
