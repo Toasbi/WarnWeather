@@ -348,6 +348,16 @@ fetch options' gates and the one missing-value convention per field and writes
 the instance. An adapter only maps; only adopt decides.
 _Avoid_: normalized provider fields, provider instance shape.
 
+**Reading**:
+One of the nine parts a forecast is made of, each the mapped keys one provider fills:
+temperature (with the feels-like, computed from the same hours), dew point, rain (its chance
+and amount), wind (with the gusts), wind direction, UV, cloud cover, air pressure and the
+weather condition. `src/pkjs/weather/domain/provider-readings.js` lists them, and per provider
+which readings it sends (Yandex sends no dew point, wind direction, cloud cover or air
+pressure; DWD no UV), the setting that holds its key, the area it covers and the requests one
+fetch makes. Air quality, pollen and the rain radar are no readings: each has its own source.
+_Avoid_: metric (a metric is what a graph line or slot draws), field.
+
 ## Radar
 
 **Radar source**:

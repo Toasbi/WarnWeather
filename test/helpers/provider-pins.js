@@ -19,7 +19,6 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const world = require('./provider-world.js');
 
-const SRC = path.resolve(__dirname, '../../src/pkjs') + path.sep;
 const GOLDEN_PATH = path.join(__dirname, '..', 'provider-pins.golden.json');
 const ZONE = 'Europe/Berlin';
 const PROVIDERS = ['dwd', 'openmeteo', 'metno', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex'];
@@ -58,65 +57,6 @@ const SCENARIOS = {
 };
 
 /**
- * Run `fn` with the pinned clock, an empty localStorage, a Pebble that names `watchInfo`, an
- * XMLHttpRequest that answers from provider-world.js at once, and every src/pkjs module loaded
- * afresh (so no state carries over from another fetch).
- * @param {Object} watchInfo getActiveWatchInfo()'s answer.
- * @param {function(Object): *} fn Receives {mod, requests}; its result is returned.
- * @returns {*} fn's result.
- */
-function inPinnedWorld(watchInfo, fn) {
-  const saved = { Date: global.Date, localStorage: global.localStorage, Pebble: global.Pebble,
-    XMLHttpRequest: global.XMLHttpRequest, log: console.log };
-  const RealDate = saved.Date;
-  class PinnedDate extends RealDate {
-    constructor(...args) { if (args.length === 0) { super(world.NOW_MS); } else { super(...args); } }
-    static now() { return world.NOW_MS; }
-  }
-  const store = {};
-  const requests = [];
-  global.Date = PinnedDate;
-  global.localStorage = {
-    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
-    setItem: (k, v) => { store[k] = String(v); },
-    removeItem: (k) => { delete store[k]; },
-    clear: () => { Object.keys(store).forEach((k) => { delete store[k]; }); },
-    key: (i) => { const ks = Object.keys(store); return i >= 0 && i < ks.length ? ks[i] : null; },
-    get length() { return Object.keys(store).length; }
-  };
-  global.Pebble = { getActiveWatchInfo: () => watchInfo };
-  global.XMLHttpRequest = function PinnedXhr() {
-    const xhr = this;
-    xhr.open = (method, url) => { xhr.method = method; xhr.url = url; };
-    xhr.setRequestHeader = () => {};
-    xhr.send = (body) => {
-      const answer = world.respond(xhr.method, xhr.url, body);
-      const line = xhr.method + ' ' + xhr.url;
-      requests.push(body ? line + ' ' + body : line);
-      if (!answer.known) { requests.push('  ^ no service answers this request'); }
-      xhr.status = answer.status;
-      xhr.responseText = answer.text;
-      xhr.onload();
-    };
-  };
-  console.log = () => {};
-  const purge = () => {
-    Object.keys(require.cache).forEach((k) => { if (k.indexOf(SRC) === 0) { delete require.cache[k]; } });
-  };
-  purge();
-  try {
-    return fn({ mod: (name) => require(SRC + name), requests: requests });
-  } finally {
-    purge();
-    global.Date = saved.Date;
-    global.localStorage = saved.localStorage;
-    global.Pebble = saved.Pebble;
-    global.XMLHttpRequest = saved.XMLHttpRequest;
-    console.log = saved.log;
-  }
-}
-
-/**
  * One pinned fetch: the provider the settings pick, its options built as the fetch cycle
  * builds them, then fetchWithCoordinates at the pinned place with the fetch cycle's extras
  * and render transform.
@@ -127,7 +67,7 @@ function inPinnedWorld(watchInfo, fn) {
 function runPin(providerId, scenarioName) {
   const scenario = SCENARIOS[scenarioName];
   const watchInfo = WATCHES[scenario.watch];
-  return inPinnedWorld(watchInfo, ({ mod, requests }) => {
+  return world.inWorld(watchInfo, ({ mod, requests }) => {
     const claySettings = mod('settings/adapter/clay-settings.js');
     const settings = Object.assign(claySettings.getDefaults({ white: 0xFFFFFF, folly: 0xFF0055, holiday: 0x0055FF }),
       KEYS, scenario.settings, { provider: providerId });

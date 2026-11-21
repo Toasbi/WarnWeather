@@ -8,6 +8,7 @@
 // request it gets (the hours a URL asks for, Yandex's days), as the services do. A request
 // no service here knows gets a 404 and is marked, so a new request shows up in the pins.
 'use strict';
+const path = require('path');
 
 const HOUR = 3600;
 // 10:20 in Berlin (CEST, UTC+2): a summer morning before a midday shower.
@@ -451,4 +452,70 @@ function respond(method, url, body) {
   return { status: 404, text: '', known: false };
 }
 
-module.exports = { NOW_MS, PLACE, HOUR0, hourAt, respond };
+const SRC = path.resolve(__dirname, '../../src/pkjs') + path.sep;
+
+/**
+ * Run `fn` in this world: the pinned clock, an empty localStorage, a Pebble that names
+ * `watchInfo`, an XMLHttpRequest the services above answer at once, and every src/pkjs module
+ * loaded afresh, so nothing carries over from another run. Each request is recorded as
+ * '<method> <url>' (and its body), with a line under it when no service answers it.
+ * @param {Object} watchInfo getActiveWatchInfo()'s answer.
+ * @param {function({mod: function(string): *, requests: string[]}): *} fn Gets the module
+ *   loader (a path under src/pkjs) and the requests so far; its result is returned.
+ * @param {{answers: function(string): boolean}} [opts] answers(url) false refuses a
+ *   request with a 503 (a service that is down).
+ * @returns {*} fn's result.
+ */
+function inWorld(watchInfo, fn, opts) {
+  const answers = (opts && opts.answers) || (() => true);
+  const saved = { Date: global.Date, localStorage: global.localStorage, Pebble: global.Pebble,
+    XMLHttpRequest: global.XMLHttpRequest, log: console.log };
+  const RealDate = saved.Date;
+  class PinnedDate extends RealDate {
+    constructor(...args) { if (args.length === 0) { super(NOW_MS); } else { super(...args); } }
+    static now() { return NOW_MS; }
+  }
+  const store = {};
+  const requests = [];
+  global.Date = PinnedDate;
+  global.localStorage = {
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; },
+    clear: () => { Object.keys(store).forEach((k) => { delete store[k]; }); },
+    key: (i) => { const ks = Object.keys(store); return i >= 0 && i < ks.length ? ks[i] : null; },
+    get length() { return Object.keys(store).length; }
+  };
+  global.Pebble = { getActiveWatchInfo: () => watchInfo };
+  global.XMLHttpRequest = function WorldXhr() {
+    const xhr = this;
+    xhr.open = (method, url) => { xhr.method = method; xhr.url = url; };
+    xhr.setRequestHeader = () => {};
+    xhr.send = (body) => {
+      const line = xhr.method + ' ' + xhr.url;
+      requests.push(body ? line + ' ' + body : line);
+      const answer = answers(xhr.url) ? respond(xhr.method, xhr.url, body) : { status: 503, text: '', known: true };
+      if (!answer.known) { requests.push('  ^ no service answers this request'); }
+      xhr.status = answer.status;
+      xhr.responseText = answer.text;
+      xhr.onload();
+    };
+  };
+  console.log = () => {};
+  const purge = () => {
+    Object.keys(require.cache).forEach((k) => { if (k.indexOf(SRC) === 0) { delete require.cache[k]; } });
+  };
+  purge();
+  try {
+    return fn({ mod: (name) => require(SRC + name), requests: requests });
+  } finally {
+    purge();
+    global.Date = saved.Date;
+    global.localStorage = saved.localStorage;
+    global.Pebble = saved.Pebble;
+    global.XMLHttpRequest = saved.XMLHttpRequest;
+    console.log = saved.log;
+  }
+}
+
+module.exports = { NOW_MS, PLACE, HOUR0, hourAt, respond, inWorld };
