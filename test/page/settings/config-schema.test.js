@@ -1154,13 +1154,13 @@ test('metric pickers keep only the notes that hold whatever the style', () => {
 
 test('a metric picker names a gap in the picked provider only', () => {
   const pick = (m, provider) => hintOf('secondaryLine', { secondaryLine: m, provider }, STYLED_ENV);
-  const YANDEX = 'Not available with Yandex.';
   const METNO = 'Not available with Met.no outside the Nordics.';
-  ['cloud', 'pressure'].forEach((m) => assert.equal(pick(m, 'yandex'), YANDEX, m));
-  assert.equal(pick('dew', 'yandex'),
-    'The closer it runs to the temperature, the more humid it feels. ' + YANDEX, 'after the metric\'s note');
+  // Yandex's cloud cover, air pressure and dew point come from Open-Meteo (the note under the
+  // Weather picker says so), so its pickers name no gap.
+  ['cloud', 'pressure'].forEach((m) => assert.equal(pick(m, 'yandex'), '', m));
+  assert.equal(pick('dew', 'yandex'), 'The closer it runs to the temperature, the more humid it feels.');
+  assert.equal(pick('gust', 'metno'), 'Shows the hourly peak. ' + METNO, 'after the metric\'s note');
   assert.equal(pick('precip_prob', 'metno'), METNO);
-  assert.equal(pick('gust', 'metno'), 'Shows the hourly peak. ' + METNO);
   assert.equal(pick('cloud', 'metno'), '', 'Met.no sends clouds');
   assert.equal(pick('precip_prob', 'dwd'), '', 'nothing for a provider without the gap');
 });

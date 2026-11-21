@@ -31,10 +31,12 @@
     ];
 
     // The metrics a weather service doesn't send, by its id: `who` names it in a sentence, `note`
-    // is the metric picker's hint while it is the service. Met.no sends rain chance and gusts for
+    // is the metric picker's hint while it is the service. A reading a service has none of
+    // anywhere comes from Open-Meteo instead (the source plan's fills: Yandex's cloud cover, air
+    // pressure and dew point), which the note under the Weather picker names
+    // (page/weather/weather-sources-page.js). Left here: Met.no sends rain chance and gusts for
     // the Nordics only.
     var GAPS = {
-        yandex: { metrics: ['cloud', 'pressure', 'dew'], who: 'Yandex', note: 'Not available with Yandex.' },
         metno: { metrics: ['precip_prob', 'gust'], who: 'Met.no outside the Nordics',
             note: 'Not available with Met.no outside the Nordics.' }
     };
@@ -92,8 +94,8 @@
     }
 
     /**
-     * What a graph's metrics miss with a weather service, as a sentence says it: "Yandex sends no
-     * clouds or air pressure."
+     * What a graph's metrics miss with a weather service, as a sentence says it: "Met.no outside
+     * the Nordics sends no rain chance."
      * @param {*} provider A weather service's id.
      * @param {string[]} ids The metrics a graph draws.
      * @returns {string} '' when the service sends them all

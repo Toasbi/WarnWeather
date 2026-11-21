@@ -19,9 +19,10 @@ const PC = global.PConf;
 const setup = schema.tabs.find((t) => t.id === 'setup');
 const card = setup.sections.find((s) => s.id === 'dataSources');
 const providerRow = card.items.find((i) => i.messageKey === 'provider');
-const noteItem = card.items[card.items.indexOf(providerRow) + 1];
+const noteItem = card.items.find((i) => i.textFrom && i.textFrom.resolver === 'keyMissingNote'
+  && i.textFrom.args.picker === 'provider');
 // The nav row under the picker (and its amber note) that opens the picked provider's key sheet.
-const keyRow = card.items[card.items.indexOf(providerRow) + 2];
+const keyRow = card.items[card.items.indexOf(noteItem) + 1];
 const sheetById = (id) => setup.sections.find((s) => s.sheetOnly && s.sheetId === id);
 // The Weather provider picker's keyed sources (key-sources.js), which the picker's key-status
 // resolver reads by its messageKey, and the note's and the key row's by args.picker.

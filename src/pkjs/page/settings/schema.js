@@ -82,6 +82,8 @@ var onDemandRow = alertsSchema.onDemandRow;
 // picker carries (Line style, Draw from, the graph scales, Visible values), the metric
 // pickers' derived hint and the two stripe styles the Area fill row reads.
 var forecastLines = require('../forecast-graphs/forecast-lines-schema.js');
+// Where the weather comes from: the note under the Weather picker (Setup › Data sources).
+var weatherSources = require('../weather/weather-sources-schema.js');
 var METRIC_HINT_FROM = forecastLines.METRIC_HINT_FROM;
 var STRIPE_STYLES = forecastLines.STRIPE_STYLES;
 var lineStyleCopy = forecastLines.lineStyleCopy;
@@ -2710,7 +2712,7 @@ module.exports = {
                     ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
                     ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
                 ]
-            }, {
+            }, weatherSources.FILL_NOTE, {
                 // The keyed provider's empty key, said where it cannot be missed: an amber note
                 // hugging the row, only while the picked provider's key is blank (textFrom
                 // answers '' otherwise and the note is gone, divider and all).

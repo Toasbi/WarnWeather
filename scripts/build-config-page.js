@@ -108,6 +108,15 @@ var APP_FILES = [
   // The forecast metrics' names (window.ForecastMetrics: a metric as its pickers name it and as
   // a sentence does). It reads nothing at load; graph-styles-page.js, forecast-hints.js,
   // blocks.js and wizard-forecast.js bind it while their bodies run, so it precedes all four.
+  // Where the weather comes from (Setup › Data sources): what each provider sends
+  // (window.ProviderReadings), the source plan's fills (window.SourcePlan, which reads it while
+  // its body runs) and what the watch draws (window.DrawnReadings: reads LineStyle, GraphStyles,
+  // StatusLineCatalog and StatusThresholds, all above), then the note under the Weather picker
+  // that names the fills (weather-sources-page.js binds all three while its body runs).
+  path.join(ROOT, 'src/pkjs/weather/domain/provider-readings.js'),
+  path.join(ROOT, 'src/pkjs/weather/domain/source-plan.js'),
+  path.join(ROOT, 'src/pkjs/weather/domain/drawn-readings.js'),
+  path.join(ROOT, 'src/pkjs/page/weather/weather-sources-page.js'),
   path.join(ROOT, 'src/pkjs/page/forecast-graphs/forecast-metrics.js'),
   path.join(ROOT, 'src/pkjs/page/forecast-graphs/graph-styles-page.js'),
   // A stripe cell's level on its metric's own scale (window.StripeLevels): the table the

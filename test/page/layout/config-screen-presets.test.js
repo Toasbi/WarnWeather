@@ -1122,13 +1122,17 @@ test('the Dense card: the compact calendar, the radar bar under it, more status 
 });
 
 test('the picked screen says what the weather service leaves out of its graph, under its legend', () => {
-  const page = bootGeneratedPage({ provider: 'yandex' }, 'emery');
+  const page = bootGeneratedPage({ provider: 'metno' }, 'emery');
   page.tapAction('addScreen');
   page.tapEditor({ se: 'pick', id: 'forecast', cal: '' });
-  page.tapEditor({ se: 'agraph', v: 'meteogram' });
-  assert.deepEqual(legend(page.editor()).slice(-2), ['Rain', '! Yandex sends no clouds or air pressure.']);
-  page.tapEditor({ se: 'agraph', v: 'wind' });
-  assert.ok(legend(page.editor()).every((r) => r.charAt(0) !== '!'), 'Yandex sends the wind and gusts');
+  page.tapEditor({ se: 'agraph', v: 'clean' });
+  assert.deepEqual(legend(page.editor()).slice(-1), ['! Met.no outside the Nordics sends no rain chance.']);
+  const yandex = bootGeneratedPage({ provider: 'yandex' }, 'emery');
+  yandex.tapAction('addScreen');
+  yandex.tapEditor({ se: 'pick', id: 'forecast', cal: '' });
+  yandex.tapEditor({ se: 'agraph', v: 'meteogram' });
+  assert.ok(legend(yandex.editor()).every((r) => r.charAt(0) !== '!'),
+    'Yandex\'s clouds and air pressure come from Open-Meteo');
 });
 
 test('a screen that cannot be added: its reason, Add screen off; a basalt keeps its graph', () => {

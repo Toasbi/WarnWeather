@@ -16427,6 +16427,13 @@
               },
               {
                 "type": "staticText",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "weatherFillNote"
+                }
+              },
+              {
+                "type": "staticText",
                 "style": "info",
                 "joinPrevious": true,
                 "textFrom": {

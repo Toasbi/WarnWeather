@@ -847,3 +847,28 @@ test('the new-features card reaches the generated page and registers its block',
   assert.ok(src.indexOf('data-k=\\"featureTipsAck\\"') !== -1, 'its Got it flips the flag the phone reads');
   assert.ok(src.indexOf("ctx.set('featureTipsAck', false)") !== -1, 'the flag is cleared on every open (onbuild.js onLoad)');
 });
+
+// The note under the Weather picker (page/weather/weather-sources-page.js) binds the provider
+// table, the source plan and the drawn rule while its body runs, and drawn-readings.js binds
+// the line, graph style, slot and alert modules while ITS body runs: out of order, the Setup tab
+// throws on a real phone while every Node test passes through require().
+test('where the weather comes from: each module is bundled ahead of the ones that bind it', () => {
+  const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  ['forecast-graphs/domain/line-style.js', 'forecast-graphs/domain/graph-styles.js',
+    'status-bars/domain/status-line-catalog.js', 'alerts/domain/status-thresholds.js'].forEach((file) => {
+    assert.ok(idx(file) < idx('weather/domain/drawn-readings.js'), file + ' must precede drawn-readings.js');
+  });
+  assert.ok(idx('weather/domain/provider-readings.js') < idx('weather/domain/source-plan.js'));
+  ['weather/domain/source-plan.js', 'weather/domain/drawn-readings.js'].forEach((file) => {
+    assert.ok(idx(file) < idx('page/weather/weather-sources-page.js'), file + ' must precede weather-sources-page.js');
+  });
+  ['window.ProviderReadings = api', 'window.SourcePlan = api', 'window.DrawnReadings = api',
+    'window.WeatherSourcesPage = api', "register('weatherFillNote'"].forEach((s) => {
+    assert.ok(page().indexOf(s) !== -1, s + ' is not in the generated page');
+  });
+});
