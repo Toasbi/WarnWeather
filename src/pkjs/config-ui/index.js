@@ -27,11 +27,13 @@ function inlineScriptJson(value) {
 // The names inlineScriptLiteral never writes bare: ES3's keywords and future reserved words
 // (an ES3 engine, as the oldest Android WebViews have, takes none of them as a bare property
 // name), ES5's additions and the three literals.
-var RESERVED_NAMES = ' abstract boolean break byte case catch char class const continue debugger' +
+var RESERVED_NAMES = {};
+('abstract boolean break byte case catch char class const continue debugger' +
   ' default delete do double else enum export extends false final finally float for function' +
   ' goto if implements import in instanceof int interface let long native new null package' +
   ' private protected public return short static super switch synchronized this throw throws' +
-  ' transient true try typeof var void volatile while with yield ';
+  ' transient true try typeof var void volatile while with yield').split(' ')
+  .forEach(function (name) { RESERVED_NAMES[name] = true; });
 
 /**
  * One JSON string token as the JavaScript string literal that costs the fewest URL
@@ -63,7 +65,8 @@ function leanString(body) {
  * @returns {string} The property name.
  */
 function leanKey(body) {
-  var bare = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(body) && RESERVED_NAMES.indexOf(' ' + body + ' ') === -1;
+  // `=== true`: a name Object.prototype has (constructor, toString) is not a reserved one.
+  var bare = RESERVED_NAMES[body] !== true && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(body);
   return bare ? body : leanString(body);
 }
 

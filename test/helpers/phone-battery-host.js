@@ -65,6 +65,8 @@ function boot(opts) {
     getSettings: function () { return h.settings; },
     getPhoneBattery: phoneBattery.bakeFacts,
     sendWeather: function (p) { h.sends.push(p); },
+    // The re-baker's clock decides whether the Night battery saver's window is open.
+    now: function () { return h.clock; },
     // undefined falls through to the real status-lines baker.
     buildStatusLines: opts.realBake ? undefined : function (payload, settings, watchInfo) {
       h.bakes.push({ payload: payload, settings: settings, watchInfo: watchInfo });
@@ -85,9 +87,7 @@ function boot(opts) {
     pebble: opts.pebble,
     setTimeout: opts.setTimeout,
     clearTimeout: opts.clearTimeout,
-    devConfig: opts.devConfig,
-    getSettings: function () { return h.settings; },
-    now: function () { return h.clock; }
+    devConfig: opts.devConfig
   });
   return h;
 }

@@ -5,13 +5,16 @@
 // fetch and the fixture path alike) hands its bake inputs here immediately
 // before it bakes the status lines (rememberBakeInputs); any later trigger re-bakes those
 // inputs against the CURRENT settings and pushes only the status keys
-// (resendStatus). Three triggers: a phone-battery event, every settings save
-// (channel-scheduler's config close), which is how a status-only edit — an
-// alert switched off, a level moved, a Look — reaches the watch at once,
-// network or not, and a sunrise or sunset (onTick), which turns the weather
-// condition's and the city's icon between sun and moon without a fetch. A version-stamped flash snapshot backs the in-memory
-// inputs across PKJS restarts (PKJS dies whenever the user leaves the
-// watchface).
+// (resendStatus). The triggers: a battery reading that moved (the phone's charge,
+// the days the watch has left), every settings save (channel-scheduler's config
+// close), which is how a status-only edit — an alert switched off, a level
+// moved, a Look — reaches the watch at once, network or not, and a sunrise or
+// sunset (onTick), which turns the weather condition's and the city's icon
+// between sun and moon without a fetch. A battery reading can wait for the
+// morning: inside the Night battery saver's window its send is owed, and the
+// first tick after the window pays it (resendStatusAwake). A version-stamped
+// flash snapshot backs the in-memory inputs across PKJS restarts (PKJS dies
+// whenever the user leaves the watchface).
 //
 // This lived inside phone-battery.js, which inverted a dependency — the
 // weather pipeline (forecast-series.js) had to require a BATTERY module just
@@ -120,6 +123,8 @@ var snapshot = null;  // last bake inputs ({payload, watchInfo}) from THIS PKJS 
 var restored = null;  // the same shape, read back from flash at init: the restart backstop
 var lastWritten = null;   // last serialized snapshot, to skip no-op flash writes
 var bakedNight;           // day or night of the last bake (undefined: nothing baked yet)
+var owed = null;          // the send the Night battery saver's window swallowed: each trigger's
+                          // step before it (resendStatusAwake); null = nothing is owed
 
 /**
  * @returns {?{getItem: Function, setItem: Function, removeItem: Function}} The injected
@@ -385,32 +390,78 @@ function nightAt(payload, sec) {
 }
 
 /**
- * Per-minute hook (the channel scheduler's tick): re-bakes the status once day
- * turns to night or back since the last bake, so the sun and moon icons follow
- * the sky between fetches. After a restart the restored snapshot counts as baked
- * on the side of the sky it is now: the fetch that runs on the return brings
- * the rest, and a resend before it would carry the old snapshot's values.
+ * @returns {boolean} Whether the Night battery saver's window is open now (battery-saver.js).
+ */
+function saverWindowOpen() {
+    return batterySaver.isWithinSleepWindow(new Date(nowMs()), currentSettings());
+}
+
+/**
+ * resendStatus for news that can wait for the morning: a battery reading that moved.
+ * Inside the Night battery saver's window nothing is sent, because waking the watch's link
+ * for a readout is what that setting exists to prevent. The send is owed instead, and the
+ * first tick after the window pays it (onTick). Any send from here pays what is owed, so
+ * one message carries every trigger's news.
  *
- * It waits while a weather fetch is in flight, whose bake latches the side of the
- * sky it is on, and inside the battery saver's window (battery-saver.js), which
- * wakes the watch for nothing: the first tick after it, or the fetch due then,
- * brings the turn. Nothing is latched while it waits, so a fetch that fails
- * leaves it to the next tick.
+ * The debt is kept, not read off the window's edge, so it never depends on a tick having
+ * landed inside the window. It does not outlive PKJS: the fetch on the return brings the
+ * reading then.
+ *
+ * @param {string} reason Log label for why the resend fired.
+ * @param {Function} [prepare] The trigger's step before its news is baked, run right
+ *   before the send, now or when the debt is paid (the phone battery makes its exact
+ *   reading the shown one).
+ * @returns {boolean} True when a send was attempted now.
+ */
+function resendStatusAwake(reason, prepare) {
+    owed = owed || [];
+    if (prepare && owed.indexOf(prepare) === -1) { owed.push(prepare); }
+    if (saverWindowOpen()) {
+        console.log('status-rebake: saver window open, ' + reason + ' send owed.');
+        return false;
+    }
+    return payOwed(reason);
+}
+
+/**
+ * Run every owed trigger's step, then re-bake and send once.
+ * @param {string} reason Log label for why the resend fired.
+ * @returns {boolean} True when a send was attempted.
+ */
+function payOwed(reason) {
+    var steps = owed || [];
+    owed = null;
+    steps.forEach(function (step) { step(); });
+    return resendStatus(reason);
+}
+
+/**
+ * Per-minute hook (the channel scheduler's tick). Two things wait for it:
+ *
+ * - Day turning to night or back since the last bake: the status is re-baked, so the sun
+ *   and moon icons follow the sky between fetches. After a restart the restored snapshot
+ *   counts as baked on the side of the sky it is now: the fetch that runs on the return
+ *   brings the rest, and a resend before it would carry the old snapshot's values.
+ * - A send the Night battery saver's window swallowed (resendStatusAwake).
+ *
+ * Both wait while a weather fetch is in flight, whose message carries the status anyway
+ * and whose bake latches the side of the sky it is on, and inside the battery saver's
+ * window (battery-saver.js), which wakes the watch for nothing: the first tick after it,
+ * or the fetch due then, brings them. Nothing is latched or paid while it waits, so a
+ * fetch that fails, or whose message did not carry the news, leaves it to the next tick
+ * (the outbox drops a send whose bytes the watch already has).
  *
  * @param {boolean} [fetchInFlight] Whether a weather fetch is running this tick.
  * @returns {boolean} True when a resend was attempted.
  */
 function onTick(fetchInFlight) {
     var src = snapshot || restored;
-    var night;
-    if (!src) { return false; }
-    night = nightNow(src.payload);
-    if (night === bakedNight) { return false; }
-    if (fetchInFlight || batterySaver.isWithinSleepWindow(new Date(nowMs()), currentSettings())) {
-        return false;
-    }
+    var night = src ? nightNow(src.payload) : bakedNight;
+    var turned = night !== bakedNight;
+    if (!turned && !owed) { return false; }
+    if (fetchInFlight || saverWindowOpen()) { return false; }
     bakedNight = night;
-    return resendStatus(night ? 'sunset' : 'sunrise');
+    return payOwed(turned ? (night ? 'sunset' : 'sunrise') : 'post-saver-window');
 }
 
 /**
@@ -545,6 +596,7 @@ function init(options) {
     snapshot = null;
     lastWritten = null;
     bakedNight = undefined;
+    owed = null;
     restored = restoreSnapshot();
     if (restored) { bakedNight = nightNow(restored.payload); }
 }
@@ -553,6 +605,7 @@ module.exports = {
     init: init,
     rememberBakeInputs: rememberBakeInputs,
     resendStatus: resendStatus,
+    resendStatusAwake: resendStatusAwake,
     bakeStatus: bakeStatus,
     onTick: onTick,
     invalidatePersisted: invalidatePersisted,

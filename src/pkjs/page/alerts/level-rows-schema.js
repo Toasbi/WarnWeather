@@ -276,7 +276,7 @@ function levelLead(keyStem, voice, hint, gate) {
  * @returns {Object[]} The warn look, warn color and danger color rows.
  */
 function levelLook(keyStem, voice, gate, offWhen, joinsAbove, moreLook) {
-    var colorWhen = gate ? {all: [gate, COLOR_THEME_WHEN]} : COLOR_THEME_WHEN;
+    var colorWhen = gates.bothWhen(gate, COLOR_THEME_WHEN);
     var warnLook = {
         // The warn look — the box drawn at the warn level (a goal kind's "close"),
         // for the slot while its highlight is on AND for the kind's alert icon.

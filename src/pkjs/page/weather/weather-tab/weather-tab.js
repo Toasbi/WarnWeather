@@ -308,7 +308,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // (weather-tab-cache.js tabInUse).
         state.weatherTabSeenAt = Date.now();
         ensureFetch(state, userData);
-        var pal = charts.palette(pageIsLight(state), pageIsBlack(state));
+        var pal = charts.palette(pageTheme(state));
         // The tile highlight is interpolated in JS frame by frame while a
         // swipe is in flight, so the fade needs the very inks this render
         // used — not a palette re-resolved against a theme that may have
@@ -484,27 +484,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Whether the page currently renders its light chrome (the charts pick
-     * their validated palette per surface).
-     * @param {Object} state Live settings state (configTheme).
-     * @returns {boolean} True for the light page theme.
-     */
-    function pageIsLight(state) {
-        return pageTheme(state) === 'light';
-    }
-
-    /**
-     * Whether the page currently renders its Black theme (the dark chart palette, on the
-     * Black card surface).
-     * @param {Object} state Live settings state (configTheme).
-     * @returns {boolean} True only when the setting is Black.
-     */
-    function pageIsBlack(state) {
-        return pageTheme(state) === 'black';
-    }
-
-    /**
-     * The theme the page renders: 'light', 'dark' or 'black'.
+     * The theme the page renders: 'light', 'dark' or 'black' (the charts pick their
+     * validated palette per surface, weather-tab-charts.js palette).
      * @param {Object} state Live settings state (configTheme).
      * @returns {string} The resolved theme.
      */
@@ -1134,7 +1115,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function fadeDayCards(f, animated) {
         if (typeof document === 'undefined' || !document.querySelectorAll) { return; }
-        var pal = lastPal || charts.palette(false);
+        var pal = lastPal || charts.palette('dark');
         var tiles = document.querySelectorAll('.wx-day');
         if (tileTimer) { clearTimeout(tileTimer); tileTimer = null; }
         for (var i = 0; i < tiles.length; i += 1) {

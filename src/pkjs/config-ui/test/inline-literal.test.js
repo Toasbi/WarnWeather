@@ -62,6 +62,10 @@ test('a key is bare only where every engine takes it as a name', () => {
     "{'default':1,'class':2,'in':3,'null':4,'true':5,'enum':6,'int':7}");
   // A name that only starts like one stays bare.
   assert.equal(literal({ defaultValue: 1, inner: 2, classes: 3 }), '{defaultValue:1,inner:2,classes:3}');
+  // So does a name every object inherits: it is no reserved word, and it stays the value's own.
+  const inherited = { constructor: 1, toString: 2, hasOwnProperty: 3, valueOf: 4 };
+  assert.equal(literal(inherited), '{constructor:1,toString:2,hasOwnProperty:3,valueOf:4}');
+  assert.deepEqual(evaluate(literal(inherited)), inherited);
 });
 
 test('a string takes the quotes that cost less', () => {

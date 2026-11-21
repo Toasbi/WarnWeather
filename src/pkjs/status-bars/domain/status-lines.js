@@ -477,6 +477,23 @@ function slotCode(line, s, settings, env) {
 }
 
 /**
+ * Whether any slot of the given lines shows an item.
+ * @param {Array<Object>} lines catalog line definitions
+ * @param {Object} settings Clay settings blob
+ * @param {Object} env platform environment
+ * @param {string} code the item's catalog code
+ * @returns {boolean}
+ */
+function showsItem(lines, settings, env, code) {
+  for (var l = 0; l < lines.length; l++) {
+    for (var s = 0; s < 3; s++) {
+      if (slotCode(lines[l], s, settings, env) === code) { return true; }
+    }
+  }
+  return false;
+}
+
+/**
  * Whether any slot of the given lines shows the phone's battery (in either look).
  * @param {Array<Object>} lines catalog line definitions
  * @param {Object} settings Clay settings blob
@@ -484,12 +501,7 @@ function slotCode(line, s, settings, env) {
  * @returns {boolean}
  */
 function showsPhoneBattery(lines, settings, env) {
-  for (var l = 0; l < lines.length; l++) {
-    for (var s = 0; s < 3; s++) {
-      if (slotCode(lines[l], s, settings, env) === 'phoneBattery') { return true; }
-    }
-  }
-  return false;
+  return showsItem(lines, settings, env, 'phoneBattery');
 }
 
 /**
@@ -502,13 +514,8 @@ function showsPhoneBattery(lines, settings, env) {
  * @returns {boolean}
  */
 function showsBatteryDays(lines, settings, env) {
-  if (!batteryDays.wanted(settings) || slotText.batteryLook(settings, env) !== 'text') { return false; }
-  for (var l = 0; l < lines.length; l++) {
-    for (var s = 0; s < 3; s++) {
-      if (slotCode(lines[l], s, settings, env) === 'battery') { return true; }
-    }
-  }
-  return false;
+  return batteryDays.wanted(settings) && slotText.batteryLook(settings, env) === 'text'
+    && showsItem(lines, settings, env, 'battery');
 }
 
 /**

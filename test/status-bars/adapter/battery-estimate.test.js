@@ -118,7 +118,7 @@ test('not wanted: nothing is read', () => {
     {}].forEach((settings) => {
     const h = boot({ settings: settings });
     assert.equal(h.pebble.subs.length, 0, JSON.stringify(settings));
-    batteryEstimate.onTick(false);
+    batteryEstimate.onTick();
     batteryEstimate.refresh();
     assert.equal(h.pebble.subs.length, 0);
   });
@@ -128,7 +128,7 @@ test('not wanted: nothing is read', () => {
 test('a Pebble app without plugins: nothing is read, nothing thrown', () => {
   [null, {}, { subscribeToSource: 'no' }].forEach((pebble) => {
     const h = boot({ pebble: pebble });
-    assert.doesNotThrow(() => batteryEstimate.onTick(false));
+    assert.doesNotThrow(() => batteryEstimate.onTick());
     assert.doesNotThrow(() => batteryEstimate.refresh());
     assert.equal(h.sends.length, 0);
     assert.equal(batteryEstimate.bakeFacts().estimate(), null);
@@ -149,18 +149,50 @@ test('the same days heard again send nothing', () => {
   const h = boot();
   h.pebble.subs[0].push(stats(5, h.clock - 60 * MIN));
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick(false);
+  batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 2);
   h.pebble.subs[1].push(stats(5, h.clock - 5 * MIN));
   assert.equal(h.sends.length, 1, 'a newer estimate of the same days is no news');
   assert.equal(JSON.parse(storage[KEYS.BATTERY_ESTIMATE]).updatedAt, h.clock - 5 * MIN, 'but it is kept');
 });
 
+test('the estimate kept is heard again: nothing is written', (t) => {
+  const h = boot();
+  const made = h.clock - 60 * MIN;
+  h.pebble.subs[0].push(stats(5, made));
+  const writes = [];
+  const realSet = global.localStorage.setItem;
+  const realRemove = global.localStorage.removeItem;
+  t.after(() => { global.localStorage.setItem = realSet; global.localStorage.removeItem = realRemove; });
+  global.localStorage.setItem = function (k, v) { writes.push(k); return realSet.call(this, k, v); };
+  global.localStorage.removeItem = function (k) { writes.push(k); return realRemove.call(this, k); };
+  // Muninn makes a new estimate a few times a day; the reads in between hear the one kept.
+  h.clock += batteryEstimate.READ_INTERVAL_MS;
+  batteryEstimate.onTick();
+  h.pebble.subs[1].push(stats(5, made));
+  assert.deepEqual(writes.filter((k) => k === KEYS.BATTERY_ESTIMATE), [], 'the same estimate: no write');
+  assert.equal(h.sends.length, 1, 'and no send');
+  // A newer one is written.
+  h.clock += batteryEstimate.READ_INTERVAL_MS;
+  batteryEstimate.onTick();
+  h.pebble.subs[2].push(stats(5, made + MIN));
+  assert.deepEqual(writes.filter((k) => k === KEYS.BATTERY_ESTIMATE), [KEYS.BATTERY_ESTIMATE]);
+  // No estimate, heard twice: dropped once.
+  h.clock += batteryEstimate.READ_INTERVAL_MS;
+  batteryEstimate.onTick();
+  h.pebble.subs[3].push(stats(-1, -1));
+  h.clock += batteryEstimate.READ_INTERVAL_MS;
+  batteryEstimate.onTick();
+  h.pebble.subs[4].push(stats(-1, -1));
+  assert.equal(writes.filter((k) => k === KEYS.BATTERY_ESTIMATE).length, 2, 'one write, one removal');
+  assert.equal(storage[KEYS.BATTERY_ESTIMATE], undefined);
+});
+
 test('other days heard are sent', () => {
   const h = boot();
   h.pebble.subs[0].push(stats(5, h.clock));
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick(false);
+  batteryEstimate.onTick();
   h.pebble.subs[1].push(stats(4, h.clock));
   assert.equal(h.sends.length, 2);
   assert.equal(sentDays(h), '4d');
@@ -173,7 +205,7 @@ test('set to both: Muninn is read the same, and the watch gets the days beside t
   assert.equal(h.sends.length, 1);
   assert.equal(sentDays(h), batteryDays.PCT_MARK + '|5d');
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick(false);
+  batteryEstimate.onTick();
   h.pebble.subs[1].push(stats(4, h.clock));
   assert.equal(h.sends.length, 2, 'other days are news to the pair too');
   assert.equal(sentDays(h), batteryDays.PCT_MARK + '|4d');
@@ -191,7 +223,7 @@ test('an estimate that goes away takes the days off the watch', () => {
   const h = boot();
   h.pebble.subs[0].push(stats(5, h.clock));
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick(false);
+  batteryEstimate.onTick();
   h.pebble.subs[1].push(stats(-1, -1));
   assert.equal(storage[KEYS.BATTERY_ESTIMATE], undefined);
   assert.equal(h.sends.length, 2);
@@ -202,14 +234,14 @@ test('Muninn not installed drops what was kept; any other failure keeps it', () 
   const h = boot();
   h.pebble.subs[0].push(stats(5, h.clock));
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick(false);
+  batteryEstimate.onTick();
   h.pebble.subs[1].fail('TIMEOUT');
   assert.deepEqual(batteryEstimate.bakeFacts().estimate(), { days: 5, updatedAt: h.clock - batteryEstimate.READ_INTERVAL_MS },
     'a hiccup keeps the estimate');
   assert.equal(h.pebble.subs[1].unsubscribed, 1);
   assert.equal(h.sends.length, 1);
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick(false);
+  batteryEstimate.onTick();
   h.pebble.subs[2].fail('PLUGIN_UNAVAILABLE');
   assert.equal(batteryEstimate.bakeFacts().estimate(), null, 'Muninn is gone: so is its estimate');
   assert.equal(h.sends.length, 2);
@@ -220,11 +252,11 @@ test('a plugin that never answers is given up on, and asked again later', () => 
   const h = boot();
   assert.equal(h.timers.length, 1, 'the read has a timeout');
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick(false);
+  batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 1, 'not asked again while the first read is under way');
   h.timers[0].fn();
   assert.equal(h.pebble.subs[0].unsubscribed, 1);
-  batteryEstimate.onTick(false);
+  batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 2, 'the next tick asks again');
 });
 
@@ -232,10 +264,10 @@ test('the tick asks again only after the read interval', () => {
   const h = boot();
   h.pebble.subs[0].push(stats(5, h.clock));
   h.clock += batteryEstimate.READ_INTERVAL_MS - MIN;
-  batteryEstimate.onTick(false);
+  batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 1);
   h.clock += MIN;
-  batteryEstimate.onTick(false);
+  batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 2);
 });
 
@@ -262,15 +294,16 @@ test('the Night battery saver holds a change back until its window has closed', 
   h.pebble.subs[0].push(stats(5, h.clock));
   assert.equal(h.sends.length, 0, 'no wake-up for a battery readout overnight');
   assert.ok(storage[KEYS.BATTERY_ESTIMATE], 'but the estimate is kept');
-  batteryEstimate.onTick(false);
+  // The re-baker's tick pays what the window swallowed (status-rebake.js resendStatusAwake).
+  statusRebake.onTick(false);
   assert.equal(h.sends.length, 0, 'still inside the window');
   h.clock = new Date(2026, 10, 21, 7, 0, 0).getTime();
-  batteryEstimate.onTick(true);
+  statusRebake.onTick(true);
   assert.equal(h.sends.length, 0, 'not beside a fetch in flight, whose message bakes it anyway');
-  batteryEstimate.onTick(false);
+  statusRebake.onTick(false);
   assert.equal(h.sends.length, 1, 'paid on the first free tick after the window');
   assert.equal(sentDays(h), '5d');
-  batteryEstimate.onTick(false);
+  statusRebake.onTick(false);
   assert.equal(h.sends.length, 1, 'once');
 });
 

@@ -53,6 +53,16 @@ function pending(env) {
 }
 
 /**
+ * The card the settings page opens on, on this watch and phone (userData.featureTips).
+ * @param {?Object} env The page's env (feature-tips.js pending).
+ * @returns {?Array<Object>} The tips to show as plain data (feature-tips.js forPage), or
+ *   null for none.
+ */
+function forPage(env) {
+    return featureTips.forPage(pending(env));
+}
+
+/**
  * The card's Got it: the tips it showed are seen. A tip it did not show stays unseen: one
  * this watch or phone could not use can still show once it can, and the ones past the
  * card's limit show on a later open.
@@ -69,5 +79,6 @@ module.exports = {
     read: read,
     init: init,
     pending: pending,
+    forPage: forPage,
     acknowledge: acknowledge
 };

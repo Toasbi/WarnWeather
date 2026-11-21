@@ -53,7 +53,6 @@
 // on it is fine.
 
 var KEYS = require('../../settings/domain/storage-keys.js');
-var batterySaver = require('../../wire/domain/battery-saver.js');
 // The bake-snapshot/micro-send subsystem lives in status-rebake.js now: this
 // module keeps detection, subscription, the reading cache and the send
 // TRIGGERS, and asks the rebaker to push. Cycle-free: status-rebake's own
@@ -94,7 +93,6 @@ var subscription = null;    // the Phone plugin's subscription, while it is aske
 var silenceTimer = null;    // the wait for the Phone plugin's first answer
 var seeding = false;        // the subscribe-time first reading: baseline it, never send
 var lastBucket = null;      // trigger baseline only, in memory by design (see ingest)
-var pendingPush = false;    // an update the saver window swallowed, owed to the watch
 
 
 /**
@@ -171,7 +169,9 @@ function load(key) {
 }
 
 /**
- * Write one key, tolerating a host with no storage.
+ * Write one key where its value changed, tolerating a host with no storage. The Phone
+ * plugin sends an update whenever any of the phone's state changes, most of them with the
+ * charge it had, and none of those is worth a write.
  *
  * @param {string} key Storage key.
  * @param {string} value Value to store.
@@ -179,7 +179,7 @@ function load(key) {
  */
 function save(key, value) {
     var s = store();
-    if (s) { s.setItem(key, value); }
+    if (s && s.getItem(key) !== value) { s.setItem(key, value); }
 }
 
 /**
@@ -204,18 +204,6 @@ function drop(key) {
 function currentNavigator() {
     if (Object.prototype.hasOwnProperty.call(deps, 'navigator')) { return deps.navigator; }
     return typeof navigator !== 'undefined' ? navigator : null;
-}
-
-/**
- * The Pebble object to read plugins through: the injected one when init() was given a
- * `pebble` key (tests), else the ambient global, else null. One helper, as for the
- * navigator.
- *
- * @returns {Object|null} The Pebble object, or null where there is none.
- */
-function currentPebble() {
-    if (Object.prototype.hasOwnProperty.call(deps, 'pebble')) { return deps.pebble; }
-    return typeof Pebble !== 'undefined' ? Pebble : null;
 }
 
 /**
@@ -275,7 +263,7 @@ function isSupported() {
     var stored = load(KEYS.PHONE_BATTERY_SUPPORTED);
     var found;
     if (stored !== null) { return stored === 'true'; }
-    found = probe(currentPebble(), currentNavigator());
+    found = probe(pluginReader.pebbleOf(deps), currentNavigator());
     // Only remembered -- and only announced -- where there IS a store. The baker
     // calls in on every status-line build, so a host without storage (Node, in
     // tests) would otherwise re-probe and log on every one.
@@ -440,28 +428,6 @@ function bakeFacts() {
 }
 
 /**
- * Current Clay settings, via the injected supplier.
- *
- * @returns {Object|null} Settings object, or null when none was injected.
- */
-function currentSettings() {
-    return typeof deps.getSettings === 'function' ? deps.getSettings() : null;
-}
-
-/**
- * Whether the Night battery saver window is open right now. Inside it nothing
- * is sent. Waking the BLE link
- * for a battery readout is exactly what the setting exists to prevent, and the
- * user opted in.
- *
- * @returns {boolean} True while updates must be suppressed.
- */
-function isSuppressed() {
-    var now = typeof deps.now === 'function' ? deps.now() : new Date();
-    return batterySaver.isWithinSleepWindow(now, currentSettings());
-}
-
-/**
  * Fold a fresh reading into the cache and fire a resend when it warrants one.
  *
  * Caching and triggering are two separate decisions here, and conflating them
@@ -486,8 +452,11 @@ function isSuppressed() {
  * baselined, and nothing more; the first REAL event afterwards sends normally,
  * which is the case this whole module is about.
  *
- * The reading is cached even while the saver window suppresses the send, so
- * the post-window push carries the true state.
+ * A bucket move is news that can wait for the morning: inside the Night battery
+ * saver's window the send is owed and the first tick after it pays it
+ * (status-rebake.js resendStatusAwake). The reading is cached all the same, and
+ * becomes the shown one only right before its send, so that push carries the
+ * true state.
  *
  * @param {Object} reading The live reading (a BatteryManager, the Phone plugin's holder
  *   or a fake) with .level, 0..1.
@@ -523,17 +492,7 @@ function ingest(reading) {
     if (!bucketMoved) { return; }
     console.log('phone-battery: ' + percent + '% (bucket ' + bucket + ')');
 
-    if (isSuppressed()) {
-        // Night battery saver: cached, not sent. The debt is remembered so
-        // onTick() can push the morning correction on the first tick after the
-        // window closes.
-        console.log('phone-battery: saver window open, update not sent.');
-        pendingPush = true;
-        return;
-    }
-    pendingPush = false;
-    showExact();
-    statusRebake.resendStatus('level');
+    statusRebake.resendStatusAwake('level', showExact);
 }
 
 /**
@@ -751,7 +710,7 @@ function onPluginSilence() {
  * @returns {void}
  */
 function detect() {
-    var pebble = currentPebble();
+    var pebble = pluginReader.pebbleOf(deps);
     var started;
     var timer;
     if (!pluginReader.available(pebble)) {
@@ -789,8 +748,6 @@ function detect() {
  *   (default: the host's), with options.clearTimeout.
  * @param {function} [options.clearTimeout] Its cancel.
  * @param {Object} [options.devConfig] Parsed dev-config, for the local fake.
- * @param {function():Object} [options.getSettings] Current Clay settings supplier.
- * @param {function():Date} [options.now] Clock, for the saver-window check.
  * @returns {void}
  */
 function init(options) {
@@ -802,7 +759,6 @@ function init(options) {
     manager = null;
     seeding = false;
     lastBucket = null;
-    pendingPush = false;
     drop(KEYS.PHONE_BATTERY_LEVEL);
     // What a build from before the Phone plugin was a source left behind: its verdict
     // (this phone judges again) and the charging flag.
@@ -817,34 +773,8 @@ function init(options) {
     detect();
 }
 
-/**
- * Per-minute hook, driven by the channel scheduler's existing 60 s tick (no
- * second timer). Pays off whatever the Night battery saver window swallowed as
- * soon as the window closes, so the watch is right within a minute of that
- * rather than waiting for the first weather fetch.
- *
- * Tracking the debt explicitly (rather than watching for a falling edge in the
- * window predicate) means it survives a PKJS restart mid-window and never
- * depends on a tick having happened to land inside the window.
- *
- * Not while a weather fetch is in flight (the window's first one is due the
- * minute it closes): that fetch's message goes out and takes the exact reading
- * along (statusRideAlong). The debt stays, so the next tick pays what that
- * message did not carry, and the outbox drops a push it did.
- *
- * @param {boolean} [fetchInFlight] Whether a weather fetch is running this tick.
- * @returns {void}
- */
-function onTick(fetchInFlight) {
-    if (!pendingPush || isSuppressed() || fetchInFlight) { return; }
-    pendingPush = false;
-    showExact();
-    statusRebake.resendStatus('post-saver-window');
-}
-
 module.exports = {
     init: init,
-    onTick: onTick,
     read: read,
     bakeFacts: bakeFacts,
     statusRideAlong: statusRideAlong,

@@ -57,9 +57,9 @@ test('no battery API at all: inert, unsupported, no reading, nothing thrown', ()
     assert.equal(storage[KEYS.PHONE_BATTERY_SUPPORTED], 'false');
     assert.deepEqual(phoneBattery.read(), { available: false, level: null });
     // Every downstream entry point stays callable on such a phone.
-    assert.doesNotThrow(() => phoneBattery.onTick());
+    assert.doesNotThrow(() => statusRebake.onTick());
     assert.doesNotThrow(() => statusRebake.rememberBakeInputs({ CITY: 'X' }, null));
-    assert.doesNotThrow(() => phoneBattery.onTick());
+    assert.doesNotThrow(() => statusRebake.onTick());
     assert.equal(h.sends.length, 0);
   });
 });
@@ -356,11 +356,11 @@ test('the first tick after the window closes pushes exactly once', () => {
   assert.equal(h.sends.length, 0);
 
   h.clock = new Date(2026, 0, 1, 7, 0, 0);  // window is [0, 7)
-  phoneBattery.onTick();
+  statusRebake.onTick();
   assert.equal(h.sends.length, 1, 'one push carries the whole morning correction');
 
-  phoneBattery.onTick();
-  phoneBattery.onTick();
+  statusRebake.onTick();
+  statusRebake.onTick();
   assert.equal(h.sends.length, 1, 'the debt is paid off, not re-pushed every minute');
   assert.deepEqual(phoneBattery.read(), { available: true, level: 37 });
   assert.equal(phoneBattery.bakeFacts().reading().level, 37, 'and it carries the latest reading');
@@ -373,11 +373,11 @@ test('the post-window push waits out a fetch in flight, whose message carries th
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, { platform: 'basalt' });
   mgr.setLevel(0.42);
   h.clock = new Date(2026, 0, 1, 7, 0, 0);
-  phoneBattery.onTick(true);   // the window's first fetch started this minute
+  statusRebake.onTick(true);   // the window's first fetch started this minute
   assert.equal(h.sends.length, 0, 'no push beside the fetch');
-  phoneBattery.onTick(false);  // the fetch's message did not take it along: still owed
+  statusRebake.onTick(false);  // the fetch's message did not take it along: still owed
   assert.equal(h.sends.length, 1, 'pushed on the next tick');
-  phoneBattery.onTick(false);
+  statusRebake.onTick(false);
   assert.equal(h.sends.length, 1, 'once');
 });
 
@@ -388,7 +388,7 @@ test('a tick inside the window pushes nothing', () => {
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, { platform: 'basalt' });
   mgr.setLevel(0.42);
   h.clock = new Date(2026, 0, 1, 6, 59, 0);
-  phoneBattery.onTick();
+  statusRebake.onTick();
   assert.equal(h.sends.length, 0, 'still inside [0, 7)');
 });
 
@@ -396,8 +396,8 @@ test('a tick owing nothing sends nothing', () => {
   const mgr = fakeManager(0.62);
   const h = boot({ navigator: modernNavigator(mgr) });
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, { platform: 'basalt' });
-  phoneBattery.onTick();
-  phoneBattery.onTick();
+  statusRebake.onTick();
+  statusRebake.onTick();
   assert.equal(h.sends.length, 0, 'the per-minute hook is free when nothing was swallowed');
 });
 
@@ -409,7 +409,7 @@ test('no bake snapshot yet: every trigger is a silent no-op', () => {
   const mgr = fakeManager(0.62);
   const h = boot({ navigator: modernNavigator(mgr) });
   assert.doesNotThrow(() => mgr.setLevel(0.42));
-  assert.doesNotThrow(() => phoneBattery.onTick());
+  assert.doesNotThrow(() => statusRebake.onTick());
   assert.equal(h.sends.length, 0, 'no send without bake inputs');
   assert.equal(phoneBattery.read().level, 42, 'the cache is still kept up to date');
 });
@@ -633,6 +633,21 @@ test('the first answer is the seed: cached and shown, never a send', () => {
   assert.equal(plugin.unsubscribed, 0, 'the subscription stays');
 });
 
+test('an update with the charge it had writes nothing', (t) => {
+  const { plugin } = bootPlugin();
+  plugin.push(pluginEnvelope(84));      // the seed
+  const writes = [];
+  const realSet = global.localStorage.setItem;
+  t.after(() => { global.localStorage.setItem = realSet; });
+  global.localStorage.setItem = function (k, v) { writes.push(k); return realSet.call(this, k, v); };
+  // The Phone plugin sends an update whenever any of the phone's state changes.
+  plugin.push(pluginEnvelope(84));
+  plugin.push(pluginEnvelope(84));
+  assert.deepEqual(writes, [], 'nothing changed: nothing written');
+  plugin.push(pluginEnvelope(83));
+  assert.deepEqual(writes, [KEYS.PHONE_BATTERY_LEVEL], 'a new charge is cached');
+});
+
 test('a later answer in another 5-point bucket sends, and carries the exact reading', () => {
   const { h, plugin } = bootPlugin();
   plugin.push(pluginEnvelope(84));      // the seed, bucket 80
@@ -685,7 +700,7 @@ test('the plugin\'s updates honour the Night battery saver, and the tick pays th
   assert.equal(h.sends.length, 0, 'no wake-up overnight');
   assert.equal(phoneBattery.read().level, 40);
   h.clock = new Date(2026, 0, 1, 7, 0, 0);
-  phoneBattery.onTick();
+  statusRebake.onTick();
   assert.equal(h.sends.length, 1, 'one morning push');
   assert.equal(phoneBattery.bakeFacts().reading().level, 40);
 });

@@ -18,14 +18,13 @@
 // What it heard last is kept in storage, so a bake after a PKJS restart shows the days at
 // once. A bake counts the estimate down to its own instant and drops one that has grown
 // too old (battery-days.js daysLeft), so nothing here has to expire it. When a new
-// estimate changes what the slot shows, the status is re-baked and sent
-// (status-rebake.js), except in the Night battery saver window, whose debt the first tick
-// after it pays, as for the phone's battery.
+// estimate changes what the slot shows, the status is re-baked and sent, after the Night
+// battery saver's window where that is open (status-rebake.js resendStatusAwake), as for
+// the phone's battery.
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
 var KEYS = require('../../settings/domain/storage-keys.js');
-var batterySaver = require('../../wire/domain/battery-saver.js');
 var statusRebake = require('../application/status-rebake.js');
 var statusLines = require('../domain/status-lines.js');
 var batteryDays = require('../domain/battery-days.js');
@@ -40,7 +39,6 @@ var READ_INTERVAL_MS = 30 * 60 * 1000;
 var deps = {};            // injected environment (see init)
 var lastReadAt = null;    // when this PKJS life last asked, in epoch ms (null: not yet)
 var reading = false;      // a read is under way
-var pendingPush = false;  // a change the saver window swallowed, owed to the watch
 
 /**
  * localStorage, or null where the host has none (Node, in tests that never needed it).
@@ -48,15 +46,6 @@ var pendingPush = false;  // a change the saver window swallowed, owed to the wa
  */
 function store() {
     return (typeof localStorage !== 'undefined' && localStorage) ? localStorage : null;
-}
-
-/**
- * @returns {Object|null} The Pebble object to read plugins through: the injected one when
- *   init() was given a `pebble` key (tests), else the ambient global, else null.
- */
-function currentPebble() {
-    if (Object.prototype.hasOwnProperty.call(deps, 'pebble')) { return deps.pebble; }
-    return typeof Pebble !== 'undefined' ? Pebble : null;
 }
 
 /**
@@ -80,7 +69,7 @@ function currentSettings() {
 function wanted() {
     var settings = currentSettings();
     var watchInfo = typeof deps.getWatchInfo === 'function' ? deps.getWatchInfo() : null;
-    return Boolean(settings) && pluginReader.available(currentPebble())
+    return Boolean(settings) && pluginReader.available(pluginReader.pebbleOf(deps))
         && statusLines.wantsBatteryDays(settings, watchInfo);
 }
 
@@ -104,6 +93,16 @@ function readEstimate() {
 }
 
 /**
+ * @param {?{days: number, updatedAt: number}} a An estimate, or none.
+ * @param {?{days: number, updatedAt: number}} b Another.
+ * @returns {boolean} Whether they are the same estimate (none and none are).
+ */
+function sameEstimate(a, b) {
+    if (!a || !b) { return a === b; }
+    return a.days === b.days && a.updatedAt === b.updatedAt;
+}
+
+/**
  * Keep an estimate (or none), and tell the watch when that changes what its slot shows.
  * @param {?{days: number, updatedAt: number}} estimate The estimate heard, or null.
  * @returns {void}
@@ -111,8 +110,14 @@ function readEstimate() {
 function keep(estimate) {
     var s = store();
     var at = nowMs();
-    var before = batteryDays.daysLeft(readEstimate(), at);
-    var after = batteryDays.daysLeft(estimate, at);
+    var kept = readEstimate();
+    var before;
+    var after;
+    // Muninn makes a new estimate a few times a day, and most reads hear the one kept:
+    // nothing to write then, and nothing to tell.
+    if (sameEstimate(kept, estimate)) { return; }
+    before = batteryDays.daysLeft(kept, at);
+    after = batteryDays.daysLeft(estimate, at);
     if (s) {
         if (estimate) {
             s.setItem(KEYS.BATTERY_ESTIMATE, JSON.stringify(estimate));
@@ -122,13 +127,7 @@ function keep(estimate) {
     }
     if (before === after) { return; }
     console.log('battery-estimate: ' + (after === null ? 'no estimate' : after + ' days left') + '.');
-    if (batterySaver.isWithinSleepWindow(new Date(at), currentSettings())) {
-        // Night battery saver: kept, not sent. onTick() pays it after the window.
-        pendingPush = true;
-        return;
-    }
-    pendingPush = false;
-    statusRebake.resendStatus('battery-days');
+    statusRebake.resendStatusAwake('battery-days');
 }
 
 /**
@@ -144,7 +143,7 @@ function read() {
     if (reading) { return; }
     reading = true;
     lastReadAt = nowMs();
-    pluginReader.readOnce(currentPebble(), MUNINN_STATS, function (envelope, fail) {
+    pluginReader.readOnce(pluginReader.pebbleOf(deps), MUNINN_STATS, function (envelope, fail) {
         reading = false;
         if (fail) {
             console.log('battery-estimate: Muninn did not answer (' + fail.code + ').');
@@ -178,24 +177,15 @@ function refresh() {
 }
 
 /**
- * Per-minute hook, driven by the channel scheduler's 60 s tick. Pays what the Night
- * battery saver window swallowed once it has closed (not beside a fetch in flight, whose
- * message bakes the estimate anyway), and asks Muninn again once READ_INTERVAL_MS has
- * passed since the last time.
+ * Per-minute hook, driven by the channel scheduler's 60 s tick: asks Muninn again once
+ * READ_INTERVAL_MS has passed since the last time.
  *
- * @param {boolean} [fetchInFlight] Whether a weather fetch is running this tick.
  * @returns {void}
  */
-function onTick(fetchInFlight) {
+function onTick() {
     var at = nowMs();
-    if (pendingPush && !fetchInFlight
-            && !batterySaver.isWithinSleepWindow(new Date(at), currentSettings())) {
-        pendingPush = false;
-        statusRebake.resendStatus('battery-days-post-saver-window');
-    }
-    if (!wanted()) { return; }
     if (lastReadAt !== null && at - lastReadAt >= 0 && at - lastReadAt < READ_INTERVAL_MS) { return; }
-    read();
+    if (wanted()) { read(); }
 }
 
 /**
@@ -216,7 +206,6 @@ function init(options) {
     deps = options || {};
     lastReadAt = null;
     reading = false;
-    pendingPush = false;
     if (wanted()) { read(); }
 }
 

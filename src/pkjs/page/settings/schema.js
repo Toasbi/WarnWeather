@@ -50,6 +50,8 @@ var LINE_STYLES_WHEN = gates.LINE_STYLES_WHEN;
 var EMERY_WHEN = gates.EMERY_WHEN;
 var GRAPH_STYLES_WHEN = gates.GRAPH_STYLES_WHEN;
 var gateAll = gates.gateAll;
+var alsoWhen = gates.alsoWhen;
+var bothWhen = gates.bothWhen;
 var tabLink = gates.tabLink;
 var linkRow = gates.linkRow;
 // A kind's level group (its Alert levels or Goals: the header, the slider, the warn look
@@ -714,29 +716,16 @@ function boldOnlyRow(keyStem) {
 // temperature slot's (the Order and Separator rows, status-pair.js formatBatteryPair). The
 // days need a Pebble app that can read another app's plugin, so Value selection and the
 // pair's rows show only there (PLUGINS_WHEN).
-var MUNINN_LINK = '<a href=\'' + require('../../status-bars/domain/battery-days.js').MUNINN_URL + '\'>Muninn app</a>';
-// Under Days left and Both: when the percentage shows instead (battery-days.js daysLeft,
+//
+// The hints under Days left and Both: when the percentage shows instead (battery-days.js daysLeft,
 // status_row.c shows_battery_days) and, set apart on a line of its own, where the days come
 // from. What each mode shows is in the picture of the bar above the rows, so the hints
 // leave it out.
 var MUNINN_NOTE = '<span style="display:block;margin-top:6px">The days are an estimate from the ' +
-    MUNINN_LINK + ', which has to be on your watch.</span>';
+    require('../../status-bars/domain/battery-days.js').MUNINN_LINK + ', which has to be on your watch.</span>';
 var BATTERY_FALLBACK = ' while the watch charges, your phone is out of reach or there is no estimate.';
 var BATTERY_DAYS_HINT = 'Shows the percentage instead' + BATTERY_FALLBACK + MUNINN_NOTE;
 var BATTERY_BOTH_HINT = 'Shows the percentage alone' + BATTERY_FALLBACK + MUNINN_NOTE;
-/**
- * Add a condition to every row: each shows only while `gate` holds and its own showWhen,
- * if it has one, does too (gateAll leaves a row with a showWhen of its own alone).
- * @param {Object[]} items Schema items (mutated).
- * @param {Object} gate showWhen predicate.
- * @returns {Object[]} The same array.
- */
-function alsoWhen(items, gate) {
-    items.forEach(function (item) {
-        item.showWhen = item.showWhen ? {all: [gate, item.showWhen]} : gate;
-    });
-    return items;
-}
 /**
  * @returns {Object} The watch battery slot's sheet (sheetOnly).
  */
@@ -883,14 +872,13 @@ function copyBtn(url, label) {
  * @returns {Object} Date-control schema item.
  */
 function countdownDateItem(slotKey, barWhen) {
-    var countdownWhen = {key: slotKey, eq: 'countdown'};
     return {
         type: 'date',
         messageKey: slotKey + 'Countdown',
         label: 'Countdown date',
         defaultFrom: {resolver: 'todayDate'},
         joinPrevious: true,
-        showWhen: barWhen ? {all: [barWhen, countdownWhen]} : countdownWhen
+        showWhen: bothWhen(barWhen, {key: slotKey, eq: 'countdown'})
     };
 }
 
@@ -903,7 +891,6 @@ function countdownDateItem(slotKey, barWhen) {
  * @returns {Object} Segmented schema item.
  */
 function phoneBatteryLookItem(slotKey, barWhen) {
-    var holds = {key: slotKey, eq: 'phoneBattery'};
     return {
         type: 'segmented',
         messageKey: STATUS_LINE_CATALOG.phoneBatteryLookKey(slotKey),
@@ -911,7 +898,7 @@ function phoneBatteryLookItem(slotKey, barWhen) {
         defaultValue: 'both',
         options: [['Icon + text', 'both'], ['Text', 'text']],
         joinPrevious: true,
-        showWhen: barWhen ? {all: [barWhen, holds]} : holds
+        showWhen: bothWhen(barWhen, {key: slotKey, eq: 'phoneBattery'})
     };
 }
 /**

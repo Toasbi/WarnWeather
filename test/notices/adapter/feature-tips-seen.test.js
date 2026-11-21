@@ -66,6 +66,15 @@ test('Got it: the tips the card showed are seen, and it shows them no more', () 
   assert.equal(store[KEY], before);
 });
 
+test('forPage: the card as the page gets it, and null once its tips are seen', () => {
+  seen.init(true);
+  const card = seen.forPage(BASALT);
+  assert.deepEqual(card, featureTips.forPage(seen.pending(BASALT)));
+  assert.ok(card.length > 0 && card.every((tip) => typeof tip.when === 'undefined'), 'plain data, no function');
+  seen.acknowledge(BASALT);
+  assert.equal(seen.forPage(BASALT), null, 'nothing rides the page\'s URL then');
+});
+
 test('a tip this watch could not use stays unseen, and shows once it can be used', () => {
   seen.init(true);
   const noPlugins = { platform: 'basalt', plugins: false };

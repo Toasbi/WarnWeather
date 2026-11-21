@@ -103,7 +103,7 @@ test('prepareView day-aligns the timeline and trims trailing dataless days', () 
 
 test('every hourly panel spec renders without NaN and carries its scrub anchor', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const settings = { temperatureUnits: 'c', windUnits: 'kph' };
   const specs = {
     temp: charts.tempPanelSvg(view, settings, pal),
@@ -153,7 +153,7 @@ test('every hourly panel spec renders without NaN and carries its scrub anchor',
 
 test('panel specs carry the crosshair-highlight plumbing (marks, dots, bar ids, tip)', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const settings = { temperatureUnits: 'c', windUnits: 'kph' };
   const temp = charts.tempPanelSvg(view, settings, pal);
   const wind = charts.windPanelSvg(view, settings, pal);
@@ -210,7 +210,7 @@ test('panel specs carry the crosshair-highlight plumbing (marks, dots, bar ids, 
 
 test('the precip-probability row carries its title and steps its ink with the chance', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const temp = charts.tempPanelSvg(view, { temperatureUnits: 'c' }, pal);
   assert.ok(temp.overlay.indexOf('Chance of precipitation') !== -1,
     'the row is titled, on the fixed overlay');
@@ -240,7 +240,7 @@ test('the precip-probability row carries its title and steps its ink with the ch
     'a maybe hour (30-59%) wears muted ink, semibold');
   // The light surface must wear ITS OWN AA step, not the dark one —
   // both palettes' probHi values are load-bearing for contrast.
-  const palL = charts.palette(true);
+  const palL = charts.palette('light');
   const tempL = charts.tempPanelSvg(view, { temperatureUnits: 'c' }, palL);
   assert.match(tempL.main, new RegExp('font-size="' + probSize + '" font-weight="700" fill="' + palL.probHi + '">60%<'),
     'the light palette applies its own probHi');
@@ -338,7 +338,7 @@ test('agoText climbs the ladder: just now → minutes → hours → a stamp', ()
 
 test('viewportHtml pans by whole viewports (translateX percent of the wide element)', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const spec = charts.tempPanelSvg(view, { }, charts.palette(false));
+  const spec = charts.tempPanelSvg(view, { }, charts.palette('dark'));
   const day1 = charts.viewportHtml('temp', spec, view, 1);
   // 3 days → one viewport = 100/3 % of the wide element.
   assert.ok(day1.indexOf('transform:translateX(' + -(100 / 3) + '%)') !== -1);
@@ -349,7 +349,7 @@ test('viewportHtml pans by whole viewports (translateX percent of the wide eleme
 
 test('the hour strip ENDS at the tick ruler — that is what gets pinned', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
   assert.equal(spec.main.indexOf('NaN'), -1);
   assert.ok(spec.main.indexOf('03:00') !== -1, 'hour labels every 3 h');
@@ -374,7 +374,7 @@ test('the hour strip ENDS at the tick ruler — that is what gets pinned', () =>
   assert.equal(spec.main.indexOf('Forecast'), -1, 'both halves of it');
   assert.ok(spec.main.indexOf('>Sun<') !== -1 && spec.main.indexOf('>Mon<') !== -1,
     'each midnight is marked with its weekday');
-  const noShade = charts.timeStripSvg(view, LOC, charts.palette(false), null);
+  const noShade = charts.timeStripSvg(view, LOC, charts.palette('dark'), null);
   assert.ok(noShade.main.indexOf('03:00') !== -1, 'no SunCalc → still a time axis, just unshaded');
 });
 
@@ -392,7 +392,7 @@ test('trace rain below the watch\'s tier floor draws no bar in the temperature p
   const i15 = view.times.indexOf(DAY0 + 15 * 3600000);
   const i18 = view.times.indexOf(DAY0 + 18 * 3600000);
   assert.ok(i15 > view.nowIndex && i18 > view.nowIndex, 'sanity: future hours keep their rain');
-  const spec = charts.tempPanelSvg(view, { temperatureUnits: 'c' }, charts.palette(false));
+  const spec = charts.tempPanelSvg(view, { temperatureUnits: 'c' }, charts.palette('dark'));
   assert.equal(spec.main.indexOf('id="wx-bar-temp-' + i15 + '"'), -1, '0.03 mm/h: no bar');
   assert.equal(spec.main.indexOf('id="wx-bar-temp-' + (i15 + 1) + '"'), -1, '0.049 mm/h: no bar');
   const bar = new RegExp('id="wx-bar-temp-' + i18 + '"[^>]*height="([\\d.]+)"').exec(spec.main);
@@ -406,7 +406,7 @@ test('trace rain below the watch\'s tier floor draws no bar in the temperature p
 // so the rise/set edge rects never draw. Polar NIGHT must still read as night — one
 // full-width rect per day — while polar DAY stays unshaded.
 test('the hour strip shades a polar-night day end to end, and leaves a midnight-sun day clear', () => {
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const nightRects = (spec) => {
     const out = [];
     const re = new RegExp('<rect x="([\\d.]+)" y="0" width="([\\d.]+)" height="\\d+" fill="'
@@ -435,7 +435,7 @@ test('the hour strip shades a polar-night day end to end, and leaves a midnight-
 });
 
 test('the caption names the past by what produced it, and only DWD says Measured', () => {
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const words = (spec) => (spec.main.match(/<text[^>]*>[^<]*<\/text>/g) || []).map((t) => ({
     word: /">([^<]*)</.exec(t)[1],
     x: Number(/x="([\d.]+)"/.exec(t)[1]),
@@ -674,7 +674,7 @@ test('no caption word is ever sliced by the viewport edge', () => {
   // fits the canvas and not the view — late in the evening "Forecast"
   // starts within a word's width of local midnight, so half of it showed
   // today and the other half floated at tomorrow's left edge.
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const CH = 4.2;
   let printed = 0;
   for (let min = 0; min < 1440; min += 1) {
@@ -724,7 +724,7 @@ test('a real DWD response reaches the caption: the word follows the modelled fie
     }
     return data.parsers.dwd({ weather, sources }, NOON);
   };
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const read = (parsed) => {
     const v = charts.prepareView(parsed, NOON);
     return {
@@ -768,7 +768,7 @@ test('a real DWD response reaches the caption: the word follows the modelled fie
 
 test('the hour strip highlights the selected hour with the app\'s chip (own icon + label)', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   // Icons live in <defs> as reusable glyphs (a normal + a chip-ink twin per
   // id), so the chip can swap to ANY hour's icon by href while scrubbing.
   const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
@@ -840,7 +840,7 @@ test('the hour strip highlights the selected hour with the app\'s chip (own icon
 
 test('the strip wears moons at night: sun-bearing glyphs swap below the horizon', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const ids = charts.stripIconIds(view, LOC, SunCalc);
   assert.equal(ids[3], 'npartly', '03:00 UTC in Berlin is night — the moon twin');
   assert.equal(ids[12], 'partly', 'noon keeps the day glyph');
@@ -866,13 +866,13 @@ test('the strip wears moons at night: sun-bearing glyphs swap below the horizon'
   assert.equal(raw[3], 'partly', 'no SunCalc → raw day ids, like the unshaded strip');
   ['nclear', 'npartly', 'nshowers'].forEach((id) => {
     assert.ok(charts.iconSvg(id, 24, pal).length > 60, id + ' draws (dark)');
-    assert.ok(charts.iconSvg(id, 24, charts.palette(true)).length > 60, id + ' draws (light)');
+    assert.ok(charts.iconSvg(id, 24, charts.palette('light')).length > 60, id + ' draws (light)');
   });
 });
 
 test('the sun & moon panel marks every rise and set ON the horizon, labelled at arm\'s length', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const spec = charts.sunMoonPanelSvg(view, LOC, pal, SunCalc);
   assert.equal(spec.main.indexOf('NaN'), -1);
 
@@ -932,7 +932,7 @@ test('the sun & moon panel marks every rise and set ON the horizon, labelled at 
 
 test('the arcs plant their horizon crossings, and no label leaves its day', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const spec = charts.sunMoonPanelSvg(view, LOC, pal, SunCalc);
   const horizon = Number(/<line x1="0" y1="(\d+)" x2="\d+" y2="\1"/.exec(spec.main)[1]);
   // A 30-minute polyline would pass BESIDE the rise/set dot; the crossing
@@ -970,7 +970,7 @@ test('a rise/set label is clamped into the day its own dot stands in', () => {
   // rather than be clamped into the day being iterated, where it would sit at
   // the seam pointing at nothing.
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const spec = charts.sunMoonPanelSvg(view, { lat: -33.9, lon: 151.2 }, pal, SunCalc);
   const EV = /<line x1="[\d.]+"[^>]*stroke-dasharray="1.5 3"[^>]*\/><circle cx="([\d.]+)"[^>]*\/><text x="([\d.]+)" y="\d+" text-anchor="(start|end)" font-size="(\d+)"[^>]*>([^<]*)<tspan[^>]*>([^<]*)<\/tspan>([^<]*)</g;
   let m, seen = 0;
@@ -1034,7 +1034,7 @@ test('the rise/set glyph is AA-legible: it is text, not a line', () => {
     return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
   };
   [true, false].forEach((isLight) => {
-    const pal = charts.palette(isLight);
+    const pal = charts.palette(isLight ? 'light' : 'dark');
     const where = isLight ? 'light' : 'dark';
     assert.ok(ratio(pal.sunText, pal.surface) >= 4.5,
       'sunText on the ' + where + ' surface: ' + ratio(pal.sunText, pal.surface).toFixed(2) + ':1');
@@ -1070,7 +1070,7 @@ test('two events of the same body never print their labels on top of each other'
       const day0 = Date.UTC(2026, 0, 1) + d * 86400000;
       const view = charts.prepareView(fixtureData(day0), day0 + 12 * 3600000);
       const spec = charts.sunMoonPanelSvg(view, { lat: where[0], lon: where[1] },
-        charts.palette(false), SunCalc);
+        charts.palette('dark'), SunCalc);
       const rows = {};
       marksOf(spec.main).forEach((mk) => {
         // One row per baseline per viewport: labels in different days are
@@ -1118,7 +1118,7 @@ test('the moon marks are read off the LOCATION’s day, not the phone’s', () =
     + 'const view = charts.prepareView(ARG, day0 + 12 * 3600000);'
     + 'process.stdout.write(new Date(day0).getTimezoneOffset() + "|"'
     + ' + charts.sunMoonPanelSvg(view, { lat: 52.52, lon: 13.405 },'
-    + ' charts.palette(false), SunCalc).main);', data).split('|');
+    + ' charts.palette("dark"), SunCalc).main);', data).split('|');
   const [homeOff, home] = draw('Europe/Berlin');
   const [awayOff, away] = draw('Australia/Sydney');
   const [farOff, far] = draw('America/Los_Angeles');
@@ -1148,7 +1148,7 @@ test('each rise/set dot sits ON a vertex of its own arc', () => {
     const day0 = Date.UTC(2026, 5, 18);
     const view = charts.prepareView(fixtureData(day0), day0 + 12 * 3600000);
     const spec = charts.sunMoonPanelSvg(view, { lat: where[0], lon: where[1] },
-      charts.palette(false), SunCalc);
+      charts.palette('dark'), SunCalc);
     const horizon = Number(/<line x1="0" y1="(\d+)" x2="\d+" y2="\1"/.exec(spec.main)[1]);
     const vertices = new Set();
     (spec.main.match(/<path d="(M[^"]+)" fill="none"/g) || []).forEach((tag) => {
@@ -1168,7 +1168,7 @@ test('each rise/set dot sits ON a vertex of its own arc', () => {
 
 test('the altitude band is symmetric about the horizon, so no arc leaves the frame', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   // The frame's own now-line reports the plot box, so this reads the geometry
   // the panel actually drew rather than a copy of its constants.
   const boxOf = (svg) => {
@@ -1241,7 +1241,7 @@ test('moonPhasePath: the terminator tracks the fraction and the lit limb the dir
 // a waxing crescent is lit on the LEFT there. The lit limb follows the location's own
 // geometry, not the phase alone.
 test('the moon disc lights the limb the local sky shows, mirrored in the southern hemisphere', () => {
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const litLimb = (lat, lon, whenMs) => {
     const day0 = Math.floor(whenMs / 86400000) * 86400000;
     const view = charts.prepareView(fixtureData(day0), whenMs);
@@ -1283,7 +1283,7 @@ test('compass and tick helpers', () => {
 
 test('every icon id in the vocabulary draws a glyph, in both palettes', () => {
   [true, false].forEach((isLight) => {
-    const pal = charts.palette(isLight);
+    const pal = charts.palette(isLight ? 'light' : 'dark');
     model.ICONS.forEach((id) => {
       const svg = charts.iconSvg(id, 24, pal);
       assert.ok(svg.indexOf('<svg') === 0, id);
@@ -1321,7 +1321,7 @@ test('prepareView settles past hours: a chance is only ever about hours to come'
     'the plain-text tip drops it too');
   // The % row keeps printing the app's dash for them — the row is a ruler,
   // so its 3-hourly cadence must not go blank.
-  const svg = charts.tempPanelSvg(view, s, charts.palette(false)).main;
+  const svg = charts.tempPanelSvg(view, s, charts.palette('dark')).main;
   const marks = svg.match(/>(–|\d+%)<\/text>/g) || [];
   assert.ok(marks.length >= 4 && marks.slice(0, 3).every((m) => m.indexOf('–') !== -1),
     'the first three 3-hourly marks of a midday view are dashes');
@@ -1340,7 +1340,7 @@ test('an hour that is over shows the rain that FELL, or none at all', () => {
   const guess = charts.prepareView(wet, NOON);
   assert.equal(guess.rain[7], null, 'an unmeasured past hour carries no amount');
   assert.equal(guess.rain[19], 1.2, 'the future is untouched — it is a forecast, and says so');
-  const svg = charts.tempPanelSvg(guess, { temperatureUnits: 'c' }, charts.palette(false)).main;
+  const svg = charts.tempPanelSvg(guess, { temperatureUnits: 'c' }, charts.palette('dark')).main;
   assert.equal(svg.indexOf('id="wx-bar-temp-7"'), -1, 'and draws no bar');
   assert.ok(svg.indexOf('id="wx-bar-temp-19"') !== -1, 'while the forecast bars stand');
   assert.equal(charts.tipHtml('temp', guess, 7, {}).indexOf('0.9'), -1,
@@ -1354,7 +1354,7 @@ test('an hour that is over shows the rain that FELL, or none at all', () => {
   assert.equal(obs.rain[7], 0.9, 'a measured past hour keeps what it recorded');
   assert.equal(obs.measured[7], true);
   assert.equal(obs.measured[19], false, 'and the future is never "measured"');
-  const obsSvg = charts.tempPanelSvg(obs, { temperatureUnits: 'c' }, charts.palette(false)).main;
+  const obsSvg = charts.tempPanelSvg(obs, { temperatureUnits: 'c' }, charts.palette('dark')).main;
   assert.ok(obsSvg.indexOf('id="wx-bar-temp-7"') !== -1, 'its bar is drawn');
   assert.match(charts.tipHtml('temp', obs, 7, {}), /<b>Rain<\/b><i>0\.9 mm<\/i>/);
   // The chance is gone either way: a probability never resolves.
@@ -1387,7 +1387,7 @@ test('a day tile describes a WHOLE day, on the same yardstick as the four beside
 
 test('the 5-day strip renders tappable day tiles with units honored and selection marked', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const html = charts.dailyStripHtml(view.daily, { temperatureUnits: 'f' }, pal, 0, NOON, 1, view.days);
   assert.ok(html.indexOf('Today') !== -1);
   assert.ok(html.indexOf('68°') !== -1, 'tmax 20°C renders as 68°F');
@@ -1434,8 +1434,8 @@ test('the 5-day strip renders tappable day tiles with units honored and selectio
 });
 
 test('the two palettes stay in lockstep (same roles in light and dark)', () => {
-  const light = charts.palette(true);
-  const dark = charts.palette(false);
+  const light = charts.palette('light');
+  const dark = charts.palette('dark');
   assert.deepEqual(Object.keys(light).sort(), Object.keys(dark).sort());
   ['temp', 'water', 'dew', 'gust', 'pressure', 'sun', 'probHi',
     // The sun & moon panel's own roles: the daylight band and each body's
@@ -1476,7 +1476,7 @@ function verticals(svg) {
 
 test('every canvas rules its day boundaries, so a swipe shows where the day ends', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const settings = { temperatureUnits: 'c', windUnits: 'kph' };
   const surfaces = {
     temp: charts.tempPanelSvg(view, settings, pal),
@@ -1575,7 +1575,7 @@ test('a bar fills the hour it is about — the one STARTING on its own tick', ()
   // same slot, and the one a tap on that tick asks about. (The data layer
   // re-stamps the providers that report the hour BEFORE their stamp.) So
   // 19:00's bar covers 19:00 → 20:00 and stands to the RIGHT of its tick.
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const view = charts.prepareView(fixtureData(), NOON);
   const rectOf = (svg, id) => {
     const t = new RegExp('<rect id="' + id + '"[^>]*>').exec(svg);
@@ -1616,8 +1616,8 @@ test('a bar fills the hour it is about — the one STARTING on its own tick', ()
   assert.match(wet.tag, /stroke="none"/, 'a resting bar is not outlined');
   assert.equal(temp.marks.bar.lit, pal.ink, 'the lit border is the page ink');
   assert.equal(hum.marks.bar.lit, pal.ink, 'in every panel that has bars');
-  assert.equal(charts.tempPanelSvg(view, {}, charts.palette(true)).marks.bar.lit,
-    charts.palette(true).ink, 'and follows the theme');
+  assert.equal(charts.tempPanelSvg(view, {}, charts.palette('light')).marks.bar.lit,
+    charts.palette('light').ink, 'and follows the theme');
 });
 
 test('a bar is the hour its tick OPENS: the now line starts the running one, the hour before it is over', () => {
@@ -1633,7 +1633,7 @@ test('a bar is the hour its tick OPENS: the now line starts the running one, the
   //
   // And the FIRST row of the canvas is 00:00-01:00, which is on the canvas,
   // so it draws like any other.
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   // A wet day the provider also says it MEASURED — otherwise every past
   // hour's rain is blanked for want of a measurement and neither claim
   // above can be seen at all. measuredFor takes a VIEW index.
@@ -1692,7 +1692,7 @@ test('the value dot is a disc, not a hole: it is drawn over the crosshair it sta
   // guideline ran straight through the middle of every ring and the mark
   // read as a cross rather than a point. SVG paints in document order, so
   // the only thing that fixes it is coming last.
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const view = charts.prepareView(fixtureData(), NOON);
   [['temp', charts.tempPanelSvg(view, { temperatureUnits: 'c' }, pal)],
     ['wind', charts.windPanelSvg(view, {}, pal)],
@@ -1729,7 +1729,7 @@ test('a rule in the hour strip breaks around the glyph and the number it crosses
   // drawing the line under the text was never enough, because a full-ink
   // stroke still shows between the strokes of a digit and reads as a
   // strike-through. So the line is drawn as the pieces left over.
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const view = charts.prepareView(fixtureData(), NOON);
   const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
   // By the page ink: an hour tick stands at every midnight too, but it is an
@@ -1899,7 +1899,7 @@ test('the strip gaps for the glyph that is drawn, not the one the arithmetic exp
   // icon band and the label band between them leave two slivers under
   // MIN_SEG: both get absorbed and the rule has nothing at all inside the
   // 44-unit band, just a stub hanging off the ruler.
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const bare = fixtureData();
   for (let k = 0; k < bare.hourly.icon.length; k += 1) { bare.hourly.icon[k] = null; }
   const view = charts.prepareView(bare, DAY0 + 3 * 3600000);
@@ -1941,8 +1941,8 @@ test('the accent the day tiles fade to IS the page accent, per theme', () => {
     .map((m) => /(#[0-9A-Fa-f]{6})/.exec(m)[1]);
   assert.equal(links.length, 2, 'the shell declares an accent for each theme');
   // Dark is declared first (body), light second (body.light).
-  assert.equal(charts.palette(false).link, links[0], 'the dark palette carries the dark --link');
-  assert.equal(charts.palette(true).link, links[1], 'the light palette carries the light --link');
+  assert.equal(charts.palette('dark').link, links[0], 'the dark palette carries the dark --link');
+  assert.equal(charts.palette('light').link, links[1], 'the light palette carries the light --link');
 });
 
 test('fadeInk and mixInk: the fraction a swipe hands over, as colour', () => {
@@ -1971,7 +1971,7 @@ test('every mark that says "now" stands on the hour the rest of the tab calls no
   // the hairline stood 11 minutes right of the hour it pointed at — and
   // since a bar came to fill the span between two ticks, the washed past cut
   // 2.8 units into the current hour's OWN bar. One reading for all of them.
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const tickOf = (svg) => {
     const m = /<line x1="([\d.]+)"[^>]*stroke-width="1\.2"/.exec(svg);
     return m ? Number(m[1]) : null;
@@ -2046,7 +2046,7 @@ test('no 3-hourly mark stands on a day boundary — that is where a viewport fol
   // call: a halved "00:00" reads better to them than an unnamed midnight or
   // a 03:00 with its text taken away, which were the two alternatives. The
   // label row is pinned in its own test below.
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const view = charts.prepareView(fixtureData(), NOON);
   const settings = { temperatureUnits: 'c', windUnits: 'kmh' };
   const onSeam = (xs) => xs.filter((x) => x % charts.DAY_W === 0);
@@ -2099,7 +2099,7 @@ test('midnight is named in the ruler, on the fold it stands on', () => {
   // units on a 45-unit pitch cannot travel the 17.6 it needs to leave the
   // fold and still leave its neighbour room. So midnight is named, on its
   // fold, clipped there, and nothing else pays for it.
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const view = charts.prepareView(fixtureData(), NOON);
   const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
   const labels = (spec.main.match(/<text [^>]*font-size="11" font-weight="600"[^>]*>[^<]*<\/text>/g) || [])
@@ -2200,13 +2200,18 @@ test('a prepared view is a whole number of days — the folds have nothing past 
   });
 });
 
-test('palette: black is the dark palette on the Black card surface; light and dark are unchanged', () => {
-  const dark = charts.palette(false);
-  const black = charts.palette(false, true);
-  assert.equal(black.surface, '#141414');
+test('palette: black is the dark palette on the Black card surface; anything unknown reads as dark', () => {
+  const dark = charts.palette('dark');
+  const black = charts.palette('black');
   assert.equal(dark.surface, '#3A3B3F');
-  assert.equal(black.temp, dark.temp);
-  assert.equal(black.ink, dark.ink);
-  assert.equal(charts.palette(true, true), charts.palette(true), 'light wins');
-  assert.equal(charts.palette(false, false), dark);
+  assert.deepEqual(Object.assign({}, black, { surface: dark.surface }), dark, 'only the surface differs');
+  // The surface is the Black theme's card: read from the shell, so the two cannot drift.
+  const shell = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', '..', '..', '..', 'src/pkjs/config-ui/lib/shell.html'), 'utf8');
+  const card = /body\.black \{[^}]*--card:\s*(#[0-9A-Fa-f]{6})/.exec(shell);
+  assert.ok(card, 'the shell declares the Black card');
+  assert.equal(black.surface, card[1]);
+  assert.notEqual(charts.palette('light'), dark);
+  assert.equal(charts.palette(undefined), dark);
+  assert.equal(charts.palette('constructor'), dark, 'no lookup by an arbitrary name');
 });

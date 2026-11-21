@@ -4,39 +4,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const pluginReader = require('../../../src/pkjs/status-bars/adapter/plugin-reader.js');
+// The Pebble app's side of a subscription and the Phone plugin's update, shared with the
+// phone battery's tests.
+const { fakePluginPebble: fakePebble, pluginEnvelope: envelope } = require('../../helpers/fake-battery.js');
 
 const REQUEST = { category: 'phone', item: 'phone_state', properties: ['battery_level'] };
-
-/**
- * A Pebble object whose subscribeToSource records each request and hands the test the
- * plugin's side: push(envelope), fail(code), and how often the subscription was ended.
- * @param {Object} [opts] {sync: function(request) run inside subscribeToSource, before it
- *   returns, i.e. an answer that comes before the subscription exists}.
- * @returns {Object} The fake, with .pebble to hand to the reader.
- */
-function fakePebble(opts) {
-  opts = opts || {};
-  const fake = {
-    requests: [],
-    unsubscribed: 0,
-    push(envelope) { this.requests[this.requests.length - 1].onData(envelope); },
-    fail(code) { this.requests[this.requests.length - 1].onError({ code: code }); }
-  };
-  fake.pebble = {
-    subscribeToSource(request) {
-      fake.requests.push(request);
-      if (opts.sync) { opts.sync(request); }
-      return { unsubscribe() { fake.unsubscribed++; } };
-    }
-  };
-  return fake;
-}
-
-/** An envelope as the Phone plugin sends it. */
-function envelope(level) {
-  return { pluginUuid: 'u', instances: [{ instanceId: 'phone',
-    properties: { battery_level: { numericValue: { value: level, unit: '%' } } } }] };
-}
 
 /** Timers the test fires by hand. */
 function fakeTimers() {
@@ -52,6 +24,21 @@ test('available: needs a Pebble object with subscribeToSource', () => {
   assert.equal(pluginReader.available({}), false, 'an object without the function');
   assert.equal(pluginReader.available({ subscribeToSource: 'nope' }), false, 'not a function');
   assert.equal(pluginReader.available({ subscribeToSource: function () {} }), true);
+});
+
+test('pebbleOf: the Pebble object a module was handed, else the global one, else none', (t) => {
+  const handed = { subscribeToSource: function () {} };
+  const ambient = { ambient: true };
+  const had = Object.getOwnPropertyDescriptor(global, 'Pebble');
+  t.after(() => { if (had) { Object.defineProperty(global, 'Pebble', had); } else { delete global.Pebble; } });
+  delete global.Pebble;
+  assert.equal(pluginReader.pebbleOf({}), null, 'no global, none handed');
+  assert.equal(pluginReader.pebbleOf(null), null);
+  global.Pebble = ambient;
+  assert.equal(pluginReader.pebbleOf({}), ambient);
+  assert.equal(pluginReader.pebbleOf(undefined), ambient);
+  assert.equal(pluginReader.pebbleOf({ pebble: handed }), handed, 'the handed one wins');
+  assert.equal(pluginReader.pebbleOf({ pebble: null }), null, 'handed none: a Pebble app without plugins, in a test');
 });
 
 test('failure: a {stage, code} value, UNKNOWN for a missing code', () => {

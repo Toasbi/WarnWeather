@@ -579,14 +579,18 @@
   }
 
   /**
-   * What a slot keeps beside its item, whichever item it holds: its countdown date
-   * (status-lines.js) and its phone battery's Look. A bar that is made or deleted clears
-   * them with the slot (screens.js makeBar, unmakeBar).
+   * What a slot keeps beside its item: a setting of the slot's own that one item reads, its
+   * countdown's date (status-lines.js) and its phone battery's Look. ONE list for what a
+   * bar that is made or deleted clears with the slot (screens.js makeBar, unmakeBar) and
+   * what renderSignature watches while the slot holds the item (signSlots).
    * @param {string} slotKey A slot's settings key.
-   * @returns {string[]}
+   * @returns {Array<{code: string, key: string}>} Each companion's item and settings key.
    */
-  function slotCompanionKeys(slotKey) {
-    return [slotKey + 'Countdown', phoneBatteryLookKey(slotKey)];
+  function slotCompanions(slotKey) {
+    return [
+      { code: 'countdown', key: slotKey + 'Countdown' },
+      { code: 'phoneBattery', key: phoneBatteryLookKey(slotKey) }
+    ];
   }
 
   /**
@@ -643,7 +647,7 @@
     unitToggleAbsent: unitToggleAbsent,
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
     batterySettingKeys: batterySettingKeys, phoneBatteryLookKey: phoneBatteryLookKey,
-    slotCompanionKeys: slotCompanionKeys
+    slotCompanions: slotCompanions
   };
 
   // Dual-context export - mirror the exact tail of src/pkjs/layout/domain/view-cycle.js.

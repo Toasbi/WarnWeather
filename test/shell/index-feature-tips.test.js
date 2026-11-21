@@ -7,26 +7,10 @@
 // does, for an install from before the tips and for a fresh one.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const vm = require('node:vm');
+const { userDataOf } = require('../helpers/settings-url.js');
 const path = require('node:path');
 
 const PKJS_DIR = path.resolve(__dirname, '..', '..', 'src', 'pkjs') + path.sep;
-
-/**
- * Decode the INJECTED_USERDATA a device data: URL carries.
- * @param {string} url The URL index.js handed to Pebble.openURL.
- * @returns {Object} The page's userData.
- */
-function userDataOf(url) {
-  const prefix = 'data:text/html;charset=utf-8,';
-  assert.equal(url.indexOf(prefix), 0, 'device branch gives a data: URL');
-  const html = decodeURIComponent(url.slice(prefix.length));
-  const line = html.split('\n').filter((l) => l.indexOf('INJECTED_SCHEMA=') === 0)[0];
-  assert.ok(line, 'the injected snippet is one line');
-  const ctx = {};
-  vm.runInNewContext(line, ctx);
-  return JSON.parse(JSON.stringify(ctx.INJECTED_USERDATA));
-}
 
 /**
  * Boot index.js against a store and hand back what the test drives.

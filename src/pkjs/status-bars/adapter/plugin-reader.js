@@ -38,6 +38,17 @@ function available(pebble) {
 }
 
 /**
+ * The Pebble object a module reads plugins through: the one its init() was handed (a
+ * `pebble` key in its injected environment: tests), else the global one, else null.
+ * @param {?Object} deps The module's injected environment.
+ * @returns {?Object} The Pebble object, or null where there is none.
+ */
+function pebbleOf(deps) {
+    if (deps && Object.prototype.hasOwnProperty.call(deps, 'pebble')) { return deps.pebble; }
+    return typeof Pebble !== 'undefined' ? Pebble : null;
+}
+
+/**
  * @param {string} [code] The plugin system's error code (PLUGIN_UNAVAILABLE,
  *   PERMISSION_DENIED, TIMEOUT, ...).
  * @returns {{stage: string, code: string}} The failure value a reader reports.
@@ -154,6 +165,7 @@ function numberOf(envelope, property) {
 module.exports = {
     READ_TIMEOUT_MS: READ_TIMEOUT_MS,
     available: available,
+    pebbleOf: pebbleOf,
     failure: failure,
     watch: watch,
     readOnce: readOnce,

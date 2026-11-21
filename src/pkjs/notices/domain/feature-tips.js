@@ -37,7 +37,7 @@ var TIPS = [
         id: 'batteryDays',
         since: '3.3.0',
         title: 'Days left on your watch battery',
-        html: 'With the <a href=\'' + batteryDays.MUNINN_URL + '\'>Muninn app</a> on your watch, the ' +
+        html: 'With the ' + batteryDays.MUNINN_LINK + ' on your watch, the ' +
             'battery slot can show how many days the watch has left. In the Watch bar, set the ' +
             'right slot to Watch battery and its Look to Text. Then tap Edit and choose Days ' +
             'left or Both.',

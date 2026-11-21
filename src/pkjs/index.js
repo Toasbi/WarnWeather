@@ -5,7 +5,6 @@ require('./lib/polyfills.js');
 
 var notices = require('./notices/adapter/notices.js');
 var featureTipsSeen = require('./notices/adapter/feature-tips-seen.js');
-var featureTips = require('./notices/domain/feature-tips.js');
 var WeatherProvider = require('./weather/adapter/provider.js');
 var createTelemetryClient = require('./telemetry/adapter/telemetry.js');
 var settings = require('./page/settings');
@@ -233,7 +232,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
     console.log('Config env: phoneBattery=' + phoneBatteryEnv + ' plugins=' + pluginsEnv);
     // The new features this install has not seen and can use: the card the page opens on
     // (page/notices/feature-tips-panel.js). null for none.
-    userData.featureTips = featureTips.forPage(featureTipsSeen.pending(featureTipsEnv()));
+    userData.featureTips = featureTipsSeen.forPage(featureTipsEnv());
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see page/settings/index.js options).
     Pebble.openURL(settings.generateUrl({
@@ -455,11 +454,7 @@ Pebble.addEventListener('ready',
             storage: localStorage,
             now: function () { return Date.now(); }
         });
-        phoneBattery.init({
-            devConfig: app.devConfig,
-            getSettings: function () { return app.settings; },
-            now: function () { return new Date(); }
-        });
+        phoneBattery.init({ devConfig: app.devConfig });
         // A weather message that goes out anyway takes the phone battery's exact reading
         // along (bytes, never a wake-up); a fetch's bake shows the reading the watch was
         // last sent, so the charge drifting inside its bucket sends nothing by itself.
@@ -596,23 +591,22 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
  * Everything index.js owns that must happen on every 60 s scheduler tick.
  *
  * The scheduler calls this as its `checkForUpdate` dep, which it invokes once
- * per tick unconditionally — so it is the tick hook, and hanging the
- * phone-battery post-saver-window push here keeps this at ONE timer instead of
- * arming a second one. The update check throttles itself to once a day
+ * per tick unconditionally — so it is the tick hook, and hanging the status
+ * re-bake's tick here (the battery sends the Night battery saver's window
+ * swallowed, the day/night turn) keeps this at ONE timer instead of arming a
+ * second one. The update check throttles itself to once a day
  * (update-check-runner.js — the XHR/notify half; update-check.js stays the
  * pure decision), so the extra work per tick is a flag test.
  *
  * It runs after the tick's fetch decision, so a fetch due this minute is in
- * flight by then: the push and the day/night re-bake wait for a tick without
- * one, as that fetch's message carries the same news.
+ * flight by then: the re-bake's sends wait for a tick without one, as that
+ * fetch's message carries the same news.
  *
  * @returns {void}
  */
 function onSchedulerTick() {
-    var fetching = fetchCycle.isInFlight();
-    phoneBattery.onTick(fetching);
-    batteryEstimate.onTick(fetching);
-    statusRebake.onTick(fetching);
+    batteryEstimate.onTick();
+    statusRebake.onTick(fetchCycle.isInFlight());
     updateCheckRunner.runDailyUpdateCheck({
         stores: UPDATE_CHECK_STORES,
         appVersion: pkg.version,

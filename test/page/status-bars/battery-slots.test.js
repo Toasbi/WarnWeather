@@ -156,7 +156,8 @@ test('the keys the rows write are the catalog\'s: the watch battery\'s list and 
   const lookRows = nodes((node) => /PhoneBatteryLook$/.test(String(node.messageKey || ''))).map((i) => i.messageKey);
   assert.deepEqual(lookRows.slice().sort(), SLOT_KEYS.map(catalog.phoneBatteryLookKey).sort());
   SLOT_KEYS.forEach((slotKey) => {
-    assert.deepEqual(catalog.slotCompanionKeys(slotKey), [slotKey + 'Countdown', slotKey + 'PhoneBatteryLook']);
+    assert.deepEqual(catalog.slotCompanions(slotKey), [{ code: 'countdown', key: slotKey + 'Countdown' },
+      { code: 'phoneBattery', key: slotKey + 'PhoneBatteryLook' }]);
   });
 });
 

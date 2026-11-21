@@ -19,9 +19,10 @@
   var MAX_AGE_MS = 2 * DAY_MS;
   // The most days the slot prints: three bytes at most ('99d') in an edge slot's eight.
   var MAX_DAYS = 99;
-  // The app whose estimate the days are, on the Pebble appstore: what the settings page
-  // links to wherever it names it (the slot's hints, the new-features tip).
+  // The app whose estimate the days are, on the Pebble appstore, and the link the settings
+  // page names it with wherever it does (the slot's hints, the new-features tip).
   var MUNINN_URL = 'https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5';
+  var MUNINN_LINK = '<a href=\'' + MUNINN_URL + '\'>Muninn app</a>';
   // Where the watch prints its own percentage in the slot's text (status_line.h
   // STATUS_BATTERY_PCT_MARK; test/status-bars/domain/status-line-contract.test.js keeps the
   // two in lockstep). One byte on the wire, and no character a separator can hold
@@ -122,6 +123,7 @@
     MAX_AGE_MS: MAX_AGE_MS,
     MAX_DAYS: MAX_DAYS,
     MUNINN_URL: MUNINN_URL,
+    MUNINN_LINK: MUNINN_LINK,
     PCT_MARK: PCT_MARK,
     display: display,
     wanted: wanted,

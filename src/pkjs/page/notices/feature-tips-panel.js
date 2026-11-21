@@ -7,16 +7,12 @@
 // featureTipsAck flag, the notices panel's pattern: the card goes, and PKJS marks the tips
 // seen when the page is saved. The pure renderFeatureTipsHtml is exported for tests; the
 // block registration is guarded like notices-panel.js'.
-/* global PConf */
 (function () {
-    /**
-     * @param {*} s Raw text.
-     * @returns {string} HTML-escaped text.
-     */
-    function esc(s) {
-        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+    var NODE = typeof require !== 'undefined';
+    var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
+        : (typeof window !== 'undefined' && window.PConf) ? window.PConf
+        : null;
+    var esc = NODE ? require('../../config-ui/lib/html.js').esc : PConf.html.esc;
 
     /**
      * A tip's Show me button: it opens the tip's dialog, or brings its tab to the front.
@@ -28,7 +24,7 @@
         var target = tip.sheet ? 'data-edit-sheet="' + esc(tip.sheet) + '"'
             : tip.tab ? 'data-goto-tab="' + esc(tip.tab) + '"' : '';
         if (!target) { return ''; }
-        return '<button type="button" class="tip-open" ' + target + '>Show me</button>';
+        return '<button type="button" class="txt-act-btn" ' + target + '>Show me</button>';
     }
 
     /**
@@ -52,7 +48,7 @@
         return '<div class="tips">'
             + '<div class="tips-hdr">New in this update</div>'
             + '<div class="tips-list">' + rows + '</div>'
-            + '<button type="button" class="tips-ack" data-k="featureTipsAck" data-toggle="1">Got it</button>'
+            + '<button type="button" class="txt-act-btn tips-ack" data-k="featureTipsAck" data-toggle="1">Got it</button>'
             + '</div>';
     }
 
@@ -70,8 +66,8 @@
     }
 
     // Scoped styles, injected once. The card takes the page's info tint and rule (shell.html
-    // --info-tint/--info-rule), as an info notice does, so it follows the page's theme; the
-    // buttons are the page's neutral ones (the notices panel's Understood).
+    // --info-tint/--info-rule), as an info notice does, so it follows the page's theme. Its
+    // buttons are the page's neutral ones (shell.html .txt-act-btn), at a card's size.
     var TIPS_CSS =
         '.tips{margin:4px 0 10px;padding:10px 12px;border-radius:9px;background:var(--info-tint);border-left:3px solid var(--info-rule)}'
         + '.tips-hdr{font:700 11px \'Inter\',sans-serif;letter-spacing:.08em;text-transform:uppercase;opacity:.7;margin-bottom:6px}'
@@ -80,15 +76,8 @@
         + '.tip-ttl{font-weight:700}'
         + '.tip-body{font-size:13px;line-height:1.45;margin:3px 0 8px}'
         + '.tip-body a{color:var(--link)}'
-        + '.tip-open,.tips-ack{padding:8px 14px;border:1px solid var(--ctl-line);border-radius:9px;background:var(--ctl);'
-        + 'color:var(--lbl);font:600 13px \'Inter\',sans-serif;cursor:pointer;transition:background .15s,border-color .15s}'
-        + '.tips-ack{display:block;width:100%;margin-top:4px}'
-        + '.tip-open:active,.tips-ack:active{border-color:#FA4A35;background:rgba(250,74,53,0.12)}';
-
-    var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
-        : (typeof window !== 'undefined' && window.PConf) ? window.PConf
-        : (typeof PConf !== 'undefined' && PConf) ? PConf
-        : null;
+        + '.tips .txt-act-btn{padding:8px 14px}'
+        + '.tips .tips-ack{display:block;width:100%;margin-top:4px}';
 
     if (PConf && PConf.blocks && typeof PConf.blocks.register === 'function') {
         var stylesInjected = false;
