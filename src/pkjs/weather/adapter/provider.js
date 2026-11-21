@@ -209,11 +209,14 @@ WeatherProvider.prototype.isGeocodeBackoffActive = function() {
  */
 WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure) {
     var sunEvents;
-    var own = Array.isArray(this.sunTimes) ? this.sunTimes.map(function(e) {
-        return { type: e.type, date: new Date(e.at * 1000) };
-    }) : undefined;
+    var own;
 
     try {
+        // The provider's own sun times where it sends them (forecast-model.js MAPPED_KEYS.sun),
+        // read in here too: a forecast snapshot brings them back from storage.
+        own = Array.isArray(this.sunTimes) ? this.sunTimes.map(function(e) {
+            return { type: e.type, date: new Date(e.at * 1000) };
+        }) : undefined;
         // The span widens a polar pair to cover a long graph (sun-events.js).
         sunEvents = nextSunEvents(new Date(), lat, lon, own, this.options.forecastHours);
     }
