@@ -1,8 +1,21 @@
 // src/pkjs/page/weather/weather-sources-schema.js — ES5, PKJS-parsed. The rows of Setup › Data
 // sources that say where the weather comes from, split out of schema.js like alerts-schema.js:
-// the Weather from row above the Weather picker, and the note under the picker that names what
-// comes from Open-Meteo (its text is weather-sources-page.js's weatherFillNote). Plain CommonJS:
-// the schema is built in PKJS and reaches the page as data.
+// the Weather picker's options, the Weather from row above the picker, and the note under it that
+// names what comes from Open-Meteo (its text is weather-sources-page.js's weatherFillNote). Plain
+// CommonJS: the schema is built in PKJS and reaches the page as data.
+
+// The weather providers as the Weather picker lists them, alphabetical by name. The 3rd tuple
+// slot's desc is the short "what it's best at" tag shown under each name in the dropdown; DWD
+// carries a `short` so the trigger reads "DWD" while the list keeps the full name.
+var PROVIDER_OPTIONS = [
+    ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
+    ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
+    ['Open-Meteo', 'openmeteo', {desc: 'Picks the best national model · no key'}],
+    ['OpenWeatherMap', 'openweathermap', {desc: 'Popular general-purpose API, worldwide · needs a free key'}],
+    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise local forecasts, worldwide · needs a free key'}],
+    ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
+    ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
+];
 
 // Where the forecast comes from (weatherSourceMode, read by the phone's source plan:
 // weather/domain/source-plan.js candidates), the Location row's pattern. One provider is the
@@ -31,4 +44,4 @@ var FILL_NOTE = {
     textFrom: {resolver: 'weatherFillNote'}
 };
 
-module.exports = { WEATHER_FROM: WEATHER_FROM, FILL_NOTE: FILL_NOTE };
+module.exports = { PROVIDER_OPTIONS: PROVIDER_OPTIONS, WEATHER_FROM: WEATHER_FROM, FILL_NOTE: FILL_NOTE };

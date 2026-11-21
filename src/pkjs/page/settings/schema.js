@@ -2693,10 +2693,9 @@ module.exports = {
                 // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→Open-Meteo),
                 // reading the same country→provider map the wizard uses. See blocks.js recommend resolvers.
                 recommendFrom: 'recommendedWeatherProvider',
-                // Options are alphabetical by name. The 3rd tuple slot's desc is the short "what it's
-                // best at" tag shown under each name in the dropdown; the selected provider's fuller
-                // rationale is the row's info text (PROVIDER_WHY).
-                // DWD carries a `short` so the trigger reads "DWD" while the list keeps the full name.
+                // The options (weather-sources-schema.js PROVIDER_OPTIONS) are each provider with
+                // what it is best at; the selected provider's fuller rationale is the row's info
+                // text (PROVIDER_WHY).
                 hintByValue: PROVIDER_WHY,
                 // A provider that needs a key gets its key row under this one (keyRow), which
                 // opens its key dialog — the key field, its Test, the links and any budget
@@ -2704,15 +2703,7 @@ module.exports = {
                 // on this tab and a dialog in front of Save ("Add key" / "Save anyway"). The
                 // missing-key note is the staticText right below.
                 attentionFrom: {resolver: 'keyAttention'},
-                options: [
-                    ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
-                    ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
-                    ['Open-Meteo', 'openmeteo', {desc: 'Picks the best national model · no key'}],
-                    ['OpenWeatherMap', 'openweathermap', {desc: 'Popular general-purpose API, worldwide · needs a free key'}],
-                    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise local forecasts, worldwide · needs a free key'}],
-                    ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
-                    ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
-                ]
+                options: weatherSources.PROVIDER_OPTIONS
             }, weatherSources.FILL_NOTE, {
                 // The keyed provider's empty key, said where it cannot be missed: an amber note
                 // hugging the row, only while the picked provider's key is blank (textFrom
