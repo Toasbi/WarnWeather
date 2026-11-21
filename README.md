@@ -50,7 +50,7 @@ Icons at the edge of a status bar that appear only when something needs your att
 ### Status bars
 
 - Weather condition with a sun or moon icon, temperature, air quality, wind, gusts, UV index, pollen, dew point, air pressure, sunrise and sunset
-- Date, calendar week, city, countdown to a date
+- Date, calendar week, city with the current weather's icon, countdown to a date
 - Steps, sleep, distance, heart rate*
 - Watch and phone battery
 - Short forms when a bar runs out of room (Partly cloudy becomes PCLDY)

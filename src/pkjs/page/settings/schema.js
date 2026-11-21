@@ -2113,12 +2113,12 @@ module.exports = {
         }]),
         boldSection('Calendar week', 'Week'),
         // The city's own row: the current weather's icon before its name (slot-text.js
-        // cityIcon), off until switched on.
+        // cityIcon), on by default.
         boldSection('City', 'City', null, [{
             type: 'toggle',
             messageKey: 'citySlotIcon',
             label: 'Weather icon',
-            defaultValue: false,
+            defaultValue: true,
             hintByValue: {'true': 'Shows the current weather\'s icon before the city name.'}
         }]),
         // 'd' is a unit like any other here — the countdown reads '5d' today, and

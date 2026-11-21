@@ -135,5 +135,12 @@ module.exports = [
     // them). Reset-safe: after a reset the next boot is a fresh install, whose slots take
     // the new defaults, and a blob the page saves before it holds the slots already.
     { key: KEYS.SLOT_DEFAULTS_2_7_MIGRATION_KEY, markOn: 'now', markOnReset: true,
-      run: statusSlots.keepSlotDefaults27 }
+      run: statusSlots.keepSlotDefaults27 },
+    // 3.3.0: the city slot's weather icon on for every install (an existing one stores an
+    // explicit false, seeded by the old default). Once: a later switch-off stays. Asks for
+    // no send (citySlotIcon rides the weather bake, which the next fetch runs). Reset-safe:
+    // the next blob is seeded with the new default, and a false saved before the next boot
+    // is a pick.
+    { key: KEYS.CITY_SLOT_ICON_MIGRATION_KEY, markOn: 'now', markOnReset: true,
+      run: statusSlots.migrateCitySlotIconOn }
 ];

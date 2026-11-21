@@ -25,7 +25,7 @@ RAIN RADAR*
 
 STATUS BARS
 - Weather condition, temperature, air quality, wind, UV, sunrise and sunset, pollen
-- Date, week, city, countdown
+- Date, week, city with weather icon, countdown
 - Steps, sleep, distance, heart rate*
 - Watch and phone battery
 - Name your own bars and place them on any screen*

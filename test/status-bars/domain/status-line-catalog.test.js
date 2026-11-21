@@ -641,12 +641,15 @@ test('the four Battery rows are labelled Watch/Phone so none of them just reads 
   assert.equal(new Set(labels).size, labels.length, 'Battery labels must be unique');
 });
 
-test('the slot lists name the city with its weather icon while it is on, never on aplite', () => {
+test('the slot lists always name the city with its weather icon, except on aplite', () => {
   const label = (env, settings) => catalog.slotOptions(settings || {}, env, { slotKey: 'statusTopLeft', position: 'left' })
     .filter((o) => o[1] === 'city').map((o) => o[0])[0];
-  assert.equal(label(ENV_BASALT), 'City', 'the icon is off by default');
+  assert.equal(label(ENV_BASALT), 'City with weather icon');
   assert.equal(label(ENV_BASALT, { citySlotIcon: true }), 'City with weather icon');
+  assert.equal(label(ENV_BASALT, { citySlotIcon: false }), 'City with weather icon', 'the toggle off: same name');
+  assert.equal(label({ platform: 'aplite' }), 'City');
   assert.equal(label({ platform: 'aplite' }, { citySlotIcon: true }), 'City');
+  assert.equal(label({ platform: 'aplite' }, { citySlotIcon: false }), 'City');
 });
 
 // An edge slot's weather condition takes the middle's room while the whole line fits its 48

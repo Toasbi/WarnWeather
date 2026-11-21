@@ -1,6 +1,6 @@
 // src/pkjs/settings/domain/migrations/status-slots.js
 //
-// The status-slot migrations (1.8.0, 3.0.0). Registry bodies (settings/domain/migrations/registry.js):
+// The status-slot migrations (1.8.0, 3.0.0, 3.3.0). Registry bodies (settings/domain/migrations/registry.js):
 // run(blob, ctx) -> {changed, send}, mutating the blob in place; the runner in
 // clay-migrations.js owns the marker, the save and the send.
 
@@ -83,9 +83,27 @@ function keepSlotDefaults27(blob, ctx) {
     return { changed: changed, send: false };
 }
 
+/**
+ * 3.3.0 made the city slot's weather icon (citySlotIcon) on by default. A default alone
+ * does not reach an existing install: it stores the explicit false the old default seeded,
+ * so this switches it on once, for every install. The ledger's marker keeps it once: a
+ * user who switches the icon off afterwards stays off. Asks for no send: the icon rides
+ * the weather bake, which the next fetch runs.
+ *
+ * @param {Object} blob Stored settings, mutated in place.
+ * @returns {{changed: boolean, send: boolean}}
+ */
+function migrateCitySlotIconOn(blob) {
+    if (blob.citySlotIcon === true) { return { changed: false, send: false }; }
+    blob.citySlotIcon = true;
+    console.log('Migrated city slot weather icon on');
+    return { changed: true, send: false };
+}
+
 module.exports = {
     migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults,
     migrateStatusTopRightBattery: migrateStatusTopRightBattery,
     keepSlotDefaults27: keepSlotDefaults27,
+    migrateCitySlotIconOn: migrateCitySlotIconOn,
     SLOT_DEFAULTS_BEFORE_2_7: SLOT_DEFAULTS_BEFORE_2_7
 };

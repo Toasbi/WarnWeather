@@ -49,6 +49,9 @@ module.exports = {
     // the top row's defaults changed (settings/domain/migrations/status-slots.js keepSlotDefaults27). Named
     // while 3.0.0 was still planned as 2.7.0; test builds already marked it, so it stays.
     SLOT_DEFAULTS_2_7_MIGRATION_KEY: 'v2.7.0_slot_defaults_migration',
+    // 3.3.0: every install onto the city slot's weather icon, on by default now
+    // (settings/domain/migrations/status-slots.js migrateCitySlotIconOn).
+    CITY_SLOT_ICON_MIGRATION_KEY: 'v3.3.0_city_slot_icon_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',

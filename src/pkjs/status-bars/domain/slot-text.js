@@ -274,7 +274,7 @@
 
     /**
      * Whether the city slot draws the current weather's icon before its name (its dialog's
-     * citySlotIcon, off unless switched on, until the icons are redrawn). Never on aplite, whose
+     * citySlotIcon, on by default). Never on aplite, whose
      * lean row draws no weather icon.
      * @param {Object} settings Settings.
      * @param {Object} [env] Platform env.
