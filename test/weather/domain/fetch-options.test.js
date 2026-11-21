@@ -10,15 +10,16 @@ const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js'
 const forecastSeries = require('../../../src/pkjs/weather/domain/forecast-series.js');
 
 const KNOBS = ['fetchUv', 'fetchAqi', 'fetchPollen', 'fetchFeels', 'feelsFormula',
-  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours'];
+  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours', 'drawn'];
 
 test('DEFAULTS names every knob with its fail-safe default', () => {
   assert.deepEqual(Object.keys(fetchOptions.DEFAULTS).sort(), KNOBS.slice().sort());
   assert.deepEqual(fetchOptions.DEFAULTS, {
     fetchUv: false, fetchAqi: false, fetchPollen: false, fetchFeels: true,
     feelsFormula: 'provider', dayPeakCodes: null, windUnits: 'kph',
-    aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24
+    aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24, drawn: []
   });
+  assert.ok(Object.isFrozen(fetchOptions.DEFAULTS.drawn), 'one default list, shared by every defaults(), stays empty');
 });
 
 test('defaults() returns a fresh object with every key each call', () => {
@@ -136,6 +137,18 @@ test('build() returns every knob and a fresh object per call', () => {
   const b = fetchOptions.build({});
   assert.deepEqual(Object.keys(a).sort(), KNOBS.slice().sort());
   assert.notEqual(a, b);
+});
+
+test('build() names the drawn readings (drawn-readings.js), and asks for UV exactly when it is one', () => {
+  const drawnReadings = require('../../../src/pkjs/weather/domain/drawn-readings.js');
+  const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
+  [{ secondaryLine: 'cloud', statusForecastMid: 'dew' }, { thirdLine: 'uv' }, {}].forEach((settings) => {
+    const out = fetchOptions.build(settings, { platform: 'basalt' });
+    assert.deepEqual(out.drawn, drawnReadings.drawn(settings, platform.computeEnv({ platform: 'basalt' })));
+    assert.equal(out.fetchUv, out.drawn.indexOf('uv') !== -1, JSON.stringify(settings));
+  });
+  assert.ok(fetchOptions.build({ secondaryLine: 'cloud' }, { platform: 'basalt' }).drawn.indexOf('cloud') !== -1);
+  assert.deepEqual(fetchOptions.build(null).drawn, [], 'no stored settings draw nothing');
 });
 
 test('a placed alert fetches its metric AND its day peaks with no slot showing it — not on aplite', () => {

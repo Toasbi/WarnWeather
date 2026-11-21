@@ -274,8 +274,8 @@ test('a keep writes over the store as it is then, not as the fetch read it', () 
       const s = mod('weather/adapter/provider-factory.js').createProvider(id, world.KEYS);
       s.options = p.options;
       s.startTime = world.HOUR0;
-      return snapshots.snapshotOf(snapshots.queryOf(id, 'forecast', s, world.PLACE.lat, world.PLACE.lon), s,
-        world.NOW_MS);
+      return snapshots.snapshotOf(snapshots.queryOf({ provider: id, ask: 'forecast' }, s, world.PLACE.lat,
+        world.PLACE.lon), s, world.NOW_MS);
     };
     const stores = [[standIn('tomorrowio')], [standIn('yandex')]];
     let loads = 0;
@@ -305,4 +305,79 @@ test('a stored UV fill that holds no UV is asked for again', () => {
   assert.deepEqual(damaged.requests.map(endpoint), ['https://api.open-meteo.com/v1/forecast'],
     'DWD\'s forecast from its snapshot, the UV asked again');
   assert.equal(damaged.p.uvTrend.length, 49);
+});
+
+// --- the fill of the other readings a provider lacks -------------------------------------
+
+const YANDEX_GAPS = ['dew', 'windDir', 'cloud', 'pressure'];
+const { weightedCloudCover } = require('../../../src/pkjs/weather/domain/cloud-cover.js');
+
+/**
+ * @param {string} request A recorded request.
+ * @returns {string[]} The hourly fields it asks for.
+ */
+function hourlyOf(request) { return new URL(request.split(' ')[1]).searchParams.get('hourly').split(','); }
+
+test('Yandex\'s drawn readings come from one Open-Meteo request after its own, hour by hour', () => {
+  const [{ p, outcome, requests }] = fetchesOf('yandex', [{ options: { drawn: YANDEX_GAPS } }]);
+  assert.equal(outcome, 'ok');
+  assert.equal(requests.length, 2, requests.join('\n'));
+  assert.deepEqual(hourlyOf(requests[1]), ['dew_point_2m', 'wind_direction_10m', 'cloud_cover', 'cloud_cover_low',
+    'cloud_cover_mid', 'cloud_cover_high', 'pressure_msl']);
+  for (let i = 0; i < 24; i += 1) {
+    const h = world.hourAt(p.startTime + i * HOUR);
+    assert.equal(p.dewTrend[i], Math.round((h.dewC * 9 / 5 + 32) * 10) / 10, 'dew point, hour ' + i);
+    assert.equal(p.windDirTrend[i], h.windDir % 360, 'wind direction, hour ' + i);
+    assert.equal(p.cloudTrend[i], weightedCloudCover(h.cloudLow, h.cloudMid, h.cloudHigh, h.cloud), 'cloud, hour ' + i);
+    assert.equal(p.pressureTrend[i], h.pressure, 'pressure, hour ' + i);
+  }
+});
+
+test('only the drawn readings Yandex lacks are asked for', () => {
+  const [{ p, requests }] = fetchesOf('yandex', [{ options: { drawn: ['cloud', 'uv'] } }]);
+  assert.deepEqual(hourlyOf(requests[1]), ['cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high']);
+  assert.deepEqual([p.dewTrend, p.windDirTrend, p.pressureTrend], [[], [], []]);
+  assert.equal(fetchesOf('yandex', [{}])[0].requests.length, 1, 'nothing drawn, nothing asked');
+});
+
+test('a gap request that fails leaves its readings empty and fails nothing', () => {
+  const [{ p, outcome }] = fetchesOf('yandex', [{ options: { drawn: YANDEX_GAPS } }],
+    { answers: (url) => url.indexOf('hourly=dew_point_2m') === -1 });
+  assert.equal(outcome, 'ok');
+  assert.deepEqual([p.dewTrend, p.windDirTrend, p.cloudTrend, p.pressureTrend], [[], [], [], []]);
+});
+
+test('a second fetch in the refresh slot asks nobody: the fill is kept with the forecast', () => {
+  const both = { options: { drawn: YANDEX_GAPS } };
+  const [first, second] = fetchesOf('yandex', [both, Object.assign({ at: 5 * MIN }, both)]);
+  assert.deepEqual(second.requests, []);
+  assert.equal(second.forecast, first.forecast);
+  const [, fewer] = fetchesOf('yandex', [both, { at: 5 * MIN, options: { drawn: ['cloud'] } }]);
+  assert.deepEqual(fewer.requests.map(hourlyOf), [['cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high']],
+    'other readings are another request');
+});
+
+test('a stored fill that holds none of its readings is asked for again', () => {
+  const empty = (p, mod) => {
+    damage(mod, (e) => { if (e.kind === 'readings') { Object.keys(e.fields).forEach((k) => { e.fields[k] = 'none'; }); } });
+  };
+  const runs = fetchesOf('yandex', [{ options: { drawn: YANDEX_GAPS } },
+    { at: MIN, before: empty, options: { drawn: YANDEX_GAPS } }]);
+  assert.deepEqual(runs[1].requests.map(endpoint), ['https://api.open-meteo.com/v1/forecast']);
+  assert.equal(runs[1].p.cloudTrend.length, 24);
+});
+
+test('a gap fill that brings nothing leaves its readings empty, whatever the anchor held before it', () => {
+  // A stand-in for an anchor whose own answer left series behind: the fill clears what it
+  // asks for first.
+  const stale = (p) => {
+    const own = p.withProviderData;
+    p.withProviderData = function (lat, lon, force, onSuccess, onFailure) {
+      own.call(this, lat, lon, force, () => { this.dewTrend = [1, 2]; this.cloudTrend = [3, 4]; onSuccess(); }, onFailure);
+    };
+  };
+  const [{ p, outcome }] = fetchesOf('yandex', [{ before: stale, options: { drawn: ['dew', 'cloud'] } }],
+    { answers: (url) => url.indexOf('hourly=dew_point_2m') === -1 });
+  assert.equal(outcome, 'ok');
+  assert.deepEqual([p.dewTrend, p.cloudTrend], [[], []]);
 });

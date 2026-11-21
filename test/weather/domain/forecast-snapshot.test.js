@@ -42,17 +42,30 @@ function provider(over) {
   return p;
 }
 
+// The readings a readings fill asks for in these tests.
+const GAPS = ['dew', 'cloud'];
+
+/**
+ * The plan step of a kind, for `p`: its own forecast, or Open-Meteo's fill.
+ * @param {Object} p provider().
+ * @param {string} kind 'forecast', 'uv' or 'readings'.
+ * @returns {Object}
+ */
+function stepFor(p, kind) {
+  if (kind === 'forecast') { return { provider: p.id, ask: 'forecast' }; }
+  return kind === 'uv' ? { provider: 'openmeteo', ask: 'uv' } : { provider: 'openmeteo', ask: 'readings', readings: GAPS };
+}
+
 /**
  * The query of a fetch of `p` at a place.
  * @param {Object} p provider().
- * @param {string} [kind] 'forecast' (default) or 'uv'.
+ * @param {string} [kind] 'forecast' (default), 'uv' or 'readings'.
  * @param {Object} [place] {lat, lon}; PLACE by default.
  * @returns {?Object}
  */
 function queryFor(p, kind, place) {
-  const k = kind || 'forecast';
   const at = place || PLACE;
-  return snap.queryOf(k === 'uv' ? 'openmeteo' : p.id, k, p, at.lat, at.lon);
+  return snap.queryOf(stepFor(p, kind || 'forecast'), p, at.lat, at.lon);
 }
 
 /**
@@ -72,24 +85,31 @@ function reused(entries, p, now, opts) {
 }
 
 test('a query keeps the place to three decimals, and what the answer depends on, the key only as a fingerprint', () => {
-  const q = snap.queryOf('openweathermap', 'forecast', provider(), '52.52491', 13.40512);
+  const q = snap.queryOf({ provider: 'openweathermap', ask: 'forecast' }, provider(), '52.52491', 13.40512);
   assert.deepEqual(q.place, { lat: 52.525, lon: 13.405 });
   assert.deepEqual(q.request, { hours: 24, peaks: [], uv: true, feels: true, formula: 'provider',
     key: fingerprint('secret-key') });
   assert.equal(JSON.stringify(q).indexOf('secret-key'), -1, 'the key itself is never kept');
-  assert.deepEqual(snap.queryOf('openmeteo', 'uv', provider({ options: { dayPeakCodes: ['uv', 'wind', 'aqi'] } }), 1, 2)
-    .request, { hours: 24, peaks: ['uv'] }, 'a UV fill depends on its hours and the UV day max alone');
-  assert.deepEqual(snap.queryOf('dwd', 'forecast', provider({ options: { dayPeakCodes: ['gust', 'aqi', 'uv'] } }), 1, 2)
-    .request.peaks, ['uv', 'gust'], 'the day maxima of the series a forecast keeps, air quality not among them');
+  assert.deepEqual(snap.queryOf({ provider: 'openmeteo', ask: 'uv' },
+    provider({ options: { dayPeakCodes: ['uv', 'wind', 'aqi'] } }), 1, 2).request,
+    { hours: 24, peaks: ['uv'] }, 'a UV fill depends on its hours and the UV day max alone');
+  assert.deepEqual(snap.queryOf({ provider: 'dwd', ask: 'forecast' },
+    provider({ options: { dayPeakCodes: ['gust', 'aqi', 'uv'] } }), 1, 2).request.peaks,
+    ['uv', 'gust'], 'the day maxima of the series a forecast keeps, air quality not among them');
+  assert.deepEqual(snap.queryOf({ provider: 'openmeteo', ask: 'readings', readings: ['dew', 'pressure'] },
+    provider({ options: { forecastHours: 68, dayPeakCodes: ['uv'] } }), 1, 2).request,
+    { hours: 68, readings: ['dew', 'pressure'] }, 'a readings fill depends on its hours and its readings alone');
   ['', null, true, 'north'].forEach((lat) => {
-    assert.equal(snap.queryOf('dwd', 'forecast', provider(), lat, 13.4), null, 'no place: ' + JSON.stringify(lat));
+    assert.equal(snap.queryOf({ provider: 'dwd', ask: 'forecast' }, provider(), lat, 13.4), null,
+      'no place: ' + JSON.stringify(lat));
   });
 });
 
 test('every fetch option either changes the request or is one no answer depends on', () => {
   const base = provider();
   const changed = { fetchUv: false, fetchAqi: true, fetchPollen: true, fetchFeels: false, feelsFormula: 'steadman',
-    dayPeakCodes: ['wind'], windUnits: 'mph', aqiScale: 'us', aqiSource: 'openmeteo', aqicnToken: 'x', forecastHours: 68 };
+    dayPeakCodes: ['wind'], windUnits: 'mph', aqiScale: 'us', aqiSource: 'openmeteo', aqicnToken: 'x', forecastHours: 68,
+    drawn: ['cloud'] };
   assert.deepEqual(Object.keys(changed).sort(), Object.keys(fetchOptions.defaults()).sort(),
     'every option has a changed value here');
   Object.keys(changed).forEach((key) => {
@@ -167,6 +187,20 @@ test('a forecast is reused as it was kept; a UV fill drops the hours past, unles
     { kind: 'uv', anchor: { startTime: START + 1800 } }), null, 'off the hour grid');
 });
 
+test('a readings fill keeps its readings, serves as a forecast does and only for the same readings', () => {
+  const p = Object.assign(provider({ id: 'yandex', apiKey: '' }), { dewTrend: series(24, 30) });
+  const e = kept(p, T0 + 2 * MIN_MS, 'readings');
+  assert.deepEqual(Object.keys(e.fields), ['dewTrend', 'cloudTrend'], 'the series of its readings alone');
+  assert.ok(reused([e], p, T0 + QUARTER - 1, { kind: 'readings' }), 'the rest of the slot');
+  assert.equal(reused([e], p, T0 + QUARTER, { kind: 'readings' }), null, 'the next slot asks again');
+  assert.equal(reused([e], p, T0 + HOUR * 1000, { kind: 'readings', refreshMs: 2 * HOUR * 1000 }), null,
+    'the next hour asks again');
+  const dewOnly = snap.queryOf({ provider: 'openmeteo', ask: 'readings', readings: ['dew'] }, p, PLACE.lat, PLACE.lon);
+  assert.equal(snap.reuse([e], dewOnly, T0 + 3 * MIN_MS, QUARTER, p), null, 'other readings are another request');
+  assert.equal(reused([e], p, T0 + 3 * MIN_MS, { kind: 'readings', anchor: Object.assign({}, p, { startTime: START + HOUR }) }),
+    null, 'a forecast an hour on would leave its 24 hours short');
+});
+
 test('a new snapshot replaces its provider\'s and kind\'s; only those that can still serve stay, six at most', () => {
   const ids = ['dwd', 'openmeteo', 'metno', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex'];
   const hour = 60 * MIN_MS;
@@ -196,12 +230,16 @@ test('a stored value of another version, or a snapshot that cannot be read, serv
   ['2', NaN, null].forEach((drops) => {
     assert.equal(snap.fromStored({ v: 1, entries: [], drops: drops }).drops, 0, 'a count that is no number');
   });
+  const fill = kept(provider(), T0, 'readings');
   const broken = [
+    Object.assign({}, fill, { request: { hours: 24, readings: 'dew' } }),
+    Object.assign({}, fill, { request: { hours: 24, readings: ['dew', 'sunshine'] } }),
+    Object.assign({}, fill, { fields: { dewTrend: [] } }),
     Object.assign({}, e, { kind: 'constructor' }),
     Object.assign({}, e, { at: 'soon' }),
     Object.assign({}, e, { place: { lat: '52.52', lon: 13.4 } }),
     Object.assign({}, e, { fields: Object.assign({}, e.fields) })
   ];
-  delete broken[3].fields.tempTrend;
-  assert.deepEqual(snap.fromStored(snap.toStored({ entries: broken.concat([e]), drops: 0 })).entries, [e]);
+  delete broken[6].fields.tempTrend;
+  assert.deepEqual(snap.fromStored(snap.toStored({ entries: broken.concat([e, fill]), drops: 0 })).entries, [e, fill]);
 });

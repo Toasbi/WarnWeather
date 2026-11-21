@@ -363,11 +363,20 @@ What one fetch asks for, in order (`src/pkjs/weather/domain/source-plan.js`): it
 Weather picker's provider is the fetch's anchor: its instance holds every reading at the end,
 and the rest of the fetch (the sun events, air quality, pollen, the day records, the payload)
 reads it. Its own forecast is the first step, and a fetch without it fails; it serves the
-readings it sends, and a reading it lacks comes from Open-Meteo while the screens draw it (so
-far DWD's UV, by Open-Meteo's UV-only request). `src/pkjs/weather/application/fetch-sources.js`
-runs the steps through the source ports.
+readings it sends, and a reading it lacks is a fill: it comes from Open-Meteo while the watch
+draws it (a drawn reading). DWD's UV comes by Open-Meteo's UV-only request, Yandex's dew point,
+wind direction, cloud cover and air pressure by one request for all four.
+`src/pkjs/weather/application/fetch-sources.js` runs the steps through the source ports.
 _Avoid_: provider chain, fallback provider (a fallback is what By location tries when a
 provider fails).
+
+**Drawn reading**:
+A reading only some screens draw that the watch draws now
+(`src/pkjs/weather/domain/drawn-readings.js`): UV, the dew point, the cloud cover and the air
+pressure on a forecast line the watch draws, in a status slot or as a placed alert, and the
+wind direction as the wind and gust slots' arrow. The fetch asks for UV, and fills a reading
+the provider lacks, only while it is drawn; the settings page names the fills by the same rule.
+_Avoid_: wanted reading, used metric.
 
 **Source ports**:
 What a fetch's source plan runs through (`src/pkjs/weather/adapter/source-ports.js`): the

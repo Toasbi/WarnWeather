@@ -142,6 +142,17 @@ function query(url) {
   return new URL(url).searchParams;
 }
 
+// Each field Open-Meteo's gap request may name, from an hour of the world.
+const GAP_FIELDS = {
+  dew_point_2m: (h) => fahrenheit(h.dewC),
+  wind_direction_10m: (h) => h.windDir,
+  cloud_cover: (h) => h.cloud,
+  cloud_cover_low: (h) => h.cloudLow,
+  cloud_cover_mid: (h) => h.cloudMid,
+  cloud_cover_high: (h) => h.cloudHigh,
+  pressure_msl: (h) => h.pressure
+};
+
 /**
  * Open-Meteo's GMT hours for a request's forecast_days, from 00:00 GMT today.
  * @param {string} url The request.
@@ -244,6 +255,18 @@ const SERVICES = [
           wind_direction_10m: time.map((t) => hourAt(t).windDir)
         }
       };
+    }
+  },
+  {
+    // Open-Meteo's gap request: the readings the Weather picker's provider lacks (best_match),
+    // only the fields it names, each at its own stamp.
+    match: (url) => url.indexOf('https://api.open-meteo.com/v1/forecast?') === 0
+      && query(url).get('hourly').split(',').every((field) => Object.prototype.hasOwnProperty.call(GAP_FIELDS, field)),
+    answer: (url) => {
+      const time = openMeteoTimes(url);
+      const hourly = { time: time };
+      query(url).get('hourly').split(',').forEach((field) => { hourly[field] = time.map((t) => GAP_FIELDS[field](hourAt(t))); });
+      return { hourly: hourly };
     }
   },
   {

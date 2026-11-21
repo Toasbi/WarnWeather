@@ -550,6 +550,100 @@ function fetchUvInto(provider, lat, lon, done) {
     });
 }
 
+/**
+ * Whether a mapped window holds a reading: a number for one hour at least. A window the
+ * response has no bucket for comes back all null (a forecast whose hours are not on the GMT
+ * hour, such as a provider's local hours on the half hour), and its reading stays empty
+ * rather than drawing a clear sky.
+ * @param {?Array} series A mapped window (alignHourly), or null when malformed.
+ * @returns {boolean}
+ */
+function holdsReading(series) {
+    return Boolean(series) && series.some(function(v) { return typeof v === 'number'; });
+}
+
+// Open-Meteo's gap request (fetchReadingsInto), per reading it brings: the hourly fields it
+// asks for, and how they land on the provider, aligned by time to its startTime. All four are
+// values at the hour's stamp, so none reads a bucket ahead, and all four come from best_match:
+// ECMWF IFS, which the main request pins, sends no dew point or wind bearing. A reading whose
+// window holds no number keeps what the provider had (holdsReading).
+var GAP_FIELDS = {
+    dew: { hourly: ['dew_point_2m'], adopt: function(provider, json, hours) {
+        var dew = mapDew(json, provider.startTime, hours);
+        if (holdsReading(dew)) { provider.dewTrend = dew; }
+    } },
+    windDir: { hourly: ['wind_direction_10m'], adopt: function(provider, json, hours) {
+        var bearings = mapWindDirection(json, provider.startTime, hours);
+        if (holdsReading(bearings)) { provider.windDirTrend = bearings; }
+    } },
+    // The layers weighted as the main request's are (cloudSlice).
+    cloud: { hourly: ['cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high'],
+        adopt: function(provider, json, hours) {
+            var total = alignHourly(json, 'cloud_cover', provider.startTime, hours);
+            if (!holdsReading(total)) { return; }
+            var layer = function(field) { return alignHourly(json, field, provider.startTime, hours) || []; };
+            var low = layer('cloud_cover_low'), mid = layer('cloud_cover_mid'), high = layer('cloud_cover_high');
+            provider.cloudTrend = total.map(function(t, h) { return weightedCloudCover(low[h], mid[h], high[h], t); });
+        } },
+    pressure: { hourly: ['pressure_msl'], adopt: function(provider, json, hours) {
+        var pressure = alignHourly(json, 'pressure_msl', provider.startTime, hours);
+        if (holdsReading(pressure)) { provider.pressureTrend = pressure; }
+    } }
+};
+
+/**
+ * Build Open-Meteo's gap request: the hourly fields of the readings asked for, in °F (the dew
+ * point), unixtime and GMT like the aux calls, so the buckets line up with the provider's
+ * hours by timestamp, over the graph's window (auxDays).
+ * @param {number} lat Latitude in decimal degrees.
+ * @param {number} lon Longitude in decimal degrees.
+ * @param {string[]} readings GAP_FIELDS ids.
+ * @param {number} [hours] The graph's window (windowHours); 24 when absent.
+ * @returns {string} Fully-formed request URL.
+ */
+function buildReadingsUrl(lat, lon, readings, hours) {
+    var fields = [];
+    readings.forEach(function(id) { fields = fields.concat(GAP_FIELDS[id].hourly); });
+    return OPEN_METEO_BASE
+        + '?latitude=' + lat
+        + '&longitude=' + lon
+        + '&hourly=' + fields.join(',')
+        + '&temperature_unit=fahrenheit'
+        + '&timeformat=unixtime'
+        + '&timezone=GMT'
+        + '&forecast_days=' + auxDays(false, hours);
+}
+
+/**
+ * Fetch the readings a provider lacks from Open-Meteo in one request, onto the provider's
+ * series, aligned to its startTime: the source plan's gap fill (source-plan.js fills, run
+ * through weather/adapter/source-ports.js). It always calls back; a failed request leaves
+ * every series as it was, and an answer without a reading's hours leaves that one.
+ * @param {Object} provider The provider the readings go on (reads .options and .startTime).
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {string[]} readings Reading ids (source-plan.js GAP_READINGS); others are skipped.
+ * @param {Function} done Continuation (always called exactly once).
+ * @returns {void}
+ */
+function fetchReadingsInto(provider, lat, lon, readings, done) {
+    var wanted = readings.filter(function(id) { return Object.prototype.hasOwnProperty.call(GAP_FIELDS, id); });
+    if (!wanted.length) { done(); return; }
+    var hours = hourlyWindow.windowHours(provider.options);
+    request(buildReadingsUrl(lat, lon, wanted, hours), 'GET', function(resp) {
+        var json = null;
+        try { json = JSON.parse(resp); }
+        catch (ex) { json = null; }
+        if (json) {
+            wanted.forEach(function(id) { GAP_FIELDS[id].adopt(provider, json, hours); });
+        }
+        done();
+    }, function(err) {
+        console.log('[!] Open-Meteo readings request failed: ' + JSON.stringify(err));
+        done();
+    });
+}
+
 OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
     // requestMapped owns the parse/missing-fields/error-code grammar; adoptMapped
     // assigns the mapped forecast (gustTrend included — ecmwf_ifs025 returns
@@ -610,5 +704,8 @@ module.exports = {
     buildUvUrl: buildUvUrl,
     mapUv: mapUv,
     fetchUvInto: fetchUvInto,
+    GAP_FIELDS: GAP_FIELDS,
+    buildReadingsUrl: buildReadingsUrl,
+    fetchReadingsInto: fetchReadingsInto,
     OpenMeteoProvider: OpenMeteoProvider
 };

@@ -15,13 +15,17 @@ var forecastSnapshots = require('./forecast-snapshots.js');
  * @param {function(): number} now The fetch cycle's clock, epoch ms.
  * @param {number} refreshMs The update interval in ms, whose refresh slot a forecast snapshot
  *   serves.
- * @returns {{fillUv: function(Object, number, number, Function): void, now: function(): number,
- *   refreshMs: number, snapshots: {load: Function, save: Function}}} fillUv: Open-Meteo's
- *   UV-only request into a provider's uvTrend, aligned to its startTime (openmeteo.js
- *   fetchUvInto; it always calls back, a failure leaving the UV empty); snapshots: the store.
+ * @returns {{fillUv: function(Object, number, number, Function): void,
+ *   fillReadings: function(Object, number, number, string[], Function): void,
+ *   now: function(): number, refreshMs: number, snapshots: {load: Function, save: Function}}}
+ *   fillUv: Open-Meteo's UV-only request into a provider's uvTrend, aligned to its startTime
+ *   (openmeteo.js fetchUvInto; it always calls back, a failure leaving the UV empty);
+ *   fillReadings: Open-Meteo's one request for the other readings a provider lacks, aligned
+ *   the same way (fetchReadingsInto); snapshots: the store.
  */
 function create(now, refreshMs) {
-    return { fillUv: openmeteo.fetchUvInto, now: now, refreshMs: refreshMs, snapshots: forecastSnapshots };
+    return { fillUv: openmeteo.fetchUvInto, fillReadings: openmeteo.fetchReadingsInto, now: now,
+        refreshMs: refreshMs, snapshots: forecastSnapshots };
 }
 
 module.exports = { create: create };

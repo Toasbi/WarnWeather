@@ -2,11 +2,12 @@
 //
 // Forecast snapshots: what a provider answered, kept so a fetch soon after (a start-up, a
 // settings save) asks nobody again. A snapshot holds what its kind keeps of the provider after
-// a valid answer (a whole forecast: forecast-model.js ADOPTED_KEYS; a UV fill: its UV), the
-// place, when, and what the request asked for. A fetch reuses one for the same provider, a
-// place within SAME_PLACE_KM and the same request, while its kind still serves it (KINDS): a
-// forecast as it was kept, a UV fill re-anchored to the hour the forecast it fills starts at
-// (one that would then come up short of its hours is asked for again).
+// a valid answer (a whole forecast: forecast-model.js ADOPTED_KEYS; a UV fill: its UV; a fill
+// of other readings: theirs), the place, when, and what the request asked for. A fetch reuses
+// one for the same provider, a place within SAME_PLACE_KM and the same request, while its kind
+// still serves it (KINDS): a forecast as it was kept, a fill re-anchored to the hour the
+// forecast it fills starts at (one that would then come up short of its hours is asked for
+// again).
 //
 // weather/adapter/forecast-snapshots.js keeps them; weather/application/fetch-sources.js asks.
 
@@ -30,10 +31,12 @@ var UV_REUSE_MS = 3 * HOUR_MS;
 var MAX_ENTRIES = 6;
 // Two places this close have the same forecast (the Weather tab's rule: weather-tab-model.js).
 var SAME_PLACE_KM = weatherTabModel.SAME_PLACE_KM;
-// The fetch options no answer depends on: a fetch that differs from a snapshot only in these
+// The fetch options no forecast depends on: a fetch that differs from a snapshot only in these
 // reuses it. test/weather/domain/forecast-snapshot.test.js checks that every other option
-// changes the request.
-var ANSWER_NEUTRAL = ['fetchAqi', 'fetchPollen', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken'];
+// changes the request. What the watch draws (drawn) names the readings a fill asks for, which
+// its own request holds.
+var ANSWER_NEUTRAL = ['fetchAqi', 'fetchPollen', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'drawn'];
+var UV_KEYS = providerReadings.keysOf('uv');
 
 /**
  * The day maxima (day-peaks.js METRICS) a request reads on for: those whose series the
@@ -48,39 +51,53 @@ function peaksOf(provider, fields) {
     }).map(function (metric) { return metric.code; });
 }
 
-// Each kind of snapshot: what it keeps of the provider (fields), what its answer depends on
-// (request), whether it still serves at nowMs (serves), and the hour a fetch re-anchors it to
-// (startOf).
+/**
+ * Whether a snapshot is from this refresh slot of the update interval and this hour: a
+ * provider starts its forecast at the first of its hours from the hour now on
+ * (hourly-window.js anchorIndex), so a new answer in the same hour would start where this one
+ * does, and its values of the moment (the temperature now, the condition now) still describe
+ * it.
+ * @param {Object} entry A snapshot.
+ * @param {number} nowMs Epoch ms.
+ * @param {number} refreshMs The update interval in ms; none serves while it is no positive
+ *   number.
+ * @returns {boolean}
+ */
+function inSlotAndHour(entry, nowMs, refreshMs) {
+    return refreshMs > 0 && !refreshSlot.isPastSlot(entry.at, nowMs, refreshMs)
+        && Math.floor(entry.at / HOUR_MS) === Math.floor(nowMs / HOUR_MS);
+}
+
+/**
+ * The hour a fill starts at: the forecast's it fills, onto which it is re-anchored.
+ * @param {Object} entry A snapshot (unused: a fill follows its forecast).
+ * @param {Object} anchor The provider the fill goes on.
+ * @returns {number} Epoch seconds.
+ */
+function anchorStart(entry, anchor) { return anchor.startTime; }
+
+// Each kind of snapshot (a plan step's `ask`): what it keeps of the provider (fields, by its
+// request), what its answer depends on (request), whether it still serves at nowMs (serves),
+// and the hour a fetch re-anchors it to (startOf).
 var KINDS = {
     // A provider's whole forecast. Its answer depends on the graph's hours, the day maxima, the
     // optional series and the feels-like formula, and on the key (its fingerprint), so a new
-    // key is tried at once. It serves the rest of its refresh slot of the update interval within
-    // the hour it was kept in: a provider starts its forecast at the first of its hours from the
-    // hour now on (hourly-window.js anchorIndex), so a new answer in that hour would start where
-    // this one does, and its values of the moment (the temperature now, the condition now) still
-    // describe it. It is reused as it was kept.
+    // key is tried at once. It serves the rest of its refresh slot within its hour, and is
+    // reused as it was kept.
     forecast: {
-        fields: forecastModel.ADOPTED_KEYS,
+        /** @returns {string[]} The adopted fields. */
+        fields: function () { return forecastModel.ADOPTED_KEYS; },
         /**
          * @param {Object} provider The provider the request is for.
          * @returns {Object} What its answer depends on.
          */
         request: function (provider) {
             var o = provider.options;
-            return { hours: hourlyWindow.windowHours(o), peaks: peaksOf(provider, KINDS.forecast.fields),
+            return { hours: hourlyWindow.windowHours(o), peaks: peaksOf(provider, forecastModel.ADOPTED_KEYS),
                 uv: Boolean(o.fetchUv), feels: Boolean(o.fetchFeels), formula: o.feelsFormula,
                 key: keyFingerprint.fingerprint(provider.apiKey) };
         },
-        /**
-         * @param {Object} entry A snapshot of this kind.
-         * @param {number} nowMs Epoch ms.
-         * @param {number} refreshMs The update interval in ms.
-         * @returns {boolean} Whether it still serves.
-         */
-        serves: function (entry, nowMs, refreshMs) {
-            return refreshMs > 0 && !refreshSlot.isPastSlot(entry.at, nowMs, refreshMs)
-                && Math.floor(entry.at / HOUR_MS) === Math.floor(nowMs / HOUR_MS);
-        },
+        serves: inSlotAndHour,
         /**
          * @param {Object} entry A snapshot of this kind.
          * @returns {number} Its own first hour, epoch seconds: it is not re-anchored.
@@ -90,13 +107,14 @@ var KINDS = {
     // A UV-only fill, aligned to the forecast it fills. Its answer depends on the hours and the
     // UV day max; it serves UV_REUSE_MS.
     uv: {
-        fields: providerReadings.keysOf('uv'),
+        /** @returns {string[]} The UV series. */
+        fields: function () { return UV_KEYS; },
         /**
          * @param {Object} provider The provider the fill is for.
          * @returns {Object} What its answer depends on.
          */
         request: function (provider) {
-            return { hours: hourlyWindow.windowHours(provider.options), peaks: peaksOf(provider, KINDS.uv.fields) };
+            return { hours: hourlyWindow.windowHours(provider.options), peaks: peaksOf(provider, UV_KEYS) };
         },
         /**
          * @param {Object} entry A snapshot of this kind.
@@ -104,12 +122,34 @@ var KINDS = {
          * @returns {boolean} Whether it still serves.
          */
         serves: function (entry, nowMs) { return nowMs - entry.at <= UV_REUSE_MS; },
+        startOf: anchorStart
+    },
+    // The fill of the other readings the provider lacks (source-plan.js GAP_READINGS), aligned
+    // to the forecast it fills. Its answer depends on the hours and the readings it asks for.
+    // These change by the hour, so it serves as the forecast does.
+    readings: {
         /**
-         * @param {Object} entry A snapshot of this kind (unused: a fill follows its forecast).
-         * @param {Object} anchor The provider the fill goes on.
-         * @returns {number} The hour its forecast starts at, epoch seconds.
+         * @param {{readings: *}} request Its request.
+         * @returns {?string[]} The series of the readings it asks for; null for a request that
+         *   names no list of readings (an unreadable stored one).
          */
-        startOf: function (entry, anchor) { return anchor.startTime; }
+        fields: function (request) {
+            var ids = request.readings;
+            if (!Array.isArray(ids) || !ids.every(function (id) { return providerReadings.READING_IDS.indexOf(id) !== -1; })) {
+                return null;
+            }
+            return ids.reduce(function (keys, id) { return keys.concat(providerReadings.keysOf(id)); }, []);
+        },
+        /**
+         * @param {Object} provider The provider the fill is for.
+         * @param {{readings: string[]}} step Its plan step.
+         * @returns {Object} What its answer depends on.
+         */
+        request: function (provider, step) {
+            return { hours: hourlyWindow.windowHours(provider.options), readings: step.readings.slice() };
+        },
+        serves: inSlotAndHour,
+        startOf: anchorStart
     }
 };
 
@@ -127,17 +167,19 @@ function servable(entry, nowMs, refreshMs) {
 
 /**
  * What a fetch looks for, or keeps.
- * @param {string} sourceId The provider that answers (Open-Meteo for a UV fill).
- * @param {string} kind A KINDS key ('forecast', 'uv').
+ * @param {{provider: string, ask: string, readings: (string[]|undefined)}} step A source plan
+ *   step: the provider that answers (Open-Meteo for a fill) and what it is asked for (a KINDS
+ *   key).
  * @param {Object} provider The provider the request is made for (its options, its apiKey).
  * @param {*} lat Latitude, a number or decimal text.
  * @param {*} lon Longitude.
  * @returns {?{provider: string, kind: string, place: {lat: number, lon: number}, request: Object}}
  *   Null for a place that is no coordinate pair: nothing is reused or kept for it.
  */
-function queryOf(sourceId, kind, provider, lat, lon) {
+function queryOf(step, provider, lat, lon) {
     var place = coords.roundLatLon(lat, lon);
-    return place ? { provider: sourceId, kind: kind, place: place, request: KINDS[kind].request(provider) } : null;
+    return place ? { provider: step.provider, kind: step.ask, place: place,
+        request: KINDS[step.ask].request(provider, step) } : null;
 }
 
 /**
@@ -149,7 +191,7 @@ function queryOf(sourceId, kind, provider, lat, lon) {
  */
 function snapshotOf(query, provider, nowMs) {
     var fields = {};
-    KINDS[query.kind].fields.forEach(function (key) { fields[key] = provider[key]; });
+    KINDS[query.kind].fields(query.request).forEach(function (key) { fields[key] = provider[key]; });
     return { provider: query.provider, kind: query.kind, place: query.place, at: nowMs,
         request: query.request, startTime: provider.startTime, fields: fields };
 }
@@ -235,7 +277,8 @@ function wellFormed(e) {
         || !e.request || typeof e.request.hours !== 'number' || !e.fields || typeof e.fields !== 'object') {
         return false;
     }
-    return KINDS[e.kind].fields.every(function (key) { return Object.prototype.hasOwnProperty.call(e.fields, key); });
+    var fields = KINDS[e.kind].fields(e.request);
+    return Boolean(fields) && fields.every(function (key) { return Object.prototype.hasOwnProperty.call(e.fields, key); });
 }
 
 /**

@@ -838,3 +838,58 @@ test('48 h: adoptFeels and adoptDewAndDirection fill the provider\'s 48 h window
   openmeteo.adoptDewAndDirection(bare, auxResponse(72));
   assert.equal(bare.dewTrend.length, 24);
 });
+
+// --- the gap request: the readings another provider lacks -------------------------------
+
+/**
+ * A gap answer: 48 GMT hours from BASE of every field the request may name.
+ * @returns {Object}
+ */
+function gapResponse() {
+  const time = [], dew = [], dir = [], total = [], low = [], mid = [], high = [], pressure = [];
+  for (let i = 0; i < 48; i += 1) {
+    time.push(BASE + i * 3600);
+    dew.push(40 + i);
+    dir.push(350 + i * 10);
+    total.push(80);
+    low.push(10);
+    mid.push(20);
+    high.push(i % 2 ? 100 : 0);
+    pressure.push(1000 + i);
+  }
+  return { hourly: { time: time, dew_point_2m: dew, wind_direction_10m: dir, cloud_cover: total,
+    cloud_cover_low: low, cloud_cover_mid: mid, cloud_cover_high: high, pressure_msl: pressure } };
+}
+
+test('the gap request asks only the readings named, from best_match, in °F, over the window\'s GMT days', () => {
+  assert.deepEqual(hourlyFields(openmeteo.buildReadingsUrl(52.52, 13.41, ['dew', 'pressure'], 24)),
+    ['dew_point_2m', 'pressure_msl']);
+  assert.deepEqual(hourlyFields(openmeteo.buildReadingsUrl(52.52, 13.41, ['windDir', 'cloud'], 24)),
+    ['wind_direction_10m', 'cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high']);
+  const url = openmeteo.buildReadingsUrl(52.52, 13.41, ['dew'], 24);
+  assert.equal(url.indexOf('models='), -1, 'ECMWF IFS sends no dew point or wind bearing');
+  assert.match(url, /&temperature_unit=fahrenheit&timeformat=unixtime&timezone=GMT&/);
+  assert.deepEqual([24, 26, 68].map((h) => /forecast_days=(\d)/.exec(openmeteo.buildReadingsUrl(1, 2, ['dew'], h))[1]),
+    ['2', '3', '4']);
+});
+
+test('the gap request lands each reading on the provider by time, the cloud layers weighed', () => {
+  const p = { startTime: BASE + 2 * 3600, options: fetchOptions.defaults() };
+  Object.keys(openmeteo.GAP_FIELDS).forEach((id) => { openmeteo.GAP_FIELDS[id].adopt(p, gapResponse(), 24); });
+  assert.equal(p.dewTrend.length, 24);
+  assert.equal(p.dewTrend[0], 42, 'hour 0 is the bucket of the provider\'s first hour');
+  assert.equal(p.windDirTrend[0], 10, '370° is 10°');
+  assert.equal(p.pressureTrend[23], 1025);
+  assert.equal(Math.round(p.cloudTrend[0]), 28, 'no high cloud: 1 - 0.9 * 0.8');
+  assert.equal(Math.round(p.cloudTrend[1]), 64, 'thin high cloud at half weight: 1 - 0.9 * 0.8 * 0.5');
+});
+
+test('a reading the answer has no hour of keeps what the provider had', () => {
+  // Hours off the GMT grid (a provider's local hours on the half hour) find no bucket.
+  const p = { startTime: BASE + 1800, dewTrend: [], cloudTrend: [], pressureTrend: [], windDirTrend: [] };
+  Object.keys(openmeteo.GAP_FIELDS).forEach((id) => { openmeteo.GAP_FIELDS[id].adopt(p, gapResponse(), 24); });
+  assert.deepEqual([p.dewTrend, p.cloudTrend, p.pressureTrend, p.windDirTrend], [[], [], [], []]);
+  const partial = { startTime: BASE, dewTrend: [] };
+  openmeteo.GAP_FIELDS.dew.adopt(partial, { hourly: { time: [BASE], dew_point_2m: [null] } }, 24);
+  assert.deepEqual(partial.dewTrend, [], 'a window of nulls is no reading');
+});

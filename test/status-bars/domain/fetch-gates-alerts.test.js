@@ -37,8 +37,11 @@ const expected = (() => {
   return {
     needsUv(s, wi) {
       if (!s) { return false; }
+      // The first two lines on every watch, the third and fourth metric lines where the watch
+      // draws them (not aplite, which is never sent them).
+      const allLines = platform.computeEnv(wi).lineStyles !== false;
       if (s.secondaryLine === 'uv' || s.thirdLine === 'uv'
-        || s.fourthLine === 'uv' || s.fifthLine === 'uv') { return true; }
+        || (allLines && (s.fourthLine === 'uv' || s.fifthLine === 'uv'))) { return true; }
       return placed(s, 'uv', wi) || shown(s, 'uv', wi);
     },
     needsAqi(s, wi) {

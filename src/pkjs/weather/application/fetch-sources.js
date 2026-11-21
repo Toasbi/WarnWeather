@@ -13,6 +13,7 @@
 
 var sourcePlan = require('../domain/source-plan.js');
 var forecastSnapshot = require('../domain/forecast-snapshot.js');
+var providerReadings = require('../domain/provider-readings.js');
 
 /**
  * A failure value, in the shape every fetch stage reports (weather/adapter/http.js failure).
@@ -21,6 +22,30 @@ var forecastSnapshot = require('../domain/forecast-snapshot.js');
  */
 function failure(code) {
     return { stage: 'provider_data', code: code };
+}
+
+/**
+ * Clear a fill's readings on the anchor first, so what it holds afterwards is the fill's alone.
+ * @param {Object} anchor The Weather picker's provider.
+ * @param {string[]} readings provider-readings.js READINGS ids whose keys are hourly series.
+ * @returns {void}
+ */
+function clearReadings(anchor, readings) {
+    readings.forEach(function (id) {
+        providerReadings.keysOf(id).forEach(function (key) { anchor[key] = []; });
+    });
+}
+
+/**
+ * Whether the anchor holds hours of a reading: each of its series is a non-empty list.
+ * @param {Object} anchor The Weather picker's provider.
+ * @param {string} id A READINGS id whose keys are hourly series.
+ * @returns {boolean}
+ */
+function holdsHours(anchor, id) {
+    return providerReadings.keysOf(id).every(function (key) {
+        return Array.isArray(anchor[key]) && anchor[key].length > 0;
+    });
 }
 
 // Each kind of step (a plan step's `ask`): how it asks its source (run: it calls back with a
@@ -32,6 +57,7 @@ var ASKS = {
         /**
          * The anchor's own request.
          * @param {Object} ports The source ports.
+         * @param {Object} step The plan step.
          * @param {Object} anchor The Weather picker's provider.
          * @param {number} lat Latitude.
          * @param {number} lon Longitude.
@@ -39,7 +65,7 @@ var ASKS = {
          * @param {function(?Object): void} done Receives a failure value or null.
          * @returns {void}
          */
-        run: function (ports, anchor, lat, lon, force, done) {
+        run: function (ports, step, anchor, lat, lon, force, done) {
             anchor.withProviderData(lat, lon, force, function () {
                 done(null);
             }, function (providerFailure) {
@@ -61,6 +87,7 @@ var ASKS = {
          * always calls back, an answer it could not use leaving the UV empty. The UV is cleared
          * first, so what the anchor holds afterwards is the fill's alone.
          * @param {Object} ports The source ports.
+         * @param {Object} step The plan step.
          * @param {Object} anchor The Weather picker's provider.
          * @param {number} lat Latitude.
          * @param {number} lon Longitude.
@@ -68,16 +95,45 @@ var ASKS = {
          * @param {function(?Object): void} done Receives null.
          * @returns {void}
          */
-        run: function (ports, anchor, lat, lon, force, done) {
-            anchor.uvTrend = [];
+        run: function (ports, step, anchor, lat, lon, force, done) {
+            clearReadings(anchor, ['uv']);
             ports.fillUv(anchor, lat, lon, function () { done(null); });
         },
         /**
          * @param {Object} anchor The Weather picker's provider.
          * @returns {boolean} Whether it holds UV hours.
          */
-        holds: function (anchor) { return Array.isArray(anchor.uvTrend) && anchor.uvTrend.length > 0; },
+        holds: function (anchor) { return holdsHours(anchor, 'uv'); },
         empty: 'openmeteo_uv_empty'
+    },
+    readings: {
+        /**
+         * Open-Meteo's one request for the other readings the anchor lacks that the watch
+         * draws (the step's `readings`), aligned to its startTime: it always calls back. They
+         * are cleared first, like the UV.
+         * @param {Object} ports The source ports.
+         * @param {{readings: string[]}} step The plan step.
+         * @param {Object} anchor The Weather picker's provider.
+         * @param {number} lat Latitude.
+         * @param {number} lon Longitude.
+         * @param {boolean} force Unused: a fill has no forced form.
+         * @param {function(?Object): void} done Receives null.
+         * @returns {void}
+         */
+        run: function (ports, step, anchor, lat, lon, force, done) {
+            clearReadings(anchor, step.readings);
+            ports.fillReadings(anchor, lat, lon, step.readings, function () { done(null); });
+        },
+        /**
+         * @param {Object} anchor The Weather picker's provider.
+         * @param {{readings: string[]}} step The plan step.
+         * @returns {boolean} Whether it holds hours of one of them at least: an answer without
+         *   one (Open-Meteo has no dew point there) still brings the rest.
+         */
+        holds: function (anchor, step) {
+            return step.readings.some(function (id) { return holdsHours(anchor, id); });
+        },
+        empty: 'openmeteo_readings_empty'
     }
 };
 
@@ -109,7 +165,7 @@ function storeOf(ports) {
  * One plan step: its source's snapshot when one serves, else the source's own answer, kept.
  * @param {Object} store storeOf().
  * @param {Object} ports The source ports.
- * @param {{provider: string, ask: string}} step The plan step.
+ * @param {{provider: string, ask: string, readings: (string[]|undefined)}} step The plan step.
  * @param {Object} anchor The Weather picker's provider.
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
@@ -119,19 +175,19 @@ function storeOf(ports) {
  */
 function runStep(store, ports, step, anchor, lat, lon, force, done) {
     var ask = ASKS[step.ask];
-    var query = forecastSnapshot.queryOf(step.provider, step.ask, anchor, lat, lon);
+    var query = forecastSnapshot.queryOf(step, anchor, lat, lon);
     var fields = forecastSnapshot.reuse(store.entries, query, ports.now(), ports.refreshMs, anchor);
     if (fields) {
         Object.assign(anchor, fields);
         // Only an answer that held is kept, so a snapshot that does not was damaged where it
         // was stored: the source is asked, and its answer replaces every field.
-        if (ask.holds(anchor)) {
+        if (ask.holds(anchor, step)) {
             done(null);
             return;
         }
     }
-    ask.run(ports, anchor, lat, lon, force, function (stepFailure) {
-        var outcome = stepFailure || (ask.holds(anchor) ? null : failure(ask.empty));
+    ask.run(ports, step, anchor, lat, lon, force, function (stepFailure) {
+        var outcome = stepFailure || (ask.holds(anchor, step) ? null : failure(ask.empty));
         if (!outcome && query) { store.keep(forecastSnapshot.snapshotOf(query, anchor, ports.now())); }
         done(outcome);
     });
@@ -142,7 +198,8 @@ function runStep(store, ports, step, anchor, lat, lon, force, done) {
  *
  * @param {Object} anchor The Weather picker's provider (provider.js), its options set for
  *   this fetch.
- * @param {{fillUv: function(Object, number, number, Function): void, now: function(): number,
+ * @param {{fillUv: function(Object, number, number, Function): void,
+ *   fillReadings: function(Object, number, number, string[], Function): void, now: function(): number,
  *   refreshMs: number, snapshots: {load: function(): {entries: Object[], drops: number},
  *   save: function({entries: Object[], drops: number}): void}}} ports The source ports.
  * @param {number} lat Latitude.
@@ -153,7 +210,8 @@ function runStep(store, ports, step, anchor, lat, lon, force, done) {
  * @returns {void}
  */
 function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
-    var steps = sourcePlan.plan({ provider: anchor.id, fetchUv: Boolean(anchor.options.fetchUv) }).steps;
+    var steps = sourcePlan.plan({ provider: anchor.id, fetchUv: Boolean(anchor.options.fetchUv),
+        drawn: anchor.options.drawn || [] }).steps;
     var store = storeOf(ports);
     // The UV day record is kept per feed (day-peaks.js feedOf): the anchor's own unless a fill
     // brings its UV.

@@ -14,6 +14,9 @@ var stripeLevels = require('../../forecast-graphs/domain/stripe-levels.js');
 var forecastAxis = require('../../forecast-graphs/domain/forecast-axis.js');
 // Graph styles (emery): the settings the bake reads while screens show several styles.
 var graphStyleWire = require('../../forecast-graphs/domain/graph-style-wire.js');
+// Whether the watch draws a reading only some screens draw (UV among them), and whether a slot
+// or a placed alert shows a metric: the one rule the fetch and the settings page share.
+var drawnReadings = require('./drawn-readings.js');
 
 /**
  * Quantize a permille value (0..1000) to a 0..250 byte for the wire.
@@ -630,25 +633,19 @@ function applyForecastSeries(payload, settings, watchInfo) {
  * @returns {boolean}
  */
 function metricWanted(settings, code, watchInfo) {
-    var env = platforms.computeEnv(watchInfo);
-    return statusThresholds.alertOn(settings, code, env)
-        || statusCatalog.selectedCodes(settings, env).indexOf(code) !== -1;
+    return drawnReadings.shown(settings, code, platforms.computeEnv(watchInfo));
 }
 
 /**
- * Whether UV is on a forecast line (or the bake's spare row: fetch-options.js passes the
- * bake's settings, forecast-graphs/domain/graph-style-wire.js weatherSettings), in a status slot or
- * placed as an alert, so providers fetch it.
+ * Whether UV is on a forecast line the watch draws (drawn-readings.js: on an emery sent graph
+ * styles' records, a row of the shown styles' union), in a status slot or placed as an alert,
+ * so providers fetch it.
  * @param {Object} settings Clay settings.
  * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
  * @returns {boolean} True when any rendered selection needs UV.
  */
 function needsUv(settings, watchInfo) {
-    if (!settings) { return false; }
-    if (settings.secondaryLine === 'uv' || settings.thirdLine === 'uv'
-        || settings.fourthLine === 'uv' || settings.fifthLine === 'uv'
-        || settings[lineStyle.SPARE_LINE.key] === 'uv') { return true; }
-    return metricWanted(settings, 'uv', watchInfo);
+    return drawnReadings.drawn(settings, platforms.computeEnv(watchInfo)).indexOf('uv') !== -1;
 }
 
 /**
