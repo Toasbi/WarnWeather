@@ -242,21 +242,24 @@ test('a UV day record that cannot be read never fails the fetch', () => {
   }
 });
 
-test('a forecast another provider served keys its records by that provider; a fill keeps its own', () => {
-  // By location puts the regional provider's forecast on the Weather picker's (fetch-sources.js).
+test('each record is keyed by the provider its reading came from (the fetch\'s feeds)', () => {
+  // By location puts the regional provider's forecast on the Weather picker's, and a fill brings
+  // a reading of its own (fetch-sources.js).
   const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
-  const p = Object.assign(new WeatherProvider(), { id: 'openweathermap', servedBy: 'metno', startTime: at(15, 9),
-    uvTrend: CURVE.slice(9, 58), windTrend: new Array(49).fill(10) });
-  p.options = fetchOptions.defaults({ fetchUv: true, dayPeakCodes: ['uv', 'wind'] });
+  const p = Object.assign(new WeatherProvider(), { id: 'openweathermap', startTime: at(15, 9),
+    uvTrend: CURVE.slice(9, 58), windTrend: new Array(49).fill(10), gustTrend: new Array(49).fill(20) });
+  p.options = fetchOptions.defaults({ fetchUv: true, dayPeakCodes: ['uv', 'wind', 'gust'] });
   const ids = () => record.recall(p, SRC.lat, SRC.lon, at(15, 9) + 600, () => null).records
     .map((e) => e.storageKey + ':' + e.record.id);
-  assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':metno', KEYS.WIND_DAY_RECORD_KEY + ':metno']);
-  p.uvFeedId = 'openmeteo';
-  assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':openmeteo', KEYS.WIND_DAY_RECORD_KEY + ':metno'], 'a UV fill');
-  p.uvFeedId = null;
-  p.servedBy = null;
-  assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':openweathermap', KEYS.WIND_DAY_RECORD_KEY + ':openweathermap'],
-    'its own forecast');
+  p.feeds = { uv: 'metno', wind: 'metno' };
+  assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':metno', KEYS.WIND_DAY_RECORD_KEY + ':metno',
+    KEYS.GUST_DAY_RECORD_KEY + ':metno'], 'the gusts ride the wind');
+  p.feeds = { uv: 'openmeteo', wind: 'dwd' };
+  assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':openmeteo', KEYS.WIND_DAY_RECORD_KEY + ':dwd',
+    KEYS.GUST_DAY_RECORD_KEY + ':dwd']);
+  p.feeds = null;
+  assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':openweathermap', KEYS.WIND_DAY_RECORD_KEY + ':openweathermap',
+    KEYS.GUST_DAY_RECORD_KEY + ':openweathermap'], 'a fetch that names none: its own');
 });
 
 test('without UV nothing is read or stored', () => {

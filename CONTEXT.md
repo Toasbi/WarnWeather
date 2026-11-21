@@ -377,7 +377,7 @@ provider by the setup wizard's map (DWD in Germany, Met.no in the Nordic countri
 country the reverse geocode names), then the Weather picker's, then Open-Meteo, each only when
 the one before failed and only where it covers the place and has its key
 (`src/pkjs/weather/domain/source-plan.js` candidates). The Weather picker's provider stays the
-fetch's anchor either way; the provider whose forecast it holds is its `servedBy`, which the day
+fetch's anchor either way; its `feeds` name the provider each reading came from, which the day
 records follow.
 _Avoid_: source mode, auto mode.
 

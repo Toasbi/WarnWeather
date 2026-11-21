@@ -796,12 +796,12 @@ test('a forecast another provider served (By location) says nothing about the We
     const h = makeHarness({ provider: keyed });
     assert.equal(h.cycle.start(false), true);
     keyed.fix(52.5, 13.4);
-    keyed.servedBy = 'dwd';
+    keyed.feeds = { temperature: 'dwd', uv: 'openmeteo' };
     keyed.succeed();
     assert.equal(store[KEYS.KEY_RESULTS_KEY], undefined, 'its key was not asked');
     assert.equal(h.cycle.start(true), true);
     keyed.fix(52.5, 13.4);
-    keyed.servedBy = 'openweathermap';
+    keyed.feeds = { temperature: 'dwd', wind: 'openweathermap' };
     keyed.succeed();
     assert.equal(readJson(KEYS.KEY_RESULTS_KEY).openweathermap.status, 200, 'its own forecast served');
 });

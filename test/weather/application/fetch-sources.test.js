@@ -82,7 +82,7 @@ test('DWD\'s UV: Open-Meteo\'s UV-only request after DWD\'s own two, each hour t
   for (let i = 0; i < 24; i += 1) {
     assert.equal(p.uvTrend[i], world.hourAt(world.HOUR0 + i * HOUR).uv, 'hour ' + i);
   }
-  assert.equal(p.uvFeedId, 'openmeteo', 'the UV day record is Open-Meteo\'s, as when Open-Meteo is the provider');
+  assert.equal(p.feeds.uv, 'openmeteo', 'the UV day record is Open-Meteo\'s, as when Open-Meteo is the provider');
 });
 
 test('DWD with UV not drawn asks nobody else and keeps no UV feed', () => {
@@ -90,7 +90,7 @@ test('DWD with UV not drawn asks nobody else and keeps no UV feed', () => {
   assert.equal(outcome, 'ok');
   assert.equal(requests.length, 2);
   assert.deepEqual(p.uvTrend, []);
-  assert.equal(p.uvFeedId, null);
+  assert.equal(p.feeds.uv, 'dwd');
 });
 
 test('a failed UV fill leaves the UV empty, names no UV feed, and fails nothing', () => {
@@ -98,7 +98,7 @@ test('a failed UV fill leaves the UV empty, names no UV feed, and fails nothing'
     { answers: (url) => url.indexOf('hourly=uv_index') === -1 });
   assert.equal(outcome, 'ok', 'a fill never fails the fetch');
   assert.deepEqual(p.uvTrend, [], 'the last fetch\'s window does not survive against the new hours');
-  assert.equal(p.uvFeedId, null, 'Open-Meteo sent no UV');
+  assert.equal(p.feeds.uv, 'dwd', 'Open-Meteo sent no UV: DWD\'s empty one');
 });
 
 test('the UV fill reads the span: two days, three for 48 h, four for the long span or a day max', () => {
@@ -117,7 +117,7 @@ test('a provider that sends UV makes only its own requests, and its UV is its ow
     assert.equal(outcome, 'ok', id);
     assert.equal(requests.length, providerReadings.requests(id, true), id + ':\n' + requests.join('\n'));
     assert.ok(p.uvTrend.length > 0, id + ' sends UV');
-    assert.equal(p.uvFeedId, null, id);
+    assert.equal(p.feeds.uv, id);
   });
 });
 
@@ -190,7 +190,7 @@ test('DWD\'s UV fill serves three hours, from the hour DWD\'s new forecast start
   for (let i = 0; i < 24; i += 1) {
     assert.equal(later.p.uvTrend[i], world.hourAt(world.HOUR0 + (i + 2) * HOUR).uv, 'hour ' + i);
   }
-  assert.equal(later.p.uvFeedId, 'openmeteo', 'a reused fill names its feed too');
+  assert.equal(later.p.feeds.uv, 'openmeteo', 'a reused fill names its feed too');
   assert.equal(after.requests.length, 3, 'past three hours the UV is asked again');
 });
 
@@ -228,7 +228,7 @@ test('a UV fill that brings nothing leaves no UV, whatever the anchor held befor
     { answers: (url) => url.indexOf('hourly=uv_index') === -1 });
   assert.equal(outcome, 'ok');
   assert.deepEqual(p.uvTrend, []);
-  assert.equal(p.uvFeedId, null);
+  assert.equal(p.feeds.uv, 'dwd');
 });
 
 /**
@@ -396,8 +396,8 @@ test('By location in Germany: DWD\'s forecast on the Weather picker\'s provider,
   assert.deepEqual(requests.map(endpoint), DWD_HOSTS.concat(['https://api.open-meteo.com/v1/forecast']),
     'DWD\'s two, then its UV fill: OpenWeatherMap is not asked');
   assert.equal(p.id, 'openweathermap', 'the anchor stays the Weather picker\'s');
-  assert.equal(p.servedBy, 'dwd');
-  assert.equal(p.uvFeedId, 'openmeteo');
+  assert.equal(p.feeds.temperature, 'dwd');
+  assert.equal(p.feeds.uv, 'openmeteo');
   assert.equal(forecast, fetchesOf('dwd', [{}])[0].forecast, 'DWD\'s forecast, field for field');
 });
 
@@ -405,12 +405,12 @@ test('By location: a provider that fails hands over to the next; its failure is 
   const [{ p, outcome, requests }] = fetchesOf('openweathermap', [{ options: BY_LOCATION, country: 'DE' }],
     { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
   assert.equal(outcome, 'ok');
-  assert.equal(p.servedBy, 'openweathermap');
+  assert.equal(p.feeds.temperature, 'openweathermap');
   assert.deepEqual(p.recoveredFailure, { stage: 'provider_data', code: 'dwd_forecast_status_503' }, 'DWD\'s, the first');
   assert.ok(requests.some((r) => r.indexOf('api.openweathermap.org') !== -1));
   const [last] = fetchesOf('openweathermap', [{ options: BY_LOCATION, country: 'DE' }],
     { answers: (url) => url.indexOf('api.brightsky.dev') === -1 && url.indexOf('api.openweathermap.org') === -1 });
-  assert.equal(last.p.servedBy, 'openmeteo', 'Open-Meteo last');
+  assert.equal(last.p.feeds.temperature, 'openmeteo', 'Open-Meteo last');
 });
 
 test('By location: when every provider fails, the last one\'s failure fails the fetch', () => {
@@ -425,12 +425,12 @@ test('By location: when every provider fails, the last one\'s failure fails the 
 test('By location skips a keyed Weather picker without its key, and asks the Weather picker without a country', () => {
   const [noKey] = fetchesOf('openweathermap', [{ options: BY_LOCATION, country: 'DE', keys: { owmApiKey: '' } }],
     { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
-  assert.equal(noKey.p.servedBy, 'openmeteo');
+  assert.equal(noKey.p.feeds.temperature, 'openmeteo');
   assert.ok(noKey.requests.every((r) => r.indexOf('api.openweathermap.org') === -1));
   const [noCountry] = fetchesOf('openweathermap', [{ options: BY_LOCATION }]);
-  assert.equal(noCountry.p.servedBy, 'openweathermap');
+  assert.equal(noCountry.p.feeds.temperature, 'openweathermap');
   const [one] = fetchesOf('openweathermap', [{ country: 'DE' }]);
-  assert.equal(one.p.servedBy, 'openweathermap', 'One provider stays with the Weather picker');
+  assert.equal(one.p.feeds.temperature, 'openweathermap', 'One provider stays with the Weather picker');
 });
 
 test('By location: the regional provider\'s snapshot serves the next fetch in the slot', () => {
@@ -438,7 +438,7 @@ test('By location: the regional provider\'s snapshot serves the next fetch in th
   const [first, second] = fetchesOf('openweathermap', [both, Object.assign({ at: 5 * MIN }, both)]);
   assert.deepEqual(second.requests, []);
   assert.equal(second.forecast, first.forecast);
-  assert.equal(second.p.servedBy, 'dwd');
+  assert.equal(second.p.feeds.temperature, 'dwd');
 });
 
 test('another provider\'s answer replaces every field of the anchor: one it lacks is gone, never left from before', () => {
@@ -469,6 +469,6 @@ test('another provider\'s answer replaces every field of the anchor: one it lack
   require('../../../src/pkjs/weather/application/fetch-sources.js').fetchSources(anchor, ports, 52.52, 13.405, false,
     () => { outcome = 'ok'; }, (f) => { outcome = f; });
   assert.equal(outcome, 'ok');
-  assert.equal(anchor.servedBy, 'openmeteo', 'DWD\'s answer without the temperature now is none');
+  assert.equal(anchor.feeds.temperature, 'openmeteo', 'DWD\'s answer without the temperature now is none');
   assert.equal(anchor.currentTemp, 61, 'Open-Meteo\'s, not the last fetch\'s');
 });

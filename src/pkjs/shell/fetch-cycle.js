@@ -219,6 +219,18 @@ var skyThrottle = requestThrottle.createRequestThrottle({
 // single-acquisition invariant stays visible in one place.
 
 /**
+ * Whether a reading of this fetch came from the provider itself (its feeds: fetch-sources.js),
+ * as every reading did before Weather from could ask another.
+ * @param {Object} provider The Weather picker's provider after a fetch.
+ * @returns {boolean} True too for a provider whose fetch names no feeds.
+ */
+function servedOwn(provider) {
+    var feeds = provider.feeds;
+    if (!feeds) { return true; }
+    return Object.keys(feeds).some(function (id) { return feeds[id] === provider.id; });
+}
+
+/**
  * Prepare a provider for one fetch, as start() does: its options from the settings, and the
  * source ports its fetch runs through.
  *
@@ -574,9 +586,9 @@ function createFetchCycle(deps) {
             // Success: record the fetch time and reset the attempt counter.
             localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
             // A keyed provider served the key this fetch carried: the settings page's key
-            // status (key-result.js; a keyless provider records nothing). Only when its own
-            // forecast served: By location may not have asked it.
-            if (!provider.servedBy || provider.servedBy === provider.id) {
+            // status (key-result.js; a keyless provider records nothing). Only when a reading
+            // came from it: By location may not have asked it.
+            if (servedOwn(provider)) {
                 keyResultsStore.record(provider.id, provider.apiKey, 200);
             }
             resetFetchAttemptCounter();

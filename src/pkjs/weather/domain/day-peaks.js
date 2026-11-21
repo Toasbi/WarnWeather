@@ -187,11 +187,11 @@ function earlierPeak(record, source, startEpoch, nowEpoch, hold, toShown) {
 // AQI from WAQI is the current reading, not a forecast. A `wind` metric judges
 // its hours in the user's wind unit (provider.options.windUnits).
 var METRICS = [
-    { code: 'uv', series: 'uvTrend', scale: 10, degrees: 0.5,
-        storageKey: storageKeys.UV_DAY_RECORD_KEY, feedField: 'uvFeedId' },
-    { code: 'wind', series: 'windTrend', scale: 1, degrees: 0.1, wind: true,
+    { code: 'uv', series: 'uvTrend', scale: 10, degrees: 0.5, reading: 'uv',
+        storageKey: storageKeys.UV_DAY_RECORD_KEY },
+    { code: 'wind', series: 'windTrend', scale: 1, degrees: 0.1, wind: true, reading: 'wind',
         storageKey: storageKeys.WIND_DAY_RECORD_KEY },
-    { code: 'gust', series: 'gustTrend', scale: 1, degrees: 0.1, wind: true,
+    { code: 'gust', series: 'gustTrend', scale: 1, degrees: 0.1, wind: true, reading: 'wind',
         storageKey: storageKeys.GUST_DAY_RECORD_KEY },
     { code: 'aqi', series: 'aqiTrend', scale: 1, degrees: 0.1,
         storageKey: storageKeys.AQI_DAY_RECORD_KEY, feedField: 'aqiFeedId', feedRequired: true }
@@ -214,19 +214,19 @@ function wanted(provider, code) {
 }
 
 /**
- * The feed a metric's series comes from — what its record is keyed by: a fill's
- * provider (feedField), else the provider whose forecast the fetching one holds
- * (servedBy: another provider's, By location; fetch-sources.js), else its own.
- * Null when a feedRequired metric has none (AQI from WAQI): no day max at all.
+ * The feed a metric's series comes from — what its record is keyed by: the
+ * provider its reading came from (provider.feeds, which the fetch names:
+ * fetch-sources.js; a fill's, or another provider's in By location), else the
+ * fetching provider's own. A feedRequired metric (AQI) reads its feedField alone,
+ * and has none from WAQI: null, no day max at all.
  *
  * @param {Object} provider The fetching provider.
  * @param {Object} metric A METRICS row.
  * @returns {?string}
  */
 function feedOf(provider, metric) {
-    var feed = metric.feedField ? provider[metric.feedField] : null;
-    if (metric.feedRequired) { return feed || null; }
-    return feed || provider.servedBy || provider.id;
+    if (metric.feedRequired) { return provider[metric.feedField] || null; }
+    return (provider.feeds && provider.feeds[metric.reading]) || provider.id;
 }
 
 /**

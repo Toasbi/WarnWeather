@@ -100,7 +100,7 @@ var ASKS = {
          * @returns {void}
          */
         run: function (ports, step, anchor, lat, lon, force, done) {
-            clearReadings(anchor, ['uv']);
+            clearReadings(anchor, step.readings);
             ports.fillUv(anchor, lat, lon, function () { done(null); });
         },
         /**
@@ -263,9 +263,8 @@ function runForecast(store, ports, step, anchor, lat, lon, force, onServed, onFa
 }
 
 /**
- * The fills, in order. A fill that fails leaves its reading empty, as a reading a provider
- * does not send is everywhere; one that brings it names its provider as the reading's feed
- * where it has one (feedField).
+ * The fills, in order. A fill that fails leaves its readings empty, as a reading a provider
+ * does not send is everywhere; one that brings them names its provider as their feed.
  * @param {Object} store storeOf().
  * @param {Object} ports The source ports.
  * @param {Object[]} steps sourcePlan.fillSteps().
@@ -288,7 +287,9 @@ function runFills(store, ports, steps, anchor, lat, lon, force, onDone) {
             return;
         }
         runStep(store, ports, steps[i], anchor, anchor, lat, lon, force, function (stepFailure) {
-            if (!stepFailure && steps[i].feedField) { anchor[steps[i].feedField] = steps[i].provider; }
+            if (!stepFailure) {
+                steps[i].readings.forEach(function (id) { anchor.feeds[id] = steps[i].provider; });
+            }
             next(i + 1);
         });
     }
@@ -310,21 +311,21 @@ function runFills(store, ports, steps, anchor, lat, lon, force, onDone) {
  * @param {number} lon Longitude.
  * @param {boolean} force Whether this is a forced refresh (withProviderData).
  * @param {Function} onSuccess Called once every step has run: the anchor holds a valid forecast,
- *   and servedBy names the provider whose forecast it is.
+ *   and its feeds name the provider each reading came from.
  * @param {Function} onFailure Called with the forecast's failure.
  * @returns {void}
  */
 function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
     var options = anchor.options;
     var store = storeOf(ports);
-    // The day records are kept per feed (day-peaks.js feedOf): the provider that served the
-    // forecast, and for the UV the fill's provider when one brings it.
-    anchor.uvFeedId = null;
-    anchor.servedBy = null;
+    // Each reading's feed, the provider its series came from (day-peaks.js feedOf keeps the
+    // day records by it): the one that served the forecast, a fill's for what it brings.
+    anchor.feeds = null;
     var forecast = sourcePlan.forecastStep({ mode: options.sourceMode, provider: anchor.id,
         country: anchor.countryCode || null, lat: Number(lat), lon: Number(lon), keyed: ports.keyed });
     runForecast(store, ports, forecast, anchor, lat, lon, force, function (served) {
-        anchor.servedBy = served;
+        anchor.feeds = {};
+        providerReadings.READING_IDS.forEach(function (id) { anchor.feeds[id] = served; });
         runFills(store, ports, sourcePlan.fillSteps(served, Boolean(options.fetchUv), options.drawn || []),
             anchor, lat, lon, force, onSuccess);
     }, onFailure);

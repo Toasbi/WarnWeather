@@ -10,7 +10,7 @@ const sourcePlan = require('../../../src/pkjs/weather/domain/source-plan.js');
 const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
 const providerFactory = require('../../../src/pkjs/weather/adapter/provider-factory.js');
 
-const UV_FILL = { provider: sourcePlan.FILL_PROVIDER, ask: 'uv', feedField: 'uvFeedId' };
+const UV_FILL = { provider: sourcePlan.FILL_PROVIDER, ask: 'uv', readings: ['uv'] };
 const GAP_FILL = (readings) => ({ provider: sourcePlan.FILL_PROVIDER, ask: 'readings', readings: readings });
 const ALL_DRAWN = ['dew', 'windDir', 'uv', 'cloud', 'pressure'];
 const BERLIN = { lat: 52.52, lon: 13.405 };

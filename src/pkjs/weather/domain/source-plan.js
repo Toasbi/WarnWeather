@@ -95,17 +95,16 @@
      * @param {*} provider That provider's id.
      * @param {boolean} fetchUv Whether the fetch asks for UV.
      * @param {string[]} drawn What the watch draws (fills).
-     * @returns {Array<{provider: string, ask: string, feedField: (string|undefined),
-     *   readings: (string[]|undefined)}>} In order. `ask` is what a step asks for: 'uv',
-     *   Open-Meteo's UV-only request, whose provider becomes the UV's feed (feedField: the
-     *   day record's key, day-peaks.js feedOf); 'readings', Open-Meteo's gap request for the
-     *   `readings` it names.
+     * @returns {Array<{provider: string, ask: string, readings: string[]}>} In order. `ask` is
+     *   what a step asks for: 'uv', Open-Meteo's UV-only request; 'readings', Open-Meteo's gap
+     *   request. Either brings the `readings` it names, whose feed its provider becomes
+     *   (fetch-sources.js feeds).
      */
     function fillSteps(provider, fetchUv, drawn) {
         var steps = [];
         var filled = fills(provider, fetchUv, drawn);
         if (filled.indexOf('uv') !== -1) {
-            steps.push({ provider: FILL_PROVIDER, ask: 'uv', feedField: 'uvFeedId' });
+            steps.push({ provider: FILL_PROVIDER, ask: 'uv', readings: ['uv'] });
         }
         var gaps = filled.filter(function (id) { return id !== 'uv'; });
         if (gaps.length) {
