@@ -53,8 +53,10 @@ test('PERSIST STATUS_LINE_5..7 and OD_EXTRA_CELLS are appended after SPARE_LINE_
   assert.ok(m, 'persist.c key enum missing');
   const names = m[1].replace(/\/\/[^\n]*/g, '').split(/[,\s]+/).filter((t) => /^[A-Z][A-Z0-9_]*$/.test(t));
   assert.equal(names.indexOf('SPARE_LINE_TREND'), 62);
-  assert.deepEqual(names.slice(63), ['STATUS_LINE_5', 'STATUS_LINE_6', 'STATUS_LINE_7', 'OD_EXTRA_CELLS'],
-    'the last slots, in order');
+  assert.deepEqual(names.slice(63, 67), ['STATUS_LINE_5', 'STATUS_LINE_6', 'STATUS_LINE_7', 'OD_EXTRA_CELLS'],
+    'slots 63 to 66, in order');
+  // Appended since, each on the slot after: the numbers are the on-flash slots.
+  assert.deepEqual(names.slice(67), ['BATTERY_DAYS_MARK'], 'the slots appended after them, in order');
   // A bar 4 to 6's line id maps onto its own slot; the first four keep theirs.
   assert.match(persistC, /if \(line_id >= STATUS_LINE_BAR4\) \{ return STATUS_LINE_5 \+ \(line_id - STATUS_LINE_BAR4\); \}/);
   assert.ok(emeryOnly(persistC, 'return STATUS_LINE_5 + (line_id - STATUS_LINE_BAR4)'), 'behind PBL_PLATFORM_EMERY');

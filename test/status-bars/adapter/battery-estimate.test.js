@@ -98,6 +98,16 @@ function boot(opts) {
   return h;
 }
 
+/**
+ * The scheduler's minute, as index.js runs it: the estimate's tick (it may ask Muninn), then
+ * the re-bake's, which sends what the watch is owed.
+ * @returns {void}
+ */
+function minute() {
+  batteryEstimate.onTick();
+  statusRebake.onTick(false);
+}
+
 /** The battery slot's text in the last status the watch was sent. */
 function sentDays(h) {
   return decodeLine(h.sends[h.sends.length - 1].STATUS_LINE_3_UINT8)[2].text;
@@ -135,14 +145,33 @@ test('a Pebble app without plugins: nothing is read, nothing thrown', () => {
   });
 });
 
-test('an estimate is kept, ends the subscription, and reaches the watch at once', () => {
+test('an estimate is kept, ends the subscription, and reaches the watch with the next tick', () => {
   const h = boot();
   h.pebble.subs[0].push(stats(5, h.clock - 60 * MIN));
   assert.equal(h.pebble.subs[0].unsubscribed, 1, 'read once: no subscription stays');
   assert.deepEqual(JSON.parse(storage[KEYS.BATTERY_ESTIMATE]), { days: 5, updatedAt: h.clock - 60 * MIN });
   assert.deepEqual(batteryEstimate.bakeFacts().estimate(), { days: 5, updatedAt: h.clock - 60 * MIN });
+  // Never sent from the answer itself: it comes at any moment, beside a settings save's or
+  // a boot's own messages, which bake the estimate just kept.
+  assert.equal(h.sends.length, 0, 'the answer sends nothing by itself');
+  minute();
   assert.equal(h.sends.length, 1, 'the slot changes from the percentage to the days');
   assert.equal(sentDays(h), '5d');
+  minute();
+  assert.equal(h.sends.length, 1, 'once');
+});
+
+test('a message that goes out before the tick carries the estimate, and the tick then sends nothing new', () => {
+  const h = boot();
+  h.pebble.subs[0].push(stats(5, h.clock));
+  // The settings save's own re-bake, or a fetch's bake: it reads the estimate just kept.
+  statusRebake.resendStatus('config-close');
+  assert.equal(h.sends.length, 1);
+  assert.equal(sentDays(h), '5d');
+  const sent = JSON.stringify(h.sends[0]);
+  minute();
+  // The paid send holds the same bytes, which the outbox drops (this host records them).
+  assert.equal(JSON.stringify(h.sends[h.sends.length - 1]), sent);
 });
 
 test('the same days heard again send nothing', () => {
@@ -151,7 +180,10 @@ test('the same days heard again send nothing', () => {
   h.clock += batteryEstimate.READ_INTERVAL_MS;
   batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 2);
+  minute();
+  assert.equal(h.sends.length, 1);
   h.pebble.subs[1].push(stats(5, h.clock - 5 * MIN));
+  minute();
   assert.equal(h.sends.length, 1, 'a newer estimate of the same days is no news');
   assert.equal(JSON.parse(storage[KEYS.BATTERY_ESTIMATE]).updatedAt, h.clock - 5 * MIN, 'but it is kept');
 });
@@ -171,7 +203,8 @@ test('the estimate kept is heard again: nothing is written', (t) => {
   batteryEstimate.onTick();
   h.pebble.subs[1].push(stats(5, made));
   assert.deepEqual(writes.filter((k) => k === KEYS.BATTERY_ESTIMATE), [], 'the same estimate: no write');
-  assert.equal(h.sends.length, 1, 'and no send');
+  statusRebake.onTick(false);
+  assert.equal(h.sends.length, 1, 'and no send but the first estimate\'s');
   // A newer one is written.
   h.clock += batteryEstimate.READ_INTERVAL_MS;
   batteryEstimate.onTick();
@@ -191,9 +224,11 @@ test('the estimate kept is heard again: nothing is written', (t) => {
 test('other days heard are sent', () => {
   const h = boot();
   h.pebble.subs[0].push(stats(5, h.clock));
+  minute();
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick();
+  minute();
   h.pebble.subs[1].push(stats(4, h.clock));
+  minute();
   assert.equal(h.sends.length, 2);
   assert.equal(sentDays(h), '4d');
 });
@@ -202,11 +237,13 @@ test('set to both: Muninn is read the same, and the watch gets the days beside t
   const h = boot({ settings: Object.assign({ batterySlotDisplay: 'both' }, TEXT_LOOK) });
   assert.equal(h.pebble.subs.length, 1);
   h.pebble.subs[0].push(stats(5, h.clock));
+  minute();
   assert.equal(h.sends.length, 1);
   assert.equal(sentDays(h), batteryDays.PCT_MARK + '|5d');
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick();
+  minute();
   h.pebble.subs[1].push(stats(4, h.clock));
+  minute();
   assert.equal(h.sends.length, 2, 'other days are news to the pair too');
   assert.equal(sentDays(h), batteryDays.PCT_MARK + '|4d');
 });
@@ -216,16 +253,19 @@ test('Muninn without an estimate yet (-1) reads as none', () => {
   h.pebble.subs[0].push(stats(-1, -1));
   assert.equal(batteryEstimate.bakeFacts().estimate(), null);
   assert.equal(storage[KEYS.BATTERY_ESTIMATE], undefined);
+  minute();
   assert.equal(h.sends.length, 0, 'the slot showed the percentage and still does');
 });
 
 test('an estimate that goes away takes the days off the watch', () => {
   const h = boot();
   h.pebble.subs[0].push(stats(5, h.clock));
+  minute();
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick();
+  minute();
   h.pebble.subs[1].push(stats(-1, -1));
   assert.equal(storage[KEYS.BATTERY_ESTIMATE], undefined);
+  minute();
   assert.equal(h.sends.length, 2);
   assert.equal(sentDays(h), '', 'back to the percentage, which the watch prints itself');
 });
@@ -233,17 +273,20 @@ test('an estimate that goes away takes the days off the watch', () => {
 test('Muninn not installed drops what was kept; any other failure keeps it', () => {
   const h = boot();
   h.pebble.subs[0].push(stats(5, h.clock));
+  minute();
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick();
+  minute();
   h.pebble.subs[1].fail('TIMEOUT');
   assert.deepEqual(batteryEstimate.bakeFacts().estimate(), { days: 5, updatedAt: h.clock - batteryEstimate.READ_INTERVAL_MS },
     'a hiccup keeps the estimate');
   assert.equal(h.pebble.subs[1].unsubscribed, 1);
+  minute();
   assert.equal(h.sends.length, 1);
   h.clock += batteryEstimate.READ_INTERVAL_MS;
-  batteryEstimate.onTick();
+  minute();
   h.pebble.subs[2].fail('PLUGIN_UNAVAILABLE');
   assert.equal(batteryEstimate.bakeFacts().estimate(), null, 'Muninn is gone: so is its estimate');
+  minute();
   assert.equal(h.sends.length, 2);
   assert.equal(sentDays(h), '');
 });
@@ -294,7 +337,6 @@ test('the Night battery saver holds a change back until its window has closed', 
   h.pebble.subs[0].push(stats(5, h.clock));
   assert.equal(h.sends.length, 0, 'no wake-up for a battery readout overnight');
   assert.ok(storage[KEYS.BATTERY_ESTIMATE], 'but the estimate is kept');
-  // The re-baker's tick pays what the window swallowed (status-rebake.js resendStatusAwake).
   statusRebake.onTick(false);
   assert.equal(h.sends.length, 0, 'still inside the window');
   h.clock = new Date(2026, 10, 21, 7, 0, 0).getTime();

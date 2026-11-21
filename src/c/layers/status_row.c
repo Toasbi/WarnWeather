@@ -311,13 +311,39 @@ static bool carries_battery_days(const StatusSlotView *slot) {
     return slot->kind == SLOT_LIVE_BATTERY_PCT && slot->value_len > 0;
 }
 
+// What the watch remembers of the carried days (status_line.h StatusBatteryDaysMark): read
+// from flash at its first use, written back when it moves. One for the face: the watch
+// battery sits in one slot.
+static StatusBatteryDaysMark s_days_mark;
+static bool s_days_mark_read;
+
+// Fold what a row's watch battery slot carries (its days, or none), and the watch's charge,
+// into the mark. Run by the refresh before it resolves the slots, so a text that just
+// arrived is judged at once.
+static void track_battery_days(const StatusSlotView *views) {
+    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
+        if (views[i].kind != SLOT_LIVE_BATTERY_PCT) { continue; }
+        if (!s_days_mark_read) {
+            persist_get_battery_days_mark(&s_days_mark);
+            s_days_mark_read = true;
+        }
+        if (status_battery_days_track(&s_days_mark, views[i].value, views[i].value_len,
+                                      watch_services_battery_state().charge_percent)) {
+            persist_set_battery_days_mark(&s_days_mark);
+        }
+    }
+}
+
 // Whether those days are what the slot shows. Only while the estimate can be current: the
-// phone is in reach to correct it, and the watch is not charging, which the estimate was
-// made without. Else the slot shows the percentage, which the watch always knows itself.
+// phone is in reach to correct it, the watch is not charging, which the estimate was made
+// without, and it has not been charged since the days arrived (the mark). Else the slot
+// shows the percentage, which the watch always knows itself.
 static bool shows_battery_days(const StatusSlotView *slot) {
     if (!carries_battery_days(slot)) { return false; }
     const BatteryChargeState bs = watch_services_battery_state();
     return !(bs.is_charging || bs.is_plugged)
+        && status_battery_days_current(&s_days_mark, slot->value, slot->value_len,
+                                       bs.charge_percent)
         && connection_service_peek_pebble_app_connection();
 }
 
@@ -620,6 +646,7 @@ bool status_row_refresh(StatusRow *row) {
     // measured widths), not a content rule, and a signature describing only part of
     // the row would let a slot that changed while hidden come back stale.
     if (has_line) {
+        track_battery_days(views);
         ResolvedSlot resolved[STATUS_SLOT_COUNT];
         resolve_row(row, views, resolved);
         for (int i = 0; i < STATUS_SLOT_COUNT; i++) {

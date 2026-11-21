@@ -203,6 +203,78 @@ static void validate_tests(void) {
         expect("battery-text.cap-one", small[0], '\0');
     }
 
+    // The days the slot carries are an estimate made at the charge the watch had then. The
+    // mark remembers the text and the lowest charge since it arrived: a watch charged past
+    // that shows its percentage alone until another text arrives.
+    {
+        StatusBatteryDaysMark mark;
+        memset(&mark, 0, sizeof(mark));
+        const char five[] = { '5', 'd' };
+        const char both[] = { STATUS_BATTERY_PCT_MARK, '|', '5', 'd' };
+        // A text the mark has not seen is not current, whatever the charge.
+        expect("days-mark.unseen", status_battery_days_current(&mark, five, sizeof(five), 60), 0);
+        expect("days-mark.unseen.low", status_battery_days_current(&mark, five, sizeof(five), 0), 0);
+        // Tracked: current at the charge it arrived at, and as the watch runs down.
+        expect("days-mark.track.new", status_battery_days_track(&mark, five, sizeof(five), 60), 1);
+        expect("days-mark.floor", mark.floor, 60);
+        expect("days-mark.current", status_battery_days_current(&mark, five, sizeof(five), 60), 1);
+        expect("days-mark.track.same", status_battery_days_track(&mark, five, sizeof(five), 60), 0);
+        expect("days-mark.track.lower", status_battery_days_track(&mark, five, sizeof(five), 40), 1);
+        expect("days-mark.floor.lower", mark.floor, 40);
+        expect("days-mark.current.lower", status_battery_days_current(&mark, five, sizeof(five), 40), 1);
+        // A step up by itself is no charge (a watch that reports in steps of ten)...
+        expect("days-mark.track.step-up", status_battery_days_track(&mark, five, sizeof(five), 50), 0);
+        expect("days-mark.floor.kept", mark.floor, 40);
+        expect("days-mark.current.step-up", status_battery_days_current(&mark, five, sizeof(five), 50), 1);
+        // ...and more than that is one: the old days are too few now.
+        expect("days-mark.charged", status_battery_days_current(&mark, five, sizeof(five), 51), 0);
+        expect("days-mark.charged.full", status_battery_days_current(&mark, five, sizeof(five), 100), 0);
+        expect("days-mark.track.charged", status_battery_days_track(&mark, five, sizeof(five), 100), 0);
+        // The same text again after the charge (a line resent for another slot's sake)
+        // changes nothing: it is still the old estimate.
+        expect("days-mark.charged.resent", status_battery_days_current(&mark, five, sizeof(five), 100), 0);
+        // Run back down to where the days were made, they are as good as before.
+        expect("days-mark.back-down", status_battery_days_current(&mark, five, sizeof(five), 50), 1);
+        // Another text is a new estimate: a new mark at the charge of the moment.
+        const char seven[] = { '7', 'd' };
+        expect("days-mark.other-text", status_battery_days_current(&mark, seven, sizeof(seven), 100), 0);
+        expect("days-mark.track.other", status_battery_days_track(&mark, seven, sizeof(seven), 100), 1);
+        expect("days-mark.floor.other", mark.floor, 100);
+        expect("days-mark.current.other", status_battery_days_current(&mark, seven, sizeof(seven), 100), 1);
+        expect("days-mark.old-text", status_battery_days_current(&mark, five, sizeof(five), 100), 0);
+        // The pair's text is a text like any other; a prefix of it is another one.
+        expect("days-mark.track.both", status_battery_days_track(&mark, both, sizeof(both), 83), 1);
+        expect("days-mark.current.both", status_battery_days_current(&mark, both, sizeof(both), 83), 1);
+        expect("days-mark.prefix", status_battery_days_current(&mark, both, 2, 83), 0);
+        // A charge outside 0..100 is read into it.
+        expect("days-mark.track.over", status_battery_days_track(&mark, five, sizeof(five), 250), 1);
+        expect("days-mark.floor.over", mark.floor, 100);
+        expect("days-mark.track.under", status_battery_days_track(&mark, five, sizeof(five), -5), 1);
+        expect("days-mark.floor.under", mark.floor, 0);
+        // No text (the percentage alone, or no estimate) empties the mark and keeps no floor:
+        // the watch running down writes nothing, and days that come back are a new estimate.
+        expect("days-mark.track.seven", status_battery_days_track(&mark, seven, sizeof(seven), 90), 1);
+        expect("days-mark.track.none", status_battery_days_track(&mark, NULL, 0, 80), 1);
+        expect("days-mark.none.len", mark.len, 0);
+        expect("days-mark.none.floor", mark.floor, 0);
+        expect("days-mark.none.again", status_battery_days_track(&mark, NULL, 0, 70), 0);
+        expect("days-mark.none.lower", status_battery_days_track(&mark, NULL, 0, 20), 0);
+        expect("days-mark.none.old-text", status_battery_days_current(&mark, seven, sizeof(seven), 20), 0);
+        expect("days-mark.back.track", status_battery_days_track(&mark, seven, sizeof(seven), 100), 1);
+        expect("days-mark.back.current", status_battery_days_current(&mark, seven, sizeof(seven), 100), 1);
+        // A text longer than an edge slot holds is kept and compared by its first bytes, and
+        // never written past the mark.
+        struct { StatusBatteryDaysMark mark; char guard; } boxed;
+        memset(&boxed, 0, sizeof(boxed));
+        boxed.guard = 'x';
+        const char wide[] = "0123456789AB";
+        expect("days-mark.track.wide", status_battery_days_track(&boxed.mark, wide, 12, 70), 1);
+        expect("days-mark.wide.len", boxed.mark.len, STATUS_TEXT_EDGE_MAX);
+        expect("days-mark.wide.guard", boxed.guard, 'x');
+        expect("days-mark.wide.current", status_battery_days_current(&boxed.mark, wide, 12, 70), 1);
+        expect("days-mark.wide.again", status_battery_days_track(&boxed.mark, wide, 12, 70), 0);
+    }
+
     // TEXT with zero len: a glyph alone (the weather condition slot's Icon look), accepted.
     // Rejecting it threw the whole line away, so the watch kept the old icon and text.
     n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_SUN, NULL);

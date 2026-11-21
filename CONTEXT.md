@@ -208,8 +208,13 @@ Pebble app (`battery-estimate.js` reads it, once at a time, never subscribed). T
 counts it down and bakes it into the slot (`battery-days.js`, the one live kind that carries
 text). Beside the percentage it bakes the pair's separator and the place of the percentage
 too (the percentage mark), since only the watch knows its charge of the moment. The watch
-shows the days only while they can be current: the phone in reach and the watch not charging
-(`status_row.c` shows_battery_days). Otherwise the slot shows the percentage alone.
+shows the days only while they can be current: the phone in reach, the watch not charging,
+and not charged since the days arrived (`status_row.c` shows_battery_days). Otherwise the
+slot shows the percentage alone. For the last of the three the watch keeps a mark of the
+carried text and the lowest charge since it arrived (`status_line.h` StatusBatteryDaysMark):
+an estimate from before a charge stays hidden until another one arrives, which can take
+hours. A new estimate is owed to the watch, not sent at once: the re-bake's next tick sends
+it (`status-rebake.js` oweStatus).
 
 **Feature tip**:
 One entry of the settings page's "New in this update" card: a feature the user has to switch

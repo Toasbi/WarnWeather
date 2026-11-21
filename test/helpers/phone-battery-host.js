@@ -43,7 +43,7 @@ const catalog = require('../../src/pkjs/status-bars/domain/status-line-catalog.j
 /**
  * Boot the module against a clean store with every dependency injected.
  * init() resets all module state, so this is the whole per-test reset.
- * @param {Object} [opts] {navigator, pebble, setTimeout, clearTimeout, devConfig, settings, clock, realBake,
+ * @param {Object} [opts] {navigator, pebble, timers, devConfig, settings, clock, realBake,
  *   keepStorage}.
  * @returns {Object} Handle: mutable .clock/.settings, collected .sends/.bakes.
  */
@@ -85,8 +85,7 @@ function boot(opts) {
   phoneBattery.init({
     navigator: opts.navigator,
     pebble: opts.pebble,
-    setTimeout: opts.setTimeout,
-    clearTimeout: opts.clearTimeout,
+    timers: opts.timers,
     devConfig: opts.devConfig
   });
   return h;

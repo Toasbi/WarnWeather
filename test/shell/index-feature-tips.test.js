@@ -21,6 +21,8 @@ const PKJS_DIR = path.resolve(__dirname, '..', '..', 'src', 'pkjs') + path.sep;
  * @returns {{listeners: Object, opened: string[], store: Object, KEYS: Object}}
  */
 function boot(t, store, pebbleExtras, platform) {
+  // A later life in the same test: the last one's timers die with it.
+  try { t.mock.timers.reset(); } catch (e) { /* nothing enabled yet */ }
   t.mock.timers.enable({ apis: ['setTimeout'] });
   // A boot of its own: index.js and what it requires hold state per load.
   Object.keys(require.cache).forEach((k) => { if (k.indexOf(PKJS_DIR) === 0) { delete require.cache[k]; } });
@@ -109,6 +111,27 @@ test('a fresh install is handed none: nothing is new to it', (t) => {
   assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['batteryDays', 'blackTheme']);
   h.listeners.showConfiguration({});
   assert.equal(userDataOf(h.opened[0]).featureTips, null);
+});
+
+test('Reset watchface leaves a fresh install: it has seen every tip, whatever is saved before its next boot', (t) => {
+  const store = Object.assign({}, EXISTING);
+  const h = boot(t, store, PLUGINS);
+  h.listeners.showConfiguration({});
+  assert.ok(userDataOf(h.opened[0]).featureTips, 'before the reset the tips are pending');
+
+  save(h, { reset: true });
+  assert.equal(store['clay-settings'], undefined, 'the reset wiped the settings');
+  assert.deepEqual(JSON.parse(store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['batteryDays', 'blackTheme']);
+  h.listeners.showConfiguration({});
+  assert.equal(userDataOf(h.opened[1]).featureTips, null, 'no card in the same PKJS life');
+
+  // The wizard saved before the next boot: that boot finds stored settings, as an
+  // install from before the tips would.
+  save(h, { onboardingDone: true });
+  assert.ok(store['clay-settings']);
+  const next = boot(t, store, PLUGINS);
+  next.listeners.showConfiguration({});
+  assert.equal(userDataOf(next.opened[0]).featureTips, null, 'and none after it');
 });
 
 test('a phone or watch that cannot use a feature is not handed its tip, and keeps it for later', (t) => {

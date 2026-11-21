@@ -5,7 +5,9 @@
 //      (STATUS_LINE_5..7) — never STATUS_LINE_1 + id, which would put bar 4's blob on
 //      slot 41, the line encoding's version int — and their On demand cells slot 66;
 //   3. the line encoding's migration drops every line, bars 4 to 6's too;
-//   4. a line id past the watch's lines is refused, on every build.
+//   4. a line id past the watch's lines is refused, on every build;
+//   5. the mark of the days the battery slot carries has the slot appended for it, 67,
+//      reads back as written, and reads as empty while absent or of another size.
 // Built twice by scripts/test-c.sh: for emery (with On demand, whose accessors the extra
 // cells ride) and plain, where the Health bar's line is the last.
 #include <stdint.h>
@@ -22,6 +24,7 @@
 #define ENCODING_VERSION_SLOT 41u
 #define LINE_5_SLOT 63u
 #define OD_EXTRA_SLOT 66u
+#define DAYS_MARK_SLOT 67u
 
 static int s_failures = 0;
 
@@ -112,9 +115,37 @@ static void migration_drops_every_line(void) {
 }
 #endif
 
+static void days_mark_in_its_slot(void) {
+    flash_reset();
+    StatusBatteryDaysMark mark;
+    memset(&mark, 0xAA, sizeof(mark));
+    persist_get_battery_days_mark(&mark);
+    expect("mark.absent.len", mark.len, 0);
+    expect("mark.absent.floor", mark.floor, 0);
+
+    StatusBatteryDaysMark made;
+    memset(&made, 0, sizeof(made));
+    expect("mark.track", status_battery_days_track(&made, "5d", 2, 60), 1);
+    expect("mark.write", persist_set_battery_days_mark(&made), 1);
+    expect("mark.slot", s_present[DAYS_MARK_SLOT], 1);
+    expect("mark.size", (int) s_len[DAYS_MARK_SLOT], (int) sizeof(StatusBatteryDaysMark));
+    expect("mark.same_again_no_write", persist_set_battery_days_mark(&made), 0);
+    persist_get_battery_days_mark(&mark);
+    expect("mark.read", memcmp(&mark, &made, sizeof(mark)), 0);
+    expect("mark.read.current", status_battery_days_current(&mark, "5d", 2, 60), 1);
+
+    // A record of another size (another build's) reads as no mark.
+    flash_seed(DAYS_MARK_SLOT, BLOB, sizeof(BLOB));
+    memset(&mark, 0xAA, sizeof(mark));
+    persist_get_battery_days_mark(&mark);
+    expect("mark.other-size.len", mark.len, 0);
+    expect("mark.other-size.current", status_battery_days_current(&mark, "5d", 2, 60), 0);
+}
+
 int main(void) {
     first_four_side_by_side();
     past_the_last_line_refused();
+    days_mark_in_its_slot();
 #if defined(PBL_PLATFORM_EMERY)
     extra_lines_in_their_slots();
     extra_cells_in_their_slot();

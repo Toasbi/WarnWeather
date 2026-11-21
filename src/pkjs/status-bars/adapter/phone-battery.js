@@ -621,11 +621,20 @@ function detectNavigator(nav) {
  */
 function releasePlugin() {
     var held = subscription;
-    var timer = silenceTimer;
     subscription = null;
+    stopSilenceTimer();
+    if (held) { held.unsubscribe(); }
+}
+
+/**
+ * Stop waiting for the Phone plugin's first answer.
+ *
+ * @returns {void}
+ */
+function stopSilenceTimer() {
+    var timer = silenceTimer;
     silenceTimer = null;
-    if (timer !== null) { (deps.clearTimeout || clearTimeout)(timer); }
-    if (held && typeof held.unsubscribe === 'function') { held.unsubscribe(); }
+    if (timer !== null) { ((deps.timers && deps.timers.clearTimeout) || clearTimeout)(timer); }
 }
 
 /**
@@ -641,15 +650,11 @@ function releasePlugin() {
  */
 function onPluginData(envelope) {
     var percent = pluginReader.numberOf(envelope, BATTERY_LEVEL);
-    // Not once the WebView has taken over (a late answer): one source at a time.
-    if (percent === null || source === 'webview') { return; }
+    if (percent === null) { return; }
     if (source !== 'plugin') {
         console.log('phone-battery: the Phone plugin answered.');
         source = 'plugin';
-        if (silenceTimer !== null) {
-            (deps.clearTimeout || clearTimeout)(silenceTimer);
-            silenceTimer = null;
-        }
+        stopSilenceTimer();
         manager = { level: percent / 100 };
         // Seeded, not announced (see seed()).
         seed(manager);
@@ -663,27 +668,31 @@ function onPluginData(envelope) {
  * The Phone plugin failed.
  *
  * After an answer it is a hiccup: the subscription carries on, and the cached reading
- * stays. Before any answer, a plugin that is not there or may not be read (NO_PLUGIN) is
- * a Pebble app that has the function but nothing behind it (plugins switched off, an
- * older build): the WebView's battery API takes over, and where there is none either,
- * the phone has no source. Any other failure may pass (an error does not end a
- * subscription), which is only worth waiting out where the WebView has no battery API
- * to take over instead.
+ * stays. Before any answer, a plugin that is not there or may not be read (NO_PLUGIN), or
+ * a subscription that never started, is a Pebble app that has the function but nothing
+ * behind it (plugins switched off, an older build): the WebView's battery API takes over,
+ * and where there is none either, the phone has no source. Any other failure may pass (an
+ * error does not end a subscription), which is only worth waiting out where the WebView
+ * has no battery API to take over instead.
  *
  * @param {{stage: string, code: string}} fail The failure (plugin-reader.js failure).
+ * @param {{unsubscribe: function(): void, live: function(): boolean}} held The
+ *   subscription that failed (plugin-reader.js PluginSubscription).
  * @returns {void}
  */
-function onPluginFailure(fail) {
+function onPluginFailure(fail, held) {
     if (source === 'plugin') {
         console.log('phone-battery: the Phone plugin failed (' + fail.code + '); reading kept.');
         return;
     }
-    if (source === 'webview') { return; }
-    if (!NO_PLUGIN[fail.code] && !probeNavigator(currentNavigator())) {
+    if (held.live() && !NO_PLUGIN[fail.code] && !probeNavigator(currentNavigator())) {
         console.log('phone-battery: the Phone plugin failed (' + fail.code + '); waiting for it.');
         return;
     }
     console.log('phone-battery: no Phone plugin (' + fail.code + '); trying the WebView.');
+    // Ended here, not through releasePlugin alone: a failure can come before watch() has
+    // handed the subscription back.
+    held.unsubscribe();
     releasePlugin();
     detectNavigator(currentNavigator());
 }
@@ -711,8 +720,6 @@ function onPluginSilence() {
  */
 function detect() {
     var pebble = pluginReader.pebbleOf(deps);
-    var started;
-    var timer;
     if (!pluginReader.available(pebble)) {
         detectNavigator(currentNavigator());
         return;
@@ -721,18 +728,10 @@ function detect() {
     // once, and a plugin that then fails hands over to the WebView (onPluginFailure),
     // whose own verdict replaces this one.
     setSupported(true);
-    started = pluginReader.watch(pebble, PHONE_STATE, onPluginData, onPluginFailure);
-    // A failure reported before watch() returned has already handed over.
-    if (source === 'webview') {
-        if (started && typeof started.unsubscribe === 'function') { started.unsubscribe(); }
-        return;
-    }
-    subscription = started;
-    if (source === null) {
-        timer = (deps.setTimeout || setTimeout)(onPluginSilence, PLUGIN_ANSWER_MS);
-        // Under Node (tests) a pending timer must not hold the process open.
-        if (timer && typeof timer.unref === 'function') { timer.unref(); }
-        silenceTimer = timer;
+    subscription = pluginReader.watch(pebble, PHONE_STATE, onPluginData, onPluginFailure);
+    // Still asked and not yet answered: the wait for its first answer starts.
+    if (source === null && subscription.live()) {
+        silenceTimer = ((deps.timers && deps.timers.setTimeout) || setTimeout)(onPluginSilence, PLUGIN_ANSWER_MS);
     }
 }
 
@@ -744,9 +743,8 @@ function detect() {
  * @param {Object} [options.pebble] The Pebble object to read the Phone plugin through
  *   (default: the global one, if any).
  * @param {Object} [options.navigator] The navigator to probe (default: the global one, if any).
- * @param {function} [options.setTimeout] Timer for the Phone plugin's first answer
- *   (default: the host's), with options.clearTimeout.
- * @param {function} [options.clearTimeout] Its cancel.
+ * @param {{setTimeout: function, clearTimeout: function}} [options.timers] The timer for
+ *   the Phone plugin's first answer and its cancel (default: the host's).
  * @param {Object} [options.devConfig] Parsed dev-config, for the local fake.
  * @returns {void}
  */

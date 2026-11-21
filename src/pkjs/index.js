@@ -296,6 +296,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // fetch below still has one to fetch with instead of failing on an empty
         // key the user never actually removed.
         var preserved = claySettings.resetAll(clayMigrations.RESET_SAFE_MARKERS);
+        // The wipe took the list of new-feature tips this install has seen. A reset
+        // install is a fresh one, to which nothing is new: it has seen them all. Left
+        // absent, the next settings open would show the card again, and a save before
+        // the next boot would make that boot read it as an install from before the tips.
+        featureTipsSeen.init(false);
         // Storage stays EMPTY on purpose: the next boot reads the absent blob as a
         // fresh install (hadExistingInstall false), so the onboarding migration
         // leaves onboardingDone false and the wizard reopens (wizard.js

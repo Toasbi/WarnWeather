@@ -18,9 +18,9 @@
 // What it heard last is kept in storage, so a bake after a PKJS restart shows the days at
 // once. A bake counts the estimate down to its own instant and drops one that has grown
 // too old (battery-days.js daysLeft), so nothing here has to expire it. When a new
-// estimate changes what the slot shows, the status is re-baked and sent, after the Night
-// battery saver's window where that is open (status-rebake.js resendStatusAwake), as for
-// the phone's battery.
+// estimate changes what the slot shows, the watch is owed a status send, which the
+// re-bake's next tick makes: within a minute, after the Night battery saver's window, and
+// not beside a fetch in flight (status-rebake.js oweStatus).
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
@@ -127,7 +127,10 @@ function keep(estimate) {
     }
     if (before === after) { return; }
     console.log('battery-estimate: ' + (after === null ? 'no estimate' : after + ' days left') + '.');
-    statusRebake.resendStatusAwake('battery-days');
+    // Never sent from here. Muninn answers at any moment, right after a settings save or
+    // a boot among them, while their own messages are on the channel. Those bake the
+    // estimate just kept where it came in time; the re-bake's next tick sends what is left.
+    statusRebake.oweStatus();
 }
 
 /**

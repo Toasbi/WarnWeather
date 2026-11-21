@@ -89,26 +89,80 @@ test('watch maps an error with no code to UNKNOWN', () => {
   assert.deepEqual(fails, [{ stage: 'plugin', code: 'UNKNOWN' }, { stage: 'plugin', code: 'UNKNOWN' }]);
 });
 
-test('watch with a throwing subscribeToSource reports a failure and returns null', () => {
+test('watch with a throwing subscribeToSource reports one failure and hands back an ended subscription', () => {
   const fails = [];
   const sub = pluginReader.watch({ subscribeToSource() { throw new Error('boom'); } }, REQUEST,
-    () => assert.fail('no data'), (f) => fails.push(f));
-  assert.equal(sub, null);
-  assert.deepEqual(fails, [{ stage: 'plugin', code: 'UNKNOWN' }]);
+    () => assert.fail('no data'), (f, held) => fails.push([f, held]));
+  assert.equal(sub.live(), false, 'it never started: nothing can answer later');
+  assert.deepEqual(fails.map((f) => f[0]), [{ stage: 'plugin', code: 'UNKNOWN' }]);
+  assert.equal(fails[0][1], sub, 'the failure carries the subscription');
+  assert.doesNotThrow(() => sub.unsubscribe());
 });
 
-test('watch with no plugin-capable Pebble reports PLUGIN_UNAVAILABLE and returns null', () => {
+test('watch with no plugin-capable Pebble reports PLUGIN_UNAVAILABLE and hands back an ended subscription', () => {
   [null, undefined, {}].forEach((pebble) => {
     const fails = [];
     const sub = pluginReader.watch(pebble, REQUEST, () => assert.fail('no data'), (f) => fails.push(f));
-    assert.equal(sub, null);
+    assert.equal(sub.live(), false);
     assert.deepEqual(fails, [{ stage: 'plugin', code: 'PLUGIN_UNAVAILABLE' }]);
+    assert.doesNotThrow(() => sub.unsubscribe());
   });
 });
 
-test('watch returns null when subscribeToSource hands back nothing', () => {
-  const sub = pluginReader.watch({ subscribeToSource() { return undefined; } }, REQUEST, () => {}, () => {});
-  assert.equal(sub, null);
+test('watch: a subscribeToSource that hands back nothing still answers, and can be ended', () => {
+  let request = null;
+  const got = [];
+  const sub = pluginReader.watch({ subscribeToSource(r) { request = r; return undefined; } }, REQUEST,
+    (e) => got.push(e), () => {});
+  assert.equal(sub.live(), true);
+  request.onData(envelope(40));
+  assert.equal(got.length, 1);
+  sub.unsubscribe();
+  request.onData(envelope(41));
+  assert.equal(got.length, 1, 'ended: later updates are dropped');
+});
+
+test('watch: unsubscribe ends it once, never throws, and nothing is relayed after it', () => {
+  const fake = fakePebble();
+  const got = [];
+  const fails = [];
+  const sub = pluginReader.watch(fake.pebble, REQUEST, (e) => got.push(e), (f) => fails.push(f));
+  assert.equal(sub.live(), true);
+  sub.unsubscribe();
+  sub.unsubscribe();
+  assert.equal(sub.live(), false);
+  assert.equal(fake.unsubscribed, 1, 'the Pebble app\'s subscription is ended once');
+  fake.push(envelope(84));          // a late answer the app had already queued
+  fake.fail('TIMEOUT');
+  assert.deepEqual([got.length, fails.length], [0, 0], 'no callback runs after unsubscribe');
+
+  const throwing = { subscribeToSource() { return { unsubscribe() { throw new Error('gone'); } }; } };
+  const held = pluginReader.watch(throwing, REQUEST, () => {}, () => {});
+  assert.doesNotThrow(() => held.unsubscribe(), 'a throwing unsubscribe is swallowed');
+  assert.equal(held.live(), false);
+});
+
+test('watch: a callback can end the subscription it is handed, also before watch has returned', () => {
+  // Inside a later callback.
+  const fake = fakePebble();
+  const got = [];
+  pluginReader.watch(fake.pebble, REQUEST, (e, held) => { got.push(e); held.unsubscribe(); }, () => {});
+  fake.push(envelope(84));
+  fake.push(envelope(83));
+  assert.equal(got.length, 1);
+  assert.equal(fake.unsubscribed, 1);
+
+  // Inside a callback that runs before subscribeToSource has handed its subscription back.
+  const early = fakePebble({ sync: (request) => request.onError({ code: 'PLUGIN_UNAVAILABLE' }) });
+  const fails = [];
+  const sub = pluginReader.watch(early.pebble, REQUEST, () => assert.fail('no data'),
+    (f, held) => { fails.push(f.code); held.unsubscribe(); });
+  assert.deepEqual(fails, ['PLUGIN_UNAVAILABLE']);
+  assert.equal(sub.live(), false);
+  assert.equal(early.unsubscribed, 1, 'what subscribeToSource handed back afterwards is ended too');
+  early.push(envelope(50));
+  early.fail('TIMEOUT');
+  assert.deepEqual(fails, ['PLUGIN_UNAVAILABLE'], 'and it stays silent');
 });
 
 // --- readOnce ----------------------------------------------------------------

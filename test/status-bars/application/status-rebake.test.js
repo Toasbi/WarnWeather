@@ -338,6 +338,27 @@ test('a trigger without a step owes a send all the same; with the saver off noth
   assert.equal(off.sends.length, 1);
 });
 
+test('oweStatus sends nothing now, by day or by night: the next tick that may send pays it', () => {
+  const h = bootSaver();
+  let steps = 0;
+  statusRebake.oweStatus(() => { steps += 1; });
+  statusRebake.oweStatus();
+  assert.equal(h.sends.length, 0, 'noon, outside the window: still not sent from here');
+  assert.equal(statusRebake.onTick(true), false, 'not beside a fetch in flight');
+  assert.equal(h.sends.length, 0);
+  assert.equal(statusRebake.onTick(false), true);
+  assert.equal(h.sends.length, 1, 'one send for both');
+  assert.equal(steps, 1);
+  assert.equal(statusRebake.onTick(false), false, 'once');
+
+  h.at(3, 0);
+  statusRebake.oweStatus();
+  assert.equal(statusRebake.onTick(false), false, 'inside the saver window it waits, as any owed send');
+  h.at(7, 0);
+  assert.equal(statusRebake.onTick(false), true);
+  assert.equal(h.sends.length, 2);
+});
+
 test('a resend for another reason inside the window leaves the debt, and init forgets it', () => {
   const h = bootSaver();
   let steps = 0;

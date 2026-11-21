@@ -588,8 +588,8 @@ function bootPlugin(opts) {
   opts = opts || {};
   const plugin = fakePluginPebble(opts.pluginOpts);
   const timers = fakeTimers();
-  const h = boot(Object.assign({ pebble: plugin.pebble, navigator: IOS_NAVIGATOR,
-    setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout }, opts.boot || {}));
+  const h = boot(Object.assign({ pebble: plugin.pebble, navigator: IOS_NAVIGATOR, timers: timers },
+    opts.boot || {}));
   if (!opts.noSnapshot) { statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, { platform: 'basalt' }); }
   return { h: h, plugin: plugin, timers: timers };
 }
@@ -617,9 +617,12 @@ test('the wait for the first answer uses the host timers when none are injected'
   const plugin = fakePluginPebble();
   boot({ pebble: plugin.pebble, navigator: IOS_NAVIGATOR });
   assert.equal(phoneBattery.isSupported(), true);
-  // A real (unref'd) timer is pending; re-init clears it through the host's clearTimeout.
+  // A real timer is pending; re-init clears it through the host's clearTimeout.
   assert.doesNotThrow(() => boot({ pebble: plugin.pebble, navigator: IOS_NAVIGATOR }));
   assert.equal(plugin.unsubscribed, 1, 're-init ended the first subscription');
+  // ...and so does this one, with no source to ask: no timer is left to hold the run open.
+  boot({ pebble: null, navigator: null });
+  assert.equal(plugin.unsubscribed, 2);
 });
 
 test('the first answer is the seed: cached and shown, never a send', () => {
@@ -772,16 +775,21 @@ test('a failure reported inside subscribeToSource hands over, and the subscripti
   assert.equal(phoneBattery.read().level, 62);
 });
 
-test('a throwing subscribeToSource is a failure: the WebView takes over, or the phone waits', () => {
+test('a throwing subscribeToSource never started: the WebView takes over, or the phone has no source', () => {
   const web = spyWebView(0.62);
   const throwing = { subscribeToSource() { throw new Error('boom'); } };
-  boot({ pebble: throwing, navigator: web.navigator, setTimeout: fakeTimers().setTimeout });
+  const timers = fakeTimers();
+  boot({ pebble: throwing, navigator: web.navigator, timers: timers });
   assert.equal(web.asked, 1);
   assert.equal(phoneBattery.read().level, 62);
+  assert.equal(timers.armed.length, 0, 'nothing is asked, so nothing is waited for');
 
-  boot({ pebble: throwing, navigator: IOS_NAVIGATOR, setTimeout: fakeTimers().setTimeout });
-  assert.equal(phoneBattery.isSupported(), true, 'no WebView API: the verdict stays');
+  // No WebView API either: nothing is subscribed to and nothing will answer, so the item
+  // is not offered, as for a plugin that reports it is not there.
+  boot({ pebble: throwing, navigator: IOS_NAVIGATOR, timers: timers });
+  assert.equal(phoneBattery.isSupported(), false);
   assert.equal(phoneBattery.read().available, false);
+  assert.equal(timers.armed.length, 0);
 });
 
 // --- Failures after an answer ------------------------------------------------
@@ -933,7 +941,7 @@ test('a stored false verdict stays a verdict on a plugin-capable host', () => {
 
 test('the dev-config fake skips the plugin altogether', () => {
   const plugin = fakePluginPebble();
-  boot({ pebble: plugin.pebble, navigator: null, setTimeout: fakeTimers().setTimeout,
+  boot({ pebble: plugin.pebble, navigator: null, timers: fakeTimers(),
          devConfig: { devPhoneBattery: { level: 62 } } });
   assert.equal(plugin.requests.length, 0, 'nothing was subscribed to');
   assert.deepEqual(phoneBattery.read(), { available: true, level: 62 });

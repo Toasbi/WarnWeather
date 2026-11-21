@@ -10,9 +10,10 @@
 // close), which is how a status-only edit — an alert switched off, a level
 // moved, a Look — reaches the watch at once, network or not, and a sunrise or
 // sunset (onTick), which turns the weather condition's and the city's icon
-// between sun and moon without a fetch. A battery reading can wait for the
-// morning: inside the Night battery saver's window its send is owed, and the
-// first tick after the window pays it (resendStatusAwake). A version-stamped
+// between sun and moon without a fetch. A battery reading can wait: inside the
+// Night battery saver's window the phone's charge is owed its send, and the
+// days the watch has left always are (resendStatusAwake, oweStatus). The first
+// tick that may send pays what is owed. A version-stamped
 // flash snapshot backs the in-memory inputs across PKJS restarts (PKJS dies
 // whenever the user leaves the watchface).
 //
@@ -414,13 +415,27 @@ function saverWindowOpen() {
  * @returns {boolean} True when a send was attempted now.
  */
 function resendStatusAwake(reason, prepare) {
-    owed = owed || [];
-    if (prepare && owed.indexOf(prepare) === -1) { owed.push(prepare); }
+    oweStatus(prepare);
     if (saverWindowOpen()) {
         console.log('status-rebake: saver window open, ' + reason + ' send owed.');
         return false;
     }
     return payOwed(reason);
+}
+
+/**
+ * Owe the watch a status send without making it now: the next tick that may send pays it
+ * (onTick). For news that is never urgent and can arrive at any moment, such as the days
+ * the watch has left, which another app's plugin answers with right after a settings save
+ * or a boot, while their own messages are on the half-duplex channel. Those messages bake
+ * the news themselves where it came in time, and the outbox then drops the paid send.
+ *
+ * @param {Function} [prepare] The trigger's step before the send (resendStatusAwake).
+ * @returns {void}
+ */
+function oweStatus(prepare) {
+    owed = owed || [];
+    if (prepare && owed.indexOf(prepare) === -1) { owed.push(prepare); }
 }
 
 /**
@@ -442,7 +457,8 @@ function payOwed(reason) {
  *   and moon icons follow the sky between fetches. After a restart the restored snapshot
  *   counts as baked on the side of the sky it is now: the fetch that runs on the return
  *   brings the rest, and a resend before it would carry the old snapshot's values.
- * - A send the Night battery saver's window swallowed (resendStatusAwake).
+ * - A send that is owed: one the Night battery saver's window swallowed
+ *   (resendStatusAwake), or one that was never urgent (oweStatus).
  *
  * Both wait while a weather fetch is in flight, whose message carries the status anyway
  * and whose bake latches the side of the sky it is on, and inside the battery saver's
@@ -606,6 +622,7 @@ module.exports = {
     rememberBakeInputs: rememberBakeInputs,
     resendStatus: resendStatus,
     resendStatusAwake: resendStatusAwake,
+    oweStatus: oweStatus,
     bakeStatus: bakeStatus,
     onTick: onTick,
     invalidatePersisted: invalidatePersisted,

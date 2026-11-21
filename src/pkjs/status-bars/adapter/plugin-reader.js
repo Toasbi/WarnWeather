@@ -58,36 +58,67 @@ function failure(code) {
 }
 
 /**
+ * @typedef {Object} PluginSubscription
+ * @property {function(): void} unsubscribe Ends it. Never throws, may be called again, and
+ *   is valid inside a callback, even one that runs before watch() has returned. No
+ *   callback runs after it.
+ * @property {function(): boolean} live Whether it can still answer: false once ended, and
+ *   for one that never started.
+ */
+
+/**
  * Subscribe to a source for as long as PKJS lives (or until unsubscribe()). An error does
  * not end a subscription: a later update may succeed, so onFailure can be called more than
- * once, and onData after it.
+ * once, and onData after it. A subscription that could not start (no plugins in this
+ * Pebble app, or subscribeToSource threw) reports one failure and is handed back ended.
  *
  * @param {?Object} pebble The Pebble object.
  * @param {PluginRequest} request The source to read.
- * @param {function(Object): void} onData Called with each update's envelope
- *   ({pluginUuid, instances: [{instanceId, properties}]}).
- * @param {function({stage: string, code: string}): void} onFailure Called with each failure.
- * @returns {?{unsubscribe: function(): void}} The subscription, or null when none started
- *   (onFailure has been called then).
+ * @param {function(Object, PluginSubscription): void} onData Called with each update's
+ *   envelope ({pluginUuid, instances: [{instanceId, properties}]}) and the subscription.
+ * @param {function({stage: string, code: string}, PluginSubscription): void} onFailure
+ *   Called with each failure and the subscription.
+ * @returns {PluginSubscription} The subscription.
  */
 function watch(pebble, request, onData, onFailure) {
+    var ended = false;
+    var inner = null;   // what subscribeToSource handed back, once it has
+    var handle = {
+        unsubscribe: function () {
+            var held = inner;
+            ended = true;
+            inner = null;
+            if (held && typeof held.unsubscribe === 'function') {
+                try { held.unsubscribe(); }
+                catch (ex) { /* the subscription is gone either way */ }
+            }
+        },
+        live: function () { return !ended; }
+    };
     if (!available(pebble)) {
-        onFailure(failure('PLUGIN_UNAVAILABLE'));
-        return null;
+        ended = true;
+        onFailure(failure('PLUGIN_UNAVAILABLE'), handle);
+        return handle;
     }
     try {
-        return pebble.subscribeToSource({
+        inner = pebble.subscribeToSource({
             category: request.category,
             item: request.item,
             properties: request.properties,
-            onData: function (envelope) { onData(envelope); },
-            onError: function (err) { onFailure(failure(err && err.code)); }
+            onData: function (envelope) { if (!ended) { onData(envelope, handle); } },
+            onError: function (err) { if (!ended) { onFailure(failure(err && err.code), handle); } }
         }) || null;
     }
     catch (ex) {
-        onFailure(failure('UNKNOWN'));
-        return null;
+        if (!ended) {
+            ended = true;
+            onFailure(failure('UNKNOWN'), handle);
+        }
+        return handle;
     }
+    // Ended by a callback that ran before subscribeToSource returned: end what it handed back.
+    if (ended) { handle.unsubscribe(); }
+    return handle;
 }
 
 /**
@@ -104,47 +135,32 @@ function watch(pebble, request, onData, onFailure) {
  */
 function readOnce(pebble, request, done, timers) {
     var finished = false;
-    var subscription = null;
     var timer = null;
     var set = (timers && timers.setTimeout) || setTimeout;
     var clear = (timers && timers.clearTimeout) || clearTimeout;
     var timeoutMs = (timers && timers.timeoutMs) || READ_TIMEOUT_MS;
-
-    /**
-     * End the subscription, where there is one to end.
-     * @returns {void}
-     */
-    function release() {
-        var held = subscription;
-        subscription = null;
-        if (held && typeof held.unsubscribe === 'function') {
-            try { held.unsubscribe(); }
-            catch (ex) { /* the subscription is gone either way */ }
-        }
-    }
+    var subscription;
 
     /**
      * @param {?Object} envelope The update, or null on a failure.
      * @param {?Object} fail The failure, or null on an update.
+     * @param {PluginSubscription} held The subscription to end.
      * @returns {void}
      */
-    function finish(envelope, fail) {
+    function finish(envelope, fail, held) {
+        // A timer the host had already queued can still fire after an answer.
         if (finished) { return; }
         finished = true;
         if (timer !== null) { clear(timer); }
-        release();
+        held.unsubscribe();
         done(envelope, fail);
     }
 
     subscription = watch(pebble, request,
-        function (envelope) { finish(envelope, null); },
-        function (fail) { finish(null, fail); });
-    // An answer that came before subscribeToSource returned found no subscription to end.
-    if (finished) {
-        release();
-        return;
-    }
-    timer = set(function () { finish(null, failure('TIMEOUT')); }, timeoutMs);
+        function (envelope, held) { finish(envelope, null, held); },
+        function (fail, held) { finish(null, fail, held); });
+    if (finished) { return; }
+    timer = set(function () { finish(null, failure('TIMEOUT'), subscription); }, timeoutMs);
 }
 
 /**
