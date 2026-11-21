@@ -13,6 +13,53 @@ test('shell.html defines theme tokens and a light override', () => {
   assert.ok(/body\.light\b/.test(shell), 'missing body.light override');
 });
 
+/**
+ * The declarations of a theme's token block.
+ * @param {string} selector Regex source of the block's selector.
+ * @returns {Object} Token name to value.
+ */
+function tokens(selector) {
+  const m = new RegExp(selector + '\\s*\\{([^}]*)\\}').exec(shell);
+  assert.ok(m, 'missing block ' + selector);
+  const out = {};
+  m[1].replace(/\/\*[\s\S]*?\*\//g, '').split(';').forEach((d) => {
+    const i = d.indexOf(':');
+    if (i > 0 && d.indexOf('--') !== -1) { out[d.slice(0, i).trim()] = d.slice(i + 1).trim(); }
+  });
+  return out;
+}
+
+test('shell.html has a black override that changes the surfaces only', () => {
+  const dark = tokens('\\n  body');
+  const black = tokens('body\\.black');
+  ['--bg', '--card', '--ctl', '--tab', '--sw-track'].forEach((t) => {
+    assert.ok(black[t], 'black must override ' + t);
+    assert.notEqual(black[t], dark[t], t + ' must differ from dark');
+  });
+  assert.equal(black['--bg'], '#000000');
+  assert.equal(black['--card'], '#141414');
+  assert.equal(black['--ctl'], '#1F1F1F');
+  // Text, accent and the amber keep dark's values: black sets none of them.
+  ['--fg', '--lbl', '--muted', '--hint', '--ttl', '--link', '--info-rule'].forEach((t) => {
+    assert.equal(black[t], undefined, 'black must not restyle ' + t);
+  });
+  // Dark stays the classless default, so the two themes are not one block.
+  assert.equal(dark['--bg'], '#333333');
+  assert.equal(dark['--card'], '#3A3B3F');
+});
+
+test('shell.html leaves the light and dark tokens as they were', () => {
+  const light = tokens('body\\.light');
+  assert.equal(light['--bg'], '#FFFFFF');
+  assert.equal(light['--card'], '#F4F5F7');
+  assert.equal(light['--ctl'], '#E9EBEF');
+  assert.equal(light['--sw-track'], '#C9CCD2');
+  const dark = tokens('\\n  body');
+  assert.equal(dark['--ctl'], '#46474C');
+  assert.equal(dark['--tab'], '#3D3E42');
+  assert.equal(dark['--sw-track'], '#5A5B61');
+});
+
 test('shell.html styles the chevron for rows as well as card headers', () => {
   // The button/sheet trigger rows reuse .chev. Scoped to .cardHdr (or inlined on the
   // row), the chevron kept the DARK --link value after the page flipped to light.

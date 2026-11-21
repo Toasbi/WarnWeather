@@ -317,13 +317,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {Object} schema Config schema (reads schema.themeKey).
    * @param {Object} S Settings state.
    * @param {boolean} prefersLight Result of the prefers-color-scheme: light media query.
-   * @returns {string} 'light' or 'dark' — the class applied to <body> ('dark' = class absent).
+   * @returns {string} 'light', 'dark' or 'black' — the class applied to <body> ('dark' = class
+   *   absent). 'black' only when the setting is exactly 'black'; Auto gives light or dark.
    */
   function resolveTheme(schema, S, prefersLight) {
     if (!schema || !schema.themeKey) { return 'dark'; }
     var v = S ? S[schema.themeKey] : undefined;
     if (v === 'light') { return 'light'; }
     if (v === 'dark') { return 'dark'; }
+    if (v === 'black') { return 'black'; }
     return prefersLight ? 'light' : 'dark';
   }
 
@@ -3190,18 +3192,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // boot() requires the DOM; it is never called from Node tests (which exercise the pure
     // helpers above), so DOM access here is unguarded by design.
 
-    // Toggle body.light from the theme setting; re-run on every render + on OS theme change.
+    // Set body.light or body.black (neither = dark) from the theme setting; re-run on every
+    // render + on OS theme change.
     // Guarded for the pure-render Node test harness, which shims `document` without a
     // `window`/`body` — real browser boot always has both.
     function applyTheme() {
       if (typeof window === 'undefined' || !document.body) { return; }
       var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
       var prefersLight = Boolean(mq && mq.matches);
-      if (resolveTheme(SCHEMA, S, prefersLight) === 'light') {
-        document.body.classList.add('light');
-      } else {
-        document.body.classList.remove('light');
-      }
+      var theme = resolveTheme(SCHEMA, S, prefersLight);
+      document.body.classList[theme === 'light' ? 'add' : 'remove']('light');
+      document.body.classList[theme === 'black' ? 'add' : 'remove']('black');
     }
 
     /**

@@ -2729,6 +2729,16 @@ test('resolveTheme: auto follows prefers-color-scheme, unknown falls back to dar
   assert.equal(E.resolveTheme(schema, { ct: 'weird' }, false), 'dark');
 });
 
+test('resolveTheme: black only when the setting is exactly black', () => {
+  const schema = { themeKey: 'ct', tabs: [] };
+  assert.equal(E.resolveTheme(schema, { ct: 'black' }, true), 'black');
+  assert.equal(E.resolveTheme(schema, { ct: 'black' }, false), 'black');
+  assert.equal(E.resolveTheme(schema, { ct: 'auto' }, false), 'dark');   // auto is never black
+  assert.equal(E.resolveTheme(schema, { ct: 'auto' }, true), 'light');
+  assert.equal(E.resolveTheme(schema, { ct: 'Black' }, false), 'dark');  // unknown = auto
+  assert.equal(E.resolveTheme(schema, { ct: 'Black' }, true), 'light');
+});
+
 test('hydrate: configTheme defaults to auto when absent from the saved blob', () => {
   const schema = require('../../page/settings/schema.js');
   const S = E.hydrate(schema, {});

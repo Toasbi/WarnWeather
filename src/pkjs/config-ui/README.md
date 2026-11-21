@@ -211,14 +211,14 @@ configUi.inlineScriptJson(value)     // JSON.stringify with '<', U+2028/2029 esc
 module.exports = {
   appName:      "MyApp",
   versionLabel: "v1.0.0",
-  themeKey:     "configTheme",   // optional: messageKey of an 'auto'|'light'|'dark' setting
+  themeKey:     "configTheme",   // optional: messageKey of an 'auto'|'light'|'dark'|'black' setting
   infoIconsKey: "hideInfoText",  // optional: messageKey of a toggle that puts info text behind '?'
   tabs: [ /* Tab, … */ ]
 };
 ```
 
-`themeKey` (optional) names a setting whose value (`'auto' | 'light' | 'dark'`) sets the page
-theme. `'auto'` follows `prefers-color-scheme`; without `matchMedia` or `var()` support the page
+`themeKey` (optional) names a setting whose value (`'auto' | 'light' | 'dark' | 'black'`) sets the page
+theme. `'auto'` follows `prefers-color-scheme` (light or dark, never black); without `matchMedia` or `var()` support the page
 falls back to dark. Without `themeKey` the page stays dark (the base theme). Support floor:
 correct rendering from about Chromium 84, theming from Chromium 49; below that the page stays
 dark and readable through literal fallbacks.

@@ -3414,3 +3414,16 @@ test('no key is a colour in one item and another type in the next', () => {
   assert.deepEqual(mixed, []);
   assert.ok(Object.keys(types).filter((k) => types[k].has('color')).length > 10, 'the rule has colours to hold');
 });
+
+test('Settings Theme is a dropdown of Auto, Light, Dark, Black', () => {
+  let found = null;
+  (function walk(n) {
+    if (!n || typeof n !== 'object') { return; }
+    if (n.messageKey === 'configTheme') { found = n; return; }
+    Object.keys(n).forEach((k) => walk(n[k]));
+  })(schema);
+  assert.ok(found, 'configTheme item');
+  assert.equal(found.type, 'select');
+  assert.equal(found.defaultValue, 'auto');
+  assert.deepEqual(found.options, [['Auto', 'auto'], ['Light', 'light'], ['Dark', 'dark'], ['Black', 'black']]);
+});

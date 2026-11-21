@@ -110,10 +110,17 @@
 
     /**
      * @param {boolean} isLight Whether the page renders its light theme.
+     * @param {boolean=} isBlack Whether it renders the Black theme: the dark palette, with the
+     *   panel surface (the knock-out ring of a marker) the Black card's #141414.
      * @returns {Object} The palette for that surface.
      */
-    function palette(isLight) {
-        return isLight ? PALETTES.light : PALETTES.dark;
+    function palette(isLight, isBlack) {
+        if (isLight) { return PALETTES.light; }
+        if (isBlack) {
+            if (!PALETTES.black) { PALETTES.black = Object.assign({}, PALETTES.dark, { surface: '#141414' }); }
+            return PALETTES.black;
+        }
+        return PALETTES.dark;
     }
 
     /**

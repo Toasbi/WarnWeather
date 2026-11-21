@@ -2803,12 +2803,12 @@ module.exports = {
             }]
         }, {
             title: 'Advanced', collapsible: true, items: [{
-                type: 'segmented',
+                type: 'select',
                 messageKey: 'configTheme',
                 label: 'Settings Theme',
                 defaultValue: 'auto',
-                options: [['Auto', 'auto'], ['Light', 'light'], ['Dark', 'dark']],
-                hint: 'Sets the theme of this settings page. Auto follows your Pebble app theme. The watchface is not affected.'
+                options: [['Auto', 'auto'], ['Light', 'light'], ['Dark', 'dark'], ['Black', 'black']],
+                hint: 'Auto follows the Pebble app\'s light or dark theme. Black matches its Black theme and has to be chosen here. The watchface is not affected.'
             }, {
                 type: 'toggle',
                 messageKey: 'fetch',

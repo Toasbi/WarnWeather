@@ -53,6 +53,22 @@
     /* light amber: rule 3.65:1 against the card (the 3:1 non-text minimum), text ~8.6:1 */
     --info-rule: #B86E00; --info-tint: rgba(217,142,4,0.12);
   }
+  /* Black: the Pebble app's Black theme (surface #000000, containers #141414 / #1F1F1F /
+     #2B2930). Overrides only what differs from the dark default; the text, accent and amber
+     tokens stay dark's. The hairlines are a step stronger, so a card keeps its edge on the
+     pure black page. A sheet or popup sits one container step above the page's cards. */
+  body.black {
+    --bg: #000000; --card: #141414;
+    --card-line: rgba(255,255,255,0.12); --row-line: rgba(255,255,255,0.09);
+    --ctl: #1F1F1F; --ctl-line: rgba(255,255,255,0.14);
+    --tab: #141414; --tab-line: rgba(255,255,255,0.12);
+    --sw-track: #3B3A40;
+    --screen-line: rgba(255,255,255,0.18);
+  }
+  body.black dialog#modal, body.black .ui-pop-card {
+    --card: #1F1F1F; --ctl: #2B2930; --sw-track: #4A4850; --ttl: #9A9EA8; --faint: #9A9EA8;
+    --card-line: rgba(255,255,255,0.14); --row-line: rgba(255,255,255,0.1);
+  }
   /* accent — flat Pebble-app red (#FA4A35), matching the watchface store listing */
   /* the header stays put while the body scrolls */
   .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); flex: none; }

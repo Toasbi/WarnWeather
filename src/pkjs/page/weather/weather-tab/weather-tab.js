@@ -308,8 +308,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // (weather-tab-cache.js tabInUse).
         state.weatherTabSeenAt = Date.now();
         ensureFetch(state, userData);
-        var isLight = pageIsLight(state);
-        var pal = charts.palette(isLight);
+        var pal = charts.palette(pageIsLight(state), pageIsBlack(state));
         // The tile highlight is interpolated in JS frame by frame while a
         // swipe is in flight, so the fade needs the very inks this render
         // used — not a palette re-resolved against a theme that may have
@@ -491,6 +490,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {boolean} True for the light page theme.
      */
     function pageIsLight(state) {
+        return pageTheme(state) === 'light';
+    }
+
+    /**
+     * Whether the page currently renders its Black theme (the dark chart palette, on the
+     * Black card surface).
+     * @param {Object} state Live settings state (configTheme).
+     * @returns {boolean} True only when the setting is Black.
+     */
+    function pageIsBlack(state) {
+        return pageTheme(state) === 'black';
+    }
+
+    /**
+     * The theme the page renders: 'light', 'dark' or 'black'.
+     * @param {Object} state Live settings state (configTheme).
+     * @returns {string} The resolved theme.
+     */
+    function pageTheme(state) {
         var prefersLight = false;
         if (typeof window !== 'undefined' && window.matchMedia) {
             try {
@@ -502,12 +520,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // fallback covers the first render (before onReady hands us ctx) and
         // the Node tests.
         if (ctx && ctx.schema && PConf.engine && PConf.engine.resolveTheme) {
-            return PConf.engine.resolveTheme(ctx.schema, state, prefersLight) === 'light';
+            return PConf.engine.resolveTheme(ctx.schema, state, prefersLight);
         }
         var pick = state && state.configTheme;
-        if (pick === 'light') { return true; }
-        if (pick === 'dark') { return false; }
-        return prefersLight;
+        if (pick === 'light' || pick === 'dark' || pick === 'black') { return pick; }
+        return prefersLight ? 'light' : 'dark';
     }
 
     // --- overlay: city search ------------------------------------------------------

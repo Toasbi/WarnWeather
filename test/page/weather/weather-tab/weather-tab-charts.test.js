@@ -2199,3 +2199,14 @@ test('a prepared view is a whole number of days — the folds have nothing past 
     assert.ok(view.days >= 1, sh[3] + ': and there is at least one day to show');
   });
 });
+
+test('palette: black is the dark palette on the Black card surface; light and dark are unchanged', () => {
+  const dark = charts.palette(false);
+  const black = charts.palette(false, true);
+  assert.equal(black.surface, '#141414');
+  assert.equal(dark.surface, '#3A3B3F');
+  assert.equal(black.temp, dark.temp);
+  assert.equal(black.ink, dark.ink);
+  assert.equal(charts.palette(true, true), charts.palette(true), 'light wins');
+  assert.equal(charts.palette(false, false), dark);
+});
