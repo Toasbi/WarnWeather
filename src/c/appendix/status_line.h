@@ -51,9 +51,21 @@ typedef enum {
     SLOT_LIVE_WEEK = 7,     // watch formats the current ISO-8601 calendar week
     SLOT_LIVE_DISTANCE_MI = 8,  // walked distance in miles (imperial); unit chosen by the phone
     SLOT_LIVE_BATTERY = 9,      // watch draws the battery glyph; state read on-device
-    SLOT_LIVE_BATTERY_PCT = 10, // watch formats the charge as "NN%" text; icon NONE
+    SLOT_LIVE_BATTERY_PCT = 10, // watch formats the charge as "NN%" text; icon NONE. May
+                                // carry text all the same: the days the watch has left
+                                // ("5d"), which the watch shows in place of the percentage
+                                // while they can be current (status_slot_kind_has_text)
 } StatusSlotKind;
 #define STATUS_SLOT_KIND_MAX SLOT_LIVE_BATTERY_PCT
+
+// Whether a kind's slot carries value bytes: a text slot, and the watch battery's
+// percentage slot. Into that one the phone may bake the days the watch has left, another
+// app's estimate (src/pkjs/status-bars/domain/battery-days.js); zero bytes there is the
+// percentage alone, as every watch before knew the kind. Every other kind carries none,
+// and a line that gives it some is malformed.
+static inline bool status_slot_kind_has_text(uint8_t kind) {
+    return kind == SLOT_TEXT || kind == SLOT_LIVE_BATTERY_PCT;
+}
 
 typedef enum {
     STATUS_ICON_NONE = 0,

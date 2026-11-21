@@ -1593,7 +1593,8 @@ const BOLD_SHEET_EXTRA_ROWS = {
   Pressure: ['pressureSlotUnit'],
   Countdown: ['countdownSlotUnit'],
   Date: ['dateSlotMonthFormat', 'dateSlotFullFormat'],
-  City: ['citySlotIcon']
+  City: ['citySlotIcon'],
+  BatteryPct: ['batteryPctSlotShow']
 };
 
 // Bold is the last row before any group card on EVERY slot sheet — the bold-only

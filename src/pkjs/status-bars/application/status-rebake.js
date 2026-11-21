@@ -360,6 +360,14 @@ function phoneFacts() {
 }
 
 /**
+ * @returns {?Object} The watch battery's facts for a re-bake (the injected supplier,
+ *   battery-estimate.js bakeFacts in the app), or null without one.
+ */
+function watchFacts() {
+    return typeof deps.getWatchBattery === 'function' ? deps.getWatchBattery() : null;
+}
+
+/**
  * @param {Object} payload Bake inputs' payload (its SUN_EVENTS).
  * @returns {boolean} Whether it is night now by that payload's sun events.
  */
@@ -484,7 +492,8 @@ function rebake(phone) {
     bakedNight = nightAt(payload, at / 1000);
     build = deps.buildStatusLines || statusLines.buildStatusLines;
     try {
-        build(payload, inputs.settings, inputs.watchInfo, new Date(at), phone || phoneFacts());
+        build(payload, inputs.settings, inputs.watchInfo, new Date(at), phone || phoneFacts(),
+            watchFacts());
     }
     catch (ex) {
         return { status: null, error: ex };
@@ -518,12 +527,14 @@ function invalidatePersisted() {
  * @param {Object} [options] Injected environment; every field has a default.
  * @param {function():Object} [options.getSettings] Current Clay settings supplier.
  * @param {function(Object, Function=, Function=):void} options.sendWeather The outbox's send (outbox.sendWeather).
- * @param {function(Object, Object, Object, Date, ?Object):Object} [options.buildStatusLines] Baker (default: status-lines).
+ * @param {function(Object, Object, Object, Date, ?Object, ?Object):Object} [options.buildStatusLines] Baker (default: status-lines).
  * @param {function():(Date|number)} options.now Clock for the day/night check and the re-bake.
  * @param {?{getItem: Function, setItem: Function, removeItem: Function}} [options.storage] Where the
  *   restart backstop lives (localStorage); absent = no backstop.
  * @param {function():?Object} [options.getPhoneBattery] The phone's battery facts for the re-bake
  *   (phone-battery.js bakeFacts); absent = a host that cannot read the phone's battery.
+ * @param {function():?Object} [options.getWatchBattery] The watch battery's facts for the
+ *   re-bake (battery-estimate.js bakeFacts); absent = no estimate of the days it has left.
  * @returns {void}
  */
 function init(options) {

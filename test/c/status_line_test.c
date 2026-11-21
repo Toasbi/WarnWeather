@@ -94,6 +94,62 @@ static void validate_tests(void) {
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     expect("live-len.reject", status_line_validate(b, n), 0);
 
+    // The watch battery's percentage slot is the one live kind that may carry bytes: the
+    // days the watch has left ("5d"), which the phone bakes in from another app's estimate
+    // and the watch shows in place of its percentage while they can be current
+    // (status_slot_kind_has_text). With none it is the percentage alone, as before.
+    expect("kind-text.text", status_slot_kind_has_text(SLOT_TEXT), 1);
+    expect("kind-text.battery-pct", status_slot_kind_has_text(SLOT_LIVE_BATTERY_PCT), 1);
+    expect("kind-text.battery", status_slot_kind_has_text(SLOT_LIVE_BATTERY), 0);
+    expect("kind-text.steps", status_slot_kind_has_text(SLOT_LIVE_STEPS), 0);
+    expect("kind-text.empty", status_slot_kind_has_text(SLOT_EMPTY), 0);
+    n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, NULL);
+    expect("battery-pct.bare.valid", status_line_validate(b, n), 1);
+    n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, "5d");
+    expect("battery-days.valid", status_line_validate(b, n), 1);
+    {
+        StatusSlotView dv[STATUS_SLOT_COUNT];
+        const int walked = status_line_slots(b, n, dv);
+        expect("battery-days.slots", walked, STATUS_SLOT_COUNT);
+        // The views are only filled when the line parsed (status_line.h).
+        if (walked == STATUS_SLOT_COUNT) {
+            expect("battery-days.kind", dv[2].kind, SLOT_LIVE_BATTERY_PCT);
+            expect("battery-days.len", dv[2].value_len, 2);
+            expect("battery-days.text", dv[2].value && memcmp(dv[2].value, "5d", 2) == 0, 1);
+            expect("battery-days.empty-slot-has-no-value", dv[0].value == NULL, 1);
+        }
+    }
+    // Its text keeps to the slot's cap, and to whole characters, like any text.
+    n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, "123456789");
+    expect("battery-days.over-cap.reject", status_line_validate(b, n), 0);
+    n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, "5\xC2");
+    expect("battery-days.cut-utf8.reject", status_line_validate(b, n), 0);
+    // The glyph battery stays without bytes, like every other live kind.
+    n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_LIVE_BATTERY, STATUS_ICON_NONE, "5d");
+    expect("battery-glyph.len.reject", status_line_validate(b, n), 0);
+    // A battery percentage slot with the days never reads as a wind arrow's carrier.
+    {
+        StatusSlotView av[STATUS_SLOT_COUNT];
+        n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+        n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+        n = put_slot(b, n, SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, "5\x03");
+        const int walked = status_line_slots(b, n, av);
+        expect("battery-days.sentinel.slots", walked, STATUS_SLOT_COUNT);
+        if (walked == STATUS_SLOT_COUNT) {
+            expect("battery-days.no-direction", status_slot_direction(&av[2]), -1);
+        }
+    }
+
     // TEXT with zero len: a glyph alone (the weather condition slot's Icon look), accepted.
     // Rejecting it threw the whole line away, so the watch kept the old icon and text.
     n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_COND_SUN, NULL);

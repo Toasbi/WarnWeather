@@ -190,6 +190,14 @@ ride-along make the exact reading the shown one; so does the first reading after
 when it lands in another bucket (`phone-battery.js` readShown). The reading comes from the Pebble
 app's Phone plugin, or from the Android WebView's battery API where the app has no plugins.
 
+**Days left (watch battery)**:
+What the watch battery's percentage slot shows in place of the percentage when it is set to:
+the days the watch has left, an estimate the Muninn app makes and serves as a plugin of the
+Pebble app (`battery-estimate.js` reads it, once at a time, never subscribed). The phone
+counts it down and bakes it into the slot (`battery-days.js`, the one live kind that carries
+text), and the watch shows it only while it can be current: the phone in reach and the watch
+not charging (`status_row.c` shows_battery_days). Otherwise the slot shows the percentage.
+
 **Battery saver**:
 The night window (`sleepStartHour` to `sleepEndHour`) in which the phone fetches no weather and
 sends the watch no phone-battery updates and no sunrise or sunset re-bakes, so the Bluetooth

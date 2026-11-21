@@ -38,6 +38,7 @@ var customLayout = require('../layout/custom-layout-schema.js');
 var gates = require('./schema-gates.js');
 var HEALTH_SLOT_WHEN = gates.HEALTH_SLOT_WHEN;
 var HR_SLOT_WHEN = gates.HR_SLOT_WHEN;
+var PLUGINS_WHEN = gates.PLUGINS_WHEN;
 var THRESHOLD_WHEN = gates.THRESHOLD_WHEN;
 var ON_DEMAND_WHEN = gates.ON_DEMAND_WHEN;
 var BOLD_MASTER_WHEN = gates.BOLD_MASTER_WHEN;
@@ -691,6 +692,10 @@ function boldSection(title, keyStem, gate, extraItems, afterItems) {
     var items = (extraItems || []).concat([bold], afterItems || []);
     return sheetOf(keyStem, title, gateAll(items, gate));
 }
+
+// The watch battery's days left: where they come from, and when the percentage shows
+// instead (battery-days.js daysLeft, status_row.c shows_battery_days).
+var BATTERY_DAYS_HINT = 'The days your watch has left, as the <a href=\'https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5\'>Muninn app</a> estimates them. Needs Muninn on your watch. Shows the percentage while Muninn has no estimate, while the watch charges and while your phone is out of reach.';
 
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
 var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
@@ -2126,7 +2131,18 @@ module.exports = {
         boldSection('Date countdown', 'Countdown', null,
             [unitRow('countdownSlotUnit', '5d', '5')]),
         boldSection('Heart rate', 'Hr', HR_SLOT_WHEN),
-        boldSection('Battery percentage', 'BatteryPct'),
+        // What the slot shows: the charge the watch reads itself, or the days it has left,
+        // which the Muninn app estimates and the phone bakes in (battery-days.js). Only
+        // where the Pebble app can read another app's plugin.
+        boldSection('Battery percentage', 'BatteryPct', null, [{
+            type: 'segmented',
+            messageKey: 'batteryPctSlotShow',
+            label: 'Show',
+            defaultValue: 'percent',
+            options: [['Percentage', 'percent'], ['Days left', 'days']],
+            hintByValue: {days: BATTERY_DAYS_HINT},
+            showWhen: PLUGINS_WHEN
+        }]),
         // Dew point shares temperature's degree sign and its reasoning.
         boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', '12°', '12')]),
         // ONE dialog for TWO catalog items: 'phoneBattery' (icon + NN%) and

@@ -177,6 +177,9 @@ function renderSignature(settings, watchInfo) {
         settings.conditionSlotLook, settings.conditionSlotName,
         // ...the city slot's weather icon (baked into its icon byte)...
         settings.citySlotIcon,
+        // ...what the watch battery's percentage slot shows (the days left are baked
+        // into it; the percentage is not)...
+        settings.batteryPctSlotShow,
         // ...and the night weather-pause window (a change flips whether fetching pauses
         // and the IS_SLEEPING glyph the forced fetch pushes). The battery saver's own
         // toggle and hour pair — battery-saver.js reads no others — or an edit sits

@@ -55,6 +55,9 @@ function parseArgs(args) {
 function envFor(platform) {
   var env = platformLib.computeEnv({ platform: platform });
   env.phoneBattery = process.env.PREVIEW_PHONE_BATTERY !== '0';
+  // Likewise whether the Pebble app can read plugins (the watch battery's days left);
+  // PREVIEW_PLUGINS=0 shows the page of a Pebble app without them.
+  env.plugins = process.env.PREVIEW_PLUGINS !== '0';
   return env;
 }
 

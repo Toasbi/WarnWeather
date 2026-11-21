@@ -34,6 +34,7 @@
     var esc = NODE ? require('../../config-ui/lib/html.js').esc : PConf.html.esc;
     var previewInk = (NODE ? require('../settings/preview-svg.js') : window.PreviewSvg).previewInk;
     var slotText = NODE ? require('../../status-bars/domain/slot-text.js') : window.SlotText;
+    var batteryDays = NODE ? require('../../status-bars/domain/battery-days.js') : window.BatteryDays;
     var condition = NODE ? require('../../weather/domain/condition.js') : window.Condition;
     var utf8 = NODE ? require('../../lib/utf8.js') : window.Utf8;
     var dateFormat = NODE ? require('../../calendar/domain/date-format.js') : window.DateFormat;
@@ -60,6 +61,8 @@
         dewF: 48.2,
         // A partly cloudy afternoon.
         condition: condition.names('partly', false),
+        // The days the watch battery has left, as another app estimates them.
+        batteryDays: 5,
         uv: [3, 7],
         aqi: [42, 58],
         wind: {kph: [12, 30], mph: [7, 19], knots: [6, 16]},
@@ -211,7 +214,9 @@
         case 'distance': return S.distanceUnits === 'imperial' ? '2.6mi' : '4.2km';
         case 'hr': return '64';
         case 'sleep': return '7h12';
-        case 'batteryPct': return '80%';
+        // The days the watch has left where the slot is set to show them (the watch prints
+        // its percentage instead while there is no estimate; battery-days.js).
+        case 'batteryPct': return batteryDays.wanted(S) ? batteryDays.text(SAMPLE.batteryDays) : '80%';
         case 'phoneBattery': return '72%';
         case 'phoneBatteryPlain': return '72%';
         // The battery item is its glyph alone, except on aplite, whose lean twin prints
@@ -345,6 +350,8 @@
      */
     function wireBytes(code, text, S, env, cap) {
         var item = catalog.byCode(code);
+        // A live kind carries no bytes, but for the watch battery's days (packLine).
+        if (code === 'batteryPct' && batteryDays.wanted(S)) { return 3 + utf8.byteLength(text || ''); }
         if (!item || item.kind !== catalog.KINDS.TEXT) { return 3; }
         return 3 + utf8.byteLength(text || '') + (arrowShown(code, text, S, env, cap) ? 1 : 0);
     }

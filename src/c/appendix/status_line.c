@@ -68,7 +68,8 @@ static bool walk_slot(const uint8_t *blob, size_t len, int slot_index,
     } else if (icon > STATUS_ICON_MAX) {
         return false;
     }
-    if (kind == SLOT_TEXT) {
+    const bool has_text = status_slot_kind_has_text(kind);
+    if (has_text) {
         // Zero bytes is a glyph alone: the weather condition slot's Icon look bakes no text.
         if (value_len > slot_text_cap(slot_index, icon)) { return false; }
         if (*off + value_len > len) { return false; }
@@ -79,10 +80,10 @@ static bool walk_slot(const uint8_t *blob, size_t len, int slot_index,
     if (out) {
         out->kind = kind;
         out->icon = icon;
-        out->value_len = (kind == SLOT_TEXT) ? value_len : 0;
-        out->value = (kind == SLOT_TEXT) ? (const char *) (blob + *off) : NULL;
+        out->value_len = has_text ? value_len : 0;
+        out->value = has_text ? (const char *) (blob + *off) : NULL;
     }
-    if (kind == SLOT_TEXT) { *off += value_len; }
+    if (has_text) { *off += value_len; }
     return true;
 }
 

@@ -14,6 +14,7 @@ var wireUnits = require('../../wire/domain/wire-units.js');
 var cityLadder = require('./city-ladder.js');
 var onDemand = require('./on-demand.js');
 var condition = require('../../weather/domain/condition.js');
+var batteryDays = require('./battery-days.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
 var POSITIONS = catalog.SLOT_POSITIONS;
@@ -124,6 +125,16 @@ var isoWeek = slotText.isoWeek;
  */
 
 /**
+ * The watch battery's facts a bake reads, which the watch does not know itself: the
+ * estimate of the days it has left (battery-days.js). The caller asks
+ * battery-estimate.js for them (bakeFacts) and passes them in, as for the phone's battery.
+ * @typedef {Object} WatchBattery
+ * @property {?function(): ?{days: number, updatedAt: number}} estimate Reads the last
+ *   estimate heard (called once per bake, only when a bar it bakes shows the watch
+ *   battery's days); null where no estimate can be read at all.
+ */
+
+/**
  * The bake's environment besides the watch's: the time and the phone's battery, read
  * once per bake so every slot judges the same instant and the same reading.
  * @typedef {Object} BakeEnv
@@ -132,16 +143,21 @@ var isoWeek = slotText.isoWeek;
  * @property {?{available: boolean, level: (number|null)}} phone The
  *   phone's battery reading, read once by buildStatusLines and only when a bar it bakes
  *   shows a phone-battery item; null when there is none.
+ * @property {?number} batteryDays The whole days the watch battery's percentage slot
+ *   shows in place of the percentage (battery-days.js daysLeft); null when it shows the
+ *   percentage.
  */
 
 /**
  * The bake's environment for one instant and one phone-battery reading.
  * @param {Date} now The current time.
  * @param {?Object} phone The phone's battery reading, or null.
+ * @param {?number} [days] The watch battery's days left to show, or null.
  * @returns {BakeEnv}
  */
-function bakeEnv(now, phone) {
-  return { now: now, nowSec: now.getTime() / 1000, phone: phone || null };
+function bakeEnv(now, phone, days) {
+  return { now: now, nowSec: now.getTime() / 1000, phone: phone || null,
+    batteryDays: typeof days === 'number' ? days : null };
 }
 
 /**
@@ -471,6 +487,36 @@ function showsPhoneBattery(lines, settings, env) {
 }
 
 /**
+ * Whether any slot of the given lines shows the watch battery's days left: its
+ * percentage slot, set to show them (battery-days.js wanted).
+ * @param {Array<Object>} lines catalog line definitions
+ * @param {Object} settings Clay settings blob
+ * @param {Object} env platform environment
+ * @returns {boolean}
+ */
+function showsBatteryDays(lines, settings, env) {
+  if (!batteryDays.wanted(settings)) { return false; }
+  for (var l = 0; l < lines.length; l++) {
+    for (var s = 0; s < 3; s++) {
+      if (slotCode(lines[l], s, settings, env) === 'batteryPct') { return true; }
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether the watch battery's days left are wanted on this watch at all: a bar the bake
+ * sends shows them. What decides whether the estimate is worth reading (battery-estimate.js).
+ * @param {Object} settings Clay settings blob
+ * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
+ * @returns {boolean}
+ */
+function wantsBatteryDays(settings, watchInfo) {
+  var env = platformLib.computeEnv(watchInfo);
+  return showsBatteryDays(catalog.bakedLines(settings, env), settings, env);
+}
+
+/**
  * @param {Object} line catalog line definition
  * @param {Object} payload weather payload
  * @param {Object} settings Clay settings blob
@@ -550,7 +596,15 @@ function packLine(line, payload, settings, env, alerts, bake) {
         if (wideBytes.join() !== valueBytes.join()) { wide[s] = wideBytes; }
       }
     } else {
-      bytes.push(kind, icon, 0);
+      // The watch draws a live kind from its own readings, so it carries no bytes. One
+      // exception: the watch battery's percentage slot carries the days the watch has
+      // left while it is to show them (battery-days.js), which the watch prints in place
+      // of its percentage while they can be current (status_line.h
+      // status_slot_kind_has_text).
+      var daysBytes = code === 'batteryPct' && bake.batteryDays !== null
+        ? utf8Truncate(utf8Encode(batteryDays.text(bake.batteryDays)), textCap(s)) : [];
+      bytes.push(kind, icon, daysBytes.length);
+      for (var db = 0; db < daysBytes.length; db++) { bytes.push(daysBytes[db]); }
     }
   }
   return widenEdgeConditions(bytes, starts, wide);
@@ -591,9 +645,11 @@ function widenEdgeConditions(bytes, starts, wide) {
  *   night now read it, one instant for the whole bake.
  * @param {?PhoneBattery} [phone] The phone's battery facts (phone-battery.js bakeFacts);
  *   absent = a host that cannot read the phone's battery.
+ * @param {?WatchBattery} [watch] The watch battery's facts (battery-estimate.js
+ *   bakeFacts); absent = no estimate of the days it has left.
  * @returns {Object} the same payload
  */
-function buildStatusLines(payload, settings, watchInfo, now, phone) {
+function buildStatusLines(payload, settings, watchInfo, now, phone, watch) {
   var env = platformLib.computeEnv(watchInfo);
   // The weather alerts' entries, judged before the lines: a slot showing an alert's
   // metric on the alert's side merges it (packLine). Only for a watch they ride to
@@ -615,7 +671,10 @@ function buildStatusLines(payload, settings, watchInfo, now, phone) {
   // battery slot of the bake prints the same reading.
   var reading = env.phoneBattery && phone.reading && showsPhoneBattery(lines, settings, env)
     ? phone.reading() : null;
-  var bake = bakeEnv(now, reading);
+  // Likewise the estimate of the days the watch has left, counted down to this instant.
+  var estimate = watch && watch.estimate && showsBatteryDays(lines, settings, env)
+    ? watch.estimate() : null;
+  var bake = bakeEnv(now, reading, batteryDays.daysLeft(estimate, now.getTime()));
   for (var l = 0; l < lines.length; l++) {
     var line = lines[l];
     payload[line.wireKey] = packLine(line, payload, settings, env, alerts, bake);
@@ -677,6 +736,7 @@ var SOURCE_KEYS = [
 
 module.exports = {
   buildStatusLines: buildStatusLines,
+  wantsBatteryDays: wantsBatteryDays,
   isNightNow: isNightNow,
   SOURCE_KEYS: SOURCE_KEYS,
   packLine: packLine,

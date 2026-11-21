@@ -156,6 +156,9 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/lib/utf8.js'),
   path.join(ROOT, 'src/pkjs/status-bars/domain/status-pair.js'),
   path.join(ROOT, 'src/pkjs/status-bars/domain/slot-text.js'),
+  // What the watch battery's percentage slot prints for the days left (window.BatteryDays,
+  // a leaf): the Status bars tab's sample reads it.
+  path.join(ROOT, 'src/pkjs/status-bars/domain/battery-days.js'),
   path.join(ROOT, 'src/pkjs/calendar/domain/date-format.js'),
   // The weather condition slot's vocabulary (window.Condition, a leaf): the Status bars tab's
   // sample reads it while preview-status-bars.js' body runs, and blocks.js' list of every

@@ -34,7 +34,7 @@ const NOT_REQUESTED = {
   'creativecommons.org': 'the CC BY 4.0 licence link in Setup › Privacy & data sources',
   'openweathermap.org': 'the OpenWeatherMap signup and plan links',
   'yandex.com': 'the Yandex Weather API key link',
-  'apps.repebble.com': 'the store listing link in the news panel',
+  'apps.repebble.com': 'store listing links: the news panel, and Muninn\'s in the battery slot\'s hint',
   'github.com': 'the issues links, and the User-Agent and Origin values met.no asks for',
   'toasbi.github.io': 'the emulator\'s settings page helper, opened with Pebble.openURL under the emulator only',
   'developer.repebble.com': 'a source comment',

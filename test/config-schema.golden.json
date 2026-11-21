@@ -8053,6 +8053,28 @@
             "items": [
               {
                 "type": "segmented",
+                "messageKey": "batteryPctSlotShow",
+                "label": "Show",
+                "defaultValue": "percent",
+                "options": [
+                  [
+                    "Percentage",
+                    "percent"
+                  ],
+                  [
+                    "Days left",
+                    "days"
+                  ]
+                ],
+                "hintByValue": {
+                  "days": "The days your watch has left, as the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a> estimates them. Needs Muninn on your watch. Shows the percentage while Muninn has no estimate, while the watch charges and while your phone is out of reach."
+                },
+                "showWhen": {
+                  "env": "plugins"
+                }
+              },
+              {
+                "type": "segmented",
                 "messageKey": "threshBatteryPctBoldMode",
                 "label": "Bold",
                 "hintByValue": {

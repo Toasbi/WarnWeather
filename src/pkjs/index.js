@@ -38,6 +38,8 @@ var createFetchCycle = require('./shell/fetch-cycle.js');
 var renderSignature = require('./settings/domain/render-signature.js').renderSignature;
 var decideConfigClose = require('./settings/domain/config-close.js').decideConfigClose;
 var phoneBattery = require('./status-bars/adapter/phone-battery.js');
+var batteryEstimate = require('./status-bars/adapter/battery-estimate.js');
+var pluginReader = require('./status-bars/adapter/plugin-reader.js');
 var statusRebake = require('./status-bars/application/status-rebake.js');
 var notifyWatch = require('./notices/adapter/notify-watch.js').notifyWatch;
 
@@ -113,6 +115,7 @@ var fetchCycle = createFetchCycle({
     },
     now: function () { return new Date(); },
     getPhoneBattery: phoneBattery.bakeFacts,
+    getWatchBattery: batteryEstimate.bakeFacts,
     // Wrapped like the scheduler's below (WebView receiver check).
     setTimeout: function (fn, ms) { return setTimeout(fn, ms); }
 });
@@ -221,7 +224,11 @@ Pebble.addEventListener('showConfiguration', function(e) {
     // is the only place that verdict is read, so it is the only place it can be
     // observed at the moment it decides what the user is offered.
     var phoneBatteryEnv = phoneBattery.isSupported();
-    console.log('Config env: phoneBattery=' + phoneBatteryEnv);
+    // One more fact about the PHONE: whether this Pebble app can read plugins at all. The
+    // page offers what is read from another app's plugin only there (the watch battery's
+    // days left, battery-estimate.js).
+    var pluginsEnv = pluginReader.available(Pebble);
+    console.log('Config env: phoneBattery=' + phoneBatteryEnv + ' plugins=' + pluginsEnv);
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see page/settings/index.js options).
     Pebble.openURL(settings.generateUrl({
@@ -233,7 +240,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // Android's Chromium WebView; the emulator has neither. The catalog's
         // needsPhoneBattery gate omits the phone-battery slot items wherever this is
         // false. Merged over the derived env by createConfig, so this stays a single key.
-        env: { phoneBattery: phoneBatteryEnv },
+        env: { phoneBattery: phoneBatteryEnv, plugins: pluginsEnv },
         userData: userData
     }));
     console.log('Showing clay: ' + JSON.stringify(claySettings.redactForLog(values)));
@@ -319,6 +326,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     // A new install is counted on its first Save, not ~12 h later (telemetry.js).
     app.telemetry.onSettingsSaved({ settings: app.settings, watchInfo: app.watchInfo });
+    // A watch battery slot just set to show the days it has left gets its estimate now.
+    batteryEstimate.refresh();
     var providerOrLocationChanged = refreshProvider();
     var acked = app.settings.fetchNoticeAck === true;
     // Only an error notice puts text on the watch overlay; capture that BEFORE
@@ -432,6 +441,7 @@ Pebble.addEventListener('ready',
         statusRebake.init({
             getSettings: function () { return app.settings; },
             getPhoneBattery: phoneBattery.bakeFacts,
+            getWatchBattery: batteryEstimate.bakeFacts,
             sendWeather: outbox.sendWeather,
             storage: localStorage,
             now: function () { return Date.now(); }
@@ -445,6 +455,13 @@ Pebble.addEventListener('ready',
         // along (bytes, never a wake-up); a fetch's bake shows the reading the watch was
         // last sent, so the charge drifting inside its bucket sends nothing by itself.
         outbox.setRideAlong(phoneBattery.statusRideAlong);
+        // The estimate of the days the watch has left (another app's plugin), read only
+        // while the watch battery's percentage slot is set to show them.
+        batteryEstimate.init({
+            getSettings: function () { return app.settings; },
+            getWatchInfo: function () { return app.watchInfo; },
+            now: function () { return Date.now(); }
+        });
         refreshProvider();
         // 7-day localStorage cache GC: caches are re-derivable, so entries older
         // than a week are dropped instead of building up (stale notices, the
@@ -573,6 +590,7 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
 function onSchedulerTick() {
     var fetching = fetchCycle.isInFlight();
     phoneBattery.onTick(fetching);
+    batteryEstimate.onTick(fetching);
     statusRebake.onTick(fetching);
     updateCheckRunner.runDailyUpdateCheck({
         stores: UPDATE_CHECK_STORES,

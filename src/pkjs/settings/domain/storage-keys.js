@@ -127,6 +127,10 @@ module.exports = {
     // 5-point bucket does not change the status. Kept across PKJS restarts, unlike the
     // level above, because the watch keeps showing it.
     PHONE_BATTERY_SHOWN: 'phoneBatteryShown',
+    // The estimate of the days the watch has left on its charge as it was last heard
+    // ({days, updatedAt}; battery-estimate.js), which the watch battery's percentage slot
+    // can show. Kept across PKJS restarts so a bake shows the days at once.
+    BATTERY_ESTIMATE: 'batteryEstimate',
     // The re-bake snapshot: the handful of payload keys buildStatusLines reads,
     // plus the watchInfo its platform env is derived from, version-stamped as
     // one JSON blob. PKJS is torn down whenever the user leaves the watchface,

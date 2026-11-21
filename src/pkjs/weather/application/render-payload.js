@@ -38,11 +38,13 @@ var BAKE_ONLY_KEYS = (function () {
  * @param {Date} now The current time, for the status-line bake.
  * @param {?Object} [phone] The phone's battery facts (phone-battery.js bakeFacts);
  *   absent = a host that cannot read the phone's battery.
+ * @param {?Object} [watch] The watch battery's facts (battery-estimate.js bakeFacts);
+ *   absent = no estimate of the days it has left.
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
-function toRenderPayload(payload, settings, watchInfo, now, phone) {
+function toRenderPayload(payload, settings, watchInfo, now, phone, watch) {
     statusRebake.rememberBakeInputs(payload, watchInfo, now);
-    statusLines.buildStatusLines(payload, settings, watchInfo, now, phone);
+    statusLines.buildStatusLines(payload, settings, watchInfo, now, phone, watch);
     forecastSeries.applyForecastSeries(payload, settings, watchInfo);
     BAKE_ONLY_KEYS.forEach(function (key) { delete payload[key]; });
     return payload;

@@ -182,6 +182,20 @@ README.md.
     news) are added at build time, as an entry of their own
     (`scripts/lib/uses-permissions.js`).
   - Docs: https://developer.repebble.com/guides/plugins/preview/ (Declaring, Approval).
+- Read a plugin of the Pebble app (its own, like the phone's state, or another app's)
+  through `src/pkjs/status-bars/adapter/plugin-reader.js`, never by calling
+  `Pebble.subscribeToSource` directly.
+  - An older Pebble app has no plugins: feature-detect with `available()`, and fall back
+    or keep the setting hidden there (`env.plugins` on the settings page).
+  - `watch()` stays subscribed and is for a source the Pebble app pushes by itself (its
+    built-in ones). Use `readOnce()` for another app's plugin: the Pebble app runs such a
+    plugin's script again at every refresh interval for as long as anything is subscribed.
+  - A source that names no caller permission needs no `usesPermissions` entry
+    (`phone/phone_state`, Muninn's `muninn/stats`). One that does should get an entry
+    with a `reason`, or the phone asks with nothing but the permission's name.
+- The settings page reaches the phone as one `data:` URL, which Android's WebView refuses
+  past 2 MiB, and it has only a few KB to spare: page code, schema text and anything added
+  to `userData` all cost that budget (`test/settings/adapter/settings-url-budget.test.js`).
 - Add a new telemetry setting in two places, or it is silently dropped: the watch-side
   snapshot (`buildSettingsSnapshot` in `src/pkjs/telemetry/application/telemetry-settings.js`)
   and the Deno `.strip()` schema in

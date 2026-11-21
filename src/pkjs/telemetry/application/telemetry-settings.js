@@ -18,6 +18,7 @@
 
 // unitEnabled — a Show unit toggle, read like the bake prints the slot.
 var slotText = require('../../status-bars/domain/slot-text.js');
+var batteryDays = require('../../status-bars/domain/battery-days.js');
 var platforms = require('../../config-ui/lib/platform.js');
 var color = require('../../lib/color.js');
 // renderContextFor / graphColorKey / graphColorIsDefault — the module that resolves the
@@ -374,6 +375,11 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         conditionSlotLook: isAplite ? undefined : slotText.conditionLook(safe),
         conditionSlotName: isAplite ? undefined : slotText.conditionName(safe),
         citySlotIcon: isAplite ? undefined : slotText.cityIcon(safe),
+        // What the watch battery's percentage slot shows: 'percent', or 'days' (the days
+        // left, from another app's estimate). Absent on aplite, which has no such slot.
+        // Lockstep with handler.ts -- deploy it first.
+        batteryPctSlotShow: isAplite ? undefined
+            : (batteryDays.wanted(safe) ? 'days' : 'percent'),
         // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),

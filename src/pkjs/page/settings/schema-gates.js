@@ -126,7 +126,13 @@ function linkRow(action, label, more) {
     return row;
 }
 
+// "This Pebble app can read plugins": what gates a setting that shows another app's
+// reading (index.js passes env.plugins; plugin-reader.js available). An older Pebble app
+// has no plugins, and the setting would change nothing there.
+var PLUGINS_WHEN = {env: 'plugins'};
+
 module.exports = {
+    PLUGINS_WHEN: PLUGINS_WHEN,
     HEALTH_SLOT_WHEN: HEALTH_SLOT_WHEN,
     HR_SLOT_WHEN: HR_SLOT_WHEN,
     THRESHOLD_WHEN: THRESHOLD_WHEN,

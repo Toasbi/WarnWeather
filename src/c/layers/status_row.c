@@ -304,6 +304,22 @@ static void copy_text(char *buf, size_t cap, const char *src, size_t n) {
     buf[n] = '\0';
 }
 
+// Whether the watch battery's percentage slot carries the days the watch has left (the
+// phone bakes another app's estimate into it, status_line.h status_slot_kind_has_text).
+static bool carries_battery_days(const StatusSlotView *slot) {
+    return slot->kind == SLOT_LIVE_BATTERY_PCT && slot->value_len > 0;
+}
+
+// Whether those days are what the slot shows. Only while the estimate can be current: the
+// phone is in reach to correct it, and the watch is not charging, which the estimate was
+// made without. Else the slot shows the percentage, which the watch always knows itself.
+static bool shows_battery_days(const StatusSlotView *slot) {
+    if (!carries_battery_days(slot)) { return false; }
+    const BatteryChargeState bs = watch_services_battery_state();
+    return !(bs.is_charging || bs.is_plugged)
+        && connection_service_peek_pebble_app_connection();
+}
+
 // Materialise one slot's display text, and report the wind-direction sector
 // (0..15, -1 = none) the phone baked into its trailing byte. A short form the phone
 // baked after STATUS_TEXT_ALT_SEP (the weather condition's "PCLDY") goes into `alt`,
@@ -347,6 +363,8 @@ static int8_t resolve_slot_text(const StatusRow *row, const StatusSlotView *slot
         // Glyph battery is icon-only; SLOT_LIVE_BATTERY_PCT must NOT join this
         // arm — it renders its charge as text via format_live_value below.
         buf[0] = '\0';
+    } else if (shows_battery_days(slot)) {
+        copy_text(buf, cap, slot->value, slot->value_len);
     } else {
         format_live_value(row, slot->kind, buf, cap);
     }
@@ -642,7 +660,9 @@ bool status_row_refresh(StatusRow *row) {
             // destroy would then unsubscribe on the others' behalf. The strip's
             // existing callback repaints the strip, and every other row picks the
             // change up on the next minute tick.
-            if (is_phone_battery_slot(slot)) {
+            // Likewise the watch battery's days: the link decides whether the slot
+            // shows them or the percentage, and a day count can read the same either way.
+            if (is_phone_battery_slot(slot) || carries_battery_days(slot)) {
                 uint8_t connected =
                     (uint8_t)connection_service_peek_pebble_app_connection();
                 sig = sig_fold(sig, &connected, 1);
