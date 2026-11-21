@@ -715,16 +715,15 @@ function boldOnlyRow(keyStem) {
 // that can read another app's plugin, so Value selection and the pair's rows show only
 // there (PLUGINS_WHEN), and only in the Text look, like Bold: a drawn battery has no text.
 var MUNINN_LINK = '<a href=\'https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5\'>Muninn app</a>';
-// Where the days come from, and when the percentage shows instead (battery-days.js
-// daysLeft, status_row.c shows_battery_days).
-var BATTERY_DAYS_HINT = 'Shows the days your watch has left, as the ' + MUNINN_LINK +
-    ' estimates them. Needs Muninn on your watch. Shows the percentage while Muninn has ' +
-    'no estimate, while the watch charges and while your phone is out of reach.';
-var BATTERY_BOTH_HINT = 'Shows the percentage and the days your watch has left, like 80%' +
-    STATUS_PAIR.SEPARATORS[STATUS_PAIR.defaultSeparator('battery')].mid + '5d. Order and ' +
-    'Separator set how the pair looks. The days are the ' + MUNINN_LINK + '\'s estimate ' +
-    'and need Muninn on your watch. Shows the percentage alone while Muninn has no ' +
-    'estimate, while the watch charges and while your phone is out of reach.';
+// Under Days left and Both: when the percentage shows instead (battery-days.js daysLeft,
+// status_row.c shows_battery_days) and, set apart on a line of its own, where the days come
+// from. What each mode shows is in the picture of the bar above the rows, so the hints
+// leave it out.
+var MUNINN_NOTE = '<span style="display:block;margin-top:6px">The days are an estimate from the ' +
+    MUNINN_LINK + ', which has to be on your watch.</span>';
+var BATTERY_FALLBACK = ' while the watch charges, your phone is out of reach or there is no estimate.';
+var BATTERY_DAYS_HINT = 'Shows the percentage instead' + BATTERY_FALLBACK + MUNINN_NOTE;
+var BATTERY_BOTH_HINT = 'Shows the percentage alone' + BATTERY_FALLBACK + MUNINN_NOTE;
 var BATTERY_TEXT_WHEN = {key: 'batterySlotLook', eq: 'text'};
 /**
  * Add a condition to every row: each shows only while `gate` holds and its own showWhen,

@@ -8076,8 +8076,8 @@
                 "messageKey": "batterySlotDisplay",
                 "label": "Value selection",
                 "hintByValue": {
-                  "days": "Shows the days your watch has left, as the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a> estimates them. Needs Muninn on your watch. Shows the percentage while Muninn has no estimate, while the watch charges and while your phone is out of reach.",
-                  "both": "Shows the percentage and the days your watch has left, like 80%|5d. Order and Separator set how the pair looks. The days are the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a>'s estimate and need Muninn on your watch. Shows the percentage alone while Muninn has no estimate, while the watch charges and while your phone is out of reach."
+                  "days": "Shows the percentage instead while the watch charges, your phone is out of reach or there is no estimate.<span style=\"display:block;margin-top:6px\">The days are an estimate from the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a>, which has to be on your watch.</span>",
+                  "both": "Shows the percentage alone while the watch charges, your phone is out of reach or there is no estimate.<span style=\"display:block;margin-top:6px\">The days are an estimate from the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a>, which has to be on your watch.</span>"
                 },
                 "defaultValue": "percent",
                 "options": [
