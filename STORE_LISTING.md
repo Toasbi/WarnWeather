@@ -27,7 +27,8 @@ STATUS BARS
 - Weather condition, temperature, air quality, wind, UV, sunrise and sunset, pollen
 - Date, week, city with weather icon, countdown
 - Steps, sleep, distance, heart rate*
-- Watch and phone battery as icon, text or both, with days left from the Muninn app*
+- Watch battery as icon, text or both, with days left from the Muninn app*
+- Phone battery as text, with or without its icon*
 - Name your own bars and place them on any screen*
 
 HEALTH*

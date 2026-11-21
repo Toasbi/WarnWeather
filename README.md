@@ -52,7 +52,8 @@ Icons at the edge of a status bar that appear only when something needs your att
 - Weather condition with a sun or moon icon, temperature, air quality, wind, gusts, UV index, pollen, dew point, air pressure, sunrise and sunset
 - Date, calendar week, city with the current weather's icon, countdown to a date
 - Steps, sleep, distance, heart rate*
-- Watch and phone battery as an icon, as text or both, with the days your watch has left from the Muninn app*
+- Watch battery as an icon, as text or both, with the days it has left from the Muninn app*
+- Phone battery as text, with or without its icon*
 - Short forms when a bar runs out of room (Partly cloudy becomes PCLDY)
 - Name your own bars and place them on any screen*
 

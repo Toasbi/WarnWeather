@@ -192,15 +192,16 @@ app's Phone plugin, or from the Android WebView's battery API where the app has 
 
 **Look (battery slots)**:
 How a battery slot draws, the first row of the dialog its slot's Edit button opens
-(`slot-text.js` batteryLook, phoneBatteryLook), with the weather condition's options. The
-Watch battery is the battery the watch draws and its charge as text after it (Icon + text),
-the text alone (Text) or the battery alone (Icon); the Phone battery is the phone's icon
-before its charge, or the charge alone. The Phone battery's Look is each slot's own setting,
-like a countdown's date, so two slots can differ, and each slot opens a Phone battery dialog
-of its own (`status-line-catalog.js` phoneBatterySheet); the Watch battery sits in one slot,
-so its Look is the item's. One slot item each: the bake picks the wire kind or the icon id by
-the Look (`status-lines.js` packLine, iconFor; the Watch battery's Icon + text is its text's
-kind with the id of the battery the watch draws, `status_line.h` STATUS_ICON_DRAWN_BATTERY).
+(`slot-text.js` batteryLook, phoneBatteryLook). The Watch battery's has the weather
+condition's three options: the battery the watch draws and its charge as text after it
+(Icon + text), the text alone (Text) or the battery alone (Icon). The Phone battery's has two:
+the phone's icon before its charge (Icon + text), or the charge alone (Text). The Phone
+battery's Look is each slot's own setting, like a countdown's date, so two slots can differ,
+and each slot opens a Phone battery dialog of its own (`status-line-catalog.js`
+phoneBatterySheet); the Watch battery sits in one slot, so its Look is the item's. One slot
+item each: the bake picks the wire kind or the icon id by the Look (`status-lines.js`
+packLine, iconFor; the Watch battery's Icon + text is its text's kind with the id of the
+battery the watch draws, `status_line.h` STATUS_ICON_DRAWN_BATTERY).
 _Avoid_: battery percentage slot, phone battery (no icon), which were items of their own
 until 3.3.0.
 
