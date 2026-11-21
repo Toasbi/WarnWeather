@@ -173,7 +173,8 @@ arguments and the scene set are in [DEV.md](DEV.md#store-screenshots).
 1. Capture the five chosen store configs on every platform with
    `scripts/capture-store-shots.sh <version>` ([DEV.md](DEV.md#store-screenshots)).
 2. Upload each platform's five raw PNGs from `screenshot/<version>/store/<platform>/` to that
-   platform in the appstore, which wants at least one screenshot per supported platform.
+   platform in the appstore, which wants at least one screenshot per supported platform. Its
+   banner is `resources/banner-<platform>.png` (720 × 320, one per platform).
 3. Composite the README hero shots from the store captures with `mise composite <version>`
    ([DEV.md](DEV.md#readme-hero-shots), which also says where the device frames come from).
 4. When the UI or the scene set changed, refresh the README showcase GIF: run
