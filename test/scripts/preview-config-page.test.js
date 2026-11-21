@@ -6,15 +6,17 @@ const build = require('../../scripts/build-config-page.js');
 
 test('dev preview page injects the preview palette into userData', () => {
   const html = preview.run({ platform: 'basalt' });
-  // Assert the JSON-stringified userData (only present when the palette is injected),
-  // NOT a bare substring that also matches the CSS class or the blocks.js fallback source.
-  assert.ok(html.indexOf('INJECTED_USERDATA={"palette":{') >= 0,
-    'palette object is injected into INJECTED_USERDATA');
+  // Assert the injected userData itself (only present when the palette is injected), NOT a
+  // bare substring that also matches the CSS class or the blocks.js fallback source. It is
+  // written as a JavaScript literal (config-ui inlineScriptLiteral): bare keys, no blanks.
+  const from = html.indexOf('INJECTED_USERDATA={palette:{');
+  assert.ok(from >= 0, 'palette object is injected into INJECTED_USERDATA');
+  const injected = html.slice(from, html.indexOf(';INJECTED_RETURN=', from));
   // The graph's line/fill colours are NOT in here any more — preview-forecast.js resolves
   // those live from `state` through line-style.js. The rain-tier ramp still is, and it
   // comes from rain-tier.buildPalette, so pin one of its bands.
-  assert.ok(html.indexOf('"rainTiers":[{"from":0,') >= 0,
-    'injected palette carries the watch rain-tier ramp in JSON form (not the source fallback literal)');
+  assert.ok(injected.indexOf('rainTiers:[{from:0,') >= 0,
+    'injected palette carries the watch rain-tier ramp (not the source fallback literal)');
 });
 
 test('parseArgs treats a lone platform name as the platform, not the output path', () => {

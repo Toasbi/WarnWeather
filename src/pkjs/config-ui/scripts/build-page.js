@@ -1,7 +1,7 @@
 // src/pkjs/config-ui/scripts/build-page.js — plain node, no deps.
 var fs = require('fs');
 var path = require('path');
-var inlineScriptJson = require('../index.js').inlineScriptJson;
+var configUi = require('../index.js');
 var LIB = path.join(__dirname, '..', 'lib');
 // ui.js (the shared parts) reads html.js's esc while its body runs and engine.js reads PConf.ui
 // while its own runs, so it sits between them. color.js is the phone app's shared library
@@ -115,13 +115,15 @@ function previewPage(opts) {
   opts = opts || {};
   var page = buildPage({ appFiles: opts.appFiles });
   if (page.indexOf('/*__PCONF_INJECT__*/') === -1) { throw new Error('shell.html missing /*__PCONF_INJECT__*/'); }
-  var json = inlineScriptJson;  // '<' / U+2028-safe inside the inline <script> (see index.js)
+  // '<' / U+2028-safe inside the inline <script>, and written as generateUrl writes them
+  // (see index.js inlineScriptLiteral).
+  var literal = configUi.inlineScriptLiteral;
   var snippet =
-    'INJECTED_SCHEMA='   + json(opts.schema || null)  + ';' +
-    'INJECTED_CFG='      + json(opts.cfg || {})       + ';' +
-    'INJECTED_ENV='      + json(opts.env || null)     + ';' +
-    'INJECTED_USERDATA=' + json(opts.userData || {})  + ';' +
-    'INJECTED_RETURN='   + json(opts.returnTo || '#') + ';';
+    'INJECTED_SCHEMA='   + literal(opts.schema || null)  + ';' +
+    'INJECTED_CFG='      + literal(opts.cfg || {})       + ';' +
+    'INJECTED_ENV='      + literal(opts.env || null)     + ';' +
+    'INJECTED_USERDATA=' + literal(opts.userData || {})  + ';' +
+    'INJECTED_RETURN='   + configUi.inlineScriptJson(opts.returnTo || '#') + ';';
   return page.replace('/*__PCONF_INJECT__*/', function () { return snippet; });
 }
 

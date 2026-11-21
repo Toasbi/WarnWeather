@@ -20,10 +20,11 @@ global.Pebble = { platform: 'basalt' };
 test('decoded HTML contains schema injected with defaults-as-hex', function () {
     var url = settings.generateUrl({ values: settings.getDefaults(), watchInfo: { platform: 'basalt' }, userData: {} });
     var decoded = decodeURIComponent(url.slice('data:text/html;charset=utf-8,'.length));
-    assert.ok(decoded.indexOf('"messageKey":"provider"') !== -1, 'schema injected');
+    // The schema and the values go in as JavaScript literals (config-ui inlineScriptLiteral).
+    assert.ok(decoded.indexOf("messageKey:'provider'") !== -1, 'schema injected');
     // color defaults must be hex strings, not raw integers
-    assert.ok(decoded.indexOf('"colorTime":"#FFFFFF"') !== -1, 'colorTime as hex');
-    assert.ok(decoded.indexOf('"colorSunday":"#FF0055"') !== -1, 'colorSunday as hex');
+    assert.ok(decoded.indexOf("colorTime:'#FFFFFF'") !== -1, 'colorTime as hex');
+    assert.ok(decoded.indexOf("colorSunday:'#FF0055'") !== -1, 'colorSunday as hex');
 });
 
 test('decoded HTML contains app blocks (blocks.js) and PConf.engine.boot()', function () {

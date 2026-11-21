@@ -1,7 +1,8 @@
 // test/page/settings/settings-page-inject.test.js
 // The settings page is one inline <script>, and generateUrl splices schema, stored
-// values and userData into it as JSON. Plain JSON.stringify leaves '<' and U+2028/2029
-// alone, so a stored '</script' (a typed location, a geocoder name, a news body) ended
+// values and userData into it as JavaScript literals (config-ui/index.js
+// inlineScriptLiteral: JSON.stringify's text, requoted). Plain JSON.stringify leaves '<'
+// and U+2028/2029 alone, so a stored '</script' (a typed location, a geocoder name, a news body) ended
 // the element mid-literal and an unclosed '<!--' pushed the tokenizer past the real
 // '</script>' -- boot() never ran, on every open, and the page that could fix the value
 // was the dead one. These tests drive the REAL page (page.generated.js, whose comments

@@ -2,8 +2,10 @@
 // On a real phone the settings page opens as ONE data: URL (config-ui/index.js
 // generateUrl), and Android's WebView refuses to navigate to a URL longer than
 // Chromium's 2 MiB url::kMaxURLChars -- the page just stays blank. The bare page is
-// ~0.8M characters once URI-encoded (build-page.js strips comments and indentation;
-// it was ~1.8M before), and everything index.js adds as userData shares the rest. The raw 7-day dev-stats log used to ride
+// ~1.55M characters once URI-encoded (build-page.js strips comments, blank lines and
+// indentation), the schema ~0.27M (index.js inlineScriptLiteral writes it, the stored values
+// and userData as JavaScript literals; as JSON the schema alone was ~0.34M), and everything
+// index.js adds as userData shares the rest. The raw 7-day dev-stats log used to ride
 // along as JSON-in-JSON (~240 URL characters per event): at a 5-10 min update
 // interval it crossed the cap within days, and the toggle that stops recording lived
 // on the page that no longer opened.
@@ -123,7 +125,7 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
   const decoded = decodeURIComponent(url);
   assert.ok(decoded.indexOf('"lastSeenId":150') !== -1 || decoded.indexOf('\\"lastSeenId\\":150') !== -1,
     'the news cache really rode along');
-  assert.ok(decoded.indexOf('"weatherTabCache":{') !== -1, 'the Weather tab copy really rode along');
+  assert.ok(decoded.indexOf('weatherTabCache:{') !== -1, 'the Weather tab copy really rode along');
   assert.ok(url.length <= URL_CAP - HEADROOM,
     'settings URL is ' + url.length + ' chars; Android WebView refuses more than ' + URL_CAP
     + ' (keep ' + HEADROOM + ' spare)');

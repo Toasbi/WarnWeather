@@ -10,6 +10,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const PKJS_DIR = path.resolve(__dirname, '..', '..', '../src/pkjs') + path.sep;
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys');
@@ -74,7 +75,8 @@ function bootAndOpenSettings(store) {
   const html = decodeURIComponent(opened.replace(/^data:text\/html;charset=utf-8,/, ''));
   const m = /INJECTED_CFG=(\{[\s\S]*?\});INJECTED_ENV=/.exec(html);
   assert.ok(m, 'INJECTED_CFG found in the page');
-  return { cfg: JSON.parse(m[1]), listeners };
+  // A JavaScript literal, not JSON (config-ui inlineScriptLiteral): evaluated as the page does.
+  return { cfg: JSON.parse(JSON.stringify(vm.runInNewContext('(' + m[1] + ')'))), listeners };
 }
 
 /**

@@ -194,8 +194,10 @@ README.md.
     (`phone/phone_state`, Muninn's `muninn/stats`). One that does should get an entry
     with a `reason`, or the phone asks with nothing but the permission's name.
 - The settings page reaches the phone as one `data:` URL, which Android's WebView refuses
-  past 2 MiB, and it has only a few KB to spare: page code, schema text and anything added
-  to `userData` all cost that budget (`test/settings/adapter/settings-url-budget.test.js`).
+  past 2 MiB: page code, schema text and anything added to `userData` all cost that budget
+  (`test/settings/adapter/settings-url-budget.test.js`). A `"` costs three URL characters, so
+  the schema, the stored values and `userData` are written into the page as JavaScript
+  literals, not JSON (`config-ui/index.js` `inlineScriptLiteral`).
 - Add a new telemetry setting in two places, or it is silently dropped: the watch-side
   snapshot (`buildSettingsSnapshot` in `src/pkjs/telemetry/application/telemetry-settings.js`)
   and the Deno `.strip()` schema in

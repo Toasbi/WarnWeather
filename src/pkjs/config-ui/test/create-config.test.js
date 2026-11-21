@@ -53,9 +53,10 @@ test('generateUrl: data URL, colors int->hex, env from watchInfo, markers handle
   const decoded = decodeURIComponent(url);
   assert.equal(decoded.indexOf('/*__PCONF_INJECT__*/'), -1, 'inject marker consumed');
   assert.ok(decoded.indexOf('/*__PCONF_CONCAT__*/') !== -1, 'concat marker preserved');
-  assert.ok(decoded.indexOf('"tint":"#FF0055"') !== -1, 'color injected as hex');
-  assert.ok(decoded.indexOf('"color":true') !== -1, 'env: basalt = color');
-  assert.ok(decoded.indexOf('"messageKey":"provider"') !== -1, 'schema injected');
+  // The values go in as JavaScript literals (inline-literal.test.js): bare keys, single quotes.
+  assert.ok(decoded.indexOf("tint:'#FF0055'") !== -1, 'color injected as hex');
+  assert.ok(decoded.indexOf('color:true') !== -1, 'env: basalt = color');
+  assert.ok(decoded.indexOf("messageKey:'provider'") !== -1, 'schema injected');
 });
 
 test('Layer-1 Clay-compat: getSettings persists, setSettings RMW, meta.userData + no-arg generateUrl', () => {
@@ -71,6 +72,6 @@ test('Layer-1 Clay-compat: getSettings persists, setSettings RMW, meta.userData 
   // no-arg generateUrl reads values from storage + userData from meta.userData
   inst.meta.userData = { lastFetchSuccess: 'X' };
   const decoded = decodeURIComponent(inst.generateUrl({ watchInfo: { platform: 'basalt' } }));
-  assert.ok(decoded.indexOf('"provider":"dwd"') !== -1, 'values pulled from storage');
-  assert.ok(decoded.indexOf('"lastFetchSuccess":"X"') !== -1, 'userData pulled from meta');
+  assert.ok(decoded.indexOf("provider:'dwd'") !== -1, 'values pulled from storage');
+  assert.ok(decoded.indexOf("lastFetchSuccess:'X'") !== -1, 'userData pulled from meta');
 });

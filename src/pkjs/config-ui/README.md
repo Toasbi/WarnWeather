@@ -198,9 +198,16 @@ configUi.deriveDefaults(schema)      // { messageKey: defaultValue, … } — co
 configUi.deriveColorKeys(schema)     // ['key', …] — all type:'color' messageKeys
 
 // Page injection
+configUi.inlineScriptLiteral(value)  // the value as a JavaScript literal: JSON.stringify's text
+                                     // with bare keys and single-quoted strings ('"' costs the
+                                     // page's data: URL three characters, so a schema costs
+                                     // about a fifth less this way), and '<', U+2028/2029
+                                     // escaped. generateUrl and scripts/build-page.js
+                                     // previewPage write the schema, the stored values, the
+                                     // env and userData with it
 configUi.inlineScriptJson(value)     // JSON.stringify with '<', U+2028/2029 escaped — safe to
-                                     // splice into the page's inline <script> (generateUrl and
-                                     // scripts/build-page.js previewPage both use it)
+                                     // splice into the page's inline <script> (the return
+                                     // target, whose placeholder the emulator helper fills)
 ```
 
 ## Schema format
