@@ -41,6 +41,31 @@ test('aplite\'s date slot keeps the two original formats whatever is picked', ()
   assert.equal(sample('date', S, { fullDate: true, env }), '07.09.26');
 });
 
+// The date slot brings its short form, the shorter format its format falls back to
+// (date_format.h), which the watch draws where the slot cannot show the date whole, and it
+// gives way only where its own text is cut (`own`). None on aplite, whose lean twin cuts it.
+test('the date slot brings its shorter format as its short form, in the region\'s order', () => {
+  const basalt = { platform: 'basalt' };
+  const date = (S, fullDate, env) => {
+    const slot = preview.barSlots(Object.assign({ statusForecastMid: 'date' }, S), env || basalt, 'forecast',
+      fullDate, SEP_7_2026)[1];
+    return [slot.text, slot.alt, slot.own];
+  };
+  assert.deepEqual(date({}, false), ['Sep 2026', 'Sep', true]);
+  assert.deepEqual(date({ dateSlotMonthFormat: 'iso' }, false), ['2026-09', '09.26', true]);
+  assert.deepEqual(date({ dateSlotMonthFormat: 'noyear' }, false), ['Sep', '', true], 'none shorter');
+  assert.deepEqual(date({ holidayCountry: 'DE', dateSlotFullFormat: 'long' }, true), ['07.09.2026', '7.9.', true]);
+  assert.deepEqual(date({ holidayCountry: 'US', dateSlotFullFormat: 'long' }, true), ['09.07.2026', '9.7.', true]);
+  assert.deepEqual(date({ holidayCountry: 'US', dateSlotFullFormat: 'textyear' }, true),
+    ['Sep 7, 2026', 'Sep 7', true]);
+  assert.deepEqual(date({ holidayCountry: 'DE', dateSlotFullFormat: 'text' }, true), ['7 Sep', '', true]);
+  assert.deepEqual(date({ holidayCountry: 'DE' }, true, { platform: 'aplite' }), ['07.09.26', '', true],
+    'aplite: none');
+  // Another slot brings what its text carries, and gives way as before.
+  const city = preview.barSlots({ statusForecastMid: 'city' }, basalt, 'forecast', false, SEP_7_2026)[1];
+  assert.deepEqual([city.alt, city.own], ['', false]);
+});
+
 test('the date and week follow today, not a fixed sample', () => {
   const now = new Date();
   assert.equal(preview.sample('date', { dateSlotMonthFormat: 'dots' }, { fullDate: false }),

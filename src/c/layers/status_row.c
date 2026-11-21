@@ -184,21 +184,20 @@ static GFont row_font_bold(uint8_t tier, uint8_t line_id) {
     }
 }
 
-static void format_status_date(bool full_date, char *buf, size_t cap) {
+// The date into `buf`, and into `alt` its short form: the shorter format of the list its
+// format falls back to where the slot cannot show it whole (date_format.h date_format_slot),
+// "" where none is shorter. Both from one read of the clock, so they agree across midnight;
+// the watch formats both, so they cost no wire byte. Calendar views already show the day, so
+// the slot carries month + year there; without a calendar it carries the full date, in the
+// user's chosen format (Date slot edit sheet), day and month in the phone's order
+// (config.date_month_first, US -> month first), not the watch system locale.
+static void format_status_date(bool full_date, char *buf, size_t cap, char *alt,
+                               size_t alt_cap) {
     struct tm tm_now = watch_services_localtime();
     const Config *cfg = config_get();
-    if (!full_date) {
-        // Calendar views already show the day; the slot only needs month + year.
-        date_format_month_year(buf, cap, &tm_now,
-                               cfg ? cfg->date_month_format : DATE_MONTH_AUTO);
-        return;
-    }
-    // No-calendar view: the slot carries the full date, in the user's chosen
-    // format (Date slot edit sheet). Day/month order comes from the phone
-    // (config.date_month_first, US -> month first), not the watch system locale.
-    date_format_full(buf, cap, &tm_now,
-                     cfg ? cfg->date_full_format : DATE_FULL_AUTO,
-                     cfg && cfg->date_month_first);
+    const uint8_t fmt = !cfg ? (full_date ? DATE_FULL_AUTO : DATE_MONTH_AUTO)
+        : full_date ? cfg->date_full_format : cfg->date_month_format;
+    date_format_slot(buf, cap, alt, alt_cap, &tm_now, full_date, fmt, cfg && cfg->date_month_first);
 }
 
 #if defined(PBL_HEALTH)
@@ -221,11 +220,8 @@ static void format_distance_value(char *buf, size_t cap, bool imperial) {
 }
 #endif
 
-static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, size_t cap) {
+static void format_live_value(uint8_t kind, char *buf, size_t cap) {
     switch (kind) {
-        case SLOT_LIVE_DATE:
-            format_status_date(row->full_date, buf, cap);
-            return;
         case SLOT_LIVE_WEEK: {
             struct tm tm_now = watch_services_localtime();
             snprintf(buf, cap, "W%d",
@@ -390,13 +386,15 @@ static int8_t resolve_slot_text(const StatusRow *row, const StatusSlotView *slot
         // Glyph battery is icon-only; SLOT_LIVE_BATTERY_PCT must NOT join this
         // arm — it renders its charge as text via format_live_value below.
         buf[0] = '\0';
+    } else if (slot->kind == SLOT_LIVE_DATE) {
+        format_status_date(row->full_date, buf, cap, alt, alt_cap);
     } else if (shows_battery_days(slot)) {
         // The days as the phone baked them, with the watch's own percentage where the
         // phone left its place ("83%|5d").
         status_battery_text(buf, cap, slot->value, slot->value_len,
                             watch_services_battery_state().charge_percent);
     } else {
-        format_live_value(row, slot->kind, buf, cap);
+        format_live_value(slot->kind, buf, cap);
     }
     return -1;
 }
@@ -487,11 +485,15 @@ static int slot_health_value(int kind) {
 // glyph loads onto every minute tick's refresh. Each DRAWING caller runs
 // ensure_glyphs() and then measures with this struct's `font` — the same font it
 // goes on to draw with, which is the whole reason the font is resolved here.
+// A slot's short form: the condition's as the phone baked it (STATUS_TEXT_ALT_MAX), or the
+// date's, which the watch formats (date_format.h DATE_FORMAT_SHORT_MAX).
+#define ROW_ALT_MAX (DATE_FORMAT_SHORT_MAX > STATUS_TEXT_ALT_MAX ? DATE_FORMAT_SHORT_MAX \
+                                                                  : STATUS_TEXT_ALT_MAX)
 typedef struct {
     StatusSlotView slot;                    // the packed slot
     GFont          font;                    // regular, or the bold companion
     char    text[STATUS_TEXT_MID_MAX + 1];  // direction sentinel already stripped
-    char    alt[STATUS_TEXT_ALT_MAX + 1];   // its short form, if it brought one ("")
+    char    alt[ROW_ALT_MAX + 1];           // its short form, if it brought one ("")
     int8_t  dir;                            // wind sector 0..15, -1 = none
     uint8_t level;                          // ThreshLevel, gated on the Highlight switch
     ThreshLook look;                        // box, bold bit, RAW accent byte at `level`
@@ -805,20 +807,23 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
     return GRect((int16_t)(x0 + lo - 2), v.y, (int16_t)((hi - lo) + 4), v.h);
 }
 
-// The short forms the slots brought, swapped in where the plain row would cut or hide a
-// text (status_row_layout.h status_row_swap_short_forms has the rule). Judged on the plain
+// The short forms the slots brought (the condition's as the phone baked it, the date's as
+// format_status_date formatted it), swapped in where the plain row would cut or hide a text
+// (status_row_layout.h status_row_swap_short_forms has the rule). Judged on the plain
 // layout, before On demand makes room, so the ladder starts from the form the slot draws; a
 // slot that swaps has no short member left (`alt` is spent).
 static void swap_in_short_forms(const StatusRow *row, ResolvedSlot slots[STATUS_SLOT_COUNT],
                                 StatusSlotMeasure m[STATUS_SLOT_COUNT],
                                 StatusSlotPlace plain[STATUS_SLOT_COUNT], int16_t content_w) {
     int16_t alt_w[STATUS_SLOT_COUNT];
+    uint8_t own = 0;   // the date: its short form only where its own text is cut
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         alt_w[i] = slots[i].alt[0] != '\0'
             ? status_row_text_w(slots[i].alt, slots[i].font, content_w, row->bounds.size.h)
             : -1;
+        if (slots[i].slot.kind == SLOT_LIVE_DATE) { own |= (uint8_t)(1u << i); }
     }
-    uint8_t swapped = status_row_swap_short_forms(content_w, m, alt_w, plain);
+    uint8_t swapped = status_row_swap_short_forms(content_w, m, alt_w, own, plain);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!((swapped >> i) & 1u)) { continue; }
         ResolvedSlot *s = &slots[i];

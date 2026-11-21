@@ -229,6 +229,24 @@ and a half hours (longer when that read falls in the Night battery saver's windo
 estimate is owed to the watch, not sent at once: the re-bake's next tick sends it
 (`status-rebake.js` oweStatus).
 
+**Short form (status slot)**:
+The shorter text a slot draws where its bar has no room for its own. Two items have one. The
+weather condition's is its code ("PCLDY" for Partly cloudy), which the phone bakes after the
+name (`status_line.h` STATUS_TEXT_ALT_SEP). The date's is the shorter format of the list its
+format falls back to, which the watch formats with the date (`date_format.h` date_format_slot):
+the month names drop the year ("Nov 2026" to "Nov"), the numeric month and year take the
+two-digit year ("11.2026" to "11.26"), the numeric full dates take the day and month alone
+("21.11.26" and "2026-11-21" to "21.11.") and the written-out date drops its year ("21. Nov
+2026" to "21 Nov"). A format with none shorter has none, and no short form is a bare day. The
+row swaps a short form in before it cuts a text with an ellipsis (`status_row_layout.h`
+status_row_swap_short_forms): a side slot's condition gives way as soon as any text in its row
+is cut, while the date gives way only where its own text is cut, so a side slot's date keeps
+its width as every side slot does. On demand takes the short form as the slot's first short
+member (`status_short_text.h`), and the settings page's pictures swap in the same ones
+(`preview-watch.js` swapShortForms). The Classic's lean row swaps in none: the phone sends it
+the condition's code alone, and it cuts the date.
+_Avoid_: abbreviation.
+
 **Feature tip**:
 One entry of the settings page's "New in this update" card: a feature the user has to switch
 on, how to do it, and the dialog or tab its Show me opens (`notices/domain/feature-tips.js`).

@@ -512,12 +512,14 @@
      * watch does it (status_row_layout.c status_row_swap_short_forms, which
      * scripts/check-row-swap-lockstep.js holds this to): a slot that brought one draws it
      * where the plain row would cut or hide a text, an edge's whole name giving way whenever
-     * any text is cut, the wider name first, then the middle where its own is cut, each swap
-     * laid out again. A slot that swaps takes its short form's width as its `tw`.
+     * any text is cut (an `own` slot's, the date's, only where its own text is cut), the wider
+     * name first, then the middle where its own is cut, each swap laid out again. A slot that
+     * swaps takes its short form's width as its `tw`.
      * @param {number} cw The row's content width.
-     * @param {!Array<?{iw: number, tw: number, sw: number, aw: number}>} m Left, middle and
-     *     right slots' measures (null: empty); `aw` the short form's text width, negative when
-     *     the slot brought none.
+     * @param {!Array<?{iw: number, tw: number, sw: number, aw: number, own: boolean}>} m Left,
+     *     middle and right slots' measures (null: empty); `aw` the short form's text width,
+     *     negative when the slot brought none; `own` whether it gives way only where its own
+     *     text is cut.
      * @returns {{swapped: number, placed: !Array<?{x: number, tw: number}>}} The slots that
      *     swapped, bit i for slot i, and where each goes (placeSlots).
      */
@@ -529,7 +531,8 @@
             if (!m.some(function (it, i) { return cut(it, placed[i]); })) { break; }
             var pick = -1;
             [0, 2].forEach(function (i) {
-                if (left[i] && (pick < 0 || m[i].tw > m[pick].tw)) { pick = i; }
+                var may = left[i] && (!m[i].own || cut(m[i], placed[i]));
+                if (may && (pick < 0 || m[i].tw > m[pick].tw)) { pick = i; }
             });
             if (pick < 0 && left[1] && cut(m[1], placed[1])) { pick = 1; }
             if (pick < 0) { break; }
@@ -568,7 +571,7 @@
             var batteryW = c.text ? BATTERY.w - BATTERY.lane : BATTERY.w;
             slots[at[c.pos]] = { label: c.text || '', alt: c.alt, glyph: glyph, icon: icon, drawing: drawing,
                 iw: glyph ? batteryW : (drawing ? drawing.w : (icon ? iconH : 0)), tw: c.text ? WT.width(ch, false, c.text) : 0,
-                sw: c.arrow ? arrowW : 0, aw: c.alt ? WT.width(ch, false, c.alt) : -1 };
+                sw: c.arrow ? arrowW : 0, aw: c.alt ? WT.width(ch, false, c.alt) : -1, own: Boolean(c.own) };
         });
         var swap = swapShortForms(cw, slots);
         slots.forEach(function (it, i) {

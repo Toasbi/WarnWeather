@@ -27,6 +27,13 @@ static void expect_str(const char *name, const char *got, const char *want) {
     }
 }
 
+static void expect_true(const char *name, bool ok) {
+    if (!ok) {
+        printf("FAIL %s\n", name);
+        s_failures++;
+    }
+}
+
 // 2026-09-07 (a Monday, though no format prints the weekday).
 static struct tm sample_tm(void) {
     struct tm t;
@@ -138,6 +145,100 @@ static void torn_tm_is_clamped(void) {
     expect_str("clamped month noyear", buf, "Jan");
 }
 
+// Each format's short form, the shorter format of the list it falls back to where its slot
+// cannot show it whole (date_format.h), as the watch prints it for the sample day: "" where
+// none is shorter. test/page/calendar/date-format-contract.test.js holds the page's and the
+// phone's copy (date-format.js) to these pins, both orders.
+static void short_forms(void) {
+    struct tm t = sample_tm();
+    char buf[CAP];
+    static const struct { uint8_t fmt; const char *name; const char *want; } MONTH[] = {
+        { DATE_MONTH_AUTO, "short month auto", "Sep" },
+        { DATE_MONTH_NAME, "short month name", "Sep" },
+        { DATE_MONTH_DOTS, "short month dots", "09.26" },
+        { DATE_MONTH_SLASH, "short month slash", "09.26" },
+        { DATE_MONTH_ISO, "short month iso", "09.26" },
+        { DATE_MONTH_DOTSYY, "short month dotsyy", "" },
+        { DATE_MONTH_NOYEAR, "short month noyear", "" },
+        { 250, "short month unknown->auto", "Sep" },
+    };
+    char alt[DATE_FORMAT_SHORT_MAX + 1];
+    char whole[CAP];
+    for (size_t i = 0; i < sizeof(MONTH) / sizeof(MONTH[0]); i++) {
+        strcpy(alt, "x");
+        date_format_slot(buf, sizeof(buf), alt, sizeof(alt), &t, false, MONTH[i].fmt, false);
+        expect_str(MONTH[i].name, alt, MONTH[i].want);
+        // The date itself as its format prints it.
+        date_format_month_year(whole, sizeof(whole), &t, MONTH[i].fmt);
+        expect_str("short month: the date", buf, whole);
+    }
+    static const struct {
+        uint8_t fmt;
+        bool month_first;
+        const char *name;
+        const char *want;
+    } FULL[] = {
+        { DATE_FULL_AUTO, false, "short full auto", "7.9." },
+        { DATE_FULL_LONG, false, "short full long", "7.9." },
+        { DATE_FULL_NOYEAR, false, "short full noyear", "" },
+        { DATE_FULL_SLASH, false, "short full slash", "7.9." },
+        { DATE_FULL_ISO, false, "short full iso", "7.9." },
+        { DATE_FULL_TEXT, false, "short full text", "" },
+        { DATE_FULL_TEXTYEAR, false, "short full textyear", "7 Sep" },
+        { 250, false, "short full unknown->auto", "7.9." },
+        { DATE_FULL_AUTO, true, "short full auto US", "9.7." },
+        { DATE_FULL_LONG, true, "short full long US", "9.7." },
+        { DATE_FULL_NOYEAR, true, "short full noyear US", "" },
+        { DATE_FULL_SLASH, true, "short full slash US", "9.7." },
+        { DATE_FULL_ISO, true, "short full iso US", "9.7." },
+        { DATE_FULL_TEXT, true, "short full text US", "" },
+        { DATE_FULL_TEXTYEAR, true, "short full textyear US", "Sep 7" },
+    };
+    for (size_t i = 0; i < sizeof(FULL) / sizeof(FULL[0]); i++) {
+        strcpy(alt, "x");
+        date_format_slot(buf, sizeof(buf), alt, sizeof(alt), &t, true, FULL[i].fmt,
+                         FULL[i].month_first);
+        expect_str(FULL[i].name, alt, FULL[i].want);
+        date_format_full(whole, sizeof(whole), &t, FULL[i].fmt, FULL[i].month_first);
+        expect_str("short full: the date", buf, whole);
+    }
+    // Every short form is a format of its own list, and none falls back again.
+    for (int fmt = DATE_MONTH_AUTO; fmt <= DATE_MONTH_NOYEAR; fmt++) {
+        const uint8_t to = date_format_month_short((uint8_t)fmt);
+        expect_true("short month in the list", to == DATE_FORMAT_NONE || to <= DATE_MONTH_NOYEAR);
+        expect_true("short month once", to == DATE_FORMAT_NONE
+                    || date_format_month_short(to) == DATE_FORMAT_NONE);
+    }
+    for (int fmt = DATE_FULL_AUTO; fmt <= DATE_FULL_TEXTYEAR; fmt++) {
+        const uint8_t to = date_format_full_short((uint8_t)fmt);
+        expect_true("short full in the list", to == DATE_FORMAT_NONE || to <= DATE_FULL_TEXTYEAR);
+        expect_true("short full once", to == DATE_FORMAT_NONE
+                    || date_format_full_short(to) == DATE_FORMAT_NONE);
+    }
+    // The longest short form, every day of every month in both orders, fits the slot's
+    // short form buffer (DATE_FORMAT_SHORT_MAX), formatted into a roomier one.
+    size_t longest = 0;
+    for (int fmt = DATE_FULL_AUTO; fmt <= DATE_FULL_TEXTYEAR; fmt++) {
+        for (int c = 0; c < 2 * 12 * 31; c++) {
+            struct tm d = sample_tm();
+            d.tm_mday = 1 + c % 31;
+            d.tm_mon = (c / 31) % 12;
+            date_format_slot(whole, sizeof(whole), buf, sizeof(buf), &d, true, (uint8_t)fmt,
+                             c >= 12 * 31);
+            if (strlen(buf) > longest) { longest = strlen(buf); }
+        }
+    }
+    for (int fmt = DATE_MONTH_AUTO; fmt <= DATE_MONTH_NOYEAR; fmt++) {
+        for (int mon = 0; mon < 12; mon++) {
+            struct tm d = sample_tm();
+            d.tm_mon = mon;
+            date_format_slot(whole, sizeof(whole), buf, sizeof(buf), &d, false, (uint8_t)fmt, false);
+            if (strlen(buf) > longest) { longest = strlen(buf); }
+        }
+    }
+    expect_true("the longest short form is DATE_FORMAT_SHORT_MAX", longest == DATE_FORMAT_SHORT_MAX);
+}
+
 static void longest_strings_fit_the_slot_cap(void) {
     // Widest outputs against the 20 B resolved-slot buffer: none may truncate.
     struct tm t = sample_tm();
@@ -153,6 +254,7 @@ int main(void) {
     full_formats_day_first();
     full_formats_month_first();
     torn_tm_is_clamped();
+    short_forms();
     longest_strings_fit_the_slot_cap();
     if (s_failures) { printf("%d failure(s)\n", s_failures); return 1; }
     printf("date_format_test OK\n");

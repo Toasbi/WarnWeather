@@ -34,18 +34,42 @@ static void expect_true(const char *name, int cond) {
 
 // The members of one slot's family (v = 1, 2, … up to the first 0), printed as above
 // into got[] (at most `max`); returns how many.
-static int members(uint8_t kind, uint8_t icon, const char *full, bool suffix, bool charging,
-                   char got[][48], int max) {
+static int members_with(uint8_t kind, uint8_t icon, const char *full, const char *alt,
+                        bool suffix, bool charging, char got[][48], int max) {
     int n = 0;
     for (; n < max; n++) {
         char text[STATUS_SHORT_CAP];
-        uint8_t flags = status_short_member(kind, icon, full, NULL, suffix, charging,
+        uint8_t flags = status_short_member(kind, icon, full, alt, suffix, charging,
                                             (uint8_t)(n + 1), text, sizeof(text));
         if (!flags) { break; }
         snprintf(got[n], 48, "%s%s%s%s", text, (flags & SST_NO_SUFFIX) ? " -arrow" : "",
                  (flags & SST_NO_LANE) ? " -lane" : "", (flags & SST_ELASTIC) ? " ~" : "");
     }
     return n;
+}
+
+static int members(uint8_t kind, uint8_t icon, const char *full, bool suffix, bool charging,
+                   char got[][48], int max) {
+    return members_with(kind, icon, full, NULL, suffix, charging, got, max);
+}
+
+// The family of one slot that brought the short form `alt` (NULL: none), against `want`.
+static void family_with(const char *name, uint8_t kind, uint8_t icon, const char *full,
+                        const char *alt, const char *const *want) {
+    char got[8][48];
+    int n = members_with(kind, icon, full, alt, false, false, got, 8);
+    int nwant = 0;
+    while (want[nwant]) { nwant++; }
+    if (n != nwant) {
+        printf("FAIL %s: %d members, want %d\n", name, n, nwant);
+        s_failures++;
+        return;
+    }
+    for (int i = 0; i < n; i++) {
+        char label[96];
+        snprintf(label, sizeof(label), "%s [%d]", name, i);
+        expect_str(label, got[i], want[i]);
+    }
 }
 
 // The family of one slot against `want` (NULL-terminated, widest first).
@@ -206,94 +230,102 @@ static struct tm sample_tm(int mday) {
     return t;
 }
 
-// A calendar view's month + year: only the year shortens, the month never (§10.6).
+// A calendar view's month + year: the date's one short member is the shorter format its
+// format falls back to (date_format.h date_format_month_short), which status_row.c hands
+// over as the slot's short form; a format with none shorter has none. The month stays.
 static void date_calendar(void) {
     static const struct {
         uint8_t fmt;
         const char *full;
-        const char *year;   // NULL: no short form
+        const char *shorter;   // NULL: none shorter
     } CASES[] = {
-        { DATE_MONTH_AUTO, "Sep 2026", "Sep '26" },
-        { DATE_MONTH_NAME, "September 2026", "September '26" },
+        { DATE_MONTH_AUTO, "Sep 2026", "Sep" },
+        { DATE_MONTH_NAME, "September 2026", "Sep" },
         { DATE_MONTH_DOTS, "09.2026", "09.26" },
-        { DATE_MONTH_SLASH, "09/2026", "09/26" },
-        { DATE_MONTH_ISO, "2026-09", NULL },
+        { DATE_MONTH_SLASH, "09/2026", "09.26" },
+        { DATE_MONTH_ISO, "2026-09", "09.26" },
         { DATE_MONTH_DOTSYY, "09.26", NULL },
         { DATE_MONTH_NOYEAR, "Sep", NULL },
     };
     struct tm t = sample_tm(7);
     for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
         char full[STATUS_SHORT_CAP];
-        date_format_month_year(full, sizeof(full), &t, CASES[i].fmt);
+        char alt[DATE_FORMAT_SHORT_MAX + 1];
+        date_format_slot(full, sizeof(full), alt, sizeof(alt), &t, false, CASES[i].fmt, false);
         char name[64];
         snprintf(name, sizeof(name), "date calendar %s", CASES[i].full);
         expect_str(name, full, CASES[i].full);
-        if (CASES[i].year) {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false,
-                   FAMILY(CASES[i].year));
+        if (CASES[i].shorter) {
+            family_with(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, alt, FAMILY(CASES[i].shorter));
         } else {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false, NONE);
+            family_with(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, alt, NONE);
         }
+        // Without its short form the date has no member: no rule shortens it on its own.
+        family_with(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, NULL, NONE);
     }
 }
 
-// Outside a calendar view: a four-digit year shortens (W11), in both day/month orders,
-// and that is all — every member keeps the month, so a date with no year to shorten has
-// no short form and hides at its turn. No format ends on a bare day number ("2" reads
-// as nothing; owner, 2026-10-02).
+// Outside a calendar view: the full date's one short member is its shorter format
+// (date_format.h date_format_full_short), in both day/month orders, and that is all —
+// every member keeps the month, so no format ends on a bare day number ("2" reads as
+// nothing; owner, 2026-10-02).
 static void date_no_calendar(void) {
     static const struct {
         uint8_t fmt;
         bool month_first;
         const char *full;
-        const char *year;   // NULL: no short form
+        const char *shorter;   // NULL: none shorter
     } CASES[] = {
-        { DATE_FULL_AUTO, false, "07.09.26", NULL },
-        { DATE_FULL_AUTO, true, "09.07.26", NULL },
-        { DATE_FULL_LONG, false, "07.09.2026", "07.09.26" },
-        { DATE_FULL_LONG, true, "09.07.2026", "09.07.26" },
+        { DATE_FULL_AUTO, false, "07.09.26", "7.9." },
+        { DATE_FULL_AUTO, true, "09.07.26", "9.7." },
+        { DATE_FULL_LONG, false, "07.09.2026", "7.9." },
+        { DATE_FULL_LONG, true, "09.07.2026", "9.7." },
         { DATE_FULL_NOYEAR, false, "7.9.", NULL },
         { DATE_FULL_NOYEAR, true, "9.7.", NULL },
-        { DATE_FULL_SLASH, false, "7/9/26", NULL },
-        { DATE_FULL_SLASH, true, "9/7/26", NULL },
-        { DATE_FULL_ISO, false, "2026-09-07", NULL },
-        { DATE_FULL_ISO, true, "2026-09-07", NULL },
+        { DATE_FULL_SLASH, false, "7/9/26", "7.9." },
+        { DATE_FULL_SLASH, true, "9/7/26", "9.7." },
+        { DATE_FULL_ISO, false, "2026-09-07", "7.9." },
+        { DATE_FULL_ISO, true, "2026-09-07", "9.7." },
         { DATE_FULL_TEXT, false, "7 Sep", NULL },
         { DATE_FULL_TEXT, true, "Sep 7", NULL },
-        { DATE_FULL_TEXTYEAR, false, "7. Sep 2026", "7. Sep '26" },
-        { DATE_FULL_TEXTYEAR, true, "Sep 7, 2026", "Sep 7, '26" },
+        { DATE_FULL_TEXTYEAR, false, "7. Sep 2026", "7 Sep" },
+        { DATE_FULL_TEXTYEAR, true, "Sep 7, 2026", "Sep 7" },
     };
     struct tm t = sample_tm(7);
     for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
         char full[STATUS_SHORT_CAP];
-        date_format_full(full, sizeof(full), &t, CASES[i].fmt, CASES[i].month_first);
+        char alt[DATE_FORMAT_SHORT_MAX + 1];
+        date_format_slot(full, sizeof(full), alt, sizeof(alt), &t, true, CASES[i].fmt,
+                         CASES[i].month_first);
         char name[64];
         snprintf(name, sizeof(name), "date no-calendar %s", CASES[i].full);
         expect_str(name, full, CASES[i].full);
-        if (CASES[i].year) {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false,
-                   FAMILY(CASES[i].year));
+        if (CASES[i].shorter) {
+            family_with(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, alt, FAMILY(CASES[i].shorter));
         } else {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false, NONE);
+            family_with(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, alt, NONE);
         }
+        family_with(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, NULL, NONE);
     }
-    // The owner's date, 2 October 2026 (Auto): no short form, so no "2".
+    // The owner's date, 2 October 2026 (Auto): "2.10.", never "2".
     struct tm owner = sample_tm(2);
     owner.tm_mon = 9;
     char full[STATUS_SHORT_CAP];
-    date_format_full(full, sizeof(full), &owner, DATE_FULL_AUTO, false);
+    char alt[DATE_FORMAT_SHORT_MAX + 1];
+    date_format_slot(full, sizeof(full), alt, sizeof(alt), &owner, true, DATE_FULL_AUTO, false);
     expect_str("date no-calendar owner", full, "02.10.26");
-    family("date no-calendar owner", SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false,
-           NONE);
-    // Every format, both orders, every day of every month: at most the year member, and
-    // no member is a bare number.
+    family_with("date no-calendar owner", SLOT_LIVE_DATE, STATUS_ICON_NONE, full, alt,
+                FAMILY("2.10."));
+    // Every format, both orders, every day of every month: at most the one member, and no
+    // member is a bare number.
     for (int fmt = DATE_FULL_AUTO; fmt <= DATE_FULL_TEXTYEAR; fmt++) {
         for (int c = 0; c < 2 * 12 * 31; c++) {
             struct tm d = sample_tm(1 + c % 31);
             d.tm_mon = (c / 31) % 12;
-            date_format_full(full, sizeof(full), &d, (uint8_t)fmt, c >= 12 * 31);
+            date_format_slot(full, sizeof(full), alt, sizeof(alt), &d, true, (uint8_t)fmt,
+                             c >= 12 * 31);
             char got[8][48];
-            int n = members(SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false, got, 8);
+            int n = members_with(SLOT_LIVE_DATE, STATUS_ICON_NONE, full, alt, false, false, got, 8);
             char name[64];
             snprintf(name, sizeof(name), "date no-calendar sweep %s", full);
             expect_true(name, n <= 1);

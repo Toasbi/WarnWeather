@@ -17,6 +17,7 @@ const WL = require('../../../src/pkjs/page/layout/watch-layout.js');
 const plat = require('../../../src/pkjs/config-ui/lib/platform.js');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 const pw = require('../../../src/pkjs/page/layout/preview-watch.js');
+const dateFormat = require('../../../src/pkjs/calendar/domain/date-format.js');
 const onbuild = require('../../../src/pkjs/page/settings/onbuild.js');
 
 /**
@@ -304,6 +305,32 @@ test('the Status bars tab\'s bar pictures print the short form where the watch d
   });
   pictures('emery').forEach((html) => {
     assert.ok(html.indexOf('Partly cloudy') !== -1 && html.indexOf('Berlin') !== -1, 'emery: both whole');
+  });
+});
+
+// The date's short form, the shorter format its format falls back to (date_format.h): beside the
+// Icon + text battery's "80%|5d" the default Watch bar of the 144 px watches leaves the date 31
+// px, too few for any month's "Jul 2026" (46 px) to "May 2026" (56), so the watch draws the month
+// alone, and so do the Status bars tab's pictures. The Pebble Time 2's wider bar keeps the whole
+// date (72 px for its 56 to 66).
+test('the Status bars tab\'s bar pictures print the date\'s short form where the watch does', () => {
+  const sbp = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
+  const S = settings({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off', statusTopLeft: 'aqi',
+    statusTopMid: 'date', statusTopRight: 'battery', batterySlotLook: 'both', batterySlotDisplay: 'both',
+    dateSlotMonthFormat: 'auto' });
+  const now = new Date();
+  const date = dateFormat.formatMonthYear(now, 'auto'), month = dateFormat.formatMonthYearShort(now, 'auto');
+  const pictures = (platform) => {
+    const env = plat.computeEnv({ platform: platform });
+    return [sbp.barPicture(S, env, 'top', { big: true }), sbp.statusBarsPreview(S, env)];
+  };
+  pictures('basalt').forEach((html) => {
+    assert.ok(html.indexOf('>80%|5d</span>') !== -1, 'basalt: the pair');
+    assert.ok(html.indexOf('>' + month + '</span>') !== -1, 'basalt: the month alone');
+    assert.equal(html.indexOf(date), -1, 'basalt: not the whole date');
+  });
+  pictures('emery').forEach((html) => {
+    assert.ok(html.indexOf('>' + date + '</span>') !== -1, 'emery: the whole date');
   });
 });
 

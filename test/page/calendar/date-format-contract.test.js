@@ -145,3 +145,40 @@ test('the settings page\'s date formatters render exactly the pinned C outputs',
   assert.equal(dateFormat.formatMonthYear(jan, 'noyear'), cPins['clamped month noyear']);
   assert.equal(dateFormat.formatMonthYear(new Date(2005, 8, 7), 'dotsyy'), cPins['month dotsyy 2005']);
 });
+
+// The short forms' pins (test/c/date_format_test.c short_forms): its table rows
+// { <format>, [<month_first>,] "short ...", "<want>" }, "" where no format is shorter.
+const cShortPins = {};
+for (const m of cTest.matchAll(/\{\s*(?:DATE_\w+|\d+),\s*(?:(?:true|false),\s*)?"(short [^"]+)",\s*"([^"]*)"\s*\}/g)) {
+  cShortPins[m[1]] = m[2];
+}
+
+test('the date\'s short forms are the shorter formats the watch falls back to, per order', () => {
+  // A dropped or renamed C row must not pass as "nothing to compare": every code in both
+  // orders, and each list's unknown byte.
+  assert.equal(Object.keys(cShortPins).length,
+    dateFormat.MONTH_FORMAT_CODES.length + 1 + 2 * dateFormat.FULL_FORMAT_CODES.length + 1,
+    'one C pin per month code, per full code in both orders, and per unknown byte');
+  const d = new Date(2026, 8, 7);
+  dateFormat.MONTH_FORMAT_CODES.forEach((code) => {
+    const name = 'short month ' + code;
+    assert.equal(dateFormat.formatMonthYearShort(d, code), cShortPins[name], name);
+    // A format of the list's own, which falls back no further: the app adds no format.
+    const to = dateFormat.MONTH_SHORT[code];
+    assert.ok(to === '' || dateFormat.MONTH_FORMAT_CODES.indexOf(to) >= 0, name + ' is a listed format');
+    assert.equal(to === '' ? '' : dateFormat.MONTH_SHORT[to], '', name + ' falls back once');
+    if (to) { assert.equal(cShortPins[name], dateFormat.formatMonthYear(d, to), name + ' prints as ' + to); }
+  });
+  assert.equal(dateFormat.formatMonthYearShort(d, 'bogus'), cShortPins['short month unknown->auto']);
+  dateFormat.FULL_FORMAT_CODES.forEach((code) => {
+    const to = dateFormat.FULL_SHORT[code];
+    assert.ok(to === '' || dateFormat.FULL_FORMAT_CODES.indexOf(to) >= 0, 'short full ' + code + ' is a listed format');
+    assert.equal(to === '' ? '' : dateFormat.FULL_SHORT[to], '', 'short full ' + code + ' falls back once');
+    [false, true].forEach((monthFirst) => {
+      const name = 'short full ' + code + (monthFirst ? ' US' : '');
+      assert.equal(dateFormat.formatFullDateShort(d, code, monthFirst), cShortPins[name], name);
+      if (to) { assert.equal(cShortPins[name], dateFormat.formatFullDate(d, to, monthFirst), name + ' prints as ' + to); }
+    });
+  });
+  assert.equal(dateFormat.formatFullDateShort(d, undefined, false), cShortPins['short full unknown->auto']);
+});

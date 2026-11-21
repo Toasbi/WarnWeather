@@ -169,6 +169,23 @@
     }
 
     /**
+     * The date slot's short form, as the watch formats it with the date (status_row.c
+     * format_status_date): the date in the shorter format its format falls back to where the
+     * slot cannot show it whole (date-format.js MONTH_SHORT / FULL_SHORT). None on aplite,
+     * whose lean twin cuts the date as before.
+     * @param {Object} S Settings.
+     * @param {Object} [env] Platform env.
+     * @param {Date} now Today.
+     * @param {boolean} fullDate Whether the bar's view shows no calendar.
+     * @returns {string} e.g. 'Oct', '3.10.'; '' for none.
+     */
+    function dateShortText(S, env, now, fullDate) {
+        if (env && env.platform === 'aplite') { return ''; }
+        if (!fullDate) { return dateFormat.formatMonthYearShort(now, S.dateSlotMonthFormat); }
+        return dateFormat.formatFullDateShort(now, S.dateSlotFullFormat, dateFormat.dateMonthFirst(S));
+    }
+
+    /**
      * What the bake carries in the watch battery's text for the sample's days
      * (battery-days.js slotText): none for the percentage alone, the days, or the pair
      * around the place of the percentage.
@@ -330,10 +347,12 @@
      *     date slot prints the full date there).
      * @param {Date} [now] Today (absent = the clock's).
      * @returns {Array<{pos: string, key: string, code: string, text: string, alt: string,
-     *     arrow: boolean, icon: ?string, drawing: ?string, batteryGlyph: boolean}>} The left,
-     *     middle and right slots (pos 'left' | 'mid' | 'right', key the slot's setting, e.g.
-     *     'statusTopLeft'; alt the short form the text brought after catalog.ALT_SEP, '' for none;
-     *     icon its glyph's <svg>, slotIcon; drawing the watch's drawing of it, slotDrawing;
+     *     own: boolean, arrow: boolean, icon: ?string, drawing: ?string, batteryGlyph: boolean}>}
+     *     The left, middle and right slots (pos 'left' | 'mid' | 'right', key the slot's
+     *     setting, e.g. 'statusTopLeft'; alt the short form the text brought after
+     *     catalog.ALT_SEP, or the date's shorter format (dateShortText), '' for none; own whether
+     *     the slot takes it only where its own text is cut, as the date does (preview-watch.js
+     *     swapShortForms); icon its glyph's <svg>, slotIcon; drawing the watch's drawing of it, slotDrawing;
      *     batteryGlyph whether the watch draws its battery glyph there, drawsBatteryGlyph); [] for
      *     an unknown bar.
      */
@@ -357,7 +376,9 @@
         take.forEach(function (t, p) { if (t) { texts[p] = wide[p]; } });
         return codes.map(function (c, p) {
             var forms = texts[p].split(catalog.ALT_SEP);
-            return {pos: c.pos, key: c.key, code: c.code, text: forms[0], alt: forms[1] || '',
+            var date = c.code === 'date';
+            return {pos: c.pos, key: c.key, code: c.code, text: forms[0],
+                alt: date ? dateShortText(st, env, when, fullDate) : forms[1] || '', own: date,
                 arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: slotIcon(c.code, env, st, c.key),
                 drawing: slotDrawing(c.code, env, st, c.key), batteryGlyph: drawsBatteryGlyph(c.code, env, st)};
         });

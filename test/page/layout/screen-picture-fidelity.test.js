@@ -143,16 +143,23 @@ test('a status row seats its slots as the watch does: the edge slots from the ma
   assert.doesNotMatch(plain, /width="16" height="9" fill="none"/, 'and no battery');
   // The default Watch bar (Air quality, the date, the battery): the slot reserves no room for
   // the empty lane, and the date gives way as the watch's row has it (the edges keep their
-  // width): beside "80%" it gets 48 of its 53 px, as on the watch (test/c/status_row_layout_test.c),
-  // beside the pair 31. (At the old 140 px it printed whole beside "80%".)
+  // width): beside "80%" it gets 48 of its 53 px, beside the pair 31, so it shows its short
+  // form whole, the month alone, as on the watch (test/c/status_row_layout_test.c
+  // default_bar_date_short_form). Before the date had one the watch cut it ("Nov 20…").
   const bar = (display) => picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'aqi', statusTopMid: 'date',
     statusTopRight: 'battery', batterySlotLook: 'both', batterySlotDisplay: display });
   const percent = bar('percent');
   assert.ok(/<text [^>]*>80%<\/text>/.test(percent));
-  assert.ok(/<text [^>]*>Nov 20…<\/text>/.test(percent), 'the date cut beside "80%", as the watch cuts it');
+  assert.ok(/<text [^>]*>Nov<\/text>/.test(percent), 'the date\'s short form beside "80%", as the watch draws it');
   const pair = bar('both');
   assert.ok(/<text [^>]*>80%\|5d<\/text>/.test(pair), 'the pair whole');
-  assert.ok(/<text [^>]*>Nov…<\/text>/.test(pair), 'the date cut further beside it');
+  assert.ok(/<text [^>]*>Nov<\/text>/.test(pair), 'the date\'s short form beside it too');
+  // The date at an edge keeps its width beside a middle the row cuts, as the watch's does
+  // (status_row_swap_short_forms: the date gives way only where its own text is cut).
+  const edge = picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'date', statusTopMid: 'city',
+    statusTopRight: 'battery', batterySlotLook: 'both', citySlotIcon: false });
+  assert.ok(/<text x="6" [^>]*>Nov 2026<\/text>/.test(edge), 'the edge date whole beside the cut city');
+  assert.ok(/<text [^>]*>B…<\/text>/.test(edge), 'the city cut between them');
   // A middle slot centred on the row.
   const mid = picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'empty', statusTopMid: 'city',
     statusTopRight: 'empty', citySlotIcon: false });

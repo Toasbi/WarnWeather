@@ -8,14 +8,27 @@
  *
  * Also the date slot's TEXT, for the settings page's status bars preview: the watch
  * renders the slot itself (status_row.c format_status_date), so formatMonthYear and
- * formatFullDate are JS copies of date_format.h's two formatters, pinned to the C
- * host test's strings by test/page/calendar/date-format-contract.test.js; dateMonthFirst is the
+ * formatFullDate are JS copies of date_format.h's two formatters, and formatMonthYearShort
+ * and formatFullDateShort of the short forms it draws where the date does not fit, pinned to
+ * the C host test's strings by test/page/calendar/date-format-contract.test.js; dateMonthFirst is the
  * day/month order both they and the Clay message (CLAY_DATE_MONTH_FIRST) follow. The
  * settings page loads this file too (window.DateFormat). ES5 only (aplite PKJS).
  */
 (function () {
     var MONTH_FORMAT_CODES = ['auto', 'name', 'dots', 'slash', 'iso', 'dotsyy', 'noyear'];
     var FULL_FORMAT_CODES = ['auto', 'long', 'noyear', 'slash', 'iso', 'text', 'textyear'];
+
+    // What each format falls back to where the date slot cannot show the date whole: the
+    // shorter format of the same list that the watch draws before it cuts the date with an
+    // ellipsis, '' where none is shorter (date_format.h date_format_month_short /
+    // date_format_full_short, held to the C pins by test/page/calendar/date-format-contract.test.js).
+    // Every one keeps the month: the names drop the year, the numeric month + year formats take
+    // the two-digit year, the numeric full dates take the day and month alone, and the
+    // written-out date drops its year.
+    var MONTH_SHORT = {auto: 'noyear', name: 'noyear', dots: 'dotsyy', slash: 'dotsyy', iso: 'dotsyy',
+        dotsyy: '', noyear: ''};
+    var FULL_SHORT = {auto: 'noyear', long: 'noyear', noyear: '', slash: 'noyear', iso: 'noyear',
+        text: '', textyear: 'text'};
 
     // English month names, as strftime prints them in the app's default locale on the
     // watch ("%b" / "%B"; date_format.h: the app never calls setlocale()).
@@ -146,14 +159,53 @@
         }
     }
 
+    /**
+     * The shorter format a date format falls back to (MONTH_SHORT / FULL_SHORT).
+     * @param {Object<string, string>} table MONTH_SHORT or FULL_SHORT.
+     * @param {*} code The slot's format; unknown/unset = 'auto'.
+     * @returns {string} The shorter format's code; '' where none is shorter.
+     */
+    function shortFormat(table, code) {
+        return Object.prototype.hasOwnProperty.call(table, code) ? table[code] : table.auto;
+    }
+
+    /**
+     * The month + year date's short form (date_format.h date_format_slot): the date in the
+     * shorter format its format falls back to.
+     * @param {Date} d The local date.
+     * @param {*} code A MONTH_FORMAT_CODES value; unknown/unset = 'auto'.
+     * @returns {string} e.g. 'Sep', '09.26'; '' where none is shorter.
+     */
+    function formatMonthYearShort(d, code) {
+        var to = shortFormat(MONTH_SHORT, code);
+        return to ? formatMonthYear(d, to) : '';
+    }
+
+    /**
+     * The full date's short form (date_format.h date_format_slot): the date in the shorter
+     * format its format falls back to, in the same order.
+     * @param {Date} d The local date.
+     * @param {*} code A FULL_FORMAT_CODES value; unknown/unset = 'auto'.
+     * @param {boolean} monthFirst Whether the month leads.
+     * @returns {string} e.g. '7.9.', '7 Sep', 'Sep 7'; '' where none is shorter.
+     */
+    function formatFullDateShort(d, code, monthFirst) {
+        var to = shortFormat(FULL_SHORT, code);
+        return to ? formatFullDate(d, to, monthFirst) : '';
+    }
+
     var api = {
         MONTH_FORMAT_CODES: MONTH_FORMAT_CODES,
         FULL_FORMAT_CODES: FULL_FORMAT_CODES,
+        MONTH_SHORT: MONTH_SHORT,
+        FULL_SHORT: FULL_SHORT,
         buildDateFormatBytes: buildDateFormatBytes,
         effectiveHolidayCountry: effectiveHolidayCountry,
         dateMonthFirst: dateMonthFirst,
         formatMonthYear: formatMonthYear,
-        formatFullDate: formatFullDate
+        formatFullDate: formatFullDate,
+        formatMonthYearShort: formatMonthYearShort,
+        formatFullDateShort: formatFullDateShort
     };
 
     // Dual-context export, the tail of status-line-catalog.js.

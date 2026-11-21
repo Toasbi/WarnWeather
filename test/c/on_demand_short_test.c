@@ -339,13 +339,13 @@ static void elastic_city(void) {
 // A slot built from its resolved text the way status_on_demand.c builds it (member v
 // at m[v], up to the first none or OD_VARIANTS), with 6 px per byte standing in for
 // the font.
-static OdSlotIn slot_family(uint8_t kind, uint8_t icon, const char *full,
-                            char texts[OD_VARIANTS][STATUS_SHORT_CAP]) {
+static OdSlotIn slot_family_with(uint8_t kind, uint8_t icon, const char *full, const char *alt,
+                                 char texts[OD_VARIANTS][STATUS_SHORT_CAP]) {
     OdSlotIn s = slot_text((int16_t)(6 * strlen(full)), 0);
     snprintf(texts[0], STATUS_SHORT_CAP, "%s", full);
     uint8_t v = 1;
     while (v < OD_VARIANTS) {
-        uint8_t flags = status_short_member(kind, icon, full, NULL, false, false, v, texts[v],
+        uint8_t flags = status_short_member(kind, icon, full, alt, false, false, v, texts[v],
                                             STATUS_SHORT_CAP);
         if (!flags) { break; }
         s.m[v] = (StatusSlotMeasure) { true, 0, (int16_t)(6 * strlen(texts[v])), 0 };
@@ -356,16 +356,21 @@ static OdSlotIn slot_family(uint8_t kind, uint8_t icon, const char *full,
     return s;
 }
 
+static OdSlotIn slot_family(uint8_t kind, uint8_t icon, const char *full,
+                            char texts[OD_VARIANTS][STATUS_SHORT_CAP]) {
+    return slot_family_with(kind, icon, full, NULL, texts);
+}
+
 // The texts date_texts() saw, which `seen` points into: each call overwrites them.
 static char s_seen_texts[OD_VARIANTS][STATUS_SHORT_CAP];
 
 // The date in the middle of a 140 px bar, a Bluetooth icon k px wide on the left: the
 // texts it shows while it stays centred, in the order they come. (Once it leaves the
 // centre it may take a wider member again, wherever that fits.)
-static int date_texts(const char *full, const char *seen[OD_VARIANTS]) {
+static int date_texts(const char *full, const char *alt, const char *seen[OD_VARIANTS]) {
     char texts[OD_VARIANTS][STATUS_SHORT_CAP];
     OdSlotIn slots[3] = { slot_empty(),
-                          slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, full, texts),
+                          slot_family_with(SLOT_LIVE_DATE, STATUS_ICON_NONE, full, alt, texts),
                           slot_empty() };
     int n = 0;
     int last = -1;
@@ -385,48 +390,57 @@ static int date_texts(const char *full, const char *seen[OD_VARIANTS]) {
     return n;
 }
 
+// The date's short member is the shorter format its format falls back to, as status_row.c
+// hands it over (date_format.h): the full date while it stays centred, then that one.
 static void date_families(void) {
     const char *seen[OD_VARIANTS];
-    // A calendar view: the year shortens, the month never does.
-    int n = date_texts("Sep 2026", seen);
+    // A calendar view: "Sep 2026" falls back to "Sep", the month without its year.
+    int n = date_texts("Sep 2026", "Sep", seen);
     expect("date.calendar.n", n, 2);
     if (n == 2) {
         expect_true("date.calendar.full", strcmp(seen[0], "Sep 2026") == 0);
-        expect_true("date.calendar.year", strcmp(seen[1], "Sep '26") == 0);
+        expect_true("date.calendar.short", strcmp(seen[1], "Sep") == 0);
     }
-    n = date_texts("2026-09", seen);
-    expect("date.calendar.iso", n, 1);
-    // No calendar: the year shortens, and that is the narrowest it gets — never the bare
-    // day of the month ("7"); past it the date hides.
-    n = date_texts("07.09.2026", seen);
+    n = date_texts("2026-09", "09.26", seen);
+    expect("date.calendar.iso", n, 2);
+    if (n == 2) { expect_true("date.calendar.iso.short", strcmp(seen[1], "09.26") == 0); }
+    // No calendar: the day and month without the year, never the bare day of the month
+    // ("7"); past it the date hides.
+    n = date_texts("07.09.2026", "7.9.", seen);
     expect("date.no_calendar.n", n, 2);
     if (n == 2) {
         expect_true("date.no_calendar.full", strcmp(seen[0], "07.09.2026") == 0);
-        expect_true("date.no_calendar.year", strcmp(seen[1], "07.09.26") == 0);
+        expect_true("date.no_calendar.short", strcmp(seen[1], "7.9.") == 0);
     }
-    n = date_texts("Sep 7, 2026", seen);
+    n = date_texts("Sep 7, 2026", "Sep 7", seen);
     expect("date.no_calendar.text.n", n, 2);
-    if (n == 2) { expect_true("date.no_calendar.text.year", strcmp(seen[1], "Sep 7, '26") == 0); }
-    // The owner's date (Auto, 2 October): whole while centred, then it hides.
-    n = date_texts("02.10.26", seen);
-    expect("date.no_calendar.auto.n", n, 1);
+    if (n == 2) { expect_true("date.no_calendar.text.short", strcmp(seen[1], "Sep 7") == 0); }
+    // The owner's date (Auto, 2 October): "2.10." once it is short of room, then it hides.
+    n = date_texts("02.10.26", "2.10.", seen);
+    expect("date.no_calendar.auto.n", n, 2);
+    if (n == 2) { expect_true("date.no_calendar.auto.short", strcmp(seen[1], "2.10.") == 0); }
+    // A format with none shorter ("2.10.", "Sep"): whole while centred, then it hides.
+    n = date_texts("2.10.", "", seen);
+    expect("date.no_calendar.noyear.n", n, 1);
 }
 
 // A slot with no short form never takes a SHORT step: as the own slot it goes from
 // FULL straight to HIDDEN at its turn (and comes back FULL only beside a hidden
 // middle, the ladder's row 6), and as the middle it leaves the centre whole and then
-// hides. The date outside a calendar view is one, as the middle, when its format has no
-// four-digit year (the owner's "02.10.26", the strip's default seat): it hides rather
-// than shrink to its day number.
+// hides. The date outside a calendar view is one, as the middle, when its format has
+// none shorter (the day and month alone, "2.10."): it hides rather than shrink to its
+// day number.
 static void no_short_form(void) {
     char texts[OD_VARIANTS][STATUS_SHORT_CAP];
     OdSlotIn week = slot_family(SLOT_LIVE_WEEK, STATUS_ICON_NONE, "W40", texts);
     OdSlotIn sun = slot_family(SLOT_TEXT, STATUS_ICON_DRAWN_SUN, "6:12p", texts);
-    OdSlotIn day = slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, "02.10.26", texts);
+    OdSlotIn day = slot_family_with(SLOT_LIVE_DATE, STATUS_ICON_NONE, "2.10.", "", texts);
     expect("noshort.week.n", week.n, 1);
     expect("noshort.sun.n", sun.n, 1);
     expect("noshort.date.n", day.n, 1);
-    OdSlotIn date = slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, "Sep 2026", texts);
+    // The middle beside them: 48 px with a 42 px short form, which hides while the bar still
+    // has room for the own slot's return (row 6).
+    OdSlotIn date = slot_text(48, 42);
     const OdSlotIn *kinds[3] = { &week, &sun, &day };
     // As the own slot: the week and the sun (the date's seat is the middle).
     for (int o = 0; o < 2; o++) {

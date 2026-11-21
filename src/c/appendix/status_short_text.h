@@ -12,10 +12,6 @@
 //    km / mi;
 //  - wind and gusts then drop their direction arrow, a suffix beside the text
 //    (status_short_member flags it);
-//  - the date shortens a four-digit year in its format's own shape ("Sep '26",
-//    "07.09.26") and goes no further: every form keeps the month, so the date hides
-//    at its turn rather than shrink to a bare day number ("2" reads as nothing; owner,
-//    2026-10-02);
 //  - steps drop their tenths ("12.3k" -> "12k", never rounded up), sleep its minutes
 //    ("7h32" -> "7h"; under an hour it has none, as "0h" would read as no sleep);
 //  - the Watch battery glyph drops its bolt lane while the watch is not charging
@@ -31,12 +27,16 @@
 // battery number shows whole or not at all; its % is never dropped (owner,
 // 2026-09-30).
 //
-// One slot brings its own: the weather condition's middle slot carries its short form
-// after STATUS_TEXT_ALT_SEP ("Partly cloudy" with "PCLDY"; status_line.h), the one
-// variant the phone bakes, since no rule turns a name into its code (status_short_member's
-// `alt`). A condition slot that draws its glyph then gives up its text and keeps the
-// glyph, its last member before it hides: an edge slot, which brings no short form, has
-// only that one.
+// Two slots bring their own (status_short_member's `alt`). The weather condition's middle
+// slot carries its short form after STATUS_TEXT_ALT_SEP ("Partly cloudy" with "PCLDY";
+// status_line.h), the one variant the phone bakes, since no rule turns a name into its
+// code. A condition slot that draws its glyph then gives up its text and keeps the glyph,
+// its last member before it hides: an edge slot, which brings no short form, has only that
+// one. The date's is the shorter format its format falls back to ("Sep 2026" -> "Sep",
+// "07.09.2026" -> "7.9."; date_format.h), which the watch formats with the date
+// (status_row.c), and that is all: every form keeps the month, so the date hides at its
+// turn rather than shrink to a bare day number ("2" reads as nothing; owner, 2026-10-02),
+// and a format with none shorter has no short form.
 //
 // Written for size — the app image comes out of the heap on every platform — so the
 // caller asks for one member at a time (status_short_member) and gets that one
@@ -117,12 +117,8 @@ static inline bool sst_unit_byte(char c) {
 //  1  the unit goes — the trailing run of unit bytes (sst_unit_byte) of a kind that
 //     has one, and only after a reading: "now" and "--" keep theirs, and a mark stays
 //     ("12/30*kph" -> "12/30*");
-//  2  the date's four-digit year shortens in its format's own shape — "'26" after a
-//     space ("Sep '26", "Sep 7, '26", "7. Sep '26"), the century dropped after '.' or
-//     '/' ("09.26", "07.09.26"), as the two-digit formats already print it; none for a
-//     year-first ISO date or a text without exactly one four-digit run;
-//  3  steps drop their tenths: "12.3k" -> "12k" (truncated, never rounded up);
-//  4  sleep drops its minutes: "7h32" -> "7h"; none under an hour ("0h45").
+//  2  steps drop their tenths: "12.3k" -> "12k" (truncated, never rounded up);
+//  3  sleep drops its minutes: "7h32" -> "7h"; none under an hour ("0h45").
 static inline bool sst_apply(uint8_t kind, uint8_t icon, int t, char *s) {
     int len = (int)strlen(s);
     switch (t) {
@@ -148,30 +144,7 @@ static inline bool sst_apply(uint8_t kind, uint8_t icon, int t, char *s) {
             s[n] = '\0';
             return true;
         }
-        case 2: {
-            if (kind != SLOT_LIVE_DATE) { return false; }
-            int start = -1;
-            for (int i = 0; i < len;) {
-                int j = i;
-                while (j < len && sst_is_digit(s[j])) { j++; }
-                if (j - i == 4) {
-                    if (start >= 0) { return false; }
-                    start = i;
-                }
-                i = j > i ? j : i + 1;
-            }
-            if (start <= 0) { return false; }
-            int drop = 2;
-            if (s[start - 1] == ' ') {
-                s[start++] = '\'';   // "2026" -> "'026", then the 0 goes
-                drop = 1;
-            } else if (s[start - 1] != '.' && s[start - 1] != '/') {
-                return false;
-            }
-            memmove(s + start, s + start + drop, (size_t)(len - start - drop + 1));
-            return true;
-        }
-        case 3:
+        case 2:
             if (kind != SLOT_LIVE_STEPS || len < 4 || s[len - 1] != 'k' || s[len - 3] != '.'
                     || !sst_is_digit(s[len - 2])) {
                 return false;
@@ -179,7 +152,7 @@ static inline bool sst_apply(uint8_t kind, uint8_t icon, int t, char *s) {
             s[len - 3] = 'k';
             s[len - 2] = '\0';
             return true;
-        case 4: {
+        case 3: {
             // A loop, not strchr: that would link newlib's 200-byte one into the image.
             int h = 1;
             while (h < len && s[h] != 'h') { h++; }
@@ -193,7 +166,7 @@ static inline bool sst_apply(uint8_t kind, uint8_t icon, int t, char *s) {
             return false;
     }
 }
-#define SST_STEPS 5
+#define SST_STEPS 4
 
 // --- the city's word ladder -------------------------------------------------------
 
@@ -298,8 +271,9 @@ static inline bool status_short_floor(const char *full, char *out, size_t cap) {
 // `icon` whose full text is `full`, widest first: its text into `out` and its flags
 // (SST_*), 0 when there is none — the members run 1, 2, … up to the first 0 (none at
 // all: the slot hides at its turn). The text members come first: the short form the
-// slot's text came with, `alt` (the bytes after STATUS_TEXT_ALT_SEP; NULL or "" for
-// none), as its one; else the chain's steps that change the text (sst_apply), or the
+// slot's text came with, `alt` (the bytes after STATUS_TEXT_ALT_SEP, or the date's shorter
+// format; NULL or "" for none), as its one; else the chain's steps that change the text
+// (sst_apply), or the
 // city's rungs and its elastic name (sst_city_member), then, for a slot with a `suffix`
 // (the wind arrow), the last text drawn without it. A weather condition that draws its
 // glyph ends with the glyph alone, after the form it brought or as its one member: no

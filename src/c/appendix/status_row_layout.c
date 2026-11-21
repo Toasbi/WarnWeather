@@ -174,7 +174,8 @@ static bool slot_text_cut(const StatusSlotMeasure *m, const StatusSlotPlace *pla
 }
 
 uint8_t status_row_swap_short_forms(int16_t content_w, StatusSlotMeasure m[3],
-                                    const int16_t alt_w[3], StatusSlotPlace plain[3]) {
+                                    const int16_t alt_w[3], uint8_t own,
+                                    StatusSlotPlace plain[3]) {
     uint8_t left = 0;   // the slots whose short form is still theirs to swap in
     for (int i = 0; i < 3; i++) {
         if (alt_w[i] >= 0) { left |= (uint8_t)(1u << i); }
@@ -188,7 +189,10 @@ uint8_t status_row_swap_short_forms(int16_t content_w, StatusSlotMeasure m[3],
         if (!cut) { break; }
         int pick = -1;
         for (int i = 0; i < 3; i += 2) {
-            if (((left >> i) & 1u) && (pick < 0 || m[i].text_w > m[pick].text_w)) { pick = i; }
+            // An edge in `own` only where its own text is cut.
+            const bool may = ((left >> i) & 1u)
+                && (!((own >> i) & 1u) || slot_text_cut(&m[i], &plain[i]));
+            if (may && (pick < 0 || m[i].text_w > m[pick].text_w)) { pick = i; }
         }
         if (pick < 0 && ((left >> 1) & 1u) && slot_text_cut(&m[1], &plain[1])) { pick = 1; }
         if (pick < 0) { break; }

@@ -1,6 +1,6 @@
 #pragma once
 
-// Pure date-slot formatters for SLOT_LIVE_DATE — header-only (static inline, no
+// Pure date-slot formatters for SLOT_LIVE_DATE — header-only (static functions, no
 // .c file), like status_icon_size.h: plain libc string composition with no SDK
 // binding, so the host test (test/c/date_format_test.c) pins every format string
 // without an emulator. The only caller is status_row.c's format_status_date,
@@ -56,6 +56,47 @@ enum DateFullFormat {
     DATE_FULL_TEXTYEAR = 6,  // "7. Sep 2026" / "Sep 7, 2026"
 };
 
+// What a date format falls back to where its slot cannot show the date whole: the shorter
+// format, one of the list's own, that the row swaps in before it cuts the date with an
+// ellipsis (status_row.c: the date slot's short form; status_row_layout.h
+// status_row_swap_short_forms), and that On demand takes as the date's short member
+// (status_short_text.h). DATE_FORMAT_NONE where no shorter one exists. Each keeps its
+// format's way of writing and the month (never a bare day number): the month names drop
+// the year ("Sep"), the numeric month + year formats take the two-digit year ("09.26"), the
+// numeric full dates take the day and month alone ("7.9.", in the region's order) and the
+// written-out date drops its year ("7 Sep"). Lockstep: date-format.js MONTH_SHORT /
+// FULL_SHORT, held to the pins of test/c/date_format_test.c by
+// test/page/calendar/date-format-contract.test.js.
+#define DATE_FORMAT_NONE 0xFF
+// The longest short form ("31.12.", "27 Sep", "Sep 27"), without its NUL.
+#define DATE_FORMAT_SHORT_MAX 6
+
+static inline uint8_t date_format_month_short(uint8_t fmt) {
+    switch (fmt) {
+        case DATE_MONTH_DOTS:
+        case DATE_MONTH_SLASH:
+        case DATE_MONTH_ISO:
+            return DATE_MONTH_DOTSYY;
+        case DATE_MONTH_DOTSYY:
+        case DATE_MONTH_NOYEAR:
+            return DATE_FORMAT_NONE;
+        default:   // Auto (an unknown byte reads as Auto) and the month's name
+            return DATE_MONTH_NOYEAR;
+    }
+}
+
+static inline uint8_t date_format_full_short(uint8_t fmt) {
+    switch (fmt) {
+        case DATE_FULL_NOYEAR:
+        case DATE_FULL_TEXT:
+            return DATE_FORMAT_NONE;
+        case DATE_FULL_TEXTYEAR:
+            return DATE_FULL_TEXT;
+        default:   // Auto (an unknown byte reads as Auto), Long, Slash and ISO
+            return DATE_FULL_NOYEAR;
+    }
+}
+
 // A copy of tm with the day/month fields clamped into range. The original
 // formatter clamped its derived ints so a torn tm from a boot-race read could
 // not print "00.00.00"; the copy extends the same defence to the strftime
@@ -78,9 +119,12 @@ static inline void date_format_strftime(char *buf, size_t cap, const char *fmt,
     if (strftime(buf, cap, fmt, t) == 0) { buf[0] = '\0'; }
 }
 
-// Month + year, for calendar views.
-static inline void date_format_month_year(char *buf, size_t cap,
-                                          const struct tm *tm_now, uint8_t fmt) {
+// Month + year, for calendar views. Out of line, as date_format_full is: one copy serves both
+// of date_format_slot's passes (inlined into its loop the two came out 80 B larger on basalt).
+// `unused`: config.c includes this header for the enums alone.
+__attribute__((noinline, unused))
+static void date_format_month_year(char *buf, size_t cap, const struct tm *tm_now,
+                                   uint8_t fmt) {
     struct tm t = date_format_clamped_tm(tm_now);
     int mon = t.tm_mon + 1;
     int year = t.tm_year + 1900;
@@ -110,8 +154,9 @@ static inline void date_format_month_year(char *buf, size_t cap,
 }
 
 // Full date, for no-calendar views.
-static inline void date_format_full(char *buf, size_t cap, const struct tm *tm_now,
-                                    uint8_t fmt, bool month_first) {
+__attribute__((noinline, unused))
+static void date_format_full(char *buf, size_t cap, const struct tm *tm_now, uint8_t fmt,
+                             bool month_first) {
     struct tm t = date_format_clamped_tm(tm_now);
     int mday = t.tm_mday;
     int mon = t.tm_mon + 1;
@@ -151,5 +196,32 @@ static inline void date_format_full(char *buf, size_t cap, const struct tm *tm_n
             if (month_first) { snprintf(buf, cap, "%02d.%02d.%02d", mon, mday, yy); }
             else { snprintf(buf, cap, "%02d.%02d.%02d", mday, mon, yy); }
             return;
+    }
+}
+
+// The date slot's text into `buf`, in format `fmt` of its list (the full date where `full`,
+// else month + year, day and month in the `month_first` order), and into `alt` its short form:
+// the same date in the shorter format its format falls back to (date_format_month_short,
+// date_format_full_short), "" where none is shorter. One call of each formatter, so the watch
+// carries one copy of each (status_row.c format_status_date).
+static inline void date_format_slot(char *buf, size_t cap, char *alt, size_t alt_cap,
+                                    const struct tm *tm_now, bool full, uint8_t fmt,
+                                    bool month_first) {
+    // Two passes, the date and then its short form, through one call of each formatter.
+    for (int pass = 0; pass < 2; pass++) {
+        if (pass == 1) {
+            fmt = full ? date_format_full_short(fmt) : date_format_month_short(fmt);
+            buf = alt;
+            cap = alt_cap;
+            if (fmt == DATE_FORMAT_NONE) {
+                if (cap > 0) { buf[0] = '\0'; }
+                return;
+            }
+        }
+        if (full) {
+            date_format_full(buf, cap, tm_now, fmt, month_first);
+        } else {
+            date_format_month_year(buf, cap, tm_now, fmt);
+        }
     }
 }
