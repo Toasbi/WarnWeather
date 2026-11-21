@@ -15,7 +15,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
     : {};
 (function () {
-    var CD = (typeof require !== 'undefined') ? require('../country-defaults.js') : COUNTRY_DEFAULTS;
+    var CD = (typeof require !== 'undefined') ? require('../../../settings/domain/country-defaults.js') : COUNTRY_DEFAULTS;
 
     // Both copies of the key's row (the weather provider's Tomorrow.io sheet and the radar-only one)
     // are labelled "API key" under a sheet titled "Tomorrow.io"; here no title sits above it, so the

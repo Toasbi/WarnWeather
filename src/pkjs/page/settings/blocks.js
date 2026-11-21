@@ -46,7 +46,7 @@ if (typeof require !== 'undefined') {
     var intervalBudget = (typeof require !== 'undefined')
         ? require('../weather/budgets/interval-budget.js') : PConf.intervalBudget;
     // Country → recommended-provider mapping (shared with the wizard).
-    var CD = (typeof require !== 'undefined') ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
+    var CD = (typeof require !== 'undefined') ? require('../../settings/domain/country-defaults.js') : COUNTRY_DEFAULTS;
     // The weather condition icons (condition-icons.js), for the condition slot's list of conditions.
     var conditionIcons = (typeof require !== 'undefined')
         ? require('../weather/condition-icons.js') : window.ConditionIcons;

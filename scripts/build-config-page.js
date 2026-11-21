@@ -13,7 +13,7 @@ var APP_FILES = [
   // this shared top-level scope.
   // country-defaults.js is the same shape (COUNTRY_DEFAULTS global) and must precede its
   // consumers blocks.js (recommend resolvers) and wizard.js (fresh-install derivation).
-  path.join(ROOT, 'src/pkjs/page/settings/country-defaults.js'),
+  path.join(ROOT, 'src/pkjs/settings/domain/country-defaults.js'),
   path.join(ROOT, 'src/pkjs/layout/domain/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-bars/domain/status-line-catalog.js'),
   // The On demand contract (window.OnDemand). It reads window.VIEW_CYCLE (the radar and

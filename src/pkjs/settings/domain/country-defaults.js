@@ -1,4 +1,4 @@
-// src/pkjs/page/settings/country-defaults.js — ES5. Country → recommended providers + locale units.
+// src/pkjs/settings/domain/country-defaults.js — ES5. Country → recommended providers + locale units.
 //
 // The single source for "what's best where": the onboarding wizard derives a fresh install's
 // settings from the inferred country (page/settings/wizard/wizard.js, whose inferCountry reads the

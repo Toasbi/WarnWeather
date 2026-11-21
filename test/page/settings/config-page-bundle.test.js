@@ -96,7 +96,7 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
   });
   assert.ok(idx('layout/domain/screens.js') < idx('page/settings/wizard/wizard-screens.js'));
   assert.ok(idx('status-bars/domain/status-line-catalog.js') < idx('page/settings/wizard/wizard-finish.js'));
-  assert.ok(idx('page/settings/country-defaults.js') < idx('page/settings/wizard/wizard-upsell.js'));
+  assert.ok(idx('settings/domain/country-defaults.js') < idx('page/settings/wizard/wizard-upsell.js'));
   ['ForecastSample', 'PreviewForecast'].forEach((name) => {
     assert.ok(page().indexOf('window.' + name + ' = api') !== -1,
       'nothing assigns window.' + name + ': the forecast step would draw an empty card');

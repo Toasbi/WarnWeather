@@ -23,7 +23,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Dual-context (see line-style.js): CommonJS modules under Node, the globals of the files
     // concatenated ahead of this one in the page (scripts/build-config-page.js APP_FILES).
     var node = typeof require !== 'undefined';
-    var CD = node ? require('../country-defaults.js') : COUNTRY_DEFAULTS;
+    var CD = node ? require('../../../settings/domain/country-defaults.js') : COUNTRY_DEFAULTS;
     var CSS = node ? require('./wizard-css.js') : window.WizardCss;
     var SCREENS = node ? require('./wizard-screens.js') : window.WizardScreens;
     var FORECAST = node ? require('./wizard-forecast.js') : window.WizardForecast;
