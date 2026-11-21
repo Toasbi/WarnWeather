@@ -287,16 +287,17 @@
 
     /**
      * The watch battery's Look (batterySlotLook, its dialog's first row): 'icon', the battery the
-     * watch draws (the default, and what anything unknown reads as), or 'text', its charge in
-     * words (battery-days.js). Always 'icon' on aplite, whose lean row has the one battery
-     * slot and prints it its own way.
+     * watch draws (the default, and what anything unknown reads as), 'text', its charge in
+     * words (battery-days.js), or 'both', the battery and then its charge. Always 'icon' on
+     * aplite, whose lean row has the one battery slot and prints it its own way.
      * @param {Object} settings Settings.
      * @param {Object} [env] Platform env.
-     * @returns {string} 'icon' or 'text'
+     * @returns {string} 'icon', 'text' or 'both'
      */
     function batteryLook(settings, env) {
         if (env && env.platform === 'aplite') { return 'icon'; }
-        return settings && settings.batterySlotLook === 'text' ? 'text' : 'icon';
+        var look = settings && settings.batterySlotLook;
+        return look === 'text' || look === 'both' ? look : 'icon';
     }
 
     /**
@@ -316,8 +317,8 @@
             return catalog.KINDS.LIVE_DISTANCE_MI;
         }
         // The watch battery, its Look: the battery the watch draws (the entry's kind), or
-        // its charge as text.
-        if (code === 'battery' && batteryLook(settings, env) === 'text') {
+        // its charge as text, with the battery before it or without (status-lines.js iconFor).
+        if (code === 'battery' && batteryLook(settings, env) !== 'icon') {
             return catalog.KINDS.LIVE_BATTERY_PCT;
         }
         // aplite has no watch-side iso_week() (reaped for image budget), so the phone

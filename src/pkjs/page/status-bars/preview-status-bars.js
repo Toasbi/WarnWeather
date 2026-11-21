@@ -169,7 +169,7 @@
     }
 
     /**
-     * What the bake carries in the watch battery's Text look for the sample's days
+     * What the bake carries in the watch battery's text for the sample's days
      * (battery-days.js slotText): none for the percentage alone, the days, or the pair
      * around the place of the percentage.
      * @param {Object} S Settings. @param {number} cap The slot's byte cap.
@@ -227,13 +227,13 @@
         case 'sleep': return '7h12';
         case 'phoneBattery': return '72%';
         // The watch battery: in its Icon look the glyph alone, except on aplite, whose lean
-        // twin prints the charge (status_row_aplite.c format_live_value); in its Text look
-        // the percentage, the days the watch has left or both, as the watch draws what the
-        // bake carries (battery-days.js; the watch prints its percentage alone while there
-        // is no estimate).
+        // twin prints the charge (status_row_aplite.c format_live_value); in its Text and
+        // Icon + text looks the percentage, the days the watch has left or both, as the
+        // watch draws what the bake carries (battery-days.js; the watch prints its
+        // percentage alone while there is no estimate).
         case 'battery':
             if (c.env && c.env.platform === 'aplite') { return '80%'; }
-            if (slotText.batteryLook(S, c.env) !== 'text') { return ''; }
+            if (slotText.batteryLook(S, c.env) === 'icon') { return ''; }
             return batteryDays.drawn(batteryCarried(S, cap), '80%');
         default: return '';
         }
@@ -260,7 +260,8 @@
         if (env && env.platform === 'aplite' && !APLITE_GLYPHS[code]) { return null; }
         if (code === 'condition' && slotText.conditionLook(S, env) === 'text') { return null; }
         if (code === 'phoneBattery' && slotText.phoneBatteryLook(S, slotKey) === 'text') { return null; }
-        // The watch battery's Text look is its text alone; its Icon look the battery itself.
+        // The watch battery's Text look is its text alone; its Icon look the battery itself,
+        // its Icon + text look the battery before the text.
         if (code === 'battery' && slotText.batteryLook(S, env) === 'text') { return null; }
         // The city draws the current weather's icon before its name (citySlotIcon); the
         // sample's weather is the condition slot's, partly cloudy.
@@ -329,10 +330,12 @@
      *     date slot prints the full date there).
      * @param {Date} [now] Today (absent = the clock's).
      * @returns {Array<{pos: string, key: string, code: string, text: string, alt: string,
-     *     arrow: boolean, icon: ?string, drawing: ?string}>} The left, middle and right slots (pos
-     *     'left' | 'mid' | 'right', key the slot's setting, e.g. 'statusTopLeft'; alt the short form
-     *     the text brought after catalog.ALT_SEP, '' for none; icon its glyph's <svg>, slotIcon;
-     *     drawing the watch's drawing of it, slotDrawing); [] for an unknown bar.
+     *     arrow: boolean, icon: ?string, drawing: ?string, batteryGlyph: boolean}>} The left,
+     *     middle and right slots (pos 'left' | 'mid' | 'right', key the slot's setting, e.g.
+     *     'statusTopLeft'; alt the short form the text brought after catalog.ALT_SEP, '' for none;
+     *     icon its glyph's <svg>, slotIcon; drawing the watch's drawing of it, slotDrawing;
+     *     batteryGlyph whether the watch draws its battery glyph there, drawsBatteryGlyph); [] for
+     *     an unknown bar.
      */
     function barSlots(S, env, bar, fullDate, now) {
         var st = S || {}, when = now || new Date();
@@ -356,8 +359,21 @@
             var forms = texts[p].split(catalog.ALT_SEP);
             return {pos: c.pos, key: c.key, code: c.code, text: forms[0], alt: forms[1] || '',
                 arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: slotIcon(c.code, env, st, c.key),
-                drawing: slotDrawing(c.code, env, st, c.key)};
+                drawing: slotDrawing(c.code, env, st, c.key), batteryGlyph: drawsBatteryGlyph(c.code, env, st)};
         });
+    }
+
+    /**
+     * Whether the watch draws its battery glyph in a slot (status_line.h
+     * status_slot_draws_battery): the watch battery in its Icon look, or before its text in
+     * its Icon + text look. Never on aplite, whose lean row prints the charge.
+     * @param {string} code The slot's item.
+     * @param {Object} [env] Platform env.
+     * @param {Object} [S] Settings.
+     * @returns {boolean}
+     */
+    function drawsBatteryGlyph(code, env, S) {
+        return code === 'battery' && !(env && env.platform === 'aplite') && slotText.batteryLook(S, env) !== 'text';
     }
 
     /**
@@ -538,7 +554,7 @@
     if (PConf && PConf.blocks) { PConf.blocks.register('statusBarsPreview', statusBarsPreview); }
     var api = {statusBarsPreview: statusBarsPreview, barPicture: barPicture, sample: sample, arrowDue: arrowDue,
         arrowShown: arrowShown, calendarShown: calendarShown, barCodes: barCodes, barSlots: barSlots,
-        slotIcon: slotIcon, SLOT_DRAWINGS: SLOT_DRAWINGS};
+        slotIcon: slotIcon, drawsBatteryGlyph: drawsBatteryGlyph, SLOT_DRAWINGS: SLOT_DRAWINGS};
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     // The page: the Watchface tab's watch reads the slots too (preview-watch.js).
     if (typeof window !== 'undefined') { window.PreviewStatusBars = api; }

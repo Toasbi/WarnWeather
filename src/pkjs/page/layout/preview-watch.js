@@ -550,7 +550,8 @@
         var slots = [null, null, null], at = { left: 0, mid: 1, right: 2 };
         bars.forEach(function (c) {
             if (c.code === 'empty' || !(c.pos in at)) { return; }
-            var glyph = c.code === 'battery' && !c.text;
+            // The watch battery's glyph, alone (its Icon look) or before its text (Icon + text).
+            var glyph = Boolean(c.batteryGlyph);
             var icon = glyph ? null : c.icon;
             // A glyph the watch draws from a drawing takes the drawing's width, as the watch
             // measures it (its bounds); one it draws in code the row's icon height.

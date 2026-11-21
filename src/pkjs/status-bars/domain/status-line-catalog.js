@@ -51,7 +51,11 @@
     // loads no glyph (and, like PRESSURE, keeps it off TEXT + NONE).
     COND_TEXT: 19, COND_SUN: 20, COND_MOON: 21, COND_SUN_CLOUD: 22, COND_MOON_CLOUD: 23,
     COND_CLOUD: 24, COND_FOG: 25, COND_HAZE: 26, COND_DRIZZLE: 27, COND_RAIN: 28,
-    COND_SLEET: 29, COND_SNOW: 30, COND_HAIL: 31, COND_THUNDER: 32, COND_WIND: 33
+    COND_SLEET: 29, COND_SNOW: 30, COND_HAIL: 31, COND_THUNDER: 32, COND_WIND: 33,
+    // The watch battery's Icon + text look: on LIVE_BATTERY_PCT, the battery glyph the watch
+    // draws in code before the charge, as it draws it alone for LIVE_BATTERY. A sentinel like
+    // DRAWN_SUN: no drawing loads.
+    DRAWN_BATTERY: 34
   };
   // A TEXT slot's short form rides after this byte (status_line.h STATUS_TEXT_ALT_SEP).
   var ALT_SEP = '\u001f';
@@ -107,11 +111,12 @@
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
     { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, needsHr: true, category: 'health' },
     { code: 'sleep', label: 'Sleep', kind: KINDS.LIVE_SLEEP, icon: ICONS.SLEEP, needsHealth: true, category: 'health' },
-    // The watch's own battery, one item with two looks (its dialog's Look,
-    // slot-text.js batteryLook): the battery the watch draws (this entry's kind), or its
+    // The watch's own battery, one item with three looks (its dialog's Look,
+    // slot-text.js batteryLook): the battery the watch draws (this entry's kind), its
     // charge as text, which the bake packs as LIVE_BATTERY_PCT (status-lines.js packLine)
-    // and which can show the days the watch has left (battery-days.js). Until 3.3.0 the
-    // text look was an item of its own, 'batteryPct'
+    // and which can show the days the watch has left (battery-days.js), or both, the text
+    // with the battery before it (ICONS.DRAWN_BATTERY). Until 3.3.0 the text look was an
+    // item of its own, 'batteryPct'
     // (settings/domain/migrations/status-slots.js mergeBatterySlots).
     { code: 'battery', label: 'Watch battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnly: true, category: 'battery' },
     // The PHONE's battery: phone-baked TEXT, so unlike the watch item above it
@@ -222,7 +227,7 @@
     if (item.needsPhoneBattery && (!env || !env.phoneBattery)) { return false; }
     // Items whose watch-side C rendering is compiled out on aplite (frozen
     // image budget): the phone battery, which ships no aplite glyph at all. (The
-    // watch battery's Text look is not an item: aplite's lean status-row twin never
+    // watch battery's text looks are not items: aplite's lean status-row twin never
     // learned kind 10, so its bake keeps the battery kind, which that twin prints as
     // "NN%" anyway. Calendar-week used this gate once — the watch-side iso_week() is
     // aplite-excluded — but the phone now bakes that slot as phone-side TEXT

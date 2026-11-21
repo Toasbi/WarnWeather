@@ -2,10 +2,10 @@
 // The two battery slots on the settings page: one Watch battery and one Phone battery in the
 // slot lists, each with its Look as the first row of the dialog its slot's Edit button opens,
 // like the weather condition's. The phone battery's Look is the slot's own, so each slot has
-// a Phone battery dialog of its own and two slots can differ. The Watch battery's Text look
-// is set like the temperature slot's: the percentage, the days left or both, with the pair's
-// order, separator and spaces. The rows that show, the pictures of the bar, the Edit button
-// and the reset.
+// a Phone battery dialog of its own and two slots can differ. The Watch battery's text (its
+// Text and Icon + text looks) is set like the temperature slot's: the percentage, the days
+// left or both, with the pair's order, separator and spaces. The rows that show, the
+// pictures of the bar, the Edit button and the reset.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
@@ -104,14 +104,17 @@ test('the slot lists offer one Watch battery and one Phone battery', () => {
   assert.deepEqual(labels('statusTopRight', 'right', APLITE).filter((l) => /battery/i.test(l)), ['Watch battery']);
 });
 
-test('the watch battery\'s Look leads its dialog in both looks; its slot keeps the picker alone', () => {
+test('the watch battery\'s Look leads its dialog in every look; its slot keeps the picker alone', () => {
   const look = row('batterySlotLook');
   assert.equal(BATTERY.items[0], look, 'the dialog\'s first row, like the weather condition\'s Look');
   assert.equal(look.type, 'segmented');
   assert.equal(look.label, 'Look');
-  assert.deepEqual(look.options, [['Icon', 'icon'], ['Text', 'text']]);
+  // The weather condition's options, in its order and with its stored values.
+  assert.deepEqual(look.options, [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']]);
+  assert.deepEqual(look.options, row('conditionSlotLook').options.map(([label, value]) => [label, value]),
+    'the condition\'s Look, option for option');
   assert.equal(look.defaultValue, 'icon', 'the battery the watch has always drawn');
-  assert.equal(look.showWhen, undefined, 'in both looks: it is how the dialog switches them');
+  assert.equal(look.showWhen, undefined, 'in every look: it is how the dialog switches them');
   assert.equal(look.joinPrevious, undefined, 'a row of its own');
   assert.deepEqual([look.hint, look.hintByValue], [undefined, undefined],
     'no hint: the picture of the bar above the rows shows what each look draws');
@@ -204,25 +207,31 @@ test('the hints under Days left and Both say when the percentage shows, then nam
   assert.match(hints.both, /^Shows the percentage alone while/);
 });
 
-test('the dialog\'s rows: the drawn battery\'s Look alone; Text adds Value selection and Bold, Both the pair\'s rows', () => {
-  const text = (more) => Object.assign({ batterySlotLook: 'text' }, more);
+test('the dialog\'s rows: the drawn battery\'s Look alone; the text looks add Value selection and Bold, Both the pair\'s rows', () => {
   assert.deepEqual(shown(BATTERY, {}, BASALT), ['batterySlotLook'], 'the Icon look, the default: nothing else to set');
   assert.deepEqual(shown(BATTERY, { batterySlotLook: 'icon', batterySlotDisplay: 'both', batterySlotSeparator: 'custom' },
     BASALT), ['batterySlotLook'], 'whatever the text is set to');
-  assert.deepEqual(shown(BATTERY, text({}), BASALT), ['batterySlotLook', 'batterySlotDisplay', 'threshBatteryPctBoldMode']);
-  assert.deepEqual(shown(BATTERY, text({ batterySlotDisplay: 'days' }), BASALT),
-    ['batterySlotLook', 'batterySlotDisplay', 'threshBatteryPctBoldMode']);
-  assert.deepEqual(shown(BATTERY, text({ batterySlotDisplay: 'both' }), BASALT),
-    ['batterySlotLook', 'batterySlotDisplay'].concat(PAIR_ROWS, ['threshBatteryPctBoldMode']));
-  assert.deepEqual(shown(BATTERY, text({ batterySlotDisplay: 'both', batterySlotSeparator: 'custom' }), BASALT),
-    ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator', 'batterySlotSeparatorCustom',
-      'batterySlotSeparatorSpaced', 'threshBatteryPctBoldMode']);
+  // Text and Icon + text print the same text, so they set it with the same rows.
+  ['text', 'both'].forEach((value) => {
+    const look = (more) => Object.assign({ batterySlotLook: value }, more);
+    assert.deepEqual(shown(BATTERY, look({}), BASALT), ['batterySlotLook', 'batterySlotDisplay', 'threshBatteryPctBoldMode'],
+      value);
+    assert.deepEqual(shown(BATTERY, look({ batterySlotDisplay: 'days' }), BASALT),
+      ['batterySlotLook', 'batterySlotDisplay', 'threshBatteryPctBoldMode'], value);
+    assert.deepEqual(shown(BATTERY, look({ batterySlotDisplay: 'both' }), BASALT),
+      ['batterySlotLook', 'batterySlotDisplay'].concat(PAIR_ROWS, ['threshBatteryPctBoldMode']), value);
+    assert.deepEqual(shown(BATTERY, look({ batterySlotDisplay: 'both', batterySlotSeparator: 'custom' }), BASALT),
+      ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator', 'batterySlotSeparatorCustom',
+        'batterySlotSeparatorSpaced', 'threshBatteryPctBoldMode'], value);
+  });
 });
 
-test('a Pebble app without plugins has no days: the Text look\'s dialog is its Look and Bold', () => {
+test('a Pebble app without plugins has no days: a text look\'s dialog is its Look and Bold', () => {
   ['percent', 'days', 'both'].forEach((display) => {
-    assert.deepEqual(shown(BATTERY, { batterySlotLook: 'text', batterySlotDisplay: display, batterySlotSeparator: 'custom' },
-      NO_PLUGINS), ['batterySlotLook', 'threshBatteryPctBoldMode'], display);
+    ['text', 'both'].forEach((look) => {
+      assert.deepEqual(shown(BATTERY, { batterySlotLook: look, batterySlotDisplay: display, batterySlotSeparator: 'custom' },
+        NO_PLUGINS), ['batterySlotLook', 'threshBatteryPctBoldMode'], display + ', ' + look);
+    });
     assert.deepEqual(shown(BATTERY, { batterySlotDisplay: display }, NO_PLUGINS), ['batterySlotLook'], display + ', Icon look');
   });
 });
@@ -267,24 +276,42 @@ test('the Separator row\'s hint says all that can happen: only a spaced custom s
   assert.equal(batteryDays.slotText(99, wide, EDGE), MARK + '··99d');
 });
 
-test('the picture of the bar: a drawn battery, or its text as the watch prints it', () => {
+test('the picture of the bar: a drawn battery, its text as the watch prints it, or both', () => {
   const text = (S, env) => preview.sample('battery', S, { cap: EDGE, env: env || BASALT });
+  const glyph = (S, env) => [preview.drawsBatteryGlyph('battery', env || BASALT, S),
+    Boolean(preview.slotIcon('battery', env || BASALT, S, 'statusTopRight'))];
   assert.equal(text({}), '', 'the Icon look is the glyph alone');
-  assert.equal(text({ batterySlotLook: 'text' }), '80%');
-  assert.equal(text({ batterySlotLook: 'text', batterySlotDisplay: 'days' }), '5d');
-  assert.equal(text({ batterySlotLook: 'text', batterySlotDisplay: 'both' }), '80%|5d');
-  assert.equal(text({ batterySlotLook: 'text', batterySlotDisplay: 'both', batterySlotOrder: 'days',
-    batterySlotSeparator: 'brackets', batterySlotSeparatorSpaced: true }), '5d (80%)');
+  assert.deepEqual(glyph({}), [true, true]);
+  // Icon + text prints what Text prints, after the glyph.
+  ['text', 'both'].forEach((look) => {
+    assert.equal(text({ batterySlotLook: look }), '80%', look);
+    assert.equal(text({ batterySlotLook: look, batterySlotDisplay: 'days' }), '5d', look);
+    assert.equal(text({ batterySlotLook: look, batterySlotDisplay: 'both' }), '80%|5d', look);
+    assert.equal(text({ batterySlotLook: look, batterySlotDisplay: 'both', batterySlotOrder: 'days',
+      batterySlotSeparator: 'brackets', batterySlotSeparatorSpaced: true }), '5d (80%)', look);
+  });
+  assert.deepEqual(glyph({ batterySlotLook: 'text' }), [false, false], 'the Text look: the text alone');
+  assert.deepEqual(glyph({ batterySlotLook: 'both' }), [true, true], 'Icon + text: the glyph before it');
   assert.equal(text({ batterySlotLook: 'icon', batterySlotDisplay: 'both' }), '', 'the Icon look whatever its text is set to');
-  // aplite's lean row prints the charge for its one battery slot, whatever the look.
-  assert.equal(text({}, APLITE), '80%');
-  assert.equal(text({ batterySlotLook: 'text', batterySlotDisplay: 'both' }, APLITE), '80%');
+  // aplite's lean row prints the charge for its one battery slot, whatever the look, and draws
+  // no glyph for it.
+  ['icon', 'text', 'both'].forEach((look) => {
+    assert.equal(text({ batterySlotLook: look, batterySlotDisplay: 'both' }, APLITE), '80%', look);
+    assert.deepEqual(glyph({ batterySlotLook: look }, APLITE), [false, false], look + ' on aplite');
+  });
 });
 
 test('the picture prints what the bake carries, drawn as the watch draws it', () => {
   const now = new Date(2026, 10, 21, 12, 0, 0);
   const watch = { estimate: () => ({ days: 5, updatedAt: now.getTime() }) };
-  ['icon', 'text'].forEach((look) => {
+  // The kind and icon id each look packs as: the drawn battery, the text, the text after the
+  // battery the watch draws.
+  const packed = {
+    icon: [catalog.KINDS.LIVE_BATTERY, catalog.ICONS.NONE],
+    text: [catalog.KINDS.LIVE_BATTERY_PCT, catalog.ICONS.NONE],
+    both: [catalog.KINDS.LIVE_BATTERY_PCT, catalog.ICONS.DRAWN_BATTERY]
+  };
+  ['icon', 'text', 'both'].forEach((look) => {
     ['percent', 'days', 'both'].forEach((display) => {
       ['percent', 'days'].forEach((order) => {
         [false, true].forEach((spaced) => {
@@ -294,18 +321,42 @@ test('the picture prints what the bake carries, drawn as the watch draws it', ()
               batterySlotSeparatorSpaced: spaced };
             const baked = decodeLine(statusLines.buildStatusLines({ CITY: 'Bonn', SUN_EVENTS: [1, 0, 0, 0, 0] }, S,
               { platform: 'basalt' }, now, { watch: watch }).STATUS_LINE_3_UINT8)[2];
+            assert.deepEqual([baked.kind, baked.icon], packed[look], 'packed: ' + JSON.stringify(S));
             const drawn = baked.kind === catalog.KINDS.LIVE_BATTERY ? '' : batteryDays.drawn(baked.text, '80%');
             const right = preview.barSlots(S, BASALT, 'top', false, now)[2];
             assert.equal(right.code, 'battery');
             assert.equal(right.text, drawn, JSON.stringify(S));
-            // The battery itself in the Icon look; in the Text look the text alone, as the
-            // watch draws kind 10 with no glyph.
-            assert.equal(Boolean(right.icon), look === 'icon', 'its glyph: ' + JSON.stringify(S));
+            // The battery itself in the Icon look, and before the text in Icon + text, where
+            // the watch draws it (status_slot_draws_battery: kind 9, or kind 10 with the
+            // drawn battery's id); in the Text look the text alone, kind 10 with no glyph.
+            const draws = baked.kind === catalog.KINDS.LIVE_BATTERY
+              || (baked.kind === catalog.KINDS.LIVE_BATTERY_PCT && baked.icon === catalog.ICONS.DRAWN_BATTERY);
+            assert.equal(right.batteryGlyph, draws, 'the watch\'s glyph: ' + JSON.stringify(S));
+            assert.equal(Boolean(right.icon), look !== 'text', 'its glyph: ' + JSON.stringify(S));
           });
         });
       });
     });
   });
+});
+
+test('the bar\'s picture draws each look: the glyph alone, the text alone, the glyph before the text', () => {
+  const S = { statusTopLeft: 'empty', statusTopMid: 'empty', statusTopRight: 'battery', layoutPreset: 'compactCal',
+    healthMode: 'off', radarMode: 'off' };
+  const right = (look, more) => {
+    const html = preview.barPicture(Object.assign({ batterySlotLook: look }, S, more), BASALT, 'top', {});
+    const at = html.indexOf('<span class="sbp-v sbp-right">');
+    assert.ok(at !== -1, look);
+    return html.slice(at);
+  };
+  const glyph = '<span class="sbp-ico" aria-hidden="true">' + PConf.icons.get('battery') + '</span>';
+  assert.ok(PConf.icons.get('battery'), 'premise: the page has the battery\'s glyph');
+  const cell = (inner) => '<span class="sbp-v sbp-right">' + inner + '</span>';
+  assert.equal(right('icon').indexOf(cell(glyph)), 0, 'Icon');
+  assert.equal(right('text').indexOf(cell('80%')), 0, 'Text');
+  assert.equal(right('both').indexOf(cell(glyph + '80%')), 0, 'Icon + text');
+  assert.equal(right('both', { batterySlotDisplay: 'both' }).indexOf(cell(glyph + '80%|5d')), 0, 'Icon + text, Both');
+  assert.equal(right('both', { batterySlotDisplay: 'days' }).indexOf(cell(glyph + '5d')), 0, 'Icon + text, Days left');
 });
 
 test('the phone battery\'s picture follows its slot\'s Look: the phone\'s icon, or none', () => {
@@ -330,7 +381,7 @@ test('the phone battery\'s picture follows its slot\'s Look: the phone\'s icon, 
   assert.deepEqual([baked[0].text, baked[2].text], ['72%', '72%']);
 });
 
-test('the Edit button opens the Watch battery\'s dialog in both looks; the drawn battery badges no bold', () => {
+test('the Edit button opens the Watch battery\'s dialog in every look; the drawn battery alone badges no bold', () => {
   const sheetOf = PConf.sheetResolvers.get('statusSlotEditSheet');
   const badge = PConf.badgeResolvers.get('thresholdPenState');
   const env = { thresholds: true };
@@ -338,16 +389,19 @@ test('the Edit button opens the Watch battery\'s dialog in both looks; the drawn
   const S = (more) => Object.assign({ statusTopRight: 'battery' }, more);
   // Its Look is in the dialog, so the dialog is there whatever the Look is.
   assert.equal(sheetOf(S({}), env, args), 'threshBatteryPct', 'the Icon look, the default');
-  ['icon', 'text'].forEach((look) => {
+  ['icon', 'text', 'both'].forEach((look) => {
     assert.equal(sheetOf(S({ batterySlotLook: look }), env, args), 'threshBatteryPct', look);
     assert.equal(sheetOf(S({ batterySlotLook: look }), { thresholds: false }, args), null, look + ': aplite has no slot dialogs');
   });
-  // The drawn battery has no text to print bold: no B, not even when every slot prints bold.
+  // The drawn battery alone has no text to print bold: no B, not even when every slot prints bold.
   assert.equal(badge(S({ threshBatteryPctBoldMode: 'always' }), env, args), null);
   assert.equal(badge(S({ statusBoldAll: 'all' }), env, args), null, 'not even under the master row');
-  assert.equal(badge(S({ batterySlotLook: 'text', threshBatteryPctBoldMode: 'always' }), env, args).bold, true);
-  assert.equal(badge(S({ batterySlotLook: 'text', statusBoldAll: 'all' }), env, args).bold, true);
-  assert.equal(badge(S({ batterySlotLook: 'text' }), env, args).bold, false);
+  // The looks that print text badge it as every text slot does.
+  ['text', 'both'].forEach((look) => {
+    assert.equal(badge(S({ batterySlotLook: look, threshBatteryPctBoldMode: 'always' }), env, args).bold, true, look);
+    assert.equal(badge(S({ batterySlotLook: look, statusBoldAll: 'all' }), env, args).bold, true, look);
+    assert.equal(badge(S({ batterySlotLook: look }), env, args).bold, false, look);
+  });
   // The phone battery opens its slot's own dialog, in both of its looks.
   SLOT_KEYS.forEach((slotKey) => {
     ['both', 'text'].forEach((look) => {
@@ -399,16 +453,18 @@ test('Reset status bars puts the batteries back: the drawn battery, the percenta
   const defaults = {};
   nodes((node) => typeof node.messageKey === 'string' && /attery/.test(node.messageKey))
     .forEach((item) => { defaults[item.messageKey] = item.defaultValue; });
-  const S = { batterySlotLook: 'text', batterySlotDisplay: 'both', batterySlotOrder: 'days',
-    batterySlotSeparator: 'custom', batterySlotSeparatorCustom: '~', batterySlotSeparatorSpaced: true,
-    statusForecastLeftPhoneBatteryLook: 'text', statusRadarRightPhoneBatteryLook: 'text', holidayCountry: 'DE' };
   const defaultOf = (key) => (Object.prototype.hasOwnProperty.call(defaults, key) ? defaults[key] : undefined);
-  assert.equal(PConf.actions.resetStatusSlots(null, S, BASALT, defaultOf), true);
-  assert.deepEqual([S.batterySlotLook, S.batterySlotDisplay, S.batterySlotOrder, S.batterySlotSeparator,
-    S.batterySlotSeparatorCustom, S.batterySlotSeparatorSpaced],
-  ['icon', 'percent', 'percent', 'bar', '', false]);
-  catalog.allSlotKeys().forEach((slotKey) => {
-    assert.equal(S[catalog.phoneBatteryLookKey(slotKey)], 'both', slotKey);
+  ['text', 'both'].forEach((look) => {
+    const S = { batterySlotLook: look, batterySlotDisplay: 'both', batterySlotOrder: 'days',
+      batterySlotSeparator: 'custom', batterySlotSeparatorCustom: '~', batterySlotSeparatorSpaced: true,
+      statusForecastLeftPhoneBatteryLook: 'text', statusRadarRightPhoneBatteryLook: 'text', holidayCountry: 'DE' };
+    assert.equal(PConf.actions.resetStatusSlots(null, S, BASALT, defaultOf), true, look);
+    assert.deepEqual([S.batterySlotLook, S.batterySlotDisplay, S.batterySlotOrder, S.batterySlotSeparator,
+      S.batterySlotSeparatorCustom, S.batterySlotSeparatorSpaced],
+    ['icon', 'percent', 'percent', 'bar', '', false], look);
+    catalog.allSlotKeys().forEach((slotKey) => {
+      assert.equal(S[catalog.phoneBatteryLookKey(slotKey)], 'both', slotKey);
+    });
   });
 });
 

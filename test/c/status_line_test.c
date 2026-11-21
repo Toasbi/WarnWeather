@@ -137,6 +137,22 @@ static void validate_tests(void) {
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     n = put_slot(b, n, SLOT_LIVE_BATTERY, STATUS_ICON_NONE, "5d");
     expect("battery-glyph.len.reject", status_line_validate(b, n), 0);
+    // The Icon + text look: the same kind, with the id of the glyph the watch draws before
+    // its text, the days or none.
+    n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, "5d");
+    expect("battery-icon-text.valid", status_line_validate(b, n), 1);
+    n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, NULL);
+    expect("battery-icon-text.bare.valid", status_line_validate(b, n), 1);
+    expect("draws-battery.icon", status_slot_draws_battery(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), 1);
+    expect("draws-battery.icon-text",
+           status_slot_draws_battery(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY), 1);
+    expect("draws-battery.text", status_slot_draws_battery(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE), 0);
+    expect("draws-battery.other-kind", status_slot_draws_battery(SLOT_TEXT, STATUS_ICON_DRAWN_BATTERY), 0);
+    expect("draws-battery.empty", status_slot_draws_battery(SLOT_EMPTY, STATUS_ICON_DRAWN_BATTERY), 0);
     // A battery percentage slot with the days never reads as a wind arrow's carrier.
     {
         StatusSlotView av[STATUS_SLOT_COUNT];
@@ -551,8 +567,8 @@ static void alt_tests(void) {
     expect("alt.mid-len", v[1].value_len, (int)strlen(both));
     // The short form ends in a letter, never in a wind sentinel.
     expect("alt.no-dir", status_slot_direction(&v[1]), -1);
-    expect("alt.max-icon", STATUS_ICON_MAX, STATUS_ICON_COND_WIND);
-    n = put_slot(b, 0, SLOT_TEXT, (uint8_t)(STATUS_ICON_COND_WIND + 1), "x");
+    expect("alt.max-icon", STATUS_ICON_MAX, STATUS_ICON_DRAWN_BATTERY);
+    n = put_slot(b, 0, SLOT_TEXT, (uint8_t)(STATUS_ICON_MAX + 1), "x");
     n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
     n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
     expect("alt.past-max-invalid", status_line_validate(b, n), 0);

@@ -375,8 +375,9 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         conditionSlotLook: isAplite ? undefined : slotText.conditionLook(safe),
         conditionSlotName: isAplite ? undefined : slotText.conditionName(safe),
         citySlotIcon: isAplite ? undefined : slotText.cityIcon(safe),
-        // The watch battery's Look ('icon' the drawn battery, 'text') and what its text
-        // shows ('percent', 'days' left from another app's estimate, 'both'). Absent on
+        // The watch battery's Look ('icon' the drawn battery, 'text', 'both' the battery and
+        // its text) and what its text shows ('percent', 'days' left from another app's
+        // estimate, 'both'). Absent on
         // aplite, which draws its one battery slot its own way. (The phone battery's Look
         // is each slot's own and not reported.) Lockstep with handler.ts -- deploy it first.
         batterySlotLook: isAplite ? undefined : slotText.batteryLook(safe),

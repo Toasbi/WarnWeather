@@ -164,9 +164,10 @@ const settingsSchema = z
     // Whether the city slot draws the current weather's icon. Absent on aplite.
     // DEPLOY-ORDERING: ship this function before the app release that sends it.
     citySlotIcon: z.boolean().optional(),
-    // The watch battery's Look ('icon' or 'text') and what its text shows ('percent',
-    // 'days' or 'both'). Absent on aplite. z.string() per threshPhoneBatteryBoldMode's rule
-    // above. DEPLOY-ORDERING: ship this function before the app release that sends them.
+    // The watch battery's Look ('icon', 'text' or 'both') and what its text shows
+    // ('percent', 'days' or 'both'). Absent on aplite. z.string() per
+    // threshPhoneBatteryBoldMode's rule above, so a look added later passes as it is.
+    // DEPLOY-ORDERING: ship this function before the app release that sends them.
     batterySlotLook: z.string().optional(),
     batterySlotDisplay: z.string().optional(),
     // The Battery item's warn level as stored (a percentage) and its look ('icon' /

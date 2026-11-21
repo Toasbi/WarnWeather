@@ -463,7 +463,7 @@ Pebble.addEventListener('ready',
         // last sent, so the charge drifting inside its bucket sends nothing by itself.
         outbox.setRideAlong(phoneBattery.statusRideAlong);
         // The estimate of the days the watch has left (another app's plugin), read only
-        // while the watch battery's Text look is set to show them.
+        // while the watch battery's text (its Text or Icon + text look) is set to show them.
         batteryEstimate.init({
             getSettings: function () { return app.settings; },
             getWatchInfo: function () { return app.watchInfo; },

@@ -121,6 +121,19 @@ test('a status row seats its slots as the watch does: the edge slots from the ma
   // The battery glyph (battery_glyph.h, 29 wide: a 10 px bolt lane, a 17 px body, a 2 px nub)
   // against the right margin: its body outlined from x 123, its nub at 140.
   assert.match(svg, /<rect x="123\.5" y="[^"]*" width="16" height="9" fill="none" stroke="#FFFFFF" stroke-width="1"><\/rect><rect x="140" y="[^"]*" width="2" height="4"/);
+  // The watch battery in its Icon + text look: the glyph, STATUS_ROW_ICON_TEXT_GAP (3), then its
+  // charge, the whole against the right margin; in its Text look the charge alone, at the same place.
+  const look = (value) => picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'empty', statusTopMid: 'empty',
+    statusTopRight: 'battery', batterySlotLook: value });
+  const both = look('both');
+  const pct = text(/<text [^>]*>80%<\/text>/.exec(both)[0]);
+  assert.deepEqual([pct.x, pct.size, pct.weight], [142 - WT.width(18, false, '80%'), 18, 400], 'the charge at the margin');
+  const body = (pct.x - 3 - 29 + 10 + 0.5).toString().replace('.', '\\.');
+  assert.match(both, new RegExp('<rect x="' + body + '" y="[^"]*" width="16" height="9" fill="none"'),
+    'the battery\'s body before it, 29 px and the gap left of the charge');
+  const plain = look('text');
+  assert.equal(text(/<text [^>]*>80%<\/text>/.exec(plain)[0]).x, pct.x, 'the Text look: the charge where it was');
+  assert.doesNotMatch(plain, /width="16" height="9" fill="none"/, 'and no battery');
   // A middle slot centred on the row.
   const mid = picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'empty', statusTopMid: 'city',
     statusTopRight: 'empty', citySlotIcon: false });

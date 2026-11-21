@@ -68,7 +68,7 @@ static const char *glyph_name(uint8_t id) {
 }
 static const uint8_t TEXT_ONLY[] = {
     STATUS_ICON_NONE, STATUS_ICON_DRAWN_SUN, STATUS_ICON_PRESSURE, STATUS_ICON_PHONE_BATTERY_PLAIN,
-    STATUS_ICON_COND_TEXT,
+    STATUS_ICON_COND_TEXT, STATUS_ICON_DRAWN_BATTERY,
 };
 #define RETIRED_ICON_ID 6   // STATUS_ICON_PRECIP's hole (status_line.h)
 #define RETIRED_CHG_ICON_ID 17   // the phone-charging glyph's hole (status_line.h)

@@ -734,9 +734,9 @@ static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int conte
     GColor fg = theme_fg();
     bool env_changed = target_h != row->glyph_h || !gcolor_equal(fg, row->glyph_fg);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        // An id with no glyph (NONE, the drawn sun arrow, the text-only ids such as
-        // PRESSURE) has no drawing and loads as NULL (status_row_icons.c), so its slot
-        // reserves no icon width and draws as bare text.
+        // An id with no glyph (NONE, the drawn sun arrow and battery, the text-only ids
+        // such as PRESSURE) has no drawing and loads as NULL (status_row_icons.c), so its
+        // slot reserves no icon width for it: the drawn ones measure their own.
         uint8_t wanted = views[i].kind != SLOT_EMPTY ? views[i].icon : STATUS_ICON_NONE;
         if (!env_changed && wanted == row->glyph_icons[i]) { continue; }
         status_row_icons_destroy(row->glyphs[i]);
@@ -754,8 +754,9 @@ int16_t status_row_text_w(const char *text, GFont font, int16_t content_w, int16
         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
 }
 
-// Measured footprint of one slot: icon width (battery = fixed glyph, loaded PDC,
-// or the drawn-sun arrow) + text width + the trailing wind-direction arrow's lane.
+// Measured footprint of one slot: icon width (battery = fixed glyph, alone or before the
+// Watch battery's text, loaded PDC, or the drawn-sun arrow) + text width + the trailing
+// wind-direction arrow's lane.
 // The draw pass feeds it a ResolvedSlot's font/slot/text/dir — the resolver's font
 // above all, since a bold slot's glyphs are wider than the regular font would
 // measure.
@@ -766,7 +767,7 @@ static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
     // stack memory that status_row_layout would read as a real reserve.
     StatusSlotMeasure m = {0};
     int16_t icon_w = 0;
-    if (slot->kind == SLOT_LIVE_BATTERY) {
+    if (status_slot_draws_battery(slot->kind, slot->icon)) {
         icon_w = BATTERY_GLYPH_W;
     } else if (row->glyphs[i]) {
         icon_w = gdraw_command_image_get_bounds_size(row->glyphs[i]).w;
@@ -943,8 +944,9 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         const GColor ink = paints[i].ink;
         graphics_context_set_text_color(ctx, ink);
         int16_t icon_x = (int16_t)(x0 + places[i].icon_x);
-        if (slots[i].slot.kind == SLOT_LIVE_BATTERY) {
-            // The short battery (On demand) is measured without its bolt lane, which
+        if (status_slot_draws_battery(slots[i].slot.kind, slots[i].slot.icon)) {
+            // The battery glyph, alone or before the charge (the Icon + text look). The
+            // short battery (On demand) is measured without its bolt lane, which
             // is empty while the watch is not charging: the glyph draws that much
             // further left, so its body lands where the slot was placed.
             int16_t lane = (int16_t)(BATTERY_GLYPH_W - measures[i].icon_w);

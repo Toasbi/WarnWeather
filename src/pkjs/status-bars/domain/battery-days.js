@@ -1,6 +1,6 @@
 /**
- * What the watch battery slot's Text look prints: the percentage, the days the watch has
- * left on its charge ("5d"), or both ("83%|5d").
+ * What the watch battery slot's text prints (its Text and Icon + text looks): the
+ * percentage, the days the watch has left on its charge ("5d"), or both ("83%|5d").
  *
  * The watch knows its charge, not how long it will last: that is an estimate another app
  * makes from the charge it has watched fall (Muninn's plugin, read by

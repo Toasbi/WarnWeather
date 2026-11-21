@@ -671,7 +671,7 @@ function alertLevelsRow(keyStem) {
 // non-bold on a level-less kind — it resolves THRESH_LEVEL_NORMAL — so the
 // options-snapping of an unset store to 'off' is benign. A look that draws a glyph and
 // no text gets no Bold row, which would be a no-op there: the watch battery's dialog
-// hides it while its Look is the drawn battery (batterySlotSheet).
+// hides it in the Icon look, the drawn battery alone (batterySlotSheet).
 /**
  * @param {string} title Catalog label of the slot kind, e.g. 'City'.
  * @param {string} keyStem Kind key stem, e.g. 'City' (thresh<Stem>BoldMode).
@@ -706,16 +706,17 @@ function boldOnlyRow(keyStem) {
     };
 }
 
-// The watch battery's dialog (its slot's Edit button opens it in both looks: blocks.js
-// statusSlotEditSheet). Its Look leads, as the weather condition's does: the battery the
-// watch draws (Icon) or its charge as text (Text; slot-text.js batteryLook). The item's
-// setting, since the watch battery sits in one slot. Every other row is the Text look's: the
-// drawn battery has no text to set or to print bold. The text shows the percentage, which the
-// watch reads itself, the days it has left, which the Muninn app estimates and the phone
-// bakes in (battery-days.js), or both as a pair shaped like the temperature slot's (the Order
-// and Separator rows, status-pair.js formatBatteryPair). The days need a Pebble app that can
-// read another app's plugin, so Value selection and the pair's rows show only there
-// (PLUGINS_WHEN).
+// The watch battery's dialog (its slot's Edit button opens it in every look: blocks.js
+// statusSlotEditSheet). Its Look leads, with the weather condition's options in its order:
+// the battery the watch draws and its charge as text after it (Icon + text), the text alone
+// (Text) or the battery alone (Icon; slot-text.js batteryLook). The item's setting, since the
+// watch battery sits in one slot. Every other row shows while text prints, in Text and Icon +
+// text: the drawn battery alone has no text to set or to print bold. The text shows the
+// percentage, which the watch reads itself, the days it has left, which the Muninn app
+// estimates and the phone bakes in (battery-days.js), or both as a pair shaped like the
+// temperature slot's (the Order and Separator rows, status-pair.js formatBatteryPair). The
+// days need a Pebble app that can read another app's plugin, so Value selection and the
+// pair's rows show only there (PLUGINS_WHEN).
 //
 // The hints under Days left and Both: when the percentage shows instead (battery-days.js
 // daysLeft, status_row.c shows_battery_days; after a charge the days from before it stay
@@ -733,12 +734,13 @@ var BATTERY_BOTH_HINT = 'Shows the percentage alone' + BATTERY_FALLBACK + MUNINN
 // outgrow it with its spaces, which it then drops. So that is all its Separator row says
 // (test/status-bars/domain/battery-days.test.js walks every form).
 var BATTERY_FIT_HINTS = {custom: 'If the pair doesn\'t fit, the slot drops the spaces.'};
-// The watch battery's text rows show while its Look is Text.
-var BATTERY_TEXT_WHEN = {key: 'batterySlotLook', eq: 'text'};
+// The watch battery's text rows show while its Look prints text: Icon + text and Text (the
+// values slot-text.js batteryLook reads as such; anything else is the Icon look).
+var BATTERY_TEXT_WHEN = {key: 'batterySlotLook', in: ['both', 'text']};
 /**
- * The watch battery slot's dialog: its Look, then the Text look's rows (what the text shows,
- * the pair's rows, Bold). Built from sheetOf rather than boldSection, whose gate would cover
- * the Look too: here only the rows after it follow the Look.
+ * The watch battery slot's dialog: its Look, then the rows of the looks that print text
+ * (what the text shows, the pair's rows, Bold). Built from sheetOf rather than boldSection,
+ * whose gate would cover the Look too: here only the rows after it follow the Look.
  * @returns {Object} The watch battery slot's sheet (sheetOnly).
  */
 function batterySlotSheet() {
@@ -748,7 +750,7 @@ function batterySlotSheet() {
         messageKey: 'batterySlotLook',
         label: 'Look',
         defaultValue: 'icon',
-        options: [['Icon', 'icon'], ['Text', 'text']]
+        options: [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']]
     };
     var textRows = alsoWhen([{
         // Global, like the temperature slot's: the watch battery sits in one slot. The

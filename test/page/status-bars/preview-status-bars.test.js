@@ -142,6 +142,15 @@ test('the watch-rendered kinds print in the watch\'s own shapes', () => {
   assert.equal(sample('battery', {}), '', 'the watch battery is its glyph alone');
   assert.equal(sample('battery', {}, { env: { platform: 'aplite' } }), '80%',
     'aplite\'s lean twin prints the charge instead');
+  // Its text looks print the charge: alone (Text), or after the glyph (Icon + text).
+  assert.equal(sample('battery', { batterySlotLook: 'text' }), '80%');
+  assert.equal(sample('battery', { batterySlotLook: 'both' }), '80%');
+  assert.deepEqual(['icon', 'text', 'both'].map((look) => preview.drawsBatteryGlyph('battery', {}, { batterySlotLook: look })),
+    [true, false, true], 'the glyph the watch draws: alone, none, before the text');
+  assert.equal(preview.drawsBatteryGlyph('battery', { platform: 'aplite' }, { batterySlotLook: 'both' }), false,
+    'aplite\'s lean twin prints the charge');
+  assert.equal(preview.drawsBatteryGlyph('phoneBattery', {}, { batterySlotLook: 'both' }), false,
+    'the watch battery\'s alone');
 });
 
 test('the block prints the date by whether the bar\'s view shows a calendar', () => {

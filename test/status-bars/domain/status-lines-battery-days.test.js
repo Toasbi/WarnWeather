@@ -1,8 +1,9 @@
 'use strict';
-// The watch battery in a bake. One item with two looks: the battery the watch draws (kind 9,
-// no bytes) or its charge as text (kind 10), which carries the days the watch has left while
-// it is set to show them, alone or beside the percentage, and there is an estimate. Else it
-// carries nothing, and the watch prints its percentage as it always has.
+// The watch battery in a bake. One item with three looks: the battery the watch draws (kind 9,
+// no bytes), its charge as text (kind 10), which carries the days the watch has left while it
+// is set to show them, alone or beside the percentage, and there is an estimate, or both (kind
+// 10 with the drawn battery's icon id, the same text after it). Else the text carries nothing,
+// and the watch prints its percentage as it always has.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const statusLines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
@@ -176,4 +177,65 @@ test('wantsBatteryDays: the Text look set to days or both, on a watch that shows
     BASALT), false, 'another item in the slot');
   assert.equal(statusLines.wantsBatteryDays(DAYS, APLITE), false);
   assert.equal(statusLines.wantsBatteryDays(DAYS, null), true, 'an unknown watch may be one that shows it');
+});
+
+/** The settings in the Icon + text look. */
+function iconAndText(settings) {
+  return Object.assign({}, settings, { batterySlotLook: 'both' });
+}
+
+test('the Icon + text look: the Text look\'s slot, with the drawn battery\'s id in its icon byte', () => {
+  const ICON = catalog.ICONS.DRAWN_BATTERY;
+  assert.equal(ICON, 34);
+  [TEXT, DAYS, BOTH].forEach((settings) => {
+    const text = bakeTop(settings, fiveDays());
+    const both = bakeTop(iconAndText(settings), fiveDays());
+    assert.deepEqual(both.slots[2], { kind: PCT, icon: ICON, text: text.slots[2].text }, JSON.stringify(settings));
+    // Byte for byte the Text look's line but the one icon byte: no byte more to send.
+    assert.equal(both.bytes.length, text.bytes.length);
+    const at = both.bytes.length - 3 - Buffer.byteLength(text.slots[2].text);
+    assert.deepEqual(both.bytes.slice(0, at), text.bytes.slice(0, at), 'the other slots as they were');
+    assert.deepEqual([both.bytes[at], both.bytes[at + 1]], [PCT, ICON]);
+    assert.deepEqual(both.bytes.slice(at + 2), text.bytes.slice(at + 2), 'its length and text');
+  });
+  assert.deepEqual(bakeTop(iconAndText(TEXT), fiveDays()).bytes.slice(-3), [PCT, ICON, 0], 'the percentage alone');
+  assert.deepEqual(bakeTop(iconAndText(DAYS), fiveDays()).bytes.slice(-5), [PCT, ICON, 2, 0x35, 0x64]);
+});
+
+test('the Icon + text look reads the estimate as the Text look does, and carries nothing without one', () => {
+  [DAYS, BOTH].forEach((settings) => {
+    const f = fiveDays();
+    bakeTop(iconAndText(settings), f);
+    assert.equal(f.reads, 1, JSON.stringify(settings));
+    [null, { estimate: () => null }].forEach((watch) => {
+      assert.deepEqual(bakeTop(iconAndText(settings), watch).bytes.slice(-3), [PCT, catalog.ICONS.DRAWN_BATTERY, 0]);
+    });
+  });
+  const percent = fiveDays();
+  bakeTop(iconAndText(TEXT), percent);
+  assert.equal(percent.reads, 0, 'the percentage alone needs no estimate');
+  assert.equal(statusLines.wantsBatteryDays(iconAndText(DAYS), BASALT), true);
+  assert.equal(statusLines.wantsBatteryDays(iconAndText(BOTH), BASALT), true);
+  assert.equal(statusLines.wantsBatteryDays(iconAndText(TEXT), BASALT), false);
+  assert.equal(statusLines.wantsBatteryDays(iconAndText(DAYS), APLITE), false);
+});
+
+test('aplite is never sent the Icon + text look: its one battery slot, as ever', () => {
+  [TEXT, DAYS, BOTH].forEach((settings) => {
+    const f = fiveDays();
+    const { bytes } = bakeTop(iconAndText(settings), f, APLITE);
+    assert.equal(f.reads, 0, JSON.stringify(settings));
+    assert.deepEqual(bytes.slice(-3), [GLYPH, 0, 0]);
+    assert.equal(bytes.indexOf(catalog.ICONS.DRAWN_BATTERY), -1, 'no drawn battery id on its line');
+  });
+});
+
+test('the widest Icon + text slot stays within the edge cap and the line within its cap', () => {
+  const full = { statusTopLeft: 'city', statusTopMid: 'city' };
+  const both = bakeTop(iconAndText(Object.assign({}, full, BOTH, { batterySlotSeparator: 'custom',
+    batterySlotSeparatorCustom: '··', batterySlotSeparatorSpaced: true })),
+    facts({ days: 240, updatedAt: NOW.getTime() }));
+  assert.equal(both.slots[2].text, MARK + '··99d');
+  assert.equal(Buffer.byteLength(both.slots[2].text), catalog.CAPS.EDGE_TEXT_MAX, 'the whole of an edge slot');
+  assert.ok(both.bytes.length <= catalog.CAPS.LINE_MAX, both.bytes.length + ' bytes');
 });

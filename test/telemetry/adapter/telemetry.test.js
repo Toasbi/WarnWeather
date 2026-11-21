@@ -267,6 +267,8 @@ test('snapshot reports the watch battery\'s Look and what its text shows', () =>
   assert.equal(fresh.batterySlotDisplay, 'percent');
   const set = buildSettingsSnapshot({ batterySlotLook: 'text', batterySlotDisplay: 'both' }, { platform: 'basalt' });
   assert.deepEqual([set.batterySlotLook, set.batterySlotDisplay], ['text', 'both']);
+  assert.equal(buildSettingsSnapshot({ batterySlotLook: 'both' }, { platform: 'basalt' }).batterySlotLook, 'both',
+    'the Icon + text look');
   assert.equal(buildSettingsSnapshot({ batterySlotDisplay: 'days' }, { platform: 'basalt' }).batterySlotDisplay, 'days');
   const junk = buildSettingsSnapshot({ batterySlotLook: 7, batterySlotDisplay: 'weeks' }, { platform: 'basalt' });
   assert.deepEqual([junk.batterySlotLook, junk.batterySlotDisplay], ['icon', 'percent'],

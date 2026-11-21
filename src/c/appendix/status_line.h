@@ -52,9 +52,10 @@ typedef enum {
     SLOT_LIVE_WEEK = 7,     // watch formats the current ISO-8601 calendar week
     SLOT_LIVE_DISTANCE_MI = 8,  // walked distance in miles (imperial); unit chosen by the phone
     SLOT_LIVE_BATTERY = 9,      // watch draws the battery glyph; state read on-device
-    SLOT_LIVE_BATTERY_PCT = 10, // watch formats the charge as "NN%" text; icon NONE. May
-                                // carry text all the same: the days the watch has left
-                                // ("5d"), alone or beside the percentage
+    SLOT_LIVE_BATTERY_PCT = 10, // watch formats the charge as "NN%" text; icon NONE, or
+                                // STATUS_ICON_DRAWN_BATTERY for the glyph before it (the
+                                // Icon + text look). May carry text all the same: the days
+                                // the watch has left ("5d"), alone or beside the percentage
                                 // (STATUS_BATTERY_PCT_MARK), which the watch shows in
                                 // place of the percentage while they can be current
                                 // (status_slot_kind_has_text)
@@ -217,13 +218,25 @@ typedef enum {
     STATUS_ICON_COND_THUNDER = 32,
     STATUS_ICON_COND_WIND = 33,     // the wind glyph, under an id of its own: STATUS_ICON_WIND
                                     // is the wind speed slot's (its bold mode, its pair)
+    // Sentinel, like STATUS_ICON_DRAWN_SUN: the watch draws its battery glyph (battery_draw.h)
+    // before the Watch battery's text, the Icon + text look of SLOT_LIVE_BATTERY_PCT. Drawn in
+    // code: no drawing loads (status_slot_draws_battery).
+    STATUS_ICON_DRAWN_BATTERY = 34,
 } StatusIconId;
 // Id 6 (STATUS_ICON_PRECIP, removed in 3dae9f4) is a retired hole: never reuse it —
 // a pre-3dae9f4 install can still hold a persisted blob referencing it. So is id 17
 // (STATUS_ICON_PHONE_BATTERY_CHG, the glyph of a phone that charges: the phone packed it
 // in place of id 16 while it charged, until the slot came to show the charge alone). A
 // line stored with it draws its text without a glyph until the phone's next bake.
-#define STATUS_ICON_MAX STATUS_ICON_COND_WIND
+#define STATUS_ICON_MAX STATUS_ICON_DRAWN_BATTERY
+
+// Whether a slot draws the Watch battery's glyph: alone (SLOT_LIVE_BATTERY, the Icon look), or
+// before its charge as text (SLOT_LIVE_BATTERY_PCT with STATUS_ICON_DRAWN_BATTERY, the Icon +
+// text look). On any other kind the id means nothing.
+static inline bool status_slot_draws_battery(uint8_t kind, uint8_t icon) {
+    return kind == SLOT_LIVE_BATTERY
+        || (kind == SLOT_LIVE_BATTERY_PCT && icon == STATUS_ICON_DRAWN_BATTERY);
+}
 
 // The city slot can draw the current weather's glyph before its name: the glyph's id
 // (STATUS_ICON_COND_SUN..STATUS_ICON_COND_WIND) with this bit set, so the slot stays the

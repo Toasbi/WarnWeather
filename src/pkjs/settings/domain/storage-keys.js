@@ -135,8 +135,9 @@ module.exports = {
     // level above, because the watch keeps showing it.
     PHONE_BATTERY_SHOWN: 'phoneBatteryShown',
     // The estimate of the days the watch has left on its charge as it was last heard
-    // ({days, updatedAt}; battery-estimate.js), which the watch battery's Text look can
-    // show. Kept across PKJS restarts so a bake shows the days at once.
+    // ({days, updatedAt}; battery-estimate.js), which the watch battery's text (its Text
+    // and Icon + text looks) can show. Kept across PKJS restarts so a bake shows the days
+    // at once.
     BATTERY_ESTIMATE: 'batteryEstimate',
     // The re-bake snapshot: the handful of payload keys buildStatusLines reads,
     // plus the watchInfo its platform env is derived from, version-stamped as

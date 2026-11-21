@@ -192,30 +192,32 @@ app's Phone plugin, or from the Android WebView's battery API where the app has 
 
 **Look (battery slots)**:
 How a battery slot draws, the first row of the dialog its slot's Edit button opens
-(`slot-text.js` batteryLook, phoneBatteryLook). The Watch battery is the battery the watch
-draws (Icon) or its charge as text (Text); the Phone battery is the phone's icon before its
-charge, or the charge alone. The Phone battery's Look is each slot's own setting, like a
-countdown's date, so two slots can differ, and each slot opens a Phone battery dialog of its
-own (`status-line-catalog.js` phoneBatterySheet); the Watch battery sits in one slot, so its
-Look is the item's. One slot item each: the bake picks the wire kind or the icon id by the
-Look (`status-lines.js` packLine, iconFor).
+(`slot-text.js` batteryLook, phoneBatteryLook), with the weather condition's options. The
+Watch battery is the battery the watch draws and its charge as text after it (Icon + text),
+the text alone (Text) or the battery alone (Icon); the Phone battery is the phone's icon
+before its charge, or the charge alone. The Phone battery's Look is each slot's own setting,
+like a countdown's date, so two slots can differ, and each slot opens a Phone battery dialog
+of its own (`status-line-catalog.js` phoneBatterySheet); the Watch battery sits in one slot,
+so its Look is the item's. One slot item each: the bake picks the wire kind or the icon id by
+the Look (`status-lines.js` packLine, iconFor; the Watch battery's Icon + text is its text's
+kind with the id of the battery the watch draws, `status_line.h` STATUS_ICON_DRAWN_BATTERY).
 _Avoid_: battery percentage slot, phone battery (no icon), which were items of their own
 until 3.3.0.
 
 **Days left (watch battery)**:
-What the Watch battery's Text look can show in place of the percentage, or beside it: the
-days the watch has left, an estimate the Muninn app makes and serves as a plugin of the
-Pebble app (`battery-estimate.js` reads it, once at a time, never subscribed). The phone
-counts it down and bakes it into the slot (`battery-days.js`, the one live kind that carries
-text). Beside the percentage it bakes the pair's separator and the place of the percentage
-too (the percentage mark), since only the watch knows its charge of the moment. The watch
-shows the days only while they can be current: the phone in reach, the watch not charging,
-and not charged since the days arrived (`status_row.c` shows_battery_days). Otherwise the
-slot shows the percentage alone. For the last of the three the watch keeps a mark of the
-carried text and the lowest charge since it arrived (`status_line.h` StatusBatteryDaysMark):
-an estimate from before a charge stays hidden until another one arrives, which can take
-hours. A new estimate is owed to the watch, not sent at once: the re-bake's next tick sends
-it (`status-rebake.js` oweStatus).
+What the Watch battery's text (its Text and Icon + text looks) can show in place of the
+percentage, or beside it: the days the watch has left, an estimate the Muninn app makes and
+serves as a plugin of the Pebble app (`battery-estimate.js` reads it, once at a time, never
+subscribed). The phone counts it down and bakes it into the slot (`battery-days.js`, the one
+live kind that carries text). Beside the percentage it bakes the pair's separator and the
+place of the percentage too (the percentage mark), since only the watch knows its charge of
+the moment. The watch shows the days only while they can be current: the phone in reach, the
+watch not charging, and not charged since the days arrived (`status_row.c`
+shows_battery_days). Otherwise the slot shows the percentage alone. For the last of the three
+the watch keeps a mark of the carried text and the lowest charge since it arrived
+(`status_line.h` StatusBatteryDaysMark): an estimate from before a charge stays hidden until
+another one arrives, which can take hours. A new estimate is owed to the watch, not sent at
+once: the re-bake's next tick sends it (`status-rebake.js` oweStatus).
 
 **Feature tip**:
 One entry of the settings page's "New in this update" card: a feature the user has to switch

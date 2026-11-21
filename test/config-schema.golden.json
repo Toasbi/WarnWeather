@@ -8069,12 +8069,16 @@
                 "defaultValue": "icon",
                 "options": [
                   [
-                    "Icon",
-                    "icon"
+                    "Icon + text",
+                    "both"
                   ],
                   [
                     "Text",
                     "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
                   ]
                 ]
               },
@@ -8105,7 +8109,10 @@
                   "all": [
                     {
                       "key": "batterySlotLook",
-                      "eq": "text"
+                      "in": [
+                        "both",
+                        "text"
+                      ]
                     },
                     {
                       "env": "plugins"
@@ -8136,7 +8143,10 @@
                       "all": [
                         {
                           "key": "batterySlotLook",
-                          "eq": "text"
+                          "in": [
+                            "both",
+                            "text"
+                          ]
                         },
                         {
                           "env": "plugins"
@@ -8188,7 +8198,10 @@
                       "all": [
                         {
                           "key": "batterySlotLook",
-                          "eq": "text"
+                          "in": [
+                            "both",
+                            "text"
+                          ]
                         },
                         {
                           "env": "plugins"
@@ -8219,7 +8232,10 @@
                       "all": [
                         {
                           "key": "batterySlotLook",
-                          "eq": "text"
+                          "in": [
+                            "both",
+                            "text"
+                          ]
                         },
                         {
                           "env": "plugins"
@@ -8257,7 +8273,10 @@
                       "all": [
                         {
                           "key": "batterySlotLook",
-                          "eq": "text"
+                          "in": [
+                            "both",
+                            "text"
+                          ]
                         },
                         {
                           "env": "plugins"
@@ -8298,7 +8317,10 @@
                 },
                 "showWhen": {
                   "key": "batterySlotLook",
-                  "eq": "text"
+                  "in": [
+                    "both",
+                    "text"
+                  ]
                 }
               }
             ],

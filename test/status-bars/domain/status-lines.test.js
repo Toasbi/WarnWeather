@@ -1288,19 +1288,28 @@ test('the packed icon id never varies with the reading: 16 in the Icon + text lo
   });
 });
 
-test('the watch battery bakes kind 9 in the Icon look and kind 10 in the Text look, never 10 on aplite', () => {
+test('the watch battery bakes kind 9 in the Icon look and kind 10 in the text looks, never 10 on aplite', () => {
   const sel = { statusTopLeft: 'empty', statusTopMid: 'empty', statusTopRight: 'battery' };
-  const kindFor = (settings, watch) => {
+  const slotFor = (settings, watch) => {
     const p = basePayload();
     statusLines.buildStatusLines(p, baseSettings(Object.assign({}, sel, settings)), watch, NOW);
-    return decodeLine(p.STATUS_LINE_3_UINT8)[2].kind;
+    const slot = decodeLine(p.STATUS_LINE_3_UINT8)[2];
+    return [slot.kind, slot.icon];
   };
-  assert.equal(kindFor({}, WATCH_BASALT), K.LIVE_BATTERY, 'the default look is the icon');
-  assert.equal(kindFor({ batterySlotLook: 'icon' }, WATCH_BASALT), K.LIVE_BATTERY);
-  assert.equal(kindFor({ batterySlotLook: 'text' }, WATCH_BASALT), K.LIVE_BATTERY_PCT);
-  assert.equal(kindFor({ batterySlotLook: 'text' }, WATCH_EMERY), K.LIVE_BATTERY_PCT);
-  assert.equal(kindFor({ batterySlotLook: 'text' }, WATCH_APLITE), K.LIVE_BATTERY,
-    'aplite keeps kind 9 whatever the look: its status row prints the percentage itself');
+  const NONE = catalog.ICONS.NONE;
+  const DRAWN = catalog.ICONS.DRAWN_BATTERY;
+  assert.deepEqual(slotFor({}, WATCH_BASALT), [K.LIVE_BATTERY, NONE], 'the default look is the icon');
+  assert.deepEqual(slotFor({ batterySlotLook: 'icon' }, WATCH_BASALT), [K.LIVE_BATTERY, NONE]);
+  assert.deepEqual(slotFor({ batterySlotLook: 'text' }, WATCH_BASALT), [K.LIVE_BATTERY_PCT, NONE]);
+  assert.deepEqual(slotFor({ batterySlotLook: 'text' }, WATCH_EMERY), [K.LIVE_BATTERY_PCT, NONE]);
+  // Icon + text: the text's kind, and the id of the battery the watch draws before it
+  // (status_line.h status_slot_draws_battery).
+  assert.deepEqual(slotFor({ batterySlotLook: 'both' }, WATCH_BASALT), [K.LIVE_BATTERY_PCT, DRAWN]);
+  assert.deepEqual(slotFor({ batterySlotLook: 'both' }, WATCH_EMERY), [K.LIVE_BATTERY_PCT, DRAWN]);
+  ['text', 'both'].forEach((look) => {
+    assert.deepEqual(slotFor({ batterySlotLook: look }, WATCH_APLITE), [K.LIVE_BATTERY, NONE],
+      look + ': aplite keeps kind 9 whatever the look: its status row prints the percentage itself');
+  });
 });
 
 test('an unreadable phone battery still packs its slot, as --', () => {

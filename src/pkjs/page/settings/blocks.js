@@ -855,11 +855,12 @@ if (typeof require !== 'undefined') {
     // ENABLED threshold kind, the row shows a warn-color ring + danger-color dot before
     // its Edit button, and a 'B' when the slot prints always-bold. Same env gate +
     // code→kind mapping as the sheet resolver above. The watch battery in its Icon look
-    // draws a battery, which has no text to print bold, so its Edit button carries no badge.
+    // draws a battery alone, which has no text to print bold, so its Edit button carries no
+    // badge; in Text and Icon + text its text prints, and bold.
     PConf.badgeResolvers.register('thresholdPenState', function (S, env, args) {
         var code = S[args.messageKey];
         var kind = slotKindIndex(env, code);
-        if (kind === -1 || (code === 'battery' && slotText.batteryLook(S, env) !== 'text')) { return null; }
+        if (kind === -1 || (code === 'battery' && slotText.batteryLook(S, env) === 'icon')) { return null; }
         return penStateForKind(S, env, kind);
     });
 

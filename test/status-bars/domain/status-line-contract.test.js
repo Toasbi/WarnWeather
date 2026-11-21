@@ -84,6 +84,19 @@ test('icon ids are in lockstep with status_line.h', () => {
   // exists solely so the no-icon variant does not arrive as TEXT + ICON_NONE and
   // silently drive City's bold mode (the bug that shipped once on pressure).
   assert.equal(catalog.ICONS.PHONE_BATTERY_PLAIN, cEnum('STATUS_ICON_PHONE_BATTERY_PLAIN'));
+  // The watch battery's Icon + text look: the glyph the watch draws in code before its text,
+  // a sentinel like DRAWN_SUN.
+  assert.equal(catalog.ICONS.DRAWN_BATTERY, cEnum('STATUS_ICON_DRAWN_BATTERY'));
+});
+
+// Appended after the weather condition's ids: a line stored with it before an upgrade
+// keeps meaning the same glyph.
+test('the drawn battery is icon id 34 on both sides of the wire, and no drawing loads for it', () => {
+  assert.equal(cEnum('STATUS_ICON_DRAWN_BATTERY'), 34);
+  assert.equal(catalog.ICONS.DRAWN_BATTERY, 34);
+  const gen = require('../../../scripts/pixel-icons/gen_watch_icons.js');
+  assert.equal(Object.keys(gen.ICON_IDS).filter((d) => gen.ICON_IDS[d].indexOf('STATUS_ICON_DRAWN_BATTERY') !== -1)
+    .length, 0, 'drawn in code (battery_draw.c), like the sun arrow');
 });
 
 // Icon ids are append-only wire values: a slot blob persisted on flash outlives

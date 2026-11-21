@@ -104,10 +104,10 @@
     { code: 'city',      key: 'City', boldOnly: true },
     { code: 'countdown', key: 'Countdown', boldOnly: true },
     { code: 'hr',        key: 'Hr', boldOnly: true },
-    // The watch battery (kind 16, appended): its Text look renders text
-    // (SLOT_LIVE_BATTERY_PCT), so it owns a bold cell: the first one in byte 33. In
-    // its Icon look the watch draws a battery, which has no text run to bold and no
-    // kind on the watch, so the cell is read by no slot then. The key is from when
+    // The watch battery (kind 16, appended): its Text and Icon + text looks render
+    // text (SLOT_LIVE_BATTERY_PCT), so it owns a bold cell: the first one in byte 33. In
+    // its Icon look the watch draws a battery alone, which has no text run to bold and
+    // no kind on the watch, so the cell is read by no slot then. The key is from when
     // the text look was an item of its own ('batteryPct', until 3.3.0); it names the
     // stored threshBatteryPctBoldMode, so it stays.
     { code: 'battery', key: 'BatteryPct', boldOnly: true },

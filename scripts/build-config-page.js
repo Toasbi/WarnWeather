@@ -156,7 +156,7 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/lib/utf8.js'),
   path.join(ROOT, 'src/pkjs/status-bars/domain/status-pair.js'),
   path.join(ROOT, 'src/pkjs/status-bars/domain/slot-text.js'),
-  // What the watch battery's Text look prints (window.BatteryDays): the percentage, the days
+  // What the watch battery's text prints (window.BatteryDays): the percentage, the days
   // left or both. It binds window.StatusPair while its own body runs (the pair's separator),
   // so it follows status-pair.js; the Status bars tab's sample binds it while its body runs,
   // and blocks.js reads window.SlotText for the battery's Edit badge, so both follow —

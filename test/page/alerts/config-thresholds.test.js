@@ -1893,16 +1893,20 @@ test('the Hr sheet row mirrors the hr slot availability (health + sensor)', () =
     assert.equal(showWhen.isVisible(it, ctx(true, true, mode)), true,
       'shown in healthMode ' + mode);
   });
-  // The watch battery's Bold shows in its Text look alone: the drawn battery of the Icon
-  // look has no text to print bold.
-  assert.deepEqual(boldFor('BatteryPct').showWhen, { key: 'batterySlotLook', eq: 'text' });
+  // The watch battery's Bold shows in the looks that print text, Icon + text and Text: the
+  // drawn battery alone of the Icon look has no text to print bold.
+  assert.deepEqual(boldFor('BatteryPct').showWhen, { key: 'batterySlotLook', in: ['both', 'text'] });
+  const lookCtx = (look) => ({ env: { color: true }, batterySlotLook: look });
+  assert.equal(showWhen.isVisible(boldFor('BatteryPct'), lookCtx('both')), true, 'shown in Icon + text');
+  assert.equal(showWhen.isVisible(boldFor('BatteryPct'), lookCtx('text')), true, 'shown in Text');
+  assert.equal(showWhen.isVisible(boldFor('BatteryPct'), lookCtx('icon')), false, 'hidden in Icon');
   // The other bold-only kinds need no availability gate at all.
   BOLD_STEMS.filter(stem => stem !== 'Hr' && stem !== 'BatteryPct').forEach(stem => {
     assert.equal(boldFor(stem).showWhen, undefined, stem + ' needs no gate');
   });
 });
 
-test('the watch battery\'s sheet holds its Look, so the pencil opens it in both looks', () => {
+test('the watch battery\'s sheet holds its Look, so the pencil opens it in every look', () => {
   assert.equal(sheetSections().find(s => s.sheetId === 'threshBattery'), undefined,
     'no threshBattery sheet exists: the one sheet is threshBatteryPct (wire id 16)');
   const resolve = PC.sheetResolvers.get('statusSlotEditSheet');
@@ -1911,6 +1915,7 @@ test('the watch battery\'s sheet holds its Look, so the pencil opens it in both 
   assert.equal(pencil({}), 'threshBatteryPct', 'the Icon look (the default), where the Look is switched');
   assert.equal(pencil({ batterySlotLook: 'icon' }), 'threshBatteryPct');
   assert.equal(pencil({ batterySlotLook: 'text' }), 'threshBatteryPct', 'the Text look');
+  assert.equal(pencil({ batterySlotLook: 'both' }), 'threshBatteryPct', 'the Icon + text look');
   const sheet = sheetFor('BatteryPct');
   assert.ok(sheet, 'threshBatteryPct sheet exists');
   assert.equal(sheet.items[0].messageKey, 'batterySlotLook', 'the Look leads the sheet, as the weather condition\'s does');
@@ -2242,6 +2247,13 @@ test('the generated page renders the Temp display pills and the watch battery sh
   assert.equal(page.S.batterySlotLook, 'text');
   assert.ok(page.modal.innerHTML.indexOf('data-k="threshBatteryPctBoldMode"') !== -1,
     'the Text look renders its Bold row');
+  page.tapSegment('batterySlotLook', 'both', 'modal');
+  assert.equal(page.S.batterySlotLook, 'both');
+  assert.ok(page.modal.innerHTML.indexOf('data-k="threshBatteryPctBoldMode"') !== -1,
+    'the Icon + text look renders its Bold row');
+  page.tapSegment('batterySlotLook', 'icon', 'modal');
+  assert.equal(page.modal.innerHTML.indexOf('data-k="threshBatteryPctBoldMode"'), -1,
+    'and back on the Icon look it is gone again');
 });
 
 // --- the status-card reset button (blocks.js resetStatusSlots) ---------------

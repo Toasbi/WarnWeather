@@ -1,7 +1,7 @@
 // src/pkjs/status-bars/adapter/battery-estimate.js
 //
 // The estimate of the days the watch has left on its charge, which the watch battery's
-// Text look can show in place of the percentage or beside it (domain/battery-days.js).
+// text can show in place of the percentage or beside it (domain/battery-days.js).
 //
 // The estimate is Muninn's: a battery tracker for the watch that serves its numbers to
 // other apps as a plugin of the Pebble app (muninn/stats: daysRemaining, and updatedAt,
