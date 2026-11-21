@@ -147,6 +147,7 @@ test('STATE_KEYS lists every settings key the budget math reads', () => {
 // callsPerDay); the budget's weather share is the same count, so the two agree wherever every
 // reading tomorrow.io brings is drawn.
 const sourcePlan = require('../../../../src/pkjs/weather/domain/source-plan.js');
+const providerReadings = require('../../../../src/pkjs/weather/domain/provider-readings.js');
 
 test('the weather calls a day are the source plan\'s tomorrow.io calls, at every interval and night pause', () => {
   const pauses = [{ sleepNightEnabled: false }, { sleepNightEnabled: true, sleepStartHour: '22', sleepEndHour: '7' },
@@ -163,7 +164,7 @@ test('the weather calls a day are the source plan\'s tomorrow.io calls, at every
     const minutes = parseInt(value, 10);
     const input = { mode: state.weatherSourceMode || 'one', provider: state.provider, country: null,
       choices: sourcePlan.choicesOf(state), keyed: sourcePlan.keyedOf(state) };
-    const planned = sourcePlan.callsPerDay(input, true, sourcePlan.GAP_READINGS, minutes, budget.sleepHours(state));
+    const planned = sourcePlan.callsPerDay(input, providerReadings.DRAWN_ONLY, minutes, budget.sleepHours(state));
     assert.equal(budget.dailyCalls(state, minutes), planned.tomorrowio || 0, JSON.stringify(state) + ' ' + minutes);
   })));
 });
@@ -179,5 +180,5 @@ test('where the calls line counts fewer, the budget errs toward more: every read
   assert.equal(budget.callsPerCycle(cloudOnly), 1, 'a reading picked to it counts, drawn or not');
   const input = { mode: 'reading', provider: 'metno', country: null, choices: sourcePlan.choicesOf(cloudOnly),
     keyed: sourcePlan.keyedOf(cloudOnly) };
-  assert.equal(sourcePlan.refreshRequests(input, false, []).tomorrowio, undefined, 'the line counts what the watch draws');
+  assert.equal(sourcePlan.refreshRequests(input, []).tomorrowio, undefined, 'the line counts what the watch draws');
 });

@@ -76,9 +76,9 @@ var DEFAULTS = {
     // WeatherProvider#payloadEntries() hours.
     forecastHours: forecastSpan.DAY_HOURS,
     // Which of the readings only some screens draw the watch draws (drawn-readings.js): the
-    // source plan fills one the Weather picker's provider lacks only while it is drawn
-    // (source-plan.js fills). None by default, so nothing is filled but UV (fetchUv). Frozen:
-    // defaults() hands every caller this one list.
+    // source plan asks for one, and fills one its provider lacks, only while it is drawn
+    // (source-plan.js wanted, fillSteps); fetchUv is whether it holds UV. None by default.
+    // Frozen: defaults() hands every caller this one list.
     drawn: Object.freeze([]),
     // Where the forecast comes from (Setup › Data sources, Weather from): 'one', the Weather
     // picker's provider; 'auto' (By location), the place's regional provider first; 'reading'

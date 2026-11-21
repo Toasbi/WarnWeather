@@ -29,7 +29,9 @@ function forecastOf(p) {
 /**
  * Fetches of one provider's sources in one world, its store kept between them, each with a
  * new instance (as after a settings save) unless `reuse` is set, each with the source ports
- * of a 15-minute update interval unless `refreshMs` names another.
+ * of a 15-minute update interval unless `refreshMs` names another. Each fetch's options are a
+ * watch's that draws UV unless its own say otherwise; fetchUv follows the drawn readings, as
+ * fetch-options.js build sets it.
  * @param {string} id A provider id.
  * @param {Array<{at: (number|undefined), options: (Object|undefined), keys: (Object|undefined),
  *   lat: (number|undefined), country: (string|undefined), before: (function(Object, Function): void|undefined)}>}
@@ -53,7 +55,9 @@ function fetchesOf(id, fetches, opts) {
       if (!p || !o.reuse) {
         p = mod('weather/adapter/provider-factory.js').createProvider(id, settings);
       }
-      p.options = mod('weather/domain/fetch-options.js').defaults(Object.assign({ fetchUv: true, dayPeakCodes: [] }, f.options));
+      const given = Object.assign({ drawn: ['uv'], dayPeakCodes: [] }, f.options);
+      p.options = mod('weather/domain/fetch-options.js').defaults(
+        Object.assign({ fetchUv: given.drawn.indexOf('uv') !== -1 }, given));
       p.countryCode = f.country || null;
       const ports = mod('weather/adapter/source-ports.js').create(() => Date.now(), o.refreshMs || QUARTER, settings,
         p.options);
@@ -88,7 +92,7 @@ test('DWD\'s UV: Open-Meteo\'s UV-only request after DWD\'s own two, each hour t
 });
 
 test('DWD with UV not drawn asks nobody else and keeps no UV feed', () => {
-  const [{ p, outcome, requests }] = fetchesOf('dwd', [{ options: { fetchUv: false } }]);
+  const [{ p, outcome, requests }] = fetchesOf('dwd', [{ options: { drawn: [] } }]);
   assert.equal(outcome, 'ok');
   assert.equal(requests.length, 2);
   assert.deepEqual(p.uvTrend, []);
@@ -179,7 +183,7 @@ test('a new key, a place two kilometres on, another span or UV turned off asks a
   assert.equal(asked({ lat: world.PLACE.lat + 0.02 }), 1, 'two kilometres north');
   assert.equal(asked({ lat: world.PLACE.lat + 0.005 }), 0, 'a GPS fix 500 m off is the same place');
   assert.equal(asked({ options: { forecastHours: 68 } }), 1, 'the long span');
-  assert.equal(asked({ options: { fetchUv: false } }), 1, 'UV off');
+  assert.equal(asked({ options: { drawn: [] } }), 1, 'UV off');
   assert.equal(asked({ options: { windUnits: 'mph' } }), 0, 'the wind unit changes no answer');
 });
 
@@ -588,10 +592,10 @@ function dayOf(id, options, intervalMin, country) {
  * @returns {Object<string, number>}
  */
 function plannedDay(id, options, intervalMin, country) {
-  const o = Object.assign({ fetchUv: true, drawn: [] }, options);
+  const o = Object.assign({ drawn: ['uv'] }, options);
   const input = { mode: o.sourceMode || 'one', provider: id, country: country || null,
     choices: o.readingSources || {}, keyed: sourcePlan.keyedOf(world.KEYS) };
-  return sourcePlan.callsPerDay(input, o.fetchUv, o.drawn, intervalMin, 0);
+  return sourcePlan.callsPerDay(input, o.drawn, intervalMin, 0);
 }
 
 test('a day of updates asks each provider what the source plan counts', () => {
@@ -599,7 +603,7 @@ test('a day of updates asks each provider what the source plan counts', () => {
     ['dwd', { drawn: ['uv'] }, 15],
     ['dwd', { drawn: ['uv'] }, 60],
     ['openmeteo', { drawn: ['uv'] }, 15],
-    ['openmeteo', { fetchUv: false }, 30],
+    ['openmeteo', { drawn: [] }, 30],
     ['yandex', { drawn: ['uv', 'cloud', 'dew'] }, 15],
     ['metno', { sourceMode: 'auto', drawn: ['uv'] }, 15, 'DEU'],
     ['tomorrowio', perReading({ temperature: 'dwd', rain: 'openmeteo', wind: 'yandex' }, { drawn: ['uv'] }), 15],

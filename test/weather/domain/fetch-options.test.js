@@ -87,7 +87,7 @@ test('build\'s booleans are exactly forecast-series\' predicates on the raw sett
     [watch, { platform: 'aplite' }, null].forEach((wi) => {
       const out = fetchOptions.build(s, wi);
       const label = JSON.stringify([s, wi]);
-      assert.equal(out.fetchUv, forecastSeries.needsUv(s, wi), 'fetchUv ' + label);
+      assert.equal(out.fetchUv, out.drawn.indexOf('uv') !== -1, 'fetchUv ' + label);
       assert.equal(out.fetchAqi, forecastSeries.needsAqi(s, wi), 'fetchAqi ' + label);
       assert.equal(out.fetchPollen, forecastSeries.needsPollen(s, wi), 'fetchPollen ' + label);
       assert.equal(out.fetchFeels, forecastSeries.needsFeels(s, wi), 'fetchFeels ' + label);

@@ -6,7 +6,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { NOTHING_PLACED, placeOn } = require('../../helpers/on-demand.js');
 const drawnReadings = require('../../../src/pkjs/weather/domain/drawn-readings.js');
-const forecastSeries = require('../../../src/pkjs/weather/domain/forecast-series.js');
 const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 
@@ -70,13 +69,3 @@ test('on an emery sent graph styles\' records, a line of any shown style draws i
   assert.equal(pressure(Object.assign({}, S, { viewStyle1: '1' })), false, 'no screen shows the second style');
 });
 
-test('UV is drawn exactly when the fetch asks for it (forecast-series.js needsUv)', () => {
-  [{}, { secondaryLine: 'uv' }, { fourthLine: 'uv' }, { statusForecastMid: 'uv' }, { statusForecastMid: 'dew' }]
-    .forEach((over) => {
-      [BASALT, APLITE].forEach((env) => {
-        const S = Object.assign({}, NONE, over);
-        assert.equal(drawnReadings.drawn(S, env).indexOf('uv') !== -1, forecastSeries.needsUv(S, { platform: env.platform }),
-          JSON.stringify(over) + ' on ' + env.platform);
-      });
-    });
-});

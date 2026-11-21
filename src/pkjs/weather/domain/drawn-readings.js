@@ -9,10 +9,10 @@
 // temperature, the rain, the wind and the condition are in every forecast every provider
 // sends.
 //
-// The fetch asks for UV only while it is drawn (forecast-series.js needsUv, the fetch options'
-// fetchUv) and fills a reading the Weather picker's provider lacks only while it is drawn
-// (source-plan.js fills); the settings page names the readings that come from Open-Meteo by the
-// same rule (page/weather/weather-sources-page.js).
+// The fetch options carry the list (fetch-options.js drawn, and fetchUv: whether it holds UV).
+// The source plan asks for a reading on it, and fills one its provider lacks, only while it is
+// drawn (source-plan.js wanted, fillSteps); the settings page names the readings that come from
+// Open-Meteo by the same rule (page/weather/weather-sources-page.js).
 //
 // Dual-context: a CommonJS module on the phone and in the tests, a plain <script> on the
 // settings page (scripts/build-config-page.js APP_FILES, after the four modules it reads;

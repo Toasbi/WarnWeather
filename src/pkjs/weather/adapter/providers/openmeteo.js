@@ -616,13 +616,14 @@ function buildReadingsUrl(lat, lon, readings, hours) {
 
 /**
  * Fetch the readings a provider lacks from Open-Meteo in one request, onto the provider's
- * series, aligned to its startTime: the source plan's gap fill (source-plan.js fills, run
+ * series, aligned to its startTime: the source plan's fill of the other readings (source-plan.js fillSteps, run
  * through weather/adapter/source-ports.js). It always calls back; a failed request leaves
  * every series as it was, and an answer without a reading's hours leaves that one.
  * @param {Object} provider The provider the readings go on (reads .options and .startTime).
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
- * @param {string[]} readings Reading ids (source-plan.js GAP_READINGS); others are skipped.
+ * @param {string[]} readings Reading ids (the drawn-only readings but UV: provider-readings.js
+ *   DRAWN_ONLY); others are skipped.
  * @param {Function} done Continuation (always called exactly once).
  * @returns {void}
  */

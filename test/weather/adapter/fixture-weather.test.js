@@ -535,7 +535,8 @@ test('the fixture adopts its UV and feels whatever the settings select or the fo
   const settings = Object.assign({ secondaryLine: 'off', thirdLine: 'off', barSource: 'off', feelsFormula: 'steadman' },
     require('../../helpers/on-demand.js').NOTHING_PLACED);
   catalog.allSlotKeys().forEach(function(key) { settings[key] = 'empty'; });
-  assert.equal(forecastSeries.needsUv(settings), false, 'premise: a live fetch would not adopt UV');
+  assert.equal(require('../../../src/pkjs/weather/domain/fetch-options.js').build(settings, null).fetchUv, false,
+    'premise: a live fetch would not adopt UV');
   assert.equal(forecastSeries.needsFeels(settings, null), false, 'premise: nor feels');
   const raw = capturePreTransform(
     makeFixture({ uvIndex: [1, 2, 3], feelsTemps: [40.4, 41, 42], currentFeels: 39.5 }), settings);

@@ -331,7 +331,7 @@
    * The effective slot codes of every line the bake sends (bakedLines: the Watch bar's and
    * each bar a screen shows), answering each unset slot with the default the bake packs for
    * this watch (slotDefault with env: status-lines.js packLine). Its callers are fetch gates
-   * (forecast-series.js's needsUv / needsAqi / needsPollen, dayMaxInUse) asking whether a
+   * (drawn-readings.js drawn, forecast-series.js's needsAqi / needsPollen, dayMaxInUse) asking whether a
    * code is on screen anywhere, and a flavor moves one of those: air quality sits in the top
    * row's corner on emery and in its left slot elsewhere. So a slot on a bar no screen shows
    * fetches nothing, and an unset slot fetches what the watch draws in it.

@@ -228,7 +228,7 @@ function runStep(store, ports, step, anchor, source, lat, lon, force, done) {
  * fetch.
  * @param {Object} store storeOf().
  * @param {Object} ports The source ports (providerFor: another provider's instance).
- * @param {{ask: string, providers: string[]}} step sourcePlan.forecastStep().
+ * @param {string[]} providers Who may serve it, in order (sourcePlan.candidates).
  * @param {Object} anchor The Weather picker's provider.
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
@@ -238,17 +238,17 @@ function runStep(store, ports, step, anchor, source, lat, lon, force, done) {
  * @param {function(Object): void} onFailure Receives the last provider's failure.
  * @returns {void}
  */
-function runForecast(store, ports, step, anchor, lat, lon, force, failed, onServed, onFailure) {
+function runForecast(store, ports, providers, anchor, lat, lon, force, failed, onServed, onFailure) {
     var firstFailure = null;
     /**
      * Ask provider i, then the next while it fails.
-     * @param {number} i Its index in step.providers.
+     * @param {number} i Its index in providers.
      * @returns {void}
      */
     function attempt(i) {
-        var id = step.providers[i];
+        var id = providers[i];
         var source = id === anchor.id ? anchor : ports.providerFor(id);
-        runStep(store, ports, { provider: id, ask: step.ask }, anchor, source, lat, lon, force, function (stepFailure) {
+        runStep(store, ports, { provider: id, ask: 'forecast' }, anchor, source, lat, lon, force, function (stepFailure) {
             if (!stepFailure) {
                 if (firstFailure && !anchor.recoveredFailure) { anchor.recoveredFailure = firstFailure; }
                 onServed(id);
@@ -256,7 +256,7 @@ function runForecast(store, ports, step, anchor, lat, lon, force, failed, onServ
             }
             firstFailure = firstFailure || stepFailure;
             failed.push(id);
-            if (i + 1 < step.providers.length) {
+            if (i + 1 < providers.length) {
                 attempt(i + 1);
                 return;
             }
@@ -264,15 +264,6 @@ function runForecast(store, ports, step, anchor, lat, lon, force, failed, onServ
         });
     }
     attempt(0);
-}
-
-/**
- * The mapped keys of some readings.
- * @param {string[]} readings READINGS ids.
- * @returns {string[]}
- */
-function keysOf(readings) {
-    return readings.reduce(function (keys, id) { return keys.concat(providerReadings.keysOf(id)); }, []);
 }
 
 /**
@@ -323,7 +314,7 @@ function runParts(store, ports, steps, anchor, served, lat, lon, force, onDone) 
      */
     function lay(id, readings, done) {
         forecastOf(id, function (source) {
-            var laid = Boolean(source) && forecastModel.adoptReadings(anchor, source, keysOf(readings));
+            var laid = Boolean(source) && forecastModel.adoptReadings(anchor, source, providerReadings.keysOf(readings));
             if (laid) { readings.forEach(function (reading) { anchor.feeds[reading] = id; }); }
             done(laid);
         });
@@ -410,15 +401,13 @@ function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
     anchor.feeds = null;
     var input = { mode: options.sourceMode, provider: anchor.id, country: anchor.countryCode || null,
         lat: Number(lat), lon: Number(lon), keyed: ports.keyed, choices: options.readingSources };
-    var fetchUv = Boolean(options.fetchUv);
-    var drawn = options.drawn || [];
+    var drawn = options.drawn;
     var failed = [];
-    runForecast(store, ports, sourcePlan.forecastStep(input), anchor, lat, lon, force, failed, function (served) {
+    runForecast(store, ports, sourcePlan.candidates(input), anchor, lat, lon, force, failed, function (served) {
         anchor.feeds = sourcePlan.allFrom(served);
-        runParts(store, ports, sourcePlan.partSteps(input, served, failed, sourcePlan.wanted(fetchUv, drawn)),
-            anchor, served, lat, lon, force, function () {
-                runFills(store, ports, sourcePlan.fillSteps(anchor.feeds, fetchUv, drawn), anchor, lat, lon, force,
-                    onSuccess);
+        runParts(store, ports, sourcePlan.partSteps(input, served, failed, drawn), anchor, served, lat, lon, force,
+            function () {
+                runFills(store, ports, sourcePlan.fillSteps(anchor.feeds, drawn), anchor, lat, lon, force, onSuccess);
             });
     }, onFailure);
 }

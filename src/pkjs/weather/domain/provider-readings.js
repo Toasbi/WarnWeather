@@ -13,20 +13,25 @@
     // provider fills for it. The feels-like rides with the temperature, since it is computed
     // from the same hours' temperature, humidity and wind; the gusts ride with the wind, the
     // chance of rain with its amount. startTime and sunTimes belong to none: a forecast starts
-    // where its temperature does, and the sun times ride with the Weather picker's provider.
+    // where its temperature does, and the sun times ride with the forecast's provider.
+    // `drawnOnly`: a reading only some screens draw, which a fetch asks for and fills only while
+    // the watch draws it (drawn-readings.js); the others are in every forecast every provider
+    // sends.
     var READINGS = [
         { id: 'temperature', keys: ['tempTrend', 'currentTemp', 'feelsTrend', 'currentFeels',
             'humidityTrend', 'currentHumidity', 'currentWindKmh'] },
-        { id: 'dew', keys: ['dewTrend'] },
+        { id: 'dew', keys: ['dewTrend'], drawnOnly: true },
         { id: 'rain', keys: ['precipTrend', 'rainTrend'] },
         { id: 'wind', keys: ['windTrend', 'gustTrend'] },
-        { id: 'windDir', keys: ['windDirTrend'] },
-        { id: 'uv', keys: ['uvTrend'] },
-        { id: 'cloud', keys: ['cloudTrend'] },
-        { id: 'pressure', keys: ['pressureTrend'] },
+        { id: 'windDir', keys: ['windDirTrend'], drawnOnly: true },
+        { id: 'uv', keys: ['uvTrend'], drawnOnly: true },
+        { id: 'cloud', keys: ['cloudTrend'], drawnOnly: true },
+        { id: 'pressure', keys: ['pressureTrend'], drawnOnly: true },
         { id: 'condition', keys: ['currentCondition'] }
     ];
     var ALL = READINGS.map(function (reading) { return reading.id; });
+    var DRAWN_ONLY = READINGS.filter(function (reading) { return reading.drawnOnly; })
+        .map(function (reading) { return reading.id; });
 
     /**
      * @param {string[]} list Reading ids.
@@ -79,15 +84,17 @@
     }
 
     /**
-     * The mapped keys a reading is made of.
-     * @param {string} readingId A READINGS id.
-     * @returns {string[]} [] for an unknown reading
+     * The mapped keys some readings are made of.
+     * @param {string|string[]} readingIds A READINGS id, or several.
+     * @returns {string[]} In READINGS order; none for an unknown reading
      */
-    function keysOf(readingId) {
-        for (var i = 0; i < READINGS.length; i++) {
-            if (READINGS[i].id === readingId) { return READINGS[i].keys.slice(); }
-        }
-        return [];
+    function keysOf(readingIds) {
+        var ids = typeof readingIds === 'string' ? [readingIds] : readingIds;
+        var out = [];
+        READINGS.forEach(function (reading) {
+            if (ids.indexOf(reading.id) !== -1) { out = out.concat(reading.keys); }
+        });
+        return out;
     }
 
     /**
@@ -129,6 +136,7 @@
     var api = {
         READINGS: READINGS,
         READING_IDS: ALL,
+        DRAWN_ONLY: DRAWN_ONLY,
         PROVIDERS: PROVIDERS,
         serves: serves,
         keysOf: keysOf,

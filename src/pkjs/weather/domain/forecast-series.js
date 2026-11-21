@@ -637,18 +637,6 @@ function metricWanted(settings, code, watchInfo) {
 }
 
 /**
- * Whether UV is on a forecast line the watch draws (drawn-readings.js: on an emery sent graph
- * styles' records, a row of the shown styles' union), in a status slot or placed as an alert,
- * so providers fetch it.
- * @param {Object} settings Clay settings.
- * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
- * @returns {boolean} True when any rendered selection needs UV.
- */
-function needsUv(settings, watchInfo) {
-    return drawnReadings.drawn(settings, platforms.computeEnv(watchInfo)).indexOf('uv') !== -1;
-}
-
-/**
  * The day-max kinds that need the day's peaks: a slot shows one
  * (status-line-catalog's dayMaxInUse), or the kind's alert is placed — an alert judges
  * the highest value left today, whatever any slot shows. The provider keeps a day
@@ -669,7 +657,7 @@ function dayPeakCodes(settings, watchInfo) {
 
 /**
  * Whether AQI is in a status slot or placed as an alert, so providers fetch it. AQI
- * is status-only (never a forecast line), so unlike needsUv there is no
+ * is status-only (never a forecast line), so unlike UV (drawn-readings.js) there is no
  * secondary/third check.
  * @param {Object} settings Clay settings.
  * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
@@ -712,7 +700,6 @@ module.exports = {
     WIND_SCALE_KMH: WIND_SCALE_KMH,
     buildForecastSeries: buildForecastSeries,
     applyForecastSeries: applyForecastSeries,
-    needsUv: needsUv,
     needsAqi: needsAqi,
     dayPeakCodes: dayPeakCodes,
     needsFeels: needsFeels,

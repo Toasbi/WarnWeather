@@ -128,7 +128,7 @@ var KINDS = {
         serves: function (entry, nowMs) { return nowMs - entry.at <= UV_REUSE_MS; },
         startOf: anchorStart
     },
-    // The fill of the other readings the provider lacks (source-plan.js GAP_READINGS), aligned
+    // The fill of the other drawn-only readings the provider lacks (source-plan.js fillSteps), aligned
     // to the forecast it fills. Its answer depends on the hours and the readings it asks for.
     // These change by the hour, so it serves as the forecast does.
     readings: {
@@ -142,7 +142,7 @@ var KINDS = {
             if (!Array.isArray(ids) || !ids.every(function (id) { return providerReadings.READING_IDS.indexOf(id) !== -1; })) {
                 return null;
             }
-            return ids.reduce(function (keys, id) { return keys.concat(providerReadings.keysOf(id)); }, []);
+            return providerReadings.keysOf(ids);
         },
         /**
          * @param {Object} provider The provider the fill is for.

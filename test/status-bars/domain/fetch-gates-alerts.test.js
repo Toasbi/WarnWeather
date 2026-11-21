@@ -1,6 +1,7 @@
 'use strict';
-// test/status-bars/domain/fetch-gates-alerts.test.js — the metric fetch gates (forecast-series.js
-// needsUv / needsAqi / needsPollen / dayPeakCodes) add what the weather alerts ask for
+// test/status-bars/domain/fetch-gates-alerts.test.js — the metric fetch gates (the UV gate,
+// drawn-readings.js; forecast-series.js needsAqi / needsPollen / dayPeakCodes) add what the
+// weather alerts ask for
 // to what the lines and slots show: an alert placed on an On demand side of a
 // bar that exists (on-demand.js placedAnywhere, read through status-thresholds'
 // alertOn) fetches its metric, and a day-max kind's alert keeps its day peaks. Read for
@@ -23,7 +24,16 @@ const forecastSeries = require('../../../src/pkjs/weather/domain/forecast-series
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const OD = require('../../../src/pkjs/status-bars/domain/on-demand.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
+const drawnReadings = require('../../../src/pkjs/weather/domain/drawn-readings.js');
 const { NOTHING_PLACED, placeOn } = require('../../helpers/on-demand.js');
+
+/**
+ * The UV gate: fetch-options.js fetchUv, whether drawn-readings.js says the watch draws UV.
+ * @param {?Object} s Clay settings; none ask for nothing.
+ * @param {?Object} [wi] getActiveWatchInfo() result.
+ * @returns {boolean}
+ */
+const needsUv = (s, wi) => Boolean(s) && drawnReadings.drawn(s, platform.computeEnv(wi)).indexOf('uv') !== -1;
 
 // The four gates as the On demand settings define them, the reference.
 const expected = (() => {
@@ -107,7 +117,7 @@ test('the fetch gates add the placed alerts, for the watch at hand, on every com
       const s = Object.assign({}, lines, slotPicks, modes, placement);
       if (provider !== undefined) { s.provider = provider; }
       const at = () => JSON.stringify([s, wi]);
-      assert.equal(forecastSeries.needsUv(s, wi), expected.needsUv(s, wi), 'needsUv ' + at());
+      assert.equal(needsUv(s, wi), expected.needsUv(s, wi), 'needsUv ' + at());
       assert.equal(forecastSeries.needsAqi(s, wi), expected.needsAqi(s, wi), 'needsAqi ' + at());
       assert.equal(forecastSeries.needsPollen(s, wi), expected.needsPollen(s, wi), 'needsPollen ' + at());
       assert.deepEqual(forecastSeries.dayPeakCodes(s, wi), expected.dayPeakCodes(s, wi), 'dayPeakCodes ' + at());
@@ -118,7 +128,7 @@ test('the fetch gates add the placed alerts, for the watch at hand, on every com
 
 test('no stored settings fetch nothing and keep no day record', () => {
   [null, undefined].forEach((s) => {
-    assert.equal(forecastSeries.needsUv(s), false);
+    assert.equal(needsUv(s), false);
     assert.equal(forecastSeries.needsAqi(s), false);
     assert.equal(forecastSeries.needsPollen(s), false);
     assert.deepEqual(forecastSeries.dayPeakCodes(s), []);
@@ -131,14 +141,14 @@ test('the table exercises every alert and the watch as deciding inputs', () => {
   const base = Object.assign(slots({}), { secondaryLine: 'wind', thirdLine: 'off', provider: 'dwd' },
     NOTHING_PLACED);
   const with_ = (codes) => placeOn(Object.assign({}, base), 'top', 'right', codes);
-  assert.equal(forecastSeries.needsUv(base), false);
-  assert.equal(forecastSeries.needsUv(with_('uv')), true);
+  assert.equal(needsUv(base), false);
+  assert.equal(needsUv(with_('uv')), true);
   assert.equal(forecastSeries.needsAqi(with_('aqi')), true);
   assert.equal(forecastSeries.needsPollen(with_('pollen')), true);
   assert.deepEqual(forecastSeries.dayPeakCodes(with_('wind,gust')), ['wind', 'gust']);
   // A known aplite has no On demand: its alerts ask for nothing.
   const aplite = { platform: 'aplite' };
-  assert.equal(forecastSeries.needsUv(with_('uv'), aplite), false);
+  assert.equal(needsUv(with_('uv'), aplite), false);
   assert.equal(forecastSeries.needsAqi(with_('aqi'), aplite), false);
   assert.equal(forecastSeries.needsPollen(with_('pollen'), aplite), false);
   assert.deepEqual(forecastSeries.dayPeakCodes(with_('wind,gust'), aplite), []);
@@ -146,7 +156,7 @@ test('the table exercises every alert and the watch as deciding inputs', () => {
   // and Wind speed on the Watch Status Bar), so it fetches UV and AQI and keeps the four
   // day records — on purpose: the owner switched those alerts on for every install.
   const partial = Object.assign(slots({}), { secondaryLine: 'wind', thirdLine: 'off' });
-  assert.equal(forecastSeries.needsUv(partial), true);
+  assert.equal(needsUv(partial), true);
   assert.equal(forecastSeries.needsAqi(partial), true);
   assert.deepEqual(forecastSeries.dayPeakCodes(partial), ['uv', 'wind', 'gust', 'aqi']);
 });

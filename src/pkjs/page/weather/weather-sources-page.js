@@ -71,7 +71,7 @@
         var drawn = drawnReadings.drawn(S, env || {});
         var feeds = sourcePlan.readingProviders({ mode: S.weatherSourceMode, provider: provider,
             choices: sourcePlan.choicesOf(S), keyed: sourcePlan.keyedOf(S) });
-        var filled = sourcePlan.fillsOf(feeds, drawn.indexOf('uv') !== -1, drawn);
+        var filled = sourcePlan.fillsOf(feeds, drawn);
         if (!filled.length) { return ''; }
         var words = filled.map(function (id) { return WORDS[id]; });
         return html.esc(NAMES[provider] + ' sends no ' + html.andList(words, 'or') + ', so '
@@ -94,7 +94,7 @@
         var drawn = drawnReadings.drawn(S, env || {});
         var input = { mode: S.weatherSourceMode, provider: S.provider, country: S.holidayCountry || null,
             choices: sourcePlan.choicesOf(S), keyed: sourcePlan.keyedOf(S) };
-        var calls = sourcePlan.callsPerDay(input, drawn.indexOf('uv') !== -1, drawn, intervalMin, pauseHours);
+        var calls = sourcePlan.callsPerDay(input, drawn, intervalMin, pauseHours);
         var ids = Object.keys(calls).filter(function (id) { return calls[id] > 0; });
         var total = ids.reduce(function (sum, id) { return sum + calls[id]; }, 0);
         var text = 'About ' + Math.round(total) + ' weather calls a day';

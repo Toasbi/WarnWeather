@@ -24,17 +24,16 @@ const PARIS = { lat: 48.857, lon: 2.352 };
  * @returns {string[]}
  */
 function asked(over) {
-  return sourcePlan.forecastStep(Object.assign({ mode: 'one', provider: 'openweathermap', country: 'DE',
-    keyed: ['openweathermap'] }, BERLIN, over)).providers;
+  return sourcePlan.candidates(Object.assign({ mode: 'one', provider: 'openweathermap', country: 'DE',
+    keyed: ['openweathermap'] }, BERLIN, over));
 }
 
 // --- the forecast ---------------------------------------------------------------------------
 
-test('the forecast is required, and One provider asks the Weather picker\'s alone, key or not', () => {
-  assert.deepEqual(sourcePlan.forecastStep({ mode: 'one', provider: 'dwd', country: 'DE', keyed: [],
-    lat: BERLIN.lat, lon: BERLIN.lon }), { ask: 'forecast', providers: ['dwd'], required: true });
+test('One provider asks the Weather picker\'s alone, key or not', () => {
+  assert.deepEqual(asked({ provider: 'dwd', keyed: [] }), ['dwd']);
   assert.deepEqual(asked({ keyed: [] }), ['openweathermap'], 'a missing key fails the fetch with its notice');
-  assert.deepEqual(asked({ mode: 'reading' }), ['openweathermap'], 'any other mode is One provider for now');
+  assert.deepEqual(asked({ mode: 'sideways' }), ['openweathermap'], 'any other value is One provider');
 });
 
 test('By location: the country\'s regional provider, the Weather picker\'s, then Open-Meteo', () => {
@@ -68,47 +67,50 @@ test('a country\'s regional provider is the setup wizard\'s pick, unless that is
 // --- the fills ------------------------------------------------------------------------------
 
 providerFactory.PROVIDER_IDS.forEach((id) => {
-  test(id + ': the UV from Open-Meteo only when it sends none and the fetch asks for it', () => {
-    assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom(id), false, []), []);
-    assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom(id), true, []), providerReadings.serves(id, 'uv') ? [] : [UV_FILL]);
+  test(id + ': the UV from Open-Meteo only when it sends none and the watch draws it', () => {
+    assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom(id), []), []);
+    assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom(id), ['uv']), providerReadings.serves(id, 'uv') ? [] : [UV_FILL]);
   });
 });
 
 test('DWD is the provider that sends no UV, so its UV is filled', () => {
-  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('dwd'), true, ALL_DRAWN), [UV_FILL]);
+  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('dwd'), ALL_DRAWN), [UV_FILL]);
 });
 
 test('a provider the table does not know sends nothing it names, so its drawn UV is filled too', () => {
-  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('interface'), true, []), [UV_FILL]);
+  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('interface'), ['uv']), [UV_FILL]);
 });
 
-test('every reading a provider lacks is UV or one the gap request brings', () => {
+test('every reading a provider lacks is drawn-only, and Open-Meteo\'s request for the others brings each but UV', () => {
   providerFactory.PROVIDER_IDS.forEach((id) => {
     const lacks = providerReadings.READING_IDS.filter((r) => !providerReadings.serves(id, r));
-    assert.deepEqual(lacks.filter((r) => r !== 'uv' && sourcePlan.GAP_READINGS.indexOf(r) === -1), [], id);
+    assert.deepEqual(lacks.filter((r) => providerReadings.DRAWN_ONLY.indexOf(r) === -1), [], id);
   });
+  const openmeteo = require('../../../src/pkjs/weather/adapter/providers/openmeteo.js');
+  assert.deepEqual(Object.keys(openmeteo.GAP_FIELDS), providerReadings.DRAWN_ONLY.filter((r) => r !== 'uv'),
+    'UV has its own request (fetchUvInto)');
 });
 
 test('Yandex\'s drawn readings come from one Open-Meteo request; those not drawn are not asked', () => {
-  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('yandex'), true, ALL_DRAWN), [GAP_FILL(['dew', 'windDir', 'cloud', 'pressure'])]);
-  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('yandex'), false, ['pressure', 'cloud']), [GAP_FILL(['cloud', 'pressure'])],
+  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('yandex'), ALL_DRAWN), [GAP_FILL(['dew', 'windDir', 'cloud', 'pressure'])]);
+  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('yandex'), ['pressure', 'cloud']), [GAP_FILL(['cloud', 'pressure'])],
     'in the table\'s order');
-  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('yandex'), true, ['uv']), [], 'Yandex sends its own UV');
-  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('yandex'), true, []), [], 'nothing drawn');
+  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('yandex'), ['uv']), [], 'Yandex sends its own UV');
+  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.allFrom('yandex'), []), [], 'nothing drawn');
 });
 
 test('a provider that sends a reading is never filled for it, drawn or not', () => {
   providerFactory.PROVIDER_IDS.forEach((id) => {
-    const filled = sourcePlan.fills(id, true, ALL_DRAWN);
+    const filled = sourcePlan.fillsOf(sourcePlan.allFrom(id), ALL_DRAWN);
     assert.deepEqual(filled.filter((r) => providerReadings.serves(id, r)), [], id);
     assert.deepEqual(filled, providerReadings.READING_IDS.filter((r) => ALL_DRAWN.indexOf(r) !== -1
       && !providerReadings.serves(id, r)), id + ': every drawn reading it lacks');
   });
 });
 
-test('UV follows the fetch\'s own UV gate, not the drawn list', () => {
-  assert.deepEqual(sourcePlan.fills('dwd', false, ['uv']), []);
-  assert.deepEqual(sourcePlan.fills('dwd', true, []), ['uv']);
+test('a reading is filled only while the watch draws it', () => {
+  assert.deepEqual(sourcePlan.fillsOf(sourcePlan.allFrom('dwd'), []), []);
+  assert.deepEqual(sourcePlan.fillsOf(sourcePlan.allFrom('dwd'), ['uv']), ['uv']);
 });
 
 // --- Per reading -----------------------------------------------------------------------------
@@ -151,26 +153,25 @@ test('Per reading: the forecast from the temperature\'s provider, then the Weath
 
 test('Per reading\'s parts: each other provider once, with the readings in use it brings, in the table\'s order', () => {
   const input = Object.assign({}, PER_READING, { choices: { wind: 'dwd', uv: 'openmeteo', pressure: 'dwd', dew: 'openmeteo' } });
-  const all = providerReadings.READING_IDS;
-  assert.deepEqual(sourcePlan.partSteps(input, 'metno', [], all), [
-    { provider: 'openmeteo', ask: 'forecast', readings: ['dew', 'uv'] },
-    { provider: 'dwd', ask: 'forecast', readings: ['wind', 'pressure'] }]);
-  assert.deepEqual(sourcePlan.partSteps(input, 'metno', [], all.filter((r) => r !== 'uv' && r !== 'dew')),
-    [{ provider: 'dwd', ask: 'forecast', readings: ['wind', 'pressure'] }], 'a reading not in use asks nobody');
-  assert.deepEqual(sourcePlan.partSteps(input, 'metno', ['dwd'], all),
-    [{ provider: 'openmeteo', ask: 'forecast', readings: ['dew', 'uv'] }], 'a provider that failed this fetch');
+  assert.deepEqual(sourcePlan.partSteps(input, 'metno', [], ALL_DRAWN), [
+    { provider: 'openmeteo', readings: ['dew', 'uv'] },
+    { provider: 'dwd', readings: ['wind', 'pressure'] }]);
+  assert.deepEqual(sourcePlan.partSteps(input, 'metno', [], ['windDir', 'cloud', 'pressure']),
+    [{ provider: 'dwd', readings: ['wind', 'pressure'] }], 'a reading the watch does not draw asks nobody');
+  assert.deepEqual(sourcePlan.partSteps(input, 'metno', ['dwd'], ALL_DRAWN),
+    [{ provider: 'openmeteo', readings: ['dew', 'uv'] }], 'a provider that failed this fetch');
   const dwdBase = Object.assign({}, PER_READING, { choices: { temperature: 'dwd', wind: 'dwd' } });
-  assert.deepEqual(sourcePlan.partSteps(dwdBase, 'dwd', [], all),
-    [{ provider: 'metno', ask: 'forecast', readings: ['dew', 'rain', 'windDir', 'uv', 'cloud', 'pressure', 'condition'] }],
+  assert.deepEqual(sourcePlan.partSteps(dwdBase, 'dwd', [], ALL_DRAWN),
+    [{ provider: 'metno', readings: ['dew', 'rain', 'windDir', 'uv', 'cloud', 'pressure', 'condition'] }],
     'the forecast\'s provider brings its own; Same as Weather is the Weather picker\'s');
-  assert.deepEqual(sourcePlan.partSteps(dwdBase, 'metno', ['dwd'], all), [],
+  assert.deepEqual(sourcePlan.partSteps(dwdBase, 'metno', ['dwd'], ALL_DRAWN), [],
     'the temperature\'s provider failed: the Weather picker\'s brings everything');
-  assert.deepEqual(sourcePlan.partSteps(Object.assign({}, input, { mode: 'auto' }), 'metno', [], all), []);
+  assert.deepEqual(sourcePlan.partSteps(Object.assign({}, input, { mode: 'auto' }), 'metno', [], ALL_DRAWN), []);
 });
 
 test('the fills follow each reading\'s own provider', () => {
   const feeds = Object.assign(sourcePlan.allFrom('yandex'), { cloud: 'dwd', uv: 'dwd' });
-  assert.deepEqual(sourcePlan.fillSteps(feeds, true, ALL_DRAWN), [UV_FILL, GAP_FILL(['dew', 'windDir', 'pressure'])],
+  assert.deepEqual(sourcePlan.fillSteps(feeds, ALL_DRAWN), [UV_FILL, GAP_FILL(['dew', 'windDir', 'pressure'])],
     'DWD\'s cloud cover is its own, its UV is filled, and Yandex\'s other gaps');
 });
 
@@ -179,18 +180,15 @@ test('the fills follow each reading\'s own provider', () => {
 // against these counts.
 
 const drawnReadings = require('../../../src/pkjs/weather/domain/drawn-readings.js');
-const forecastSnapshot = require('../../../src/pkjs/weather/domain/forecast-snapshot.js');
 // The settings page's input: no place, and what the settings hold.
 const ON_PAGE = { mode: 'one', provider: 'openmeteo', country: null, keyed: [] };
 const page = (over) => Object.assign({}, ON_PAGE, over);
 
-test('a fetch uses UV while it asks for UV, a gap reading while the watch draws it, the others always', () => {
-  assert.deepEqual(sourcePlan.wanted(false, []), ['temperature', 'rain', 'wind', 'condition']);
-  assert.deepEqual(sourcePlan.wanted(true, ['cloud', 'uv']), ['temperature', 'rain', 'wind', 'uv', 'cloud', 'condition']);
-  assert.deepEqual(sourcePlan.wanted(false, ['uv']), ['temperature', 'rain', 'wind', 'condition'],
-    'UV by the fetch\'s own gate');
-  assert.deepEqual(sourcePlan.GAP_READINGS.concat(['uv']).sort(), drawnReadings.READING_IDS.slice().sort(),
-    'the gap readings and UV are the readings only some screens draw');
+test('a fetch uses a drawn-only reading while the watch draws it, the others always', () => {
+  assert.deepEqual(sourcePlan.wanted([]), ['temperature', 'rain', 'wind', 'condition']);
+  assert.deepEqual(sourcePlan.wanted(['cloud', 'uv']), ['temperature', 'rain', 'wind', 'uv', 'cloud', 'condition']);
+  assert.deepEqual(providerReadings.DRAWN_ONLY, drawnReadings.READING_IDS,
+    'the drawn-only readings are the ones drawn-readings.js has a rule for');
 });
 
 test('without the place (the settings page), By location keeps the regional provider; a missing key still drops one', () => {
@@ -201,19 +199,19 @@ test('without the place (the settings page), By location keeps the regional prov
     keyed: ['tomorrowio'] })), ['tomorrowio', 'openmeteo']);
 });
 
-test('a refresh asks the forecast\'s provider, each part\'s and the gap request; the UV-only fill is counted apart', () => {
-  assert.deepEqual(sourcePlan.refreshRequests(page({}), true, ['uv']), { openmeteo: 3 }, 'its own UV request');
-  assert.deepEqual(sourcePlan.refreshRequests(page({}), false, []), { openmeteo: 2 });
-  assert.deepEqual(sourcePlan.refreshRequests(page({ provider: 'dwd' }), true, ['uv']), { dwd: 2 });
-  assert.deepEqual(sourcePlan.refreshRequests(page({ provider: 'yandex', keyed: ['yandex'] }), true, ['cloud', 'dew']),
-    { yandex: 1, openmeteo: 1 }, 'one gap request for every reading it lacks');
-  assert.deepEqual(sourcePlan.refreshRequests(page({ mode: 'auto', provider: 'openmeteo', country: 'NO' }), true, []),
+test('a refresh asks the forecast\'s provider, each part\'s and the fill request; the UV-only fill is counted apart', () => {
+  assert.deepEqual(sourcePlan.refreshRequests(page({}), ['uv']), { openmeteo: 3 }, 'its own UV request');
+  assert.deepEqual(sourcePlan.refreshRequests(page({}), []), { openmeteo: 2 });
+  assert.deepEqual(sourcePlan.refreshRequests(page({ provider: 'dwd' }), ['uv']), { dwd: 2 });
+  assert.deepEqual(sourcePlan.refreshRequests(page({ provider: 'yandex', keyed: ['yandex'] }), ['cloud', 'dew']),
+    { yandex: 1, openmeteo: 1 }, 'one request for every reading it lacks');
+  assert.deepEqual(sourcePlan.refreshRequests(page({ mode: 'auto', provider: 'openmeteo', country: 'NO' }), []),
     { metno: 1 }, 'By location: the regional provider; a fallback costs a call only when it fails');
   assert.deepEqual(sourcePlan.refreshRequests(page({ mode: 'reading', provider: 'metno',
-    choices: { temperature: 'dwd', wind: 'dwd', rain: 'openmeteo' } }), false, []),
+    choices: { temperature: 'dwd', wind: 'dwd', rain: 'openmeteo' } }), []),
   { dwd: 2, openmeteo: 2, metno: 1 }, 'Per reading: one fetch for each provider a reading in use comes from');
-  assert.deepEqual(sourcePlan.refreshRequests(page({ mode: 'reading', provider: 'metno', choices: {} }), true, ALL_DRAWN),
-    sourcePlan.refreshRequests(page({ provider: 'metno' }), true, ALL_DRAWN), 'Same as Weather everywhere: One provider');
+  assert.deepEqual(sourcePlan.refreshRequests(page({ mode: 'reading', provider: 'metno', choices: {} }), ALL_DRAWN),
+    sourcePlan.refreshRequests(page({ provider: 'metno' }), ALL_DRAWN), 'Same as Weather everywhere: One provider');
 });
 
 test('a day is the update interval\'s refreshes outside the Battery saver\'s window', () => {
@@ -221,17 +219,17 @@ test('a day is the update interval\'s refreshes outside the Battery saver\'s win
   assert.equal(sourcePlan.refreshesPerDay(5, 0), 288);
   assert.equal(sourcePlan.refreshesPerDay(60, 0), 24);
   assert.equal(sourcePlan.refreshesPerDay(15, 9), 60, '22:00 to 7:00');
-  assert.deepEqual(sourcePlan.callsPerDay(page({ provider: 'metno' }), true, ['uv'], 15, 9), { metno: 60 });
+  assert.deepEqual(sourcePlan.callsPerDay(page({ provider: 'metno' }), ['uv'], 15, 9), { metno: 60 });
 });
 
 test('the UV-only fill asks at the first refresh after its last answer stopped serving', () => {
-  assert.equal(forecastSnapshot.UV_REUSE_MS, sourcePlan.UV_REUSE_MS, 'the snapshot serves it as long as the plan counts');
+  assert.equal(sourcePlan.UV_REUSE_MS, 3 * 60 * 60 * 1000, 'three hours (forecast-snapshot.js serves it as long)');
   const uvCalls = (intervalMin, pauseHours) =>
-    sourcePlan.callsPerDay(page({ provider: 'dwd' }), true, ['uv'], intervalMin, pauseHours).openmeteo;
+    sourcePlan.callsPerDay(page({ provider: 'dwd' }), ['uv'], intervalMin, pauseHours).openmeteo;
   assert.equal(uvCalls(15, 0), 8, 'every 13th refresh: one at exactly three hours still reuses it');
   assert.equal(uvCalls(60, 0), 6, 'every fourth hour');
   assert.equal(uvCalls(5, 0), 8);
   assert.equal(uvCalls(60, 9), 4, 'fifteen hours awake');
-  assert.deepEqual(sourcePlan.callsPerDay(page({ provider: 'dwd' }), true, ['uv'], 15, 0), { dwd: 192, openmeteo: 8 });
-  assert.deepEqual(sourcePlan.callsPerDay(page({ provider: 'dwd' }), false, [], 15, 0), { dwd: 192 }, 'UV not drawn');
+  assert.deepEqual(sourcePlan.callsPerDay(page({ provider: 'dwd' }), ['uv'], 15, 0), { dwd: 192, openmeteo: 8 });
+  assert.deepEqual(sourcePlan.callsPerDay(page({ provider: 'dwd' }), [], 15, 0), { dwd: 192 }, 'UV not drawn');
 });

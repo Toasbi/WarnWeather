@@ -11,6 +11,8 @@
     // The source plan (source-plan.js, concatenated ahead of this file in the page): what a
     // weather update asks, and the updates a day.
     var sourcePlan = (typeof require !== 'undefined') ? require('../../../weather/domain/source-plan.js') : window.SourcePlan;
+    var providerReadings = (typeof require !== 'undefined')
+        ? require('../../../weather/domain/provider-readings.js') : window.ProviderReadings;
     var LIMIT_DAY = 500;
     var LIMIT_HOUR = 25;
     var RADAR_CALLS_PER_CYCLE = 1;
@@ -55,7 +57,7 @@
     function weatherCalls(S) {
         var input = { mode: S.weatherSourceMode, provider: S.provider, country: null,
             choices: sourcePlan.choicesOf(S), keyed: sourcePlan.keyedOf(S) };
-        return sourcePlan.refreshRequests(input, true, sourcePlan.GAP_READINGS).tomorrowio || 0;
+        return sourcePlan.refreshRequests(input, providerReadings.DRAWN_ONLY).tomorrowio || 0;
     }
 
     /**

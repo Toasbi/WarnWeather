@@ -14,7 +14,15 @@ global.localStorage = {
   removeItem(k) { delete pkjsStorage[k]; }
 };
 
-const { buildForecastSeries: buildSeriesValues, applyForecastSeries, needsUv, needsAqi, needsPollen } = require('../../../src/pkjs/weather/domain/forecast-series');
+const { buildForecastSeries: buildSeriesValues, applyForecastSeries, needsAqi, needsPollen } = require('../../../src/pkjs/weather/domain/forecast-series');
+const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
+/**
+ * The fetch's UV gate: fetch-options.js fetchUv, whether drawn-readings.js says UV is drawn.
+ * @param {?Object} settings Clay settings; none ask for nothing.
+ * @param {?Object} [watchInfo] getActiveWatchInfo() result.
+ * @returns {boolean}
+ */
+const needsUv = (settings, watchInfo) => Boolean(settings) && fetchOptions.build(settings, watchInfo || null).fetchUv;
 const { toRenderPayload } = require('../../../src/pkjs/weather/application/render-payload');
 const lineStyle = require('../../../src/pkjs/forecast-graphs/domain/line-style');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
