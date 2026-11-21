@@ -366,7 +366,11 @@ reads it. Its own forecast is the first step, and a fetch without it fails; it s
 readings it sends, and a reading it lacks is a fill: it comes from Open-Meteo while the watch
 draws it (a drawn reading). DWD's UV comes by Open-Meteo's UV-only request, Yandex's dew point,
 wind direction, cloud cover and air pressure by one request for all four.
-`src/pkjs/weather/application/fetch-sources.js` runs the steps through the source ports.
+`src/pkjs/weather/application/fetch-sources.js` runs the steps through the source ports. The
+plan also counts the calls a day it comes to while no provider fails (`callsPerDay`: each
+update's requests, outside the Battery saver's window, and the UV-only fill once its answer
+stops serving), which the settings page shows at the end of Setup › Data sources and the
+tomorrow.io budget counts its share by.
 _Avoid_: provider chain, fallback provider (a fallback is what By location tries when a
 provider fails).
 

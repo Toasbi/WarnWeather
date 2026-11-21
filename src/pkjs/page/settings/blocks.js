@@ -37,6 +37,10 @@ if (typeof require !== 'undefined') {
     // file): tomorrow.io's usage line registers into it.
     var keyStatus = (typeof require !== 'undefined')
         ? require('../weather/keys/key-status.js') : PConf.keyStatus;
+    // Where the weather comes from (weather-sources-page.js, concatenated ahead of this file):
+    // the weather calls line at the end of Data sources.
+    var weatherSources = (typeof require !== 'undefined')
+        ? require('../weather/weather-sources-page.js') : window.WeatherSourcesPage;
     // The regional radar sources' areas (radar-coverage.js, concatenated ahead of this
     // file): the note under the Radar provider row.
     var radarCoverage = (typeof require !== 'undefined')
@@ -1006,6 +1010,20 @@ if (typeof require !== 'undefined') {
     if (keyStatus) { keyStatus.registerUsage('tomorrowio', tomorrowioUsageLine); }
 
     /**
+     * The weather calls a day, the line at the end of Setup › Data sources (weather-sources-page.js
+     * callsLine), at the interval and the night pause the read-outs above count with: its
+     * tomorrow.io share is their figure where every reading tomorrow.io brings is drawn.
+     * @param {Object} state Settings state.
+     * @param {?Object} env Platform env.
+     * @returns {string} HTML; '' for a provider the page does not know
+     */
+    function weatherCallsLine(state, env) {
+        state = budgetState(state, env);
+        return weatherSources.callsLine(state, env, readoutInterval(state), tomorrowioBudget.sleepHours(state));
+    }
+    PConf.hintResolvers.register('weatherCallsLine', weatherCallsLine);
+
+    /**
      * Monthly-usage info block under the Rainbow API key field ("Rainbow (own key)"'s key
      * sheet): the free plan's monthly ceiling, the user's projected month at the
      * current settings, a ✓/✗ verdict and the derived sleep->cadence unlock rule. Unlike tomorrow.io's block
@@ -1335,6 +1353,7 @@ if (typeof require !== 'undefined') {
             radarColorHint: radarColorHint,
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
             tomorrowioUsageLine: tomorrowioUsageLine,
+            weatherCallsLine: weatherCallsLine,
             rainbowBudgetBlock: rainbowBudgetBlock,
             rainbowUsageLine: rainbowUsageLine,
             thresholdRangeCfg: thresholdRangeCfg

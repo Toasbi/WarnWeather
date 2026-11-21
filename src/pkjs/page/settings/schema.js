@@ -2765,7 +2765,7 @@ module.exports = {
                 // the updates: said here, from its hours (screens-page.js).
                 hintFrom: {resolver: 'batterySaverPauseHint'},
                 optionsFrom: {resolver: 'fetchIntervalBudget'}
-            }])
+            }, weatherSources.CALLS_LINE])
         },
         // The keyed weather providers' key dialogs, opened by the key row under the Weather
         // provider and rendered nowhere else (sheetOnly). The keys, their trimming and

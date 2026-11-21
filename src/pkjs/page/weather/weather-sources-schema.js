@@ -1,8 +1,9 @@
 // src/pkjs/page/weather/weather-sources-schema.js — ES5, PKJS-parsed. The rows of Setup › Data
 // sources that say where the weather comes from, split out of schema.js like alerts-schema.js:
-// the Weather picker's options, the Weather from row above the picker, and the note under it that
-// names what comes from Open-Meteo (its text is weather-sources-page.js's weatherFillNote). Plain
-// CommonJS: the schema is built in PKJS and reaches the page as data.
+// the Weather picker's options, the Weather from row above the picker, the note under it that
+// names what comes from Open-Meteo (its text is weather-sources-page.js's weatherFillNote), Per
+// reading's rows and the weather calls line at the section's end. Plain CommonJS: the schema is
+// built in PKJS and reaches the page as data.
 
 var providerReadings = require('../../weather/domain/provider-readings.js');
 var sourcePlan = require('../../weather/domain/source-plan.js');
@@ -76,5 +77,13 @@ var FILL_NOTE = {
     textFrom: {resolver: 'weatherFillNote'}
 };
 
+// The weather calls a day the section's choices come to, its last line, joined to the Update
+// interval row above it (blocks.js weatherCallsLine, worded by weather-sources-page.js callsLine).
+var CALLS_LINE = {
+    type: 'staticText',
+    joinPrevious: true,
+    textFrom: {resolver: 'weatherCallsLine'}
+};
+
 module.exports = { PROVIDER_OPTIONS: PROVIDER_OPTIONS, WEATHER_FROM: WEATHER_FROM, READING_ROWS: READING_ROWS,
-    FILL_NOTE: FILL_NOTE };
+    FILL_NOTE: FILL_NOTE, CALLS_LINE: CALLS_LINE };

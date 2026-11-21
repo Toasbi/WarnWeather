@@ -2,7 +2,8 @@
 // which the fetch requires, from the Weather picker's provider (One provider) or the place's
 // regional provider, then the Weather picker's, then Open-Meteo, each when the one before failed
 // (By location); then, for the provider that served, Open-Meteo for each reading it lacks while
-// the watch draws it: its UV-only request, and one request for the rest.
+// the watch draws it: its UV-only request, and one request for the rest. Last, the calls a day
+// the plan comes to.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -171,4 +172,66 @@ test('the fills follow each reading\'s own provider', () => {
   const feeds = Object.assign(sourcePlan.allFrom('yandex'), { cloud: 'dwd', uv: 'dwd' });
   assert.deepEqual(sourcePlan.fillSteps(feeds, true, ALL_DRAWN), [UV_FILL, GAP_FILL(['dew', 'windDir', 'pressure'])],
     'DWD\'s cloud cover is its own, its UV is filled, and Yandex\'s other gaps');
+});
+
+// --- the calls a day ------------------------------------------------------------------------
+// test/weather/application/fetch-sources.test.js runs a day of updates through the engine
+// against these counts.
+
+const drawnReadings = require('../../../src/pkjs/weather/domain/drawn-readings.js');
+const forecastSnapshot = require('../../../src/pkjs/weather/domain/forecast-snapshot.js');
+// The settings page's input: no place, and what the settings hold.
+const ON_PAGE = { mode: 'one', provider: 'openmeteo', country: null, keyed: [] };
+const page = (over) => Object.assign({}, ON_PAGE, over);
+
+test('a fetch uses UV while it asks for UV, a gap reading while the watch draws it, the others always', () => {
+  assert.deepEqual(sourcePlan.wanted(false, []), ['temperature', 'rain', 'wind', 'condition']);
+  assert.deepEqual(sourcePlan.wanted(true, ['cloud', 'uv']), ['temperature', 'rain', 'wind', 'uv', 'cloud', 'condition']);
+  assert.deepEqual(sourcePlan.wanted(false, ['uv']), ['temperature', 'rain', 'wind', 'condition'],
+    'UV by the fetch\'s own gate');
+  assert.deepEqual(sourcePlan.GAP_READINGS.concat(['uv']).sort(), drawnReadings.READING_IDS.slice().sort(),
+    'the gap readings and UV are the readings only some screens draw');
+});
+
+test('without the place (the settings page), By location keeps the regional provider; a missing key still drops one', () => {
+  assert.deepEqual(sourcePlan.candidates(page({ mode: 'auto', provider: 'metno', country: 'DE' })),
+    ['dwd', 'metno', 'openmeteo']);
+  assert.deepEqual(sourcePlan.candidates(page({ mode: 'auto', provider: 'tomorrowio', country: 'US' })), ['openmeteo']);
+  assert.deepEqual(sourcePlan.candidates(page({ mode: 'auto', provider: 'tomorrowio', country: 'US',
+    keyed: ['tomorrowio'] })), ['tomorrowio', 'openmeteo']);
+});
+
+test('a refresh asks the forecast\'s provider, each part\'s and the gap request; the UV-only fill is counted apart', () => {
+  assert.deepEqual(sourcePlan.refreshRequests(page({}), true, ['uv']), { openmeteo: 3 }, 'its own UV request');
+  assert.deepEqual(sourcePlan.refreshRequests(page({}), false, []), { openmeteo: 2 });
+  assert.deepEqual(sourcePlan.refreshRequests(page({ provider: 'dwd' }), true, ['uv']), { dwd: 2 });
+  assert.deepEqual(sourcePlan.refreshRequests(page({ provider: 'yandex', keyed: ['yandex'] }), true, ['cloud', 'dew']),
+    { yandex: 1, openmeteo: 1 }, 'one gap request for every reading it lacks');
+  assert.deepEqual(sourcePlan.refreshRequests(page({ mode: 'auto', provider: 'openmeteo', country: 'NO' }), true, []),
+    { metno: 1 }, 'By location: the regional provider; a fallback costs a call only when it fails');
+  assert.deepEqual(sourcePlan.refreshRequests(page({ mode: 'reading', provider: 'metno',
+    choices: { temperature: 'dwd', wind: 'dwd', rain: 'openmeteo' } }), false, []),
+  { dwd: 2, openmeteo: 2, metno: 1 }, 'Per reading: one fetch for each provider a reading in use comes from');
+  assert.deepEqual(sourcePlan.refreshRequests(page({ mode: 'reading', provider: 'metno', choices: {} }), true, ALL_DRAWN),
+    sourcePlan.refreshRequests(page({ provider: 'metno' }), true, ALL_DRAWN), 'Same as Weather everywhere: One provider');
+});
+
+test('a day is the update interval\'s refreshes outside the Battery saver\'s window', () => {
+  assert.equal(sourcePlan.refreshesPerDay(15, 0), 96);
+  assert.equal(sourcePlan.refreshesPerDay(5, 0), 288);
+  assert.equal(sourcePlan.refreshesPerDay(60, 0), 24);
+  assert.equal(sourcePlan.refreshesPerDay(15, 9), 60, '22:00 to 7:00');
+  assert.deepEqual(sourcePlan.callsPerDay(page({ provider: 'metno' }), true, ['uv'], 15, 9), { metno: 60 });
+});
+
+test('the UV-only fill asks at the first refresh after its last answer stopped serving', () => {
+  assert.equal(forecastSnapshot.UV_REUSE_MS, sourcePlan.UV_REUSE_MS, 'the snapshot serves it as long as the plan counts');
+  const uvCalls = (intervalMin, pauseHours) =>
+    sourcePlan.callsPerDay(page({ provider: 'dwd' }), true, ['uv'], intervalMin, pauseHours).openmeteo;
+  assert.equal(uvCalls(15, 0), 8, 'every 13th refresh: one at exactly three hours still reuses it');
+  assert.equal(uvCalls(60, 0), 6, 'every fourth hour');
+  assert.equal(uvCalls(5, 0), 8);
+  assert.equal(uvCalls(60, 9), 4, 'fifteen hours awake');
+  assert.deepEqual(sourcePlan.callsPerDay(page({ provider: 'dwd' }), true, ['uv'], 15, 0), { dwd: 192, openmeteo: 8 });
+  assert.deepEqual(sourcePlan.callsPerDay(page({ provider: 'dwd' }), false, [], 15, 0), { dwd: 192 }, 'UV not drawn');
 });

@@ -2,13 +2,14 @@
 //
 // Pure budget math for the tomorrow.io free tier: 500 calls/day, 25/hour (reset
 // midnight UTC). Consumed by the config-UI info block + interval resolver in
-// blocks.js and by tests. No DOM, no watch-runtime use. All limits and
-// per-cycle call counts are named constants so a corrected call-count model
-// (e.g. if a Timelines request ever bills as >1 call) is a one-line change.
+// blocks.js and by tests. No DOM, no watch-runtime use. The limits and the radar's
+// per-cycle call count are named constants; the weather's calls are the source plan's
+// count of tomorrow.io's requests (source-plan.js refreshRequests, provider-readings.js
+// requests), so a corrected call-count model (e.g. if a Timelines request ever bills as >1
+// call) is a one-line change there.
 (function () {
     var LIMIT_DAY = 500;
     var LIMIT_HOUR = 25;
-    var WEATHER_CALLS_PER_CYCLE = 1;
     var RADAR_CALLS_PER_CYCLE = 1;
     // Same labels/values as the config UI's update-interval ladder.
     var INTERVAL_LADDER = [
@@ -40,19 +41,27 @@
     }
 
     /**
-     * Whether a weather update asks tomorrow.io: it is the Weather picker's provider, or in Per
-     * reading a reading's (source-plan.js readingProviders: a pick with its key, else the
-     * Weather picker's). Every reading counts, drawn or not, so the budget errs toward fewer
-     * calls. source-plan.js is concatenated after this file in the page: read at call time.
-     * @param {Object} S Settings state.
-     * @returns {boolean}
+     * source-plan.js, concatenated after this file in the page: read at call time.
+     * @returns {Object} The source plan.
      */
-    function weatherAsksTomorrow(S) {
-        if (S.weatherSourceMode !== 'reading') { return S.provider === 'tomorrowio'; }
-        var plan = (typeof require !== 'undefined') ? require('../../../weather/domain/source-plan.js') : window.SourcePlan;
-        var byReading = plan.readingProviders({ mode: 'reading', provider: S.provider, choices: plan.choicesOf(S),
-            keyed: plan.keyedOf(S) });
-        return Object.keys(byReading).some(function (id) { return byReading[id] === 'tomorrowio'; });
+    function sourcePlan() {
+        return (typeof require !== 'undefined') ? require('../../../weather/domain/source-plan.js') : window.SourcePlan;
+    }
+
+    /**
+     * The tomorrow.io requests a weather update makes, by the source plan's own count
+     * (source-plan.js refreshRequests, which the calls line at the end of Data sources counts
+     * with). It errs toward more calls: every reading counts as drawn, and By location counts
+     * a place in no regional provider's area (no country), where the Weather picker's provider
+     * is asked every update, as it is when the regional one fails.
+     * @param {Object} S Settings state.
+     * @returns {number} Requests per update.
+     */
+    function weatherCalls(S) {
+        var plan = sourcePlan();
+        var input = { mode: S.weatherSourceMode, provider: S.provider, country: null, choices: plan.choicesOf(S),
+            keyed: plan.keyedOf(S) };
+        return plan.refreshRequests(input, true, plan.GAP_READINGS).tomorrowio || 0;
     }
 
     /**
@@ -64,7 +73,7 @@
      */
     function callsPerCycle(S) {
         var calls = 0;
-        if (S && weatherAsksTomorrow(S)) { calls += WEATHER_CALLS_PER_CYCLE; }
+        if (S) { calls += weatherCalls(S); }
         // The radar fetch runs for any non-off mode (countdown/status/graph all
         // need the trend), so it consumes a call whenever tomorrow.io is the source.
         if (S && S.radarProvider === 'tomorrowio' && (S.radarMode || 'graph') !== 'off') {
@@ -81,7 +90,7 @@
      * @returns {number} Calls per day.
      */
     function dailyCalls(S, intervalMin) {
-        return (24 - sleepHours(S)) * (60 / intervalMin) * callsPerCycle(S);
+        return sourcePlan().refreshesPerDay(intervalMin, sleepHours(S)) * callsPerCycle(S);
     }
 
     /**
@@ -148,7 +157,7 @@
     // accessor (the onSubmit hook) builds its state object from exactly these;
     // test/page/weather/budgets/tomorrowio-budget.test.js pins the list against what the math reads.
     // Weather from, Per reading's picks (source-plan.js choiceKey) and the keys a pick needs
-    // (keyedOf) decide whether an update asks tomorrow.io (weatherAsksTomorrow).
+    // (keyedOf) decide whether an update asks tomorrow.io (weatherCalls).
     var STATE_KEYS = ['provider', 'radarProvider', 'radarMode',
         'sleepNightEnabled', 'sleepStartHour', 'sleepEndHour', 'weatherSourceMode',
         'weatherSourceTemperature', 'weatherSourceDew', 'weatherSourceRain', 'weatherSourceWind',
@@ -158,7 +167,6 @@
     var api = {
         LIMIT_DAY: LIMIT_DAY,
         LIMIT_HOUR: LIMIT_HOUR,
-        WEATHER_CALLS_PER_CYCLE: WEATHER_CALLS_PER_CYCLE,
         RADAR_CALLS_PER_CYCLE: RADAR_CALLS_PER_CYCLE,
         INTERVAL_LADDER: INTERVAL_LADDER,
         STATE_KEYS: STATE_KEYS,

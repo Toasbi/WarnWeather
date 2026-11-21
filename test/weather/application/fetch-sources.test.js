@@ -29,14 +29,15 @@ function forecastOf(p) {
 /**
  * Fetches of one provider's sources in one world, its store kept between them, each with a
  * new instance (as after a settings save) unless `reuse` is set, each with the source ports
- * of a 15-minute update interval.
+ * of a 15-minute update interval unless `refreshMs` names another.
  * @param {string} id A provider id.
  * @param {Array<{at: (number|undefined), options: (Object|undefined), keys: (Object|undefined),
  *   lat: (number|undefined), country: (string|undefined), before: (function(Object, Function): void|undefined)}>}
  *   fetches When (ms after the world's now) and with what (the country the place's reverse
  *   geocode found); before(p, mod) runs on the instance first.
- * @param {{reuse: boolean, answers: function(string): boolean}} [opts] One instance for every
- *   fetch (a scheduled refresh); which requests the services answer.
+ * @param {{reuse: boolean, answers: function(string): boolean, refreshMs: number}} [opts] One
+ *   instance for every fetch (a scheduled refresh); which requests the services answer; the
+ *   update interval.
  * @returns {Array<{p: Object, outcome: string, failure: ?Object, requests: string[], forecast: string}>}
  *   Each fetch's instance, its outcome and own requests, and its forecast fields right after it.
  */
@@ -54,7 +55,8 @@ function fetchesOf(id, fetches, opts) {
       }
       p.options = mod('weather/domain/fetch-options.js').defaults(Object.assign({ fetchUv: true, dayPeakCodes: [] }, f.options));
       p.countryCode = f.country || null;
-      const ports = mod('weather/adapter/source-ports.js').create(() => Date.now(), QUARTER, settings, p.options);
+      const ports = mod('weather/adapter/source-ports.js').create(() => Date.now(), o.refreshMs || QUARTER, settings,
+        p.options);
       if (f.before) { f.before(p, mod); }
       const run = { p: p, outcome: 'pending', failure: null };
       mod('weather/application/fetch-sources.js').fetchSources(p, ports, f.lat || world.PLACE.lat, world.PLACE.lon,
@@ -544,4 +546,67 @@ test('Per reading: a provider that failed this fetch is not asked again as a fal
   assert.equal(outcome, 'ok', 'Met.no\'s forecast stands');
   assert.equal(requests.filter((r) => r.indexOf(OWM_HOST) !== -1).length, 1, 'OpenWeatherMap once, for its own part');
   assert.deepEqual(p.feeds, sourcePlan.allFrom('metno'), 'every reading stays Met.no\'s');
+});
+
+// ---- The calls a day: the source plan's count (source-plan.js callsPerDay, the settings page's
+// calls line) against a day of updates through the engine itself.
+
+const HOSTS = { 'api.brightsky.dev': 'dwd', 'api.open-meteo.com': 'openmeteo', 'api.met.no': 'metno',
+  'api.openweathermap.org': 'openweathermap', 'api.tomorrow.io': 'tomorrowio', 'api.weather.com': 'wunderground',
+  'www.wunderground.com': 'wunderground', 'api.weather.yandex.ru': 'yandex' };
+
+/**
+ * A day of updates every `intervalMin` minutes on one instance, counted by provider.
+ * @param {string} id The Weather picker's provider.
+ * @param {Object} options Fetch options over the day's.
+ * @param {number} intervalMin The update interval.
+ * @param {string} [country] The country the place's reverse geocode names.
+ * @returns {Object<string, number>} provider id → requests
+ */
+function dayOf(id, options, intervalMin, country) {
+  const fetches = [];
+  for (let at = 0; at < 24 * HOUR * 1000; at += intervalMin * MIN) {
+    fetches.push({ at: at, options: options, country: country });
+  }
+  const out = {};
+  fetchesOf(id, fetches, { reuse: true, refreshMs: intervalMin * MIN }).forEach((run) => {
+    assert.equal(run.outcome, 'ok');
+    run.requests.forEach((request) => {
+      const provider = HOSTS[new URL(request.split(' ')[1]).host];
+      out[provider] = (out[provider] || 0) + 1;
+    });
+  });
+  return out;
+}
+
+/**
+ * The plan's count for the same day.
+ * @param {string} id The Weather picker's provider.
+ * @param {Object} options The fetch options dayOf() was given.
+ * @param {number} intervalMin The update interval.
+ * @param {string} [country] The country.
+ * @returns {Object<string, number>}
+ */
+function plannedDay(id, options, intervalMin, country) {
+  const o = Object.assign({ fetchUv: true, drawn: [] }, options);
+  const input = { mode: o.sourceMode || 'one', provider: id, country: country || null,
+    choices: o.readingSources || {}, keyed: sourcePlan.keyedOf(world.KEYS) };
+  return sourcePlan.callsPerDay(input, o.fetchUv, o.drawn, intervalMin, 0);
+}
+
+test('a day of updates asks each provider what the source plan counts', () => {
+  [
+    ['dwd', { drawn: ['uv'] }, 15],
+    ['dwd', { drawn: ['uv'] }, 60],
+    ['openmeteo', { drawn: ['uv'] }, 15],
+    ['openmeteo', { fetchUv: false }, 30],
+    ['yandex', { drawn: ['uv', 'cloud', 'dew'] }, 15],
+    ['metno', { sourceMode: 'auto', drawn: ['uv'] }, 15, 'DEU'],
+    ['tomorrowio', perReading({ temperature: 'dwd', rain: 'openmeteo', wind: 'yandex' }, { drawn: ['uv'] }), 15],
+    ['wunderground', perReading({ uv: 'openmeteo', cloud: 'metno' }, { drawn: ['cloud'] }), 10],
+    ['metno', perReading({ pressure: 'dwd' }), 15]
+  ].forEach(([id, options, intervalMin, country]) => {
+    assert.deepEqual(dayOf(id, options, intervalMin, country), plannedDay(id, options, intervalMin, country),
+      id + ' ' + JSON.stringify(options) + ' every ' + intervalMin + ' min');
+  });
 });

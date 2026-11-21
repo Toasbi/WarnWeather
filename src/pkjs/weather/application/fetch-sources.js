@@ -19,7 +19,6 @@ var sourcePlan = require('../domain/source-plan.js');
 var forecastSnapshot = require('../domain/forecast-snapshot.js');
 var providerReadings = require('../domain/provider-readings.js');
 var forecastModel = require('../domain/forecast-model.js');
-var drawnReadings = require('../domain/drawn-readings.js');
 
 /**
  * A failure value, in the shape every fetch stage reports (weather/adapter/http.js failure).
@@ -351,20 +350,6 @@ function runParts(store, ports, steps, anchor, served, lat, lon, force, onDone) 
 }
 
 /**
- * The readings the watch uses: UV while the fetch asks for it, the ones only some screens draw
- * while one does (drawn-readings.js), the others always.
- * @param {Object} options The fetch options (fetchUv, drawn).
- * @returns {string[]} READINGS ids.
- */
-function wantedReadings(options) {
-    var drawn = options.drawn || [];
-    return providerReadings.READING_IDS.filter(function (id) {
-        if (id === 'uv') { return Boolean(options.fetchUv); }
-        return drawnReadings.READING_IDS.indexOf(id) === -1 || drawn.indexOf(id) !== -1;
-    });
-}
-
-/**
  * The fills, in order. A fill that fails leaves its readings empty, as a reading a provider
  * does not send is everywhere; one that brings them names its provider as their feed.
  * @param {Object} store storeOf().
@@ -425,13 +410,15 @@ function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
     anchor.feeds = null;
     var input = { mode: options.sourceMode, provider: anchor.id, country: anchor.countryCode || null,
         lat: Number(lat), lon: Number(lon), keyed: ports.keyed, choices: options.readingSources };
+    var fetchUv = Boolean(options.fetchUv);
+    var drawn = options.drawn || [];
     var failed = [];
     runForecast(store, ports, sourcePlan.forecastStep(input), anchor, lat, lon, force, failed, function (served) {
         anchor.feeds = sourcePlan.allFrom(served);
-        runParts(store, ports, sourcePlan.partSteps(input, served, failed, wantedReadings(options)), anchor, served,
-            lat, lon, force, function () {
-                runFills(store, ports, sourcePlan.fillSteps(anchor.feeds, Boolean(options.fetchUv), options.drawn || []),
-                    anchor, lat, lon, force, onSuccess);
+        runParts(store, ports, sourcePlan.partSteps(input, served, failed, sourcePlan.wanted(fetchUv, drawn)),
+            anchor, served, lat, lon, force, function () {
+                runFills(store, ports, sourcePlan.fillSteps(anchor.feeds, fetchUv, drawn), anchor, lat, lon, force,
+                    onSuccess);
             });
     }, onFailure);
 }

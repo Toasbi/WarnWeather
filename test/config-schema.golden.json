@@ -16799,6 +16799,13 @@
                 "optionsFrom": {
                   "resolver": "fetchIntervalBudget"
                 }
+              },
+              {
+                "type": "staticText",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "weatherCallsLine"
+                }
               }
             ]
           },

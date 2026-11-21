@@ -10,7 +10,9 @@
 // Open-Meteo while the watch draws it (fillSteps): DWD's UV by Open-Meteo's UV-only request,
 // Yandex's dew point, wind direction, cloud cover and air pressure by one request for all of
 // them. weather/application/fetch-sources.js runs the steps; the settings page names the fills
-// under the Weather picker (page/weather/weather-sources-page.js).
+// under the Weather picker and the calls a day the steps come to (callsPerDay) at the end of
+// Data sources (page/weather/weather-sources-page.js), and the tomorrow.io budget counts its
+// calls by the same rule (page/weather/budgets/tomorrowio-budget.js).
 //
 // Dual-context like provider-readings.js: a CommonJS module on the phone and in the tests, a
 // plain <script> on the settings page (scripts/build-config-page.js APP_FILES, after
@@ -26,6 +28,9 @@
     // has a request of its own. Every reading a provider lacks is one of these or UV
     // (test/weather/domain/source-plan.test.js).
     var GAP_READINGS = ['dew', 'windDir', 'cloud', 'pressure'];
+    // How long the UV-only fill's answer serves (forecast-snapshot.js, its uv kind): UV forecasts
+    // change slowly, so the fill asks Open-Meteo again only once this has passed.
+    var UV_REUSE_MS = 3 * 60 * 60 * 1000;
 
     /**
      * The readings a fetch fills from Open-Meteo: those the provider each came from lacks that
@@ -104,18 +109,28 @@
     }
 
     /**
-     * Whether a provider can bring a reading: it sends it, its key is stored, and it covers
-     * the place where the place is known (the settings page does not know it).
+     * Whether a provider may be asked for the place: its key is stored, and it covers the place
+     * where the place is known (the settings page does not know it).
      * @param {string} id A provider id.
-     * @param {string} readingId A READINGS id.
      * @param {{keyed: string[], lat: (number|undefined), lon: (number|undefined)}} input The
      *   stored keys and the place.
      * @returns {boolean}
      */
-    function usable(id, readingId, input) {
+    function askable(id, input) {
         var key = providerReadings.keySetting(id);
-        return providerReadings.serves(id, readingId) && (!key || input.keyed.indexOf(id) !== -1)
+        return (!key || input.keyed.indexOf(id) !== -1)
             && (typeof input.lat !== 'number' || providerReadings.covers(id, input.lat, input.lon));
+    }
+
+    /**
+     * Whether a provider can bring a reading: it sends it and may be asked (askable).
+     * @param {string} id A provider id.
+     * @param {string} readingId A READINGS id.
+     * @param {Object} input askable()'s input.
+     * @returns {boolean}
+     */
+    function usable(id, readingId, input) {
+        return providerReadings.serves(id, readingId) && askable(id, input);
     }
 
     /**
@@ -159,9 +174,10 @@
      * ('auto'): the place's regional provider, the Weather picker's, then Open-Meteo, each
      * that covers the place and has its key, once. Per reading ('reading'): the temperature's
      * provider, then the Weather picker's: the forecast starts where the temperature does.
-     * @param {{mode: string, provider: string, country: ?string, lat: number, lon: number,
-     *   keyed: string[]}} input The Weather from row's mode, the Weather picker's provider, the
-     *   place and its country, and the providers whose key is stored.
+     * @param {{mode: string, provider: string, country: ?string, lat: (number|undefined),
+     *   lon: (number|undefined), keyed: string[]}} input The Weather from row's mode, the
+     *   Weather picker's provider, the place (none on the settings page: askable) and its
+     *   country, and the providers whose key is stored.
      * @returns {string[]} Provider ids, never none.
      */
     function candidates(input) {
@@ -172,11 +188,7 @@
         if (input.mode !== 'auto') { return [input.provider]; }
         var out = [];
         [regionalFor(input.country), input.provider, FILL_PROVIDER].forEach(function (id) {
-            var key = providerReadings.keySetting(id);
-            if (id && out.indexOf(id) === -1 && providerReadings.covers(id, input.lat, input.lon)
-                && (!key || input.keyed.indexOf(id) !== -1)) {
-                out.push(id);
-            }
+            if (id && out.indexOf(id) === -1 && askable(id, input)) { out.push(id); }
         });
         return out;
     }
@@ -244,10 +256,117 @@
         return steps;
     }
 
-    var api = { FILL_PROVIDER: FILL_PROVIDER, GAP_READINGS: GAP_READINGS, regionalFor: regionalFor,
-        candidates: candidates, forecastStep: forecastStep, allFrom: allFrom, fillsOf: fillsOf, fills: fills,
-        choiceKey: choiceKey, choicesOf: choicesOf, keyedOf: keyedOf, readingProviders: readingProviders,
-        partSteps: partSteps, fillSteps: fillSteps };
+    /**
+     * The readings a fetch uses: UV while it asks for UV, a reading a provider may lack (a gap
+     * reading) while the watch draws it, every other reading always. Per reading asks a part's
+     * provider for these only (partSteps' `wanted`).
+     * @param {boolean} fetchUv Whether the fetch asks for UV.
+     * @param {string[]} drawn What the watch draws (fillsOf).
+     * @returns {string[]} READINGS ids, in their order.
+     */
+    function wanted(fetchUv, drawn) {
+        return providerReadings.READING_IDS.filter(function (id) {
+            if (id === 'uv') { return Boolean(fetchUv); }
+            return GAP_READINGS.indexOf(id) === -1 || drawn.indexOf(id) !== -1;
+        });
+    }
+
+    /**
+     * The steps a refresh runs while no provider fails: the forecast from its first candidate,
+     * Per reading's parts, and the fills for what they leave (as fetch-sources.js feeds them).
+     * @param {Object} input candidates()'s input, the place left out where it is unknown.
+     * @param {boolean} fetchUv Whether the fetch asks for UV.
+     * @param {string[]} drawn What the watch draws.
+     * @returns {{served: string, parts: Array<Object>, fills: Array<Object>}}
+     */
+    function steadySteps(input, fetchUv, drawn) {
+        var served = candidates(input)[0];
+        var parts = partSteps(input, served, [], wanted(fetchUv, drawn));
+        var feeds = allFrom(served);
+        parts.forEach(function (step) {
+            step.readings.forEach(function (id) { feeds[id] = step.provider; });
+        });
+        return { served: served, parts: parts, fills: fillSteps(feeds, fetchUv, drawn) };
+    }
+
+    /**
+     * The requests one refresh makes while no provider fails, by provider: the forecast's
+     * provider, Per reading's parts (a part asks its provider's whole forecast) and Open-Meteo's
+     * gap request. The UV-only fill is left out: its answer serves for hours (callsPerDay counts
+     * it). A fallback, and a forced fetch inside the refresh slot, which reuses its snapshots,
+     * add none.
+     * @param {Object} input candidates()'s input, the place left out where it is unknown.
+     * @param {boolean} fetchUv Whether the fetch asks for UV.
+     * @param {string[]} drawn What the watch draws.
+     * @returns {Object<string, number>} provider id → requests
+     */
+    function refreshRequests(input, fetchUv, drawn) {
+        return requestsOf(steadySteps(input, fetchUv, drawn), fetchUv);
+    }
+
+    /**
+     * The requests of a refresh's steps (refreshRequests).
+     * @param {{served: string, parts: Array<Object>, fills: Array<Object>}} steps steadySteps().
+     * @param {boolean} fetchUv Whether the fetch asks for UV.
+     * @returns {Object<string, number>} provider id → requests
+     */
+    function requestsOf(steps, fetchUv) {
+        var out = {};
+        /**
+         * @param {string} id A provider id.
+         * @param {number} n Requests it makes.
+         * @returns {void}
+         */
+        function add(id, n) { out[id] = (out[id] || 0) + n; }
+        add(steps.served, providerReadings.requests(steps.served, fetchUv));
+        steps.parts.forEach(function (step) { add(step.provider, providerReadings.requests(step.provider, fetchUv)); });
+        steps.fills.forEach(function (step) {
+            if (step.ask !== 'uv') { add(step.provider, 1); }
+        });
+        return out;
+    }
+
+    /**
+     * The refreshes a day: one each update interval, none in the Battery saver's window.
+     * @param {number} intervalMin The update interval, minutes.
+     * @param {number} pauseHours The Battery saver's window, whole hours (0 when it is off).
+     * @returns {number}
+     */
+    function refreshesPerDay(intervalMin, pauseHours) {
+        return (24 - pauseHours) * 60 / intervalMin;
+    }
+
+    /**
+     * The calls a day the plan comes to while no provider fails, by provider: each refresh's
+     * requests (refreshRequests), and the UV-only fill at the first refresh after its last
+     * answer stopped serving (UV_REUSE_MS).
+     * @param {Object} input candidates()'s input, the place left out where it is unknown.
+     * @param {boolean} fetchUv Whether the fetch asks for UV.
+     * @param {string[]} drawn What the watch draws.
+     * @param {number} intervalMin The update interval, minutes.
+     * @param {number} pauseHours The Battery saver's window, whole hours.
+     * @returns {Object<string, number>} provider id → calls a day, in the order the plan asks
+     *   them: the forecast's provider first
+     */
+    function callsPerDay(input, fetchUv, drawn, intervalMin, pauseHours) {
+        var refreshes = refreshesPerDay(intervalMin, pauseHours);
+        var steps = steadySteps(input, fetchUv, drawn);
+        var perRefresh = requestsOf(steps, fetchUv);
+        var out = {};
+        Object.keys(perRefresh).forEach(function (id) { out[id] = perRefresh[id] * refreshes; });
+        if (steps.fills.some(function (step) { return step.ask === 'uv'; })) {
+            // A refresh at exactly UV_REUSE_MS still reuses the answer (forecast-snapshot.js).
+            var every = Math.floor(UV_REUSE_MS / (intervalMin * 60 * 1000)) + 1;
+            out[FILL_PROVIDER] = (out[FILL_PROVIDER] || 0) + Math.ceil(refreshes / every);
+        }
+        return out;
+    }
+
+    var api = { FILL_PROVIDER: FILL_PROVIDER, GAP_READINGS: GAP_READINGS, UV_REUSE_MS: UV_REUSE_MS,
+        regionalFor: regionalFor, candidates: candidates, forecastStep: forecastStep, allFrom: allFrom,
+        fillsOf: fillsOf, fills: fills, choiceKey: choiceKey, choicesOf: choicesOf, keyedOf: keyedOf,
+        readingProviders: readingProviders, partSteps: partSteps, fillSteps: fillSteps, wanted: wanted,
+        refreshRequests: refreshRequests, refreshesPerDay: refreshesPerDay, callsPerDay: callsPerDay };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.SourcePlan = api; }
 })();

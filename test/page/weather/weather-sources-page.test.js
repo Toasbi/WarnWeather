@@ -1,6 +1,7 @@
 // test/page/weather/weather-sources-page.test.js — the note under the Weather picker (Setup ›
 // Data sources): the readings the watch draws that the picked provider has none of, which come
-// from Open-Meteo (the source plan's fills, by the phone's own rules), and nothing otherwise.
+// from Open-Meteo (the source plan's fills, by the phone's own rules), and nothing otherwise;
+// Per reading's rows; and the weather calls a day at the section's end (the plan's count).
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -131,4 +132,62 @@ test('the note sits under the Weather row, ahead of its key note, and shows on t
   p.clickTab('setup');
   assert.ok(p.scroll.innerHTML.indexOf('Yandex Weather sends no cloud cover, so it comes from Open-Meteo.') !== -1,
     'rendered on Setup');
+});
+
+// --- the weather calls line at the end of Data sources ---------------------------------------
+
+require('../../../src/pkjs/page/settings/blocks.js');
+
+/**
+ * The line on a basalt, every 15 minutes with no night pause unless `intervalMin` and
+ * `pauseHours` say otherwise.
+ * @param {Object} over Settings over NONE.
+ * @param {number} [intervalMin] The update interval.
+ * @param {number} [pauseHours] The Battery saver's window.
+ * @returns {string}
+ */
+function calls(over, intervalMin, pauseHours) {
+  return page.callsLine(Object.assign({}, NONE, over), BASALT, intervalMin || 15, pauseHours || 0);
+}
+
+test('the calls line counts each update\'s requests, and the UV fill every few hours', () => {
+  assert.equal(calls({ provider: 'openmeteo' }), 'About 192 weather calls a day.', 'its two requests every update');
+  assert.equal(calls({ provider: 'openmeteo', secondaryLine: 'uv' }), 'About 288 weather calls a day.',
+    'and its UV request while UV is drawn');
+  assert.equal(calls({ provider: 'dwd', secondaryLine: 'uv' }),
+    'About 200 weather calls a day: 192 to DWD and 8 to Open-Meteo.');
+  assert.equal(calls({ provider: 'dwd', secondaryLine: 'uv' }, 60, 9),
+    'About 34 weather calls a day: 30 to DWD and 4 to Open-Meteo.', 'hourly, paused 9 hours a night');
+  assert.equal(calls({ provider: 'yandex', yandexApiKey: 'k', secondaryLine: 'cloud' }),
+    'About 192 weather calls a day: 96 to Yandex Weather and 96 to Open-Meteo.', 'the gap request every update');
+  assert.equal(calls({ provider: 'constructor' }), '', 'a stored value the table does not know');
+});
+
+test('By location counts the stored country\'s regional provider; Per reading, every provider a reading in use comes from', () => {
+  assert.equal(calls({ provider: 'openmeteo', weatherSourceMode: 'auto', holidayCountry: 'NO' }),
+    'About 96 weather calls a day.', 'Met.no\'s one request in Norway');
+  assert.equal(calls({ provider: 'openmeteo', weatherSourceMode: 'auto', holidayCountry: 'US' }),
+    'About 192 weather calls a day.', 'the Weather picker\'s elsewhere');
+  assert.equal(calls({ provider: 'metno', weatherSourceMode: 'reading', weatherSourceTemperature: 'dwd',
+    weatherSourceRain: 'openmeteo' }), 'About 480 weather calls a day: 192 to DWD, 192 to Open-Meteo and 96 to Met.no.',
+  'the forecast\'s provider first, then the parts in the readings\' order');
+  assert.equal(calls({ provider: 'metno', weatherSourceMode: 'reading', weatherSourceWind: 'tomorrowio' }),
+    'About 96 weather calls a day.', 'a keyed pick without its key follows the Weather picker');
+});
+
+test('the line closes Data sources under the Update interval, at the interval Save stores and the night pause', () => {
+  const card = schema.tabs.find((t) => t.id === 'setup').sections.find((s) => s.id === 'dataSources');
+  assert.deepEqual(card.items[card.items.length - 1],
+    { type: 'staticText', joinPrevious: true, textFrom: { resolver: 'weatherCallsLine' } });
+  assert.equal(card.items[card.items.length - 2].messageKey, 'fetchIntervalMin');
+  const line = global.PConf.hintResolvers.get('weatherCallsLine');
+  const S = Object.assign({}, NONE, { provider: 'tomorrowio', tomorrowioApiKey: 'k', radarProvider: 'tomorrowio',
+    radarMode: 'graph', fetchIntervalMin: '5', tomorrowioFitBudget: true, sleepNightEnabled: false });
+  assert.equal(line(S, BASALT), 'About 96 weather calls a day.',
+    'tomorrow.io\'s weather and radar every 5 minutes break its free plan: Save stores 15');
+  assert.equal(line(Object.assign({}, S, { tomorrowioFitBudget: false }), BASALT), 'About 288 weather calls a day.');
+  assert.equal(line(Object.assign({}, S, { sleepNightEnabled: true, sleepStartHour: '22', sleepEndHour: '7' }), BASALT),
+    'About 180 weather calls a day.', 'paused 9 hours a night, 5 minutes fits the plan');
+  assert.equal(line(Object.assign({}, S, { radarEnabled: false }), BASALT), 'About 288 weather calls a day.',
+    'the radar off: Save stores no radar mode that calls tomorrow.io, so 5 minutes fits');
 });

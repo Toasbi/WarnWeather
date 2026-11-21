@@ -19,14 +19,16 @@ var refreshSlot = require('./refresh-slot.js');
 var coords = require('./coords.js');
 var weatherTabModel = require('./weather-tab-model.js');
 var keyFingerprint = require('./keys/key-fingerprint.js');
+var sourcePlan = require('./source-plan.js');
 
 var VERSION = 1;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 var HOUR_MS = HOUR_SECONDS * 1000;
-// How long a UV-only fill serves: UV forecasts change slowly. A fill reused in a later hour
-// must still reach the forecast's hours: the 24 h graph's does (it reads on to the day maxima's
-// hours: hourly-window.js reachHours), the long span's 68 serve only the hour they start at.
-var UV_REUSE_MS = 3 * HOUR_MS;
+// How long a UV-only fill serves, the plan's (the settings page counts the fill's calls by it).
+// A fill reused in a later hour must still reach the forecast's hours: the 24 h graph's does
+// (it reads on to the day maxima's hours: hourly-window.js reachHours), the long span's 68
+// serve only the hour they start at.
+var UV_REUSE_MS = sourcePlan.UV_REUSE_MS;
 // At most this many snapshots are kept, one per provider and kind.
 var MAX_ENTRIES = 6;
 // Two places this close have the same forecast (the Weather tab's rule: weather-tab-model.js).

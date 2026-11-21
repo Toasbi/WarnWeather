@@ -142,3 +142,42 @@ test('STATE_KEYS lists every settings key the budget math reads', () => {
   budget.minSleepHoursFor(spy, 5);
   assert.deepEqual([...read].sort(), budget.STATE_KEYS.slice().sort());
 });
+
+// The calls line at the end of Data sources counts with the source plan (source-plan.js
+// callsPerDay); the budget's weather share is the same count, so the two agree wherever every
+// reading tomorrow.io brings is drawn.
+const sourcePlan = require('../../../../src/pkjs/weather/domain/source-plan.js');
+
+test('the weather calls a day are the source plan\'s tomorrow.io calls, at every interval and night pause', () => {
+  const pauses = [{ sleepNightEnabled: false }, { sleepNightEnabled: true, sleepStartHour: '22', sleepEndHour: '7' },
+    { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' }];
+  const settings = [
+    { provider: 'tomorrowio', tomorrowioApiKey: 'k' },
+    { weatherSourceMode: 'reading', provider: 'dwd', weatherSourceWind: 'tomorrowio', tomorrowioApiKey: 'k' },
+    { weatherSourceMode: 'reading', provider: 'tomorrowio', weatherSourceTemperature: 'dwd', tomorrowioApiKey: 'k' },
+    { weatherSourceMode: 'reading', provider: 'metno', weatherSourceWind: 'tomorrowio', tomorrowioApiKey: '' },
+    { provider: 'openmeteo' }
+  ];
+  settings.forEach((over) => pauses.forEach((pause) => budget.INTERVAL_LADDER.forEach(([, value]) => {
+    const state = S(Object.assign({ radarMode: 'off' }, pause, over));
+    const minutes = parseInt(value, 10);
+    const input = { mode: state.weatherSourceMode || 'one', provider: state.provider, country: null,
+      choices: sourcePlan.choicesOf(state), keyed: sourcePlan.keyedOf(state) };
+    const planned = sourcePlan.callsPerDay(input, true, sourcePlan.GAP_READINGS, minutes, budget.sleepHours(state));
+    assert.equal(budget.dailyCalls(state, minutes), planned.tomorrowio || 0, JSON.stringify(state) + ' ' + minutes);
+  })));
+});
+
+test('where the calls line counts fewer, the budget errs toward more: every reading counts, By location any place', () => {
+  const noRadar = { radarMode: 'off', tomorrowioApiKey: 'k' };
+  assert.equal(budget.callsPerCycle(S(Object.assign({ weatherSourceMode: 'auto', holidayCountry: 'DE' }, noRadar))), 1,
+    'in Germany the line counts DWD, but away from it, or when DWD fails, tomorrow.io is asked every update');
+  assert.equal(budget.callsPerCycle(S({ weatherSourceMode: 'auto', radarMode: 'off', tomorrowioApiKey: '' })), 0,
+    'By location never asks tomorrow.io without its key');
+  const cloudOnly = S(Object.assign({ weatherSourceMode: 'reading', provider: 'metno', weatherSourceCloud: 'tomorrowio' },
+    noRadar));
+  assert.equal(budget.callsPerCycle(cloudOnly), 1, 'a reading picked to it counts, drawn or not');
+  const input = { mode: 'reading', provider: 'metno', country: null, choices: sourcePlan.choicesOf(cloudOnly),
+    keyed: sourcePlan.keyedOf(cloudOnly) };
+  assert.equal(sourcePlan.refreshRequests(input, false, []).tomorrowio, undefined, 'the line counts what the watch draws');
+});

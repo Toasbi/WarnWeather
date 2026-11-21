@@ -1,9 +1,11 @@
 // src/pkjs/page/weather/weather-sources-page.js — ES5. Where the weather comes from, on the
 // settings page (Setup › Data sources): the note under the Weather picker that names the
 // readings coming from Open-Meteo (weatherFillNote, a staticText's textFrom; its row is
-// weather-sources-schema.js FILL_NOTE), and Per reading's row options (weatherReadingOptions).
-// The note's readings are the source plan's fills, by the phone's own rules: the readings the
-// picked provider lacks (source-plan.js fills) that the watch draws (drawn-readings.js).
+// weather-sources-schema.js FILL_NOTE), Per reading's row options (weatherReadingOptions), and
+// the calls a day the choices come to (callsLine; blocks.js registers it as weatherCallsLine,
+// at the interval the budget read-outs count with). The note's readings are the source plan's
+// fills, by the phone's own rules: the readings the picked provider lacks (source-plan.js
+// fills) that the watch draws (drawn-readings.js).
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
 // page (scripts/build-config-page.js APP_FILES, after provider-readings.js, source-plan.js and
@@ -76,6 +78,32 @@
             + (filled.length > 1 ? 'they come' : 'it comes') + ' from Open-Meteo.');
     }
 
+    /**
+     * The line at the end of Data sources: the calls a day the weather's choices come to while no
+     * provider fails (source-plan.js callsPerDay), and each provider's share when more than one
+     * is called, in the order the plan asks them: the forecast's provider first. By location counts the regional provider of the stored country (holidayCountry),
+     * as the Weather picker's "(Recommended)" marker does: the page does not know the place.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {number} intervalMin The update interval Save stores.
+     * @param {number} pauseHours The Battery saver's window, whole hours.
+     * @returns {string} HTML; '' for a provider the page does not know
+     */
+    function callsLine(S, env, intervalMin, pauseHours) {
+        if (!S || !Object.prototype.hasOwnProperty.call(NAMES, S.provider)) { return ''; }
+        var drawn = drawnReadings.drawn(S, env || {});
+        var input = { mode: S.weatherSourceMode, provider: S.provider, country: S.holidayCountry || null,
+            choices: sourcePlan.choicesOf(S), keyed: sourcePlan.keyedOf(S) };
+        var calls = sourcePlan.callsPerDay(input, drawn.indexOf('uv') !== -1, drawn, intervalMin, pauseHours);
+        var ids = Object.keys(calls).filter(function (id) { return calls[id] > 0; });
+        var total = ids.reduce(function (sum, id) { return sum + calls[id]; }, 0);
+        var text = 'About ' + Math.round(total) + ' weather calls a day';
+        if (ids.length > 1) {
+            text += ': ' + html.andList(ids.map(function (id) { return Math.round(calls[id]) + ' to ' + NAMES[id]; }));
+        }
+        return html.esc(text + '.');
+    }
+
     if (PConf && PConf.hintResolvers) {
         PConf.hintResolvers.register('weatherFillNote', fillNote);
     }
@@ -83,7 +111,8 @@
         PConf.optionsResolvers.register('weatherReadingOptions', readingOptions);
     }
 
-    var api = { WORDS: WORDS, NAMES: NAMES, fillNote: fillNote, readingOptions: readingOptions };
+    var api = { WORDS: WORDS, NAMES: NAMES, fillNote: fillNote, readingOptions: readingOptions,
+        callsLine: callsLine };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.WeatherSourcesPage = api; }
 })();
