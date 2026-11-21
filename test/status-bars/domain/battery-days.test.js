@@ -1,7 +1,7 @@
 'use strict';
 // What the watch battery slot's Text look prints: the percentage, the days the watch has left
-// or both. What counts as an estimate, how it is counted down, when the slot goes back to the
-// percentage, and the text the phone bakes for the watch to finish.
+// or both. What counts as an estimate, that it is never counted down, when the slot goes back
+// to the percentage, and the text the phone bakes for the watch to finish.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -52,24 +52,21 @@ test('an estimate needs whole days and the time it was made at', () => {
     assert.equal(batteryDays.estimateOf(5, at), null, 'updatedAt ' + String(at)));
 });
 
-test('the days count down by the whole days since the estimate was made', () => {
+test('the days are the estimate\'s own, never counted down: the watch would take the change for a new estimate', () => {
+  // status_line.h StatusBatteryDaysMark: any other text in the slot starts the mark again at
+  // the charge of the moment, so days counted down after a charge would show as current.
   const estimate = { days: 5, updatedAt: T0 };
-  assert.equal(batteryDays.daysLeft(estimate, T0), 5);
-  assert.equal(batteryDays.daysLeft(estimate, T0 + DAY - 1), 5, 'not before a whole day has passed');
-  assert.equal(batteryDays.daysLeft(estimate, T0 + DAY), 4);
-  assert.equal(batteryDays.daysLeft(estimate, T0 + 2 * DAY), 3, 'the oldest estimate still shown');
+  [0, 1, 12 * 60 * 60 * 1000, DAY - 1, DAY].forEach((age) =>
+    assert.equal(batteryDays.daysLeft(estimate, T0 + age), 5, 'at ' + age + ' ms'));
+  assert.equal(batteryDays.daysLeft({ days: 1, updatedAt: T0 }, T0 + DAY), 1, 'one day stays one day');
 });
 
-test('an estimate older than two days is not shown', () => {
+test('an estimate older than a day is not shown', () => {
+  assert.equal(batteryDays.MAX_AGE_MS, DAY);
   const estimate = { days: 9, updatedAt: T0 };
-  assert.equal(batteryDays.daysLeft(estimate, T0 + batteryDays.MAX_AGE_MS), 7);
+  assert.equal(batteryDays.daysLeft(estimate, T0 + batteryDays.MAX_AGE_MS), 9);
   assert.equal(batteryDays.daysLeft(estimate, T0 + batteryDays.MAX_AGE_MS + 1), null);
-});
-
-test('less than a day left reads as the percentage', () => {
-  assert.equal(batteryDays.daysLeft({ days: 1, updatedAt: T0 }, T0), 1);
-  assert.equal(batteryDays.daysLeft({ days: 1, updatedAt: T0 }, T0 + DAY), null);
-  assert.equal(batteryDays.daysLeft({ days: 2, updatedAt: T0 }, T0 + 2 * DAY), null);
+  assert.equal(batteryDays.daysLeft(estimate, T0 + 3 * DAY), null);
 });
 
 test('no estimate reads as the percentage; what counts as one is estimateOf\'s to say, once', () => {

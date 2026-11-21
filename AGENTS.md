@@ -190,6 +190,11 @@ README.md.
   - `watch()` stays subscribed and is for a source the Pebble app pushes by itself (its
     built-in ones). Use `readOnce()` for another app's plugin: the Pebble app runs such a
     plugin's script again at every refresh interval for as long as anything is subscribed.
+  - Read another app's plugin rarely, and keep the time of the last read in storage so a
+    PKJS restart does not read again. Each read runs its script, and while it runs, every
+    permission that app asked for and the user has not answered comes back as a notification
+    on the phone and on the watch (Muninn's Timeline). `battery-estimate.js` reads Muninn
+    about twice a day (`status-bars/domain/estimate-reads.js`).
   - A source that names no caller permission needs no `usesPermissions` entry
     (`phone/phone_state`, Muninn's `muninn/stats`). One that does should get an entry
     with a `reason`, or the phone asks with nothing but the permission's name.

@@ -13,9 +13,13 @@
 //   - watch(): a subscription that stays. Right for a source the Pebble app pushes by
 //     itself when it changes (its built-in ones, like the phone's state).
 //   - readOnce(): the first answer, then the subscription ends. Right for another app's
-//     plugin: the Pebble app runs such a plugin's script again at every refresh interval
-//     for as long as anything is subscribed, a minute apart for some, which a reading
-//     that changes a few times a day is not worth.
+//     plugin: the Pebble app runs such a plugin's script as soon as something subscribes,
+//     and again at every refresh interval for as long as anything is subscribed, a minute
+//     apart for some, which a reading that changes a few times a day is not worth. Even one
+//     read costs the user something: while the script runs, the Pebble app counts that app
+//     as running, and every permission it asked for that the user has not answered comes
+//     back as a notification on the phone and on the watch. So read another app's plugin
+//     rarely (battery-estimate.js reads Muninn's about twice a day).
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 

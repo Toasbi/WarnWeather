@@ -691,7 +691,7 @@ function buildStatusLines(payload, settings, watchInfo, now, facts) {
   // battery slot of the bake prints the same reading.
   var reading = env.phoneBattery && phone.reading && showsPhoneBattery(lines, settings, env)
     ? phone.reading() : null;
-  // Likewise the estimate of the days the watch has left, counted down to this instant.
+  // Likewise the estimate of the days the watch has left: none once it is too old at this instant.
   var estimate = watch && watch.estimate && showsBatteryDays(lines, settings, env)
     ? watch.estimate() : null;
   var bake = bakeEnv(now, reading, batteryDays.daysLeft(estimate, now.getTime()));

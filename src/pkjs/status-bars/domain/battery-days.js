@@ -14,9 +14,12 @@
   var statusPair = (typeof require !== 'undefined') ? require('./status-pair.js') : window.StatusPair;
 
   var DAY_MS = 24 * 60 * 60 * 1000;
-  // An estimate older than this is not shown: the app that makes it has stopped telling
-  // (removed, or its watch app no longer runs), and the slot shows the percentage again.
-  var MAX_AGE_MS = 2 * DAY_MS;
+  // An estimate older than this is not shown, and the slot shows the percentage again.
+  // Muninn makes one every 6 hours and the phone reads it twice a day (estimate-reads.js), so
+  // one this old means it has stopped telling: it was removed, its watch app no longer runs,
+  // or the watch no longer reaches the phone. The days are not counted down (daysLeft), and a
+  // day is as long as days left that stand still stay about right.
+  var MAX_AGE_MS = DAY_MS;
   // The most days the slot prints: three bytes at most ('99d') in an edge slot's eight.
   var MAX_DAYS = 99;
   // The app whose estimate the days are, on the Pebble appstore, and the link the settings
@@ -64,10 +67,13 @@
   }
 
   /**
-   * The whole days the slot shows: the estimate, counted down by the whole days that have
-   * passed since it was made (an estimate of 5 days reads 4 a day later, with nothing new
-   * heard). Null, and the slot shows the percentage, while there is no estimate, it is
-   * older than MAX_AGE_MS, or less than a day is left.
+   * The whole days the slot shows: the estimate's own, as it was made. Null, and the slot
+   * shows the percentage, while there is no estimate or it is older than MAX_AGE_MS.
+   *
+   * Never counted down by the days that have passed since it was made. The watch takes any
+   * other text in the slot for a new estimate, made at the charge it has when the text
+   * arrives (status_line.h StatusBatteryDaysMark), so days the phone counted down by itself
+   * after a charge would show the estimate from before the charge as current.
    * @param {?{days: number, updatedAt: number}} estimate The estimate, as estimateOf made
    *   it (what a plugin sent, or what was stored, is checked there, once), or null.
    * @param {number} nowMs The current time, in epoch milliseconds.
@@ -75,13 +81,9 @@
    */
   function daysLeft(estimate, nowMs) {
     if (!estimate) { return null; }
-    var age = nowMs - estimate.updatedAt;
-    // A clock that went backwards, or an estimate stamped ahead of this phone: no age.
-    if (!(age > 0)) { age = 0; }
-    if (age > MAX_AGE_MS) { return null; }
-    var left = estimate.days - Math.floor(age / DAY_MS);
-    if (left < 1) { return null; }
-    return left > MAX_DAYS ? MAX_DAYS : left;
+    // A clock that went backwards, or an estimate stamped ahead of this phone, has no age.
+    if (nowMs - estimate.updatedAt > MAX_AGE_MS) { return null; }
+    return estimate.days > MAX_DAYS ? MAX_DAYS : estimate.days;
   }
 
   /**

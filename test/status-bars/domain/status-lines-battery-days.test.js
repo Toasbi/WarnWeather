@@ -130,14 +130,14 @@ test('the estimate is read once per bake, and only when a bar shows the days', (
   assert.equal(elsewhere.reads, 0, 'the watch battery is on no bar');
 });
 
-test('the days are counted down to the bake\'s instant, and an old estimate reads as none', () => {
-  assert.equal(bakeTop(DAYS, facts({ days: 5, updatedAt: NOW.getTime() - DAY })).slots[2].text, '4d');
-  assert.equal(bakeTop(BOTH, facts({ days: 5, updatedAt: NOW.getTime() - DAY })).slots[2].text, MARK + '|4d');
+test('the days are baked as the estimate made them, and one more than a day old reads as none', () => {
+  // Never counted down: the watch takes any other text for a new estimate (StatusBatteryDaysMark).
+  assert.equal(bakeTop(DAYS, facts({ days: 5, updatedAt: NOW.getTime() - DAY })).slots[2].text, '5d');
+  assert.equal(bakeTop(BOTH, facts({ days: 5, updatedAt: NOW.getTime() - DAY })).slots[2].text, MARK + '|5d');
   [DAYS, BOTH].forEach((settings) => {
-    assert.equal(bakeTop(settings, facts({ days: 5, updatedAt: NOW.getTime() - 3 * DAY })).slots[2].text, '',
-      'older than two days');
-    assert.equal(bakeTop(settings, facts({ days: 1, updatedAt: NOW.getTime() - DAY })).slots[2].text, '',
-      'less than a day left');
+    assert.equal(bakeTop(settings, facts({ days: 5, updatedAt: NOW.getTime() - DAY - 1 })).slots[2].text, '',
+      'older than a day');
+    assert.equal(bakeTop(settings, facts({ days: 5, updatedAt: NOW.getTime() - 3 * DAY })).slots[2].text, '');
   });
 });
 

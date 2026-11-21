@@ -139,6 +139,11 @@ module.exports = {
     // and Icon + text looks) can show. Kept across PKJS restarts so a bake shows the days
     // at once.
     BATTERY_ESTIMATE: 'batteryEstimate',
+    // When that estimate was last read ({at: epoch ms, failures: failed reads in a row};
+    // battery-estimate.js), so neither a PKJS restart nor a settings save reads it again
+    // before estimate-reads.js says. Absent while the days are not wanted, so switching them
+    // on reads at once.
+    BATTERY_ESTIMATE_READ: 'batteryEstimateRead',
     // The re-bake snapshot: the handful of payload keys buildStatusLines reads,
     // plus the watchInfo its platform env is derived from, version-stamped as
     // one JSON blob. PKJS is torn down whenever the user leaves the watchface,
