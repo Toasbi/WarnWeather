@@ -2134,8 +2134,9 @@ module.exports = {
         // no-icon variant can't drive City's bold row, but both KINDS entries share
         // key 'PhoneBattery' — and the sheet resolver returns 'thresh' + key
         // (blocks.js statusSlotEditSheet), so both Edit buttons open this dialog and the
-        // one mode packs into both cells. Android-only on the slot side; the dialog
-        // needs no extra gate, because a slot that can't be chosen never opens it.
+        // one mode packs into both cells. Only where the phone can tell its charge on the
+        // slot side; the dialog needs no extra gate, because a slot that can't be chosen
+        // never opens it.
         boldSection('Phone battery', 'PhoneBattery'),
         // The weather condition slot's dialog: its Look (slot-text.js conditionLook) and the
         // length of its Name (conditionName, hidden while the Look shows no name), which every

@@ -203,7 +203,7 @@ test('kind indices are in lockstep with the ThreshKind enum', () => {
 });
 
 // The phone battery is TWO kinds sharing ONE settings key: the iconed variant
-// (icons 16/17 — the phone swaps in _CHG while charging) and the no-icon variant
+// (icon 16) and the no-icon variant
 // (icon 18). Kind 19 exists for exactly the reason kind 14 (pressure) had to be
 // retrofitted: without it the no-icon slot arrives as SLOT_TEXT + ICON_NONE and
 // falls through to THRESH_CITY, so its Bold row would drive City's.

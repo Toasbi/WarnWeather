@@ -143,7 +143,6 @@ static void other_readings(void) {
     no_family("countdown passed", SLOT_TEXT, STATUS_ICON_COUNTDOWN, "--");
     // A battery number is whole or hidden: its % never drops (owner, 2026-09-30).
     no_family("phone battery", SLOT_TEXT, STATUS_ICON_PHONE_BATTERY, "31%");
-    no_family("phone battery charging", SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_CHG, "100%");
     no_family("phone battery unknown", SLOT_TEXT, STATUS_ICON_PHONE_BATTERY, "--");
     no_family("phone battery no icon", SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_PLAIN, "31%");
 }

@@ -23,7 +23,7 @@ function batteryText(msg) {
 }
 
 test('the charge drifting inside its bucket wakes nothing; the next message going out carries it', (t) => {
-  const battery = fakeManager(0.84, false);
+  const battery = fakeManager(0.84);
   // The harness's forecast holds still within each UTC hour and moves on with it.
   const h = bootIndex(t, { battery: battery,
     settings: { fetchIntervalMin: '15', statusForecastLeft: 'phoneBattery' } });

@@ -605,8 +605,9 @@ env = {
 The host app may add facts by passing them as `generateUrl`'s `env`. The value is merged over
 the computed env, so the app supplies only the keys the library cannot know. This is how
 phone-runtime capabilities get in, because the library derives env from `watchInfo` alone and
-never reads app storage. WarnWeather passes `phoneBattery`: whether this PKJS host exposes the
-Battery Status API, which only Android's Chromium WebView does.
+never reads app storage. WarnWeather passes `phoneBattery`: whether this PKJS host has a source
+of the phone's charge (the Pebble app's Phone plugin, or the Battery Status API of Android's
+Chromium WebView).
 
 The library owns these Pebble facts in `lib/platform.js`: the known 1-bit platforms (`aplite`,
 `diorite`, `flint`), the platform without health, radar, theme polarity, thresholds and on

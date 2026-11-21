@@ -80,9 +80,6 @@ typedef enum {
                                 // STATUS_ICON_NONE inherits THRESH_CITY's bold mode
     STATUS_ICON_PHONE_BATTERY = 16,      // phone glyph; the PHONE's charge, baked
                                          // as "NN%" text by the phone (SLOT_TEXT)
-    STATUS_ICON_PHONE_BATTERY_CHG = 17,  // phone-charging glyph; the phone picks
-                                         // it over id 16 at bake time, so charging
-                                         // costs no wire field and no watch logic
     STATUS_ICON_PHONE_BATTERY_PLAIN = 18,
                                 // TEXT-ONLY: the no-icon phone-battery item, for
                                 // which no PDC/bit-mask glyph exists and none may
@@ -92,7 +89,7 @@ typedef enum {
                                 // through to THRESH_CITY and silently driving
                                 // City's Bold row (status_threshold.h)
     // The weather condition slot (src/pkjs/weather/domain/condition.js): phone-baked SLOT_TEXT
-    // whose icon is the condition's glyph, picked per bake like the phone-battery pair.
+    // whose icon is the condition's glyph, picked per bake.
     // COND_TEXT is its text-only look: no glyph may load, and like PRESSURE above the id
     // keeps it from arriving as TEXT + NONE. Its text may carry a short form after
     // STATUS_TEXT_ALT_SEP ("Partly cloudy" SEP "PCLDY").
@@ -114,7 +111,10 @@ typedef enum {
                                     // is the wind speed slot's (its bold mode, its pair)
 } StatusIconId;
 // Id 6 (STATUS_ICON_PRECIP, removed in 3dae9f4) is a retired hole: never reuse it —
-// a pre-3dae9f4 install can still hold a persisted blob referencing it.
+// a pre-3dae9f4 install can still hold a persisted blob referencing it. So is id 17
+// (STATUS_ICON_PHONE_BATTERY_CHG, the glyph of a phone that charges: the phone packed it
+// in place of id 16 while it charged, until the slot came to show the charge alone). A
+// line stored with it draws its text without a glyph until the phone's next bake.
 #define STATUS_ICON_MAX STATUS_ICON_COND_WIND
 
 // The city slot can draw the current weather's glyph before its name: the glyph's id

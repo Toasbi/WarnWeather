@@ -48,7 +48,7 @@ static const Tier TIERS[] = { { 14 * 6 / 9, false }, { 18 * 5 / 9, true }, { 18 
     X(STATUS_ICON_TEMP) X(STATUS_ICON_UV) X(STATUS_ICON_WIND) X(STATUS_ICON_GUST) X(STATUS_ICON_STEPS) \
     X(STATUS_ICON_SLEEP) X(STATUS_ICON_HR) X(STATUS_ICON_DISTANCE) X(STATUS_ICON_AQI) X(STATUS_ICON_POLLEN) \
     X(STATUS_ICON_COUNTDOWN) X(STATUS_ICON_DEWPOINT) X(STATUS_ICON_PHONE_BATTERY) \
-    X(STATUS_ICON_PHONE_BATTERY_CHG) X(STATUS_ICON_COND_SUN) X(STATUS_ICON_COND_MOON) \
+    X(STATUS_ICON_COND_SUN) X(STATUS_ICON_COND_MOON) \
     X(STATUS_ICON_COND_SUN_CLOUD) X(STATUS_ICON_COND_MOON_CLOUD) X(STATUS_ICON_COND_CLOUD) \
     X(STATUS_ICON_COND_FOG) X(STATUS_ICON_COND_HAZE) X(STATUS_ICON_COND_DRIZZLE) X(STATUS_ICON_COND_RAIN) \
     X(STATUS_ICON_COND_SLEET) X(STATUS_ICON_COND_SNOW) X(STATUS_ICON_COND_HAIL) X(STATUS_ICON_COND_THUNDER) \
@@ -71,6 +71,7 @@ static const uint8_t TEXT_ONLY[] = {
     STATUS_ICON_COND_TEXT,
 };
 #define RETIRED_ICON_ID 6   // STATUS_ICON_PRECIP's hole (status_line.h)
+#define RETIRED_CHG_ICON_ID 17   // the phone-charging glyph's hole (status_line.h)
 
 static bool in(const uint8_t *list, int n, int id) {
     for (int i = 0; i < n; i++) {
@@ -91,7 +92,7 @@ static bool has_exact(const StatusPixelIcon *table, int count, int key, int rows
 static void every_id_classified(void) {
     int nd = (int)sizeof(DRAWN), nt = (int)sizeof(TEXT_ONLY);
     for (int id = 0; id <= STATUS_ROW_ICON_HEAVY_RAIN; id++) {
-        if (id == RETIRED_ICON_ID) { continue; }
+        if (id == RETIRED_ICON_ID || id == RETIRED_CHG_ICON_ID) { continue; }
         char name[48];
         snprintf(name, sizeof(name), "classified.id%d", id);
         // Heavy rain is the rain alert's alone: the rain check below covers it.

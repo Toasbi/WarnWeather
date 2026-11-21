@@ -52,20 +52,17 @@ static void kind_tests(void) {
            status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_DEWPOINT) == THRESH_CITY, 0);
     expect("kind.dew_not_kindless",
            status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_DEWPOINT) < 0, 0);
-    // Phone battery (kinds 18/19). ONE catalog item stands behind TWO icon ids:
-    // the phone substitutes _CHG for the plain phone glyph at bake time, so
-    // "charging" rides the icon byte instead of a new wire field — which only
-    // works if BOTH ids resolve to the SAME kind, or plugging in would swap the
-    // slot onto a different Bold row.
+    // Phone battery (kinds 18/19). The iconed item is id 16 alone: the slot shows the
+    // charge and never whether the phone charges, so the phone packs no other glyph
+    // for it. Id 17 (the retired charging glyph) is a hole, like 6: a line a build of
+    // the past stored with it has no kind, and its text draws plain until the next bake.
     expect("kind.phone_battery",
            status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY),
            THRESH_PHONE_BATTERY);
-    expect("kind.phone_battery_chg",
-           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_CHG),
-           THRESH_PHONE_BATTERY);
-    expect("kind.phone_battery_icons_agree",
-           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY)
-           == status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_CHG), 1);
+    expect("kind.retired_17_is_no_phone_battery",
+           status_threshold_kind_for_slot(SLOT_TEXT, 17), -1);
+    expect("kind.retired_17_is_not_city",
+           status_threshold_kind_for_slot(SLOT_TEXT, 17) == THRESH_CITY, 0);
     // The no-icon variant. THIS is the regression the design calls out:
     // STATUS_ICON_PHONE_BATTERY_PLAIN loads no glyph and draws nothing, so
     // without an id and a case of its own the slot would arrive as
@@ -95,8 +92,7 @@ static void kind_tests(void) {
     // Icon ids are append-only wire values (a persisted slot blob outlives the
     // upgrade), so pin the literals as well as the mapping.
     expect("kind.phone_battery_icon_ids",
-           STATUS_ICON_PHONE_BATTERY == 16 && STATUS_ICON_PHONE_BATTERY_CHG == 17
-           && STATUS_ICON_PHONE_BATTERY_PLAIN == 18, 1);
+           STATUS_ICON_PHONE_BATTERY == 16 && STATUS_ICON_PHONE_BATTERY_PLAIN == 18, 1);
     expect("kind.phone_battery_kind_ids",
            THRESH_PHONE_BATTERY == 18 && THRESH_PHONE_BATTERY_PLAIN == 19, 1);
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);

@@ -51,7 +51,7 @@ function parseArgs(args) {
 // {phoneBattery: ...}), which this script bypasses — so without this overlay the
 // preview silently omits every phone-gated item and cannot be used to review them.
 // Default on, because the preview exists to eyeball items that exist; set
-// PREVIEW_PHONE_BATTERY=0 to see what an iPhone user's slot dropdown looks like.
+// PREVIEW_PHONE_BATTERY=0 to see the slot dropdown of a phone that cannot tell its charge.
 function envFor(platform) {
   var env = platformLib.computeEnv({ platform: platform });
   env.phoneBattery = process.env.PREVIEW_PHONE_BATTERY !== '0';

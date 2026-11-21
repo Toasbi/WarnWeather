@@ -25,7 +25,6 @@
     {"key": "POLLEN", "ids": ["STATUS_ICON_POLLEN"]},
     {"key": "COUNTDOWN", "ids": ["STATUS_ICON_COUNTDOWN"]},
     {"key": "PHONE_BATTERY", "ids": ["STATUS_ICON_PHONE_BATTERY"]},
-    {"key": "PHONE_BATTERY_CHG", "ids": ["STATUS_ICON_PHONE_BATTERY_CHG"]},
     {"key": "STEPS", "ids": ["STATUS_ICON_STEPS"]},
     {"key": "DISTANCE", "ids": ["STATUS_ICON_DISTANCE"]},
     {"key": "SLEEP", "ids": ["STATUS_ICON_SLEEP"]},

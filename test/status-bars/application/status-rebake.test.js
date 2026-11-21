@@ -199,8 +199,8 @@ test('a resend for another reason counts as the bake of its side of sunset', () 
     buildStatusLines: fakeBake, now: () => now }));
   statusRebake.rememberBakeInputs({ SUN_EVENTS: sunEvents(1, T + 3600, T + 13 * 3600) }, null);
   now = (T + 7200) * 1000;
-  statusRebake.resendStatus('charging');
-  assert.equal(statusRebake.onTick(), false, 'the charging resend already baked the night');
+  statusRebake.resendStatus('level');
+  assert.equal(statusRebake.onTick(), false, 'the level resend already baked the night');
   assert.equal(sends.length, 1);
 });
 

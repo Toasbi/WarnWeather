@@ -11,7 +11,7 @@ const { bootIndex } = require('../helpers/index-harness.js');
 const { fakeManager } = require('../helpers/fake-battery.js');
 
 test('the window closes with one message: the owed push rides the fetch due that minute', (t) => {
-  const battery = fakeManager(0.84, false);
+  const battery = fakeManager(0.84);
   const h = bootIndex(t, {
     now: new Date(2026, 0, 6, 6, 40).getTime(),
     battery: battery,

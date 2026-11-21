@@ -61,11 +61,9 @@ test('icon ids are in lockstep with status_line.h', () => {
   // DEWPOINT needs an id of its own even though its glyph is optional: a TEXT
   // slot with ICON_NONE inherits THRESH_CITY's bold mode.
   assert.equal(catalog.ICONS.DEWPOINT, cEnum('STATUS_ICON_DEWPOINT'));
-  // The PHONE's battery. One catalog item, TWO glyph ids: the phone substitutes
-  // _CHG for _PHONE_BATTERY at bake time, so "charging" rides the icon byte the
-  // slot already pays for instead of a new wire field.
+  // The PHONE's battery: one glyph id (16). Id 17, the charging glyph the phone once
+  // packed in its place, is a retired hole on both sides (see the next test).
   assert.equal(catalog.ICONS.PHONE_BATTERY, cEnum('STATUS_ICON_PHONE_BATTERY'));
-  assert.equal(catalog.ICONS.PHONE_BATTERY_CHG, cEnum('STATUS_ICON_PHONE_BATTERY_CHG'));
   // PLAIN is text-only exactly like PRESSURE — no glyph is ever loaded. Its id
   // exists solely so the no-icon variant does not arrive as TEXT + ICON_NONE and
   // silently drive City's bold mode (the bug that shipped once on pressure).
@@ -74,13 +72,20 @@ test('icon ids are in lockstep with status_line.h', () => {
 
 // Icon ids are append-only wire values: a slot blob persisted on flash outlives
 // the upgrade that renumbers them, so pin the literals as well as the lockstep.
-test('the phone-battery icon ids are 16/17/18 on both sides of the wire', () => {
+test('the phone-battery icon ids are 16 and 18 on both sides of the wire, 17 a retired hole', () => {
   assert.equal(cEnum('STATUS_ICON_PHONE_BATTERY'), 16);
-  assert.equal(cEnum('STATUS_ICON_PHONE_BATTERY_CHG'), 17);
   assert.equal(cEnum('STATUS_ICON_PHONE_BATTERY_PLAIN'), 18);
   assert.equal(catalog.ICONS.PHONE_BATTERY, 16);
-  assert.equal(catalog.ICONS.PHONE_BATTERY_CHG, 17);
   assert.equal(catalog.ICONS.PHONE_BATTERY_PLAIN, 18);
+  // 17 (the charging glyph) is retired like 6 (precip): never reused, since a line
+  // stored by an older install can still name it. Neither side has a name for it.
+  assert.equal(Object.keys(catalog.ICONS).filter((k) => catalog.ICONS[k] === 17).length, 0,
+    'no JS icon has id 17');
+  assert.equal(Object.keys(catalog.ICONS).filter((k) => catalog.ICONS[k] === 6).length, 0,
+    'no JS icon has id 6');
+  assert.equal(header.search(/STATUS_ICON_\w+\s*=\s*17\b/), -1, 'no C enumerator has id 17');
+  assert.equal(header.search(/STATUS_ICON_\w+\s*=\s*6\b/), -1, 'no C enumerator has id 6');
+  assert.match(header, /retired hole[\s\S]*id 17[\s\S]*STATUS_ICON_PHONE_BATTERY_CHG/, 'the hole is documented next to id 6');
 });
 
 test('the weather condition icon ids are 19..33 on both sides of the wire', () => {
@@ -184,8 +189,7 @@ test('every dropdown item maps kind+icon consistently', () => {
     week: [catalog.KINDS.LIVE_WEEK, catalog.ICONS.NONE],
     battery: [catalog.KINDS.LIVE_BATTERY, catalog.ICONS.NONE],
     batteryPct: [catalog.KINDS.LIVE_BATTERY_PCT, catalog.ICONS.NONE],
-    // Two items, three icon ids: the CHG id has no catalog entry of its own —
-    // the baker swaps it in for 'phoneBattery' while the phone is charging.
+    // Two items, two icon ids: 17 (the retired charging glyph) is a hole.
     phoneBattery: [catalog.KINDS.TEXT, catalog.ICONS.PHONE_BATTERY],
     phoneBatteryPlain: [catalog.KINDS.TEXT, catalog.ICONS.PHONE_BATTERY_PLAIN]
   };

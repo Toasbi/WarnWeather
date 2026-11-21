@@ -2,14 +2,21 @@
 //
 // The phone's own battery charge, as a status-slot value.
 //
-// There is no PebbleKit JS API for this. It works on Android only, and only
-// because of what the companion app runs PKJS *inside*: a Chromium WebView,
-// whose live `navigator` carries the Battery Status API. On iOS PKJS runs in
-// JavaScriptCore against a hand-built `navigator` ({userAgent, geolocation,
-// language}), and pypkjs (the emulator) injects only `language`/`geolocation` —
-// so on both of those every `typeof` guard below falls through and this module
-// is inert. `typeof navigator.getBattery === 'function'` therefore doubles as
-// the Android/iOS discriminator; no extra signal is needed.
+// Two sources, tried in this order:
+//
+//   1. The Pebble app's built-in Phone plugin (phone/phone_state, battery_level): a
+//      percentage the app pushes when it changes. Android and iOS both have it (iOS
+//      reports the charge in steps of 5), and reading it needs no permission. It is
+//      there wherever the Pebble app has plugins (plugin-reader.js available()).
+//   2. The Battery Status API of the WebView PKJS runs in, for a Pebble app without
+//      plugins. Android only: its companion app runs PKJS inside a Chromium WebView,
+//      whose live `navigator` carries the API. On iOS PKJS runs in JavaScriptCore
+//      against a hand-built `navigator` ({userAgent, geolocation, language}), and
+//      pypkjs (the emulator) injects only `language`/`geolocation`.
+//
+// A host with neither has no phone-battery slot: every guard below falls through and
+// this module is inert. Whether the phone is charging is not read from either source:
+// the Phone plugin does not serve it, and the slot shows the charge alone.
 //
 // This module owns the whole dependency: detection, subscription, bucketing,
 // the persisted cache the baker reads, and the resend trigger. Nothing else in
@@ -17,7 +24,7 @@
 //
 // Two numbers, two jobs — do not collapse them back into one. The 5-point
 // BUCKET is the SEND TRIGGER and nothing else: a resend fires only when it
-// moves (or charging flips), which is the deliberate BLE-wake-up budget. The
+// moves, which is the deliberate BLE-wake-up budget. The
 // cached LEVEL is the EXACT percentage, rewritten on every reading, and every
 // reading the watch is sent is one of those: 31 % reads "31%", not the bucket's
 // "30%".
@@ -38,7 +45,7 @@
 //
 // The FIRST reading after a restart (the seed) never sends by itself. It becomes
 // the shown reading only when there is none yet, or when it lands in another
-// bucket or charging state than the shown one (the charge really moved while PKJS
+// bucket than the shown one (the charge really moved while PKJS
 // was down); the next message that goes out then carries it.
 //
 // ES5 only (aplite's JavaScriptCore) — var + function, and never *construct* a
@@ -52,6 +59,22 @@ var batterySaver = require('../../wire/domain/battery-saver.js');
 // TRIGGERS, and asks the rebaker to push. Cycle-free: status-rebake's own
 // requires (status-lines, outbox) have no load-time path back here.
 var statusRebake = require('../application/status-rebake.js');
+var pluginReader = require('./plugin-reader.js');
+
+/** The Phone plugin's source of the phone's charge, and the property that holds it. */
+var PHONE_STATE = { category: 'phone', item: 'phone_state', properties: ['battery_level'] };
+var BATTERY_LEVEL = 'battery_level';
+
+/**
+ * How long the Phone plugin gets for its first answer before the WebView's battery API is
+ * tried instead, where there is one. The app pushes the phone's state as soon as it is
+ * subscribed to, so silence this long means a Pebble app that has the function but
+ * nothing behind it.
+ */
+var PLUGIN_ANSWER_MS = 10000;
+
+/** The plugin failures that mean the Phone plugin will not answer later either. */
+var NO_PLUGIN = { PLUGIN_UNAVAILABLE: true, PERMISSION_DENIED: true, INVALID_REQUEST: true };
 
 /**
  * The resend TRIGGER quantizes charge into 5-point buckets; triggering on every
@@ -61,10 +84,16 @@ var statusRebake = require('../application/status-rebake.js');
 var BUCKET_STEP = 5;
 
 var deps = {};        // injected environment (see init)
-var manager = null;   // the live BatteryManager, once one was found
+// Which source the reading comes from, once one answered or was settled on: 'plugin' (the
+// Phone plugin) or 'webview' (the WebView's battery API). One at a time.
+var source = null;
+// The live reading, once a source was found: the BatteryManager itself, or the holder the
+// Phone plugin's updates are written to ({level: 0..1}).
+var manager = null;
+var subscription = null;    // the Phone plugin's subscription, while it is asked
+var silenceTimer = null;    // the wait for the Phone plugin's first answer
 var seeding = false;        // the subscribe-time first reading: baseline it, never send
 var lastBucket = null;      // trigger baseline only, in memory by design (see ingest)
-var lastCharging = null;
 var pendingPush = false;    // an update the saver window swallowed, owed to the watch
 
 
@@ -178,21 +207,45 @@ function currentNavigator() {
 }
 
 /**
- * The capability test itself, with no side effects and no subscription — the one
- * definition of "this runtime can report a battery", shared by detect() and by
- * isSupported()'s lazy probe so the two can never drift apart.
+ * The Pebble object to read plugins through: the injected one when init() was given a
+ * `pebble` key (tests), else the ambient global, else null. One helper, as for the
+ * navigator.
+ *
+ * @returns {Object|null} The Pebble object, or null where there is none.
+ */
+function currentPebble() {
+    if (Object.prototype.hasOwnProperty.call(deps, 'pebble')) { return deps.pebble; }
+    return typeof Pebble !== 'undefined' ? Pebble : null;
+}
+
+/**
+ * Whether the WebView exposes a Battery Status API (the second source).
  *
  * @param {Object|null} nav The navigator to probe.
  * @returns {boolean} True when some battery API is exposed.
  */
-function probe(nav) {
+function probeNavigator(nav) {
     if (!nav) { return false; }
     if (typeof nav.getBattery === 'function') { return true; }
     return Boolean(nav.battery && typeof nav.battery === 'object');
 }
 
 /**
- * Whether this phone's runtime exposes a battery API at all. Persisted, so the
+ * The capability test itself, with no side effects and no subscription — the one
+ * definition of "this runtime can report a battery", shared by detect() and by
+ * isSupported()'s lazy probe so the two can never drift apart: a Pebble app with
+ * plugins (the Phone plugin is built in), or a WebView with a battery API.
+ *
+ * @param {Object|null} pebble The Pebble object to probe.
+ * @param {Object|null} nav The navigator to probe.
+ * @returns {boolean} True when some source of the phone's charge is exposed.
+ */
+function probe(pebble, nav) {
+    return pluginReader.available(pebble) || probeNavigator(nav);
+}
+
+/**
+ * Whether this phone's runtime exposes a source of its charge at all. Persisted, so the
  * config page's env can omit the slot items before any reading has landed.
  *
  * SELF-HEALING when NO verdict is stored, because the stored one can legitimately
@@ -207,20 +260,22 @@ function probe(nav) {
  * items and reads as "the phone item only works there".
  *
  * A stored 'false' is NEVER re-probed: that is a real verdict, including the one
- * detect() writes when getBattery() exists but REJECTS, and re-probing would
- * flip it back to true on the strength of the method merely existing.
+ * detect() writes when getBattery() exists but REJECTS or the Phone plugin does not
+ * answer, and re-probing would flip it back to true on the strength of the method
+ * merely existing. (The verdict of a build from before the Phone plugin was a source
+ * sits under another key, which init() drops: such a phone judges again.)
  *
  * The probe is capability-only -- no getBattery() call, no subscription -- so it
  * is safe on this path, which runs outside init() and therefore without deps.
  * The real detect() still runs at the next 'ready' and can still overrule it.
  *
- * @returns {boolean} True when the API was detected on this phone.
+ * @returns {boolean} True when a source was detected on this phone.
  */
 function isSupported() {
     var stored = load(KEYS.PHONE_BATTERY_SUPPORTED);
     var found;
     if (stored !== null) { return stored === 'true'; }
-    found = probe(currentNavigator());
+    found = probe(currentPebble(), currentNavigator());
     // Only remembered -- and only announced -- where there IS a store. The baker
     // calls in on every status-line build, so a host without storage (Node, in
     // tests) would otherwise re-probe and log on every one.
@@ -235,7 +290,7 @@ function isSupported() {
 /**
  * Record the detector's verdict for the config page's env.
  *
- * @param {boolean} supported Whether a battery API was found.
+ * @param {boolean} supported Whether a source of the phone's charge was found.
  * @returns {void}
  */
 function setSupported(supported) {
@@ -245,7 +300,7 @@ function setSupported(supported) {
 /**
  * The cached reading the baker renders: `level` is the EXACT percentage (0..100),
  * not the 5-point send-trigger bucket. `available` is false until an actual
- * reading has landed, which is what makes an Android phone with no event yet
+ * reading has landed, which is what makes a phone with no reading yet
  * bake `--` rather than a made-up number.
  *
  * The value can be fresher than the last thing the watch was told, and that is
@@ -254,7 +309,7 @@ function setSupported(supported) {
  * (statusRideAlong), carries the phone's real charge. A bake itself reads the
  * shown reading (readShown), which falls back to this one while none is stored.
  *
- * SELF-HEALING when the cache is gone but a BatteryManager is in hand: "Reset
+ * SELF-HEALING when the cache is gone but a live reading is in hand: "Reset
  * watchface" (clay-settings.js resetAll) wipes these keys with the rest of
  * localStorage while this module's subscription lives on — a reset does not
  * restart PKJS, so no init()-time seed refills them, and the next battery EVENT
@@ -267,7 +322,7 @@ function setSupported(supported) {
  * re-probe. lastWritten is dropped with it so the next persistSnapshot rewrites
  * the wiped flash backstop even when the payload serialization has not changed.
  *
- * @returns {{available: boolean, level: (number|null), charging: boolean}} Cached reading.
+ * @returns {{available: boolean, level: (number|null)}} Cached reading.
  */
 function read() {
     var raw = load(KEYS.PHONE_BATTERY_LEVEL);
@@ -278,17 +333,13 @@ function read() {
         raw = load(KEYS.PHONE_BATTERY_LEVEL);
     }
     if (raw === null) {
-        return { available: false, level: null, charging: false };
+        return { available: false, level: null };
     }
     level = parseInt(raw, 10);
     if (isNaN(level)) {
-        return { available: false, level: null, charging: false };
+        return { available: false, level: null };
     }
-    return {
-        available: true,
-        level: level,
-        charging: load(KEYS.PHONE_BATTERY_CHARGING) === 'true'
-    };
+    return { available: true, level: level };
 }
 
 /**
@@ -296,17 +347,18 @@ function read() {
  * a ride-along or the first reading; see the header), persisted so a PKJS restart keeps
  * baking what the watch shows. Missing (nothing shown yet), it is the cached reading.
  *
- * @returns {{available: boolean, level: (number|null), charging: boolean}} Shown reading.
+ * @returns {{available: boolean, level: (number|null)}} Shown reading.
  */
 function readShown() {
     var shown = loadShown();
     if (!shown) { return read(); }
-    return { available: true, level: shown.level, charging: shown.charging };
+    return { available: true, level: shown.level };
 }
 
 /**
- * @returns {?{level: number, charging: boolean}} The stored shown reading, or null when
- *   missing or unreadable.
+ * @returns {?{level: number}} The stored shown reading, or null when missing or
+ *   unreadable. (One stored by a build that also read the charging state holds that
+ *   flag too; it is not read.)
  */
 function loadShown() {
     var raw = load(KEYS.PHONE_BATTERY_SHOWN);
@@ -318,28 +370,28 @@ function loadShown() {
     catch (ex) {
         return null;
     }
-    return (rec && typeof rec.level === 'number' && isFinite(rec.level)) ? { level: rec.level, charging: rec.charging === true } : null;
+    return (rec && typeof rec.level === 'number' && isFinite(rec.level)) ? { level: rec.level } : null;
 }
 
 /**
- * @returns {?{available: boolean, level: number, charging: boolean}} The cached exact
- *   reading when there is one and it differs from the shown one, else null.
+ * @returns {?{available: boolean, level: number}} The cached exact reading when there is
+ *   one and it differs from the shown one, else null.
  */
 function unshownExact() {
     var exact = read();
     var shown = loadShown();
-    if (!exact.available || (shown && shown.level === exact.level && shown.charging === exact.charging)) {
+    if (!exact.available || (shown && shown.level === exact.level)) {
         return null;
     }
     return exact;
 }
 
 /**
- * @param {{level: number, charging: boolean}} reading The reading the watch is sent now.
+ * @param {{level: number}} reading The reading the watch is sent now.
  * @returns {void}
  */
 function saveShown(reading) {
-    save(KEYS.PHONE_BATTERY_SHOWN, JSON.stringify({ level: reading.level, charging: reading.charging }));
+    save(KEYS.PHONE_BATTERY_SHOWN, JSON.stringify({ level: reading.level }));
 }
 
 /**
@@ -398,7 +450,7 @@ function currentSettings() {
 
 /**
  * Whether the Night battery saver window is open right now. Inside it nothing
- * is sent — level changes and charging transitions alike. Waking the BLE link
+ * is sent. Waking the BLE link
  * for a battery readout is exactly what the setting exists to prevent, and the
  * user opted in.
  *
@@ -415,14 +467,13 @@ function isSuppressed() {
  * Caching and triggering are two separate decisions here, and conflating them
  * is the bug this shape exists to prevent:
  *
- * - CACHE, always. Every readable reading rewrites the stored exact percentage
- *   and charging flag, trigger or not. The ride-along reads that cache whenever a
+ * - CACHE, always. Every readable reading rewrites the stored exact percentage,
+ *   trigger or not. The ride-along reads that cache whenever a
  *   weather message goes out anyway (statusRideAlong), so an untriggered 31 % still
  *   reaches the watch with the next message sent instead of being frozen at the
  *   last bucket's number.
- * - TRIGGER, rarely. A resend fires only when the 5-point bucket moves, or on
- *   any charging flip — plugging in is the one event a user looks at the watch
- *   to confirm. That cadence is a deliberate BLE-wake-up budget: caching a
+ * - TRIGGER, rarely. A resend fires only when the 5-point bucket moves. That
+ *   cadence is a deliberate BLE-wake-up budget: caching a
  *   reading costs nothing, sending one wakes the radio.
  *
  * The bucket baseline is in memory only, deliberately, and the SEED reading that
@@ -435,60 +486,54 @@ function isSuppressed() {
  * baselined, and nothing more; the first REAL event afterwards sends normally,
  * which is the case this whole module is about.
  *
- * Both halves are cached even while the saver window suppresses the send, so
+ * The reading is cached even while the saver window suppresses the send, so
  * the post-window push carries the true state.
  *
- * @param {Object} reading Battery manager (or fake) with .level and .charging.
+ * @param {Object} reading The live reading (a BatteryManager, the Phone plugin's holder
+ *   or a fake) with .level, 0..1.
  * @returns {void}
  */
 function ingest(reading) {
     var bucket;
     var percent;
-    var charging;
     var bucketMoved;
-    var chargingFlipped;
 
     if (!reading) { return; }
     bucket = levelBucket(reading.level);
     percent = levelPercent(reading.level);
     if (bucket === null || percent === null) { return; }
-    charging = Boolean(reading.charging);
 
     bucketMoved = bucket !== lastBucket;
-    chargingFlipped = charging !== lastCharging;
 
     // Unconditional: what the watch will display next is the truth as of now,
     // whether or not this reading is worth waking the radio for.
     save(KEYS.PHONE_BATTERY_LEVEL, String(percent));
-    save(KEYS.PHONE_BATTERY_CHARGING, charging ? 'true' : 'false');
     lastBucket = bucket;
-    lastCharging = charging;
 
     // The seed reading is a baseline, not news: see the note above. It becomes the
-    // shown reading only when there is none, or it lands in another bucket or charging
-    // state than the shown one (a move while PKJS was down): the next message carries it.
+    // shown reading only when there is none, or it lands in another bucket than the
+    // shown one (a move while PKJS was down): the next message carries it.
     if (seeding) {
         var shown = loadShown();
-        if (!shown || percentBucket(shown.level) !== percentBucket(percent) || shown.charging !== charging) {
+        if (!shown || percentBucket(shown.level) !== percentBucket(percent)) {
             showExact();
         }
         return;
     }
-    if (!bucketMoved && !chargingFlipped) { return; }
-    console.log('phone-battery: ' + percent + '% (bucket ' + bucket + ')'
-        + (charging ? ' charging' : ''));
+    if (!bucketMoved) { return; }
+    console.log('phone-battery: ' + percent + '% (bucket ' + bucket + ')');
 
     if (isSuppressed()) {
         // Night battery saver: cached, not sent. The debt is remembered so
-        // onTick() can push the whole morning correction — level and charging
-        // icon both — on the first tick after the window closes.
+        // onTick() can push the morning correction on the first tick after the
+        // window closes.
         console.log('phone-battery: saver window open, update not sent.');
         pendingPush = true;
         return;
     }
     pendingPush = false;
     showExact();
-    statusRebake.resendStatus(bucketMoved ? 'level' : 'charging');
+    statusRebake.resendStatus('level');
 }
 
 /**
@@ -501,11 +546,11 @@ function ingest(reading) {
  * visit — the charge is almost always a percent or two off the last one — which
  * is exactly the spend the 5-point bucket exists to prevent. The reading is
  * still cached, so the next weather message that goes out carries it along, and
- * it becomes the shown reading at once when it moved bucket or charging state
- * while PKJS was down (ingest). The first real levelchange/chargingchange after
+ * it becomes the shown reading at once when it moved bucket
+ * while PKJS was down (ingest). The first real change after
  * the seed sends normally.
  *
- * @param {Object} reading Battery manager (or fake) with .level and .charging.
+ * @param {Object} reading The live reading with .level, 0..1.
  * @returns {void}
  */
 function seed(reading) {
@@ -529,16 +574,15 @@ function subscribe(mgr) {
     manager = mgr;
     if (typeof mgr.addEventListener === 'function') {
         mgr.addEventListener('levelchange', function () { ingest(manager); });
-        mgr.addEventListener('chargingchange', function () { ingest(manager); });
     }
     // Seeded, not announced (see seed()).
     seed(mgr);
 }
 
 /**
- * Install the dev-config fake, when one is configured. pypkjs has no battery
- * API of any kind, so this is the only way to exercise the slot without a real
- * Android phone (see dev-config.js).
+ * Install the dev-config fake, when one is configured. pypkjs has no source of the
+ * phone's charge of any kind, so this is the only way to exercise the slot without a
+ * real phone (see dev-config.js).
  *
  * @param {Object|null} devConfig Parsed dev-config module, or null.
  * @returns {boolean} True when a fake was installed (real detection is then skipped).
@@ -550,18 +594,20 @@ function installDevFake(devConfig) {
     level = typeof fake.level === 'number' ? fake.level : 0;
     console.log('phone-battery: dev-config fake reading in use.');
     setSupported(true);
-    seed({ level: level / 100, charging: Boolean(fake.charging) });
+    seed({ level: level / 100 });
     return true;
 }
 
 /**
- * Detect a battery API and subscribe to it. Every access is typeof-guarded so
- * the module stays inert — and throws nothing — on iOS and in the emulator.
+ * Detect the WebView's battery API (the second source) and subscribe to it. Every
+ * access is typeof-guarded so the module stays inert — and throws nothing — on iOS and
+ * in the emulator.
  *
  * @param {Object|null} nav The navigator object, or null when there is none.
  * @returns {void}
  */
-function detect(nav) {
+function detectNavigator(nav) {
+    source = 'webview';
     if (!nav) {
         console.log('phone-battery: no navigator in this runtime; slot items off.');
         setSupported(false);
@@ -587,8 +633,8 @@ function detect(nav) {
         }
         return;
     }
-    if (probe(nav)) {
-        // Legacy navigator.battery -- probe() has already ruled out getBattery
+    if (probeNavigator(nav)) {
+        // Legacy navigator.battery -- probeNavigator() has already ruled out getBattery
         // above, so reaching here means this is the branch it matched. Kept
         // because the reference implementation handles it and it costs three lines.
         console.log('phone-battery: legacy navigator.battery in use.');
@@ -596,8 +642,8 @@ function detect(nav) {
         subscribe(nav.battery);
         return;
     }
-    // The one verdict with no visible cause anywhere: a navigator that exposes no
-    // battery API at all. It makes BOTH slot items vanish from EVERY slot dropdown
+    // The one verdict with no visible cause anywhere: a host that exposes no
+    // source at all. It makes BOTH slot items vanish from EVERY slot dropdown
     // (needsPhoneBattery omits rather than disables), and the only trace on screen
     // is that the Battery group survives in the top-right slot alone -- where the
     // two WATCH items still live -- which reads as "the phone item only works
@@ -610,31 +656,165 @@ function detect(nav) {
 }
 
 /**
+ * Stop asking the Phone plugin: its subscription and the wait for its first answer.
+ *
+ * @returns {void}
+ */
+function releasePlugin() {
+    var held = subscription;
+    var timer = silenceTimer;
+    subscription = null;
+    silenceTimer = null;
+    if (timer !== null) { (deps.clearTimeout || clearTimeout)(timer); }
+    if (held && typeof held.unsubscribe === 'function') { held.unsubscribe(); }
+}
+
+/**
+ * The Phone plugin sent an update: fold its charge in, the first one as the seed.
+ *
+ * The plugin serves a percentage (0..100); a missing battery_level means it cannot
+ * tell right now, and the cached reading then stays. The app sends an update for the
+ * phone's network state too, which changes nothing here: a reading in the same bucket
+ * triggers nothing.
+ *
+ * @param {Object} envelope The source update ({instances: [{properties}]}).
+ * @returns {void}
+ */
+function onPluginData(envelope) {
+    var percent = pluginReader.numberOf(envelope, BATTERY_LEVEL);
+    // Not once the WebView has taken over (a late answer): one source at a time.
+    if (percent === null || source === 'webview') { return; }
+    if (source !== 'plugin') {
+        console.log('phone-battery: the Phone plugin answered.');
+        source = 'plugin';
+        if (silenceTimer !== null) {
+            (deps.clearTimeout || clearTimeout)(silenceTimer);
+            silenceTimer = null;
+        }
+        manager = { level: percent / 100 };
+        // Seeded, not announced (see seed()).
+        seed(manager);
+        return;
+    }
+    manager.level = percent / 100;
+    ingest(manager);
+}
+
+/**
+ * The Phone plugin failed.
+ *
+ * After an answer it is a hiccup: the subscription carries on, and the cached reading
+ * stays. Before any answer, a plugin that is not there or may not be read (NO_PLUGIN) is
+ * a Pebble app that has the function but nothing behind it (plugins switched off, an
+ * older build): the WebView's battery API takes over, and where there is none either,
+ * the phone has no source. Any other failure may pass (an error does not end a
+ * subscription), which is only worth waiting out where the WebView has no battery API
+ * to take over instead.
+ *
+ * @param {{stage: string, code: string}} fail The failure (plugin-reader.js failure).
+ * @returns {void}
+ */
+function onPluginFailure(fail) {
+    if (source === 'plugin') {
+        console.log('phone-battery: the Phone plugin failed (' + fail.code + '); reading kept.');
+        return;
+    }
+    if (source === 'webview') { return; }
+    if (!NO_PLUGIN[fail.code] && !probeNavigator(currentNavigator())) {
+        console.log('phone-battery: the Phone plugin failed (' + fail.code + '); waiting for it.');
+        return;
+    }
+    console.log('phone-battery: no Phone plugin (' + fail.code + '); trying the WebView.');
+    releasePlugin();
+    detectNavigator(currentNavigator());
+}
+
+/**
+ * The Phone plugin has not answered in PLUGIN_ANSWER_MS. Where the WebView has a battery
+ * API, that takes over. Where it has none (iOS), the plugin is the only source there is:
+ * keep waiting, and keep the verdict.
+ *
+ * @returns {void}
+ */
+function onPluginSilence() {
+    silenceTimer = null;
+    if (source !== null || !probeNavigator(currentNavigator())) { return; }
+    console.log('phone-battery: the Phone plugin did not answer; using the WebView.');
+    releasePlugin();
+    detectNavigator(currentNavigator());
+}
+
+/**
+ * Find a source of the phone's charge and subscribe to it: the Phone plugin where the
+ * Pebble app has plugins, else the WebView's battery API (see the header).
+ *
+ * @returns {void}
+ */
+function detect() {
+    var pebble = currentPebble();
+    var started;
+    var timer;
+    if (!pluginReader.available(pebble)) {
+        detectNavigator(currentNavigator());
+        return;
+    }
+    // Supported before the first answer: the page's slot lists need the verdict at
+    // once, and a plugin that then fails hands over to the WebView (onPluginFailure),
+    // whose own verdict replaces this one.
+    setSupported(true);
+    started = pluginReader.watch(pebble, PHONE_STATE, onPluginData, onPluginFailure);
+    // A failure reported before watch() returned has already handed over.
+    if (source === 'webview') {
+        if (started && typeof started.unsubscribe === 'function') { started.unsubscribe(); }
+        return;
+    }
+    subscription = started;
+    if (source === null) {
+        timer = (deps.setTimeout || setTimeout)(onPluginSilence, PLUGIN_ANSWER_MS);
+        // Under Node (tests) a pending timer must not hold the process open.
+        if (timer && typeof timer.unref === 'function') { timer.unref(); }
+        silenceTimer = timer;
+    }
+}
+
+/**
  * Wire the module up. Call once, from the 'ready' handler. Re-calling resets
  * all module state, which is what the tests rely on.
  *
  * @param {Object} [options] Injected environment; every field has a default.
+ * @param {Object} [options.pebble] The Pebble object to read the Phone plugin through
+ *   (default: the global one, if any).
  * @param {Object} [options.navigator] The navigator to probe (default: the global one, if any).
+ * @param {function} [options.setTimeout] Timer for the Phone plugin's first answer
+ *   (default: the host's), with options.clearTimeout.
+ * @param {function} [options.clearTimeout] Its cancel.
  * @param {Object} [options.devConfig] Parsed dev-config, for the local fake.
  * @param {function():Object} [options.getSettings] Current Clay settings supplier.
  * @param {function():Date} [options.now] Clock, for the saver-window check.
  * @returns {void}
  */
 function init(options) {
+    var i;
+    // The last life's subscription and timer, with the timers they were made with.
+    releasePlugin();
     deps = options || {};
+    source = null;
     manager = null;
     seeding = false;
     lastBucket = null;
-    lastCharging = null;
     pendingPush = false;
     drop(KEYS.PHONE_BATTERY_LEVEL);
-    drop(KEYS.PHONE_BATTERY_CHARGING);
+    // What a build from before the Phone plugin was a source left behind: its verdict
+    // (this phone judges again) and the charging flag.
+    for (i = 0; i < KEYS.PHONE_BATTERY_RETIRED_KEYS.length; i++) {
+        drop(KEYS.PHONE_BATTERY_RETIRED_KEYS[i]);
+    }
     // ORDERING CONTRACT: statusRebake.init() must have run BEFORE this —
     // subscribe() below ingests the manager's current reading synchronously,
     // and that first reading can already fire a micro-send, which needs the
     // restart backstop in hand (see status-rebake.js init).
     if (installDevFake(deps.devConfig)) { return; }
-    detect(currentNavigator());
+    detect();
 }
 
 /**

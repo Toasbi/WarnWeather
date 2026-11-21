@@ -125,7 +125,7 @@ function isWeatherMessage(dict) {
  * @param {number} [opts.latencyMs] Network latency (default 100 ms).
  * @param {Object} [opts.watchInfo] What Pebble.getActiveWatchInfo() answers (default a
  *   basalt).
- * @param {Object} [opts.battery] A BatteryManager stand-in ({level, charging,
+ * @param {Object} [opts.battery] A BatteryManager stand-in ({level,
  *   addEventListener}) that navigator.getBattery() resolves to, as on Android; absent, the
  *   navigator has no battery API (iOS, the emulator).
  * @returns {Object} Harness handles. teardown() ends this life, restoring every

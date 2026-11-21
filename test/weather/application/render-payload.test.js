@@ -96,7 +96,7 @@ test('a phone-battery event re-bakes from the stash after the payload has been p
   // the prune, or the morning's micro-send would carry a stripped payload.
   const listeners = {};
   const mgr = {
-    level: 0.62, charging: false,
+    level: 0.62,
     addEventListener: function(type, fn) { (listeners[type] || (listeners[type] = [])).push(fn); }
   };
   const sends = [];

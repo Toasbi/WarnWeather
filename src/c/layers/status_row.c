@@ -287,15 +287,13 @@ static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, siz
     }
 }
 
-// The phone-battery slots. Three icon ids mark a slot whose text the PHONE baked
+// The phone-battery slots. Two icon ids mark a slot whose text the PHONE baked
 // from its OWN charge; there is no kind-level marker, the kind is plain SLOT_TEXT
-// exactly like a city name, so the icon id is the only discriminator. Ids 16/17 are
-// the same catalog item (the phone picks the charging glyph at bake time, which is
-// why charging costs no wire field); id 18 is the no-icon variant.
+// exactly like a city name, so the icon id is the only discriminator. Id 16 is the
+// item with its phone glyph; id 18 is the no-icon variant.
 static bool is_phone_battery_slot(const StatusSlotView *slot) {
     return slot->kind == SLOT_TEXT
         && (slot->icon == STATUS_ICON_PHONE_BATTERY
-            || slot->icon == STATUS_ICON_PHONE_BATTERY_CHG
             || slot->icon == STATUS_ICON_PHONE_BATTERY_PLAIN);
 }
 

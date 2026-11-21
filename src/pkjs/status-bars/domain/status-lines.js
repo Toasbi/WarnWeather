@@ -112,10 +112,11 @@ var isoWeek = slotText.isoWeek;
  * battery at all, and the reading to show. The caller asks phone-battery.js for them
  * (bakeFacts) and passes them in, so the bake itself never touches the adapter.
  * @typedef {Object} PhoneBattery
- * @property {boolean} supported Whether this host has the Battery Status API (the
- *   persisted PHONE_BATTERY_SUPPORTED verdict, true only inside Android's Chromium WebView).
- * @property {?function(): ?{available: boolean, level: (number|null), charging: boolean}} reading
- *   Reads the exact percentage and charging flag to show, as of the last time the watch was
+ * @property {boolean} supported Whether this host has a source of the phone's charge (the
+ *   persisted PHONE_BATTERY_SUPPORTED verdict: the Pebble app's Phone plugin, or the
+ *   Battery Status API of Android's Chromium WebView).
+ * @property {?function(): ?{available: boolean, level: (number|null)}} reading
+ *   Reads the exact percentage to show, as of the last time the watch was
  *   sent the battery (phone-battery.js readShown; called once per bake, only when a
  *   bar it bakes shows the phone's battery); `available` is false until a real
  *   reading has landed, and null when the module cannot answer at all (storage blocked:
@@ -128,7 +129,7 @@ var isoWeek = slotText.isoWeek;
  * @typedef {Object} BakeEnv
  * @property {Date} now The current time (countdown, aplite's ISO week).
  * @property {number} nowSec The same instant in epoch seconds (day or night now).
- * @property {?{available: boolean, level: (number|null), charging: boolean}} phone The
+ * @property {?{available: boolean, level: (number|null)}} phone The
  *   phone's battery reading, read once by buildStatusLines and only when a bar it bakes
  *   shows a phone-battery item; null when there is none.
  */
@@ -258,14 +259,14 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
   // lets a battery event re-send it while a provider key is expired.
   if (code === 'phoneBattery' || code === 'phoneBatteryPlain') {
     var pb = bake.phone;
-    // '--' covers both "this phone has no battery API" and "Android, but no
-    // event has landed yet". It is also what the watch substitutes whenever
+    // '--' covers both "this phone has no source of its charge" and "no
+    // reading has landed yet". It is also what the watch substitutes whenever
     // Bluetooth is down (status_row.c's freshness rule), so the two paths agree
     // by construction and a dead phone never leaves a stale percentage on flash.
     if (!pb || !pb.available || typeof pb.level !== 'number') { return '--'; }
     // An exact percentage, never phone-battery.js's 5-point bucket: the bucket
     // is that module's SEND TRIGGER (a BLE-wake-up budget) and has no business
-    // deciding what the slot says. A phone at 31% that gets plugged in shows
+    // deciding what the slot says. A phone at 31% shows
     // '31%', not the '30%' the trigger happens to be named after.
     //
     // Which exact reading is the caller's: a weather fetch's bake gets the one the
@@ -372,11 +373,8 @@ function arrowSector(code, payload, settings, env, dayMax) {
  *
  * Every other item packs the static `icon` off its catalog entry. Two items choose
  * theirs PER BAKE, inside a byte the slot already pays for -- no wire field, no
- * watch-side logic, no C plumbing: 'phoneBattery' swaps in the charging glyph while
- * the phone charges, and 'condition' draws the glyph of the weather now, by day or
- * night. 'phoneBatteryPlain' draws nothing in either state, so its id never varies;
- * it exists only so the no-icon variant does not arrive as TEXT + NONE and inherit
- * City's bold mode (status_threshold.h), as the condition's text-only id does.
+ * watch-side logic, no C plumbing: 'condition' draws the glyph of the weather now, by
+ * day or night, and 'city' may draw it before its name.
  *
  * Resolved into a local exactly like `kind` is for the imperial distance slot --
  * the catalog entry itself is shared and must never be mutated.
@@ -390,10 +388,6 @@ function arrowSector(code, payload, settings, env, dayMax) {
  * @returns {number} STATUS_ICON_* id to pack
  */
 function iconFor(code, item, payload, settings, env, bake) {
-  if (code === 'phoneBattery') {
-    var pb = bake.phone;
-    if (pb && pb.charging) { return catalog.ICONS.PHONE_BATTERY_CHG; }
-  }
   // The city with the current weather's glyph before its name (citySlotIcon): the glyph's id
   // with the city's bit, which keeps the slot the city's on the watch. No glyph while no
   // condition is known, nor on aplite.
@@ -504,8 +498,8 @@ function packLine(line, payload, settings, env, alerts, bake) {
     if (code === 'distance' && settings && settings.distanceUnits === 'imperial') {
       kind = catalog.KINDS.LIVE_DISTANCE_MI;
     }
-    // Likewise resolved per bake rather than read straight off the entry: the charging
-    // phone-battery glyph and the weather condition's (see iconFor).
+    // Likewise resolved per bake rather than read straight off the entry: the weather
+    // condition's glyph (see iconFor).
     var icon = iconFor(code, item, payload, settings, env, bake);
     if (env.platform === 'aplite' && item.kind === catalog.KINDS.LIVE_WEEK) {
       // aplite has no watch-side iso_week() (reaped for image budget), so the
@@ -607,7 +601,7 @@ function buildStatusLines(payload, settings, watchInfo, now, phone) {
   var alerts = env.thresholds ? statusWire.bakedAlerts(payload, settings, env) : null;
   // computeEnv derives WATCH facts from watchInfo and nothing else, but the two
   // phone-battery items are gated on a PHONE fact: whether this PKJS host
-  // exposes the Battery Status API (Android's Chromium WebView only). The flag
+  // has a source of the phone's charge (phone-battery.js). The flag
   // has to be added here or itemAvailable() fails the gate and resolveSelection()
   // collapses every configured phone-battery slot to 'empty' -- the slot would
   // silently disappear even on a phone that CAN read its battery. The config
@@ -657,7 +651,7 @@ function buildStatusLines(payload, settings, watchInfo, now, phone) {
  * deliberately absent: the bake WRITES those.
  *
  * Exported because status-rebake.js persists exactly this slice of the payload
- * so a charging event can re-bake after a PKJS restart. It lives HERE, next to
+ * so a phone-battery event can re-bake after a PKJS restart. It lives HERE, next to
  * the code that reads the keys, so a new slot cannot add a read without the
  * list moving with it — test/status-bars/domain/status-lines.test.js pins the two together by
  * scanning this file's payload.* accesses.

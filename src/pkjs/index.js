@@ -228,11 +228,11 @@ Pebble.addEventListener('showConfiguration', function(e) {
         values: values,
         watchInfo: app.watchInfo,
         // Env facts the config-UI library can't derive from watchInfo because they
-        // describe the PHONE, not the watch. Whether this PKJS host exposes a battery
-        // API at all is one: Android's Chromium WebView does, iOS's JavaScriptCore and
-        // the emulator never can. The catalog's needsPhoneBattery gate omits the
-        // phone-battery slot items wherever this is false. Merged over the derived env
-        // by createConfig, so this stays a single key.
+        // describe the PHONE, not the watch. Whether this PKJS host has a source of the
+        // phone's charge is one: the Pebble app's Phone plugin, or the battery API of
+        // Android's Chromium WebView; the emulator has neither. The catalog's
+        // needsPhoneBattery gate omits the phone-battery slot items wherever this is
+        // false. Merged over the derived env by createConfig, so this stays a single key.
         env: { phoneBattery: phoneBatteryEnv },
         userData: userData
     }));
@@ -423,8 +423,8 @@ Pebble.addEventListener('ready',
             console.log('Unable to read watch info: ' + ex.message);
         }
         app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
-        // Phone battery: detect + subscribe once. Inert on iOS and in the
-        // emulator (no battery API there at all), so this is safe to run before
+        // Phone battery: detect + subscribe once. Inert in the emulator and on a
+        // phone with no source of its charge, so this is safe to run before
         // the fixture branch below — which is deliberate, so the dev-config
         // fake also populates the cache for fixture screenshots.
         // The rebaker restores its flash backstop FIRST: phoneBattery.init's

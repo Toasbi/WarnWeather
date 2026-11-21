@@ -1429,50 +1429,6 @@
         },
         {
           "type": "raw",
-          "name": "PX_PHONE_BATTERY_CHG_BASALT_11",
-          "file": "data/PX_PHONE_BATTERY_CHG_BASALT_11.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "PX_PHONE_BATTERY_CHG_BASALT_13",
-          "file": "data/PX_PHONE_BATTERY_CHG_BASALT_13.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "PX_PHONE_BATTERY_CHG_EMERY_13",
-          "file": "data/PX_PHONE_BATTERY_CHG_EMERY_13.pdc",
-          "targetPlatforms": [
-            "emery"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "PX_PHONE_BATTERY_CHG_EMERY_15",
-          "file": "data/PX_PHONE_BATTERY_CHG_EMERY_15.pdc",
-          "targetPlatforms": [
-            "emery"
-          ]
-        },
-        {
-          "type": "raw",
-          "name": "PX_PHONE_BATTERY_CHG_EMERY_17",
-          "file": "data/PX_PHONE_BATTERY_CHG_EMERY_17.pdc",
-          "targetPlatforms": [
-            "emery"
-          ]
-        },
-        {
-          "type": "raw",
           "name": "PX_STEPS_BASALT_11",
           "file": "data/PX_STEPS_BASALT_11.pdc",
           "targetPlatforms": [

@@ -37,9 +37,8 @@
 // is torn down every time the user leaves the watchface, so an in-memory-only
 // snapshot left this slot dead from every restart until the next COMPLETED
 // fetch -- up to fetchIntervalMin (default 15, max 60 minutes), longer when
-// fetches fail. Every charging event inside that window logged "no bake
-// snapshot yet" and reached the watch not at all, which is exactly the event a
-// user looks at the watch to confirm.
+// fetches fail. Every battery event inside that window logged "no bake
+// snapshot yet" and reached the watch not at all.
 //
 // Why re-baking a RESTORED snapshot is safe -- verified against
 // render-payload.js, forecast-series.js (applyForecastSeries) and status-lines.js:

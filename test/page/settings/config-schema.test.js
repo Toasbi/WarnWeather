@@ -976,7 +976,7 @@ test('the Theme & night card opens on the theme, then the shared Night hours, wh
 });
 
 // The saver no longer only stops weather FETCHES: with the phone-battery slot it also
-// suppresses the status micro-send (level changes and charging transitions alike), so
+// suppresses the status micro-send (a move of the charge into another 5-point bucket), so
 // the copy has to describe sending rather than fetching or it under-promises what the
 // toggle now turns off. The wording was dictated by the design
 // (docs/superpowers/specs/2026-08-20-phone-battery-slot-design.md §3), not derived. It

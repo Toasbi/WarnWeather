@@ -6,10 +6,11 @@ const ENV_EMERY = { color: true, platform: 'emery', health: true, radar: true, h
 const ENV_DIORITE = { color: false, platform: 'diorite', health: true, radar: true, hr: true };
 const ENV_BASALT = { color: true, platform: 'basalt', health: true, radar: true, hr: false };
 const ENV_APLITE = { color: false, platform: 'aplite', health: false, radar: false, hr: false };
-// env.phoneBattery is the Android-only Battery Status API verdict, threaded from
+// env.phoneBattery is the verdict that the phone can report its charge (the Pebble
+// app's Phone plugin or an Android WebView's Battery Status API), threaded from
 // the PHONE_BATTERY_SUPPORTED storage key. Every env above deliberately LACKS the
-// flag — that is the iOS/emulator default, under which the two phone-battery items
-// must not exist at all.
+// flag — that is the emulator default (no plugin, no API), under which the two
+// phone-battery items must not exist at all.
 const ENV_BASALT_PHONE = Object.assign({}, ENV_BASALT, { phoneBattery: true });
 const ENV_EMERY_PHONE = Object.assign({}, ENV_EMERY, { phoneBattery: true });
 const ENV_APLITE_PHONE = Object.assign({}, ENV_APLITE, { phoneBattery: true });
@@ -506,7 +507,7 @@ test('health items are selectable in any health mode, on a watch with Health', (
   });
 });
 
-// --- Phone battery (Android-only, phone-baked TEXT) -------------------------
+// --- Phone battery (phone-baked TEXT, where the phone can report it) -------------------------
 
 test('the phone-battery items are TEXT with their own icon ids and no position pinning', () => {
   const plain = catalog.byCode('phoneBatteryPlain');

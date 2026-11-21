@@ -27,16 +27,16 @@
     // without one the dew slot would be TEXT + NONE and inherit city's bold mode.
     // Id 6 is a retired hole (STATUS_ICON_PRECIP, 3dae9f4) — never reuse it.
     DEWPOINT: 15,
-    // The PHONE's battery, baked phone-side as "NN%" TEXT. One catalog item,
-    // two glyphs: the baker swaps in PHONE_BATTERY_CHG while the phone charges,
-    // so charging costs no wire field and no watch-side logic.
-    PHONE_BATTERY: 16, PHONE_BATTERY_CHG: 17,
+    // The PHONE's battery, baked phone-side as "NN%" TEXT. Id 17 is a retired hole
+    // (PHONE_BATTERY_CHG, the glyph of a phone that charges; the slot shows the charge
+    // alone now) — never reuse it.
+    PHONE_BATTERY: 16,
     // Text-only, exactly like PRESSURE: the no-icon phone-battery item never
     // loads a glyph, and the id exists so it does not arrive as TEXT + NONE and
     // inherit city's bold mode.
     PHONE_BATTERY_PLAIN: 18,
     // The weather condition slot (weather/domain/condition.js): the glyph of the condition now,
-    // picked per bake like the phone battery's pair; COND_TEXT its text-only look, which
+    // picked per bake; COND_TEXT its text-only look, which
     // loads no glyph (and, like PRESSURE, keeps it off TEXT + NONE).
     COND_TEXT: 19, COND_SUN: 20, COND_MOON: 21, COND_SUN_CLOUD: 22, COND_MOON_CLOUD: 23,
     COND_CLOUD: 24, COND_FOG: 25, COND_HAZE: 26, COND_DRIZZLE: 27, COND_RAIN: 28,
@@ -114,8 +114,8 @@
   // watch "NN%" text item — both top-right only (the watch battery belongs in
   // the corner already read as its own), the "NN%" one additionally absent on
   // aplite — plus the two PHONE-battery items, which are selectable in any slot
-  // but exist only where the phone can report its charge (needsPhoneBattery,
-  // Android-only) and never on aplite. The labels carry the Watch/Phone
+  // but exist only where the phone can report its charge (needsPhoneBattery)
+  // and never on aplite. The labels carry the Watch/Phone
   // qualifier because all four otherwise read as "battery".
   var CATEGORIES = [
     ['weather', 'Weather'], ['datelocation', 'Date and location'],
@@ -198,9 +198,9 @@
     // and the slots (screens.js deriveModes), so a slot can pick a health item in any mode.
     if (item.needsHealth && (!env || !env.health)) { return false; }
     if (item.needsHr && (!env || !env.hr)) { return false; }
-    // The phone's battery is readable only where the PKJS host exposes the
-    // Battery Status API — Android's Chromium WebView, never iOS's
-    // JavaScriptCore and never the emulator. env.phoneBattery carries that
+    // The phone's battery is readable only where the PKJS host has a source of it:
+    // the Pebble app's Phone plugin, or the Battery Status API of Android's
+    // Chromium WebView (phone-battery.js); never the emulator. env.phoneBattery carries that
     // answer (from the PHONE_BATTERY_SUPPORTED storage key). Like notAplite and
     // UNLIKE needsProvider, a false gate OMITS the item rather than showing a
     // disabled row: there is no setting the user could change to earn it.

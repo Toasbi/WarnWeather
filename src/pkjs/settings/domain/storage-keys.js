@@ -109,20 +109,23 @@ module.exports = {
     // Where "Reset watchface" parks the credentials it deliberately keeps, until
     // the next boot's seedDefaults folds them back into a fresh blob.
     PRESERVED_KEYS_KEY: 'preservedApiKeys',
-    // Phone battery (Android only — the Battery Status API exists solely in the
-    // Chromium WebView PKJS runs in there). SUPPORTED is the persisted detector
-    // result, so the config page's env can omit the slot items before any
-    // reading has landed; LEVEL is the EXACT percentage (0..100, rounded) and
-    // CHARGING the charging flag, both read back by the baker. LEVEL is NOT the
-    // 5-point bucket: the bucket is the send trigger and lives in memory only
-    // (phone-battery.js), so the watch always shows the phone's real charge.
-    PHONE_BATTERY_SUPPORTED: 'phoneBatterySupported',
+    // Phone battery (the Pebble app's Phone plugin, or the Battery Status API of the
+    // Chromium WebView PKJS runs in on Android; phone-battery.js). SUPPORTED is the
+    // persisted detector result, so the config page's env can omit the slot items before
+    // any reading has landed; LEVEL is the EXACT percentage (0..100, rounded), read back
+    // by the baker. LEVEL is NOT the 5-point bucket: the bucket is the send trigger and
+    // lives in memory only, so the watch always shows the phone's real charge.
+    // SUPPORTED was 'phoneBatterySupported' while the WebView was the only source: under
+    // a new name every phone judges again, now that the Phone plugin is one.
+    PHONE_BATTERY_SUPPORTED: 'phoneBatteryReadable',
     PHONE_BATTERY_LEVEL: 'phoneBatteryLevel',
-    PHONE_BATTERY_CHARGING: 'phoneBatteryCharging',
-    // The phone's battery as the watch was last sent it ({level, charging}; phone-battery.js
+    // What a build from before the Phone plugin left behind, dropped at every start: its
+    // verdict, and the charging flag the slot no longer shows.
+    PHONE_BATTERY_RETIRED_KEYS: ['phoneBatterySupported', 'phoneBatteryCharging'],
+    // The phone's battery as the watch was last sent it ({level}; phone-battery.js
     // readShown): what a weather fetch's bake shows, so the charge drifting inside its
-    // 5-point bucket does not change the status. Kept across PKJS restarts, unlike the two
-    // above, because the watch keeps showing it.
+    // 5-point bucket does not change the status. Kept across PKJS restarts, unlike the
+    // level above, because the watch keeps showing it.
     PHONE_BATTERY_SHOWN: 'phoneBatteryShown',
     // The re-bake snapshot: the handful of payload keys buildStatusLines reads,
     // plus the watchInfo its platform env is derived from, version-stamped as
