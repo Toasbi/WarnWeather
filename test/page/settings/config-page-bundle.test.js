@@ -864,6 +864,11 @@ test('where the weather comes from: each module is bundled ahead of the ones tha
     assert.ok(idx(file) < idx('weather/domain/drawn-readings.js'), file + ' must precede drawn-readings.js');
   });
   assert.ok(idx('weather/domain/provider-readings.js') < idx('weather/domain/source-plan.js'));
+  assert.ok(idx('settings/domain/country-defaults.js') < idx('weather/domain/source-plan.js'),
+    'the plan binds COUNTRY_DEFAULTS while its body runs');
+  ['page/weather/budgets/tomorrowio-budget.js', 'weather/domain/forecast-span-hours.js'].forEach((file) => {
+    assert.ok(idx('weather/domain/source-plan.js') < idx(file), file + ' binds the plan while its body runs');
+  });
   ['weather/domain/source-plan.js', 'weather/domain/drawn-readings.js'].forEach((file) => {
     assert.ok(idx(file) < idx('page/weather/weather-sources-page.js'), file + ' must precede weather-sources-page.js');
   });

@@ -8,6 +8,9 @@
 // requests), so a corrected call-count model (e.g. if a Timelines request ever bills as >1
 // call) is a one-line change there.
 (function () {
+    // The source plan (source-plan.js, concatenated ahead of this file in the page): what a
+    // weather update asks, and the updates a day.
+    var sourcePlan = (typeof require !== 'undefined') ? require('../../../weather/domain/source-plan.js') : window.SourcePlan;
     var LIMIT_DAY = 500;
     var LIMIT_HOUR = 25;
     var RADAR_CALLS_PER_CYCLE = 1;
@@ -41,14 +44,6 @@
     }
 
     /**
-     * source-plan.js, concatenated after this file in the page: read at call time.
-     * @returns {Object} The source plan.
-     */
-    function sourcePlan() {
-        return (typeof require !== 'undefined') ? require('../../../weather/domain/source-plan.js') : window.SourcePlan;
-    }
-
-    /**
      * The tomorrow.io requests a weather update makes, by the source plan's own count
      * (source-plan.js refreshRequests, which the calls line at the end of Data sources counts
      * with). It errs toward more calls: every reading counts as drawn, and By location counts
@@ -58,10 +53,9 @@
      * @returns {number} Requests per update.
      */
     function weatherCalls(S) {
-        var plan = sourcePlan();
-        var input = { mode: S.weatherSourceMode, provider: S.provider, country: null, choices: plan.choicesOf(S),
-            keyed: plan.keyedOf(S) };
-        return plan.refreshRequests(input, true, plan.GAP_READINGS).tomorrowio || 0;
+        var input = { mode: S.weatherSourceMode, provider: S.provider, country: null,
+            choices: sourcePlan.choicesOf(S), keyed: sourcePlan.keyedOf(S) };
+        return sourcePlan.refreshRequests(input, true, sourcePlan.GAP_READINGS).tomorrowio || 0;
     }
 
     /**
@@ -90,7 +84,7 @@
      * @returns {number} Calls per day.
      */
     function dailyCalls(S, intervalMin) {
-        return sourcePlan().refreshesPerDay(intervalMin, sleepHours(S)) * callsPerCycle(S);
+        return sourcePlan.refreshesPerDay(intervalMin, sleepHours(S)) * callsPerCycle(S);
     }
 
     /**

@@ -53,6 +53,7 @@
         ? require('../../forecast-graphs/domain/forecast-axis.js') : window.ForecastAxis;
     var lineStyle = (typeof require !== 'undefined')
         ? require('../../forecast-graphs/domain/line-style.js') : window.LineStyle;
+    var sourcePlan = (typeof require !== 'undefined') ? require('./source-plan.js') : window.SourcePlan;
 
     // The long span's full feed: hourly-window.js MAX_FORECAST_HOURS (test/forecast-span-hours
     // .test.js pins the two equal; hourly-window.js is phone-only, so the webview cannot read it).
@@ -197,8 +198,7 @@
      * Per reading the shortest feed of the providers that bring what the graph draws (the payload
      * carries the fewest hours a drawn series holds: forecast-model.js payloadEntries): the
      * temperature, the rain while the bars draw it, and each line's metric, each from its
-     * provider (source-plan.js readingProviders). source-plan.js is concatenated after this
-     * file in the page: read at call time.
+     * provider (source-plan.js readingProviders).
      * @param {?Object} settings Clay settings (reads provider, Weather from and Per reading's
      *   picks, the lines and the rain bars).
      * @returns {number} Hours the watch is sent.
@@ -206,9 +206,8 @@
     function feedHours(settings) {
         var id = settings && settings.provider;
         if (!settings || settings.weatherSourceMode !== 'reading') { return hoursOf(id); }
-        var plan = (typeof require !== 'undefined') ? require('./source-plan.js') : window.SourcePlan;
-        var byReading = plan.readingProviders({ mode: 'reading', provider: id, choices: plan.choicesOf(settings),
-            keyed: plan.keyedOf(settings) });
+        var byReading = sourcePlan.readingProviders({ mode: 'reading', provider: id,
+            choices: sourcePlan.choicesOf(settings), keyed: sourcePlan.keyedOf(settings) });
         var drawn = ['temperature'].concat(settings.barSource === 'off' ? [] : ['rain']);
         lineStyle.FORECAST_LINES.forEach(function (line) {
             var metric = lineStyle.effectiveLineMetric(settings, line.key);

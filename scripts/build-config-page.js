@@ -14,6 +14,12 @@ var APP_FILES = [
   // country-defaults.js is the same shape (COUNTRY_DEFAULTS global) and must precede its
   // consumers blocks.js (recommend resolvers) and wizard.js (fresh-install derivation).
   path.join(ROOT, 'src/pkjs/settings/domain/country-defaults.js'),
+  // What each weather provider sends (window.ProviderReadings) and the source plan
+  // (window.SourcePlan): the plan binds ProviderReadings and COUNTRY_DEFAULTS while its body
+  // runs, and the budgets below, forecast-span-hours.js and the weather sources' page files
+  // bind the plan while theirs run, so both sit here, ahead of all of those.
+  path.join(ROOT, 'src/pkjs/weather/domain/provider-readings.js'),
+  path.join(ROOT, 'src/pkjs/weather/domain/source-plan.js'),
   path.join(ROOT, 'src/pkjs/layout/domain/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-bars/domain/status-line-catalog.js'),
   // The On demand contract (window.OnDemand). It reads window.VIEW_CYCLE (the radar and
@@ -105,19 +111,16 @@ var APP_FILES = [
   // window.Screens and window.ForecastSpanHours, and forecast-hints.js and screens-page.js bind
   // the page module while THEIRS run, so both sit here, ahead of all of those.
   path.join(ROOT, 'src/pkjs/forecast-graphs/domain/graph-styles.js'),
+  // Where the weather comes from (Setup › Data sources): what the watch draws
+  // (window.DrawnReadings: reads LineStyle, GraphStyles, StatusLineCatalog and StatusThresholds,
+  // all above), then the note under the Weather picker that names the fills, Per reading's row
+  // options and the calls line (weather-sources-page.js binds the plan, ProviderReadings and
+  // DrawnReadings while its body runs).
+  path.join(ROOT, 'src/pkjs/weather/domain/drawn-readings.js'),
+  path.join(ROOT, 'src/pkjs/page/weather/weather-sources-page.js'),
   // The forecast metrics' names (window.ForecastMetrics: a metric as its pickers name it and as
   // a sentence does). It reads nothing at load; graph-styles-page.js, forecast-hints.js,
   // blocks.js and wizard-forecast.js bind it while their bodies run, so it precedes all four.
-  // Where the weather comes from (Setup › Data sources): what each provider sends
-  // (window.ProviderReadings), the source plan's fills (window.SourcePlan, which reads it while
-  // its body runs) and what the watch draws (window.DrawnReadings: reads LineStyle, GraphStyles,
-  // StatusLineCatalog and StatusThresholds, all above), then the note under the Weather picker
-  // that names the fills and Per reading's row options (weather-sources-page.js binds all three
-  // while its body runs).
-  path.join(ROOT, 'src/pkjs/weather/domain/provider-readings.js'),
-  path.join(ROOT, 'src/pkjs/weather/domain/source-plan.js'),
-  path.join(ROOT, 'src/pkjs/weather/domain/drawn-readings.js'),
-  path.join(ROOT, 'src/pkjs/page/weather/weather-sources-page.js'),
   path.join(ROOT, 'src/pkjs/page/forecast-graphs/forecast-metrics.js'),
   path.join(ROOT, 'src/pkjs/page/forecast-graphs/graph-styles-page.js'),
   // A stripe cell's level on its metric's own scale (window.StripeLevels): the table the
