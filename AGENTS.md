@@ -362,8 +362,10 @@ Third-party weather and geocoding APIs (met.no, DWD, Open-Meteo, LocationIQ, tom
   commit bare subjects like `wip` or `nudge`.
 - release-please cuts the releases from these commits, so the prefixes decide the version
   bump. Every release, patches included, needs a row in the `public.news` Supabase table, and
-  a feature release (`x.y.0`) also needs a `release-notifications.json` toast entry. The
-  release steps, the toast and news rules and the changelog style are in `RELEASE.md`.
+  a feature release (`x.y.0`) also needs a `release-notifications.json` toast entry. A
+  feature the user has to switch on also gets a tip on the settings page's "New in this
+  update" card (`src/pkjs/notices/domain/feature-tips.js`). The release steps, the toast,
+  tip and news rules and the changelog style are in `RELEASE.md`.
 - Brainstorming spec and plan files (under `docs/`, which git ignores apart from `docs/adr/`
   and `docs/quality-goals.md`) stay untracked; don't `git add -f` them.
 

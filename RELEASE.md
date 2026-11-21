@@ -62,6 +62,29 @@ try) and kept proposing the feature bump.
 Preview the copy locally with `forceShowReleaseNotificationOnBoot` in `src/pkjs/dev-config.js`
 ([DEV.md](DEV.md#debug-flags-srcpkjsdev-configjs)).
 
+### Feature tip (a feature the user has to switch on)
+
+The settings page opens on a card, "New in this update", that names what is new and says how
+to switch it on, with a Show me button that opens the dialog or the tab it is set in. It is
+for a feature the user only gets by changing a setting, such as the watch battery's days
+left. What changes on its own needs no tip: the toast and the news row say that.
+
+Add one entry per feature to `TIPS` in `src/pkjs/notices/domain/feature-tips.js`, on top of
+the list:
+
+- `id` names the tip in each install's storage. Never reuse or rename one.
+- `since` is the release that brings the feature.
+- `title` fits one line. `html` says in two or three sentences where the setting is and what
+  to pick, in the page's own words for its tabs, rows and options.
+- `open` is the dialog (`sheet`) or the tab (`tab`) Show me opens.
+- `when(env)` limits the tip to the watches and phones that can use the feature.
+
+An install sees the tips it has not seen yet, three at most at a time, until its Got it is
+saved. A fresh install sees none. `test/notices/domain/feature-tips.test.js` fails on a tip
+whose dialog or tab the page does not have, or whose text runs long. `PREVIEW_TIPS=1 mise
+preview-config` shows the card on a desktop. Drop a tip a few feature releases after its
+own; its `id` stays retired.
+
 ### News row (every release)
 
 Every release needs a row in the `public.news` Supabase table, the hosted news backend behind

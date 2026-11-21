@@ -15,6 +15,7 @@ var platformLib = require(path.join(ROOT, 'src/pkjs/config-ui/lib/platform.js'))
 var schema = require(path.join(ROOT, 'src/pkjs/page/settings/schema.js'));
 var previewPalette = require(path.join(ROOT, 'src/pkjs/theme/domain/preview-palette.js'));
 var notices = require(path.join(ROOT, 'src/pkjs/notices/adapter/notices.js'));
+var featureTips = require(path.join(ROOT, 'src/pkjs/notices/domain/feature-tips.js'));
 var gpsFailure = require(path.join(ROOT, 'src/pkjs/weather/adapter/location.js')).gpsFailure;
 // The bundle IS the build's bundle: same files, same order. It used to be a
 // second copy of the list, which is exactly how the preview came to load the
@@ -61,6 +62,14 @@ function envFor(platform) {
   return env;
 }
 
+// PREVIEW_TIPS=1: the card of new features to try (Watchface tab), as an install from
+// before the tips sees it after an update: every tip this watch and phone can use
+// (feature-tips.js). Off by default, as on a fresh install.
+function previewTips(env) {
+  if (process.env.PREVIEW_TIPS !== '1') { return {}; }
+  return { featureTips: featureTips.forPage(featureTips.pending([], env)) };
+}
+
 // PREVIEW_NOTICES=1: the fetch-error notice card (Watchface tab) and the Advanced
 // tab's last-attempt line as a failing install sees them. The notices come from
 // notices.js's own noticeForFailure, so the copy is the phone's, not a mock-up. All
@@ -85,10 +94,11 @@ function previewFailureData() {
 
 function run(opts) {
   opts = opts || {};
+  var env = envFor(opts.platform || 'basalt');
   return build.previewPage({
     appFiles: APP_FILES,
     schema: schema,
-    env: envFor(opts.platform || 'basalt'),
+    env: env,
     cfg: {},
     userData: Object.assign({
       palette: previewPalette.buildPreviewPalette(),
@@ -119,7 +129,7 @@ function run(opts) {
         ],
         lastSeenId: 1
       })
-    }, previewFailureData()),
+    }, previewFailureData(), previewTips(env)),
     returnTo: '#'
   });
 }

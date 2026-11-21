@@ -714,7 +714,7 @@ function boldOnlyRow(keyStem) {
 // temperature slot's (the Order and Separator rows, status-pair.js formatBatteryPair). The
 // days need a Pebble app that can read another app's plugin, so Value selection and the
 // pair's rows show only there (PLUGINS_WHEN).
-var MUNINN_LINK = '<a href=\'https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5\'>Muninn app</a>';
+var MUNINN_LINK = '<a href=\'' + require('../../status-bars/domain/battery-days.js').MUNINN_URL + '\'>Muninn app</a>';
 // Under Days left and Both: when the percentage shows instead (battery-days.js daysLeft,
 // status_row.c shows_battery_days) and, set apart on a line of its own, where the days come
 // from. What each mode shows is in the picture of the bar above the rows, so the hints
@@ -1591,6 +1591,17 @@ module.exports = {
             items: [{
                 type: 'hidden',
                 messageKey: 'fetchNoticeAck',
+                defaultValue: false
+            }]
+        }, {
+            // What is new to try on this watch (feature-tips-panel.js), under the notices and
+            // above the pinned preview too: the card draws only while the phone hands over
+            // tips this install has not seen, and until its Got it.
+            block: 'featureTips',
+            beforePin: true,
+            items: [{
+                type: 'hidden',
+                messageKey: 'featureTipsAck',
                 defaultValue: false
             }]
         }, {

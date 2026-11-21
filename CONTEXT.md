@@ -29,7 +29,7 @@ _Avoid_: module, feature (for the whole context).
 | Theme | palettes, night light | theme schedule | previews colours | – |
 | Settings | reads the settings message | stores, migrates, sends them | the schema and pages | – |
 | Wire transport | AppMessage inbox, persist | outbox, change detector, scheduler, battery saver | – | – |
-| App notices | release toast | news, update check | news panel | `news` |
+| App notices | release toast | news, update check, feature tips | news panel, new-features card | `news` |
 | Health | reads the watch's health data | – | previews it | – |
 | Telemetry | – | snapshot and upload | – | `telemetry-ingest` |
 
@@ -210,6 +210,14 @@ text). Beside the percentage it bakes the pair's separator and the place of the 
 too (the percentage mark), since only the watch knows its charge of the moment. The watch
 shows the days only while they can be current: the phone in reach and the watch not charging
 (`status_row.c` shows_battery_days). Otherwise the slot shows the percentage alone.
+
+**Feature tip**:
+One entry of the settings page's "New in this update" card: a feature the user has to switch
+on, how to do it, and the dialog or tab its Show me opens (`notices/domain/feature-tips.js`).
+An install is shown the tips it has not seen, kept by id (`feature-tips-seen.js`), until the
+card's Got it is saved. A fresh install has seen them all.
+_Avoid_: news (the server's changelog rows behind the bell), release toast (the watch's
+notification after an update).
 
 **Battery saver**:
 The night window (`sleepStartHour` to `sleepEndHour`) in which the phone fetches no weather and

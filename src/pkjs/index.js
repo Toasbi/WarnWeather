@@ -4,6 +4,8 @@
 require('./lib/polyfills.js');
 
 var notices = require('./notices/adapter/notices.js');
+var featureTipsSeen = require('./notices/adapter/feature-tips-seen.js');
+var featureTips = require('./notices/domain/feature-tips.js');
 var WeatherProvider = require('./weather/adapter/provider.js');
 var createTelemetryClient = require('./telemetry/adapter/telemetry.js');
 var settings = require('./page/settings');
@@ -229,6 +231,9 @@ Pebble.addEventListener('showConfiguration', function(e) {
     // days left, battery-estimate.js).
     var pluginsEnv = pluginReader.available(Pebble);
     console.log('Config env: phoneBattery=' + phoneBatteryEnv + ' plugins=' + pluginsEnv);
+    // The new features this install has not seen and can use: the card the page opens on
+    // (page/notices/feature-tips-panel.js). null for none.
+    userData.featureTips = featureTips.forPage(featureTipsSeen.pending(featureTipsEnv()));
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see page/settings/index.js options).
     Pebble.openURL(settings.generateUrl({
@@ -329,6 +334,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // A watch battery slot just set to show the days it has left gets its estimate now.
     batteryEstimate.refresh();
     var providerOrLocationChanged = refreshProvider();
+    // The new-features card's Got it: the tips it showed are seen.
+    if (app.settings.featureTipsAck === true) { featureTipsSeen.acknowledge(featureTipsEnv()); }
     var acked = app.settings.fetchNoticeAck === true;
     // Only an error notice puts text on the watch overlay; capture that BEFORE
     // dismissAll() empties the list, so we push the watch clear only when there
@@ -399,6 +406,8 @@ Pebble.addEventListener('ready',
             hadExistingInstall,
             app.devConfig.forceShowReleaseNotificationOnBoot
         );
+        // Nothing is new to a fresh install; one from before the tips has seen none.
+        featureTipsSeen.init(hadExistingInstall);
         claySettings.seedDefaults(DEFAULT_HOLIDAY_COLORS);
         var statusMigrationPlatform = 'basalt';
         var knownPlatform = '';
@@ -519,6 +528,18 @@ function getRuntimeTelemetryConfig() {
         endpoint: endpoint,
         appVersion: pkg.version,
         buildProfile: pkg.buildProfile
+    };
+}
+
+/**
+ * What decides which new-feature tips this watch and phone can use (feature-tips.js): the
+ * watch's platform, and whether the Pebble app can read plugins.
+ * @returns {{platform: string, plugins: boolean}}
+ */
+function featureTipsEnv() {
+    return {
+        platform: (app.watchInfo && app.watchInfo.platform) || '',
+        plugins: pluginReader.available(Pebble)
     };
 }
 

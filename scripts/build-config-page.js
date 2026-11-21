@@ -271,6 +271,11 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/page/theme/theme-convert.js'),
   path.join(ROOT, 'src/pkjs/page/status-bars/reset-status-defaults.js'),
   path.join(ROOT, 'src/pkjs/page/notices/notices-panel.js'),
+  // The card of new features to try (block 'featureTips', the Watchface tab's second
+  // section). It reads nothing at load. Dropped, nothing throws: the block is unregistered
+  // and the card never shows — test/page/settings/config-page-bundle.test.js pins its
+  // registration into the page.
+  path.join(ROOT, 'src/pkjs/page/notices/feature-tips-panel.js'),
   // The Weather tab kit (live graphs / 5-day / saved locations), nine
   // files. Order is load-bearing within the group for all but
   // vendor-suncalc.js (window.SunCalc is read lazily at render time, so it

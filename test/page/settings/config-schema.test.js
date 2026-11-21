@@ -89,7 +89,7 @@ const EXPECTED_KEYS = [
   // always been. Every Nighttime feature keeps its hours in its own keys — there is no
   // shared window and no mode key selecting between one, so sleepNightMode /
   // sleepNightStartHour / sleepNightEndHour / backlightDimMode are gone.
-  'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
+  'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','featureTipsAck','locationMode','location',
   'backlightDim','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','fifthLine','fifthLineStyle','tempSlotDisplay',
   'windLineShow','gustLineShow','uvLineShow',
@@ -580,7 +580,10 @@ test('the Theme & night card sits between the screens\' cards and Time, and open
   // right below the card whose row opens it.
   const cards = wf.sections.filter((s) => !s.sheetOnly);
   const nightIndex = cards.indexOf(night);
-  assert.deepEqual(cards.slice(1, nightIndex).map((c) => c.id), ['screens', 'layout', 'screenSwitching'],
+  // The tab opens on its two blocks above the pinned watch: the notices and the new features.
+  assert.deepEqual(cards.slice(0, 2).map((c) => [c.block, c.beforePin]),
+    [['noticesPanel', true], ['featureTips', true]]);
+  assert.deepEqual(cards.slice(2, nightIndex).map((c) => c.id), ['screens', 'layout', 'screenSwitching'],
     'the Screens card (Layout on aplite) and Screen switching above it');
   assert.equal(cards[nightIndex + 1].id, 'time', 'Time follows Theme & night');
   // The theme pickers moved here from General's top card; the location rows did not.

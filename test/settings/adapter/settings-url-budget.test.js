@@ -54,6 +54,9 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
         + 'and that the One Call by Call subscription is enabled for it.' });
   }
   store[KEYS.NOTICES_KEY] = JSON.stringify(notices);
+  // An install from before the new-feature tips: none seen, so the card's tips ride along
+  // (feature-tips.js shows MAX_SHOWN at most, which bounds them).
+  store[KEYS.FEATURE_TIPS_SEEN_KEY] = '[]';
   // The news list at the edge function's MAX_ITEMS (50), each a ~400-char changelog.
   let body = '';
   while (body.length < 400) { body += '**Graph colors**\n- The forecast graph now has one color row per metric.\n'; }
@@ -126,6 +129,7 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
   assert.ok(decoded.indexOf('"lastSeenId":150') !== -1 || decoded.indexOf('\\"lastSeenId\\":150') !== -1,
     'the news cache really rode along');
   assert.ok(decoded.indexOf('weatherTabCache:{') !== -1, 'the Weather tab copy really rode along');
+  assert.ok(decoded.indexOf('featureTips:[{id:') !== -1, 'the new-feature tips really rode along');
   assert.ok(url.length <= URL_CAP - HEADROOM,
     'settings URL is ' + url.length + ' chars; Android WebView refuses more than ' + URL_CAP
     + ' (keep ' + HEADROOM + ' spare)');

@@ -105,6 +105,10 @@ module.exports = {
     LAST_AQI_KEY: 'lastAqi',
     NEWS_CACHE_KEY: 'newsCache',
     NOTICES_KEY: 'notices',
+    // The ids of the new-feature tips this install has seen (feature-tips-seen.js): a JSON
+    // list. Absent until the first boot of a build with tips, which writes every id for a
+    // fresh install and none for one from before.
+    FEATURE_TIPS_SEEN_KEY: 'feature_tips_seen',
     LAST_SENT_NOTICE_KEY: 'lastSentNotice',
     // The Weather Underground key is scraped rather than typed, and has always
     // lived outside the settings blob under this literal name (wunderground.js).

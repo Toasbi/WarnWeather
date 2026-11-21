@@ -99,6 +99,17 @@
             ]
           },
           {
+            "block": "featureTips",
+            "beforePin": true,
+            "items": [
+              {
+                "type": "hidden",
+                "messageKey": "featureTipsAck",
+                "defaultValue": false
+              }
+            ]
+          },
+          {
             "id": "screens",
             "title": "Screens",
             "block": "screensCard",

@@ -832,3 +832,18 @@ test('the threshold contract reaches the generated page between resolve-ink and 
   assert.ok(defined < src.indexOf("register('thresholdRange'"),
     'the page must define window.StatusThresholds before blocks.js runs');
 });
+
+// The card of new features to try is a block the Watchface tab's second section names
+// (schema.js block: 'featureTips'). An unregistered block draws nothing and throws nothing, so
+// with its file dropped from APP_FILES the card would never show on a real phone, while every
+// Node test passes through require().
+test('the new-features card reaches the generated page and registers its block', () => {
+  const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
+  assert.notEqual(appFiles.findIndex((f) => f.endsWith('/page/notices/feature-tips-panel.js')), -1,
+    'feature-tips-panel.js is not in APP_FILES at all');
+  const src = page();
+  assert.ok(src.indexOf("PConf.blocks.register('featureTips'") !== -1, 'the page registers no featureTips block');
+  // The generated file holds the page as one JSON string: a '"' of the page reads '\\"' there.
+  assert.ok(src.indexOf('data-k=\\"featureTipsAck\\"') !== -1, 'its Got it flips the flag the phone reads');
+  assert.ok(src.indexOf("ctx.set('featureTipsAck', false)") !== -1, 'the flag is cleared on every open (onbuild.js onLoad)');
+});
