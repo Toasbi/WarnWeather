@@ -34,6 +34,18 @@ var batteryDays = require('../../status-bars/domain/battery-days.js');
 /** @type {FeatureTip[]} */
 var TIPS = [
     {
+        id: 'weatherFrom',
+        since: '3.3.0',
+        title: 'Weather from more than one provider',
+        // In the page's words: Setup › Data sources, the Weather from row and its options
+        // (page/weather/weather-sources-schema.js WEATHER_FROM). Every watch: the phone mixes the
+        // readings, and the watch gets the same messages.
+        html: 'In Data sources on the Setup tab, set Weather from to By location: DWD in Germany, Met.no ' +
+            'in the Nordic countries and the Weather provider everywhere else. Or set it to Per reading ' +
+            'and pick a provider for each reading.',
+        open: { tab: 'setup' }
+    },
+    {
         id: 'batteryIconText',
         since: '3.3.0',
         title: 'Icon and text for your watch battery',

@@ -91,24 +91,30 @@ test('an install from before the tips is handed them on settings open, until Got
   h.listeners.showConfiguration({});
   const tips = userDataOf(h.opened[0]).featureTips;
   assert.ok(Array.isArray(tips) && tips.length > 0, 'the card has tips to draw');
-  assert.deepEqual(tips.map((tip) => tip.id), ['batteryIconText', 'batteryDays', 'blackTheme']);
+  assert.deepEqual(tips.map((tip) => tip.id), ['weatherFrom', 'batteryIconText', 'batteryDays'], 'three at a time');
   tips.forEach((tip) => assert.deepEqual(Object.keys(tip), ['id', 'title', 'html', 'sheet', 'tab']));
 
   // Saved without Got it: still unseen, and handed over again.
   save(h, { vibe: false });
   h.listeners.showConfiguration({});
-  assert.deepEqual(userDataOf(h.opened[1]).featureTips.map((tip) => tip.id), ['batteryIconText', 'batteryDays', 'blackTheme']);
+  assert.deepEqual(userDataOf(h.opened[1]).featureTips.map((tip) => tip.id), ['weatherFrom', 'batteryIconText', 'batteryDays']);
 
-  // Got it, then Save: seen, and the next open has no card.
+  // Got it, then Save: seen, and the next open shows the one left.
   save(h, { featureTipsAck: true });
-  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['batteryIconText', 'batteryDays', 'blackTheme']);
+  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['weatherFrom', 'batteryIconText', 'batteryDays']);
   h.listeners.showConfiguration({});
-  assert.equal(userDataOf(h.opened[2]).featureTips, null);
+  assert.deepEqual(userDataOf(h.opened[2]).featureTips.map((tip) => tip.id), ['blackTheme']);
+
+  // Its Got it, then Save: every tip seen, and the next open has no card.
+  save(h, { featureTipsAck: true });
+  h.listeners.showConfiguration({});
+  assert.equal(userDataOf(h.opened[3]).featureTips, null);
 });
 
 test('a fresh install is handed none: nothing is new to it', (t) => {
   const h = boot(t, {}, PLUGINS);
-  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['batteryIconText', 'batteryDays', 'blackTheme']);
+  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]),
+    ['weatherFrom', 'batteryIconText', 'batteryDays', 'blackTheme']);
   h.listeners.showConfiguration({});
   assert.equal(userDataOf(h.opened[0]).featureTips, null);
 });
@@ -121,7 +127,8 @@ test('Reset watchface leaves a fresh install: it has seen every tip, whatever is
 
   save(h, { reset: true });
   assert.equal(store['clay-settings'], undefined, 'the reset wiped the settings');
-  assert.deepEqual(JSON.parse(store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['batteryIconText', 'batteryDays', 'blackTheme']);
+  assert.deepEqual(JSON.parse(store[h.KEYS.FEATURE_TIPS_SEEN_KEY]),
+    ['weatherFrom', 'batteryIconText', 'batteryDays', 'blackTheme']);
   h.listeners.showConfiguration({});
   assert.equal(userDataOf(h.opened[1]).featureTips, null, 'no card in the same PKJS life');
 
@@ -138,9 +145,9 @@ test('a phone or watch that cannot use a feature is not handed its tip, and keep
   // No plugins in this Pebble app: no days left to try. The battery's Icon + text needs none.
   const h = boot(t, Object.assign({}, EXISTING));
   h.listeners.showConfiguration({});
-  assert.deepEqual(userDataOf(h.opened[0]).featureTips.map((tip) => tip.id), ['batteryIconText', 'blackTheme']);
+  assert.deepEqual(userDataOf(h.opened[0]).featureTips.map((tip) => tip.id), ['weatherFrom', 'batteryIconText', 'blackTheme']);
   save(h, { featureTipsAck: true });
-  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['batteryIconText', 'blackTheme'],
+  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['weatherFrom', 'batteryIconText', 'blackTheme'],
     'only the tips it showed');
 });
 
@@ -148,6 +155,6 @@ test('aplite is handed no tip for the watch battery, plugins or not: its battery
   [PLUGINS, undefined].forEach((extras) => {
     const h = boot(t, Object.assign({}, EXISTING), extras, 'aplite');
     h.listeners.showConfiguration({});
-    assert.deepEqual(userDataOf(h.opened[0]).featureTips.map((tip) => tip.id), ['blackTheme']);
+    assert.deepEqual(userDataOf(h.opened[0]).featureTips.map((tip) => tip.id), ['weatherFrom', 'blackTheme']);
   });
 });

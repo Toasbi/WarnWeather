@@ -60,18 +60,21 @@ test('Got it: the tips the card showed are seen, and it shows them no more', () 
   seen.acknowledge(BASALT);
   assert.deepEqual(JSON.parse(store[KEY]), shown);
   shown.forEach((id) => assert.equal(ids(seen.pending(BASALT)).indexOf(id), -1, id));
-  // A second Got it with nothing shown changes nothing.
+  // Each Got it brings the tips past the card's limit, until none is left.
+  while (seen.pending(BASALT).length) { seen.acknowledge(BASALT); }
+  assert.deepEqual(JSON.parse(store[KEY]), featureTips.allIds());
+  // A Got it with nothing shown changes nothing.
   const before = store[KEY];
   seen.acknowledge(BASALT);
   assert.equal(store[KEY], before);
 });
 
-test('forPage: the card as the page gets it, and null once its tips are seen', () => {
+test('forPage: the card as the page gets it, and null once every tip is seen', () => {
   seen.init(true);
   const card = seen.forPage(BASALT);
   assert.deepEqual(card, featureTips.forPage(seen.pending(BASALT)));
   assert.ok(card.length > 0 && card.every((tip) => typeof tip.when === 'undefined'), 'plain data, no function');
-  seen.acknowledge(BASALT);
+  while (seen.pending(BASALT).length) { seen.acknowledge(BASALT); }
   assert.equal(seen.forPage(BASALT), null, 'nothing rides the page\'s URL then');
 });
 

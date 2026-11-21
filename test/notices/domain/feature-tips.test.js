@@ -98,7 +98,7 @@ test('the card shows a few at once, the rest once those are seen', () => {
 test('the page gets plain data, and nothing when there is nothing to show', () => {
   assert.equal(featureTips.forPage([]), null);
   assert.equal(featureTips.forPage(null), null);
-  const forPage = featureTips.forPage(featureTips.pending([], BASALT));
+  const forPage = featureTips.forPage(featureTips.TIPS);
   assert.deepEqual(JSON.parse(JSON.stringify(forPage)), forPage, 'no functions: it rides the page\'s URL as it is');
   forPage.forEach((tip) => {
     assert.deepEqual(Object.keys(tip), ['id', 'title', 'html', 'sheet', 'tab']);
@@ -109,6 +109,7 @@ test('the page gets plain data, and nothing when there is nothing to show', () =
   assert.ok(days.html.indexOf('<a href=\'' + batteryDays.MUNINN_URL + '\'>Muninn app</a>') !== -1);
   assert.equal(forPage.find((tip) => tip.id === 'batteryIconText').sheet, 'bar-top', 'the same dialog');
   assert.equal(forPage.find((tip) => tip.id === 'blackTheme').tab, 'setup');
+  assert.equal(forPage.find((tip) => tip.id === 'weatherFrom').tab, 'setup', 'Data sources is on the Setup tab');
 });
 
 /**
@@ -147,4 +148,17 @@ test('the two watch battery tips name the page\'s own labels, and say the way to
   assert.ok(html.batteryIconText.indexOf(way) !== -1, html.batteryIconText);
   assert.equal(html.batteryDays.indexOf('set the right slot'), -1, html.batteryDays);
   assert.ok(featureTips.allIds().indexOf('batteryIconText') < featureTips.allIds().indexOf('batteryDays'));
+});
+
+test('the Weather from tip names the page\'s own section, row and options, on every watch', () => {
+  const html = featureTips.TIPS.find((tip) => tip.id === 'weatherFrom').html;
+  const setup = schema.tabs.find((tab) => tab.id === 'setup');
+  const section = setup.sections.find((s) => s.id === 'dataSources');
+  const from = row('weatherSourceMode');
+  const option = (value) => from.options.find((o) => o[1] === value)[0];
+  assert.ok(html.indexOf('In ' + section.title + ' on the ' + setup.label + ' tab, set ' + from.label + ' to '
+    + option('auto') + ':') !== -1, html);
+  assert.ok(html.indexOf('Or set it to ' + option('reading') + ' and pick a provider for each reading.') !== -1, html);
+  [{ platform: 'aplite', plugins: false }, { platform: 'emery', plugins: true }, null].forEach((env) =>
+    assert.ok(ids(featureTips.pending([], env)).indexOf('weatherFrom') !== -1, JSON.stringify(env)));
 });
