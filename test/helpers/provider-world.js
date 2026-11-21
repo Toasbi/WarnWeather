@@ -462,18 +462,20 @@ const SRC = path.resolve(__dirname, '../../src/pkjs') + path.sep;
  * @param {Object} watchInfo getActiveWatchInfo()'s answer.
  * @param {function({mod: function(string): *, requests: string[]}): *} fn Gets the module
  *   loader (a path under src/pkjs) and the requests so far; its result is returned.
- * @param {{answers: function(string): boolean}} [opts] answers(url) false refuses a
- *   request with a 503 (a service that is down).
+ * @param {{answers: function(string): boolean, now: function(): number}} [opts] answers(url)
+ *   false refuses a request with a 503 (a service that is down); now() moves the clock (epoch
+ *   ms; NOW_MS when absent). The services answer for NOW_MS whatever the clock says.
  * @returns {*} fn's result.
  */
 function inWorld(watchInfo, fn, opts) {
   const answers = (opts && opts.answers) || (() => true);
+  const clock = (opts && opts.now) || (() => NOW_MS);
   const saved = { Date: global.Date, localStorage: global.localStorage, Pebble: global.Pebble,
     XMLHttpRequest: global.XMLHttpRequest, log: console.log };
   const RealDate = saved.Date;
   class PinnedDate extends RealDate {
-    constructor(...args) { if (args.length === 0) { super(NOW_MS); } else { super(...args); } }
-    static now() { return NOW_MS; }
+    constructor(...args) { if (args.length === 0) { super(clock()); } else { super(...args); } }
+    static now() { return clock(); }
   }
   const store = {};
   const requests = [];

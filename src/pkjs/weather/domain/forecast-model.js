@@ -181,6 +181,12 @@ MAPPED_KEYS.all = [].concat(
     MAPPED_KEYS.sun
 );
 
+// The fields adoptMapped writes on the instance: every mapped key but the feels-like
+// resolvers' inputs, which it reads and never keeps.
+var ADOPTED_KEYS = MAPPED_KEYS.all.filter(function (key) {
+    return ['humidityTrend', 'currentHumidity', 'currentWindKmh'].indexOf(key) === -1;
+});
+
 /**
  * Own-key presence on a mapped object (a key set to undefined still counts:
  * hasValidData's core check is presence, not value).
@@ -283,6 +289,7 @@ function adoptMapped(target, mapped) {
 module.exports = {
     GRAPH_SERIES: GRAPH_SERIES,
     MAPPED_KEYS: MAPPED_KEYS,
+    ADOPTED_KEYS: ADOPTED_KEYS,
     adoptMapped: adoptMapped,
     payloadEntries: payloadEntries,
     buildPayload: buildPayload

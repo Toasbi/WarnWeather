@@ -32,6 +32,7 @@ var providerFactory = require('./weather/adapter/provider-factory.js');
 var previewPalette = require('./theme/domain/preview-palette.js');
 var newsCache = require('./notices/adapter/news-cache.js');
 var weatherTabCache = require('./weather/adapter/weather-tab-cache.js');
+var forecastSnapshots = require('./weather/adapter/forecast-snapshots.js');
 var createChannelScheduler = require('./wire/adapter/channel-scheduler.js');
 var createFetchCycle = require('./shell/fetch-cycle.js');
 // The render-affecting-settings signature (the force-fetch rule) lives in its own
@@ -365,6 +366,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // The watch's current data (or chart) is wrong; drop the last-sent caches
         // (including radar) so the next fetch resends every category.
         outbox.clearWeatherCaches();
+    }
+    if (app.settings.fetch === true) {
+        // Force weather fetch asks every provider again, as its hint says: any other
+        // fetch in this refresh slot reuses their last answers (forecast-snapshot.js).
+        forecastSnapshots.clear();
     }
     // Send Clay settings, then re-bake the status category from the last payload
     // against the settings just saved, then (when forced) fetch. The scheduler

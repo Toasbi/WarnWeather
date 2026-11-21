@@ -207,5 +207,11 @@ module.exports = {
     // true = outside its area; plus misses: {dwd: n}, DWD's 404s in a row from inside its
     // area; weather/domain/radar/radar-coverage.js), never the position itself. The settings page reads
     // it as userData.radarCoverage for the note under the Radar provider row.
-    RADAR_COVERAGE_KEY: 'radarCoverage'
+    RADAR_COVERAGE_KEY: 'radarCoverage',
+    // What each weather provider last answered ({v: 1, entries: [{provider, kind, place, at,
+    // request, startTime, fields}]}: the place rounded to two decimals, at most six entries,
+    // none older than six hours; weather/domain/forecast-snapshot.js), so a fetch later in
+    // the same refresh slot asks nobody again, and DWD's UV fill serves three hours. The
+    // Force weather fetch toggle drops it (index.js), as does a reset.
+    FORECAST_SNAPSHOTS_KEY: 'forecastSnapshots'
 };

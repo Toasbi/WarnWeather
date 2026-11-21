@@ -166,7 +166,9 @@ test('a level moved across the current value re-bakes levels and entries without
 // An alert's Days and tomorrow mark change only the baked entry, from forecast data
 // the last fetch already brought (tomorrow's peak rides UV_DAY_PEAKS in the stored
 // bake inputs), so the config close's re-bake carries them to the watch with the
-// network down.
+// network down. (The save's forced fetch would take this slot's forecast snapshot
+// and succeed without the network; dropping it makes that fetch fail, so the re-bake
+// is all that can reach the watch.)
 test('an alert\'s Days and tomorrow mark re-bake the entry without the network', (t) => {
   const { h, net } = bootBaked(t, UV_ONLY, {}, lowTodayHighTomorrow);
   const tomorrowRaquo = WIRE.ALERT_HEADER | UV_KIND | WIRE.ALERT_DANGER
@@ -176,6 +178,7 @@ test('an alert\'s Days and tomorrow mark re-bake the entry without the network',
     'today peaks at 2, tomorrow at 9: the default Today + tomorrow alerts for tomorrow, marked »');
 
   net.mode = 'down';
+  delete h.store[KEYS.FORECAST_SNAPSHOTS_KEY];
   let before = h.sends.length;
   h.saveSettings({ alertUvDays: 'today' });
   h.advance(5 * 1000);

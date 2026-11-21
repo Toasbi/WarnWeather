@@ -77,7 +77,7 @@ function runPin(providerId, scenarioName) {
     const provider = mod('weather/adapter/provider-factory.js').createProvider(providerId, settings);
     // As shell/fetch-cycle.js start() prepares it.
     provider.options = mod('weather/domain/fetch-options.js').build(settings, watchInfo, { waqiToken: '' });
-    provider.sources = mod('weather/adapter/weather-sources.js').create();
+    provider.sources = mod('weather/adapter/weather-sources.js').create(settings);
     const renderPayload = mod('weather/application/render-payload.js');
     let outcome = 'pending';
     provider.fetchWithCoordinates(world.PLACE.lat, world.PLACE.lon,

@@ -499,9 +499,10 @@ function createFetchCycle(deps) {
         // This fetch's knobs (UV/AQI/pollen requests, feels work + formula, day-max
         // codes, units, the WAQI token) as one value — set before any request is built.
         provider.options = fetchOptions.build(deps.getSettings(), deps.getWatchInfo(), { waqiToken: deps.env.waqiToken });
-        // And what it may ask of other providers for the readings this one lacks
-        // (the source plan: weather/application/fetch-sources.js).
-        provider.sources = weatherSources.create();
+        // And what it may ask of other providers for the readings this one lacks, with
+        // the snapshots of their last answers (the source plan:
+        // weather/application/fetch-sources.js).
+        provider.sources = weatherSources.create(deps.getSettings());
         fetchInProgress = true;
         // This fetch's once-guard: set by the first of success, failure or the
         // watchdog, after which every later completion from this fetch is a no-op.

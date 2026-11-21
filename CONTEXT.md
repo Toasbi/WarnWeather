@@ -370,6 +370,16 @@ weather sources the fetch cycle hands the provider beside its options
 _Avoid_: provider chain, fallback provider (a fallback is what By location tries when a
 provider fails).
 
+**Forecast snapshot**:
+What a provider answered, kept so a fetch later in the same refresh slot (a start-up, a
+settings save) asks nobody again (`src/pkjs/weather/domain/forecast-snapshot.js`, stored by
+`src/pkjs/weather/adapter/forecast-snapshots.js`). It holds the fields the provider's instance
+has after its fetch, the place to two decimals, the time and what the request asked for
+(the hours, the day maxima, the optional series, the feels-like formula, the key's
+fingerprint); a fetch reuses it only while all of these match. DWD's UV fill serves three
+hours, re-anchored to the hour the new forecast starts at. Force weather fetch drops them.
+_Avoid_: forecast cache (the Weather tab has a cache of its own), response cache.
+
 ## Radar
 
 **Radar source**:

@@ -22,9 +22,6 @@ const HOSTS = {
   yandex: ['api.weather.yandex.ru']
 };
 const KEYS = { owmApiKey: 'owm-test-key', tomorrowioApiKey: 'tio-test-key', yandexApiKey: 'ydx-test-key' };
-// The mapped keys the feels-like resolvers read and the instance never keeps
-// (forecast-model.js adoptMapped).
-const RESOLVER_INPUTS = ['humidityTrend', 'currentHumidity', 'currentWindKmh'];
 
 /**
  * One fetch of a provider's own data (withProviderData) in the world.
@@ -72,7 +69,7 @@ providerFactory.PROVIDER_IDS.forEach((id) => {
     const { provider, outcome } = fetchOwn(id, true);
     assert.equal(outcome, 'ok');
     const sent = readings.READING_IDS.filter((reading) => readings.keysOf(reading)
-      .filter((k) => RESOLVER_INPUTS.indexOf(k) === -1)
+      .filter((k) => forecastModel.ADOPTED_KEYS.indexOf(k) !== -1)   // the fields the instance keeps
       .every((k) => holdsReading(provider[k])));
     assert.deepEqual(sent, readings.PROVIDERS[id].readings);
     assert.deepEqual(readings.lacks(id), readings.READING_IDS.filter((r) => sent.indexOf(r) === -1));
