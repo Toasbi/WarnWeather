@@ -793,7 +793,10 @@
     // its screen on the screen's own background, black or white throughout, so no grey shows
     // round it; the screen keeps a margin of that ground (framedSvg), so the card's round
     // corners clip nothing on it. Its name under it.
-    var CSS = '.wpv{display:flex;justify-content:center;align-items:flex-start}'
+    // The card's edge is a ring outside it (box-shadow: 1 px, 2 px focused), and the pin sits at
+    // the very top of the page's scroll box, which clips all above it: the row keeps that room at
+    // its top, on the pin's ground, or the ring's top edge is cut (on Black, the card's only edge).
+    var CSS = '.wpv{display:flex;justify-content:center;align-items:flex-start;padding-top:2px}'
         + '.wpv-v{flex:1 1 0;min-width:0;max-width:150px;text-align:center}'
         + '.wpv-v+.wpv-v{margin-left:10px}'
         + '.wpv-card{display:block;border-radius:12px;overflow:hidden;'
@@ -900,7 +903,7 @@
     var api = { watchPreview: watchPreview, layoutView: layoutView, clockInk: clockInk, screenSvg: screenSvg,
         barLabels: barLabels, swapShortForms: swapShortForms,
         graphKinds: graphKinds,
-                fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN,
+                fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN, CSS: CSS,
         _drawingAt: drawingAt, _drawingOnRow: drawingOnRow };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PreviewWatch = api; }

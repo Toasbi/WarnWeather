@@ -133,6 +133,71 @@ test('each view is a card of its own, the screen edge to edge on its own backgro
   assert.match(body, /<div class="pin-blk bare"><div class="wpv /);
 });
 
+/**
+ * One rule's declarations, by its selector as written (comments dropped; a rule nested in an
+ * @media block is not read).
+ * @param {string} css A stylesheet.
+ * @param {string} selector The rule's selector.
+ * @returns {string} Its declarations, '' when the sheet has no such rule.
+ */
+function ruleOf(css, selector) {
+  const rule = css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map((r) => r.split('{'))
+    .find((r) => r.length === 2 && r[0].trim() === selector);
+  return rule ? rule[1] : '';
+}
+
+/**
+ * The padding a rule sets at the top, from padding-top or the padding shorthand.
+ * @param {string} decls A rule's declarations.
+ * @returns {number} In px; 0 when it sets none.
+ */
+function paddingTop(decls) {
+  let top = 0;
+  decls.split(';').forEach((d) => {
+    const m = /^\s*(padding|padding-top)\s*:\s*(\S+)/.exec(d);
+    if (m) { top = parseFloat(m[2]) || 0; }
+  });
+  return top;
+}
+
+/**
+ * How far above a card the rings its rules draw reach: each unblurred outer box-shadow's
+ * spread, less its downward offset.
+ * @param {string} css A stylesheet.
+ * @param {string} cls The card's class selector, e.g. '.wpv-card'.
+ * @returns {number} In px; 0 when no rule draws one.
+ */
+function ringReach(css, cls) {
+  let reach = 0;
+  css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map((r) => r.split('{'))
+    .filter((r) => r.length === 2 && r[0].indexOf(cls) !== -1)
+    .forEach((r) => {
+      const m = /box-shadow\s*:\s*([^;]*)/.exec(r[1]);
+      if (!m) { return; }
+      m[1].split(/,(?![^(]*\))/).forEach((shadow) => {
+        if (/\binset\b/.test(shadow)) { return; }
+        const len = shadow.trim().split(/\s+/).filter((t) => /^-?[\d.]+(px)?$/.test(t)).map(parseFloat);
+        if ((len[2] || 0) === 0) { reach = Math.max(reach, (len[3] || 0) - (len[1] || 0)); }
+      });
+    });
+  return reach;
+}
+
+test('the pinned screens keep room above them for the ring round each card', () => {
+  // A card's edge is a ring of box-shadow outside it, and the pin sits at the top of the page's
+  // scroll box, which clips all above it: on Black (black page, black screen) the ring is the
+  // card's only edge, and its top was cut. The room is the pin's, the bare block's and the row's.
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const shell = fs.readFileSync(path.join(__dirname, '../../../src/pkjs/config-ui/lib/shell.html'), 'utf8');
+  const ring = ringReach(pw.CSS, '.wpv-card');
+  assert.equal(ring, 2, 'a 1 px ring, 2 px when focused');
+  assert.ok(ruleOf(shell, '.pin'), 'the shell pins the block');
+  const room = paddingTop(ruleOf(shell, '.pin')) + paddingTop(ruleOf(shell, '.pin-blk.bare'))
+    + paddingTop(ruleOf(pw.CSS, '.wpv'));
+  assert.ok(room >= ring, room + ' px above the cards for a ' + ring + ' px ring');
+});
+
 test('aplite draws a single Default view; emery its own 200×228 screen', () => {
   const S = settings({ layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' });
   // The page's load normalises what aplite cannot draw, as it does before any block renders.
