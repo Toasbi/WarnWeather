@@ -22,6 +22,10 @@ var feelsLike = require('./feels-like.js');
 // status-thresholds.js, all dual-context leaves forecast-series.js already loads, so the
 // invariant holds.
 var drawnReadings = require('./drawn-readings.js');
+// source-plan.js reads provider-readings.js and settings/domain/country-defaults.js, leaves.
+var sourcePlan = require('./source-plan.js');
+// The Weather from modes other than One provider, the default.
+var SOURCE_MODES = ['auto', 'reading'];
 // forecast-span.js requires hourly-window.js (a leaf), forecast-axis.js (line-style.js, as
 // forecast-series.js already does) and forecast-span-hours.js (that and view-cycle.js, a
 // leaf), so the invariant above holds.
@@ -77,9 +81,12 @@ var DEFAULTS = {
     // defaults() hands every caller this one list.
     drawn: Object.freeze([]),
     // Where the forecast comes from (Setup › Data sources, Weather from): 'one', the Weather
-    // picker's provider; 'auto' (By location), the place's regional provider first
-    // (source-plan.js candidates).
-    sourceMode: 'one'
+    // picker's provider; 'auto' (By location), the place's regional provider first; 'reading'
+    // (Per reading), each reading's own (source-plan.js candidates, partSteps).
+    sourceMode: 'one',
+    // Per reading's picks: reading id → provider id, the readings set to a provider of their
+    // own (source-plan.js choicesOf). Frozen like drawn.
+    readingSources: Object.freeze({})
 };
 // Shared and exported: frozen so no consumer can shift every later provider's
 // default by writing to it (Object.freeze is ES5).
@@ -146,8 +153,10 @@ function build(settings, watchInfo, env) {
         // demand: a known aplite never fetches for alerts (watchInfo).
         fetchUv: drawn.indexOf('uv') !== -1,
         drawn: drawn,
-        // Any value but By location's is One provider, the row's default.
-        sourceMode: settings && settings.weatherSourceMode === 'auto' ? 'auto' : DEFAULTS.sourceMode,
+        // Any value but By location's or Per reading's is One provider, the row's default.
+        sourceMode: settings && SOURCE_MODES.indexOf(settings.weatherSourceMode) !== -1
+            ? settings.weatherSourceMode : DEFAULTS.sourceMode,
+        readingSources: sourcePlan.choicesOf(settings),
         fetchAqi: forecastSeries.needsAqi(settings, watchInfo),
         fetchPollen: forecastSeries.needsPollen(settings, watchInfo),
         // Apparent temperature: no provider spends an extra REQUEST on it (it always

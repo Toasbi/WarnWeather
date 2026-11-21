@@ -9,7 +9,7 @@
 var openmeteo = require('./providers/openmeteo.js');
 var forecastSnapshots = require('./forecast-snapshots.js');
 var providerFactory = require('./provider-factory.js');
-var providerReadings = require('../domain/provider-readings.js');
+var sourcePlan = require('../domain/source-plan.js');
 
 /**
  * The source ports of one fetch.
@@ -40,10 +40,7 @@ function create(now, refreshMs, settings, options) {
             provider.options = options;
             return provider;
         },
-        keyed: providerFactory.PROVIDER_IDS.filter(function (id) {
-            var key = providerReadings.keySetting(id);
-            return Boolean(key && stored[key]);
-        }),
+        keyed: sourcePlan.keyedOf(stored),
         now: now,
         refreshMs: refreshMs,
         snapshots: forecastSnapshots

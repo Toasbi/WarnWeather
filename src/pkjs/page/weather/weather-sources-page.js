@@ -1,9 +1,9 @@
 // src/pkjs/page/weather/weather-sources-page.js — ES5. Where the weather comes from, on the
 // settings page (Setup › Data sources): the note under the Weather picker that names the
 // readings coming from Open-Meteo (weatherFillNote, a staticText's textFrom; its row is
-// weather-sources-schema.js FILL_NOTE). They are the source plan's fills, by the phone's own
-// rules: the readings the picked provider lacks (source-plan.js fills) that the watch draws
-// (drawn-readings.js).
+// weather-sources-schema.js FILL_NOTE), and Per reading's row options (weatherReadingOptions).
+// The note's readings are the source plan's fills, by the phone's own rules: the readings the
+// picked provider lacks (source-plan.js fills) that the watch draws (drawn-readings.js).
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
 // page (scripts/build-config-page.js APP_FILES, after provider-readings.js, source-plan.js and
@@ -15,6 +15,7 @@
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
         : null;
     var sourcePlan = node ? require('../../weather/domain/source-plan.js') : window.SourcePlan;
+    var providerReadings = node ? require('../../weather/domain/provider-readings.js') : window.ProviderReadings;
     var drawnReadings = node ? require('../../weather/domain/drawn-readings.js') : window.DrawnReadings;
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
 
@@ -22,15 +23,40 @@
     var WORDS = { temperature: 'temperature', dew: 'dew point', rain: 'rain', wind: 'wind',
         windDir: 'wind direction', uv: 'UV index', cloud: 'cloud cover', pressure: 'air pressure',
         condition: 'weather condition' };
-    // Each weather service as a sentence names it: the Weather picker's names, DWD's short one.
+    // Each weather service as a sentence names it, in the Weather picker's order: the picker's
+    // names, DWD's short one.
     var NAMES = { dwd: 'DWD', metno: 'Met.no', openmeteo: 'Open-Meteo', openweathermap: 'OpenWeatherMap',
         tomorrowio: 'Tomorrow.io', wunderground: 'Weather Underground', yandex: 'Yandex Weather' };
 
     /**
+     * A Per reading row's options: Same as Weather, then each provider that sends its reading,
+     * in the Weather picker's order. A keyed provider stays listed but cannot be picked until
+     * its key is stored: the key rows belong to the Weather and Rain radar pickers.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env (unused).
+     * @param {{reading: string}} args The row's reading.
+     * @returns {Array<Array>} [label, value, meta?] options.
+     */
+    function readingOptions(S, env, args) {
+        var reading = args && args.reading;
+        var keyed = sourcePlan.keyedOf(S);
+        var out = [['Same as Weather', '']];
+        Object.keys(NAMES).forEach(function (id) {
+            if (!providerReadings.serves(id, reading)) { return; }
+            var key = providerReadings.keySetting(id);
+            out.push(key && keyed.indexOf(id) === -1
+                ? [NAMES[id], id, { desc: 'Add its API key under Weather first', disabled: true }] : [NAMES[id], id]);
+        });
+        return out;
+    }
+
+    /**
      * The note under the Weather picker: which readings the watch draws that the picked
      * provider sends none of, and that they come from Open-Meteo. "Sends no", as the page's
-     * other gap sentences say it (forecast-metrics.js gapSentence). None in By location, whose
-     * provider follows the place the page does not know: the Weather from row's hint says it.
+     * other gap sentences say it (forecast-metrics.js gapSentence). In Per reading, of the
+     * readings that follow the picker: a row's own pick sends its reading. None in By location,
+     * whose provider follows the place the page does not know: the Weather from row's hint says
+     * it.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @returns {string} HTML; '' while nothing comes from Open-Meteo
@@ -41,7 +67,9 @@
         }
         var provider = S.provider;
         var drawn = drawnReadings.drawn(S, env || {});
-        var filled = sourcePlan.fills(provider, drawn.indexOf('uv') !== -1, drawn);
+        var feeds = sourcePlan.readingProviders({ mode: S.weatherSourceMode, provider: provider,
+            choices: sourcePlan.choicesOf(S), keyed: sourcePlan.keyedOf(S) });
+        var filled = sourcePlan.fillsOf(feeds, drawn.indexOf('uv') !== -1, drawn);
         if (!filled.length) { return ''; }
         var words = filled.map(function (id) { return WORDS[id]; });
         return html.esc(NAMES[provider] + ' sends no ' + html.andList(words, 'or') + ', so '
@@ -51,8 +79,11 @@
     if (PConf && PConf.hintResolvers) {
         PConf.hintResolvers.register('weatherFillNote', fillNote);
     }
+    if (PConf && PConf.optionsResolvers) {
+        PConf.optionsResolvers.register('weatherReadingOptions', readingOptions);
+    }
 
-    var api = { WORDS: WORDS, NAMES: NAMES, fillNote: fillNote };
+    var api = { WORDS: WORDS, NAMES: NAMES, fillNote: fillNote, readingOptions: readingOptions };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.WeatherSourcesPage = api; }
 })();

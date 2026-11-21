@@ -78,6 +78,9 @@ const settingsSchema = z
     // Weather from (Setup › Data sources), lockstep with buildSettingsSnapshot. z.string() like
     // feelsFormula, so a mode a later build adds never fails the whole payload.
     weatherSourceMode: z.string().optional(),
+    // Per reading's picks, 'reading:provider' pairs ('uv:openmeteo,wind:dwd'), lockstep with
+    // buildSettingsSnapshot.
+    weatherSources: z.string().optional(),
     windUnits: z.string().optional(),
     distanceUnits: z.string().optional(),
     gustSlotDirection: z.boolean().optional(),

@@ -112,7 +112,8 @@ var APP_FILES = [
   // (window.ProviderReadings), the source plan's fills (window.SourcePlan, which reads it while
   // its body runs) and what the watch draws (window.DrawnReadings: reads LineStyle, GraphStyles,
   // StatusLineCatalog and StatusThresholds, all above), then the note under the Weather picker
-  // that names the fills (weather-sources-page.js binds all three while its body runs).
+  // that names the fills and Per reading's row options (weather-sources-page.js binds all three
+  // while its body runs).
   path.join(ROOT, 'src/pkjs/weather/domain/provider-readings.js'),
   path.join(ROOT, 'src/pkjs/weather/domain/source-plan.js'),
   path.join(ROOT, 'src/pkjs/weather/domain/drawn-readings.js'),

@@ -10,14 +10,16 @@ const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js'
 const forecastSeries = require('../../../src/pkjs/weather/domain/forecast-series.js');
 
 const KNOBS = ['fetchUv', 'fetchAqi', 'fetchPollen', 'fetchFeels', 'feelsFormula',
-  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours', 'drawn', 'sourceMode'];
+  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours', 'drawn', 'sourceMode',
+  'readingSources'];
 
 test('DEFAULTS names every knob with its fail-safe default', () => {
   assert.deepEqual(Object.keys(fetchOptions.DEFAULTS).sort(), KNOBS.slice().sort());
   assert.deepEqual(fetchOptions.DEFAULTS, {
     fetchUv: false, fetchAqi: false, fetchPollen: false, fetchFeels: true,
     feelsFormula: 'provider', dayPeakCodes: null, windUnits: 'kph',
-    aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24, drawn: [], sourceMode: 'one'
+    aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24, drawn: [], sourceMode: 'one',
+    readingSources: {}
   });
   assert.ok(Object.isFrozen(fetchOptions.DEFAULTS.drawn), 'one default list, shared by every defaults(), stays empty');
 });
@@ -139,12 +141,16 @@ test('build() returns every knob and a fresh object per call', () => {
   assert.notEqual(a, b);
 });
 
-test('build() reads Weather from: By location, else One provider', () => {
+test('build() reads Weather from: By location, Per reading, else One provider; and the reading rows\' picks', () => {
   assert.equal(fetchOptions.build({ weatherSourceMode: 'auto' }).sourceMode, 'auto');
-  ['one', 'reading', undefined, 'x'].forEach((mode) => {
+  assert.equal(fetchOptions.build({ weatherSourceMode: 'reading' }).sourceMode, 'reading');
+  ['one', undefined, 'x'].forEach((mode) => {
     assert.equal(fetchOptions.build({ weatherSourceMode: mode }).sourceMode, 'one', String(mode));
   });
   assert.equal(fetchOptions.build(null).sourceMode, 'one');
+  assert.deepEqual(fetchOptions.build({ weatherSourceWind: 'dwd', weatherSourceUv: '', weatherSourceDew: 'metno' })
+    .readingSources, { dew: 'metno', wind: 'dwd' }, '\'\' follows the Weather picker');
+  assert.deepEqual(fetchOptions.build(null).readingSources, {});
 });
 
 test('build() names the drawn readings (drawn-readings.js), and asks for UV exactly when it is one', () => {

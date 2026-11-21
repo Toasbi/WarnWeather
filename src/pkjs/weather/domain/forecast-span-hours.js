@@ -51,6 +51,8 @@
 (function () {
     var forecastAxis = (typeof require !== 'undefined')
         ? require('../../forecast-graphs/domain/forecast-axis.js') : window.ForecastAxis;
+    var lineStyle = (typeof require !== 'undefined')
+        ? require('../../forecast-graphs/domain/line-style.js') : window.LineStyle;
 
     // The long span's full feed: hourly-window.js MAX_FORECAST_HOURS (test/forecast-span-hours
     // .test.js pins the two equal; hourly-window.js is phone-only, so the webview cannot read it).
@@ -174,16 +176,45 @@
         return gridHours(wide ? DAY.wideSent : DAY.sent, plotWidth(settings), DAY);
     }
 
+    // The reading each graph metric draws (forecast-metrics.js METRICS ids, provider-readings.js
+    // READINGS): the feels-like rides with the temperature, the gusts with the wind.
+    var READING_OF_METRIC = { precip_prob: 'rain', cloud: 'cloud', wind: 'wind', gust: 'wind', uv: 'uv',
+        pressure: 'pressure', feels: 'temperature', dew: 'dew' };
+
     /**
-     * The hours the provider's feed delivers for the long span: 48 for OpenWeatherMap, 49 for
+     * The hours a provider's feed delivers for the long span: 48 for OpenWeatherMap, 49 for
      * Weather Underground, else (an unknown or absent id too) the full 68.
-     * @param {?Object} settings Clay settings (reads provider).
+     * @param {*} id A provider id.
+     * @returns {number}
+     */
+    function hoursOf(id) {
+        return (typeof id === 'string' && Object.prototype.hasOwnProperty.call(PROVIDER_HOURS, id))
+            ? PROVIDER_HOURS[id] : FULL_HOURS;
+    }
+
+    /**
+     * The hours the watch is sent for the long span: the Weather picker's provider's feed, or in
+     * Per reading the shortest feed of the providers that bring what the graph draws (the payload
+     * carries the fewest hours a drawn series holds: forecast-model.js payloadEntries): the
+     * temperature, the rain while the bars draw it, and each line's metric, each from its
+     * provider (source-plan.js readingProviders). source-plan.js is concatenated after this
+     * file in the page: read at call time.
+     * @param {?Object} settings Clay settings (reads provider, Weather from and Per reading's
+     *   picks, the lines and the rain bars).
      * @returns {number} Hours the watch is sent.
      */
     function feedHours(settings) {
         var id = settings && settings.provider;
-        return (typeof id === 'string' && Object.prototype.hasOwnProperty.call(PROVIDER_HOURS, id))
-            ? PROVIDER_HOURS[id] : FULL_HOURS;
+        if (!settings || settings.weatherSourceMode !== 'reading') { return hoursOf(id); }
+        var plan = (typeof require !== 'undefined') ? require('./source-plan.js') : window.SourcePlan;
+        var byReading = plan.readingProviders({ mode: 'reading', provider: id, choices: plan.choicesOf(settings),
+            keyed: plan.keyedOf(settings) });
+        var drawn = ['temperature'].concat(settings.barSource === 'off' ? [] : ['rain']);
+        lineStyle.FORECAST_LINES.forEach(function (line) {
+            var metric = lineStyle.effectiveLineMetric(settings, line.key);
+            if (metric && READING_OF_METRIC[metric]) { drawn.push(READING_OF_METRIC[metric]); }
+        });
+        return Math.min.apply(null, drawn.map(function (reading) { return hoursOf(byReading[reading]); }));
     }
 
     /**

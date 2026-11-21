@@ -53,16 +53,66 @@ test('By location names no reading: the page does not know the place, and the ro
     'Yandex Weather sends no cloud cover, so it comes from Open-Meteo.');
 });
 
-test('the Weather from row opens the section: One provider by default, a hint for By location alone', () => {
+test('the Weather from row opens the section: One provider by default, hints for the other two', () => {
   const card = schema.tabs.find((t) => t.id === 'setup').sections.find((s) => s.id === 'dataSources');
   const row = card.items[0];
   assert.equal(row.messageKey, 'weatherSourceMode');
   assert.equal(card.items[1].messageKey, 'provider', 'right above the Weather picker');
   assert.equal(row.type, 'segmented');
   assert.equal(row.defaultValue, 'one');
-  assert.deepEqual(row.options, [['One provider', 'one'], ['By location', 'auto']]);
-  assert.deepEqual(Object.keys(row.hintByValue), ['auto']);
+  assert.deepEqual(row.options, [['One provider', 'one'], ['By location', 'auto'], ['Per reading', 'reading']]);
+  assert.deepEqual(Object.keys(row.hintByValue), ['auto', 'reading']);
   assert.match(row.hintByValue.auto, /DWD in Germany, Met\.no in the Nordic countries/);
+  assert.match(row.hintByValue.reading, /^Each reading below can come from its own provider\./);
+});
+
+test('Per reading\'s rows: one per reading after the Weather picker\'s, each the providers that send it', () => {
+  const sourcePlan = require('../../../src/pkjs/weather/domain/source-plan.js');
+  const card = schema.tabs.find((t) => t.id === 'setup').sections.find((s) => s.id === 'dataSources');
+  const keys = providerReadings.READING_IDS.map(sourcePlan.choiceKey);
+  const rows = card.items.filter((i) => keys.indexOf(i.messageKey) !== -1);
+  assert.deepEqual(rows.map((r) => r.messageKey), keys, 'in the table\'s order');
+  assert.deepEqual(rows.map((r) => r.label), ['Temperature', 'Dew point', 'Rain', 'Wind', 'Wind direction', 'UV index',
+    'Cloud cover', 'Air pressure', 'Weather condition']);
+  const first = card.items.indexOf(rows[0]);
+  assert.equal(card.items[first - 1].type, 'sheet', 'right after the Weather picker\'s key row');
+  rows.forEach((row, i) => {
+    const reading = providerReadings.READING_IDS[i];
+    assert.deepEqual(row.showWhen, { key: 'weatherSourceMode', eq: 'reading' });
+    assert.equal(row.defaultValue, '');
+    assert.deepEqual(row.optionsFrom, { resolver: 'weatherReadingOptions', args: { reading: reading } });
+    assert.equal(row.options, undefined, 'the page builds the list');
+  });
+});
+
+test('a Per reading row lists Same as Weather and the providers that send its reading; a keyed one needs its key', () => {
+  const PC = global.PConf;
+  assert.equal(PC.optionsResolvers.get('weatherReadingOptions'), page.readingOptions, 'registered');
+  providerReadings.READING_IDS.forEach((reading) => {
+    const options = page.readingOptions({}, BASALT, { reading: reading });
+    assert.deepEqual(options[0], ['Same as Weather', '']);
+    assert.deepEqual(options.slice(1).map((o) => o[1]),
+      ['dwd', 'metno', 'openmeteo', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex']
+        .filter((id) => providerReadings.serves(id, reading)), reading + ': the providers that send it');
+    options.slice(1).forEach((o) => {
+      assert.equal(Boolean(o[2] && o[2].disabled), Boolean(providerReadings.keySetting(o[1])),
+        reading + ': ' + o[1] + ' inert without its key');
+    });
+  });
+  const wind = page.readingOptions({ tomorrowioApiKey: 'k' }, BASALT, { reading: 'wind' });
+  assert.deepEqual(wind.find((o) => o[1] === 'tomorrowio'), ['Tomorrow.io', 'tomorrowio'], 'with its key stored');
+  assert.deepEqual(wind.find((o) => o[1] === 'openweathermap'),
+    ['OpenWeatherMap', 'openweathermap', { desc: 'Add its API key under Weather first', disabled: true }]);
+  assert.equal(page.readingOptions({}, BASALT, { reading: 'cloud' }).some((o) => o[1] === 'yandex'), false,
+    'Yandex sends no cloud cover');
+});
+
+test('in Per reading the note names only what follows the Weather picker', () => {
+  const S = { provider: 'yandex', weatherSourceMode: 'reading', secondaryLine: 'cloud', statusForecastMid: 'pressure' };
+  assert.equal(note(S), 'Yandex Weather sends no cloud cover or air pressure, so they come from Open-Meteo.');
+  assert.equal(note(Object.assign({}, S, { weatherSourceCloud: 'dwd' })),
+    'Yandex Weather sends no air pressure, so it comes from Open-Meteo.', 'DWD brings the cloud cover');
+  assert.equal(note(Object.assign({}, S, { weatherSourceCloud: 'dwd', weatherSourcePressure: 'metno' })), '');
 });
 
 test('every provider and reading has its words', () => {

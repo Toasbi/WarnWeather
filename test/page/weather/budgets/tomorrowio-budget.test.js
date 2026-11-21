@@ -72,6 +72,22 @@ test('callsPerCycle counts weather and radar selections independently', () => {
   assert.equal(budget.callsPerCycle(S({ provider: 'dwd', radarMode: 'off' })), 0);
 });
 
+test('callsPerCycle: Per reading asks tomorrow.io for a reading picked to it with its key, or following it', () => {
+  const noRadar = { radarMode: 'off' };
+  const perReading = (over) => S(Object.assign({ weatherSourceMode: 'reading' }, noRadar, over));
+  assert.equal(budget.callsPerCycle(perReading({ provider: 'dwd', weatherSourceUv: 'tomorrowio', tomorrowioApiKey: 'k' })), 1);
+  assert.equal(budget.callsPerCycle(perReading({ provider: 'dwd', weatherSourceUv: 'tomorrowio', tomorrowioApiKey: '' })), 0,
+    'without its key the reading follows the Weather picker');
+  const everyOther = {};
+  ['Temperature', 'Dew', 'Rain', 'Wind', 'WindDir', 'Uv', 'Cloud', 'Pressure', 'Condition']
+    .forEach((r) => { everyOther['weatherSource' + r] = 'metno'; });
+  assert.equal(budget.callsPerCycle(perReading(Object.assign({ provider: 'tomorrowio' }, everyOther))), 0,
+    'no reading follows the Weather picker\'s tomorrow.io');
+  assert.equal(budget.callsPerCycle(perReading({ provider: 'tomorrowio' })), 1);
+  assert.equal(budget.callsPerCycle(S(Object.assign({ provider: 'tomorrowio', weatherSourceMode: 'one' }, noRadar,
+    everyOther))), 1, 'the picks count in Per reading only');
+});
+
 test('callsPerCycle: radarMode off zeroes the radar call even with tomorrow.io selected; any other mode still costs it', () => {
   // provider: 'dwd' isolates the radar contribution (weather call excluded).
   assert.equal(budget.callsPerCycle(S({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'off' })), 0);
@@ -118,7 +134,7 @@ test('STATE_KEYS lists every settings key the budget math reads', () => {
   // The onSubmit guard (onbuild.js) rebuilds its state object from exactly these keys;
   // a key read here but missing there would silently read as undefined at save time.
   const read = new Set();
-  const spy = new Proxy(S({ radarMode: 'graph', sleepNightEnabled: true }), {
+  const spy = new Proxy(S({ radarMode: 'graph', sleepNightEnabled: true, weatherSourceMode: 'reading' }), {
     get: (target, k) => { if (typeof k === 'string') { read.add(k); } return target[k]; }
   });
   budget.fittingOptions(spy);

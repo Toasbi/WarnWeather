@@ -2712,7 +2712,7 @@ module.exports = {
                 style: 'info',
                 joinPrevious: true,
                 textFrom: {resolver: 'keyMissingNote', args: {picker: 'provider'}}
-            }, keyRow('provider', null), {
+            }, keyRow('provider', null)].concat(weatherSources.READING_ROWS, [{
                 // The rain radar's source, or Off (screens-page.js): a page-only picker over
                 // radarEnabled and radarProvider, so Off keeps the source and turning the radar
                 // on again restores it. Flags the country-matched source "(Recommended)"
@@ -2765,7 +2765,7 @@ module.exports = {
                 // the updates: said here, from its hours (screens-page.js).
                 hintFrom: {resolver: 'batterySaverPauseHint'},
                 optionsFrom: {resolver: 'fetchIntervalBudget'}
-            }]
+            }])
         },
         // The keyed weather providers' key dialogs, opened by the key row under the Weather
         // provider and rendered nowhere else (sheetOnly). The keys, their trimming and

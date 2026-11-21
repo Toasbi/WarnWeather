@@ -34,10 +34,10 @@ var SAME_PLACE_KM = weatherTabModel.SAME_PLACE_KM;
 // The fetch options no forecast depends on: a fetch that differs from a snapshot only in these
 // reuses it. test/weather/domain/forecast-snapshot.test.js checks that every other option
 // changes the request. What the watch draws (drawn) names the readings a fill asks for, which
-// its own request holds; the source mode (sourceMode) picks which provider is asked, which the
-// snapshot names.
+// its own request holds; the source mode and Per reading's picks (sourceMode, readingSources) pick
+// which provider is asked, which the snapshot names.
 var ANSWER_NEUTRAL = ['fetchAqi', 'fetchPollen', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'drawn',
-    'sourceMode'];
+    'sourceMode', 'readingSources'];
 var UV_KEYS = providerReadings.keysOf('uv');
 
 /**

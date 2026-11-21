@@ -32,7 +32,23 @@ test('feelsFormula joins the signature', () => {
 // would not show until the next scheduled fetch.
 test('Weather from joins the signature: the source plan asks again', () => {
   assert.notEqual(renderSignature({ weatherSourceMode: 'one' }), renderSignature({ weatherSourceMode: 'auto' }));
+  assert.notEqual(renderSignature({ weatherSourceMode: 'auto' }), renderSignature({ weatherSourceMode: 'reading' }));
   assert.equal(renderSignature({ weatherSourceMode: 'auto' }), renderSignature({ weatherSourceMode: 'auto' }));
+});
+
+test('every one of Per reading\'s picks joins the signature', () => {
+  const sourcePlan = require('../../../src/pkjs/weather/domain/source-plan.js');
+  const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
+  const base = { weatherSourceMode: 'reading' };
+  const seen = new Set([renderSignature(base)]);
+  providerReadings.READING_IDS.forEach((id) => {
+    const picked = Object.assign({}, base);
+    picked[sourcePlan.choiceKey(id)] = 'dwd';
+    seen.add(renderSignature(picked));
+  });
+  assert.equal(seen.size, providerReadings.READING_IDS.length + 1, 'each pick signs on its own');
+  assert.equal(renderSignature(Object.assign({ weatherSourceUv: '' }, base)), renderSignature(base),
+    'Same as Weather is no pick');
 });
 
 test('tempSlotDisplay changes the render signature (forces a rebake)', () => {

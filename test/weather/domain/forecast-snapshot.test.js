@@ -109,7 +109,7 @@ test('every fetch option either changes the request or is one no answer depends 
   const base = provider();
   const changed = { fetchUv: false, fetchAqi: true, fetchPollen: true, fetchFeels: false, feelsFormula: 'steadman',
     dayPeakCodes: ['wind'], windUnits: 'mph', aqiScale: 'us', aqiSource: 'openmeteo', aqicnToken: 'x', forecastHours: 68,
-    drawn: ['cloud'], sourceMode: 'auto' };
+    drawn: ['cloud'], sourceMode: 'auto', readingSources: { wind: 'dwd' } };
   assert.deepEqual(Object.keys(changed).sort(), Object.keys(fetchOptions.defaults()).sort(),
     'every option has a changed value here');
   Object.keys(changed).forEach((key) => {

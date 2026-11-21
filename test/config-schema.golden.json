@@ -16359,7 +16359,8 @@
                 "label": "Weather from",
                 "defaultValue": "one",
                 "hintByValue": {
-                  "auto": "Uses DWD in Germany, Met.no in the Nordic countries and the Weather provider below everywhere else. When one fails, the next one fills in, with Open-Meteo last. A reading a provider lacks comes from Open-Meteo."
+                  "auto": "Uses DWD in Germany, Met.no in the Nordic countries and the Weather provider below everywhere else. When one fails, the next one fills in, with Open-Meteo last. A reading a provider lacks comes from Open-Meteo.",
+                  "reading": "Each reading below can come from its own provider. Same as Weather uses the Weather provider, which also fills in when a reading's provider fails. A reading a provider lacks comes from Open-Meteo."
                 },
                 "options": [
                   [
@@ -16369,6 +16370,10 @@
                   [
                     "By location",
                     "auto"
+                  ],
+                  [
+                    "Per reading",
+                    "reading"
                   ]
                 ]
               },
@@ -16483,6 +16488,153 @@
                   "args": {
                     "picker": "provider"
                   }
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceTemperature",
+                "label": "Temperature",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "temperature"
+                  }
+                },
+                "showWhen": {
+                  "key": "weatherSourceMode",
+                  "eq": "reading"
+                },
+                "hint": "Also brings the feels-like temperature. The other readings line up with its hours."
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceDew",
+                "label": "Dew point",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "dew"
+                  }
+                },
+                "showWhen": {
+                  "key": "weatherSourceMode",
+                  "eq": "reading"
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceRain",
+                "label": "Rain",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "rain"
+                  }
+                },
+                "showWhen": {
+                  "key": "weatherSourceMode",
+                  "eq": "reading"
+                },
+                "hint": "Brings the chance of rain and the amount."
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceWind",
+                "label": "Wind",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "wind"
+                  }
+                },
+                "showWhen": {
+                  "key": "weatherSourceMode",
+                  "eq": "reading"
+                },
+                "hint": "Also brings the gusts."
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceWindDir",
+                "label": "Wind direction",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "windDir"
+                  }
+                },
+                "showWhen": {
+                  "key": "weatherSourceMode",
+                  "eq": "reading"
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceUv",
+                "label": "UV index",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "uv"
+                  }
+                },
+                "showWhen": {
+                  "key": "weatherSourceMode",
+                  "eq": "reading"
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceCloud",
+                "label": "Cloud cover",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "cloud"
+                  }
+                },
+                "showWhen": {
+                  "key": "weatherSourceMode",
+                  "eq": "reading"
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourcePressure",
+                "label": "Air pressure",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "pressure"
+                  }
+                },
+                "showWhen": {
+                  "key": "weatherSourceMode",
+                  "eq": "reading"
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceCondition",
+                "label": "Weather condition",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "condition"
+                  }
+                },
+                "showWhen": {
+                  "key": "weatherSourceMode",
+                  "eq": "reading"
                 }
               },
               {

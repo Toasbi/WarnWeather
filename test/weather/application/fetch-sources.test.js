@@ -472,3 +472,76 @@ test('another provider\'s answer replaces every field of the anchor: one it lack
   assert.equal(anchor.feeds.temperature, 'openmeteo', 'DWD\'s answer without the temperature now is none');
   assert.equal(anchor.currentTemp, 61, 'Open-Meteo\'s, not the last fetch\'s');
 });
+
+// --- Per reading ----------------------------------------------------------------------------
+
+const sourcePlan = require('../../../src/pkjs/weather/domain/source-plan.js');
+const METNO_HOST = 'https://api.met.no/weatherapi/locationforecast/2.0/complete';
+const OWM_HOST = 'https://api.openweathermap.org/data/3.0/onecall';
+/**
+ * A fetch's options in Per reading.
+ * @param {Object<string, string>} picks Reading id → provider id.
+ * @param {Object} [more] More options.
+ * @returns {Object}
+ */
+const perReading = (picks, more) => Object.assign({ sourceMode: 'reading', readingSources: picks }, more);
+
+test('Per reading: the forecast from the temperature\'s provider, another reading\'s provider laid on', () => {
+  const [{ p, outcome, requests }] = fetchesOf('metno', [{ options: perReading({ wind: 'dwd' }) }]);
+  assert.equal(outcome, 'ok');
+  assert.deepEqual(requests.map(endpoint), [METNO_HOST].concat(DWD_HOSTS), 'Met.no, then DWD for the wind');
+  const dwd = fetchesOf('dwd', [{}])[0].p;
+  const metno = fetchesOf('metno', [{}])[0].p;
+  assert.deepEqual(p.windTrend, dwd.windTrend, 'the wind and its gusts are DWD\'s');
+  assert.deepEqual(p.gustTrend, dwd.gustTrend);
+  assert.deepEqual(p.tempTrend, metno.tempTrend, 'the rest is Met.no\'s');
+  assert.deepEqual(p.cloudTrend, metno.cloudTrend);
+  assert.deepEqual(p.feeds, Object.assign(sourcePlan.allFrom('metno'), { wind: 'dwd' }));
+});
+
+test('Per reading: a reading\'s provider that fails hands it to the Weather picker\'s provider', () => {
+  const [{ p, outcome, requests }] = fetchesOf('openweathermap', [{ options: perReading({ temperature: 'metno', wind: 'dwd' }) }],
+    { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
+  assert.equal(outcome, 'ok');
+  assert.equal(p.feeds.temperature, 'metno');
+  assert.equal(p.feeds.wind, 'openweathermap', 'the Weather picker\'s, asked once for every reading it brings');
+  assert.equal(requests.filter((r) => r.indexOf(OWM_HOST) !== -1).length, 1);
+  assert.deepEqual(p.recoveredFailure, { stage: 'provider_data', code: 'dwd_forecast_status_503' });
+  const owm = fetchesOf('openweathermap', [{}])[0].p;
+  assert.deepEqual(p.windTrend, owm.windTrend);
+});
+
+test('Per reading: when the temperature\'s provider fails, the Weather picker\'s brings everything', () => {
+  const [{ p, outcome, requests }] = fetchesOf('metno', [{ options: perReading({ temperature: 'dwd', wind: 'dwd' }) }],
+    { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
+  assert.equal(outcome, 'ok');
+  assert.deepEqual(p.feeds, sourcePlan.allFrom('metno'));
+  assert.equal(requests.filter((r) => r.indexOf('api.brightsky.dev') !== -1).length, 1, 'DWD is asked once');
+});
+
+test('Per reading: a reading the Weather picker\'s provider lacks is filled; one a part brings is not', () => {
+  const [{ p, requests }] = fetchesOf('yandex', [{ options: perReading({ wind: 'dwd', cloud: 'dwd' },
+    { drawn: ['cloud', 'dew'] }) }]);
+  assert.deepEqual(requests.map(endpoint), ['https://api.weather.yandex.ru/graphql/query'].concat(DWD_HOSTS,
+    ['https://api.open-meteo.com/v1/forecast']));
+  assert.deepEqual(hourlyOf(requests[3]), ['dew_point_2m'], 'Yandex\'s dew point; DWD brought the cloud cover');
+  assert.deepEqual([p.feeds.cloud, p.feeds.dew, p.feeds.wind], ['dwd', 'openmeteo', 'dwd']);
+  assert.equal(p.cloudTrend.length, 24);
+});
+
+test('Per reading: a second fetch in the slot takes every provider\'s forecast from its snapshot', () => {
+  const each = { options: perReading({ temperature: 'dwd', uv: 'openmeteo' }) };
+  const [first, second] = fetchesOf('metno', [each, Object.assign({ at: 5 * MIN }, each)]);
+  assert.ok(first.requests.length >= 3);
+  assert.deepEqual(second.requests, []);
+  assert.equal(second.forecast, first.forecast);
+  assert.deepEqual(second.p.feeds, first.p.feeds);
+});
+
+test('Per reading: a provider that failed this fetch is not asked again as a fallback', () => {
+  const [{ p, outcome, requests }] = fetchesOf('openweathermap', [{ options: perReading({ temperature: 'metno', wind: 'dwd' }) }],
+    { answers: (url) => url.indexOf('api.brightsky.dev') === -1 && url.indexOf('api.openweathermap.org') === -1 });
+  assert.equal(outcome, 'ok', 'Met.no\'s forecast stands');
+  assert.equal(requests.filter((r) => r.indexOf(OWM_HOST) !== -1).length, 1, 'OpenWeatherMap once, for its own part');
+  assert.deepEqual(p.feeds, sourcePlan.allFrom('metno'), 'every reading stays Met.no\'s');
+});

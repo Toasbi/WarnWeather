@@ -288,12 +288,41 @@ function adoptMapped(target, mapped) {
     target.sunTimes = Array.isArray(mapped.sunTimes) ? mapped.sunTimes : null;
 }
 
+/**
+ * Lay some of another provider's forecast on this one, hour by hour: each hourly series from
+ * the hour `target` starts at (its startTime) on, the values of the moment as they are (Per
+ * reading: weather/application/fetch-sources.js). A series that starts earlier loses its first
+ * hours and comes up as much shorter; the payload carries the fewest hours a drawn series
+ * holds (payloadEntries). Nothing is laid on when the two do not line up: `source` starting
+ * after `target`, or off its hour grid.
+ *
+ * @param {Object} target The forecast the keys land on (reads startTime).
+ * @param {Object} source The forecast they come from (reads startTime).
+ * @param {string[]} keys Adopted keys (provider-readings.js keysOf); one `source` lacks is
+ *   left off `target` too.
+ * @returns {boolean} Whether the two lined up and the keys were laid on.
+ */
+function adoptReadings(target, source, keys) {
+    var shift = (target.startTime - source.startTime) / hourlyWindow.HOUR_SECONDS;
+    if (!(shift >= 0) || Math.floor(shift) !== shift) { return false; }
+    keys.forEach(function (key) {
+        if (!hasKey(source, key)) {
+            delete target[key];
+            return;
+        }
+        var value = source[key];
+        target[key] = HOURLY_KEYS.indexOf(key) !== -1 && Array.isArray(value) ? value.slice(shift) : value;
+    });
+    return true;
+}
+
 module.exports = {
     GRAPH_SERIES: GRAPH_SERIES,
     MAPPED_KEYS: MAPPED_KEYS,
     ADOPTED_KEYS: ADOPTED_KEYS,
     HOURLY_KEYS: HOURLY_KEYS,
     adoptMapped: adoptMapped,
+    adoptReadings: adoptReadings,
     payloadEntries: payloadEntries,
     buildPayload: buildPayload
 };

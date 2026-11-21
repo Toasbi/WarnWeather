@@ -117,6 +117,15 @@ test('snapshot includes Weather from raw', () => {
   assert.strictEqual(buildSettingsSnapshot({}).weatherSourceMode, undefined, 'unset reads as One provider');
 });
 
+// Lockstep: it is also in the Deno .strip() schema (telemetry-ingest/handler.ts).
+test('snapshot includes Per reading\'s picks, in Per reading only', () => {
+  const picks = { weatherSourceUv: 'openmeteo', weatherSourceWind: 'dwd', weatherSourceDew: '' };
+  assert.strictEqual(buildSettingsSnapshot(Object.assign({ weatherSourceMode: 'reading' }, picks)).weatherSources,
+    'wind:dwd,uv:openmeteo', 'in the readings\' order');
+  assert.strictEqual(buildSettingsSnapshot({ weatherSourceMode: 'reading' }).weatherSources, '');
+  assert.strictEqual(buildSettingsSnapshot(Object.assign({ weatherSourceMode: 'auto' }, picks)).weatherSources, undefined);
+});
+
 test('snapshot includes aqiSource', () => {
   assert.strictEqual(buildSettingsSnapshot({ aqiSource: 'waqi' }).aqiSource, 'waqi');
   assert.strictEqual(buildSettingsSnapshot({ aqiSource: 'auto' }).aqiSource, 'auto');
@@ -461,8 +470,11 @@ const HEAVIEST_SETTINGS = {
   windSlotDisplay: 'current', gustSlotDisplay: 'current',
   dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
   aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
-  // Weather from on its longest option.
-  weatherSourceMode: 'auto',
+  // Weather from on its longest option, and every reading set to the longest provider id.
+  weatherSourceMode: 'reading',
+  weatherSourceTemperature: 'openweathermap', weatherSourceDew: 'openweathermap', weatherSourceRain: 'openweathermap',
+  weatherSourceWind: 'openweathermap', weatherSourceWindDir: 'openweathermap', weatherSourceUv: 'openweathermap',
+  weatherSourceCloud: 'openweathermap', weatherSourcePressure: 'openweathermap', weatherSourceCondition: 'openweathermap',
   gustSlotDirection: true,
   threshPhoneBatteryBoldMode: 'always', threshConditionBoldMode: 'always', dayNightShading: true,
   healthMode: 'status', fetchIntervalMin: '120',

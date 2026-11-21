@@ -230,3 +230,19 @@ test('shownHours: the hours each span draws, as the watch fits its grid to the p
   const small = grid.slice(grid.indexOf('DISPLAY_WIDTH_144'));
   assert.equal(1 + 2 * cDefine(small, 'FORECAST_GRID_PAD') + cDefine(small, 'FORECAST_GRID_BAR_W'), 7);
 });
+
+test('feedHours in Per reading: the shortest feed of the providers that bring what the graph draws', () => {
+  const perReading = (over) => Object.assign({ provider: 'dwd', weatherSourceMode: 'reading', barSource: 'rain',
+    secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', owmApiKey: 'k' }, over);
+  assert.equal(spanHours.feedHours(perReading({})), 68);
+  assert.equal(spanHours.feedHours(perReading({ weatherSourceRain: 'openweathermap' })), 48, 'the rain bars');
+  assert.equal(spanHours.feedHours(perReading({ weatherSourceRain: 'openweathermap', barSource: 'off',
+    secondaryLine: 'off' })), 68, 'no bars, no rain line: the rain is not drawn');
+  assert.equal(spanHours.feedHours(perReading({ weatherSourceWind: 'wunderground', thirdLine: 'gust' })), 49,
+    'the gusts ride the wind');
+  assert.equal(spanHours.feedHours(perReading({ weatherSourceWind: 'wunderground' })), 68, 'no wind or gust line');
+  assert.equal(spanHours.feedHours(perReading({ weatherSourceTemperature: 'openweathermap', owmApiKey: '' })), 68,
+    'a pick without its key follows the Weather picker');
+  assert.equal(spanHours.feedHours(perReading({ weatherSourceMode: 'one', weatherSourceRain: 'openweathermap' })), 68,
+    'the picks count in Per reading only');
+});

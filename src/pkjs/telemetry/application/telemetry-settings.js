@@ -42,6 +42,8 @@ var forecastAxis = require('../../forecast-graphs/domain/forecast-axis.js');
 var graphStyles = require('../../forecast-graphs/domain/graph-styles.js');
 // SLOT_KEYS / parseSlot — the Weather tab's saved places, read like the tab reads them.
 var weatherTabModel = require('../../weather/domain/weather-tab-model.js');
+// Per reading's picks (Setup › Data sources): their setting keys and stored values.
+var sourcePlan = require('../../weather/domain/source-plan.js');
 
 // The Show unit toggles worth a field (status-line-catalog.js UNIT_TOGGLES has three more:
 // pressure, rain countdown and dew point read the same on every 2.6 watch).
@@ -211,6 +213,18 @@ function weatherTabPlaces(safe) {
 }
 
 /**
+ * Per reading's picks as telemetry reports them: 'reading:provider' for each reading set to a
+ * provider of its own, comma separated in the readings' order.
+ * @param {Object} settings Clay settings.
+ * @returns {(string|undefined)} '' with none; undefined outside Per reading.
+ */
+function weatherSourcesOf(settings) {
+    if (settings.weatherSourceMode !== 'reading') { return undefined; }
+    var picks = sourcePlan.choicesOf(settings);
+    return Object.keys(picks).map(function (id) { return id + ':' + picks[id]; }).join(',');
+}
+
+/**
  * Build a compact, allowlisted settings snapshot for telemetry.
  *
  * @param {Object} settings Clay settings object.
@@ -294,9 +308,13 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         dateSlotFullFormat: safe.dateSlotFullFormat,
         aqiScale: safe.aqiScale,
         aqiSource: safe.aqiSource,
-        // Weather from ('one' | 'auto'), raw like aqiSource: an absent key reads as the
-        // default, One provider.
+        // Weather from ('one' | 'auto' | 'reading'), raw like aqiSource: an absent key reads as
+        // the default, One provider.
         weatherSourceMode: safe.weatherSourceMode,
+        // Per reading's picks, the readings set to a provider of their own, in the table's order
+        // ('uv:openmeteo,wind:dwd'); '' with none, and no value in the other modes, where they
+        // pick nothing.
+        weatherSources: weatherSourcesOf(safe),
         windUnits: safe.windUnits,
         distanceUnits: safe.distanceUnits,
         gustSlotDirection: Boolean(safe.gustSlotDirection),

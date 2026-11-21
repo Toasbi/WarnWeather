@@ -372,14 +372,24 @@ provider fails).
 
 **Weather from**:
 Where the forecast comes from (Setup › Data sources, the `weatherSourceMode` setting): One
-provider, the Weather picker's, as before the row; or By location: the place's regional
-provider by the setup wizard's map (DWD in Germany, Met.no in the Nordic countries, from the
-country the reverse geocode names), then the Weather picker's, then Open-Meteo, each only when
-the one before failed and only where it covers the place and has its key
-(`src/pkjs/weather/domain/source-plan.js` candidates). The Weather picker's provider stays the
-fetch's anchor either way; its `feeds` name the provider each reading came from, which the day
-records follow.
+provider, the Weather picker's, as before the row; By location: the place's regional provider
+by the setup wizard's map (DWD in Germany, Met.no in the Nordic countries, from the country the
+reverse geocode names), then the Weather picker's, then Open-Meteo, each only when the one
+before failed and only where it covers the place and has its key
+(`src/pkjs/weather/domain/source-plan.js` candidates); or Per reading. The Weather picker's
+provider stays the fetch's anchor in every mode; its `feeds` name the provider each reading
+came from, which the day records follow.
 _Avoid_: source mode, auto mode.
+
+**Per reading**:
+The Weather from mode in which each reading has a provider of its own: its row on Setup ›
+Data sources (`weatherSource<Reading>`, '' for Same as Weather, the Weather picker's), where
+that provider sends the reading, has its key and covers the place (`source-plan.js`
+readingProviders). The forecast starts with the temperature's provider; each other provider is
+asked once for its whole forecast and the readings picked to it are laid on by time (a part:
+`partSteps`, `forecast-model.js` adoptReadings). A part that fails falls back to the Weather
+picker's provider.
+_Avoid_: mixed mode, custom sources.
 
 **Drawn reading**:
 A reading only some screens draw that the watch draws now

@@ -4,6 +4,11 @@
 // names what comes from Open-Meteo (its text is weather-sources-page.js's weatherFillNote). Plain
 // CommonJS: the schema is built in PKJS and reaches the page as data.
 
+var providerReadings = require('../../weather/domain/provider-readings.js');
+var sourcePlan = require('../../weather/domain/source-plan.js');
+// Each reading as a sentence names it; a row's label is the same words, capitalized.
+var WORDS = require('./weather-sources-page.js').WORDS;
+
 // The weather providers as the Weather picker lists them, alphabetical by name. The 3rd tuple
 // slot's desc is the short "what it's best at" tag shown under each name in the dropdown; DWD
 // carries a `short` so the trigger reads "DWD" while the list keeps the full name.
@@ -30,10 +35,37 @@ var WEATHER_FROM = {
     hintByValue: {
         auto: 'Uses DWD in Germany, Met.no in the Nordic countries and the Weather provider below everywhere '
             + 'else. When one fails, the next one fills in, with Open-Meteo last. A reading a provider lacks '
+            + 'comes from Open-Meteo.',
+        reading: 'Each reading below can come from its own provider. Same as Weather uses the Weather '
+            + 'provider, which also fills in when a reading\'s provider fails. A reading a provider lacks '
             + 'comes from Open-Meteo.'
     },
-    options: [['One provider', 'one'], ['By location', 'auto']]
+    options: [['One provider', 'one'], ['By location', 'auto'], ['Per reading', 'reading']]
 };
+
+// Per reading's rows, one per reading (provider-readings.js READINGS, labelled by
+// weather-sources-page.js WORDS), each its provider or Same as Weather (''), shown while Weather
+// from is Per reading; the phone reads them through source-plan.js choicesOf. A row's options
+// come from the page (weather-sources-page.js weatherReadingOptions): the settings URL carries
+// one short line per row instead of nine lists. The rows whose reading brings more than its name
+// says say what.
+var READING_HINTS = {
+    temperature: 'Also brings the feels-like temperature. The other readings line up with its hours.',
+    rain: 'Brings the chance of rain and the amount.',
+    wind: 'Also brings the gusts.'
+};
+var READING_ROWS = providerReadings.READING_IDS.map(function (id) {
+    var row = {
+        type: 'select',
+        messageKey: sourcePlan.choiceKey(id),
+        label: WORDS[id].charAt(0).toUpperCase() + WORDS[id].slice(1),
+        defaultValue: '',
+        optionsFrom: {resolver: 'weatherReadingOptions', args: {reading: id}},
+        showWhen: {key: 'weatherSourceMode', eq: 'reading'}
+    };
+    if (READING_HINTS[id]) { row.hint = READING_HINTS[id]; }
+    return row;
+});
 
 // The readings the picked provider lacks that a screen draws, said under the Weather row: they
 // come from Open-Meteo. A plain note joined to the row, like its hint; textFrom answers '' when
@@ -44,4 +76,5 @@ var FILL_NOTE = {
     textFrom: {resolver: 'weatherFillNote'}
 };
 
-module.exports = { PROVIDER_OPTIONS: PROVIDER_OPTIONS, WEATHER_FROM: WEATHER_FROM, FILL_NOTE: FILL_NOTE };
+module.exports = { PROVIDER_OPTIONS: PROVIDER_OPTIONS, WEATHER_FROM: WEATHER_FROM, READING_ROWS: READING_ROWS,
+    FILL_NOTE: FILL_NOTE };

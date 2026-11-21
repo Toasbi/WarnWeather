@@ -18,6 +18,7 @@ var forecastAxis = require('../../forecast-graphs/domain/forecast-axis.js');
 // Graph styles (emery): the bake's settings while screens show several styles.
 var graphStyleWire = require('../../forecast-graphs/domain/graph-style-wire.js');
 var platformLib = require('../../config-ui/lib/platform.js');
+var sourcePlan = require('../../weather/domain/source-plan.js');
 
 /**
  * The drawn metrics whose line is a stripe: a stripe line's bytes are level bytes on the
@@ -170,8 +171,10 @@ function renderSignature(settings, watchInfo) {
         // ...the unit pickers (change baked/fetched values: wind & distance rebake,
         // AQI source/scale refetch)...
         settings.windUnits, settings.distanceUnits, settings.aqiScale, settings.aqiSource,
-        // ...where the forecast comes from (Weather from: the source plan asks again)...
+        // ...where the forecast comes from (Weather from, and Per reading's picks: the source plan
+        // asks again)...
         settings.weatherSourceMode,
+        JSON.stringify(sourcePlan.choicesOf(settings)),
         // ...the feels-like formula (swaps the provider's value for Steadman in
         // FEELS_TREND / FEELS_CURRENT, so it re-bakes the series AND the temp slot)...
         settings.feelsFormula,
