@@ -873,7 +873,71 @@ static void swap_short_forms(void) {
     expect("swap.blank", status_row_swap_short_forms(138, blank, hidden_alt, p), 0);
 }
 
+// The width a slot's icon takes (status_slot_icon_w): the Watch battery's glyph, with its bolt
+// lane, or without it in the Icon + text look while the watch is not charging; else a loaded
+// drawing's width; else the sun arrow's; else none.
+static void slot_icon_widths(void) {
+    const long whole = BATTERY_GLYPH_W, laneless = BATTERY_GLYPH_W - BATTERY_BOLT_LANE_W;
+    expect("icon_w.icon", status_slot_icon_w(SLOT_LIVE_BATTERY, STATUS_ICON_NONE, false, 0, 6), whole);
+    expect("icon_w.icon.charging", status_slot_icon_w(SLOT_LIVE_BATTERY, STATUS_ICON_NONE, true, 0, 6),
+           whole);
+    expect("icon_w.icon_text",
+           status_slot_icon_w(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, false, 0, 6), laneless);
+    expect("icon_w.icon_text.charging",
+           status_slot_icon_w(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, true, 0, 6), whole);
+    expect("icon_w.text", status_slot_icon_w(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, false, 0, 6), 0);
+    expect("icon_w.id_elsewhere", status_slot_icon_w(SLOT_TEXT, STATUS_ICON_DRAWN_BATTERY, false, 0, 6), 0);
+    expect("icon_w.drawing", status_slot_icon_w(SLOT_TEXT, STATUS_ICON_UV, false, 11, 6), 11);
+    expect("icon_w.sun", status_slot_icon_w(SLOT_TEXT, STATUS_ICON_DRAWN_SUN, false, 0, 6), 6);
+    expect("icon_w.sun.empty", status_slot_icon_w(SLOT_EMPTY, STATUS_ICON_DRAWN_SUN, false, 0, 6), 0);
+    expect("icon_w.none", status_slot_icon_w(SLOT_TEXT, STATUS_ICON_NONE, false, 0, 6), 0);
+}
+
+// Where the glyph draws (status_slot_battery_lane): as far left of the slot's icon x as the
+// measure left its lane out, so the body lands where the slot was placed; nowhere for a slot
+// that draws no battery.
+static void battery_glyph_lanes(void) {
+    const int16_t icon_text = status_slot_icon_w(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, false, 0, 6);
+    expect("lane.icon", status_slot_battery_lane(SLOT_LIVE_BATTERY, STATUS_ICON_NONE, BATTERY_GLYPH_W), 0);
+    expect("lane.icon.short", status_slot_battery_lane(SLOT_LIVE_BATTERY, STATUS_ICON_NONE,
+                                                       BATTERY_GLYPH_W - BATTERY_BOLT_LANE_W), BATTERY_BOLT_LANE_W);
+    expect("lane.icon_text", status_slot_battery_lane(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, icon_text),
+           BATTERY_BOLT_LANE_W);
+    expect("lane.icon_text.charging",
+           status_slot_battery_lane(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, BATTERY_GLYPH_W), 0);
+    expect("lane.text", status_slot_battery_lane(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, 0), -1);
+    expect("lane.id_elsewhere", status_slot_battery_lane(SLOT_TEXT, STATUS_ICON_DRAWN_BATTERY, 0), -1);
+    expect("lane.drawing", status_slot_battery_lane(SLOT_TEXT, STATUS_ICON_UV, 11), -1);
+}
+
+// The default Watch bar of the 144 px watches (content 140): Air quality (its 7 px drawing and
+// "42"), the date "Nov 2026" and the Watch battery in its Icon + text look, at the Gothic 18
+// widths the settings page reads out of the firmware (watch-text.js): "42" 14 px, the date 53,
+// "80%" 26. Without the empty bolt lane the date stays whole; with it, the 10 px it held cut
+// the date to 46 of its 53 px. While the watch charges the lane holds the bolt, and the date
+// gives way as the row's rule has it.
+static void icon_text_battery_leaves_the_date(void) {
+    for (int charging = 0; charging <= 1; charging++) {
+        StatusSlotMeasure m[3] = {
+            { true, 7, 14, 0 },
+            { true, 0, 53, 0 },
+            { true, status_slot_icon_w(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, charging, 0, 6),
+              26, 0 },
+        };
+        StatusSlotPlace p[3];
+        status_row_layout(140, m, p);
+        expect(charging ? "icon_text.date.charging" : "icon_text.date", p[1].text_w, charging ? 46 : 53);
+        expect(charging ? "icon_text.text.charging" : "icon_text.text", p[2].text_w, 26);
+        // The text ends at the row's right edge; the glyph's body sits the gap before it.
+        expect("icon_text.right_edge", p[2].text_x + p[2].text_w, 140);
+        expect("icon_text.icon_x", p[2].icon_x, 140 - 26 - STATUS_ROW_ICON_TEXT_GAP - m[2].icon_w);
+    }
+}
+
 int main(void) {
+    slot_icon_widths();
+    battery_glyph_lanes();
+    icon_text_battery_leaves_the_date();
     swap_short_forms();
     place_at_matches_the_row_layout();
     placed_w_pins();

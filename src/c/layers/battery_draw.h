@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pebble.h>
-#include "battery_glyph.h"
+#include "../appendix/battery_glyph.h"
 
 // Reusable battery glyph, shared by the top-strip status row (the top-right
 // slot's SLOT_LIVE_BATTERY) — extracted from the retired battery_layer. Draws

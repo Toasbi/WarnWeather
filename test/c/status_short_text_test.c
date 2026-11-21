@@ -180,12 +180,14 @@ static void live_kinds(void) {
     no_family("battery pct", SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, "82%");
     no_family("battery pct full", SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, "100%");
     no_family("battery pct low", SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, "8%");
-    // The Icon + text look keeps its glyph when its text goes, as a weather condition does,
-    // then drops the bolt lane as the Icon look does; the text is never cut.
+    // The Icon + text look keeps its glyph when its text goes, as a weather condition does;
+    // the text is never cut. The glyph alone is its one member, charging or not: the row
+    // already measures it without the empty bolt lane (status_row_layout.h
+    // status_slot_icon_w), so no member drops the lane again.
     family("battery icon + text", SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, "82%", false,
-           false, FAMILY("", " -lane"));
+           false, FAMILY(""));
     family("battery icon + text days", SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY,
-           "82%|5d", false, false, FAMILY("", " -lane"));
+           "82%|5d", false, false, FAMILY(""));
     family("battery icon + text charging", SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY,
            "82%", false, true, FAMILY(""));
     // The id means the battery glyph on the battery's text alone.

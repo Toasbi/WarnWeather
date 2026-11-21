@@ -19,8 +19,9 @@
 //  - steps drop their tenths ("12.3k" -> "12k", never rounded up), sleep its minutes
 //    ("7h32" -> "7h"; under an hour it has none, as "0h" would read as no sleep);
 //  - the Watch battery glyph drops its bolt lane while the watch is not charging
-//    (the lane is empty then); in the Icon + text look the slot first gives up its
-//    text and keeps the glyph, as a weather condition does;
+//    (the lane is empty then); in the Icon + text look, whose glyph the row already
+//    measures without the empty lane, the slot gives up its text and keeps the glyph,
+//    as a weather condition does;
 //  - the city abbreviates its shortest word, then all but its longest ("Frankfurt am
 //    Main" -> "Frankfurt a. Main" -> "Frankfurt a. M."), and its last member is
 //    elastic: the full name, which the layout may ellipsize down to 3 characters +
@@ -304,8 +305,9 @@ static inline bool status_short_floor(const char *full, char *out, size_t cap) {
 // glyph ends with the glyph alone, after the form it brought or as its one member: no
 // step shortens a condition's name. The Watch battery glyph has one member, its text
 // unchanged and without its bolt lane, and only while it is not `charging`; in the Icon
-// + text look (status_slot_draws_battery) the glyph alone comes first, then the same
-// laneless glyph. No family has more than OD_VARIANTS - 1 members (on_demand.h), which
+// + text look (status_slot_draws_battery) its one member is the glyph alone, which the
+// full form already measures without the empty lane. No family has more than
+// OD_VARIANTS - 1 members (on_demand.h), which
 // test/c/status_short_text_test.c holds every kind to.
 static inline uint8_t status_short_member(uint8_t kind, uint8_t icon, const char *full,
                                           const char *alt, bool suffix, bool charging,
@@ -323,11 +325,13 @@ static inline uint8_t status_short_member(uint8_t kind, uint8_t icon, const char
             return v == 1 && !charging ? (SST_MEMBER | SST_NO_LANE) : 0;
         }
         if (status_slot_draws_battery(kind, icon)) {
-            // The Icon + text look: the glyph alone, then without its lane. A battery
-            // number shows whole or not at all, so no member cuts the text.
-            if (v > 2 || (v == 2 && charging)) { return 0; }
+            // The Icon + text look: the glyph alone, as wide as the full form measured it
+            // (already without its empty bolt lane while the watch is not charging:
+            // status_row_layout.h status_slot_icon_w). A battery number shows whole or not
+            // at all, so no member cuts the text.
+            if (v > 1) { return 0; }
             out[0] = '\0';
-            return v == 2 ? (SST_MEMBER | SST_NO_LANE) : SST_MEMBER;
+            return SST_MEMBER;
         }
         uint8_t found = 0;
         for (int t = 0; t < SST_STEPS; t++) {

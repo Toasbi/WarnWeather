@@ -2,6 +2,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "battery_glyph.h"
+#include "status_line.h"
 
 #define STATUS_ROW_ICON_TEXT_GAP 3
 // The least air between two slots of a row: between the middle and each edge slot, and
@@ -46,6 +48,34 @@ typedef struct {
     // lookup — a highlight box that reaches to the suffix must not widen plain slots.
     int16_t suffix_x;
 } StatusSlotPlace;
+
+// The width a slot's icon takes in the row (status_row.c measure_slot): the Watch battery's
+// glyph where the slot draws it (status_line.h status_slot_draws_battery), else the drawing
+// the slot loaded (`drawing_w`, 0 for none), else the sunrise/sunset arrow (`sun_w`) where the
+// slot draws it, else none. The glyph is BATTERY_GLYPH_W wide with its bolt lane, which holds
+// the bolt alone and is empty while the watch is not `charging`. In the Icon + text look
+// (SLOT_LIVE_BATTERY_PCT) the slot then reserves the glyph without it, so its text sits by the
+// body and the row keeps those columns for its other slots; status_row.c draws the glyph that
+// much further left, as it draws On demand's short battery. The Icon look keeps its lane: On
+// demand drops it where the row is short of room (status_short_text.h).
+static inline int16_t status_slot_icon_w(uint8_t kind, uint8_t icon, bool charging,
+                                         int16_t drawing_w, int16_t sun_w) {
+    if (status_slot_draws_battery(kind, icon)) {
+        return kind == SLOT_LIVE_BATTERY_PCT && !charging
+            ? (int16_t)(BATTERY_GLYPH_W - BATTERY_BOLT_LANE_W) : (int16_t)BATTERY_GLYPH_W;
+    }
+    if (drawing_w > 0) { return drawing_w; }
+    return kind != SLOT_EMPTY && icon == STATUS_ICON_DRAWN_SUN ? sun_w : 0;
+}
+
+// Where a slot draws the Watch battery's glyph (status_row.c): how far left of the slot's icon
+// x the glyph's own left edge lies, the bolt lane its measure `icon_w` left out (the Icon +
+// text look while the watch is not charging, status_slot_icon_w; On demand's short battery),
+// so the body lands where the slot was placed. -1 for a slot that draws no battery.
+static inline int16_t status_slot_battery_lane(uint8_t kind, uint8_t icon, int16_t icon_w) {
+    if (!status_slot_draws_battery(kind, icon)) { return -1; }
+    return (int16_t)(BATTERY_GLYPH_W - icon_w);
+}
 
 void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
                        StatusSlotPlace out[3]);

@@ -554,10 +554,14 @@
             var glyph = Boolean(c.batteryGlyph);
             var icon = glyph ? null : c.icon;
             // A glyph the watch draws from a drawing takes the drawing's width, as the watch
-            // measures it (its bounds); one it draws in code the row's icon height.
+            // measures it (its bounds); one it draws in code the row's icon height. The
+            // battery's glyph is BATTERY.w with its bolt lane, which is empty while the watch is
+            // not charging, as in every picture: before its text the watch then reserves the
+            // glyph without it (status_row_layout.h status_slot_icon_w).
             var drawing = glyph ? null : drawingAt(c.drawing, iconH, fam);
+            var batteryW = c.text ? BATTERY.w - BATTERY.lane : BATTERY.w;
             slots[at[c.pos]] = { label: c.text || '', alt: c.alt, glyph: glyph, icon: icon, drawing: drawing,
-                iw: glyph ? BATTERY.w : (drawing ? drawing.w : (icon ? iconH : 0)), tw: c.text ? WT.width(ch, false, c.text) : 0,
+                iw: glyph ? batteryW : (drawing ? drawing.w : (icon ? iconH : 0)), tw: c.text ? WT.width(ch, false, c.text) : 0,
                 sw: c.arrow ? arrowW : 0, aw: c.alt ? WT.width(ch, false, c.alt) : -1 };
         });
         var swap = swapShortForms(cw, slots);
@@ -618,7 +622,9 @@
         placed.forEach(function (p, i) {
             if (!p) { return; }
             var it = slots[i], x = x0 + p.x;
-            if (it.glyph) { e += batteryGlyph(x, mid, cx.fg); }
+            // A glyph measured without its lane draws that much further left, so its body
+            // lands where the slot was placed (status_row.c).
+            if (it.glyph) { e += batteryGlyph(x - (BATTERY.w - it.iw), mid, cx.fg); }
             else if (it.drawing) { e += drawingOnRow(it.drawing, x, mid, cx.fg, fam === 'aplite'); }
             else if (it.icon) { e += iconAt(it.icon, x, mid, iconH, cx.fg); }
             var tx = x + it.iw + (it.iw > 0 && p.tw > 0 ? ICON_GAP : 0);

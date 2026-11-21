@@ -128,12 +128,24 @@ test('a status row seats its slots as the watch does: the edge slots from the ma
   const both = look('both');
   const pct = text(/<text [^>]*>80%<\/text>/.exec(both)[0]);
   assert.deepEqual([pct.x, pct.size, pct.weight], [142 - WT.width(18, false, '80%'), 18, 400], 'the charge at the margin');
-  const body = (pct.x - 3 - 29 + 10 + 0.5).toString().replace('.', '\\.');
+  // Its body and nub (19 px: the glyph without its empty bolt lane, status_row_layout.h
+  // status_slot_icon_w) and the gap before the charge.
+  const body = (pct.x - 3 - 19 + 0.5).toString().replace('.', '\\.');
   assert.match(both, new RegExp('<rect x="' + body + '" y="[^"]*" width="16" height="9" fill="none"'),
-    'the battery\'s body before it, 29 px and the gap left of the charge');
+    'the battery\'s body before it, its body, nub and the gap left of the charge');
   const plain = look('text');
   assert.equal(text(/<text [^>]*>80%<\/text>/.exec(plain)[0]).x, pct.x, 'the Text look: the charge where it was');
   assert.doesNotMatch(plain, /width="16" height="9" fill="none"/, 'and no battery');
+  // The default Watch bar (Air quality, the date, the battery): the slot reserves no room for
+  // the empty lane, so the date beside "80%" prints whole, as on the watch; beside the widest
+  // pair it gives way, cut as the watch cuts it (the edges keep their width).
+  const bar = (display) => picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'aqi', statusTopMid: 'date',
+    statusTopRight: 'battery', batterySlotLook: 'both', batterySlotDisplay: display });
+  assert.ok(/<text [^>]*>Nov 2026<\/text>/.test(bar('percent')), 'the date whole beside "80%"');
+  assert.ok(/<text [^>]*>80%<\/text>/.test(bar('percent')));
+  const pair = bar('both');
+  assert.ok(/<text [^>]*>80%\|5d<\/text>/.test(pair), 'the pair whole');
+  assert.ok(/<text [^>]*>Nov …<\/text>/.test(pair), 'the date cut beside it, as the watch cuts it');
   // A middle slot centred on the row.
   const mid = picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'empty', statusTopMid: 'city',
     statusTopRight: 'empty', citySlotIcon: false });

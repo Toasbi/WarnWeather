@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "status_on_demand.h"
-#include "battery_glyph.h"
+#include "../appendix/battery_glyph.h"
 #include "battery_item.h"
 #include "status_highlight.h"
 #include "status_row.h"
