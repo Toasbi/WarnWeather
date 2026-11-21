@@ -910,13 +910,15 @@ static void battery_glyph_lanes(void) {
     expect("lane.drawing", status_slot_battery_lane(SLOT_TEXT, STATUS_ICON_UV, 11), -1);
 }
 
-// The default Watch bar of the 144 px watches (content 140): Air quality (its 7 px drawing and
-// "42"), the date "Nov 2026" and the Watch battery in its Icon + text look, at the Gothic 18
-// widths the settings page reads out of the firmware (watch-text.js): "42" 14 px, the date 53,
-// "80%" 26. Without the empty bolt lane the date stays whole; with it, the 10 px it held cut
-// the date to 46 of its 53 px. While the watch charges the lane holds the bolt, and the date
-// gives way as the row's rule has it.
-static void icon_text_battery_leaves_the_date(void) {
+// The default Watch bar of the 144 px watches: Air quality (its 7 px drawing and "42"), the
+// date "Nov 2026" and the Watch battery in its Icon + text look, at the Gothic 18 widths the
+// settings page reads out of the firmware (watch-text.js): "42" 14 px, the date 53, "80%" 26.
+// The bar's content is 132 px: top_status_layer.c insets the strip by its PADDING (4 px) on
+// both sides before the row's STATUS_ROW_MARGIN (the settings page's picture lays it out at
+// 140). Without the empty bolt lane the date gets those 10 px back, 48 of its 53 (the emulator
+// shows "Jun 2026", 50 px, as "Jun 20..."); with the lane, which holds the bolt while the watch
+// charges, it gets 38. The row's rule is the same either way: the edges keep their width.
+static void icon_text_battery_gives_the_date_its_lane(void) {
     for (int charging = 0; charging <= 1; charging++) {
         StatusSlotMeasure m[3] = {
             { true, 7, 14, 0 },
@@ -925,19 +927,19 @@ static void icon_text_battery_leaves_the_date(void) {
               26, 0 },
         };
         StatusSlotPlace p[3];
-        status_row_layout(140, m, p);
-        expect(charging ? "icon_text.date.charging" : "icon_text.date", p[1].text_w, charging ? 46 : 53);
+        status_row_layout(132, m, p);
+        expect(charging ? "icon_text.date.charging" : "icon_text.date", p[1].text_w, charging ? 38 : 48);
         expect(charging ? "icon_text.text.charging" : "icon_text.text", p[2].text_w, 26);
         // The text ends at the row's right edge; the glyph's body sits the gap before it.
-        expect("icon_text.right_edge", p[2].text_x + p[2].text_w, 140);
-        expect("icon_text.icon_x", p[2].icon_x, 140 - 26 - STATUS_ROW_ICON_TEXT_GAP - m[2].icon_w);
+        expect("icon_text.right_edge", p[2].text_x + p[2].text_w, 132);
+        expect("icon_text.icon_x", p[2].icon_x, 132 - 26 - STATUS_ROW_ICON_TEXT_GAP - m[2].icon_w);
     }
 }
 
 int main(void) {
     slot_icon_widths();
     battery_glyph_lanes();
-    icon_text_battery_leaves_the_date();
+    icon_text_battery_gives_the_date_its_lane();
     swap_short_forms();
     place_at_matches_the_row_layout();
     placed_w_pins();

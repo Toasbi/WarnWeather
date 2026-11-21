@@ -137,8 +137,10 @@ test('a status row seats its slots as the watch does: the edge slots from the ma
   assert.equal(text(/<text [^>]*>80%<\/text>/.exec(plain)[0]).x, pct.x, 'the Text look: the charge where it was');
   assert.doesNotMatch(plain, /width="16" height="9" fill="none"/, 'and no battery');
   // The default Watch bar (Air quality, the date, the battery): the slot reserves no room for
-  // the empty lane, so the date beside "80%" prints whole, as on the watch; beside the widest
-  // pair it gives way, cut as the watch cuts it (the edges keep their width).
+  // the empty lane, so the date beside "80%" keeps those 10 px and prints whole in the picture's
+  // 140 px row; beside the pair it gives way, cut by the row's rule (the edges keep their width).
+  // (The watch lays this bar out at 132 px, top_status_layer.c's PADDING: there the date gets
+  // 48 of its 53 px, test/c/status_row_layout_test.c.)
   const bar = (display) => picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'aqi', statusTopMid: 'date',
     statusTopRight: 'battery', batterySlotLook: 'both', batterySlotDisplay: display });
   assert.ok(/<text [^>]*>Nov 2026<\/text>/.test(bar('percent')), 'the date whole beside "80%"');
