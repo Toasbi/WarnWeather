@@ -34,13 +34,25 @@ var batteryDays = require('../../status-bars/domain/battery-days.js');
 /** @type {FeatureTip[]} */
 var TIPS = [
     {
+        id: 'batteryIconText',
+        since: '3.3.0',
+        title: 'Icon and text for your watch battery',
+        html: 'The Watch battery slot can show the battery icon and the percentage side by side. ' +
+            'In the Watch bar, set the right slot to Watch battery and tap Edit. Set Look to Icon + text.',
+        open: { sheet: 'bar-top' },
+        // Every watch but aplite, whose battery slot has no Look. The percentage is the watch's
+        // own reading, so unlike the days below it needs no plugin.
+        when: function (env) { return Boolean(env) && env.platform !== 'aplite'; }
+    },
+    {
         id: 'batteryDays',
         since: '3.3.0',
         title: 'Days left on your watch battery',
+        // The tip above says how to put the Watch battery in its slot; this one starts from the
+        // slot's Edit button, so the two don't say it twice. Days left shows in either text look.
         html: 'With the ' + batteryDays.MUNINN_LINK + ' on your watch, the Watch battery slot ' +
-            'can show how many days the watch has left. In the Watch bar, set the right slot to ' +
-            'Watch battery and tap Edit. Set Look to Icon + text or Text, then choose Days left ' +
-            'or Both.',
+            'can show how many days the watch has left. Tap its Edit button in the Watch bar, set ' +
+            'Look to Icon + text or Text, then set Value selection to Days left or Both.',
         open: { sheet: 'bar-top' },
         // The days are read from another app's plugin, and aplite's battery slot has no text look.
         when: function (env) { return Boolean(env) && env.plugins === true && env.platform !== 'aplite'; }

@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const featureTips = require('../../../src/pkjs/notices/domain/feature-tips.js');
 const batteryDays = require('../../../src/pkjs/status-bars/domain/battery-days.js');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
+const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 const BASALT = { platform: 'basalt', plugins: true };
 const ids = (tips) => tips.map((tip) => tip.id);
@@ -61,6 +62,17 @@ test('a tip shows only where its feature can be used', () => {
   assert.equal(days({ platform: 'aplite', plugins: true }), false, 'aplite\'s battery slot has no text look');
   assert.equal(days({ platform: 'basalt' }), false, 'plugins unknown: fail closed');
   assert.equal(days(null), false);
+  // The watch battery's Icon + text look: every watch with the Look, plugins or not (the
+  // percentage is the watch's own reading).
+  const iconText = (env) => ids(featureTips.pending([], env)).indexOf('batteryIconText') !== -1;
+  assert.equal(iconText({ platform: 'basalt', plugins: true }), true);
+  assert.equal(iconText({ platform: 'basalt', plugins: false }), true, 'no plugin needed');
+  assert.equal(iconText({ platform: 'emery', plugins: false }), true);
+  assert.equal(iconText({ platform: 'basalt' }), true, 'plugins unknown');
+  assert.equal(iconText({}), true, 'a watch the page cannot name shows the Look, so the tip too');
+  assert.equal(iconText({ platform: 'aplite', plugins: true }), false, 'aplite\'s battery slot has no Look');
+  assert.equal(iconText({ platform: 'aplite', plugins: false }), false);
+  assert.equal(iconText(null), false);
   // A tip without a rule is for every watch.
   [{ platform: 'aplite', plugins: false }, null, {}].forEach((env) =>
     assert.ok(ids(featureTips.pending([], env)).indexOf('blackTheme') !== -1, JSON.stringify(env)));
@@ -95,5 +107,44 @@ test('the page gets plain data, and nothing when there is nothing to show', () =
   const days = forPage.find((tip) => tip.id === 'batteryDays');
   assert.equal(days.sheet, 'bar-top', 'the Watch bar\'s dialog, where its right slot is set');
   assert.ok(days.html.indexOf('<a href=\'' + batteryDays.MUNINN_URL + '\'>Muninn app</a>') !== -1);
+  assert.equal(forPage.find((tip) => tip.id === 'batteryIconText').sheet, 'bar-top', 'the same dialog');
   assert.equal(forPage.find((tip) => tip.id === 'blackTheme').tab, 'setup');
+});
+
+/**
+ * The one schema row that writes a key.
+ * @param {string} key Its messageKey.
+ * @returns {Object}
+ */
+function row(key) {
+  const found = [];
+  (function walk(node) {
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (!node || typeof node !== 'object') { return; }
+    if (node.messageKey === key) { found.push(node); }
+    Object.keys(node).forEach((k) => walk(node[k]));
+  })(schema);
+  assert.equal(found.length, 1, 'one row for ' + key);
+  return found[0];
+}
+
+test('the two watch battery tips name the page\'s own labels, and say the way to the slot once', () => {
+  const html = {};
+  featureTips.TIPS.forEach((tip) => { html[tip.id] = tip.html.replace(/<[^>]+>/g, ''); });
+  const look = row('batterySlotLook');
+  const display = row('batterySlotDisplay');
+  const option = (item, value) => item.options.find((o) => o[1] === value)[0];
+  // Icon + text: where the slot is and what to pick, in the dialog's words.
+  assert.ok(html.batteryIconText.indexOf('Set ' + look.label + ' to ' + option(look, 'both') + '.') !== -1,
+    html.batteryIconText);
+  // Days left: in either look that prints text, then the Value selection that shows them.
+  assert.ok(html.batteryDays.indexOf('set ' + look.label + ' to ' + option(look, 'both') + ' or ' + option(look, 'text') + ',')
+    !== -1, html.batteryDays);
+  assert.ok(html.batteryDays.indexOf('set ' + display.label + ' to ' + option(display, 'days') + ' or '
+    + option(display, 'both') + '.') !== -1, html.batteryDays);
+  // The way to the slot is said once, in the tip the card shows first.
+  const way = 'In the Watch bar, set the right slot to ' + catalog.byCode('battery').label + ' and tap Edit.';
+  assert.ok(html.batteryIconText.indexOf(way) !== -1, html.batteryIconText);
+  assert.equal(html.batteryDays.indexOf('set the right slot'), -1, html.batteryDays);
+  assert.ok(featureTips.allIds().indexOf('batteryIconText') < featureTips.allIds().indexOf('batteryDays'));
 });
