@@ -53,7 +53,7 @@ if (typeof require !== 'undefined') {
     // The weather condition slot's vocabulary, for its list of every condition.
     var conditionLib = (typeof require !== 'undefined') ? require('../../weather/domain/condition.js') : window.Condition;
     // The slots' looks as the bake reads them (slot-text.js, concatenated ahead of this file):
-    // the watch battery's, whose dialog is its Text look's.
+    // the watch battery's, whose Icon look badges no bold.
     var slotText = (typeof require !== 'undefined')
         ? require('../../status-bars/domain/slot-text.js') : window.SlotText;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
@@ -156,29 +156,30 @@ if (typeof require !== 'undefined') {
     PConf.hintResolvers.register('dayMaxHint', dayMaxHint);
 
     // Per-slot edit sheet: the Edit button beside a slot dropdown opens the threshold sheet
-    // for the slot's CURRENT value, when that value is a threshold kind. The catalog's
-    // slot codes and the threshold contract's KINDS codes are the same vocabulary
-    // ('wind', 'aqi', 'steps', ...), so the contract IS the mapping — no hand-copied
-    // list to drift. env gate mirrors the sheets' own showWhen (aplite compiles the
-    // highlight out).
+    // for the slot's CURRENT value, when that value is a threshold kind, whatever its Look
+    // (the Look is the dialog's first row). The catalog's slot codes and the threshold
+    // contract's KINDS codes are the same vocabulary ('wind', 'aqi', 'steps', ...), so the
+    // contract IS the mapping — no hand-copied list to drift. The phone battery's dialog is
+    // its slot's own, since its Look is (status-line-catalog.js phoneBatterySheet): a dialog
+    // is told nothing of the slot that opened it, but this resolver is. env gate mirrors the
+    // sheets' own showWhen (aplite compiles the highlight out).
     PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
-        var kind = slotKindIndex(S, env, S[args.messageKey]);
-        return kind === -1 ? null : 'thresh' + thresholds.KINDS[kind].key;
+        var code = S[args.messageKey];
+        var kind = slotKindIndex(env, code);
+        if (kind === -1) { return null; }
+        if (code === 'phoneBattery') { return statusLineCatalog.phoneBatterySheet(args.messageKey); }
+        return 'thresh' + thresholds.KINDS[kind].key;
     });
 
     /**
      * The threshold kind a slot's item opens a dialog for: the contract's index of its code,
-     * -1 for an item without one, on a watch without dialogs (aplite) and for the watch
-     * battery in its Icon look, whose drawn battery has no text to set or to print bold
-     * (its dialog is its Text look's).
-     * @param {Object} S Live settings state.
+     * -1 for an item without one and on a watch without dialogs (aplite).
      * @param {Object} env Platform env.
      * @param {*} code The slot's item code.
      * @returns {number} Index into thresholds.KINDS, or -1.
      */
-    function slotKindIndex(S, env, code) {
+    function slotKindIndex(env, code) {
         if (!env || !env.thresholds) { return -1; }
-        if (code === 'battery' && slotText.batteryLook(S, env) !== 'text') { return -1; }
         for (var i = 0; i < thresholds.KINDS.length; i++) {
             if (thresholds.KINDS[i].code === code) { return i; }
         }
@@ -641,8 +642,9 @@ if (typeof require !== 'undefined') {
 
     // Reset-to-defaults for every status bar (the "Reset status bars to defaults" link
     // row in the Status bars tab's All status bars card — schema-gates.js linkRow): every slot
-    // of every bar back to its platform-aware default (the same statusSlotDefault seed a
-    // fresh install gets, hrDefaults flavor included), and every other covered key back
+    // of the Watch, Forecast, Health and Radar bars back to its platform-aware default (the
+    // same statusSlotDefault seed a fresh install gets, hrDefaults flavor included; catalog
+    // allSlotKeys, so bars 4 to 6 keep theirs), and every other covered key back
     // to ITS SCHEMA DEFAULT, resolved through the engine — no value is mirrored here, because
     // mirrored literals drift when the schema changes: the wind arrow's hardcoded
     // false outlived the schema flipping it to true, and the non-uniform "Show
@@ -651,8 +653,11 @@ if (typeof require !== 'undefined') {
     // (their sheets carry no reset of their own), the per-kind display options
     // (the temp slot's Temp/Feels/Both and the day-max kinds' Now/Alert/Both pills
     // with the rows shaping their pair and UV's tomorrow mark, the wind/gust
-    // direction arrows), the date formats and the Show-unit toggles
-    // (the Alert levels group's own reset deliberately covers only the levels),
+    // direction arrows, the weather condition's Look and Name, the city's weather icon,
+    // the watch battery's Look and its text rows), the date formats and the Show-unit
+    // toggles (the Alert levels group's own reset deliberately covers only the levels),
+    // each of those slots' phone battery Look (the slot's own setting, like a countdown
+    // date, but how the slot draws rather than what it counts to, so it goes back too),
     // each weather kind's slot Highlight switch (a slot-sheet row, like Bold — a
     // goal kind's rides its Goals header and that group's reset), each bar's two Alerts
     // sides (on-demand.js DEFAULTS' eight side lists — each bar's Alerts nav row on
@@ -690,8 +695,8 @@ if (typeof require !== 'undefined') {
             // ...and every day-max kind's mode, pair and tomorrow-mark rows (UV,
             // wind, gusts, AQI), from the catalog's one table...
             .concat(statusLineCatalog.dayMaxSettingKeys())
-            // ...and the watch battery's Look and text rows, and every slot's phone
-            // battery Look.
+            // ...and the watch battery's Look and text rows, and each of these slots'
+            // phone battery Look.
             .concat(statusLineCatalog.batterySettingKeys())
             .concat(slotKeys.map(statusLineCatalog.phoneBatteryLookKey));
         // The Watch Status Bar's own toggles exist only where On demand does not.
@@ -849,10 +854,13 @@ if (typeof require !== 'undefined') {
     // Edit-button badge (engine item.editBadgeFrom): when the slot's current value is an
     // ENABLED threshold kind, the row shows a warn-color ring + danger-color dot before
     // its Edit button, and a 'B' when the slot prints always-bold. Same env gate +
-    // code→kind mapping as the sheet resolver above.
+    // code→kind mapping as the sheet resolver above. The watch battery in its Icon look
+    // draws a battery, which has no text to print bold, so its Edit button carries no badge.
     PConf.badgeResolvers.register('thresholdPenState', function (S, env, args) {
-        var kind = slotKindIndex(S, env, S[args.messageKey]);
-        return kind === -1 ? null : penStateForKind(S, env, kind);
+        var code = S[args.messageKey];
+        var kind = slotKindIndex(env, code);
+        if (kind === -1 || (code === 'battery' && slotText.batteryLook(S, env) !== 'text')) { return null; }
+        return penStateForKind(S, env, kind);
     });
 
     // Platform-aware slot default (Approach A single-source): a status slot's fresh-install

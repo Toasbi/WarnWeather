@@ -286,7 +286,7 @@
     }
 
     /**
-     * The watch battery's Look (batterySlotLook, the row under its slot): 'icon', the battery the
+     * The watch battery's Look (batterySlotLook, its dialog's first row): 'icon', the battery the
      * watch draws (the default, and what anything unknown reads as), or 'text', its charge in
      * words (battery-days.js). Always 'icon' on aplite, whose lean row has the one battery
      * slot and prints it its own way.

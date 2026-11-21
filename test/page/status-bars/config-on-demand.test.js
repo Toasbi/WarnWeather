@@ -211,16 +211,11 @@ test('each bar\'s dialog ends on one Alerts nav row: the icons on each side, a t
   assert.ok(q.scroll.innerHTML.indexOf('class="info-q"') !== -1, 'premise: the \'?\' mode draws its buttons');
   assert.equal(barRow(q, 'Watch bar').indexOf('info-q'), -1, 'the Alerts row has no \'?\' in that mode');
   assert.equal(barHint(q, 'Watch bar'), TOP_HINT, 'and keeps its summary in view');
-  // A row of its own: the row above no longer joins it. That is the right slot's Look while the
-  // slot holds the watch battery (the default), joined to its slot, else the slot itself.
-  assert.match(rowOf(dialog, 'class="sel-wrap" data-select="statusTopRight"'), /^<div class="row nb slot">/,
-    'the right slot joins its Look row');
-  assert.match(rowOf(dialog, 'data-k="batterySlotLook"'), /^<div class="row">/,
-    'a row of its own: the Look row above does not join it');
-  const other = barDialogHtml(watchTab({ statusTopRight: 'aqi' }), 'Watch bar');
-  assert.equal(other.indexOf('data-k="batterySlotLook"'), -1, 'no Look row for another item');
-  assert.match(rowOf(other, 'class="sel-wrap" data-select="statusTopRight"'), /^<div class="row slot">/,
+  // A row of its own: the slot above does not join it. The right slot holds the watch battery
+  // (the default), whose Look is in the dialog its Edit button opens, not under the slot.
+  assert.match(rowOf(dialog, 'class="sel-wrap" data-select="statusTopRight"'), /^<div class="row slot">/,
     'a row of its own: the slot above no longer joins it');
+  assert.equal(dialog.indexOf('data-k="batterySlotLook"'), -1, 'no Look row under the slot');
   assert.equal(barHint(page, 'Forecast bar'), NONE, 'nothing placed: None');
   ['Health bar', 'Radar bar'].forEach((title) =>
     assert.equal(barHint(page, title), NONE, title + ': its row by default (radar Graph, health All)'));

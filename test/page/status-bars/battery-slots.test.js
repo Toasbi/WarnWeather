@@ -1,8 +1,9 @@
 'use strict';
 // The two battery slots on the settings page: one Watch battery and one Phone battery in the
-// slot lists, each with a Look row right under the slot that holds it (the phone battery's
-// is the slot's own, so two slots can differ), and the Watch battery's text set like the
-// temperature slot's in its dialog: the percentage, the days left or both, with the pair's
+// slot lists, each with its Look as the first row of the dialog its slot's Edit button opens,
+// like the weather condition's. The phone battery's Look is the slot's own, so each slot has
+// a Phone battery dialog of its own and two slots can differ. The Watch battery's Text look
+// is set like the temperature slot's: the percentage, the days left or both, with the pair's
 // order, separator and spaces. The rows that show, the pictures of the bar, the Edit button
 // and the reset.
 const test = require('node:test');
@@ -21,6 +22,7 @@ const statusLines = require('../../../src/pkjs/status-bars/domain/status-lines.j
 const batteryDays = require('../../../src/pkjs/status-bars/domain/battery-days.js');
 const statusPair = require('../../../src/pkjs/status-bars/domain/status-pair.js');
 const screens = require('../../../src/pkjs/layout/domain/screens.js');
+const statusSlotMigrations = require('../../../src/pkjs/settings/domain/migrations/status-slots.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const { decodeLine } = require('../../helpers/status-line-bytes.js');
 
@@ -102,57 +104,66 @@ test('the slot lists offer one Watch battery and one Phone battery', () => {
   assert.deepEqual(labels('statusTopRight', 'right', APLITE).filter((l) => /battery/i.test(l)), ['Watch battery']);
 });
 
-test('the watch battery\'s Look sits under its slot, the Watch bar\'s right, while that slot holds it', () => {
+test('the watch battery\'s Look leads its dialog in both looks; its slot keeps the picker alone', () => {
   const look = row('batterySlotLook');
+  assert.equal(BATTERY.items[0], look, 'the dialog\'s first row, like the weather condition\'s Look');
   assert.equal(look.type, 'segmented');
   assert.equal(look.label, 'Look');
   assert.deepEqual(look.options, [['Icon', 'icon'], ['Text', 'text']]);
   assert.equal(look.defaultValue, 'icon', 'the battery the watch has always drawn');
-  assert.equal(look.joinPrevious, true, 'joined to the slot above, like a countdown\'s date');
-  const items = sheet(screens.barSheet('top')).items.map((i) => i.messageKey);
-  assert.equal(items[items.indexOf('batterySlotLook') - 3], 'statusTopRight', 'after the slot and its other companions');
-  assert.equal(visible(look, { statusTopRight: 'battery' }, BASALT), true);
-  assert.equal(visible(look, { statusTopRight: 'battery', batterySlotLook: 'text' }, BASALT), true, 'in both looks');
-  assert.equal(visible(look, { statusTopRight: 'aqi', batterySlotLook: 'text' }, BASALT), false, 'another item in the slot');
-  assert.equal(visible(look, { statusTopRight: 'phoneBattery' }, BASALT), false, 'the phone battery has its own');
-  assert.equal(visible(look, { statusTopRight: 'battery' }, APLITE), false,
-    'aplite draws its one battery slot its own way');
+  assert.equal(look.showWhen, undefined, 'in both looks: it is how the dialog switches them');
+  assert.equal(look.joinPrevious, undefined, 'a row of its own');
+  assert.deepEqual([look.hint, look.hintByValue], [undefined, undefined],
+    'no hint: the picture of the bar above the rows shows what each look draws');
+  // The Watch bar's dialog: each slot's picker, and under it nothing but a countdown's date.
+  assert.deepEqual(sheet(screens.barSheet('top')).items.slice(0, 8).map((i) => i.messageKey || i.type),
+    ['subheader', 'statusTopLeft', 'statusTopLeftCountdown', 'statusTopMid', 'statusTopMidCountdown',
+      'statusTopRight', 'statusTopRightCountdown', 'button']);
+  // Drawn: the right slot holds the watch battery in its Icon look (basalt's default), and its
+  // Edit button is there to switch it.
+  const S = PConf.engine.hydrate(schema, {}, BASALT);
+  assert.deepEqual([S.statusTopRight, S.batterySlotLook], ['battery', 'icon'], 'premise');
+  const bar = PConf.engine.renderEditModal(schema, { S: S, ENV: BASALT, USERDATA: {}, openColor: null,
+    openSelect: null, openEdit: screens.barSheet('top'), selectQuery: '', collapsed: {},
+    evalCtx: Object.assign({}, S, { env: BASALT }) });
+  const right = bar.slice(bar.indexOf('data-select="statusTopRight"'));
+  assert.ok(right.slice(0, right.indexOf('</div></div>')).indexOf('data-edit-sheet="threshBatteryPct"') !== -1,
+    'the right slot\'s Edit button, in the Icon look');
+  assert.equal(bar.indexOf('data-k="batterySlotLook"'), -1, 'no Look row in the bar\'s dialog');
 });
 
-test('every slot has a phone battery Look of its own, shown while the slot holds the phone battery', () => {
+test('every slot has a Phone battery dialog of its own: the slot\'s Look, then Bold', () => {
   assert.equal(SLOT_KEYS.length, 21, 'the four bars and bars 4 to 6');
+  assert.equal(new Set(SLOT_KEYS.map(catalog.phoneBatterySheet)).size, 21, 'one dialog per slot');
   SLOT_KEYS.forEach((slotKey) => {
-    const look = row(catalog.phoneBatteryLookKey(slotKey));
+    const dialog = sheet(catalog.phoneBatterySheet(slotKey));
+    assert.equal(dialog.sheetId, 'threshPhoneBattery' + slotKey.replace(/^status/, ''));
+    assert.equal(dialog.title, 'Phone battery slot', slotKey);
+    assert.equal(dialog.sheetOnly, true, slotKey + ': opened by its slot\'s Edit button, never a card');
+    assert.deepEqual(dialog.showWhen, { env: 'thresholds' }, slotKey + ': no slot dialogs on aplite');
+    assert.equal(dialog.pinBlock, 'statusBarsPreview', slotKey + ': the bar pinned above, as over every slot dialog');
+    assert.deepEqual(dialog.items.map((i) => i.messageKey), [catalog.phoneBatteryLookKey(slotKey),
+      'threshPhoneBatteryBoldMode'], slotKey);
+    // The slot's Look: this dialog's alone (no row under the slot's picker writes it).
+    const look = dialog.items[0];
+    assert.equal(row(catalog.phoneBatteryLookKey(slotKey)), look, slotKey + ': its one row');
     assert.equal(look.messageKey, slotKey + 'PhoneBatteryLook');
     assert.equal(look.type, 'segmented');
     assert.equal(look.label, 'Look');
     assert.deepEqual(look.options, [['Icon + text', 'both'], ['Text', 'text']]);
     assert.equal(look.defaultValue, 'both', 'the phone\'s icon before its charge');
-    assert.equal(look.joinPrevious, true);
-    // Radar and Health bars: on a watch that draws them, like their slots.
-    const env = Object.assign({}, BASALT, { radar: true, health: true, platform: 'emery' });
-    const on = {};
-    on[slotKey] = 'phoneBattery';
-    const off = {};
-    off[slotKey] = 'aqi';
-    off[catalog.phoneBatteryLookKey(slotKey)] = 'text';
-    assert.equal(visible(look, off, env), false, slotKey + ': another item in the slot');
-    // The slot's own gate decides with it (a bar this watch does not have shows neither).
-    const slot = row(slotKey);
-    assert.equal(visible(look, on, env), visible(slot, on, env), slotKey + ': shown with its slot');
-    // Its row follows its slot's in the bar's dialog.
-    const bar = nodes((node) => Array.isArray(node.items) && node.items.indexOf(slot) !== -1)[0];
-    assert.ok(bar.items.indexOf(look) > bar.items.indexOf(slot), slotKey + ': under its slot');
+    assert.equal(look.hint, 'For this slot only.', 'what the dialog does not show: Bold below is every slot\'s');
+    assert.equal(look.showWhen, undefined, slotKey + ': the dialog opens for its slot alone');
+    // Bold: the item's one setting, for every slot and both looks.
+    const bold = dialog.items[1];
+    assert.deepEqual([bold.label, bold.defaultValue, bold.options], ['Bold', 'off', [['Off', 'off'], ['Always', 'always']]]);
   });
-  // A slot's Look follows that slot alone.
-  const leftLook = row('statusForecastLeftPhoneBatteryLook');
-  assert.equal(visible(leftLook, { statusForecastLeft: 'phoneBattery' }, BASALT), true);
-  assert.equal(visible(leftLook, { statusForecastRight: 'phoneBattery' }, BASALT), false);
+  assert.equal(nodes((node) => node.sheetId === 'threshPhoneBattery').length, 0, 'no dialog shared by every slot');
 });
 
 test('the keys the rows write are the catalog\'s: the watch battery\'s list and one Look per slot', () => {
   const sheetKeys = BATTERY.items.map((i) => i.messageKey).filter((key) => !/BoldMode$/.test(key));
-  assert.deepEqual(sheetKeys.concat(['batterySlotLook']).sort(), catalog.batterySettingKeys().slice().sort());
+  assert.deepEqual(sheetKeys.slice().sort(), catalog.batterySettingKeys().slice().sort());
   const lookRows = nodes((node) => /PhoneBatteryLook$/.test(String(node.messageKey || ''))).map((i) => i.messageKey);
   assert.deepEqual(lookRows.slice().sort(), SLOT_KEYS.map(catalog.phoneBatteryLookKey).sort());
   SLOT_KEYS.forEach((slotKey) => {
@@ -161,11 +172,11 @@ test('the keys the rows write are the catalog\'s: the watch battery\'s list and 
   });
 });
 
-test('the Watch battery dialog sets its text: what it shows, the pair\'s rows, then Bold', () => {
+test('the Watch battery dialog: its Look, what the text shows, the pair\'s rows, then Bold', () => {
   assert.equal(BATTERY.title, 'Watch battery slot');
-  assert.deepEqual(BATTERY.items.map((i) => i.messageKey), ['batterySlotDisplay', 'batterySlotOrder',
+  assert.deepEqual(BATTERY.items.map((i) => i.messageKey), ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder',
     'batterySlotSeparator', 'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced', 'threshBatteryPctBoldMode']);
-  const display = BATTERY.items[0];
+  const display = row('batterySlotDisplay');
   assert.equal(display.type, 'segmented');
   assert.equal(display.label, 'Value selection', 'named like the temperature slot\'s');
   assert.deepEqual(display.options, [['Percentage', 'percent'], ['Days left', 'days'], ['Both', 'both']]);
@@ -174,13 +185,15 @@ test('the Watch battery dialog sets its text: what it shows, the pair\'s rows, t
 });
 
 test('the hints under Days left and Both say when the percentage shows, then name Muninn on its own line', () => {
-  const hints = BATTERY.items[0].hintByValue;
+  const hints = row('batterySlotDisplay').hintByValue;
   ['days', 'both'].forEach((value) => {
     const hint = hints[value];
     const parts = hint.split('<span style="display:block;margin-top:6px">');
     assert.equal(parts.length, 2, value + ': one line set apart');
     assert.equal(parts[0].indexOf('Muninn'), -1, value + ': the first line is about the watch');
-    assert.match(parts[0], /while the watch charges, your phone is out of reach or there is no estimate\.$/);
+    // "New": after a charge the days from before it stay hidden until a new estimate
+    // arrives (status_row.c shows_battery_days).
+    assert.match(parts[0], /while the watch charges, your phone is out of reach or there is no new estimate\.$/);
     assert.match(parts[1], /^The days are an estimate from the <a href='https:\/\/apps\.repebble\.com\/muninn-battery-wisdom_[0-9a-f]+'>Muninn app<\/a>, which has to be on your watch\.<\/span>$/);
     // What the mode shows is in the picture of the bar above the rows: the hint does not repeat it.
     assert.equal(hint.indexOf('80%'), -1, value);
@@ -191,20 +204,26 @@ test('the hints under Days left and Both say when the percentage shows, then nam
   assert.match(hints.both, /^Shows the percentage alone while/);
 });
 
-test('the dialog\'s rows: Value selection and Bold; Both adds the pair\'s rows, Custom its text field', () => {
-  assert.deepEqual(shown(BATTERY, {}, BASALT), ['batterySlotDisplay', 'threshBatteryPctBoldMode']);
-  assert.deepEqual(shown(BATTERY, { batterySlotDisplay: 'days' }, BASALT), ['batterySlotDisplay', 'threshBatteryPctBoldMode']);
-  assert.deepEqual(shown(BATTERY, { batterySlotDisplay: 'both' }, BASALT),
-    ['batterySlotDisplay'].concat(PAIR_ROWS, ['threshBatteryPctBoldMode']));
-  assert.deepEqual(shown(BATTERY, { batterySlotDisplay: 'both', batterySlotSeparator: 'custom' }, BASALT),
-    ['batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator', 'batterySlotSeparatorCustom',
+test('the dialog\'s rows: the drawn battery\'s Look alone; Text adds Value selection and Bold, Both the pair\'s rows', () => {
+  const text = (more) => Object.assign({ batterySlotLook: 'text' }, more);
+  assert.deepEqual(shown(BATTERY, {}, BASALT), ['batterySlotLook'], 'the Icon look, the default: nothing else to set');
+  assert.deepEqual(shown(BATTERY, { batterySlotLook: 'icon', batterySlotDisplay: 'both', batterySlotSeparator: 'custom' },
+    BASALT), ['batterySlotLook'], 'whatever the text is set to');
+  assert.deepEqual(shown(BATTERY, text({}), BASALT), ['batterySlotLook', 'batterySlotDisplay', 'threshBatteryPctBoldMode']);
+  assert.deepEqual(shown(BATTERY, text({ batterySlotDisplay: 'days' }), BASALT),
+    ['batterySlotLook', 'batterySlotDisplay', 'threshBatteryPctBoldMode']);
+  assert.deepEqual(shown(BATTERY, text({ batterySlotDisplay: 'both' }), BASALT),
+    ['batterySlotLook', 'batterySlotDisplay'].concat(PAIR_ROWS, ['threshBatteryPctBoldMode']));
+  assert.deepEqual(shown(BATTERY, text({ batterySlotDisplay: 'both', batterySlotSeparator: 'custom' }), BASALT),
+    ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator', 'batterySlotSeparatorCustom',
       'batterySlotSeparatorSpaced', 'threshBatteryPctBoldMode']);
 });
 
-test('a Pebble app without plugins has no days: the dialog is Bold alone', () => {
+test('a Pebble app without plugins has no days: the Text look\'s dialog is its Look and Bold', () => {
   ['percent', 'days', 'both'].forEach((display) => {
-    assert.deepEqual(shown(BATTERY, { batterySlotDisplay: display, batterySlotSeparator: 'custom' }, NO_PLUGINS),
-      ['threshBatteryPctBoldMode'], display);
+    assert.deepEqual(shown(BATTERY, { batterySlotLook: 'text', batterySlotDisplay: display, batterySlotSeparator: 'custom' },
+      NO_PLUGINS), ['batterySlotLook', 'threshBatteryPctBoldMode'], display);
+    assert.deepEqual(shown(BATTERY, { batterySlotDisplay: display }, NO_PLUGINS), ['batterySlotLook'], display + ', Icon look');
   });
 });
 
@@ -246,12 +265,6 @@ test('the Separator row\'s hint says all that can happen: only a spaced custom s
   // The widest custom separator: its spaces go, the separator stays, never the default.
   const wide = Object.assign({ batterySlotSeparator: 'custom', batterySlotSeparatorCustom: '··' }, base);
   assert.equal(batteryDays.slotText(99, wide, EDGE), MARK + '··99d');
-});
-
-test('the Phone battery dialog is Bold, for both of its looks', () => {
-  const phone = sheet('threshPhoneBattery');
-  assert.equal(phone.title, 'Phone battery slot');
-  assert.deepEqual(phone.items.map((i) => i.messageKey), ['threshPhoneBatteryBoldMode']);
 });
 
 test('the picture of the bar: a drawn battery, or its text as the watch prints it', () => {
@@ -317,26 +330,69 @@ test('the phone battery\'s picture follows its slot\'s Look: the phone\'s icon, 
   assert.deepEqual([baked[0].text, baked[2].text], ['72%', '72%']);
 });
 
-test('the Edit button opens the Watch battery\'s dialog for its text: a drawn battery has none', () => {
+test('the Edit button opens the Watch battery\'s dialog in both looks; the drawn battery badges no bold', () => {
   const sheetOf = PConf.sheetResolvers.get('statusSlotEditSheet');
   const badge = PConf.badgeResolvers.get('thresholdPenState');
   const env = { thresholds: true };
   const args = { messageKey: 'statusTopRight' };
   const S = (more) => Object.assign({ statusTopRight: 'battery' }, more);
-  assert.equal(sheetOf(S({}), env, args), null, 'the Icon look: nothing to set but the Look under the slot');
-  assert.equal(badge(S({ threshBatteryPctBoldMode: 'always' }), env, args), null, 'and nothing to badge');
+  // Its Look is in the dialog, so the dialog is there whatever the Look is.
+  assert.equal(sheetOf(S({}), env, args), 'threshBatteryPct', 'the Icon look, the default');
+  ['icon', 'text'].forEach((look) => {
+    assert.equal(sheetOf(S({ batterySlotLook: look }), env, args), 'threshBatteryPct', look);
+    assert.equal(sheetOf(S({ batterySlotLook: look }), { thresholds: false }, args), null, look + ': aplite has no slot dialogs');
+  });
+  // The drawn battery has no text to print bold: no B, not even when every slot prints bold.
+  assert.equal(badge(S({ threshBatteryPctBoldMode: 'always' }), env, args), null);
   assert.equal(badge(S({ statusBoldAll: 'all' }), env, args), null, 'not even under the master row');
-  assert.equal(sheetOf(S({ batterySlotLook: 'text' }), env, args), 'threshBatteryPct');
-  assert.equal(sheetOf(S({ batterySlotLook: 'text' }), { thresholds: false }, args), null, 'aplite has no slot dialogs');
   assert.equal(badge(S({ batterySlotLook: 'text', threshBatteryPctBoldMode: 'always' }), env, args).bold, true);
   assert.equal(badge(S({ batterySlotLook: 'text', statusBoldAll: 'all' }), env, args).bold, true);
   assert.equal(badge(S({ batterySlotLook: 'text' }), env, args).bold, false);
-  // The phone battery prints text in both looks, so its dialog (Bold) is always there.
-  const left = { messageKey: 'statusForecastLeft' };
-  ['both', 'text'].forEach((look) => {
-    assert.equal(sheetOf({ statusForecastLeft: 'phoneBattery', statusForecastLeftPhoneBatteryLook: look }, env, left),
-      'threshPhoneBattery', look);
+  // The phone battery opens its slot's own dialog, in both of its looks.
+  SLOT_KEYS.forEach((slotKey) => {
+    ['both', 'text'].forEach((look) => {
+      const state = {};
+      state[slotKey] = 'phoneBattery';
+      state[catalog.phoneBatteryLookKey(slotKey)] = look;
+      assert.equal(sheetOf(state, env, { messageKey: slotKey }), catalog.phoneBatterySheet(slotKey), slotKey + ', ' + look);
+      assert.equal(sheetOf(state, { thresholds: false }, { messageKey: slotKey }), null, slotKey + ' on aplite');
+    });
   });
+  assert.equal(badge({ statusForecastLeft: 'phoneBattery', threshPhoneBatteryBoldMode: 'always' }, env,
+    { messageKey: 'statusForecastLeft' }).bold, true, 'its Bold is badged as every text slot\'s');
+});
+
+test('a bar that held the phone battery twice keeps each slot\'s Look, and each slot opens its own dialog', () => {
+  // Before 3.3.0 a bar could hold the phone battery with its icon in one slot and without it
+  // in another: two items. The merge makes both the one item, the Look telling them apart.
+  const blob = { statusForecastLeft: 'phoneBattery', statusForecastRight: 'phoneBatteryPlain' };
+  assert.equal(statusSlotMigrations.mergeBatterySlots(blob).changed, true);
+  assert.deepEqual([blob.statusForecastLeft, blob.statusForecastRight], ['phoneBattery', 'phoneBattery']);
+  const S = PConf.engine.hydrate(schema, blob, BASALT);
+  const resolve = PConf.sheetResolvers.get('statusSlotEditSheet');
+  const env = { thresholds: true };
+  const left = resolve(S, env, { messageKey: 'statusForecastLeft' });
+  const right = resolve(S, env, { messageKey: 'statusForecastRight' });
+  assert.deepEqual([left, right], ['threshPhoneBatteryForecastLeft', 'threshPhoneBatteryForecastRight']);
+  // The bar's dialog draws both Edit buttons, each naming its slot's dialog.
+  const cx = (openEdit) => ({ S: S, ENV: BASALT, USERDATA: {}, openColor: null, openSelect: null, openEdit: openEdit,
+    selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: BASALT }) });
+  const bar = PConf.engine.renderEditModal(schema, cx(screens.barSheet('forecast')));
+  [left, right].forEach((id) => assert.ok(bar.indexOf('data-edit-sheet="' + id + '"') !== -1, id + ': its Edit button'));
+  // Each dialog holds its slot's Look, at what the slot showed: the icon, and the charge alone.
+  const look = (id, slotKey, value) => {
+    const html = PConf.engine.renderEditModal(schema, cx(id));
+    const other = slotKey === 'statusForecastLeft' ? 'statusForecastRight' : 'statusForecastLeft';
+    assert.ok(html.indexOf('class="on" data-k="' + slotKey + 'PhoneBatteryLook" data-v="' + value + '"') !== -1,
+      id + ': ' + value);
+    assert.equal(html.indexOf('data-k="' + other + 'PhoneBatteryLook"'), -1, id + ': not the other slot\'s');
+  };
+  look(left, 'statusForecastLeft', 'both');
+  look(right, 'statusForecastRight', 'text');
+  // The picture draws each slot as it is set.
+  const slots = preview.barSlots(S, BASALT, 'forecast', false, new Date(2026, 10, 21, 12, 0, 0));
+  assert.ok(slots[0].icon, 'left: the phone\'s icon');
+  assert.equal(slots[2].icon, null, 'right: the charge alone');
 });
 
 test('Reset status bars puts the batteries back: the drawn battery, the percentage, every slot\'s phone icon', () => {

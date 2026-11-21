@@ -600,6 +600,18 @@
   }
 
   /**
+   * The settings page's dialog a slot's Edit button opens while the slot holds the phone
+   * battery: the slot's own, since the Look in it is (phoneBatteryLookKey), and a dialog
+   * cannot tell which slot opened it. The page builds one per slot (schema.js
+   * phoneBatterySlotSheet) and the Edit button names it (blocks.js statusSlotEditSheet).
+   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
+   * @returns {string} The dialog's sheet id, e.g. 'threshPhoneBatteryForecastLeft'.
+   */
+  function phoneBatterySheet(slotKey) {
+    return 'threshPhoneBattery' + slotKey.replace(/^status/, '');
+  }
+
+  /**
    * What a slot keeps beside its item: a setting of the slot's own that one item reads, its
    * countdown's date (status-lines.js) and its phone battery's Look. ONE list for what a
    * bar that is made or deleted clears with the slot (screens.js makeBar, unmakeBar) and
@@ -668,7 +680,7 @@
     unitToggleAbsent: unitToggleAbsent,
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
     batterySettingKeys: batterySettingKeys, countdownKey: countdownKey,
-    phoneBatteryLookKey: phoneBatteryLookKey,
+    phoneBatteryLookKey: phoneBatteryLookKey, phoneBatterySheet: phoneBatterySheet,
     slotCompanions: slotCompanions
   };
 

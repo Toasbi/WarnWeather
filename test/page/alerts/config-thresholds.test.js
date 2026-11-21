@@ -1584,12 +1584,10 @@ const BOLD_CODES = {
   week: 'Week', city: 'City', countdown: 'Countdown', hr: 'Hr',
   battery: 'BatteryPct'
 };
-// What the pencil's resolver also reads for a code: the watch battery opens its sheet in
-// its Text look only.
-const BOLD_CODE_SETTINGS = { battery: { batterySlotLook: 'text' } };
-// Rows a bold-only sheet carries BELOW its Bold row, in order. Absent stem = Bold
+// Rows a bold-only sheet carries ABOVE its Bold row, in order. Absent stem = Bold
 // alone. The unit toggles exist only for the kinds the phone bakes the text for
 // (status-lines.js); the watch-formatted ones — Hr, BatteryPct — have no such row.
+// The watch battery's sheet leads with its Look, like the weather condition's.
 const BOLD_SHEET_EXTRA_ROWS = {
   Temp: ['tempSlotDisplay', 'tempSlotOrder', 'tempSlotSeparator', 'tempSlotSeparatorCustom',
     'tempSlotSeparatorSpaced', 'tempSlotUnit'],
@@ -1597,7 +1595,7 @@ const BOLD_SHEET_EXTRA_ROWS = {
   Countdown: ['countdownSlotUnit'],
   Date: ['dateSlotMonthFormat', 'dateSlotFullFormat'],
   City: ['citySlotIcon'],
-  BatteryPct: ['batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
+  BatteryPct: ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
     'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced']
 };
 
@@ -1895,25 +1893,27 @@ test('the Hr sheet row mirrors the hr slot availability (health + sensor)', () =
     assert.equal(showWhen.isVisible(it, ctx(true, true, mode)), true,
       'shown in healthMode ' + mode);
   });
+  // The watch battery's Bold shows in its Text look alone: the drawn battery of the Icon
+  // look has no text to print bold.
+  assert.deepEqual(boldFor('BatteryPct').showWhen, { key: 'batterySlotLook', eq: 'text' });
   // The other bold-only kinds need no availability gate at all.
-  BOLD_STEMS.filter(stem => stem !== 'Hr').forEach(stem => {
+  BOLD_STEMS.filter(stem => stem !== 'Hr' && stem !== 'BatteryPct').forEach(stem => {
     assert.equal(boldFor(stem).showWhen, undefined, stem + ' needs no gate');
   });
 });
 
-test('the watch battery\'s sheet is its Text look\'s: a drawn battery (the Icon look) has no pencil', () => {
+test('the watch battery\'s sheet holds its Look, so the pencil opens it in both looks', () => {
   assert.equal(sheetSections().find(s => s.sheetId === 'threshBattery'), undefined,
     'no threshBattery sheet exists: the one sheet is threshBatteryPct (wire id 16)');
   const resolve = PC.sheetResolvers.get('statusSlotEditSheet');
   const pencil = (settings) => resolve(Object.assign({ statusTopRight: 'battery' }, settings), ENV,
     { messageKey: 'statusTopRight' });
-  assert.equal(pencil({}), null, 'the Icon look (the default) draws a glyph, not text');
-  assert.equal(pencil({ batterySlotLook: 'icon' }), null);
-  assert.equal(pencil({ batterySlotLook: 'text' }), 'threshBatteryPct', 'the Text look renders text');
+  assert.equal(pencil({}), 'threshBatteryPct', 'the Icon look (the default), where the Look is switched');
+  assert.equal(pencil({ batterySlotLook: 'icon' }), 'threshBatteryPct');
+  assert.equal(pencil({ batterySlotLook: 'text' }), 'threshBatteryPct', 'the Text look');
   const sheet = sheetFor('BatteryPct');
   assert.ok(sheet, 'threshBatteryPct sheet exists');
-  assert.equal(sheet.items.some(i => i.messageKey === 'batterySlotLook'), false,
-    'the Look is no row of the sheet: it sits under the slot');
+  assert.equal(sheet.items[0].messageKey, 'batterySlotLook', 'the Look leads the sheet, as the weather condition\'s does');
   // The retired item no longer resolves.
   assert.equal(resolve({ statusTopRight: 'batteryPct' }, ENV, { messageKey: 'statusTopRight' }),
     null, 'batteryPct is no slot item any more');
@@ -2111,8 +2111,10 @@ test('dayMaxHint: picking Day max on a Now slot brings the hint in', () => {
 
 test('the slot pencil resolves the bold-only sheet for every new kind', () => {
   const resolve = PC.sheetResolvers.get('statusSlotEditSheet');
+  // Every look included: the watch battery's Look, the Icon look (the default) as well, is
+  // the first row of its sheet.
   Object.keys(BOLD_CODES).forEach(code => {
-    assert.equal(resolve(Object.assign({ statusLine1Left: code }, BOLD_CODE_SETTINGS[code]), ENV,
+    assert.equal(resolve({ statusLine1Left: code }, ENV,
       { messageKey: 'statusLine1Left' }), 'thresh' + BOLD_CODES[code], code + ' resolves its sheet');
   });
   assert.equal(resolve({ statusLine1Left: 'wind' }, ENV, { messageKey: 'statusLine1Left' }),
@@ -2232,10 +2234,14 @@ test('the generated page renders the Temp display pills and the watch battery sh
   assert.ok(page.modal.innerHTML.indexOf('data-k="threshTempBoldMode"') !== -1,
     'the Temp sheet still renders its Bold row');
   page.openEditSheet('threshBatteryPct');
+  assert.ok(page.modal.innerHTML.indexOf('data-k="batterySlotLook"') !== -1,
+    'the watch battery sheet leads with its Look');
+  assert.equal(page.modal.innerHTML.indexOf('data-k="threshBatteryPctBoldMode"'), -1,
+    'the drawn battery (the Icon look, the default) has no Bold row');
+  page.tapSegment('batterySlotLook', 'text', 'modal');
+  assert.equal(page.S.batterySlotLook, 'text');
   assert.ok(page.modal.innerHTML.indexOf('data-k="threshBatteryPctBoldMode"') !== -1,
-    'the watch battery sheet renders its Bold row');
-  assert.equal(page.modal.innerHTML.indexOf('data-k="batterySlotLook"'), -1,
-    'its Look is no row of the sheet: it sits under the slot');
+    'the Text look renders its Bold row');
 });
 
 // --- the status-card reset button (blocks.js resetStatusSlots) ---------------

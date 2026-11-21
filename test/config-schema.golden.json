@@ -3648,27 +3648,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusTopLeftPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "statusTopLeft",
-                  "eq": "phoneBattery"
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusTopMid",
                 "label": "Middle slot",
@@ -3717,27 +3696,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusTopMidPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "statusTopMid",
-                  "eq": "phoneBattery"
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusTopRight",
                 "label": "Right slot",
@@ -3783,55 +3741,6 @@
                 "showWhen": {
                   "key": "statusTopRight",
                   "eq": "countdown"
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "statusTopRightPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "statusTopRight",
-                  "eq": "phoneBattery"
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "batterySlotLook",
-                "label": "Look",
-                "defaultValue": "icon",
-                "options": [
-                  [
-                    "Icon",
-                    "icon"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "statusTopRight",
-                      "eq": "battery"
-                    },
-                    {
-                      "env": "thresholds"
-                    }
-                  ]
                 }
               },
               {
@@ -3990,27 +3899,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusForecastLeftPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "statusForecastLeft",
-                  "eq": "phoneBattery"
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusForecastMid",
                 "label": "Middle slot",
@@ -4059,27 +3947,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusForecastMidPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "statusForecastMid",
-                  "eq": "phoneBattery"
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusForecastRight",
                 "label": "Right slot",
@@ -4125,27 +3992,6 @@
                 "showWhen": {
                   "key": "statusForecastRight",
                   "eq": "countdown"
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "statusForecastRightPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "statusForecastRight",
-                  "eq": "phoneBattery"
                 }
               },
               {
@@ -4247,34 +4093,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusHealthLeftPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "health"
-                    },
-                    {
-                      "key": "statusHealthLeft",
-                      "eq": "phoneBattery"
-                    }
-                  ]
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusHealthMid",
                 "label": "Middle slot",
@@ -4333,34 +4151,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusHealthMidPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "health"
-                    },
-                    {
-                      "key": "statusHealthMid",
-                      "eq": "phoneBattery"
-                    }
-                  ]
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusHealthRight",
                 "label": "Right slot",
@@ -4414,34 +4204,6 @@
                     {
                       "key": "statusHealthRight",
                       "eq": "countdown"
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "statusHealthRightPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "health"
-                    },
-                    {
-                      "key": "statusHealthRight",
-                      "eq": "phoneBattery"
                     }
                   ]
                 }
@@ -4555,34 +4317,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusRadarLeftPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "radar"
-                    },
-                    {
-                      "key": "statusRadarLeft",
-                      "eq": "phoneBattery"
-                    }
-                  ]
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusRadarMid",
                 "label": "Middle slot",
@@ -4641,34 +4375,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusRadarMidPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "radar"
-                    },
-                    {
-                      "key": "statusRadarMid",
-                      "eq": "phoneBattery"
-                    }
-                  ]
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusRadarRight",
                 "label": "Right slot",
@@ -4722,34 +4428,6 @@
                     {
                       "key": "statusRadarRight",
                       "eq": "countdown"
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "statusRadarRightPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "radar"
-                    },
-                    {
-                      "key": "statusRadarRight",
-                      "eq": "phoneBattery"
                     }
                   ]
                 }
@@ -4879,42 +4557,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusBar4LeftPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "all": [
-                        {
-                          "env": "extraBars"
-                        },
-                        {
-                          "key": "statusBar4Made",
-                          "eq": true
-                        }
-                      ]
-                    },
-                    {
-                      "key": "statusBar4Left",
-                      "eq": "phoneBattery"
-                    }
-                  ]
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusBar4Mid",
                 "label": "Middle slot",
@@ -4989,42 +4631,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusBar4MidPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "all": [
-                        {
-                          "env": "extraBars"
-                        },
-                        {
-                          "key": "statusBar4Made",
-                          "eq": true
-                        }
-                      ]
-                    },
-                    {
-                      "key": "statusBar4Mid",
-                      "eq": "phoneBattery"
-                    }
-                  ]
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusBar4Right",
                 "label": "Right slot",
@@ -5094,42 +4700,6 @@
                     {
                       "key": "statusBar4Right",
                       "eq": "countdown"
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "statusBar4RightPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "all": [
-                        {
-                          "env": "extraBars"
-                        },
-                        {
-                          "key": "statusBar4Made",
-                          "eq": true
-                        }
-                      ]
-                    },
-                    {
-                      "key": "statusBar4Right",
-                      "eq": "phoneBattery"
                     }
                   ]
                 }
@@ -5282,42 +4852,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusBar5LeftPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "all": [
-                        {
-                          "env": "extraBars"
-                        },
-                        {
-                          "key": "statusBar5Made",
-                          "eq": true
-                        }
-                      ]
-                    },
-                    {
-                      "key": "statusBar5Left",
-                      "eq": "phoneBattery"
-                    }
-                  ]
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusBar5Mid",
                 "label": "Middle slot",
@@ -5392,42 +4926,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusBar5MidPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "all": [
-                        {
-                          "env": "extraBars"
-                        },
-                        {
-                          "key": "statusBar5Made",
-                          "eq": true
-                        }
-                      ]
-                    },
-                    {
-                      "key": "statusBar5Mid",
-                      "eq": "phoneBattery"
-                    }
-                  ]
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusBar5Right",
                 "label": "Right slot",
@@ -5497,42 +4995,6 @@
                     {
                       "key": "statusBar5Right",
                       "eq": "countdown"
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "statusBar5RightPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "all": [
-                        {
-                          "env": "extraBars"
-                        },
-                        {
-                          "key": "statusBar5Made",
-                          "eq": true
-                        }
-                      ]
-                    },
-                    {
-                      "key": "statusBar5Right",
-                      "eq": "phoneBattery"
                     }
                   ]
                 }
@@ -5685,42 +5147,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusBar6LeftPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "all": [
-                        {
-                          "env": "extraBars"
-                        },
-                        {
-                          "key": "statusBar6Made",
-                          "eq": true
-                        }
-                      ]
-                    },
-                    {
-                      "key": "statusBar6Left",
-                      "eq": "phoneBattery"
-                    }
-                  ]
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusBar6Mid",
                 "label": "Middle slot",
@@ -5795,42 +5221,6 @@
                 }
               },
               {
-                "type": "segmented",
-                "messageKey": "statusBar6MidPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "all": [
-                        {
-                          "env": "extraBars"
-                        },
-                        {
-                          "key": "statusBar6Made",
-                          "eq": true
-                        }
-                      ]
-                    },
-                    {
-                      "key": "statusBar6Mid",
-                      "eq": "phoneBattery"
-                    }
-                  ]
-                }
-              },
-              {
                 "type": "select",
                 "messageKey": "statusBar6Right",
                 "label": "Right slot",
@@ -5900,42 +5290,6 @@
                     {
                       "key": "statusBar6Right",
                       "eq": "countdown"
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "statusBar6RightPhoneBatteryLook",
-                "label": "Look",
-                "defaultValue": "both",
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ]
-                ],
-                "joinPrevious": true,
-                "showWhen": {
-                  "all": [
-                    {
-                      "all": [
-                        {
-                          "env": "extraBars"
-                        },
-                        {
-                          "key": "statusBar6Made",
-                          "eq": true
-                        }
-                      ]
-                    },
-                    {
-                      "key": "statusBar6Right",
-                      "eq": "phoneBattery"
                     }
                   ]
                 }
@@ -8710,11 +8064,27 @@
             "items": [
               {
                 "type": "segmented",
+                "messageKey": "batterySlotLook",
+                "label": "Look",
+                "defaultValue": "icon",
+                "options": [
+                  [
+                    "Icon",
+                    "icon"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
                 "messageKey": "batterySlotDisplay",
                 "label": "Value selection",
                 "hintByValue": {
-                  "days": "Shows the percentage instead while the watch charges, your phone is out of reach or there is no estimate.<span style=\"display:block;margin-top:6px\">The days are an estimate from the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a>, which has to be on your watch.</span>",
-                  "both": "Shows the percentage alone while the watch charges, your phone is out of reach or there is no estimate.<span style=\"display:block;margin-top:6px\">The days are an estimate from the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a>, which has to be on your watch.</span>"
+                  "days": "Shows the percentage instead while the watch charges, your phone is out of reach or there is no new estimate.<span style=\"display:block;margin-top:6px\">The days are an estimate from the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a>, which has to be on your watch.</span>",
+                  "both": "Shows the percentage alone while the watch charges, your phone is out of reach or there is no new estimate.<span style=\"display:block;margin-top:6px\">The days are an estimate from the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a>, which has to be on your watch.</span>"
                 },
                 "defaultValue": "percent",
                 "options": [
@@ -8732,7 +8102,15 @@
                   ]
                 ],
                 "showWhen": {
-                  "env": "plugins"
+                  "all": [
+                    {
+                      "key": "batterySlotLook",
+                      "eq": "text"
+                    },
+                    {
+                      "env": "plugins"
+                    }
+                  ]
                 }
               },
               {
@@ -8755,7 +8133,15 @@
                 "showWhen": {
                   "all": [
                     {
-                      "env": "plugins"
+                      "all": [
+                        {
+                          "key": "batterySlotLook",
+                          "eq": "text"
+                        },
+                        {
+                          "env": "plugins"
+                        }
+                      ]
                     },
                     {
                       "key": "batterySlotDisplay",
@@ -8799,7 +8185,15 @@
                 "showWhen": {
                   "all": [
                     {
-                      "env": "plugins"
+                      "all": [
+                        {
+                          "key": "batterySlotLook",
+                          "eq": "text"
+                        },
+                        {
+                          "env": "plugins"
+                        }
+                      ]
                     },
                     {
                       "key": "batterySlotDisplay",
@@ -8822,7 +8216,15 @@
                 "showWhen": {
                   "all": [
                     {
-                      "env": "plugins"
+                      "all": [
+                        {
+                          "key": "batterySlotLook",
+                          "eq": "text"
+                        },
+                        {
+                          "env": "plugins"
+                        }
+                      ]
                     },
                     {
                       "all": [
@@ -8852,7 +8254,15 @@
                 "showWhen": {
                   "all": [
                     {
-                      "env": "plugins"
+                      "all": [
+                        {
+                          "key": "batterySlotLook",
+                          "eq": "text"
+                        },
+                        {
+                          "env": "plugins"
+                        }
+                      ]
                     },
                     {
                       "key": "batterySlotDisplay",
@@ -8885,6 +8295,10 @@
                     "off",
                     "all"
                   ]
+                },
+                "showWhen": {
+                  "key": "batterySlotLook",
+                  "eq": "text"
                 }
               }
             ],
@@ -8936,12 +8350,1109 @@
           },
           {
             "sheetOnly": true,
-            "sheetId": "threshPhoneBattery",
+            "sheetId": "threshPhoneBatteryForecastLeft",
             "showWhen": {
               "env": "thresholds"
             },
             "title": "Phone battery slot",
             "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusForecastLeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryForecastMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusForecastMidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryForecastRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusForecastRightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryRadarLeft",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusRadarLeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryRadarMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusRadarMidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryRadarRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusRadarRightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryTopLeft",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusTopLeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryTopMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusTopMidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryTopRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusTopRightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryHealthLeft",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusHealthLeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryHealthMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusHealthMidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryHealthRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusHealthRightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar4Left",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar4LeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar4Mid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar4MidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar4Right",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar4RightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar5Left",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar5LeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar5Mid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar5MidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar5Right",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar5RightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar6Left",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar6LeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar6Mid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar6MidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar6Right",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar6RightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
               {
                 "type": "segmented",
                 "messageKey": "threshPhoneBatteryBoldMode",

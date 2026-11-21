@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 const showWhen = require('../../../src/pkjs/config-ui/lib/show-when.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
+// The status slots: every bar's slot keys and each slot's Phone battery dialog.
+const slotCatalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 // The settings instance clay-settings.js seeds a fresh install from (getDefaults).
 const settings = require('../../../src/pkjs/page/settings/index');
 // Pulled in so PConf.optionsResolvers is populated (blocks.js registers layoutPresetOptions
@@ -166,12 +168,16 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // windLineShow/gustLineShow/uvLineShow: one per metric picker, like
   // pressureScale — the row follows its metric to whichever picker shows it. The four
   // Draw from keys the same way (rainBarFrom/radarBarFrom are one row each).
+  // threshPhoneBatteryBoldMode: the phone battery's Bold, the item's one setting, in each
+  // slot's Phone battery dialog (one per slot, as its Look is the slot's own).
   assert.deepEqual(dups.sort(),
     ['batteryLowLevel', 'btIcons', 'cloudLineFrom', 'colorUSFederal', 'gustLineShow',
       'precipLineFrom', 'pressureScale', 'theme', 'themeAutoMode', 'themeNight',
+      'threshPhoneBatteryBoldMode',
       'tomorrowioApiKey', 'tomorrowioFitBudget', 'uvLineFrom', 'uvLineShow', 'vibe',
       'windLineFrom', 'windLineShow', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
+  assert.equal(counts.threshPhoneBatteryBoldMode, 21, 'the phone battery\'s Bold, in each of the 21 slots\' dialogs');
   ['windLineShow', 'gustLineShow', 'uvLineShow',
     'precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom'].forEach((k) =>
     assert.equal(counts[k], 4, k + ' appears in four slots (one per metric picker)'));
@@ -2079,17 +2085,18 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
       'Walked distance slot'],
     'per-slot edit sheets follow the bars, in kind order');
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
-  // the contract's wire-id order (KINDS 8..19). 'Phone battery slot' is last and
-  // serves BOTH phone-battery kinds (18 and 19, the Icon + text and the Text look) —
-  // they share key 'PhoneBattery', so there are eleven sheets for twelve bold-only
-  // kinds. The watch battery's sheet ('Watch battery slot', kind 16) serves both of its
-  // looks. The weather condition slot's
-  // dialog, its Look and no Bold row, closes the tab.
+  // the contract's wire-id order (KINDS 8..20). The watch battery's sheet ('Watch battery
+  // slot', kind 16) serves both of its looks. The phone battery has one 'Phone battery
+  // slot' per slot instead of one per kind, since its Look is each slot's own; each serves
+  // BOTH phone-battery kinds (18 and 19, the Icon + text and the Text look), which share
+  // key 'PhoneBattery'. The weather condition slot's dialog closes the tab.
+  const PHONE_DIALOGS = slotCatalog.ALL_LINES.reduce((n, line) => n + line.slots.length, 0);
+  assert.equal(PHONE_DIALOGS, 21, 'the four bars\' slots and bars 4 to 6\'s');
   assert.deepEqual(titles.slice(17),
     ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
-      'Heart rate slot', 'Watch battery slot', 'Dew point slot',
-      'Phone battery slot', 'Weather condition slot'],
+      'Heart rate slot', 'Watch battery slot', 'Dew point slot']
+      .concat(Array(PHONE_DIALOGS).fill('Phone battery slot'), ['Weather condition slot']),
     'bold-only slot sheets follow, in wire-id order, then the condition slot\'s');
   // Every slot sheet previews the bars while it is open (the bar it came from, when it came
   // from a bar's dialog: preview-status-bars.js statusBarsPreview).
@@ -2117,11 +2124,9 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
   const alertsIdx = wsb.findIndex((i) => i.type === 'button' && i.label === 'Alerts');
   const battIdx = wsb.findIndex((i) => i.messageKey === 'batteryLowOnly');
   assert.equal(countdownIdx, rightIdx + 1, 'top-right countdown date follows its slot');
-  // Then the slot's two Look rows: its phone battery's, and the watch battery's, which
-  // sits in this slot alone.
-  assert.deepEqual(wsb.slice(countdownIdx + 1, alertsIdx).map((i) => i.messageKey),
-    ['statusTopRightPhoneBatteryLook', 'batterySlotLook'], 'the slot\'s Look rows follow its date');
-  assert.equal(alertsIdx, countdownIdx + 3, 'the Alerts row follows the slots and their rows');
+  // Nothing else under the slot: the batteries' Looks are in the dialogs their Edit button
+  // opens (test/page/status-bars/battery-slots.test.js).
+  assert.equal(alertsIdx, countdownIdx + 1, 'the Alerts row follows the slots');
   assert.deepEqual(wsb[alertsIdx + 1], { type: 'subheader', text: 'Icons and vibration', showWhen: { not: ON_DEMAND_WHEN } },
     'then aplite\'s card of its own');
   assert.equal(battIdx, alertsIdx + 2, 'aplite\'s battery toggle leads it');
@@ -2488,15 +2493,18 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // holds slots, not levels (barDialog).
   const sheets = watch.sections.filter((s) => s.sheetOnly && s.sheetId !== 'barKeys' && !/^bar-/.test(s.sheetId));
   // The weather condition slot's dialog comes last: its Look, then Bold like every text slot.
-  assert.equal(sheets.length, 20,
-    'one edit sheet per boldable slot kind (8 threshold + 12 bold-only)');
+  // The phone battery has one dialog per slot (its Look is each slot's own), the others one per
+  // kind.
+  const SLOT_KEYS = slotCatalog.ALL_LINES.reduce((keys, line) => keys.concat(line.slots), []);
+  assert.equal(sheets.length, 19 + SLOT_KEYS.length,
+    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only), the phone battery\'s one per slot');
   assert.deepEqual(sheets.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
-      'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct',
-      'threshDew', 'threshPhoneBattery', 'threshCondition'],
-    'sheet ids follow the thresh<Stem> convention the slot resolver derives');
+      'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct', 'threshDew']
+      .concat(SLOT_KEYS.map((slotKey) => 'threshPhoneBattery' + slotKey.replace(/^status/, '')), ['threshCondition']),
+    'sheet ids follow the thresh<Stem> convention the slot resolver derives, a slot\'s own after it');
   // The On demand sheets (the side lists' section + 10 item sheets) moved with the alerts
   // to the Alerts tab, and carry the On demand gate (aplite has no On demand).
   const odSheets = schema.tabs.find((t) => t.id === 'alerts').sections.filter((s) => s.sheetOnly);
@@ -2542,47 +2550,51 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   });
 });
 
-// The phone-battery slot's sheet: its Look and its Bold row. The ONE catalog item has
-// TWO wire kinds, by Look: 'phoneBattery' (icon + NN%, kind 18) and 'phoneBatteryPlain'
-// (NN%, no icon, kind 19; no catalog item since 3.3.0). The Text look needs its own wire
-// kind so it can't fall through to City's bold row (the pressure-slot bug,
-// d22581f/0a05a7a), but both KINDS entries carry key 'PhoneBattery', so the packer
-// writes the one mode into both cells. If someone ever splits them into two keys, this
-// test is what says the sheet list has to grow with them.
-test('the Phone battery sheet exists once and the phone battery resolves to it in both looks', () => {
+// The phone-battery slots' sheets: each slot's Look and the item's Bold row. The ONE catalog
+// item has TWO wire kinds, by Look: 'phoneBattery' (icon + NN%, kind 18) and
+// 'phoneBatteryPlain' (NN%, no icon, kind 19; no catalog item since 3.3.0). The Text look
+// needs its own wire kind so it can't fall through to City's bold row (the pressure-slot bug,
+// d22581f/0a05a7a), but both KINDS entries carry key 'PhoneBattery', so the packer writes the
+// one mode into both cells, and every slot's sheet holds that one Bold row. If someone ever
+// splits them into two keys, this test is what says the sheets have to grow with them.
+test('each slot has its Phone battery sheet, and the phone battery resolves to it in both looks', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
-  const sheets = watch.sections.filter((s) => s.sheetId === 'threshPhoneBattery');
-  assert.equal(sheets.length, 1, 'exactly one Phone battery sheet, shared by both kinds');
-  const sheet = sheets[0];
-  assert.equal(sheet.title, 'Phone battery slot');
-  assert.equal(sheet.sheetOnly, true, 'opened from a slot pencil, never rendered as a card');
-  assert.deepEqual(sheet.showWhen, { env: 'thresholds' },
-    'aplite compiles the highlight machinery out, so the sheet must not exist there');
-  // Bold alone: no thresholds, no levels, no other rows. (The Look is each slot's own, a
-  // row under the slot: test/page/status-bars/battery-slots.test.js.)
-  assert.deepEqual(sheet.items.map((i) => i.messageKey), ['threshPhoneBatteryBoldMode'],
-    'one Bold row — the slot has no levels to threshold');
-  const bold = sheet.items[0];
-  assert.equal(bold.type, 'segmented');
-  assert.equal(bold.defaultValue, 'off');
-  assert.deepEqual(bold.options, [['Off', 'off'], ['Always', 'always']]);
-
-  // ...and the pencil actually gets here. The slot resolver walks the threshold
-  // contract's KINDS and returns 'thresh' + key, so this is the end-to-end proof that
-  // the shared key really does collapse two codes onto one sheet.
+  assert.equal(watch.sections.filter((s) => s.sheetId === 'threshPhoneBattery').length, 0,
+    'no sheet shared by every slot: the Look in it is each slot\'s own');
   const resolve = PConf.sheetResolvers.get('statusSlotEditSheet');
   assert.ok(resolve, 'blocks.js registered statusSlotEditSheet');
-  ['both', 'text'].forEach((look) => {
-    assert.equal(
-      resolve({ statusForecastLeft: 'phoneBattery', statusForecastLeftPhoneBatteryLook: look }, { thresholds: true },
-        { messageKey: 'statusForecastLeft' }),
-      'threshPhoneBattery', look + ' look opens the Phone battery sheet');
+  ['statusForecastLeft', 'statusTopRight', 'statusBar6Mid'].forEach((slotKey) => {
+    const id = slotCatalog.phoneBatterySheet(slotKey);
+    const sheets = watch.sections.filter((s) => s.sheetId === id);
+    assert.equal(sheets.length, 1, slotKey + ': exactly one Phone battery sheet of its own');
+    const sheet = sheets[0];
+    assert.equal(sheet.title, 'Phone battery slot');
+    assert.equal(sheet.sheetOnly, true, 'opened from a slot pencil, never rendered as a card');
+    assert.deepEqual(sheet.showWhen, { env: 'thresholds' },
+      'aplite compiles the highlight machinery out, so the sheet must not exist there');
+    // The slot's Look and Bold: no thresholds, no levels, no other rows.
+    assert.deepEqual(sheet.items.map((i) => i.messageKey), [slotKey + 'PhoneBatteryLook', 'threshPhoneBatteryBoldMode'],
+      'the Look, then one Bold row — the slot has no levels to threshold');
+    const bold = sheet.items[1];
+    assert.equal(bold.type, 'segmented');
+    assert.equal(bold.defaultValue, 'off');
+    assert.deepEqual(bold.options, [['Off', 'off'], ['Always', 'always']]);
+
+    // ...and the pencil actually gets here, in both looks: the end-to-end proof that both
+    // looks open the slot's one sheet.
+    ['both', 'text'].forEach((look) => {
+      const S = {};
+      S[slotKey] = 'phoneBattery';
+      S[slotKey + 'PhoneBatteryLook'] = look;
+      assert.equal(resolve(S, { thresholds: true }, { messageKey: slotKey }), id,
+        slotKey + ': the ' + look + ' look opens its Phone battery sheet');
+    });
+    // The gate is the same env flag the section carries — no pencil on aplite.
+    const S = {};
+    S[slotKey] = 'phoneBattery';
+    assert.equal(resolve(S, platform.computeEnv({ platform: 'aplite' }), { messageKey: slotKey }),
+      null, 'no edit pencil on aplite, which has no threshold machinery');
   });
-  // The gate is the same env flag the section carries — no pencil on aplite.
-  assert.equal(
-    resolve({ statusForecastLeft: 'phoneBattery' },
-      platform.computeEnv({ platform: 'aplite' }), { messageKey: 'statusForecastLeft' }),
-    null, 'no edit pencil on aplite, which has no threshold machinery');
 });
 
 test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt, nothing on aplite', () => {
