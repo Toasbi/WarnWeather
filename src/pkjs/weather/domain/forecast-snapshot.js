@@ -147,7 +147,7 @@ function reanchored(entry, startEpoch) {
  * The fields a fetch may reuse for a query: its snapshot of the same provider and kind, from
  * a place within SAME_PLACE_KM, with the same request, while it serves, re-anchored to the
  * hour its kind starts at.
- * @param {Object[]} entries Stored snapshots (entriesOf).
+ * @param {Object[]} entries Stored snapshots (fromStored).
  * @param {?Object} query queryOf(); null reuses nothing.
  * @param {number} nowMs Epoch ms.
  * @param {number} refreshMs The update interval in ms; a forecast is reused only while it is a
@@ -203,22 +203,25 @@ function wellFormed(e) {
 }
 
 /**
- * The snapshots in a stored value; none for another version or an unreadable one.
- * @param {*} stored The parsed stored value ({v, entries}).
- * @returns {Object[]}
+ * What a stored value holds: its snapshots, and how often they have all been dropped (Force
+ * weather fetch), which tells a fetch whether they were dropped while it ran. None, and never
+ * dropped, for another version or an unreadable value.
+ * @param {*} stored The parsed stored value ({v, entries, drops}).
+ * @returns {{entries: Object[], drops: number}}
  */
-function entriesOf(stored) {
-    if (!stored || stored.v !== VERSION || !Array.isArray(stored.entries)) { return []; }
-    return stored.entries.filter(wellFormed);
+function fromStored(stored) {
+    if (!stored || stored.v !== VERSION || !Array.isArray(stored.entries)) { return { entries: [], drops: 0 }; }
+    return { entries: stored.entries.filter(wellFormed),
+        drops: typeof stored.drops === 'number' && isFinite(stored.drops) ? stored.drops : 0 };
 }
 
 /**
- * The value to store for some snapshots.
- * @param {Object[]} entries Snapshots.
- * @returns {{v: number, entries: Object[]}}
+ * The value to store.
+ * @param {{entries: Object[], drops: number}} snapshots fromStored()'s shape.
+ * @returns {{v: number, entries: Object[], drops: number}}
  */
-function stored(entries) {
-    return { v: VERSION, entries: entries };
+function toStored(snapshots) {
+    return { v: VERSION, entries: snapshots.entries, drops: snapshots.drops };
 }
 
 module.exports = {
@@ -229,6 +232,6 @@ module.exports = {
     snapshotOf: snapshotOf,
     reuse: reuse,
     remember: remember,
-    entriesOf: entriesOf,
-    stored: stored
+    fromStored: fromStored,
+    toStored: toStored
 };

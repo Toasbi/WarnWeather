@@ -32,8 +32,8 @@ function forecastOf(p) {
  * of a 15-minute update interval.
  * @param {string} id A provider id.
  * @param {Array<{at: (number|undefined), options: (Object|undefined), keys: (Object|undefined),
- *   lat: (number|undefined), before: (function(Object): void|undefined)}>} fetches When (ms
- *   after the world's now) and with what; before(p) runs on the instance first.
+ *   lat: (number|undefined), before: (function(Object, Function): void|undefined)}>} fetches
+ *   When (ms after the world's now) and with what; before(p, mod) runs on the instance first.
  * @param {{reuse: boolean, answers: function(string): boolean}} [opts] One instance for every
  *   fetch (a scheduled refresh); which requests the services answer.
  * @returns {Array<{p: Object, outcome: string, failure: ?Object, requests: string[], forecast: string}>}
@@ -52,7 +52,7 @@ function fetchesOf(id, fetches, opts) {
       }
       p.options = mod('weather/domain/fetch-options.js').defaults(Object.assign({ fetchUv: true, dayPeakCodes: [] }, f.options));
       const ports = mod('weather/adapter/source-ports.js').create(() => Date.now(), QUARTER);
-      if (f.before) { f.before(p); }
+      if (f.before) { f.before(p, mod); }
       const run = { p: p, outcome: 'pending', failure: null };
       mod('weather/application/fetch-sources.js').fetchSources(p, ports, f.lat || world.PLACE.lat, world.PLACE.lon,
         false, () => { run.outcome = 'ok'; }, (failure) => { run.outcome = 'failed'; run.failure = failure; });
@@ -228,25 +228,50 @@ test('a UV fill that brings nothing leaves no UV, whatever the anchor held befor
   assert.equal(p.uvFeedId, null);
 });
 
-test('a keep reads the store again: what was dropped while the source answered stays dropped', () => {
-  // Force weather fetch can drop the store while a fetch waits for its source. The keep after
-  // that wait must not write back what the fetch read before it.
+/**
+ * Make the instance's own answer come back after `during` ran, as if it ran in the network wait.
+ * @param {function(Function): void} during Receives the world's mod().
+ * @returns {function(Object, Function): void} A fetchesOf before().
+ */
+function whileAsking(during) {
+  return (p, mod) => {
+    const own = p.withProviderData;
+    p.withProviderData = function (lat, lon, force, onSuccess, onFailure) {
+      own.call(this, lat, lon, force, () => { during(mod); onSuccess(); }, onFailure);
+    };
+  };
+}
+
+test('a drop while a source answers keeps nothing asked before it, so the fetch it forces asks again', () => {
+  // Force weather fetch drops the store, and its fetch waits for one already on its way.
+  const drop = whileAsking((mod) => { mod('weather/adapter/forecast-snapshots.js').clear(); });
+  const [during, forced, after] = fetchesOf('dwd', [{ before: drop }, { at: MIN }, { at: 2 * MIN }]);
+  assert.equal(during.outcome, 'ok', 'the fetch on its way still delivers');
+  assert.equal(forced.requests.length, 3, 'the forced fetch asks DWD and the UV fill again');
+  assert.deepEqual(after.requests, [], 'and keeps both answers');
+});
+
+test('a keep writes over the store as it is then, not as the fetch read it', () => {
   const saved = [];
   const kept = world.inWorld({ platform: 'basalt' }, ({ mod }) => {
     const snapshots = mod('weather/domain/forecast-snapshot.js');
     const p = mod('weather/adapter/provider-factory.js').createProvider('metno', world.KEYS);
     p.options = mod('weather/domain/fetch-options.js').defaults({ dayPeakCodes: [] });
-    const stand = mod('weather/adapter/provider-factory.js').createProvider('tomorrowio', world.KEYS);
-    stand.options = p.options;
-    Object.assign(stand, { startTime: world.HOUR0 });
-    const before = snapshots.snapshotOf(snapshots.queryOf('tomorrowio', 'forecast', stand, world.PLACE.lat,
-      world.PLACE.lon), stand, world.NOW_MS);
+    const standIn = (id) => {
+      const s = mod('weather/adapter/provider-factory.js').createProvider(id, world.KEYS);
+      s.options = p.options;
+      s.startTime = world.HOUR0;
+      return snapshots.snapshotOf(snapshots.queryOf(id, 'forecast', s, world.PLACE.lat, world.PLACE.lon), s,
+        world.NOW_MS);
+    };
+    const stores = [[standIn('tomorrowio')], [standIn('yandex')]];
     let loads = 0;
     const ports = { fillUv: (q, lat, lon, done) => done(), now: () => Date.now(), refreshMs: QUARTER,
-      snapshots: { load: () => (loads++ === 0 ? [before] : []), save: (entries) => { saved.push(entries); } } };
+      snapshots: { load: () => ({ entries: stores[Math.min(loads++, 1)], drops: 0 }),
+        save: (snapshotsNow) => { saved.push(snapshotsNow); } } };
     mod('weather/application/fetch-sources.js').fetchSources(p, ports, world.PLACE.lat, world.PLACE.lon, false,
       () => {}, (f) => { throw new Error(JSON.stringify(f)); });
-    return saved[0].map((e) => e.provider);
+    return saved.map((s) => ({ providers: s.entries.map((e) => e.provider), drops: s.drops }));
   });
-  assert.deepEqual(kept, ['metno']);
+  assert.deepEqual(kept, [{ providers: ['metno', 'yandex'], drops: 0 }]);
 });

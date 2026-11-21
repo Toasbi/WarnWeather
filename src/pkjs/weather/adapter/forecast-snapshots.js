@@ -11,27 +11,29 @@ var forecastSnapshot = require('../domain/forecast-snapshot.js');
 var KEY = KEYS.FORECAST_SNAPSHOTS_KEY;
 
 /**
- * The stored snapshots.
- * @returns {Object[]} None when nothing readable is stored.
+ * The stored snapshots, and how often they have all been dropped.
+ * @returns {{entries: Object[], drops: number}} None, never dropped, when nothing readable is
+ *   stored.
  */
 function load() {
     try {
-        return forecastSnapshot.entriesOf(JSON.parse(localStorage.getItem(KEY)));
+        return forecastSnapshot.fromStored(JSON.parse(localStorage.getItem(KEY)));
     }
     catch (ex) {
-        return [];
+        return forecastSnapshot.fromStored(null);
     }
 }
 
 /**
  * Store snapshots. Each save holds a snapshot just taken, so it always differs from what is
  * stored: no read to compare first.
- * @param {Object[]} entries Snapshots (forecastSnapshot.remember).
+ * @param {{entries: Object[], drops: number}} snapshots The snapshots (forecastSnapshot.remember)
+ *   and the drops they were read with.
  * @returns {void}
  */
-function save(entries) {
+function save(snapshots) {
     try {
-        localStorage.setItem(KEY, JSON.stringify(forecastSnapshot.stored(entries)));
+        localStorage.setItem(KEY, JSON.stringify(forecastSnapshot.toStored(snapshots)));
     }
     catch (ex) {
         console.log('[!] Keeping the forecast snapshots failed: ' + ex.message);
@@ -39,12 +41,13 @@ function save(entries) {
 }
 
 /**
- * Drop every snapshot: the next fetch asks every provider again.
+ * Drop every snapshot: the next fetch asks every provider again, and a fetch on its way keeps
+ * nothing it asked for before (fetch-sources.js storeOf), since the drops count goes up.
  * @returns {void}
  */
 function clear() {
     try {
-        localStorage.removeItem(KEY);
+        localStorage.setItem(KEY, JSON.stringify(forecastSnapshot.toStored({ entries: [], drops: load().drops + 1 })));
     }
     catch (ex) {
         console.log('[!] Dropping the forecast snapshots failed: ' + ex.message);

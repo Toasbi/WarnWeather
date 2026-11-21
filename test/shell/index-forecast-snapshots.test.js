@@ -1,7 +1,7 @@
 // test/shell/index-forecast-snapshots.test.js — the forecast snapshots through the REAL
 // index.js: a settings save later in the same refresh slot sends the watch what the save
 // changed without asking the provider again, and Force weather fetch asks it again, as its
-// hint says (weather/domain/forecast-snapshot.js).
+// hint says, even while a fetch is on its way (weather/domain/forecast-snapshot.js).
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -40,4 +40,17 @@ test('Force weather fetch asks the provider again in the same slot', (t) => {
   h.advance(5 * 1000);
   assert.equal(h.count(/Successfully fetched weather/), 2);
   assert.equal(h.requestsTo(MAIN_REQUEST), 2, 'a real re-fetch, as the toggle\'s hint says');
+});
+
+test('Force weather fetch asks the provider again while a fetch is on its way', (t) => {
+  const h = bootIndex(t, { latencyMs: 1000,
+    store: { lastFetchSuccess: JSON.stringify({ time: new Date(HARNESS_NOW - 2 * HOUR_MS).toISOString() }) } });
+  h.ready();
+  for (let i = 0; i < 400 && h.requestsTo(MAIN_REQUEST) === 0; i += 1) { h.advance(50); }
+  assert.equal(h.requestsTo(MAIN_REQUEST), 1, 'the boot fetch asked Open-Meteo');
+  assert.equal(h.count(/Successfully fetched weather/), 0, 'and waits for its answer');
+  h.saveSettings({ fetch: true });
+  h.advance(30 * 1000);
+  assert.equal(h.count(/Successfully fetched weather/), 2, 'the fetch on its way, then the forced one');
+  assert.equal(h.requestsTo(MAIN_REQUEST), 2, 'the answer on its way was asked for before the save');
 });

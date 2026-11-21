@@ -180,10 +180,16 @@ test('a new snapshot replaces its provider\'s and kind\'s; only those that can s
 
 test('a stored value of another version, or a snapshot that cannot be read, serves nothing', () => {
   const e = kept(provider(), T0);
-  assert.deepEqual(snap.entriesOf(snap.stored([e])), [e]);
-  assert.deepEqual(snap.entriesOf(JSON.parse(JSON.stringify(snap.stored([e])))), [e], 'through JSON');
-  assert.deepEqual(snap.entriesOf({ v: 2, entries: [e] }), [], 'another version');
-  [null, 'x', {}, { v: 1 }, { v: 1, entries: 'x' }].forEach((v) => { assert.deepEqual(snap.entriesOf(v), []); });
+  const NONE = { entries: [], drops: 0 };
+  assert.deepEqual(snap.fromStored(snap.toStored({ entries: [e], drops: 2 })), { entries: [e], drops: 2 });
+  assert.deepEqual(snap.fromStored(JSON.parse(JSON.stringify(snap.toStored({ entries: [e], drops: 2 })))),
+    { entries: [e], drops: 2 }, 'through JSON');
+  assert.deepEqual(snap.fromStored({ v: 2, entries: [e], drops: 2 }), NONE, 'another version');
+  [null, 'x', {}, { v: 1 }, { v: 1, entries: 'x' }].forEach((v) => { assert.deepEqual(snap.fromStored(v), NONE); });
+  assert.deepEqual(snap.fromStored({ v: 1, entries: [e] }), { entries: [e], drops: 0 }, 'never dropped');
+  ['2', NaN, null].forEach((drops) => {
+    assert.equal(snap.fromStored({ v: 1, entries: [], drops: drops }).drops, 0, 'a count that is no number');
+  });
   const broken = [
     Object.assign({}, e, { kind: 'constructor' }),
     Object.assign({}, e, { at: 'soon' }),
@@ -191,5 +197,5 @@ test('a stored value of another version, or a snapshot that cannot be read, serv
     Object.assign({}, e, { fields: Object.assign({}, e.fields) })
   ];
   delete broken[3].fields.tempTrend;
-  assert.deepEqual(snap.entriesOf(snap.stored(broken.concat([e]))), [e]);
+  assert.deepEqual(snap.fromStored(snap.toStored({ entries: broken.concat([e]), drops: 0 })).entries, [e]);
 });

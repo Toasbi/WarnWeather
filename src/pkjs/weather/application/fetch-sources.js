@@ -65,17 +65,25 @@ var ASK = {
 };
 
 /**
- * The snapshots one fetch reads from: loaded once, and loaded again before each keep, since a
- * source's answer takes a network wait in which the store can change (Force weather fetch
- * drops it).
+ * The snapshots one fetch reads from, loaded once. A keep loads them again, since a source's
+ * answer takes a network wait in which the store can change: Force weather fetch drops it, and
+ * then nothing this fetch asked for before the drop is kept, so the fetch it forces asks again.
  * @param {Object} ports The source ports.
- * @returns {{entries: Object[], keep: function(Object): void}}
+ * @returns {{entries: Object[], drops: number, keep: function(Object): void}}
  */
 function storeOf(ports) {
-    var store = { entries: ports.snapshots.load() };
+    var loaded = ports.snapshots.load();
+    var store = { entries: loaded.entries, drops: loaded.drops };
+    /**
+     * Keep a snapshot just taken, with the stored ones that still serve.
+     * @param {Object} entry forecastSnapshot.snapshotOf().
+     * @returns {void}
+     */
     store.keep = function (entry) {
-        store.entries = forecastSnapshot.remember(ports.snapshots.load(), entry, ports.now(), ports.refreshMs);
-        ports.snapshots.save(store.entries);
+        var stored = ports.snapshots.load();
+        if (stored.drops !== store.drops) { return; }
+        store.entries = forecastSnapshot.remember(stored.entries, entry, ports.now(), ports.refreshMs);
+        ports.snapshots.save({ entries: store.entries, drops: stored.drops });
     };
     return store;
 }
@@ -112,8 +120,8 @@ function runStep(store, ports, step, anchor, lat, lon, force, done) {
  * @param {Object} anchor The Weather picker's provider (provider.js), its options set for
  *   this fetch.
  * @param {{fillUv: function(Object, number, number, Function): void, now: function(): number,
- *   refreshMs: number, snapshots: {load: function(): Object[], save: function(Object[]): void}}}
- *   ports The source ports.
+ *   refreshMs: number, snapshots: {load: function(): {entries: Object[], drops: number},
+ *   save: function({entries: Object[], drops: number}): void}}} ports The source ports.
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
  * @param {boolean} force Whether this is a forced refresh (the anchor's withProviderData).

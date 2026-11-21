@@ -13,7 +13,7 @@ function testPorts(over) {
     fillUv: (over && over.fillUv) || ((provider, lat, lon, done) => done()),
     now: () => Date.now(),
     refreshMs: 0,
-    snapshots: { load: () => [], save: () => {} }
+    snapshots: { load: () => ({ entries: [], drops: 0 }), save: () => {} }
   };
 }
 
