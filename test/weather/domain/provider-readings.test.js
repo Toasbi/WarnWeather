@@ -55,11 +55,11 @@ function holdsReading(value) {
   return value !== null && value !== undefined;
 }
 
-test('every mapped key belongs to exactly one reading; startTime to none', () => {
+test('every mapped key belongs to exactly one reading; startTime and the sun times to none', () => {
   const keys = [].concat.apply([], readings.READINGS.map((r) => r.keys));
   assert.equal(new Set(keys).size, keys.length, 'no key in two readings');
   assert.deepEqual(keys.slice().sort(),
-    forecastModel.MAPPED_KEYS.all.filter((k) => k !== 'startTime').sort());
+    forecastModel.MAPPED_KEYS.all.filter((k) => k !== 'startTime' && k !== 'sunTimes').sort());
   assert.deepEqual(readings.READING_IDS, readings.READINGS.map((r) => r.id));
 });
 

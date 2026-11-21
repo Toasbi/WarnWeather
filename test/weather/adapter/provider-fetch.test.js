@@ -93,3 +93,29 @@ test('a throw from inside the ACK callback is not also reported as a failure', (
   assert.deepEqual(outcome.failures, [], 'sendWeather sits outside the compose guard');
   assert.equal(outcome.escaped && outcome.escaped.message, 'in onSuccess');
 });
+
+// A provider's own sun times (OpenWeatherMap's daily) ride its forecast, so the sun events
+// run after the sources: before them the times were not in yet, and SunCalc's would stand in.
+test('the sun events follow the sources, so a provider\'s own sun times count', (t) => {
+  const START = Date.parse('2026-06-20T08:00:00Z') / 1000;
+  t.mock.timers.enable({ apis: ['Date'], now: (START + 600) * 1000 });
+  const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
+  const realSend = outbox.sendWeather;
+  outbox.sendWeather = function (payload, onAck) { onAck(); };
+  t.after(function () { outbox.sendWeather = realSend; });
+  const p = new WeatherProvider();
+  p.withCityName = function (lat, lon, cb) { cb('Berlin', 'DE'); };
+  p.withProviderData = function (lat, lon, force, onSuccess) {
+    Object.assign(p, { tempTrend: new Array(24).fill(10), precipTrend: new Array(24).fill(0),
+      startTime: START, currentTemp: 5, sunTimes: [
+        { type: 'sunrise', at: START + 3600 }, { type: 'sunset', at: START + 10 * 3600 },
+        { type: 'sunrise', at: START + 19 * 3600 }, { type: 'sunset', at: START + 35 * 3600 }] });
+    onSuccess();
+  };
+  let ok = false;
+  p.fetchWithCoordinates(52.5, 13.4, function () { ok = true; },
+    function (f) { throw new Error('failed: ' + JSON.stringify(f)); }, false, null, null);
+  assert.equal(ok, true);
+  assert.deepEqual(p.sunEvents.map((e) => e.date.getTime() / 1000), [START + 3600, START + 10 * 3600],
+    'the provider\'s next sunrise and sunset, not SunCalc\'s');
+});

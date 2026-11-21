@@ -158,6 +158,9 @@ function buildPayload(forecast, nowEpoch) {
  *   uv     — the UV series, adopted only when options.fetchUv is on.
  *   condition — the weather condition now (a condition.js id), read off the
  *            moment currentTemp describes; null when the response names none.
+ *   sun    — the provider's own sunrise and sunset times, [{type, at}] with `at`
+ *            in epoch seconds (OpenWeatherMap's daily), which the sun events use
+ *            in place of SunCalc's; null when the response names none.
  */
 var MAPPED_KEYS = {
     core: ['tempTrend', 'precipTrend', 'startTime', 'currentTemp'],
@@ -165,7 +168,8 @@ var MAPPED_KEYS = {
     empty: ['pressureTrend', 'cloudTrend', 'dewTrend', 'windDirTrend'],
     feels: ['feelsTrend', 'currentFeels', 'humidityTrend', 'currentHumidity', 'currentWindKmh'],
     uv: ['uvTrend'],
-    condition: ['currentCondition']
+    condition: ['currentCondition'],
+    sun: ['sunTimes']
 };
 MAPPED_KEYS.all = [].concat(
     MAPPED_KEYS.core,
@@ -173,7 +177,8 @@ MAPPED_KEYS.all = [].concat(
     MAPPED_KEYS.empty,
     MAPPED_KEYS.feels,
     MAPPED_KEYS.uv,
-    MAPPED_KEYS.condition
+    MAPPED_KEYS.condition,
+    MAPPED_KEYS.sun
 );
 
 /**
@@ -208,6 +213,7 @@ function hasKey(obj, key) {
  *   uv     — options.fetchUv on and uvTrend present → copied; else [].
  *   condition — present and a condition.js id → copied; absent, null or any
  *            other value → null.
+ *   sun    — an array → copied; anything else → null.
  *
  * These are the semantic feels/uv gates, in ONE place for every adapter. An
  * adapter may still skip computing a feels series when options.fetchFeels is
@@ -271,6 +277,7 @@ function adoptMapped(target, mapped) {
     }
     target.uvTrend = (options.fetchUv && hasKey(mapped, 'uvTrend')) ? mapped.uvTrend : [];
     target.currentCondition = condition.isCondition(mapped.currentCondition) ? mapped.currentCondition : null;
+    target.sunTimes = Array.isArray(mapped.sunTimes) ? mapped.sunTimes : null;
 }
 
 module.exports = {

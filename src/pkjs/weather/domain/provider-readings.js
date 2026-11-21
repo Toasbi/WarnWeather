@@ -12,8 +12,8 @@
     // The readings, in the order the settings list them, each with the mapped keys one
     // provider fills for it. The feels-like rides with the temperature, since it is computed
     // from the same hours' temperature, humidity and wind; the gusts ride with the wind, the
-    // chance of rain with its amount. startTime belongs to none: a forecast starts where its
-    // temperature does.
+    // chance of rain with its amount. startTime and sunTimes belong to none: a forecast starts
+    // where its temperature does, and the sun times ride with the Weather picker's provider.
     var READINGS = [
         { id: 'temperature', keys: ['tempTrend', 'currentTemp', 'feelsTrend', 'currentFeels',
             'humidityTrend', 'currentHumidity', 'currentWindKmh'] },

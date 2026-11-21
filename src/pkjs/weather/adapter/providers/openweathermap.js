@@ -1,5 +1,4 @@
 var WeatherProvider = require('../provider.js');
-var nextSunEvents = require('../../domain/sun-events.js').nextSunEvents;
 var mphToKmh = require('../../../wire/domain/wire-units.js').mphToKmh;
 var condition = require('../../domain/condition.js');
 var request = WeatherProvider.request;
@@ -55,7 +54,8 @@ function currentConditionOf(current) {
  * rain.1h + snow.1h in mm, pressure 0 per missing hour (0 hPa is impossible,
  * so forecast-series reads it as a gap), dew point and bearing null per missing
  * hour and [] when wholly unsourced (hourlyTrend). The weather condition now is
- * current.weather[0].id (currentConditionOf).
+ * current.weather[0].id (currentConditionOf), and the sun times are today's and
+ * tomorrow's from `daily` (sunTimesOf).
  *
  * Precondition: `json.hourly` is a non-empty array and `json.current` an
  * object — withOwmResponse and withProviderData reject anything else first.
@@ -84,7 +84,7 @@ function mapOneCall(json) {
         gustTrend: hourly.map(function(entry) {
             return mphToKmh(entry.wind_gust); // units=imperial → mph; normalize to km/h
         }),
-        // OWM One Call hourly UV index. It rides the one cached response (no
+        // OWM One Call hourly UV index. It rides the one response (no
         // extra request); adoptMapped keeps it only when options.fetchUv is on.
         uvTrend: hourly.map(function(entry) {
             return typeof entry.uvi === 'number' ? entry.uvi : 0;
@@ -95,7 +95,7 @@ function mapOneCall(json) {
         cloudTrend: hourly.map(function(entry) {
             return typeof entry.clouds === 'number' ? entry.clouds : 0; // One Call hourly cloudiness, %
         }),
-        // Dew point rides the same cached One Call response — no extra request,
+        // Dew point rides the same One Call response — no extra request,
         // and already °F because the call is units=imperial, which is exactly
         // the unit the normalized field wants. No conversion.
         dewTrend: hourlyTrend(hourly, 'dew_point', null),
@@ -120,8 +120,29 @@ function mapOneCall(json) {
         currentWindKmh: typeof current.wind_speed === 'number' ? mphToKmh(current.wind_speed) : null,
         startTime: hourly[0].dt,
         currentTemp: current.temp,
-        currentCondition: currentConditionOf(current)
+        currentCondition: currentConditionOf(current),
+        sunTimes: sunTimesOf(json.daily)
     };
+}
+
+/**
+ * Today's and tomorrow's sunrise and sunset from One Call's daily, in the order the
+ * sun events read them. In polar day or night One Call leaves them out or sends 0:
+ * such times make no usable pair, and the sun events take SunCalc's instead
+ * (sun-events.js nextSunEvents), as they do without two days.
+ *
+ * @param {*} daily One Call `daily`.
+ * @returns {?Array<{type: string, at: *}>} The four times (`at` in epoch seconds,
+ *   as One Call sends it), or null with fewer than two days.
+ */
+function sunTimesOf(daily) {
+    if (!Array.isArray(daily) || daily.length < 2) { return null; }
+    return [
+        { type: 'sunrise', at: daily[0].sunrise },
+        { type: 'sunset', at: daily[0].sunset },
+        { type: 'sunrise', at: daily[1].sunrise },
+        { type: 'sunset', at: daily[1].sunset }
+    ];
 }
 
 var OpenWeatherMapProvider = function(apiKey) {
@@ -131,7 +152,6 @@ var OpenWeatherMapProvider = function(apiKey) {
     // Trimmed like the settings page's Test button, so a key stored with paste
     // whitespace (saved before the page trimmed it) doesn't test fine then 401.
     this.apiKey = typeof apiKey === 'string' ? apiKey.trim() : apiKey;
-    this.weatherDataCache = null;
     console.log('Constructed (key ' + (this.apiKey ? 'set' : 'missing') + ')');
 };
 
@@ -159,8 +179,6 @@ OpenWeatherMapProvider.prototype.withOwmResponse = function(lat, lon, callback, 
                 return;
             }
             console.log('Found timezone: ' + weatherData.timezone);
-            // cache weather data (use same request for sun events and weather forecast)
-            this.weatherDataCache = weatherData;
             callback(weatherData);
         }).bind(this),
         function(error) {
@@ -170,83 +188,10 @@ OpenWeatherMapProvider.prototype.withOwmResponse = function(lat, lon, callback, 
     );
 };
 
-OpenWeatherMapProvider.prototype.withWeatherData = function(lat, lon, callback, onFailure) {
-    // CONSUME-ONCE: withSunEvents populates the cache each cycle (one metered
-    // One Call XHR serves both consumers) and this read nulls it, so a chain
-    // reorder or a standalone withProviderData call can never serve a PREVIOUS
-    // cycle's forecast — the provider instance persists across fetches, and the
-    // old serve-whenever-non-null cache was fresh only by base-chain call-order
-    // accident. The empty-cache arm re-fetches; on the shipped path it never
-    // fires.
-    var cached = this.weatherDataCache;
-    this.weatherDataCache = null;
-    if (cached === null) {
-        this.withOwmResponse(lat, lon, function(owmResponse) {
-            callback(owmResponse);
-        }, onFailure);
-    }
-    else {
-        callback(cached);
-    }
-};
-
-/**
- * IMPORTANT OVERRIDE — behavioral divergence from the base contract.
- *
- * The base WeatherProvider.withSunEvents computes sun events *synchronously*
- * from local SunCalc and can only fail with `failure('sun_events', 'calc_error')`.
- * This override instead makes a *network* call (reusing the cached OWM One Call
- * response) and so introduces an additional async failure mode,
- * `failure('sun_events', 'owm_missing_daily')` when the response lacks two days
- * of `daily` data. The failure `stage` ('sun_events') is kept identical to the
- * base so callers' stage-based handling is unaffected (Liskov-safe for callers).
- *
- * @param {number} lat Latitude.
- * @param {number} lon Longitude.
- * @param {Function} callback Receives the two-event sun-events array.
- * @param {Function} onFailure Called with a failure object on error.
- * @returns {void}
- */
-OpenWeatherMapProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure) {
-    console.log('This is the overridden implementation of withSunEvents');
-    this.withOwmResponse(lat, lon, (function(owmResponse) {
-        var days = owmResponse.daily;
-        var sunEvents;
-        var nextSunEventsPair;
-
-        if (!Array.isArray(days) || days.length < 2) {
-            onFailure(failure('sun_events', 'owm_missing_daily'));
-            return;
-        }
-
-        sunEvents = [
-            { type: 'sunrise', date: new Date(days[0].sunrise * 1000) },
-            { type: 'sunset', date: new Date(days[0].sunset * 1000) },
-            { type: 'sunrise', date: new Date(days[1].sunrise * 1000) },
-            { type: 'sunset', date: new Date(days[1].sunset * 1000) }
-        ];
-        // In polar day/night One Call leaves sunrise/sunset out or sends 0, so
-        // the upcoming ones make no usable pair (too few, or two sunrises on
-        // the days either side): nextSunEvents falls back to SunCalc and its
-        // polar handling. It runs in an XHR callback, so a throw would
-        // escape both callbacks, hence the guard the base keeps too.
-        try {
-            nextSunEventsPair = nextSunEvents(new Date(), lat, lon, sunEvents, this.options.forecastHours);
-        }
-        catch (ex) {
-            onFailure(failure('sun_events', 'calc_error'));
-            return;
-        }
-        console.log('The next ' + nextSunEventsPair[0].type + ' is at ' + nextSunEventsPair[0].date.toTimeString());
-        console.log('The next ' + nextSunEventsPair[1].type + ' is at ' + nextSunEventsPair[1].date.toTimeString());
-        callback(nextSunEventsPair);
-    }).bind(this), onFailure);
-};
-
 OpenWeatherMapProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
     // onSuccess expects that this.hasValidData() will be true
     console.log('This is the overridden implementation of withProviderData');
-    this.withWeatherData(lat, lon, (function(weatherData) {
+    this.withOwmResponse(lat, lon, (function(weatherData) {
         // Mistrust the response: an empty (or non-array) `hourly` passes the
         // truthiness guard in withOwmResponse but has no [0] element, so the
         // `hourly[0].dt` deref below would throw outside any try/catch and kill
@@ -255,10 +200,11 @@ OpenWeatherMapProvider.prototype.withProviderData = function(lat, lon, force, on
             onFailure(failure('provider_data', 'owm_empty_hourly'));
             return;
         }
-        // One Call carries every mapped field in the one cached response.
-        // adoptMapped owns the adoption and the feels/uv gates, the same on
-        // every provider: "no feels selection" means no feels data, and the UV
-        // series lands only when options.fetchUv is on.
+        // One Call carries every mapped field in its one response, the sun
+        // times included (which the sun events then read: one metered request
+        // serves both). adoptMapped owns the adoption and the feels/uv gates,
+        // the same on every provider: "no feels selection" means no feels data,
+        // and the UV series lands only when options.fetchUv is on.
         this.adoptMapped(mapOneCall(weatherData));
         onSuccess();
     }).bind(this), onFailure);
