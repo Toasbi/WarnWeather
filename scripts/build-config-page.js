@@ -113,10 +113,12 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/forecast-graphs/domain/graph-styles.js'),
   // Where the weather comes from (Setup › Data sources): what the watch draws
   // (window.DrawnReadings: reads LineStyle, GraphStyles, StatusLineCatalog and StatusThresholds,
-  // all above), then the note under the Weather picker that names the fills, Per reading's row
-  // options and the calls line (weather-sources-page.js binds the plan, ProviderReadings and
-  // DrawnReadings while its body runs).
+  // all above) and the words the page names the weather with (window.WeatherWords), then the
+  // note under the Weather picker that names the fills, Per reading's row options and the calls
+  // line (weather-sources-page.js binds the plan, ProviderReadings, DrawnReadings and
+  // WeatherWords while its body runs).
   path.join(ROOT, 'src/pkjs/weather/domain/drawn-readings.js'),
+  path.join(ROOT, 'src/pkjs/page/weather/weather-words.js'),
   path.join(ROOT, 'src/pkjs/page/weather/weather-sources-page.js'),
   // The forecast metrics' names (window.ForecastMetrics: a metric as its pickers name it and as
   // a sentence does). It reads nothing at load; graph-styles-page.js, forecast-hints.js,

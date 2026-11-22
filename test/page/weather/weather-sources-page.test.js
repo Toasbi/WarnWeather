@@ -117,8 +117,9 @@ test('in Per reading the note names only what follows the Weather picker', () =>
 });
 
 test('every provider and reading has its words', () => {
-  providerFactory.PROVIDER_IDS.forEach((id) => { assert.ok(page.NAMES[id], id); });
-  providerReadings.READING_IDS.forEach((id) => { assert.ok(page.WORDS[id], id); });
+  const words = require('../../../src/pkjs/page/weather/weather-words.js');
+  providerFactory.PROVIDER_IDS.forEach((id) => { assert.ok(words.NAMES[id], id); });
+  providerReadings.READING_IDS.forEach((id) => { assert.ok(words.WORDS[id], id); });
 });
 
 test('the note sits under the Weather row, ahead of its key note, and shows on the page', () => {

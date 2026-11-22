@@ -8,9 +8,10 @@
 // fills) that the watch draws (drawn-readings.js).
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
-// page (scripts/build-config-page.js APP_FILES, after provider-readings.js, source-plan.js and
-// drawn-readings.js, which it binds while its body runs; window.WeatherSourcesPage). At load it
-// reads the page's html helpers (config-ui/lib/html.js, concatenated ahead of every app file).
+// page (scripts/build-config-page.js APP_FILES, after provider-readings.js, source-plan.js,
+// drawn-readings.js and weather-words.js, which it binds while its body runs;
+// window.WeatherSourcesPage). At load it reads the page's html helpers (config-ui/lib/html.js,
+// concatenated ahead of every app file).
 (function () {
     var node = typeof require !== 'undefined';
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
@@ -19,16 +20,10 @@
     var sourcePlan = node ? require('../../weather/domain/source-plan.js') : window.SourcePlan;
     var providerReadings = node ? require('../../weather/domain/provider-readings.js') : window.ProviderReadings;
     var drawnReadings = node ? require('../../weather/domain/drawn-readings.js') : window.DrawnReadings;
+    var words = node ? require('./weather-words.js') : window.WeatherWords;
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
-
-    // Each reading as a sentence names it (provider-readings.js READINGS).
-    var WORDS = { temperature: 'temperature', dew: 'dew point', rain: 'rain', wind: 'wind',
-        windDir: 'wind direction', uv: 'UV index', cloud: 'cloud cover', pressure: 'air pressure',
-        condition: 'weather condition' };
-    // Each weather service as a sentence names it, in the Weather picker's order: the picker's
-    // names, DWD's short one.
-    var NAMES = { dwd: 'DWD', metno: 'Met.no', openmeteo: 'Open-Meteo', openweathermap: 'OpenWeatherMap',
-        tomorrowio: 'Tomorrow.io', wunderground: 'Weather Underground', yandex: 'Yandex Weather' };
+    var WORDS = words.WORDS;
+    var NAMES = words.NAMES;
 
     /**
      * A Per reading row's options: Same as Weather, then each provider that sends its reading,
@@ -111,8 +106,7 @@
         PConf.optionsResolvers.register('weatherReadingOptions', readingOptions);
     }
 
-    var api = { WORDS: WORDS, NAMES: NAMES, fillNote: fillNote, readingOptions: readingOptions,
-        callsLine: callsLine };
+    var api = { fillNote: fillNote, readingOptions: readingOptions, callsLine: callsLine };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.WeatherSourcesPage = api; }
 })();

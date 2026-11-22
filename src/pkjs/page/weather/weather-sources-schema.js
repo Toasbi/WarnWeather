@@ -8,7 +8,7 @@
 var providerReadings = require('../../weather/domain/provider-readings.js');
 var sourcePlan = require('../../weather/domain/source-plan.js');
 // Each reading as a sentence names it; a row's label is the same words, capitalized.
-var WORDS = require('./weather-sources-page.js').WORDS;
+var WORDS = require('./weather-words.js').WORDS;
 
 // The weather providers as the Weather picker lists them, alphabetical by name. The 3rd tuple
 // slot's desc is the short "what it's best at" tag shown under each name in the dropdown; DWD
@@ -45,7 +45,7 @@ var WEATHER_FROM = {
 };
 
 // Per reading's rows, one per reading (provider-readings.js READINGS, labelled by
-// weather-sources-page.js WORDS), each its provider or Same as Weather (''), shown while Weather
+// weather-words.js WORDS), each its provider or Same as Weather (''), shown while Weather
 // from is Per reading; the phone reads them through source-plan.js choicesOf. A row's options
 // come from the page (weather-sources-page.js weatherReadingOptions): the settings URL carries
 // one short line per row instead of nine lists. The rows whose reading brings more than its name
