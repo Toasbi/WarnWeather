@@ -408,6 +408,8 @@ const OWM_HOST = 'https://api.openweathermap.org/data/3.0/onecall';
  * @returns {Object}
  */
 const picked = (picks, more) => Object.assign({ sources: { choices: picks } }, more);
+// Every reading from one provider: what a forecast from it alone brings.
+const allFrom = (provider) => Object.fromEntries(providerReadings.READING_IDS.map((id) => [id, provider]));
 
 test('the Provider\'s forecast, and a picked reading\'s provider laid on', () => {
   const [{ p, outcome, requests }] = fetchesOf('metno', [{ options: picked({ wind: 'dwd' }) }]);
@@ -419,7 +421,7 @@ test('the Provider\'s forecast, and a picked reading\'s provider laid on', () =>
   assert.deepEqual(p.gustTrend, metno.gustTrend, 'the gusts are a reading of their own: Met.no\'s');
   assert.deepEqual(p.tempTrend, metno.tempTrend, 'the rest is Met.no\'s');
   assert.deepEqual(p.cloudTrend, metno.cloudTrend);
-  assert.deepEqual(p.feeds, Object.assign(sourcePlan.allFrom('metno'), { wind: 'dwd' }));
+  assert.deepEqual(p.feeds, Object.assign(allFrom('metno'), { wind: 'dwd' }));
 });
 
 test('a picked temperature is laid on the Provider\'s forecast, which answers on the anchor', () => {
@@ -472,11 +474,11 @@ test('a picked temperature whose provider fails leaves the Provider\'s forecast 
   const [{ p, outcome, requests }] = fetchesOf('metno', [{ options: picked({ temperature: 'dwd', wind: 'dwd' }) }],
     { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
   assert.equal(outcome, 'ok');
-  assert.deepEqual(p.feeds, sourcePlan.allFrom('metno'));
+  assert.deepEqual(p.feeds, allFrom('metno'));
   assert.equal(requests.filter((r) => r.indexOf('api.brightsky.dev') !== -1).length, 1, 'DWD is asked once');
 });
 
-test('a reading the Provider\'s provider lacks is filled; one a part brings is not', () => {
+test('a reading the Provider lacks is filled; one a part brings is not', () => {
   const [{ p, requests }] = fetchesOf('yandex', [{ options: picked({ wind: 'dwd', cloud: 'dwd' },
     { drawn: ['cloud', 'dew'] }) }]);
   assert.deepEqual(requests.map(endpoint), ['https://api.weather.yandex.ru/graphql/query'].concat(DWD_HOSTS,
@@ -505,7 +507,7 @@ test('a second fetch in the slot asks nobody, though the first asked every provi
   assert.equal(second.forecast, first.forecast);
 });
 
-test('the Provider\'s provider failing fails the fetch: a pick never stands in for its forecast', () => {
+test('the Provider failing fails the fetch: a pick never stands in for its forecast', () => {
   const [{ outcome, failure, requests }] = fetchesOf('openweathermap', [{ options: picked({ temperature: 'metno' }) }],
     { answers: (url) => url.indexOf('api.openweathermap.org') === -1 });
   assert.equal(outcome, 'failed');
@@ -586,11 +588,10 @@ test('the anchor names each provider asked for its forecast, its key and its fai
   const [failed] = fetchesOf('openweathermap', [{ options: picked({ wind: 'dwd' }) }],
     { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
   assert.deepEqual(failed.p.answers.map((a) => [a.id, Boolean(a.failure)]), [['openweathermap', false], ['dwd', true]]);
-  assert.equal(failed.p.answers[1].name, 'Brightsky (Deutscher Wetterdienst)', 'its own name');
   const [parts] = fetchesOf('metno', [{ options: picked({ wind: 'tomorrowio', rainAmount: 'tomorrowio', cloud: 'dwd' },
     { drawn: ['cloud'] }) }]);
   assert.deepEqual(parts.p.answers.map((a) => [a.id, a.apiKey]), [['metno', undefined], ['tomorrowio', 'tio-test-key'],
-    ['dwd', undefined]], 'the Provider\'s provider, then each part\'s, each once');
+    ['dwd', undefined]], 'the Provider, then each part\'s provider, each once');
 });
 
 /**
@@ -640,7 +641,7 @@ test('a value of the moment is laid on from a part whose hours start later; its 
   assert.equal(only.recoveredFailure, null, 'a part of values of the moment loses nothing');
 });
 
-test('a part\'s own recovered failure is the fetch\'s, as the Provider\'s provider\'s is', () => {
+test('a part\'s own recovered failure is the fetch\'s, as the Provider\'s is', () => {
   const refused = { stage: 'provider_data', code: 'yandex_condition_rejected' };
   const anchor = yandexPartFetch({ recoveredFailure: refused });
   assert.equal(anchor.feeds.wind, 'yandex');

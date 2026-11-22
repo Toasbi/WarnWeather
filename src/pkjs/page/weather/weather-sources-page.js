@@ -205,7 +205,7 @@
      * The Other sources list (block weatherOtherSources): a row for each value from another
      * provider, its name and that provider, opening its picker, an × beside it; then Use another
      * source, which says what still comes from the Provider. A keyed provider without its key
-     * says so: the phone asks the Provider then (source-plan.js readingProviders).
+     * says so: the phone asks the Provider then (source-plan.js feedsOf).
      * @param {Object} S Settings.
      * @returns {string} HTML; '' outside the page.
      */
@@ -247,7 +247,7 @@
         if (!Object.prototype.hasOwnProperty.call(NAMES, input.provider)) { return ''; }
         var provider = input.provider;
         var drawn = drawnReadings.drawn(S, env || {});
-        var filled = sourcePlan.fillsOf(sourcePlan.readingProviders(input), drawn);
+        var filled = sourcePlan.fillsOf(sourcePlan.feedsOf(input, drawn), drawn);
         if (!filled.length) { return ''; }
         var names = filled.map(function (id) { return WORDS[id]; });
         return html.esc(NAMES[provider] + ' sends no ' + html.andList(names, 'or') + ', so '

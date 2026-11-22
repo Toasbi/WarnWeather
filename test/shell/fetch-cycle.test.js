@@ -163,7 +163,7 @@ function makeProvider(id) {
     // What the sources name of the providers they asked (fetch-sources.js answers): the fake's
     // own answer, unless the test hands others (nextAnswers).
     p.answersOf = function (failure) {
-        return [{ id: p.id, apiKey: p.apiKey, name: p.name, shortName: p.shortName, failure: failure || null }];
+        return [{ id: p.id, apiKey: p.apiKey, failure: failure || null }];
     };
     p.succeed = function () {
         p.answers = p.nextAnswers || p.answersOf(null);
@@ -828,7 +828,7 @@ test('each keyed provider the sources asked records its own answer', () => {
         'nothing recorded for an answer this fetch did not get');
 });
 
-test('the notice names the Provider\'s provider, whatever a pick\'s provider answered', () => {
+test('the notice names the Provider, whatever a pick\'s provider answered', () => {
     resetStore();
     const p = makeProvider('dwd');
     const h = makeHarness({ provider: p });
@@ -839,8 +839,8 @@ test('the notice names the Provider\'s provider, whatever a pick\'s provider ans
         assert.equal(h.cycle.start(false), true);
         p.fix(52.5, 13.4);
         const own = { stage: 'provider_data', code: 'dwd_forecast_status_503' };
-        p.nextAnswers = [{ id: 'dwd', name: 'dwd weather', failure: own },
-            { id: 'openmeteo', name: 'Open-Meteo', failure: { stage: 'provider_data', code: 'status_429' } }];
+        p.nextAnswers = [{ id: 'dwd', failure: own },
+            { id: 'openmeteo', failure: { stage: 'provider_data', code: 'status_429' } }];
         p.fail(own);
         assert.deepEqual(said, ['dwd weather']);
         assert.equal(h.cycle.start(true), true);

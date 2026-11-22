@@ -13,26 +13,26 @@
     // fills for it: first the three of the moment, then the forecast's hourly series.
     // Each provider computes its own feels-like from its own hours' temperature, humidity and
     // wind (forecast-model.js adoptMapped), so the feels-like inputs, which no forecast keeps,
-    // belong to none. Neither do startTime and sunTimes: a forecast starts where the Weather
-    // picker's provider's does, and the sun times ride with that provider.
+    // belong to none. Neither do startTime and sunTimes: a forecast starts where the Provider's
+    // does, and the sun times ride with it.
     // `drawnOnly`: a reading only some screens draw, which a fetch asks for and fills only while
     // the watch draws it (drawn-readings.js); the others are in every forecast every provider
     // sends.
     var READINGS = [
-        { id: 'currentTemp', keys: ['currentTemp'] },
-        { id: 'currentFeels', keys: ['currentFeels'] },
-        { id: 'condition', keys: ['currentCondition'] },
-        { id: 'temperature', keys: ['tempTrend'] },
-        { id: 'feels', keys: ['feelsTrend'] },
-        { id: 'dew', keys: ['dewTrend'], drawnOnly: true },
-        { id: 'rainChance', keys: ['precipTrend'] },
-        { id: 'rainAmount', keys: ['rainTrend'] },
-        { id: 'wind', keys: ['windTrend'] },
-        { id: 'gust', keys: ['gustTrend'] },
-        { id: 'windDir', keys: ['windDirTrend'], drawnOnly: true },
-        { id: 'uv', keys: ['uvTrend'], drawnOnly: true },
-        { id: 'cloud', keys: ['cloudTrend'], drawnOnly: true },
-        { id: 'pressure', keys: ['pressureTrend'], drawnOnly: true }
+        { id: 'currentTemp', key: 'currentTemp' },
+        { id: 'currentFeels', key: 'currentFeels' },
+        { id: 'condition', key: 'currentCondition' },
+        { id: 'temperature', key: 'tempTrend' },
+        { id: 'feels', key: 'feelsTrend' },
+        { id: 'dew', key: 'dewTrend', drawnOnly: true },
+        { id: 'rainChance', key: 'precipTrend' },
+        { id: 'rainAmount', key: 'rainTrend' },
+        { id: 'wind', key: 'windTrend' },
+        { id: 'gust', key: 'gustTrend' },
+        { id: 'windDir', key: 'windDirTrend', drawnOnly: true },
+        { id: 'uv', key: 'uvTrend', drawnOnly: true },
+        { id: 'cloud', key: 'cloudTrend', drawnOnly: true },
+        { id: 'pressure', key: 'pressureTrend', drawnOnly: true }
     ];
     var ALL = READINGS.map(function (reading) { return reading.id; });
     var DRAWN_ONLY = READINGS.filter(function (reading) { return reading.drawnOnly; })
@@ -92,17 +92,24 @@
     }
 
     /**
-     * The mapped keys some readings are made of.
+     * The mapped keys some readings are.
      * @param {string|string[]} readingIds A READINGS id, or several.
      * @returns {string[]} In READINGS order; none for an unknown reading
      */
     function keysOf(readingIds) {
         var ids = typeof readingIds === 'string' ? [readingIds] : readingIds;
-        var out = [];
-        READINGS.forEach(function (reading) {
-            if (ids.indexOf(reading.id) !== -1) { out = out.concat(reading.keys); }
-        });
-        return out;
+        return READINGS.filter(function (reading) { return ids.indexOf(reading.id) !== -1; })
+            .map(function (reading) { return reading.key; });
+    }
+
+    /**
+     * The mapped key a reading is.
+     * @param {string} readingId A READINGS id.
+     * @returns {?string} null for an unknown reading
+     */
+    function keyOf(readingId) {
+        var keys = keysOf(readingId);
+        return keys.length ? keys[0] : null;
     }
 
     /**
@@ -158,6 +165,7 @@
         PROVIDERS: PROVIDERS,
         serves: serves,
         keysOf: keysOf,
+        keyOf: keyOf,
         keySetting: keySetting,
         covers: covers,
         requests: requests,

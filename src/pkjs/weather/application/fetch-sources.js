@@ -29,15 +29,14 @@ function failure(code) {
 }
 
 /**
- * Whether a forecast holds hours of a reading: each of its series is a non-empty list.
+ * Whether a forecast holds hours of a reading: its series is a non-empty list.
  * @param {Object} forecast A provider.
- * @param {string} id A READINGS id whose keys are hourly series.
+ * @param {string} id A READINGS id whose key is an hourly series.
  * @returns {boolean}
  */
 function holdsHours(forecast, id) {
-    return providerReadings.keysOf(id).every(function (key) {
-        return Array.isArray(forecast[key]) && forecast[key].length > 0;
-    });
+    var series = forecast[providerReadings.keyOf(id)];
+    return Array.isArray(series) && series.length > 0;
 }
 
 /**
@@ -201,29 +200,27 @@ function ask(run, step, target, done) {
 }
 
 /**
- * A provider's forecast this fetch, asked once: the instance holding it, or null once it failed.
- * The Provider's own answers on the anchor; another provider on an instance of its own,
- * so the forecast on the anchor stays. Each provider asked joins the anchor's answers, and
- * another instance's own recovered failure (Yandex's refused condition field) is kept as the
- * anchor's would be.
+ * A provider's forecast this fetch, asked once (the Provider, then each part's: no two parts
+ * share a provider): the instance holding it, or null once it failed. The Provider's own
+ * answers on the anchor; another provider on an instance of its own, so the forecast on the
+ * anchor stays. Each provider asked joins the anchor's answers, and another instance's own
+ * recovered failure (Yandex's refused condition field) is kept as the anchor's would be.
  * @param {Object} run The fetch (fetchSources).
- * @param {string} id The provider.
- * @param {function(?Object, ?Object): void} done Receives the instance, or null, and the
- *   failure of a provider asked now.
+ * @param {Object} target The instance asked: the anchor, or a new one of a part's provider.
+ * @param {function(?Object, ?Object): void} done Receives the instance, or null, and its
+ *   failure.
  * @returns {void}
  */
-function forecastOf(run, id, done) {
-    if (Object.prototype.hasOwnProperty.call(run.forecasts, id)) {
-        done(run.forecasts[id], null);
-        return;
-    }
-    var target = id === run.anchor.id ? run.anchor : run.ports.providerFor(id);
-    ask(run, { provider: id, ask: 'forecast' }, target, function (stepFailure) {
-        run.forecasts[id] = stepFailure ? null : target;
-        run.anchor.answers.push({ id: id, apiKey: target.apiKey, name: target.name, shortName: target.shortName,
-            failure: stepFailure });
-        if (!stepFailure && target !== run.anchor) { recover(run, target.recoveredFailure); }
-        done(run.forecasts[id], stepFailure);
+function forecastOf(run, target, done) {
+    ask(run, { provider: target.id, ask: 'forecast' }, target, function (stepFailure) {
+        run.anchor.answers.push({ id: target.id, apiKey: target.apiKey, failure: stepFailure });
+        if (stepFailure) {
+            done(null, stepFailure);
+            return;
+        }
+        run.forecasts[target.id] = target;
+        if (target !== run.anchor) { recover(run, target.recoveredFailure); }
+        done(target, null);
     });
 }
 
@@ -240,14 +237,13 @@ function forecastOf(run, id, done) {
  */
 function layParts(run, parts, done) {
     inTurn(parts, function (part, next) {
-        forecastOf(run, part.provider, function (forecast, stepFailure) {
+        forecastOf(run, run.ports.providerFor(part.provider), function (forecast, stepFailure) {
             recover(run, stepFailure);
             var keys = providerReadings.keysOf(part.readings);
             var laid = forecast ? forecastModel.adoptReadings(run.anchor, forecast, keys) : [];
             if (forecast && laid.length < keys.length) { recover(run, failure(part.provider + '_hours_misaligned')); }
             part.readings.forEach(function (reading) {
-                var came = providerReadings.keysOf(reading).every(function (key) { return laid.indexOf(key) !== -1; });
-                if (!came) { run.anchor.feeds[reading] = run.anchor.id; }
+                if (laid.indexOf(providerReadings.keyOf(reading)) === -1) { run.anchor.feeds[reading] = run.anchor.id; }
             });
             next();
         });
@@ -314,21 +310,21 @@ function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
     // Each reading's feed, the provider its series came from (day-peaks.js feedOf keeps the
     // day records by it): the anchor's, a part's or a fill's for what it brings.
     anchor.feeds = null;
-    // Each provider this fetch asked for its forecast, in turn, with the key its request carried,
-    // its names and its failure or null (shell/fetch-cycle.js records each keyed one's answer to
-    // its key, and names the provider whose failure fails the fetch).
+    // Each provider this fetch asked for its forecast, in turn, with the key its request carried
+    // and its failure or null (shell/fetch-cycle.js records each keyed one's answer to its key).
     anchor.answers = [];
-    // forecasts: each provider asked this fetch, by id (forecastOf).
+    // forecasts: the forecasts this fetch holds, by provider id (forecastOf); a fill from one of
+    // those providers is laid on from its forecast instead of asked.
     var run = { anchor: anchor, ports: ports, store: storeOf(ports), lat: lat, lon: lon, force: force,
         forecasts: {} };
     var input = Object.assign({ provider: anchor.id, lat: Number(lat), lon: Number(lon) }, options.sources);
-    forecastOf(run, anchor.id, function (served, stepFailure) {
+    forecastOf(run, anchor, function (served, stepFailure) {
         if (!served) {
             onFailure(stepFailure);
             return;
         }
         anchor.feeds = sourcePlan.feedsOf(input, options.drawn);
-        layParts(run, sourcePlan.partSteps(input, options.drawn), function () {
+        layParts(run, sourcePlan.partSteps(anchor.feeds, anchor.id), function () {
             fill(run, sourcePlan.fillSteps(anchor.feeds, options.drawn), onSuccess);
         });
     });

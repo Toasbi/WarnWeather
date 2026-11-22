@@ -3,14 +3,13 @@
 // The source plan: what one fetch asks for, in order. First the forecast, which a fetch
 // requires, from the Provider. Then each other provider a reading pick names, for the
 // readings it brings (partSteps): a reading without a pick, the default, comes from the
-// Provider. Each provider brings every reading it
-// sends (provider-readings.js); a reading the one it came from lacks comes from Open-Meteo while
-// the watch draws it (fillSteps): DWD's UV by Open-Meteo's UV-only request, Yandex's dew point,
-// wind direction, cloud cover and air pressure by one request for all of them.
-// weather/application/fetch-sources.js runs the steps; the settings page names the fills under
-// the Provider and the calls a day the steps come to (callsPerDay) at the end of Data
-// sources (page/weather/weather-sources-page.js), and the tomorrow.io budget counts its calls by
-// the same rule (page/weather/budgets/tomorrowio-budget.js).
+// Provider. Each provider brings every reading it sends (provider-readings.js); a reading the
+// one it came from lacks comes from Open-Meteo while the watch draws it (fillSteps): DWD's UV
+// by Open-Meteo's UV-only request, Yandex's dew point, wind direction, cloud cover and air
+// pressure by one request for all of them. weather/application/fetch-sources.js runs the steps.
+// The settings page names the fills under the Provider, and the calls a day the steps come to
+// (callsPerDay) under it and at the end of Data sources (page/weather/weather-sources-page.js);
+// the tomorrow.io budget counts its calls by the same rule (page/weather/budgets/tomorrowio-budget.js).
 //
 // What the watch draws is one list, `drawn`: the drawn-only readings it draws now
 // (drawn-readings.js; the fetch options' drawn). A fetch asks for UV, and fills a reading, only
@@ -31,8 +30,8 @@
     /**
      * The readings a fetch fills from Open-Meteo: those the watch draws that the provider each
      * came from lacks.
-     * @param {Object<string, string>} feeds Each reading's provider (readingProviders, or the
-     *   fetch's feeds).
+     * @param {Object<string, string>} feeds Each reading's provider (feedsOf, or the fetch's
+     *   feeds).
      * @param {string[]} drawn The drawn-only readings the watch draws.
      * @returns {string[]} provider-readings.js READINGS ids, in its order
      */
@@ -40,29 +39,6 @@
         return providerReadings.READING_IDS.filter(function (id) {
             return drawn.indexOf(id) !== -1 && !providerReadings.serves(feeds[id], id);
         });
-    }
-
-    /**
-     * The readings a fetch uses: a drawn-only reading while the watch draws it, every other
-     * reading always. A part's provider is asked for these only (partSteps).
-     * @param {string[]} drawn The drawn-only readings the watch draws.
-     * @returns {string[]} READINGS ids, in their order.
-     */
-    function wanted(drawn) {
-        return providerReadings.READING_IDS.filter(function (id) {
-            return providerReadings.DRAWN_ONLY.indexOf(id) === -1 || drawn.indexOf(id) !== -1;
-        });
-    }
-
-    /**
-     * Every reading's provider one provider: what a forecast from it alone brings.
-     * @param {*} provider A provider id.
-     * @returns {Object<string, string>} reading id → provider id
-     */
-    function allFrom(provider) {
-        var out = {};
-        providerReadings.READING_IDS.forEach(function (id) { out[id] = provider; });
-        return out;
     }
 
     /**
@@ -90,14 +66,16 @@
     }
 
     /**
-     * The providers whose API key the settings hold.
+     * The providers whose API key the settings hold. A key of blanks is none: the providers
+     * trim theirs, as the page's key status does.
      * @param {?Object} settings Clay settings.
      * @returns {string[]} Provider ids.
      */
     function keyedOf(settings) {
         return Object.keys(providerReadings.PROVIDERS).filter(function (id) {
             var key = providerReadings.keySetting(id);
-            return Boolean(key && settings && settings[key]);
+            var value = key && settings ? settings[key] : null;
+            return typeof value === 'string' && value.trim() !== '';
         });
     }
 
@@ -117,7 +95,7 @@
      * The plan's input on the settings page, which does not know the place: the settings'
      * sources and the Provider.
      * @param {?Object} settings Clay settings.
-     * @returns {Object} readingProviders()'s input, without a place.
+     * @returns {Object} feedsOf()'s input, without a place.
      */
     function inputOf(settings) {
         return Object.assign({ provider: settings ? settings.provider : undefined }, sourcesOf(settings));
@@ -138,57 +116,44 @@
     }
 
     /**
-     * Each reading's provider: its row's pick where that provider sends the reading and may be
-     * asked (askable: a cleared key, or a pick outside its area, follows the Provider
-     * again), else the Provider's.
+     * Each reading's provider while no provider fails: its row's pick where the fetch uses the
+     * reading (a drawn-only one while the watch draws it) and the pick sends it and may be asked
+     * (askable: a cleared key, or a pick outside its area, follows the Provider again); else
+     * the Provider's, which serves the forecast, whether it sends the reading or not: one it
+     * lacks is filled (fillSteps).
      * @param {{provider: string, choices: (Object<string, string>|undefined), keyed: string[],
-     *   lat: (number|undefined), lon: (number|undefined)}} input The Provider,
-     *   the reading picks (choicesOf), the stored keys and the place (none on the settings
-     *   page: askable).
+     *   lat: (number|undefined), lon: (number|undefined)}} input The Provider, the reading
+     *   picks (choicesOf), the stored keys and the place (none on the settings page: askable).
+     * @param {string[]} drawn The drawn-only readings the watch draws.
      * @returns {Object<string, string>} Every reading's provider id.
      */
-    function readingProviders(input) {
+    function feedsOf(input, drawn) {
         var out = {};
-        providerReadings.READING_IDS.forEach(function (id) {
+        providerReadings.READINGS.forEach(function (reading) {
+            var id = reading.id;
             var pick = input.choices ? input.choices[id] : null;
-            out[id] = pick && providerReadings.serves(pick, id) && askable(pick, input) ? pick : input.provider;
+            var used = !reading.drawnOnly || drawn.indexOf(id) !== -1;
+            out[id] = used && pick && providerReadings.serves(pick, id) && askable(pick, input) ? pick : input.provider;
         });
         return out;
     }
 
     /**
-     * Each reading's provider while no provider fails: the Provider's, which serves the
-     * forecast, and each reading the fetch uses (wanted) its own (readingProviders), whether that
-     * provider sends it or not: one it lacks is filled (fillSteps).
-     * @param {Object} input readingProviders()'s input.
-     * @param {string[]} drawn The drawn-only readings the watch draws.
-     * @returns {Object<string, string>} reading id → provider id
-     */
-    function feedsOf(input, drawn) {
-        var feeds = allFrom(input.provider);
-        var byReading = readingProviders(input);
-        wanted(drawn).forEach(function (id) { feeds[id] = byReading[id]; });
-        return feeds;
-    }
-
-    /**
-     * The parts: for each provider other than the Provider, the readings it brings
-     * (feedsOf) that it sends, in READINGS order. fetch-sources.js asks a part's provider for its
-     * whole forecast, once a fetch, and lays the part's readings on by time; when it fails, or
-     * its hours do not line up, they stay the Provider's.
-     * @param {Object} input readingProviders()'s input.
-     * @param {string[]} drawn The drawn-only readings the watch draws.
+     * The parts: each provider the feeds name besides the Provider, with the readings it brings,
+     * in READINGS order. fetch-sources.js asks a part's provider for its whole forecast, once a
+     * fetch, and lays the part's readings on by time; when it fails, or its hours do not line
+     * up, they stay the Provider's.
+     * @param {Object<string, string>} feeds Each reading's provider (feedsOf).
+     * @param {string} provider The Provider.
      * @returns {Array<{provider: string, readings: string[]}>}
      */
-    function partSteps(input, drawn) {
-        var feeds = feedsOf(input, drawn);
+    function partSteps(feeds, provider) {
         var steps = [];
         providerReadings.READING_IDS.forEach(function (id) {
-            var provider = feeds[id];
-            if (provider === input.provider || !providerReadings.serves(provider, id)) { return; }
-            var step = steps.filter(function (s) { return s.provider === provider; })[0];
+            if (feeds[id] === provider) { return; }
+            var step = steps.filter(function (s) { return s.provider === feeds[id]; })[0];
             if (!step) {
-                step = { provider: provider, readings: [] };
+                step = { provider: feeds[id], readings: [] };
                 steps.push(step);
             }
             step.readings.push(id);
@@ -219,53 +184,55 @@
     }
 
     /**
-     * The steps a refresh runs while no provider fails: the Provider's forecast, the
-     * parts, and the fills for what they leave (feedsOf). `inHand`: the providers whose whole
-     * forecast the refresh has, which a fill of theirs is laid on from instead of asked
-     * (fetch-sources.js).
-     * @param {Object} input readingProviders()'s input, the place left out where it is unknown.
+     * The steps a refresh runs while no provider fails: `asked`, the providers it asks for their
+     * whole forecast (the Provider, then each part's), and the fills for what they leave. A fill
+     * whose provider is asked is laid on from its forecast instead of asked (fetch-sources.js).
+     * @param {Object} input feedsOf()'s input, the place left out where it is unknown.
      * @param {string[]} drawn The drawn-only readings the watch draws.
-     * @returns {{parts: Array<Object>, fills: Array<Object>, inHand: string[]}}
+     * @returns {{asked: string[], fills: Array<Object>}}
      */
     function steadySteps(input, drawn) {
-        var parts = partSteps(input, drawn);
-        return { parts: parts, fills: fillSteps(feedsOf(input, drawn), drawn),
-            inHand: [input.provider].concat(parts.map(function (step) { return step.provider; })) };
+        var feeds = feedsOf(input, drawn);
+        var parts = partSteps(feeds, input.provider);
+        return { asked: [input.provider].concat(parts.map(function (step) { return step.provider; })),
+            fills: fillSteps(feeds, drawn) };
     }
 
     /**
-     * The requests of a refresh's steps (refreshRequests). A provider's fetch makes its UV
-     * request while the watch draws UV, as the fetch options' fetchUv says; a fill whose
-     * provider's forecast is in hand asks nothing.
-     * @param {{parts: Array<Object>, fills: Array<Object>, inHand: string[]}} steps
-     *   steadySteps(): inHand starts with the Provider.
+     * Whether a fill asks a request of its own: one whose provider the refresh asks for its
+     * forecast is laid on from it.
+     * @param {{asked: string[]}} steps steadySteps().
+     * @param {{provider: string}} step A fill.
+     * @returns {boolean}
+     */
+    function asksApart(steps, step) {
+        return steps.asked.indexOf(step.provider) === -1;
+    }
+
+    /**
+     * The requests of a refresh's steps (refreshRequests): each provider asked for its forecast,
+     * whose fetch makes its UV request while the watch draws UV (the fetch options' fetchUv),
+     * and the fill request that asks apart.
+     * @param {{asked: string[], fills: Array<Object>}} steps steadySteps().
      * @param {string[]} drawn The drawn-only readings the watch draws.
      * @returns {Object<string, number>} provider id → requests
      */
     function requestsOf(steps, drawn) {
         var withUv = drawn.indexOf('uv') !== -1;
         var out = {};
-        /**
-         * @param {string} id A provider id.
-         * @param {number} n Requests it makes.
-         * @returns {void}
-         */
-        function add(id, n) { out[id] = (out[id] || 0) + n; }
-        add(steps.inHand[0], providerReadings.requests(steps.inHand[0], withUv));
-        steps.parts.forEach(function (step) { add(step.provider, providerReadings.requests(step.provider, withUv)); });
+        steps.asked.forEach(function (id) { out[id] = providerReadings.requests(id, withUv); });
         steps.fills.forEach(function (step) {
-            if (step.ask !== 'uv' && steps.inHand.indexOf(step.provider) === -1) { add(step.provider, 1); }
+            if (step.ask !== 'uv' && asksApart(steps, step)) { out[step.provider] = (out[step.provider] || 0) + 1; }
         });
         return out;
     }
 
     /**
-     * The requests one refresh makes while no provider fails, by provider: the Provider's
-     * provider, the parts (a part asks its provider's whole forecast) and Open-Meteo's request
-     * for the other readings. The UV-only fill is left out: its answer serves for hours
-     * (callsPerDay counts it). A forced fetch inside the refresh slot, which reuses its
-     * snapshots, adds none.
-     * @param {Object} input readingProviders()'s input, the place left out where it is unknown.
+     * The requests one refresh makes while no provider fails, by provider: the Provider, the
+     * parts (a part asks its provider's whole forecast) and Open-Meteo's request for the other
+     * readings. The UV-only fill is left out: its answer serves for hours (callsPerDay counts
+     * it). A forced fetch inside the refresh slot, which reuses its snapshots, adds none.
+     * @param {Object} input feedsOf()'s input, the place left out where it is unknown.
      * @param {string[]} drawn The drawn-only readings the watch draws.
      * @returns {Object<string, number>} provider id → requests
      */
@@ -287,7 +254,7 @@
      * The calls a day the plan comes to while no provider fails, by provider: each refresh's
      * requests (refreshRequests), and the UV-only fill at the first refresh after its last
      * answer stopped serving (UV_REUSE_MS).
-     * @param {Object} input readingProviders()'s input, the place left out where it is unknown.
+     * @param {Object} input feedsOf()'s input, the place left out where it is unknown.
      * @param {string[]} drawn The drawn-only readings the watch draws.
      * @param {number} intervalMin The update interval, minutes.
      * @param {number} pauseHours The Battery saver's window, whole hours.
@@ -300,7 +267,7 @@
         var perRefresh = requestsOf(steps, drawn);
         var out = {};
         Object.keys(perRefresh).forEach(function (id) { out[id] = perRefresh[id] * refreshes; });
-        if (steps.fills.some(function (step) { return step.ask === 'uv' && steps.inHand.indexOf(step.provider) === -1; })) {
+        if (steps.fills.some(function (step) { return step.ask === 'uv' && asksApart(steps, step); })) {
             // A refresh at exactly UV_REUSE_MS still reuses the answer (forecast-snapshot.js).
             var every = Math.floor(UV_REUSE_MS / (intervalMin * 60 * 1000)) + 1;
             out[FILL_PROVIDER] = (out[FILL_PROVIDER] || 0) + Math.ceil(refreshes / every);
@@ -314,9 +281,8 @@
         Object.keys(providerReadings.PROVIDERS).map(providerReadings.keySetting).filter(Boolean));
 
     var api = { FILL_PROVIDER: FILL_PROVIDER, UV_REUSE_MS: UV_REUSE_MS, SETTINGS_KEYS: SETTINGS_KEYS,
-        allFrom: allFrom, fillsOf: fillsOf, choiceKey: choiceKey,
-        choicesOf: choicesOf, keyedOf: keyedOf, sourcesOf: sourcesOf, inputOf: inputOf, askable: askable,
-        readingProviders: readingProviders, feedsOf: feedsOf, partSteps: partSteps, fillSteps: fillSteps, wanted: wanted,
+        fillsOf: fillsOf, choiceKey: choiceKey, choicesOf: choicesOf, keyedOf: keyedOf, sourcesOf: sourcesOf,
+        inputOf: inputOf, askable: askable, feedsOf: feedsOf, partSteps: partSteps, fillSteps: fillSteps,
         refreshRequests: refreshRequests, refreshesPerDay: refreshesPerDay, callsPerDay: callsPerDay };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.SourcePlan = api; }

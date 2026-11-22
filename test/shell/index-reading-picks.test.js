@@ -34,7 +34,7 @@ test('a reading pick asks its provider after the Provider\'s, and one that fails
   assert.equal(h.requestsTo(OPEN_METEO_MAIN), 1);
 });
 
-test('without a pick the Provider\'s provider is asked alone', (t) => {
+test('without a pick the Provider is asked alone', (t) => {
   const h = fetched(t, {});
   assert.equal(h.count(/Successfully fetched weather/), 1);
   assert.equal(h.requestsTo(BRIGHT_SKY), 0);

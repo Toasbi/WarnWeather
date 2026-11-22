@@ -302,26 +302,6 @@ function hourShift(fromStart, toStart) {
 }
 
 /**
- * Lay keys of one forecast on another: each hourly series from `shift` hours on, every other
- * value as it is, and a key `source` lacks taken off `target` too.
- * @param {Object} target The forecast the keys land on.
- * @param {Object} source The forecast they come from.
- * @param {string[]} keys Adopted keys.
- * @param {number} shift Whole hours `source` starts before `target` (hourShift).
- * @returns {void}
- */
-function layKeys(target, source, keys, shift) {
-    keys.forEach(function (key) {
-        if (!hasKey(source, key)) {
-            delete target[key];
-            return;
-        }
-        var value = source[key];
-        target[key] = shift > 0 && HOURLY_KEYS.indexOf(key) !== -1 && Array.isArray(value) ? value.slice(shift) : value;
-    });
-}
-
-/**
  * Lay some of another provider's forecast on this one, hour by hour: each hourly series from
  * the hour `target` starts at (its startTime) on, the values of the moment as they are (a
  * reading pick: weather/application/fetch-sources.js). A series that starts earlier loses its first
@@ -339,7 +319,14 @@ function layKeys(target, source, keys, shift) {
 function adoptReadings(target, source, keys) {
     var shift = hourShift(source.startTime, target.startTime);
     var laid = shift === null ? keys.filter(function (key) { return HOURLY_KEYS.indexOf(key) === -1; }) : keys;
-    layKeys(target, source, laid, shift || 0);
+    laid.forEach(function (key) {
+        if (!hasKey(source, key)) {
+            delete target[key];
+            return;
+        }
+        var value = source[key];
+        target[key] = shift > 0 && HOURLY_KEYS.indexOf(key) !== -1 && Array.isArray(value) ? value.slice(shift) : value;
+    });
     return laid;
 }
 

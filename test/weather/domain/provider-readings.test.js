@@ -52,7 +52,7 @@ function holdsReading(value) {
 }
 
 test('every key a forecast keeps belongs to exactly one reading; startTime and the sun times to none', () => {
-  const keys = [].concat.apply([], readings.READINGS.map((r) => r.keys));
+  const keys = readings.READINGS.map((r) => r.key);
   assert.equal(new Set(keys).size, keys.length, 'no key in two readings');
   assert.deepEqual(keys.slice().sort(),
     forecastModel.ADOPTED_KEYS.filter((k) => k !== 'startTime' && k !== 'sunTimes').sort(),
@@ -120,4 +120,6 @@ test('a provider the table does not know serves nothing and covers nothing', () 
     assert.equal(readings.requests(id, true), 0);
   });
   assert.deepEqual(readings.keysOf('humidity'), []);
+  assert.equal(readings.keyOf('humidity'), null);
+  assert.equal(readings.keyOf('condition'), 'currentCondition');
 });

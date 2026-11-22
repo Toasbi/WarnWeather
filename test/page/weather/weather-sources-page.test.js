@@ -319,7 +319,7 @@ test('the calls line counts each update\'s requests, and the UV fill every few h
 test('the calls line counts every provider a reading in use comes from', () => {
   assert.equal(calls({ provider: 'metno', weatherSourceTemperature: 'dwd',
     weatherSourceRainAmount: 'openmeteo' }), 'About 480 weather calls a day: 96 to Met.no, 192 to DWD and 192 to Open-Meteo.',
-  'the Provider\'s provider first, then the parts in the readings\' order');
+  'the Provider first, then the parts in the readings\' order');
   assert.equal(calls({ provider: 'metno', weatherSourceWind: 'tomorrowio' }),
     'About 96 weather calls a day.', 'a keyed pick without its key follows the Provider');
 });
