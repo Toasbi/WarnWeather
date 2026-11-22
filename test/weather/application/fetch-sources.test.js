@@ -663,3 +663,43 @@ test('the anchor names each provider asked for its forecast, its key and its fai
   assert.deepEqual(parts.p.answers.map((a) => [a.id, a.apiKey]), [['metno', undefined], ['tomorrowio', 'tio-test-key'],
     ['dwd', undefined]], 'the forecast\'s provider, then each part\'s, each once');
 });
+
+/**
+ * A fetch on fake providers whose answers are a day of hours each (By location's helper's
+ * shape): Per reading, the temperature from DWD, the wind from Yandex.
+ * @param {Object} yandex What Yandex's answer adds to its day.
+ * @returns {Object} The anchor (Met.no) after the fetch.
+ */
+function yandexPartFetch(yandex) {
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
+  const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
+  const { testPorts } = require('../../helpers/source-ports.js');
+  const hours = (v) => new Array(24).fill(v);
+  const answering = (id, more) => Object.assign(new WeatherProvider(), { id: id,
+    withProviderData(lat, lon, force, ok) {
+      Object.assign(this, { tempTrend: hours(60), precipTrend: hours(0), windTrend: hours(9), startTime: 3600,
+        currentTemp: 60 }, more);
+      ok();
+    } });
+  const anchor = answering('metno', {});
+  anchor.options = fetchOptions.defaults({ drawn: [], sources: { mode: 'reading',
+    choices: { temperature: 'dwd', wind: 'yandex' }, keyed: ['yandex'] } });
+  const ports = Object.assign(testPorts(), {
+    providerFor: (id) => Object.assign(answering(id, id === 'yandex' ? yandex : {}), { options: anchor.options }) });
+  require('../../../src/pkjs/weather/application/fetch-sources.js').fetchSources(anchor, ports, 52.52, 13.405, false,
+    () => {}, (f) => { throw new Error('the fetch failed: ' + JSON.stringify(f)); });
+  return anchor;
+}
+
+test('a part whose hours do not line up falls back, and is the recovered failure', () => {
+  const anchor = yandexPartFetch({ startTime: 3600 + 1800 });
+  assert.equal(anchor.feeds.wind, 'metno', 'the wind falls back to the Weather picker\'s');
+  assert.deepEqual(anchor.recoveredFailure, { stage: 'provider_data', code: 'yandex_hours_misaligned' });
+});
+
+test('a part\'s own recovered failure is the fetch\'s, as the forecast provider\'s is', () => {
+  const refused = { stage: 'provider_data', code: 'yandex_condition_rejected' };
+  const anchor = yandexPartFetch({ recoveredFailure: refused });
+  assert.equal(anchor.feeds.wind, 'yandex');
+  assert.deepEqual(anchor.recoveredFailure, refused);
+});

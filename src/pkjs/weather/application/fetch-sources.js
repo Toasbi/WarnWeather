@@ -206,7 +206,8 @@ function ask(run, step, target, done) {
  * A provider's forecast this fetch, asked once: the instance holding it, or null once it failed.
  * The forecast step asks the Weather picker's own on the anchor; any later ask takes an
  * instance of its own, so the forecast on the anchor stays. Each provider asked joins the
- * anchor's answers.
+ * anchor's answers, and another instance's own recovered failure (Yandex's refused condition
+ * field) is kept as the anchor's would be.
  * @param {Object} run The fetch (fetchSources).
  * @param {string} id The provider.
  * @param {boolean} onAnchor Whether the Weather picker's provider answers on the anchor.
@@ -224,6 +225,7 @@ function forecastOf(run, id, onAnchor, done) {
         run.forecasts[id] = stepFailure ? null : target;
         run.anchor.answers.push({ id: id, apiKey: target.apiKey, name: target.name, shortName: target.shortName,
             failure: stepFailure });
+        if (!stepFailure && target !== run.anchor) { recover(run, target.recoveredFailure); }
         done(run.forecasts[id], stepFailure);
     });
 }
@@ -248,10 +250,7 @@ function serveForecast(run, candidates, onServed, onFailure) {
     function attempt(i) {
         forecastOf(run, candidates[i], true, function (served, stepFailure) {
             if (served) {
-                if (served !== run.anchor) {
-                    forecastModel.adoptForecast(run.anchor, served);
-                    recover(run, served.recoveredFailure);
-                }
+                if (served !== run.anchor) { forecastModel.adoptForecast(run.anchor, served); }
                 recover(run, firstFailure);
                 onServed(candidates[i]);
                 return;
@@ -270,7 +269,8 @@ function serveForecast(run, candidates, onServed, onFailure) {
 /**
  * Per reading's parts, in order: each part's readings are laid on the anchor by time
  * (forecast-model.js adoptReadings) from the first of its provider and its fallback whose
- * forecast lines up, their feed that provider. A failed provider is the recovered failure.
+ * forecast lines up, their feed that provider. A provider that failed, or whose hours do not
+ * line up with the forecast's, is the recovered failure.
  * @param {Object} run The fetch (fetchSources).
  * @param {Array<{provider: string, fallback: string, readings: string[]}>} parts
  *   sourcePlan.partSteps().
@@ -283,7 +283,12 @@ function layParts(run, parts, done) {
         inTurn([part.provider, part.fallback], function (id, tryNext) {
             forecastOf(run, id, false, function (forecast, stepFailure) {
                 recover(run, stepFailure);
-                if (!forecast || !forecastModel.adoptReadings(run.anchor, forecast, keys)) {
+                if (!forecast) {
+                    tryNext();
+                    return;
+                }
+                if (!forecastModel.adoptReadings(run.anchor, forecast, keys)) {
+                    recover(run, failure(id + '_hours_misaligned'));
                     tryNext();
                     return;
                 }
