@@ -153,7 +153,9 @@ test('feedHours: OpenWeatherMap 48, Weather Underground 49, every other provider
   const ids = providerItem.options.map((o) => o[1]);
   assert.deepEqual(ids.slice().sort(),
     ['dwd', 'metno', 'openmeteo', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex']);
-  Object.keys(spanHours.PROVIDER_HOURS).forEach((id) => assert.ok(ids.includes(id), id + ' is a provider'));
+  const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
+  assert.deepEqual(ids.filter((id) => providerReadings.hours(id)), ['openweathermap', 'wunderground'],
+    'the short feeds are providers the picker offers');
   const want = { openweathermap: 48, wunderground: 49 };
   ids.forEach((id) => assert.equal(spanHours.feedHours({ provider: id }), want[id] || 68, id));
   // The short feeds' sources: WU's 48-hour endpoint plus the hour in progress the anchor
@@ -231,18 +233,43 @@ test('shownHours: the hours each span draws, as the watch fits its grid to the p
   assert.equal(1 + 2 * cDefine(small, 'FORECAST_GRID_PAD') + cDefine(small, 'FORECAST_GRID_BAR_W'), 7);
 });
 
-test('feedHours in Per reading: the shortest feed of the providers that bring what the graph draws', () => {
+test('feedHours in Per reading: the shortest feed of the providers each graph reading comes from', () => {
   const perReading = (over) => Object.assign({ provider: 'dwd', weatherSourceMode: 'reading', barSource: 'rain',
     secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', owmApiKey: 'k' }, over);
   assert.equal(spanHours.feedHours(perReading({})), 68);
-  assert.equal(spanHours.feedHours(perReading({ weatherSourceRain: 'openweathermap' })), 48, 'the rain bars');
+  assert.equal(spanHours.feedHours(perReading({ weatherSourceRain: 'openweathermap' })), 48, 'the rain');
   assert.equal(spanHours.feedHours(perReading({ weatherSourceRain: 'openweathermap', barSource: 'off',
-    secondaryLine: 'off' })), 68, 'no bars, no rain line: the rain is not drawn');
-  assert.equal(spanHours.feedHours(perReading({ weatherSourceWind: 'wunderground', thirdLine: 'gust' })), 49,
-    'the gusts ride the wind');
-  assert.equal(spanHours.feedHours(perReading({ weatherSourceWind: 'wunderground' })), 68, 'no wind or gust line');
+    secondaryLine: 'off' })), 48, 'the rain is sent whether the graph draws it or not');
+  assert.equal(spanHours.feedHours(perReading({ weatherSourceWind: 'wunderground' })), 49,
+    'the wind too, with no wind or gust line');
+  assert.equal(spanHours.feedHours(perReading({ weatherSourceCloud: 'openweathermap' })), 48,
+    'a reading only some screens draw counts as drawn: the page does not know the watch');
   assert.equal(spanHours.feedHours(perReading({ weatherSourceTemperature: 'openweathermap', owmApiKey: '' })), 68,
     'a pick without its key follows the Weather picker');
   assert.equal(spanHours.feedHours(perReading({ weatherSourceMode: 'one', weatherSourceRain: 'openweathermap' })), 68,
     'the picks count in Per reading only');
+  assert.equal(spanHours.feedHours({ provider: 'yandex', weatherSourceMode: 'reading', weatherSourceTemperature: 'openweathermap',
+    owmApiKey: 'k' }), 48, 'the temperature\'s provider serves the forecast');
+});
+
+test('feedHours in By location: the stored country\'s regional provider, else the Weather picker\'s', () => {
+  const byLocation = (country) => ({ provider: 'openweathermap', weatherSourceMode: 'auto', owmApiKey: 'k',
+    holidayCountry: country });
+  assert.equal(spanHours.feedHours(byLocation('DE')), 68, 'DWD serves in Germany');
+  assert.equal(spanHours.feedHours(byLocation('NO')), 68, 'Met.no in Norway');
+  assert.equal(spanHours.feedHours(byLocation('FR')), 48, 'OpenWeatherMap elsewhere');
+});
+
+test('a provider whose feed stops short sends every reading: no reading of it is filled from a fuller feed', () => {
+  const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
+  Object.keys(providerReadings.PROVIDERS).filter((id) => providerReadings.hours(id)).forEach((id) => {
+    assert.deepEqual(providerReadings.READING_IDS.filter((r) => !providerReadings.serves(id, r)), [], id);
+  });
+});
+
+test('the graph readings are those with an hourly series the payload sends', () => {
+  const model = require('../../../src/pkjs/weather/domain/forecast-model.js');
+  const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
+  assert.deepEqual(spanHours.GRAPH_READINGS, providerReadings.READING_IDS.filter((id) =>
+    providerReadings.keysOf(id).some((key) => model.GRAPH_SERIES.indexOf(key) !== -1)));
 });

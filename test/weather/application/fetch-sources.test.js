@@ -717,3 +717,21 @@ test('a part\'s own recovered failure is the fetch\'s, as the forecast provider\
   assert.equal(anchor.feeds.wind, 'yandex');
   assert.deepEqual(anchor.recoveredFailure, refused);
 });
+
+test('the long span\'s hours the settings page labels are the hours a fetch sends', () => {
+  const spanHours = require('../../../src/pkjs/weather/domain/forecast-span-hours.js');
+  const forecastModel = require('../../../src/pkjs/weather/domain/forecast-model.js');
+  [
+    ['dwd', { weatherSourceMode: 'reading', weatherSourceWind: 'wunderground' }],
+    ['dwd', { weatherSourceMode: 'reading', weatherSourceRain: 'openweathermap' }],
+    ['openweathermap', { weatherSourceMode: 'auto', holidayCountry: 'DE' }, 'DEU'],
+    ['openweathermap', {}],
+    ['metno', { weatherSourceMode: 'reading', weatherSourceTemperature: 'wunderground' }]
+  ].forEach(([id, over, country]) => {
+    const settings = Object.assign({ provider: id }, world.KEYS, over);
+    const [{ p, outcome }] = fetchesOf(id, [{ country: country, options: { forecastHours: 68,
+      drawn: providerReadings.DRAWN_ONLY, sources: sourcePlan.sourcesOf(settings) } }]);
+    assert.equal(outcome, 'ok');
+    assert.equal(forecastModel.payloadEntries(p), spanHours.feedHours(settings), id + ' ' + JSON.stringify(over));
+  });
+});

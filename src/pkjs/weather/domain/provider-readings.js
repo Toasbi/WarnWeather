@@ -44,8 +44,11 @@
 
     // Per provider: the readings it sends; `key`, the setting that holds its API key (null:
     // keyless); `area`, the box it covers (null: worldwide); `requests`, what one fetch asks
-    // (each adapter's withProviderData), and `uvRequest` where UV takes one request more.
-    // Weather Underground fetches its key from wunderground.com first when it has none.
+    // (each adapter's withProviderData), and `uvRequest` where UV takes one request more;
+    // `hours`, where its feed stops short of the long span's full 68 hours
+    // (forecast-span-hours.js): OpenWeatherMap's One Call hourly list, Weather Underground's
+    // 48-hour endpoint and the hour in progress. Weather Underground fetches its key from
+    // wunderground.com first when it has none.
     var PROVIDERS = {
         // DWD has no UV. Bright Sky covers Germany and the countries around it (the box of
         // plugins/dwd/src/bright-sky.js, its stand-alone plugin).
@@ -53,9 +56,9 @@
             area: { south: 45.5, north: 56.0, west: 5.0, east: 17.5 }, requests: 2 },
         openmeteo: { readings: ALL, key: null, area: null, requests: 2, uvRequest: true },
         metno: { readings: ALL, key: null, area: null, requests: 1 },
-        openweathermap: { readings: ALL, key: 'owmApiKey', area: null, requests: 1 },
+        openweathermap: { readings: ALL, key: 'owmApiKey', area: null, requests: 1, hours: 48 },
         tomorrowio: { readings: ALL, key: 'tomorrowioApiKey', area: null, requests: 1 },
-        wunderground: { readings: ALL, key: null, area: null, requests: 2 },
+        wunderground: { readings: ALL, key: null, area: null, requests: 2, hours: 49 },
         // Yandex's query asks for no dew point, wind direction, cloud cover or air pressure:
         // a wrong GraphQL field fails the whole query (yandex.js buildQuery).
         yandex: { readings: without(ALL, ['dew', 'windDir', 'cloud', 'pressure']), key: 'yandexApiKey',
@@ -133,6 +136,16 @@
         return row.requests + (withUv && row.uvRequest ? 1 : 0);
     }
 
+    /**
+     * The hours a provider's feed reaches for the long span, where it stops short.
+     * @param {*} providerId A provider id.
+     * @returns {?number} null for a feed that reaches the full span, and an unknown provider
+     */
+    function hours(providerId) {
+        var row = rowOf(providerId);
+        return row && row.hours ? row.hours : null;
+    }
+
     var api = {
         READINGS: READINGS,
         READING_IDS: ALL,
@@ -142,7 +155,8 @@
         keysOf: keysOf,
         keySetting: keySetting,
         covers: covers,
-        requests: requests
+        requests: requests,
+        hours: hours
     };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.ProviderReadings = api; }

@@ -51,18 +51,16 @@
 (function () {
     var forecastAxis = (typeof require !== 'undefined')
         ? require('../../forecast-graphs/domain/forecast-axis.js') : window.ForecastAxis;
-    var lineStyle = (typeof require !== 'undefined')
-        ? require('../../forecast-graphs/domain/line-style.js') : window.LineStyle;
     var sourcePlan = (typeof require !== 'undefined') ? require('./source-plan.js') : window.SourcePlan;
+    var providerReadings = (typeof require !== 'undefined')
+        ? require('./provider-readings.js') : window.ProviderReadings;
 
     // The long span's full feed: hourly-window.js MAX_FORECAST_HOURS (test/forecast-span-hours
     // .test.js pins the two equal; hourly-window.js is phone-only, so the webview cannot read it).
     var FULL_HOURS = 68;
-    // The feeds that stop short of it, by provider id (schema.js' Weather provider values).
-    var PROVIDER_HOURS = {
-        openweathermap: 48,
-        wunderground: 49
-    };
+    // The readings with hourly series the payload sends (forecast-model.js GRAPH_SERIES): the
+    // watch is sent the fewest hours any of them holds (payloadEntries).
+    var GRAPH_READINGS = ['temperature', 'dew', 'rain', 'wind', 'uv', 'cloud', 'pressure'];
     // The plot's geometry, in px: the whole screen, and the forecast layer (LAYOUT_PAD_X 2 in
     // from its left edge) a strip starts in. Lockstep with test/c/forecast_span_test.c
     // EMERY_SCREEN_W / EMERY_W.
@@ -177,42 +175,26 @@
         return gridHours(wide ? DAY.wideSent : DAY.sent, plotWidth(settings), DAY);
     }
 
-    // The reading each graph metric draws (forecast-metrics.js METRICS ids, provider-readings.js
-    // READINGS): the feels-like rides with the temperature, the gusts with the wind.
-    var READING_OF_METRIC = { precip_prob: 'rain', cloud: 'cloud', wind: 'wind', gust: 'wind', uv: 'uv',
-        pressure: 'pressure', feels: 'temperature', dew: 'dew' };
-
     /**
-     * The hours a provider's feed delivers for the long span: 48 for OpenWeatherMap, 49 for
-     * Weather Underground, else (an unknown or absent id too) the full 68.
-     * @param {*} id A provider id.
-     * @returns {number}
-     */
-    function hoursOf(id) {
-        return (typeof id === 'string' && Object.prototype.hasOwnProperty.call(PROVIDER_HOURS, id))
-            ? PROVIDER_HOURS[id] : FULL_HOURS;
-    }
-
-    /**
-     * The hours the watch is sent for the long span: the Weather picker's provider's feed, or in
-     * Per reading the shortest feed of the providers that bring what the graph draws (the payload
-     * carries the fewest hours a drawn series holds: forecast-model.js payloadEntries): the
-     * temperature, the rain while the bars draw it, and each line's metric, each from its
-     * provider (source-plan.js readingProviders).
-     * @param {?Object} settings Clay settings (reads provider, Weather from and Per reading's
-     *   picks, the lines and the rain bars).
+     * The hours the watch is sent for the long span: the fewest any graph reading holds
+     * (forecast-model.js payloadEntries), each from its provider while no provider fails
+     * (source-plan.js feedsOf, as the fetch lays them on). A reading its provider does not send
+     * is filled from Open-Meteo, whose feed reaches the full span; the providers whose feeds
+     * stop short send every reading (test/weather/domain/forecast-span-hours.test.js), so each
+     * reading counts its provider's feed. By location reads the stored
+     * country for the place's, as the calls line does. The settings page does not know what
+     * this watch draws, so a reading only some screens draw counts as drawn: a Per reading pick
+     * for one no screen draws can make the label a little short.
+     * @param {?Object} settings Clay settings (reads the provider, Weather from, Per reading's
+     *   picks, the stored keys and holidayCountry).
      * @returns {number} Hours the watch is sent.
      */
     function feedHours(settings) {
-        var id = settings && settings.provider;
-        if (!settings || settings.weatherSourceMode !== 'reading') { return hoursOf(id); }
-        var byReading = sourcePlan.readingProviders(sourcePlan.inputOf(settings, null));
-        var drawn = ['temperature'].concat(settings.barSource === 'off' ? [] : ['rain']);
-        lineStyle.FORECAST_LINES.forEach(function (line) {
-            var metric = lineStyle.effectiveLineMetric(settings, line.key);
-            if (metric && READING_OF_METRIC[metric]) { drawn.push(READING_OF_METRIC[metric]); }
-        });
-        return Math.min.apply(null, drawn.map(function (reading) { return hoursOf(byReading[reading]); }));
+        var input = sourcePlan.inputOf(settings, settings && settings.holidayCountry);
+        var feeds = sourcePlan.feedsOf(input, sourcePlan.candidates(input)[0], providerReadings.DRAWN_ONLY);
+        return Math.min.apply(null, GRAPH_READINGS.map(function (id) {
+            return providerReadings.hours(feeds[id]) || FULL_HOURS;
+        }));
     }
 
     /**
@@ -265,7 +247,7 @@
 
     var api = {
         FULL_HOURS: FULL_HOURS,
-        PROVIDER_HOURS: PROVIDER_HOURS,
+        GRAPH_READINGS: GRAPH_READINGS,
         SCREEN_W: SCREEN_W,
         LAYER_W: LAYER_W,
         STRIP_MIN_W: STRIP_MIN_W,
