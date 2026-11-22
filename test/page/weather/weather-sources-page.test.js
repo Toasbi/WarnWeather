@@ -88,10 +88,8 @@ test('the pickers: one per reading in the table\'s order, then Use another sourc
   const add = pickers.items[pickers.items.length - 1];
   assert.equal(add.uiOnly, true, 'page-only');
   assert.deepEqual(add.dormantValues, [''], 'it opens with nothing ticked');
-  assert.deepEqual(add.nextSelectFrom, { resolver: 'weatherValuePicker' });
-  assert.equal(add.onChange, 'weatherOtherSourcePicked');
+  assert.deepEqual(add.optionsFrom, { resolver: 'weatherFreeValues' });
   ['weatherValueSources', 'weatherFreeValues'].forEach((id) => assert.ok(global.PConf.optionsResolvers.get(id), id));
-  assert.equal(global.PConf.nextSelectResolvers.get('weatherValuePicker'), page.valuePicker);
   assert.ok(global.PConf.blocks.get('weatherOtherSources'));
 });
 
@@ -154,20 +152,19 @@ test('the Weather row says a missing or refused key, as the tab\'s dot does', ()
 
 test('Use another source\'s list: the values that still come from the Provider, Right now then Forecast', () => {
   const free = page.freeValues({ provider: 'dwd' });
+  const child = (id, end) => ({ groupChild: true, groupEnd: end, next: sourcePlan.choiceKey(id) });
   assert.deepEqual(free.slice(0, 4), [['Right now', '', { groupHeader: true }],
-    ['Current temperature', 'currentTemp', { groupChild: true, groupEnd: false }],
-    ['Current feels-like', 'currentFeels', { groupChild: true, groupEnd: false }],
-    ['Weather condition', 'condition', { groupChild: true, groupEnd: true }]]);
+    ['Current temperature', 'currentTemp', child('currentTemp', false)],
+    ['Current feels-like', 'currentFeels', child('currentFeels', false)],
+    ['Weather condition', 'condition', child('condition', true)]], 'each opens its picker next');
   assert.deepEqual(free[4], ['Forecast', '', { groupHeader: true }]);
   assert.equal(free.length, 2 + providerReadings.READING_IDS.length);
-  assert.deepEqual(free[free.length - 1], ['Air pressure', 'pressure', { groupChild: true, groupEnd: true }]);
+  assert.deepEqual(free[free.length - 1], ['Air pressure', 'pressure', child('pressure', true)]);
   const taken = page.freeValues({ provider: 'dwd', weatherSourceCurrentTemp: 'metno', weatherSourceCurrentFeels: 'metno',
     weatherSourceCondition: 'metno', weatherSourcePressure: 'metno' });
   assert.equal(taken[0][0], 'Forecast', 'no Right now while all three are picked');
   assert.equal(taken.some((o) => o[1] === 'pressure'), false);
-  assert.deepEqual(taken[taken.length - 1], ['Cloud cover', 'cloud', { groupChild: true, groupEnd: true }]);
-  assert.equal(page.valuePicker({}, BASALT, { value: 'feels' }), 'weatherSourceFeels', 'a pick opens its picker');
-  assert.equal(page.valuePicker({}, BASALT, { value: '' }), null, 'a group\'s header names none');
+  assert.deepEqual(taken[taken.length - 1], ['Cloud cover', 'cloud', child('cloud', true)]);
 });
 
 test('the note names only what comes from the Provider', () => {
@@ -243,7 +240,7 @@ test('Use another source: a value, then its provider; nothing changes until the 
   p.pickOption(OTHER_FOR, 'feels');
   body = p.modal.innerHTML;
   assert.ok(body.indexOf('psheet-ttl-weatherSourceFeels">Feels-like<') !== -1, 'the value\'s picker opens straight away');
-  assert.equal(p.S[OTHER_FOR], '', 'the value only named the picker');
+  assert.equal(p.S[OTHER_FOR], '', 'the value is not stored: it only opens the picker');
   assert.equal(p.S.weatherSourceFeels, '', 'still the Provider\'s');
   assert.match(body, /class="ssel-opt on"[^>]*data-select-pick=""/, 'DWD ticked: where it comes from now');
   p.pickOption('weatherSourceFeels', 'metno');
@@ -341,33 +338,13 @@ test('the line closes Data sources under the Update interval, at the interval Sa
     'the radar off: Save stores no radar mode that calls tomorrow.io, so 5 minutes fits');
 });
 
-test('the ×: focus goes to the × now in its place, else the last row\'s, else to Use another source', () => {
-  const focused = [];
-  const button = (name) => ({ focus() { focused.push(name); } });
-  const add = button('add');
-  let dels = [];
-  let renders = 0;
-  const saved = global.document;
-  global.document = { getElementById: (id) => (id !== 'modal' ? null : {
-    querySelectorAll: (sel) => (sel === '.wo-del' ? dels : []),
-    querySelector: (sel) => (sel === '[data-select="' + OTHER_FOR + '"]' ? add : null) }) };
-  // The page's handle, as boot() hands it over (engine.js PConf.hooks onReady).
-  global.PConf.hooks.runReady({ render: () => { renders += 1; } });
-  try {
-    const remove = global.PConf.actions.weatherPickRemove;
-    const S = { provider: 'dwd', weatherSourceFeels: 'metno', weatherSourceDew: 'metno', weatherSourceWind: 'metno' };
-    dels = [button('dew'), button('wind')];   // as the repaint leaves them: Feels-like's row gone
-    assert.equal(remove('feels', S), false, 'it repainted the page itself');
-    assert.equal(S.weatherSourceFeels, '');
-    assert.deepEqual(focused, ['dew'], 'the × now in its place');
-    dels = [button('dew')];
-    remove('wind', S);
-    assert.deepEqual(focused, ['dew', 'dew'], 'the last row\'s, when it was the last');
-    dels = [];
-    remove('dew', S);
-    assert.deepEqual(focused, ['dew', 'dew', 'add'], 'Use another source, when none is left');
-    assert.equal(renders, 3);
-  } finally {
-    global.document = saved;
-  }
+test('the ×: focus goes to the × now in its place, else the one before it, else to Use another source', () => {
+  const remove = global.PConf.actions.weatherPickRemove;
+  const del = (id) => '.wo-del[data-action-arg="' + id + '"]';
+  const add = '[data-select="' + OTHER_FOR + '"]';
+  const S = { provider: 'dwd', weatherSourceFeels: 'metno', weatherSourceDew: 'metno', weatherSourceWind: 'metno' };
+  assert.deepEqual(remove('dew', S), { focus: [del('wind'), del('feels'), add] }, 'the row after it, else before');
+  assert.equal(S.weatherSourceDew, '');
+  assert.deepEqual(remove('wind', S), { focus: [del('feels'), add] }, 'the row before, when it was the last');
+  assert.deepEqual(remove('feels', S), { focus: [add] }, 'Use another source, when none is left');
 });

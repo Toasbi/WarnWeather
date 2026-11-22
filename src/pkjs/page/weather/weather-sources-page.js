@@ -38,8 +38,6 @@
     var KEY_FIRST = 'Pick it as Provider to add its key';
     // The list's last row, which adds a value (the feature tip names it: feature-tips.js).
     var USE_ANOTHER = 'Use another source';
-    // The page's handle (render, the live settings), from the engine's onReady hook.
-    var UI = { ctx: null };
 
     /**
      * A value's name as a row or a picker's title says it ("Feels-like").
@@ -121,7 +119,8 @@
 
     /**
      * Use another source's list: the values that still come from the Provider, in two groups,
-     * Right now and Forecast.
+     * Right now and Forecast. Each names its picker to open next (meta.next), so a pick
+     * stores nothing.
      * @param {Object} S Settings.
      * @returns {Array<Array>} [label, value, meta?] options, each group under its header.
      */
@@ -133,47 +132,28 @@
             });
             if (!free.length) { return; }
             out.push([group[0], '', { groupHeader: true }]);
-            free.forEach(function (id, i) { out.push([labelOf(id), id, { groupChild: true, groupEnd: i === free.length - 1 }]); });
+            free.forEach(function (id, i) {
+                out.push([labelOf(id), id, { groupChild: true, groupEnd: i === free.length - 1, next: sourcePlan.choiceKey(id) }]);
+            });
         });
         return out;
     }
 
     /**
-     * nextSelectFrom of Use another source: the picked value's picker opens next.
-     * @param {Object} S Settings.
-     * @param {Object} env Platform env (unused).
-     * @param {{value: string}} args The value just picked.
-     * @returns {?string} The picker's messageKey, or null.
-     */
-    function valuePicker(S, env, args) {
-        return args && READING_IDS.indexOf(args.value) !== -1 ? sourcePlan.choiceKey(args.value) : null;
-    }
-
-    /**
-     * onChange of Use another source: its pick only names the picker that opens next, so the
-     * list opens again with nothing ticked.
-     * @param {Object} S Settings (mutated).
-     * @returns {void}
-     */
-    function otherSourcePicked(S) { S[OTHER_FOR] = ''; }
-
-    /**
      * The × of an Other sources row: the value comes from the Provider again. Focus goes to the
-     * × now in its place, else the last row's, else to Use another source.
+     * × of the row now in its place, else of the row before it, else to Use another source: the
+     * engine repaints and focuses the first that shows.
      * @param {string} id Reading id.
      * @param {Object} S Settings (mutated).
-     * @returns {boolean} True for the engine to repaint where the page has no handle of its own.
+     * @returns {{focus: string[]}} Where focus goes, most wanted first.
      */
     function removePick(id, S) {
-        var at = readingPicks(S).map(function (o) { return o.id; }).indexOf(id);
+        var ids = readingPicks(S).map(function (o) { return o.id; });
+        var at = ids.indexOf(id);
         S[sourcePlan.choiceKey(id)] = '';
-        if (!UI.ctx || typeof document === 'undefined') { return true; }
-        UI.ctx.render();
-        var modal = document.getElementById('modal');
-        var dels = modal && modal.querySelectorAll ? modal.querySelectorAll('.wo-del') : [];
-        var to = dels[Math.min(at, dels.length - 1)] || (modal && modal.querySelector('[data-select="' + OTHER_FOR + '"]'));
-        if (to && to.focus) { to.focus(); }
-        return false;
+        return { focus: [ids[at + 1], ids[at - 1]].filter(Boolean).map(function (other) {
+            return '.wo-del[data-action-arg="' + other + '"]';
+        }).concat(['[data-select="' + OTHER_FOR + '"]']) };
     }
 
     var CSS = '.wo-row{display:flex;align-items:center}'
@@ -286,15 +266,12 @@
         PConf.hintResolvers.register('weatherCallsLine', callsLine);
         PConf.optionsResolvers.register('weatherValueSources', valueSources);
         PConf.optionsResolvers.register('weatherFreeValues', freeValues);
-        PConf.nextSelectResolvers.register('weatherValuePicker', valuePicker);
-        PConf.onChange.register('weatherOtherSourcePicked', otherSourcePicked);
         PConf.blocks.register('weatherOtherSources', otherSourcesBlock);
         PConf.actions.weatherPickRemove = removePick;
-        if (PConf.hooks && PConf.hooks.onReady) { PConf.hooks.onReady(function (ctx) { UI.ctx = ctx; }); }
     }
 
-    var api = { USE_ANOTHER: USE_ANOTHER, summary: summary, readingPicks: readingPicks, valueSources: valueSources, freeValues: freeValues,
-        valuePicker: valuePicker, otherSourcesBlock: otherSourcesBlock, fillNote: fillNote, callsLine: callsLine };
+    var api = { USE_ANOTHER: USE_ANOTHER, summary: summary, readingPicks: readingPicks, valueSources: valueSources,
+        freeValues: freeValues, otherSourcesBlock: otherSourcesBlock, fillNote: fillNote, callsLine: callsLine };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.WeatherSourcesPage = api; }
 })();

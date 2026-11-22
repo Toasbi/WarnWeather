@@ -16681,10 +16681,6 @@
                 ],
                 "optionsFrom": {
                   "resolver": "weatherFreeValues"
-                },
-                "onChange": "weatherOtherSourcePicked",
-                "nextSelectFrom": {
-                  "resolver": "weatherValuePicker"
                 }
               }
             ]

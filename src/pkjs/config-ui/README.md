@@ -340,7 +340,11 @@ where it was and reads as open (`aria-expanded="true"`, the row gains `isel-open
 reuses the modal's option rows, so the current value's check, a recommended option and gated
 (`meta.disabled` / `optionDisabledWhen`) options look and behave the same. A pick stores the
 value, fires the item's `onChange` once and collapses the list, leaving the sheet open with
-focus back on the trigger; a second tap on the trigger collapses it without a pick. One expander
+focus back on the trigger; a second tap on the trigger collapses it without a pick. An option
+whose meta names `next`, another select's `messageKey`, stores nothing: its pick opens that
+select's list in its place, as a tap on its row would, even while the select has no row (a
+value, then its provider: WarnWeather's Use another source). Closed without a pick, that list
+hands focus back to the first one's trigger. One expander
 is open at a time: opening a list collapses an open palette and vice versa. Escape first
 collapses an open list or palette and closes the sheet only on the next press; the close button,
 the backdrop and a swipe-down close the sheet, which reopens collapsed. A touch that starts
@@ -927,6 +931,10 @@ PConf.actions.resetThresholds = function (arg, state, env, defaultOf) {
   return true;
 };
 ```
+
+An action whose button the re-render takes away (a list row's ×) returns
+`{focus: [selector, …]}` instead of `true`: the page re-renders, and focus lands on the first
+element that matches, in the open dialog first, then in the tab body.
 
 Copy can carry the same dispatch inline: a section `intro`, a hint or a `staticText` may hold
 `<button type="button" class="txt-link" data-action="resetThresholds">…</button>`, drawn as a

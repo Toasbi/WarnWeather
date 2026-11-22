@@ -40,8 +40,9 @@ var WEATHER_ROW = {
 // Provider's; the phone reads them through source-plan.js choicesOf. Their options come from the
 // page (weatherValueSources): the settings URL carries one short line per picker instead of
 // fourteen lists. Then Use another source's own (page-only): the values that still come from the
-// Provider, a pick opening that value's picker (weatherValuePicker), so nothing changes until a
-// provider is picked. Its '' is dormant: the list opens with nothing ticked.
+// Provider, each opening that value's picker and storing nothing (its option's `next`:
+// weatherFreeValues), so nothing changes until a provider is picked. Its '' is dormant: the list
+// opens with nothing ticked.
 var SOURCE_PICKERS = providerReadings.READING_IDS.map(function (id) {
     return {
         type: 'select',
@@ -59,9 +60,7 @@ var SOURCE_PICKERS = providerReadings.READING_IDS.map(function (id) {
     label: 'Use another source for',
     defaultValue: '',
     dormantValues: [''],
-    optionsFrom: {resolver: 'weatherFreeValues'},
-    onChange: 'weatherOtherSourcePicked',
-    nextSelectFrom: {resolver: 'weatherValuePicker'}
+    optionsFrom: {resolver: 'weatherFreeValues'}
 }]);
 
 // The readings the Provider lacks that a screen draws, said under its row: they come from

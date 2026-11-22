@@ -83,6 +83,22 @@ test('textFrom: the derived note, the static text on null, nothing at all on \'\
   assert.equal(E.resolveStaticText({ textFrom: { resolver: 'nope' } }, {}, {}), '');
 });
 
+test('textFrom: one render asks a note\'s resolver once, wherever the note shows', () => {
+  let asked = 0;
+  E.hintResolvers.register('countedNote', () => { asked += 1; return 'Counted'; });
+  const note = () => ({ type: 'staticText', joinPrevious: true, textFrom: { resolver: 'countedNote' } });
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 'a', label: 'A', sections: [{ title: 'Card', items: [
+    { type: 'toggle', messageKey: 'one', label: 'One', defaultValue: false }, note(),
+    { type: 'toggle', messageKey: 'two', label: 'Two', defaultValue: false }, note()] }] }] };
+  const html = E.renderBody(schema, 'a', Object.assign(cxFor({}), { texts: {} }));
+  assert.equal(html.split('Counted').length - 1, 2, 'both copies drawn');
+  assert.equal(asked, 1, 'the look-ahead and both rows share the one answer');
+  E.renderBody(schema, 'a', Object.assign(cxFor({}), { texts: {} }));
+  assert.equal(asked, 2, 'the next render asks again');
+  E.renderBody(schema, 'a', cxFor({}));
+  assert.equal(asked, 6, 'a context without its own answers asks for each look-ahead and each row');
+});
+
 test('attentionFrom: a dot on the tab holding the row, its note in the tab\'s aria-label', () => {
   const fine = E.renderTabBar(SCHEMA, 'a', cxFor({ pick: 'ok', pickB: 'ok', hideB: false }));
   assert.doesNotMatch(fine, /tab-dot|aria-label/);
