@@ -642,7 +642,11 @@ test('a day of updates asks each provider what the source plan counts', () => {
     ['metno', { sources: { mode: 'auto' }, drawn: ['uv'] }, 15, 'DEU'],
     ['tomorrowio', perReading({ temperature: 'dwd', rain: 'openmeteo', wind: 'yandex' }, { drawn: ['uv'] }), 15],
     ['wunderground', perReading({ uv: 'openmeteo', cloud: 'metno' }, { drawn: ['cloud'] }), 10],
-    ['metno', perReading({ pressure: 'dwd' }), 15]
+    ['metno', perReading({ pressure: 'dwd' }), 15],
+    // DWD sends no UV: no part asks it for the UV that follows it, Open-Meteo's fill brings it.
+    ['dwd', perReading({ temperature: 'metno', rain: 'metno', wind: 'metno', condition: 'metno' }), 15],
+    // Yandex's cloud cover comes from the Open-Meteo forecast the rain part already holds.
+    ['yandex', perReading({ rain: 'openmeteo' }, { drawn: ['uv', 'cloud'] }), 15]
   ].forEach(([id, options, intervalMin, country]) => {
     assert.deepEqual(dayOf(id, options, intervalMin, country), plannedDay(id, options, intervalMin, country),
       id + ' ' + JSON.stringify(options) + ' every ' + intervalMin + ' min');

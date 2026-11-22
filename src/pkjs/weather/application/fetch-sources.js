@@ -269,15 +269,17 @@ function serveForecast(run, candidates, onServed, onFailure) {
 /**
  * Per reading's parts, in order: each part's readings are laid on the anchor by time
  * (forecast-model.js adoptReadings) from the first of its provider and its fallback whose
- * forecast lines up, their feed that provider. A provider that failed, or whose hours do not
- * line up with the forecast's, is the recovered failure.
+ * forecast lines up, their feed that provider; when neither does, they stay the forecast's. A
+ * provider that failed, or whose hours do not line up with the forecast's, is the recovered
+ * failure.
  * @param {Object} run The fetch (fetchSources).
  * @param {Array<{provider: string, fallback: string, readings: string[]}>} parts
  *   sourcePlan.partSteps().
+ * @param {string} served The provider that served the forecast.
  * @param {Function} done Called once every part has run.
  * @returns {void}
  */
-function layParts(run, parts, done) {
+function layParts(run, parts, served, done) {
     inTurn(parts, function (part, next) {
         var keys = providerReadings.keysOf(part.readings);
         inTurn([part.provider, part.fallback], function (id, tryNext) {
@@ -295,13 +297,18 @@ function layParts(run, parts, done) {
                 part.readings.forEach(function (reading) { run.anchor.feeds[reading] = id; });
                 next();
             });
-        }, next);
+        }, function () {
+            part.readings.forEach(function (reading) { run.anchor.feeds[reading] = served; });
+            next();
+        });
     }, done);
 }
 
 /**
- * The fills, in order. One that brings its readings names its provider as their feed; one
- * that fails leaves them empty.
+ * The fills, in order. A fill whose provider's whole forecast this fetch already holds (a part
+ * of Per reading, or the forecast) is laid on from it by time instead of asked; another asks
+ * its request. One that brings its readings names its provider as their feed; one that fails
+ * leaves them empty.
  * @param {Object} run The fetch (fetchSources).
  * @param {Object[]} fills sourcePlan.fillSteps().
  * @param {Function} done Called once every fill has run.
@@ -309,11 +316,25 @@ function layParts(run, parts, done) {
  */
 function fill(run, fills, done) {
     inTurn(fills, function (step, next) {
-        ask(run, step, run.anchor, function (stepFailure) {
-            if (!stepFailure) {
-                step.readings.forEach(function (id) { run.anchor.feeds[id] = step.provider; });
-            }
+        /**
+         * Name the fill's provider as its readings' feed.
+         * @returns {void}
+         */
+        function brought() {
+            step.readings.forEach(function (id) { run.anchor.feeds[id] = step.provider; });
             next();
+        }
+        var inHand = run.forecasts[step.provider];
+        if (inHand && forecastModel.adoptReadings(run.anchor, inHand, providerReadings.keysOf(step.readings))) {
+            brought();
+            return;
+        }
+        ask(run, step, run.anchor, function (stepFailure) {
+            if (stepFailure) {
+                next();
+                return;
+            }
+            brought();
         });
     }, done);
 }
@@ -353,8 +374,8 @@ function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
     var input = Object.assign({ provider: anchor.id, country: anchor.countryCode || null, lat: Number(lat),
         lon: Number(lon) }, options.sources);
     serveForecast(run, sourcePlan.candidates(input), function (served) {
-        anchor.feeds = sourcePlan.allFrom(served);
-        layParts(run, sourcePlan.partSteps(input, served, options.drawn), function () {
+        anchor.feeds = sourcePlan.feedsOf(input, served, options.drawn);
+        layParts(run, sourcePlan.partSteps(input, served, options.drawn), served, function () {
             fill(run, sourcePlan.fillSteps(anchor.feeds, options.drawn), onSuccess);
         });
     }, onFailure);

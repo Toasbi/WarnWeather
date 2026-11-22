@@ -215,24 +215,40 @@
     }
 
     /**
+     * Each reading's provider while no provider fails: the forecast's, and in Per reading each
+     * reading the fetch uses (wanted) its own (readingProviders), whether that provider sends
+     * it or not: one it lacks is filled (fillSteps), as it would be for the Weather picker's
+     * provider in One provider.
+     * @param {Object} input readingProviders()'s input.
+     * @param {string} served The provider that served the forecast.
+     * @param {string[]} drawn The drawn-only readings the watch draws.
+     * @returns {Object<string, string>} reading id → provider id
+     */
+    function feedsOf(input, served, drawn) {
+        var feeds = allFrom(served);
+        if (input.mode !== 'reading') { return feeds; }
+        var byReading = readingProviders(input);
+        wanted(drawn).forEach(function (id) { feeds[id] = byReading[id]; });
+        return feeds;
+    }
+
+    /**
      * Per reading's parts: for each provider other than the one that served the forecast, the
-     * readings it brings that the fetch uses (wanted), in READINGS order, and the provider they
-     * fall back to when it fails or its hours do not line up: the Weather picker's. None in the
-     * other modes. fetch-sources.js asks a part's provider for its whole forecast, once a fetch
-     * (a provider that already failed is not asked again), and lays the part's readings on by
-     * time.
+     * readings it brings (feedsOf) that it sends, in READINGS order, and the provider they fall
+     * back to when it fails or its hours do not line up: the Weather picker's. None in the other
+     * modes. fetch-sources.js asks a part's provider for its whole forecast, once a fetch (a
+     * provider that already failed is not asked again), and lays the part's readings on by time.
      * @param {Object} input readingProviders()'s input.
      * @param {string} served The provider that served the forecast.
      * @param {string[]} drawn The drawn-only readings the watch draws.
      * @returns {Array<{provider: string, fallback: string, readings: string[]}>}
      */
     function partSteps(input, served, drawn) {
-        if (input.mode !== 'reading') { return []; }
-        var byReading = readingProviders(input);
+        var feeds = feedsOf(input, served, drawn);
         var steps = [];
-        wanted(drawn).forEach(function (id) {
-            var provider = byReading[id];
-            if (provider === served) { return; }
+        providerReadings.READING_IDS.forEach(function (id) {
+            var provider = feeds[id];
+            if (provider === served || !providerReadings.serves(provider, id)) { return; }
             var step = steps.filter(function (s) { return s.provider === provider; })[0];
             if (!step) {
                 step = { provider: provider, fallback: input.provider, readings: [] };
@@ -267,25 +283,26 @@
 
     /**
      * The steps a refresh runs while no provider fails: the forecast from its first candidate,
-     * Per reading's parts, and the fills for what they leave (as fetch-sources.js feeds them).
+     * Per reading's parts, and the fills for what they leave (feedsOf). `inHand`: the providers
+     * whose whole forecast the refresh has, which a fill of theirs is laid on from instead of
+     * asked (fetch-sources.js).
      * @param {Object} input candidates()'s input, the place left out where it is unknown.
      * @param {string[]} drawn The drawn-only readings the watch draws.
-     * @returns {{served: string, parts: Array<Object>, fills: Array<Object>}}
+     * @returns {{served: string, parts: Array<Object>, fills: Array<Object>, inHand: string[]}}
      */
     function steadySteps(input, drawn) {
         var served = candidates(input)[0];
         var parts = partSteps(input, served, drawn);
-        var feeds = allFrom(served);
-        parts.forEach(function (step) {
-            step.readings.forEach(function (id) { feeds[id] = step.provider; });
-        });
-        return { served: served, parts: parts, fills: fillSteps(feeds, drawn) };
+        return { served: served, parts: parts, fills: fillSteps(feedsOf(input, served, drawn), drawn),
+            inHand: [served].concat(parts.map(function (step) { return step.provider; })) };
     }
 
     /**
      * The requests of a refresh's steps (refreshRequests). A provider's fetch makes its UV
-     * request while the watch draws UV, as the fetch options' fetchUv says.
-     * @param {{served: string, parts: Array<Object>, fills: Array<Object>}} steps steadySteps().
+     * request while the watch draws UV, as the fetch options' fetchUv says; a fill whose
+     * provider's forecast is in hand asks nothing.
+     * @param {{served: string, parts: Array<Object>, fills: Array<Object>, inHand: string[]}} steps
+     *   steadySteps().
      * @param {string[]} drawn The drawn-only readings the watch draws.
      * @returns {Object<string, number>} provider id → requests
      */
@@ -301,7 +318,7 @@
         add(steps.served, providerReadings.requests(steps.served, withUv));
         steps.parts.forEach(function (step) { add(step.provider, providerReadings.requests(step.provider, withUv)); });
         steps.fills.forEach(function (step) {
-            if (step.ask !== 'uv') { add(step.provider, 1); }
+            if (step.ask !== 'uv' && steps.inHand.indexOf(step.provider) === -1) { add(step.provider, 1); }
         });
         return out;
     }
@@ -347,7 +364,7 @@
         var perRefresh = requestsOf(steps, drawn);
         var out = {};
         Object.keys(perRefresh).forEach(function (id) { out[id] = perRefresh[id] * refreshes; });
-        if (steps.fills.some(function (step) { return step.ask === 'uv'; })) {
+        if (steps.fills.some(function (step) { return step.ask === 'uv' && steps.inHand.indexOf(step.provider) === -1; })) {
             // A refresh at exactly UV_REUSE_MS still reuses the answer (forecast-snapshot.js).
             var every = Math.floor(UV_REUSE_MS / (intervalMin * 60 * 1000)) + 1;
             out[FILL_PROVIDER] = (out[FILL_PROVIDER] || 0) + Math.ceil(refreshes / every);
@@ -363,7 +380,7 @@
     var api = { FILL_PROVIDER: FILL_PROVIDER, UV_REUSE_MS: UV_REUSE_MS, SETTINGS_KEYS: SETTINGS_KEYS,
         regionalFor: regionalFor, candidates: candidates, allFrom: allFrom, fillsOf: fillsOf, choiceKey: choiceKey,
         choicesOf: choicesOf, keyedOf: keyedOf, sourcesOf: sourcesOf, inputOf: inputOf, askable: askable,
-        readingProviders: readingProviders, partSteps: partSteps, fillSteps: fillSteps, wanted: wanted,
+        readingProviders: readingProviders, feedsOf: feedsOf, partSteps: partSteps, fillSteps: fillSteps, wanted: wanted,
         refreshRequests: refreshRequests, refreshesPerDay: refreshesPerDay, callsPerDay: callsPerDay };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.SourcePlan = api; }
