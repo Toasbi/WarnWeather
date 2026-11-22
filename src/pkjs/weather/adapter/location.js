@@ -168,30 +168,32 @@ function clearGeocodeNotFound() {
 }
 
 /**
- * Remember the city name a reverse geocode resolved, and where.
+ * Remember the city name and the country a reverse geocode resolved, and where.
  *
  * @param {string} name Resolved city name.
  * @param {number|string} lat Latitude it was resolved for.
  * @param {number|string} lon Longitude it was resolved for.
+ * @param {?string} country The country code it named (ArcGIS's alpha-3), or none.
  * @returns {void}
  */
-function writeLastCity(name, lat, lon) {
+function writeLastCity(name, lat, lon, country) {
     localStorage.setItem(LAST_CITY_KEY, JSON.stringify({
         name: name,
         lat: Number(lat),
-        lon: Number(lon)
+        lon: Number(lon),
+        country: country || null
     }));
 }
 
 /**
- * The last resolved city name, if it was resolved near these coordinates.
+ * The last place a reverse geocode resolved, if it was near these coordinates.
  *
  * @param {number|string} lat Latitude (manual coordinates arrive as strings).
  * @param {number|string} lon Longitude.
- * @returns {?string} The name, or null when none is stored or it belongs
- *   to a place farther than LAST_CITY_MAX_DELTA_DEG away.
+ * @returns {?{name: string, country: ?string}} The place, or null when none is stored or
+ *   it lies farther than LAST_CITY_MAX_DELTA_DEG away.
  */
-function readLastCityNear(lat, lon) {
+function lastPlaceNear(lat, lon) {
     var last = readStoredJson(LAST_CITY_KEY);
     if (!last || typeof last.name !== 'string' || last.name.length === 0
         || typeof last.lat !== 'number' || typeof last.lon !== 'number') {
@@ -199,9 +201,35 @@ function readLastCityNear(lat, lon) {
     }
     if (Math.abs(Number(lat) - last.lat) <= LAST_CITY_MAX_DELTA_DEG
         && Math.abs(Number(lon) - last.lon) <= LAST_CITY_MAX_DELTA_DEG) {
-        return last.name;
+        return { name: last.name, country: typeof last.country === 'string' && last.country ? last.country : null };
     }
     return null;
+}
+
+/**
+ * The last resolved city name, if it was resolved near these coordinates.
+ *
+ * @param {number|string} lat Latitude (manual coordinates arrive as strings).
+ * @param {number|string} lon Longitude.
+ * @returns {?string} The name, or null (lastPlaceNear).
+ */
+function readLastCityNear(lat, lon) {
+    var place = lastPlaceNear(lat, lon);
+    return place ? place.name : null;
+}
+
+/**
+ * The last resolved country, if it was resolved near these coordinates: what By location picks
+ * its regional provider by while the reverse geocode fails (provider.js withCityName).
+ *
+ * @param {number|string} lat Latitude.
+ * @param {number|string} lon Longitude.
+ * @returns {?string} The country code, or null (lastPlaceNear; a record from before it kept
+ *   the country has none).
+ */
+function readLastCountryNear(lat, lon) {
+    var place = lastPlaceNear(lat, lon);
+    return place ? place.country : null;
 }
 
 var LAT_LON_PATTERN = /^([-+]?\d*\.?\d+)\s*,\s*([-+]?\d*\.?\d+)$/;
@@ -356,6 +384,7 @@ module.exports = {
     clearGeocodeNotFound: clearGeocodeNotFound,
     writeLastCity: writeLastCity,
     readLastCityNear: readLastCityNear,
+    readLastCountryNear: readLastCountryNear,
     readGpsCache: readGpsCache,
     writeGpsCache: writeGpsCache
 };

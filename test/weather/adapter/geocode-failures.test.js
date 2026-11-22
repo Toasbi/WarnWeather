@@ -154,16 +154,20 @@ function cityName(lat, lon) {
     });
   });
 
-test('a failed ArcGIS lookup reuses the last city resolved nearby, not one from another town', () => {
+test('a failed ArcGIS lookup reuses the last city and country resolved nearby, not another town\'s', () => {
   route = function () { return BERLIN; };
   assert.deepEqual(cityName(52.52, 13.405).city, ['Mitte', 'DEU']);
 
   route = function () { return 'timeout'; };
-  // GPS drift, and manual coordinates (which arrive as strings): same place.
-  assert.deepEqual(cityName(52.5203, 13.4049).city, ['Mitte', null]);
-  assert.deepEqual(cityName('52.55', '13.45').city, ['Mitte', null]);
-  // Munich is not Berlin: no borrowed name.
+  // GPS drift, and manual coordinates (which arrive as strings): same place. The country keeps
+  // By location on DWD there.
+  assert.deepEqual(cityName(52.5203, 13.4049).city, ['Mitte', 'DEU']);
+  assert.deepEqual(cityName('52.55', '13.45').city, ['Mitte', 'DEU']);
+  // Munich is not Berlin: no borrowed name or country.
   assert.deepEqual(cityName(48.137, 11.575).city, ['Unknown', null]);
+  // A record kept before the country was: the name, and no country.
+  localStorage.setItem('lastCity', JSON.stringify({ name: 'Mitte', lat: 52.52, lon: 13.405 }));
+  assert.deepEqual(cityName(52.52, 13.405).city, ['Mitte', null]);
 });
 
 test('an answer without an address still reads Unknown and forgets nothing', () => {
@@ -172,7 +176,7 @@ test('an answer without an address still reads Unknown and forgets nothing', () 
   route = function () { return { status: 200, body: '{"error":{"code":400,"message":"Cannot perform query."}}' }; };
   assert.deepEqual(cityName(52.52, 13.405).city, ['Unknown', null]);
   route = function () { return 'network'; };
-  assert.deepEqual(cityName(52.52, 13.405).city, ['Mitte', null], 'the remembered name survives');
+  assert.deepEqual(cityName(52.52, 13.405).city, ['Mitte', 'DEU'], 'the remembered name and country survive');
 });
 
 test('the forecast is sent when ArcGIS fails and the weather provider answers', () => {
