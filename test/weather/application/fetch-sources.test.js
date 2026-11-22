@@ -579,6 +579,16 @@ test('Per reading: a second fetch in the slot takes every provider\'s forecast f
   assert.deepEqual(second.p.feeds, first.p.feeds);
 });
 
+test('Per reading: a second fetch in the slot asks nobody, though the first asked every provider', () => {
+  const each = { options: perReading({ temperature: 'dwd', rain: 'metno', wind: 'openweathermap', cloud: 'tomorrowio',
+    pressure: 'wunderground', condition: 'yandex', dew: 'openmeteo' }, { drawn: ['cloud', 'pressure', 'dew'] }) };
+  const [first, second] = fetchesOf('dwd', [each, Object.assign({ at: 5 * MIN }, each)]);
+  assert.deepEqual(Object.keys(first.p.answers.reduce((ids, a) => Object.assign(ids, { [a.id]: true }), {})).sort(),
+    Object.keys(providerReadings.PROVIDERS).sort(), 'the first fetch asked all seven');
+  assert.deepEqual(second.requests, [], 'every snapshot kept');
+  assert.equal(second.forecast, first.forecast);
+});
+
 test('Per reading: a provider that failed this fetch is not asked again as a fallback', () => {
   const [{ p, outcome, requests }] = fetchesOf('openweathermap', [{ options: perReading({ temperature: 'metno', wind: 'dwd' }) }],
     { answers: (url) => url.indexOf('api.brightsky.dev') === -1 && url.indexOf('api.openweathermap.org') === -1 });

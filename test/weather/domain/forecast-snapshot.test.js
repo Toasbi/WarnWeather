@@ -201,15 +201,20 @@ test('a readings fill keeps its readings, serves as a forecast does and only for
     null, 'a forecast an hour on would leave its 24 hours short');
 });
 
-test('a new snapshot replaces its provider\'s and kind\'s; only those that can still serve stay, six at most', () => {
+test('a new snapshot replaces its provider\'s and kind\'s; only those that can still serve stay, one per provider and fill at most', () => {
   const ids = ['dwd', 'openmeteo', 'metno', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex'];
   const hour = 60 * MIN_MS;
   let entries = [];
   ids.forEach((id, i) => {
     entries = snap.remember(entries, kept(provider({ id: id }), T0 + i * MIN_MS), T0 + i * MIN_MS, hour);
   });
-  assert.deepEqual(entries.map((e) => e.provider), ids.slice(1).reverse(), 'the newest six, newest first');
-  assert.equal(entries.length, snap.MAX_ENTRIES);
+  assert.deepEqual(entries.map((e) => e.provider), ids.slice().reverse(), 'every provider\'s, newest first');
+  assert.equal(snap.MAX_ENTRIES, ids.length + 2, 'and room for the two fills');
+  ['spare1', 'spare2', 'spare3'].forEach((id, i) => {
+    entries = snap.remember(entries, kept(provider({ id: id }), T0 + (7 + i) * MIN_MS), T0 + (7 + i) * MIN_MS, hour);
+  });
+  assert.equal(entries.length, snap.MAX_ENTRIES, 'never more');
+  assert.equal(entries.some((e) => e.provider === 'dwd'), false, 'the oldest goes first');
   entries = snap.remember(entries, kept(provider({ id: 'metno' }), T0 + 10 * MIN_MS), T0 + 10 * MIN_MS, hour);
   assert.equal(entries.filter((e) => e.provider === 'metno').length, 1, 'one per provider and kind');
   const uv = snap.remember(entries, kept(provider({ id: 'dwd' }), T0 + 11 * MIN_MS, 'uv'), T0 + 11 * MIN_MS, hour);
