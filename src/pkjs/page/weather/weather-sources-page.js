@@ -168,26 +168,24 @@
     /**
      * The Other sources list (block weatherOtherSources), in the page's shared parts (kit): a
      * row for each value from another provider, its name and that provider, opening its picker,
-     * an × after it; then Use another source, which says what still comes from the Provider. A
-     * keyed provider without its key says so: the phone asks the Provider then (source-plan.js
-     * feedsOf).
+     * an × after it; then Use another source, a list's New row as Your status bars draws its own
+     * (the owner's ask, 2026-11-22: the plus beside its words). A keyed provider without its key
+     * says so: the phone asks the Provider then (source-plan.js feedsOf).
      * @param {Object} S Settings.
      * @returns {string} HTML; '' outside the page, and for a provider the page does not know.
      */
     function otherSourcesBlock(S) {
         if (!S || !PConf || !PConf.ui || !Object.prototype.hasOwnProperty.call(NAMES, S.provider)) { return ''; }
-        var kit = PConf.ui, list = readingPicks(S), main = NAMES[S.provider], keyed = { keyed: sourcePlan.keyedOf(S) };
-        var rows = list.map(function (o) {
+        var kit = PConf.ui, main = NAMES[S.provider], keyed = { keyed: sourcePlan.keyedOf(S) };
+        var rows = readingPicks(S).map(function (o) {
             var label = words.label(o.id);
             return kit.listRow({ name: label,
                 line: NAMES[o.provider] + (sourcePlan.askable(o.provider, keyed) ? '' : ' · no API key'),
                 at: { 'data-select': sourcePlan.choiceKey(o.id), 'aria-haspopup': 'listbox' },
                 x: { 'data-action': REMOVE, 'data-action-arg': o.id, 'aria-label': label + ' back to ' + main } });
         }).join('');
-        var rest = list.length ? 'The other ' + (READING_IDS.length - list.length) + ' come from ' + main + '.'
-            : 'Everything comes from ' + main + '.';
-        return '<div class="ui-list" role="list" aria-label="Other sources">' + rows
-            + kit.addRow(USE_ANOTHER, rest, { 'data-select': OTHER_FOR, 'aria-haspopup': 'listbox' }) + '</div>';
+        return '<div class="ui-list">' + (rows ? '<div role="list" aria-label="Other sources">' + rows + '</div>' : '')
+            + kit.newRow(USE_ANOTHER, '', { 'data-select': OTHER_FOR, 'aria-haspopup': 'listbox' }) + '</div>';
     }
 
     /**

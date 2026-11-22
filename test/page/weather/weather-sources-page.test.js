@@ -216,15 +216,16 @@ function weatherDialog(over) {
 test('a provider the page does not know draws no list', () => {
   const body = weatherDialog({ provider: 'nowhere', weatherSourceFeels: 'metno' }).modal.innerHTML;
   assert.equal(body.indexOf('aria-label="Other sources"'), -1);
-  assert.equal(body.indexOf(' come from .'), -1);
+  assert.equal(body.indexOf('data-select="' + OTHER_FOR + '"'), -1, 'no Use another source either');
 });
+
+const USE_ANOTHER = ui.newRow('Use another source', '', { 'data-select': OTHER_FOR, 'aria-haspopup': 'listbox' });
 
 test('the list: Use another source alone while everything comes from the Provider', () => {
   const body = weatherDialog({}).modal.innerHTML;
-  assert.ok(body.indexOf('<div class="ui-list" role="list" aria-label="Other sources">') !== -1);
-  assert.equal((body.match(/class="ui-row ui-item"/g) || []).length, 1, 'one row');
-  assert.ok(body.indexOf(ui.addRow('Use another source', 'Everything comes from DWD.',
-    { 'data-select': OTHER_FOR, 'aria-haspopup': 'listbox' })) !== -1, 'the kit\'s Add row');
+  assert.ok(body.indexOf('<div class="ui-list">' + USE_ANOTHER + '</div>') !== -1,
+    'a list\'s New row, as Your status bars draws its own: the plus beside its words');
+  assert.equal(body.indexOf('aria-label="Other sources"'), -1, 'no rows, so no list of them');
   assert.equal(body.indexOf('data-action="weatherPickRemove"'), -1, 'nothing to give back');
 });
 
@@ -237,7 +238,10 @@ test('the list: a row for each value from another provider, which opens its pick
   assert.ok(body.indexOf('<span class="ui-n">Wind speed</span><span class="ui-d">Tomorrow.io · no API key</span>') !== -1,
     'a pick without its key says so: the phone asks DWD then');
   assert.ok(body.indexOf('Feels-like') < body.indexOf('Wind speed'), 'in the pickers\' order');
-  assert.ok(body.indexOf('The other 12 come from DWD.') !== -1);
+  const list = body.indexOf('<div class="ui-list"><div role="list" aria-label="Other sources">');
+  assert.ok(list !== -1 && list < body.indexOf('Feels-like'), 'the rows in a list of their own');
+  assert.ok(body.indexOf('</div></div>' + USE_ANOTHER + '</div>') > body.indexOf('Wind speed'),
+    'Use another source after it');
 });
 
 test('Use another source: a value, then its provider; nothing changes until the provider is picked', () => {
@@ -257,7 +261,6 @@ test('Use another source: a value, then its provider; nothing changes until the 
   assert.equal(p.S.weatherSourceFeels, 'metno');
   assert.equal(body.indexOf('class="psheet"'), -1, 'the sheet closed');
   assert.ok(body.indexOf('data-select="weatherSourceFeels"') !== -1, 'the value has its row');
-  assert.ok(body.indexOf('The other 13 come from DWD.') !== -1);
 });
 
 test('the ×: the value comes from the Provider again; the dialog\'s × puts every pick back', () => {
