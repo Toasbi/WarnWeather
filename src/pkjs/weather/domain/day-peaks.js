@@ -216,8 +216,8 @@ function wanted(provider, code) {
 /**
  * The feed a metric's series comes from — what its record is keyed by: the
  * provider its reading came from (provider.feeds, which the fetch names:
- * fetch-sources.js; a fill's, or another provider's in By location), else the
- * fetching provider's own. A metric with a feedField (AQI) reads that field alone,
+ * fetch-sources.js; a fill's, or a reading row's pick), else the fetching
+ * provider's own. A metric with a feedField (AQI) reads that field alone,
  * and has none from WAQI: null, no day max at all.
  *
  * @param {Object} provider The fetching provider.

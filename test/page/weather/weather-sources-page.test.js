@@ -1,7 +1,7 @@
 // test/page/weather/weather-sources-page.test.js — the note under the Weather picker (Setup ›
 // Data sources): the readings the watch draws that the picked provider has none of, which come
 // from Open-Meteo (the source plan's fills, by the phone's own rules), and nothing otherwise;
-// Per reading's rows; and the weather calls a day at the section's end (the plan's count).
+// the reading rows; and the weather calls a day at the section's end (the plan's count).
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -47,26 +47,12 @@ test('no note while nothing comes from Open-Meteo', () => {
   assert.equal(page.fillNote(null, BASALT), '');
 });
 
-test('By location names no reading: the page does not know the place, and the row\'s hint says it', () => {
-  assert.equal(note({ provider: 'yandex', secondaryLine: 'cloud', weatherSourceMode: 'auto' }), '');
-  assert.equal(note({ provider: 'yandex', secondaryLine: 'cloud', weatherSourceMode: 'one' }),
-    'Yandex Weather sends no cloud cover, so it comes from Open-Meteo.');
-});
-
-test('the Weather from row opens the section: One provider by default, hints for the other two', () => {
+test('the Weather picker opens the section', () => {
   const card = schema.tabs.find((t) => t.id === 'setup').sections.find((s) => s.id === 'dataSources');
-  const row = card.items[0];
-  assert.equal(row.messageKey, 'weatherSourceMode');
-  assert.equal(card.items[1].messageKey, 'provider', 'right above the Weather picker');
-  assert.equal(row.type, 'segmented');
-  assert.equal(row.defaultValue, 'one');
-  assert.deepEqual(row.options, [['One provider', 'one'], ['By location', 'auto'], ['Per reading', 'reading']]);
-  assert.deepEqual(Object.keys(row.hintByValue), ['auto', 'reading']);
-  assert.match(row.hintByValue.auto, /DWD in Germany, Met\.no in the Nordic countries/);
-  assert.match(row.hintByValue.reading, /^Each reading below can come from its own provider\./);
+  assert.equal(card.items[0].messageKey, 'provider');
 });
 
-test('Per reading\'s rows: one per reading after the Weather picker\'s, each the providers that send it', () => {
+test('the reading rows: one per reading after the Weather picker\'s, each the providers that send it', () => {
   const sourcePlan = require('../../../src/pkjs/weather/domain/source-plan.js');
   const card = schema.tabs.find((t) => t.id === 'setup').sections.find((s) => s.id === 'dataSources');
   const keys = providerReadings.READING_IDS.map(sourcePlan.choiceKey);
@@ -78,14 +64,14 @@ test('Per reading\'s rows: one per reading after the Weather picker\'s, each the
   assert.equal(card.items[first - 1].type, 'sheet', 'right after the Weather picker\'s key row');
   rows.forEach((row, i) => {
     const reading = providerReadings.READING_IDS[i];
-    assert.deepEqual(row.showWhen, { key: 'weatherSourceMode', eq: 'reading' });
+    assert.equal(row.showWhen, undefined, 'always shown');
     assert.equal(row.defaultValue, '');
     assert.deepEqual(row.optionsFrom, { resolver: 'weatherReadingOptions', args: { reading: reading } });
     assert.equal(row.options, undefined, 'the page builds the list');
   });
 });
 
-test('a Per reading row lists Same as Weather and the providers that send its reading; a keyed one needs its key', () => {
+test('a reading row lists Same as Weather and the providers that send its reading; a keyed one needs its key', () => {
   const PC = global.PConf;
   assert.equal(PC.optionsResolvers.get('weatherReadingOptions'), page.readingOptions, 'registered');
   providerReadings.READING_IDS.forEach((reading) => {
@@ -107,8 +93,8 @@ test('a Per reading row lists Same as Weather and the providers that send its re
     'Yandex sends no cloud cover');
 });
 
-test('in Per reading the note names only what follows the Weather picker', () => {
-  const S = { provider: 'yandex', weatherSourceMode: 'reading', secondaryLine: 'cloud', statusForecastMid: 'pressure' };
+test('the note names only what follows the Weather picker', () => {
+  const S = { provider: 'yandex', secondaryLine: 'cloud', statusForecastMid: 'pressure' };
   assert.equal(note(S), 'Yandex Weather sends no cloud cover or air pressure, so they come from Open-Meteo.');
   assert.equal(note(Object.assign({}, S, { weatherSourceCloud: 'dwd' })),
     'Yandex Weather sends no air pressure, so it comes from Open-Meteo.', 'DWD brings the cloud cover');
@@ -163,15 +149,11 @@ test('the calls line counts each update\'s requests, and the UV fill every few h
   assert.equal(calls({ provider: 'constructor' }), '', 'a stored value the table does not know');
 });
 
-test('By location counts the stored country\'s regional provider; Per reading, every provider a reading in use comes from', () => {
-  assert.equal(calls({ provider: 'openmeteo', weatherSourceMode: 'auto', holidayCountry: 'NO' }),
-    'About 96 weather calls a day.', 'Met.no\'s one request in Norway');
-  assert.equal(calls({ provider: 'openmeteo', weatherSourceMode: 'auto', holidayCountry: 'US' }),
-    'About 192 weather calls a day.', 'the Weather picker\'s elsewhere');
-  assert.equal(calls({ provider: 'metno', weatherSourceMode: 'reading', weatherSourceTemperature: 'dwd',
-    weatherSourceRain: 'openmeteo' }), 'About 480 weather calls a day: 192 to DWD, 192 to Open-Meteo and 96 to Met.no.',
-  'the forecast\'s provider first, then the parts in the readings\' order');
-  assert.equal(calls({ provider: 'metno', weatherSourceMode: 'reading', weatherSourceWind: 'tomorrowio' }),
+test('the calls line counts every provider a reading in use comes from', () => {
+  assert.equal(calls({ provider: 'metno', weatherSourceTemperature: 'dwd',
+    weatherSourceRain: 'openmeteo' }), 'About 480 weather calls a day: 96 to Met.no, 192 to DWD and 192 to Open-Meteo.',
+  'the Weather picker\'s provider first, then the parts in the readings\' order');
+  assert.equal(calls({ provider: 'metno', weatherSourceWind: 'tomorrowio' }),
     'About 96 weather calls a day.', 'a keyed pick without its key follows the Weather picker');
 });
 

@@ -54,14 +54,12 @@
     /**
      * The tomorrow.io requests a weather update makes, by the source plan's own count
      * (source-plan.js refreshRequests, which the calls line at the end of Data sources counts
-     * with). It errs toward more calls: every reading counts as drawn, and By location counts
-     * a place in no regional provider's area (no country), where the Weather picker's provider
-     * is asked every update, as it is when the regional one fails.
+     * with). It errs toward more calls: every reading counts as drawn.
      * @param {Object} S Settings state.
      * @returns {number} Requests per update.
      */
     function weatherCalls(S) {
-        var input = sourcePlan.inputOf(S, null);
+        var input = sourcePlan.inputOf(S);
         var key = JSON.stringify(input);
         if (key !== lastWeatherCalls.key) {
             lastWeatherCalls = { key: key,
@@ -73,7 +71,7 @@
     /**
      * tomorrow.io API calls per fetch cycle for the current provider choices.
      *
-     * @param {Object} S Settings state (provider, Weather from and Per reading's picks,
+     * @param {Object} S Settings state (provider, the reading rows' picks,
      *   radarProvider/radarMode).
      * @returns {number} 0, 1 or 2 calls per cycle.
      */
@@ -162,8 +160,8 @@
     // Every settings key the math above reads. A caller holding only a get(key)
     // accessor (the onSubmit hook) builds its state object from exactly these;
     // test/page/weather/budgets/tomorrowio-budget.test.js pins the list against what the math reads.
-    // Weather from, Per reading's picks and the keys a pick needs (source-plan.js
-    // SETTINGS_KEYS) decide whether an update asks tomorrow.io (weatherCalls).
+    // The reading rows' picks and the keys a pick needs (source-plan.js SETTINGS_KEYS) decide
+    // whether an update asks tomorrow.io (weatherCalls).
     var STATE_KEYS = ['provider', 'radarProvider', 'radarMode', 'sleepNightEnabled', 'sleepStartHour',
         'sleepEndHour'].concat(sourcePlan.SETTINGS_KEYS);
 

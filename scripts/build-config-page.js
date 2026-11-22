@@ -15,9 +15,9 @@ var APP_FILES = [
   // consumers blocks.js (recommend resolvers) and wizard.js (fresh-install derivation).
   path.join(ROOT, 'src/pkjs/settings/domain/country-defaults.js'),
   // What each weather provider sends (window.ProviderReadings) and the source plan
-  // (window.SourcePlan): the plan binds ProviderReadings and COUNTRY_DEFAULTS while its body
-  // runs, and the budgets below, forecast-span-hours.js and the weather sources' page files
-  // bind the plan while theirs run, so both sit here, ahead of all of those.
+  // (window.SourcePlan): the plan binds ProviderReadings while its body runs, and the budgets
+  // below, forecast-span-hours.js and the weather sources' page files bind the plan while
+  // theirs run, so both sit here, ahead of all of those.
   path.join(ROOT, 'src/pkjs/weather/domain/provider-readings.js'),
   path.join(ROOT, 'src/pkjs/weather/domain/source-plan.js'),
   path.join(ROOT, 'src/pkjs/layout/domain/view-cycle.js'),
@@ -114,7 +114,7 @@ var APP_FILES = [
   // Where the weather comes from (Setup › Data sources): what the watch draws
   // (window.DrawnReadings: reads LineStyle, GraphStyles, StatusLineCatalog and StatusThresholds,
   // all above) and the words the page names the weather with (window.WeatherWords), then the
-  // note under the Weather picker that names the fills, Per reading's row options and the calls
+  // note under the Weather picker that names the fills, the reading rows' options and the calls
   // line (weather-sources-page.js binds the plan, ProviderReadings, DrawnReadings and
   // WeatherWords while its body runs).
   path.join(ROOT, 'src/pkjs/weather/domain/drawn-readings.js'),

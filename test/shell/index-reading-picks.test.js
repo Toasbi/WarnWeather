@@ -1,7 +1,7 @@
-// test/shell/index-weather-from.test.js — Weather from through the REAL index.js: By location
-// reads the place's country off the reverse geocode (ArcGIS names it by its alpha-3 code) and
-// asks Germany's DWD first; when DWD fails, the Weather picker's provider serves and the fetch
-// succeeds. One provider asks the Weather picker's alone, as before the row.
+// test/shell/index-reading-picks.test.js — a reading row's pick through the REAL index.js: the
+// Weather picker's provider serves the forecast, and the picked provider is asked for its
+// reading after it. When the pick's provider fails, the fetch still succeeds, the reading the
+// Weather picker's. Without a pick the Weather picker's provider is asked alone.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -25,16 +25,17 @@ function fetched(t, settings) {
   return h;
 }
 
-test('By location in Germany asks DWD first, and the Weather picker\'s provider serves when it fails', (t) => {
-  const h = fetched(t, { weatherSourceMode: 'auto' });
+test('a reading row\'s pick asks its provider after the Weather picker\'s, and one that fails fails nothing', (t) => {
+  const h = fetched(t, { weatherSourceWind: 'dwd' });
   assert.equal(h.count(/Successfully fetched weather/), 1);
   const asked = h.xhrs.filter((u) => BRIGHT_SKY.test(u) || OPEN_METEO_MAIN.test(u));
-  assert.ok(BRIGHT_SKY.test(asked[0]), 'DWD first: ' + asked.join(', '));
-  assert.ok(asked.some((u) => OPEN_METEO_MAIN.test(u)), 'then Open-Meteo, the Weather picker\'s');
+  assert.ok(OPEN_METEO_MAIN.test(asked[0]), 'the Weather picker\'s Open-Meteo first: ' + asked.join(', '));
+  assert.ok(asked.some((u) => BRIGHT_SKY.test(u)), 'then DWD, for the wind');
+  assert.equal(h.requestsTo(OPEN_METEO_MAIN), 1);
 });
 
-test('One provider asks the Weather picker\'s provider alone', (t) => {
-  const h = fetched(t, { weatherSourceMode: 'one' });
+test('without a pick the Weather picker\'s provider is asked alone', (t) => {
+  const h = fetched(t, {});
   assert.equal(h.count(/Successfully fetched weather/), 1);
   assert.equal(h.requestsTo(BRIGHT_SKY), 0);
   assert.equal(h.requestsTo(OPEN_METEO_MAIN), 1);

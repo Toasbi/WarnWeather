@@ -30,16 +30,10 @@ test('feelsFormula joins the signature', () => {
 // tempSlotDisplay changes the phone-side temp-slot bake (formatValue), so per the
 // force-fetch rule it must be part of the signature or switching Temp/Feels like/Both
 // would not show until the next scheduled fetch.
-test('Weather from joins the signature: the source plan asks again', () => {
-  assert.notEqual(renderSignature({ weatherSourceMode: 'one' }), renderSignature({ weatherSourceMode: 'auto' }));
-  assert.notEqual(renderSignature({ weatherSourceMode: 'auto' }), renderSignature({ weatherSourceMode: 'reading' }));
-  assert.equal(renderSignature({ weatherSourceMode: 'auto' }), renderSignature({ weatherSourceMode: 'auto' }));
-});
-
-test('every one of Per reading\'s picks joins the signature', () => {
+test('every one of the reading rows\' picks joins the signature: the source plan asks again', () => {
   const sourcePlan = require('../../../src/pkjs/weather/domain/source-plan.js');
   const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
-  const base = { weatherSourceMode: 'reading' };
+  const base = { provider: 'metno' };
   const seen = new Set([renderSignature(base)]);
   providerReadings.READING_IDS.forEach((id) => {
     const picked = Object.assign({}, base);

@@ -11,7 +11,7 @@ FORECAST
 - Lines, stripes, dots or bars, with your own colors*
 - 12 to 66 hours ahead* and up to six graphs*
 - Day/night shading
-- Weather from one provider, the regional one by location, or a provider per reading
+- Weather from one provider, or a provider of its own for any reading
 
 ALERTS*
 Icons that appear only when something needs your attention:

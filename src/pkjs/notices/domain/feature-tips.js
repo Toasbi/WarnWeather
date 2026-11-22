@@ -37,12 +37,11 @@ var TIPS = [
         id: 'weatherFrom',
         since: '3.3.0',
         title: 'Weather from more than one provider',
-        // In the page's words: Setup › Data sources, the Weather from row and its options
-        // (page/weather/weather-sources-schema.js WEATHER_FROM). Every watch: the phone mixes the
-        // readings, and the watch gets the same messages.
-        html: 'In Data sources on the Setup tab, set Weather from to By location: DWD in Germany, Met.no ' +
-            'in the Nordic countries and the Weather provider everywhere else. Or set it to Per reading ' +
-            'and pick a provider for each reading.',
+        // In the page's words: Setup › Data sources, the Weather picker and the reading rows under
+        // it (page/weather/weather-sources-schema.js READING_ROWS). Every watch: the phone mixes
+        // the readings, and the watch gets the same messages.
+        html: 'In Data sources on the Setup tab, each reading under Weather can come from a provider ' +
+            'of its own.',
         open: { tab: 'setup' }
     },
     {

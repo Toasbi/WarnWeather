@@ -32,7 +32,7 @@ Features marked * depend on your watch model.
 - 12 to 66 hours ahead* and up to six graphs, one per screen*
 - Day/night shading
 - Weather from Open-Meteo, Met.no, Bright Sky (DWD), OpenWeatherMap, Tomorrow.io, Weather Underground or Yandex Weather
-- One provider for everything, the regional one by location (DWD in Germany, Met.no in the Nordic countries), or a provider for each reading, with the calls a day shown in the settings
+- One provider for everything, or a provider of its own for any reading, with the calls a day shown in the settings
 - Readings a provider lacks, like DWD's UV index, come from Open-Meteo
 
 ### Alerts*

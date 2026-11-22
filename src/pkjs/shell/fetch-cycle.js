@@ -48,8 +48,8 @@ var KEY_SERVER_STREAK = storageKeys.SERVER_FAILURE_STREAK_KEY;
 // (10 s) or the address's geocode; the radar (twice for Rainbow (own key), which
 // retries without its start time; the sky rows ask alongside); the city; the
 // forecast's providers one after another (up to three requests for DWD and
-// Open-Meteo, five for Weather Underground when it re-scrapes a refused key; Per
-// reading may ask every provider) and the two fills; AQI (twice when Auto falls
+// Open-Meteo, five for Weather Underground when it re-scrapes a refused key; the
+// reading rows' picks may ask every provider) and the two fills; AQI (twice when Auto falls
 // back); pollen. Each request takes at most 10 s (weather/adapter/http.js
 // XHR_TIMEOUT_MS), then comes the AppMessage ACK: 24 such waits at the very worst
 // (test/shell/fetch-cycle.test.js counts them). So one still running after 5 min
@@ -218,20 +218,6 @@ var skyThrottle = requestThrottle.createRequestThrottle({
 // Resolve device coordinates ONCE per refresh cycle, then drive radar and
 // forecast from that single fix. Kept pure (deps injected), so the
 // single-acquisition invariant stays visible in one place.
-
-/**
- * The provider whose failure failed a fetch: for the forecast's failure, the last provider its
- * sources asked (fetch-sources.js answers), which in By location and Per reading may be another
- * than the Weather picker's; the Weather picker's for any other failure.
- * @param {Object} provider The Weather picker's provider after a fetch.
- * @param {Object} failure The fetch's failure.
- * @returns {{id: string, name: string, shortName: (string|undefined)}}
- */
-function failedProviderOf(provider, failure) {
-    var answers = (failure && failure.stage === 'provider_data' && provider.answers) || [];
-    var last = answers[answers.length - 1];
-    return last && last.failure ? last : provider;
-}
 
 /**
  * Record what each keyed provider a fetch asked said about its key (key-result.js; the settings
@@ -606,8 +592,7 @@ function createFetchCycle(deps) {
             // Success: record the fetch time and reset the attempt counter.
             localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
             // Each keyed provider asked answered the key this fetch carried, or refused it: the
-            // settings page's key status (a Per reading part's and a By location fallback's
-            // too).
+            // settings page's key status (a reading row's pick's too).
             recordKeyAnswers(provider, deps.authBackoff.isAuthFailure);
             resetFetchAttemptCounter();
             // The payload reached the watch (ACK, or unchanged since the last ACK):
@@ -668,11 +653,10 @@ function createFetchCycle(deps) {
             // watch's forecast is too old to show, so it never covers a good one; likewise
             // no location: the phone's GPS failed with no recent fix to stand in). Other
             // failures raise nothing.
-            var failedBy = failedProviderOf(provider, failure);
             var noticeText = deps.notices.applyFailure(failure, {
-                providerName: failedBy.name,
-                watchName: failedBy.shortName,
-                failedUpdates: countFailureRun(failedBy.id, failure, deps.notices.isServerFailure),
+                providerName: provider.name,
+                watchName: provider.shortName,
+                failedUpdates: countFailureRun(provider.id, failure, deps.notices.isServerFailure),
                 now: +deps.now(),
                 forecastFresh: watchMayShowForecast(+deps.now())
             });

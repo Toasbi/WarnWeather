@@ -16354,30 +16354,6 @@
             "title": "Data sources",
             "items": [
               {
-                "type": "segmented",
-                "messageKey": "weatherSourceMode",
-                "label": "Weather from",
-                "defaultValue": "one",
-                "hintByValue": {
-                  "auto": "Uses DWD in Germany, Met.no in the Nordic countries and the Weather provider below everywhere else. When one fails, the next one fills in, with Open-Meteo last. A reading a provider lacks comes from Open-Meteo.",
-                  "reading": "Each reading below can come from its own provider. Same as Weather uses the Weather provider, which also fills in when a reading's provider fails. A reading a provider lacks comes from Open-Meteo."
-                },
-                "options": [
-                  [
-                    "One provider",
-                    "one"
-                  ],
-                  [
-                    "By location",
-                    "auto"
-                  ],
-                  [
-                    "Per reading",
-                    "reading"
-                  ]
-                ]
-              },
-              {
                 "type": "select",
                 "messageKey": "provider",
                 "label": "Weather",
@@ -16501,10 +16477,6 @@
                     "reading": "temperature"
                   }
                 },
-                "showWhen": {
-                  "key": "weatherSourceMode",
-                  "eq": "reading"
-                },
                 "hint": "Also brings the feels-like temperature. The other readings line up with its hours."
               },
               {
@@ -16517,10 +16489,6 @@
                   "args": {
                     "reading": "dew"
                   }
-                },
-                "showWhen": {
-                  "key": "weatherSourceMode",
-                  "eq": "reading"
                 }
               },
               {
@@ -16533,10 +16501,6 @@
                   "args": {
                     "reading": "rain"
                   }
-                },
-                "showWhen": {
-                  "key": "weatherSourceMode",
-                  "eq": "reading"
                 },
                 "hint": "Brings the chance of rain and the amount."
               },
@@ -16551,10 +16515,6 @@
                     "reading": "wind"
                   }
                 },
-                "showWhen": {
-                  "key": "weatherSourceMode",
-                  "eq": "reading"
-                },
                 "hint": "Also brings the gusts."
               },
               {
@@ -16567,10 +16527,6 @@
                   "args": {
                     "reading": "windDir"
                   }
-                },
-                "showWhen": {
-                  "key": "weatherSourceMode",
-                  "eq": "reading"
                 }
               },
               {
@@ -16583,10 +16539,6 @@
                   "args": {
                     "reading": "uv"
                   }
-                },
-                "showWhen": {
-                  "key": "weatherSourceMode",
-                  "eq": "reading"
                 }
               },
               {
@@ -16599,10 +16551,6 @@
                   "args": {
                     "reading": "cloud"
                   }
-                },
-                "showWhen": {
-                  "key": "weatherSourceMode",
-                  "eq": "reading"
                 }
               },
               {
@@ -16615,10 +16563,6 @@
                   "args": {
                     "reading": "pressure"
                   }
-                },
-                "showWhen": {
-                  "key": "weatherSourceMode",
-                  "eq": "reading"
                 }
               },
               {
@@ -16631,10 +16575,6 @@
                   "args": {
                     "reading": "condition"
                   }
-                },
-                "showWhen": {
-                  "key": "weatherSourceMode",
-                  "eq": "reading"
                 }
               },
               {

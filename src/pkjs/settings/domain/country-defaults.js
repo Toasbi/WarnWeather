@@ -36,25 +36,6 @@ var SUNDAY_START_COUNTRIES = { US: true };
 // (dotted, day-first — dd.mm.yy). Parallel to the two sets above.
 var SLASH_DATE_COUNTRIES = { US: true };
 
-// The ISO 3166-1 alpha-3 codes of the countries mapCountry picks a provider of their own for,
-// by their alpha-2 code: the reverse geocode (ArcGIS: weather/adapter/provider.js
-// withCityName) names a place's country by its alpha-3 code. Any other country gets the pick
-// for everyone else, so its code needs no entry (test/settings/domain/country-defaults.test.js).
-var ALPHA3 = { DEU: 'DE', NOR: 'NO', SWE: 'SE', DNK: 'DK', FIN: 'FI', ISL: 'IS' };
-
-/**
- * A country code as mapCountry reads it, alpha-2, from an alpha-2 or an ALPHA3 code.
- * @param {*} code ISO alpha-2 or alpha-3 code, any case.
- * @returns {?string} Upper-case alpha-2; null for a code it cannot read, which includes the
- *   alpha-3 code of a country mapCountry gives the pick for everyone else.
- */
-function alpha2(code) {
-    if (typeof code !== 'string') { return null; }
-    var cc = code.toUpperCase();
-    if (/^[A-Z]{2}$/.test(cc)) { return cc; }
-    return Object.prototype.hasOwnProperty.call(ALPHA3, cc) ? ALPHA3[cc] : null;
-}
-
 /**
  * Map an IANA timezone id to an ISO country code.
  * @param {?string} tz IANA timezone id (e.g. 'Europe/Berlin').
@@ -99,7 +80,6 @@ function mapCountry(cc) {
 var COUNTRY_DEFAULTS = {
     countryFromTimezone: countryFromTimezone,
     countryFromLocale: countryFromLocale,
-    alpha2: alpha2,
     mapCountry: mapCountry,
     METNO_COUNTRIES: METNO_COUNTRIES
 };

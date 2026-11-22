@@ -75,11 +75,8 @@ const settingsSchema = z
     dateSlotFullFormat: z.string().optional(),
     aqiScale: z.enum(['european', 'us']).optional(),
     aqiSource: z.enum(['waqi', 'auto', 'openmeteo']).optional(),
-    // Weather from (Setup › Data sources), lockstep with buildSettingsSnapshot. z.string() like
-    // feelsFormula, so a mode a later build adds never fails the whole payload.
-    weatherSourceMode: z.string().optional(),
-    // Per reading's picks, 'reading:provider' pairs ('uv:openmeteo,wind:dwd'), lockstep with
-    // buildSettingsSnapshot.
+    // The reading rows' picks (Setup › Data sources), 'reading:provider' pairs
+    // ('uv:openmeteo,wind:dwd'), lockstep with buildSettingsSnapshot.
     weatherSources: z.string().optional(),
     windUnits: z.string().optional(),
     distanceUnits: z.string().optional(),

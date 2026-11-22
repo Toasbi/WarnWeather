@@ -181,17 +181,15 @@
      * (source-plan.js feedsOf, as the fetch lays them on). A reading its provider does not send
      * is filled from Open-Meteo, whose feed reaches the full span; the providers whose feeds
      * stop short send every reading (test/weather/domain/forecast-span-hours.test.js), so each
-     * reading counts its provider's feed. By location reads the stored
-     * country for the place's, as the calls line does. The settings page does not know what
-     * this watch draws, so a reading only some screens draw counts as drawn: a Per reading pick
-     * for one no screen draws can make the label a little short.
-     * @param {?Object} settings Clay settings (reads the provider, Weather from, Per reading's
-     *   picks, the stored keys and holidayCountry).
+     * reading counts its provider's feed. The settings page does not know what this watch
+     * draws, so a reading only some screens draw counts as drawn: a reading row's pick for one
+     * no screen draws can make the label a little short.
+     * @param {?Object} settings Clay settings (reads the provider, the reading rows' picks and
+     *   the stored keys).
      * @returns {number} Hours the watch is sent.
      */
     function feedHours(settings) {
-        var input = sourcePlan.inputOf(settings, settings && settings.holidayCountry);
-        var feeds = sourcePlan.feedsOf(input, sourcePlan.candidates(input)[0], providerReadings.DRAWN_ONLY);
+        var feeds = sourcePlan.feedsOf(sourcePlan.inputOf(settings), providerReadings.DRAWN_ONLY);
         return Math.min.apply(null, GRAPH_READINGS.map(function (id) {
             return providerReadings.hours(feeds[id]) || FULL_HOURS;
         }));

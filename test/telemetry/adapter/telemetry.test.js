@@ -111,19 +111,11 @@ test('snapshot includes aqiScale', () => {
 });
 
 // Lockstep: it is also in the Deno .strip() schema (telemetry-ingest/handler.ts).
-test('snapshot includes Weather from raw', () => {
-  assert.strictEqual(buildSettingsSnapshot({ weatherSourceMode: 'auto' }).weatherSourceMode, 'auto');
-  assert.strictEqual(buildSettingsSnapshot({ weatherSourceMode: 'one' }).weatherSourceMode, 'one');
-  assert.strictEqual(buildSettingsSnapshot({}).weatherSourceMode, undefined, 'unset reads as One provider');
-});
-
-// Lockstep: it is also in the Deno .strip() schema (telemetry-ingest/handler.ts).
-test('snapshot includes Per reading\'s picks, in Per reading only', () => {
+test('snapshot includes the reading rows\' picks', () => {
   const picks = { weatherSourceUv: 'openmeteo', weatherSourceWind: 'dwd', weatherSourceDew: '' };
-  assert.strictEqual(buildSettingsSnapshot(Object.assign({ weatherSourceMode: 'reading' }, picks)).weatherSources,
-    'wind:dwd,uv:openmeteo', 'in the readings\' order');
-  assert.strictEqual(buildSettingsSnapshot({ weatherSourceMode: 'reading' }).weatherSources, '');
-  assert.strictEqual(buildSettingsSnapshot(Object.assign({ weatherSourceMode: 'auto' }, picks)).weatherSources, undefined);
+  assert.strictEqual(buildSettingsSnapshot(picks).weatherSources, 'wind:dwd,uv:openmeteo', 'in the readings\' order');
+  assert.strictEqual(buildSettingsSnapshot({}).weatherSources, '');
+  assert.strictEqual(buildSettingsSnapshot({}).weatherSourceMode, undefined, 'no Weather from mode any more');
 });
 
 test('snapshot includes aqiSource', () => {
@@ -470,8 +462,7 @@ const HEAVIEST_SETTINGS = {
   windSlotDisplay: 'current', gustSlotDisplay: 'current',
   dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
   aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
-  // Weather from on its longest option, and every reading set to the longest provider id.
-  weatherSourceMode: 'reading',
+  // Every reading set to the longest provider id.
   weatherSourceTemperature: 'openweathermap', weatherSourceDew: 'openweathermap', weatherSourceRain: 'openweathermap',
   weatherSourceWind: 'openweathermap', weatherSourceWindDir: 'openweathermap', weatherSourceUv: 'openweathermap',
   weatherSourceCloud: 'openweathermap', weatherSourcePressure: 'openweathermap', weatherSourceCondition: 'openweathermap',

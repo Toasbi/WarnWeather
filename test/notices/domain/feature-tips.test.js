@@ -150,15 +150,13 @@ test('the two watch battery tips name the page\'s own labels, and say the way to
   assert.ok(featureTips.allIds().indexOf('batteryIconText') < featureTips.allIds().indexOf('batteryDays'));
 });
 
-test('the Weather from tip names the page\'s own section, row and options, on every watch', () => {
+test('the Weather from tip names the page\'s own section and row, on every watch', () => {
   const html = featureTips.TIPS.find((tip) => tip.id === 'weatherFrom').html;
   const setup = schema.tabs.find((tab) => tab.id === 'setup');
   const section = setup.sections.find((s) => s.id === 'dataSources');
-  const from = row('weatherSourceMode');
-  const option = (value) => from.options.find((o) => o[1] === value)[0];
-  assert.ok(html.indexOf('In ' + section.title + ' on the ' + setup.label + ' tab, set ' + from.label + ' to '
-    + option('auto') + ':') !== -1, html);
-  assert.ok(html.indexOf('Or set it to ' + option('reading') + ' and pick a provider for each reading.') !== -1, html);
+  assert.ok(html.indexOf('In ' + section.title + ' on the ' + setup.label + ' tab, each reading under '
+    + row('provider').label + ' can come') !== -1, html);
+  assert.ok(row('weatherSourceWind'), 'the reading rows are on the page');
   [{ platform: 'aplite', plugins: false }, { platform: 'emery', plugins: true }, null].forEach((env) =>
     assert.ok(ids(featureTips.pending([], env)).indexOf('weatherFrom') !== -1, JSON.stringify(env)));
 });

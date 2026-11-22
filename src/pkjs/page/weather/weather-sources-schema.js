@@ -1,9 +1,9 @@
 // src/pkjs/page/weather/weather-sources-schema.js — ES5, PKJS-parsed. The rows of Setup › Data
 // sources that say where the weather comes from, split out of schema.js like alerts-schema.js:
-// the Weather picker's options, the Weather from row above the picker, the note under it that
-// names what comes from Open-Meteo (its text is weather-sources-page.js's weatherFillNote), Per
-// reading's rows and the weather calls line at the section's end. Plain CommonJS: the schema is
-// built in PKJS and reaches the page as data.
+// the Weather picker's options, the note under it that names what comes from Open-Meteo (its
+// text is weather-sources-page.js's weatherFillNote), the reading rows and the weather calls
+// line at the section's end. Plain CommonJS: the schema is built in PKJS and reaches the page as
+// data.
 
 var providerReadings = require('../../weather/domain/provider-readings.js');
 var sourcePlan = require('../../weather/domain/source-plan.js');
@@ -24,30 +24,9 @@ var PROVIDER_OPTIONS = [
     ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
 ];
 
-// Where the forecast comes from (weatherSourceMode, read by the phone's source plan:
-// weather/domain/source-plan.js candidates), the Location row's pattern. One provider is the
-// Weather picker's, as before the row; By location asks the place's regional provider first.
-// Its hint says what By location does, and that what a provider lacks comes from Open-Meteo,
-// which the note under the picker cannot name there: the page does not know the place.
-var WEATHER_FROM = {
-    type: 'segmented',
-    messageKey: 'weatherSourceMode',
-    label: 'Weather from',
-    defaultValue: 'one',
-    hintByValue: {
-        auto: 'Uses DWD in Germany, Met.no in the Nordic countries and the Weather provider below everywhere '
-            + 'else. When one fails, the next one fills in, with Open-Meteo last. A reading a provider lacks '
-            + 'comes from Open-Meteo.',
-        reading: 'Each reading below can come from its own provider. Same as Weather uses the Weather '
-            + 'provider, which also fills in when a reading\'s provider fails. A reading a provider lacks '
-            + 'comes from Open-Meteo.'
-    },
-    options: [['One provider', 'one'], ['By location', 'auto'], ['Per reading', 'reading']]
-};
-
-// Per reading's rows, one per reading (provider-readings.js READINGS, labelled by
-// weather-words.js WORDS), each its provider or Same as Weather (''), shown while Weather
-// from is Per reading; the phone reads them through source-plan.js choicesOf. A row's options
+// The reading rows, one per reading (provider-readings.js READINGS, labelled by weather-words.js
+// WORDS), each its provider or Same as Weather (''); the phone reads them through source-plan.js
+// choicesOf. A row's options
 // come from the page (weather-sources-page.js weatherReadingOptions): the settings URL carries
 // one short line per row instead of nine lists. The rows whose reading brings more than its name
 // says say what.
@@ -62,8 +41,7 @@ var READING_ROWS = providerReadings.READING_IDS.map(function (id) {
         messageKey: sourcePlan.choiceKey(id),
         label: html.capitalize(WORDS[id]),
         defaultValue: '',
-        optionsFrom: {resolver: 'weatherReadingOptions', args: {reading: id}},
-        showWhen: {key: 'weatherSourceMode', eq: 'reading'}
+        optionsFrom: {resolver: 'weatherReadingOptions', args: {reading: id}}
     };
     if (READING_HINTS[id]) { row.hint = READING_HINTS[id]; }
     return row;
@@ -71,7 +49,7 @@ var READING_ROWS = providerReadings.READING_IDS.map(function (id) {
 
 // The readings the picked provider lacks that a screen draws, said under the Weather row: they
 // come from Open-Meteo. A plain note joined to the row, like its hint; textFrom answers '' when
-// none do, and in By location, and the note is gone.
+// none do, and the note is gone.
 var FILL_NOTE = {
     type: 'staticText',
     joinPrevious: true,
@@ -86,5 +64,5 @@ var CALLS_LINE = {
     textFrom: {resolver: 'weatherCallsLine'}
 };
 
-module.exports = { PROVIDER_OPTIONS: PROVIDER_OPTIONS, WEATHER_FROM: WEATHER_FROM, READING_ROWS: READING_ROWS,
-    FILL_NOTE: FILL_NOTE, CALLS_LINE: CALLS_LINE };
+module.exports = { PROVIDER_OPTIONS: PROVIDER_OPTIONS, READING_ROWS: READING_ROWS, FILL_NOTE: FILL_NOTE,
+    CALLS_LINE: CALLS_LINE };

@@ -1,7 +1,7 @@
 {
   "dwd@basalt": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.brightsky.dev/weather?lat=52.52&lon=13.405&date=2026-06-20T08%3A00%3A00.000Z&last_date=2026-06-21T23%3A00%3A00.000Z&max_dist=500000",
@@ -30,7 +30,7 @@
   },
   "dwd@aplite": {
     "outcome": "ok",
-    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.brightsky.dev/weather?lat=52.52&lon=13.405&date=2026-06-20T08%3A00%3A00.000Z&last_date=2026-06-21T08%3A00%3A00.000Z&max_dist=500000",
@@ -54,7 +54,7 @@
   },
   "dwd@lines": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.brightsky.dev/weather?lat=52.52&lon=13.405&date=2026-06-20T08%3A00%3A00.000Z&last_date=2026-06-21T23%3A00%3A00.000Z&max_dist=500000",
@@ -83,7 +83,7 @@
   },
   "dwd@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":true,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":true,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.brightsky.dev/weather?lat=52.52&lon=13.405&date=2026-06-20T08%3A00%3A00.000Z&last_date=2026-06-23T04%3A00%3A00.000Z&max_dist=500000",
@@ -113,7 +113,7 @@
   },
   "metno@basalt": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
@@ -140,7 +140,7 @@
   },
   "metno@aplite": {
     "outcome": "ok",
-    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
@@ -163,7 +163,7 @@
   },
   "metno@lines": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
@@ -190,7 +190,7 @@
   },
   "metno@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
@@ -217,7 +217,7 @@
   },
   "openmeteo@basalt": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.405&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high&current=temperature_2m,weather_code&temperature_unit=fahrenheit&windspeed_unit=kmh&precipitation_unit=mm&timeformat=unixtime&timezone=GMT&models=ecmwf_ifs025&forecast_days=3",
@@ -246,7 +246,7 @@
   },
   "openmeteo@aplite": {
     "outcome": "ok",
-    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.405&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high&current=temperature_2m,weather_code&temperature_unit=fahrenheit&windspeed_unit=kmh&precipitation_unit=mm&timeformat=unixtime&timezone=GMT&models=ecmwf_ifs025&forecast_days=3",
@@ -270,7 +270,7 @@
   },
   "openmeteo@lines": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.405&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high&current=temperature_2m,weather_code&temperature_unit=fahrenheit&windspeed_unit=kmh&precipitation_unit=mm&timeformat=unixtime&timezone=GMT&models=ecmwf_ifs025&forecast_days=3",
@@ -299,7 +299,7 @@
   },
   "openmeteo@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.405&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high&current=temperature_2m,weather_code&temperature_unit=fahrenheit&windspeed_unit=kmh&precipitation_unit=mm&timeformat=unixtime&timezone=GMT&models=ecmwf_ifs025&forecast_days=4",
@@ -328,7 +328,7 @@
   },
   "openweathermap@basalt": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.openweathermap.org/data/3.0/onecall?appid=owm-test-key&lat=52.52&lon=13.405&units=imperial&exclude=alerts,minutely",
@@ -355,7 +355,7 @@
   },
   "openweathermap@aplite": {
     "outcome": "ok",
-    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.openweathermap.org/data/3.0/onecall?appid=owm-test-key&lat=52.52&lon=13.405&units=imperial&exclude=alerts,minutely",
@@ -378,7 +378,7 @@
   },
   "openweathermap@lines": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.openweathermap.org/data/3.0/onecall?appid=owm-test-key&lat=52.52&lon=13.405&units=imperial&exclude=alerts,minutely",
@@ -405,7 +405,7 @@
   },
   "openweathermap@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.openweathermap.org/data/3.0/onecall?appid=owm-test-key&lat=52.52&lon=13.405&units=imperial&exclude=alerts,minutely",
@@ -432,7 +432,7 @@
   },
   "tomorrowio@basalt": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.tomorrow.io/v4/timelines?location=52.52,13.405&fields=temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,cloudCover,temperatureApparent,dewPoint,windDirection,humidity,weatherCode&timesteps=1h&units=metric&startTime=2026-06-20T08%3A00%3A00.000Z&endTime=2026-06-22T10%3A00%3A00.000Z&apikey=tio-test-key",
@@ -459,7 +459,7 @@
   },
   "tomorrowio@aplite": {
     "outcome": "ok",
-    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.tomorrow.io/v4/timelines?location=52.52,13.405&fields=temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,cloudCover,temperatureApparent,dewPoint,windDirection,humidity,weatherCode&timesteps=1h&units=metric&startTime=2026-06-20T08%3A00%3A00.000Z&endTime=2026-06-21T09%3A00%3A00.000Z&apikey=tio-test-key",
@@ -482,7 +482,7 @@
   },
   "tomorrowio@lines": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.tomorrow.io/v4/timelines?location=52.52,13.405&fields=temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,cloudCover,temperatureApparent,dewPoint,windDirection,humidity,weatherCode&timesteps=1h&units=metric&startTime=2026-06-20T08%3A00%3A00.000Z&endTime=2026-06-22T10%3A00%3A00.000Z&apikey=tio-test-key",
@@ -509,7 +509,7 @@
   },
   "tomorrowio@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.tomorrow.io/v4/timelines?location=52.52,13.405&fields=temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,cloudCover,temperatureApparent,dewPoint,windDirection,humidity,weatherCode&timesteps=1h&units=metric&startTime=2026-06-20T08%3A00%3A00.000Z&endTime=2026-06-23T05%3A00%3A00.000Z&apikey=tio-test-key",
@@ -536,7 +536,7 @@
   },
   "wunderground@basalt": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://www.wunderground.com/",
@@ -565,7 +565,7 @@
   },
   "wunderground@aplite": {
     "outcome": "ok",
-    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://www.wunderground.com/",
@@ -590,7 +590,7 @@
   },
   "wunderground@lines": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://www.wunderground.com/",
@@ -619,7 +619,7 @@
   },
   "wunderground@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://www.wunderground.com/",
@@ -648,7 +648,7 @@
   },
   "yandex@basalt": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "POST https://api.weather.yandex.ru/graphql/query {\"query\":\"{ weatherByPoint(request: {lat: 52.52, lon: 13.405}) { now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) condition } forecast { days(limit: 3) { hours { timestamp temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) precProbability prec windSpeed(unit: KILOMETERS_PER_HOUR) windGust(unit: KILOMETERS_PER_HOUR) uvIndex } } } } }\"}",
@@ -675,7 +675,7 @@
   },
   "yandex@aplite": {
     "outcome": "ok",
-    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":false,"fetchAqi":true,"fetchPollen":false,"fetchFeels":false,"feelsFormula":"provider","dayPeakCodes":[],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":[],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "POST https://api.weather.yandex.ru/graphql/query {\"query\":\"{ weatherByPoint(request: {lat: 52.52, lon: 13.405}) { now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) condition } forecast { days(limit: 3) { hours { timestamp temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) precProbability prec windSpeed(unit: KILOMETERS_PER_HOUR) windGust(unit: KILOMETERS_PER_HOUR) uvIndex } } } } }\"}",
@@ -698,7 +698,7 @@
   },
   "yandex@lines": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"provider","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":24,"drawn":["uv"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "POST https://api.weather.yandex.ru/graphql/query {\"query\":\"{ weatherByPoint(request: {lat: 52.52, lon: 13.405}) { now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) condition } forecast { days(limit: 3) { hours { timestamp temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) precProbability prec windSpeed(unit: KILOMETERS_PER_HOUR) windGust(unit: KILOMETERS_PER_HOUR) uvIndex } } } } }\"}",
@@ -725,7 +725,7 @@
   },
   "yandex@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"mode":"one","choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]}},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "POST https://api.weather.yandex.ru/graphql/query {\"query\":\"{ weatherByPoint(request: {lat: 52.52, lon: 13.405}) { now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) condition } forecast { days(limit: 4) { hours { timestamp temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) precProbability prec windSpeed(unit: KILOMETERS_PER_HOUR) windGust(unit: KILOMETERS_PER_HOUR) uvIndex } } } } }\"}",

@@ -371,29 +371,18 @@ plan also counts the calls a day it comes to while no provider fails (`callsPerD
 update's requests, outside the Battery saver's window, and the UV-only fill once its answer
 stops serving), which the settings page shows at the end of Setup › Data sources and the
 tomorrow.io budget counts its share by.
-_Avoid_: provider chain, fallback provider (a fallback is what By location tries when a
-provider fails).
+_Avoid_: provider chain, fallback provider.
 
-**Weather from**:
-Where the forecast comes from (Setup › Data sources, the `weatherSourceMode` setting): One
-provider, the Weather picker's, as before the row; By location: the place's regional provider
-by the setup wizard's map (DWD in Germany, Met.no in the Nordic countries, from the country the
-reverse geocode names), then the Weather picker's, then Open-Meteo, each only when the one
-before failed and only where it covers the place and has its key
-(`src/pkjs/weather/domain/source-plan.js` candidates); or Per reading. The Weather picker's
-provider stays the fetch's anchor in every mode; its `feeds` name the provider each reading
-came from, which the day records follow.
-_Avoid_: source mode, auto mode.
-
-**Per reading**:
-The Weather from mode in which each reading has a provider of its own: its row on Setup ›
-Data sources (`weatherSource<Reading>`, '' for Same as Weather, the Weather picker's), where
-that provider sends the reading, has its key and covers the place (`source-plan.js`
-readingProviders). The forecast starts with the temperature's provider; each other provider is
-asked once for its whole forecast and the readings picked to it are laid on by time (a part:
-`partSteps`, `forecast-model.js` adoptReadings). A part that fails falls back to the Weather
-picker's provider.
-_Avoid_: mixed mode, custom sources.
+**Reading pick**:
+A reading's provider of its own: its row on Setup › Data sources (`weatherSource<Reading>`, ''
+for Same as Weather, the Weather picker's), where that provider sends the reading, has its key
+and covers the place (`source-plan.js` readingProviders). The Weather picker's provider always
+serves the forecast and stays the fetch's anchor; each other provider a pick names is asked
+once for its whole forecast, and the readings picked to it are laid on by time (a part:
+`partSteps`, `forecast-model.js` adoptReadings). A part that fails, or whose hours do not line
+up, leaves its readings the Weather picker's. The anchor's `feeds` name the provider each
+reading came from, which the day records follow.
+_Avoid_: Per reading, mixed mode, custom sources.
 
 **Drawn reading**:
 A reading only some screens draw that the watch draws now
@@ -406,8 +395,8 @@ _Avoid_: wanted reading, used metric.
 **Source ports**:
 What a fetch's source plan runs through (`src/pkjs/weather/adapter/source-ports.js`): the
 requests to providers other than the Weather picker's and to Open-Meteo's fills, the forecast
-snapshots, the clock and the update interval. Where the weather comes from (the Weather from
-mode, Per reading's picks, the stored keys) rides the fetch options instead
+snapshots, the clock and the update interval. Where the weather comes from (the reading picks,
+the stored keys) rides the fetch options instead
 (`source-plan.js` sourcesOf). The fetch cycle builds a set for each fetch (`shell/fetch-cycle.js`
 prepareFetch) and hands it to `fetchWithCoordinates`.
 _Avoid_: sources (the radar, air quality and plugins have sources of their own).

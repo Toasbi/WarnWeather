@@ -100,9 +100,9 @@ const EXPECTED_KEYS = [
   'dateSlotMonthFormat','dateSlotFullFormat',
   // The weather condition slot's Look (Icon + text / Text / Icon).
   'conditionSlotLook', 'conditionSlotName', 'citySlotIcon',
-  // Weather from (Setup › Data sources): where the forecast comes from, and Per reading's
-  // picks, one per reading; phone-side only.
-  'weatherSourceMode', 'weatherSourceTemperature', 'weatherSourceDew', 'weatherSourceRain', 'weatherSourceWind',
+  // The reading rows (Setup › Data sources): a provider of its own for each reading;
+  // phone-side only.
+  'weatherSourceTemperature', 'weatherSourceDew', 'weatherSourceRain', 'weatherSourceWind',
   'weatherSourceWindDir', 'weatherSourceUv', 'weatherSourceCloud', 'weatherSourcePressure', 'weatherSourceCondition',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','forecastHours',

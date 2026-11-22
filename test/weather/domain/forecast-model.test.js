@@ -29,7 +29,7 @@ test('buildPayload is a function of the fields and the time it is handed', () =>
   assert.equal(a.NUM_ENTRIES, 2);
 });
 
-// --- adoptReadings: another provider's readings laid on by time (Per reading) ------------------
+// --- adoptReadings: another provider's readings laid on by time (a reading pick) ---------------
 
 test('adoptReadings lays another forecast\'s readings on hour by hour, the values of the moment as they are', () => {
   const H = 3600;
@@ -68,12 +68,3 @@ test('the hours from one start to another: whole hours on, else none', () => {
   assert.equal(model.hourShift(undefined, 10 * H), null);
 });
 
-test('another provider\'s whole forecast replaces every adopted field; one it lacks goes', () => {
-  const target = { tempTrend: [1], currentTemp: 1, uvTrend: [9], startTime: 1 };
-  const source = { tempTrend: [2, 3], currentTemp: 2, startTime: 7200 };
-  model.adoptForecast(target, source);
-  assert.deepEqual(target.tempTrend, [2, 3]);
-  assert.equal(target.currentTemp, 2);
-  assert.equal(target.startTime, 7200);
-  assert.equal('uvTrend' in target, false, 'a field the answer lacks is not left from before');
-});

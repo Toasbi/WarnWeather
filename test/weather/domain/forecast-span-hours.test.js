@@ -233,31 +233,23 @@ test('shownHours: the hours each span draws, as the watch fits its grid to the p
   assert.equal(1 + 2 * cDefine(small, 'FORECAST_GRID_PAD') + cDefine(small, 'FORECAST_GRID_BAR_W'), 7);
 });
 
-test('feedHours in Per reading: the shortest feed of the providers each graph reading comes from', () => {
-  const perReading = (over) => Object.assign({ provider: 'dwd', weatherSourceMode: 'reading', barSource: 'rain',
+test('feedHours with the reading rows\' picks: the shortest feed of the providers each graph reading comes from', () => {
+  const picked = (over) => Object.assign({ provider: 'dwd', barSource: 'rain',
     secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', owmApiKey: 'k' }, over);
-  assert.equal(spanHours.feedHours(perReading({})), 68);
-  assert.equal(spanHours.feedHours(perReading({ weatherSourceRain: 'openweathermap' })), 48, 'the rain');
-  assert.equal(spanHours.feedHours(perReading({ weatherSourceRain: 'openweathermap', barSource: 'off',
+  assert.equal(spanHours.feedHours(picked({})), 68);
+  assert.equal(spanHours.feedHours(picked({ weatherSourceRain: 'openweathermap' })), 48, 'the rain');
+  assert.equal(spanHours.feedHours(picked({ weatherSourceRain: 'openweathermap', barSource: 'off',
     secondaryLine: 'off' })), 48, 'the rain is sent whether the graph draws it or not');
-  assert.equal(spanHours.feedHours(perReading({ weatherSourceWind: 'wunderground' })), 49,
+  assert.equal(spanHours.feedHours(picked({ weatherSourceWind: 'wunderground' })), 49,
     'the wind too, with no wind or gust line');
-  assert.equal(spanHours.feedHours(perReading({ weatherSourceCloud: 'openweathermap' })), 48,
+  assert.equal(spanHours.feedHours(picked({ weatherSourceCloud: 'openweathermap' })), 48,
     'a reading only some screens draw counts as drawn: the page does not know the watch');
-  assert.equal(spanHours.feedHours(perReading({ weatherSourceTemperature: 'openweathermap', owmApiKey: '' })), 68,
+  assert.equal(spanHours.feedHours(picked({ weatherSourceTemperature: 'openweathermap', owmApiKey: '' })), 68,
     'a pick without its key follows the Weather picker');
-  assert.equal(spanHours.feedHours(perReading({ weatherSourceMode: 'one', weatherSourceRain: 'openweathermap' })), 68,
-    'the picks count in Per reading only');
-  assert.equal(spanHours.feedHours({ provider: 'yandex', weatherSourceMode: 'reading', weatherSourceTemperature: 'openweathermap',
-    owmApiKey: 'k' }), 48, 'the temperature\'s provider serves the forecast');
-});
-
-test('feedHours in By location: the stored country\'s regional provider, else the Weather picker\'s', () => {
-  const byLocation = (country) => ({ provider: 'openweathermap', weatherSourceMode: 'auto', owmApiKey: 'k',
-    holidayCountry: country });
-  assert.equal(spanHours.feedHours(byLocation('DE')), 68, 'DWD serves in Germany');
-  assert.equal(spanHours.feedHours(byLocation('NO')), 68, 'Met.no in Norway');
-  assert.equal(spanHours.feedHours(byLocation('FR')), 48, 'OpenWeatherMap elsewhere');
+  assert.equal(spanHours.feedHours({ provider: 'yandex', weatherSourceTemperature: 'openweathermap',
+    owmApiKey: 'k' }), 48, 'a picked temperature counts like any other reading');
+  assert.equal(spanHours.feedHours({ provider: 'openweathermap', weatherSourceTemperature: 'dwd', owmApiKey: 'k' }), 48,
+    'the Weather picker\'s own readings still count');
 });
 
 test('a provider whose feed stops short sends every reading: no reading of it is filled from a fuller feed', () => {

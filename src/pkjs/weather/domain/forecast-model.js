@@ -322,21 +322,9 @@ function layKeys(target, source, keys, shift) {
 }
 
 /**
- * Put another provider's whole forecast on this one, as adoptMapped would have: every adopted
- * field, a field it lacks deleted, so hasValidData judges `target` as it would `source` (By
- * location, Per reading: weather/application/fetch-sources.js).
- * @param {Object} target The forecast the fields land on.
- * @param {Object} source The forecast that answered.
- * @returns {void}
- */
-function adoptForecast(target, source) {
-    layKeys(target, source, ADOPTED_KEYS, 0);
-}
-
-/**
  * Lay some of another provider's forecast on this one, hour by hour: each hourly series from
- * the hour `target` starts at (its startTime) on, the values of the moment as they are (Per
- * reading: weather/application/fetch-sources.js). A series that starts earlier loses its first
+ * the hour `target` starts at (its startTime) on, the values of the moment as they are (a
+ * reading row's pick: weather/application/fetch-sources.js). A series that starts earlier loses its first
  * hours and comes up as much shorter; the payload carries the fewest hours a drawn series
  * holds (payloadEntries). Nothing is laid on when the two do not line up: `source` starting
  * after `target`, or off its hour grid.
@@ -361,7 +349,6 @@ module.exports = {
     HOURLY_KEYS: HOURLY_KEYS,
     adoptMapped: adoptMapped,
     hourShift: hourShift,
-    adoptForecast: adoptForecast,
     adoptReadings: adoptReadings,
     payloadEntries: payloadEntries,
     buildPayload: buildPayload

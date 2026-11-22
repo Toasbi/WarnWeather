@@ -22,7 +22,7 @@ var feelsLike = require('./feels-like.js');
 // status-thresholds.js, all dual-context leaves forecast-series.js already loads, so the
 // invariant holds.
 var drawnReadings = require('./drawn-readings.js');
-// source-plan.js reads provider-readings.js and settings/domain/country-defaults.js, leaves.
+// source-plan.js reads provider-readings.js, a leaf.
 var sourcePlan = require('./source-plan.js');
 // forecast-span.js requires hourly-window.js (a leaf), forecast-axis.js (line-style.js, as
 // forecast-series.js already does) and forecast-span-hours.js (that and view-cycle.js, a
@@ -78,11 +78,10 @@ var DEFAULTS = {
     // (source-plan.js wanted, fillSteps); fetchUv is whether it holds UV. None by default.
     // Frozen: defaults() hands every caller this one list.
     drawn: Object.freeze([]),
-    // Where the weather comes from (Setup › Data sources, Weather from; source-plan.js
-    // sourcesOf): the mode ('one', the Weather picker's provider; 'auto', By location: the
-    // place's regional provider first; 'reading', Per reading: each reading's own), Per
-    // reading's picks and the providers whose key is stored. Frozen like drawn.
-    sources: Object.freeze({ mode: 'one', choices: Object.freeze({}), keyed: Object.freeze([]) })
+    // Where the weather comes from besides the Weather picker's provider (Setup › Data sources;
+    // source-plan.js sourcesOf): the reading rows' picks and the providers whose key is stored.
+    // Frozen like drawn.
+    sources: Object.freeze({ choices: Object.freeze({}), keyed: Object.freeze([]) })
 };
 // Shared and exported: frozen so no consumer can shift every later provider's
 // default by writing to it (Object.freeze is ES5).

@@ -1,7 +1,7 @@
 // src/pkjs/page/weather/weather-sources-page.js — ES5. Where the weather comes from, on the
 // settings page (Setup › Data sources): the note under the Weather picker that names the
 // readings coming from Open-Meteo (weatherFillNote, a staticText's textFrom; its row is
-// weather-sources-schema.js FILL_NOTE), Per reading's row options (weatherReadingOptions), and
+// weather-sources-schema.js FILL_NOTE), the reading rows' options (weatherReadingOptions), and
 // the calls a day the choices come to (weatherCallsLine, at the interval the budget read-outs
 // count with). The note's readings are the source plan's
 // fills, by the phone's own rules: the readings the picked provider lacks (source-plan.js
@@ -29,7 +29,7 @@
     var NAMES = words.NAMES;
 
     /**
-     * A Per reading row's options: Same as Weather, then each provider that sends its reading,
+     * A reading row's options: Same as Weather, then each provider that sends its reading,
      * in the Weather picker's order. A keyed provider stays listed but cannot be picked until
      * its key is stored: the key rows belong to the Weather and Rain radar pickers.
      * @param {Object} S Settings.
@@ -39,7 +39,7 @@
      */
     function readingOptions(S, env, args) {
         var reading = args && args.reading;
-        var input = sourcePlan.inputOf(S, null);
+        var input = sourcePlan.inputOf(S);
         var out = [['Same as Weather', '']];
         Object.keys(NAMES).forEach(function (id) {
             if (!providerReadings.serves(id, reading)) { return; }
@@ -52,17 +52,15 @@
     /**
      * The note under the Weather picker: which readings the watch draws that the picked
      * provider sends none of, and that they come from Open-Meteo. "Sends no", as the page's
-     * other gap sentences say it (forecast-metrics.js gapSentence). In Per reading, of the
-     * readings that follow the picker: a row's own pick sends its reading. None in By location,
-     * whose provider follows the place the page does not know: the Weather from row's hint says
-     * it.
+     * other gap sentences say it (forecast-metrics.js gapSentence). Of the readings that follow
+     * the picker: a row's own pick sends its reading.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @returns {string} HTML; '' while nothing comes from Open-Meteo
      */
     function fillNote(S, env) {
-        var input = sourcePlan.inputOf(S, null);
-        if (input.mode === 'auto' || !Object.prototype.hasOwnProperty.call(NAMES, input.provider)) { return ''; }
+        var input = sourcePlan.inputOf(S);
+        if (!Object.prototype.hasOwnProperty.call(NAMES, input.provider)) { return ''; }
         var provider = input.provider;
         var drawn = drawnReadings.drawn(S, env || {});
         var filled = sourcePlan.fillsOf(sourcePlan.readingProviders(input), drawn);
@@ -75,12 +73,10 @@
     /**
      * The line at the end of Data sources: the calls a day the weather's choices come to while no
      * provider fails (source-plan.js callsPerDay), and each provider's share when more than one
-     * is called, in the order the plan asks them: the forecast's provider first. It counts at the
-     * update interval and the night pause the budget read-outs count with (interval-budget.js
-     * readoutState and readoutInterval, tomorrowio-budget.js sleepHours), so its tomorrow.io share
-     * is their figure where every reading tomorrow.io brings is drawn. By location counts the
-     * regional provider of the stored country (holidayCountry), as the Weather picker's
-     * "(Recommended)" marker does: the page does not know the place.
+     * is called, in the order the plan asks them: the Weather picker's provider first. It counts
+     * at the update interval and the night pause the budget read-outs count with
+     * (interval-budget.js readoutState and readoutInterval, tomorrowio-budget.js sleepHours), so
+     * its tomorrow.io share is their figure where every reading tomorrow.io brings is drawn.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @returns {string} HTML; '' for a provider the page does not know
@@ -89,7 +85,7 @@
         if (!S || !Object.prototype.hasOwnProperty.call(NAMES, S.provider)) { return ''; }
         var state = intervalBudget.readoutState(S, env);
         var drawn = drawnReadings.drawn(S, env || {});
-        var calls = sourcePlan.callsPerDay(sourcePlan.inputOf(S, S.holidayCountry), drawn,
+        var calls = sourcePlan.callsPerDay(sourcePlan.inputOf(S), drawn,
             intervalBudget.readoutInterval(state), tomorrowioBudget.sleepHours(state));
         var ids = Object.keys(calls).filter(function (id) { return calls[id] > 0; });
         var total = ids.reduce(function (sum, id) { return sum + calls[id]; }, 0);

@@ -18,7 +18,7 @@ test('DEFAULTS names every knob with its fail-safe default', () => {
     fetchUv: false, fetchAqi: false, fetchPollen: false, fetchFeels: true,
     feelsFormula: 'provider', dayPeakCodes: null, windUnits: 'kph',
     aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24, drawn: [],
-    sources: { mode: 'one', choices: {}, keyed: [] }
+    sources: { choices: {}, keyed: [] }
   });
   assert.ok(Object.isFrozen(fetchOptions.DEFAULTS.drawn), 'one default list, shared by every defaults(), stays empty');
 });
@@ -142,7 +142,7 @@ test('build() returns every knob and a fresh object per call', () => {
 
 test('build() carries where the weather comes from, as the source plan reads the settings', () => {
   const sourcePlan = require('../../../src/pkjs/weather/domain/source-plan.js');
-  [{ weatherSourceMode: 'auto', owmApiKey: 'k' }, { weatherSourceMode: 'reading', weatherSourceWind: 'dwd' }, null]
+  [{ owmApiKey: 'k' }, { weatherSourceWind: 'dwd' }, null]
     .forEach((settings) => {
       assert.deepEqual(fetchOptions.build(settings).sources, sourcePlan.sourcesOf(settings), JSON.stringify(settings));
     });

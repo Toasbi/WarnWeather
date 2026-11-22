@@ -2,15 +2,13 @@
 //
 // One fetch's weather sources: the source plan's steps (weather/domain/source-plan.js), onto
 // the Weather picker's provider (the anchor, the instance the rest of the fetch chain reads:
-// provider.js fetchWithCoordinates). The forecast comes from the first of the plan's candidates
-// that serves it: the anchor's own answer, or another provider's put on the anchor (By
-// location, Per reading). In Per reading the other readings' providers come next, each laid on
-// by time. Then come the fills for what the readings' providers lack. Each step reuses its
-// snapshot when one serves (weather/domain/forecast-snapshot.js), else asks and keeps a valid
-// answer, and each provider's forecast is asked once a fetch. A forecast no provider serves
-// fails the fetch; a part that fails falls back to the plan's fallback, the Weather picker's
-// provider, and a fill that fails leaves its readings empty, as a reading a provider does not
-// send is everywhere.
+// provider.js fetchWithCoordinates). The forecast is the anchor's own answer; the providers
+// the reading rows pick come next, each laid on by time (the parts). Then come the fills for
+// what the readings' providers lack. Each step reuses its snapshot when one serves
+// (weather/domain/forecast-snapshot.js), else asks and keeps a valid answer, and each
+// provider's forecast is asked once a fetch. A forecast the anchor does not serve fails the
+// fetch; a part that fails leaves its readings the anchor's, and a fill that fails leaves its
+// readings empty, as a reading a provider does not send is everywhere.
 //
 // The steps run through the source ports (weather/adapter/source-ports.js create, which the
 // fetch cycle hands the provider: shell/fetch-cycle.js prepareFetch), so this file touches no
@@ -204,23 +202,22 @@ function ask(run, step, target, done) {
 
 /**
  * A provider's forecast this fetch, asked once: the instance holding it, or null once it failed.
- * The forecast step asks the Weather picker's own on the anchor; any later ask takes an
- * instance of its own, so the forecast on the anchor stays. Each provider asked joins the
- * anchor's answers, and another instance's own recovered failure (Yandex's refused condition
- * field) is kept as the anchor's would be.
+ * The Weather picker's own answers on the anchor; another provider on an instance of its own,
+ * so the forecast on the anchor stays. Each provider asked joins the anchor's answers, and
+ * another instance's own recovered failure (Yandex's refused condition field) is kept as the
+ * anchor's would be.
  * @param {Object} run The fetch (fetchSources).
  * @param {string} id The provider.
- * @param {boolean} onAnchor Whether the Weather picker's provider answers on the anchor.
  * @param {function(?Object, ?Object): void} done Receives the instance, or null, and the
  *   failure of a provider asked now.
  * @returns {void}
  */
-function forecastOf(run, id, onAnchor, done) {
+function forecastOf(run, id, done) {
     if (Object.prototype.hasOwnProperty.call(run.forecasts, id)) {
         done(run.forecasts[id], null);
         return;
     }
-    var target = onAnchor && id === run.anchor.id ? run.anchor : run.ports.providerFor(id);
+    var target = id === run.anchor.id ? run.anchor : run.ports.providerFor(id);
     ask(run, { provider: id, ask: 'forecast' }, target, function (stepFailure) {
         run.forecasts[id] = stepFailure ? null : target;
         run.anchor.answers.push({ id: id, apiKey: target.apiKey, name: target.name, shortName: target.shortName,
@@ -231,84 +228,34 @@ function forecastOf(run, id, onAnchor, done) {
 }
 
 /**
- * The forecast: its candidates in turn until one serves, its answer put on the anchor. A
- * fetch a later candidate saved keeps the first failure as the recovered one; when every
- * candidate fails, the last one's failure fails the fetch.
+ * The parts, in order: each part's readings are laid on the anchor by time (forecast-model.js
+ * adoptReadings) from its provider's forecast; when that failed, or its hours do not line up
+ * with the anchor's, they stay the anchor's, their feed the anchor's provider, and the failure
+ * is the recovered one.
  * @param {Object} run The fetch (fetchSources).
- * @param {string[]} candidates sourcePlan.candidates().
- * @param {function(string): void} onServed Receives the provider that served.
- * @param {function(Object): void} onFailure Receives the last candidate's failure.
- * @returns {void}
- */
-function serveForecast(run, candidates, onServed, onFailure) {
-    var firstFailure = null;
-    /**
-     * Ask candidate i, then the next while it fails.
-     * @param {number} i Its index.
-     * @returns {void}
-     */
-    function attempt(i) {
-        forecastOf(run, candidates[i], true, function (served, stepFailure) {
-            if (served) {
-                if (served !== run.anchor) { forecastModel.adoptForecast(run.anchor, served); }
-                recover(run, firstFailure);
-                onServed(candidates[i]);
-                return;
-            }
-            firstFailure = firstFailure || stepFailure;
-            if (i + 1 < candidates.length) {
-                attempt(i + 1);
-                return;
-            }
-            onFailure(stepFailure);
-        });
-    }
-    attempt(0);
-}
-
-/**
- * Per reading's parts, in order: each part's readings are laid on the anchor by time
- * (forecast-model.js adoptReadings) from the first of its provider and its fallback whose
- * forecast lines up, their feed that provider; when neither does, they stay the forecast's. A
- * provider that failed, or whose hours do not line up with the forecast's, is the recovered
- * failure.
- * @param {Object} run The fetch (fetchSources).
- * @param {Array<{provider: string, fallback: string, readings: string[]}>} parts
- *   sourcePlan.partSteps().
- * @param {string} served The provider that served the forecast.
+ * @param {Array<{provider: string, readings: string[]}>} parts sourcePlan.partSteps().
  * @param {Function} done Called once every part has run.
  * @returns {void}
  */
-function layParts(run, parts, served, done) {
+function layParts(run, parts, done) {
     inTurn(parts, function (part, next) {
-        var keys = providerReadings.keysOf(part.readings);
-        inTurn([part.provider, part.fallback], function (id, tryNext) {
-            forecastOf(run, id, false, function (forecast, stepFailure) {
-                recover(run, stepFailure);
-                if (!forecast) {
-                    tryNext();
-                    return;
-                }
-                if (!forecastModel.adoptReadings(run.anchor, forecast, keys)) {
-                    recover(run, failure(id + '_hours_misaligned'));
-                    tryNext();
-                    return;
-                }
-                part.readings.forEach(function (reading) { run.anchor.feeds[reading] = id; });
-                next();
+        forecastOf(run, part.provider, function (forecast, stepFailure) {
+            recover(run, stepFailure);
+            var laid = Boolean(forecast)
+                && forecastModel.adoptReadings(run.anchor, forecast, providerReadings.keysOf(part.readings));
+            if (forecast && !laid) { recover(run, failure(part.provider + '_hours_misaligned')); }
+            part.readings.forEach(function (reading) {
+                run.anchor.feeds[reading] = laid ? part.provider : run.anchor.id;
             });
-        }, function () {
-            part.readings.forEach(function (reading) { run.anchor.feeds[reading] = served; });
             next();
         });
     }, done);
 }
 
 /**
- * The fills, in order. A fill whose provider's whole forecast this fetch already holds (a part
- * of Per reading, or the forecast) is laid on from it by time instead of asked; another asks
- * its request. One that brings its readings names its provider as their feed; one that fails
- * leaves them empty.
+ * The fills, in order. A fill whose provider's whole forecast this fetch already holds (a part,
+ * or the forecast) is laid on from it by time instead of asked; another asks its request. One
+ * that brings its readings names its provider as their feed; one that fails leaves them empty.
  * @param {Object} run The fetch (fetchSources).
  * @param {Object[]} fills sourcePlan.fillSteps().
  * @param {Function} done Called once every fill has run.
@@ -340,11 +287,11 @@ function fill(run, fills, done) {
 }
 
 /**
- * Run the plan's steps for the anchor, from snapshots where they serve: the forecast from the
- * first candidate that serves it, Per reading's parts, then the fills for what came.
+ * Run the plan's steps for the anchor, from snapshots where they serve: its own forecast, the
+ * parts, then the fills for what came.
  *
  * @param {Object} anchor The Weather picker's provider (provider.js), its options set for
- *   this fetch and its countryCode for this place.
+ *   this fetch.
  * @param {{fillUv: function(Object, number, number, Function): void,
  *   fillReadings: function(Object, number, number, string[], Function): void,
  *   providerFor: function(string): Object, now: function(): number,
@@ -355,14 +302,13 @@ function fill(run, fills, done) {
  * @param {boolean} force Whether this is a forced refresh (withProviderData).
  * @param {Function} onSuccess Called once every step has run: the anchor holds a valid forecast,
  *   its feeds name the provider each reading came from and its answers each provider asked.
- * @param {Function} onFailure Called with the forecast's failure: the last answer's.
+ * @param {Function} onFailure Called with the anchor's forecast failure.
  * @returns {void}
  */
 function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
     var options = anchor.options;
     // Each reading's feed, the provider its series came from (day-peaks.js feedOf keeps the
-    // day records by it): the one that served the forecast, a part's or a fill's for what it
-    // brings.
+    // day records by it): the anchor's, a part's or a fill's for what it brings.
     anchor.feeds = null;
     // Each provider this fetch asked for its forecast, in turn, with the key its request carried,
     // its names and its failure or null (shell/fetch-cycle.js records each keyed one's answer to
@@ -371,14 +317,17 @@ function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
     // forecasts: each provider asked this fetch, by id (forecastOf).
     var run = { anchor: anchor, ports: ports, store: storeOf(ports), lat: lat, lon: lon, force: force,
         forecasts: {} };
-    var input = Object.assign({ provider: anchor.id, country: anchor.countryCode || null, lat: Number(lat),
-        lon: Number(lon) }, options.sources);
-    serveForecast(run, sourcePlan.candidates(input), function (served) {
-        anchor.feeds = sourcePlan.feedsOf(input, served, options.drawn);
-        layParts(run, sourcePlan.partSteps(input, served, options.drawn), served, function () {
+    var input = Object.assign({ provider: anchor.id, lat: Number(lat), lon: Number(lon) }, options.sources);
+    forecastOf(run, anchor.id, function (served, stepFailure) {
+        if (!served) {
+            onFailure(stepFailure);
+            return;
+        }
+        anchor.feeds = sourcePlan.feedsOf(input, options.drawn);
+        layParts(run, sourcePlan.partSteps(input, options.drawn), function () {
             fill(run, sourcePlan.fillSteps(anchor.feeds, options.drawn), onSuccess);
         });
-    }, onFailure);
+    });
 }
 
 module.exports = { fetchSources: fetchSources };
