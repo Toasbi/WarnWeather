@@ -24,7 +24,7 @@ const PARTS = [
   [/&#8250;|&#9656;|&#9662;|[▸▾]/, 'the red arrow or the fold ▸/▾: navArrow, foldChev'],
   [/class="ui-del"/, 'Delete: deleteButton'],
   [/class="ui-(?:toast|undo)"|>Undo</, 'the Undo after a delete: undoToast'],
-  [/class="ui-row ui-new"/, 'a list\'s New row: newRow'],
+  [/class="ui-row ui-new(?![\w-])/, 'a list\'s New row: newRow'],
   [/class="ui-row ui-item"|class="ui-(?:open|txt|x)(?![\w-])/, 'a list row that opens something and its ×: listRow'],
   [/class="ui-chip(?![\w-])/, 'a chip: chip'],
   [/class="sel-wrap"/, 'a dropdown: dropdown'],

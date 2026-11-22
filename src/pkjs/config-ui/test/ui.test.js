@@ -41,6 +41,10 @@ test('Delete, the Undo after it, a list\'s New row, a chip, the pencil, the name
     '<button type="button" class="ui-row ui-new" data-action="newBar">' + ui.icon('plus')
     + '<span class="ui-n">New bar</span><span class="ui-d">4 of 6 bars</span></button>');
   assert.equal(ui.newRow('Add screen', '', { 'data-action': 'addScreen' }).indexOf('ui-d'), -1, 'no count, no line');
+  assert.equal(ui.newRow('Use <another>', '', { 'data-select': 'pick' }, 'All & more.'),
+    '<button type="button" class="ui-row ui-new with-line" data-select="pick">' + ui.icon('plus') + '<span class="ui-txt">'
+    + '<span class="ui-n">Use &lt;another&gt;</span><span class="ui-d">All &amp; more.</span></span></button>',
+    'a line under its words: the plus level with them');
   assert.equal(ui.chip('Radar <bar>', { 'data-se': 'add', 'data-k': 'radarbar' }, { icon: 'plus' }),
     '<button type="button" class="ui-chip" data-se="add" data-k="radarbar">' + ui.icon('plus') + 'Radar &lt;bar&gt;</button>');
   assert.equal(ui.chip('Default', { 'aria-pressed': 'true' }, { icon: 'check', on: true }),
