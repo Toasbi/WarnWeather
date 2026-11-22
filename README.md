@@ -81,6 +81,8 @@ Icons at the edge of a status bar that appear only when something needs your att
 - Live preview of every screen
 - Weather tab with a 5-day forecast for your location and up to three saved places
 - First-run setup with defaults for your country and watch
+- Light, dark or black theme
+- What's new after an update, with a Show me for each new feature
 
 ## Platforms
 

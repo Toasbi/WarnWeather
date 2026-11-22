@@ -47,6 +47,8 @@ WATCH
 SETTINGS
 - Live preview of your watch
 - 5-day forecast for your saved places
+- Light, dark or black theme
+- What's new after an update
 
 * Depends on your watch model.
 
