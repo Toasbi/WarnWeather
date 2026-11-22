@@ -160,8 +160,21 @@ function makeProvider(id) {
     p.lastForecast = function () { return p.calls.fetchWithCoordinates[p.calls.fetchWithCoordinates.length - 1]; };
     p.fix = function (lat, lon) { p.lastCoordinates().ok(lat, lon); };
     p.noFix = function (failure) { p.lastCoordinates().fail(failure); };
-    p.succeed = function () { p.lastForecast().onSuccess(); };
-    p.fail = function (failure) { p.lastForecast().onFailure(failure); };
+    // What the sources name of the providers they asked (fetch-sources.js answers): the fake's
+    // own answer, unless the test hands others (nextAnswers).
+    p.answersOf = function (failure) {
+        return [{ id: p.id, apiKey: p.apiKey, name: p.name, shortName: p.shortName, failure: failure || null }];
+    };
+    p.succeed = function () {
+        p.answers = p.nextAnswers || p.answersOf(null);
+        p.nextAnswers = null;
+        p.lastForecast().onSuccess();
+    };
+    p.fail = function (failure) {
+        p.answers = p.nextAnswers || p.answersOf(failure);
+        p.nextAnswers = null;
+        p.lastForecast().onFailure(failure);
+    };
     return p;
 }
 
@@ -789,21 +802,68 @@ test('a keyed provider\'s answers are kept by key fingerprint under its id; the 
     assert.equal(store[KEYS.KEY_RESULTS_KEY], undefined);
 });
 
-test('a forecast another provider served (By location) says nothing about the Weather picker\'s key', () => {
+test('each keyed provider the sources asked records its own answer; one they did not ask records none', () => {
     resetStore();
     const keyed = makeProvider('openweathermap');
     keyed.apiKey = 'OWMSECRET_abcdef';
     const h = makeHarness({ provider: keyed });
     assert.equal(h.cycle.start(false), true);
     keyed.fix(52.5, 13.4);
-    keyed.feeds = { temperature: 'dwd', uv: 'openmeteo' };
+    keyed.nextAnswers = [{ id: 'dwd', name: 'DWD', failure: null }];
     keyed.succeed();
-    assert.equal(store[KEYS.KEY_RESULTS_KEY], undefined, 'its key was not asked');
+    assert.equal(store[KEYS.KEY_RESULTS_KEY], undefined, 'By location: DWD served, the Weather picker\'s key was not asked');
+    // Per reading: a part's key refused, the fetch still served by the others.
     assert.equal(h.cycle.start(true), true);
     keyed.fix(52.5, 13.4);
-    keyed.feeds = { temperature: 'dwd', wind: 'openweathermap' };
+    keyed.nextAnswers = [{ id: 'openweathermap', apiKey: 'OWMSECRET_abcdef', failure: null },
+        { id: 'tomorrowio', apiKey: 'TIO-part-1234', failure: { stage: 'provider_data', code: 'tomorrowio_status_401' } },
+        { id: 'yandex', apiKey: 'YDX-part-5678', failure: { stage: 'provider_data', code: 'timeout' } }];
     keyed.succeed();
-    assert.equal(readJson(KEYS.KEY_RESULTS_KEY).openweathermap.status, 200, 'its own forecast served');
+    assert.deepEqual(readJson(KEYS.KEY_RESULTS_KEY), {
+        openweathermap: { keyHash: fingerprint('OWMSECRET_abcdef'), status: 200 },
+        tomorrowio: { keyHash: fingerprint('TIO-part-1234'), status: 401 }
+    }, 'a timeout says nothing about Yandex\'s key');
+    // By location: the Weather picker's key refused, Open-Meteo failing last.
+    assert.equal(h.cycle.start(true), true);
+    keyed.fix(52.5, 13.4);
+    const last = { stage: 'provider_data', code: 'openmeteo_status_503' };
+    keyed.nextAnswers = [{ id: 'openweathermap', apiKey: 'OWMSECRET_abcdef',
+        failure: { stage: 'provider_data', code: 'owm_status_401' } }, { id: 'openmeteo', failure: last }];
+    keyed.fail(last);
+    assert.equal(readJson(KEYS.KEY_RESULTS_KEY).openweathermap.status, 401, 'its refusal, though another failure failed it');
+    assert.equal(authBackoff.isActive(), false, 'the failure that failed the fetch is no refusal: nothing pauses');
+    // A failure before the forecast: the answers the anchor still holds are the last fetch's,
+    // asked with the key before it changed.
+    assert.equal(h.cycle.start(true), true);
+    keyed.fix(52.5, 13.4);
+    keyed.nextAnswers = [{ id: 'openweathermap', apiKey: 'OWM-OLD-KEY', failure: null }];
+    keyed.fail({ stage: 'location', code: 'gps_3' });
+    assert.equal(readJson(KEYS.KEY_RESULTS_KEY).openweathermap.keyHash, fingerprint('OWMSECRET_abcdef'),
+        'nothing recorded for an answer this fetch did not get');
+});
+
+test('the notice names the provider whose failure failed the fetch', () => {
+    resetStore();
+    const p = makeProvider('dwd');
+    const h = makeHarness({ provider: p });
+    const said = [];
+    const realApply = notices.applyFailure;
+    notices.applyFailure = (failure, ctx) => { said.push(ctx.providerName); return realApply(failure, ctx); };
+    try {
+        assert.equal(h.cycle.start(false), true);
+        p.fix(52.5, 13.4);
+        const last = { stage: 'provider_data', code: 'status_429' };
+        p.nextAnswers = [{ id: 'dwd', name: 'Brightsky (Deutscher Wetterdienst)', failure: { stage: 'provider_data',
+            code: 'dwd_forecast_status_503' } }, { id: 'openmeteo', name: 'Open-Meteo', failure: last }];
+        p.fail(last);
+        assert.deepEqual(said, ['Open-Meteo'], 'By location: Open-Meteo answered 429 last');
+        assert.equal(h.cycle.start(true), true);
+        p.fix(52.5, 13.4);
+        p.fail({ stage: 'location', code: 'gps_3' });
+        assert.deepEqual(said, ['Open-Meteo', 'dwd weather'], 'a failure before the forecast: the Weather picker\'s');
+    } finally {
+        notices.applyFailure = realApply;
+    }
 });
 
 // The owner-approved fix (thermo-js-2 PHONE-3): the auth backoff is the "stop fetching" gate, and a

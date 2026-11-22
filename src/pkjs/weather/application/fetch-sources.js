@@ -205,7 +205,8 @@ function ask(run, step, target, done) {
 /**
  * A provider's forecast this fetch, asked once: the instance holding it, or null once it failed.
  * The forecast step asks the Weather picker's own on the anchor; any later ask takes an
- * instance of its own, so the forecast on the anchor stays.
+ * instance of its own, so the forecast on the anchor stays. Each provider asked joins the
+ * anchor's answers.
  * @param {Object} run The fetch (fetchSources).
  * @param {string} id The provider.
  * @param {boolean} onAnchor Whether the Weather picker's provider answers on the anchor.
@@ -221,6 +222,8 @@ function forecastOf(run, id, onAnchor, done) {
     var target = onAnchor && id === run.anchor.id ? run.anchor : run.ports.providerFor(id);
     ask(run, { provider: id, ask: 'forecast' }, target, function (stepFailure) {
         run.forecasts[id] = stepFailure ? null : target;
+        run.anchor.answers.push({ id: id, apiKey: target.apiKey, name: target.name, shortName: target.shortName,
+            failure: stepFailure });
         done(run.forecasts[id], stepFailure);
     });
 }
@@ -325,8 +328,8 @@ function fill(run, fills, done) {
  * @param {number} lon Longitude.
  * @param {boolean} force Whether this is a forced refresh (withProviderData).
  * @param {Function} onSuccess Called once every step has run: the anchor holds a valid forecast,
- *   and its feeds name the provider each reading came from.
- * @param {Function} onFailure Called with the forecast's failure.
+ *   its feeds name the provider each reading came from and its answers each provider asked.
+ * @param {Function} onFailure Called with the forecast's failure: the last answer's.
  * @returns {void}
  */
 function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
@@ -335,6 +338,10 @@ function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
     // day records by it): the one that served the forecast, a part's or a fill's for what it
     // brings.
     anchor.feeds = null;
+    // Each provider this fetch asked for its forecast, in turn, with the key its request carried,
+    // its names and its failure or null (shell/fetch-cycle.js records each keyed one's answer to
+    // its key, and names the provider whose failure fails the fetch).
+    anchor.answers = [];
     // forecasts: each provider asked this fetch, by id (forecastOf).
     var run = { anchor: anchor, ports: ports, store: storeOf(ports), lat: lat, lon: lon, force: force,
         forecasts: {} };

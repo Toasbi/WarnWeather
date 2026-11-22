@@ -648,3 +648,18 @@ test('a day of updates asks each provider what the source plan counts', () => {
       id + ' ' + JSON.stringify(options) + ' every ' + intervalMin + ' min');
   });
 });
+
+// ---- What the fetch tells the fetch cycle: each provider asked, and what it recovered from.
+
+test('the anchor names each provider asked for its forecast, its key and its failure, once each', () => {
+  const [one] = fetchesOf('openweathermap', [{}]);
+  assert.deepEqual(one.p.answers.map((a) => [a.id, a.apiKey, a.failure]), [['openweathermap', 'owm-test-key', null]]);
+  const [byLocation] = fetchesOf('openweathermap', [{ options: BY_LOCATION, country: 'DE' }],
+    { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
+  assert.deepEqual(byLocation.p.answers.map((a) => [a.id, Boolean(a.failure)]), [['dwd', true], ['openweathermap', false]]);
+  assert.equal(byLocation.p.answers[0].name, 'Brightsky (Deutscher Wetterdienst)', 'its own name, for the notice');
+  const [parts] = fetchesOf('metno', [{ options: perReading({ wind: 'tomorrowio', rain: 'tomorrowio', cloud: 'dwd' },
+    { drawn: ['cloud'] }) }]);
+  assert.deepEqual(parts.p.answers.map((a) => [a.id, a.apiKey]), [['metno', undefined], ['tomorrowio', 'tio-test-key'],
+    ['dwd', undefined]], 'the forecast\'s provider, then each part\'s, each once');
+});

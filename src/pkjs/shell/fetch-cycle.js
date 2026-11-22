@@ -219,15 +219,34 @@ var skyThrottle = requestThrottle.createRequestThrottle({
 // single-acquisition invariant stays visible in one place.
 
 /**
- * Whether a reading of this fetch came from the provider itself (its feeds: fetch-sources.js),
- * as every reading did before Weather from could ask another.
+ * The provider whose failure failed a fetch: for the forecast's failure, the last provider its
+ * sources asked (fetch-sources.js answers), which in By location and Per reading may be another
+ * than the Weather picker's; the Weather picker's for any other failure.
  * @param {Object} provider The Weather picker's provider after a fetch.
- * @returns {boolean} True too for a provider whose fetch names no feeds.
+ * @param {Object} failure The fetch's failure.
+ * @returns {{id: string, name: string, shortName: (string|undefined)}}
  */
-function servedOwn(provider) {
-    var feeds = provider.feeds;
-    if (!feeds) { return true; }
-    return Object.keys(feeds).some(function (id) { return feeds[id] === provider.id; });
+function failedProviderOf(provider, failure) {
+    var answers = (failure && failure.stage === 'provider_data' && provider.answers) || [];
+    var last = answers[answers.length - 1];
+    return last && last.failure ? last : provider;
+}
+
+/**
+ * Record what each keyed provider a fetch asked said about its key (key-result.js; the settings
+ * page's key status): 200 for an answer, the 401/403 of a refusal. Any other failure says
+ * nothing about the key here, and a keyless provider records nothing (key-results-store.js).
+ * @param {Object} provider The Weather picker's provider after a fetch (its answers:
+ *   fetch-sources.js).
+ * @param {function(Object): boolean} isAuthFailure auth-backoff.js isAuthFailure.
+ * @returns {void}
+ */
+function recordKeyAnswers(provider, isAuthFailure) {
+    (provider.answers || []).forEach(function (answer) {
+        if (answer.failure && !isAuthFailure(answer.failure)) { return; }
+        keyResultsStore.record(answer.id, answer.apiKey,
+            answer.failure ? keyResult.statusOfCode(answer.failure.code) : 200);
+    });
 }
 
 /**
@@ -585,12 +604,10 @@ function createFetchCycle(deps) {
             if (!settle()) { return; }
             // Success: record the fetch time and reset the attempt counter.
             localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
-            // A keyed provider served the key this fetch carried: the settings page's key
-            // status (key-result.js; a keyless provider records nothing). Only when a reading
-            // came from it: By location may not have asked it.
-            if (servedOwn(provider)) {
-                keyResultsStore.record(provider.id, provider.apiKey, 200);
-            }
+            // Each keyed provider asked answered the key this fetch carried, or refused it: the
+            // settings page's key status (a Per reading part's and a By location fallback's
+            // too).
+            recordKeyAnswers(provider, deps.authBackoff.isAuthFailure);
             resetFetchAttemptCounter();
             // The payload reached the watch (ACK, or unchanged since the last ACK):
             // only now is its IS_SLEEPING the watch's state.
@@ -631,9 +648,12 @@ function createFetchCycle(deps) {
             if (deps.authBackoff.isAuthFailure(failure)) {
                 console.log('[!] Auth failure — pausing auto-fetch until Force fetch or config change.');
                 deps.authBackoff.set(failure);
-                // And the key's verdict, kept apart from the gate: a forced fetch clears
-                // the backoff, never this (key-result.js).
-                keyResultsStore.record(provider.id, provider.apiKey, keyResult.statusOfCode(failure.code));
+            }
+            // The keys' verdicts, kept apart from the gate: a forced fetch clears the backoff,
+            // never these (key-result.js). Only the forecast's own failure carries this fetch's
+            // answers; any other failure came before or after them.
+            if (failure && failure.stage === 'provider_data') {
+                recordKeyAnswers(provider, deps.authBackoff.isAuthFailure);
             }
             // No weather data is available on failure, so whatever the watch still
             // needs rides alone, bundled into ONE send (the channel is half-duplex;
@@ -647,10 +667,11 @@ function createFetchCycle(deps) {
             // watch's forecast is too old to show, so it never covers a good one; likewise
             // no location: the phone's GPS failed with no recent fix to stand in). Other
             // failures raise nothing.
+            var failedBy = failedProviderOf(provider, failure);
             var noticeText = deps.notices.applyFailure(failure, {
-                providerName: provider.name,
-                watchName: provider.shortName,
-                failedUpdates: countFailureRun(provider.id, failure, deps.notices.isServerFailure),
+                providerName: failedBy.name,
+                watchName: failedBy.shortName,
+                failedUpdates: countFailureRun(failedBy.id, failure, deps.notices.isServerFailure),
                 now: +deps.now(),
                 forecastFresh: watchMayShowForecast(+deps.now())
             });
