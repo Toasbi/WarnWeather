@@ -37,10 +37,6 @@ if (typeof require !== 'undefined') {
     // file): tomorrow.io's usage line registers into it.
     var keyStatus = (typeof require !== 'undefined')
         ? require('../weather/keys/key-status.js') : PConf.keyStatus;
-    // Where the weather comes from (weather-sources-page.js, concatenated ahead of this file):
-    // the weather calls line at the end of Data sources.
-    var weatherSources = (typeof require !== 'undefined')
-        ? require('../weather/weather-sources-page.js') : window.WeatherSourcesPage;
     // The regional radar sources' areas (radar-coverage.js, concatenated ahead of this
     // file): the note under the Radar provider row.
     var radarCoverage = (typeof require !== 'undefined')
@@ -919,36 +915,6 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The settings as the call budgets read them on the page: radarMode as Save will store it
-     * (screens-page.js radarModeToSave), so a read-out neither counts a radar call Save drops
-     * nor misses one it adds. A copy only while the stored mode lags. (Save's own fit,
-     * onbuild.js, reads the mode the screens page's onSubmit hook has written by then.)
-     * @param {Object} state Settings state.
-     * @param {?Object} env Platform env.
-     * @returns {Object} The state to read.
-     */
-    function budgetState(state, env) {
-        var S = state || {};
-        // screens-page.js loads after this file in the page: looked up at call time.
-        var SP = (typeof require !== 'undefined') ? require('../layout/screens-page.js') : window.ScreensPage;
-        var mode = SP ? SP.radarModeToSave(S, env) : S.radarMode;
-        return mode === S.radarMode ? S : Object.assign({}, S, { radarMode: mode });
-    }
-
-    /**
-     * The interval a budget read-out computes with: the one Save will store (interval-budget.js
-     * fitInterval), not the raw stored value. With a "Fit update interval" guard on, a stored
-     * interval the budget no longer affords (radar picked in Graphs › Rain radar, the interval
-     * set in Setup › Data sources) is replaced at Save; warning "over budget" about it would contradict the toggle.
-     *
-     * @param {Object} state Settings state.
-     * @returns {number} Minutes.
-     */
-    function readoutInterval(state) {
-        return parseInt(intervalBudget.fitInterval(state, state.fetchIntervalMin), 10) || 15;
-    }
-
-    /**
      * Rate-limit info block under the tomorrow.io key field: free-tier limits,
      * the user's projected usage at the current settings, a ✓/✗ verdict, the
      * derived sleep->cadence unlock rule, and (near the hourly ceiling) a
@@ -961,10 +927,10 @@ if (typeof require !== 'undefined') {
      */
     function tomorrowioBudgetBlock(state, env) {
         var B = tomorrowioBudget;
-        state = budgetState(state, env);
+        state = intervalBudget.readoutState(state, env);
         var cpc = B.callsPerCycle(state);
         if (cpc === 0) { return ''; }
-        var interval = readoutInterval(state);
+        var interval = intervalBudget.readoutInterval(state);
         var sleep = B.sleepHours(state);
         var daily = Math.round(B.dailyCalls(state, interval));
         var ok = B.fits(state, interval);
@@ -1003,25 +969,12 @@ if (typeof require !== 'undefined') {
      */
     function tomorrowioUsageLine(state, env) {
         var B = tomorrowioBudget;
-        state = budgetState(state, env);
+        state = intervalBudget.readoutState(state, env);
         if (B.callsPerCycle(state) === 0) { return null; }
-        return '~' + Math.round(B.dailyCalls(state, readoutInterval(state))) + ' of ' + B.LIMIT_DAY + ' calls a day';
+        return '~' + Math.round(B.dailyCalls(state, intervalBudget.readoutInterval(state))) + ' of ' + B.LIMIT_DAY + ' calls a day';
     }
     if (keyStatus) { keyStatus.registerUsage('tomorrowio', tomorrowioUsageLine); }
 
-    /**
-     * The weather calls a day, the line at the end of Setup › Data sources (weather-sources-page.js
-     * callsLine), at the interval and the night pause the read-outs above count with: its
-     * tomorrow.io share is their figure where every reading tomorrow.io brings is drawn.
-     * @param {Object} state Settings state.
-     * @param {?Object} env Platform env.
-     * @returns {string} HTML; '' for a provider the page does not know
-     */
-    function weatherCallsLine(state, env) {
-        state = budgetState(state, env);
-        return weatherSources.callsLine(state, env, readoutInterval(state), tomorrowioBudget.sleepHours(state));
-    }
-    PConf.hintResolvers.register('weatherCallsLine', weatherCallsLine);
 
     /**
      * Monthly-usage info block under the Rainbow API key field ("Rainbow (own key)"'s key
@@ -1036,9 +989,9 @@ if (typeof require !== 'undefined') {
      */
     function rainbowBudgetBlock(state, env) {
         var B = rainbowBudget;
-        state = budgetState(state, env);
+        state = intervalBudget.readoutState(state, env);
         if (B.callsPerCycle(state) === 0) { return ''; }
-        var interval = readoutInterval(state);
+        var interval = intervalBudget.readoutInterval(state);
         var sleep = B.sleepHours(state);
         var monthly = Math.round(B.monthlyCalls(state, interval));
         var settingsBits = 'every ' + interval + ' min, '
@@ -1065,9 +1018,9 @@ if (typeof require !== 'undefined') {
      */
     function rainbowUsageLine(state, env) {
         var B = rainbowBudget;
-        state = budgetState(state, env);
+        state = intervalBudget.readoutState(state, env);
         if (B.callsPerCycle(state) === 0) { return null; }
-        return '~' + withThousands(Math.round(B.monthlyCalls(state, readoutInterval(state))))
+        return '~' + withThousands(Math.round(B.monthlyCalls(state, intervalBudget.readoutInterval(state))))
             + ' of ' + withThousands(B.LIMIT_MONTH) + ' calls a month';
     }
     if (keyStatus) { keyStatus.registerUsage('rainbow', rainbowUsageLine); }
@@ -1082,7 +1035,7 @@ if (typeof require !== 'undefined') {
     // same interval-budget.js, at save time for a change made elsewhere (the screens, which
     // decide whether the radar is fetched, on the Watchface tab).
     PConf.optionsResolvers.register('fetchIntervalBudget', function (S, env) {
-        return intervalBudget.fittingOptions(budgetState(S, env));
+        return intervalBudget.fittingOptions(intervalBudget.readoutState(S, env));
     });
 
     // "(Recommended)" markers on the weather + radar provider dropdowns: the option matching the
@@ -1353,7 +1306,6 @@ if (typeof require !== 'undefined') {
             radarColorHint: radarColorHint,
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
             tomorrowioUsageLine: tomorrowioUsageLine,
-            weatherCallsLine: weatherCallsLine,
             rainbowBudgetBlock: rainbowBudgetBlock,
             rainbowUsageLine: rainbowUsageLine,
             thresholdRangeCfg: thresholdRangeCfg

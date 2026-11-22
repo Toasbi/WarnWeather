@@ -2,8 +2,8 @@
 // settings page (Setup › Data sources): the note under the Weather picker that names the
 // readings coming from Open-Meteo (weatherFillNote, a staticText's textFrom; its row is
 // weather-sources-schema.js FILL_NOTE), Per reading's row options (weatherReadingOptions), and
-// the calls a day the choices come to (callsLine; blocks.js registers it as weatherCallsLine,
-// at the interval the budget read-outs count with). The note's readings are the source plan's
+// the calls a day the choices come to (weatherCallsLine, at the interval the budget read-outs
+// count with). The note's readings are the source plan's
 // fills, by the phone's own rules: the readings the picked provider lacks (source-plan.js
 // fills) that the watch draws (drawn-readings.js).
 //
@@ -21,6 +21,9 @@
     var providerReadings = node ? require('../../weather/domain/provider-readings.js') : window.ProviderReadings;
     var drawnReadings = node ? require('../../weather/domain/drawn-readings.js') : window.DrawnReadings;
     var words = node ? require('./weather-words.js') : window.WeatherWords;
+    // The interval and the night pause the budget read-outs count with.
+    var intervalBudget = node ? require('./budgets/interval-budget.js') : PConf.intervalBudget;
+    var tomorrowioBudget = node ? require('./budgets/tomorrowio-budget.js') : PConf.tomorrowioBudget;
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
     var WORDS = words.WORDS;
     var NAMES = words.NAMES;
@@ -76,20 +79,24 @@
     /**
      * The line at the end of Data sources: the calls a day the weather's choices come to while no
      * provider fails (source-plan.js callsPerDay), and each provider's share when more than one
-     * is called, in the order the plan asks them: the forecast's provider first. By location counts the regional provider of the stored country (holidayCountry),
-     * as the Weather picker's "(Recommended)" marker does: the page does not know the place.
+     * is called, in the order the plan asks them: the forecast's provider first. It counts at the
+     * update interval and the night pause the budget read-outs count with (interval-budget.js
+     * readoutState and readoutInterval, tomorrowio-budget.js sleepHours), so its tomorrow.io share
+     * is their figure where every reading tomorrow.io brings is drawn. By location counts the
+     * regional provider of the stored country (holidayCountry), as the Weather picker's
+     * "(Recommended)" marker does: the page does not know the place.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
-     * @param {number} intervalMin The update interval Save stores.
-     * @param {number} pauseHours The Battery saver's window, whole hours.
      * @returns {string} HTML; '' for a provider the page does not know
      */
-    function callsLine(S, env, intervalMin, pauseHours) {
+    function callsLine(S, env) {
         if (!S || !Object.prototype.hasOwnProperty.call(NAMES, S.provider)) { return ''; }
+        var state = intervalBudget.readoutState(S, env);
         var drawn = drawnReadings.drawn(S, env || {});
         var input = { mode: S.weatherSourceMode, provider: S.provider, country: S.holidayCountry || null,
             choices: sourcePlan.choicesOf(S), keyed: sourcePlan.keyedOf(S) };
-        var calls = sourcePlan.callsPerDay(input, drawn, intervalMin, pauseHours);
+        var calls = sourcePlan.callsPerDay(input, drawn, intervalBudget.readoutInterval(state),
+            tomorrowioBudget.sleepHours(state));
         var ids = Object.keys(calls).filter(function (id) { return calls[id] > 0; });
         var total = ids.reduce(function (sum, id) { return sum + calls[id]; }, 0);
         var text = 'About ' + Math.round(total) + ' weather calls a day';
@@ -101,6 +108,7 @@
 
     if (PConf && PConf.hintResolvers) {
         PConf.hintResolvers.register('weatherFillNote', fillNote);
+        PConf.hintResolvers.register('weatherCallsLine', callsLine);
     }
     if (PConf && PConf.optionsResolvers) {
         PConf.optionsResolvers.register('weatherReadingOptions', readingOptions);

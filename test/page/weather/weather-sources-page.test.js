@@ -137,18 +137,18 @@ test('the note sits under the Weather row, ahead of its key note, and shows on t
 
 // --- the weather calls line at the end of Data sources ---------------------------------------
 
-require('../../../src/pkjs/page/settings/blocks.js');
-
 /**
  * The line on a basalt, every 15 minutes with no night pause unless `intervalMin` and
- * `pauseHours` say otherwise.
+ * `pauseHours` say otherwise (a pause from 22:00 when it is 9 hours).
  * @param {Object} over Settings over NONE.
  * @param {number} [intervalMin] The update interval.
- * @param {number} [pauseHours] The Battery saver's window.
+ * @param {number} [pauseHours] The Battery saver's window: 0 or 9.
  * @returns {string}
  */
 function calls(over, intervalMin, pauseHours) {
-  return page.callsLine(Object.assign({}, NONE, over), BASALT, intervalMin || 15, pauseHours || 0);
+  const pause = pauseHours ? { sleepNightEnabled: true, sleepStartHour: '22', sleepEndHour: '7' }
+    : { sleepNightEnabled: false };
+  return page.callsLine(Object.assign({ fetchIntervalMin: String(intervalMin || 15) }, pause, NONE, over), BASALT);
 }
 
 test('the calls line counts each update\'s requests, and the UV fill every few hours', () => {

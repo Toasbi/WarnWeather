@@ -78,7 +78,7 @@ var FILL_NOTE = {
 };
 
 // The weather calls a day the section's choices come to, its last line, joined to the Update
-// interval row above it (blocks.js weatherCallsLine, worded by weather-sources-page.js callsLine).
+// interval row above it (weather-sources-page.js weatherCallsLine).
 var CALLS_LINE = {
     type: 'staticText',
     joinPrevious: true,
