@@ -105,6 +105,40 @@
         });
     }
 
+    // The Weather from row's values besides One provider's ('one', the row's default).
+    var MODES = ['auto', 'reading'];
+
+    /**
+     * Where the weather comes from, as the settings say it: the Weather from row's mode (any
+     * value but By location's or Per reading's is One provider, the row's default), Per
+     * reading's picks (choicesOf) and the providers whose key is stored (keyedOf). The fetch
+     * options carry it (fetch-options.js sources), and the engine adds the Weather picker's
+     * provider and the place (fetch-sources.js); the settings page adds the Weather picker's
+     * provider and a country for the place it does not know (inputOf).
+     * @param {?Object} settings Clay settings.
+     * @returns {{mode: string, choices: Object<string, string>, keyed: string[]}}
+     */
+    function sourcesOf(settings) {
+        var mode = settings && settings.weatherSourceMode;
+        return { mode: MODES.indexOf(mode) !== -1 ? mode : 'one', choices: choicesOf(settings),
+            keyed: keyedOf(settings) };
+    }
+
+    /**
+     * The plan's input on the settings page, which does not know the place: the settings'
+     * sources, the Weather picker's provider and a country for the place's.
+     * @param {?Object} settings Clay settings.
+     * @param {?string} country The country By location picks its regional provider by: the
+     *   stored holidayCountry where the page shows what a fetch asks, as the Weather picker's
+     *   "(Recommended)" marker does; none where it counts a place outside every regional
+     *   provider's area (the tomorrow.io budget).
+     * @returns {Object} candidates()'s input, without a place.
+     */
+    function inputOf(settings, country) {
+        return Object.assign({ provider: settings ? settings.provider : undefined, country: country || null },
+            sourcesOf(settings));
+    }
+
     /**
      * Whether a provider may be asked for the place: its key is stored, and it covers the place
      * where the place is known (the settings page does not know it).
@@ -322,11 +356,16 @@
         return out;
     }
 
-    var api = { FILL_PROVIDER: FILL_PROVIDER, UV_REUSE_MS: UV_REUSE_MS, regionalFor: regionalFor,
-        candidates: candidates, allFrom: allFrom, fillsOf: fillsOf, choiceKey: choiceKey, choicesOf: choicesOf,
-        keyedOf: keyedOf, readingProviders: readingProviders, partSteps: partSteps, fillSteps: fillSteps,
-        wanted: wanted, refreshRequests: refreshRequests, refreshesPerDay: refreshesPerDay,
-        callsPerDay: callsPerDay };
+    // Every setting sourcesOf reads: the Weather from row, Per reading's rows and the API keys
+    // (the tomorrow.io budget's STATE_KEYS).
+    var SETTINGS_KEYS = ['weatherSourceMode'].concat(providerReadings.READING_IDS.map(choiceKey),
+        Object.keys(providerReadings.PROVIDERS).map(providerReadings.keySetting).filter(Boolean));
+
+    var api = { FILL_PROVIDER: FILL_PROVIDER, UV_REUSE_MS: UV_REUSE_MS, SETTINGS_KEYS: SETTINGS_KEYS,
+        regionalFor: regionalFor, candidates: candidates, allFrom: allFrom, fillsOf: fillsOf, choiceKey: choiceKey,
+        choicesOf: choicesOf, keyedOf: keyedOf, sourcesOf: sourcesOf, inputOf: inputOf, askable: askable,
+        readingProviders: readingProviders, partSteps: partSteps, fillSteps: fillSteps, wanted: wanted,
+        refreshRequests: refreshRequests, refreshesPerDay: refreshesPerDay, callsPerDay: callsPerDay };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.SourcePlan = api; }
 })();

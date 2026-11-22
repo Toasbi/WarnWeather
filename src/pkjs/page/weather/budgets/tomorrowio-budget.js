@@ -10,7 +10,8 @@
 (function () {
     // The source plan (source-plan.js, concatenated ahead of this file in the page): what a
     // weather update asks, and the updates a day.
-    var sourcePlan = (typeof require !== 'undefined') ? require('../../../weather/domain/source-plan.js') : window.SourcePlan;
+    var sourcePlan = (typeof require !== 'undefined')
+        ? require('../../../weather/domain/source-plan.js') : window.SourcePlan;
     var providerReadings = (typeof require !== 'undefined')
         ? require('../../../weather/domain/provider-readings.js') : window.ProviderReadings;
     var LIMIT_DAY = 500;
@@ -45,6 +46,11 @@
         return ((end - start) + 24) % 24;
     }
 
+    // The last settings' tomorrow.io requests: the page asks for them many times a render
+    // (fits() for each interval step, every read-out), and they follow only the keys the plan
+    // reads (sourcePlan.SETTINGS_KEYS and the provider), which the key below holds.
+    var lastWeatherCalls = { key: null, calls: 0 };
+
     /**
      * The tomorrow.io requests a weather update makes, by the source plan's own count
      * (source-plan.js refreshRequests, which the calls line at the end of Data sources counts
@@ -55,9 +61,13 @@
      * @returns {number} Requests per update.
      */
     function weatherCalls(S) {
-        var input = { mode: S.weatherSourceMode, provider: S.provider, country: null,
-            choices: sourcePlan.choicesOf(S), keyed: sourcePlan.keyedOf(S) };
-        return sourcePlan.refreshRequests(input, providerReadings.DRAWN_ONLY).tomorrowio || 0;
+        var input = sourcePlan.inputOf(S, null);
+        var key = JSON.stringify(input);
+        if (key !== lastWeatherCalls.key) {
+            lastWeatherCalls = { key: key,
+                calls: sourcePlan.refreshRequests(input, providerReadings.DRAWN_ONLY).tomorrowio || 0 };
+        }
+        return lastWeatherCalls.calls;
     }
 
     /**
@@ -152,13 +162,10 @@
     // Every settings key the math above reads. A caller holding only a get(key)
     // accessor (the onSubmit hook) builds its state object from exactly these;
     // test/page/weather/budgets/tomorrowio-budget.test.js pins the list against what the math reads.
-    // Weather from, Per reading's picks (source-plan.js choiceKey) and the keys a pick needs
-    // (keyedOf) decide whether an update asks tomorrow.io (weatherCalls).
-    var STATE_KEYS = ['provider', 'radarProvider', 'radarMode',
-        'sleepNightEnabled', 'sleepStartHour', 'sleepEndHour', 'weatherSourceMode',
-        'weatherSourceTemperature', 'weatherSourceDew', 'weatherSourceRain', 'weatherSourceWind',
-        'weatherSourceWindDir', 'weatherSourceUv', 'weatherSourceCloud', 'weatherSourcePressure',
-        'weatherSourceCondition', 'owmApiKey', 'tomorrowioApiKey', 'yandexApiKey'];
+    // Weather from, Per reading's picks and the keys a pick needs (source-plan.js
+    // SETTINGS_KEYS) decide whether an update asks tomorrow.io (weatherCalls).
+    var STATE_KEYS = ['provider', 'radarProvider', 'radarMode', 'sleepNightEnabled', 'sleepStartHour',
+        'sleepEndHour'].concat(sourcePlan.SETTINGS_KEYS);
 
     var api = {
         LIMIT_DAY: LIMIT_DAY,

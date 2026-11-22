@@ -382,7 +382,7 @@ function runFills(store, ports, steps, anchor, lat, lon, force, onDone) {
  *   this fetch and its countryCode for this place.
  * @param {{fillUv: function(Object, number, number, Function): void,
  *   fillReadings: function(Object, number, number, string[], Function): void,
- *   providerFor: function(string): Object, keyed: string[], now: function(): number,
+ *   providerFor: function(string): Object, now: function(): number,
  *   refreshMs: number, snapshots: {load: function(): {entries: Object[], drops: number},
  *   save: function({entries: Object[], drops: number}): void}}} ports The source ports.
  * @param {number} lat Latitude.
@@ -399,8 +399,8 @@ function fetchSources(anchor, ports, lat, lon, force, onSuccess, onFailure) {
     // Each reading's feed, the provider its series came from (day-peaks.js feedOf keeps the
     // day records by it): the one that served the forecast, a fill's for what it brings.
     anchor.feeds = null;
-    var input = { mode: options.sourceMode, provider: anchor.id, country: anchor.countryCode || null,
-        lat: Number(lat), lon: Number(lon), keyed: ports.keyed, choices: options.readingSources };
+    var input = Object.assign({ provider: anchor.id, country: anchor.countryCode || null, lat: Number(lat),
+        lon: Number(lon) }, options.sources);
     var drawn = options.drawn;
     var failed = [];
     runForecast(store, ports, sourcePlan.candidates(input), anchor, lat, lon, force, failed, function (served) {

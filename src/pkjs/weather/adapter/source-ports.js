@@ -9,7 +9,6 @@
 var openmeteo = require('./providers/openmeteo.js');
 var forecastSnapshots = require('./forecast-snapshots.js');
 var providerFactory = require('./provider-factory.js');
-var sourcePlan = require('../domain/source-plan.js');
 
 /**
  * The source ports of one fetch.
@@ -22,13 +21,13 @@ var sourcePlan = require('../domain/source-plan.js');
  *   asks reads.
  * @returns {{fillUv: function(Object, number, number, Function): void,
  *   fillReadings: function(Object, number, number, string[], Function): void,
- *   providerFor: function(string): Object, keyed: string[], now: function(): number,
+ *   providerFor: function(string): Object, now: function(): number,
  *   refreshMs: number, snapshots: {load: Function, save: Function}}} fillUv: Open-Meteo's
  *   UV-only request into a provider's uvTrend, aligned to its startTime (openmeteo.js
  *   fetchUvInto; it always calls back, a failure leaving the UV empty); fillReadings:
  *   Open-Meteo's one request for the other readings a provider lacks, aligned the same way
  *   (fetchReadingsInto); providerFor: a new instance of another provider, with its key and
- *   this fetch's options; keyed: the providers whose key is stored; snapshots: the store.
+ *   this fetch's options; snapshots: the store.
  */
 function create(now, refreshMs, settings, options) {
     var stored = settings || {};
@@ -40,7 +39,6 @@ function create(now, refreshMs, settings, options) {
             provider.options = options;
             return provider;
         },
-        keyed: sourcePlan.keyedOf(stored),
         now: now,
         refreshMs: refreshMs,
         snapshots: forecastSnapshots

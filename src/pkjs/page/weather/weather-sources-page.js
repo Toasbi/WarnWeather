@@ -39,13 +39,12 @@
      */
     function readingOptions(S, env, args) {
         var reading = args && args.reading;
-        var keyed = sourcePlan.keyedOf(S);
+        var input = sourcePlan.inputOf(S, null);
         var out = [['Same as Weather', '']];
         Object.keys(NAMES).forEach(function (id) {
             if (!providerReadings.serves(id, reading)) { return; }
-            var key = providerReadings.keySetting(id);
-            out.push(key && keyed.indexOf(id) === -1
-                ? [NAMES[id], id, { desc: 'Add its API key under Weather first', disabled: true }] : [NAMES[id], id]);
+            out.push(sourcePlan.askable(id, input)
+                ? [NAMES[id], id] : [NAMES[id], id, { desc: 'Add its API key under Weather first', disabled: true }]);
         });
         return out;
     }
@@ -62,14 +61,11 @@
      * @returns {string} HTML; '' while nothing comes from Open-Meteo
      */
     function fillNote(S, env) {
-        if (!S || S.weatherSourceMode === 'auto' || !Object.prototype.hasOwnProperty.call(NAMES, S.provider)) {
-            return '';
-        }
-        var provider = S.provider;
+        var input = sourcePlan.inputOf(S, null);
+        if (input.mode === 'auto' || !Object.prototype.hasOwnProperty.call(NAMES, input.provider)) { return ''; }
+        var provider = input.provider;
         var drawn = drawnReadings.drawn(S, env || {});
-        var feeds = sourcePlan.readingProviders({ mode: S.weatherSourceMode, provider: provider,
-            choices: sourcePlan.choicesOf(S), keyed: sourcePlan.keyedOf(S) });
-        var filled = sourcePlan.fillsOf(feeds, drawn);
+        var filled = sourcePlan.fillsOf(sourcePlan.readingProviders(input), drawn);
         if (!filled.length) { return ''; }
         var words = filled.map(function (id) { return WORDS[id]; });
         return html.esc(NAMES[provider] + ' sends no ' + html.andList(words, 'or') + ', so '
@@ -93,10 +89,8 @@
         if (!S || !Object.prototype.hasOwnProperty.call(NAMES, S.provider)) { return ''; }
         var state = intervalBudget.readoutState(S, env);
         var drawn = drawnReadings.drawn(S, env || {});
-        var input = { mode: S.weatherSourceMode, provider: S.provider, country: S.holidayCountry || null,
-            choices: sourcePlan.choicesOf(S), keyed: sourcePlan.keyedOf(S) };
-        var calls = sourcePlan.callsPerDay(input, drawn, intervalBudget.readoutInterval(state),
-            tomorrowioBudget.sleepHours(state));
+        var calls = sourcePlan.callsPerDay(sourcePlan.inputOf(S, S.holidayCountry), drawn,
+            intervalBudget.readoutInterval(state), tomorrowioBudget.sleepHours(state));
         var ids = Object.keys(calls).filter(function (id) { return calls[id] > 0; });
         var total = ids.reduce(function (sum, id) { return sum + calls[id]; }, 0);
         var text = 'About ' + Math.round(total) + ' weather calls a day';

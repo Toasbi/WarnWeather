@@ -30,8 +30,9 @@ function forecastOf(p) {
  * Fetches of one provider's sources in one world, its store kept between them, each with a
  * new instance (as after a settings save) unless `reuse` is set, each with the source ports
  * of a 15-minute update interval unless `refreshMs` names another. Each fetch's options are a
- * watch's that draws UV unless its own say otherwise; fetchUv follows the drawn readings, as
- * fetch-options.js build sets it.
+ * watch's that draws UV unless its own say otherwise; fetchUv follows the drawn readings, and
+ * the sources follow the settings (the stored keys) with the fetch's own over them, as
+ * fetch-options.js build sets them.
  * @param {string} id A provider id.
  * @param {Array<{at: (number|undefined), options: (Object|undefined), keys: (Object|undefined),
  *   lat: (number|undefined), country: (string|undefined), before: (function(Object, Function): void|undefined)}>}
@@ -56,6 +57,7 @@ function fetchesOf(id, fetches, opts) {
         p = mod('weather/adapter/provider-factory.js').createProvider(id, settings);
       }
       const given = Object.assign({ drawn: ['uv'], dayPeakCodes: [] }, f.options);
+      given.sources = Object.assign(mod('weather/domain/source-plan.js').sourcesOf(settings), given.sources);
       p.options = mod('weather/domain/fetch-options.js').defaults(
         Object.assign({ fetchUv: given.drawn.indexOf('uv') !== -1 }, given));
       p.countryCode = f.country || null;
@@ -393,7 +395,7 @@ test('a gap fill that brings nothing leaves its readings empty, whatever the anc
 
 // --- By location ----------------------------------------------------------------------------
 
-const BY_LOCATION = { sourceMode: 'auto' };
+const BY_LOCATION = { sources: { mode: 'auto' } };
 const DWD_HOSTS = ['https://api.brightsky.dev/weather', 'https://api.brightsky.dev/current_weather'];
 
 test('By location in Germany: DWD\'s forecast on the Weather picker\'s provider, then the fills for DWD', () => {
@@ -468,8 +470,8 @@ test('another provider\'s answer replaces every field of the anchor: one it lack
   const anchor = Object.assign(new WeatherProvider(), { id: 'openweathermap', countryCode: 'DE', currentTemp: 99,
     tempTrend: hours(1), precipTrend: hours(1), startTime: 1,
     withProviderData(lat, lon, force, ok, fail) { fail({ stage: 'provider_data', code: 'owm_status_503' }); } });
-  anchor.options = fetchOptions.defaults({ sourceMode: 'auto', fetchUv: false });
-  const ports = Object.assign(testPorts(), { keyed: ['openweathermap'],
+  anchor.options = fetchOptions.defaults({ sources: { mode: 'auto', choices: {}, keyed: ['openweathermap'] } });
+  const ports = Object.assign(testPorts(), {
     providerFor: (id) => Object.assign(answering(id, id !== 'dwd'), { options: anchor.options }) });
   let outcome = null;
   require('../../../src/pkjs/weather/application/fetch-sources.js').fetchSources(anchor, ports, 52.52, 13.405, false,
@@ -490,7 +492,7 @@ const OWM_HOST = 'https://api.openweathermap.org/data/3.0/onecall';
  * @param {Object} [more] More options.
  * @returns {Object}
  */
-const perReading = (picks, more) => Object.assign({ sourceMode: 'reading', readingSources: picks }, more);
+const perReading = (picks, more) => Object.assign({ sources: { mode: 'reading', choices: picks } }, more);
 
 test('Per reading: the forecast from the temperature\'s provider, another reading\'s provider laid on', () => {
   const [{ p, outcome, requests }] = fetchesOf('metno', [{ options: perReading({ wind: 'dwd' }) }]);
@@ -593,8 +595,7 @@ function dayOf(id, options, intervalMin, country) {
  */
 function plannedDay(id, options, intervalMin, country) {
   const o = Object.assign({ drawn: ['uv'] }, options);
-  const input = { mode: o.sourceMode || 'one', provider: id, country: country || null,
-    choices: o.readingSources || {}, keyed: sourcePlan.keyedOf(world.KEYS) };
+  const input = Object.assign({ provider: id, country: country || null }, sourcePlan.sourcesOf(world.KEYS), o.sources);
   return sourcePlan.callsPerDay(input, o.drawn, intervalMin, 0);
 }
 
@@ -605,7 +606,7 @@ test('a day of updates asks each provider what the source plan counts', () => {
     ['openmeteo', { drawn: ['uv'] }, 15],
     ['openmeteo', { drawn: [] }, 30],
     ['yandex', { drawn: ['uv', 'cloud', 'dew'] }, 15],
-    ['metno', { sourceMode: 'auto', drawn: ['uv'] }, 15, 'DEU'],
+    ['metno', { sources: { mode: 'auto' }, drawn: ['uv'] }, 15, 'DEU'],
     ['tomorrowio', perReading({ temperature: 'dwd', rain: 'openmeteo', wind: 'yandex' }, { drawn: ['uv'] }), 15],
     ['wunderground', perReading({ uv: 'openmeteo', cloud: 'metno' }, { drawn: ['cloud'] }), 10],
     ['metno', perReading({ pressure: 'dwd' }), 15]

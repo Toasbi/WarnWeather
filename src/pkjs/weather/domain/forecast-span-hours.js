@@ -206,8 +206,7 @@
     function feedHours(settings) {
         var id = settings && settings.provider;
         if (!settings || settings.weatherSourceMode !== 'reading') { return hoursOf(id); }
-        var byReading = sourcePlan.readingProviders({ mode: 'reading', provider: id,
-            choices: sourcePlan.choicesOf(settings), keyed: sourcePlan.keyedOf(settings) });
+        var byReading = sourcePlan.readingProviders(sourcePlan.inputOf(settings, null));
         var drawn = ['temperature'].concat(settings.barSource === 'off' ? [] : ['rain']);
         lineStyle.FORECAST_LINES.forEach(function (line) {
             var metric = lineStyle.effectiveLineMetric(settings, line.key);

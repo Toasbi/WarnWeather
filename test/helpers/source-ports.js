@@ -14,7 +14,6 @@ function testPorts(over) {
     fillUv: (over && over.fillUv) || ((provider, lat, lon, done) => done()),
     fillReadings: (over && over.fillReadings) || ((provider, lat, lon, readings, done) => done()),
     providerFor: (id) => { throw new Error('this test asks no other provider than its own: ' + id); },
-    keyed: [],
     now: () => Date.now(),
     refreshMs: 0,
     snapshots: { load: () => ({ entries: [], drops: 0 }), save: () => {} }

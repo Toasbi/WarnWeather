@@ -128,6 +128,25 @@ test('each reading has its setting, and the stored picks name only the readings 
     ['openweathermap', 'yandex']);
 });
 
+test('the settings say where the weather comes from: the mode, the picks and the stored keys', () => {
+  assert.deepEqual(sourcePlan.sourcesOf({ weatherSourceMode: 'reading', weatherSourceWind: 'dwd', owmApiKey: 'k' }),
+    { mode: 'reading', choices: { wind: 'dwd' }, keyed: ['openweathermap'] });
+  ['one', undefined, 'x', 'constructor'].forEach((mode) => {
+    assert.equal(sourcePlan.sourcesOf({ weatherSourceMode: mode }).mode, 'one', String(mode));
+  });
+  assert.deepEqual(sourcePlan.sourcesOf(null), { mode: 'one', choices: {}, keyed: [] });
+  assert.deepEqual(sourcePlan.inputOf({ provider: 'dwd', weatherSourceMode: 'auto' }, 'DE'),
+    { provider: 'dwd', country: 'DE', mode: 'auto', choices: {}, keyed: [] }, 'the page\'s input: no place');
+  assert.equal(sourcePlan.inputOf({ provider: 'dwd' }, undefined).country, null);
+});
+
+test('the settings the sources are read from are every key a read touches', () => {
+  const read = new Set();
+  const spy = new Proxy({}, { get: (target, k) => { if (typeof k === 'string') { read.add(k); } return undefined; } });
+  sourcePlan.sourcesOf(spy);
+  assert.deepEqual([...read].sort(), sourcePlan.SETTINGS_KEYS.slice().sort());
+});
+
 test('Per reading: a reading\'s pick where it can bring it, else the Weather picker\'s', () => {
   const by = sourcePlan.readingProviders(Object.assign({}, PER_READING, { keyed: ['tomorrowio'],
     choices: { temperature: 'dwd', wind: 'tomorrowio', uv: 'openweathermap', cloud: 'yandex', dew: 'nowhere' } }));

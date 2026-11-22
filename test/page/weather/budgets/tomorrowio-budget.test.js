@@ -162,8 +162,7 @@ test('the weather calls a day are the source plan\'s tomorrow.io calls, at every
   settings.forEach((over) => pauses.forEach((pause) => budget.INTERVAL_LADDER.forEach(([, value]) => {
     const state = S(Object.assign({ radarMode: 'off' }, pause, over));
     const minutes = parseInt(value, 10);
-    const input = { mode: state.weatherSourceMode || 'one', provider: state.provider, country: null,
-      choices: sourcePlan.choicesOf(state), keyed: sourcePlan.keyedOf(state) };
+    const input = sourcePlan.inputOf(state, null);
     const planned = sourcePlan.callsPerDay(input, providerReadings.DRAWN_ONLY, minutes, budget.sleepHours(state));
     assert.equal(budget.dailyCalls(state, minutes), planned.tomorrowio || 0, JSON.stringify(state) + ' ' + minutes);
   })));
@@ -178,7 +177,6 @@ test('where the calls line counts fewer, the budget errs toward more: every read
   const cloudOnly = S(Object.assign({ weatherSourceMode: 'reading', provider: 'metno', weatherSourceCloud: 'tomorrowio' },
     noRadar));
   assert.equal(budget.callsPerCycle(cloudOnly), 1, 'a reading picked to it counts, drawn or not');
-  const input = { mode: 'reading', provider: 'metno', country: null, choices: sourcePlan.choicesOf(cloudOnly),
-    keyed: sourcePlan.keyedOf(cloudOnly) };
+  const input = sourcePlan.inputOf(cloudOnly, null);
   assert.equal(sourcePlan.refreshRequests(input, []).tomorrowio, undefined, 'the line counts what the watch draws');
 });
