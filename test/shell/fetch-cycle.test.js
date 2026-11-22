@@ -807,7 +807,7 @@ test('each keyed provider the sources asked records its own answer', () => {
     const keyed = makeProvider('openweathermap');
     keyed.apiKey = 'OWMSECRET_abcdef';
     const h = makeHarness({ provider: keyed });
-    // A reading row's pick's key refused, the fetch still served.
+    // A reading pick's key refused, the fetch still served.
     assert.equal(h.cycle.start(false), true);
     keyed.fix(52.5, 13.4);
     keyed.nextAnswers = [{ id: 'openweathermap', apiKey: 'OWMSECRET_abcdef', failure: null },
@@ -828,7 +828,7 @@ test('each keyed provider the sources asked records its own answer', () => {
         'nothing recorded for an answer this fetch did not get');
 });
 
-test('the notice names the Weather picker\'s provider, whatever a pick\'s provider answered', () => {
+test('the notice names the Provider\'s provider, whatever a pick\'s provider answered', () => {
     resetStore();
     const p = makeProvider('dwd');
     const h = makeHarness({ provider: p });
@@ -1927,7 +1927,7 @@ test('radar throttle: a store that cannot keep the record still asks, without th
     assert.equal(rbCycle(h, RB_T0 + 5 * MIN).requested, true, 'no record, no throttle');
 });
 
-test('the watchdog outlasts the longest chain a healthy fetch makes, the reading rows\' picks asking every provider', () => {
+test('the watchdog outlasts the longest chain a healthy fetch makes, the reading picks asking every provider', () => {
     const providerReadings = require('../../src/pkjs/weather/domain/provider-readings.js');
     const http = require('../../src/pkjs/weather/adapter/http.js');
     // Every provider's requests with UV, and Weather Underground's re-scrape of a refused key

@@ -183,9 +183,9 @@
      * is filled from Open-Meteo, whose feed reaches the full span; the providers whose feeds
      * stop short send every reading (test/weather/domain/forecast-span-hours.test.js), so each
      * reading counts its provider's feed. The settings page does not know what this watch
-     * draws, so a reading only some screens draw counts as drawn: a reading row's pick for one
+     * draws, so a reading only some screens draw counts as drawn: a reading pick for one
      * no screen draws can make the label a little short.
-     * @param {?Object} settings Clay settings (reads the provider, the reading rows' picks and
+     * @param {?Object} settings Clay settings (reads the provider, the reading picks and
      *   the stored keys).
      * @returns {number} Hours the watch is sent.
      */

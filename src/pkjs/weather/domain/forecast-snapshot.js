@@ -29,7 +29,7 @@ var HOUR_MS = HOUR_SECONDS * 1000;
 // (it reads on to the day maxima's hours: hourly-window.js reachHours), the long span's 68
 // serve only the hour they start at.
 var UV_REUSE_MS = sourcePlan.UV_REUSE_MS;
-// At most this many snapshots are kept, one per provider and kind: the reading rows' picks may
+// At most this many snapshots are kept, one per provider and kind: the reading picks may
 // ask every provider for its forecast in one fetch, and the two fills have a kind each.
 var MAX_ENTRIES = Object.keys(providerReadings.PROVIDERS).length + 2;
 // Two places this close have the same forecast (the Weather tab's rule: weather-tab-model.js).
@@ -37,7 +37,7 @@ var SAME_PLACE_KM = weatherTabModel.SAME_PLACE_KM;
 // The fetch options no forecast depends on: a fetch that differs from a snapshot only in these
 // reuses it. test/weather/domain/forecast-snapshot.test.js checks that every other option
 // changes the request. What the watch draws (drawn) names the readings a fill asks for, which
-// its own request holds; where the weather comes from (sources: the reading rows' picks and the
+// its own request holds; where the weather comes from (sources: the reading picks and the
 // stored keys) picks which provider is asked, which the snapshot names.
 var ANSWER_NEUTRAL = ['fetchAqi', 'fetchPollen', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'drawn',
     'sources'];

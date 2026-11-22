@@ -1,5 +1,5 @@
 // test/weather/domain/source-plan.test.js — what a fetch asks for, in order: the forecast,
-// which the fetch requires, from the Weather picker's provider; then each other provider a
+// which the fetch requires, from the Provider; then each other provider a
 // reading's row picks, for the readings it brings (the parts); then Open-Meteo for each reading
 // the provider it came from lacks while the watch draws it: its UV-only request, and one request
 // for the rest. Last, the calls a day the plan comes to.
@@ -65,7 +65,7 @@ test('a reading is filled only while the watch draws it', () => {
   assert.deepEqual(sourcePlan.fillsOf(sourcePlan.allFrom('dwd'), ['uv']), ['uv']);
 });
 
-// --- the reading rows ------------------------------------------------------------------------
+// --- the reading picks -----------------------------------------------------------------------
 
 const PICKS = { provider: 'metno', keyed: [], lat: BERLIN.lat, lon: BERLIN.lon };
 
@@ -96,7 +96,7 @@ test('the settings the sources are read from are every key a read touches', () =
   assert.deepEqual([...read].sort(), sourcePlan.SETTINGS_KEYS.slice().sort());
 });
 
-test('a reading\'s pick where it can bring it, else the Weather picker\'s', () => {
+test('a reading\'s pick where it can bring it, else the Provider\'s', () => {
   const by = sourcePlan.readingProviders(Object.assign({}, PICKS, { keyed: ['tomorrowio'],
     choices: { temperature: 'dwd', wind: 'tomorrowio', uv: 'openweathermap', cloud: 'yandex', dew: 'nowhere' } }));
   assert.equal(by.temperature, 'dwd');
@@ -104,7 +104,7 @@ test('a reading\'s pick where it can bring it, else the Weather picker\'s', () =
   assert.equal(by.uv, 'metno', 'OpenWeatherMap without its key');
   assert.equal(by.cloud, 'metno', 'Yandex sends no cloud cover');
   assert.equal(by.dew, 'metno', 'a provider the table does not know');
-  assert.equal(by.rainChance, 'metno', 'no pick: the Weather picker\'s');
+  assert.equal(by.rainChance, 'metno', 'no pick: the Provider\'s');
   assert.equal(by.gust, 'metno', 'the gusts are a reading of their own');
   const paris = sourcePlan.readingProviders(Object.assign({}, PICKS, PARIS, { choices: { wind: 'dwd' } }));
   assert.equal(paris.wind, 'metno', 'DWD outside its area');
@@ -120,7 +120,7 @@ test('the parts: each other provider once, with the readings in use it brings', 
   assert.deepEqual(sourcePlan.partSteps(input, ['windDir', 'cloud', 'pressure']),
     [part('dwd', ['wind', 'pressure'])], 'a reading the watch does not draw asks nobody');
   assert.deepEqual(sourcePlan.partSteps(Object.assign({}, PICKS, { choices: { temperature: 'metno' } }), ALL_DRAWN), [],
-    'a pick of the Weather picker\'s own provider is no part');
+    'a pick of the Provider\'s own provider is no part');
   assert.deepEqual(sourcePlan.partSteps(Object.assign({}, PICKS, { choices: {} }), ALL_DRAWN), []);
 });
 
@@ -128,9 +128,9 @@ test('a reading follows its own provider while nothing fails, sent or not; a par
   const dwdPicker = Object.assign({}, PICKS, { provider: 'dwd', choices: { temperature: 'metno', rainChance: 'metno',
     wind: 'metno', condition: 'metno' } });
   const feeds = sourcePlan.feedsOf(dwdPicker, ['uv']);
-  assert.equal(feeds.uv, 'dwd', 'UV follows the Weather picker\'s DWD, which sends none: it is filled');
+  assert.equal(feeds.uv, 'dwd', 'UV follows the Provider\'s DWD, which sends none: it is filled');
   assert.equal(feeds.temperature, 'metno');
-  assert.equal(feeds.cloud, 'dwd', 'a reading the watch does not draw stays the Weather picker\'s');
+  assert.equal(feeds.cloud, 'dwd', 'a reading the watch does not draw stays the Provider\'s');
   assert.deepEqual(sourcePlan.partSteps(dwdPicker, ['uv']), [{ provider: 'metno',
     readings: ['condition', 'temperature', 'rainChance', 'wind'] }], 'no part asks DWD for UV it lacks');
   assert.deepEqual(sourcePlan.fillSteps(feeds, ['uv']), [UV_FILL]);
@@ -169,7 +169,7 @@ test('a fetch uses a drawn-only reading while the watch draws it, the others alw
     'the drawn-only readings are the ones drawn-readings.js has a rule for');
 });
 
-test('a refresh asks the Weather picker\'s provider, each part\'s and the fill request; the UV-only fill is counted apart', () => {
+test('a refresh asks the Provider\'s provider, each part\'s and the fill request; the UV-only fill is counted apart', () => {
   assert.deepEqual(sourcePlan.refreshRequests(page({}), ['uv']), { openmeteo: 3 }, 'its own UV request');
   assert.deepEqual(sourcePlan.refreshRequests(page({}), []), { openmeteo: 2 });
   assert.deepEqual(sourcePlan.refreshRequests(page({ provider: 'dwd' }), ['uv']), { dwd: 2 });
@@ -179,7 +179,7 @@ test('a refresh asks the Weather picker\'s provider, each part\'s and the fill r
     choices: { temperature: 'dwd', wind: 'dwd', rainAmount: 'openmeteo' } }), []),
   { metno: 1, dwd: 2, openmeteo: 2 }, 'one fetch for each provider a reading in use comes from');
   assert.deepEqual(sourcePlan.refreshRequests(page({ provider: 'metno', choices: {} }), ALL_DRAWN),
-    sourcePlan.refreshRequests(page({ provider: 'metno' }), ALL_DRAWN), 'Same as Weather everywhere: the provider alone');
+    sourcePlan.refreshRequests(page({ provider: 'metno' }), ALL_DRAWN), 'no pick anywhere: the provider alone');
 });
 
 test('a day is the update interval\'s refreshes outside the Battery saver\'s window', () => {

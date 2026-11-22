@@ -111,7 +111,7 @@ test('snapshot includes aqiScale', () => {
 });
 
 // Lockstep: it is also in the Deno .strip() schema (telemetry-ingest/handler.ts).
-test('snapshot includes the reading rows\' picks', () => {
+test('snapshot includes the reading picks', () => {
   const picks = { weatherSourceUv: 'openmeteo', weatherSourceWind: 'dwd', weatherSourceDew: '' };
   assert.strictEqual(buildSettingsSnapshot(picks).weatherSources, 'wind:dwd,uv:openmeteo', 'in the readings\' order');
   assert.strictEqual(buildSettingsSnapshot({}).weatherSources, '');

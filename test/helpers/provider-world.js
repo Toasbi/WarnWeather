@@ -258,7 +258,7 @@ const SERVICES = [
     }
   },
   {
-    // Open-Meteo's gap request: the readings the Weather picker's provider lacks (best_match),
+    // Open-Meteo's gap request: the readings the Provider lacks (best_match),
     // only the fields it names, each at its own stamp.
     match: (url) => url.indexOf('https://api.open-meteo.com/v1/forecast?') === 0
       && query(url).get('hourly').split(',').every((field) => Object.prototype.hasOwnProperty.call(GAP_FIELDS, field)),

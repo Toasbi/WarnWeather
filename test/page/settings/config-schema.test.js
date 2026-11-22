@@ -100,8 +100,8 @@ const EXPECTED_KEYS = [
   'dateSlotMonthFormat','dateSlotFullFormat',
   // The weather condition slot's Look (Icon + text / Text / Icon).
   'conditionSlotLook', 'conditionSlotName', 'citySlotIcon',
-  // The reading rows (Setup › Data sources): a provider of its own for each reading;
-  // phone-side only.
+  // The reading picks (the Weather dialog's Other sources): a provider of its own for each
+  // reading; phone-side only.
   'weatherSourceCurrentTemp', 'weatherSourceCurrentFeels', 'weatherSourceCondition', 'weatherSourceTemperature',
   'weatherSourceFeels', 'weatherSourceDew', 'weatherSourceRainChance', 'weatherSourceRainAmount', 'weatherSourceWind',
   'weatherSourceGust', 'weatherSourceWindDir', 'weatherSourceUv', 'weatherSourceCloud', 'weatherSourcePressure',
@@ -1161,7 +1161,7 @@ test('a metric picker names a gap in the picked provider only', () => {
   const pick = (m, provider) => hintOf('secondaryLine', { secondaryLine: m, provider }, STYLED_ENV);
   const METNO = 'Not available with Met.no outside the Nordics.';
   // Yandex's cloud cover, air pressure and dew point come from Open-Meteo (the note under the
-  // Weather picker says so), so its pickers name no gap.
+  // Provider says so), so its pickers name no gap.
   ['cloud', 'pressure'].forEach((m) => assert.equal(pick(m, 'yandex'), '', m));
   assert.equal(pick('dew', 'yandex'), 'The closer it runs to the temperature, the more humid it feels.');
   assert.equal(pick('gust', 'metno'), 'Shows the hourly peak. ' + METNO, 'after the metric\'s note');
@@ -1666,10 +1666,17 @@ test('the Rain radar picker (Setup › Data sources): Off, then DWD/Met.no/Rainb
 // provider (page/weather/keys/key-status.js): one table for every key-status resolver.
 const RAINBOW_OWN_KEY_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbowkey' }, { key: 'radarEnabled', ne: false }] };
 const radarPickerSection = () => schema.tabs.find((t) => t.id === 'setup').sections.find((sec) => sec.id === 'dataSources');
-// Each key table's picker row: the Weather picker for provider, the Rain radar picker for
+// Each key table's picker row: the Provider picker for provider, the Rain radar picker for
 // radarProvider (it writes radarProvider, so its key rows name that key as their picker).
 const PICKER_ROW = { provider: 'provider', radarProvider: 'radarSource' };
 const PICKER_ATTENTION = { provider: { resolver: 'keyAttention' }, radarProvider: { resolver: 'radarKeyAttention' } };
+// Where each picker row sits: the Provider in the Weather dialog, the Rain radar on the card.
+const PICKER_SECTION = {
+  provider: function inTheWeatherDialog() {
+    return schema.tabs.find((t) => t.id === 'setup').sections.find((sec) => sec.sheetId === 'weatherSources');
+  },
+  radarProvider: function onTheDataSourcesCard() { return radarPickerSection(); }
+};
 
 // The key tables live in page/weather/keys/key-sources.js, one per picker, by the picker's
 // messageKey. The rows' key-status resolvers read them in the page by the row's picker —
@@ -1686,7 +1693,7 @@ test('the provider and radar rows read their key tables from key-sources.js', ()
       picker + ': no args, the table is found by the picker\'s messageKey');
     const section = schema.tabs.reduce((found, t) => found
       || t.sections.find((sec) => sec.items.indexOf(row) !== -1), null);
-    assert.equal(section, radarPickerSection(), picker + ': on the Data sources card');
+    assert.equal(section, PICKER_SECTION[picker](), picker + ': ' + PICKER_SECTION[picker].name);
     const keyRow = section.items.find((i) => i.type === 'sheet' && i.labelFrom && i.labelFrom.resolver === 'keyRowLabel'
       && i.labelFrom.args.picker === picker);
     assert.ok(keyRow, picker + ': a key row under the picker');

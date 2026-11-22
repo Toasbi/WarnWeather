@@ -243,7 +243,7 @@ test('a UV day record that cannot be read never fails the fetch', () => {
 });
 
 test('each record is keyed by the provider its reading came from (the fetch\'s feeds)', () => {
-  // A reading pick lays another provider's reading on the Weather picker's, and a fill brings
+  // A reading pick lays another provider's reading on the Provider's, and a fill brings
   // a reading of its own (fetch-sources.js).
   const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
   const p = Object.assign(new WeatherProvider(), { id: 'openweathermap', startTime: at(15, 9),

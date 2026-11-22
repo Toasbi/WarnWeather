@@ -78,8 +78,8 @@ var DEFAULTS = {
     // (source-plan.js wanted, fillSteps); fetchUv is whether it holds UV. None by default.
     // Frozen: defaults() hands every caller this one list.
     drawn: Object.freeze([]),
-    // Where the weather comes from besides the Weather picker's provider (Setup › Data sources;
-    // source-plan.js sourcesOf): the reading rows' picks and the providers whose key is stored.
+    // Where the weather comes from besides the Provider (Setup › Data sources;
+    // source-plan.js sourcesOf): the reading picks and the providers whose key is stored.
     // Frozen like drawn.
     sources: Object.freeze({ choices: Object.freeze({}), keyed: Object.freeze([]) })
 };

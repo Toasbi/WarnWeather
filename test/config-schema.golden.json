@@ -16350,13 +16350,15 @@
             ]
           },
           {
-            "id": "dataSources",
-            "title": "Data sources",
+            "sheetOnly": true,
+            "sheetId": "weatherSources",
+            "title": "Weather",
+            "block": "weatherOtherSources",
             "items": [
               {
                 "type": "select",
                 "messageKey": "provider",
-                "label": "Weather",
+                "label": "Provider",
                 "defaultValue": "wunderground",
                 "onChange": "clearPollenForProvider",
                 "recommendFrom": "recommendedWeatherProvider",
@@ -16372,6 +16374,7 @@
                 "attentionFrom": {
                   "resolver": "keyAttention"
                 },
+                "bottomSheet": true,
                 "options": [
                   [
                     "Deutscher Wetterdienst",
@@ -16434,6 +16437,13 @@
               },
               {
                 "type": "staticText",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "weatherCallsLine"
+                }
+              },
+              {
+                "type": "staticText",
                 "style": "info",
                 "joinPrevious": true,
                 "textFrom": {
@@ -16467,12 +16477,24 @@
                 }
               },
               {
+                "type": "subheader",
+                "text": "Other sources"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "weatherSourcePickers",
+            "title": "Other sources",
+            "items": [
+              {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceCurrentTemp",
                 "label": "Current temperature",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "currentTemp"
                   }
@@ -16480,11 +16502,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceCurrentFeels",
                 "label": "Current feels-like",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "currentFeels"
                   }
@@ -16492,11 +16515,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceCondition",
                 "label": "Weather condition",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "condition"
                   }
@@ -16504,11 +16528,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceTemperature",
                 "label": "Temperature",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "temperature"
                   }
@@ -16516,11 +16541,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceFeels",
                 "label": "Feels-like",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "feels"
                   }
@@ -16528,11 +16554,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceDew",
                 "label": "Dew point",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "dew"
                   }
@@ -16540,11 +16567,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceRainChance",
                 "label": "Rain chance",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "rainChance"
                   }
@@ -16552,11 +16580,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceRainAmount",
                 "label": "Rain amount",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "rainAmount"
                   }
@@ -16564,11 +16593,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceWind",
                 "label": "Wind speed",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "wind"
                   }
@@ -16576,11 +16606,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceGust",
                 "label": "Wind gusts",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "gust"
                   }
@@ -16588,11 +16619,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceWindDir",
                 "label": "Wind direction",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "windDir"
                   }
@@ -16600,11 +16632,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceUv",
                 "label": "UV index",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "uv"
                   }
@@ -16612,11 +16645,12 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourceCloud",
                 "label": "Cloud cover",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "cloud"
                   }
@@ -16624,14 +16658,130 @@
               },
               {
                 "type": "select",
+                "bottomSheet": true,
                 "messageKey": "weatherSourcePressure",
                 "label": "Air pressure",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
+                  "resolver": "weatherValueSources",
                   "args": {
                     "reading": "pressure"
                   }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "uiOnly": true,
+                "messageKey": "weatherOtherSourceFor",
+                "label": "Use another source for",
+                "defaultValue": "",
+                "dormantValues": [
+                  ""
+                ],
+                "optionsFrom": {
+                  "resolver": "weatherFreeValues"
+                },
+                "onChange": "weatherOtherSourcePicked",
+                "nextSelectFrom": {
+                  "resolver": "weatherValuePicker"
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "providerKeyOwm",
+            "showWhen": {
+              "key": "provider",
+              "eq": "openweathermap"
+            },
+            "title": "OpenWeatherMap",
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "owmApiKey",
+                "label": "API key",
+                "defaultValue": "",
+                "suffixAction": "testOwmKey",
+                "suffixLabel": "Test",
+                "hint": "<a href='https://openweathermap.org/'>Register an OpenWeatherMap account</a> and paste your API key here, then tap Test. The key must be subscribed to <a href='https://openweathermap.org/api/one-call-3'>One Call API 3.0</a> (it has a free allowance), or weather updates fail with error 401.",
+                "showWhen": {
+                  "key": "provider",
+                  "eq": "openweathermap"
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "providerKeyTomorrowio",
+            "showWhen": {
+              "key": "provider",
+              "eq": "tomorrowio"
+            },
+            "title": "Tomorrow.io",
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "tomorrowioApiKey",
+                "label": "API key",
+                "defaultValue": "",
+                "suffixAction": "testTomorrowioKey",
+                "suffixLabel": "Test",
+                "hint": "<a target='_blank' href='https://app.tomorrow.io/signup'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b><button type=\"button\" class=\"copybtn\" data-copy=\"https://app.tomorrow.io/development/keys\" title=\"Copy the API-keys page link\" aria-label=\"Copy the API-keys page link\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V5a2 2 0 0 1 2-2h10\"/></svg></button>, copy your key, paste it here and tap Test. The free plan is enough. See the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io's mobile site shows an error (404) on the API-keys page. Tap the copy button, then open the link in your browser's desktop-site mode.</b>",
+                "showWhen": {
+                  "key": "provider",
+                  "eq": "tomorrowio"
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "tomorrowioFitBudget",
+                "label": "Fit update interval to rate limit",
+                "defaultValue": true,
+                "joinPrevious": "loose",
+                "blockBefore": "tomorrowioBudget",
+                "hint": "Offers only the update intervals that fit the free plan. Turn it off to pick any interval. Tomorrow.io then rejects the calls over the limit until it resets, and the watch keeps its last data.",
+                "showWhen": {
+                  "key": "provider",
+                  "eq": "tomorrowio"
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "providerKeyYandex",
+            "showWhen": {
+              "key": "provider",
+              "eq": "yandex"
+            },
+            "title": "Yandex Weather",
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "yandexApiKey",
+                "label": "API key",
+                "defaultValue": "",
+                "hint": "Register a Yandex Weather API key at <a href='https://yandex.com/dev/weather/'>yandex.com/dev/weather</a> and paste it here.",
+                "showWhen": {
+                  "key": "provider",
+                  "eq": "yandex"
+                }
+              }
+            ]
+          },
+          {
+            "id": "dataSources",
+            "title": "Data sources",
+            "items": [
+              {
+                "type": "sheet",
+                "sheetId": "weatherSources",
+                "label": "Weather",
+                "hintFrom": {
+                  "resolver": "weatherSourcesSummary"
                 }
               },
               {
@@ -16802,89 +16952,6 @@
                 "joinPrevious": true,
                 "textFrom": {
                   "resolver": "weatherCallsLine"
-                }
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
-            "sheetId": "providerKeyOwm",
-            "showWhen": {
-              "key": "provider",
-              "eq": "openweathermap"
-            },
-            "title": "OpenWeatherMap",
-            "items": [
-              {
-                "type": "text",
-                "messageKey": "owmApiKey",
-                "label": "API key",
-                "defaultValue": "",
-                "suffixAction": "testOwmKey",
-                "suffixLabel": "Test",
-                "hint": "<a href='https://openweathermap.org/'>Register an OpenWeatherMap account</a> and paste your API key here, then tap Test. The key must be subscribed to <a href='https://openweathermap.org/api/one-call-3'>One Call API 3.0</a> (it has a free allowance), or weather updates fail with error 401.",
-                "showWhen": {
-                  "key": "provider",
-                  "eq": "openweathermap"
-                }
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
-            "sheetId": "providerKeyTomorrowio",
-            "showWhen": {
-              "key": "provider",
-              "eq": "tomorrowio"
-            },
-            "title": "Tomorrow.io",
-            "items": [
-              {
-                "type": "text",
-                "messageKey": "tomorrowioApiKey",
-                "label": "API key",
-                "defaultValue": "",
-                "suffixAction": "testTomorrowioKey",
-                "suffixLabel": "Test",
-                "hint": "<a target='_blank' href='https://app.tomorrow.io/signup'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b><button type=\"button\" class=\"copybtn\" data-copy=\"https://app.tomorrow.io/development/keys\" title=\"Copy the API-keys page link\" aria-label=\"Copy the API-keys page link\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V5a2 2 0 0 1 2-2h10\"/></svg></button>, copy your key, paste it here and tap Test. The free plan is enough. See the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io's mobile site shows an error (404) on the API-keys page. Tap the copy button, then open the link in your browser's desktop-site mode.</b>",
-                "showWhen": {
-                  "key": "provider",
-                  "eq": "tomorrowio"
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "tomorrowioFitBudget",
-                "label": "Fit update interval to rate limit",
-                "defaultValue": true,
-                "joinPrevious": "loose",
-                "blockBefore": "tomorrowioBudget",
-                "hint": "Offers only the update intervals that fit the free plan. Turn it off to pick any interval. Tomorrow.io then rejects the calls over the limit until it resets, and the watch keeps its last data.",
-                "showWhen": {
-                  "key": "provider",
-                  "eq": "tomorrowio"
-                }
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
-            "sheetId": "providerKeyYandex",
-            "showWhen": {
-              "key": "provider",
-              "eq": "yandex"
-            },
-            "title": "Yandex Weather",
-            "items": [
-              {
-                "type": "text",
-                "messageKey": "yandexApiKey",
-                "label": "API key",
-                "defaultValue": "",
-                "hint": "Register a Yandex Weather API key at <a href='https://yandex.com/dev/weather/'>yandex.com/dev/weather</a> and paste it here.",
-                "showWhen": {
-                  "key": "provider",
-                  "eq": "yandex"
                 }
               }
             ]

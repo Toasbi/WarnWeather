@@ -33,7 +33,7 @@
     // The metrics a weather service doesn't send, by its id: `who` names it in a sentence, `note`
     // is the metric picker's hint while it is the service. A reading a service has none of
     // anywhere comes from Open-Meteo instead (the source plan's fills: Yandex's cloud cover, air
-    // pressure and dew point), which the note under the Weather picker names
+    // pressure and dew point), which the note under the Provider names
     // (page/weather/weather-sources-page.js). Left here: Met.no sends rain chance and gusts for
     // the Nordics only.
     var GAPS = {

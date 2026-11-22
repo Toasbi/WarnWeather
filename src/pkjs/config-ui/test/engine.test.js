@@ -2246,6 +2246,85 @@ test('boot(): a tap beside the bottom sheet, its × or Escape closes it alone, n
   });
 });
 
+// A select that names the select to pick next (nextSelectFrom: the Weather dialog's "Use another
+// source", a value and then its provider) hands its list on: a pick opens the next select's
+// list over the dialog, as a tap on that select's row would, though the row may not exist yet.
+const NEXT_SELECT_SCHEMA = JSON.parse(JSON.stringify(BOTTOM_SHEET_SCHEMA));
+Object.assign(NEXT_SELECT_SCHEMA.tabs[0].sections[1].items.find((i) => i.messageKey === 'sep'),
+  { nextSelectFrom: { resolver: 'sepThen', args: { to: 'side' } } });
+NEXT_SELECT_SCHEMA.tabs[0].sections.push({ sheetOnly: true, sheetId: 'keys', title: 'Keys', items: [
+  { type: 'select', messageKey: 'side', label: 'Side', sheetTitle: 'Which side', bottomSheet: true, defaultValue: '',
+    options: [['Left', 'left'], ['Right', 'right']] }] });
+const NEXT_PRELUDE = "PConf.nextSelectResolvers.register('sepThen', function (S, env, args) {"
+  + " return args.messageKey === 'sep' && args.value === 'custom' && S.sep === 'custom' ? args.to : null; });";
+
+/**
+ * Boot NEXT_SELECT_SCHEMA, open its dialog and tap the handing select's row.
+ * @param {Object} [opts] Passed through to bootWithCapturedListeners.
+ * @returns {Object} The harness.
+ */
+function bootWithNextSelect(opts) {
+  const r = bootWithCapturedListeners(NEXT_SELECT_SCHEMA, {}, Object.assign({ prelude: NEXT_PRELUDE }, opts));
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'fmt' });
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  return r;
+}
+
+test('boot(): a pick that names the next select stores it and opens that select\'s list over the dialog', () => {
+  const focused = [];
+  const option = { closest: () => null, focus: () => { focused.push('option'); } };
+  const r = bootWithNextSelect({ modalQuery: (sel) => (sel === '.psheet' ? {}
+    : sel === '.isel-list [data-select-pick]' ? option : null) });
+  focused.length = 0;
+  clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'sep', 'data-select-pick': 'custom' });
+  assert.equal(r.getValue('sep'), 'custom', 'the pick is stored, its onChange run first');
+  const html = r.modal.innerHTML;
+  assert.ok(html.indexOf('aria-labelledby="psheet-ttl-side"') >= 0, 'the next list rises in its place');
+  assert.ok(html.indexOf('>Which side</span>') >= 0 && html.indexOf('data-select-pick="left"') >= 0,
+    'with its own title and options, though no row of the dialog opens it');
+  assert.equal(html.indexOf('aria-labelledby="psheet-ttl-sep"'), -1, 'the first list went');
+  assert.deepEqual(focused, ['option'], 'focus on its first option, nothing being picked there yet');
+});
+
+test('boot(): a pick the resolver names nothing for closes the list as any pick does', () => {
+  const focused = [];
+  const r = bootWithNextSelect({ modalQuery: (sel) => (sel === '[data-select="sep"]'
+    ? { focus: () => { focused.push(sel); } } : null) });
+  clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'sep', 'data-select-pick': 'slash' });
+  assert.equal(r.modal.innerHTML.indexOf('psheet'), -1, 'no list is open');
+  assert.deepEqual(focused, ['[data-select="sep"]']);
+});
+
+test('boot(): the next list closed without a pick hands focus back to the row that opened the first', () => {
+  ['close', 'escape'].forEach((how) => {
+    const focused = [];
+    const r = bootWithNextSelect({ modalQuery: (sel) => (sel === '[data-select="sep"]'
+      ? { focus: () => { focused.push(sel); } } : null) });
+    clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'sep', 'data-select-pick': 'custom' });
+    assert.ok(r.modal.innerHTML.indexOf('psheet-ttl-side') >= 0, how + ': the next list is open');
+    focused.length = 0;
+    if (how === 'escape') {
+      r.modalListeners.cancel({ preventDefault: () => {} });
+    } else {
+      clickMatching(r.modalListeners.click, '[data-psheet-close]', {});
+    }
+    assert.equal(r.modal.innerHTML.indexOf('psheet'), -1, how + ': the list went');
+    assert.equal(r.getValue('side'), '', how + ': nothing picked');
+    assert.deepEqual(focused, ['[data-select="sep"]'], how + ': the next select has no row: focus goes back');
+  });
+});
+
+test('boot(): a pick in the next list stores it, and focus lands on the row it made', () => {
+  const focused = [];
+  const r = bootWithNextSelect({ modalQuery: (sel) => (sel === '[data-select="side"]'
+    ? { focus: () => { focused.push(sel); } } : null) });
+  clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'sep', 'data-select-pick': 'custom' });
+  clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'side', 'data-select-pick': 'right' });
+  assert.equal(r.getValue('side'), 'right');
+  assert.equal(r.modal.innerHTML.indexOf('psheet'), -1, 'the list went; the dialog stays');
+  assert.deepEqual(focused, ['[data-select="side"]']);
+});
+
 // Edit sheets are full-screen dialogs now: × and Done are the ways out (Escape too, see
 // above). The bottom-sheet dismissals are gone by design — a full-screen dialog has no
 // backdrop to tap, and a downward drag is no way to throw away (or keep) its changes.

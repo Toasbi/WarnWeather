@@ -1,14 +1,14 @@
 // src/pkjs/weather/domain/source-plan.js — ES5, watch runtime and settings page.
 //
 // The source plan: what one fetch asks for, in order. First the forecast, which a fetch
-// requires, from the Weather picker's provider. Then each other provider a reading's row picks,
-// for the readings it brings (partSteps): a reading whose row says Same as Weather, the
-// default, comes from the Weather picker's provider. Each provider brings every reading it
+// requires, from the Provider. Then each other provider a reading pick names, for the
+// readings it brings (partSteps): a reading without a pick, the default, comes from the
+// Provider. Each provider brings every reading it
 // sends (provider-readings.js); a reading the one it came from lacks comes from Open-Meteo while
 // the watch draws it (fillSteps): DWD's UV by Open-Meteo's UV-only request, Yandex's dew point,
 // wind direction, cloud cover and air pressure by one request for all of them.
 // weather/application/fetch-sources.js runs the steps; the settings page names the fills under
-// the Weather picker and the calls a day the steps come to (callsPerDay) at the end of Data
+// the Provider and the calls a day the steps come to (callsPerDay) at the end of Data
 // sources (page/weather/weather-sources-page.js), and the tomorrow.io budget counts its calls by
 // the same rule (page/weather/budgets/tomorrowio-budget.js).
 //
@@ -78,7 +78,7 @@
      * The readings the settings give a provider of their own.
      * @param {?Object} settings Clay settings.
      * @returns {Object<string, string>} reading id → provider id; none for '', which follows
-     *   the Weather picker
+     *   the Provider
      */
     function choicesOf(settings) {
         var out = {};
@@ -102,10 +102,10 @@
     }
 
     /**
-     * Where the weather comes from, as the settings say it: the reading rows' picks (choicesOf)
+     * Where the weather comes from, as the settings say it: the reading picks (choicesOf)
      * and the providers whose key is stored (keyedOf). The fetch options carry it
-     * (fetch-options.js sources), and the engine adds the Weather picker's provider and the
-     * place (fetch-sources.js); the settings page adds the Weather picker's provider (inputOf).
+     * (fetch-options.js sources), and the engine adds the Provider and the
+     * place (fetch-sources.js); the settings page adds the Provider (inputOf).
      * @param {?Object} settings Clay settings.
      * @returns {{choices: Object<string, string>, keyed: string[]}}
      */
@@ -115,7 +115,7 @@
 
     /**
      * The plan's input on the settings page, which does not know the place: the settings'
-     * sources and the Weather picker's provider.
+     * sources and the Provider.
      * @param {?Object} settings Clay settings.
      * @returns {Object} readingProviders()'s input, without a place.
      */
@@ -139,11 +139,11 @@
 
     /**
      * Each reading's provider: its row's pick where that provider sends the reading and may be
-     * asked (askable: a cleared key, or a pick outside its area, follows the Weather picker
-     * again), else the Weather picker's.
+     * asked (askable: a cleared key, or a pick outside its area, follows the Provider
+     * again), else the Provider's.
      * @param {{provider: string, choices: (Object<string, string>|undefined), keyed: string[],
-     *   lat: (number|undefined), lon: (number|undefined)}} input The Weather picker's provider,
-     *   the reading rows' picks (choicesOf), the stored keys and the place (none on the settings
+     *   lat: (number|undefined), lon: (number|undefined)}} input The Provider,
+     *   the reading picks (choicesOf), the stored keys and the place (none on the settings
      *   page: askable).
      * @returns {Object<string, string>} Every reading's provider id.
      */
@@ -157,7 +157,7 @@
     }
 
     /**
-     * Each reading's provider while no provider fails: the Weather picker's, which serves the
+     * Each reading's provider while no provider fails: the Provider's, which serves the
      * forecast, and each reading the fetch uses (wanted) its own (readingProviders), whether that
      * provider sends it or not: one it lacks is filled (fillSteps).
      * @param {Object} input readingProviders()'s input.
@@ -172,10 +172,10 @@
     }
 
     /**
-     * The parts: for each provider other than the Weather picker's, the readings it brings
+     * The parts: for each provider other than the Provider, the readings it brings
      * (feedsOf) that it sends, in READINGS order. fetch-sources.js asks a part's provider for its
      * whole forecast, once a fetch, and lays the part's readings on by time; when it fails, or
-     * its hours do not line up, they stay the Weather picker's provider's.
+     * its hours do not line up, they stay the Provider's.
      * @param {Object} input readingProviders()'s input.
      * @param {string[]} drawn The drawn-only readings the watch draws.
      * @returns {Array<{provider: string, readings: string[]}>}
@@ -219,7 +219,7 @@
     }
 
     /**
-     * The steps a refresh runs while no provider fails: the Weather picker's forecast, the
+     * The steps a refresh runs while no provider fails: the Provider's forecast, the
      * parts, and the fills for what they leave (feedsOf). `inHand`: the providers whose whole
      * forecast the refresh has, which a fill of theirs is laid on from instead of asked
      * (fetch-sources.js).
@@ -238,7 +238,7 @@
      * request while the watch draws UV, as the fetch options' fetchUv says; a fill whose
      * provider's forecast is in hand asks nothing.
      * @param {{parts: Array<Object>, fills: Array<Object>, inHand: string[]}} steps
-     *   steadySteps(): inHand starts with the Weather picker's provider.
+     *   steadySteps(): inHand starts with the Provider.
      * @param {string[]} drawn The drawn-only readings the watch draws.
      * @returns {Object<string, number>} provider id → requests
      */
@@ -260,7 +260,7 @@
     }
 
     /**
-     * The requests one refresh makes while no provider fails, by provider: the Weather picker's
+     * The requests one refresh makes while no provider fails, by provider: the Provider's
      * provider, the parts (a part asks its provider's whole forecast) and Open-Meteo's request
      * for the other readings. The UV-only fill is left out: its answer serves for hours
      * (callsPerDay counts it). A forced fetch inside the refresh slot, which reuses its
@@ -292,7 +292,7 @@
      * @param {number} intervalMin The update interval, minutes.
      * @param {number} pauseHours The Battery saver's window, whole hours.
      * @returns {Object<string, number>} provider id → calls a day, in the order the plan asks
-     *   them: the Weather picker's provider first
+     *   them: the Provider first
      */
     function callsPerDay(input, drawn, intervalMin, pauseHours) {
         var refreshes = refreshesPerDay(intervalMin, pauseHours);
@@ -308,7 +308,7 @@
         return out;
     }
 
-    // Every setting sourcesOf reads: the reading rows and the API keys (the tomorrow.io budget's
+    // Every setting sourcesOf reads: the reading picks and the API keys (the tomorrow.io budget's
     // STATE_KEYS).
     var SETTINGS_KEYS = providerReadings.READING_IDS.map(choiceKey).concat(
         Object.keys(providerReadings.PROVIDERS).map(providerReadings.keySetting).filter(Boolean));

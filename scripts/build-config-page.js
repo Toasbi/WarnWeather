@@ -114,8 +114,8 @@ var APP_FILES = [
   // Where the weather comes from (Setup › Data sources): what the watch draws
   // (window.DrawnReadings: reads LineStyle, GraphStyles, StatusLineCatalog and StatusThresholds,
   // all above) and the words the page names the weather with (window.WeatherWords), then the
-  // note under the Weather picker that names the fills, the reading rows' options and the calls
-  // line (weather-sources-page.js binds the plan, ProviderReadings, DrawnReadings and
+  // Weather dialog's page side: the notes under its Provider, its Other sources list and the
+  // calls line (weather-sources-page.js binds the plan, ProviderReadings, DrawnReadings and
   // WeatherWords while its body runs).
   path.join(ROOT, 'src/pkjs/weather/domain/drawn-readings.js'),
   path.join(ROOT, 'src/pkjs/page/weather/weather-words.js'),

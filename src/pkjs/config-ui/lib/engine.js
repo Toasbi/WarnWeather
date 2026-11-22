@@ -187,6 +187,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // resolver. An unregistered id reads false.
   PConf.whenResolvers = makeRegistry();
 
+  // --- next-select registry --- a select in a dialog opts into opening another select's
+  // list as soon as one of its options is picked (item.nextSelectFrom: {resolver, args}):
+  // fn(S, env, args) returns the messageKey of the select to open next, its list opened as a
+  // tap on its row opens it, or null to close the list as any pick does (a two-step pick: a
+  // thing, then its value). args carries the row's messageKey and the value just picked
+  // (`value`), merged UNDER nextSelectFrom.args. Read right after the pick's onChange ran.
+  PConf.nextSelectResolvers = makeRegistry();
+
   // --- onChange registry --- a schema item opts into a post-change side effect by
   // name (item.onChange: id, or a list of ids run in order) without the engine knowing
   // what that side effect is.
@@ -835,6 +843,24 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (!fn) { return null; }
     var args = Object.assign({ messageKey: item.messageKey, value: (S || {})[item.messageKey] },
       item.attentionFrom.args || {});
+    return fn(S, env, args) || null;
+  }
+
+  /**
+   * The select to open after a pick in a dialog (item.nextSelectFrom), via its named
+   * resolver: null when the item opts out, the resolver is missing or it names none. See
+   * PConf.nextSelectResolvers.
+   * @param {?Object} item The picked select's item.
+   * @param {*} value The value just picked.
+   * @param {Object} S Live settings state.
+   * @param {Object} env Platform env.
+   * @returns {?string} The next select's messageKey, or null.
+   */
+  function resolveNextSelect(item, value, S, env) {
+    if (!item || !item.nextSelectFrom) { return null; }
+    var fn = PConf.nextSelectResolvers.get(item.nextSelectFrom.resolver);
+    if (!fn) { return null; }
+    var args = Object.assign({ messageKey: item.messageKey, value: value }, item.nextSelectFrom.args || {});
     return fn(S, env, args) || null;
   }
 
@@ -2792,6 +2818,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // tap or ctx.openDialog's rename sets it, OK, Enter, Escape, leaving the field or the
     // dialog going clear it.
     var renaming = null;
+    // The trigger of the select whose pick handed its list on to another (nextSelectFrom),
+    // null for none: where focus goes back when that other list closes without a pick, its own
+    // trigger being a row the pick may not have made yet.
+    var handedFrom = null;
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
     /**
@@ -3102,6 +3132,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // Escape would spend its first press collapsing it and the dialog would open at the
       // raised .picking cap.
       expanded = null;
+      handedFrom = null;
       if (renaming !== id) { renaming = null; }
       var stacked = Boolean(nested && editStack.length);
       if (stacked) {
@@ -3858,10 +3889,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (!sheetIs('edit') || !expanded) { return false; }
       // A date's wheels keep the day a spin left them on, as every close of a date sheet does.
       dateWiring.flushPending();
-      var sel = expandedTrigger();
+      var sel = [expandedTrigger()].concat(handedFrom ? [handedFrom] : []);
+      handedFrom = null;
       expanded = null;
       render();
-      focusInModal([sel]);
+      focusInModal(sel);
       return true;
     }
 
@@ -3909,12 +3941,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           setValue(k, v);
           // A pick in a list expanded inside an edit sheet collapses that list and
           // leaves the sheet open, focus back on the row's trigger (the node render()
-          // just rebuilt). Anywhere else a pick closes the select sheet, and leaves alone
-          // a palette open in the tab body, which `expanded` may also hold.
+          // just rebuilt), or the trigger that handed the list on. A select that names the
+          // one to pick next (nextSelectFrom) opens that one's list instead. Anywhere else a
+          // pick closes the select sheet, and leaves alone a palette open in the tab body,
+          // which `expanded` may also hold.
           if (sheetIs('edit') && expanded) {
-            expanded = null;
+            var next = resolveNextSelect(findItem(k), v, S, ENV);
+            var back = ['[data-select="' + k + '"]'].concat(handedFrom ? [handedFrom] : []);
+            handedFrom = next ? back[0] : null;
+            expanded = next;
             render();
-            focusInModal(['[data-select="' + k + '"]']);
+            focusInModal(next ? ['.isel-list .ssel-opt.on[data-select-pick]', '.isel-list [data-select-pick]'] : back,
+              Boolean(next && modal.querySelector('.psheet')));
             return;
           }
           closeModal(); return;
@@ -3929,6 +3967,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // (renderInlineList); a second tap on its trigger collapses them.
         if (sheetIs('edit') && e.target.closest && (t = e.target.closest('[data-select]'))) {
           var sk = t.getAttribute('data-select');
+          handedFrom = null;
           expanded = (expanded === sk ? null : sk);
           render();
           // [data-select-pick] on the current option too: a gated current value renders a
@@ -4334,6 +4373,7 @@ if (typeof module !== 'undefined' && module.exports) {
     fitSelectPeek: PConf.engine.fitSelectPeek,
     checkWriters: PConf.checkWriters,
     attentionResolvers: PConf.attentionResolvers,
+    nextSelectResolvers: PConf.nextSelectResolvers,
     whenResolvers: PConf.whenResolvers,
     resolveStaticText: PConf.engine.resolveStaticText,
     resolveAttention: PConf.engine.resolveAttention,

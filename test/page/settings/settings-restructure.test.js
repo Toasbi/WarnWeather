@@ -33,9 +33,10 @@ test('page-only keys are never stored: the Night hours, Separate hours and the R
   // keeps the source.
   // The graph styles' pick, New graph's picker and the name a graph's dialog renames
   // (graph-styles-page.js) write graphStyles and the screens' viewStyle keys; the screen
-  // editor's Rows and Size picker (screens-page.js) writes the screen's rows.
+  // editor's Rows and Size picker (screens-page.js) writes the screen's rows. The Weather
+  // dialog's Use another source only names the picker that opens next (weather-sources-page.js).
   assert.deepEqual(uiOnly.sort(), ['graphStyleName', 'graphStyleNewFrom', 'graphStylePick', 'nightHoursFrom',
-    'nightHoursSeparate', 'nightHoursTo', 'radarSource', 'screenRowSize']);
+    'nightHoursSeparate', 'nightHoursTo', 'radarSource', 'screenRowSize', 'weatherOtherSourceFor']);
   const S = E.hydrate(schema, {}, platformLib.computeEnv({ platform: 'emery' }));
   const blob = E.serialize(schema, S);
   uiOnly.forEach(k => assert.equal(Object.prototype.hasOwnProperty.call(blob, k), false, k));

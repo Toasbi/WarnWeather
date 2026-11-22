@@ -1,6 +1,6 @@
 // test/weather/application/fetch-sources.test.js — one fetch's sources, run in the test world
-// (test/helpers/provider-world.js): the forecast from the Weather picker's provider, the
-// readings the reading rows pick laid on by time (the parts), then each fill for what the
+// (test/helpers/provider-world.js): the forecast from the Provider, the
+// readings the reading picks name laid on by time (the parts), then each fill for what the
 // readings' providers lack (DWD's UV by Open-Meteo's UV-only request, Yandex's other readings by
 // one request), each answer kept as a forecast snapshot that a fetch soon after reuses; and what
 // the fetch tells the fetch cycle.
@@ -396,20 +396,20 @@ test('a gap fill that brings nothing leaves its readings empty, whatever the anc
 
 const DWD_HOSTS = ['https://api.brightsky.dev/weather', 'https://api.brightsky.dev/current_weather'];
 
-// --- the reading rows' picks ---------------------------------------------------------------
+// --- the reading picks ---------------------------------------------------------------
 
 const sourcePlan = require('../../../src/pkjs/weather/domain/source-plan.js');
 const METNO_HOST = 'https://api.met.no/weatherapi/locationforecast/2.0/complete';
 const OWM_HOST = 'https://api.openweathermap.org/data/3.0/onecall';
 /**
- * A fetch's options with the reading rows' picks.
+ * A fetch's options with the reading picks.
  * @param {Object<string, string>} picks Reading id → provider id.
  * @param {Object} [more] More options.
  * @returns {Object}
  */
 const picked = (picks, more) => Object.assign({ sources: { choices: picks } }, more);
 
-test('the Weather picker\'s forecast, and a picked reading\'s provider laid on', () => {
+test('the Provider\'s forecast, and a picked reading\'s provider laid on', () => {
   const [{ p, outcome, requests }] = fetchesOf('metno', [{ options: picked({ wind: 'dwd' }) }]);
   assert.equal(outcome, 'ok');
   assert.deepEqual(requests.map(endpoint), [METNO_HOST].concat(DWD_HOSTS), 'Met.no, then DWD for the wind');
@@ -422,7 +422,7 @@ test('the Weather picker\'s forecast, and a picked reading\'s provider laid on',
   assert.deepEqual(p.feeds, Object.assign(sourcePlan.allFrom('metno'), { wind: 'dwd' }));
 });
 
-test('a picked temperature is laid on the Weather picker\'s forecast, which answers on the anchor', () => {
+test('a picked temperature is laid on the Provider\'s forecast, which answers on the anchor', () => {
   const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
   const { testPorts } = require('../../helpers/source-ports.js');
@@ -451,24 +451,24 @@ test('a picked temperature is laid on the Weather picker\'s forecast, which answ
   assert.equal(outcome, 'ok');
   assert.deepEqual(asked, ['dwd'], 'only the pick takes an instance of its own');
   assert.deepEqual(anchor.tempTrend, hours(70), 'the temperature is DWD\'s');
-  assert.equal(anchor.currentTemp, 50, 'the temperature now is a reading of its own: the Weather picker\'s');
-  assert.deepEqual(anchor.windTrend, hours(5), 'the wind is the Weather picker\'s');
+  assert.equal(anchor.currentTemp, 50, 'the temperature now is a reading of its own: the Provider\'s');
+  assert.deepEqual(anchor.windTrend, hours(5), 'the wind is the Provider\'s');
   assert.deepEqual([anchor.feeds.temperature, anchor.feeds.wind], ['dwd', 'metno']);
 });
 
-test('a picked provider that fails leaves its readings the Weather picker\'s; its failure is recovered', () => {
+test('a picked provider that fails leaves its readings the Provider\'s; its failure is recovered', () => {
   const [{ p, outcome, requests }] = fetchesOf('openweathermap', [{ options: picked({ temperature: 'metno', wind: 'dwd' }) }],
     { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
   assert.equal(outcome, 'ok');
   assert.equal(p.feeds.temperature, 'metno');
-  assert.equal(p.feeds.wind, 'openweathermap', 'the Weather picker\'s, asked once, for its own forecast');
+  assert.equal(p.feeds.wind, 'openweathermap', 'the Provider\'s, asked once, for its own forecast');
   assert.equal(requests.filter((r) => r.indexOf(OWM_HOST) !== -1).length, 1);
   assert.deepEqual(p.recoveredFailure, { stage: 'provider_data', code: 'dwd_forecast_status_503' });
   const owm = fetchesOf('openweathermap', [{}])[0].p;
   assert.deepEqual(p.windTrend, owm.windTrend);
 });
 
-test('a picked temperature whose provider fails leaves the Weather picker\'s forecast whole', () => {
+test('a picked temperature whose provider fails leaves the Provider\'s forecast whole', () => {
   const [{ p, outcome, requests }] = fetchesOf('metno', [{ options: picked({ temperature: 'dwd', wind: 'dwd' }) }],
     { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
   assert.equal(outcome, 'ok');
@@ -476,7 +476,7 @@ test('a picked temperature whose provider fails leaves the Weather picker\'s for
   assert.equal(requests.filter((r) => r.indexOf('api.brightsky.dev') !== -1).length, 1, 'DWD is asked once');
 });
 
-test('a reading the Weather picker\'s provider lacks is filled; one a part brings is not', () => {
+test('a reading the Provider\'s provider lacks is filled; one a part brings is not', () => {
   const [{ p, requests }] = fetchesOf('yandex', [{ options: picked({ wind: 'dwd', cloud: 'dwd' },
     { drawn: ['cloud', 'dew'] }) }]);
   assert.deepEqual(requests.map(endpoint), ['https://api.weather.yandex.ru/graphql/query'].concat(DWD_HOSTS,
@@ -505,7 +505,7 @@ test('a second fetch in the slot asks nobody, though the first asked every provi
   assert.equal(second.forecast, first.forecast);
 });
 
-test('the Weather picker\'s provider failing fails the fetch: a pick never stands in for its forecast', () => {
+test('the Provider\'s provider failing fails the fetch: a pick never stands in for its forecast', () => {
   const [{ outcome, failure, requests }] = fetchesOf('openweathermap', [{ options: picked({ temperature: 'metno' }) }],
     { answers: (url) => url.indexOf('api.openweathermap.org') === -1 });
   assert.equal(outcome, 'failed');
@@ -522,7 +522,7 @@ const HOSTS = { 'api.brightsky.dev': 'dwd', 'api.open-meteo.com': 'openmeteo', '
 
 /**
  * A day of updates every `intervalMin` minutes on one instance, counted by provider.
- * @param {string} id The Weather picker's provider.
+ * @param {string} id The Provider.
  * @param {Object} options Fetch options over the day's.
  * @param {number} intervalMin The update interval.
  * @returns {Object<string, number>} provider id → requests
@@ -545,7 +545,7 @@ function dayOf(id, options, intervalMin) {
 
 /**
  * The plan's count for the same day.
- * @param {string} id The Weather picker's provider.
+ * @param {string} id The Provider.
  * @param {Object} options The fetch options dayOf() was given.
  * @param {number} intervalMin The update interval.
  * @returns {Object<string, number>}
@@ -590,7 +590,7 @@ test('the anchor names each provider asked for its forecast, its key and its fai
   const [parts] = fetchesOf('metno', [{ options: picked({ wind: 'tomorrowio', rainAmount: 'tomorrowio', cloud: 'dwd' },
     { drawn: ['cloud'] }) }]);
   assert.deepEqual(parts.p.answers.map((a) => [a.id, a.apiKey]), [['metno', undefined], ['tomorrowio', 'tio-test-key'],
-    ['dwd', undefined]], 'the Weather picker\'s provider, then each part\'s, each once');
+    ['dwd', undefined]], 'the Provider\'s provider, then each part\'s, each once');
 });
 
 /**
@@ -620,13 +620,13 @@ function yandexPartFetch(yandex) {
   return anchor;
 }
 
-test('a part whose hours do not line up leaves its readings the Weather picker\'s, and is the recovered failure', () => {
+test('a part whose hours do not line up leaves its readings the Provider\'s, and is the recovered failure', () => {
   const anchor = yandexPartFetch({ startTime: 3600 + 1800 });
-  assert.equal(anchor.feeds.wind, 'metno', 'the wind stays the Weather picker\'s');
+  assert.equal(anchor.feeds.wind, 'metno', 'the wind stays the Provider\'s');
   assert.deepEqual(anchor.recoveredFailure, { stage: 'provider_data', code: 'yandex_hours_misaligned' });
 });
 
-test('a part\'s own recovered failure is the fetch\'s, as the Weather picker\'s provider\'s is', () => {
+test('a part\'s own recovered failure is the fetch\'s, as the Provider\'s provider\'s is', () => {
   const refused = { stage: 'provider_data', code: 'yandex_condition_rejected' };
   const anchor = yandexPartFetch({ recoveredFailure: refused });
   assert.equal(anchor.feeds.wind, 'yandex');

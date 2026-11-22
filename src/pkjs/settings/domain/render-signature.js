@@ -171,7 +171,7 @@ function renderSignature(settings, watchInfo) {
         // ...the unit pickers (change baked/fetched values: wind & distance rebake,
         // AQI source/scale refetch)...
         settings.windUnits, settings.distanceUnits, settings.aqiScale, settings.aqiSource,
-        // ...where the readings come from (the reading rows' picks: the source plan asks
+        // ...where the readings come from (the reading picks: the source plan asks
         // again)...
         JSON.stringify(sourcePlan.choicesOf(settings)),
         // ...the feels-like formula (swaps the provider's value for Steadman in

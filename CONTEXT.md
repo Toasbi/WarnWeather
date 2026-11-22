@@ -361,7 +361,7 @@ _Avoid_: metric (a metric is what a graph line or slot draws), field.
 
 **Source plan**:
 What one fetch asks for, in order (`src/pkjs/weather/domain/source-plan.js`): its steps. The
-Weather picker's provider is the fetch's anchor: its instance holds every reading at the end,
+Provider (the Weather dialog's first picker) is the fetch's anchor: its instance holds every reading at the end,
 and the rest of the fetch (the sun events, air quality, pollen, the day records, the payload)
 reads it. Its own forecast is the first step, and a fetch without it fails; it serves the
 readings it sends, and a reading it lacks is a fill: it comes from Open-Meteo while the watch
@@ -370,20 +370,21 @@ wind direction, cloud cover and air pressure by one request for all four.
 `src/pkjs/weather/application/fetch-sources.js` runs the steps through the source ports. The
 plan also counts the calls a day it comes to while no provider fails (`callsPerDay`: each
 update's requests, outside the Battery saver's window, and the UV-only fill once its answer
-stops serving), which the settings page shows at the end of Setup › Data sources and the
-tomorrow.io budget counts its share by.
+stops serving), which the settings page shows under the Provider and at the end of Setup › Data
+sources, and the tomorrow.io budget counts its share by.
 _Avoid_: provider chain, fallback provider.
 
 **Reading pick**:
-A reading's provider of its own: its row on Setup › Data sources (`weatherSource<Reading>`, ''
-for Same as Weather, the Weather picker's), where that provider sends the reading, has its key
-and covers the place (`source-plan.js` readingProviders). The Weather picker's provider always
-serves the forecast and stays the fetch's anchor; each other provider a pick names is asked
+A reading's provider of its own: its row in the Weather dialog's Other sources list
+(Setup › Data sources › Weather; `weatherSource<Reading>`, '' for the Provider's), where that
+provider sends the reading, has its key and covers the place (`source-plan.js`
+readingProviders). The list holds only the readings with a pick; Use another source adds one.
+The Provider always serves the forecast and stays the fetch's anchor; each other provider a pick names is asked
 once for its whole forecast, and the readings picked to it are laid on by time (a part:
 `partSteps`, `forecast-model.js` adoptReadings). A part that fails, or whose hours do not line
-up, leaves its readings the Weather picker's. The anchor's `feeds` name the provider each
+up, leaves its readings the Provider's. The anchor's `feeds` name the provider each
 reading came from, which the day records follow.
-_Avoid_: Per reading, mixed mode, custom sources.
+_Avoid_: Per reading, mixed mode, custom sources, override.
 
 **Drawn reading**:
 A reading only some screens draw that the watch draws now
@@ -395,7 +396,7 @@ _Avoid_: wanted reading, used metric.
 
 **Source ports**:
 What a fetch's source plan runs through (`src/pkjs/weather/adapter/source-ports.js`): the
-requests to providers other than the Weather picker's and to Open-Meteo's fills, the forecast
+requests to providers other than the Provider and to Open-Meteo's fills, the forecast
 snapshots, the clock and the update interval. Where the weather comes from (the reading picks,
 the stored keys) rides the fetch options instead
 (`source-plan.js` sourcesOf). The fetch cycle builds a set for each fetch (`shell/fetch-cycle.js`

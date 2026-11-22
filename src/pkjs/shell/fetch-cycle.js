@@ -49,7 +49,7 @@ var KEY_SERVER_STREAK = storageKeys.SERVER_FAILURE_STREAK_KEY;
 // retries without its start time; the sky rows ask alongside); the city; the
 // forecast's providers one after another (up to three requests for DWD and
 // Open-Meteo, five for Weather Underground when it re-scrapes a refused key; the
-// reading rows' picks may ask every provider) and the two fills; AQI (twice when Auto falls
+// reading picks may ask every provider) and the two fills; AQI (twice when Auto falls
 // back); pollen. Each request takes at most 10 s (weather/adapter/http.js
 // XHR_TIMEOUT_MS), then comes the AppMessage ACK: 24 such waits at the very worst
 // (test/shell/fetch-cycle.test.js counts them). So one still running after 5 min
@@ -223,7 +223,7 @@ var skyThrottle = requestThrottle.createRequestThrottle({
  * Record what each keyed provider a fetch asked said about its key (key-result.js; the settings
  * page's key status): 200 for an answer, the 401/403 of a refusal. Any other failure says
  * nothing about the key here, and a keyless provider records nothing (key-results-store.js).
- * @param {Object} provider The Weather picker's provider after a fetch (its answers:
+ * @param {Object} provider The Provider after a fetch (its answers:
  *   fetch-sources.js).
  * @param {function(Object): boolean} isAuthFailure auth-backoff.js isAuthFailure.
  * @returns {void}
@@ -592,7 +592,7 @@ function createFetchCycle(deps) {
             // Success: record the fetch time and reset the attempt counter.
             localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
             // Each keyed provider asked answered the key this fetch carried, or refused it: the
-            // settings page's key status (a reading row's pick's too).
+            // settings page's key status (a reading pick's too).
             recordKeyAnswers(provider, deps.authBackoff.isAuthFailure);
             resetFetchAttemptCounter();
             // The payload reached the watch (ACK, or unchanged since the last ACK):

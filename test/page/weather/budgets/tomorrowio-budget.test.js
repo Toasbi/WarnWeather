@@ -77,12 +77,12 @@ test('callsPerCycle: tomorrow.io is asked for a reading picked to it with its ke
   const perReading = (over) => S(Object.assign({}, noRadar, over));
   assert.equal(budget.callsPerCycle(perReading({ provider: 'dwd', weatherSourceUv: 'tomorrowio', tomorrowioApiKey: 'k' })), 1);
   assert.equal(budget.callsPerCycle(perReading({ provider: 'dwd', weatherSourceUv: 'tomorrowio', tomorrowioApiKey: '' })), 0,
-    'without its key the reading follows the Weather picker');
+    'without its key the reading follows the Provider');
   const everyOther = {};
   ['Temperature', 'Dew', 'Rain', 'Wind', 'WindDir', 'Uv', 'Cloud', 'Pressure', 'Condition']
     .forEach((r) => { everyOther['weatherSource' + r] = 'metno'; });
   assert.equal(budget.callsPerCycle(perReading(Object.assign({ provider: 'tomorrowio' }, everyOther))), 1,
-    'the Weather picker\'s tomorrow.io serves the forecast with every reading picked elsewhere');
+    'the Provider\'s tomorrow.io serves the forecast with every reading picked elsewhere');
   assert.equal(budget.callsPerCycle(perReading({ provider: 'tomorrowio' })), 1);
 });
 

@@ -233,7 +233,7 @@ test('shownHours: the hours each span draws, as the watch fits its grid to the p
   assert.equal(1 + 2 * cDefine(small, 'FORECAST_GRID_PAD') + cDefine(small, 'FORECAST_GRID_BAR_W'), 7);
 });
 
-test('feedHours with the reading rows\' picks: the shortest feed of the providers each graph reading comes from', () => {
+test('feedHours with the reading picks: the shortest feed of the providers each graph reading comes from', () => {
   const picked = (over) => Object.assign({ provider: 'dwd', barSource: 'rain',
     secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', owmApiKey: 'k' }, over);
   assert.equal(spanHours.feedHours(picked({})), 68);
@@ -245,11 +245,11 @@ test('feedHours with the reading rows\' picks: the shortest feed of the provider
   assert.equal(spanHours.feedHours(picked({ weatherSourceCloud: 'openweathermap' })), 48,
     'a reading only some screens draw counts as drawn: the page does not know the watch');
   assert.equal(spanHours.feedHours(picked({ weatherSourceTemperature: 'openweathermap', owmApiKey: '' })), 68,
-    'a pick without its key follows the Weather picker');
+    'a pick without its key follows the Provider');
   assert.equal(spanHours.feedHours({ provider: 'yandex', weatherSourceTemperature: 'openweathermap',
     owmApiKey: 'k' }), 48, 'a picked temperature counts like any other reading');
   assert.equal(spanHours.feedHours({ provider: 'openweathermap', weatherSourceTemperature: 'dwd', owmApiKey: 'k' }), 48,
-    'the Weather picker\'s own readings still count');
+    'the Provider\'s own readings still count');
 });
 
 test('a provider whose feed stops short sends every reading: no reading of it is filled from a fuller feed', () => {

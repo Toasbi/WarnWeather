@@ -324,7 +324,7 @@ function layKeys(target, source, keys, shift) {
 /**
  * Lay some of another provider's forecast on this one, hour by hour: each hourly series from
  * the hour `target` starts at (its startTime) on, the values of the moment as they are (a
- * reading row's pick: weather/application/fetch-sources.js). A series that starts earlier loses its first
+ * reading pick: weather/application/fetch-sources.js). A series that starts earlier loses its first
  * hours and comes up as much shorter; the payload carries the fewest hours a drawn series
  * holds (payloadEntries). Nothing is laid on when the two do not line up: `source` starting
  * after `target`, or off its hour grid.

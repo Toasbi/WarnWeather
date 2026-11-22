@@ -1,9 +1,9 @@
 // src/pkjs/weather/application/fetch-sources.js — ES5, watch runtime.
 //
 // One fetch's weather sources: the source plan's steps (weather/domain/source-plan.js), onto
-// the Weather picker's provider (the anchor, the instance the rest of the fetch chain reads:
+// the Provider (the anchor, the instance the rest of the fetch chain reads:
 // provider.js fetchWithCoordinates). The forecast is the anchor's own answer; the providers
-// the reading rows pick come next, each laid on by time (the parts). Then come the fills for
+// the reading picks name come next, each laid on by time (the parts). Then come the fills for
 // what the readings' providers lack. Each step reuses its snapshot when one serves
 // (weather/domain/forecast-snapshot.js), else asks and keeps a valid answer, and each
 // provider's forecast is asked once a fetch. A forecast the anchor does not serve fails the
@@ -43,7 +43,7 @@ function holdsHours(forecast, id) {
 /**
  * Whether a fill brought one of its readings at least: an answer without one (Open-Meteo has no
  * dew point there) still brings the rest.
- * @param {Object} anchor The Weather picker's provider.
+ * @param {Object} anchor The Provider.
  * @param {{readings: string[]}} step The fill.
  * @returns {boolean}
  */
@@ -202,7 +202,7 @@ function ask(run, step, target, done) {
 
 /**
  * A provider's forecast this fetch, asked once: the instance holding it, or null once it failed.
- * The Weather picker's own answers on the anchor; another provider on an instance of its own,
+ * The Provider's own answers on the anchor; another provider on an instance of its own,
  * so the forecast on the anchor stays. Each provider asked joins the anchor's answers, and
  * another instance's own recovered failure (Yandex's refused condition field) is kept as the
  * anchor's would be.
@@ -290,7 +290,7 @@ function fill(run, fills, done) {
  * Run the plan's steps for the anchor, from snapshots where they serve: its own forecast, the
  * parts, then the fills for what came.
  *
- * @param {Object} anchor The Weather picker's provider (provider.js), its options set for
+ * @param {Object} anchor The Provider (provider.js), its options set for
  *   this fetch.
  * @param {{fillUv: function(Object, number, number, Function): void,
  *   fillReadings: function(Object, number, number, string[], Function): void,

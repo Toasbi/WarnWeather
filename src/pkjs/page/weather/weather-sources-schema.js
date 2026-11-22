@@ -1,19 +1,20 @@
-// src/pkjs/page/weather/weather-sources-schema.js — ES5, PKJS-parsed. The rows of Setup › Data
-// sources that say where the weather comes from, split out of schema.js like alerts-schema.js:
-// the Weather picker's options, the note under it that names what comes from Open-Meteo (its
-// text is weather-sources-page.js's weatherFillNote), the reading rows and the weather calls
-// line at the section's end. Plain CommonJS: the schema is built in PKJS and reaches the page as
+// src/pkjs/page/weather/weather-sources-schema.js — ES5, PKJS-parsed. Where the weather comes
+// from, split out of schema.js like alerts-schema.js: the Weather row of Setup › Data sources,
+// which opens the Weather dialog (schema.js, its section 'weatherSources'); the Provider picker's
+// options and the notes under it (the readings it lacks that come from Open-Meteo, the calls a
+// day); and the pickers of the dialog's Other sources list. Their texts and options are
+// weather-sources-page.js's. Plain CommonJS: the schema is built in PKJS and reaches the page as
 // data.
 
 var providerReadings = require('../../weather/domain/provider-readings.js');
 var sourcePlan = require('../../weather/domain/source-plan.js');
-// Each reading as a sentence names it; a row's label is the same words, capitalized.
+// Each reading as a sentence names it; a picker's title is the same words, capitalized.
 var WORDS = require('./weather-words.js').WORDS;
 var html = require('../../config-ui/lib/html.js');
 
-// The weather providers as the Weather picker lists them, alphabetical by name. The 3rd tuple
-// slot's desc is the short "what it's best at" tag shown under each name in the dropdown; DWD
-// carries a `short` so the trigger reads "DWD" while the list keeps the full name.
+// The weather providers as the Provider picker lists them, alphabetical by name. The 3rd tuple
+// slot's desc is the short "what it's best at" tag shown under each name in the list; DWD
+// carries a `short` so the row reads "DWD" while the list keeps the full name.
 var PROVIDER_OPTIONS = [
     ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
     ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
@@ -24,36 +25,61 @@ var PROVIDER_OPTIONS = [
     ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
 ];
 
-// The reading rows, one per reading (provider-readings.js READINGS, labelled by weather-words.js
-// WORDS), each its provider or Same as Weather (''); the phone reads them through source-plan.js
-// choicesOf. A row's options come from the page (weather-sources-page.js weatherReadingOptions):
-// the settings URL carries one short line per row instead of fourteen lists.
-var READING_ROWS = providerReadings.READING_IDS.map(function (id) {
+// The Data sources row that opens the Weather dialog. Its second line says where the weather
+// comes from: the Provider and each value from another source (weatherSourcesSummary).
+var WEATHER_ROW = {
+    type: 'sheet',
+    sheetId: 'weatherSources',
+    label: 'Weather',
+    hintFrom: {resolver: 'weatherSourcesSummary'}
+};
+
+// The pickers of the Weather dialog's Other sources list, which have no rows of their own: the
+// list's rows and its Use another source row open them over the dialog (weather-sources-page.js
+// weatherOtherSources). One per value (provider-readings.js READINGS), its provider or '' for the
+// Provider's; the phone reads them through source-plan.js choicesOf. Their options come from the
+// page (weatherValueSources): the settings URL carries one short line per picker instead of
+// fourteen lists. Then Use another source's own (page-only): the values that still come from the
+// Provider, a pick opening that value's picker (weatherValuePicker), so nothing changes until a
+// provider is picked. Its '' is dormant: the list opens with nothing ticked.
+var SOURCE_PICKERS = providerReadings.READING_IDS.map(function (id) {
     return {
         type: 'select',
+        bottomSheet: true,
         messageKey: sourcePlan.choiceKey(id),
         label: html.capitalize(WORDS[id]),
         defaultValue: '',
-        optionsFrom: {resolver: 'weatherReadingOptions', args: {reading: id}}
+        optionsFrom: {resolver: 'weatherValueSources', args: {reading: id}}
     };
-});
+}).concat([{
+    type: 'select',
+    bottomSheet: true,
+    uiOnly: true,
+    messageKey: 'weatherOtherSourceFor',
+    label: 'Use another source for',
+    defaultValue: '',
+    dormantValues: [''],
+    optionsFrom: {resolver: 'weatherFreeValues'},
+    onChange: 'weatherOtherSourcePicked',
+    nextSelectFrom: {resolver: 'weatherValuePicker'}
+}]);
 
-// The readings the picked provider lacks that a screen draws, said under the Weather row: they
-// come from Open-Meteo. A plain note joined to the row, like its hint; textFrom answers '' when
-// none do, and the note is gone.
+// The readings the Provider lacks that a screen draws, said under its row: they come from
+// Open-Meteo. A plain note joined to the row, like its hint; textFrom answers '' when none do,
+// and the note is gone.
 var FILL_NOTE = {
     type: 'staticText',
     joinPrevious: true,
     textFrom: {resolver: 'weatherFillNote'}
 };
 
-// The weather calls a day the section's choices come to, its last line, joined to the Update
-// interval row above it (weather-sources-page.js weatherCallsLine).
+// The weather calls a day the choices come to (weather-sources-page.js weatherCallsLine): under
+// the Provider in the Weather dialog, and under Update interval at the end of Data sources.
 var CALLS_LINE = {
     type: 'staticText',
     joinPrevious: true,
     textFrom: {resolver: 'weatherCallsLine'}
 };
 
-module.exports = { PROVIDER_OPTIONS: PROVIDER_OPTIONS, READING_ROWS: READING_ROWS, FILL_NOTE: FILL_NOTE,
-    CALLS_LINE: CALLS_LINE };
+module.exports = { PROVIDER_OPTIONS: PROVIDER_OPTIONS, WEATHER_ROW: WEATHER_ROW, SOURCE_PICKERS: SOURCE_PICKERS,
+    FILL_NOTE: FILL_NOTE, CALLS_LINE: CALLS_LINE };

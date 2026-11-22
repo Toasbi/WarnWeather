@@ -71,7 +71,7 @@
     /**
      * tomorrow.io API calls per fetch cycle for the current provider choices.
      *
-     * @param {Object} S Settings state (provider, the reading rows' picks,
+     * @param {Object} S Settings state (provider, the reading picks,
      *   radarProvider/radarMode).
      * @returns {number} 0, 1 or 2 calls per cycle.
      */
@@ -160,7 +160,7 @@
     // Every settings key the math above reads. A caller holding only a get(key)
     // accessor (the onSubmit hook) builds its state object from exactly these;
     // test/page/weather/budgets/tomorrowio-budget.test.js pins the list against what the math reads.
-    // The reading rows' picks and the keys a pick needs (source-plan.js SETTINGS_KEYS) decide
+    // The reading picks and the keys a pick needs (source-plan.js SETTINGS_KEYS) decide
     // whether an update asks tomorrow.io (weatherCalls).
     var STATE_KEYS = ['provider', 'radarProvider', 'radarMode', 'sleepNightEnabled', 'sleepStartHour',
         'sleepEndHour'].concat(sourcePlan.SETTINGS_KEYS);

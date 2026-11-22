@@ -26,7 +26,8 @@ const { bootGeneratedPage } = require('../../helpers/page-harness.js');
 const setupTab = schema.tabs.find((t) => t.id === 'setup');
 const radarSec = setupTab.sections.find((s) => s.id === 'dataSources');
 const radarRow = radarSec.items.find((i) => i.messageKey === 'radarSource');
-const radarKeyRow = radarSec.items.find((i) => i.type === 'sheet' && i.editSheetFrom.args.picker === 'radarProvider');
+const radarKeyRow = radarSec.items.find((i) => i.type === 'sheet' && i.editSheetFrom
+  && i.editSheetFrom.args.picker === 'radarProvider');
 // The keyed sources of both pickers (key-sources.js): the Radar row's resolvers read the
 // radarProvider table by the row's messageKey, its key row's by args.picker; the Weather
 // provider row's the provider one.
@@ -507,10 +508,14 @@ test('page: radar-only Tomorrow.io refused by the radar — the summary, the dot
 test('page: radar-only Tomorrow.io without a key — the key row reads "No key", the amber note, a dot on the Setup tab only', () => {
   const page = bootGeneratedPage(TIO_RADAR_ONLY, 'basalt', { dialog: true });
   page.clickTab('setup');
-  assert.ok(page.scroll.innerHTML.indexOf('data-select="provider"') !== -1, 'premise: the Weather provider row\'s tab');
+  assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="weatherSources"') !== -1, 'premise: the Weather row\'s tab');
   const weatherPart = page.scroll.innerHTML.slice(0, page.scroll.innerHTML.indexOf('data-select="radarSource"'));
   assert.doesNotMatch(weatherPart, /data-edit-sheet="(providerKey|radarKey)|Needs an API key|Key ••••|No key/,
     'nothing under the Weather row (DWD needs no key)');
+  page.openEditSheet('weatherSources');
+  assert.doesNotMatch(page.modal.innerHTML, /data-edit-sheet="(providerKey|radarKey)|Needs an API key|Key ••••|No key/,
+    'or in the Weather dialog');
+  page.doneDialog();
   openRadarPane(page);
   const body = page.scroll.innerHTML;
   assert.equal(keyRowHtml(page, 'radarKeyTomorrowio'), '<div class="row nav indent" data-edit-sheet="radarKeyTomorrowio" ' +

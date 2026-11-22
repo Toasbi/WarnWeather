@@ -37,12 +37,12 @@ var TIPS = [
         id: 'weatherFrom',
         since: '3.3.0',
         title: 'Weather from more than one provider',
-        // In the page's words: Setup › Data sources, the Weather picker and the reading rows under
-        // it (page/weather/weather-sources-schema.js READING_ROWS). Every watch: the phone mixes
-        // the readings, and the watch gets the same messages.
-        html: 'In Data sources on the Setup tab, each reading under Weather can come from a provider ' +
-            'of its own.',
-        open: { tab: 'setup' }
+        // In the page's words: the Weather dialog (Setup › Data sources › Weather), its Other
+        // sources list (page/weather/weather-sources-page.js). Every watch: the phone mixes the
+        // readings, and the watch gets the same messages.
+        html: 'Each value can come from a provider of its own. On the Setup tab, open Weather under ' +
+            'Data sources and tap Use another source.',
+        open: { sheet: 'weatherSources' }
     },
     {
         id: 'batteryIconText',

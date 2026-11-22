@@ -109,7 +109,7 @@ test('the page gets plain data, and nothing when there is nothing to show', () =
   assert.ok(days.html.indexOf('<a href=\'' + batteryDays.MUNINN_URL + '\'>Muninn app</a>') !== -1);
   assert.equal(forPage.find((tip) => tip.id === 'batteryIconText').sheet, 'bar-top', 'the same dialog');
   assert.equal(forPage.find((tip) => tip.id === 'blackTheme').tab, 'setup');
-  assert.equal(forPage.find((tip) => tip.id === 'weatherFrom').tab, 'setup', 'Data sources is on the Setup tab');
+  assert.equal(forPage.find((tip) => tip.id === 'weatherFrom').sheet, 'weatherSources', 'the Weather dialog');
 });
 
 /**
@@ -151,12 +151,15 @@ test('the two watch battery tips name the page\'s own labels, and say the way to
 });
 
 test('the Weather from tip names the page\'s own section and row, on every watch', () => {
-  const html = featureTips.TIPS.find((tip) => tip.id === 'weatherFrom').html;
+  const tip = featureTips.TIPS.find((t) => t.id === 'weatherFrom');
   const setup = schema.tabs.find((tab) => tab.id === 'setup');
   const section = setup.sections.find((s) => s.id === 'dataSources');
-  assert.ok(html.indexOf('In ' + section.title + ' on the ' + setup.label + ' tab, each reading under '
-    + row('provider').label + ' can come') !== -1, html);
-  assert.ok(row('weatherSourceWind'), 'the reading rows are on the page');
+  const weatherRow = section.items[0];
+  assert.equal(weatherRow.sheetId, tip.open.sheet, 'Show me opens the dialog the card\'s first row opens');
+  assert.ok(tip.html.indexOf('On the ' + setup.label + ' tab, open ' + weatherRow.label + ' under ' + section.title)
+    !== -1, tip.html);
+  assert.ok(tip.html.indexOf('tap ' + require('../../../src/pkjs/page/weather/weather-sources-page.js').USE_ANOTHER)
+    !== -1, 'the Other sources list\'s last row');
   [{ platform: 'aplite', plugins: false }, { platform: 'emery', plugins: true }, null].forEach((env) =>
     assert.ok(ids(featureTips.pending([], env)).indexOf('weatherFrom') !== -1, JSON.stringify(env)));
 });

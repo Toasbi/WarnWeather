@@ -1,7 +1,7 @@
 // src/pkjs/weather/adapter/source-ports.js — ES5, watch runtime.
 //
 // The source ports: what the steps of a fetch's source plan run through
-// (weather/application/fetch-sources.js). They ask providers other than the Weather picker's,
+// (weather/application/fetch-sources.js). They ask providers other than the Provider,
 // and keep every provider's last answer (weather/adapter/forecast-snapshots.js). The fetch
 // cycle builds a set for each fetch (shell/fetch-cycle.js prepareFetch), with its own clock
 // and update interval, and hands it to fetchWithCoordinates.

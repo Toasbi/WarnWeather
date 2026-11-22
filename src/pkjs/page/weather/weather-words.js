@@ -1,6 +1,6 @@
 // src/pkjs/page/weather/weather-words.js — ES5. The words the settings page names the weather
 // with: each reading as a sentence names it (provider-readings.js READINGS), and each weather
-// service as a sentence names it, in the Weather picker's order (weather-sources-schema.js
+// service as a sentence names it, in the Provider picker's order (weather-sources-schema.js
 // PROVIDER_OPTIONS: its names, DWD's short one; test/page/weather/weather-words.test.js keeps the
 // two in step). The schema's rows are labelled by them in PKJS, and the page's notes and lines
 // say them (weather-sources-page.js).
