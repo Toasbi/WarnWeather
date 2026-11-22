@@ -594,12 +594,13 @@ test('the anchor names each provider asked for its forecast, its key and its fai
 });
 
 /**
- * A fetch on fake providers whose answers are a day of hours each: the temperature picked from
- * DWD, the wind from Yandex.
+ * A fetch on fake providers whose answers are a day of hours each: by default the temperature
+ * picked from DWD, the wind from Yandex.
  * @param {Object} yandex What Yandex's answer adds to its day.
+ * @param {Object<string, string>} [choices] The reading picks instead.
  * @returns {Object} The anchor (Met.no) after the fetch.
  */
-function yandexPartFetch(yandex) {
+function yandexPartFetch(yandex, choices) {
   const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
   const { testPorts } = require('../../helpers/source-ports.js');
@@ -612,7 +613,7 @@ function yandexPartFetch(yandex) {
     } });
   const anchor = answering('metno', {});
   anchor.options = fetchOptions.defaults({ drawn: [], sources: {
-    choices: { temperature: 'dwd', wind: 'yandex' }, keyed: ['yandex'] } });
+    choices: choices || { temperature: 'dwd', wind: 'yandex' }, keyed: ['yandex'] } });
   const ports = Object.assign(testPorts(), {
     providerFor: (id) => Object.assign(answering(id, id === 'yandex' ? yandex : {}), { options: anchor.options }) });
   require('../../../src/pkjs/weather/application/fetch-sources.js').fetchSources(anchor, ports, 52.52, 13.405, false,
@@ -624,6 +625,19 @@ test('a part whose hours do not line up leaves its readings the Provider\'s, and
   const anchor = yandexPartFetch({ startTime: 3600 + 1800 });
   assert.equal(anchor.feeds.wind, 'metno', 'the wind stays the Provider\'s');
   assert.deepEqual(anchor.recoveredFailure, { stage: 'provider_data', code: 'yandex_hours_misaligned' });
+});
+
+test('a value of the moment is laid on from a part whose hours start later; its hourly series are not', () => {
+  const later = { startTime: 2 * 3600, currentTemp: 71, windTrend: new Array(24).fill(3) };
+  const anchor = yandexPartFetch(later, { currentTemp: 'yandex', wind: 'yandex' });
+  assert.equal(anchor.currentTemp, 71, 'the temperature now is Yandex\'s');
+  assert.deepEqual(anchor.windTrend, new Array(24).fill(9), 'the wind stays the Provider\'s');
+  assert.deepEqual([anchor.feeds.currentTemp, anchor.feeds.wind], ['yandex', 'metno']);
+  assert.deepEqual(anchor.recoveredFailure, { stage: 'provider_data', code: 'yandex_hours_misaligned' });
+  const only = yandexPartFetch(later, { currentTemp: 'yandex' });
+  assert.equal(only.currentTemp, 71);
+  assert.equal(only.feeds.currentTemp, 'yandex');
+  assert.equal(only.recoveredFailure, null, 'a part of values of the moment loses nothing');
 });
 
 test('a part\'s own recovered failure is the fetch\'s, as the Provider\'s provider\'s is', () => {

@@ -229,9 +229,10 @@ function forecastOf(run, id, done) {
 
 /**
  * The parts, in order: each part's readings are laid on the anchor by time (forecast-model.js
- * adoptReadings) from its provider's forecast; when that failed, or its hours do not line up
- * with the anchor's, they stay the anchor's, their feed the anchor's provider, and the failure
- * is the recovered one.
+ * adoptReadings) from its provider's forecast, which the feeds already name. A reading that
+ * could not be laid on stays the anchor's, its feed the anchor's provider: every reading of a
+ * part whose forecast failed, and the hourly series of one whose hours do not line up with the
+ * anchor's, which is the recovered failure.
  * @param {Object} run The fetch (fetchSources).
  * @param {Array<{provider: string, readings: string[]}>} parts sourcePlan.partSteps().
  * @param {Function} done Called once every part has run.
@@ -241,11 +242,12 @@ function layParts(run, parts, done) {
     inTurn(parts, function (part, next) {
         forecastOf(run, part.provider, function (forecast, stepFailure) {
             recover(run, stepFailure);
-            var laid = Boolean(forecast)
-                && forecastModel.adoptReadings(run.anchor, forecast, providerReadings.keysOf(part.readings));
-            if (forecast && !laid) { recover(run, failure(part.provider + '_hours_misaligned')); }
+            var keys = providerReadings.keysOf(part.readings);
+            var laid = forecast ? forecastModel.adoptReadings(run.anchor, forecast, keys) : [];
+            if (forecast && laid.length < keys.length) { recover(run, failure(part.provider + '_hours_misaligned')); }
             part.readings.forEach(function (reading) {
-                run.anchor.feeds[reading] = laid ? part.provider : run.anchor.id;
+                var came = providerReadings.keysOf(reading).every(function (key) { return laid.indexOf(key) !== -1; });
+                if (!came) { run.anchor.feeds[reading] = run.anchor.id; }
             });
             next();
         });
@@ -254,7 +256,8 @@ function layParts(run, parts, done) {
 
 /**
  * The fills, in order. A fill whose provider's whole forecast this fetch already holds (a part,
- * or the forecast) is laid on from it by time instead of asked; another asks its request. One
+ * or the forecast) is laid on from it by time instead of asked, where the hours line up; another
+ * asks its request. One
  * that brings its readings names its provider as their feed; one that fails leaves them empty.
  * @param {Object} run The fetch (fetchSources).
  * @param {Object[]} fills sourcePlan.fillSteps().
@@ -272,7 +275,8 @@ function fill(run, fills, done) {
             next();
         }
         var inHand = run.forecasts[step.provider];
-        if (inHand && forecastModel.adoptReadings(run.anchor, inHand, providerReadings.keysOf(step.readings))) {
+        var keys = providerReadings.keysOf(step.readings);
+        if (inHand && forecastModel.adoptReadings(run.anchor, inHand, keys).length === keys.length) {
             brought();
             return;
         }

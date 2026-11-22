@@ -326,20 +326,21 @@ function layKeys(target, source, keys, shift) {
  * the hour `target` starts at (its startTime) on, the values of the moment as they are (a
  * reading pick: weather/application/fetch-sources.js). A series that starts earlier loses its first
  * hours and comes up as much shorter; the payload carries the fewest hours a drawn series
- * holds (payloadEntries). Nothing is laid on when the two do not line up: `source` starting
- * after `target`, or off its hour grid.
+ * holds (payloadEntries). Where the two do not line up (`source` starting after `target`, or
+ * off its hour grid) only the values of the moment are laid on, since they have no hours.
  *
  * @param {Object} target The forecast the keys land on (reads startTime).
  * @param {Object} source The forecast they come from (reads startTime).
  * @param {string[]} keys Adopted keys (provider-readings.js keysOf); one `source` lacks is
  *   left off `target` too.
- * @returns {boolean} Whether the two lined up and the keys were laid on.
+ * @returns {string[]} The keys laid on: all of them where the two line up, else those that are
+ *   no hourly series.
  */
 function adoptReadings(target, source, keys) {
     var shift = hourShift(source.startTime, target.startTime);
-    if (shift === null) { return false; }
-    layKeys(target, source, keys, shift);
-    return true;
+    var laid = shift === null ? keys.filter(function (key) { return HOURLY_KEYS.indexOf(key) === -1; }) : keys;
+    layKeys(target, source, laid, shift || 0);
+    return laid;
 }
 
 module.exports = {
