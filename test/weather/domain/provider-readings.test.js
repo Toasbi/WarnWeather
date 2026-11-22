@@ -60,6 +60,13 @@ test('every key a forecast keeps belongs to exactly one reading; startTime and t
   assert.deepEqual(readings.READING_IDS, readings.READINGS.map((r) => r.id));
 });
 
+test('the values of the moment are the readings whose key holds no hours', () => {
+  assert.deepEqual(readings.NOW, ['currentTemp', 'currentFeels', 'condition']);
+  readings.READINGS.forEach((r) => {
+    assert.equal(Boolean(r.now), forecastModel.HOURLY_KEYS.indexOf(r.key) === -1, r.id);
+  });
+});
+
 test('the table has a row for every provider the factory builds, and no other', () => {
   assert.deepEqual(Object.keys(readings.PROVIDERS).sort(), providerFactory.PROVIDER_IDS.slice().sort());
 });

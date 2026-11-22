@@ -58,7 +58,8 @@ const OTHER_FOR = 'weatherOtherSourceFor';
 
 test('the Weather row opens Data sources and the Weather dialog, the Provider first', () => {
   assert.deepEqual(card.items[0], { type: 'sheet', sheetId: 'weatherSources', label: 'Weather',
-    hintFrom: { resolver: 'weatherSourcesSummary' } });
+    hintFrom: { resolver: 'weatherSourcesSummary' },
+    attentionFrom: { resolver: 'keyAttention', args: { picker: 'provider' } } }, 'the Provider\'s key check rides it');
   assert.equal(card.items.some((i) => i.messageKey === 'provider'), false, 'the Provider is in the dialog');
   assert.equal(dialog.sheetOnly, true);
   assert.equal(dialog.title, 'Weather');
@@ -207,10 +208,15 @@ test('the note and the calls line sit under the Provider, ahead of its key note,
  */
 function weatherDialog(over) {
   const p = bootGeneratedPage(Object.assign({ provider: 'dwd' }, NONE, over), 'basalt');
-  p.clickTab('setup');
-  p.openEditSheet('weatherSources');
+  p.openTabSheet('setup', 'weatherSources');
   return p;
 }
+
+test('a provider the page does not know draws no list', () => {
+  const body = weatherDialog({ provider: 'nowhere', weatherSourceFeels: 'metno' }).modal.innerHTML;
+  assert.equal(body.indexOf('aria-label="Other sources"'), -1);
+  assert.equal(body.indexOf(' come from .'), -1);
+});
 
 test('the list: Use another source alone while everything comes from the Provider', () => {
   const body = weatherDialog({}).modal.innerHTML;
@@ -272,10 +278,13 @@ test('the ×: the value comes from the Provider again; the dialog\'s × puts eve
 });
 
 test('a value picked to what becomes the Provider comes from the Provider', async () => {
-  const p = weatherDialog({ weatherSourceFeels: 'metno', weatherSourceWind: 'openmeteo' });
+  // A pick left at the Provider shows as none, so the dialog lists only Feels-like and Wind.
+  const p = weatherDialog({ weatherSourceFeels: 'metno', weatherSourceWind: 'openmeteo', weatherSourceGust: 'dwd' });
+  assert.equal(p.modal.innerHTML.indexOf('data-select="weatherSourceGust"'), -1, 'premise: no row for the gusts');
   p.openModalSelect('provider');
   p.pickOption('provider', 'metno');
   assert.equal(p.S.weatherSourceFeels, '', 'no pick left behind to come back with another Provider');
+  assert.equal(p.S.weatherSourceGust, '', 'nor one left at the old Provider, which the list showed as none');
   assert.equal(p.S.weatherSourceWind, 'openmeteo');
   p.doneDialog();
   const saved = await p.save();

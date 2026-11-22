@@ -314,6 +314,13 @@ function bootGeneratedPage(cfg, platformName, opts) {
       els.scroll.dispatch('click', { target: t });
       assert.ok(els.modal.innerHTML.length > 0, 'the edit sheet rendered into #modal');
     },
+    // Bring a tab to the front and tap its row that opens a dialog (Setup › Data sources ›
+    // Weather); answers the dialog's markup.
+    openTabSheet(tabId, sheetId) {
+      this.clickTab(tabId);
+      this.openEditSheet(sheetId);
+      return els.modal.innerHTML;
+    },
     // Tap a row INSIDE the open dialog that opens another dialog (a nested one, ‹ back).
     openNestedSheet(sheetId) {
       assert.ok(els.modal.innerHTML.indexOf('data-edit-sheet="' + sheetId + '"') !== -1,

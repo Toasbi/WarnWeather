@@ -15,13 +15,14 @@
     // wind (forecast-model.js adoptMapped), so the feels-like inputs, which no forecast keeps,
     // belong to none. Neither do startTime and sunTimes: a forecast starts where the Provider's
     // does, and the sun times ride with it.
-    // `drawnOnly`: a reading only some screens draw, which a fetch asks for and fills only while
-    // the watch draws it (drawn-readings.js); the others are in every forecast every provider
-    // sends.
+    // `now`: a value of the moment, which has no hours (forecast-model.js HOURLY_KEYS holds the
+    // others' keys). `drawnOnly`: a reading only some screens draw, which a fetch asks for and
+    // fills only while the watch draws it (drawn-readings.js); the others are in every forecast
+    // every provider sends.
     var READINGS = [
-        { id: 'currentTemp', key: 'currentTemp' },
-        { id: 'currentFeels', key: 'currentFeels' },
-        { id: 'condition', key: 'currentCondition' },
+        { id: 'currentTemp', key: 'currentTemp', now: true },
+        { id: 'currentFeels', key: 'currentFeels', now: true },
+        { id: 'condition', key: 'currentCondition', now: true },
         { id: 'temperature', key: 'tempTrend' },
         { id: 'feels', key: 'feelsTrend' },
         { id: 'dew', key: 'dewTrend', drawnOnly: true },
@@ -36,6 +37,8 @@
     ];
     var ALL = READINGS.map(function (reading) { return reading.id; });
     var DRAWN_ONLY = READINGS.filter(function (reading) { return reading.drawnOnly; })
+        .map(function (reading) { return reading.id; });
+    var NOW = READINGS.filter(function (reading) { return reading.now; })
         .map(function (reading) { return reading.id; });
 
     /**
@@ -162,6 +165,7 @@
         READINGS: READINGS,
         READING_IDS: ALL,
         DRAWN_ONLY: DRAWN_ONLY,
+        NOW: NOW,
         PROVIDERS: PROVIDERS,
         serves: serves,
         keysOf: keysOf,

@@ -16,3 +16,9 @@ test('a sentence names each provider as the Provider picker does, in its order',
 test('every reading has its words', () => {
   assert.deepEqual(Object.keys(words.WORDS), providerReadings.READING_IDS);
 });
+
+test('a row or a picker\'s title names a reading with its words, capitalized', () => {
+  assert.equal(words.label('feels'), 'Feels-like');
+  assert.equal(words.label('uv'), 'UV index');
+  assert.equal(words.label('currentTemp'), 'Current temperature');
+});

@@ -378,7 +378,8 @@ _Avoid_: provider chain, fallback provider.
 A reading's provider of its own: its row in the Weather dialog's Other sources list
 (Setup › Data sources › Weather; `weatherSource<Reading>`, '' for the Provider's), where that
 provider sends the reading, has its key and covers the place (`source-plan.js`
-readingProviders). The list holds only the readings with a pick; Use another source adds one.
+feedsOf). The list holds only the readings with a pick; Use another source adds one. A new
+Provider takes back the values picked to it or left at the old one.
 The Provider always serves the forecast and stays the fetch's anchor; each other provider a pick names is asked
 once for its whole forecast, and the readings picked to it are laid on by time (a part:
 `partSteps`, `forecast-model.js` adoptReadings). A part that fails, or whose hours do not line

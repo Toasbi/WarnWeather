@@ -3,6 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const budget = require('../../../../src/pkjs/page/weather/budgets/tomorrowio-budget.js');
 const batterySaver = require('../../../../src/pkjs/wire/domain/battery-saver.js');
+const providerReadings = require('../../../../src/pkjs/weather/domain/provider-readings.js');
+const sourcePlan = require('../../../../src/pkjs/weather/domain/source-plan.js');
 
 // Base state: tomorrow.io weather + radar, night pause off.
 function S(over) {
@@ -72,18 +74,16 @@ test('callsPerCycle counts weather and radar selections independently', () => {
   assert.equal(budget.callsPerCycle(S({ provider: 'dwd', radarMode: 'off' })), 0);
 });
 
-test('callsPerCycle: tomorrow.io is asked for a reading picked to it with its key, or following it', () => {
-  const noRadar = { radarMode: 'off' };
-  const perReading = (over) => S(Object.assign({}, noRadar, over));
-  assert.equal(budget.callsPerCycle(perReading({ provider: 'dwd', weatherSourceUv: 'tomorrowio', tomorrowioApiKey: 'k' })), 1);
-  assert.equal(budget.callsPerCycle(perReading({ provider: 'dwd', weatherSourceUv: 'tomorrowio', tomorrowioApiKey: '' })), 0,
-    'without its key the reading follows the Provider');
-  const everyOther = {};
-  ['Temperature', 'Dew', 'Rain', 'Wind', 'WindDir', 'Uv', 'Cloud', 'Pressure', 'Condition']
-    .forEach((r) => { everyOther['weatherSource' + r] = 'metno'; });
-  assert.equal(budget.callsPerCycle(perReading(Object.assign({ provider: 'tomorrowio' }, everyOther))), 1,
-    'the Provider\'s tomorrow.io serves the forecast with every reading picked elsewhere');
-  assert.equal(budget.callsPerCycle(perReading({ provider: 'tomorrowio' })), 1);
+test('callsPerCycle: tomorrow.io is asked for a reading picked to it with its key, or as the Provider', () => {
+  const weatherOnly = (over) => S(Object.assign({ radarMode: 'off' }, over));
+  assert.equal(budget.callsPerCycle(weatherOnly({ provider: 'dwd', weatherSourceUv: 'tomorrowio', tomorrowioApiKey: 'k' })), 1);
+  assert.equal(budget.callsPerCycle(weatherOnly({ provider: 'dwd', weatherSourceUv: 'tomorrowio', tomorrowioApiKey: '' })), 0,
+    'without its key the reading comes from the Provider');
+  const everyValueElsewhere = { provider: 'tomorrowio' };
+  providerReadings.READING_IDS.forEach((id) => { everyValueElsewhere[sourcePlan.choiceKey(id)] = 'metno'; });
+  assert.equal(budget.callsPerCycle(weatherOnly(everyValueElsewhere)), 1,
+    'the Provider serves the forecast with every value picked elsewhere');
+  assert.equal(budget.callsPerCycle(weatherOnly({ provider: 'tomorrowio' })), 1);
 });
 
 test('callsPerCycle: radarMode off zeroes the radar call even with tomorrow.io selected; any other mode still costs it', () => {
@@ -144,8 +144,6 @@ test('STATE_KEYS lists every settings key the budget math reads', () => {
 // The calls line at the end of Data sources counts with the source plan (source-plan.js
 // callsPerDay); the budget's weather share is the same count, so the two agree wherever every
 // reading tomorrow.io brings is drawn.
-const sourcePlan = require('../../../../src/pkjs/weather/domain/source-plan.js');
-const providerReadings = require('../../../../src/pkjs/weather/domain/provider-readings.js');
 
 test('the weather calls a day are the source plan\'s tomorrow.io calls, at every interval and night pause', () => {
   const pauses = [{ sleepNightEnabled: false }, { sleepNightEnabled: true, sleepStartHour: '22', sleepEndHour: '7' },

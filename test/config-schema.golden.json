@@ -16350,6 +16350,196 @@
             ]
           },
           {
+            "id": "dataSources",
+            "title": "Data sources",
+            "items": [
+              {
+                "type": "sheet",
+                "sheetId": "weatherSources",
+                "label": "Weather",
+                "hintFrom": {
+                  "resolver": "weatherSourcesSummary"
+                },
+                "attentionFrom": {
+                  "resolver": "keyAttention",
+                  "args": {
+                    "picker": "provider"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "uiOnly": true,
+                "messageKey": "radarSource",
+                "label": "Rain radar",
+                "defaultValue": "rainbow",
+                "initFrom": {
+                  "resolver": "radarSourceValue"
+                },
+                "onChange": "radarSourcePicked",
+                "recommendFrom": "recommendedRadarProvider",
+                "hintByValue": {
+                  "dwd": "Precise weather radar that shows rain at your exact spot and nearby (about 2 km). Germany only.",
+                  "metno": "Precise weather radar that shows rain at your exact spot. Nordics only.",
+                  "rainbow": "Refreshes at most every 30 minutes. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
+                  "rainbowkey": "A worldwide nowcast from satellite and radar data. It uses your own Rainbow key, so it refreshes at every update. A key is free: Rainbow's free plan covers 5,000 calls a month. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
+                  "tomorrowio": "A precise rain nowcast from machine-learning models, worldwide. It uses your tomorrow.io API key and counts against that key's call budget. Powered by <a target='_blank' href='https://www.tomorrow.io'>Tomorrow.io</a>."
+                },
+                "attentionFrom": {
+                  "resolver": "radarKeyAttention"
+                },
+                "options": [
+                  [
+                    "Off",
+                    "off",
+                    {
+                      "desc": "No rain radar and no rain alert"
+                    }
+                  ],
+                  [
+                    "DWD",
+                    "dwd",
+                    {
+                      "desc": "Best radar in Germany · exact spot + nearby"
+                    }
+                  ],
+                  [
+                    "Met.no",
+                    "metno",
+                    {
+                      "desc": "Best radar in the Nordics · exact spot"
+                    }
+                  ],
+                  [
+                    "Rainbow (limited)",
+                    "rainbow",
+                    {
+                      "desc": "Worldwide satellite + radar nowcast · no key, every 30 min"
+                    }
+                  ],
+                  [
+                    "Rainbow (own key)",
+                    "rainbowkey",
+                    {
+                      "desc": "Worldwide satellite + radar nowcast · needs a free key"
+                    }
+                  ],
+                  [
+                    "Tomorrow.io",
+                    "tomorrowio",
+                    {
+                      "desc": "Precise ML rain nowcast, worldwide · uses your key"
+                    }
+                  ]
+                ],
+                "showWhen": {
+                  "env": "radar"
+                }
+              },
+              {
+                "type": "staticText",
+                "style": "info",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "radarProviderNote",
+                  "args": {
+                    "picker": "radarProvider"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "radar"
+                    },
+                    {
+                      "key": "radarEnabled",
+                      "ne": false
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "sheet",
+                "label": "API key",
+                "indent": true,
+                "editSheetFrom": {
+                  "resolver": "keySheet",
+                  "args": {
+                    "picker": "radarProvider"
+                  }
+                },
+                "labelFrom": {
+                  "resolver": "keyRowLabel",
+                  "args": {
+                    "picker": "radarProvider"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "keyRowSummary",
+                  "args": {
+                    "picker": "radarProvider"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "radar"
+                    },
+                    {
+                      "key": "radarEnabled",
+                      "ne": false
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "aqiSource",
+                "label": "Air quality",
+                "defaultValue": "waqi",
+                "hintByValue": {
+                  "auto": "Uses WAQI, or Open-Meteo when no WAQI station is nearby. Data from the World Air Quality Index Project and the environmental agencies of its stations. Data from Open-Meteo.com and the Copernicus Atmosphere Monitoring Service.",
+                  "waqi": "WAQI (aqicn.org) reads real monitoring stations, which is the most accurate. Rural areas and areas with few stations may have no station nearby and show \"--\". Data from the World Air Quality Index Project and the environmental agencies of its stations.",
+                  "openmeteo": "Open-Meteo uses a global model, so it covers every location. Data from Open-Meteo.com and the Copernicus Atmosphere Monitoring Service."
+                },
+                "options": [
+                  [
+                    "Auto",
+                    "auto"
+                  ],
+                  [
+                    "WAQI",
+                    "waqi"
+                  ],
+                  [
+                    "Open-Meteo",
+                    "openmeteo"
+                  ]
+                ]
+              },
+              {
+                "type": "select",
+                "messageKey": "fetchIntervalMin",
+                "label": "Update interval",
+                "defaultValue": "15",
+                "hint": "Each update sends only what changed, so short intervals like 5 min use little battery.",
+                "hintFrom": {
+                  "resolver": "batterySaverPauseHint"
+                },
+                "optionsFrom": {
+                  "resolver": "fetchIntervalBudget"
+                }
+              },
+              {
+                "type": "staticText",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "weatherCallsLine"
+                }
+              }
+            ]
+          },
+          {
             "sheetOnly": true,
             "sheetId": "weatherSources",
             "title": "Weather",
@@ -16360,7 +16550,10 @@
                 "messageKey": "provider",
                 "label": "Provider",
                 "defaultValue": "wunderground",
-                "onChange": "clearPollenForProvider",
+                "onChange": [
+                  "clearPollenForProvider",
+                  "weatherProviderPicked"
+                ],
                 "recommendFrom": "recommendedWeatherProvider",
                 "hintByValue": {
                   "dwd": "Germany's national weather service, with the most accurate forecasts in Germany and decent ones across Central Europe (ICON model). No API key needed.",
@@ -16370,9 +16563,6 @@
                   "tomorrowio": "Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key. Powered by <a target='_blank' href='https://www.tomorrow.io'>Tomorrow.io</a>.",
                   "wunderground": "A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.",
                   "yandex": "Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key."
-                },
-                "attentionFrom": {
-                  "resolver": "keyAttention"
                 },
                 "bottomSheet": true,
                 "options": [
@@ -16764,190 +16954,6 @@
                 "showWhen": {
                   "key": "provider",
                   "eq": "yandex"
-                }
-              }
-            ]
-          },
-          {
-            "id": "dataSources",
-            "title": "Data sources",
-            "items": [
-              {
-                "type": "sheet",
-                "sheetId": "weatherSources",
-                "label": "Weather",
-                "hintFrom": {
-                  "resolver": "weatherSourcesSummary"
-                }
-              },
-              {
-                "type": "select",
-                "uiOnly": true,
-                "messageKey": "radarSource",
-                "label": "Rain radar",
-                "defaultValue": "rainbow",
-                "initFrom": {
-                  "resolver": "radarSourceValue"
-                },
-                "onChange": "radarSourcePicked",
-                "recommendFrom": "recommendedRadarProvider",
-                "hintByValue": {
-                  "dwd": "Precise weather radar that shows rain at your exact spot and nearby (about 2 km). Germany only.",
-                  "metno": "Precise weather radar that shows rain at your exact spot. Nordics only.",
-                  "rainbow": "Refreshes at most every 30 minutes. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
-                  "rainbowkey": "A worldwide nowcast from satellite and radar data. It uses your own Rainbow key, so it refreshes at every update. A key is free: Rainbow's free plan covers 5,000 calls a month. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
-                  "tomorrowio": "A precise rain nowcast from machine-learning models, worldwide. It uses your tomorrow.io API key and counts against that key's call budget. Powered by <a target='_blank' href='https://www.tomorrow.io'>Tomorrow.io</a>."
-                },
-                "attentionFrom": {
-                  "resolver": "radarKeyAttention"
-                },
-                "options": [
-                  [
-                    "Off",
-                    "off",
-                    {
-                      "desc": "No rain radar and no rain alert"
-                    }
-                  ],
-                  [
-                    "DWD",
-                    "dwd",
-                    {
-                      "desc": "Best radar in Germany · exact spot + nearby"
-                    }
-                  ],
-                  [
-                    "Met.no",
-                    "metno",
-                    {
-                      "desc": "Best radar in the Nordics · exact spot"
-                    }
-                  ],
-                  [
-                    "Rainbow (limited)",
-                    "rainbow",
-                    {
-                      "desc": "Worldwide satellite + radar nowcast · no key, every 30 min"
-                    }
-                  ],
-                  [
-                    "Rainbow (own key)",
-                    "rainbowkey",
-                    {
-                      "desc": "Worldwide satellite + radar nowcast · needs a free key"
-                    }
-                  ],
-                  [
-                    "Tomorrow.io",
-                    "tomorrowio",
-                    {
-                      "desc": "Precise ML rain nowcast, worldwide · uses your key"
-                    }
-                  ]
-                ],
-                "showWhen": {
-                  "env": "radar"
-                }
-              },
-              {
-                "type": "staticText",
-                "style": "info",
-                "joinPrevious": true,
-                "textFrom": {
-                  "resolver": "radarProviderNote",
-                  "args": {
-                    "picker": "radarProvider"
-                  }
-                },
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "radar"
-                    },
-                    {
-                      "key": "radarEnabled",
-                      "ne": false
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "sheet",
-                "label": "API key",
-                "indent": true,
-                "editSheetFrom": {
-                  "resolver": "keySheet",
-                  "args": {
-                    "picker": "radarProvider"
-                  }
-                },
-                "labelFrom": {
-                  "resolver": "keyRowLabel",
-                  "args": {
-                    "picker": "radarProvider"
-                  }
-                },
-                "hintFrom": {
-                  "resolver": "keyRowSummary",
-                  "args": {
-                    "picker": "radarProvider"
-                  }
-                },
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "radar"
-                    },
-                    {
-                      "key": "radarEnabled",
-                      "ne": false
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "select",
-                "messageKey": "aqiSource",
-                "label": "Air quality",
-                "defaultValue": "waqi",
-                "hintByValue": {
-                  "auto": "Uses WAQI, or Open-Meteo when no WAQI station is nearby. Data from the World Air Quality Index Project and the environmental agencies of its stations. Data from Open-Meteo.com and the Copernicus Atmosphere Monitoring Service.",
-                  "waqi": "WAQI (aqicn.org) reads real monitoring stations, which is the most accurate. Rural areas and areas with few stations may have no station nearby and show \"--\". Data from the World Air Quality Index Project and the environmental agencies of its stations.",
-                  "openmeteo": "Open-Meteo uses a global model, so it covers every location. Data from Open-Meteo.com and the Copernicus Atmosphere Monitoring Service."
-                },
-                "options": [
-                  [
-                    "Auto",
-                    "auto"
-                  ],
-                  [
-                    "WAQI",
-                    "waqi"
-                  ],
-                  [
-                    "Open-Meteo",
-                    "openmeteo"
-                  ]
-                ]
-              },
-              {
-                "type": "select",
-                "messageKey": "fetchIntervalMin",
-                "label": "Update interval",
-                "defaultValue": "15",
-                "hint": "Each update sends only what changed, so short intervals like 5 min use little battery.",
-                "hintFrom": {
-                  "resolver": "batterySaverPauseHint"
-                },
-                "optionsFrom": {
-                  "resolver": "fetchIntervalBudget"
-                }
-              },
-              {
-                "type": "staticText",
-                "joinPrevious": true,
-                "textFrom": {
-                  "resolver": "weatherCallsLine"
                 }
               }
             ]

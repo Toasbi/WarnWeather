@@ -6,8 +6,9 @@
 // with); and the Other sources list (block weatherOtherSources): the values that come from another
 // provider, each opening its picker (weatherValueSources), with an × that gives it back to the
 // Provider, and Use another source, whose list (weatherFreeValues) hands a picked value on to its
-// picker (weatherValuePicker). The note's readings are the source plan's fills, by the phone's
-// own rules: the readings the Provider lacks (source-plan.js fills) that the watch draws
+// picker. A new Provider takes back the values picked to it or left at the old one
+// (weatherProviderPicked). The note's readings are the source plan's fills, by the phone's own
+// rules: the readings the Provider lacks (source-plan.js fills) that the watch draws
 // (drawn-readings.js).
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
@@ -33,18 +34,9 @@
     var READING_IDS = providerReadings.READING_IDS;
     // Use another source's page-only picker (weather-sources-schema.js SOURCE_PICKERS).
     var OTHER_FOR = 'weatherOtherSourceFor';
-    // Its list's first group, the values for right now; the rest are the forecast's.
-    var RIGHT_NOW = ['currentTemp', 'currentFeels', 'condition'];
     var KEY_FIRST = 'Pick it as Provider to add its key';
     // The list's last row, which adds a value (the feature tip names it: feature-tips.js).
     var USE_ANOTHER = 'Use another source';
-
-    /**
-     * A value's name as a row or a picker's title says it ("Feels-like").
-     * @param {string} id Reading id.
-     * @returns {string} The name.
-     */
-    function labelOf(id) { return html.capitalize(WORDS[id]); }
 
     /**
      * The values that come from another provider than the Provider, in the pickers' order:
@@ -53,14 +45,28 @@
      * @returns {Array<{id: string, provider: string}>} The values and their picks.
      */
     function readingPicks(S) {
-        var out = [];
+        var choices = sourcePlan.choicesOf(S);
+        return READING_IDS.filter(function (id) {
+            var pick = choices[id];
+            return Object.prototype.hasOwnProperty.call(NAMES, pick) && pick !== S.provider
+                && providerReadings.serves(pick, id);
+        }).map(function (id) { return { id: id, provider: choices[id] }; });
+    }
+
+    /**
+     * onChange of the Provider: a value picked to the new Provider, or left at the old one,
+     * comes from the Provider. The list shows neither as a pick, so neither may come back as one
+     * with a later Provider.
+     * @param {Object} S Settings (mutated).
+     * @param {string} oldV The Provider before.
+     * @param {string} newV The Provider now.
+     * @returns {void}
+     */
+    function providerPicked(S, oldV, newV) {
         READING_IDS.forEach(function (id) {
-            var pick = S && S[sourcePlan.choiceKey(id)];
-            if (typeof pick !== 'string' || !Object.prototype.hasOwnProperty.call(NAMES, pick)
-                || pick === S.provider || !providerReadings.serves(pick, id)) { return; }
-            out.push({ id: id, provider: pick });
+            var key = sourcePlan.choiceKey(id);
+            if (S[key] === oldV || S[key] === newV) { S[key] = ''; }
         });
-        return out;
     }
 
     /**
@@ -105,7 +111,7 @@
      * @returns {Array<Array>} [label, value, meta?] options.
      */
     function valueSources(S, env, args) {
-        var reading = args && args.reading, input = sourcePlan.inputOf(S);
+        var reading = args && args.reading, input = { provider: S.provider, keyed: sourcePlan.keyedOf(S) };
         var main = NAMES[input.provider] || '', lacks = !providerReadings.serves(input.provider, reading);
         var out = [lacks ? [NAMES[sourcePlan.FILL_PROVIDER], '', { desc: main + ' sends none' }]
             : [main, '', { desc: 'Provider' }]];
@@ -128,12 +134,13 @@
         var taken = readingPicks(S).map(function (o) { return o.id; }), out = [];
         [['Right now', true], ['Forecast', false]].forEach(function (group) {
             var free = READING_IDS.filter(function (id) {
-                return (RIGHT_NOW.indexOf(id) !== -1) === group[1] && taken.indexOf(id) === -1;
+                return (providerReadings.NOW.indexOf(id) !== -1) === group[1] && taken.indexOf(id) === -1;
             });
             if (!free.length) { return; }
             out.push([group[0], '', { groupHeader: true }]);
             free.forEach(function (id, i) {
-                out.push([labelOf(id), id, { groupChild: true, groupEnd: i === free.length - 1, next: sourcePlan.choiceKey(id) }]);
+                out.push([words.label(id), id, { groupChild: true, groupEnd: i === free.length - 1,
+                    next: sourcePlan.choiceKey(id) }]);
             });
         });
         return out;
@@ -187,15 +194,15 @@
      * source, which says what still comes from the Provider. A keyed provider without its key
      * says so: the phone asks the Provider then (source-plan.js feedsOf).
      * @param {Object} S Settings.
-     * @returns {string} HTML; '' outside the page.
+     * @returns {string} HTML; '' outside the page, and for a provider the page does not know.
      */
     function otherSourcesBlock(S) {
-        if (!S || !PConf || !PConf.ui) { return ''; }
+        if (!S || !PConf || !PConf.ui || !Object.prototype.hasOwnProperty.call(NAMES, S.provider)) { return ''; }
         ensureStyle();
-        var kit = PConf.ui, list = readingPicks(S), main = NAMES[S.provider] || '', input = sourcePlan.inputOf(S);
+        var kit = PConf.ui, list = readingPicks(S), main = NAMES[S.provider], keyed = { keyed: sourcePlan.keyedOf(S) };
         var rows = list.map(function (o) {
-            var label = labelOf(o.id);
-            var from = NAMES[o.provider] + (sourcePlan.askable(o.provider, input) ? '' : ' · no API key');
+            var label = words.label(o.id);
+            var from = NAMES[o.provider] + (sourcePlan.askable(o.provider, keyed) ? '' : ' · no API key');
             return '<div class="ui-row wo-row" role="listitem">'
                 + '<button type="button" class="wo-open"' + kit.attrs({ 'data-select': sourcePlan.choiceKey(o.id),
                     'aria-haspopup': 'listbox' }) + '><span class="wo-txt"><span class="ui-n">' + html.esc(label)
@@ -266,12 +273,14 @@
         PConf.hintResolvers.register('weatherCallsLine', callsLine);
         PConf.optionsResolvers.register('weatherValueSources', valueSources);
         PConf.optionsResolvers.register('weatherFreeValues', freeValues);
+        PConf.onChange.register('weatherProviderPicked', providerPicked);
         PConf.blocks.register('weatherOtherSources', otherSourcesBlock);
         PConf.actions.weatherPickRemove = removePick;
     }
 
-    var api = { USE_ANOTHER: USE_ANOTHER, summary: summary, readingPicks: readingPicks, valueSources: valueSources,
-        freeValues: freeValues, otherSourcesBlock: otherSourcesBlock, fillNote: fillNote, callsLine: callsLine };
+    var api = { USE_ANOTHER: USE_ANOTHER, summary: summary, readingPicks: readingPicks, providerPicked: providerPicked,
+        valueSources: valueSources, freeValues: freeValues, otherSourcesBlock: otherSourcesBlock, fillNote: fillNote,
+        callsLine: callsLine };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.WeatherSourcesPage = api; }
 })();

@@ -1669,7 +1669,6 @@ const radarPickerSection = () => schema.tabs.find((t) => t.id === 'setup').secti
 // Each key table's picker row: the Provider picker for provider, the Rain radar picker for
 // radarProvider (it writes radarProvider, so its key rows name that key as their picker).
 const PICKER_ROW = { provider: 'provider', radarProvider: 'radarSource' };
-const PICKER_ATTENTION = { provider: { resolver: 'keyAttention' }, radarProvider: { resolver: 'radarKeyAttention' } };
 // Where each picker row sits: the Provider in the Weather dialog, the Rain radar on the card.
 const PICKER_SECTION = {
   provider: function inTheWeatherDialog() {
@@ -1689,8 +1688,6 @@ test('the provider and radar rows read their key tables from key-sources.js', ()
   assert.deepEqual(Object.keys(KEY_SOURCES), ['provider', 'radarProvider']);
   Object.keys(KEY_SOURCES).forEach((picker) => {
     const row = byKey(PICKER_ROW[picker]);
-    assert.deepEqual(row.attentionFrom, PICKER_ATTENTION[picker],
-      picker + ': no args, the table is found by the picker\'s messageKey');
     const section = schema.tabs.reduce((found, t) => found
       || t.sections.find((sec) => sec.items.indexOf(row) !== -1), null);
     assert.equal(section, PICKER_SECTION[picker](), picker + ': ' + PICKER_SECTION[picker].name);
@@ -1708,6 +1705,12 @@ test('the provider and radar rows read their key tables from key-sources.js', ()
       assert.equal(sheet.items[0].messageKey, sources[id].keyField, picker + '/' + id);
     });
   });
+  // The key checks: the Weather row's names its picker (the row opens the dialog and has no
+  // messageKey); the Rain radar picker's radarKeyAttention reads its own.
+  const dataSources = schema.tabs.find((t) => t.id === 'setup').sections.find((sec) => sec.id === 'dataSources');
+  assert.deepEqual(dataSources.items[0].attentionFrom, { resolver: 'keyAttention', args: { picker: 'provider' } });
+  assert.equal(byKey('provider').attentionFrom, undefined, 'the Provider\'s check rides the Weather row');
+  assert.deepEqual(byKey('radarSource').attentionFrom, { resolver: 'radarKeyAttention' });
   assert.ok(JSON.stringify(schema).indexOf('"keyed"') === -1, 'no row carries a key table into the page');
   const shared = KEY_SOURCES.radarProvider.sources.tomorrowio.sharedSheet;
   const setup = schema.tabs.find((t) => t.id === 'setup');

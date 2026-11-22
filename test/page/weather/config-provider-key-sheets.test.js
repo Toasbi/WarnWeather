@@ -20,6 +20,8 @@ const setup = schema.tabs.find((t) => t.id === 'setup');
 const sheetById = (id) => setup.sections.find((s) => s.sheetOnly && s.sheetId === id);
 const dialog = sheetById('weatherSources');
 const providerRow = dialog.items.find((i) => i.messageKey === 'provider');
+// The Data sources row that opens the dialog: the Provider's key check rides it.
+const weatherRow = setup.sections.find((s) => s.id === 'dataSources').items[0];
 const noteItem = dialog.items.find((i) => i.textFrom && i.textFrom.resolver === 'keyMissingNote'
   && i.textFrom.args.picker === 'provider');
 // The nav row under the picker (and its amber note) that opens the picked provider's key sheet.
@@ -63,17 +65,6 @@ function openRadarPicker(page) {
   page.clickTab('setup');
 }
 
-/**
- * Open the Weather dialog (Setup › Data sources › Weather), which holds the Provider picker,
- * its key row and, behind it, the providers' key sheets.
- * @param {Object} page bootGeneratedPage handle.
- * @returns {string} The dialog's markup.
- */
-function openWeather(page) {
-  page.clickTab('setup');
-  page.openEditSheet('weatherSources');
-  return page.modal.innerHTML;
-}
 
 test('the keyed providers are exactly the options whose tag says they need a key', () => {
   const needsKey = providerRow.options.filter((o) => /needs (a free |an? )?key/.test(o[2].desc)).map((o) => o[1]);
@@ -87,11 +78,9 @@ test('the keyed providers are exactly the options whose tag says they need a key
   ['editSheetFrom', 'editBadgeFrom', 'hintFrom'].forEach((k) =>
     assert.equal(providerRow[k], undefined, 'the picker has no ' + k + ' any more'));
   assert.ok(providerRow.hintByValue && providerRow.hintByValue.openweathermap, 'the picker\'s why copy');
-  // Every key-status resolver on the picker, its note and the key row reads ONE table,
-  // key-sources.js': the picker's by its messageKey (no args), the others by args.picker —
-  // so no row carries the table.
-  assert.deepEqual(providerRow.attentionFrom, { resolver: 'keyAttention' });
-  [keyRow.editSheetFrom, keyRow.labelFrom, keyRow.hintFrom, noteItem.textFrom].forEach((from) =>
+  // Every key-status resolver on the Weather row, the picker's note and the key row reads ONE
+  // table, key-sources.js', by args.picker, so no row carries the table.
+  [weatherRow.attentionFrom, keyRow.editSheetFrom, keyRow.labelFrom, keyRow.hintFrom, noteItem.textFrom].forEach((from) =>
     assert.deepEqual(from.args, { picker: 'provider' }, from.resolver));
 });
 
@@ -163,7 +152,7 @@ test('page: the key row under the dropdown opens the provider\'s key sheet; no k
   Object.keys(KEYED).forEach((provider) => {
     const [id, title, keys, action] = KEYED[provider];
     const page = bootGeneratedPage({ provider });
-    const body = openWeather(page);
+    const body = page.openTabSheet('setup', 'weatherSources');
     assert.ok(new RegExp('data-select="provider"[^]*?data-edit-sheet="' + id + '"').test(body),
       provider + ': the key row trails the dropdown');
     assert.ok(!new RegExp('data-edit-sheet="' + id + '"[^]*?data-select="provider"').test(body));
@@ -190,7 +179,7 @@ test('page: the key row under the dropdown opens the provider\'s key sheet; no k
 test('page: a provider without a key shows no key row and keeps its plain hint', () => {
   ['dwd', 'metno', 'openmeteo', 'wunderground'].forEach((provider) => {
     const page = bootGeneratedPage({ provider });
-    const body = openWeather(page);
+    const body = page.openTabSheet('setup', 'weatherSources');
     assert.ok(body.indexOf('data-select="provider"') !== -1, provider + ': the picker is drawn');
     assert.doesNotMatch(body, /data-edit-sheet="providerKey/, provider);
     assert.doesNotMatch(body, /API key<\/div>/, provider + ': no key row');
@@ -201,7 +190,7 @@ test('page: a provider without a key shows no key row and keeps its plain hint',
 
 test('page: a key typed in the sheet is stored, drops the pointer and saves trimmed', async () => {
   const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: '' });
-  openWeather(page);
+  page.openTabSheet('setup', 'weatherSources');
   page.openNestedSheet('providerKeyOwm');
   typeInSheet(page, 'owmApiKey', '  abc123 ');
   assert.equal(page.S.owmApiKey, '  abc123 ');
@@ -221,7 +210,7 @@ test('page: a key typed in the sheet is stored, drops the pointer and saves trim
 test('page: the tomorrow.io sheet carries the budget read-out and its guard, which still fits the interval', () => {
   const page = bootGeneratedPage({ provider: 'tomorrowio', tomorrowioApiKey: 'k', fetchIntervalMin: '5',
     sleepNightEnabled: false, radarProvider: 'rainbow', tomorrowioFitBudget: true });
-  const body = openWeather(page);
+  const body = page.openTabSheet('setup', 'weatherSources');
   assert.ok(body.indexOf('data-edit-sheet="providerKeyTomorrowio"') !== -1, 'premise: in the key row\'s dialog');
   assert.equal(body.indexOf('calls/day'), -1, 'no read-out in the dialog');
   assert.equal(page.scroll.innerHTML.indexOf('calls/day'), -1, 'or on the page');

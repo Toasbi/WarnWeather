@@ -824,15 +824,12 @@ var SCALE_NOTE = 'The bars don\'t scale linearly. Their height is split into 5 p
 // B/W watches hide the color picker (no colors to choose), so this stands in for COLOR_LEGEND
 // there: text-only, since height is the only encoding (no color steps to show).
 var BW_LEGEND = 'The bars don\'t scale linearly. Their height is split into 5 parts, for rain up to 0.1, 0.5, 2, 10 and 40 mm/h.';
-// Per-provider "why it's best" note — the picker's hintByValue, so only the selected provider's
-// rationale renders. The hinted-row wrap layout flows it around the trigger and gives it the
-// full row width below, so the fuller prose no longer needs its own staticText. The short
-// tags live in the dropdown option descs; these give the fuller rationale.
 // The data sources' credits their terms ask for where their data is picked: Tomorrow.io a
-// linked "Powered by Tomorrow.io", the air quality sources theirs (Open-Meteo's model runs on
+// linked "Powered by Tomorrow.io" (weather-sources-schema.js, beside the Provider's rationale
+// that carries it too), the air quality sources theirs (Open-Meteo's model runs on
 // Copernicus data; WAQI asks for the agencies its stations belong to), LocationIQ a link. The
 // rest are named by their pickers and listed in Setup › Privacy & data sources.
-var TOMORROWIO_CREDIT = 'Powered by <a target=\'_blank\' href=\'https://www.tomorrow.io\'>Tomorrow.io</a>.';
+var TOMORROWIO_CREDIT = weatherSources.TOMORROWIO_CREDIT;
 var OPENMETEO_AQI_CREDIT = 'Data from Open-Meteo.com and the Copernicus Atmosphere Monitoring Service.';
 var WAQI_CREDIT = 'Data from the World Air Quality Index Project and the environmental agencies of its stations.';
 var PRIVACY_TEXT = '<b>Privacy</b><br>While Share anonymous telemetry is on, WarnWeather sends: whether each '
@@ -852,15 +849,6 @@ var DATA_SOURCES_TEXT = '<b>Data sources</b><br>'
     + 'Public holidays: Nager.Date.<br>'
     + 'Data from Open-Meteo.com, MET Norway and the Copernicus Atmosphere Monitoring Service is licensed under '
     + CC_BY + ', GeoNames data too. Weather data &copy; OpenWeather.';
-var PROVIDER_WHY = {
-    dwd: 'Germany\'s national weather service, with the most accurate forecasts in Germany and decent ones across Central Europe (ICON model). No API key needed.',
-    metno: 'The service behind yr.no. Best in the Nordics, with a 2.5 km model, and solid worldwide. No API key needed.',
-    openmeteo: 'Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.',
-    openweathermap: 'A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.',
-    tomorrowio: 'Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key. ' + TOMORROWIO_CREDIT,
-    wunderground: 'A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.',
-    yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key.'
-};
 // The radar picker's options in order. desc (3rd tuple slot) = the short "what it's best at"
 // tag under each name in the dropdown, mirroring the weather picker. DWD/Met.no are real
 // radar; Rainbow/Tomorrow.io are model nowcasts (Tomorrow.io is the precise, worldwide one).
@@ -2679,85 +2667,9 @@ module.exports = {
                 showWhen: {key: 'locationMode', eq: 'gps'},
                 hint: 'Sets how long a GPS position is reused before the phone gets a new one. Longer saves battery; shorter keeps your location up to date when you move. The shortest option matches your update interval.'
             }]
-        }, {
-            // The Weather dialog, opened by the Weather row of Data sources: the Provider, which
-            // serves the forecast, its notes and its key row; then Other sources, the values that
-            // come from another provider (block weatherOtherSources, weather-sources-page.js). The
-            // Provider opens its list as a sheet over the dialog (bottomSheet), as the list's
-            // pickers do. It sits ahead of the card, its key sheets with it: the Save dialog asks
-            // for the first key a row of the tab is missing, in the order of the sections, and the
-            // Weather row comes before the Rain radar's.
-            sheetOnly: true,
-            sheetId: 'weatherSources',
-            title: 'Weather',
-            block: 'weatherOtherSources',
-            items: [{
-                type: 'select',
-                messageKey: 'provider',
-                label: 'Provider',
-                defaultValue: 'wunderground',
-                onChange: 'clearPollenForProvider',
-                // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→Open-Meteo),
-                // reading the same country→provider map the wizard uses. See blocks.js recommend resolvers.
-                recommendFrom: 'recommendedWeatherProvider',
-                // The options (weather-sources-schema.js PROVIDER_OPTIONS) are each provider with
-                // what it is best at; the selected provider's fuller rationale is the row's info
-                // text (PROVIDER_WHY).
-                hintByValue: PROVIDER_WHY,
-                // A provider that needs a key gets its key row under this one (keyRow), which
-                // opens its key dialog — the key field, its Test, the links and any budget
-                // guard live there. A key that is missing or known to be rejected puts a dot
-                // on this tab and a dialog in front of Save ("Add key" / "Save anyway"), and the
-                // Weather row says it. The missing-key note is the staticText below the calls line.
-                attentionFrom: {resolver: 'keyAttention'},
-                bottomSheet: true,
-                options: weatherSources.PROVIDER_OPTIONS
-            }, weatherSources.FILL_NOTE, weatherSources.CALLS_LINE, {
-                // The keyed provider's empty key, said where it cannot be missed: an amber note
-                // hugging the row, only while the picked provider's key is blank (textFrom
-                // answers '' otherwise and the note is gone, divider and all).
-                type: 'staticText',
-                style: 'info',
-                joinPrevious: true,
-                textFrom: {resolver: 'keyMissingNote', args: {picker: 'provider'}}
-            }, keyRow('provider', null), {type: 'subheader', text: 'Other sources'}]
-        }, {
-            // The pickers of the Weather dialog's Other sources list (weather-sources-schema.js
-            // SOURCE_PICKERS), which have no rows: the list opens them over the dialog. Never
-            // opened as a dialog itself (sheetOnly): the values hydrate and serialize with the
-            // blob, as graphStyleKeys does for New graph.
-            sheetOnly: true,
-            sheetId: 'weatherSourcePickers',
-            title: 'Other sources',
-            items: weatherSources.SOURCE_PICKERS
         },
-        // The keyed weather providers' key dialogs, opened by the key row under the Provider
-        // (the Weather dialog) and rendered nowhere else (sheetOnly). The keys, their trimming and
-        // refetch on Save (onbuild.js) and the Test actions are the ones the card's rows
-        // carried.
-        keySheetSection(PROVIDER_KEYS.openweathermap, {key: 'provider', eq: 'openweathermap'}, [{
-            type: 'text',
-            messageKey: 'owmApiKey',
-            label: 'API key',
-            defaultValue: '',
-            suffixAction: 'testOwmKey',
-            suffixLabel: 'Test',
-            hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then tap Test. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance), or weather updates fail with error 401.'
-        }]),
-        // Shown only while tomorrow.io is the WEATHER provider; when it is radar-only the same key
-        // + budget guard live in the Rain radar pane's Tomorrow.io dialog instead (see
-        // TOMORROWIO_RADAR_ONLY_WHEN). While it is both, this is the one dialog that holds the
-        // key, and the Radar provider's key row opens it too (RADAR_KEYS sharedSheet).
-        keySheetSection(PROVIDER_KEYS.tomorrowio, TOMORROWIO_WEATHER_WHEN, TOMORROWIO_KEY_ROWS),
-        keySheetSection(PROVIDER_KEYS.yandex, {key: 'provider', eq: 'yandex'}, [{
-            type: 'text',
-            messageKey: 'yandexApiKey',
-            label: 'API key',
-            defaultValue: '',
-            hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here.'
-        }]),
         {
-            // Where the data comes from: the weather (its row opens the Weather dialog above), the
+            // Where the data comes from: the weather (its row opens the Weather dialog below), the
             // rain radar, the air quality, and how often the phone asks.
             id: 'dataSources',
             title: 'Data sources',
@@ -2815,7 +2727,32 @@ module.exports = {
                 hintFrom: {resolver: 'batterySaverPauseHint'},
                 optionsFrom: {resolver: 'fetchIntervalBudget'}
             }, weatherSources.CALLS_LINE]
-        },
+        }].concat(weatherSources.dialogSections(keyRow), [
+        // The keyed weather providers' key dialogs, opened by the key row under the Provider
+        // (the Weather dialog) and rendered nowhere else (sheetOnly). The keys, their trimming and
+        // refetch on Save (onbuild.js) and the Test actions are the ones the card's rows
+        // carried.
+        keySheetSection(PROVIDER_KEYS.openweathermap, {key: 'provider', eq: 'openweathermap'}, [{
+            type: 'text',
+            messageKey: 'owmApiKey',
+            label: 'API key',
+            defaultValue: '',
+            suffixAction: 'testOwmKey',
+            suffixLabel: 'Test',
+            hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then tap Test. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance), or weather updates fail with error 401.'
+        }]),
+        // Shown only while tomorrow.io is the WEATHER provider; when it is radar-only the same key
+        // + budget guard live in the Rain radar pane's Tomorrow.io dialog instead (see
+        // TOMORROWIO_RADAR_ONLY_WHEN). While it is both, this is the one dialog that holds the
+        // key, and the Radar provider's key row opens it too (RADAR_KEYS sharedSheet).
+        keySheetSection(PROVIDER_KEYS.tomorrowio, TOMORROWIO_WEATHER_WHEN, TOMORROWIO_KEY_ROWS),
+        keySheetSection(PROVIDER_KEYS.yandex, {key: 'provider', eq: 'yandex'}, [{
+            type: 'text',
+            messageKey: 'yandexApiKey',
+            label: 'API key',
+            defaultValue: '',
+            hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here.'
+        }]),
         // "Rainbow (own key)"'s key dialog, opened by its key row under the Rain radar picker
         // (Data sources, above) and rendered nowhere else. The key, its trimming and refetch on Save
         // (onbuild.js), its keeping through Reset (clay-settings.js PRESERVED_SETTING_KEYS)
@@ -2983,7 +2920,7 @@ module.exports = {
                 defaultValue: false,
                 showWhen: {key: 'devStatsEnabled', eq: true}
             }]
-        }]
+        }])
     }]
 };
 
