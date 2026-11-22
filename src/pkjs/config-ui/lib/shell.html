@@ -655,13 +655,12 @@
   .ui-n { font: 600 14.5px/1.3 'Inter', sans-serif; color: var(--lbl); overflow-wrap: anywhere; }
   .ui-d { font: 500 12.5px/1.4 'Inter', sans-serif; color: var(--hint); }
   /* New <thing> at a list's foot (newRow): the plus and what it makes in the accent, how
-     many there are on the right */
+     many there are on the right; a note too long for the row wraps there, the words stay on
+     one line */
   .ui-new { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0; padding: 14px 16px; border: none; background: none; text-align: left; font: inherit; cursor: pointer; -webkit-appearance: none; appearance: none; }
   .ui-new .ui-ic { flex: none; color: var(--link); }
-  .ui-new .ui-n { flex: 1 1 auto; color: var(--link); }
-  .ui-new .ui-d { flex: none; }
-  /* a New row with a line under its words (newRow's line): the plus level with the words */
-  .ui-new.with-line { align-items: flex-start; }
+  .ui-new .ui-n { flex: 1 0 auto; color: var(--link); }
+  .ui-new .ui-d { flex: 0 1 auto; min-width: 0; text-align: right; }
   /* a list's row that opens something (listRow): its words, the red arrow, then the × that
      takes it out where it can go; a row without one ends 16px in, as it starts */
   .ui-item { display: flex; align-items: center; }

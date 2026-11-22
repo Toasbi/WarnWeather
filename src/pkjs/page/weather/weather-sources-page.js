@@ -169,9 +169,10 @@
      * The Other sources list (block weatherOtherSources), in the page's shared parts (kit): a
      * row for each value from another provider, its name and that provider, opening its picker,
      * an × after it; then Use another source, a list's New row as Your status bars draws its own
-     * (the owner's ask, 2026-11-22: the plus beside its words), with what still comes from the
-     * Provider under them. A keyed provider without its key says so: the phone asks the Provider
-     * then (source-plan.js feedsOf).
+     * (the owner's ask, 2026-11-22): the plus beside its words, and at the row's end, where the
+     * status bars say how many there are, how many values still come from the Provider ("12 from
+     * DWD", short enough for the row on a phone). A keyed provider without its key says so: the
+     * phone asks the Provider then (source-plan.js feedsOf).
      * @param {Object} S Settings.
      * @returns {string} HTML; '' outside the page, and for a provider the page does not know.
      */
@@ -185,10 +186,9 @@
                 at: { 'data-select': sourcePlan.choiceKey(o.id), 'aria-haspopup': 'listbox' },
                 x: { 'data-action': REMOVE, 'data-action-arg': o.id, 'aria-label': label + ' back to ' + main } });
         }).join('');
-        var rest = list.length ? 'The other ' + (READING_IDS.length - list.length) + ' come from ' + main + '.'
-            : 'Everything comes from ' + main + '.';
+        var rest = (list.length ? READING_IDS.length - list.length : 'All') + ' from ' + main;
         return '<div class="ui-list">' + (rows ? '<div role="list" aria-label="Other sources">' + rows + '</div>' : '')
-            + kit.newRow(USE_ANOTHER, '', { 'data-select': OTHER_FOR, 'aria-haspopup': 'listbox' }, rest) + '</div>';
+            + kit.newRow(USE_ANOTHER, rest, { 'data-select': OTHER_FOR, 'aria-haspopup': 'listbox' }) + '</div>';
     }
 
     /**

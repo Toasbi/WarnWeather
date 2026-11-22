@@ -1016,7 +1016,7 @@ as `PConf.ui` in the page (`require('…/config-ui/lib/ui.js')` under Node). War
 | `foldChev(open)` | The red ▸ of anything that folds open in place, ▾ while open: a collapsible card's header. The button that carries it sets `aria-expanded`. |
 | `deleteButton(label, at)` | Delete: centred in the accent, under (outside) what it deletes. The `style: 'delete'` button item is this. |
 | `undoToast(text, at)` | The Undo after a delete, in the list the thing went from. `flash(box, v, ms, repaint)` keeps its text in `box` for `ms`, then repaints without it; `unflash(box)` removes it early. |
-| `newRow(label, note, at, line)` | A list's New row at its foot: the plus and what it makes in the accent, how many there are on the right (`note`), and an optional line under its words (`line`), the plus level with them. |
+| `newRow(label, note, at)` | A list's New row at its foot: the plus and what it makes in the accent, how many there are on the right. A note too long for the row wraps there; the words stay on one line. |
 | `listRow(o)` | A list's row that opens something of its own (a picker, a dialog): its name, the line under it and the red arrow, then the × that takes it out where it can go (`o.x`, its attributes with its `aria-label`; `null` for none). The rows' wrapper carries `role="list"`. |
 | `chip(label, at, {icon, on})` | A chip: an Add chip (the plus first) or a toggle chip (tinted and ticked while on). |
 | `dropdown(label, at)` | A dropdown: what is picked, then the ▾ that opens its picker. A `select` row's trigger is this, and so is a value an app's own view picks through a sheet (`ctx.openSheet`). |

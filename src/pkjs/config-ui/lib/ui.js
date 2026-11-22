@@ -101,19 +101,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * A list's New row at its foot: the plus and what it makes in the accent, how many there are
-   * on the right; or a line under its words, the plus level with them (the Weather dialog's Use
-   * another source: what still comes from the Provider).
+   * on the right (a note too long for the row wraps there, the words stay on one line).
    * @param {string} label What it makes ("New status bar").
    * @param {string} note How many there are ("4 of 6 status bars"), '' for nothing.
    * @param {Object} at Its attributes.
-   * @param {string} [line] The line under its words; absent or '' for none.
    * @returns {string} Markup
    */
-  function newRow(label, note, at, line) {
-    var words = '<span class="ui-n">' + esc(label) + '</span>';
-    return '<button type="button" class="ui-row ui-new' + (line ? ' with-line' : '') + '"' + attrs(at) + '>' + icon('plus')
-      + (line ? '<span class="ui-txt">' + words + '<span class="ui-d">' + esc(line) + '</span></span>' : words)
-      + (note ? '<span class="ui-d">' + esc(note) + '</span>' : '') + '</button>';
+  function newRow(label, note, at) {
+    return '<button type="button" class="ui-row ui-new"' + attrs(at) + '>' + icon('plus') + '<span class="ui-n">'
+      + esc(label) + '</span>' + (note ? '<span class="ui-d">' + esc(note) + '</span>' : '') + '</button>';
   }
 
   /**
