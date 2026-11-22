@@ -58,8 +58,9 @@ test('the reading rows: one per reading after the Weather picker\'s, each the pr
   const keys = providerReadings.READING_IDS.map(sourcePlan.choiceKey);
   const rows = card.items.filter((i) => keys.indexOf(i.messageKey) !== -1);
   assert.deepEqual(rows.map((r) => r.messageKey), keys, 'in the table\'s order');
-  assert.deepEqual(rows.map((r) => r.label), ['Temperature', 'Dew point', 'Rain', 'Wind', 'Wind direction', 'UV index',
-    'Cloud cover', 'Air pressure', 'Weather condition']);
+  assert.deepEqual(rows.map((r) => r.label), ['Current temperature', 'Current feels-like', 'Weather condition',
+    'Temperature', 'Feels-like', 'Dew point', 'Rain chance', 'Rain amount', 'Wind speed', 'Wind gusts', 'Wind direction',
+    'UV index', 'Cloud cover', 'Air pressure']);
   const first = card.items.indexOf(rows[0]);
   assert.equal(card.items[first - 1].type, 'sheet', 'right after the Weather picker\'s key row');
   rows.forEach((row, i) => {
@@ -151,7 +152,7 @@ test('the calls line counts each update\'s requests, and the UV fill every few h
 
 test('the calls line counts every provider a reading in use comes from', () => {
   assert.equal(calls({ provider: 'metno', weatherSourceTemperature: 'dwd',
-    weatherSourceRain: 'openmeteo' }), 'About 480 weather calls a day: 96 to Met.no, 192 to DWD and 192 to Open-Meteo.',
+    weatherSourceRainAmount: 'openmeteo' }), 'About 480 weather calls a day: 96 to Met.no, 192 to DWD and 192 to Open-Meteo.',
   'the Weather picker\'s provider first, then the parts in the readings\' order');
   assert.equal(calls({ provider: 'metno', weatherSourceWind: 'tomorrowio' }),
     'About 96 weather calls a day.', 'a keyed pick without its key follows the Weather picker');

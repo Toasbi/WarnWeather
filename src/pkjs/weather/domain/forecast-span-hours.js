@@ -60,7 +60,8 @@
     var FULL_HOURS = 68;
     // The readings with hourly series the payload sends (forecast-model.js GRAPH_SERIES): the
     // watch is sent the fewest hours any of them holds (payloadEntries).
-    var GRAPH_READINGS = ['temperature', 'dew', 'rain', 'wind', 'uv', 'cloud', 'pressure'];
+    var GRAPH_READINGS = ['temperature', 'feels', 'dew', 'rainChance', 'rainAmount', 'wind', 'gust', 'uv', 'cloud',
+        'pressure'];
     // The plot's geometry, in px: the whole screen, and the forecast layer (LAYOUT_PAD_X 2 in
     // from its left edge) a strip starts in. Lockstep with test/c/forecast_span_test.c
     // EMERY_SCREEN_W / EMERY_W.

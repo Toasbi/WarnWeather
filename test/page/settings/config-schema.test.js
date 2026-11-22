@@ -102,8 +102,9 @@ const EXPECTED_KEYS = [
   'conditionSlotLook', 'conditionSlotName', 'citySlotIcon',
   // The reading rows (Setup › Data sources): a provider of its own for each reading;
   // phone-side only.
-  'weatherSourceTemperature', 'weatherSourceDew', 'weatherSourceRain', 'weatherSourceWind',
-  'weatherSourceWindDir', 'weatherSourceUv', 'weatherSourceCloud', 'weatherSourcePressure', 'weatherSourceCondition',
+  'weatherSourceCurrentTemp', 'weatherSourceCurrentFeels', 'weatherSourceCondition', 'weatherSourceTemperature',
+  'weatherSourceFeels', 'weatherSourceDew', 'weatherSourceRainChance', 'weatherSourceRainAmount', 'weatherSourceWind',
+  'weatherSourceGust', 'weatherSourceWindDir', 'weatherSourceUv', 'weatherSourceCloud', 'weatherSourcePressure',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','forecastHours',
   'forecastAxisNumbers','forecastAxisScale','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',

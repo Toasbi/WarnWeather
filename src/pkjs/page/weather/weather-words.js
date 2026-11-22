@@ -9,9 +9,10 @@
 // settings page (scripts/build-config-page.js APP_FILES, ahead of weather-sources-page.js, which
 // binds it while its body runs; window.WeatherWords).
 (function () {
-    var WORDS = { temperature: 'temperature', dew: 'dew point', rain: 'rain', wind: 'wind',
-        windDir: 'wind direction', uv: 'UV index', cloud: 'cloud cover', pressure: 'air pressure',
-        condition: 'weather condition' };
+    var WORDS = { currentTemp: 'current temperature', currentFeels: 'current feels-like',
+        condition: 'weather condition', temperature: 'temperature', feels: 'feels-like', dew: 'dew point',
+        rainChance: 'rain chance', rainAmount: 'rain amount', wind: 'wind speed', gust: 'wind gusts',
+        windDir: 'wind direction', uv: 'UV index', cloud: 'cloud cover', pressure: 'air pressure' };
     var NAMES = { dwd: 'DWD', metno: 'Met.no', openmeteo: 'Open-Meteo', openweathermap: 'OpenWeatherMap',
         tomorrowio: 'Tomorrow.io', wunderground: 'Weather Underground', yandex: 'Yandex Weather' };
 

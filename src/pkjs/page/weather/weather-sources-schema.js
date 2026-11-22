@@ -26,25 +26,16 @@ var PROVIDER_OPTIONS = [
 
 // The reading rows, one per reading (provider-readings.js READINGS, labelled by weather-words.js
 // WORDS), each its provider or Same as Weather (''); the phone reads them through source-plan.js
-// choicesOf. A row's options
-// come from the page (weather-sources-page.js weatherReadingOptions): the settings URL carries
-// one short line per row instead of nine lists. The rows whose reading brings more than its name
-// says say what.
-var READING_HINTS = {
-    temperature: 'Also brings the feels-like temperature. The other readings line up with its hours.',
-    rain: 'Brings the chance of rain and the amount.',
-    wind: 'Also brings the gusts.'
-};
+// choicesOf. A row's options come from the page (weather-sources-page.js weatherReadingOptions):
+// the settings URL carries one short line per row instead of fourteen lists.
 var READING_ROWS = providerReadings.READING_IDS.map(function (id) {
-    var row = {
+    return {
         type: 'select',
         messageKey: sourcePlan.choiceKey(id),
         label: html.capitalize(WORDS[id]),
         defaultValue: '',
         optionsFrom: {resolver: 'weatherReadingOptions', args: {reading: id}}
     };
-    if (READING_HINTS[id]) { row.hint = READING_HINTS[id]; }
-    return row;
 });
 
 // The readings the picked provider lacks that a screen draws, said under the Weather row: they

@@ -415,8 +415,8 @@ test('the Weather picker\'s forecast, and a picked reading\'s provider laid on',
   assert.deepEqual(requests.map(endpoint), [METNO_HOST].concat(DWD_HOSTS), 'Met.no, then DWD for the wind');
   const dwd = fetchesOf('dwd', [{}])[0].p;
   const metno = fetchesOf('metno', [{}])[0].p;
-  assert.deepEqual(p.windTrend, dwd.windTrend, 'the wind and its gusts are DWD\'s');
-  assert.deepEqual(p.gustTrend, dwd.gustTrend);
+  assert.deepEqual(p.windTrend, dwd.windTrend, 'the wind is DWD\'s');
+  assert.deepEqual(p.gustTrend, metno.gustTrend, 'the gusts are a reading of their own: Met.no\'s');
   assert.deepEqual(p.tempTrend, metno.tempTrend, 'the rest is Met.no\'s');
   assert.deepEqual(p.cloudTrend, metno.cloudTrend);
   assert.deepEqual(p.feeds, Object.assign(sourcePlan.allFrom('metno'), { wind: 'dwd' }));
@@ -451,7 +451,7 @@ test('a picked temperature is laid on the Weather picker\'s forecast, which answ
   assert.equal(outcome, 'ok');
   assert.deepEqual(asked, ['dwd'], 'only the pick takes an instance of its own');
   assert.deepEqual(anchor.tempTrend, hours(70), 'the temperature is DWD\'s');
-  assert.equal(anchor.currentTemp, 70);
+  assert.equal(anchor.currentTemp, 50, 'the temperature now is a reading of its own: the Weather picker\'s');
   assert.deepEqual(anchor.windTrend, hours(5), 'the wind is the Weather picker\'s');
   assert.deepEqual([anchor.feeds.temperature, anchor.feeds.wind], ['dwd', 'metno']);
 });
@@ -496,7 +496,7 @@ test('a second fetch in the slot takes every provider\'s forecast from its snaps
 });
 
 test('a second fetch in the slot asks nobody, though the first asked every provider', () => {
-  const each = { options: picked({ temperature: 'dwd', rain: 'metno', wind: 'openweathermap', cloud: 'tomorrowio',
+  const each = { options: picked({ temperature: 'dwd', rainChance: 'metno', wind: 'openweathermap', cloud: 'tomorrowio',
     pressure: 'wunderground', condition: 'yandex', dew: 'openmeteo' }, { drawn: ['cloud', 'pressure', 'dew'] }) };
   const [first, second] = fetchesOf('dwd', [each, Object.assign({ at: 5 * MIN }, each)]);
   assert.deepEqual(Object.keys(first.p.answers.reduce((ids, a) => Object.assign(ids, { [a.id]: true }), {})).sort(),
@@ -563,13 +563,15 @@ test('a day of updates asks each provider what the source plan counts', () => {
     ['openmeteo', { drawn: ['uv'] }, 15],
     ['openmeteo', { drawn: [] }, 30],
     ['yandex', { drawn: ['uv', 'cloud', 'dew'] }, 15],
-    ['tomorrowio', picked({ temperature: 'dwd', rain: 'openmeteo', wind: 'yandex' }, { drawn: ['uv'] }), 15],
+    ['tomorrowio', picked({ temperature: 'dwd', rainAmount: 'openmeteo', wind: 'yandex' }, { drawn: ['uv'] }), 15],
     ['wunderground', picked({ uv: 'openmeteo', cloud: 'metno' }, { drawn: ['cloud'] }), 10],
     ['metno', picked({ pressure: 'dwd' }), 15],
     // DWD sends no UV: no part asks it for the UV that follows it, Open-Meteo's fill brings it.
-    ['dwd', picked({ temperature: 'metno', rain: 'metno', wind: 'metno', condition: 'metno' }), 15],
+    ['dwd', picked({ temperature: 'metno', rainChance: 'metno', wind: 'metno', condition: 'metno' }), 15],
     // Yandex's cloud cover comes from the Open-Meteo forecast the rain part already holds.
-    ['yandex', picked({ rain: 'openmeteo' }, { drawn: ['uv', 'cloud'] }), 15]
+    ['yandex', picked({ rainChance: 'openmeteo' }, { drawn: ['uv', 'cloud'] }), 15],
+    // Every reading its own provider's: one fetch of each, whatever the readings.
+    ['metno', picked({ currentTemp: 'dwd', currentFeels: 'openmeteo', feels: 'dwd', gust: 'openmeteo' }), 15]
   ].forEach(([id, options, intervalMin]) => {
     assert.deepEqual(dayOf(id, options, intervalMin), plannedDay(id, options, intervalMin),
       id + ' ' + JSON.stringify(options) + ' every ' + intervalMin + ' min');
@@ -585,7 +587,7 @@ test('the anchor names each provider asked for its forecast, its key and its fai
     { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });
   assert.deepEqual(failed.p.answers.map((a) => [a.id, Boolean(a.failure)]), [['openweathermap', false], ['dwd', true]]);
   assert.equal(failed.p.answers[1].name, 'Brightsky (Deutscher Wetterdienst)', 'its own name');
-  const [parts] = fetchesOf('metno', [{ options: picked({ wind: 'tomorrowio', rain: 'tomorrowio', cloud: 'dwd' },
+  const [parts] = fetchesOf('metno', [{ options: picked({ wind: 'tomorrowio', rainAmount: 'tomorrowio', cloud: 'dwd' },
     { drawn: ['cloud'] }) }]);
   assert.deepEqual(parts.p.answers.map((a) => [a.id, a.apiKey]), [['metno', undefined], ['tomorrowio', 'tio-test-key'],
     ['dwd', undefined]], 'the Weather picker\'s provider, then each part\'s, each once');
@@ -636,7 +638,8 @@ test('the long span\'s hours the settings page labels are the hours a fetch send
   const forecastModel = require('../../../src/pkjs/weather/domain/forecast-model.js');
   [
     ['dwd', { weatherSourceWind: 'wunderground' }],
-    ['dwd', { weatherSourceRain: 'openweathermap' }],
+    ['dwd', { weatherSourceRainChance: 'openweathermap' }],
+    ['dwd', { weatherSourceGust: 'openweathermap' }],
     ['openweathermap', {}],
     ['openweathermap', { weatherSourceTemperature: 'dwd' }],
     ['metno', { weatherSourceTemperature: 'wunderground' }]

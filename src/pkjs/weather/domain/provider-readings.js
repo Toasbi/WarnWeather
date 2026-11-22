@@ -1,7 +1,7 @@
 // src/pkjs/weather/domain/provider-readings.js — ES5, watch runtime and settings page.
 //
-// What each weather provider serves, in one table. A forecast is made of nine readings, each
-// the mapped keys (forecast-model.js MAPPED_KEYS) that one provider fills; per provider the
+// What each weather provider serves, in one table. A forecast is made of fourteen readings,
+// each the mapped key (forecast-model.js MAPPED_KEYS) that one provider fills; per provider the
 // table says which readings it sends, which setting holds its API key, the area it covers and
 // how many requests one of its fetches makes. test/weather/domain/provider-readings.test.js
 // checks every row against the adapter's own mapping and requests.
@@ -9,25 +9,30 @@
 // Dual-context: a CommonJS module on the phone and in the tests, and a plain <script> on the
 // settings page once it lists it (window.ProviderReadings).
 (function () {
-    // The readings, in the order the settings list them, each with the mapped keys one
-    // provider fills for it. The feels-like rides with the temperature, since it is computed
-    // from the same hours' temperature, humidity and wind; the gusts ride with the wind, the
-    // chance of rain with its amount. startTime and sunTimes belong to none: a forecast starts
-    // where its temperature does, and the sun times ride with the forecast's provider.
+    // The readings, in the order the settings list them, each with the mapped key one provider
+    // fills for it: first the three of the moment, then the forecast's hourly series.
+    // Each provider computes its own feels-like from its own hours' temperature, humidity and
+    // wind (forecast-model.js adoptMapped), so the feels-like inputs, which no forecast keeps,
+    // belong to none. Neither do startTime and sunTimes: a forecast starts where the Weather
+    // picker's provider's does, and the sun times ride with that provider.
     // `drawnOnly`: a reading only some screens draw, which a fetch asks for and fills only while
     // the watch draws it (drawn-readings.js); the others are in every forecast every provider
     // sends.
     var READINGS = [
-        { id: 'temperature', keys: ['tempTrend', 'currentTemp', 'feelsTrend', 'currentFeels',
-            'humidityTrend', 'currentHumidity', 'currentWindKmh'] },
+        { id: 'currentTemp', keys: ['currentTemp'] },
+        { id: 'currentFeels', keys: ['currentFeels'] },
+        { id: 'condition', keys: ['currentCondition'] },
+        { id: 'temperature', keys: ['tempTrend'] },
+        { id: 'feels', keys: ['feelsTrend'] },
         { id: 'dew', keys: ['dewTrend'], drawnOnly: true },
-        { id: 'rain', keys: ['precipTrend', 'rainTrend'] },
-        { id: 'wind', keys: ['windTrend', 'gustTrend'] },
+        { id: 'rainChance', keys: ['precipTrend'] },
+        { id: 'rainAmount', keys: ['rainTrend'] },
+        { id: 'wind', keys: ['windTrend'] },
+        { id: 'gust', keys: ['gustTrend'] },
         { id: 'windDir', keys: ['windDirTrend'], drawnOnly: true },
         { id: 'uv', keys: ['uvTrend'], drawnOnly: true },
         { id: 'cloud', keys: ['cloudTrend'], drawnOnly: true },
-        { id: 'pressure', keys: ['pressureTrend'], drawnOnly: true },
-        { id: 'condition', keys: ['currentCondition'] }
+        { id: 'pressure', keys: ['pressureTrend'], drawnOnly: true }
     ];
     var ALL = READINGS.map(function (reading) { return reading.id; });
     var DRAWN_ONLY = READINGS.filter(function (reading) { return reading.drawnOnly; })

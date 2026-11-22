@@ -16468,6 +16468,42 @@
               },
               {
                 "type": "select",
+                "messageKey": "weatherSourceCurrentTemp",
+                "label": "Current temperature",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "currentTemp"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceCurrentFeels",
+                "label": "Current feels-like",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "currentFeels"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceCondition",
+                "label": "Weather condition",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "condition"
+                  }
+                }
+              },
+              {
+                "type": "select",
                 "messageKey": "weatherSourceTemperature",
                 "label": "Temperature",
                 "defaultValue": "",
@@ -16476,8 +16512,19 @@
                   "args": {
                     "reading": "temperature"
                   }
-                },
-                "hint": "Also brings the feels-like temperature. The other readings line up with its hours."
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceFeels",
+                "label": "Feels-like",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "feels"
+                  }
+                }
               },
               {
                 "type": "select",
@@ -16493,29 +16540,51 @@
               },
               {
                 "type": "select",
-                "messageKey": "weatherSourceRain",
-                "label": "Rain",
+                "messageKey": "weatherSourceRainChance",
+                "label": "Rain chance",
                 "defaultValue": "",
                 "optionsFrom": {
                   "resolver": "weatherReadingOptions",
                   "args": {
-                    "reading": "rain"
+                    "reading": "rainChance"
                   }
-                },
-                "hint": "Brings the chance of rain and the amount."
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceRainAmount",
+                "label": "Rain amount",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "rainAmount"
+                  }
+                }
               },
               {
                 "type": "select",
                 "messageKey": "weatherSourceWind",
-                "label": "Wind",
+                "label": "Wind speed",
                 "defaultValue": "",
                 "optionsFrom": {
                   "resolver": "weatherReadingOptions",
                   "args": {
                     "reading": "wind"
                   }
-                },
-                "hint": "Also brings the gusts."
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "weatherSourceGust",
+                "label": "Wind gusts",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherReadingOptions",
+                  "args": {
+                    "reading": "gust"
+                  }
+                }
               },
               {
                 "type": "select",
@@ -16562,18 +16631,6 @@
                   "resolver": "weatherReadingOptions",
                   "args": {
                     "reading": "pressure"
-                  }
-                }
-              },
-              {
-                "type": "select",
-                "messageKey": "weatherSourceCondition",
-                "label": "Weather condition",
-                "defaultValue": "",
-                "optionsFrom": {
-                  "resolver": "weatherReadingOptions",
-                  "args": {
-                    "reading": "condition"
                   }
                 }
               },

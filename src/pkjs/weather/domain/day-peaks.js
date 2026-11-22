@@ -191,7 +191,7 @@ var METRICS = [
         storageKey: storageKeys.UV_DAY_RECORD_KEY },
     { code: 'wind', series: 'windTrend', scale: 1, degrees: 0.1, wind: true, reading: 'wind',
         storageKey: storageKeys.WIND_DAY_RECORD_KEY },
-    { code: 'gust', series: 'gustTrend', scale: 1, degrees: 0.1, wind: true, reading: 'wind',
+    { code: 'gust', series: 'gustTrend', scale: 1, degrees: 0.1, wind: true, reading: 'gust',
         storageKey: storageKeys.GUST_DAY_RECORD_KEY },
     { code: 'aqi', series: 'aqiTrend', scale: 1, degrees: 0.1,
         storageKey: storageKeys.AQI_DAY_RECORD_KEY, feedField: 'aqiFeedId' }

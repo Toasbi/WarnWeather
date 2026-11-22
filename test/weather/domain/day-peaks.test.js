@@ -251,12 +251,12 @@ test('each record is keyed by the provider its reading came from (the fetch\'s f
   p.options = fetchOptions.defaults({ fetchUv: true, dayPeakCodes: ['uv', 'wind', 'gust'] });
   const ids = () => record.recall(p, SRC.lat, SRC.lon, at(15, 9) + 600, () => null).records
     .map((e) => e.storageKey + ':' + e.record.id);
-  p.feeds = { uv: 'metno', wind: 'metno' };
+  p.feeds = { uv: 'metno', wind: 'metno', gust: 'metno' };
   assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':metno', KEYS.WIND_DAY_RECORD_KEY + ':metno',
-    KEYS.GUST_DAY_RECORD_KEY + ':metno'], 'the gusts ride the wind');
-  p.feeds = { uv: 'openmeteo', wind: 'dwd' };
+    KEYS.GUST_DAY_RECORD_KEY + ':metno']);
+  p.feeds = { uv: 'openmeteo', wind: 'dwd', gust: 'yandex' };
   assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':openmeteo', KEYS.WIND_DAY_RECORD_KEY + ':dwd',
-    KEYS.GUST_DAY_RECORD_KEY + ':dwd']);
+    KEYS.GUST_DAY_RECORD_KEY + ':yandex'], 'the gusts are a reading of their own');
   p.feeds = null;
   assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':openweathermap', KEYS.WIND_DAY_RECORD_KEY + ':openweathermap',
     KEYS.GUST_DAY_RECORD_KEY + ':openweathermap'], 'a fetch that names none: its own');

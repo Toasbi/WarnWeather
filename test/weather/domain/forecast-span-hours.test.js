@@ -237,8 +237,8 @@ test('feedHours with the reading rows\' picks: the shortest feed of the provider
   const picked = (over) => Object.assign({ provider: 'dwd', barSource: 'rain',
     secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', owmApiKey: 'k' }, over);
   assert.equal(spanHours.feedHours(picked({})), 68);
-  assert.equal(spanHours.feedHours(picked({ weatherSourceRain: 'openweathermap' })), 48, 'the rain');
-  assert.equal(spanHours.feedHours(picked({ weatherSourceRain: 'openweathermap', barSource: 'off',
+  assert.equal(spanHours.feedHours(picked({ weatherSourceRainAmount: 'openweathermap' })), 48, 'the rain');
+  assert.equal(spanHours.feedHours(picked({ weatherSourceRainChance: 'openweathermap', barSource: 'off',
     secondaryLine: 'off' })), 48, 'the rain is sent whether the graph draws it or not');
   assert.equal(spanHours.feedHours(picked({ weatherSourceWind: 'wunderground' })), 49,
     'the wind too, with no wind or gust line');
