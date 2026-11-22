@@ -507,6 +507,39 @@ test('Per reading: the forecast from the temperature\'s provider, another readin
   assert.deepEqual(p.feeds, Object.assign(sourcePlan.allFrom('metno'), { wind: 'dwd' }));
 });
 
+test('Per reading: the Weather picker\'s own readings are asked on an instance of their own, beside the temperature\'s', () => {
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
+  const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
+  const { testPorts } = require('../../helpers/source-ports.js');
+  const hours = (v) => new Array(24).fill(v);
+  /**
+   * A provider whose answer is a day of hours of its own values.
+   * @param {string} id Its id.
+   * @param {number} temp Its temperature.
+   * @param {number} wind Its wind.
+   * @returns {Object}
+   */
+  const answering = (id, temp, wind) => Object.assign(new WeatherProvider(), { id: id,
+    withProviderData(lat, lon, force, ok) {
+      Object.assign(this, { tempTrend: hours(temp), precipTrend: hours(0), windTrend: hours(wind), startTime: 3600,
+        currentTemp: temp });
+      ok();
+    } });
+  const anchor = answering('metno', 50, 5);
+  anchor.options = fetchOptions.defaults({ drawn: [], sources: { mode: 'reading', choices: { temperature: 'dwd' },
+    keyed: [] } });
+  const ports = Object.assign(testPorts(), {
+    providerFor: (id) => Object.assign(id === 'dwd' ? answering('dwd', 70, 7) : answering(id, 50, 5),
+      { options: anchor.options }) });
+  let outcome = null;
+  require('../../../src/pkjs/weather/application/fetch-sources.js').fetchSources(anchor, ports, 52.52, 13.405, false,
+    () => { outcome = 'ok'; }, (f) => { outcome = f; });
+  assert.equal(outcome, 'ok');
+  assert.deepEqual(anchor.tempTrend, hours(70), 'the temperature stays DWD\'s');
+  assert.deepEqual(anchor.windTrend, hours(5), 'the wind is the Weather picker\'s');
+  assert.deepEqual([anchor.feeds.temperature, anchor.feeds.wind], ['dwd', 'metno']);
+});
+
 test('Per reading: a reading\'s provider that fails hands it to the Weather picker\'s provider', () => {
   const [{ p, outcome, requests }] = fetchesOf('openweathermap', [{ options: perReading({ temperature: 'metno', wind: 'dwd' }) }],
     { answers: (url) => url.indexOf('api.brightsky.dev') === -1 });

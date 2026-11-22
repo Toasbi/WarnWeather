@@ -58,3 +58,22 @@ test('adoptReadings lays nothing on where the hours do not line up, and drops a 
   assert.equal(fm.adoptReadings(lacking, { startTime: 10 * H }, ['sunTimes']), true);
   assert.equal(Object.prototype.hasOwnProperty.call(lacking, 'sunTimes'), false);
 });
+
+test('the hours from one start to another: whole hours on, else none', () => {
+  const H = 3600;
+  assert.equal(model.hourShift(10 * H, 12 * H), 2);
+  assert.equal(model.hourShift(10 * H, 10 * H), 0);
+  assert.equal(model.hourShift(12 * H, 10 * H), null, 'the second starts first');
+  assert.equal(model.hourShift(10 * H, 10 * H + 1800), null, 'off the hour grid');
+  assert.equal(model.hourShift(undefined, 10 * H), null);
+});
+
+test('another provider\'s whole forecast replaces every adopted field; one it lacks goes', () => {
+  const target = { tempTrend: [1], currentTemp: 1, uvTrend: [9], startTime: 1 };
+  const source = { tempTrend: [2, 3], currentTemp: 2, startTime: 7200 };
+  model.adoptForecast(target, source);
+  assert.deepEqual(target.tempTrend, [2, 3]);
+  assert.equal(target.currentTemp, 2);
+  assert.equal(target.startTime, 7200);
+  assert.equal('uvTrend' in target, false, 'a field the answer lacks is not left from before');
+});

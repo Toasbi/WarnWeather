@@ -209,8 +209,8 @@ function snapshotOf(query, provider, nowMs) {
  * @returns {?Object} The fields, startTime set to startEpoch where they hold one.
  */
 function reanchored(entry, startEpoch) {
-    var shift = (startEpoch - entry.startTime) / HOUR_SECONDS;
-    if (!(shift >= 0) || Math.floor(shift) !== shift) { return null; }
+    var shift = forecastModel.hourShift(entry.startTime, startEpoch);
+    if (shift === null) { return null; }
     var out = {};
     var keys = Object.keys(entry.fields);
     for (var i = 0; i < keys.length; i++) {

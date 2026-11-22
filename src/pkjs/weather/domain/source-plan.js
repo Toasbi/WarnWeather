@@ -216,27 +216,26 @@
 
     /**
      * Per reading's parts: for each provider other than the one that served the forecast, the
-     * readings it brings that the fetch uses (wanted), in READINGS order. None in the other
-     * modes, and none for a provider that failed this fetch: its readings stay with the
-     * forecast's, the Weather picker's then (candidates). fetch-sources.js asks a part's provider
-     * for its whole forecast and lays the part's readings on by time; a part that fails falls
-     * back to the Weather picker's provider.
+     * readings it brings that the fetch uses (wanted), in READINGS order, and the provider they
+     * fall back to when it fails or its hours do not line up: the Weather picker's. None in the
+     * other modes. fetch-sources.js asks a part's provider for its whole forecast, once a fetch
+     * (a provider that already failed is not asked again), and lays the part's readings on by
+     * time.
      * @param {Object} input readingProviders()'s input.
      * @param {string} served The provider that served the forecast.
-     * @param {string[]} failed The providers that failed this fetch.
      * @param {string[]} drawn The drawn-only readings the watch draws.
-     * @returns {Array<{provider: string, readings: string[]}>}
+     * @returns {Array<{provider: string, fallback: string, readings: string[]}>}
      */
-    function partSteps(input, served, failed, drawn) {
+    function partSteps(input, served, drawn) {
         if (input.mode !== 'reading') { return []; }
         var byReading = readingProviders(input);
         var steps = [];
         wanted(drawn).forEach(function (id) {
             var provider = byReading[id];
-            if (provider === served || failed.indexOf(provider) !== -1) { return; }
+            if (provider === served) { return; }
             var step = steps.filter(function (s) { return s.provider === provider; })[0];
             if (!step) {
-                step = { provider: provider, readings: [] };
+                step = { provider: provider, fallback: input.provider, readings: [] };
                 steps.push(step);
             }
             step.readings.push(id);
@@ -275,7 +274,7 @@
      */
     function steadySteps(input, drawn) {
         var served = candidates(input)[0];
-        var parts = partSteps(input, served, [], drawn);
+        var parts = partSteps(input, served, drawn);
         var feeds = allFrom(served);
         parts.forEach(function (step) {
             step.readings.forEach(function (id) { feeds[id] = step.provider; });

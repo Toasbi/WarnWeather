@@ -170,22 +170,20 @@ test('Per reading: the forecast from the temperature\'s provider, then the Weath
   assert.deepEqual(sourcePlan.candidates(Object.assign({}, PER_READING, { choices: {} })), ['metno']);
 });
 
-test('Per reading\'s parts: each other provider once, with the readings in use it brings, in the table\'s order', () => {
+test('Per reading\'s parts: each other provider once, with the readings in use it brings, falling back to the Weather picker\'s', () => {
   const input = Object.assign({}, PER_READING, { choices: { wind: 'dwd', uv: 'openmeteo', pressure: 'dwd', dew: 'openmeteo' } });
-  assert.deepEqual(sourcePlan.partSteps(input, 'metno', [], ALL_DRAWN), [
-    { provider: 'openmeteo', readings: ['dew', 'uv'] },
-    { provider: 'dwd', readings: ['wind', 'pressure'] }]);
-  assert.deepEqual(sourcePlan.partSteps(input, 'metno', [], ['windDir', 'cloud', 'pressure']),
-    [{ provider: 'dwd', readings: ['wind', 'pressure'] }], 'a reading the watch does not draw asks nobody');
-  assert.deepEqual(sourcePlan.partSteps(input, 'metno', ['dwd'], ALL_DRAWN),
-    [{ provider: 'openmeteo', readings: ['dew', 'uv'] }], 'a provider that failed this fetch');
+  const part = (provider, readings) => ({ provider: provider, fallback: 'metno', readings: readings });
+  assert.deepEqual(sourcePlan.partSteps(input, 'metno', ALL_DRAWN), [part('openmeteo', ['dew', 'uv']),
+    part('dwd', ['wind', 'pressure'])]);
+  assert.deepEqual(sourcePlan.partSteps(input, 'metno', ['windDir', 'cloud', 'pressure']),
+    [part('dwd', ['wind', 'pressure'])], 'a reading the watch does not draw asks nobody');
   const dwdBase = Object.assign({}, PER_READING, { choices: { temperature: 'dwd', wind: 'dwd' } });
-  assert.deepEqual(sourcePlan.partSteps(dwdBase, 'dwd', [], ALL_DRAWN),
-    [{ provider: 'metno', readings: ['dew', 'rain', 'windDir', 'uv', 'cloud', 'pressure', 'condition'] }],
+  assert.deepEqual(sourcePlan.partSteps(dwdBase, 'dwd', ALL_DRAWN),
+    [part('metno', ['dew', 'rain', 'windDir', 'uv', 'cloud', 'pressure', 'condition'])],
     'the forecast\'s provider brings its own; Same as Weather is the Weather picker\'s');
-  assert.deepEqual(sourcePlan.partSteps(dwdBase, 'metno', ['dwd'], ALL_DRAWN), [],
-    'the temperature\'s provider failed: the Weather picker\'s brings everything');
-  assert.deepEqual(sourcePlan.partSteps(Object.assign({}, input, { mode: 'auto' }), 'metno', [], ALL_DRAWN), []);
+  assert.deepEqual(sourcePlan.partSteps(dwdBase, 'metno', ALL_DRAWN), [part('dwd', ['temperature', 'wind'])],
+    'the temperature\'s provider failed and the Weather picker\'s served: DWD\'s readings fall back to it');
+  assert.deepEqual(sourcePlan.partSteps(Object.assign({}, input, { mode: 'auto' }), 'metno', ALL_DRAWN), []);
 });
 
 test('the fills follow each reading\'s own provider', () => {
