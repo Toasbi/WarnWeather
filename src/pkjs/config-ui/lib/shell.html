@@ -660,6 +660,17 @@
   .ui-new .ui-ic { flex: none; color: var(--link); }
   .ui-new .ui-n { flex: 1 1 auto; color: var(--link); }
   .ui-new .ui-d { flex: none; }
+  /* a list's row that opens something (listRow): its words, the red arrow, then the × that
+     takes it out where it can go; a row without one ends where an Add row's plus does. An Add
+     row in their shape (addRow): its words in the accent, the plus where their × is */
+  .ui-item { display: flex; align-items: center; }
+  .ui-open { flex: 1 1 auto; display: flex; align-items: center; gap: 12px; min-width: 0; margin: 0; padding: 12px 18px 12px 16px; border: none; background: none; color: var(--lbl); text-align: left; font: inherit; cursor: pointer; -webkit-appearance: none; appearance: none; }
+  .ui-open:not(:last-child) { padding-right: 4px; }
+  .ui-txt { flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; }
+  .ui-x { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: 6px; border: none; background: none; color: var(--hint); cursor: pointer; -webkit-appearance: none; appearance: none; }
+  .ui-x .ui-ic, .ui-plus .ui-ic { width: 20px; height: 20px; }
+  .ui-add .ui-n, .ui-plus { color: var(--link); }
+  .ui-plus { flex: none; display: flex; }
   /* a list's last word when nothing more can be made */
   .ui-foot { padding: 12px 16px 14px; font-size: 12.5px; line-height: 1.45; color: var(--hint); }
   /* the Undo after a delete, in the list the thing went from (undoToast) */

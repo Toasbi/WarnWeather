@@ -3,9 +3,10 @@
 // same (the owner's ask, 2026-11-09: no copies of a part in the pages, the part in the engine).
 // The red arrow of anything that opens a screen of its own, the red ▸/▾ of anything that folds
 // open in place, Delete (the last thing under what it deletes), the Undo after it and the timer
-// that takes it away, a list's New row, a chip, a dropdown, an Edit button, the pencil that
-// renames, the name field with its OK, a note, the line icons, the header of a full-screen view
-// (a dialog's, the screen editor's) and the header of a popup over the page (News, Support).
+// that takes it away, a list's New row, a list's row that opens something with its × and an Add
+// row in its shape, a chip, a dropdown, an Edit button, the pencil that renames, the name field
+// with its OK, a note, the line icons, the header of a full-screen view (a dialog's, the screen
+// editor's) and the header of a popup over the page (News, Support).
 // Markup here, the look in shell.html (the .ui-* rules, and the engine's .chev and .dlg-* rules
 // these parts share). A leaf over html.js (esc): loaded after it and before engine.js in the
 // page concat (build-page.js LIB_PAGE_FILES); engine.js draws its nav rows, its folding cards,
@@ -109,6 +110,45 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   function newRow(label, note, at) {
     return '<button type="button" class="ui-row ui-new"' + attrs(at) + '>' + icon('plus') + '<span class="ui-n">'
       + esc(label) + '</span>' + (note ? '<span class="ui-d">' + esc(note) + '</span>' : '') + '</button>';
+  }
+
+  /**
+   * A list row's words: its name, the line under it.
+   * @param {string} name Plain text.
+   * @param {string} line Plain text, '' for none.
+   * @returns {string} Markup
+   */
+  function rowText(name, line) {
+    return '<span class="ui-txt"><span class="ui-n">' + esc(name) + '</span>'
+      + (line ? '<span class="ui-d">' + esc(line) + '</span>' : '') + '</span>';
+  }
+
+  /**
+   * A list's row that opens something of its own (a picker, a dialog): its name, the line under
+   * it and the red arrow, then the × that takes it out of the list where it can go (the Weather
+   * dialog's Other sources). The rows' wrapper carries role="list".
+   * @param {{name: string, line: string, at: Object, x: ?Object}} o The name; the line under it
+   *   ('' for none); what a tap on the row does (its attributes); the ×'s attributes, its
+   *   aria-label among them (null: no ×).
+   * @returns {string} Markup
+   */
+  function listRow(o) {
+    return '<div class="ui-row ui-item" role="listitem"><button type="button" class="ui-open"' + attrs(o.at) + '>'
+      + rowText(o.name, o.line) + navArrow() + '</button>'
+      + (o.x ? '<button type="button" class="ui-x"' + attrs(o.x) + '>' + icon('x') + '</button>' : '') + '</div>';
+  }
+
+  /**
+   * A list's Add row in the shape of the rows above it (listRow): what it adds in the accent and
+   * the line under it, the plus where their × is.
+   * @param {string} label What it adds ("Use another source").
+   * @param {string} line The line under it, '' for none.
+   * @param {Object} at Its attributes.
+   * @returns {string} Markup
+   */
+  function addRow(label, line, at) {
+    return '<div class="ui-row ui-item" role="listitem"><button type="button" class="ui-open ui-add"' + attrs(at) + '>'
+      + rowText(label, line) + '<span class="ui-plus">' + icon('plus') + '</span></button></div>';
   }
 
   /**
@@ -261,7 +301,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   PConf.ui = {
     attrs: attrs, icon: icon, navArrow: navArrow, foldChev: foldChev, deleteButton: deleteButton,
-    undoToast: undoToast, newRow: newRow, chip: chip, dropdown: dropdown, editButton: editButton, penButton: penButton,
+    undoToast: undoToast, newRow: newRow, listRow: listRow, addRow: addRow, chip: chip, dropdown: dropdown, editButton: editButton, penButton: penButton,
     renameField: renameField, note: note, header: header, popupHeader: popupHeader, flash: flash, unflash: unflash
   };
   if (typeof module !== 'undefined' && module.exports) { module.exports = PConf.ui; }

@@ -17,6 +17,7 @@ const providerReadings = require('../../../src/pkjs/weather/domain/provider-read
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const { NOTHING_PLACED, NOTHING_DRAWN } = require('../../helpers/on-demand.js');
 const { bootGeneratedPage } = require('../../helpers/page-harness.js');
+const ui = require('../../../src/pkjs/config-ui/lib/ui.js');
 
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 // No slot shows UV (a fresh install's radar bar and Watch bar do) and no alert is placed.
@@ -221,16 +222,18 @@ test('a provider the page does not know draws no list', () => {
 test('the list: Use another source alone while everything comes from the Provider', () => {
   const body = weatherDialog({}).modal.innerHTML;
   assert.ok(body.indexOf('<div class="ui-list" role="list" aria-label="Other sources">') !== -1);
-  assert.equal((body.match(/class="ui-row wo-row"/g) || []).length, 1, 'one row');
-  assert.match(body, /data-select="weatherOtherSourceFor" aria-haspopup="listbox"><span class="wo-txt"><span class="ui-n">Use another source<\/span><span class="ui-d">Everything comes from DWD\.<\/span>/);
-  assert.equal(body.indexOf('class="wo-del"'), -1, 'nothing to give back');
+  assert.equal((body.match(/class="ui-row ui-item"/g) || []).length, 1, 'one row');
+  assert.ok(body.indexOf(ui.addRow('Use another source', 'Everything comes from DWD.',
+    { 'data-select': OTHER_FOR, 'aria-haspopup': 'listbox' })) !== -1, 'the kit\'s Add row');
+  assert.equal(body.indexOf('data-action="weatherPickRemove"'), -1, 'nothing to give back');
 });
 
 test('the list: a row for each value from another provider, which opens its picker, and its ×', () => {
   const body = weatherDialog({ weatherSourceFeels: 'metno', weatherSourceWind: 'tomorrowio' }).modal.innerHTML;
-  assert.ok(body.indexOf('<button type="button" class="wo-open" data-select="weatherSourceFeels" aria-haspopup="listbox">'
-    + '<span class="wo-txt"><span class="ui-n">Feels-like</span><span class="ui-d">Met.no</span></span>') !== -1, body);
-  assert.ok(body.indexOf('data-action="weatherPickRemove" data-action-arg="feels" aria-label="Feels-like back to DWD"') !== -1);
+  assert.ok(body.indexOf(ui.listRow({ name: 'Feels-like', line: 'Met.no',
+    at: { 'data-select': 'weatherSourceFeels', 'aria-haspopup': 'listbox' },
+    x: { 'data-action': 'weatherPickRemove', 'data-action-arg': 'feels', 'aria-label': 'Feels-like back to DWD' } })) !== -1,
+  'the kit\'s list row, its × naming where the value goes back to');
   assert.ok(body.indexOf('<span class="ui-n">Wind speed</span><span class="ui-d">Tomorrow.io · no API key</span>') !== -1,
     'a pick without its key says so: the phone asks DWD then');
   assert.ok(body.indexOf('Feels-like') < body.indexOf('Wind speed'), 'in the pickers\' order');
@@ -349,7 +352,7 @@ test('the line closes Data sources under the Update interval, at the interval Sa
 
 test('the ×: focus goes to the × now in its place, else the one before it, else to Use another source', () => {
   const remove = global.PConf.actions.weatherPickRemove;
-  const del = (id) => '.wo-del[data-action-arg="' + id + '"]';
+  const del = (id) => '[data-action="weatherPickRemove"][data-action-arg="' + id + '"]';
   const add = '[data-select="' + OTHER_FOR + '"]';
   const S = { provider: 'dwd', weatherSourceFeels: 'metno', weatherSourceDew: 'metno', weatherSourceWind: 'metno' };
   assert.deepEqual(remove('dew', S), { focus: [del('wind'), del('feels'), add] }, 'the row after it, else before');

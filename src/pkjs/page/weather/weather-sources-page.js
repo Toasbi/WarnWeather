@@ -34,6 +34,8 @@
     var READING_IDS = providerReadings.READING_IDS;
     // Use another source's page-only picker (weather-sources-schema.js SOURCE_PICKERS).
     var OTHER_FOR = 'weatherOtherSourceFor';
+    // The action of a row's ×, which gives its value back to the Provider (removePick).
+    var REMOVE = 'weatherPickRemove';
     var KEY_FIRST = 'Pick it as Provider to add its key';
     // The list's last row, which adds a value (the feature tip names it: feature-tips.js).
     var USE_ANOTHER = 'Use another source';
@@ -159,65 +161,33 @@
         var at = ids.indexOf(id);
         S[sourcePlan.choiceKey(id)] = '';
         return { focus: [ids[at + 1], ids[at - 1]].filter(Boolean).map(function (other) {
-            return '.wo-del[data-action-arg="' + other + '"]';
+            return '[data-action="' + REMOVE + '"][data-action-arg="' + other + '"]';
         }).concat(['[data-select="' + OTHER_FOR + '"]']) };
     }
 
-    var CSS = '.wo-row{display:flex;align-items:center}'
-        + '.wo-open{flex:1 1 auto;display:flex;align-items:center;gap:12px;min-width:0;margin:0;padding:12px 4px 12px 16px;'
-        + 'border:none;background:none;color:var(--lbl);text-align:left;font:inherit;cursor:pointer;'
-        + '-webkit-appearance:none;appearance:none}'
-        + '.wo-txt{flex:1 1 auto;min-width:0;display:grid;gap:3px}'
-        + '.wo-del{flex:none;width:44px;height:44px;margin-right:6px;border:none;background:none;color:var(--hint);'
-        + 'cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-appearance:none;appearance:none}'
-        + '.wo-del .ui-ic,.wo-plus .ui-ic{width:20px;height:20px}'
-        // Use another source has the rows' shape: its words where theirs are, its + where their × is.
-        + '.wo-add{padding-right:18px}'
-        + '.wo-add .ui-n,.wo-plus{color:var(--link)}'
-        + '.wo-plus{flex:none;display:flex}';
-
     /**
-     * The list's style, once per page.
-     * @returns {void}
-     */
-    function ensureStyle() {
-        if (typeof document === 'undefined' || !document.getElementById || document.getElementById('wo-style')) { return; }
-        var el = document.createElement('style');
-        el.id = 'wo-style';
-        el.textContent = CSS;
-        document.head.appendChild(el);
-    }
-
-    /**
-     * The Other sources list (block weatherOtherSources): a row for each value from another
-     * provider, its name and that provider, opening its picker, an × beside it; then Use another
-     * source, which says what still comes from the Provider. A keyed provider without its key
-     * says so: the phone asks the Provider then (source-plan.js feedsOf).
+     * The Other sources list (block weatherOtherSources), in the page's shared parts (kit): a
+     * row for each value from another provider, its name and that provider, opening its picker,
+     * an × after it; then Use another source, which says what still comes from the Provider. A
+     * keyed provider without its key says so: the phone asks the Provider then (source-plan.js
+     * feedsOf).
      * @param {Object} S Settings.
      * @returns {string} HTML; '' outside the page, and for a provider the page does not know.
      */
     function otherSourcesBlock(S) {
         if (!S || !PConf || !PConf.ui || !Object.prototype.hasOwnProperty.call(NAMES, S.provider)) { return ''; }
-        ensureStyle();
         var kit = PConf.ui, list = readingPicks(S), main = NAMES[S.provider], keyed = { keyed: sourcePlan.keyedOf(S) };
         var rows = list.map(function (o) {
             var label = words.label(o.id);
-            var from = NAMES[o.provider] + (sourcePlan.askable(o.provider, keyed) ? '' : ' · no API key');
-            return '<div class="ui-row wo-row" role="listitem">'
-                + '<button type="button" class="wo-open"' + kit.attrs({ 'data-select': sourcePlan.choiceKey(o.id),
-                    'aria-haspopup': 'listbox' }) + '><span class="wo-txt"><span class="ui-n">' + html.esc(label)
-                + '</span><span class="ui-d">' + html.esc(from) + '</span></span>' + kit.navArrow() + '</button>'
-                + '<button type="button" class="wo-del"' + kit.attrs({ 'data-action': 'weatherPickRemove',
-                    'data-action-arg': o.id, 'aria-label': label + ' back to ' + main }) + '>' + kit.icon('x')
-                + '</button></div>';
+            return kit.listRow({ name: label,
+                line: NAMES[o.provider] + (sourcePlan.askable(o.provider, keyed) ? '' : ' · no API key'),
+                at: { 'data-select': sourcePlan.choiceKey(o.id), 'aria-haspopup': 'listbox' },
+                x: { 'data-action': REMOVE, 'data-action-arg': o.id, 'aria-label': label + ' back to ' + main } });
         }).join('');
         var rest = list.length ? 'The other ' + (READING_IDS.length - list.length) + ' come from ' + main + '.'
             : 'Everything comes from ' + main + '.';
         return '<div class="ui-list" role="list" aria-label="Other sources">' + rows
-            + '<div class="ui-row wo-row" role="listitem"><button type="button" class="wo-open wo-add"'
-            + kit.attrs({ 'data-select': OTHER_FOR, 'aria-haspopup': 'listbox' }) + '><span class="wo-txt">'
-            + '<span class="ui-n">' + USE_ANOTHER + '</span><span class="ui-d">' + html.esc(rest) + '</span></span>'
-            + '<span class="wo-plus">' + kit.icon('plus') + '</span></button></div></div>';
+            + kit.addRow(USE_ANOTHER, rest, { 'data-select': OTHER_FOR, 'aria-haspopup': 'listbox' }) + '</div>';
     }
 
     /**
@@ -275,7 +245,7 @@
         PConf.optionsResolvers.register('weatherFreeValues', freeValues);
         PConf.onChange.register('weatherProviderPicked', providerPicked);
         PConf.blocks.register('weatherOtherSources', otherSourcesBlock);
-        PConf.actions.weatherPickRemove = removePick;
+        PConf.actions[REMOVE] = removePick;
     }
 
     var api = { USE_ANOTHER: USE_ANOTHER, summary: summary, readingPicks: readingPicks, providerPicked: providerPicked,

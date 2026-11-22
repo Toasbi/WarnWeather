@@ -1017,6 +1017,7 @@ as `PConf.ui` in the page (`require('…/config-ui/lib/ui.js')` under Node). War
 | `deleteButton(label, at)` | Delete: centred in the accent, under (outside) what it deletes. The `style: 'delete'` button item is this. |
 | `undoToast(text, at)` | The Undo after a delete, in the list the thing went from. `flash(box, v, ms, repaint)` keeps its text in `box` for `ms`, then repaints without it; `unflash(box)` removes it early. |
 | `newRow(label, note, at)` | A list's New row at its foot: the plus and what it makes in the accent, how many there are on the right. |
+| `listRow(o)`, `addRow(label, line, at)` | A list's row that opens something of its own (a picker, a dialog): its name, the line under it and the red arrow, then the × that takes it out where it can go (`o.x`, its attributes with its `aria-label`; `null` for none). An Add row in their shape: what it adds in the accent and the line under it, the plus where their × is. The rows' wrapper carries `role="list"`. |
 | `chip(label, at, {icon, on})` | A chip: an Add chip (the plus first) or a toggle chip (tinted and ticked while on). |
 | `dropdown(label, at)` | A dropdown: what is picked, then the ▾ that opens its picker. A `select` row's trigger is this, and so is a value an app's own view picks through a sheet (`ctx.openSheet`). |
 | `editButton(label, at)` | An Edit button: the outlined text button beside a value that opens what changes it (a row's edit sheet, a dialog an app's own view opens). |

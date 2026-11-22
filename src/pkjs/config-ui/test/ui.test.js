@@ -55,6 +55,24 @@ test('Delete, the Undo after it, a list\'s New row, a chip, the pencil, the name
   assert.equal(ui.note('Too <tall>'), '<div class="ui-note" role="status">Too &lt;tall&gt;</div>');
 });
 
+test('a list row that opens something, its × and an Add row in its shape: escaped, the line and the × left out when absent', () => {
+  const at = { 'data-select': 'pick', 'aria-haspopup': 'listbox' };
+  assert.equal(ui.listRow({ name: 'Feels <like>', line: 'A & B', at, x: { 'data-action': 'drop', 'aria-label': 'Drop "it"' } }),
+    '<div class="ui-row ui-item" role="listitem"><button type="button" class="ui-open" data-select="pick" aria-haspopup="listbox">'
+    + '<span class="ui-txt"><span class="ui-n">Feels &lt;like&gt;</span><span class="ui-d">A &amp; B</span></span>' + ui.navArrow()
+    + '</button><button type="button" class="ui-x" data-action="drop" aria-label="Drop &quot;it&quot;">' + ui.icon('x')
+    + '</button></div>');
+  const bare = ui.listRow({ name: 'Wind', line: '', at, x: null });
+  assert.equal(bare.indexOf('ui-d'), -1, 'no line');
+  assert.equal(bare.indexOf('ui-x'), -1, 'no ×: a row that cannot go');
+  assert.ok(bare.endsWith(ui.navArrow() + '</button></div>'), 'the red arrow ends it');
+  assert.equal(ui.addRow('Use <another>', 'Everything & more.', at),
+    '<div class="ui-row ui-item" role="listitem"><button type="button" class="ui-open ui-add" data-select="pick"'
+    + ' aria-haspopup="listbox"><span class="ui-txt"><span class="ui-n">Use &lt;another&gt;</span><span class="ui-d">'
+    + 'Everything &amp; more.</span></span><span class="ui-plus">' + ui.icon('plus') + '</span></button></div>');
+  assert.equal(ui.addRow('Add', '', at).indexOf('ui-d'), -1, 'no line');
+});
+
 test('the header of a full-screen view: the way out, the kicker over the title and its pencil, Done; renamed, the field with OK', () => {
   const o = { titleId: 't1', title: 'Flick <1>', kicker: 'Screens', way: { glyph: '&#8249;', label: 'Back', at: { 'data-se': 'close' } },
     pen: { 'data-se': 'rename' }, done: { 'data-se': 'close' }, rename: null };
