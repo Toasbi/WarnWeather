@@ -39,16 +39,3 @@ test('One provider asks the Weather picker\'s provider alone', (t) => {
   assert.equal(h.requestsTo(BRIGHT_SKY), 0);
   assert.equal(h.requestsTo(OPEN_METEO_MAIN), 1);
 });
-
-test('By location keeps the country last found near the place while the reverse geocode fails', (t) => {
-  const { healthyNetwork } = require('../helpers/index-harness.js');
-  const h = bootIndex(t, { settings: { weatherSourceMode: 'auto' },
-    network: (url) => (/geocode\.arcgis\.com/.test(url) ? { status: 503, body: '' } : healthyNetwork(url)),
-    store: { lastFetchSuccess: JSON.stringify({ time: new Date(HARNESS_NOW - 2 * HOUR_MS).toISOString() }),
-      lastCity: JSON.stringify({ name: 'Mitte', lat: 52.52, lon: 13.405, country: 'DEU' }) } });
-  h.ready();
-  h.advance(5 * 1000);
-  const asked = h.xhrs.filter((u) => BRIGHT_SKY.test(u) || OPEN_METEO_MAIN.test(u));
-  assert.ok(BRIGHT_SKY.test(asked[0]), 'DWD first, as in Germany: ' + asked.join(', '));
-});
-

@@ -235,10 +235,8 @@ WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure
  * Reverse-geocode coordinates to a display city name + country code via ArcGIS.
  * Never fails: the city is only the City slot's display string, so a slow,
  * down or refusing ArcGIS must not cost the forecast. A failed lookup carries
- * on with the last name and country resolved near these coordinates, else
- * 'Unknown' (what a response without an address already gives) and a null
- * country code; By location keeps its regional provider at a place looked up
- * before (source-plan.js candidates).
+ * on with the last name resolved near these coordinates, else 'Unknown' (what
+ * a response without an address already gives), and a null country code.
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
@@ -257,7 +255,7 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback) {
     function fallBack(reason) {
         var name = locationLib.readLastCityNear(lat, lon) || 'Unknown';
         console.log('[!] Reverse geocode failed (' + reason + '), using city: ' + name);
-        callback(name, locationLib.readLastCountryNear(lat, lon));
+        callback(name, null);
     }
 
     request(
@@ -278,13 +276,13 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback) {
 
             address = (body && body.address) || {};
             name = address.District || address.City || address.Region;
-            countryCode = address.CountryCode || null;
             if (name) {
-                locationLib.writeLastCity(name, lat, lon, countryCode);
+                locationLib.writeLastCity(name, lat, lon);
             }
             else {
                 name = 'Unknown';
             }
+            countryCode = address.CountryCode || null;
             console.log('Running callback with city: ' + name + ', countryCode=' + countryCode);
             callback(name, countryCode);
         },
