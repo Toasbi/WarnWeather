@@ -1940,3 +1940,17 @@ test('radar throttle: a store that cannot keep the record still asks, without th
     assert.equal(rbCycle(h, RB_T0).requested, true);
     assert.equal(rbCycle(h, RB_T0 + 5 * MIN).requested, true, 'no record, no throttle');
 });
+
+test('the watchdog outlasts the longest chain a healthy fetch makes, Per reading asking every provider', () => {
+    const providerReadings = require('../../src/pkjs/weather/domain/provider-readings.js');
+    const http = require('../../src/pkjs/weather/adapter/http.js');
+    // Every provider's requests with UV, and Weather Underground's re-scrape of a refused key
+    // (its page, then its two requests again).
+    const forecast = Object.keys(providerReadings.PROVIDERS)
+        .reduce((n, id) => n + providerReadings.requests(id, true), 0) + 3;
+    // The fix, the radar (twice), the city, the two fills, air quality (twice), pollen, the ACK.
+    const around = 1 + 2 + 1 + 2 + 2 + 1 + 1;
+    assert.equal(forecast + around, 24);
+    assert.ok((forecast + around) * http.XHR_TIMEOUT_MS < WATCHDOG_MS);
+});
+

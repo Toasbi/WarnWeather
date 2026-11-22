@@ -47,14 +47,15 @@ var KEY_SERVER_STREAK = storageKeys.SERVER_FAILURE_STREAK_KEY;
 // healthy chain is bounded by its own timeouts, step after step: the GPS fix
 // (10 s) or the address's geocode; the radar (twice for Rainbow (own key), which
 // retries without its start time; the sky rows ask alongside); the city; the
-// provider (up to three requests for DWD and Open-Meteo, five for Weather
-// Underground when it re-scrapes a refused key); AQI (twice when Auto falls back);
-// pollen. Each request takes at most 10 s (weather/adapter/http.js XHR_TIMEOUT_MS), then
-// comes the AppMessage ACK: twelve such waits at the very worst, 120 s plus the
-// ACK. So one still running after 3 min had a callback that threw or never came
-// back, and its in-progress flag would otherwise block every later fetch until
-// PKJS restarts.
-var FETCH_WATCHDOG_MS = 3 * 60 * 1000;
+// forecast's providers one after another (up to three requests for DWD and
+// Open-Meteo, five for Weather Underground when it re-scrapes a refused key; Per
+// reading may ask every provider) and the two fills; AQI (twice when Auto falls
+// back); pollen. Each request takes at most 10 s (weather/adapter/http.js
+// XHR_TIMEOUT_MS), then comes the AppMessage ACK: 24 such waits at the very worst
+// (test/shell/fetch-cycle.test.js counts them). So one still running after 5 min
+// had a callback that threw or never came back, and its in-progress flag would
+// otherwise block every later fetch until PKJS restarts.
+var FETCH_WATCHDOG_MS = 5 * 60 * 1000;
 // Tolerance when comparing a failure backoff against the tick clock (see
 // isFailureBackoffActive): half of the 60 s scheduler tick.
 var FAILURE_BACKOFF_SLACK_MS = 30 * 1000;

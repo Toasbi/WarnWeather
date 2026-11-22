@@ -83,6 +83,7 @@ function failure(stage, code) {
 }
 
 module.exports = {
+    XHR_TIMEOUT_MS: XHR_TIMEOUT_MS,
     request: request,
     failure: failure
 };
