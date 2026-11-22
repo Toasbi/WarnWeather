@@ -1,7 +1,9 @@
 // test/weather/application/fetch-sources.test.js — one fetch's sources, run in the test world
-// (test/helpers/provider-world.js): the Weather picker's provider fetches its own forecast,
-// then each fill puts its reading on it (so far DWD's UV, from Open-Meteo's UV-only request),
-// and each answer is kept as a forecast snapshot that a fetch soon after reuses.
+// (test/helpers/provider-world.js): the forecast from the first candidate that serves it (the
+// Weather picker's provider, or By location's and Per reading's others), Per reading's parts laid
+// on by time, then each fill for what the readings' providers lack (DWD's UV by Open-Meteo's
+// UV-only request, Yandex's other readings by one request), each answer kept as a forecast
+// snapshot that a fetch soon after reuses; and what the fetch tells the fetch cycle.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');

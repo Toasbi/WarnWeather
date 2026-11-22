@@ -141,7 +141,8 @@ function build(settings, watchInfo, env) {
     var graph = graphStyleWire.weatherSettings(settings, watchInfo);
     // The readings only some screens draw that this watch draws: drawn-readings.js reads the
     // shown graph styles' union from the settings themselves.
-    var drawn = drawnReadings.drawn(settings, platform.computeEnv(watchInfo));
+    var watchEnv = platform.computeEnv(watchInfo);
+    var drawn = drawnReadings.drawn(settings, watchEnv);
     return defaults({
         // Whether UV is wanted: DWD/Open-Meteo spend a request on it; every
         // adapter adopts it only when this is on (adoptMapped).
@@ -171,7 +172,7 @@ function build(settings, watchInfo, env) {
         // The forecast's time span: the stored option's 14 | 24 | 68 hours on an emery (26 for
         // 24 h with no left axis), 24 on every other watch and an unknown one (their inboxes
         // cannot take a 68-hour bundle).
-        forecastHours: forecastSpan.hours(graph, platform.computeEnv(watchInfo))
+        forecastHours: forecastSpan.hours(graph, watchEnv)
     });
 }
 

@@ -873,9 +873,9 @@ test('the gap request asks only the readings named, from best_match, in °F, ove
     ['2', '3', '4']);
 });
 
-test('the gap request lands each reading on the provider by time, the cloud layers weighed', () => {
+test('the fill request lands each reading on the provider by time, the cloud layers weighed', () => {
   const p = { startTime: BASE + 2 * 3600, options: fetchOptions.defaults() };
-  Object.keys(openmeteo.GAP_FIELDS).forEach((id) => { openmeteo.GAP_FIELDS[id].adopt(p, gapResponse(), 24); });
+  openmeteo.adoptFill(p, gapResponse(), 24, Object.keys(openmeteo.FILL_FIELDS));
   assert.equal(p.dewTrend.length, 24);
   assert.equal(p.dewTrend[0], 42, 'hour 0 is the bucket of the provider\'s first hour');
   assert.equal(p.windDirTrend[0], 10, '370° is 10°');
@@ -887,9 +887,9 @@ test('the gap request lands each reading on the provider by time, the cloud laye
 test('a reading the answer has no hour of keeps what the provider had', () => {
   // Hours off the GMT grid (a provider's local hours on the half hour) find no bucket.
   const p = { startTime: BASE + 1800, dewTrend: [], cloudTrend: [], pressureTrend: [], windDirTrend: [] };
-  Object.keys(openmeteo.GAP_FIELDS).forEach((id) => { openmeteo.GAP_FIELDS[id].adopt(p, gapResponse(), 24); });
+  openmeteo.adoptFill(p, gapResponse(), 24, Object.keys(openmeteo.FILL_FIELDS));
   assert.deepEqual([p.dewTrend, p.cloudTrend, p.pressureTrend, p.windDirTrend], [[], [], [], []]);
   const partial = { startTime: BASE, dewTrend: [] };
-  openmeteo.GAP_FIELDS.dew.adopt(partial, { hourly: { time: [BASE], dew_point_2m: [null] } }, 24);
+  openmeteo.adoptFill(partial, { hourly: { time: [BASE], dew_point_2m: [null] } }, 24, ['dew']);
   assert.deepEqual(partial.dewTrend, [], 'a window of nulls is no reading');
 });

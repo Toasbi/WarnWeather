@@ -36,7 +36,7 @@
      * @returns {boolean}
      */
     function lineDraws(settings, env, metric) {
-        if (env.platform === 'aplite' && lineStyle.TEMP_AXIS_METRIC_IDS.indexOf(metric) !== -1) { return false; }
+        if (env.platform === 'aplite' && lineStyle.isTempAxisMetric(metric)) { return false; }
         var styles = graphStyles.stylesSent(settings, env);
         if (styles.length) {
             return graphStyles.assign(settings, env, styles).rows.some(function (row) {
@@ -75,14 +75,32 @@
             || (Boolean(settings.gustSlotDirection) && codes.indexOf('gust') !== -1);
     }
 
+    /**
+     * The rule for a reading a forecast line draws, and a status slot or an alert shows.
+     * @param {string} metric Its metric and status item code ('dew', 'uv', 'pressure').
+     * @returns {function(Object, Object): boolean} Whether the watch draws it (settings, env).
+     */
+    function onLineOrShown(metric) {
+        return function (settings, env) { return lineDraws(settings, env, metric) || shown(settings, metric, env); };
+    }
+
+    /**
+     * The rule for a reading only a forecast line draws.
+     * @param {string} metric Its metric ('cloud').
+     * @returns {function(Object, Object): boolean} Whether the watch draws it (settings, env).
+     */
+    function onLine(metric) {
+        return function (settings, env) { return lineDraws(settings, env, metric); };
+    }
+
     // Each reading only some screens draw, in the order of provider-readings.js READINGS, and
     // when the watch draws it.
     var RULES = [
-        { id: 'dew', drawn: function (s, env) { return lineDraws(s, env, 'dew') || shown(s, 'dew', env); } },
+        { id: 'dew', drawn: onLineOrShown('dew') },
         { id: 'windDir', drawn: arrowDrawn },
-        { id: 'uv', drawn: function (s, env) { return lineDraws(s, env, 'uv') || shown(s, 'uv', env); } },
-        { id: 'cloud', drawn: function (s, env) { return lineDraws(s, env, 'cloud'); } },
-        { id: 'pressure', drawn: function (s, env) { return lineDraws(s, env, 'pressure') || shown(s, 'pressure', env); } }
+        { id: 'uv', drawn: onLineOrShown('uv') },
+        { id: 'cloud', drawn: onLine('cloud') },
+        { id: 'pressure', drawn: onLineOrShown('pressure') }
     ];
 
     /**

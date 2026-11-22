@@ -87,7 +87,7 @@ test('every reading a provider lacks is drawn-only, and Open-Meteo\'s request fo
     assert.deepEqual(lacks.filter((r) => providerReadings.DRAWN_ONLY.indexOf(r) === -1), [], id);
   });
   const openmeteo = require('../../../src/pkjs/weather/adapter/providers/openmeteo.js');
-  assert.deepEqual(Object.keys(openmeteo.GAP_FIELDS), providerReadings.DRAWN_ONLY.filter((r) => r !== 'uv'),
+  assert.deepEqual(Object.keys(openmeteo.FILL_FIELDS), providerReadings.DRAWN_ONLY.filter((r) => r !== 'uv'),
     'UV has its own request (fetchUvInto)');
 });
 

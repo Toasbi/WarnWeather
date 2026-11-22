@@ -13,13 +13,12 @@ const schema = require('../../../src/pkjs/page/settings/schema.js');
 const providerFactory = require('../../../src/pkjs/weather/adapter/provider-factory.js');
 const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
-const { NOTHING_PLACED } = require('../../helpers/on-demand.js');
+const { NOTHING_PLACED, NOTHING_DRAWN } = require('../../helpers/on-demand.js');
 const { bootGeneratedPage } = require('../../helpers/page-harness.js');
 
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 // No slot shows UV (a fresh install's radar bar and Watch bar do) and no alert is placed.
-const NONE = Object.assign({ statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
-  statusTopLeft: 'empty' }, NOTHING_PLACED);
+const NONE = NOTHING_DRAWN;
 
 /**
  * @param {Object} over Settings over NONE.

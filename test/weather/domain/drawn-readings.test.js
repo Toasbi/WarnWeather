@@ -4,7 +4,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { NOTHING_PLACED, placeOn } = require('../../helpers/on-demand.js');
+const { NOTHING_PLACED, NOTHING_DRAWN, placeOn } = require('../../helpers/on-demand.js');
 const drawnReadings = require('../../../src/pkjs/weather/domain/drawn-readings.js');
 const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
@@ -13,8 +13,7 @@ const BASALT = platform.computeEnv({ platform: 'basalt' });
 const APLITE = platform.computeEnv({ platform: 'aplite' });
 const EMERY = platform.computeEnv({ platform: 'emery' });
 // No slot shows UV (a fresh install's radar bar and Watch bar do) and no alert is placed.
-const NONE = Object.assign({ statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
-  statusTopLeft: 'empty' }, NOTHING_PLACED);
+const NONE = NOTHING_DRAWN;
 
 /**
  * @param {Object} over Settings over NONE.

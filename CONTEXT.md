@@ -405,8 +405,10 @@ _Avoid_: wanted reading, used metric.
 
 **Source ports**:
 What a fetch's source plan runs through (`src/pkjs/weather/adapter/source-ports.js`): the
-requests to providers other than the Weather picker's, the forecast snapshots, the clock and
-the update interval. The fetch cycle builds a set for each fetch (`shell/fetch-cycle.js`
+requests to providers other than the Weather picker's and to Open-Meteo's fills, the forecast
+snapshots, the clock and the update interval. Where the weather comes from (the Weather from
+mode, Per reading's picks, the stored keys) rides the fetch options instead
+(`source-plan.js` sourcesOf). The fetch cycle builds a set for each fetch (`shell/fetch-cycle.js`
 prepareFetch) and hands it to `fetchWithCoordinates`.
 _Avoid_: sources (the radar, air quality and plugins have sources of their own).
 
@@ -414,11 +416,13 @@ _Avoid_: sources (the radar, air quality and plugins have sources of their own).
 What a provider answered, kept so a fetch soon after (a start-up, a settings save) asks nobody
 again (`src/pkjs/weather/domain/forecast-snapshot.js`, stored by
 `src/pkjs/weather/adapter/forecast-snapshots.js`). It holds what its kind keeps of a valid
-answer (a provider's whole forecast, or a UV fill), the place, the time and what the request
-asked for (the hours, the day maxima, the optional series, the feels-like formula, the key's
-fingerprint). A fetch reuses it for the same request at a place close by while its kind
-serves it: a forecast as it was kept, for the rest of its refresh slot within the hour it was
-kept in; DWD's UV fill for a few hours, re-anchored to the hour the new forecast starts at.
+answer (a provider's whole forecast, a UV fill, or the fill of the other readings a provider
+lacks), the place, the time and what the request asked for (the hours, the day maxima, the
+optional series, the feels-like formula, the key's fingerprint). It keeps one per provider and
+kind. A fetch reuses it for the same request at a place close by while its kind serves it: a
+forecast or the other readings' fill as it was kept, for the rest of its refresh slot within
+the hour it was kept in; the UV fill for a few hours, re-anchored to the hour the new forecast
+starts at.
 Force weather fetch drops them, and a fetch on its way then keeps nothing it asked for before.
 _Avoid_: forecast cache (the Weather tab has a cache of its own), response cache.
 

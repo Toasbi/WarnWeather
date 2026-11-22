@@ -9,6 +9,7 @@ var providerReadings = require('../../weather/domain/provider-readings.js');
 var sourcePlan = require('../../weather/domain/source-plan.js');
 // Each reading as a sentence names it; a row's label is the same words, capitalized.
 var WORDS = require('./weather-words.js').WORDS;
+var html = require('../../config-ui/lib/html.js');
 
 // The weather providers as the Weather picker lists them, alphabetical by name. The 3rd tuple
 // slot's desc is the short "what it's best at" tag shown under each name in the dropdown; DWD
@@ -59,7 +60,7 @@ var READING_ROWS = providerReadings.READING_IDS.map(function (id) {
     var row = {
         type: 'select',
         messageKey: sourcePlan.choiceKey(id),
-        label: WORDS[id].charAt(0).toUpperCase() + WORDS[id].slice(1),
+        label: html.capitalize(WORDS[id]),
         defaultValue: '',
         optionsFrom: {resolver: 'weatherReadingOptions', args: {reading: id}},
         showWhen: {key: 'weatherSourceMode', eq: 'reading'}
