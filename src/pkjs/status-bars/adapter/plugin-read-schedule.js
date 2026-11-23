@@ -167,7 +167,7 @@ function create(spec) {
     /**
      * Keep a value (or none), and tell the watch when that changes what its slot shows.
      * @param {?Object} next The value heard (as spec.valueOf hands it back), or null for none.
-     * @param {boolean} [waitedFor] Whether a settings save asked for the read it came from
+     * @param {boolean} waitedFor Whether a settings save asked for the read it came from
      *   (status-rebake.js oweStatus).
      * @returns {void}
      */
@@ -193,7 +193,7 @@ function create(spec) {
         // Never sent from here. The plugin answers at any moment, right after a settings save or a
         // boot among them, while their own messages are on the channel. Those bake the value just
         // kept where it came in time; the re-bake's next tick sends what is left.
-        statusRebake.oweStatus(null, waitedFor);
+        statusRebake.oweStatus(waitedFor);
     }
 
     /**
@@ -257,14 +257,14 @@ function create(spec) {
         // more anyway), and the new one is read at once.
         if (record && record.source !== want.key) {
             forget();
-            keep(null);
+            keep(null, false);
         }
         at = nowMs();
         // A bake drops a value grown too old by itself, but only a bake: when what the slot
         // shows changed with the time, the watch is owed the status that shows it. A save sends
         // its own.
         now = spec.shown(value, settings, at);
-        if (!fromSave && !spec.sameShown(shown, now)) { statusRebake.oweStatus(); }
+        if (!fromSave && !spec.sameShown(shown, now)) { statusRebake.oweStatus(false); }
         shown = now;
         if (inFlight) { return; }
         if (record && pluginReads.clockWentBack(record, at)) {

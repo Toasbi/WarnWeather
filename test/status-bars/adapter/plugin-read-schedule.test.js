@@ -35,7 +35,7 @@ let owed = 0;
 let waited = 0;
 test.before(() => {
   console.log = function () {};
-  statusRebake.oweStatus = (prepare, waitedFor) => {
+  statusRebake.oweStatus = (waitedFor) => {
     owed += 1;
     if (waitedFor) { waited += 1; }
   };

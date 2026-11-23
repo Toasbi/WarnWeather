@@ -417,7 +417,7 @@ function saverWindowOpen() {
  * @returns {boolean} True when a send was attempted now.
  */
 function resendStatusAwake(reason, prepare) {
-    oweStatus(prepare);
+    owe(prepare, false);
     if (saverWindowOpen()) {
         console.log('status-rebake: saver window open, ' + reason + ' send owed.');
         return false;
@@ -432,15 +432,25 @@ function resendStatusAwake(reason, prepare) {
  * or a boot, while their own messages are on the half-duplex channel. Those messages bake
  * the news themselves where it came in time, and the outbox then drops the paid send.
  *
- * @param {?Function} [prepare] The trigger's step before the send (resendStatusAwake).
- * @param {boolean} [waitedFor] Whether the user waits for the news at the phone: the answer to
+ * @param {boolean} waitedFor Whether the user waits for the news at the phone: the answer to
  *   a read that a settings save asked for. The next tick pays it inside the Night battery
  *   saver's window too, as the save's own send went then.
  * @returns {void}
  */
-function oweStatus(prepare, waitedFor) {
+function oweStatus(waitedFor) {
+    owe(null, waitedFor);
+}
+
+/**
+ * Add to what the watch is owed (owed): a trigger's step, once however often it owes, and
+ * whether the user waits for the send.
+ * @param {?Function} step The trigger's step before the send (resendStatusAwake), or null.
+ * @param {boolean} waitedFor Whether the user waits for the send at the phone (oweStatus).
+ * @returns {void}
+ */
+function owe(step, waitedFor) {
     owed = owed || { steps: [], waitedFor: false };
-    if (prepare && owed.steps.indexOf(prepare) === -1) { owed.steps.push(prepare); }
+    if (step && owed.steps.indexOf(step) === -1) { owed.steps.push(step); }
     if (waitedFor) { owed.waitedFor = true; }
 }
 
@@ -495,14 +505,13 @@ function onTick(fetchInFlight) {
  * The callbacks are the outbox's own: onSuccess after the ACK, or at once when
  * the status bytes match the last-sent ones; onFailure on a NACK. A caller that
  * chains the next send behind this one (the config close) can rely on exactly
- * one of them running, so onSuccess also runs at once when there is no
- * snapshot to re-bake, and onFailure when the bake throws — a broken re-bake
- * must not strand the forced fetch queued behind it, which may yet heal the
- * watch.
+ * one of them running, so onSuccess also runs at once when nothing is sent: no
+ * snapshot to re-bake, or a bake that throws. A broken re-bake must not strand
+ * the forced fetch queued behind it, which may yet heal the watch.
  *
  * @param {string} reason Log label for why the resend fired.
  * @param {Function} [onSuccess] Called after ACK, or at once when nothing is sent.
- * @param {Function} [onFailure] Called on NACK, or when the bake throws.
+ * @param {Function} [onFailure] Called on NACK.
  * @returns {boolean} True when a send was attempted.
  */
 function resendStatus(reason, onSuccess, onFailure) {
@@ -514,19 +523,19 @@ function resendStatus(reason, onSuccess, onFailure) {
  * it is owed again, to a tick the backoff allows (nack-backoff.js); an ACK or the outbox's
  * no-op ends the backoff. A send the user waits for earns one retry inside the Night battery
  * saver's window: a watch that NACKs twice in a row is left alone there until it closes. A
- * bake that throws is not owed again: it would throw again.
+ * bake that throws sends nothing and is not owed again: it would throw again.
  *
  * @param {string} reason Log label for why the resend fired.
  * @param {boolean} waitedFor Whether the user waits for the send at the phone (oweStatus).
  * @param {Function} [onSuccess] Called after ACK, or at once when nothing is sent.
- * @param {Function} [onFailure] Called on NACK, or when the bake throws.
+ * @param {Function} [onFailure] Called on NACK.
  * @returns {boolean} True when a send was attempted.
  */
 function sendStatus(reason, waitedFor, onSuccess, onFailure) {
     var baked = rebake();
     if (baked.error) {
         console.log('status-rebake: re-bake failed, skipping ' + reason + ' send: ' + baked.error.message);
-        if (typeof onFailure === 'function') { onFailure(baked.error); }
+        if (typeof onSuccess === 'function') { onSuccess(); }
         return false;
     }
     if (!baked.status) {
@@ -543,7 +552,7 @@ function sendStatus(reason, waitedFor, onSuccess, onFailure) {
         if (typeof onSuccess === 'function') { onSuccess(); }
     }, function (err) {
         retry.nack();
-        oweStatus(null, waitedFor && retry.nacksInARow() < 2);
+        owe(null, waitedFor && retry.nacksInARow() < 2);
         if (typeof onFailure === 'function') { onFailure(err); }
     });
     return true;
