@@ -13,9 +13,10 @@
 // between sun and moon without a fetch. A battery reading can wait: inside the
 // Night battery saver's window the phone's charge is owed its send, and the
 // days the watch has left always are (resendStatusAwake, oweStatus). The first
-// tick that may send pays what is owed, and owes it again when the watch NACKs it.
-// What the user waits for at the phone (a read a settings save asked for) is paid
-// inside the window too, as the save's own send was. A version-stamped
+// tick that may send pays what is owed. A send the watch NACKs is owed again, its
+// resends backing off while the NACKs come in a row (nack-backoff.js). What the user
+// waits for at the phone (a settings save's send, a read the save asked for) is paid
+// inside the window too, as the save's own send was, with one retry there. A version-stamped
 // flash snapshot backs the in-memory inputs across PKJS restarts (PKJS dies
 // whenever the user leaves the watchface).
 //
@@ -97,6 +98,7 @@ var KEYS = require('../../settings/domain/storage-keys.js');
 var statusLines = require('../domain/status-lines.js');
 var WEATHER_CATEGORIES = require('../../wire/domain/weather-categories.js');
 var batterySaver = require('../../wire/domain/battery-saver.js');
+var nackBackoff = require('../../wire/domain/nack-backoff.js');
 
 /**
  * The AppMessage keys a micro-send may carry — the outbox's 'status' category,
@@ -126,9 +128,10 @@ var snapshot = null;  // last bake inputs ({payload, watchInfo}) from THIS PKJS 
 var restored = null;  // the same shape, read back from flash at init: the restart backstop
 var lastWritten = null;   // last serialized snapshot, to skip no-op flash writes
 var bakedNight;           // day or night of the last bake (undefined: nothing baked yet)
-var owed = null;          // the send the Night battery saver's window swallowed: each trigger's
-                          // step before it (resendStatusAwake); null = nothing is owed
-var owedWaitedFor = false;    // whether the user waits for what is owed (oweStatus waitedFor)
+var owed = null;          // the send the watch is owed (oweStatus): {steps, waitedFor}, each
+                          // trigger's step before it and whether the user waits for it at the
+                          // phone; null = nothing is owed
+var retry = nackBackoff.createNackBackoff();   // the owed send's resends while NACKs come in a row
 
 /**
  * @returns {?{getItem: Function, setItem: Function, removeItem: Function}} The injected
@@ -436,9 +439,9 @@ function resendStatusAwake(reason, prepare) {
  * @returns {void}
  */
 function oweStatus(prepare, waitedFor) {
-    owed = owed || [];
-    if (prepare && owed.indexOf(prepare) === -1) { owed.push(prepare); }
-    if (waitedFor) { owedWaitedFor = true; }
+    owed = owed || { steps: [], waitedFor: false };
+    if (prepare && owed.steps.indexOf(prepare) === -1) { owed.steps.push(prepare); }
+    if (waitedFor) { owed.waitedFor = true; }
 }
 
 /**
@@ -447,16 +450,10 @@ function oweStatus(prepare, waitedFor) {
  * @returns {boolean} True when a send was attempted.
  */
 function payOwed(reason) {
-    var steps = owed || [];
-    var waitedFor = owedWaitedFor;
+    var debt = owed || { steps: [], waitedFor: false };
     owed = null;
-    owedWaitedFor = false;
-    steps.forEach(function (step) { step(); });
-    // A NACK leaves the news off the watch, so it is owed again, to the next tick. A bake that
-    // threw would throw again: that one is not.
-    return resendStatus(reason, null, function (err) {
-        if (!(err instanceof Error)) { oweStatus(null, waitedFor); }
-    });
+    debt.steps.forEach(function (step) { step(); });
+    return sendStatus(reason, debt.waitedFor);
 }
 
 /**
@@ -467,7 +464,8 @@ function payOwed(reason) {
  *   counts as baked on the side of the sky it is now: the fetch that runs on the return
  *   brings the rest, and a resend before it would carry the old snapshot's values.
  * - A send that is owed: one the Night battery saver's window swallowed
- *   (resendStatusAwake), or one that was never urgent (oweStatus).
+ *   (resendStatusAwake), one that was never urgent (oweStatus), or one the watch NACKed,
+ *   which waits out the backoff (nack-backoff.js).
  *
  * Both wait while a weather fetch is in flight, whose message carries the status anyway
  * and whose bake latches the side of the sky it is on, and inside the battery saver's
@@ -485,13 +483,14 @@ function onTick(fetchInFlight) {
     var night = src ? nightNow(src.payload) : bakedNight;
     var turned = night !== bakedNight;
     if (!turned && !owed) { return false; }
-    if (fetchInFlight || (saverWindowOpen() && !owedWaitedFor)) { return false; }
+    if (retry.waitTick() || fetchInFlight || (saverWindowOpen() && !(owed && owed.waitedFor))) { return false; }
     bakedNight = night;
     return payOwed(turned ? (night ? 'sunset' : 'sunrise') : 'owed');
 }
 
 /**
- * Re-bake the stored snapshot and push only the status keys.
+ * Re-bake the stored snapshot and push only the status keys: a settings save's send, which
+ * the user waits for at the phone (sendStatus).
  *
  * The callbacks are the outbox's own: onSuccess after the ACK, or at once when
  * the status bytes match the last-sent ones; onFailure on a NACK. A caller that
@@ -507,6 +506,23 @@ function onTick(fetchInFlight) {
  * @returns {boolean} True when a send was attempted.
  */
 function resendStatus(reason, onSuccess, onFailure) {
+    return sendStatus(reason, true, onSuccess, onFailure);
+}
+
+/**
+ * Re-bake and send the status keys (resendStatus). A NACK leaves the news off the watch, so
+ * it is owed again, to a tick the backoff allows (nack-backoff.js); an ACK or the outbox's
+ * no-op ends the backoff. A send the user waits for earns one retry inside the Night battery
+ * saver's window: a watch that NACKs twice in a row is left alone there until it closes. A
+ * bake that throws is not owed again: it would throw again.
+ *
+ * @param {string} reason Log label for why the resend fired.
+ * @param {boolean} waitedFor Whether the user waits for the send at the phone (oweStatus).
+ * @param {Function} [onSuccess] Called after ACK, or at once when nothing is sent.
+ * @param {Function} [onFailure] Called on NACK, or when the bake throws.
+ * @returns {boolean} True when a send was attempted.
+ */
+function sendStatus(reason, waitedFor, onSuccess, onFailure) {
     var baked = rebake();
     if (baked.error) {
         console.log('status-rebake: re-bake failed, skipping ' + reason + ' send: ' + baked.error.message);
@@ -522,7 +538,14 @@ function resendStatus(reason, onSuccess, onFailure) {
         return false;
     }
     console.log('status-rebake: status micro-send (' + reason + ').');
-    deps.sendWeather(baked.status, onSuccess, onFailure);
+    deps.sendWeather(baked.status, function () {
+        retry.ack();
+        if (typeof onSuccess === 'function') { onSuccess(); }
+    }, function (err) {
+        retry.nack();
+        oweStatus(null, waitedFor && retry.nacksInARow() < 2);
+        if (typeof onFailure === 'function') { onFailure(err); }
+    });
     return true;
 }
 
@@ -620,7 +643,7 @@ function init(options) {
     lastWritten = null;
     bakedNight = undefined;
     owed = null;
-    owedWaitedFor = false;
+    retry = nackBackoff.createNackBackoff();
     restored = restoreSnapshot();
     if (restored) { bakedNight = nightNow(restored.payload); }
 }

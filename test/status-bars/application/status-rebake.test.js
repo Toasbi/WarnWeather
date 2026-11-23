@@ -415,7 +415,7 @@ test('a NACKed owed send is owed again, to the next tick, waited for as it was',
   assert.equal(statusRebake.onTick(false), true);
   h.answers[0].onFailure({ data: { transactionId: 1 } });
   assert.equal(statusRebake.onTick(false), true, 'sent again');
-  if (h.answers[1].onSuccess) { h.answers[1].onSuccess(); }
+  h.answers[1].onSuccess();
   assert.equal(statusRebake.onTick(false), false, 'ACKed: paid');
 
   h.at(3, 0);
@@ -424,6 +424,67 @@ test('a NACKed owed send is owed again, to the next tick, waited for as it was',
   h.answers[2].onFailure({ data: { transactionId: 2 } });
   assert.equal(statusRebake.onTick(false), true, 'inside the window still: the user waits for it');
   assert.equal(h.sends.length, 4);
+});
+
+test('a status send that keeps NACKing is resent after 1, 2, then every 4 minutes; an ACK ends it', () => {
+  const h = bootSaver();
+  statusRebake.oweStatus();
+  const sentAt = [];
+  for (let minute = 1; minute <= 16; minute++) {
+    if (statusRebake.onTick(false)) {
+      sentAt.push(minute);
+      h.answers[h.answers.length - 1].onFailure({});
+    }
+  }
+  assert.deepEqual(sentAt, [1, 2, 4, 8, 12, 16], 'the settings channel\'s backoff (nack-backoff.js)');
+  for (let minute = 17; minute <= 19; minute++) { assert.equal(statusRebake.onTick(false), false); }
+  assert.equal(statusRebake.onTick(false), true, 'minute 20');
+  h.answers[h.answers.length - 1].onSuccess();
+  assert.equal(statusRebake.onTick(false), false, 'ACKed: nothing is owed');
+  statusRebake.oweStatus();
+  assert.equal(statusRebake.onTick(false), true);
+  h.answers[h.answers.length - 1].onFailure({});
+  assert.equal(statusRebake.onTick(false), true, 'after an ACK, the next NACK is resent a minute later again');
+});
+
+test('a send the user waits for gets one retry inside the window: NACKed twice, it waits for the window to close', () => {
+  const h = bootSaver();
+  h.at(3, 0);
+  statusRebake.oweStatus(null, true);
+  assert.equal(statusRebake.onTick(false), true);
+  h.answers[0].onFailure({});
+  h.at(3, 1);
+  assert.equal(statusRebake.onTick(false), true, 'one retry: the user waits for it');
+  h.answers[1].onFailure({});
+  for (let minute = 2; minute < 60; minute++) {
+    h.at(3, minute);
+    assert.equal(statusRebake.onTick(false), false, '03:' + minute);
+  }
+  assert.equal(h.sends.length, 2, 'a watch that keeps refusing is left alone for the night');
+  h.at(7, 0);
+  assert.equal(statusRebake.onTick(false), true, 'the first tick after the window pays it');
+});
+
+test('a settings save\'s status send the watch NACKs is owed again; the chain behind it goes on', () => {
+  const h = bootSaver();
+  const cb = callbacks();
+  assert.equal(statusRebake.resendStatus('config-close', cb.ok, cb.fail), true);
+  h.answers[0].onFailure({});
+  assert.deepEqual(cb.log, ['fail'], 'the forced fetch queued behind it still runs');
+  assert.equal(statusRebake.onTick(true), false, 'not beside that fetch, whose message carries the status');
+  assert.equal(statusRebake.onTick(false), true, 'a failed fetch leaves it to the next tick');
+  h.answers[1].onSuccess();
+  assert.deepEqual(cb.log, ['fail'], 'the retry runs none of the save\'s callbacks');
+
+  h.at(3, 0);
+  statusRebake.resendStatus('config-close', cb.ok, cb.fail);
+  h.answers[2].onFailure({});
+  assert.equal(statusRebake.onTick(false), true, 'a save at night: the user waits for it, so it is retried there');
+  h.answers[3].onFailure({});
+  h.at(3, 5);
+  assert.equal(statusRebake.onTick(false), false);
+  h.at(3, 6);
+  assert.equal(statusRebake.onTick(false), false, 'NACKed twice: left for the window\'s end');
 });
 
 test('an owed send whose bake throws is not owed again: it would throw again', () => {

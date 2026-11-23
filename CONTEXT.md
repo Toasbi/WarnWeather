@@ -174,7 +174,8 @@ on the phone side follows from this.
 The module that decides when anything is sent over the channel: the startup handshake,
 config-close chaining, the day-change resend and the minute tick. The tick resends a
 NACKed settings message after 1, 2, then every 4 minutes until a settings ACK, so settings
-saved while the watch was out of reach arrive at most 4 minutes after it answers again. The
+saved while the watch was out of reach arrive at most 4 minutes after it answers again. A
+NACKed status re-send is owed again and backs off the same way (`nack-backoff.js`). The
 outbox decides what is sent (dedupe, one-message bundling, ACK-gated cache commit).
 _Avoid_: send queue.
 
