@@ -126,4 +126,11 @@ void status_bar_refresh_live_health(void);
 // ViewSpec. Hidden bars are skipped for the live-health reason above: the
 // refresh_all that unhides one re-resolves it. Absent on aplite (no On demand).
 void status_bar_tick_on_demand(void);
+
+// A Bluetooth or battery change (the strip's event handlers, top_status_layer.c): re-resolve
+// every visible bar, those with On demand items and those whose slots show a battery, the
+// watch's or the phone's, which follow the charge and the link. These events are rare and a
+// row repaints only when its signature moved, so a bar the change does not touch costs one
+// refresh. Absent on aplite, like the tick: its twin keeps the watch battery in the strip.
+void status_bar_system_changed(void);
 #endif

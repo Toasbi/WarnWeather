@@ -438,6 +438,40 @@ static void tick_on_demand_refreshes_visible_item_bars(void) {
     status_bar_destroy_all();
     memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
 }
+
+// A battery or Bluetooth change (status_bar_system_changed) reaches every visible bar, so a
+// battery in the Forecast bar follows the charge and the link as the corner does, with or
+// without On demand items. The minute tick still refreshes only the bars with items, and
+// neither path refreshes a hidden bar.
+static void system_change_refreshes_every_visible_bar(void) {
+    Layer parent = {0};
+    s_refresh_changed = true;
+    memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
+    memset(s_live_health, 0, sizeof(s_live_health));
+
+    ViewSpec spec = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
+    status_bar_create_all(&parent, &spec, &L);
+    status_bar_apply_view(&spec, &L);
+    const int fc = STATUS_LINE_FORECAST;
+
+    reset_records();
+    status_bar_system_changed();
+    expect_int("system.no_items_refreshed", s_refresh_count[fc], 1);
+    expect_int("system.no_items_dirtied", s_dirty_count[fc], 1);
+
+    reset_records();
+    status_bar_tick_on_demand();
+    expect_int("system.no_items_not_on_tick", s_refresh_count[fc], 0);
+
+    ViewSpec hidden = spec_of(2, STATUS_SRC_NONE, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    status_bar_apply_view(&hidden, &L);
+    reset_records();
+    status_bar_system_changed();
+    expect_int("system.hidden_not_refreshed", s_refresh_count[fc], 0);
+
+    status_bar_destroy_all();
+}
 #endif
 
 #if defined(WW_RAIN_RADAR)
@@ -730,6 +764,7 @@ int main(void) {
 #endif
 #if defined(WW_ON_DEMAND)
     tick_on_demand_refreshes_visible_item_bars();
+    system_change_refreshes_every_visible_bar();
 #endif
 #if defined(WW_RAIN_RADAR)
     radar_bar_is_a_first_class_bar();

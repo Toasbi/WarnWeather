@@ -608,8 +608,8 @@ bool status_row_refresh(StatusRow *row) {
             // would silently replace top_status_layer.c's handler (the BT icon and
             // the disconnect vibe) — and a row is a multi-instance object whose
             // destroy would then unsubscribe on the others' behalf. The strip's
-            // existing callback repaints the strip, and every other row picks the
-            // change up on the next minute tick.
+            // existing callback repaints the strip and refreshes every visible bar
+            // (status_bar_system_changed).
             // Likewise the watch battery's days: the link decides whether the slot
             // shows them or the percentage, and a day count can read the same either way.
             if (is_phone_battery_slot(slot) || carries_battery_days(slot)) {

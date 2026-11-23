@@ -1,6 +1,6 @@
 #include "top_status_layer.h"
 #include "battery_draw.h"
-#include "status_bar.h"   // status_bar_tick_on_demand (a system change reaches the bars)
+#include "status_bar.h"   // status_bar_system_changed (a system change reaches the bars)
 #include "status_row.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
@@ -104,11 +104,12 @@ Layer *top_status_layer_get_root(void) {
 }
 #endif
 
-// A Bluetooth or battery change reaches every bar's On demand items at once, not at
-// the next minute tick: the visible band bars, then this strip. Rows are
-// signature-gated, so a bar the change does not touch costs one refresh and no repaint.
+// A Bluetooth or battery change reaches every bar's On demand items and every slot that
+// shows a battery at once, not at the next minute tick: the visible band bars, then this
+// strip. Rows are signature-gated, so a bar the change does not touch costs one refresh
+// and no repaint.
 static void system_changed(void) {
-    status_bar_tick_on_demand();
+    status_bar_system_changed();
     top_status_layer_refresh();
 }
 

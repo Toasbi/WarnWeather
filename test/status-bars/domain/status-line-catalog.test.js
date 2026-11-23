@@ -422,7 +422,7 @@ test('battery is a LIVE_BATTERY item offered in any slot', () => {
   });
 });
 
-test('the watch battery is one item for both looks, in any slot, offered on aplite too', () => {
+test('the watch battery is one item for both looks, in any slot; aplite keeps the corner', () => {
   // Until 3.3.0 the Text look was an item of its own, 'batteryPct'. Now the Look is a
   // setting of the one 'battery' item (slot-text.js batteryLook); the catalog only
   // keeps the Icon look's kind. The bake's kind 10 for the Text look, and kind 9 on
@@ -435,25 +435,28 @@ test('the watch battery is one item for both looks, in any slot, offered on apli
   const ctx = { slotKey: 'statusForecastLeft', position: 'left' };
   [ENV_BASALT, ENV_EMERY, ENV_DIORITE, ENV_APLITE].forEach((env) => {
     [topRight, ctx].forEach((slot) => {
-      assert.ok(catalog.itemAvailable(item, {}, env, slot), env.platform + ': available in ' + slot.slotKey);
-      assert.ok(catalog.slotOptions({}, env, slot).some(o => o[1] === 'battery'),
-        'offered in the ' + env.platform + ' ' + slot.slotKey + ' dropdown');
-      assert.equal(catalog.resolveSelection('battery', {}, env, slot), 'battery');
+      const offered = env !== ENV_APLITE || slot === topRight;
+      assert.equal(catalog.itemAvailable(item, {}, env, slot), offered, env.platform + ': ' + slot.slotKey);
+      assert.equal(catalog.slotOptions({}, env, slot).some(o => o[1] === 'battery'), offered,
+        'the ' + env.platform + ' ' + slot.slotKey + ' dropdown');
+      assert.equal(catalog.resolveSelection('battery', {}, env, slot), offered ? 'battery' : 'empty');
     });
   });
   // A stored 'batteryPct' is migrated (mergeBatterySlots); the catalog no longer resolves it.
   assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_BASALT, topRight), 'empty');
 });
 
-test('the WATCH battery is offered in every slot of every bar', () => {
-  // Until 2026-11-23 the top strip's right-hand corner alone could hold it.
+test('the WATCH battery is offered in every slot of every bar; on aplite only in the top strip\'s corner', () => {
+  // Until 2026-11-23 the top strip's right-hand corner alone could hold it. Aplite's frozen
+  // twin repaints only the top strip on a battery change, so it keeps the corner.
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   [ENV_BASALT, ENV_EMERY, ENV_APLITE].forEach((env) => {
     catalog.ALL_LINES.forEach((line) => {
       line.slots.forEach((slotKey, i) => {
         const codes = catalog.slotOptions(s, env, { slotKey, position: catalog.SLOT_POSITIONS[i] })
           .map(o => o[1]);
-        assert.ok(codes.includes('battery'), env.platform + ' ' + slotKey + ': the watch battery');
+        assert.equal(codes.includes('battery'), env !== ENV_APLITE || slotKey === 'statusTopRight',
+          env.platform + ' ' + slotKey + ': the watch battery');
       });
     });
   });

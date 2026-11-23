@@ -122,9 +122,12 @@
     // item of its own, 'batteryPct'
     // (settings/domain/migrations/status-slots.js mergeBatterySlots). Any slot can hold it
     // (the owner's, 2026-11-23): until then only the top strip's right-hand corner could.
-    // Its settings are the item's own (batterySettingKeys), so every slot that holds it
-    // shows it alike.
-    { code: 'battery', label: 'Watch battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, category: 'battery' },
+    // The watch refreshes every bar that shows it on a battery or Bluetooth change
+    // (status_bar.c status_bar_system_changed). Aplite keeps the corner (topRightOnAplite):
+    // its frozen twin repaints only the top strip on those changes. Its settings are the
+    // item's own (batterySettingKeys), so every slot that holds it shows it alike.
+    { code: 'battery', label: 'Watch battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnAplite: true,
+      category: 'battery' },
     // The PHONE's battery: phone-baked TEXT. It carries its own icon (or, in its Text
     // look, deliberately none: slot-text.js phoneBatteryLook, status-lines.js iconFor)
     // and fits any slot. Its Look is each slot's own (phoneBatteryLookKey), so it can
@@ -222,6 +225,10 @@
   function itemAvailable(item, settings, env, slotCtx) {
     if (!item) { return false; }
     if (item.middleOnly && (!slotCtx || slotCtx.position !== 'mid')) { return false; }
+    if (item.topRightOnAplite && env && env.platform === 'aplite'
+            && (!slotCtx || slotCtx.slotKey !== 'statusTopRight')) {
+        return false;
+    }
     // Health items need the watch's health. Not healthMode: since 2.6 it follows the screens
     // and the slots (screens.js deriveModes), so a slot can pick a health item in any mode.
     if (item.needsHealth && (!env || !env.health)) { return false; }

@@ -235,17 +235,25 @@ void status_bar_refresh_live_health(void) {
 #endif
 
 #if defined(WW_ON_DEMAND)
-void status_bar_tick_on_demand(void) {
+// Refresh the visible bars: all of them, or those with On demand items. Visible = not
+// hidden: status_bar_apply_view wrote the flag from the view on screen. refresh_row
+// repaints only on a signature change, so a quiet minute (no rain, or an icon-only rain
+// look) costs the refresh and nothing else.
+static void refresh_visible(bool all) {
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
         StatusBar *b = &s_bars[i];
-        if (!b->row) { continue; }
-        // Visible = not hidden: status_bar_apply_view wrote the flag from the view on
-        // screen. refresh_row repaints only on a signature change, so a quiet minute
-        // (no rain, or an icon-only rain look) costs the refresh and nothing else.
-        if (status_row_uses_on_demand(b->row) && !layer_get_hidden(b->layer)) {
+        if (b->row && (all || status_row_uses_on_demand(b->row)) && !layer_get_hidden(b->layer)) {
             refresh_row((StatusBarId) i);
         }
     }
+}
+
+void status_bar_tick_on_demand(void) {
+    refresh_visible(false);
+}
+
+void status_bar_system_changed(void) {
+    refresh_visible(true);
 }
 #endif
 
