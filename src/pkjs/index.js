@@ -657,19 +657,41 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
  * flight by then: the re-bake's sends wait for a tick without one, as that
  * fetch's message carries the same news.
  *
+ * Each job runs on its own (runTickJob): one that throws, every minute even,
+ * holds up none of the others.
+ *
  * @returns {void}
  */
 function onSchedulerTick() {
-    batteryEstimate.onTick();
-    pluginValueSource.onTick();
-    statusRebake.onTick(fetchCycle.isInFlight());
-    updateCheckRunner.runDailyUpdateCheck({
-        stores: UPDATE_CHECK_STORES,
-        appVersion: pkg.version,
-        devConfig: app.devConfig,
-        isWatchConnected: isWatchConnected,
-        notify: notifyWatch
+    runTickJob('battery-estimate', function () { batteryEstimate.onTick(); });
+    runTickJob('plugin-value', function () { pluginValueSource.onTick(); });
+    runTickJob('status-rebake', function () { statusRebake.onTick(fetchCycle.isInFlight()); });
+    runTickJob('update-check', function () {
+        updateCheckRunner.runDailyUpdateCheck({
+            stores: UPDATE_CHECK_STORES,
+            appVersion: pkg.version,
+            devConfig: app.devConfig,
+            isWatchConnected: isWatchConnected,
+            notify: notifyWatch
+        });
     });
+}
+
+/**
+ * Run one of the minute's jobs, so that a throw stops it alone. The error is logged by its
+ * kind only: the jobs handle other apps' plugin values, which are never logged, and a
+ * message can quote what it failed on.
+ *
+ * @param {string} name The job's name in the log.
+ * @param {function(): void} job The job.
+ * @returns {void}
+ */
+function runTickJob(name, job) {
+    try {
+        job();
+    } catch (e) {
+        console.log('[!] tick: ' + name + ' failed (' + ((e && e.name) || 'error') + ').');
+    }
 }
 
 /**
