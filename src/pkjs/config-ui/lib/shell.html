@@ -563,14 +563,6 @@
      (the keyboard-fit handler clamps this smaller via inline max-height when the keyboard is up). */
   dialog#modal.search { height: 80vh; height: 80dvh; }
   dialog#modal.date { max-height: 360px; }
-  /* A palette expanded inside the sheet adds 8 grid rows of swatches at once, which the 80dvh
-     cap turns into a cramped scroll. Raise the cap while one is open so the swatches fit.
-     Equal specificity with the 80dvh cap above, so this must stay AFTER it to win; both units
-     are kept for the same reason the base rule keeps them (vh is the fallback where dvh is
-     unknown).
-     No transition: the swipe-dismiss handlers write the inline `transition` shorthand and
-     would wipe it anyway. */
-  dialog#modal.picking { max-height: 94vh; max-height: 94dvh; }
   dialog#modal::backdrop { background: transparent; }
   @media (prefers-reduced-motion: no-preference) {
     dialog#modal[open] { animation: sheet-up .22s ease-out; }

@@ -1075,16 +1075,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   /**
    * Shared trigger for both `select` and `searchSelect`: a select-like button that opens
    * the modal popup, or for a `select` inside a dialog the sheet that rises over it
-   * (view.openInline, renderPickSheet). aria-controls points at the option list either
+   * (view.openPick, renderPickSheet). aria-controls points at the option list either
    * surface renders; both use the same id.
    *
    * @param {Object} item Schema item (select or searchSelect).
-   * @param {{value: *, openSelect: ?string, openInline: ?string}} view Render view state.
+   * @param {{value: *, openSelect: ?string, openPick: ?string}} view Render view state.
    * @returns {string} Trigger button HTML.
    */
   function renderSelectTrigger(item, view) {
     var label = currentLabel(item, view.value);
-    var open = view.openSelect === item.messageKey || view.openInline === item.messageKey;
+    var open = view.openSelect === item.messageKey || view.openPick === item.messageKey;
     return ui.dropdown(label, { 'data-select': item.messageKey, 'aria-label': selectTriggerAria(item, label),
       'aria-haspopup': 'listbox', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': 'ssel-list-' + item.messageKey });
   }
@@ -1151,6 +1151,23 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    */
   function isMuted(item, ctx) {
     return Boolean(item.disabledWhen) && PConf.showWhen.evaluate(item.disabledWhen, ctx);
+  }
+
+  /**
+   * The item whose list or wheels a dialog's open key raises over it (renderPickSheet): a
+   * select or a date its showWhen shows and its disabledWhen leaves live. A select with no row
+   * of its own qualifies all the same (a list's next one, meta.next; the Weather dialog's Other
+   * sources rows).
+   *
+   * @param {Object} schema Config schema.
+   * @param {?string} key The dialog's open key.
+   * @param {Object} ctx Show-when context ({<settings>, env}).
+   * @returns {?Object} The schema item, or null when the key raises nothing.
+   */
+  function pickSheetItem(schema, key, ctx) {
+    var found = key ? findShownItem(schema, key, ctx) : null;
+    return found && (found.type === 'date' || found.type === 'select')
+      && PConf.showWhen.isVisible(found, ctx) && !isMuted(found, ctx) ? found : null;
   }
 
   /**
@@ -1239,23 +1256,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * dialog, as a select opens on a tab (renderSelectModal: its title, its ×, its option rows;
    * renderPickList). A list opened in place under its row pushed the rest of the dialog away
    * (the owner's, 2026-11-14 for a status bar's slots, 2026-11-23 for every dialog). Its state
-   * is the dialog's open key (cx.openInline), with the picks, Escape and focus that key
+   * is the dialog's open key (cx.openPick), with the picks, Escape and focus that key
    * drives. A tap on the dim layer or the × closes it (data-psheet-close). A date in a dialog
    * opens so too: its wheels (the date sheet's on a tab, renderDateWheels) rise over the
-   * dialog. '' when no such sheet is open.
-   * Neither opens for a row its showWhen hides or its disabledWhen mutes (one tap away, in the
-   * same dialog): render() then drops the open key. A select with no row of its own opens all
-   * the same (a list's next one, meta.next; the Weather dialog's Other sources rows).
+   * dialog. '' when no such sheet is open: for a key that raises nothing (pickSheetItem),
+   * which render() drops.
    *
    * @param {Object} schema Config schema.
-   * @param {{S: Object, ENV: Object, evalCtx: Object, openInline: ?string}} cx Render context.
+   * @param {{S: Object, ENV: Object, evalCtx: Object, openPick: ?string}} cx Render context.
    * @returns {string} The layer and sheet HTML, or ''.
    */
   function renderPickSheet(schema, cx) {
-    if (!cx.openInline) { return ''; }
-    var found = findShownItem(schema, cx.openInline, cx.evalCtx);
-    if (!found || !(found.type === 'date' || found.type === 'select')
-        || !PConf.showWhen.isVisible(found, cx.evalCtx) || isMuted(found, cx.evalCtx)) { return ''; }
+    var found = pickSheetItem(schema, cx.openPick, cx.evalCtx);
+    if (!found) { return ''; }
     var titleId = 'psheet-ttl-' + esc(found.messageKey);
     if (found.type === 'date') {
       return pickSheet(titleId, esc(found.label || 'Date'), datePicker.renderDateWheels(found.messageKey, cx.S[found.messageKey]));
@@ -1289,12 +1302,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * (buildCards, untitled first card) through the same item renderer the tab body uses,
    * so showWhen/joins/hints and the color-palette state all behave identically.
    * '' when nothing is open, the sheetId is unknown, or the section is gated off.
-   * cx.openInline is the select whose list is open over the dialog (renderPickSheet). Only
+   * cx.openPick is the select whose list is open over the dialog (renderPickSheet). Only
    * the dialog's cx carries it (boot's render()), so the same key in the tab body behind
    * stays closed.
    *
    * @param {Object} schema Config schema.
-   * @param {{S: Object, ENV: Object, openEdit: ?string, openInline: ?string,
+   * @param {{S: Object, ENV: Object, openEdit: ?string, openPick: ?string,
    *   editKicker: (string|undefined), editNested: (boolean|undefined)}} cx Render context.
    * @returns {string} Dialog header + body HTML, or ''.
    */
@@ -1904,9 +1917,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     // disabledWhen: the row renders but muted + inert (vs showWhen, which removes it) —
     // a feature that is OFF still shows what turning it on would offer.
-    if (item.disabledWhen) {
-      view.disabled = PConf.showWhen.evaluate(item.disabledWhen, cx.evalCtx);
-    }
+    view.disabled = isMuted(item, cx.evalCtx);
     // optionDisabledWhen: individual options go inert while the row stays live —
     // e.g. "bold on warn" is unreachable until the slot's thresholds are on.
     if (item.optionDisabledWhen) {
@@ -1933,10 +1944,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (item.type === 'readout') { view.hintShown = true; }
     view.infoIcons = Boolean(cx.infoIcons);
     view.infoOpen = Boolean(cx.infoOpen && cx.infoOpen[infoIdOf(item)]);
-    // A muted row never shows its list: .dis makes the trigger untappable, so an open list
-    // could not be closed from it again. The row draws closed (trigger included), and
-    // render() drops the open key once the dialog has no list for it.
-    if (view.disabled) { view.openInline = null; }
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
       + renderRow(rowItem, view, noDivider)
       + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
@@ -1983,7 +1990,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // A member select's list opens in the sheet over the dialog, as a plain row's does
   // (renderPickSheet).
   function renderInlineGroup(items, cx, noDivider, hosted) {
-    var cells = '', visible = 0, i, item, view, muted, head = null;
+    var cells = '', visible = 0, i, item, view, head = null;
     for (i = 0; i < items.length; i++) {
       if (!isHostedRow(items[i], hosted) && PConf.showWhen.isVisible(items[i], cx.evalCtx)) { head = items[i]; break; }
     }
@@ -1994,13 +2001,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     for (i = 0; i < items.length; i++) {
       item = items[i];
       if (isHostedRow(item, hosted) || !PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
-      // A member under its disabledWhen never expands, the same rule as renderItem's.
-      muted = isMuted(item, cx.evalCtx);
       view = {
         value: cx.S[item.messageKey],
         openColor: cx.openColor,
         openSelect: cx.openSelect,
-        openInline: muted ? null : cx.openInline,
+        openPick: cx.openPick,
         openDate: cx.openDate,
         selectQuery: cx.selectQuery
       };
@@ -2014,8 +2019,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   /**
    * An inline group as one labelled row (its first shown member's `groupLabel`): the
    * label (and the head's hint behind '?') on the left, the members' controls on the
-   * right separated by a dash. Each member is still its own keyed control — a select
-   * trigger opens its own picker, and in a dialog expands under the row.
+   * right separated by a dash. Each member is still its own keyed control: a select
+   * trigger opens its own picker, in a dialog the sheet that rises over it.
    * @param {Object[]} items The run of inline members.
    * @param {Object} head The first shown member (carries groupLabel, optional hint/indent).
    * @param {Object} cx Render context.
@@ -2024,13 +2029,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {{html: string, controlCount: number}} The row.
    */
   function renderHoursGroup(items, head, cx, noDivider, hosted) {
-    var ctl = [], i, item, view, muted;
+    var ctl = [], i, item, view;
     for (i = 0; i < items.length; i++) {
       item = items[i];
       if (isHostedRow(item, hosted) || !PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
-      muted = isMuted(item, cx.evalCtx);
       view = { value: cx.S[item.messageKey], openSelect: cx.openSelect,
-        openInline: muted ? null : cx.openInline, openColor: cx.openColor,
+        openPick: cx.openPick, openColor: cx.openColor,
         openDate: cx.openDate, selectQuery: cx.selectQuery };
       ctl.push(renderControl(item, view));
     }
@@ -2242,8 +2246,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         openColor: cx.openColor,
         openSelect: cx.openSelect,
         // Only the dialog's rows open a list (in the sheet over it): the tab body's cx carries
-        // no openInline, so the same key rendered behind the dialog keeps its closed trigger.
-        openInline: cx.openInline,
+        // no openPick, so the same key rendered behind the dialog keeps its closed trigger.
+        openPick: cx.openPick,
         openDate: cx.openDate,
         selectQuery: cx.selectQuery
       };
@@ -2720,13 +2724,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // lands flush on a boundary (or leaves a sliver) pull back: clip a nearly-complete fold row
   // by MIN_CLIP_PX, or cut the classic row fraction when only a sliver shows. Idempotent:
   // resets its own clamp and re-measures the clean 80dvh-capped height each call, so it's
-  // safe to run repeatedly (see scheduleSelectPeek in boot). .picking is excluded too: the
-  // point of the raised cap is to show the whole palette, so clamping the list to leave a
-  // peek row would undo it. Top-level (not inside boot) so the test harness can drive it
+  // safe to run repeatedly (see scheduleSelectPeek in boot). A full-screen dialog (.edit) has
+  // no cap to peek under. Top-level (not inside boot) so the test harness can drive it
   // against a stub dialog (select-peek.test.js).
   function fitSelectPeek(dlg) {
-    if (!dlg.open || dlg.classList.contains('search') || dlg.classList.contains('picking')
-      || dlg.classList.contains('edit')) { return; }
+    if (!dlg.open || dlg.classList.contains('search') || dlg.classList.contains('edit')) { return; }
     var list = dlg.querySelector('.ssel-list');
     if (!list) { return; }
     list.style.maxHeight = '';                  // reset → measure the clean, capped height
@@ -2946,20 +2948,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (opening) { dlg.showModal(); }
         var ttl = dlg.querySelector('.ssel-modal-ttl');
         if (ttl && ttl.id) { dlg.setAttribute('aria-labelledby', ttl.id); }
-        // An expanded palette or in-place option list needs more room than the 80dvh cap
-        // allows (.picking raises it to 94dvh, and fitSelectPeek leaves a .picking sheet
-        // unclamped, so the peek can never clip the list it just opened). syncDialog runs on
-        // EVERY render, not just the open edge, so this tracks an expander opening and
-        // closing inside an already-open sheet. add/remove, never the two-argument
-        // classList.toggle — unsafe in old Android WebViews.
-        // `expanded` also serves the tab body, and only the EDIT sheet ever renders a
-        // palette; without the edit half, a palette left expanded in the body would
-        // also grow (and un-peek) an unrelated select sheet opened from the same card.
-        if (editShown && expanded) {
-          dlg.classList.add('picking');
-        } else {
-          dlg.classList.remove('picking');
-        }
         // A date in a dialog (renderPickSheet): its wheels centre on the date as a tab's date
         // sheet's do, and once more as their sheet finishes rising.
         var pickDate = sheetIs('date') ? null : openDateKey();
@@ -2989,7 +2977,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         dlg.classList.remove('search');
         dlg.classList.remove('date');
         dlg.classList.remove('edit');
-        dlg.classList.remove('picking');
         dlg.style.bottom = '';
         dlg.style.maxHeight = '';
         dlg.style.transform = '';
@@ -3151,8 +3138,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       dateWiring.flushPending();
       // The dialog opens with nothing expanded. A palette left open in the tab body would
       // otherwise count as the dialog's own (it closes with it anyway, see closeModal):
-      // Escape would spend its first press collapsing it and the dialog would open at the
-      // raised .picking cap.
+      // Escape would spend its first press collapsing it.
       expanded = null;
       handedFrom = null;
       if (renaming !== id) { renaming = null; }
@@ -3280,9 +3266,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       PConf.hooks.runRender({ S: S, env: ENV, tab: activeTab, pane: shownPaneId(activeTab),
         dialog: sheetIs('edit') && editStack.length ? editStack[0].id : null });
       snapShownOptions(SCHEMA, S, ENV, INITIAL);
+      // A dialog's open list or date wheels (renderPickSheet) live only while their row is live:
+      // a key whose row its showWhen hides or its disabledWhen mutes, or one with no dialog open,
+      // is dropped, so no trigger reads open and Escape's first press closes nothing that is not
+      // there. A palette is exempt: it stays expanded while its row is hidden, as in the tab body.
+      if (expanded && !expandedIsPalette() && !(sheetIs('edit') && pickSheetItem(SCHEMA, expanded, evalCtx()))) {
+        expanded = null;
+      }
       // A palette reads `expanded` as openColor in the tab body and in the sheet (only a
       // palette: a pinned header lets go for it, pinClass); a select's list reads it as
-      // openInline in the edit sheet only (renderEditModal). texts: the derived notes this
+      // openPick in the edit sheet only (renderEditModal). texts: the derived notes this
       // render has resolved (staticTextOf).
       var cx = {
         S: S, ENV: ENV, USERDATA: USERDATA, texts: {}, openColor: expandedIsPalette() ? expanded : null,
@@ -3310,7 +3303,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       lastShownEdit = shownEdit;
       var modalHtml = sheetIs('confirm') ? renderConfirmModal(sheet.confirm)
         : sheetIs('date') ? renderDateModal(SCHEMA, cx)
-        : editShown ? renderEditModal(SCHEMA, Object.assign({}, cx, { openInline: expanded }))
+        : editShown ? renderEditModal(SCHEMA, Object.assign({}, cx, { openPick: expanded }))
         : renderSelectModal(SCHEMA, cx);
       // A dialog whose section no longer shows (a status bar's, once Delete status bar took the bar)
       // has nothing to show: it closes, as Done would, and render() runs again without it. The row
@@ -3324,27 +3317,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (undo && undo.focus) { undo.focus(); }
         return;
       }
-      // An open list, or a date's wheels, lives only while its row renders live. A row hidden
-      // by its showWhen or muted by its disabledWhen (one tap away, in the same sheet) draws
-      // no list, and a key left open would keep .picking on, the scroll nudge hunting, and
-      // Escape's first press collapsing a list that isn't there — or bring it back pre-opened.
-      // Read off the HTML, not the DOM, so the check holds in the Node DOM shims too.
-      // A palette is exempt: it stays expanded while its row is hidden, as in the tab body.
-      if (expanded && !expandedIsPalette()
-          && modalHtml.indexOf('id="ssel-list-' + esc(expanded) + '" class="isel-list"') < 0
-          && modalHtml.indexOf('data-date-picker="' + esc(expanded) + '"') < 0) {
-        expanded = null;
-      }
       modalEl.innerHTML = modalHtml;
       // The edit sheet's scroll container is a NEW node after every render, so a swatch
       // or option tap would otherwise snap the sheet back to the top. Restore the offset,
-      // then nudge a freshly opened palette or option list into view. Rect math, not
-      // offsetTop (.ssel-list is not positioned, so it is not the offsetParent) and not
-      // scrollIntoView({block:…}) (the options-object form is unsafe in old Android WebViews).
+      // then nudge a freshly opened palette into view (a list or date wheels rise in their
+      // own sheet over the dialog). Rect math, not offsetTop (.ssel-list is not positioned,
+      // so it is not the offsetParent) and not scrollIntoView({block:…}) (the options-object
+      // form is unsafe in old Android WebViews).
       var list = (editShown && modalEl.querySelector) ? modalEl.querySelector('.ssel-list') : null;
       if (list) {
         list.scrollTop = keepTop;
-        var sw = expanded ? list.querySelector(expandedTrigger()) : null;
+        var sw = expandedIsPalette() ? list.querySelector(expandedTrigger()) : null;
         var row = (sw && sw.closest) ? sw.closest('.row') : null;
         if (row && row.getBoundingClientRect && list.getBoundingClientRect) {
           var over = row.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom;
@@ -3893,13 +3876,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     /**
      * Focus the expanded list's ticked option, else its first pickable one: [data-select-pick]
      * on the ticked one too, since a gated current value renders a disabled button, which
-     * cannot take focus. In a bottom sheet only its list scrolls (focusInModal).
+     * cannot take focus. The list is in its sheet over the dialog (renderPickSheet), where only
+     * the list scrolls (focusInModal).
      * @returns {void}
      */
     function focusExpanded() {
-      var modal = document.getElementById('modal');
-      focusInModal(['.isel-list .ssel-opt.on[data-select-pick]', '.isel-list [data-select-pick]'],
-        Boolean(modal && modal.querySelector && modal.querySelector('.psheet')));
+      focusInModal(['.isel-list .ssel-opt.on[data-select-pick]', '.isel-list [data-select-pick]'], true);
     }
 
     /**
@@ -4108,16 +4090,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       modal.addEventListener('touchstart', function (e) {
         // A date wheel must not settle (and re-render) under a finger that is still down.
         dateWiring.onModalTouch(e);
-        // A touch that lands on a slider is a value adjustment, never a sheet
-        // dismissal — arming here would drag the whole sheet along with every
-        // slightly-diagonal thumb gesture (and close it past the threshold). Same
-        // for an open palette or in-place option list: each is a block of tap
-        // targets, and with the raised .picking cap the sheet often still sits at
-        // scrollTop 0, which is exactly what canDragSelect below arms on.
-        if (e.target.closest && e.target.closest('.rng, .palette, .isel-list')) {
-          dragY = null; dragging = false; modal.style.transition = '';
-          return;
-        }
         var list = modal.querySelector('.ssel-list');
         var wheel = e.target.closest && e.target.closest('[data-date-wheel]');
         var header = e.target.closest && e.target.closest('.ssel-modal-hdr');

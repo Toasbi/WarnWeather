@@ -348,8 +348,8 @@ value, then its provider: WarnWeather's Use another source). Closed without a pi
 hands focus back to the first one's trigger. One expander
 is open at a time: opening a list closes an open palette and vice versa. Escape first
 closes an open list or palette and closes the sheet only on the next press; the close button,
-the backdrop and a swipe-down close the sheet, which reopens collapsed. A touch that starts
-inside the list never arms the swipe-down. A list stays open only while its row renders live:
+the backdrop and a swipe-down close the sheet, which reopens collapsed. A list stays open only
+while its row renders live:
 when another control in the sheet hides the row (`showWhen`) or mutes it (`disabledWhen`), the
 list closes with it, and the row comes back closed. `searchSelect` has no in-sheet form,
 so keep it out of `sheetOnly` sections (a schema test enforces this). A select in the tab body,

@@ -125,15 +125,10 @@ test('date sheet: a genuine user wheel scroll still arms a settle', () => {
   assert.equal(h.settle(), 1, 'user scroll no longer arms a settle — handler over-suppressed');
 });
 
-// --- .picking: the sheet grows while a palette is open -----------------------
-// An expanded 64-swatch palette is 8 grid rows, which does not fit under the sheet's
-// 80dvh cap; syncDialog puts `.picking` on the dialog while one is open and shell.html
-// raises the cap to 94dvh. This harness lives here for the same reason the date one
-// does: it is the only #modal shim with a real showModal(), so it is the only place
-// syncDialog() runs past its `if (!dlg || !dlg.showModal) return;` guard.
-//
-// Node has NO layout: nothing below can tell you whether 94dvh is tall enough. What it
-// proves is the state machine — the class appears with the palette and leaves with it.
+// --- .edit: a dialog's full-screen look while it is open -----------------------
+// This harness lives here for the same reason the date one does: it is the only #modal
+// shim with a real showModal(), so it is the only place syncDialog() runs past its
+// `if (!dlg || !dlg.showModal) return;` guard.
 
 /** A click event whose target.closest answers from a selector -> element map.
  * @param {Object} map Selector -> element (anything absent resolves to null).
@@ -155,7 +150,7 @@ function el(attrs) {
 // knobs to drive the sheet. The classList stub deliberately has NO toggle(): the engine
 // must use add/remove (the two-argument toggle is unsafe in old Android WebViews), so a
 // regression would throw here rather than pass quietly.
-function bootPickingSheet() {
+function bootPaletteSheet() {
   const LIB = path.join(__dirname, '..', 'lib');
   const BUNDLE = LIB_PAGE_FILES
     .map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
@@ -218,51 +213,29 @@ function bootPickingSheet() {
   return { modal, listeners, modalListeners, classes, scroll };
 }
 
-test('sheet: .picking is added while a palette is open and removed with it', () => {
-  const h = bootPickingSheet();
-  assert.equal(h.classes.has('picking'), false, 'nothing open -> no picking');
-
+test('sheet: an edit dialog is marked .edit while open, and a palette expands in it', () => {
+  const h = bootPaletteSheet();
   // Open the edit sheet from its Edit button.
   h.listeners.click(clickOn({ '[data-edit-sheet]': el({ 'data-edit-sheet': 'gcWind' }) }));
   assert.equal(h.modal.open, true, 'sheet opened');
   assert.ok(h.modal.innerHTML.indexOf('data-color="gcWindLineDark"') !== -1,
     'the colour row is in the sheet');
   assert.equal(h.classes.has('edit'), true, 'an edit sheet is marked .edit');
-  assert.equal(h.classes.has('picking'), false, 'a closed palette does not grow the sheet');
 
   // Expand the palette from inside the sheet.
   h.modalListeners.click(clickOn({ '[data-color]': el({ 'data-color': 'gcWindLineDark' }) }));
   assert.ok(h.modal.innerHTML.indexOf('data-color-pick=') !== -1, 'palette rendered');
-  assert.equal(h.classes.has('picking'), true, 'an open palette grows the sheet');
   assert.equal(h.classes.has('edit'), true, 'and it is still the edit sheet');
 
-  // Pick a swatch: the palette collapses, so the sheet must shrink back.
+  // Pick a swatch: the palette collapses, the sheet stays.
   h.modalListeners.click(clickOn({
     '[data-color-pick]': el({ 'data-color-pick': '#FF0000', 'data-k': 'gcWindLineDark' })
   }));
-  assert.equal(h.classes.has('picking'), false, 'picking dropped once the palette closes');
+  assert.equal(h.modal.innerHTML.indexOf('data-color-pick='), -1, 'the palette closed');
   assert.equal(h.modal.open, true, 'the sheet itself stays open');
 
-  // Reopen it, then close the whole sheet: .picking must not survive the close.
-  h.modalListeners.click(clickOn({ '[data-color]': el({ 'data-color': 'gcWindLineDark' }) }));
-  assert.equal(h.classes.has('picking'), true, 'palette reopened');
+  // Close the whole sheet: .edit goes with it.
   h.modalListeners.click(clickOn({ '[data-select-close]': el({}) }));
   assert.equal(h.modal.open, false, 'sheet closed');
-  assert.equal(h.classes.has('picking'), false, 'picking cleared on close');
   assert.equal(h.classes.has('edit'), false, 'so is edit');
-});
-
-test('a palette left open in the tab body does not grow an unrelated select sheet', () => {
-  // `expanded` is ONE variable serving palettes in both surfaces, but only the edit
-  // sheet ever renders a palette inside the dialog. Keyed on `expanded` alone, a body
-  // palette would raise the cap on (and suppress the peek clamp of) a select sheet
-  // opened from the same card.
-  const h = bootPickingSheet();
-  h.listeners.click(clickOn({ '[data-color]': el({ 'data-color': 'bodyColor' }) }));
-  assert.ok(h.scroll.innerHTML.indexOf('data-color-pick=') !== -1, 'body palette expanded');
-  assert.equal(h.modal.open, false, 'a body palette opens no dialog');
-
-  h.listeners.click(clickOn({ '[data-select]': el({ 'data-select': 'metric' }) }));
-  assert.equal(h.modal.open, true, 'the select sheet opened');
-  assert.equal(h.classes.has('picking'), false, 'a select sheet holds no palette, so no growth');
 });
