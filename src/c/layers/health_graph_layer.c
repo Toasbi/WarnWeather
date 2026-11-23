@@ -401,7 +401,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     //  5. Frame (left + bottom borders).
     //  6. Axis (bottom hour labels/ticks).
     // On B&W (device or bw theme) the fill is theme_bg() — the polarity background,
-    // not a fixed color — and BAR_OUTLINED adds a theme_fg() silhouette on top
+    // not a fixed color — and the bar outline (chart.c) adds a theme_fg() silhouette on top
     // (matching the rain bars, palette.c): bw-dark fills black (pixel-identical to
     // pre-theme v1, combining with the white outline into what reads as a solid
     // white bar) and bw-light fills white with a black outline, the polarity
@@ -425,8 +425,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {
         .values = s_steps, .count = visible_slots,
         .lo = 0, .hi = s_step_hi,
-        .stops = step_stops, .num_stops = 1,
-        .style = BAR_OUTLINED } };
+        .stops = step_stops, .num_stops = 1 } };
 
     // Always add the HR line: the cache stores CHART_ABSENT for hours with no
     // reading, so the solid line breaks across gaps and draws nothing when HR is
@@ -460,13 +459,11 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         .fn = hr_clamp_draw, .user = &hr_dots } };
 
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
-        .left   = { 1, HEALTH_AXIS_COLOR },
-        .bottom = { 1, HEALTH_AXIS_COLOR } } } };
+        .left = 1, .bottom = 1, .color = HEALTH_AXIS_COLOR } } };
 
     layers[n++] = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
         .side = GRAPH_SIDE_BOTTOM, .style = bottom_view_tick_style(),
-        .slots = axis_slots,
-        .label_align = ALIGN_START, .tick_align = ALIGN_START } };
+        .slots = axis_slots } };
 
     chart_draw(ctx, &def, outer, layers, n);
 

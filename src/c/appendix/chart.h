@@ -14,16 +14,11 @@
 
 // --- Frame ----------------------------------------------------------
 
+// The graph's axis lines along its left and bottom edges, in one colour.
 typedef struct {
-    uint8_t width;    // border thickness in px; 0 = no border on this side
-    GColor color;
-} Border;
-
-typedef struct {
-    Border left;
-    Border right;
-    Border top;
-    Border bottom;
+    uint8_t left;     // px; 0 = no left line
+    uint8_t bottom;   // px; 0 = no bottom line
+    GColor  color;
 } GraphFrame;
 
 // --- Ticks ----------------------------------------------------------
@@ -123,7 +118,6 @@ typedef struct {
 #endif
 
 typedef enum { TICK_NONE, TICK_SMALL, TICK_BIG } ChartTickKind;
-typedef enum { ALIGN_START, ALIGN_MIDDLE }       ChartSlotAlign;
 
 typedef struct {
     char          label[4];  // "" = no label
@@ -134,18 +128,16 @@ typedef struct {
     GraphFrame frame;
 } ChartFrameLayer;
 
+// Each slot's tick and label sit on the slot's start (chart_slot_tick_x).
 typedef struct {
     const ChartAxisSlot *slots;       // exactly def->num_slots entries
     TickSide             style;       // small/big tick length+color
     GraphSide            side;        // GRAPH_SIDE_BOTTOM / GRAPH_SIDE_TOP
-    ChartSlotAlign       label_align; // text centered on slot start / middle
-    ChartSlotAlign       tick_align;  // tick line on slot start / middle
 } ChartAxisLayer;
 
 typedef struct { int16_t from; GColor color; } ChartColorStop; // value-space threshold
-typedef enum   { BAR_SOLID, BAR_OUTLINED } ChartBarStyle;      // OUTLINED: +1px theme_fg()
-                                                               // silhouette, every theme
-                                                               // but colour-dark
+// Bars, each with the bar outline (chart.c): a 1 px theme_fg() silhouette in every
+// theme but colour-dark.
 typedef struct {
     const int16_t        *values;
     const ChartColorStop *stops;      // >=1, ascending, stops[0].from <= lo: a negative
@@ -156,7 +148,6 @@ typedef struct {
                                       // the step bars' top passes 32767 (step_scale_hi)
     uint16_t              count;      // clamped to def->num_slots
     uint8_t               num_stops;
-    ChartBarStyle         style;
 } ChartBarsLayer;
 
 // CHART_ABSENT and the solid line's gap/run kernel live in chart_runs.h — an
@@ -247,18 +238,18 @@ typedef struct {
 } ChartCustomLayer;
 
 #if defined(WW_LINE_STYLE)
-// A metric as a thin band of per-slot cells along the top or bottom edge of the
-// plot, each shaded by its value (chart_stripe.h): a colour ramp from the
-// background toward `color`, or a B&W dither density. aplite compiles it out
-// (WW_LINE_STYLE) — its lines have no selectable styles.
+// A metric as a thin band of per-slot cells, `y_offset` px below the top of its
+// chart's content (forecast_layer.c draws each stripe band as a chart of its own),
+// each shaded by its value (chart_stripe.h): a colour ramp from the background toward
+// `color`, or a B&W dither density. aplite compiles it out (WW_LINE_STYLE) — its lines
+// have no selectable styles.
 typedef struct {
     const int16_t *values;
     uint16_t       count;
     int16_t        lo, hi;
-    int16_t        y_offset;          // px in from the edge — stacks stripes sharing one
+    int16_t        y_offset;          // px down from the top — stacks stripes sharing one
     int16_t        height;            // px
     GColor         color;             // the line colour; level 4 paints exactly this
-    bool           top;               // top edge (else bottom, over the baseline)
 } ChartStripeLayer;
 #endif
 

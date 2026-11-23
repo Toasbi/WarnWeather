@@ -99,7 +99,7 @@
         // over the sleep stripe as the watch draws them (its BARS layer maps a value from
         // the plot's bottom): green on a colour theme, the background on B&W, and — on
         // every theme but colour-dark — an outline in the ink round the top and sides
-        // (chart.c BAR_OUTLINED; the axis closes the bottom).
+        // (chart.c's bar outline; the axis closes the bottom).
         var peak = 0;
         STEPS.forEach(function (v) { if (v > peak) { peak = v; } });
         var barTop = PT + 6, barSpan = PB - barTop;

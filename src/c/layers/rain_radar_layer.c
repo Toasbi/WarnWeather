@@ -405,8 +405,7 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
         const ChartLayer axis_layers[] = {
             { CHART_LAYER_AXIS, .axis = {
                   .side = GRAPH_SIDE_TOP, .style = radar_tick_style(),
-                  .slots = axis_slots,
-                  .label_align = ALIGN_START, .tick_align = ALIGN_START } },
+                  .slots = axis_slots } },
         };
         chart_draw(ctx, &RADAR_DEF, axis_outer, axis_layers, 1);
     }
@@ -440,8 +439,7 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
         ChartLayer layers[] = {
             { CHART_LAYER_CUSTOM, .custom = { radar_area_bars_layer, &area_ctx } },
             { CHART_LAYER_BARS, .bars = {
-                  .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,
-                  .style = BAR_OUTLINED } },
+                  .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000 } },
         };
         // The radar palette goes straight into the bars layer. "Bars from: Top" rides it
         // (palette.h palette_from_top), so a flip repaints this chart. Hanging bars

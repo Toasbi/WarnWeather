@@ -10,31 +10,17 @@
 _Static_assert(sizeof(ChartLayer) <= 28, "ChartLayer grew: narrow the new field (chart.h)");
 
 static void graph_frame_draw(GContext *ctx, GraphFrame f, GRect outer) {
-    if (f.left.width > 0) {
-        graphics_context_set_fill_color(ctx, f.left.color);
+    if (f.left == 0 && f.bottom == 0) { return; }
+    graphics_context_set_fill_color(ctx, f.color);
+    if (f.left > 0) {
         graphics_fill_rect(ctx,
-            GRect(outer.origin.x, outer.origin.y, f.left.width, outer.size.h),
+            GRect(outer.origin.x, outer.origin.y, f.left, outer.size.h),
             0, GCornerNone);
     }
-    if (f.right.width > 0) {
-        graphics_context_set_fill_color(ctx, f.right.color);
+    if (f.bottom > 0) {
         graphics_fill_rect(ctx,
-            GRect(outer.origin.x + outer.size.w - f.right.width,
-                  outer.origin.y, f.right.width, outer.size.h),
-            0, GCornerNone);
-    }
-    if (f.top.width > 0) {
-        graphics_context_set_fill_color(ctx, f.top.color);
-        graphics_fill_rect(ctx,
-            GRect(outer.origin.x, outer.origin.y, outer.size.w, f.top.width),
-            0, GCornerNone);
-    }
-    if (f.bottom.width > 0) {
-        graphics_context_set_fill_color(ctx, f.bottom.color);
-        graphics_fill_rect(ctx,
-            GRect(outer.origin.x,
-                  outer.origin.y + outer.size.h - f.bottom.width,
-                  outer.size.w, f.bottom.width),
+            GRect(outer.origin.x, outer.origin.y + outer.size.h - f.bottom,
+                  outer.size.w, f.bottom),
             0, GCornerNone);
     }
 }
@@ -176,7 +162,6 @@ static void chart_render_axis(const ChartRender *r, const ChartAxisLayer *a) {
     graphics_context_set_text_color(r->ctx, theme_fg());
     const ChartAxisLabel lbl = chart_axis_label();   // per draw call -- the emery
                                                      // toggle flips without a relaunch
-    const int  mid_shift = r->geo.slots.pitch / 2;
     for (int i = 0; i < r->def->num_slots; ++i) {
         const ChartAxisSlot *s = &a->slots[i];
         const int base = chart_slot_tick_x(&r->geo, i);
@@ -185,11 +170,10 @@ static void chart_render_axis(const ChartRender *r, const ChartAxisLayer *a) {
             chart_draw_tick(r, a->side,
                             big ? a->style.big_length : a->style.length,
                             big ? a->style.big_color  : a->style.color,
-                            base + (a->tick_align == ALIGN_MIDDLE ? mid_shift : 0));
+                            base);
         }
         if (s->label[0] != '\0') {
-            chart_draw_axis_label(r, a->side, s->label, &lbl,
-                                  base + (a->label_align == ALIGN_MIDDLE ? mid_shift : 0));
+            chart_draw_axis_label(r, a->side, s->label, &lbl, base);
         }
     }
 }
@@ -223,7 +207,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         // width/height on top. Not expanded past the anchored end — the x-axis baseline
         // sits there standing (painting over it would notch the axis), and hanging it
         // would reach above the plot's top. Every theme gets the
-        // same halo + BAR_OUTLINED silhouette anatomy; only the interior differs
+        // same halo + bar outline anatomy; only the interior differs
         // (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
         // ones). Color-dark opts out of both — no halo, no silhouette: the exact
         // pre-theme look the user tuned before theming existed. On B&W builds
@@ -252,7 +236,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
                 0, GCornerNone);
         }
 
-        if (b->style == BAR_OUTLINED && !dark) {
+        if (!dark) {
             // theme_fg() silhouette around the bar interior — the shared bar look in
             // every theme (all three call sites: rain bars, radar bars, health step
             // bars). Draw only the free-end + side walls and leave the anchored end
@@ -710,8 +694,7 @@ static void chart_render_stripe(const ChartRender *r, const ChartStripeLayer *s)
     const int   count = chart_clamp_count(r, s->count);
     const GRect c     = r->geo.content;
     const int   pitch = r->geo.slots.pitch;
-    const int   y     = s->top ? c.origin.y + s->y_offset
-                               : c.origin.y + c.size.h - s->height - s->y_offset;
+    const int   y     = c.origin.y + s->y_offset;
     if (s->height <= 0 || y < c.origin.y) return;
 
     for (int i = 0; i < count; ++i) {

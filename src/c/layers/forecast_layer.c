@@ -866,8 +866,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                                     .bars = {
             .values = bars->bars.values, .count = ds->num_entries,
             .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-            .stops = scaled_bar_stops, .num_stops = bar_num_stops,
-            .style = BAR_OUTLINED } };
+            .stops = scaled_bar_stops, .num_stops = bar_num_stops } };
     }
     // Mark lines (second + third metric): bar-aligned marks whose styles are
     // user-selectable off the LINE_STYLES blob on capable platforms. The loop
@@ -909,12 +908,10 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         .inset_top = LINE_INSET(first->line.inset_y), .inset_bottom = LINE_INSET(first->line.inset_y),
         .color = first->line.color, .width = first->line.width } };
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
-        .left   = { axis_on, axis_color },
-        .bottom = { 1, axis_color } } } };
+        .left = axis_on, .bottom = 1, .color = axis_color } } };
     const ChartLayer axis_layer = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
         .side = GRAPH_SIDE_BOTTOM, .style = bottom_view_tick_style(),
-        .slots = axis_slots,
-        .label_align = ALIGN_START, .tick_align = ALIGN_START } };
+        .slots = axis_slots } };
     if (stripe_band == 0) {
         layers[n++] = axis_layer;
     }
@@ -941,12 +938,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                 .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
                 .color = s->line.color,
                 .y_offset = (int16_t)(nb * (stripe_h + FORECAST_STRIPE_GAP)),
-                .height = (int16_t)stripe_h,
-                .top = true } };
+                .height = (int16_t)stripe_h } };
             nb++;
         }
         layers[nb++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
-            .left = { axis_on, axis_color } } } };
+            .left = axis_on, .color = axis_color } } };
         if (!top) {
             layers[nb++] = axis_layer;
         }

@@ -1252,7 +1252,7 @@ test('radarPreview: light theme flips the canvas background to white', () => {
 
 // A bar drawn by rainBars() in outline mode is a <path fill="BG" stroke="FG"
 // stroke-width="1">; a solid bar is a <rect ... fill="COLOR">. The watch's actual
-// bw-theme bar (chart.c BAR_OUTLINED) is a theme_bg()-filled bar with a theme_fg()
+// bw-theme bar (chart.c's bar outline) is a theme_bg()-filled bar with a theme_fg()
 // outline on top, opaque against whatever's behind it (e.g. a dithered area fill) —
 // so the preview's outline path is filled with the polarity background (bg), not
 // left transparent, matching that opacity; see the block comment above rainBars'
@@ -1315,7 +1315,7 @@ test('forecastPreview: rainBarColor=Solid in the light theme uses DarkGray, not 
   assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black fill in the light theme');
 });
 
-// chart.c draws BAR_OUTLINED (the forecast rain bars and the radar bars alike) with a
+// chart.c draws its bar outline (the forecast rain bars and the radar bars alike) with a
 // theme_fg() top+side silhouette in every theme except colour-dark. So the light COLOUR
 // theme outlines its bars in black too — over the palette interior, not instead of it.
 const EDGE_MARK = /<path d="M[^"]+" fill="none" stroke="#000000" stroke-width="1"><\/path>/g;
