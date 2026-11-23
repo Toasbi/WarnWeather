@@ -32,8 +32,8 @@
 #define COMPACT_SINGLE_STATUS_NUDGE 3
 
 // Content height of the LARGE status font — the one the top date strip and a LONE compact
-// status row render in (STATUS_TOP_TIER_FONT_KEY / COMPACT_ROW_FONT_KEY in
-// layers/layer_util.h + layers/status_row.c: Gothic 18 here, Gothic 24 on emery). Pebble's
+// status row render in (STATUS_TOP_TIER_FONT_KEY in layers/layer_util.h, status_row.c
+// row_font's large size: Gothic 18 here, Gothic 24 on emery). Pebble's
 // measured content height for a Gothic font is exactly its nominal size (verified on device
 // at 14 / 18 / 24), so the band below can be sized from this number and layout.c stays free
 // of SDK font calls (see test/c/stub/pebble.h).

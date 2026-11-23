@@ -69,6 +69,17 @@ static inline int status_forecast_band_h(GFont font) {
 #else
 #define STATUS_TOP_TIER_FONT_KEY FONT_KEY_GOTHIC_18
 #endif
+
+// The two fonts' bold siblings, which a slot whose threshold is crossed draws in. The
+// Gothic bolds share their regular siblings' metrics, so a bold slot seats and boxes as
+// a regular one.
+#ifdef PBL_PLATFORM_EMERY
+#define STATUS_FULL_TIER_FONT_KEY_BOLD FONT_KEY_GOTHIC_18_BOLD
+#define STATUS_TOP_TIER_FONT_KEY_BOLD FONT_KEY_GOTHIC_24_BOLD
+#else
+#define STATUS_FULL_TIER_FONT_KEY_BOLD FONT_KEY_GOTHIC_14_BOLD
+#define STATUS_TOP_TIER_FONT_KEY_BOLD FONT_KEY_GOTHIC_18_BOLD
+#endif
 static inline GFont status_full_tier_font(void) {
     return fonts_get_system_font(STATUS_FULL_TIER_FONT_KEY);
 }

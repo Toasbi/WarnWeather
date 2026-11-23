@@ -44,15 +44,11 @@
 #define ICON_BAND_MARGIN 2
 
 #ifdef PBL_PLATFORM_EMERY
-#define COMPACT_ROW_FONT_KEY FONT_KEY_GOTHIC_24
-#define NONE_ROW_FONT_KEY FONT_KEY_GOTHIC_24
 #define ARROW_H 10
 #define ARROW_HEAD_H 4
 #define ARROW_HEAD_W 3
 #define ARROW_W 8
 #else
-#define COMPACT_ROW_FONT_KEY FONT_KEY_GOTHIC_18
-#define NONE_ROW_FONT_KEY FONT_KEY_GOTHIC_18
 #define ARROW_H 8
 #define ARROW_HEAD_H 3
 #define ARROW_HEAD_W 2
@@ -125,62 +121,24 @@ uint16_t sig_fold(uint16_t sig, const uint8_t *data, size_t len) {
     return sig;
 }
 
-// Seat this row's line in its band. Every row cap-centres (status_text_y) EXCEPT the top
-// strip, which rides STATUS_TOP_STRIP_LIFT rows higher inside an unchanged band — its top edge
-// is the screen edge, so the air above the line is invisible while the gap below, down to the
-// calendar, is what reads. Line-id-keyed like row_font() just below, for the same reason.
-// One seat, minus STATUS_TOP_STRIP_LIFT for the strip: a single measure-and-seat body, which
-// keeps the image small on aplite.
-static int row_text_y(const StatusRow *row, GFont font) {
-    int y = status_text_y(row->bounds.size.h, font);
-    return (row->line_id == STATUS_LINE_TOP) ? y - STATUS_TOP_STRIP_LIFT : y;
-}
-
-static GFont row_font(uint8_t tier, uint8_t line_id) {
-    // The top strip keeps its own (larger) font at all times; it always renders
-    // the FULL tier but must not share the weather/health full-tier size.
-    if (line_id == STATUS_LINE_TOP) {
-        return fonts_get_system_font(STATUS_TOP_TIER_FONT_KEY);
-    }
-    switch (tier) {
-        case LAYOUT_TIER_NONE:
-            return fonts_get_system_font(NONE_ROW_FONT_KEY);
-        case LAYOUT_TIER_COMPACT:
-            return fonts_get_system_font(COMPACT_ROW_FONT_KEY);
-        default:
-            return fonts_get_system_font(STATUS_FULL_TIER_FONT_KEY);
-    }
-}
-
-// The bold companion of row_font(), for slots whose threshold is crossed — the
-// calendar's today-highlight pattern (CALENDAR_FONT_KEY_BOLD) applied to slots. The
-// Gothic bolds share their regular siblings' metrics (MEASURED for 18 in
-// weather_status_layer.c; nominal size == content height family-wide), so the seat,
-// cap-centre and box math are untouched — only glyph WIDTHS change, which is why a
-// crossed slot must measure with the same font it draws.
-static GFont row_font_bold(uint8_t tier, uint8_t line_id) {
-    if (line_id == STATUS_LINE_TOP) {
-#ifdef PBL_PLATFORM_EMERY
-        return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-#else
-        return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-#endif
-    }
-    switch (tier) {
-        case LAYOUT_TIER_NONE:
-        case LAYOUT_TIER_COMPACT:
-#ifdef PBL_PLATFORM_EMERY
-            return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-#else
-            return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-#endif
-        default:
-#ifdef PBL_PLATFORM_EMERY
-            return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-#else
-            return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
-#endif
-    }
+// The row's font, and with `bold` its bold sibling, which a slot whose threshold is
+// crossed draws in (the calendar's today-highlight pattern, CALENDAR_FONT_KEY_BOLD,
+// applied to slots). Two sizes per platform: the large one, the top strip's own
+// (STATUS_TOP_TIER_FONT_KEY), on the top strip and on a compact or none-tier row
+// (windows/layout.c STATUS_LARGE_FONT_H), and the full tier's on the full-tier rows (the
+// top strip renders the full tier but must not share its size). The Gothic bolds share
+// their regular siblings' metrics (MEASURED for 18 in weather_status_layer.c; nominal
+// size == content height family-wide), so the seat, cap-centre and box math are
+// untouched — only glyph WIDTHS change, which is why a crossed slot must measure with
+// the same font it draws.
+static GFont row_font(const StatusRow *row, bool bold) {
+    static const char *const KEYS[2][2] = {
+        { STATUS_FULL_TIER_FONT_KEY, STATUS_FULL_TIER_FONT_KEY_BOLD },
+        { STATUS_TOP_TIER_FONT_KEY, STATUS_TOP_TIER_FONT_KEY_BOLD },
+    };
+    const bool large = row->line_id == STATUS_LINE_TOP || row->tier == LAYOUT_TIER_COMPACT
+        || row->tier == LAYOUT_TIER_NONE;
+    return fonts_get_system_font(KEYS[large][bold]);
 }
 
 // The date into `buf`, and into `alt` its short form: the shorter format of the list its
@@ -476,24 +434,23 @@ static int slot_health_value(int kind) {
 }
 
 // One slot resolved to everything a pass needs that does NOT depend on
-// measurement. The refresh pass signs these fields (the font and look through the
-// blob they are read from), the draw pass measures and paints them — one
-// resolution, every consumer. They used to be three hand-copied resolutions on
-// eight parallel arrays, and one copy (the retired right-slot width query) silently
-// omitted the threshold load (see load_pass).
+// measurement. The refresh pass signs these fields (the look through the blob it is
+// read from), the draw pass measures and paints them — one resolution, every
+// consumer. They used to be three hand-copied resolutions on eight parallel arrays,
+// and one copy (the retired right-slot width query) silently omitted the threshold
+// load (see load_pass).
 //
 // NO measurement here, deliberately: measure_slot() reads row->glyphs[i], which is
 // only valid after ensure_glyphs(), and a resolver that measured would drag PDC
-// glyph loads onto every minute tick's refresh. Each DRAWING caller runs
-// ensure_glyphs() and then measures with this struct's `font` — the same font it
-// goes on to draw with, which is the whole reason the font is resolved here.
+// glyph loads onto every minute tick's refresh. The draw then sets `font` from the
+// look's bold bit, and measures with it: the same font it goes on to draw with.
 // A slot's short form: the condition's as the phone baked it (STATUS_TEXT_ALT_MAX), or the
 // date's, which the watch formats (date_format.h DATE_FORMAT_SHORT_MAX).
 #define ROW_ALT_MAX (DATE_FORMAT_SHORT_MAX > STATUS_TEXT_ALT_MAX ? DATE_FORMAT_SHORT_MAX \
                                                                   : STATUS_TEXT_ALT_MAX)
 typedef struct {
     StatusSlotView slot;                    // the packed slot
-    GFont          font;                    // regular, or the bold companion
+    GFont          font;                    // regular, or the bold one (the draw's)
     char    text[STATUS_TEXT_MID_MAX + 1];  // direction sentinel already stripped
     char    alt[ROW_ALT_MAX + 1];           // its short form, if it brought one ("")
     int8_t  dir;                            // wind sector 0..15, -1 = none
@@ -501,12 +458,11 @@ typedef struct {
     ThreshLook look;                        // box, bold bit, RAW accent byte at `level`
 } ResolvedSlot;
 
-// Resolve one slot of an already-loaded pass (load_pass filled `view`). `base` is
-// the row's regular font; a slot whose bold verdict is set takes the bold
-// companion instead. `i` is the slot's position in a draw (0 left, 1 middle, 2
-// right), after status_on_demand_collect(), so it can take the level of a weather
-// alert it merged; -1 outside a draw.
-static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView *view,
+// Resolve one slot of an already-loaded pass (load_pass filled `view`), all but its
+// font. `i` is the slot's position in a draw (0 left, 1 middle, 2 right), after
+// status_on_demand_collect(), so it can take the level of a weather alert it merged;
+// -1 outside a draw.
+static void resolve_slot(const StatusRow *row, const StatusSlotView *view,
                          ResolvedSlot *out, int i) {
     out->slot = *view;
     out->dir = resolve_slot_text(row, &out->slot, out->text, sizeof(out->text), out->alt,
@@ -536,11 +492,6 @@ static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView 
     // blob read, while one left unwritten on some paths is the uninitialised-read
     // bug this struct exists to make impossible.
     out->look = status_threshold_look(s_thresh_scratch, thresh_kind, out->level);
-    // A crossed slot renders BOLD — the calendar's today-highlight pattern applied
-    // to slots. The bold Gothic shares its regular sibling's metrics, so only
-    // glyph WIDTHS change, which is why the font has to travel with the slot:
-    // whoever measures must measure with the font that will be drawn.
-    out->font = out->look.bold ? row_font_bold(row->tier, row->line_id) : base;
 }
 
 // Resolve all three slots of an already-loaded pass (load_pass filled `views`). The
@@ -548,9 +499,8 @@ static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView 
 // measure each one as it goes.
 static void resolve_row(const StatusRow *row, const StatusSlotView views[STATUS_SLOT_COUNT],
                         ResolvedSlot out[STATUS_SLOT_COUNT]) {
-    GFont base = row_font(row->tier, row->line_id);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        resolve_slot(row, base, &views[i], &out[i], -1);
+        resolve_slot(row, &views[i], &out[i], -1);
     }
 }
 
@@ -706,8 +656,8 @@ bool status_row_refresh(StatusRow *row) {
 }
 
 // The row's icon tier: a fraction of the font's content height (smaller on the top
-// strip), capped at the band. Shared by the slot glyphs and the On demand items, so
-// an alert icon is exactly the size the same icon has in a slot beside it.
+// strip), capped at the band. The draw sizes the slot glyphs and the On demand items
+// with it, so an alert icon is exactly the size the same icon has in a slot beside it.
 static int16_t icon_target_h(const StatusRow *row, int content_h) {
     bool top = (row->line_id == STATUS_LINE_TOP);
     int rn = top ? TOP_ICON_RATIO_NUM : ICON_RATIO_NUM;
@@ -718,11 +668,9 @@ static int16_t icon_target_h(const StatusRow *row, int content_h) {
     return target_h;
 }
 
-// `views` are the caller's already-walked slots (load_pass filled them);
-// glyph_icons[] tracks the PACKED icon.
-static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int content_h) {
-    int16_t target_h = icon_target_h(row, content_h);
-
+// `views` are the caller's already-walked slots (load_pass filled them), `target_h`
+// the row's icon tier (icon_target_h); glyph_icons[] tracks the PACKED icon.
+static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int16_t target_h) {
     GColor fg = theme_fg();
     bool env_changed = target_h != row->glyph_h || !gcolor_equal(fg, row->glyph_fg);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
@@ -749,7 +697,7 @@ int16_t status_row_text_w(const char *text, GFont font, int16_t content_w, int16
 // Measured footprint of one slot: icon width (status_row_layout.h status_slot_icon_w: the
 // battery glyph, alone or before the Watch battery's text, a loaded PDC, or the drawn-sun
 // arrow) + text width + the trailing wind-direction arrow's lane.
-// The draw pass feeds it a ResolvedSlot's font/slot/text/dir — the resolver's font
+// The draw pass feeds it a ResolvedSlot's font/slot/text/dir — the slot's own font
 // above all, since a bold slot's glyphs are wider than the regular font would
 // measure — and whether the watch is `charging` (the battery glyph's bolt lane).
 static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
@@ -844,11 +792,12 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         memset(views, 0, sizeof(views));
     }
 
-    GFont font = row_font(row->tier, row->line_id);
-    int content_h = graphics_text_layout_get_content_size(
-        "0", font, GRect(0, 0, 100, 100),
-        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
-    ensure_glyphs(row, views, content_h);
+    // The row's fonts, regular and bold, and the one measurement its seat, glyph centre
+    // and icon size derive from (the bold shares the regular's metrics).
+    const GFont fonts[2] = { row_font(row, false), row_font(row, true) };
+    const int content_h = status_content_h(fonts[0]);
+    const int16_t icon_h = icon_target_h(row, content_h);
+    ensure_glyphs(row, views, icon_h);
 
     int16_t content_w = (int16_t)(row->bounds.size.w - 2 * STATUS_ROW_MARGIN);
     if (content_w < 0) { content_w = 0; }
@@ -864,9 +813,10 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     const BatteryChargeState batt = watch_services_battery_state();
     const bool charging = batt.is_charging || batt.is_plugged;
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        resolve_slot(row, font, &views[i], &slots[i], i);
-        // The resolver's font, not `font`: a bold slot's glyphs are wider, so it
-        // must MEASURE with the font it is about to be drawn with.
+        resolve_slot(row, &views[i], &slots[i], i);
+        // A crossed slot's glyphs are wider in bold, so it MEASURES with the font it is
+        // about to be drawn with.
+        slots[i].font = fonts[slots[i].look.bold];
         measures[i] = measure_slot(row, i, slots[i].font, content_w,
                                    &slots[i].slot, slots[i].text, slots[i].dir, charging);
     }
@@ -874,7 +824,13 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     StatusSlotPlace places[STATUS_SLOT_COUNT];
     swap_in_short_forms(row, slots, measures, places, content_w);
 
-    int text_y_rel = row_text_y(row, font);
+    // Every row cap-centres its line (status_seat_y) EXCEPT the top strip, which rides
+    // STATUS_TOP_STRIP_LIFT rows higher inside an unchanged band (status_strip_seat_y): its
+    // top edge is the screen edge, so the air above the line is invisible while the gap
+    // below, down to the calendar, is what reads.
+    const bool top = row->line_id == STATUS_LINE_TOP;
+    int text_y_rel = top ? status_strip_seat_y(row->bounds.size.h, content_h)
+                         : status_seat_y(row->bounds.size.h, content_h);
     int text_y = row->bounds.origin.y + text_y_rel;
     int glyph_cy = row->bounds.origin.y
         + status_glyph_center_y(text_y_rel, content_h);
@@ -887,17 +843,16 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     // STATUS_ROW_MARGIN into the margin while no left slot shows beside it, so its
     // first item sits where the old indicators drew (screen x 4) while its content
     // rect stays the quiet one.
-    const bool top = row->line_id == STATUS_LINE_TOP;
     const StatusOnDemandEnv od_env = {
-        .font = font,
-        .bold = row_font_bold(row->tier, row->line_id),
+        .font = fonts[0],
+        .bold = fonts[1],
         .blob = s_thresh_scratch,
         .band = row->bounds,
         .x = x0,
         .glyph_cy = (int16_t)glyph_cy,
         .text_y = (int16_t)text_y,
         .content_h = (int16_t)content_h,
-        .icon_h = icon_target_h(row, content_h),
+        .icon_h = icon_h,
         .bar = bar,
         .bleed_left = top ? STATUS_ROW_MARGIN : 0,
         .top_strip = top
