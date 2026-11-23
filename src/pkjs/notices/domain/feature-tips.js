@@ -37,12 +37,11 @@ var TIPS = [
     {
         id: 'pluginValue',
         since: '3.4.0',
-        title: 'A value from another app',
+        title: 'Plugin values',
         // The Plugin value slot (status-line-catalog.js 'pluginValue'), in any bar, so Show me
         // opens the Status bars tab. Its dialog lists what the phone's plugins serve.
-        html: 'A status slot can show a value that another app\'s plugin serves, such as your phone\'s ' +
-            'network type. In any bar, set a slot to Plugin value and tap Edit, then pick the plugin and ' +
-            'its value.',
+        html: 'Status bar slots can show plugin values, such as your phone\'s network type. Set a slot ' +
+            'to Plugin value, tap Edit, then pick the plugin and its value.',
         open: { tab: 'watch' },
         // Where the status lists offer the slot: a Pebble app that reads plugins, and not on
         // aplite, whose feature set is frozen.

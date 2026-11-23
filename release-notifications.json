@@ -220,7 +220,7 @@
     "body": "Each weather value can now come from a provider of its own. The Watch battery slot can show its icon and percentage together, or the days left from the Muninn app (not on Pebble Classic or Steel). Open the settings to see what's new."
   },
   "3.4.0": {
-    "title": "Values from other apps",
-    "body": "A status bar slot can now show a value another app shares, such as your phone's network type, and the Watch battery fits any slot (not on Pebble Classic or Steel). Open the settings to see what's new."
+    "title": "Plugin values",
+    "body": "Status bar slots can show plugin values, such as your phone's network type, and the Watch battery fits any slot (not on Pebble Classic or Steel). Open the settings to see what's new."
   }
 }
