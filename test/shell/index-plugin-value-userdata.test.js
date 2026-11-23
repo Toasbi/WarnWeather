@@ -6,7 +6,8 @@
 // empty or listing this app's own plugin on a real phone while every settings-page test (which
 // sets userData itself) stayed green. They ride the page's URL only where the status lists
 // offer the slot. Boots the REAL index.js (as index-feature-tips.test.js does), opens settings
-// and decodes the userData the page receives.
+// and decodes the userData the page receives. And the one wire between the user's complications
+// and the slot's value: a change of the list reads the slot's place again at once.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -15,6 +16,8 @@ const { userDataOf } = require('../helpers/settings-url.js');
 const PKJS_DIR = path.resolve(__dirname, '..', '..', 'src', 'pkjs') + path.sep;
 const VALUE = { source: 'x/muninn/stats/daysRemaining', at: 1700000000000, validUntil: null,
   reading: { short: '5 d', time: null, number: 5, unit: 'd', state: null, long: null } };
+/** The settings that pick the source VALUE was read from, in no slot. */
+const PICKED = { pluginValuePlugin: 'x', pluginValueId: 'muninn/stats/daysRemaining' };
 const PREFS = '00000000-0000-0000-0001-000000000009';
 /**
  * The user's complications as kept: a weather and a calendar reading this app may read (it
@@ -35,14 +38,16 @@ function source(category, permissions) {
 }
 
 /**
- * Boot index.js with a value read last in storage, open the settings page and hand back the
- * userData it receives.
+ * Boot index.js with a value read last and the user's complications in storage.
  * @param {Object} t The test context.
  * @param {string} platform The watch.
  * @param {boolean} plugins Whether the Pebble app reads plugins (subscribeToSource).
- * @returns {Object} The page's userData.
+ * @param {Object} [seed] {settings, value, read}: the settings stored (default PICKED), the
+ *   value read last (default VALUE) and the record of its read (default none).
+ * @returns {{listeners: Object, opened: Array<string>, store: Object, subs: Array<Object>}} The
+ *   handlers index.js added, the URLs it opened, the storage and each subscribeToSource config.
  */
-function openedUserData(t, platform, plugins) {
+function boot(t, platform, plugins, seed) {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   // A boot of its own: index.js and what it requires hold state per load.
   Object.keys(require.cache).forEach((k) => { if (k.indexOf(PKJS_DIR) === 0) { delete require.cache[k]; } });
@@ -58,10 +63,13 @@ function openedUserData(t, platform, plugins) {
   store[KEYS.LAST_FETCH_SUCCESS_KEY] = JSON.stringify({ time: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     name: 'Berlin' });
   store.last_update_check = String(Date.now());
-  store[KEYS.PLUGIN_VALUE] = JSON.stringify(VALUE);
+  store['clay-settings'] = JSON.stringify((seed && seed.settings) || PICKED);
+  store[KEYS.PLUGIN_VALUE] = JSON.stringify((seed && seed.value) || VALUE);
+  if (seed && seed.read) { store[KEYS.PLUGIN_VALUE_READ] = JSON.stringify(seed.read); }
   store[KEYS.COMPLICATIONS] = JSON.stringify(COMPLICATIONS);
   const listeners = {};
   const opened = [];
+  const subs = [];
   global.Pebble = Object.assign({
     addEventListener: (name, fn) => { listeners[name] = fn; },
     getActiveWatchInfo: () => ({ platform: platform, model: 'qemu_platform_' + platform, language: 'en' }),
@@ -76,7 +84,10 @@ function openedUserData(t, platform, plugins) {
       { uuid: 'aaaaaaaa-0000-0000-0000-000000000003', name: 'Music', sources: [source('music', ['ReadMusic'])] },
       { uuid: PREFS, name: 'Preferences', sources: [{ category: 'preferences', items: ['complications'],
         properties: { category: ['shortText'], item: ['shortText'], index: ['numericValue'], property: ['shortText'] } }] }],
-  }, plugins ? { subscribeToSource: () => ({ unsubscribe: () => {} }) } : {});
+  }, plugins ? { subscribeToSource: (config) => {
+    subs.push(config);
+    return { unsubscribe: () => {} };
+  } } : {});
   global.XMLHttpRequest = function () {
     this.open = () => {};
     this.setRequestHeader = () => {};
@@ -99,8 +110,21 @@ function openedUserData(t, platform, plugins) {
 
   require('../../src/pkjs/index.js');
   listeners.ready({});
-  listeners.showConfiguration({});
-  return userDataOf(opened[0]);
+  return { listeners: listeners, opened: opened, store: store, subs: subs };
+}
+
+/**
+ * Boot index.js (boot), open the settings page and hand back the userData it receives.
+ * @param {Object} t The test context.
+ * @param {string} platform The watch.
+ * @param {boolean} plugins Whether the Pebble app reads plugins (subscribeToSource).
+ * @param {Object} [seed] What storage holds (boot).
+ * @returns {Object} The page's userData.
+ */
+function openedUserData(t, platform, plugins, seed) {
+  const h = boot(t, platform, plugins, seed);
+  h.listeners.showConfiguration({});
+  return userDataOf(h.opened[0]);
 }
 
 test('settings open hands the page the plugins the slot can read, the user\'s complications and the value read last', (t) => {
@@ -115,7 +139,46 @@ test('settings open hands the page the plugins the slot can read, the user\'s co
   'one whose source asks for a permission this app declares (Calendar among them, optional); neither this app\'s '
     + 'own nor one asking for another; the Preferences plugin with the complications kept, each with why this app '
     + 'may not read it');
-  assert.deepEqual(ud.pluginValue, VALUE, 'the value read last, whichever source it is of');
+  assert.deepEqual(ud.pluginValue, VALUE, 'the value read last, of the source the settings pick');
+});
+
+/** The settings that pick the user's first complication, in no slot. */
+const FIRST_PLACE = { pluginValuePlugin: PREFS, pluginValueId: 'preferences/complications/0' };
+
+/**
+ * @param {string} reading The reading a value was read from ('category/item/index/property').
+ * @returns {Object} VALUE, as the first complication's value of that reading.
+ */
+function firstPlaceValue(reading) {
+  return Object.assign({}, VALUE, { source: PREFS + '/preferences/complications/0/' + reading });
+}
+
+[['another value of the plugin', { settings: { pluginValuePlugin: 'x', pluginValueId: 'muninn/stats/updatedAt' } }],
+  ['a complication\'s place that names another reading now', { settings: FIRST_PLACE,
+    value: firstPlaceValue('phone/phone_state/0/battery_level') }]]
+  .forEach(([what, seed]) => test('the value read last stays off the page where it is not of what the settings pick: '
+    + what, (t) => {
+    assert.equal(openedUserData(t, 'basalt', true, seed).pluginValue, null);
+  }));
+
+test('a complication\'s value rides the page while its place names the reading it was read from', (t) => {
+  assert.deepEqual(openedUserData(t, 'basalt', true, { settings: FIRST_PLACE,
+    value: firstPlaceValue('weather/now/0/level') }).pluginValue, firstPlaceValue('weather/now/0/level'));
+});
+
+test('an answer of the Preferences plugin that changes the slot\'s place drops its value and reads the new one at once', (t) => {
+  const value = firstPlaceValue('weather/now/0/level');
+  const h = boot(t, 'basalt', true, { settings: Object.assign({ statusTopLeft: 'pluginValue' }, FIRST_PLACE),
+    value: value, read: { source: value.source, at: Date.now() - 60 * 1000, failures: 0, validUntil: null } });
+  const KEYS = require('../../src/pkjs/settings/domain/storage-keys.js');
+  /** @returns {Array<string>} What is read of plugins but the phone's own state, by category. */
+  const reads = () => h.subs.map((c) => c.category).filter((c) => c !== 'phone');
+  assert.deepEqual(reads(), ['preferences'], 'the weather was read a minute ago');
+  h.subs.filter((c) => c.category === 'preferences')[0].onData({ pluginUuid: PREFS, instances: [{ instanceId: '0',
+    properties: { category: { shortText: { text: 'calendar' } }, item: { shortText: { text: 'now' } },
+      index: { numericValue: { value: 0 } }, property: { shortText: { text: 'level' } } } }] });
+  assert.equal(h.store[KEYS.PLUGIN_VALUE], undefined, 'the weather is not the calendar');
+  assert.deepEqual(reads(), ['preferences', 'calendar'], 'the calendar, read at once');
 });
 
 [['aplite', true, 'on aplite'], ['basalt', false, 'where the Pebble app reads no plugins']]

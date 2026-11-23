@@ -87,8 +87,10 @@
      * @param {?Object} value A value kept (plugin-value-reads.js valueOf), or null.
      * @param {?Object} source A source (sourceOf), or null.
      * @returns {boolean} Whether the value was read from the source. A complication's value names
-     *   the reading the complication named as it was read after the complication's own key
-     *   (plugin-value-source.js), so a value of any reading the complication has named is its.
+     *   the reading it was read from after the complication's own key (plugin-value-source.js),
+     *   and it is the place's reading now wherever this judges it: the phone keeps it only while
+     *   the place names that reading (plugin-read-schedule.js consider) and hands the settings
+     *   page no other (plugin-value-source.js forPage).
      */
     function readFrom(value, source) {
         return Boolean(value) && Boolean(source) && (value.source === source.key

@@ -6,7 +6,7 @@
 // complication at that place names, read from whichever plugin the Pebble app picks for its
 // source. The value's key names that reading after the complication's own, so a change of the
 // complication in the Pebble app is another key: the old reading's value is dropped and the new
-// one is read at once.
+// one is read at once (complication-list.js calls complicationsChanged when the list changes).
 //
 // Read once at a time, when the slot's Updates setting and the plugin's own word say
 // (domain/plugin-value-reads.js); picking a source reads at once. How a read goes, and what is
@@ -15,7 +15,9 @@
 //
 // Only while it is wanted: a source is picked and a bar the watch is sent shows the slot
 // (status-lines.js wantsPluginValue). A bake shows the value only for the source it was read
-// from, and drops it once it is too old (plugin-values.js shownReading).
+// from, and drops it once it is too old (plugin-values.js shownReading). The settings page gets
+// it only while it is of what the settings pick, and of the reading a complication's place
+// names now (forPage).
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
@@ -39,15 +41,30 @@ var getComplications = function () { return null; };
  * a key that names that reading after the complication's own (plugin-values.js readFrom).
  * @param {Object} source The source the settings pick (plugin-values.js sourceOf), a
  *   complication's.
+ * @param {?Array<Object>} list The user's complications as last heard, or null while none are
+ *   known.
  * @returns {?{key: string, request: ?Object}} What is wanted: no request for a place left
  *   empty, which shows nothing; null while the complications are not known.
  */
-function complicationWant(source) {
-    var list = getComplications();
+function complicationWant(source, list) {
     var c = complications.atPlace(list, source.complication);
     if (!list) { return null; }
     return c ? { key: source.key + '/' + complications.keyOf(c), request: complications.requestOf(c, permissions) }
         : { key: source.key, request: null };
+}
+
+/**
+ * What the slot reads for the source the settings pick, whether a bar shows it or not.
+ * @param {Object} source The source (plugin-values.js sourceOf).
+ * @param {?Array<Object>} list The user's complications as last heard, or null while none are
+ *   known.
+ * @returns {?{key: string, request: ?Object}} What is wanted (complicationWant's for a
+ *   complication).
+ */
+function readOf(source, list) {
+    if (source.complication !== null) { return complicationWant(source, list); }
+    return { key: source.key, request: { category: source.category, item: source.item,
+        properties: [source.property], plugin: source.plugin, limit: 1, permissions: permissions } };
 }
 
 var schedule = pluginReadSchedule.create({
@@ -60,9 +77,7 @@ var schedule = pluginReadSchedule.create({
         // The source first: it alone rules out most settings, without working out the bars.
         var source = pluginValues.sourceOf(settings);
         if (!source || !statusLines.wantsPluginValue(settings, watchInfo)) { return null; }
-        if (source.complication !== null) { return complicationWant(source); }
-        return { key: source.key, request: { category: source.category, item: source.item,
-            properties: [source.property], plugin: source.plugin, limit: 1, permissions: permissions } };
+        return readOf(source, getComplications());
     },
     nextReadAt: function (record, settings) {
         return pluginValueReads.nextReadAt(record, pluginValues.everyMs(settings));
@@ -91,6 +106,24 @@ function bakeFacts() {
 }
 
 /**
+ * The value last heard, for the settings page (userData.pluginValue): only while it was read
+ * from what the settings pick, and for a complication from the reading its place names now, so
+ * the page never prints another's as the slot's value. The page judges it against the source
+ * its rows pick right then (plugin-values.js shownReading).
+ * @param {?Object} settings The settings the page opens on.
+ * @param {?Array<Object>} list The user's complications as last heard (complication-list.js
+ *   current), or null while none are known.
+ * @returns {?Object} The value ({source, reading, at, validUntil}; plugin-value-reads.js
+ *   valueOf), or null.
+ */
+function forPage(settings, list) {
+    var source = pluginValues.sourceOf(settings);
+    var want = source ? readOf(source, list) : null;
+    var value = schedule.value();
+    return value && want && value.source === want.key ? value : null;
+}
+
+/**
  * Wire the source up (plugin-read-schedule.js init, which takes the same options). Call once,
  * from the 'ready' handler, after statusRebake.init() and complication-list.js' init.
  * @param {Object} options Injected environment: the schedule's, and these.
@@ -114,9 +147,9 @@ module.exports = {
     onTick: schedule.onTick,
     // The settings were saved: a source just picked is read at once.
     refresh: schedule.refresh,
+    // The user's complications changed (complication-list.js): the reading the slot's place
+    // names now is read at once, as a tick reads (outside the Night battery saver's window).
+    complicationsChanged: schedule.onTick,
     bakeFacts: bakeFacts,
-    // The value last heard ({source, reading, at, validUntil}; plugin-value-reads.js valueOf),
-    // or null: what a bake reads, and the settings page's userData.pluginValue, which the page
-    // judges against the source its rows pick right then.
-    value: schedule.value
+    forPage: forPage
 };

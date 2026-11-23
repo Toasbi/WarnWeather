@@ -5,9 +5,10 @@
 // plugin-value-list.js listOf): the page reads no plugin itself, since a read costs the user
 // (plugin-reader.js). The phone sends each plugin's items with their properties' names, and the
 // page makes each value's id (plugin-values.js valueId) and label (labelOf) of them. The value
-// read last (userData.pluginValue, checked on the phone) is judged against the source the rows
-// pick right then, as a bake judges it (plugin-values.js shownReading); the bars' pictures print
-// it through barText.
+// read last (userData.pluginValue, checked on the phone, which hands it only while it is of what
+// the settings pick: plugin-value-source.js forPage) is judged against the source the rows pick
+// right then, as a bake judges it (plugin-values.js shownReading); the bars' pictures print it
+// through barText.
 //
 // A plugin or a value the settings hold that the phone no longer lists stays in its row's list,
 // said as such: the engine would otherwise move the row onto another option as soon as it is

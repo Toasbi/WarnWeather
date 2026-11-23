@@ -415,15 +415,17 @@ test('the value is never logged: it is another app\'s data', () => {
   assert.deepEqual(logged.filter((line) => /4711|Secret|kWh/.test(line)), []);
 });
 
-test('the settings page gets the value last heard whole, whichever source the settings pick', () => {
+test('the settings page gets the value last heard whole, while it is of the source the settings pick', () => {
   const h = boot();
-  assert.equal(pluginValueSource.value(), null, 'none yet');
+  assert.equal(pluginValueSource.forPage(SLOT, null), null, 'none yet');
   h.pebble.subs[0].push(answer(null, { validUntilMs: NOON + 2 * HOUR }));
   const value = { source: KEY, reading: { short: '87%', time: null, number: 87, unit: '%', state: null, long: null },
     at: NOON, validUntil: NOON + 2 * HOUR };
-  assert.deepEqual(pluginValueSource.value(), value);
-  h.settings = CELL;
-  assert.deepEqual(pluginValueSource.value(), value, 'the page judges it against its own pick');
+  assert.deepEqual(pluginValueSource.forPage(SLOT, null), value);
+  assert.deepEqual(pluginValueSource.forPage(Object.assign({}, SLOT, { statusTopLeft: 'aqi' }), null), value,
+    'whether a bar shows the slot or not: the dialog is the source\'s');
+  assert.equal(pluginValueSource.forPage(CELL, null), null, 'another value\'s');
+  assert.equal(pluginValueSource.forPage({}, null), null, 'none picked');
 });
 
 // --- a complication ------------------------------------------------------------
@@ -500,6 +502,59 @@ test('a complication this app may not read is never asked: the slot shows --', (
   assert.equal(h.pebble.subs.length, 0);
   statusRebake.resendStatus('test');
   assert.equal(sentText(h), '--');
+});
+
+test('the settings page gets a complication\'s value only while its place names the reading it was read from', () => {
+  const h = boot({ settings: SECOND, complications: [CHARGE], permissions: PERMS, pebble: listing(PLUGINS) });
+  h.pebble.subs[0].push(answer());
+  assert.equal(pluginValueSource.forPage(SECOND, [CHARGE]).reading.short, '87%');
+  // The user moved the temperature to the second place in the Pebble app, and opens the
+  // settings before the slot has read it.
+  assert.equal(pluginValueSource.forPage(SECOND, [TEMPERATURE]), null, 'never as the temperature');
+  assert.equal(pluginValueSource.forPage(SECOND, []), null, 'nor once the place is empty');
+  assert.equal(pluginValueSource.forPage(SECOND, null), null, 'nor while the complications are not known');
+});
+
+test('a complication changed while no bar showed the slot: the save that puts it back shows --, not the old reading', () => {
+  const h = boot({ settings: SECOND, complications: [CHARGE], permissions: PERMS, pebble: listing(PLUGINS) });
+  h.pebble.subs[0].push(answer());
+  minute();
+  assert.equal(sentText(h), '87%');
+  h.clock += 10 * MIN;
+  h.settings = Object.assign({}, SECOND, { statusTopLeft: 'aqi' });
+  pluginValueSource.refresh();
+  h.complications = [TEMPERATURE];
+  h.clock += 10 * MIN;
+  h.settings = SECOND;
+  pluginValueSource.refresh();
+  statusRebake.resendStatus('config-close');
+  assert.equal(sentText(h), '--', 'the phone\'s charge is not the temperature');
+  assert.equal(stored(KEYS.PLUGIN_VALUE), null);
+  assert.deepEqual(h.pebble.subs[1].request.properties, ['temperature'], 'the temperature, read at once');
+  h.pebble.subs[1].fail('TIMEOUT');
+  statusRebake.resendStatus('fetch');
+  assert.equal(sentText(h), '--', 'nor once its read failed');
+});
+
+test('a complication changed in the Pebble app is read as the list says so, and a read of the old reading under way is dropped', () => {
+  // A start with the list kept from before the change reads the reading the place named then.
+  const h = boot({ settings: SECOND, complications: [CHARGE], permissions: PERMS, pebble: listing(PLUGINS) });
+  assert.deepEqual(h.pebble.subs[0].request.properties, ['battery_level']);
+  // The Preferences plugin's first answer says the place names the temperature now.
+  h.complications = [TEMPERATURE];
+  pluginValueSource.complicationsChanged();
+  h.pebble.subs[0].push(answer());
+  assert.equal(stored(KEYS.PLUGIN_VALUE), null, 'the phone\'s charge is not kept as the temperature');
+  assert.deepEqual(h.pebble.subs[1].request.properties, ['temperature'], 'the temperature, read as that read ends');
+  h.pebble.subs[1].push(weather(['21\u00b0', '4\u00b0']));
+  minute();
+  assert.equal(sentText(h), '4\u00b0');
+  h.complications = [CHARGE];
+  h.clock += MIN;
+  pluginValueSource.complicationsChanged();
+  assert.equal(h.pebble.subs.length, 3, 'with no read under way, at once');
+  statusRebake.resendStatus('fetch');
+  assert.equal(sentText(h), '--', 'and the temperature is not the phone\'s charge');
 });
 
 test('a place left empty: nothing is read, and the value kept is dropped', () => {

@@ -2,7 +2,8 @@
 //
 // The user's complications (domain/complications.js), as the Pebble app's Preferences plugin
 // serves them, for the Plugin value slot: its dialog lists them (index.js userData), and the
-// slot reads the reading the one it picks names (plugin-value-source.js).
+// slot reads the reading the one it picks names (plugin-value-source.js), again at once when an
+// answer changes the list (init's onChange): the place may name another reading now.
 //
 // Watched for as long as PKJS lives, where the slot is offered (a Pebble app that reads
 // plugins, and not aplite). The source is the Pebble app's own and asks for no permission, and
@@ -26,6 +27,8 @@ var REQUEST = { category: 'preferences', item: 'complications', plugin: pluginVa
 var list = null;
 // The subscription (plugin-reader.js PluginSubscription), or null.
 var subscription = null;
+// What an answer that changes the list calls (init's onChange), or null.
+var onChange = null;
 
 /**
  * @returns {?Array<Object>} The list as stored, checked, or null for none.
@@ -42,7 +45,8 @@ function stored() {
 }
 
 /**
- * Keep a list (or none), here and in storage. Writes nothing when it is the one held.
+ * Keep a list (or none), here and in storage, and say so to onChange when that changes it.
+ * Writes nothing when it is the one held.
  * @param {?Array<Object>} next The complications, or null for none known.
  * @returns {void}
  */
@@ -57,6 +61,7 @@ function hold(next) {
         console.log('complications: the list was not stored.');
     }
     console.log('complications: ' + (next ? next.length + ' now.' : 'none known.'));
+    if (onChange) { onChange(); }
 }
 
 /**
@@ -88,6 +93,8 @@ function onFailure(fail) {
  * @param {boolean} [options.offered] Whether the Plugin value slot is offered on this watch
  *   and phone (status-line-catalog.js itemAvailable). Without it nothing is watched.
  * @param {Object} [options.pebble] The Pebble object (default: the global one, if any).
+ * @param {function(): void} [options.onChange] Called when an answer changes the list
+ *   (plugin-value-source.js complicationsChanged).
  * @returns {void}
  */
 function init(options) {
@@ -96,6 +103,7 @@ function init(options) {
     var pebble;
     subscription = null;
     if (held) { held.unsubscribe(); }
+    onChange = typeof deps.onChange === 'function' ? deps.onChange : null;
     list = stored();
     pebble = pluginReader.pebbleOf(deps);
     if (!deps.offered || !pluginReader.available(pebble)) { return; }

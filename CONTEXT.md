@@ -290,8 +290,9 @@ declared, or reading it does something. None of the Preferences plugin's own rea
 units are plumbing, and its weather locations' coordinates are the user's position. The phone
 watches the list where the slot is offered, a built-in source that sends each change by itself,
 and keeps it in storage for the settings page (`complication-list.js`). The slot reads the
-reading the complication at its place names: a new one there is read at once, and an empty
-place shows -- (`plugin-value-source.js`).
+reading the complication at its place names: a new one there is read as the list changes, a
+value of the reading the place named before is never shown for it, on the watch or in the
+dialog, and an empty place shows -- (`plugin-value-source.js`).
 _Avoid_: slot, for a complication's place (a slot is a status bar's).
 
 **Short form (status slot)**:

@@ -328,6 +328,39 @@ test('an answer after what is wanted changed is dropped, and what is wanted now 
   assert.equal(h.pebble.subs.length, 3);
 });
 
+test('an answer after what is wanted changed with no save is dropped, and what is wanted now waits for the Night battery saver\'s window as a tick\'s read does', () => {
+  const h = boot({ settings: SAVER_ON, clock: NIGHT });
+  h.settings = Object.assign({}, WANT_A, SAVER_ON);
+  schedule.refresh();
+  // Told as a tick is: what the reader wants changed by itself (plugin-value-source.js
+  // complicationsChanged: a complication changed in the Pebble app).
+  h.settings = Object.assign({ want: 'b' }, SAVER_ON);
+  schedule.onTick();
+  h.pebble.subs[0].push({ text: 'A' });
+  assert.equal(schedule.value(), null, 'the answer for a is not kept');
+  assert.equal(h.pebble.subs.length, 1, 'no save waits for b: not in the window');
+  h.clock = new Date(2026, 10, 21, 7, 0, 0).getTime();
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 2, 'the first tick after it');
+  assert.equal(h.pebble.subs[1].request.item, 'b');
+});
+
+test('a value of another key is dropped though nothing of its read is left: nothing was wanted in between', () => {
+  const h = boot();
+  h.pebble.subs[0].push({ text: '87%' });
+  h.settings = {};
+  schedule.refresh();
+  assert.deepEqual(schedule.value(), { source: 'a', text: '87%', at: NOON }, 'kept while nothing is wanted');
+  h.clock += 10 * MIN;
+  h.settings = { want: 'b' };
+  schedule.refresh();
+  assert.equal(schedule.value(), null, 'never shown as b\'s');
+  assert.equal(stored(VALUE), null);
+  assert.equal(h.pebble.subs[1].request.item, 'b', 'b is read at once');
+  h.pebble.subs[1].fail('TIMEOUT');
+  assert.equal(schedule.value(), null, 'nor once b\'s read failed');
+});
+
 test('the plugin not there: the value kept is dropped, and the record keeps no failure and no time', () => {
   const h = boot();
   h.pebble.subs[0].push({ text: '87%', until: NOON + 3 * HOUR });

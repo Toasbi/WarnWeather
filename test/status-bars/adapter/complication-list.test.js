@@ -42,7 +42,7 @@ const BATTERY = { position: 1, category: 'phone', item: 'phone_state', index: 0,
 
 /**
  * A PKJS start.
- * @param {Object} [opts] {pebble, offered (default true), keepStorage}.
+ * @param {Object} [opts] {pebble, offered (default true), keepStorage, onChange}.
  * @returns {Object} The fake Pebble.
  */
 function boot(opts) {
@@ -50,7 +50,7 @@ function boot(opts) {
   if (!opts.keepStorage) { Object.keys(storage).forEach((k) => { delete storage[k]; }); }
   writes.length = 0;
   const pebble = Object.prototype.hasOwnProperty.call(opts, 'pebble') ? opts.pebble : fakePebble();
-  complicationList.init({ pebble: pebble, offered: opts.offered !== false });
+  complicationList.init({ pebble: pebble, offered: opts.offered !== false, onChange: opts.onChange });
   return pebble;
 }
 
@@ -80,6 +80,21 @@ test('each answer is the list as it is now, kept in storage when it changed', ()
   assert.deepEqual(complicationList.current(), [], 'every place emptied');
   assert.equal(storage[KEYS.COMPLICATIONS], '[]');
   assert.equal(pebble.subs[0].unsubscribed, 0, 'it stays watched');
+});
+
+test('an answer that changes the list says so, once the list is held: the slot reads its place again at once', () => {
+  storage[KEYS.COMPLICATIONS] = JSON.stringify([BATTERY]);
+  const seen = [];
+  const pebble = boot({ keepStorage: true, onChange: () => seen.push(complicationList.current()) });
+  assert.deepEqual(seen, [], 'not for the list kept: the slot\'s start reads it by itself');
+  pebble.subs[0].push(answer([['1', 'phone', 'phone_state', 0, 'battery_level']]));
+  assert.deepEqual(seen, [], 'not for the same list');
+  pebble.subs[0].push(answer([['1', 'weather', 'location', 0, 'temperature']]));
+  assert.deepEqual(seen, [[Object.assign({}, TEMPERATURE, { position: 1 })]], 'the new list, held as it is told');
+  pebble.subs[0].fail('TIMEOUT');
+  assert.equal(seen.length, 1, 'a failure that keeps the list');
+  pebble.subs[0].fail('PLUGIN_UNAVAILABLE');
+  assert.deepEqual(seen.slice(1), [null], 'nor any known now');
 });
 
 test('a start has the list kept as it starts, before the first answer, checked', () => {

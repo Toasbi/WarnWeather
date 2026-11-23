@@ -56,7 +56,7 @@ function clock(t, ms) {
 }
 
 /**
- * A value as the phone kept it (plugin-value-source.js forPage).
+ * A value as the phone hands it (plugin-value-source.js forPage).
  * @param {Object} reading Its reading's set fields.
  * @param {Object} [extra] Its other fields.
  * @returns {Object} The value.
@@ -273,7 +273,9 @@ test('picking Preferences starts on the first complication WarnWeather can read'
   assert.equal(S.pluginValueId, '', 'none known');
 });
 
-test('the last line and the bars\' pictures show a complication\'s value, whatever reading it names', (t) => {
+test('the last line and the bars\' pictures show the value the phone hands for a complication\'s place, by the place', (t) => {
+  // The phone hands the page a complication's value only while its place names the reading it
+  // was read from (plugin-value-source.js forPage), so the page judges it by the place alone.
   clock(t, NOW);
   userData(t, { plugins: withPrefs(COMPLICATIONS), pluginValue: kept({ short: '21°' },
     { source: PREFS + '/preferences/complications/0/weather/location/0/temperature' }) });

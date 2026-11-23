@@ -19,10 +19,12 @@
 //     so a plugin that fails again waits for its reader's wait, however often the settings are
 //     saved. A record that storage refuses still counts for the rest of this PKJS life.
 //   - Not wanted: nothing is read, and the record is forgotten, so the value wanted again is
-//     read at once. Another key wanted (another source picked): the record and the value heard
-//     of the old key are forgotten, and the new key is read at once.
+//     read at once. Another key wanted (another source picked, or another reading named at the
+//     complication's place the slot shows): the old key's record is forgotten, and the new key
+//     is read at once. A value heard of another key than the one wanted is dropped, its record
+//     forgotten or not: a bake would show it as the new key's.
 //   - One read at a time. An answer that comes after what is wanted changed is dropped, and
-//     the save that changed it, which that read held up, reads then.
+//     what changed it, which that read held up, reads then: as from a save where a save did.
 //   - A clock that went back starts the wait again from now (plugin-reads.js clockWentBack).
 //   - Inside the Night battery saver's window only a read that a settings save asks for, with
 //     none before it or after the first that failed, goes ahead: the user is at the phone, waiting to
@@ -72,7 +74,7 @@ var pluginReader = require('./plugin-reader.js');
  *   value: ?Object}} heard What an answer to the wanted read says, heard at an instant: the time
  *   the record keeps, and the value to keep (as valueOf hands it back), or null for none.
  * @property {function(*): ?Object} valueOf A value as stored (parsed JSON), checked; null for
- *   none.
+ *   none. A keyed reader's value names the key it was read under as its `source`.
  * @property {function(?Object, ?Object, number): *} shown What the slot shows of a value under
  *   the settings at an instant; null for nothing.
  * @property {function(*, *): boolean} sameShown Whether two of what shown hands back are the same.
@@ -114,6 +116,8 @@ function create(spec) {
     // A read a save asked for failed for a reason that can pass by the next minute
     // (plugin-reads.js passing): the next tick reads again, once, as the save would have.
     var againAtTick = false;
+    // A save came while a read was under way (consider): the read it held up is the save's.
+    var heldUp = false;
     // The last read ({source, at, failures, <timeField>}), or null for none.
     var record = null;
     // The value last heard (spec.valueOf's), or null for none.
@@ -236,12 +240,14 @@ function create(spec) {
         stamp(want.key, at, failures, time);
         pluginReader.readOnce(pluginReader.pebbleOf(deps), want.request, function (envelope, fail) {
             var heard;
+            var held = heldUp;
             inFlight = false;
+            heldUp = false;
             // The record is gone, or another key's, when what is wanted changed while the plugin
-            // answered: the answer is no longer the slot's. Only a save changes it, and this read
-            // held that save's read up: it goes now, as from the save.
+            // answered: the answer is no longer the slot's. This read held up the read of what
+            // is wanted now: it goes now, as from a save where a save changed it.
             if (!record || record.source !== want.key) {
-                consider(true);
+                consider(held);
                 return;
             }
             if (fail && fail.code !== 'PLUGIN_UNAVAILABLE') {
@@ -280,12 +286,11 @@ function create(spec) {
             forget();
             return;
         }
-        // Another key: what was heard of the old one is no longer the slot's (a bake shows it no
-        // more anyway), and the new one is read at once.
-        if (record && record.source !== want.key) {
-            forget();
-            keep(null, false);
-        }
+        // Another key: the new one is read at once.
+        if (record && record.source !== want.key) { forget(); }
+        // A value heard of another key is no longer the slot's, whether its record is the old
+        // key's or gone (nothing was wanted for a while): a bake would show it as the new one's.
+        if (want.key !== null && value && value.source !== want.key) { keep(null, false); }
         at = nowMs();
         // A bake drops a value grown too old by itself, but only a bake: when what the slot
         // shows changed with the time, the watch is owed the status that shows it. A save sends
@@ -293,7 +298,10 @@ function create(spec) {
         now = spec.shown(value, settings, at);
         if (!fromSave && !spec.sameShown(shown, now)) { statusRebake.oweStatus(false); }
         shown = now;
-        if (inFlight) { return; }
+        if (inFlight) {
+            heldUp = heldUp || fromSave;
+            return;
+        }
         if (record && pluginReads.clockWentBack(record, at)) {
             stamp(record.source, at, record.failures, record[spec.timeField]);
             return;
@@ -331,6 +339,7 @@ function create(spec) {
         deps = options;
         inFlight = false;
         againAtTick = false;
+        heldUp = false;
         record = pluginReads.recordOf(stored(spec.recordKey), spec.timeField);
         value = spec.valueOf(stored(spec.valueKey));
         // Not known: what the last PKJS owed the watch died with it. The first look owes a send

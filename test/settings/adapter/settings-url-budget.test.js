@@ -122,6 +122,8 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
   }
   store[KEYS.PLUGIN_VALUE] = JSON.stringify({ source: 'x/cat/item/v', at: now, validUntil: null,
     reading: { short: 's'.repeat(5000), long: 'l'.repeat(5000), unit: 'u'.repeat(5000), number: 1 } });
+  // The settings pick its source: the page gets the value only then (plugin-value-source.js forPage).
+  store['clay-settings'] = JSON.stringify({ pluginValuePlugin: 'x', pluginValueId: 'cat/item/v' });
 
   const listeners = {};
   const opened = [];
