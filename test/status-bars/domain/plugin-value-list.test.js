@@ -25,8 +25,22 @@ const PHONE = plugin('00000000-0000-0000-0001-000000000001', 'Phone', [{ categor
 
 test('each plugin with its items and the properties of them the slot can print', () => {
   assert.deepEqual(list.listOf([PHONE], PERMS, 'own'), [{ uuid: PHONE.uuid, name: 'Phone', items: [
-    { category: 'phone', item: 'phone_state', multiple: false, properties: ['battery_level', 'cell', 'wifi'] }] }],
-  'a boolean alone is left out');
+    { category: 'phone', item: 'phone_state', multiple: false,
+      properties: ['battery_level', 'cell', 'wifi', 'charging'] }] }], 'a boolean alone is printed too: Yes or No');
+});
+
+test('a timestamp alone is printed, as a clock time; a shape the slot cannot print is left out', () => {
+  const sky = plugin('s', 'Sky', [{ category: 'sky', items: ['today'], properties: { sunrise: ['timestamp'],
+    moon: ['icon', 'image'], hours: ['series.timestamp'], phase: ['image', 'shortText'] } }]);
+  assert.deepEqual(list.listOf([sky], PERMS, 'own')[0].items[0].properties, ['sunrise', 'phase']);
+});
+
+test('a source that does something when it is read is never listed: Find My Phone rings the phone', () => {
+  const phone = plugin(PHONE.uuid, 'Phone', PHONE.sources.concat([{ category: 'phone',
+    items: ['find_my_phone', 'phone_state_copy'], properties: { ringing: ['boolean', 'shortText'] } }]));
+  assert.deepEqual(list.listOf([phone], PERMS, 'own')[0].items.map((it) => it.item), ['phone_state', 'phone_state_copy']);
+  assert.deepEqual(list.listOf([plugin('f', 'Find', [{ category: 'phone', items: ['find_my_phone'],
+    properties: { ringing: ['boolean'] } }])], PERMS, 'own'), [], 'a plugin with nothing else offers nothing');
 });
 
 test('every item of every source, each value once, in the order the plugin declares them', () => {

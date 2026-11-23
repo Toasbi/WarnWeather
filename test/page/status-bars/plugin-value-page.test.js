@@ -62,8 +62,8 @@ function clock(t, ms) {
  * @returns {Object} The value.
  */
 function kept(reading, extra) {
-  return Object.assign({ source: LEVEL_KEY, reading: Object.assign({ short: null, number: null, unit: null,
-    long: null }, reading), at: NOW - 5 * MIN, validUntil: null }, extra || {});
+  return Object.assign({ source: LEVEL_KEY, reading: Object.assign({ short: null, time: null, number: null,
+    unit: null, state: null, long: null }, reading), at: NOW - 5 * MIN, validUntil: null }, extra || {});
 }
 
 test('the Plugin row lists None, then each plugin the phone listed', (t) => {
@@ -143,6 +143,18 @@ test('the last line: the value read last, as a middle slot prints it, and how lo
   assert.equal(page.lastLine(LEVEL), '12345 kWh (5 min ago).', 'the middle slot has room for the unit');
   global.INJECTED_USERDATA.pluginValue = kept({ short: '<b>87</b>' });
   assert.equal(page.lastLine(LEVEL), '&lt;b&gt;87&lt;/b&gt; (5 min ago).', 'another app\'s text, escaped');
+});
+
+test('the last line and the bars\' pictures print a moment as the watch does: a clock time in the user\'s format', (t) => {
+  clock(t, NOW);
+  const at = new Date(2026, 10, 23, 13, 40, 0).getTime();
+  userData(t, { plugins: PLUGINS, pluginValue: kept({ time: at, number: at }) });
+  const S = Object.assign({ statusTopLeft: 'pluginValue', axisTimeFormat: '12h', timeShowAmPm: true }, LEVEL);
+  assert.equal(page.lastLine(S), '1:40p (5 min ago).');
+  assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.EDGE_TEXT_MAX, env: BASALT }), '1:40p');
+  assert.equal(page.lastLine(LEVEL), '13:40 (5 min ago).', '24 hours');
+  global.INJECTED_USERDATA.pluginValue = kept({ state: true });
+  assert.equal(page.lastLine(LEVEL), 'Yes (5 min ago).');
 });
 
 test('the last line: a value too old to show says what the watch shows instead', (t) => {

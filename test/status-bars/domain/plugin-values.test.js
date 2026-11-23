@@ -18,7 +18,7 @@ const SETTINGS = { pluginValuePlugin: UUID, pluginValueId: 'muninn/stats/daysRem
  * @returns {Object} A reading as plugin-reader.js readingOf hands it over.
  */
 function reading(fields) {
-  return Object.assign({ short: null, number: null, unit: null, long: null }, fields);
+  return Object.assign({ short: null, time: null, number: null, unit: null, state: null, long: null }, fields);
 }
 
 test('sourceOf: the plugin and the value the settings pick, null while either is missing', () => {
@@ -75,6 +75,41 @@ test('the text: a unit the slot has no room for is left off', () => {
   assert.equal(pv.textFor(reading({ number: 12345, unit: 'kWh' }), 19), '12345 kWh', 'the middle has room');
   assert.equal(pv.textFor(reading({ number: 12345, unit: '\u00b0C' }), 8), '12345\u00b0C', 'the degree is 2 bytes');
   assert.equal(pv.textFor(reading({ number: 123456, unit: '\u00b0C' }), 8), '123456');
+});
+
+/** 17:04 and 9:05 here, in epoch milliseconds, as a value keeps a moment. */
+const EVENING = new Date(2026, 10, 23, 17, 4, 0).getTime();
+const MORNING = new Date(2026, 10, 23, 9, 5, 0).getTime();
+
+test('the text: else its moment, as a clock time in the user\'s format, as the sun slot prints sunrise', () => {
+  assert.equal(pv.textFor(reading({ time: EVENING }), 8), '17:04', 'no settings: 24 hours');
+  assert.equal(pv.textFor(reading({ time: MORNING }), 8, {}), '9:05');
+  assert.equal(pv.textFor(reading({ time: MORNING }), 8, { timeLeadingZero: true }), '09:05');
+  assert.equal(pv.textFor(reading({ time: EVENING }), 8, { axisTimeFormat: '12h' }), '5:04');
+  assert.equal(pv.textFor(reading({ time: EVENING }), 8, { axisTimeFormat: '12h', timeShowAmPm: true }), '5:04p');
+  assert.equal(pv.textFor(reading({ time: MORNING }), 8, { axisTimeFormat: '12h', timeShowAmPm: true,
+    timeLeadingZero: true }), '09:05a');
+  assert.equal(pv.textFor(reading({ time: new Date(2026, 10, 23, 0, 30).getTime() }), 8,
+    { axisTimeFormat: '12h', timeShowAmPm: true }), '12:30a', 'half past midnight');
+  assert.equal(pv.textFor(reading({ time: new Date(2026, 10, 23, 12, 45).getTime() }), 8,
+    { axisTimeFormat: '12h', timeShowAmPm: true, timeLeadingZero: true }), '12:45p', 'the longest fits an edge slot');
+});
+
+test('the text: the moment over the number, so Muninn\'s updatedAt prints as the time it was updated', () => {
+  assert.equal(pv.textFor(reading({ time: EVENING, number: EVENING }), 19), '17:04');
+  assert.equal(pv.textFor(reading({ number: EVENING }), 19), String(EVENING), 'a number alone stays a number');
+});
+
+test('the text: the plugin\'s short text over its moment and its state: its words say more', () => {
+  assert.equal(pv.textFor(reading({ short: 'All day', time: new Date(2026, 10, 23).getTime() }), 8), 'All day');
+  assert.equal(pv.textFor(reading({ short: 'Off', state: false }), 8), 'Off');
+});
+
+test('the text: else its state, Yes or No; the number before it, the long text after it', () => {
+  assert.equal(pv.textFor(reading({ state: true }), 8), 'Yes');
+  assert.equal(pv.textFor(reading({ state: false }), 8), 'No');
+  assert.equal(pv.textFor(reading({ state: true, number: 1 }), 8), '1');
+  assert.equal(pv.textFor(reading({ state: false, long: 'Not charging' }), 19), 'No');
 });
 
 test('the text: else the long text, else --', () => {

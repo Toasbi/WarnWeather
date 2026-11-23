@@ -145,10 +145,10 @@ module.exports = {
     // before estimate-reads.js says. Absent while the days are not wanted, so switching them on
     // reads at once.
     BATTERY_ESTIMATE_READ: 'batteryEstimateRead',
-    // The Plugin value slot's value as it was last heard ({source, reading: {short, number,
-    // unit, long}, at, validUntil}; plugin-value-source.js, plugin-value-reads.js valueOf), kept
-    // across PKJS restarts so a bake shows it at once. `source` names the plugin and the value
-    // it was read from; a value of another source is never shown.
+    // The Plugin value slot's value as it was last heard ({source, reading: {short, time,
+    // number, unit, state, long}, at, validUntil}; plugin-value-source.js, plugin-value-reads.js
+    // valueOf), kept across PKJS restarts so a bake shows it at once. `source` names the plugin
+    // and the value it was read from; a value of another source is never shown.
     PLUGIN_VALUE: 'pluginValue',
     // When that value was last read ({source, at, failures, validUntil}; plugin-reads.js
     // recordOf, plugin-read-schedule.js), so neither a PKJS restart nor a settings save reads it

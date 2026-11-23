@@ -173,6 +173,21 @@ test('watch with a throwing subscribeToSource reports one failure and hands back
   assert.doesNotThrow(() => sub.unsubscribe());
 });
 
+test('watch: a source that does something when it is read is never asked, nor readOnce: Find My Phone rings the phone', () => {
+  const ringing = { category: 'phone', item: 'find_my_phone', properties: ['ringing'] };
+  const fake = fakePebble();
+  const fails = [];
+  const sub = pluginReader.watch(fake.pebble, ringing, () => assert.fail('no data'), (f) => fails.push(f.code));
+  assert.equal(fake.requests.length, 0, 'not subscribed');
+  assert.deepEqual(fails, ['PLUGIN_UNAVAILABLE']);
+  assert.equal(sub.live(), false);
+  const done = [];
+  pluginReader.readOnce(fake.pebble, Object.assign({ plugin: NAMED.plugin }, ringing), (e, f) => done.push(f.code),
+    { setTimeout: () => 1, clearTimeout: () => {} });
+  assert.equal(fake.requests.length, 0);
+  assert.deepEqual(done, ['PLUGIN_UNAVAILABLE']);
+});
+
 test('watch with no plugin-capable Pebble reports PLUGIN_UNAVAILABLE and hands back an ended subscription', () => {
   [null, undefined, {}].forEach((pebble) => {
     const fails = [];
@@ -449,17 +464,39 @@ function withShapes(shapes) {
   return { pluginUuid: 'p', instances: [{ instanceId: 'a', properties: { v: shapes } }] };
 }
 
-test('readingOf: each text shape and the number with its unit, as the plugin sent them', () => {
+/**
+ * @param {Object} fields The reading's fields that are set.
+ * @returns {Object} A reading as readingOf hands it over, its other fields null.
+ */
+function raw(fields) {
+  return Object.assign({ short: null, time: null, number: null, unit: null, state: null, long: null }, fields);
+}
+
+test('readingOf: each shape the slot prints, as the plugin sent it', () => {
   assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: '87%' },
     numericValue: { value: 87, unit: '%', min: 0, max: 100 }, longText: { text: 'Battery at 87%' } }), 'v'),
-  { short: '87%', number: 87, unit: '%', long: 'Battery at 87%' });
+  raw({ short: '87%', number: 87, unit: '%', long: 'Battery at 87%' }));
   assert.deepEqual(pluginReader.readingOf(withShapes({ numericValue: { value: 21.5 } }), 'v'),
-    { short: null, number: 21.5, unit: undefined, long: null }, 'a number alone, without a unit');
+    raw({ number: 21.5, unit: undefined }), 'a number alone, without a unit');
   assert.deepEqual(pluginReader.readingOf(withShapes({ longText: { text: 'Next: Design review' } }), 'v'),
-    { short: null, number: null, unit: null, long: 'Next: Design review' }, 'a long text alone');
+    raw({ long: 'Next: Design review' }), 'a long text alone');
   assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: '  5G \n' },
     numericValue: { value: 0, unit: ' kWh ' } }), 'v'),
-  { short: '  5G \n', number: 0, unit: ' kWh ', long: null }, 'as sent: what is kept of it is valueOf\'s to check');
+  raw({ short: '  5G \n', number: 0, unit: ' kWh ' }), 'as sent: what is kept of it is valueOf\'s to check');
+});
+
+test('readingOf: a timestamp\'s moment in epoch seconds, and a boolean\'s state, as the plugin sent them', () => {
+  assert.deepEqual(pluginReader.readingOf(withShapes({ timestamp: { value: 1795453201 } }), 'v'),
+    raw({ time: 1795453201 }), 'a sunrise');
+  assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: '14:00' }, longText: { text: '14:00' },
+    timestamp: { value: 1795453201 } }), 'v'), raw({ short: '14:00', time: 1795453201, long: '14:00' }),
+  'a calendar event\'s start');
+  assert.deepEqual(pluginReader.readingOf(withShapes({ boolean: { value: false }, shortText: { text: 'Off' } }), 'v'),
+    raw({ short: 'Off', state: false }), 'Wi-Fi beside its words');
+  assert.deepEqual(pluginReader.readingOf(withShapes({ boolean: { value: true } }), 'v'), raw({ state: true }),
+    'a boolean alone');
+  assert.deepEqual(pluginReader.readingOf(withShapes({ timestamp: { value: '1795453201' }, boolean: {} }), 'v'),
+    raw({ time: '1795453201', state: undefined }), 'unchecked: valueOf\'s to check');
 });
 
 test('readingOf: the first instance only', () => {
@@ -473,10 +510,10 @@ test('readingOf: null where the plugin did not send the property; anything else 
   assert.equal(pluginReader.readingOf(null, 'v'), null);
   assert.equal(pluginReader.readingOf({ instances: [] }, 'v'), null, 'no instance');
   assert.equal(pluginReader.readingOf(withShapes('87%'), 'v'), null, 'shapes that are not an object');
-  assert.deepEqual(pluginReader.readingOf(withShapes({ boolean: { value: true } }), 'v'),
-    { short: null, number: null, unit: null, long: null }, 'a boolean alone');
+  assert.deepEqual(pluginReader.readingOf(withShapes({ icon: { pixels: '' } }), 'v'), raw({}),
+    'a shape the slot does not print');
   assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: 87 }, numericValue: { value: '87', unit: 3 },
-    longText: 'ok' }), 'v'), { short: 87, number: '87', unit: 3, long: undefined }, 'fields of the wrong type');
+    longText: 'ok' }), 'v'), raw({ short: 87, number: '87', unit: 3, long: undefined }), 'fields of the wrong type');
 });
 
 // --- validUntilOf ------------------------------------------------------------

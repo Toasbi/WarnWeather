@@ -33,8 +33,8 @@ function payload() {
  * @returns {Object} The value.
  */
 function value(reading, extra) {
-  return Object.assign({ source: KEY, reading: Object.assign({ short: null, number: null, unit: null, long: null },
-    reading), at: NOW.getTime() - 10 * 60 * 1000, validUntil: null }, extra || {});
+  return Object.assign({ source: KEY, reading: Object.assign({ short: null, time: null, number: null, unit: null,
+    state: null, long: null }, reading), at: NOW.getTime() - 10 * 60 * 1000, validUntil: null }, extra || {});
 }
 
 /**
@@ -70,6 +70,18 @@ test('the value on the text kind, with the icon id that loads no drawing, in eve
 test('each place prints the value at its own room: a unit an edge has no room for is left off there', () => {
   const { slots } = bakeTop(EVERYWHERE, facts(value({ number: 12345, unit: 'kWh' })));
   assert.deepEqual(slots.map((s) => s.text), ['12345', '12345 kWh', '12345']);
+});
+
+test('a moment prints as a clock time in the user\'s format, as the sun slot prints sunrise', () => {
+  const at = new Date(2026, 10, 21, 13, 40, 0).getTime();
+  assert.deepEqual(bakeTop(EVERYWHERE, facts(value({ time: at, number: at }))).slots.map((s) => s.text),
+    ['13:40', '13:40', '13:40']);
+  assert.deepEqual(bakeTop(Object.assign({ axisTimeFormat: '12h', timeShowAmPm: true }, EVERYWHERE),
+    facts(value({ time: at }))).slots.map((s) => s.text), ['1:40p', '1:40p', '1:40p']);
+});
+
+test('a state prints Yes or No', () => {
+  assert.deepEqual(bakeTop(EVERYWHERE, facts(value({ state: false }))).slots.map((s) => s.text), ['No', 'No', 'No']);
 });
 
 test('a long text is cut to each place\'s bytes', () => {

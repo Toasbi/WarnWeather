@@ -197,7 +197,8 @@
         if (!value) {
             return 'None yet. When you pick a value and save, the watch shows it within about a minute.';
         }
-        text = pluginValues.textFor(value.reading, catalog.CAPS.MID_TEXT_MAX) + ' (' + agoText(value.at, now) + ').';
+        text = pluginValues.textFor(value.reading, catalog.CAPS.MID_TEXT_MAX, S)
+            + ' (' + agoText(value.at, now) + ').';
         if (!pluginValues.shownReading(value, S, now)) {
             text += ' It is too old to show, so the watch shows ' + NONE_SHOWN + ' until a new one comes in.';
         }
@@ -235,7 +236,7 @@
      * @returns {string} The text.
      */
     function barText(S, cap) {
-        return pluginValues.textFor(pluginValues.shownReading(lastValue(S), S, Date.now()), cap);
+        return pluginValues.textFor(pluginValues.shownReading(lastValue(S), S, Date.now()), cap, S);
     }
 
     if (PConf && PConf.optionsResolvers) {

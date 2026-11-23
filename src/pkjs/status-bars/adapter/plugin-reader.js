@@ -135,9 +135,10 @@ function namedCanAnswer(pebble, request) {
  * Subscribe to a source for as long as PKJS lives (or until unsubscribe()). An error does
  * not end a subscription: a later update may succeed, so onFailure can be called more than
  * once, and onData after it. A subscription that could not start (no plugins in this
- * Pebble app, a named plugin that cannot answer it, or subscribeToSource threw) reports one
- * failure and is handed back ended. An update from a plugin other than the one the request
- * names is a PLUGIN_UNAVAILABLE failure.
+ * Pebble app, a named plugin that cannot answer it, a source that acts when it is read,
+ * plugin-reads.js actsWhenRead, or subscribeToSource threw) reports one failure and is handed
+ * back ended. An update from a plugin other than the one the request names is a
+ * PLUGIN_UNAVAILABLE failure.
  *
  * @param {?Object} pebble The Pebble object.
  * @param {PluginRequest} request The source to read.
@@ -162,7 +163,8 @@ function watch(pebble, request, onData, onFailure) {
         },
         live: function () { return !ended; }
     };
-    if (!available(pebble) || !namedCanAnswer(pebble, request)) {
+    if (!available(pebble) || pluginReads.actsWhenRead(request.category, request.item)
+            || !namedCanAnswer(pebble, request)) {
         ended = true;
         onFailure(failure('PLUGIN_UNAVAILABLE'), handle);
         return handle;
@@ -313,15 +315,26 @@ function numberOf(envelope, property) {
 /**
  * @typedef {Object} PluginReading
  * @property {*} short The property's shortText's text.
+ * @property {*} time Its timestamp's value: a moment, in epoch seconds.
  * @property {*} number Its numericValue's value.
  * @property {*} unit That value's unit ('%', '°C', 'kWh').
+ * @property {*} state Its boolean's value.
  * @property {*} long Its longText's text.
  */
 
 /**
- * A property's reading in the envelope's first instance: each text shape's text and the
- * number with its unit, as the plugin sent them, unchecked. What of it is kept, and what the
- * slot shows, are the status bars' rules, checked once (plugin-value-reads.js valueOf).
+ * @param {?Object} shape A shape as the plugin sent it, e.g. {value: 84}.
+ * @returns {*} Its value, or null where there is no shape.
+ */
+function shapeValue(shape) {
+    return shape ? shape.value : null;
+}
+
+/**
+ * A property's reading in the envelope's first instance: the value of each shape the slot
+ * prints (each text shape's text, the timestamp, the number with its unit, the boolean), as
+ * the plugin sent them, unchecked. What of it is kept, and what the slot shows, are the status
+ * bars' rules, checked once (plugin-value-reads.js valueOf).
  *
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
@@ -332,8 +345,10 @@ function readingOf(envelope, property) {
     var numeric = shapes && shapes.numericValue;
     return shapes ? {
         short: shapes.shortText ? shapes.shortText.text : null,
-        number: numeric ? numeric.value : null,
+        time: shapeValue(shapes.timestamp),
+        number: shapeValue(numeric),
         unit: numeric ? numeric.unit : null,
+        state: shapeValue(shapes.boolean),
         long: shapes.longText ? shapes.longText.text : null
     } : null;
 }

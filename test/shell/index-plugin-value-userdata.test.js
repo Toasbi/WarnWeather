@@ -14,7 +14,7 @@ const { userDataOf } = require('../helpers/settings-url.js');
 
 const PKJS_DIR = path.resolve(__dirname, '..', '..', 'src', 'pkjs') + path.sep;
 const VALUE = { source: 'x/muninn/stats/daysRemaining', at: 1700000000000, validUntil: null,
-  reading: { short: '5 d', number: 5, unit: 'd', long: null } };
+  reading: { short: '5 d', time: null, number: 5, unit: 'd', state: null, long: null } };
 
 /**
  * @param {string} category A source's category.

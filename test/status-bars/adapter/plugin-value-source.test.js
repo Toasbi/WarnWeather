@@ -156,7 +156,8 @@ test('a value is kept, ends the subscription, and reaches the watch with the nex
   h.pebble.subs[0].push(answer());
   assert.equal(h.pebble.subs[0].unsubscribed, 1, 'read once: no subscription stays');
   assert.deepEqual(stored(KEYS.PLUGIN_VALUE), { source: KEY,
-    reading: { short: '87%', number: 87, unit: '%', long: null }, at: NOON, validUntil: null });
+    reading: { short: '87%', time: null, number: 87, unit: '%', state: null, long: null }, at: NOON,
+    validUntil: null });
   assert.deepEqual(pluginValueSource.bakeFacts().value(), stored(KEYS.PLUGIN_VALUE));
   // Never sent from the answer itself: it comes at any moment, beside a settings save's or a
   // boot's own messages, which bake the value just kept.
@@ -177,6 +178,25 @@ test('a message that goes out before the tick carries the value, and the tick th
   const sent = JSON.stringify(h.sends[0]);
   minute();
   assert.equal(JSON.stringify(h.sends[h.sends.length - 1]), sent);
+});
+
+test('Muninn\'s updatedAt, a number of epoch milliseconds, reaches the watch as the clock time it names', () => {
+  const muninn = 'd008a08a-6e34-4cc4-98dc-bae02ce5e087';
+  const at = new Date(2026, 10, 21, 11, 7, 0).getTime();
+  const h = boot({ settings: { statusTopLeft: 'pluginValue', pluginValuePlugin: muninn,
+    pluginValueId: 'muninn/stats/updatedAt', axisTimeFormat: '12h', timeShowAmPm: true } });
+  h.pebble.subs[0].push({ pluginUuid: muninn, instances: [{ instanceId: '0',
+    properties: { updatedAt: { numericValue: { value: at } } } }] });
+  assert.equal(stored(KEYS.PLUGIN_VALUE).reading.time, at);
+  minute();
+  assert.equal(sentText(h), '11:07a');
+});
+
+test('a timestamp, in epoch seconds as a plugin sends it, reaches the watch as a clock time', () => {
+  const h = boot();
+  h.pebble.subs[0].push(answer({ battery_level: { timestamp: { value: new Date(2026, 10, 21, 18, 30).getTime() / 1000 } } }));
+  minute();
+  assert.equal(sentText(h), '18:30');
 });
 
 test('a long text is kept cut to what a value keeps', () => {
@@ -394,8 +414,8 @@ test('the settings page gets the value last heard whole, whichever source the se
   const h = boot();
   assert.equal(pluginValueSource.value(), null, 'none yet');
   h.pebble.subs[0].push(answer(null, { validUntilMs: NOON + 2 * HOUR }));
-  const value = { source: KEY, reading: { short: '87%', number: 87, unit: '%', long: null }, at: NOON,
-    validUntil: NOON + 2 * HOUR };
+  const value = { source: KEY, reading: { short: '87%', time: null, number: 87, unit: '%', state: null, long: null },
+    at: NOON, validUntil: NOON + 2 * HOUR };
   assert.deepEqual(pluginValueSource.value(), value);
   h.settings = CELL;
   assert.deepEqual(pluginValueSource.value(), value, 'the page judges it against its own pick');

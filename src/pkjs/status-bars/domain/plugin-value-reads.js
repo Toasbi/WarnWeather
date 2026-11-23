@@ -44,6 +44,63 @@ function nextReadAt(record, everyMs) {
 var MAX_TEXT = 64;
 
 /**
+ * The numbers a moment can be, in epoch seconds and in epoch milliseconds: 10 digits of
+ * seconds or 13 of milliseconds, from September 2001 to the year 2286. A number of 11 or 12
+ * digits would be centuries ahead in seconds or in the 1970s in milliseconds, so it is none.
+ */
+var SECONDS_FROM = 1e9;
+var SECONDS_TO = 1e10;
+var MS_FROM = 1e12;
+var MS_TO = 1e13;
+
+/**
+ * @param {*} v A number that may be a moment: a timestamp's epoch seconds as a plugin sends
+ *   it, a number in epoch seconds or milliseconds, or the epoch milliseconds a value keeps.
+ * @returns {?number} The moment in epoch milliseconds, or null when the number is none
+ *   (SECONDS_FROM..MS_TO): seconds and milliseconds are told apart by their size.
+ */
+function epochMs(v) {
+    if (typeof v !== 'number' || !isFinite(v)) { return null; }
+    if (v >= SECONDS_FROM && v < SECONDS_TO) { return Math.round(v * 1000); }
+    return v >= MS_FROM && v < MS_TO ? v : null;
+}
+
+/**
+ * @param {string} name A property's name.
+ * @returns {boolean} Whether the name says the property holds a moment: it ends in At or Time
+ *   after a small letter or a digit (updatedAt, startTime), or in _at or _time after a letter
+ *   or a digit, in any case (updated_at, START_TIME). Not a name that only ends in those
+ *   letters (format, uptime, runtime), nor one of them alone.
+ */
+function namesMoment(name) {
+    return /[a-z0-9](?:At|Time)$/.test(name) || /[a-z0-9]_(?:at|time)$/i.test(name);
+}
+
+/**
+ * The property a value was read from: the last part of its source, which names it last
+ * (plugin-values.js valueId: 'category/item/property', after the plugin's uuid).
+ * @param {string} source A value's source (plugin-values.js sourceOf's key).
+ * @returns {string} The property's name.
+ */
+function propertyOf(source) {
+    return source.slice(source.lastIndexOf('/') + 1);
+}
+
+/**
+ * When a reading's moment is: its timestamp, or its number where the property's name says it
+ * holds a moment (namesMoment) and the number is one in epoch seconds or milliseconds
+ * (epochMs). Muninn's updatedAt is such a number, in epoch milliseconds. A plugin that sends a
+ * timestamp sends it for the watch to show in the user's clock format.
+ * @param {Object} r A reading as a plugin sent it or as it was stored.
+ * @param {string} property The property it is of.
+ * @returns {?number} The moment in epoch milliseconds, or null for none.
+ */
+function momentOf(r, property) {
+    var time = epochMs(r.time);
+    return time !== null ? time : namesMoment(property) ? epochMs(r.number) : null;
+}
+
+/**
  * @param {*} v A text field, as a plugin sent it or as it was stored.
  * @returns {?string} It, when it is a text, trimmed and cut to MAX_TEXT bytes at a character's
  *   edge; null for none.
@@ -56,11 +113,13 @@ function keptText(v) {
 /**
  * A value as kept, checked: where a plugin's answer and storage come in, once. The source it
  * was read from (plugin-values.js sourceOf's key); its reading (plugin-reader.js readingOf):
- * its texts trimmed and cut to MAX_TEXT bytes, its number a finite one, null for each it lacks;
- * when it was read; and until when the plugin said it holds (plugin-reads.js timeOf).
+ * its texts trimmed and cut to MAX_TEXT bytes, its moment in epoch milliseconds (momentOf),
+ * its number a finite one, its state a boolean, null for each it lacks; when it was read; and
+ * until when the plugin said it holds (plugin-reads.js timeOf). A value kept before a number
+ * named as a moment was read as one gets its moment here too.
  * @param {*} value What was stored (parsed JSON), or a value just read.
  * @returns {?{source: string, reading: Object, at: number, validUntil: ?number}} The value,
- *   or null when it is none: no reading that brings a text or a number among them.
+ *   or null when it is none: no reading that brings a text, a moment, a number or a state.
  */
 function valueOf(value) {
     var r = value && value.reading;
@@ -69,25 +128,32 @@ function valueOf(value) {
     if (!value || typeof value.source !== 'string' || !r || typeof r !== 'object' || at === null) {
         return null;
     }
-    reading = { short: keptText(r.short), long: keptText(r.long), unit: keptText(r.unit),
-        number: typeof r.number === 'number' && isFinite(r.number) ? r.number : null };
-    if (reading.short === null && reading.number === null && reading.long === null) { return null; }
+    reading = { short: keptText(r.short), time: momentOf(r, propertyOf(value.source)),
+        number: typeof r.number === 'number' && isFinite(r.number) ? r.number : null, unit: keptText(r.unit),
+        state: typeof r.state === 'boolean' ? r.state : null, long: keptText(r.long) };
+    if (reading.short === null && reading.time === null && reading.number === null && reading.state === null
+            && reading.long === null) {
+        return null;
+    }
     return { source: value.source, reading: reading, at: at, validUntil: pluginReads.timeOf(value.validUntil) };
 }
 
 /**
- * @param {?Object} a A reading (plugin-reader.js readingOf, or valueOf's), or null.
+ * @param {?Object} a A reading (valueOf's), or null.
  * @param {?Object} b Another, or null.
  * @returns {boolean} Whether the two say the same, field by field: a reading's fields come in
  *   another order once it has been through storage.
  */
 function sameReading(a, b) {
     if (!a || !b) { return !a && !b; }
-    return a.short === b.short && a.number === b.number && a.unit === b.unit && a.long === b.long;
+    return a.short === b.short && a.time === b.time && a.number === b.number && a.unit === b.unit
+        && a.state === b.state && a.long === b.long;
 }
 
 module.exports = {
     MAX_TEXT: MAX_TEXT,
+    epochMs: epochMs,
+    namesMoment: namesMoment,
     nextReadAt: nextReadAt,
     valueOf: valueOf,
     sameReading: sameReading

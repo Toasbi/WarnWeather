@@ -257,17 +257,23 @@ network type. Its dialog picks the plugin, which of its values and how often it 
 (`plugin-values.js` sourceOf, everyMs); the source is the item's setting, so every slot that
 holds the item shows the same value. The dialog lists what the phone's plugins serve, from
 `Pebble.enumeratePlugins()`, which runs no plugin (`plugin-value-list.js` listOf): each
-property a source declares as a text or a number, of a source this app may read without being
-asked for a permission it never declared, of any plugin but this app's own. The value is a
-plugin read, after each Updates interval or once the plugin's own word on when it has
-something new runs out (`plugin-value-source.js`, `plugin-value-reads.js`); picking a source
-reads at once. What a read brings is the value's reading: the shapes the plugin answers in
-that the slot prints, a short text, a number with its unit and a long text, each of them or
-none (`plugin-reader.js` readingOf). The slot prints text alone, with an icon id that loads no
-drawing (`status_line.h` STATUS_ICON_PLUGIN_TEXT): the reading's short text, else its number
-with its unit where the slot has room, else its long text (`plugin-values.js` textFor). A value shows for three Updates intervals, three hours at least,
-or while the plugin says it holds, twelve hours at most; then the slot shows -- (shownReading).
-Not on aplite, and only where the Pebble app runs plugins.
+property a source declares as a text, a timestamp, a number or a boolean, of a source this app
+may read without being asked for a permission it never declared and that does nothing when it
+is read (Find My Phone rings the phone: `plugin-reads.js` actsWhenRead), of any plugin but this
+app's own. The value is a plugin read, after each Updates interval or once the plugin's own
+word on when it has something new runs out (`plugin-value-source.js`, `plugin-value-reads.js`);
+picking a source reads at once. What a read brings is the value's reading: the shapes the
+plugin answers in that the slot prints, a short text, a moment, a number with its unit, a state
+and a long text, each of them or none (`plugin-reader.js` readingOf). The moment is a
+timestamp's, or a number's whose name says it is one (ends in At, Time, _at or _time) and that
+counts epoch seconds or milliseconds, as Muninn's updatedAt does (`plugin-value-reads.js`
+momentOf). The slot prints text alone, with an icon id that loads no drawing (`status_line.h`
+STATUS_ICON_PLUGIN_TEXT): the reading's short text, else its moment as a clock time in the
+user's 12/24 h setting, as the sun slot prints sunrise, else its number with its unit where
+the slot has room, else its state, Yes or No, else its long text (`plugin-values.js` textFor).
+A value shows for three Updates intervals, three hours at least, or while the plugin says it
+holds, twelve hours at most; then the slot shows -- (shownReading). Not on aplite, and only
+where the Pebble app runs plugins.
 _Avoid_: custom slot, complication.
 
 **Short form (status slot)**:

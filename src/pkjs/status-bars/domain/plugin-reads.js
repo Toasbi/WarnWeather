@@ -10,6 +10,8 @@
 // a row it ends with, and for Muninn when it made the estimate the read heard
 // (plugin-read-schedule.js keeps it).
 //
+// And the sources no read ever reads, since reading them does something (actsWhenRead).
+//
 // ES5 only (aplite's JavaScriptCore): var + function.
 
 var HOUR_MS = 60 * 60 * 1000;
@@ -24,6 +26,20 @@ var RETRY_MS = HOUR_MS;
  * request the plugin does not take.
  */
 var PASSING = ['TIMEOUT', 'UNKNOWN'];
+
+/**
+ * The sources ('category/item') that do something when they are read, which are never read:
+ * subscribing to the Pebble app's Find My Phone (phone/find_my_phone) rings the phone.
+ */
+var ACTS_WHEN_READ = ['phone/find_my_phone'];
+
+/**
+ * @param {string} category A source's category. @param {string} item One of its items.
+ * @returns {boolean} Whether reading the item does something (ACTS_WHEN_READ).
+ */
+function actsWhenRead(category, item) {
+    return ACTS_WHEN_READ.indexOf(category + '/' + item) !== -1;
+}
 
 /**
  * @param {*} value A time as a plugin sent it, or as it was stored.
@@ -90,6 +106,7 @@ function passing(code) {
 
 module.exports = {
     RETRY_MS: RETRY_MS,
+    actsWhenRead: actsWhenRead,
     timeOf: timeOf,
     recordOf: recordOf,
     clockWentBack: clockWentBack,

@@ -4,17 +4,19 @@
 // each plugin on the phone serves that the slot can show, made from what
 // Pebble.enumeratePlugins() hands over (plugin-reader.js plugins). Listing runs no plugin.
 //
-// A value is a property of an item of a source the plugin declares: a property declared as a
-// text or a number, of a source this app may read (readableBy), of any plugin but this app's
-// own. The list rides the settings page's URL (userData.plugins), which Android's WebView
-// refuses past 2 MiB (test/settings/adapter/settings-url-budget.test.js), so it is written
-// short and capped: each plugin's items with their properties' names, from which the page
-// makes each value's id and label, at most MAX_PLUGINS plugins of MAX_VALUES values each, and
-// LIST_COST characters of the URL in all.
+// A value is a property of an item of a source the plugin declares: a property declared in a
+// shape the slot prints (a text, a timestamp, a number or a boolean), of a source this app may
+// read (readableBy) that does nothing when it is read (plugin-reads.js actsWhenRead), of any
+// plugin but this app's own. The list rides the settings page's URL (userData.plugins), which
+// Android's WebView refuses past 2 MiB (test/settings/adapter/settings-url-budget.test.js), so
+// it is written short and capped: each plugin's items with their properties' names, from which
+// the page makes each value's id and label, at most MAX_PLUGINS plugins of MAX_VALUES values
+// each, and LIST_COST characters of the URL in all.
 //
 // Pure. ES5 only (aplite PKJS).
 
 var utf8 = require('../../lib/utf8.js');
+var pluginReads = require('./plugin-reads.js');
 var pluginValues = require('./plugin-values.js');
 
 /**
@@ -32,8 +34,11 @@ var MAX_ID = 64;
  */
 var LIST_COST = 4000;
 
-/** The shapes the slot prints. A property needs one of them to be listed. */
-var TEXT_SHAPES = ['shortText', 'numericValue', 'longText'];
+/**
+ * The shapes the slot prints (plugin-values.js textFor). A property needs one of them to be
+ * listed.
+ */
+var TEXT_SHAPES = ['shortText', 'timestamp', 'numericValue', 'boolean', 'longText'];
 
 /**
  * @param {*} name A category's, item's or property's name.
@@ -113,8 +118,9 @@ function entryOf(plugin, permissions, ownUuid) {
         for (var i = 0; i < src.items.length && count < MAX_VALUES; i++) {
             var item = src.items[i];
             var kept = [];
-            // An item no id can hold offers nothing, and takes none of the values' room.
-            if (!idPart(item)) { continue; }
+            // An item no id can hold offers nothing, and takes none of the values' room; nor one
+            // that acts when it is read.
+            if (!idPart(item) || pluginReads.actsWhenRead(src.category, item)) { continue; }
             for (var n = 0; n < names.length && count < MAX_VALUES; n++) {
                 var id = pluginValues.valueId(src.category, item, names[n]);
                 if (idPart(names[n]) && id.length <= MAX_ID && seen[id] !== true && printable(props[names[n]])) {

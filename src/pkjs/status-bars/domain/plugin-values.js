@@ -93,28 +93,53 @@
         return String(Math.abs(tenths) < 10 ? tenths : Math.round(n));
     }
 
+    /** A state (a boolean the plugin sent without words of its own for it), as the slot prints it. */
+    var YES = 'Yes';
+    var NO = 'No';
+
     /**
-     * The text the slot prints of a reading: its short text; else its number, with its unit
-     * where the slot has the room ('%' and a unit that starts with the degree sign attach, any
-     * other follows a space); else its long text. Cut to the slot's cap at a character's
-     * edge, as the bake cuts any text, so the settings page prints what the watch does.
-     * @param {?{short: ?string, number: ?number, unit: ?string, long: ?string}} reading The
-     *   reading of a value kept (plugin-value-reads.js valueOf), or null for none.
+     * The text the slot prints of a reading, from the first of its shapes in this order:
+     *   1. Its short text: the plugin's own words for a small space, which say more than the
+     *      shape beside them can ('All day' beside the midnight timestamp of an all-day event,
+     *      'Off' beside a boolean). The Pebble app's own plugin screens show it first too.
+     *   2. Its moment, as a clock time in the user's 12/24 h setting, as the sun slot prints
+     *      sunrise (slot-text.js clockText): a timestamp, which the plugin API leaves to the
+     *      watch to show in the user's format, or a number its name says is a moment
+     *      (plugin-value-reads.js momentOf). Before the number: the slot is read every half
+     *      hour at most, and a moment stays true between reads where a count towards it does not.
+     *   3. Its number, with its unit where the slot has the room ('%' and a unit that starts
+     *      with the degree sign attach, any other follows a space).
+     *   4. Its state, Yes or No.
+     *   5. Its long text, last: it is written for a screen with room, and the slot cuts it.
+     * Cut to the slot's cap at a character's edge, as the bake cuts any text, so the settings
+     * page prints what the watch does.
+     * @param {?{short: ?string, time: ?number, number: ?number, unit: ?string, state: ?boolean,
+     *   long: ?string}} reading The reading of a value kept (plugin-value-reads.js valueOf), or
+     *   null for none.
      * @param {number} cap The slot's byte cap.
+     * @param {?Object} [settings] Settings: the clock's format (axisTimeFormat, timeShowAmPm,
+     *   timeLeadingZero); absent, 24 hours.
      * @returns {string} The text; '--' for none.
      */
-    function textFor(reading, cap) {
-        var short = oneLine(reading && reading.short);
+    function textFor(reading, cap, settings) {
+        var r = reading || {};
+        var short = oneLine(r.short);
         var unit;
         var text;
+        var at;
         if (short) {
             text = short;
-        } else if (reading && reading.number !== null) {
-            unit = oneLine(reading.unit);
-            text = slotText.withUnit(numberText(reading.number),
+        } else if (typeof r.time === 'number') {
+            at = new Date(r.time);
+            text = slotText.clockText(at.getHours(), at.getMinutes(), settings || {});
+        } else if (typeof r.number === 'number') {
+            unit = oneLine(r.unit);
+            text = slotText.withUnit(numberText(r.number),
                 unit && unit !== '%' && unit.charAt(0) !== '\u00b0' ? ' ' + unit : unit, cap);
+        } else if (typeof r.state === 'boolean') {
+            text = r.state ? YES : NO;
         } else {
-            text = oneLine(reading && reading.long) || '--';
+            text = oneLine(r.long) || '--';
         }
         return utf8.truncateToByteCap(text, cap).str;
     }
