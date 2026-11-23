@@ -54,6 +54,12 @@ test('a source that does something when it is read is never listed: Find My Phon
     properties: { ringing: ['boolean'] } }])], PERMS, 'own'), [], 'a plugin with nothing else offers nothing');
 });
 
+test('a source this app never reads is never listed, whoever serves it: the user\'s weather locations and units', () => {
+  assert.deepEqual(list.listOf([plugin('u', 'Units', [{ category: 'preferences',
+    items: ['units', 'weather_location', 'other'], properties: { name: ['shortText'] } }])], PERMS, 'own')[0].items
+    .map((it) => it.item), ['other']);
+});
+
 test('every item of every source, each value once, in the order the plugin declares them', () => {
   const weather = plugin('w', 'Weather', [
     { category: 'weather', items: ['location'], properties: { temperature: ['shortText'], uv_index: ['numericValue'] },

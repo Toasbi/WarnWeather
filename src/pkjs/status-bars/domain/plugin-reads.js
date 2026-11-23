@@ -11,8 +11,8 @@
 // (plugin-read-schedule.js keeps it).
 //
 // And which sources this app may read at all: none that does something when it is read
-// (actsWhenRead), and none that would ask the user for a permission this app never declared
-// (readableBy, undeclaredFor).
+// (actsWhenRead), none it never reads (neverRead), and none that would ask the user for a
+// permission this app never declared (readableBy, undeclaredFor).
 //
 // ES5 only (aplite's JavaScriptCore): var + function.
 
@@ -41,6 +41,21 @@ var ACTS_WHEN_READ = ['phone/find_my_phone'];
  */
 function actsWhenRead(category, item) {
     return ACTS_WHEN_READ.indexOf(category + '/' + item) !== -1;
+}
+
+/**
+ * The sources ('category/item') this app never reads, whoever asks: the Pebble app's
+ * Preferences plugin's weather locations, whose coordinates are the user's own position, and
+ * its units, which are plumbing, never a value to show.
+ */
+var NEVER_READ = ['preferences/weather_location', 'preferences/units'];
+
+/**
+ * @param {string} category A source's category. @param {string} item One of its items.
+ * @returns {boolean} Whether this app never reads the item (NEVER_READ).
+ */
+function neverRead(category, item) {
+    return NEVER_READ.indexOf(category + '/' + item) !== -1;
 }
 
 /**
@@ -185,6 +200,7 @@ function passing(code) {
 module.exports = {
     RETRY_MS: RETRY_MS,
     actsWhenRead: actsWhenRead,
+    neverRead: neverRead,
     readableBy: readableBy,
     undeclaredFor: undeclaredFor,
     timeOf: timeOf,

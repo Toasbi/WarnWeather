@@ -286,13 +286,14 @@ which of its instances, read from whichever plugin the Pebble app picks for that
 Preferences plugin with the complications in place of values of its own, each by its place and
 what it shows ("1 · Temperature (weather)"), and one this app may not read greyed out with why
 (`plugin-value-list.js` complicationsFor): its source would ask for a permission this app never
-declared, or reading it does something. None of the Preferences plugin's own readings: its
-units are plumbing, and its weather locations' coordinates are the user's position. The phone
-watches the list where the slot is offered, a built-in source that sends each change by itself,
-and keeps it in storage for the settings page (`complication-list.js`). The slot reads the
-reading the complication at its place names: a new one there is read as the list changes, a
-value of the reading the place named before is never shown for it, on the watch or in the
-dialog, and an empty place shows -- (`plugin-value-source.js`).
+declared, or reading it does something. None of the Preferences plugin's own readings, which
+this app never reads (`plugin-reads.js` neverRead): its units are plumbing, and its weather
+locations' coordinates are the user's position; a pick of one from before the complications
+shows --. The phone watches the list where the slot is offered, a built-in source that sends
+each change by itself, and keeps it in storage for the settings page (`complication-list.js`).
+The slot reads the reading the complication at its place names: a new one there is read as the
+list changes, a value of the reading the place named before is never shown for it, on the watch
+or in the dialog, and an empty place shows -- (`plugin-value-source.js`).
 _Avoid_: slot, for a complication's place (a slot is a status bar's).
 
 **Short form (status slot)**:

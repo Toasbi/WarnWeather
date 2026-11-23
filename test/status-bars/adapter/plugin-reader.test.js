@@ -188,6 +188,19 @@ test('watch: a source that does something when it is read is never asked, nor re
   assert.deepEqual(done, ['PLUGIN_UNAVAILABLE']);
 });
 
+test('watch: a source this app never reads is never asked, whoever asks: the user\'s weather locations and units', () => {
+  [{ category: 'preferences', item: 'weather_location', properties: ['latitude'] },
+    { category: 'preferences', item: 'units', properties: ['temperature'], plugin: '00000000-0000-0000-0001-000000000009' }]
+    .forEach((request) => {
+      const fake = fakePebble();
+      const fails = [];
+      const sub = pluginReader.watch(fake.pebble, request, () => assert.fail('no data'), (f) => fails.push(f.code));
+      assert.equal(fake.requests.length, 0, request.item + ': not subscribed');
+      assert.deepEqual(fails, ['PLUGIN_UNAVAILABLE']);
+      assert.equal(sub.live(), false);
+    });
+});
+
 test('watch with no plugin-capable Pebble reports PLUGIN_UNAVAILABLE and hands back an ended subscription', () => {
   [null, undefined, {}].forEach((pebble) => {
     const fails = [];

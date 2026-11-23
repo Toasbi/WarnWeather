@@ -69,6 +69,13 @@ test('a source that does something when it is read: Find My Phone, whose read ri
     assert.equal(reads.actsWhenRead(c, i), false, c + '/' + i));
 });
 
+test('the sources this app never reads: the Preferences plugin\'s weather locations, the user\'s position, and units', () => {
+  [['preferences', 'weather_location'], ['preferences', 'units']].forEach(([c, i]) =>
+    assert.equal(reads.neverRead(c, i), true, c + '/' + i));
+  [['preferences', 'complications'], ['phone', 'phone_state'], ['weather', 'location'], ['units', 'preferences']]
+    .forEach(([c, i]) => assert.equal(reads.neverRead(c, i), false, c + '/' + i));
+});
+
 const PERMS = ['Location', 'Internet', 'ShowNotifications', 'Health'];
 
 /**

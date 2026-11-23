@@ -54,15 +54,19 @@ function complicationWant(source, list) {
 }
 
 /**
- * What the slot reads for the source the settings pick, whether a bar shows it or not.
+ * What the slot reads for the source the settings pick, whether a bar shows it or not. Nothing
+ * of the Preferences plugin's but a complication: its own readings are the user's position and
+ * plumbing, which this app never reads (plugin-reads.js neverRead), and a pick of one from
+ * before the complications (3.4.0 listed them) shows nothing.
  * @param {Object} source The source (plugin-values.js sourceOf).
  * @param {?Array<Object>} list The user's complications as last heard, or null while none are
  *   known.
  * @returns {?{key: string, request: ?Object}} What is wanted (complicationWant's for a
- *   complication).
+ *   complication); no request for one of the Preferences plugin's own readings.
  */
 function readOf(source, list) {
     if (source.complication !== null) { return complicationWant(source, list); }
+    if (source.plugin.toLowerCase() === pluginValues.PREFERENCES) { return { key: source.key, request: null }; }
     return { key: source.key, request: { category: source.category, item: source.item,
         properties: [source.property], plugin: source.plugin, limit: 1, permissions: permissions } };
 }
@@ -108,8 +112,8 @@ function bakeFacts() {
 /**
  * The value last heard, for the settings page (userData.pluginValue): only while it was read
  * from what the settings pick, and for a complication from the reading its place names now, so
- * the page never prints another's as the slot's value. The page judges it against the source
- * its rows pick right then (plugin-values.js shownReading).
+ * the page never prints another's as the slot's value, nor one the slot no longer reads. The
+ * page judges it against the source its rows pick right then (plugin-values.js shownReading).
  * @param {?Object} settings The settings the page opens on.
  * @param {?Array<Object>} list The user's complications as last heard (complication-list.js
  *   current), or null while none are known.
@@ -120,7 +124,7 @@ function forPage(settings, list) {
     var source = pluginValues.sourceOf(settings);
     var want = source ? readOf(source, list) : null;
     var value = schedule.value();
-    return value && want && value.source === want.key ? value : null;
+    return value && want && want.request && value.source === want.key ? value : null;
 }
 
 /**

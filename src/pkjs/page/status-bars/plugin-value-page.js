@@ -42,6 +42,8 @@
     // place, or one WarnWeather may not read, shows NONE_SHOWN.
     var COMPLICATIONS_HINT = 'Your complications in the Pebble app (Settings \u203a Plugins \u203a Complications). '
         + 'The slot follows the one you pick when you change it there.';
+    // The Value row's hint while the settings hold a value the picked plugin no longer offers.
+    var NOT_OFFERED = 'The plugin no longer offers this value. Until it does, the slot shows ' + NONE_SHOWN + '.';
 
     /**
      * @returns {Object} The page's userData (INJECTED_USERDATA), read at call time.
@@ -195,7 +197,9 @@
     /**
      * The Value row's hint while the Preferences plugin is picked (COMPLICATIONS_HINT), with why
      * the slot shows NONE_SHOWN where the complication the settings hold cannot be shown: its
-     * place is empty, or WarnWeather may not read it.
+     * place is empty, or WarnWeather may not read it. A value the settings hold that is no
+     * complication (one of the plugin's own readings, which the dialog listed before the
+     * complications) is one the plugin no longer offers (NOT_OFFERED).
      * @param {Object} S Settings.
      * @param {?Object} value The complication the settings hold, as the Value row lists it, or
      *   null.
@@ -203,8 +207,9 @@
      */
     function complicationHint(S, value) {
         var source = pluginValues.sourceOf(S);
-        var why = !source || source.complication === null ? null
-            : value ? value.unreadable : 'This place is empty there';
+        var why;
+        if (S.pluginValueId && (!source || source.complication === null)) { return NOT_OFFERED; }
+        why = !source ? null : value ? value.unreadable : 'This place is empty there';
         return why ? COMPLICATIONS_HINT + ' ' + html.esc(why) + ', so the slot shows ' + NONE_SHOWN + '.'
             : COMPLICATIONS_HINT;
     }
@@ -221,9 +226,7 @@
         var value = valueIn(plugin, S.pluginValueId);
         if (offersComplications(plugin)) { return complicationHint(S, value); }
         if (!plugin || !S.pluginValueId) { return null; }
-        if (!value) {
-            return 'The plugin no longer offers this value. Until it does, the slot shows ' + NONE_SHOWN + '.';
-        }
+        if (!value) { return NOT_OFFERED; }
         return value.multiple ? 'The plugin offers this for more than one thing. The slot shows the first.' : null;
     }
 

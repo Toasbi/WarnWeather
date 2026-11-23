@@ -260,6 +260,14 @@ test('the Value row\'s hint says where the complications are set, that the slot 
     + 'so the slot shows --.', 'another app\'s words, escaped: the hint is HTML');
 });
 
+test('a pick of the Preferences plugin\'s own reading, which 3.4.0 listed, is a value the plugin no longer offers', (t) => {
+  userData(t, { plugins: withPrefs(COMPLICATIONS) });
+  const S = { pluginValuePlugin: PREFS, pluginValueId: 'preferences/weather_location/latitude' };
+  assert.equal(page.valueHint(S), 'The plugin no longer offers this value. Until it does, the slot shows --.');
+  assert.deepEqual(page.valueOptions(S).slice(-1),
+    [['Latitude', 'preferences/weather_location/latitude', { desc: 'Not offered now' }]]);
+});
+
 test('picking Preferences starts on the first complication WarnWeather can read', (t) => {
   userData(t, { plugins: withPrefs(COMPLICATIONS.slice(2)) });
   const S = Object.assign({}, LEVEL);

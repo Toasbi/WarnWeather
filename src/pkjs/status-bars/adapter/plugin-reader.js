@@ -170,9 +170,9 @@ function permitted(pebble, request) {
  * not end a subscription: a later update may succeed, so onFailure can be called more than
  * once, and onData after it. A subscription that could not start (no plugins in this
  * Pebble app, a named plugin that cannot answer it, a source that acts when it is read,
- * plugin-reads.js actsWhenRead, one that may ask the user for a permission this app never
- * declared, permitted, or subscribeToSource threw) reports one failure and is handed back
- * ended. An update from a plugin other than the one the request names is a
+ * plugin-reads.js actsWhenRead, one this app never reads, neverRead, one that may ask the user
+ * for a permission this app never declared, permitted, or subscribeToSource threw) reports one
+ * failure and is handed back ended. An update from a plugin other than the one the request names is a
  * PLUGIN_UNAVAILABLE failure.
  *
  * @param {?Object} pebble The Pebble object.
@@ -199,6 +199,7 @@ function watch(pebble, request, onData, onFailure) {
         live: function () { return !ended; }
     };
     if (!available(pebble) || pluginReads.actsWhenRead(request.category, request.item)
+            || pluginReads.neverRead(request.category, request.item)
             || !namedCanAnswer(pebble, request) || !permitted(pebble, request)) {
         ended = true;
         onFailure(failure('PLUGIN_UNAVAILABLE'), handle);

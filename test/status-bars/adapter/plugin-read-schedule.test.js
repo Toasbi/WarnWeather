@@ -401,6 +401,25 @@ test('a key with nothing to read under it: no plugin is asked, the value kept is
   assert.equal(h.pebble.subs.length, 2, 'something to read again: read at once');
 });
 
+test('a key that has nothing to read under it any more drops the value kept under it at once, its next read not due', () => {
+  // The test's reader stops reading what the key 'a' names: a source this app no longer reads,
+  // as the Preferences plugin's own readings are (plugin-value-source.js).
+  let gone = false;
+  const stopped = pluginReadSchedule.create(Object.assign({}, SPEC, {
+    wanted: (settings) => (settings && settings.want
+      ? { key: settings.want, request: gone ? null : { category: 'test', item: settings.want } } : null)
+  }));
+  const first = boot({ schedule: stopped });
+  first.pebble.subs[0].push({ text: '87%' });
+  gone = true;
+  const h = boot({ schedule: stopped, keepStorage: true, clock: NOON + MIN });
+  assert.equal(stopped.value(), null, 'at the start that finds it so');
+  assert.equal(stored(VALUE), null);
+  assert.equal(owed, 1, 'the watch, which may show it still, is owed the status without it');
+  assert.equal(h.pebble.subs.length, 0, 'nothing asked');
+  assert.deepEqual(stored(READ), { source: 'a', at: NOON, failures: 0, until: null }, 'nor read before it is due');
+});
+
 test('any other failure keeps the value and the reader\'s time, and counts; an answer ends the count', () => {
   const h = boot();
   h.pebble.subs[0].push({ text: '87%', until: NOON + 3 * HOUR });

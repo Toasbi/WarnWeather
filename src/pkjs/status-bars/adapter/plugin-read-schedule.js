@@ -32,11 +32,12 @@
 //     watch's link quiet, and a read is not quiet: a permission the plugin's app asked for comes
 //     back to the watch with it.
 //   - A plugin that is not there is an answer of nothing, and the value kept is dropped; a key
-//     with nothing to read under it (the spec's wanted: a request of null) drops it too. Any
-//     other failure keeps it, and the reader's nextReadAt tries again sooner (plugin-reads.js
-//     retryWait). A read a save asked for that failed for a reason that can pass by the next
-//     minute (the plugin did not answer in time, or failed without saying why: plugin-reads.js
-//     passing) is read again at the next tick, once: the user waits at the phone.
+//     with nothing to read under it (the spec's wanted: a request of null) drops it at once,
+//     before its next read is due. Any other failure keeps it, and the reader's nextReadAt
+//     tries again sooner (plugin-reads.js retryWait). A read a save asked for that failed for a
+//     reason that can pass by the next minute (the plugin did not answer in time, or failed
+//     without saying why: plugin-reads.js passing) is read again at the next tick, once: the
+//     user waits at the phone.
 //
 // The value last heard is kept in storage, so a bake after a PKJS restart shows it at once,
 // and here, which is what a bake reads. When what the slot shows of it changes, with a new
@@ -290,7 +291,8 @@ function create(spec) {
         if (record && record.source !== want.key) { forget(); }
         // A value heard of another key is no longer the slot's, whether its record is the old
         // key's or gone (nothing was wanted for a while): a bake would show it as the new one's.
-        if (want.key !== null && value && value.source !== want.key) { keep(null, false); }
+        // Nor is one under a key with nothing to read under it now (a source no longer read).
+        if (value && (!want.request || (want.key !== null && value.source !== want.key))) { keep(null, false); }
         at = nowMs();
         // A bake drops a value grown too old by itself, but only a bake: when what the slot
         // shows changed with the time, the watch is owed the status that shows it. A save sends

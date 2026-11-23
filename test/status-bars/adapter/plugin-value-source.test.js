@@ -588,6 +588,26 @@ test('a complication\'s moment prints as a clock time: its property\'s name is l
   assert.equal(sentText(h), '11:07');
 });
 
+test('a pick of the Preferences plugin\'s own reading, which 3.4.0 listed, is never read: the value kept is dropped at once', () => {
+  const pick = { statusTopLeft: 'pluginValue', pluginValuePlugin: PREFS, pluginValueId: 'preferences/weather_location/latitude' };
+  const key = PREFS + '/preferences/weather_location/latitude';
+  Object.keys(storage).forEach((k) => { delete storage[k]; });
+  storage[KEYS.PLUGIN_VALUE] = JSON.stringify({ source: key, reading: { short: '52.52', time: null, number: 52.52,
+    unit: null, state: null, long: null }, at: NOON - 10 * MIN, validUntil: null });
+  storage[KEYS.PLUGIN_VALUE_READ] = JSON.stringify({ source: key, at: NOON - 10 * MIN, failures: 0, validUntil: null });
+  const h = boot({ keepStorage: true, settings: pick, permissions: PERMS, pebble: listing([{ uuid: PREFS,
+    name: 'Preferences', sources: [{ category: 'preferences', items: ['weather_location'],
+      properties: { latitude: ['numericValue'] } }] }]) });
+  assert.equal(stored(KEYS.PLUGIN_VALUE), null, 'the user\'s position, dropped as the slot starts');
+  statusRebake.resendStatus('fetch');
+  assert.equal(sentText(h), '--');
+  assert.equal(pluginValueSource.forPage(pick, null), null, 'nor on the settings page');
+  h.clock += 2 * HOUR;
+  minute();
+  pluginValueSource.refresh();
+  assert.equal(h.pebble.subs.length, 0, 'never asked');
+});
+
 test('a value of a plugin\'s own that asks for a permission this app never declared is not read either', () => {
   const h = boot({ permissions: PERMS, pebble: listing([{ uuid: PHONE, name: 'Phone', sources: [{ category: 'phone',
     items: ['phone_state'], callerPermissions: ['Contacts'] }] }]) });

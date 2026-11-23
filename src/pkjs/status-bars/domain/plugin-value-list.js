@@ -10,7 +10,8 @@
 // plugin but this app's own. The Pebble app's Preferences plugin offers the user's
 // complications instead (complications.js), which its entry carries (complicationsFor): the
 // rest of what it serves is the Pebble app's own plumbing (the user's units, and the weather
-// locations' coordinates, which are the user's own position), never a value to show.
+// locations' coordinates, which are the user's own position), never a value to show, nor read
+// (plugin-reads.js neverRead).
 // The list rides the settings page's URL (userData.plugins), which
 // Android's WebView refuses past 2 MiB (test/settings/adapter/settings-url-budget.test.js), so
 // it is written short and capped: each plugin's items with their properties' names, from which
@@ -156,8 +157,11 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
             var item = src.items[i];
             var kept = [];
             // An item no id can hold offers nothing, and takes none of the values' room; nor one
-            // that acts when it is read.
-            if (!idPart(item) || pluginReads.actsWhenRead(src.category, item)) { continue; }
+            // that acts when it is read, or that this app never reads.
+            if (!idPart(item) || pluginReads.actsWhenRead(src.category, item)
+                    || pluginReads.neverRead(src.category, item)) {
+                continue;
+            }
             for (var n = 0; n < names.length && count < MAX_VALUES; n++) {
                 var id = pluginValues.valueId(src.category, item, names[n]);
                 if (idPart(names[n]) && id.length <= MAX_ID && seen[id] !== true && printable(props[names[n]])) {
