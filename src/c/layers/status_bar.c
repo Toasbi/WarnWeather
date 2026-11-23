@@ -15,10 +15,8 @@ typedef struct {
 static StatusBar s_bars[STATUS_BAR_COUNT];
 
 // The view facts every bar takes alike (the view spec's status tier and date density),
-// held once. The pre-create tier is COMPACT, as it was in each of the three predecessors.
-// Keep the explicit initialiser: defaulting it to 0 would silently make the pre-create
-// tier FULL.
-static uint8_t s_tier = LAYOUT_TIER_COMPACT;
+// held once. status_bar_create_all seeds both before any row exists to read them.
+static uint8_t s_tier;
 static bool s_full_date;
 
 #if defined(WW_VIEW_CYCLE)
