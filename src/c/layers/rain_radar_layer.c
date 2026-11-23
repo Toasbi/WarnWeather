@@ -605,16 +605,16 @@ bool rain_radar_layer_tick(time_t now) {
     persist_get_rain_radar_trend(exact, RADAR_NUM_SLOTS);
     persist_get_rain_radar_trend_area(area, RADAR_NUM_SLOTS);
 
-    uint8_t new_exact[RADAR_NUM_SLOTS] = {0};
-    uint8_t new_area[RADAR_NUM_SLOTS] = {0};
-    for (int i = 0; i + count < RADAR_NUM_SLOTS; i += 1) {
-        new_exact[i] = exact[i + count];
-        new_area[i] = area[i + count];
+    // Shift the window `count` slots forward in place: slot i takes slot i + count, which
+    // lies ahead of every slot written so far, and the revealed tail reads dry.
+    for (int i = 0; i < RADAR_NUM_SLOTS; i += 1) {
+        const bool kept = i + count < RADAR_NUM_SLOTS;
+        exact[i] = kept ? exact[i + count] : 0;
+        area[i] = kept ? area[i + count] : 0;
     }
-    // Slots [RADAR_NUM_SLOTS - count .. ] stay zero (the zero-initialised tail).
 
-    persist_set_rain_radar_trend(new_exact, RADAR_NUM_SLOTS);
-    persist_set_rain_radar_trend_area(new_area, RADAR_NUM_SLOTS);
+    persist_set_rain_radar_trend(exact, RADAR_NUM_SLOTS);
+    persist_set_rain_radar_trend_area(area, RADAR_NUM_SLOTS);
     persist_set_rain_radar_start(grid);
     rain_radar_layer_refresh();
     return true;
