@@ -20,6 +20,7 @@ const statusRebake = require('../../../src/pkjs/status-bars/application/status-r
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 const batteryDays = require('../../../src/pkjs/status-bars/domain/battery-days.js');
 const reads = require('../../../src/pkjs/status-bars/domain/estimate-reads.js');
+const { RETRY_MS } = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
 const { decodeLine } = require('../../helpers/status-line-bytes.js');
 
 const realLog = console.log;
@@ -208,12 +209,12 @@ test('the read is kept in storage: when it started, the failures it ends with, a
   assert.deepEqual(storedRead(), { at: start + LONGEST, failures: 0, made: made }, 'the next read starts from it');
   h.pebble.subs[1].fail('TIMEOUT');
   assert.deepEqual(storedRead(), { at: start + LONGEST, failures: 1, made: made }, 'a failure keeps it');
-  h.clock += reads.RETRY_MS;
+  h.clock += RETRY_MS;
   batteryEstimate.onTick();
-  assert.deepEqual(storedRead(), { at: start + LONGEST + reads.RETRY_MS, failures: 1, made: made },
+  assert.deepEqual(storedRead(), { at: start + LONGEST + RETRY_MS, failures: 1, made: made },
     'a retry starts with them');
   h.pebble.subs[2].push(stats(5, h.clock));
-  assert.deepEqual(storedRead(), { at: start + LONGEST + reads.RETRY_MS, failures: 0, made: h.clock },
+  assert.deepEqual(storedRead(), { at: start + LONGEST + RETRY_MS, failures: 0, made: h.clock },
     'and an answer clears them');
 });
 
@@ -456,7 +457,7 @@ test('Muninn not installed drops what was kept; any other failure keeps it', () 
   assert.equal(h.pebble.subs[1].unsubscribed, 1);
   minute();
   assert.equal(h.sends.length, 1);
-  h.clock += reads.RETRY_MS;
+  h.clock += RETRY_MS;
   minute();
   h.pebble.subs[2].fail('PLUGIN_UNAVAILABLE');
   assert.equal(batteryEstimate.bakeFacts().estimate(), null, 'Muninn is gone: so is its estimate');
@@ -479,21 +480,21 @@ test('a plugin that never answers: no second read while the first is under way',
 test('a failed read is asked again an hour later, then two hours after a second failure', () => {
   const h = boot();
   h.timers[0].fn();   // TIMEOUT, as Muninn not answering in time is
-  h.clock += reads.RETRY_MS - MIN;
+  h.clock += RETRY_MS - MIN;
   batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 1, 'not at the next tick');
   h.clock += MIN;
   batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 2, 'an hour after the failed read');
   h.pebble.subs[1].fail('UNKNOWN');
-  h.clock += 2 * reads.RETRY_MS - MIN;
+  h.clock += 2 * RETRY_MS - MIN;
   batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 2);
   h.clock += MIN;
   batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 3, 'two hours after the second');
   h.pebble.subs[2].push(stats(5, h.clock));
-  h.clock += 2 * reads.RETRY_MS;
+  h.clock += 2 * RETRY_MS;
   batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 3, 'an answer ends the retries');
 });
@@ -502,7 +503,7 @@ test('Muninn not installed is an answer: asked again 12 hours later, not an hour
   const h = boot();
   h.pebble.subs[0].fail('PLUGIN_UNAVAILABLE');
   assert.deepEqual(storedRead(), { at: NOON, failures: 0, made: null });
-  h.clock += reads.RETRY_MS;
+  h.clock += RETRY_MS;
   batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 1);
   h.clock = NOON + IDLE;

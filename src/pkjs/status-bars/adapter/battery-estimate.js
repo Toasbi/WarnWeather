@@ -33,6 +33,7 @@ var statusRebake = require('../application/status-rebake.js');
 var statusLines = require('../domain/status-lines.js');
 var batteryDays = require('../domain/battery-days.js');
 var estimateReads = require('../domain/estimate-reads.js');
+var pluginReads = require('../domain/plugin-reads.js');
 var batterySaver = require('../../wire/domain/battery-saver.js');
 var pluginReader = require('./plugin-reader.js');
 
@@ -47,7 +48,7 @@ var deps = {
     now: function () { return Date.now(); }
 };
 var reading = false;      // a read is under way
-// The last read ({at, failures, made}; estimate-reads.js recordOf), or null for none: read
+// The last read ({at, failures, made}; plugin-reads.js recordOf), or null for none: read
 // from storage at init and kept here as it is written, so a write that storage refuses still
 // counts for the rest of this PKJS life.
 var record = null;
@@ -92,13 +93,13 @@ function readEstimate() {
 /**
  * The record of the last read, as stored.
  * @returns {?{at: number, failures: number, made: ?number}} The record, or null when there is
- *   none or what is stored is unreadable (estimate-reads.js recordOf).
+ *   none or what is stored is unreadable (plugin-reads.js recordOf).
  */
 function storedRecord() {
     var raw = localStorage.getItem(KEYS.BATTERY_ESTIMATE_READ);
     if (raw === null) { return null; }
     try {
-        return estimateReads.recordOf(JSON.parse(raw));
+        return pluginReads.recordOf(JSON.parse(raw), 'made');
     }
     catch (ex) {
         return null;
@@ -109,7 +110,7 @@ function storedRecord() {
  * Record a read, here and in storage. Writes nothing when the record is the one held.
  * @param {number} at When it started, in epoch milliseconds.
  * @param {number} failures The failed reads in a row it ends with.
- * @param {?number} made When Muninn made the estimate it heard (estimate-reads.js madeOf),
+ * @param {?number} made When Muninn made the estimate it heard (plugin-reads.js timeOf),
  *   or null for none.
  * @returns {void}
  */
@@ -187,7 +188,7 @@ function keep(estimate) {
  * from when it was is dropped, and the slot shows the percentage. That is an answer with no
  * time, so the next read waits as long as after any other such one. Any other failure keeps
  * what was heard last, which a bake drops by itself once it is too old, and is tried again
- * sooner (estimate-reads.js retryWait).
+ * sooner (plugin-reads.js retryWait).
  *
  * @param {number} at Now, in epoch milliseconds.
  * @returns {void}
@@ -216,7 +217,7 @@ function read(at) {
             return;
         }
         updatedAt = pluginReader.numberOf(envelope, 'updatedAt');
-        if (record) { stamp(at, 0, estimateReads.madeOf(updatedAt)); }
+        if (record) { stamp(at, 0, pluginReads.timeOf(updatedAt)); }
         keep(batteryDays.estimateOf(pluginReader.numberOf(envelope, 'daysRemaining'), updatedAt));
     }, deps.timers);
 }
@@ -246,7 +247,7 @@ function consider(fromSave) {
     }
     if (reading) { return; }
     at = nowMs();
-    if (record && estimateReads.clockWentBack(record, at)) {
+    if (record && pluginReads.clockWentBack(record, at)) {
         stamp(at, record.failures, record.made);
         return;
     }

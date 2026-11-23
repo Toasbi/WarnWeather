@@ -60,33 +60,11 @@ function muninn(first, late, made, extra) {
 /** Up to ten minutes late, differently each time (as collisions with other apps make it). */
 const JITTER = (k) => ((k * 7919) % 11) * MIN;
 
-test('the rhythm: every 6 hours, read 20 minutes after; 12 hours with none to follow; retries from an hour', () => {
+test('the rhythm: every 6 hours, read 20 minutes after; 12 hours with none to follow', () => {
   assert.equal(reads.PERIOD_MS, 6 * HOUR);
   assert.equal(reads.SETTLE_MS, 20 * MIN);
   assert.equal(reads.IDLE_INTERVAL_MS, 12 * HOUR);
-  assert.equal(reads.RETRY_MS, HOUR);
   assert.equal(reads.STALE_MS, batteryDays.MAX_AGE_MS, 'as old as an estimate the slot still shows');
-});
-
-test('when Muninn made an estimate: its plugin\'s updatedAt, while it is a time', () => {
-  assert.equal(reads.madeOf(T0), T0);
-  [-1, 0, NaN, Infinity, null, undefined, String(T0)].forEach((v) =>
-    assert.equal(reads.madeOf(v), null, String(v)));
-});
-
-test('a record is a time after 1970, a whole count of failed reads, and when Muninn made what it heard', () => {
-  assert.deepEqual(reads.recordOf({ at: T0, failures: 0, made: T0 - HOUR }), { at: T0, failures: 0, made: T0 - HOUR });
-  assert.deepEqual(reads.recordOf({ at: T0, failures: 3, made: null }), { at: T0, failures: 3, made: null });
-  assert.deepEqual(reads.recordOf({ at: T0, failures: 0 }), { at: T0, failures: 0, made: null },
-    'one kept before the time was: no time');
-  assert.deepEqual(reads.recordOf({ at: T0, failures: 0, made: 'x' }), { at: T0, failures: 0, made: null });
-  assert.deepEqual(reads.recordOf({ at: T0, failures: 0, made: -1, extra: 1 }), { at: T0, failures: 0, made: null },
-    'only its three fields');
-  [null, undefined, 5, 'x', true, [], {}, { at: T0 }, { failures: 0 },
-    { at: 0, failures: 0 }, { at: -1, failures: 0 }, { at: NaN, failures: 0 }, { at: Infinity, failures: 0 },
-    { at: String(T0), failures: 0 }, { at: T0, failures: -1 }, { at: T0, failures: 1.5 },
-    { at: T0, failures: '1' }, { at: T0, failures: Infinity }, { at: T0, failures: null }]
-    .forEach((value) => assert.equal(reads.recordOf(value), null, JSON.stringify(value)));
 });
 
 test('an answer is read again 20 minutes after Muninn\'s next estimate is due, 6 hours after the one heard', () => {
@@ -116,18 +94,10 @@ test('no time heard, one more than a day before the read, or one far ahead of it
 
 test('a failed read is tried again an hour later, then 2, 4 and 8 hours, then every 12', () => {
   [[1, 1], [2, 2], [3, 4], [4, 8], [5, 12], [6, 12], [40, 12], [2000, 12]].forEach(([failures, hours]) => {
-    assert.equal(reads.retryWait(failures), hours * HOUR, failures + ' in a row');
     [null, T0 - 20 * MIN].forEach((made) =>
       assert.equal(reads.nextReadAt({ at: T0, failures: failures, made: made }), T0 + hours * HOUR,
         failures + ' in a row, made ' + made));
   });
-});
-
-test('the clock went back when it is behind the last read', () => {
-  assert.equal(reads.clockWentBack(heard(T0, null), T0 - 1), true);
-  assert.equal(reads.clockWentBack(heard(T0, null), T0 - 3 * DAY), true);
-  assert.equal(reads.clockWentBack(heard(T0, null), T0), false);
-  assert.equal(reads.clockWentBack(heard(T0, null), T0 + DAY), false);
 });
 
 test('Muninn\'s wakeups, up to 10 minutes late: each estimate read once, at most half an hour after it', () => {
