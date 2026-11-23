@@ -169,6 +169,8 @@ static void other_readings(void) {
     no_family("phone battery", SLOT_TEXT, STATUS_ICON_PHONE_BATTERY, "31%");
     no_family("phone battery unknown", SLOT_TEXT, STATUS_ICON_PHONE_BATTERY, "--");
     no_family("phone battery no icon", SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_PLAIN, "31%");
+    // A plugin's value: nothing says what its text is, so it hides at its turn.
+    no_family("plugin value", SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT, "21.5 kWh");
 }
 
 static void live_kinds(void) {

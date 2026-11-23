@@ -55,7 +55,10 @@
     // The watch battery's Icon + text look: on LIVE_BATTERY_PCT, the battery glyph the watch
     // draws in code before the charge, as it draws it alone for LIVE_BATTERY. A sentinel like
     // DRAWN_SUN: no drawing loads.
-    DRAWN_BATTERY: 34
+    DRAWN_BATTERY: 34,
+    // Text-only, like PRESSURE: the Plugin value slot, a value another app's plugin serves.
+    // It loads no glyph, has no bold kind and keeps the slot off TEXT + NONE.
+    PLUGIN_TEXT: 35
   };
   // A TEXT slot's short form rides after this byte (status_line.h STATUS_TEXT_ALT_SEP).
   var ALT_SEP = '\u001f';

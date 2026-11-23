@@ -87,6 +87,27 @@ test('icon ids are in lockstep with status_line.h', () => {
   // The watch battery's Icon + text look: the glyph the watch draws in code before its text,
   // a sentinel like DRAWN_SUN.
   assert.equal(catalog.ICONS.DRAWN_BATTERY, cEnum('STATUS_ICON_DRAWN_BATTERY'));
+  // The Plugin value slot: text-only like PRESSURE.
+  assert.equal(catalog.ICONS.PLUGIN_TEXT, cEnum('STATUS_ICON_PLUGIN_TEXT'));
+  // Every id the phone names, the C enum names: the watch drops a line with an id past its
+  // STATUS_ICON_MAX, so an id added on one side only would blank the whole bar.
+  const cIds = [];
+  header.replace(/STATUS_ICON_[A-Z_]+\s*=\s*(\d+)/g, (m, id) => { cIds.push(Number(id)); return m; });
+  Object.keys(catalog.ICONS).forEach((name) => {
+    assert.ok(cIds.indexOf(catalog.ICONS[name]) !== -1, name + ' has a C enumerator');
+  });
+  assert.equal(Math.max.apply(null, Object.keys(catalog.ICONS).map((k) => catalog.ICONS[k])),
+    cEnum('STATUS_ICON_PLUGIN_TEXT'), 'the highest id is the last appended');
+  assert.match(header, /#define\s+STATUS_ICON_MAX\s+STATUS_ICON_PLUGIN_TEXT\b/, 'STATUS_ICON_MAX is the last id');
+});
+
+// Appended after the drawn battery: a text-only id, so no drawing exists for it.
+test('the plugin value is icon id 35 on both sides of the wire, and no drawing loads for it', () => {
+  assert.equal(cEnum('STATUS_ICON_PLUGIN_TEXT'), 35);
+  assert.equal(catalog.ICONS.PLUGIN_TEXT, 35);
+  const gen = require('../../../scripts/pixel-icons/gen_watch_icons.js');
+  assert.equal(Object.keys(gen.ICON_IDS).filter((d) => gen.ICON_IDS[d].indexOf('STATUS_ICON_PLUGIN_TEXT') !== -1)
+    .length, 0, 'text-only, like the pressure');
 });
 
 // Appended after the weather condition's ids: a line stored with it before an upgrade

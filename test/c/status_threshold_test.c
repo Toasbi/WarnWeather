@@ -98,6 +98,9 @@ static void kind_tests(void) {
            STATUS_ICON_PHONE_BATTERY == 16 && STATUS_ICON_PHONE_BATTERY_PLAIN == 18, 1);
     expect("kind.phone_battery_kind_ids",
            THRESH_PHONE_BATTERY == 18 && THRESH_PHONE_BATTERY_PLAIN == 19, 1);
+    // The Plugin value slot has no bold kind (the bold area is full) and never takes the
+    // city's: its id is what keeps it off TEXT + NONE.
+    expect("kind.plugin_text", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT), -1);
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
     expect("kind.empty", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_NONE), -1);
     // The whole map, holes included: every (slot kind, icon) byte pair, folded into one
