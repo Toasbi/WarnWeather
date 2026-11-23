@@ -66,7 +66,6 @@ var WEATHER_ROW = {
 var SOURCE_PICKERS = providerReadings.READING_IDS.map(function (id) {
     return {
         type: 'select',
-        bottomSheet: true,
         messageKey: sourcePlan.choiceKey(id),
         label: words.label(id),
         defaultValue: '',
@@ -74,7 +73,6 @@ var SOURCE_PICKERS = providerReadings.READING_IDS.map(function (id) {
     };
 }).concat([{
     type: 'select',
-    bottomSheet: true,
     uiOnly: true,
     messageKey: 'weatherOtherSourceFor',
     label: 'Use another source for',
@@ -103,8 +101,8 @@ var CALLS_LINE = {
 /**
  * The Weather dialog's sections. The dialog, opened by the Weather row (WEATHER_ROW): the
  * Provider, which serves the forecast, its notes and its key row; then Other sources, the values
- * that come from another provider (block weatherOtherSources, weather-sources-page.js). The
- * Provider opens its list as a sheet over the dialog (bottomSheet), as the list's pickers do.
+ * that come from another provider (block weatherOtherSources, weather-sources-page.js). Every
+ * list opens as a sheet over the dialog (engine renderPickSheet).
  * Then the pickers' own section (SOURCE_PICKERS), which has no rows: the list opens them over
  * the dialog. Never opened as a dialog itself (sheetOnly): the values hydrate and serialize with
  * the blob, as graphStyleKeys does for New graph.
@@ -134,7 +132,6 @@ function dialogSections(keyRow) {
             // A provider that needs a key gets its key row under this one (keyRow), which opens
             // its key dialog: the key field, its Test, the links and any budget guard live there.
             // The missing-key note is the staticText below the calls line.
-            bottomSheet: true,
             options: PROVIDER_OPTIONS
         }, FILL_NOTE, CALLS_LINE, {
             // The keyed provider's empty key, said where it cannot be missed: an amber note

@@ -193,7 +193,7 @@ test('a name typed in a bar\'s dialog title: OK stores it, and the title, the li
   assert.equal(pickTitle(page, 'statusRadarMid'), 'Radar bar · Middle slot');
 });
 
-test('a bar\'s dialog: each slot\'s list rises from the bottom over the dialog, never in place under its row', () => {
+test('a bar\'s dialog: each slot\'s list rises from the bottom over the dialog', () => {
   const page = bootGeneratedPage(THREE);
   page.clickTab('watch');
   page.openEditSheet('bar-forecast');
@@ -204,7 +204,6 @@ test('a bar\'s dialog: each slot\'s list rises from the bottom over the dialog, 
     const sheetAt = dlg.indexOf('<div class="psheet" role="group" aria-labelledby="psheet-ttl-' + key + '">');
     assert.ok(sheetAt !== -1, pos + ': the sheet');
     assert.ok(dlg.indexOf('<div id="ssel-list-' + key + '" class="isel-list"') > sheetAt, pos + ': its list in it');
-    assert.equal(dlg.indexOf('isel-open'), -1, pos + ': no row opens in place');
     page.escapeDialog();
     assert.equal(page.modal.innerHTML.indexOf('psheet'), -1, pos + ': Escape closes the list');
     assert.ok(page.modal.innerHTML.indexOf('id="esheet-ttl-bar-forecast"') !== -1, pos + ': and keeps the dialog');

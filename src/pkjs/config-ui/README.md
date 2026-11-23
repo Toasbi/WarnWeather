@@ -334,23 +334,24 @@ provider pickers each have a key row, "<Name> API key", whose summary reads "No 
 
 Rows inside an open sheet behave as they do in a card (including a text row's `suffixAction`
 button and its verdict line, and a hint's tap-to-copy `[data-copy]` button), with one
-difference: a `select` row there expands its option list in place, under the row inside the
-sheet (the colour palette's pattern), instead of opening the select modal. The trigger stays
-where it was and reads as open (`aria-expanded="true"`, the row gains `isel-open`). The list
-reuses the modal's option rows, so the current value's check, a recommended option and gated
-(`meta.disabled` / `optionDisabledWhen`) options look and behave the same. A pick stores the
-value, fires the item's `onChange` once and collapses the list, leaving the sheet open with
-focus back on the trigger; a second tap on the trigger collapses it without a pick. An option
+difference: a `select` row there opens its option list in a sheet that rises from the bottom
+over the dialog (engine `renderPickSheet`), titled as the select modal is (`sheetTitleBy`,
+`sheetTitle`, else the label), instead of opening the select modal. The trigger stays where it
+was and reads as open (`aria-expanded="true"`). The list reuses the modal's option rows, so the
+current value's check, a recommended option and gated (`meta.disabled` / `optionDisabledWhen`)
+options look and behave the same. A pick stores the value, fires the item's `onChange` once and
+closes the list, leaving the dialog open with focus back on the trigger; a second tap on the
+trigger, a tap beside the list's sheet and its × close it without a pick. An option
 whose meta names `next`, another select's `messageKey`, stores nothing: its pick opens that
 select's list in its place, as a tap on its row would, even while the select has no row (a
 value, then its provider: WarnWeather's Use another source). Closed without a pick, that list
 hands focus back to the first one's trigger. One expander
-is open at a time: opening a list collapses an open palette and vice versa. Escape first
-collapses an open list or palette and closes the sheet only on the next press; the close button,
+is open at a time: opening a list closes an open palette and vice versa. Escape first
+closes an open list or palette and closes the sheet only on the next press; the close button,
 the backdrop and a swipe-down close the sheet, which reopens collapsed. A touch that starts
 inside the list never arms the swipe-down. A list stays open only while its row renders live:
 when another control in the sheet hides the row (`showWhen`) or mutes it (`disabledWhen`), the
-list collapses with it, and the row comes back collapsed. `searchSelect` has no in-sheet form,
+list closes with it, and the row comes back closed. `searchSelect` has no in-sheet form,
 so keep it out of `sheetOnly` sections (a schema test enforces this). A select in the tab body,
 and one opened through `openSheet()`, still opens the modal.
 
@@ -482,7 +483,6 @@ Item fields:
 | `sheetTitle` | string | `select`/`searchSelect` only: the picker sheet's title, where the row's label alone would not name it (a row whose picker also opens from a preview). Default: the label. |
 | `sheetTitleBy` | `{resolver, args?}` | `select` only: a `PConf.displayResolvers` id whose answer titles the picker sheet instead of `sheetTitle` (a slot picker named by its bar's name); `''` keeps `sheetTitle`. |
 | `sheetLead` | string | `select`/`searchSelect` only: one plain line under the picker sheet's title that says what the picker does (escaped). |
-| `bottomSheet` | boolean | `select` only: in a dialog (a `sheetOnly` section) its list rises from the bottom over the dialog, titled as the picker sheet is (`sheetTitleBy`, `sheetTitle`), instead of opening in place under the row (engine `renderPickSheet`; the status bar slots). A tap beside it, its × or Escape closes it. On a tab it opens the select sheet as every select does. |
 | `pictureFrom` | `{ resolver, args }` | `radio`: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry-pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). `select`/`searchSelect`: each option's picture at the start of its row in the picker sheet. |
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
 | `groupLabel` | string | On the first member of an `inline` group: renders the group as one labelled row, the members side by side joined by a dash (a From/To row). |

@@ -3612,7 +3612,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3659,7 +3658,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3707,7 +3705,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3863,7 +3860,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3910,7 +3906,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3958,7 +3953,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4047,7 +4041,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4104,7 +4097,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4162,7 +4154,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4271,7 +4262,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4328,7 +4318,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4386,7 +4375,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4495,7 +4483,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4568,7 +4555,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4642,7 +4628,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4790,7 +4775,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4863,7 +4847,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4937,7 +4920,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -5085,7 +5067,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -5158,7 +5139,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -5232,7 +5212,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -9615,7 +9594,6 @@
             "items": [
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "pluginValuePlugin",
                 "label": "Plugin",
                 "defaultValue": "",
@@ -9629,7 +9607,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "pluginValueId",
                 "label": "Value",
                 "defaultValue": "",
@@ -16645,7 +16622,6 @@
                   "wunderground": "A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.",
                   "yandex": "Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key."
                 },
-                "bottomSheet": true,
                 "options": [
                   [
                     "Deutscher Wetterdienst",
@@ -16760,7 +16736,6 @@
             "items": [
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceCurrentTemp",
                 "label": "Current temperature",
                 "defaultValue": "",
@@ -16773,7 +16748,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceCurrentFeels",
                 "label": "Current feels-like",
                 "defaultValue": "",
@@ -16786,7 +16760,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceCondition",
                 "label": "Weather condition",
                 "defaultValue": "",
@@ -16799,7 +16772,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceTemperature",
                 "label": "Temperature",
                 "defaultValue": "",
@@ -16812,7 +16784,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceFeels",
                 "label": "Feels-like",
                 "defaultValue": "",
@@ -16825,7 +16796,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceDew",
                 "label": "Dew point",
                 "defaultValue": "",
@@ -16838,7 +16808,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceRainChance",
                 "label": "Rain chance",
                 "defaultValue": "",
@@ -16851,7 +16820,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceRainAmount",
                 "label": "Rain amount",
                 "defaultValue": "",
@@ -16864,7 +16832,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceWind",
                 "label": "Wind speed",
                 "defaultValue": "",
@@ -16877,7 +16844,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceGust",
                 "label": "Wind gusts",
                 "defaultValue": "",
@@ -16890,7 +16856,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceWindDir",
                 "label": "Wind direction",
                 "defaultValue": "",
@@ -16903,7 +16868,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceUv",
                 "label": "UV index",
                 "defaultValue": "",
@@ -16916,7 +16880,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceCloud",
                 "label": "Cloud cover",
                 "defaultValue": "",
@@ -16929,7 +16892,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourcePressure",
                 "label": "Air pressure",
                 "defaultValue": "",
@@ -16942,7 +16904,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "uiOnly": true,
                 "messageKey": "weatherOtherSourceFor",
                 "label": "Use another source for",

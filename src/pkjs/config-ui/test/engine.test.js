@@ -2023,26 +2023,28 @@ function selectRowTags(html, key) {
   };
 }
 
-test('boot(): a tap on a sheet\'s select expands its options inline; the sheet stays drawn', () => {
+test('boot(): a tap on a dialog\'s select opens its options in a sheet over the dialog; the dialog stays drawn', () => {
   const r = bootWithFormatSheet();
   clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
   const html = r.modal.innerHTML;
-  assert.ok(html.indexOf('<div id="ssel-list-sep" class="isel-list" role="listbox" aria-label="Separator options">') >= 0,
-    'the list renders in place, under the id the trigger\'s aria-controls names');
-  assert.ok(html.indexOf('data-select-pick="custom"') >= 0, 'with its options');
+  const at = html.indexOf('<div class="psheet-scrim" data-psheet-close></div><div class="psheet" role="group" '
+    + 'aria-labelledby="psheet-ttl-sep"><div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="psheet-ttl-sep">'
+    + 'Separator</span><button type="button" class="ssel-modal-close" data-psheet-close aria-label="Close">×'
+    + '</button></div><div id="ssel-list-sep" class="isel-list" role="listbox" aria-label="Separator options">');
+  assert.ok(at >= 0, 'a clear layer, then the sheet: the row\'s label, its ×, its list under the id the trigger names');
+  assert.ok(html.indexOf('data-select-pick="custom"', at) > at, 'with its options');
+  assert.ok(at > html.indexOf('data-select="mark"'), 'after every row of the dialog, not in the select\'s own row');
+  assert.ok(html.endsWith('</div></div>'), 'the last thing the dialog draws');
   assert.ok(html.indexOf('data-k="flag"') >= 0 && html.indexOf('data-color="tone"') >= 0,
-    'the rest of the sheet is still drawn around it');
+    'the rest of the dialog is still drawn under it');
   assert.equal(html.indexOf('data-ssel-list'), -1, 'no select modal takes the dialog over');
   assert.equal(html.indexOf('class="ssel-list"'), -1, 'and the list is never a .ssel-list');
   const tags = selectRowTags(html, 'sep');
   assert.match(tags.trigger, /aria-expanded="true"/, 'the trigger reads as open');
   assert.match(tags.trigger, /aria-controls="ssel-list-sep"/);
-  assert.match(tags.row, /\bisel-open\b/, 'the row carries isel-open');
-  assert.doesNotMatch(tags.row, /\bstack\b/, 'and is not restacked: the trigger stays in place');
-  assert.ok(html.indexOf('isel-list') > html.indexOf('data-select="sep"'),
-    'the list follows the trigger inside its row');
+  assert.equal(tags.row, '<div class="row">', 'its row stays as it was');
   assert.doesNotMatch(selectRowTags(html, 'mark').trigger, /aria-expanded="true"/,
-    'the other select stays collapsed');
+    'the other select stays closed');
 });
 
 test('boot(): opening a sheet\'s list moves focus onto its current option', () => {
@@ -2088,7 +2090,7 @@ test('boot(): a gated current value hands focus to the first pickable option', (
   assert.deepEqual(focused, ['.isel-list [data-select-pick]'], 'focus lands on the first pickable option');
 });
 
-test('boot(): a pick in a sheet\'s inline list stores it, fires onChange once, collapses the list, keeps the sheet', () => {
+test('boot(): a pick in a dialog\'s list stores it, fires onChange once, closes the list, keeps the dialog', () => {
   let triggerFocus = 0;
   const r = bootWithFormatSheet({ modalQuery: (sel) => (sel === '[data-select="sep"]'
     ? { focus: () => { triggerFocus++; } } : null) });
@@ -2100,8 +2102,8 @@ test('boot(): a pick in a sheet\'s inline list stores it, fires onChange once, c
   assert.equal(r.getValue('sep'), 'custom', 'the pick is stored');
   assert.deepEqual(calls, [['sep', 'slash', 'custom']], 'the row\'s onChange fired once');
   const html = r.modal.innerHTML;
-  assert.equal(html.indexOf('isel-list'), -1, 'the list collapsed');
-  assert.ok(html.indexOf('data-k="flag"') >= 0, 'the sheet is still open');
+  assert.equal(html.indexOf('isel-list'), -1, 'the list closed');
+  assert.ok(html.indexOf('data-k="flag"') >= 0, 'the dialog is still open');
   assert.ok(html.indexOf('data-k="sepText"') >= 0, 'and re-rendered with the pick: the row it reveals is there');
   assert.doesNotMatch(selectRowTags(html, 'sep').trigger, /aria-expanded="true"/);
   assert.equal(triggerFocus, 1, 'focus returns to the row\'s trigger inside the sheet');
@@ -2157,47 +2159,33 @@ test('boot(): Escape collapses an open list (or palette) first and closes the sh
   });
 });
 
-// A select marked bottomSheet opens its list in a dialog as a sheet that rises from the bottom
-// over the dialog (engine renderPickSheet; the owner's, 2026-11-14, for a status bar's slots),
-// not in place under its row. Its state is the in-place list's: the same picks, Escape and focus.
-const BOTTOM_SHEET_SCHEMA = JSON.parse(JSON.stringify(SHEET_SELECT_SCHEMA));
-Object.assign(BOTTOM_SHEET_SCHEMA.tabs[0].sections[1].items.find((i) => i.messageKey === 'sep'),
-  { bottomSheet: true, sheetTitle: 'Format · Separator' });
+// A select's sheetTitle titles the sheet its list rises in over a dialog (engine pickerTitle),
+// where the row's label alone would not say what it picks.
+const TITLED_SELECT_SCHEMA = JSON.parse(JSON.stringify(SHEET_SELECT_SCHEMA));
+Object.assign(TITLED_SELECT_SCHEMA.tabs[0].sections[1].items.find((i) => i.messageKey === 'sep'),
+  { sheetTitle: 'Format · Separator' });
 
 /**
- * Boot BOTTOM_SHEET_SCHEMA, open its dialog and tap the bottomSheet select's row.
+ * Boot TITLED_SELECT_SCHEMA, open its dialog and tap the titled select's row.
  * @param {Object} [opts] Passed through to bootWithCapturedListeners.
  * @returns {Object} The harness.
  */
-function bootWithBottomSheet(opts) {
-  const r = bootWithCapturedListeners(BOTTOM_SHEET_SCHEMA, {}, opts);
+function bootWithTitledSelect(opts) {
+  const r = bootWithCapturedListeners(TITLED_SELECT_SCHEMA, {}, opts);
   clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'fmt' });
   clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
   return r;
 }
 
-test('boot(): a bottomSheet select\'s list rises from the bottom over the dialog; its row stays as it was', () => {
-  const r = bootWithBottomSheet();
-  const html = r.modal.innerHTML;
-  const at = html.indexOf('<div class="psheet-scrim" data-psheet-close></div><div class="psheet" role="group" '
-    + 'aria-labelledby="psheet-ttl-sep"><div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="psheet-ttl-sep">'
-    + 'Format · Separator</span><button type="button" class="ssel-modal-close" data-psheet-close aria-label="Close">×'
-    + '</button></div><div id="ssel-list-sep" class="isel-list" role="listbox" aria-label="Format · Separator options">');
-  assert.ok(at >= 0, 'a clear layer, then the sheet: its title, its ×, its list under the id the trigger names');
-  assert.ok(html.indexOf('data-select-pick="custom"', at) > at, 'with its options');
-  assert.ok(at > html.indexOf('data-select="mark"'), 'after every row of the dialog, not in the select\'s own row');
-  assert.ok(html.endsWith('</div></div>'), 'the last thing the dialog draws');
-  const tags = selectRowTags(html, 'sep');
-  assert.doesNotMatch(tags.row, /\bisel-open\b/, 'the row does not open in place');
-  assert.match(tags.trigger, /aria-expanded="true"/, 'its trigger reads as open');
-  assert.ok(html.indexOf('data-k="flag"') >= 0, 'the dialog is drawn under it');
-  // An ordinary select in the same dialog still opens in place.
-  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'mark' });
-  assert.equal(r.modal.innerHTML.indexOf('psheet'), -1, 'the sheet went');
-  assert.match(selectRowTags(r.modal.innerHTML, 'mark').row, /\bisel-open\b/, 'the other list opens in its row');
+test('boot(): a select\'s sheetTitle titles its sheet and names its list', () => {
+  const html = bootWithTitledSelect().modal.innerHTML;
+  assert.ok(html.indexOf('<span class="ssel-modal-ttl" id="psheet-ttl-sep">Format · Separator</span>') >= 0,
+    'the sheet\'s own title');
+  assert.ok(html.indexOf('<div id="ssel-list-sep" class="isel-list" role="listbox" aria-label="Format · Separator options">') >= 0,
+    'its list is named after it');
 });
 
-test('boot(): opening the bottom sheet scrolls only its list to the picked option, never the dialog', () => {
+test('boot(): opening a list\'s sheet scrolls only its list to the picked option, never the dialog', () => {
   const calls = [];
   const list = { scrollTop: 0, getBoundingClientRect: () => ({ top: 300, bottom: 500, height: 200 }) };
   const option = {
@@ -2205,7 +2193,7 @@ test('boot(): opening the bottom sheet scrolls only its list to the picked optio
     getBoundingClientRect: () => ({ top: 900, bottom: 940, height: 40 }),
     focus: (opts) => { calls.push(opts); }
   };
-  const r = bootWithCapturedListeners(BOTTOM_SHEET_SCHEMA, {}, {
+  const r = bootWithCapturedListeners(TITLED_SELECT_SCHEMA, {}, {
     modalQuery: (sel) => (sel === '.psheet' ? {} : /ssel-opt\.on/.test(sel) ? option : null)
   });
   clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'fmt' });
@@ -2216,9 +2204,9 @@ test('boot(): opening the bottom sheet scrolls only its list to the picked optio
   assert.equal(r.modal.scrollTop, 0, 'the dialog is not scrolled');
 });
 
-test('boot(): a pick in the bottom sheet stores it and closes the sheet; the dialog stays', () => {
+test('boot(): a pick in a list\'s sheet closes the sheet; the dialog stays, drawn with the pick', () => {
   let triggerFocus = 0;
-  const r = bootWithBottomSheet({ modalQuery: (sel) => (sel === '[data-select="sep"]'
+  const r = bootWithTitledSelect({ modalQuery: (sel) => (sel === '[data-select="sep"]'
     ? { focus: () => { triggerFocus++; } } : null) });
   clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'sep', 'data-select-pick': 'custom' });
   assert.equal(r.getValue('sep'), 'custom');
@@ -2228,10 +2216,10 @@ test('boot(): a pick in the bottom sheet stores it and closes the sheet; the dia
   assert.equal(triggerFocus, 1, 'focus goes back to the row\'s trigger');
 });
 
-test('boot(): a tap beside the bottom sheet, its × or Escape closes it alone, nothing picked', () => {
+test('boot(): a tap beside a list\'s sheet, its × or Escape closes it alone, nothing picked', () => {
   ['beside', 'close', 'escape'].forEach((how) => {
     const focused = [];
-    const r = bootWithBottomSheet({ modalQuery: (sel) => (sel === '[data-select="sep"]'
+    const r = bootWithTitledSelect({ modalQuery: (sel) => (sel === '[data-select="sep"]'
       ? { focus: () => { focused.push(sel); } } : null) });
     if (how === 'escape') {
       r.modalListeners.cancel({ preventDefault: () => {} });
@@ -2249,10 +2237,10 @@ test('boot(): a tap beside the bottom sheet, its × or Escape closes it alone, n
 // An option that names the select to pick next (meta.next: the Weather dialog's "Use another
 // source", a value and then its provider) hands its list on: a pick opens the next select's
 // list over the dialog, as a tap on that select's row would, though the row may not exist yet.
-const NEXT_SELECT_SCHEMA = JSON.parse(JSON.stringify(BOTTOM_SHEET_SCHEMA));
+const NEXT_SELECT_SCHEMA = JSON.parse(JSON.stringify(TITLED_SELECT_SCHEMA));
 NEXT_SELECT_SCHEMA.tabs[0].sections[1].items.find((i) => i.messageKey === 'sep').options[1][2] = { next: 'side' };
 NEXT_SELECT_SCHEMA.tabs[0].sections.push({ sheetOnly: true, sheetId: 'keys', title: 'Keys', items: [
-  { type: 'select', messageKey: 'side', label: 'Side', sheetTitle: 'Which side', bottomSheet: true, defaultValue: '',
+  { type: 'select', messageKey: 'side', label: 'Side', sheetTitle: 'Which side', defaultValue: '',
     options: [['Left', 'left'], ['Right', 'right']] }] });
 // A tap on the option that hands on: its markup carries the next select (the first test checks).
 const HANDING = { 'data-k': 'sep', 'data-select-pick': 'custom', 'data-select-next': 'side' };
@@ -2405,7 +2393,7 @@ test('boot(): a swipe that starts inside an open list never drags the sheet', ()
   assert.ok(r.modal.innerHTML.indexOf('isel-list') >= 0, 'the sheet and its list stay open');
 });
 
-test('boot(): a disabled option in an inline list is inert', () => {
+test('boot(): a disabled option in a dialog\'s list is inert', () => {
   const r = bootWithFormatSheet();
   clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'mark' });
   const html = r.modal.innerHTML;
@@ -2485,7 +2473,6 @@ test('boot(): a list whose row a disabledWhen mutes collapses with it', () => {
   const tags = selectRowTags(r.modal.innerHTML, 'mark');
   assert.match(tags.row, /\bdis\b/, 'the row is muted');
   assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, 'the list is gone');
-  assert.doesNotMatch(tags.row, /isel-open/);
   assert.match(tags.trigger, /aria-expanded="false"/, 'the trigger reads as collapsed');
   assert.equal(r.modal.classes.has('picking'), false, 'the sheet drops back to its normal cap');
   // The switch back on: the row is live again, still collapsed.
@@ -2496,7 +2483,7 @@ test('boot(): a list whose row a disabledWhen mutes collapses with it', () => {
   assert.equal(r.modal.open, false, 'one Escape closes the sheet');
 });
 
-test('renderEditModal: a muted member of an inline group never expands', () => {
+test('renderEditModal: a muted member of an inline group never opens its list', () => {
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
     { sheetOnly: true, sheetId: 'fmt', title: 'Format', items: [
       { type: 'toggle', messageKey: 'on', label: 'On', defaultValue: false },
@@ -2514,10 +2501,10 @@ test('renderEditModal: a muted member of an inline group never expands', () => {
     'its live neighbour still expands');
 });
 
-test('boot(): only the sheet\'s copy of a key expands inline; the card behind stays collapsed', () => {
-  // The same select in a card AND in a sheet: render() hands the expanded key to the
-  // sheet's rows only (renderEditModal's cx.openInline), so the card behind the sheet
-  // keeps its collapsed trigger.
+test('boot(): only the dialog\'s copy of a key opens its list; the card behind stays closed', () => {
+  // The same select in a card AND in a dialog: render() hands the open key to the dialog's
+  // rows only (renderEditModal's cx.openInline), so the card behind the dialog keeps its
+  // closed trigger.
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
     { title: 'S', items: [
       { type: 'select', messageKey: 'sep', label: 'Separator', defaultValue: 'slash',
@@ -2533,12 +2520,12 @@ test('boot(): only the sheet\'s copy of a key expands inline; the card behind st
   clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'fmt' });
   clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
   const sheet = r.modal.innerHTML, body = r.scroll.innerHTML;
-  assert.ok(sheet.indexOf('class="isel-list"') >= 0, 'the sheet row expands');
+  assert.ok(sheet.indexOf('class="isel-list"') >= 0, 'the dialog\'s row opens its list');
   assert.match(selectRowTags(sheet, 'sep').trigger, /aria-expanded="true"/);
   assert.match(sheet, /data-select-pick="custom" data-k="sep"/, 'its options pick into the key');
   assert.match(sheet, /class="ssel-opt on" role="option" aria-selected="true"/, 'the current value is checked');
   assert.ok(body.indexOf('data-select="sep"') >= 0, 'the card row is drawn behind the sheet');
-  assert.equal(body.indexOf('isel-list'), -1, 'the card row stays collapsed');
+  assert.equal(body.indexOf('isel-list'), -1, 'the card row stays closed');
   assert.match(selectRowTags(body, 'sep').trigger, /aria-expanded="false"/);
 });
 
@@ -2547,10 +2534,8 @@ test('boot(): a select in the tab body still opens the select modal and closes o
   clickMatching(r.listeners.click, '[data-select]', { 'data-select': 'mode' });
   assert.ok(r.modal.innerHTML.indexOf('data-ssel-list="mode"') >= 0, 'the modal list opens');
   assert.ok(r.modal.innerHTML.indexOf('class="ssel-list"') >= 0);
-  assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, 'never the in-sheet list');
+  assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, 'never a dialog\'s list');
   assert.match(selectRowTags(r.scroll.innerHTML, 'mode').trigger, /aria-expanded="true"/);
-  assert.doesNotMatch(selectRowTags(r.scroll.innerHTML, 'mode').row, /isel-open/,
-    'the tab-body row is not an inline-open row');
   // The page under an open sheet does not scroll (shell.html .scroll.locked).
   assert.equal(r.scroll.className, 'scroll locked', 'the page is locked under the sheet');
   clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'mode', 'data-select-pick': 'b' });

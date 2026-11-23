@@ -68,7 +68,6 @@ test('the Weather row opens Data sources and the Weather dialog, the Provider fi
   const provider = dialog.items[0];
   assert.equal(provider.messageKey, 'provider');
   assert.equal(provider.label, 'Provider');
-  assert.equal(provider.bottomSheet, true, 'its list opens as a sheet over the dialog');
   assert.deepEqual(dialog.items[dialog.items.length - 1], { type: 'subheader', text: 'Other sources' });
 });
 
@@ -81,7 +80,6 @@ test('the pickers: one per reading in the table\'s order, then Use another sourc
     'Wind gusts', 'Wind direction', 'UV index', 'Cloud cover', 'Air pressure']);
   pickers.items.slice(0, -1).forEach((row, i) => {
     assert.equal(row.type, 'select');
-    assert.equal(row.bottomSheet, true, row.messageKey + ': a sheet over the dialog');
     assert.equal(row.defaultValue, '', 'the Provider\'s');
     assert.deepEqual(row.optionsFrom, { resolver: 'weatherValueSources', args: { reading: providerReadings.READING_IDS[i] } });
     assert.equal(row.options, undefined, 'the page builds the list');

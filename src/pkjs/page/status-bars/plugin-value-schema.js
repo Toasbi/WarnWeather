@@ -25,9 +25,8 @@ var EVERY_HINT = 'Each read runs the other app\'s plugin on your phone. If that 
 
 /**
  * The Plugin value slot's dialog: the Plugin, the Value of it and Updates, then the value read
- * last. Plugin and Value open their lists over the dialog (bottomSheet), as the Weather dialog's
- * pickers do: a phone can list a dozen plugins and each up to 24 values
- * (plugin-value-list.js).
+ * last. Each row opens its list over the dialog (engine renderPickSheet): a phone can list a
+ * dozen plugins and each up to 24 values (plugin-value-list.js).
  * @param {function(string, string, Object[]): Object} sheetOf schema.js sheetOf: a slot
  *   dialog's envelope (thresh<Stem>, gated where the watch has slot dialogs).
  * @returns {Object} Schema section (sheetOnly), 'threshPluginValue'.
@@ -35,7 +34,6 @@ var EVERY_HINT = 'Each read runs the other app\'s plugin on your phone. If that 
 function dialogSection(sheetOf) {
     return sheetOf('PluginValue', 'Plugin value', [{
         type: 'select',
-        bottomSheet: true,
         messageKey: 'pluginValuePlugin',
         label: 'Plugin',
         defaultValue: '',
@@ -46,7 +44,6 @@ function dialogSection(sheetOf) {
         onChange: 'pluginValuePluginPicked'
     }, {
         type: 'select',
-        bottomSheet: true,
         messageKey: 'pluginValueId',
         label: 'Value',
         defaultValue: '',

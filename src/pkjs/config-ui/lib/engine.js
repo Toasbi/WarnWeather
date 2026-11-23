@@ -1006,7 +1006,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // body, so the accessible name must ride the switch itself.
       if (it && PConf.showWhen.isVisible(it, cx.evalCtx)) {
         toggle = renderToggle(it, cx.S[it.messageKey], String(it.label || 'Enable'),
-          Boolean(it.disabledWhen) && PConf.showWhen.evaluate(it.disabledWhen, cx.evalCtx));
+          isMuted(it, cx.evalCtx));
       }
     }
     // item.intro is the group's own explanatory copy — the section-level `intro`
@@ -1073,9 +1073,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * Shared trigger for both `select` and `searchSelect`: a select-like button that opens
-   * the modal popup — or, for a `select` inside an edit sheet, expands its options in
-   * place under the row (view.openInline, renderInlineList). aria-controls points at the
-   * option list either surface renders; both use the same id.
+   * the modal popup, or for a `select` inside a dialog the sheet that rises over it
+   * (view.openInline, renderPickSheet). aria-controls points at the option list either
+   * surface renders; both use the same id.
    *
    * @param {Object} item Schema item (select or searchSelect).
    * @param {{value: *, openSelect: ?string, openInline: ?string}} view Render view state.
@@ -1142,6 +1142,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * Whether a shown row is muted: drawn, but inert under its disabledWhen.
+   *
+   * @param {Object} item Schema item.
+   * @param {Object} ctx Show-when context ({<settings>, env}).
+   * @returns {boolean} Whether its disabledWhen holds.
+   */
+  function isMuted(item, ctx) {
+    return Boolean(item.disabledWhen) && PConf.showWhen.evaluate(item.disabledWhen, ctx);
+  }
+
+  /**
    * The open select/searchSelect modal: a dim overlay + a centered card holding an optional
    * search box (searchSelect only) and the scrollable option list. Returns '' when nothing is
    * open. optionsFrom items are resolved through resolveRowItem so derived lists (status slots,
@@ -1201,40 +1212,39 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * The option list a `select` row expands IN PLACE inside an edit sheet: the colour
-   * palette's in-place pattern, applied to a dropdown, so picking a value never takes the
-   * sheet off the screen. The rows are the select modal's own (renderSelectOptions: .on
-   * with a check, the recommended marker, gated options inert), under the id the
-   * trigger's aria-controls already names. The class is isel-list, never ssel-list:
-   * render(), fitSelectPeek and the swipe handler all query .ssel-list for the sheet's
-   * own scroll container.
+   * The option list of a `select` row in a dialog, in the sheet that rises over the dialog
+   * (renderPickSheet). The rows are the select modal's own (renderSelectOptions: .on with a
+   * check, the recommended marker, gated options inert), under the id the trigger's
+   * aria-controls already names. The class is isel-list, never ssel-list: render(),
+   * fitSelectPeek and the swipe handler all query .ssel-list for the dialog's own scroll
+   * container.
    *
    * @param {Object} item The row's item with its options materialized (resolveRowItem).
    * @param {*} value The value the row shows.
    * @param {{S: Object, ENV: Object, evalCtx: Object}} cx Render context.
-   * @param {string} [titleHtml] The list's escaped title, for its aria-label: the row's label
-   *     by default; a bottom sheet's own title (renderPickSheet).
+   * @param {string} titleHtml The sheet's escaped title, for the list's aria-label.
    * @returns {string} The list HTML.
    */
-  function renderInlineList(item, value, cx, titleHtml) {
-    var title = titleHtml || esc(String(item.label || 'Selection'));
+  function renderPickList(item, value, cx, titleHtml) {
     return '<div id="ssel-list-' + esc(item.messageKey) + '" class="isel-list" role="listbox" aria-label="'
-      + title + ' options">'
+      + titleHtml + ' options">'
       + renderSelectOptions(item, value, '', resolveRecommended(item, cx.S, cx.ENV),
           disabledOptionValues(item, cx.evalCtx), resolvePictures(item, cx.S, cx.ENV, cx.USERDATA))
       + '</div>';
   }
 
   /**
-   * The list of a select marked `bottomSheet`, opened in a dialog: a sheet that rises from the
-   * bottom over the dialog, as a select opens on a tab (renderSelectModal: its title, its ×, its
-   * option rows), where an ordinary select in a dialog opens its list in place under its row
-   * (renderInlineList; the owner's, 2026-11-14, for a status bar's slots: the in-place list
-   * pushed the rest of the dialog away). It is the in-place list's state all the same — the
-   * dialog's open key (cx.openInline), the same picks, Escape and focus — drawn elsewhere:
-   * the list keeps the id and the class render() looks for. A tap on the dim layer or the ×
-   * closes it (data-psheet-close). A date in a dialog always opens so: its wheels (the date
-   * sheet's on a tab, renderDateWheels) rise over the dialog. '' when no such sheet is open.
+   * The list of a select opened in a dialog: a sheet that rises from the bottom over the
+   * dialog, as a select opens on a tab (renderSelectModal: its title, its ×, its option rows;
+   * renderPickList). A list opened in place under its row pushed the rest of the dialog away
+   * (the owner's, 2026-11-14 for a status bar's slots, 2026-11-23 for every dialog). Its state
+   * is the dialog's open key (cx.openInline), with the picks, Escape and focus that key
+   * drives. A tap on the dim layer or the × closes it (data-psheet-close). A date in a dialog
+   * opens so too: its wheels (the date sheet's on a tab, renderDateWheels) rise over the
+   * dialog. '' when no such sheet is open.
+   * Neither opens for a row its showWhen hides or its disabledWhen mutes (one tap away, in the
+   * same dialog): render() then drops the open key. A select with no row of its own opens all
+   * the same (a list's next one, meta.next; the Weather dialog's Other sources rows).
    *
    * @param {Object} schema Config schema.
    * @param {{S: Object, ENV: Object, evalCtx: Object, openInline: ?string}} cx Render context.
@@ -1243,14 +1253,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   function renderPickSheet(schema, cx) {
     if (!cx.openInline) { return ''; }
     var found = findShownItem(schema, cx.openInline, cx.evalCtx);
-    if (!found || !(found.type === 'date' || (found.type === 'select' && found.bottomSheet))) { return ''; }
+    if (!found || !(found.type === 'date' || found.type === 'select')
+        || !PConf.showWhen.isVisible(found, cx.evalCtx) || isMuted(found, cx.evalCtx)) { return ''; }
     var titleId = 'psheet-ttl-' + esc(found.messageKey);
     if (found.type === 'date') {
       return pickSheet(titleId, esc(found.label || 'Date'), datePicker.renderDateWheels(found.messageKey, cx.S[found.messageKey]));
     }
     var item = resolveRowItem(found, { value: cx.S[found.messageKey] }, cx);
     var title = esc(pickerTitle(item, cx));
-    return pickSheet(titleId, title, renderInlineList(item, cx.S[item.messageKey], cx, title));
+    return pickSheet(titleId, title, renderPickList(item, cx.S[item.messageKey], cx, title));
   }
 
   /**
@@ -1277,8 +1288,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * (buildCards, untitled first card) through the same item renderer the tab body uses,
    * so showWhen/joins/hints and the color-palette state all behave identically.
    * '' when nothing is open, the sheetId is unknown, or the section is gated off.
-   * cx.openInline is the select expanded in place in the dialog. Only the dialog's cx
-   * carries it (boot's render()), so the same key in the tab body behind stays collapsed.
+   * cx.openInline is the select whose list is open over the dialog (renderPickSheet). Only
+   * the dialog's cx carries it (boot's render()), so the same key in the tab body behind
+   * stays closed.
    *
    * @param {Object} schema Config schema.
    * @param {{S: Object, ENV: Object, openEdit: ?string, openInline: ?string,
@@ -1580,16 +1592,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // item.compact asks for the same tight rhythm on any row (e.g. the Alerts row
     // that follows a bar's three slot rows).
     var isCompact = isStatusSlot || item.compact === true;
-    // A select expanded in place inside an edit sheet (renderItem builds view.inlineList):
-    // the list is the row's LAST child in every shape below, and .isel-open lets the flex
-    // row wrap it onto a full-width line of its own. The row does NOT become .stack, so
-    // the trigger stays exactly where it was.
-    var inlineList = view.inlineList || '';
     // A checklist's grid carries its own header and rows: its row is only their frame.
     var rowCls = 'row' + (stacked ? ' stack' : '') + (item.type === 'checklist' ? ' chk-row' : '')
       + (wideSegmented ? ' segwide' : '') + nbClass(noDivider) + (item.indent ? ' indent' : '')
       + ((item.type === 'searchSelect' || isCompact) && !stacked ? ' slot' : '')
-      + (inlineList ? ' isel-open' : '')
       // A disabled row (item.disabledWhen) stays visible — showing what WOULD be
       // configurable — but muted and inert (CSS pointer-events; the range handlers
       // also guard on .dis for keyboard focus that CSS can't block).
@@ -1601,8 +1607,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         + hintHtml + '</div>';
     }
     if (stacked) {
-      return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div>'
-        + inlineList + '</div>';
+      return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div></div>';
     }
     // A full-width segmented (item.full) reads as the setup's pickers do: the label, the
     // options across the row, then what the picked one does.
@@ -1622,7 +1627,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // Wide segmented (.segwide): control on the label's line, label wraps into the leftover
     // width (.lft flex), hint on its own full-width line below (.segwide .hint flex-basis).
     if (wideSegmented) {
-      return '<div class="' + rowCls + '"><div class="lft">' + label + '</div>' + rgtOpen + renderControl(item, view) + rgtClose + hintHtml + inlineList + '</div>';
+      return '<div class="' + rowCls + '"><div class="lft">' + label + '</div>' + rgtOpen + renderControl(item, view) + rgtClose + hintHtml + '</div>';
     }
     // Rows with a multi-line hint float the control right (.wrap layout) so the
     // hint flows around it and reclaims the full width below the control instead
@@ -1631,9 +1636,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // isn't measurable at render time, so "multi-line" is a plain-text length
     // heuristic — short one-liners keep the centered two-column row.
     if (hintHtml && String(hint).replace(/<[^>]*>/g, '').length > 64) {
-      return '<div class="' + rowCls + ' wrap">' + label + rgtOpen + renderControl(item, view) + rgtClose + hintHtml + inlineList + '</div>';
+      return '<div class="' + rowCls + ' wrap">' + label + rgtOpen + renderControl(item, view) + rgtClose + hintHtml + '</div>';
     }
-    return '<div class="' + rowCls + '"><div class="lft">' + label + hintHtml + '</div>' + rgtOpen + renderControl(item, view) + rgtClose + inlineList + '</div>';
+    return '<div class="' + rowCls + '"><div class="lft">' + label + hintHtml + '</div>' + rgtOpen + renderControl(item, view) + rgtClose + '</div>';
   }
 
   // Render a registered block by id, wrapped in .blockrow ('.blockrow sticky' when sticky).
@@ -1927,17 +1932,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (item.type === 'readout') { view.hintShown = true; }
     view.infoIcons = Boolean(cx.infoIcons);
     view.infoOpen = Boolean(cx.infoOpen && cx.infoOpen[infoIdOf(item)]);
-    // A muted row never shows its list: .dis makes the trigger untappable, so an expanded
-    // list could not be collapsed again. The row draws collapsed (trigger included), and
-    // render() drops the open key once the sheet has no list for it.
+    // A muted row never shows its list: .dis makes the trigger untappable, so an open list
+    // could not be closed from it again. The row draws closed (trigger included), and
+    // render() drops the open key once the dialog has no list for it.
     if (view.disabled) { view.openInline = null; }
-    // A select expanded in place inside an edit sheet (only the sheet's cx carries
-    // openInline, see renderEditModal). rowItem, so an optionsFrom list and the per-option
-    // meta.disabled gates apply exactly as in the select modal. A bottomSheet select's list
-    // opens over the dialog instead (renderPickSheet).
-    if (item.type === 'select' && view.openInline === item.messageKey && !item.bottomSheet) {
-      view.inlineList = renderInlineList(rowItem, view.value, cx);
-    }
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
       + renderRow(rowItem, view, noDivider)
       + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
@@ -1981,10 +1979,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // row (one bottom divider, no internal dividers). Each visible member becomes a compact
   // label+control cell. Inline members don't carry hints/blocks. Returns { html, controlCount };
   // controlCount is the number of visible cells (0 -> nothing rendered, group hidden).
-  // A member select expanded in place inside an edit sheet (cx.openInline) lists its options
-  // under the whole row, the same full-width list a plain row gets (renderRow).
+  // A member select's list opens in the sheet over the dialog, as a plain row's does
+  // (renderPickSheet).
   function renderInlineGroup(items, cx, noDivider, hosted) {
-    var cells = '', visible = 0, i, item, view, inlineList = '', muted, head = null;
+    var cells = '', visible = 0, i, item, view, muted, head = null;
     for (i = 0; i < items.length; i++) {
       if (!isHostedRow(items[i], hosted) && PConf.showWhen.isVisible(items[i], cx.evalCtx)) { head = items[i]; break; }
     }
@@ -1996,7 +1994,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       item = items[i];
       if (isHostedRow(item, hosted) || !PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
       // A member under its disabledWhen never expands, the same rule as renderItem's.
-      muted = Boolean(item.disabledWhen) && PConf.showWhen.evaluate(item.disabledWhen, cx.evalCtx);
+      muted = isMuted(item, cx.evalCtx);
       view = {
         value: cx.S[item.messageKey],
         openColor: cx.openColor,
@@ -2005,15 +2003,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         openDate: cx.openDate,
         selectQuery: cx.selectQuery
       };
-      if (item.type === 'select' && view.openInline === item.messageKey) {
-        inlineList = renderInlineList(item, view.value, cx);
-      }
       cells += '<div class="icell"><div class="lbl">' + esc(item.label) + '</div>' + renderControl(item, view) + '</div>';
       visible++;
     }
     if (!visible) { return { html: '', controlCount: 0 }; }
-    return { html: '<div class="row inline' + nbClass(noDivider) + (inlineList ? ' isel-open' : '') + '">'
-      + cells + inlineList + '</div>', controlCount: visible };
+    return { html: '<div class="row inline' + nbClass(noDivider) + '">' + cells + '</div>', controlCount: visible };
   }
 
   /**
@@ -2029,17 +2023,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {{html: string, controlCount: number}} The row.
    */
   function renderHoursGroup(items, head, cx, noDivider, hosted) {
-    var ctl = [], i, item, view, inlineList = '', muted;
+    var ctl = [], i, item, view, muted;
     for (i = 0; i < items.length; i++) {
       item = items[i];
       if (isHostedRow(item, hosted) || !PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
-      muted = Boolean(item.disabledWhen) && PConf.showWhen.evaluate(item.disabledWhen, cx.evalCtx);
+      muted = isMuted(item, cx.evalCtx);
       view = { value: cx.S[item.messageKey], openSelect: cx.openSelect,
         openInline: muted ? null : cx.openInline, openColor: cx.openColor,
         openDate: cx.openDate, selectQuery: cx.selectQuery };
-      if (item.type === 'select' && view.openInline === item.messageKey) {
-        inlineList = renderInlineList(item, view.value, cx);
-      }
       ctl.push(renderControl(item, view));
     }
     var hint = head.hintFrom ? resolveHint(head, cx.S, cx.ENV, cx.S[head.messageKey]) : undefined;
@@ -2048,11 +2039,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var open = !cx.infoIcons || Boolean(cx.infoOpen && cx.infoOpen[id]);
     var info = hint && cx.infoIcons ? infoButtonHtml(id, open, head.groupLabel) : '';
     return { controlCount: ctl.length, html: '<div class="row hours' + nbClass(noDivider)
-      + (head.indent ? ' indent' : '') + (inlineList ? ' isel-open' : '') + '">'
+      + (head.indent ? ' indent' : '') + '">'
       + '<div class="lft"><div class="lbl">' + labelWithInfo(head.groupLabel, info) + '</div></div>'
       + '<div class="rgt hrs">' + ctl.join('<span class="hrs-dash">–</span>') + '</div>'
-      + (hint && open ? '<div class="hint">' + hint + '</div>' : '')
-      + inlineList + '</div>' };
+      + (hint && open ? '<div class="hint">' + hint + '</div>' : '') + '</div>' };
   }
 
   // Look-ahead from index "from": the join mode of the next *rendered* item — '' when it doesn't
@@ -2226,8 +2216,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         value: cx.S[item.messageKey],
         openColor: cx.openColor,
         openSelect: cx.openSelect,
-        // Only the edit sheet's rows expand in place: the tab body's cx carries no
-        // openInline, so the same key rendered behind the sheet keeps its collapsed trigger.
+        // Only the dialog's rows open a list (in the sheet over it): the tab body's cx carries
+        // no openInline, so the same key rendered behind the dialog keeps its closed trigger.
         openInline: cx.openInline,
         openDate: cx.openDate,
         selectQuery: cx.selectQuery
@@ -2449,7 +2439,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     if (!it || !PConf.showWhen.isVisible(it, cx.evalCtx)) { return ''; }
     return renderToggle(it, cx.S[it.messageKey], String(it.label || 'Enable'),
-      Boolean(it.disabledWhen) && PConf.showWhen.evaluate(it.disabledWhen, cx.evalCtx));
+      isMuted(it, cx.evalCtx));
   }
 
   /**
@@ -2784,10 +2774,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // - {kind: 'confirm', confirm}: the Save button's dialog while a row needs attention
     //   (requestSave; confirm: {title, body, actionLabel, confirmLabel, tab, sheet}).
     var sheet = null;
-    // The messageKey of the one control expanded in place, or null: a colour's palette
-    // (in the tab body or in the open edit sheet) or a `select`'s option list (in the edit
-    // sheet only, renderInlineList). Opening one closes the other. No key is both a
-    // colour and a select, so the key alone says which (expandedIsPalette).
+    // The messageKey of the one control opened in a dialog, or null: a colour's palette
+    // (in place, in the tab body or in the open dialog) or a `select`'s option list (in the
+    // sheet over the dialog, renderPickSheet). Opening one closes the other. No key is both
+    // a colour and a select, so the key alone says which (expandedIsPalette).
     var expanded = null;
     var selectQuery = '', collapsed = initialCollapsed(SCHEMA);
     // UI-only page state, never saved: which '?' info texts are out (infoOpen, by
@@ -3900,8 +3890,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     /**
-     * Collapse whatever is expanded in place inside the open edit sheet — an option list
-     * or a palette — and hand focus back to the row's trigger. The first answer to
+     * Close whatever is open in the dialog (an option list over it, or a palette in place)
+     * and hand focus back to the row's trigger. The first answer to
      * Escape: only a sheet with nothing expanded closes on it. The edit check is not
      * redundant: under a select sheet `expanded` can be a palette in the tab body, which
      * Escape leaves alone.
@@ -3935,8 +3925,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // The full-screen dialog's header: Done and ‹ keep the changes, × discards them. A
         // title that renames: its pencil makes it a name field, OK stores the name.
         if (sheetIs('edit') && e.target.closest) {
-          // A bottomSheet select's list over the dialog (renderPickSheet): its dim layer and
-          // its × close the list alone, as Escape does.
+          // A select's list over the dialog (renderPickSheet): its dim layer and its × close
+          // the list alone, as Escape does.
           if (e.target.closest('[data-psheet-close]')) { collapseSheetExpander(); return; }
           if (e.target.closest('[data-dlg-rename-ok]')) { commitRename(); return; }
           if (e.target.closest('[data-dlg-rename]')) { startRename(sheet.key); return; }
@@ -3992,8 +3982,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // render() repaints the dialog's innerHTML in place (the sheet is
         // unchanged), so the sheet stays open throughout. The edit gate keeps
         // clicks inside date/select sheets out of the control cases.
-        // A select row in the sheet expands its options in place, under the row
-        // (renderInlineList); a second tap on its trigger collapses them.
+        // A select row in the dialog opens its options in the sheet over it
+        // (renderPickSheet); a second tap on its trigger closes them.
         if (sheetIs('edit') && e.target.closest && (t = e.target.closest('[data-select]'))) {
           var sk = t.getAttribute('data-select');
           handedFrom = null;

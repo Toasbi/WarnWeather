@@ -3433,10 +3433,10 @@ test('the day-max sheets\' keys are exactly the catalog\'s dayMaxSettingKeys', (
   assert.deepEqual([...new Set(fromSheets)].sort(), catalog.dayMaxSettingKeys().slice().sort());
 });
 
-test('no searchSelect sits in an edit sheet: a select there expands inline, with no search box', () => {
-  // Inside a sheetOnly section a `select` lists its options in place under its row
-  // (config-ui engine renderInlineList). That list has no search field, and no select
-  // modal opens over a sheet any more, so a searchSelect belongs in a tab body.
+test('no searchSelect sits in a dialog: a select there opens its list over the dialog, with no search box', () => {
+  // Inside a sheetOnly section a `select` lists its options in a sheet over the dialog
+  // (config-ui engine renderPickSheet). That list has no search field, and no select
+  // modal opens over a dialog, so a searchSelect belongs in a tab body.
   const inSheets = [];
   schema.tabs.forEach((t) => t.sections.forEach((sec) => {
     if (sec.sheetOnly) { sec.items.forEach((it) => inSheets.push({ sheet: sec.sheetId, item: it })); }
@@ -3446,7 +3446,7 @@ test('no searchSelect sits in an edit sheet: a select there expands inline, with
   // The rule has something to hold: the slot and alert sheets carry plain selects.
   const selects = inSheets.filter((e) => e.item.type === 'select').map((e) => e.item.messageKey);
   assert.ok(selects.indexOf('uvSlotSeparator') !== -1 && selects.indexOf('alertUvNextDayMark') !== -1,
-    'the sheets hold selects that open inline');
+    'the dialogs hold selects');
 });
 
 test('no key is a colour in one item and another type in the next', () => {

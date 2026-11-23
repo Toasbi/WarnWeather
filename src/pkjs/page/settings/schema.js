@@ -368,7 +368,7 @@ function separatorRows(prefix, first, second, fitHints) {
     }).concat([['Custom', 'custom']]);
     return [{
         // A dropdown, not pills: five choices would be a wide pill row, and the owner
-        // asked for a drop-down of presets. Inside the sheet it expands in place.
+        // asked for a drop-down of presets.
         type: 'select',
         messageKey: prefix + 'SlotSeparator',
         label: 'Separator',
@@ -459,8 +459,7 @@ function dayMaxRows(prefix, copy, now, max) {
         .concat(separatorRows(prefix, now, max), [{
             // The mark on a max that has rolled on to tomorrow's peak — in Day max AND
             // Both, the two modes that print a max. 'raquo' is the '»' the UV slot
-            // printed before this row existed, so it stays the default. Inside the
-            // sheet the list expands in place.
+            // printed before this row existed, so it stays the default.
             type: 'select',
             messageKey: prefix + 'SlotNextDayMark',
             label: 'Tomorrow\'s peak mark',
@@ -960,9 +959,6 @@ function slotItem(slotKey, position, barWhen, joins) {
         // The picker names the bar too, by its name (screens.js barName).
         sheetTitle: bar.name + ' · ' + labels[position],
         sheetTitleBy: {resolver: 'barSlotTitle', args: {bar: bar.bar, label: labels[position]}},
-        // In the bar's dialog the list rises from the bottom (engine renderPickSheet), as on a
-        // tab, rather than opening in place under the row (the owner's, 2026-11-14).
-        bottomSheet: true,
         defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: slotKey}},
         onChange: 'dedupeStatusSlot',
         editSheetFrom: {resolver: 'statusSlotEditSheet'},

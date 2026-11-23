@@ -82,9 +82,9 @@ test('content that fits under the cap is never clamped', () => {
   assert.equal(dlg.list.style.maxHeight, '');
 });
 
-// --- .picking while an in-place option list is open -------------------------------
-// A select inside an edit sheet expands its options under its row (engine
-// renderInlineList). The peek clamp must never clip that list, so syncDialog marks the
+// --- .picking while a dialog's option list is open ---------------------------------
+// A select inside a dialog opens its options in a sheet over it (engine
+// renderPickSheet). The peek clamp must never clip that list, so syncDialog marks the
 // sheet .picking while one is open — the class the palette already uses, which raises
 // the cap (shell.html) and makes fitSelectPeek stand down. Node has no layout: this
 // proves the state machine, not the pixel heights.
