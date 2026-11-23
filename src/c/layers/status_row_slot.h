@@ -23,7 +23,7 @@
 // from the look's bold bit, and measures with it: the same font it goes on to draw with.
 typedef struct {
     StatusSlotView slot;                       // the packed slot
-    GFont          font;                       // regular, or the bold one (the draw's)
+    GFont          font;                       // regular or bold: set by the draw only
     char    text[STATUS_TEXT_MID_MAX + 1];     // direction sentinel already stripped
     char    alt[STATUS_ROW_ALT_MAX + 1];       // its short form, if it brought one ("")
     int8_t  dir;                               // wind sector 0..15, -1 = none

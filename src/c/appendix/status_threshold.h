@@ -386,7 +386,7 @@ bool status_threshold_battery_value(const uint8_t blob[THRESH_SETTINGS_BYTES]);
 typedef struct {
     uint8_t box;      // ThreshBox: NORMAL none, DANGER fill, WARN the kind's warn look
                       // (none for a kind without a pair; the reserved 3 an outline)
-    uint8_t bold;     // 1 = the bold companion font, per the kind's ThreshBold ladder
+    bool bold;        // the bold companion font, per the kind's ThreshBold ladder
                       // (an out-of-range kind, and the reserved 3, take the default
                       // WARN); never for kind -1 (no threshold-capable content)
     uint8_t color8;   // the RAW GColor8 byte behind the box: the kind's warn or danger

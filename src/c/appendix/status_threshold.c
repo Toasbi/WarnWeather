@@ -252,7 +252,7 @@ ThreshLook status_threshold_look(const uint8_t blob[THRESH_SETTINGS_BYTES], int 
         ? status_threshold_warn_look(blob, kind) : THRESH_WARN_LOOK_NONE;
     ThreshLook look = {
         .box = (uint8_t)(level == THRESH_LEVEL_DANGER ? THRESH_BOX_FILL : warn_look),
-        .bold = (uint8_t)status_threshold_is_bold(blob, kind, level),
+        .bold = status_threshold_is_bold(blob, kind, level),
         .color8 = status_threshold_color8(blob, kind, level),
     };
     return look;

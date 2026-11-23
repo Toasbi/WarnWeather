@@ -87,7 +87,9 @@
 static Layer *s_container_layer;
 static char s_time_text[8];
 // What the container draws (container_update), set by time_layer_refresh (the font) and
-// time_layer_tick (the text and the boxes), in the band's coordinates:
+// time_layer_tick (the text and the boxes), in the band's coordinates. The font is NULL
+// until that first refresh, which main_window_create runs right after the window push,
+// before the first frame:
 static GFont s_time_font;          // the digits' font, where they draw as text
 static GRect s_time_box;           // the digits' box, where they draw as text
 static const char *s_am_pm_text;   // the label, "AM" or "PM"; NULL while it is off

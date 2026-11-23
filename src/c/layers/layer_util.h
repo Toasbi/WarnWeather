@@ -73,6 +73,7 @@ static inline int status_forecast_band_h(GFont font) {
 // The two fonts' bold siblings, which a slot whose threshold is crossed draws in. The
 // Gothic bolds share their regular siblings' metrics, so a bold slot seats and boxes as
 // a regular one.
+// emery: the bolds of its one-notch-larger regular fonts.
 #ifdef PBL_PLATFORM_EMERY
 #define STATUS_FULL_TIER_FONT_KEY_BOLD FONT_KEY_GOTHIC_18_BOLD
 #define STATUS_TOP_TIER_FONT_KEY_BOLD FONT_KEY_GOTHIC_24_BOLD
