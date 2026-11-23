@@ -55,7 +55,9 @@ function watchRows() {
   assert.match(body, /int16_t left = PADDING;/, 'PADDING at the left');
   assert.match(body, /#ifdef PBL_PLATFORM_EMERY\s+int16_t right = 0;\s+#else\s+int16_t right = PADDING;\s+#endif/,
     'flush at the right on emery, PADDING on the 144 px watches');
-  assert.match(strip, /status_row_apply\(s_row, content_rect\(\), LAYOUT_TIER_FULL, STATUS_LINE_TOP\);/);
+  assert.match(strip, /s_row = status_row_create\(STATUS_LINE_TOP\);/, 'the Watch bar\'s line');
+  assert.match(strip, /status_row_apply\(s_row, content_rect\(\), LAYOUT_TIER_FULL, s_full_date\);/,
+    'seated in content_rect at the full tier');
   const margin = defined(C('layers/status_row.c'), 'STATUS_ROW_MARGIN');
   const inset = [{ left: pad, right: pad }, { left: pad, right: 0 }];
   return [144, 200].map((w, f) => ({
@@ -86,7 +88,7 @@ test('the Pebble Classic and Steel inset their strip as the 144 px watches do wh
 });
 
 test('the other bars\' rows span their band: no inset of their own', () => {
-  assert.match(C('layers/status_bar.c'), /status_row_apply\(b->row, layer_get_bounds\(b->layer\), s_tier, bar_line\(id\)\);/);
+  assert.match(C('layers/status_bar.c'), /status_row_apply\(b->row, layer_get_bounds\(b->layer\), s_tier, s_full_date\);/);
   [0, 1].forEach((f) => {
     const pad = f ? 2 : 0;
     ['forecast', 'health', 'radar', 'bar4'].forEach((bar) => {
