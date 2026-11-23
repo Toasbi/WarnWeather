@@ -1,5 +1,6 @@
 // Host tests for the HealthService wrapper (services/health.c).
 #include <stdio.h>
+#include <string.h>
 
 #include "c/services/health.h"
 
@@ -121,15 +122,42 @@ HealthServiceAccessibilityMask health_service_metric_aggregate_averaged_accessib
     return s_hr_access;
 }
 
+// The fake minute history: the minutes from s_history_start on, each one's record from
+// fake_minute(). A request that starts before the history is clamped to its oldest
+// window, as the firmware clamps it: those records then lie outside the window asked for.
+static time_t s_history_start;
+static int s_history_calls;
+
+// Two steps a minute in the history's first hour and one after; a heart rate on the
+// even minutes of the first hour only (60, or 62 on minutes 2 mod 4), none after; and
+// minute 10 of every hour invalid, with values that must not count.
+static void fake_minute(time_t t, HealthMinuteData *m) {
+    memset(m, 0, sizeof(*m));
+    const int hour = (int)((t - s_history_start) / 3600);
+    const int minute = (int)((t / 60) % 60);
+    m->steps = hour == 0 ? 2 : 1;
+    m->heart_rate_bpm = (hour == 0 && minute % 2 == 0) ? (uint8_t)(60 + minute % 4) : 0;
+    if (minute == 10) {
+        m->is_invalid = true;
+        m->steps = 50;
+        m->heart_rate_bpm = 200;
+    }
+}
+
 uint32_t health_service_get_minute_history(HealthMinuteData *minute_data,
                                             uint32_t max_records,
                                             time_t *time_start,
                                             time_t *time_end) {
-    (void)minute_data;
-    (void)max_records;
-    (void)time_start;
-    (void)time_end;
-    return 0;
+    s_history_calls++;
+    if (*time_start < s_history_start) {
+        *time_start = s_history_start;
+        *time_end = s_history_start + (time_t)max_records * 60;
+    }
+    uint32_t n = 0;
+    for (time_t t = *time_start; t < *time_end && n < max_records; t += 60) {
+        fake_minute(t, &minute_data[n++]);
+    }
+    return n;
 }
 
 void health_service_activities_iterate(HealthActivityMask activity_mask,
@@ -219,6 +247,31 @@ static void sleep_fill_frees_the_firmware_cache(void) {
     expect_int("hr_absent.held", s_cache_held, false);
 }
 
+// The hourly steps and heart rate from the minute history: each hour sums its valid
+// minutes' steps and averages their non-zero heart rates (0 with none), and an hour
+// before the history reads 0 though the firmware answers it with the oldest window.
+static void hourly_reads_count_their_own_valid_minutes(void) {
+    static HealthMinuteData records[HEALTH_MINUTE_RECORDS];
+    health_set_minute_scratch(records);
+    const time_t end_hour = 200 * 3600;           // slot 2 = the hour ending here
+    s_history_start = end_hour - 2 * 3600;        // slot 0 lies before the history
+    int16_t steps[3] = { -1, -1, -1 };
+    s_history_calls = 0;
+    health_fill_hourly_steps(steps, 3, end_hour);
+    expect_int("hourly.steps.calls", s_history_calls, 3);
+    expect_int("hourly.steps.before_history", steps[0], 0);
+    expect_int("hourly.steps.first_hour", steps[1], 59 * 2);   // minute 10 invalid
+    expect_int("hourly.steps.second_hour", steps[2], 59 * 1);
+
+    // The first hour: 29 valid even minutes, 15 at 60 and 14 at 62 (minute 10 is one of
+    // the 62s), whose average 1768 / 29 truncates to 60.
+    int16_t hr[3] = { -1, -1, -1 };
+    health_fill_hourly_hr(hr, 3, end_hour);
+    expect_int("hourly.hr.before_history", hr[0], 0);
+    expect_int("hourly.hr.first_hour", hr[1], 60);
+    expect_int("hourly.hr.no_reading", hr[2], 0);
+}
+
 static void accessible_distance_returns_today_sum(void) {
     s_access = HealthServiceAccessibilityMaskAvailable;
     s_sum = 4321;
@@ -289,6 +342,7 @@ int main(void) {
     health_minute_schema_fields_are_usable();
     each_read_frees_the_firmware_cache();
     sleep_fill_frees_the_firmware_cache();
+    hourly_reads_count_their_own_valid_minutes();
     if (s_failures) {
         printf("%d health failure(s)\n", s_failures);
         return 1;
