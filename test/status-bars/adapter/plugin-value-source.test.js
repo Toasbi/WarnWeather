@@ -554,27 +554,11 @@ test('the value is never logged: it is another app\'s data', () => {
 
 test('the settings page gets the value last heard whole, whichever source the settings pick', () => {
   const h = boot();
-  assert.equal(pluginValueSource.forPage(), null, 'none yet');
+  assert.equal(pluginValueSource.value(), null, 'none yet');
   h.pebble.subs[0].push(answer(null, { validUntilMs: NOON + 2 * HOUR }));
   const value = { source: KEY, reading: { short: '87%', number: 87, unit: '%', long: null }, at: NOON,
     validUntil: NOON + 2 * HOUR };
-  assert.deepEqual(pluginValueSource.forPage(), value);
+  assert.deepEqual(pluginValueSource.value(), value);
   h.settings = CELL;
-  assert.deepEqual(pluginValueSource.forPage(), value, 'the page judges it against its own pick');
-  storage[KEYS.PLUGIN_VALUE] = '{oops';
-  assert.equal(pluginValueSource.forPage(), null, 'unreadable: none');
-});
-
-test('the settings page gets the plugins on the phone the slot can read a value of', () => {
-  const h = boot();
-  h.pebble.enumeratePlugins = () => [
-    { uuid: PHONE, name: 'Phone', sources: [{ category: 'phone', items: ['phone_state'],
-      properties: { battery_level: ['numericValue', 'shortText'], charging: ['boolean'] } }], actions: [] },
-    { uuid: 'OWN', name: 'Mine', sources: [{ category: 'w', items: ['x'], properties: { v: ['shortText'] } }] },
-    { uuid: 'cal', name: 'Calendar', sources: [{ category: 'calendar', items: ['event'],
-      properties: { name: ['shortText'] }, callerPermissions: [{ name: 'Calendar' }] }] }];
-  assert.deepEqual(pluginValueSource.pluginsForPage(['Location'], 'own'), [{ uuid: PHONE, name: 'Phone',
-    items: [{ category: 'phone', item: 'phone_state', multiple: false, properties: ['battery_level'] }] }]);
-  boot({ pebble: { subscribeToSource() {} } });
-  assert.deepEqual(pluginValueSource.pluginsForPage(['Location'], 'own'), [], 'a Pebble app that cannot list them');
+  assert.deepEqual(pluginValueSource.value(), value, 'the page judges it against its own pick');
 });

@@ -43,6 +43,7 @@ var phoneBattery = require('./status-bars/adapter/phone-battery.js');
 var batteryEstimate = require('./status-bars/adapter/battery-estimate.js');
 var pluginValueSource = require('./status-bars/adapter/plugin-value-source.js');
 var pluginReader = require('./status-bars/adapter/plugin-reader.js');
+var pluginValueList = require('./status-bars/domain/plugin-value-list.js');
 var statusRebake = require('./status-bars/application/status-rebake.js');
 var notifyWatch = require('./notices/adapter/notify-watch.js').notifyWatch;
 
@@ -235,9 +236,11 @@ Pebble.addEventListener('showConfiguration', function(e) {
     // (page/notices/feature-tips-panel.js). null for none.
     userData.featureTips = featureTipsSeen.forPage(featureTipsEnv());
     // The Plugin value slot's dialog (page/status-bars/plugin-value-page.js): the plugins on
-    // the phone with a value the slot can show, and the value read last.
-    userData.plugins = pluginValueSource.pluginsForPage(declaredPermissions(), pkg.pebble.uuid);
-    userData.pluginValue = pluginValueSource.forPage();
+    // the phone with a value the slot can show (listing them runs no plugin), and the value read
+    // last.
+    userData.plugins = pluginValueList.listOf(pluginReader.plugins(Pebble), declaredPermissions(),
+        pkg.pebble.uuid);
+    userData.pluginValue = pluginValueSource.value();
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see page/settings/index.js options).
     Pebble.openURL(settings.generateUrl({

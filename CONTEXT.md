@@ -205,11 +205,25 @@ battery the watch draws, `status_line.h` STATUS_ICON_DRAWN_BATTERY).
 _Avoid_: battery percentage slot, phone battery (no icon), which were items of their own
 until 3.3.0.
 
+**Plugin read**:
+Reading a value another app's plugin serves for a status slot: the watch battery's days left
+and the Plugin value. Once at a time, never subscribed, since the Pebble app would run the
+plugin's script again at every refresh interval for as long as anything were, and every run
+brings back the permissions that app asked for and the user has not answered. Each slot's
+reader says when the next read is due; the rest is one schedule (`plugin-read-schedule.js`):
+the record of the last read, stamped as the read starts and kept in storage, so neither a
+restart nor a settings save reads again before the next is due; a read at once when the
+value is wanted again or another source is picked; one read at a time; inside the Night
+battery saver's window only the read a save asks for with none before it; sooner after a
+failure; and the value last heard, kept, with the watch owed a status send when what the slot
+shows of it changes.
+_Avoid_: poll, fetch (a fetch is the weather's).
+
 **Days left (watch battery)**:
 What the Watch battery's text (its Text and Icon + text looks) can show in place of the
 percentage, or beside it: the days the watch has left, an estimate the Muninn app makes at
 its watch app's wakeups, every 6 hours, and serves as a plugin of the Pebble app.
-`battery-estimate.js` reads each estimate once, never subscribed, about 20 minutes after the
+`battery-estimate.js` reads each estimate once (a plugin read), about 20 minutes after the
 wakeup that makes it, worked out from the time Muninn stamped on the estimate before
 (`estimate-reads.js`): about four reads a day. Never more, since every read runs Muninn's
 plugin script, and while it runs the Pebble app brings back the permissions Muninn asked for
@@ -236,10 +250,10 @@ network type. Its dialog picks the plugin, which of its values and how often it 
 holds the item shows the same value. The dialog lists what the phone's plugins serve, from
 `Pebble.enumeratePlugins()`, which runs no plugin (`plugin-value-list.js` listOf): each
 property a source declares as a text or a number, of a source this app may read without being
-asked for a permission it never declared, of any plugin but this app's own. The value is read
-once at a time, never subscribed, after each Updates interval or once the plugin's own word on
-when it has something new runs out, as the days left are (`plugin-value-source.js`,
-`plugin-value-reads.js`); picking a source reads at once. The slot prints text alone, with an
+asked for a permission it never declared, of any plugin but this app's own. The value is a
+plugin read, after each Updates interval or once the plugin's own word on when it has
+something new runs out (`plugin-value-source.js`, `plugin-value-reads.js`); picking a source
+reads at once. The slot prints text alone, with an
 icon id that loads no drawing (`status_line.h` STATUS_ICON_PLUGIN_TEXT): the value's short
 text, else its number with its unit where the slot has room, else its long text
 (`plugin-values.js` textFor). A value shows for three Updates intervals, three hours at least,

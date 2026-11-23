@@ -5,9 +5,10 @@
 // starts, keeps the record in storage and waits before the next. When the next is due is each
 // reader's own rhythm: Muninn's estimate follows its wakeups (estimate-reads.js).
 //
-// A record is {at, failures} and one time its reader keeps beside them: when the last read
-// started, the failed reads in a row it ends with, and for Muninn when it made the estimate the
-// read heard.
+// A record is {source, at, failures} and one time its reader keeps beside them: what the last
+// read read (null for a reader that reads one thing only), when it started, the failed reads in
+// a row it ends with, and for Muninn when it made the estimate the read heard
+// (plugin-read-schedule.js keeps it).
 //
 // ES5 only (aplite's JavaScriptCore): var + function.
 
@@ -29,9 +30,10 @@ function timeOf(value) {
  * The record of the last read as stored, checked.
  * @param {*} value What was stored (parsed JSON).
  * @param {string} timeField The name of the time its reader keeps beside `at` and `failures`.
- * @returns {?Object} The record, or null when the value is none: `at` a time after 1970 in
- *   epoch milliseconds, `failures` a whole number from 0, and the reader's time under its
- *   name, null where it is missing or not a time (a record from before it was kept).
+ * @returns {?Object} The record, or null when the value is none: `source` a text, null where
+ *   it is missing (a reader of one thing, or a record from before it was kept), `at` a time
+ *   after 1970 in epoch milliseconds, `failures` a whole number from 0, and the reader's time
+ *   under its name, null where it is missing or not a time (a record from before it was kept).
  */
 function recordOf(value, timeField) {
     var failures;
@@ -42,7 +44,8 @@ function recordOf(value, timeField) {
             || Math.floor(failures) !== failures) {
         return null;
     }
-    record = { at: value.at, failures: failures };
+    record = { source: typeof value.source === 'string' ? value.source : null, at: value.at,
+        failures: failures };
     record[timeField] = timeOf(value[timeField]);
     return record;
 }

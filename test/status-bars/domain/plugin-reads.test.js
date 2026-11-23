@@ -20,17 +20,20 @@ test('a time: a finite number after 1970, as a plugin sent it or as stored', () 
     assert.equal(reads.timeOf(v), null, String(v)));
 });
 
-test('a record is a time after 1970, a whole count of failed reads, and the time its reader keeps', () => {
-  assert.deepEqual(reads.recordOf({ at: T0, failures: 0, made: T0 - HOUR }, 'made'),
-    { at: T0, failures: 0, made: T0 - HOUR });
-  assert.deepEqual(reads.recordOf({ at: T0, failures: 3, made: null }, 'made'), { at: T0, failures: 3, made: null });
-  assert.deepEqual(reads.recordOf({ at: T0, failures: 0 }, 'made'), { at: T0, failures: 0, made: null },
-    'one kept before the time was: no time');
-  assert.deepEqual(reads.recordOf({ at: T0, failures: 0, made: 'x' }, 'made'), { at: T0, failures: 0, made: null });
+test('a record is what it read, a time after 1970, a whole count of failed reads, and the time its reader keeps', () => {
+  assert.deepEqual(reads.recordOf({ source: null, at: T0, failures: 0, made: T0 - HOUR }, 'made'),
+    { source: null, at: T0, failures: 0, made: T0 - HOUR });
+  assert.deepEqual(reads.recordOf({ at: T0, failures: 3, made: null }, 'made'),
+    { source: null, at: T0, failures: 3, made: null }, 'one kept before what it read was: a reader of one thing');
+  assert.deepEqual(reads.recordOf({ source: 5, at: T0, failures: 0 }, 'made'),
+    { source: null, at: T0, failures: 0, made: null }, 'one kept before the time was: no time');
+  assert.deepEqual(reads.recordOf({ at: T0, failures: 0, made: 'x' }, 'made'),
+    { source: null, at: T0, failures: 0, made: null });
   assert.deepEqual(reads.recordOf({ at: T0, failures: 0, made: -1, extra: 1 }, 'made'),
-    { at: T0, failures: 0, made: null }, 'only its three fields');
-  assert.deepEqual(reads.recordOf({ at: T0, failures: 2, validUntil: T0 + DAY, made: T0 }, 'validUntil'),
-    { at: T0, failures: 2, validUntil: T0 + DAY }, 'the time under the reader\'s own name');
+    { source: null, at: T0, failures: 0, made: null }, 'only its four fields');
+  assert.deepEqual(reads.recordOf({ source: 'p/c/i/v', at: T0, failures: 2, validUntil: T0 + DAY, made: T0 },
+    'validUntil'), { source: 'p/c/i/v', at: T0, failures: 2, validUntil: T0 + DAY },
+  'the time under the reader\'s own name');
   [null, undefined, 5, 'x', true, [], {}, { at: T0 }, { failures: 0 },
     { at: 0, failures: 0 }, { at: -1, failures: 0 }, { at: NaN, failures: 0 }, { at: Infinity, failures: 0 },
     { at: String(T0), failures: 0 }, { at: T0, failures: -1 }, { at: T0, failures: 1.5 },

@@ -200,21 +200,21 @@ test('the read is kept in storage: when it started, the failures it ends with, a
   const h = boot();
   const start = h.clock;
   const made = start - HOUR;
-  assert.deepEqual(storedRead(), { at: start, failures: 0, made: null }, 'stamped as it starts');
+  assert.deepEqual(storedRead(), { source: null, at: start, failures: 0, made: null }, 'stamped as it starts');
   h.clock += 5 * 1000;
   h.pebble.subs[0].push(stats(5, made));
-  assert.deepEqual(storedRead(), { at: start, failures: 0, made: made }, 'the answer adds when Muninn made it');
+  assert.deepEqual(storedRead(), { source: null, at: start, failures: 0, made: made }, 'the answer adds when Muninn made it');
   h.clock = start + LONGEST;
   batteryEstimate.onTick();
-  assert.deepEqual(storedRead(), { at: start + LONGEST, failures: 0, made: made }, 'the next read starts from it');
+  assert.deepEqual(storedRead(), { source: null, at: start + LONGEST, failures: 0, made: made }, 'the next read starts from it');
   h.pebble.subs[1].fail('TIMEOUT');
-  assert.deepEqual(storedRead(), { at: start + LONGEST, failures: 1, made: made }, 'a failure keeps it');
+  assert.deepEqual(storedRead(), { source: null, at: start + LONGEST, failures: 1, made: made }, 'a failure keeps it');
   h.clock += RETRY_MS;
   batteryEstimate.onTick();
-  assert.deepEqual(storedRead(), { at: start + LONGEST + RETRY_MS, failures: 1, made: made },
+  assert.deepEqual(storedRead(), { source: null, at: start + LONGEST + RETRY_MS, failures: 1, made: made },
     'a retry starts with them');
   h.pebble.subs[2].push(stats(5, h.clock));
-  assert.deepEqual(storedRead(), { at: start + LONGEST + RETRY_MS, failures: 0, made: h.clock },
+  assert.deepEqual(storedRead(), { source: null, at: start + LONGEST + RETRY_MS, failures: 0, made: h.clock },
     'and an answer clears them');
 });
 
@@ -502,7 +502,7 @@ test('a failed read is asked again an hour later, then two hours after a second 
 test('Muninn not installed is an answer: asked again 12 hours later, not an hour', () => {
   const h = boot();
   h.pebble.subs[0].fail('PLUGIN_UNAVAILABLE');
-  assert.deepEqual(storedRead(), { at: NOON, failures: 0, made: null });
+  assert.deepEqual(storedRead(), { source: null, at: NOON, failures: 0, made: null });
   h.clock += RETRY_MS;
   batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 1);
@@ -533,7 +533,7 @@ test('a clock that went back starts the wait again from now, and never reads ear
   h.clock = NOON - 3 * DAY;
   batteryEstimate.onTick();
   assert.equal(h.pebble.subs.length, 1, 'no read for it');
-  assert.deepEqual(storedRead(), { at: NOON - 3 * DAY, failures: 0, made: NOON }, 'the wait starts from now');
+  assert.deepEqual(storedRead(), { source: null, at: NOON - 3 * DAY, failures: 0, made: NOON }, 'the wait starts from now');
   // Muninn's estimate is now days ahead of the clock: no rhythm to follow.
   h.clock += IDLE - MIN;
   batteryEstimate.onTick();
@@ -680,7 +680,7 @@ test('an unreadable record of the last read reads as none: Muninn is asked once,
     storage[KEYS.BATTERY_ESTIMATE_READ] = raw;
     const h = boot({ keepStorage: true });
     assert.equal(h.pebble.subs.length, 1, raw);
-    assert.deepEqual(storedRead(), { at: h.clock, failures: 0, made: null }, raw);
+    assert.deepEqual(storedRead(), { source: null, at: h.clock, failures: 0, made: null }, raw);
     batteryEstimate.onTick();
     assert.equal(h.pebble.subs.length, 1, raw + ': once');
   });
