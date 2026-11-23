@@ -143,6 +143,10 @@
   .card.info, .card.error { background: linear-gradient(var(--note-tint), var(--note-tint)), var(--card); border-color: var(--note-line); }
   .card.info .cardHdr .ttl, .card.error .cardHdr .ttl { color: var(--note); }
   .card.info .blockrow, .card.error .blockrow { color: var(--static); border-bottom: 0; }
+  /* A note card's text starts right under its title, as a dialog's intro does (.intro), not a
+     row's padding below it (the owner's, 2026-11-23). */
+  .card.info > .cardHdr + div > .static:first-child, .card.error > .cardHdr + div > .static:first-child,
+  .card.info > .cardHdr + div > .blockrow:first-child, .card.error > .cardHdr + div > .blockrow:first-child { padding-top: 2px; }
   /* a blockBeforeSticky preview pins just below the topbar while its card's controls scroll under it.
      translateZ(0) forces its own compositing layer so older phone WebViews don't leak the scrolling
      rows through the pinned preview. */

@@ -434,6 +434,19 @@ test('renderBody: a subheader\'s style info makes its card a note in the info lo
     'a subheader without a style opens a plain card');
 });
 
+test('a note card\'s text starts right under its title, as a dialog\'s intro does', () => {
+  // The card's body is the div after its header (renderSection), its text the first row there.
+  const shell = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
+  const introTop = /\.intro \{ padding: (\d+px) /.exec(shell);
+  assert.ok(introTop, 'shell.html pads the intro');
+  ['info', 'error'].forEach((look) => ['static', 'blockrow'].forEach((row) => {
+    const selector = '.card.' + look + ' > .cardHdr + div > .' + row + ':first-child';
+    const rule = new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^{]*\\{ padding-top: (\\d+px); \\}').exec(shell);
+    assert.ok(rule, selector + ': its own top padding');
+    assert.equal(rule[1], introTop[1], selector + ': the intro\'s');
+  }));
+});
+
 test('renderBody: a section\'s style, or its styleFrom\'s answer, makes its first card a note', () => {
   let asked = null;
   let answer = null;
