@@ -16,6 +16,7 @@ const schema = require('../../../src/pkjs/page/settings/schema.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const { sample } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
+const pluginReads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
 
 const PConf = global.PConf;
 const MIN = 60 * 1000;
@@ -235,6 +236,10 @@ test('its values are the complications by their places, each by what it shows, n
     why: 'ReadWatchSettings' }]);
   assert.equal(page.valueOptions(PLACE(0))[0][2].desc, 'Needs the Read watch settings permission, which WarnWeather '
     + 'never asks for');
+  global.INJECTED_USERDATA.plugins = withPrefs([{ position: 0, property: 'state', category: 'lights',
+    why: pluginReads.ANOTHER_APPS }]);
+  assert.equal(page.valueOptions(PLACE(0))[0][2].desc, 'Needs a permission of another app',
+    'one another app\'s plugin defines: WarnWeather can never declare it');
   [[], null, undefined, 'x'].forEach((list) => {
     global.INJECTED_USERDATA.plugins = withPrefs(list);
     assert.deepEqual(page.valueOptions(PLACE(0)), [['1 · Empty', 'preferences/complications/0']], String(list));

@@ -431,7 +431,7 @@ test('the settings page gets the value last heard whole, while it is of the sour
 // --- a complication ------------------------------------------------------------
 
 const PREFS = '00000000-0000-0000-0001-000000000009';
-const PERMS = ['Location', 'Internet', 'ShowNotifications', 'Health'];
+const PERMS = ['Location', 'Internet/api.met.no', 'ShowNotifications', 'Health'];
 /** The slot showing the user's second complication. */
 const SECOND = { statusTopLeft: 'pluginValue', pluginValuePlugin: PREFS, pluginValueId: 'preferences/complications/1' };
 const SECOND_KEY = PREFS + '/preferences/complications/1';

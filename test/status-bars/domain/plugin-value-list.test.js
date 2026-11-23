@@ -7,8 +7,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const list = require('../../../src/pkjs/status-bars/domain/plugin-value-list.js');
+const reads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
 
-const PERMS = ['Location', 'Internet', 'ShowNotifications', 'Health'];
+const PERMS = ['Location', 'Internet/api.met.no', 'ShowNotifications', 'Health'];
 
 /**
  * @param {string} uuid The plugin's uuid.
@@ -107,17 +108,23 @@ test('each complication by its place, what it shows, and why this app may not re
   const calendar = plugin('c', 'Calendar', [{ category: 'calendar', items: ['event'],
     properties: { starts_at: ['timestamp'] }, callerPermissions: [{ name: 'Calendar' }] }]);
   const find = plugin('f', 'Phone', [{ category: 'phone', items: ['find_my_phone'], properties: { ringing: ['boolean'] } }]);
+  const lights = plugin('l', 'Lights', [{ category: 'lights', items: ['room'], properties: { state: ['boolean'] },
+    callerPermissions: [{ name: '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5f6:HomeControl' }] }]);
   const known = [
     { position: 0, category: 'muninn', item: 'stats', index: 0, property: 'daysRemaining' },
     { position: 1, category: 'weather', item: 'location', index: 0, property: 'temperature' },
+    { position: 2, category: 'lights', item: 'room', index: 0, property: 'state' },
     { position: 3, category: 'calendar', item: 'event', index: 0, property: 'starts_at' },
     { position: 4, category: 'phone', item: 'find_my_phone', index: 0, property: 'ringing' }];
-  assert.deepEqual(list.listOf([prefs([COMPLICATIONS]), weather, calendar, find], PERMS, 'own', known)[0].complications, [
+  assert.deepEqual(list.listOf([prefs([COMPLICATIONS]), weather, lights, calendar, find], PERMS, 'own', known)[0]
+    .complications, [
     { position: 0, property: 'daysRemaining', category: 'muninn', why: '' },
     { position: 1, property: 'temperature', category: 'weather' },
+    { position: 2, property: 'state', category: 'lights', why: reads.ANOTHER_APPS },
     { position: 3, property: 'starts_at', category: 'calendar', why: 'Calendar' },
     { position: 4, property: 'ringing', category: 'phone', why: '' }],
-  'no plugin on the phone serves the first; reading the last rings the phone; neither the item nor the index rides');
+  'no plugin on the phone serves the first; the lights need a permission of another app, which no uuid stands for; '
+    + 'reading the last rings the phone; neither the item nor the index rides');
   const long = { position: 0, category: 'c'.repeat(64), item: 'i', index: 0, property: 'p'.repeat(64) };
   const asks = plugin('a', 'Asks', [{ category: long.category, items: ['i'], callerPermissions: ['A'.repeat(64)] }]);
   assert.deepEqual(list.listOf([prefs([COMPLICATIONS]), asks], PERMS, 'own', [long])[0].complications, [{ position: 0,

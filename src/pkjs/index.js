@@ -45,6 +45,7 @@ var pluginValueSource = require('./status-bars/adapter/plugin-value-source.js');
 var complicationList = require('./status-bars/adapter/complication-list.js');
 var pluginReader = require('./status-bars/adapter/plugin-reader.js');
 var pluginValueList = require('./status-bars/domain/plugin-value-list.js');
+var pluginReads = require('./status-bars/domain/plugin-reads.js');
 var statusLineCatalog = require('./status-bars/domain/status-line-catalog.js');
 var statusRebake = require('./status-bars/application/status-rebake.js');
 var notifyWatch = require('./notices/adapter/notify-watch.js').notifyWatch;
@@ -572,10 +573,11 @@ function getRuntimeTelemetryConfig() {
 }
 
 /**
- * @returns {string[]} The permissions this app declares (package.json usesPermissions' names).
+ * @returns {string[]} The permissions this app declares (package.json usesPermissions), as the
+ *   Pebble app keys them: Internet for each domain on its own (plugin-reads.js declaredKeys).
  */
 function declaredPermissions() {
-    return ((pkg.pebble && pkg.pebble.usesPermissions) || []).map(function (p) { return p.name; });
+    return pluginReads.declaredKeys(pkg.pebble && pkg.pebble.usesPermissions);
 }
 
 /**

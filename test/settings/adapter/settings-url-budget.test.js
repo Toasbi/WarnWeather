@@ -99,6 +99,7 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
   // app never declares, named as long: its entry takes the list's room as any other does.
   const pluginValueList = require('../../../src/pkjs/status-bars/domain/plugin-value-list.js');
   const complications = require('../../../src/pkjs/status-bars/domain/complications.js');
+  const pluginReads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
   const props = {};
   for (let v = 0; v < 30; v += 1) {
     props['a_property_with_a_long_name_' + v] = ['shortText', 'numericValue'];
@@ -166,7 +167,7 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
     'the news cache really rode along');
   assert.ok(decoded.indexOf('weatherTabCache:{') !== -1, 'the Weather tab copy really rode along');
   assert.ok(decoded.indexOf('featureTips:[{id:') !== -1, 'the new-feature tips really rode along');
-  const list = pluginValueList.listOf(plugins, pkg.pebble.usesPermissions.map((p) => p.name), pkg.pebble.uuid,
+  const list = pluginValueList.listOf(plugins, pluginReads.declaredKeys(pkg.pebble.usesPermissions), pkg.pebble.uuid,
     complications.storedListOf(places));
   const cost = list.reduce((sum, entry) => sum + pluginValueList.urlCost(entry), 0);
   assert.ok(list.length < pluginValueList.MAX_PLUGINS

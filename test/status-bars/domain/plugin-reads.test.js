@@ -76,7 +76,32 @@ test('the sources this app never reads: the Preferences plugin\'s weather locati
     .forEach(([c, i]) => assert.equal(reads.neverRead(c, i), false, c + '/' + i));
 });
 
-const PERMS = ['Location', 'Internet', 'ShowNotifications', 'Health'];
+/** What this app declares, as the Pebble app keys it (declaredKeys): Internet for one domain. */
+const PERMS = ['Location', 'Internet/api.met.no', 'ShowNotifications', 'Health'];
+/** A permission another app's plugin defines, as the Pebble app hands it over (resolvePermissions). */
+const LIGHTS = '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5f6:HomeControl';
+
+/**
+ * @param {...string} domains The domains it is for.
+ * @returns {Object} An Internet permission as a manifest declares it.
+ */
+function internet(...domains) {
+  return { name: 'Internet', parameters: { domains: domains } };
+}
+
+test('a permission\'s keys, as the Pebble app makes them: Internet\'s one for each domain', () => {
+  assert.deepEqual(reads.permissionKeys('Location'), ['Location']);
+  assert.deepEqual(reads.permissionKeys({ name: 'Location', reason: 'To x', required: true }), ['Location']);
+  assert.deepEqual(reads.permissionKeys(internet('API.met.no.', '.date.nager.at')),
+    ['Internet/api.met.no', 'Internet/date.nager.at'], 'lower case, without a dot at either end');
+  assert.deepEqual(reads.permissionKeys({ name: 'Internet' }), ['Internet'], 'no domain: Internet itself');
+  assert.deepEqual(reads.permissionKeys({ name: 'HomeControl', plugin: 'ABC' }), ['abc:HomeControl'],
+    'one that names the plugin defining it');
+  [{}, null, 42, { name: 7 }].forEach((p) => assert.deepEqual(reads.permissionKeys(p), [''], JSON.stringify(p)));
+  assert.deepEqual(reads.declaredKeys([{ name: 'Location' }, internet('api.met.no'), internet('api.met.no', 'x.org'),
+    'Health']), ['Location', 'Internet/api.met.no', 'Internet/x.org', 'Health'], 'what this app declares, each once');
+  [undefined, null, 'x'].forEach((uses) => assert.deepEqual(reads.declaredKeys(uses), []));
+});
 
 /**
  * @param {string} uuid The plugin's uuid.
@@ -87,12 +112,17 @@ function plugin(uuid, sources) {
   return { uuid: uuid, name: uuid, sources: sources, actions: [] };
 }
 
-test('readableBy: every caller permission a source names is one this app declares; one another plugin defines never is', () => {
+test('readableBy: every caller permission a source names is one this app declares, by its keys', () => {
   const source = (asks) => ({ category: 'c', items: ['i'], callerPermissions: asks });
-  [undefined, [], ['Location'], [{ name: 'Location' }], ['Health', { name: 'Internet' }]].forEach((asks) =>
+  [undefined, [], ['Location'], [{ name: 'Location' }], ['Health', internet('api.met.no')], [internet('API.met.no.')],
+    [internet('maps.api.met.no')]].forEach((asks) =>
     assert.equal(reads.readableBy(source(asks), PERMS), true, JSON.stringify(asks)));
-  [['Calendar'], [{ name: 'Location' }, 'Calendar'], [{ name: 'Location', plugin: 'someone' }], [42], [null],
-    [{}]].forEach((asks) => assert.equal(reads.readableBy(source(asks), PERMS), false, JSON.stringify(asks)));
+  [['Calendar'], [{ name: 'Location' }, 'Calendar'], [internet('example.com')], [internet('api.met.no', 'example.com')],
+    [internet('met.no')], ['Internet'], [{ name: 'Internet' }], [{ name: LIGHTS }], [{ name: 'Location', plugin: 'someone' }],
+    [42], [null], [{}]].forEach((asks) => assert.equal(reads.readableBy(source(asks), PERMS), false, JSON.stringify(asks)));
+  assert.equal(reads.readableBy(source(['Internet']), ['Internet']), false,
+    'Internet with no domain never: the Pebble app asks this app for each of its own domains then');
+  assert.equal(reads.readableBy(source([{ name: LIGHTS }]), [LIGHTS]), false, 'nor another app\'s permission');
 });
 
 test('undeclaredFor: what each plugin that serves a source asks for that this app never declared, each once', () => {
@@ -104,8 +134,9 @@ test('undeclaredFor: what each plugin that serves a source asks for that this ap
   assert.deepEqual(reads.undeclaredFor([weather('a', ['Location']), weather('b', ['Calendar', { name: 'Location' }]),
     weather('c', ['Calendar', 'ReadMusic'])], 'weather', 'location', PERMS), ['Calendar', 'ReadMusic'],
   'whichever of them the Pebble app picks');
-  assert.deepEqual(reads.undeclaredFor([weather('a', [{ name: 'HomeControl', plugin: 'lights' }, {}])], 'weather',
-    'location', PERMS), ['HomeControl', ''], 'another plugin\'s permission by its name; one without a name as \'\'');
+  assert.deepEqual(reads.undeclaredFor([weather('a', [{ name: LIGHTS }, {}, internet('example.com', 'x.org')])], 'weather',
+    'location', PERMS), [reads.ANOTHER_APPS, '', 'Internet'],
+  'another app\'s permission as ANOTHER_APPS; one without a name as \'\'; Internet for a domain this app never declared, by its name');
   assert.equal(reads.undeclaredFor([weather('a', [])], 'weather', 'day', PERMS), null, 'none serves it');
   assert.equal(reads.undeclaredFor([weather('a', [])], 'calendar', 'location', PERMS), null);
   [null, undefined, 'x', {}, [null, { sources: 'x' }, { sources: [null, { category: 'weather', items: 'location' }] }]]

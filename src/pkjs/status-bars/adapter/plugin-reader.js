@@ -60,9 +60,10 @@ var FULLER_ANSWER_MS = 3000;
  * @property {number} [instance] Which instance's properties the read is for, 0 (the first) by
  *   default: what makes an answer the one asked for (readOnce) and what a reading reads
  *   (readingOf). Never sent.
- * @property {string[]} [permissions] The permissions this app declares, for a read that must
- *   never ask the user for one it did not: it starts only where the phone's list of plugins
- *   says no plugin that may answer it asks for another (permitted). Never sent.
+ * @property {string[]} [permissions] What this app declares, as the Pebble app keys it
+ *   (plugin-reads.js declaredKeys), for a read that must never ask the user for a permission
+ *   it did not: it starts only where the phone's list of plugins says no plugin that may answer
+ *   it asks for another (permitted). Never sent.
  */
 
 /**

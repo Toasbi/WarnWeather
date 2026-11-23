@@ -138,7 +138,7 @@ function atPlace(list, position) {
  * Why this app may not read a complication's reading, from the phone's list of plugins.
  * @param {Complication} c The complication.
  * @param {*} plugins What Pebble.enumeratePlugins() returned.
- * @param {string[]} permissions The permissions this app declares.
+ * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
  * @returns {?string} Null where this app may read it. Else the first permission this app never
  *   declared that a plugin serving its source asks for, or '' where it cannot be read here at
  *   all: no plugin on the phone serves the source, or reading it does something.
@@ -156,7 +156,7 @@ function whyNot(c, plugins, permissions) {
  * the reader starts it only where each plugin that serves the source asks for none this app
  * never declared (plugin-reader.js).
  * @param {Complication} c The complication.
- * @param {string[]} permissions The permissions this app declares.
+ * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
  * @returns {Object} The request (plugin-reader.js PluginRequest).
  */
 function requestOf(c, permissions) {

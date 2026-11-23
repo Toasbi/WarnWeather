@@ -106,7 +106,7 @@ function nameOf(plugin) {
  * @param {?Array<Object>} known The user's complications (complication-list.js current), or
  *   null while they are not known.
  * @param {Array<*>} plugins What Pebble.enumeratePlugins() returned.
- * @param {string[]} permissions The permissions this app declares.
+ * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
  * @returns {Array<{position: number, property: string, category: string, why: (string|undefined)}>}
  *   [] for none, or none known.
  */
@@ -125,7 +125,7 @@ function complicationsFor(known, plugins, permissions) {
  * declares them. The first MAX_VALUES values, each once. The Preferences plugin lists no item:
  * it offers the user's complications (`complications`), where it serves them.
  * @param {*} plugin A plugin as Pebble.enumeratePlugins() lists it.
- * @param {string[]} permissions The permissions this app declares.
+ * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
  * @param {string} ownUuid This app's uuid.
  * @param {Array<Object>} theirs The user's complications as the dialog lists them (complicationsFor).
  * @returns {?{uuid: string, name: string, items: Array<{category: string, item: string,
@@ -194,8 +194,8 @@ function urlCost(entry) {
  * up to MAX_PLUGINS of them, while they cost the settings page's URL no more than LIST_COST
  * characters in all. A plugin that would cost more is left out.
  * @param {*} plugins What Pebble.enumeratePlugins() returned.
- * @param {string[]} permissions The permissions this app declares (package.json
- *   usesPermissions' names).
+ * @param {string[]} permissions What this app declares, as the Pebble app keys it
+ *   (plugin-reads.js declaredKeys).
  * @param {string} ownUuid This app's uuid.
  * @param {?Array<Object>} known The user's complications (complication-list.js current), or
  *   null while they are not known: the Preferences plugin's entry lists them.

@@ -44,6 +44,9 @@
         + 'The slot follows the one you pick when you change it there.';
     // The Value row's hint while the settings hold a value the picked plugin no longer offers.
     var NOT_OFFERED = 'The plugin no longer offers this value. Until it does, the slot shows ' + NONE_SHOWN + '.';
+    // Why a complication is greyed out, for a permission another app's plugin defines
+    // (plugin-reads.js ANOTHER_APPS), which WarnWeather can never declare.
+    var ANOTHER_APPS = ':';
 
     /**
      * @returns {Object} The page's userData (INJECTED_USERDATA), read at call time.
@@ -97,18 +100,29 @@
     }
 
     /**
+     * @param {string} why Why WarnWeather may not read a complication, as the phone lists it
+     *   (plugin-value-list.js complicationsFor): the permission it needs, which WarnWeather
+     *   never asks for; ANOTHER_APPS for one another app's plugin defines; '' where nothing on
+     *   the phone lets it read it.
+     * @returns {string} The reason the Value row greys it out with.
+     */
+    function whyText(why) {
+        if (why === ANOTHER_APPS) { return 'Needs a permission of another app'; }
+        return why ? 'Needs the ' + labelOf(why) + ' permission, which WarnWeather never asks for'
+            : 'WarnWeather cannot read it here';
+    }
+
+    /**
      * The user's complications as the Value row lists them, as the phone listed them under the
      * Preferences plugin: each by its place, as the Pebble app numbers it, with what it shows and
      * its source's category ('1 · Temperature (weather)'), and one WarnWeather may not read with
-     * why: the permission it needs, which WarnWeather never asks for (`why`), or none, where
-     * nothing on the phone lets it read it ('').
+     * why (whyText).
      * @param {Array<Object>} list The complications (plugin-value-list.js complicationsFor).
      * @returns {Array<{id: string, label: string, multiple: boolean, unreadable: ?string}>}
      */
     function complicationValues(list) {
         return list.map(function (c) {
-            var why = typeof c.why === 'string' ? (c.why ? 'Needs the ' + labelOf(c.why)
-                + ' permission, which WarnWeather never asks for' : 'WarnWeather cannot read it here') : null;
+            var why = typeof c.why === 'string' ? whyText(c.why) : null;
             return { id: pluginValues.complicationId(c.position), multiple: false, unreadable: why,
                 label: (c.position + 1) + ' \u00b7 ' + labelOf(c.property)
                     + ' (' + labelOf(c.category).toLowerCase() + ')' };

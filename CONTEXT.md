@@ -258,9 +258,10 @@ network type. Its dialog picks the plugin, which of its values and how often it 
 holds the item shows the same value. The dialog lists what the phone's plugins serve, from
 `Pebble.enumeratePlugins()`, which runs no plugin (`plugin-value-list.js` listOf): each
 property a source declares as a text, a timestamp, a number or a boolean, of a source this app
-may read without being asked for a permission it never declared and that does nothing when it
-is read (Find My Phone rings the phone: `plugin-reads.js` actsWhenRead), of any plugin but this
-app's own. The Pebble app's Preferences plugin lists the user's complications in place of
+may read without being asked for a permission it never declared (judged by the Pebble app's
+keys: Internet for each domain on its own, and never a permission another app's plugin defines:
+`plugin-reads.js` declares) and that does nothing when it is read (Find My Phone rings the
+phone: `plugin-reads.js` actsWhenRead), of any plugin but this app's own. The Pebble app's Preferences plugin lists the user's complications in place of
 values of its own (Complication). The value is a plugin read, after each Updates interval or
 once the plugin's own word on when it has something new runs out (`plugin-value-source.js`,
 `plugin-value-reads.js`); picking a source reads at once. What a read brings is the value's

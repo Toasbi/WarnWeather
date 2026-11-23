@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const complications = require('../../../src/pkjs/status-bars/domain/complications.js');
 
-const PERMS = ['Location', 'Internet', 'ShowNotifications', 'Health'];
+const PERMS = ['Location', 'Internet/api.met.no', 'ShowNotifications', 'Health'];
 
 /**
  * One place of the Preferences plugin's answer, as the Pebble app sends it.

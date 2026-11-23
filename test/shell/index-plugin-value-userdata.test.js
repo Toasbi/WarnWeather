@@ -25,7 +25,13 @@ const PREFS = '00000000-0000-0000-0001-000000000009';
  */
 const COMPLICATIONS = [{ position: 0, category: 'weather', item: 'now', index: 0, property: 'level' },
   { position: 1, category: 'calendar', item: 'now', index: 0, property: 'level' },
-  { position: 2, category: 'music', item: 'now', index: 1, property: 'level' }];
+  { position: 2, category: 'music', item: 'now', index: 1, property: 'level' },
+  { position: 3, category: 'stocks', item: 'now', index: 0, property: 'level' }];
+/**
+ * @param {string} domain A domain.
+ * @returns {Object} The Internet permission for it, as a plugin's source names it.
+ */
+const internet = (domain) => ({ name: 'Internet', parameters: { domains: [domain] } });
 
 /**
  * @param {string} category A source's category.
@@ -82,6 +88,9 @@ function boot(t, platform, plugins, seed) {
       { uuid: 'aaaaaaaa-0000-0000-0000-000000000001', name: 'Weather', sources: [source('weather', ['Location'])] },
       { uuid: 'aaaaaaaa-0000-0000-0000-000000000002', name: 'Calendar', sources: [source('calendar', ['Calendar'])] },
       { uuid: 'aaaaaaaa-0000-0000-0000-000000000003', name: 'Music', sources: [source('music', ['ReadMusic'])] },
+      { uuid: 'aaaaaaaa-0000-0000-0000-000000000004', name: 'Stocks',
+        sources: [source('stocks', [internet('query1.finance.yahoo.com')])] },
+      { uuid: 'aaaaaaaa-0000-0000-0000-000000000005', name: 'Forecast', sources: [source('forecast', [internet('api.met.no')])] },
       { uuid: PREFS, name: 'Preferences', sources: [{ category: 'preferences', items: ['complications'],
         properties: { category: ['shortText'], item: ['shortText'], index: ['numericValue'], property: ['shortText'] } }] }],
   }, plugins ? { subscribeToSource: (config) => {
@@ -133,12 +142,16 @@ test('settings open hands the page the plugins the slot can read, the user\'s co
     items: [{ category: 'weather', item: 'now', multiple: false, properties: ['level'] }] },
   { uuid: 'aaaaaaaa-0000-0000-0000-000000000002', name: 'Calendar',
     items: [{ category: 'calendar', item: 'now', multiple: false, properties: ['level'] }] },
+  { uuid: 'aaaaaaaa-0000-0000-0000-000000000005', name: 'Forecast',
+    items: [{ category: 'forecast', item: 'now', multiple: false, properties: ['level'] }] },
   { uuid: PREFS, name: 'Preferences', items: [], complications: [{ position: 0, property: 'level', category: 'weather' },
     { position: 1, property: 'level', category: 'calendar' },
-    { position: 2, property: 'level', category: 'music', why: 'ReadMusic' }] }],
-  'one whose source asks for a permission this app declares (Calendar among them, optional); neither this app\'s '
-    + 'own nor one asking for another; the Preferences plugin with the complications kept, each with why this app '
-    + 'may not read it');
+    { position: 2, property: 'level', category: 'music', why: 'ReadMusic' },
+    { position: 3, property: 'level', category: 'stocks', why: 'Internet' }] }],
+  'one whose source asks for a permission this app declares (Calendar among them, optional; Internet for a domain '
+    + 'it declares); neither this app\'s own nor one asking for another (Internet for a domain it never declares, '
+    + 'for which the Pebble app would ask the user); the Preferences plugin with the complications kept, each with '
+    + 'why this app may not read it');
   assert.deepEqual(ud.pluginValue, VALUE, 'the value read last, of the source the settings pick');
 });
 

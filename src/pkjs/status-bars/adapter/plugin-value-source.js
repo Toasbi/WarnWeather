@@ -29,8 +29,8 @@ var complications = require('../domain/complications.js');
 var pluginReadSchedule = require('./plugin-read-schedule.js');
 var pluginReader = require('./plugin-reader.js');
 
-// The permissions this app declares: a read never starts where it would ask the user for
-// another (plugin-reader.js permitted).
+// What this app declares, as the Pebble app keys it (plugin-reads.js declaredKeys): a read never
+// starts where it would ask the user for another permission (plugin-reader.js permitted).
 var permissions = [];
 // The user's complications as last heard (complication-list.js current), or null while none
 // are known.
@@ -131,8 +131,8 @@ function forPage(settings, list) {
  * Wire the source up (plugin-read-schedule.js init, which takes the same options). Call once,
  * from the 'ready' handler, after statusRebake.init() and complication-list.js' init.
  * @param {Object} options Injected environment: the schedule's, and these.
- * @param {string[]} [options.permissions] The permissions this app declares (default none: a
- *   source that names one is then never read).
+ * @param {string[]} [options.permissions] What this app declares (plugin-reads.js
+ *   declaredKeys; default none: a source that names a permission is then never read).
  * @param {function(): ?Array<Object>} [options.getComplications] The user's complications as
  *   last heard (complication-list.js current; default: none known).
  * @returns {void}
