@@ -1,10 +1,13 @@
 'use strict';
 // The Plugin value slot's value (plugin-value-source.js): when it is read, what is kept of
-// it, and when the watch is told. When a read is due is plugin-value-reads.test.js'; what the
-// slot prints and how long a value shows, plugin-values.test.js'.
+// it, and when the watch is told. How every plugin read runs, from its record to the status
+// the watch is owed, is plugin-read-schedule.test.js'; here, the slot's side of it. When a
+// read is due is plugin-value-reads.test.js'; what the slot prints and how long a value shows,
+// plugin-values.test.js'.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { withHost } = require('../../helpers/rebake-host.js');
+const { fakePebble, heldTimers } = require('../../helpers/plugin-host.js');
 
 // AGENTS.md: a module that touches storage needs `global.localStorage` mocked BEFORE the
 // watch modules load. One store object, emptied in place.
@@ -18,7 +21,6 @@ global.localStorage = {
 const pluginValueSource = require('../../../src/pkjs/status-bars/adapter/plugin-value-source.js');
 const statusRebake = require('../../../src/pkjs/status-bars/application/status-rebake.js');
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
-const { RETRY_MS } = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
 const { decodeLine } = require('../../helpers/status-line-bytes.js');
 
 // Every line logged, kept for the test that the value never is.
@@ -36,30 +38,10 @@ const SLOT = { statusTopLeft: 'pluginValue', pluginValuePlugin: PHONE,
 const KEY = PHONE + '/phone/phone_state/battery_level';
 /** The same plugin's network type. */
 const CELL = Object.assign({}, SLOT, { pluginValueId: 'phone/phone_state/cell' });
-/** The Night battery saver, on with its shipped 0:00-07:00 window. */
-const SAVER_ON = { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' };
 /** Midday: outside the Night battery saver's window. */
 const NOON = new Date(2026, 10, 21, 12, 0, 0).getTime();
 /** The Phone plugin's battery level, as it sends it. */
 const LEVEL = { battery_level: { numericValue: { value: 87, unit: '%' }, shortText: { text: '87%' } } };
-
-/**
- * A Pebble app with plugins: records every subscription and lets the test answer it.
- * @returns {Object} The fake, with .subs (each {request, push, fail, unsubscribed}).
- */
-function fakePebble() {
-  const pebble = { subs: [] };
-  pebble.subscribeToSource = (config) => {
-    const sub = { request: { category: config.category, item: config.item, properties: config.properties,
-      plugin: config.plugin, limit: config.limit },
-    unsubscribed: 0,
-    push: (envelope) => config.onData(envelope),
-    fail: (code) => config.onError({ code: code, message: code }) };
-    pebble.subs.push(sub);
-    return { unsubscribe: () => { sub.unsubscribed += 1; } };
-  };
-  return pebble;
-}
 
 /**
  * The Phone plugin's answer.
@@ -102,10 +84,7 @@ function boot(opts) {
     getSettings: () => h.settings,
     getWatchInfo: () => watchInfo,
     now: () => h.clock,
-    timers: {
-      setTimeout: (fn, ms) => { h.timers.push({ fn: fn, ms: ms }); return h.timers.length; },
-      clearTimeout: () => {}
-    }
+    timers: heldTimers(h.timers)
   });
   return h;
 }
@@ -136,12 +115,6 @@ function stored(key) {
   const raw = storage[key];
   return raw === undefined ? null : JSON.parse(raw);
 }
-
-test('init refuses to start without its suppliers', () => {
-  assert.throws(() => pluginValueSource.init(), /init needs getSettings, getWatchInfo and now/);
-  assert.throws(() => pluginValueSource.init({ getSettings: () => ({}), now: () => 0 }), /init needs/);
-  assert.throws(() => pluginValueSource.init({ getSettings: () => ({}), getWatchInfo: () => null }), /init needs/);
-});
 
 test('wanted and never read: the plugin picked is asked at start, for the one value', () => {
   const h = boot();
@@ -232,28 +205,6 @@ test('the read is kept in storage: its source, when it started, its failures, an
   assert.equal(stored(KEYS.PLUGIN_VALUE).validUntil, NOON + 2 * HOUR);
 });
 
-test('a PKJS restart reads nothing before the next read is due, and bakes the value kept at once', () => {
-  let h = boot();
-  h.pebble.subs[0].push(answer());
-  h = boot({ keepStorage: true, clock: NOON + 30 * MIN });
-  assert.equal(h.pebble.subs.length, 0);
-  statusRebake.resendStatus('boot');
-  assert.equal(sentText(h), '87%');
-  h.clock = NOON + HOUR - MIN;
-  minute();
-  assert.equal(h.pebble.subs.length, 0, 'not a minute before');
-  h.clock = NOON + HOUR;
-  minute();
-  assert.equal(h.pebble.subs.length, 1, 'an hour after the last');
-});
-
-test('a read cut short by the end of PKJS still counts', () => {
-  boot();
-  const h = boot({ keepStorage: true, clock: NOON + 10 * MIN });
-  pluginValueSource.refresh();
-  assert.equal(h.pebble.subs.length, 0);
-});
-
 test('the Updates setting says how often: the tick reads again after it, and not a minute before', () => {
   [['30', 30 * MIN], ['60', HOUR], ['180', 3 * HOUR], ['360', 6 * HOUR]].forEach(([every, ms]) => {
     const h = boot({ settings: Object.assign({ pluginValueEvery: every }, SLOT) });
@@ -341,25 +292,6 @@ test('the same value heard again sends nothing; another is sent', () => {
   assert.equal(sentText(h), '86%');
 });
 
-test('the plugin not there drops the value kept, and is asked again after the Updates interval', () => {
-  const h = boot();
-  h.pebble.subs[0].push(answer());
-  minute();
-  h.clock = NOON + HOUR;
-  minute();
-  h.pebble.subs[1].fail('PLUGIN_UNAVAILABLE');
-  assert.equal(stored(KEYS.PLUGIN_VALUE), null);
-  assert.deepEqual(stored(KEYS.PLUGIN_VALUE_READ), { source: KEY, at: NOON + HOUR, failures: 0, validUntil: null });
-  minute();
-  assert.equal(sentText(h), '--');
-  h.clock = NOON + 2 * HOUR - MIN;
-  minute();
-  assert.equal(h.pebble.subs.length, 2);
-  h.clock = NOON + 2 * HOUR;
-  minute();
-  assert.equal(h.pebble.subs.length, 3);
-});
-
 test('a picked plugin the phone no longer lists is not asked, so no other plugin runs for it: the slot shows --', () => {
   const h = boot();
   h.pebble.subs[0].push(answer());
@@ -387,46 +319,6 @@ test('an answer from another plugin than the one picked counts as the picked one
   assert.equal(sentText(h), '--');
 });
 
-test('any other failure keeps the value, and is asked again an hour later, then two hours after a second', () => {
-  const h = boot({ settings: Object.assign({ pluginValueEvery: '360' }, SLOT) });
-  h.pebble.subs[0].push(answer());
-  h.clock = NOON + 6 * HOUR;
-  minute();
-  h.pebble.subs[1].fail('PERMISSION_DENIED');
-  assert.equal(stored(KEYS.PLUGIN_VALUE).reading.short, '87%', 'kept');
-  assert.deepEqual(stored(KEYS.PLUGIN_VALUE_READ), { source: KEY, at: NOON + 6 * HOUR, failures: 1, validUntil: null });
-  h.clock = NOON + 6 * HOUR + RETRY_MS - MIN;
-  minute();
-  assert.equal(h.pebble.subs.length, 2);
-  h.clock = NOON + 6 * HOUR + RETRY_MS;
-  minute();
-  assert.equal(h.pebble.subs.length, 3);
-  h.pebble.subs[2].fail('TIMEOUT');
-  const second = h.clock;
-  h.clock = second + 2 * RETRY_MS - MIN;
-  minute();
-  assert.equal(h.pebble.subs.length, 3);
-  h.clock = second + 2 * RETRY_MS;
-  minute();
-  assert.equal(h.pebble.subs.length, 4);
-  h.pebble.subs[3].push(answer());
-  assert.equal(stored(KEYS.PLUGIN_VALUE_READ).failures, 0, 'an answer ends the run of failures');
-});
-
-test('a plugin that never answers: no second read while the first is under way, then it times out', () => {
-  const h = boot();
-  h.clock = NOON + 2 * HOUR;
-  minute();
-  pluginValueSource.refresh();
-  assert.equal(h.pebble.subs.length, 1);
-  assert.equal(h.timers.length, 1);
-  h.timers[0].fn();
-  assert.equal(h.pebble.subs[0].unsubscribed, 1);
-  assert.equal(stored(KEYS.PLUGIN_VALUE_READ).failures, 1);
-  minute();
-  assert.equal(h.pebble.subs.length, 2, 'the retry an hour after the read that timed out is due');
-});
-
 test('picking another value forgets the old one\'s read and value, and the save reads the new one at once', () => {
   const h = boot();
   h.pebble.subs[0].push(answer());
@@ -448,31 +340,6 @@ test('picking another value forgets the old one\'s read and value, and the save 
   assert.equal(h.pebble.subs[2].request.plugin, 'ffffffff-0000-0000-0000-000000000001');
 });
 
-test('switching the slot off forgets the last read, so switching it on again reads at once', () => {
-  const h = boot();
-  h.pebble.subs[0].push(answer());
-  h.settings = Object.assign({}, SLOT, { statusTopLeft: 'aqi' });
-  pluginValueSource.refresh();
-  assert.equal(stored(KEYS.PLUGIN_VALUE_READ), null);
-  h.clock += 5 * MIN;
-  h.settings = SLOT;
-  pluginValueSource.refresh();
-  assert.equal(h.pebble.subs.length, 2);
-});
-
-test('an answer that comes after the value was changed is dropped, and the new one is read as it comes', () => {
-  const h = boot();
-  h.settings = CELL;
-  pluginValueSource.refresh();
-  assert.equal(h.pebble.subs.length, 1, 'the first read is still under way');
-  h.pebble.subs[0].push(answer());
-  assert.equal(stored(KEYS.PLUGIN_VALUE), null, 'the old value\'s answer is not kept');
-  assert.equal(h.pebble.subs.length, 2, 'the save\'s read, which the first held up');
-  assert.deepEqual(h.pebble.subs[1].request.properties, ['cell']);
-  minute();
-  assert.equal(h.pebble.subs.length, 2, 'one read at a time');
-});
-
 test('an answer without the value, or with none the slot can print, shows -- and counts as an answer', () => {
   [answer({ cell: { shortText: { text: 'LTE' } } }), answer({ battery_level: { boolean: true } }),
     { pluginUuid: PHONE, instances: [] }].forEach((envelope) => {
@@ -486,107 +353,6 @@ test('an answer without the value, or with none the slot can print, shows -- and
     minute();
     assert.equal(h.pebble.subs.length, 1, 'read again after the Updates interval');
   });
-});
-
-test('the Night battery saver: a read due in its window waits for the window to close', () => {
-  const h = boot({ settings: Object.assign({}, SLOT, SAVER_ON), clock: new Date(2026, 10, 21, 23, 30, 0).getTime() });
-  h.pebble.subs[0].push(answer());
-  h.clock = new Date(2026, 10, 22, 0, 30, 0).getTime();
-  minute();
-  h.clock = new Date(2026, 10, 22, 6, 59, 0).getTime();
-  minute();
-  assert.equal(h.pebble.subs.length, 1, 'no read in the window');
-  h.clock = new Date(2026, 10, 22, 7, 0, 0).getTime();
-  minute();
-  assert.equal(h.pebble.subs.length, 2, 'the first tick after it');
-});
-
-test('the Night battery saver: a start in its window with nothing read waits for it too', () => {
-  const h = boot({ settings: Object.assign({}, SLOT, SAVER_ON), clock: new Date(2026, 10, 21, 3, 0, 0).getTime() });
-  assert.equal(h.pebble.subs.length, 0, 'no read on a start at 3:00');
-  h.clock = new Date(2026, 10, 21, 7, 0, 0).getTime();
-  minute();
-  assert.equal(h.pebble.subs.length, 1);
-});
-
-test('the Night battery saver: picking a value in its window reads at once, and the watch hears after it', () => {
-  const h = boot({ settings: Object.assign({}, SAVER_ON), clock: new Date(2026, 10, 21, 5, 0, 0).getTime() });
-  h.settings = Object.assign({}, SLOT, SAVER_ON);
-  pluginValueSource.refresh();
-  assert.equal(h.pebble.subs.length, 1, 'the user is at the phone, waiting to see the value');
-  h.pebble.subs[0].push(answer());
-  statusRebake.onTick(false);
-  assert.equal(h.sends.length, 0, 'still inside the window');
-  h.clock = new Date(2026, 10, 21, 7, 0, 0).getTime();
-  statusRebake.onTick(false);
-  assert.equal(h.sends.length, 1, 'paid on the first tick after the window');
-  assert.equal(sentText(h), '87%');
-});
-
-test('the Night battery saver: a value picked while a read is under way is read as that read ends', () => {
-  const h = boot({ settings: Object.assign({}, SAVER_ON), clock: new Date(2026, 10, 21, 5, 0, 0).getTime() });
-  h.settings = Object.assign({}, SLOT, SAVER_ON);
-  pluginValueSource.refresh();
-  assert.equal(h.pebble.subs.length, 1, 'the battery level, read as it is picked');
-  h.settings = Object.assign({}, CELL, SAVER_ON);
-  pluginValueSource.refresh();
-  assert.equal(h.pebble.subs.length, 1, 'no second read while the first is under way');
-  h.pebble.subs[0].fail('TIMEOUT');
-  assert.equal(h.pebble.subs.length, 2, 'the network type, read as the first read ends');
-  assert.deepEqual(h.pebble.subs[1].request.properties, ['cell']);
-});
-
-test('the Night battery saver: a save in its window with a read on record waits like any other read', () => {
-  const h = boot({ settings: Object.assign({}, SLOT, SAVER_ON), clock: new Date(2026, 10, 21, 23, 0, 0).getTime() });
-  h.pebble.subs[0].push(answer());
-  h.clock = new Date(2026, 10, 22, 0, 30, 0).getTime();
-  pluginValueSource.refresh();
-  assert.equal(h.pebble.subs.length, 1);
-});
-
-test('a clock that went back starts the wait again from now, and never reads early', () => {
-  const h = boot();
-  h.pebble.subs[0].push(answer());
-  h.clock = NOON - 2 * HOUR;
-  minute();
-  assert.equal(h.pebble.subs.length, 1);
-  assert.equal(stored(KEYS.PLUGIN_VALUE_READ).at, NOON - 2 * HOUR);
-  h.clock = NOON - HOUR - MIN;
-  minute();
-  assert.equal(h.pebble.subs.length, 1);
-  h.clock = NOON - HOUR;
-  minute();
-  assert.equal(h.pebble.subs.length, 2);
-});
-
-test('storage that refuses the record of a read still reads no more often', (t) => {
-  const realSet = global.localStorage.setItem;
-  t.after(() => { global.localStorage.setItem = realSet; });
-  global.localStorage.setItem = function (k, v) {
-    if (k === KEYS.PLUGIN_VALUE_READ) { throw new Error('QuotaExceededError'); }
-    return realSet.call(this, k, v);
-  };
-  const h = boot();
-  h.pebble.subs[0].push(answer());
-  assert.equal(stored(KEYS.PLUGIN_VALUE_READ), null, 'not stored');
-  for (let i = 0; i < 50; i++) {
-    h.clock += MIN;
-    minute();
-    pluginValueSource.refresh();
-  }
-  assert.equal(h.pebble.subs.length, 1, 'this PKJS life keeps the time itself');
-});
-
-test('unreadable storage reads as no value and no read: the plugin is asked once, and it is whole again', () => {
-  Object.keys(storage).forEach((k) => { delete storage[k]; });
-  storage[KEYS.PLUGIN_VALUE] = '{oops';
-  storage[KEYS.PLUGIN_VALUE_READ] = '{"at":"x"}';
-  const h = boot({ keepStorage: true });
-  assert.equal(h.pebble.subs.length, 1);
-  assert.equal(pluginValueSource.bakeFacts().value(), null);
-  h.pebble.subs[0].push(answer());
-  assert.deepEqual(stored(KEYS.PLUGIN_VALUE_READ), { source: KEY, at: NOON, failures: 0, validUntil: null });
-  assert.equal(stored(KEYS.PLUGIN_VALUE).reading.short, '87%');
 });
 
 test('the value is never logged: it is another app\'s data', () => {
