@@ -2,6 +2,9 @@
 #include <string.h>
 #include "status_threshold_fixtures.h"
 
+// The FNV-1a hash of status_threshold_kind_for_slot over every byte pair (kind_tests).
+#define KIND_MAP_PIN 1676948356u
+
 static void kind_tests(void) {
     expect("kind.aqi", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_AQI), THRESH_AQI);
     expect("kind.pollen", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_POLLEN), THRESH_POLLEN);
@@ -97,6 +100,18 @@ static void kind_tests(void) {
            THRESH_PHONE_BATTERY == 18 && THRESH_PHONE_BATTERY_PLAIN == 19, 1);
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
     expect("kind.empty", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_NONE), -1);
+    // The whole map, holes included: every (slot kind, icon) byte pair, folded into one
+    // FNV-1a hash of the kinds (-1 as 0xFF). The pin was taken from the two switches the
+    // tables replaced, so any pair that maps differently fails here.
+    uint32_t every = 2166136261u;
+    for (int kind = 0; kind < 256; kind++) {
+        for (int icon = 0; icon < 256; icon++) {
+            every ^= (uint8_t) status_threshold_kind_for_slot((uint8_t) kind, (uint8_t) icon);
+            every *= 16777619u;
+        }
+    }
+    if (every != KIND_MAP_PIN) { printf("kind map hash %u\n", (unsigned) every); }
+    expect("kind.every_pair", every == KIND_MAP_PIN, 1);
 }
 
 // The judge on the wire (app_message.c) and in store (normalize): exactly the four
