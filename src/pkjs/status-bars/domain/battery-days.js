@@ -70,10 +70,10 @@
    * The whole days the slot shows: the estimate's own, as it was made. Null, and the slot
    * shows the percentage, while there is no estimate or it is older than MAX_AGE_MS.
    *
-   * Never counted down by the days that have passed since it was made. The watch takes any
-   * other text in the slot for a new estimate, made at the charge it has when the text
-   * arrives (status_line.h StatusBatteryDaysMark), so days the phone counted down by itself
-   * after a charge would show the estimate from before the charge as current.
+   * Never counted down by the days that have passed since it was made. The watch hides the
+   * days it carried while it was on the charger until the slot carries other days
+   * (status_line.h StatusBatteryDaysMark), so days the phone counted down by itself after a
+   * charge would bring the estimate from before the charge back.
    * @param {?{days: number, updatedAt: number}} estimate The estimate, as estimateOf made
    *   it (what a plugin sent, or what was stored, is checked there, once), or null.
    * @param {number} nowMs The current time, in epoch milliseconds.

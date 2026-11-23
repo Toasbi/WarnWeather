@@ -109,3 +109,20 @@ bool status_line_validate(const uint8_t *blob, size_t len) {
     StatusSlotView scratch[STATUS_SLOT_COUNT];
     return status_line_slots(blob, len, scratch) == STATUS_SLOT_COUNT;
 }
+
+// How much of a carried text the mark keeps and compares.
+static size_t days_len(size_t len) {
+    return len > STATUS_TEXT_EDGE_MAX ? STATUS_TEXT_EDGE_MAX : len;
+}
+
+bool status_battery_days_same(const StatusBatteryDaysMark *mark, const char *value, size_t len) {
+    len = days_len(len);
+    return mark->len == len && memcmp(mark->text, value, len) == 0;
+}
+
+bool status_battery_days_mark(StatusBatteryDaysMark *mark, const char *value, size_t len) {
+    if (status_battery_days_same(mark, value, len)) { return false; }
+    mark->len = (uint8_t)days_len(len);
+    memcpy(mark->text, value, mark->len);
+    return true;
+}

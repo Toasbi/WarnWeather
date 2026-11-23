@@ -723,7 +723,7 @@ function boldOnlyRow(keyStem) {
 //
 // The hints under Days left and Both: when the percentage shows instead (battery-days.js
 // daysLeft, status_row.c shows_battery_days; after a charge the days from before it stay
-// hidden until a new estimate arrives) and, set apart on a line of its own, where the days
+// hidden until other days arrive) and, set apart on a line of its own, where the days
 // come from. A plain <br> would run that line on as the same paragraph; the gap above it
 // keeps it apart. What each mode shows is in the picture of the bar above the rows, so the
 // hints leave it out.

@@ -102,67 +102,25 @@ static inline void status_battery_text(char *buf, size_t cap, const char *value,
     buf[o] = '\0';
 }
 
-// What the watch remembers about the days its battery slot carries: the carried text, and
-// the lowest charge the watch has had since that text arrived. The days are another app's
-// estimate, made at the charge the watch had then. Once the watch has been charged they
-// are too few, and stay so until a new estimate arrives, which can take hours. The watch
-// cannot ask for one, so it shows its percentage alone meanwhile (status_row.c
-// shows_battery_days). Kept on flash, so leaving the watchface after a charge and coming
-// back does not bring the old days back.
+// The days text the watch battery slot carried the last time the watch was on the charger.
+// The days are another app's estimate, made at the charge the watch had then. Once the
+// watch has been on the charger they are too few, and stay so until a new estimate arrives,
+// which can take hours. The watch cannot ask for one, so it shows its percentage alone
+// until the slot carries other days (status_row.c shows_battery_days), after a short top-up
+// too. Kept on flash, so leaving the watchface after a charge and coming back does not
+// bring the old days back.
 typedef struct {
-    uint8_t floor;                    // lowest charge percent since the text arrived
-    uint8_t len;                      // the carried text's length, and its bytes
+    uint8_t len;                      // the text's length, and its bytes
     char text[STATUS_TEXT_EDGE_MAX];  // (the slot is an edge slot: the Watch bar's right)
 } StatusBatteryDaysMark;
 
-// How far the charge may stand above the mark's floor before it counts as a charge. A
-// reading can step up by itself once a load ends, and a watch that reports its charge in
-// steps of ten must not take one such step for a charge.
-#define STATUS_BATTERY_DAYS_SLACK 10
+// Whether the mark is of this carried text (`len` bytes at `value`; the mark keeps and
+// compares the first STATUS_TEXT_EDGE_MAX of them).
+bool status_battery_days_same(const StatusBatteryDaysMark *mark, const char *value, size_t len);
 
-// How much of a carried text the mark keeps and compares.
-static inline size_t status_battery_days_len(size_t len) {
-    return len > STATUS_TEXT_EDGE_MAX ? STATUS_TEXT_EDGE_MAX : len;
-}
-
-// Whether the mark is of this carried text (`value` may be NULL for no text).
-static inline bool status_battery_days_same(const StatusBatteryDaysMark *mark, const char *value,
-                                            size_t len) {
-    len = status_battery_days_len(len);
-    return mark->len == len && (len == 0 || memcmp(mark->text, value, len) == 0);
-}
-
-// Fold the text the slot carries and the watch's charge into the mark: another text starts
-// a new mark at this charge, the same text lowers its floor as the watch runs down. No text
-// (the percentage alone, or no estimate) empties the mark, so days that come back later are
-// a new estimate, and keeps no floor. True when the mark changed, which is when it is worth
-// writing back.
-static inline bool status_battery_days_track(StatusBatteryDaysMark *mark, const char *value,
-                                             size_t len, int percent) {
-    const uint8_t charge = (uint8_t)(percent < 0 ? 0 : (percent > 100 ? 100 : percent));
-    len = status_battery_days_len(len);
-    if (!status_battery_days_same(mark, value, len)) {
-        mark->len = (uint8_t)len;
-        if (len > 0) { memcpy(mark->text, value, len); }
-        mark->floor = len > 0 ? charge : 0;
-        return true;
-    }
-    // An empty mark's floor is 0: nothing is below it, so it never moves.
-    if (charge < mark->floor) {
-        mark->floor = charge;
-        return true;
-    }
-    return false;
-}
-
-// Whether the carried days can still be current: the mark is of this text, and the watch
-// has not been charged since it arrived. A text the mark has not seen yet reads as not
-// current, so the slot shows the percentage until it has been tracked.
-static inline bool status_battery_days_current(const StatusBatteryDaysMark *mark,
-                                               const char *value, size_t len, int percent) {
-    return status_battery_days_same(mark, value, len)
-        && percent <= mark->floor + STATUS_BATTERY_DAYS_SLACK;
-}
+// Mark the carried text as days from before a charge, while the watch is on the charger.
+// True when the mark changed, which is when it is worth writing back.
+bool status_battery_days_mark(StatusBatteryDaysMark *mark, const char *value, size_t len);
 
 typedef enum {
     STATUS_ICON_NONE = 0,

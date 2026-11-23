@@ -121,25 +121,29 @@ static void days_mark_in_its_slot(void) {
     memset(&mark, 0xAA, sizeof(mark));
     persist_get_battery_days_mark(&mark);
     expect("mark.absent.len", mark.len, 0);
-    expect("mark.absent.floor", mark.floor, 0);
 
     StatusBatteryDaysMark made;
     memset(&made, 0, sizeof(made));
-    expect("mark.track", status_battery_days_track(&made, "5d", 2, 60), 1);
+    expect("mark.mark", status_battery_days_mark(&made, "12d", 3), 1);
     expect("mark.write", persist_set_battery_days_mark(&made), 1);
     expect("mark.slot", s_present[DAYS_MARK_SLOT], 1);
-    expect("mark.size", (int) s_len[DAYS_MARK_SLOT], (int) sizeof(StatusBatteryDaysMark));
+    // Stored as its text alone.
+    expect("mark.size", (int) s_len[DAYS_MARK_SLOT], 3);
     expect("mark.same_again_no_write", persist_set_battery_days_mark(&made), 0);
-    persist_get_battery_days_mark(&mark);
-    expect("mark.read", memcmp(&mark, &made, sizeof(mark)), 0);
-    expect("mark.read.current", status_battery_days_current(&mark, "5d", 2, 60), 1);
-
-    // A record of another size (another build's) reads as no mark.
-    flash_seed(DAYS_MARK_SLOT, BLOB, sizeof(BLOB));
     memset(&mark, 0xAA, sizeof(mark));
     persist_get_battery_days_mark(&mark);
-    expect("mark.other-size.len", mark.len, 0);
-    expect("mark.other-size.current", status_battery_days_current(&mark, "5d", 2, 60), 0);
+    expect("mark.read.len", mark.len, 3);
+    expect("mark.read.same", status_battery_days_same(&mark, "12d", 3), 1);
+    // Shorter days written over it are what is read back, not a prefix of the old text.
+    expect("mark.mark.shorter", status_battery_days_mark(&made, "5d", 2), 1);
+    expect("mark.write.shorter", persist_set_battery_days_mark(&made), 1);
+    persist_get_battery_days_mark(&mark);
+    expect("mark.read.shorter", status_battery_days_same(&mark, "5d", 2), 1);
+
+    // A record of another shape (an earlier build's) reads as bytes no days match.
+    flash_seed(DAYS_MARK_SLOT, BLOB, sizeof(BLOB));
+    persist_get_battery_days_mark(&mark);
+    expect("mark.other-shape.same", status_battery_days_same(&mark, "5d", 2), 0);
 }
 
 int main(void) {

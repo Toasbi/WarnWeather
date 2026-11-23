@@ -326,10 +326,11 @@ build/host/radar_notice_persist_test
 # On demand cells in the slots appended for them (emery). Built for emery, with On demand
 # (whose accessors the cells ride), and plain.
 cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR -DWW_ON_DEMAND test/c/status_line_persist_test.c \
-   src/c/appendix/persist.c src/c/appendix/persist_store.c -o build/host/status_line_persist_test_emery
+   src/c/appendix/persist.c src/c/appendix/persist_store.c src/c/appendix/status_line.c \
+   -o build/host/status_line_persist_test_emery
 build/host/status_line_persist_test_emery
 cc $CFLAGS test/c/status_line_persist_test.c src/c/appendix/persist.c src/c/appendix/persist_store.c \
-   -o build/host/status_line_persist_test
+   src/c/appendix/status_line.c -o build/host/status_line_persist_test
 build/host/status_line_persist_test
 # persist_store.c's RAM copy of the store (emery only): a key's second read costs no flash
 # call, absent keys too, and every write keeps the copy exact. Built again with an arena the
