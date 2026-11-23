@@ -686,7 +686,7 @@ void main_window_refresh() {
     // The loading/notice overlay too: it is a whole-window surface like the rest,
     // and keeping it out of this set is what made each new repaint path forget it
     // (a config-only theme flip left it on the old polarity, most recently). Cheap
-    // and idempotent — a recolor plus one or two persist reads — so the flick/peek
+    // and idempotent — a repaint mark plus one or two persist reads — so the flick/peek
     // paths can afford it; on aplite (no flick — WW_VIEW_CYCLE is compiled out)
     // this runs on the settings/fetch checkpoints only.
     loading_layer_refresh();
