@@ -32,10 +32,10 @@ const HOUR = 60 * MIN;
 const PHONE = '00000000-0000-0000-0001-000000000001';
 /** The Watch bar's left slot showing the Phone plugin's battery level, read every hour. */
 const SLOT = { statusTopLeft: 'pluginValue', pluginValuePlugin: PHONE,
-  pluginValueReading: 'phone/phone_state/battery_level' };
+  pluginValueId: 'phone/phone_state/battery_level' };
 const KEY = PHONE + '/phone/phone_state/battery_level';
 /** The same plugin's network type. */
-const CELL = Object.assign({}, SLOT, { pluginValueReading: 'phone/phone_state/cell' });
+const CELL = Object.assign({}, SLOT, { pluginValueId: 'phone/phone_state/cell' });
 /** The Night battery saver, on with its shipped 0:00-07:00 window. */
 const SAVER_ON = { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' };
 /** Midday: outside the Night battery saver's window. */
@@ -151,7 +151,7 @@ test('wanted and never read: the plugin picked is asked at start, for the one va
 });
 
 test('not wanted: nothing is read', () => {
-  [['no plugin picked', { statusTopLeft: 'pluginValue', pluginValueReading: SLOT.pluginValueReading }],
+  [['no plugin picked', { statusTopLeft: 'pluginValue', pluginValueId: SLOT.pluginValueId }],
     ['no value picked', { statusTopLeft: 'pluginValue', pluginValuePlugin: PHONE }],
     ['no slot shows it', Object.assign({}, SLOT, { statusTopLeft: 'aqi' })],
     ['only a bar no screen shows does', Object.assign({}, SLOT, { statusTopLeft: 'aqi', statusHealthLeft: 'pluginValue' })]]

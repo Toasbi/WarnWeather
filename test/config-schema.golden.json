@@ -9630,14 +9630,14 @@
               {
                 "type": "select",
                 "bottomSheet": true,
-                "messageKey": "pluginValueReading",
+                "messageKey": "pluginValueId",
                 "label": "Value",
                 "defaultValue": "",
                 "optionsFrom": {
-                  "resolver": "pluginValueReadings"
+                  "resolver": "pluginValueIds"
                 },
                 "hintFrom": {
-                  "resolver": "pluginValueReadingHint"
+                  "resolver": "pluginValueIdHint"
                 },
                 "showWhen": {
                   "key": "pluginValuePlugin",

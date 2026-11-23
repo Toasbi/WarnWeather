@@ -570,7 +570,7 @@ test('the Plugin value is offered only where the Pebble app reads plugins, never
     assert.ok(!catalog.itemAvailable(item, s, Object.assign({ plugins: true }, ENV_APLITE), ctx), ctx.slotKey);
   });
   assert.equal(catalog.resolveSelection('pluginValue', s, ENV_BASALT, ALL_SLOT_CTXS[0]), 'empty');
-  assert.deepEqual(catalog.pluginValueSettingKeys(), ['pluginValuePlugin', 'pluginValueReading', 'pluginValueEvery']);
+  assert.deepEqual(catalog.pluginValueSettingKeys(), ['pluginValuePlugin', 'pluginValueId', 'pluginValueEvery']);
 });
 
 test('the phone battery is selectable in all 12 slots when the phone supports it', () => {

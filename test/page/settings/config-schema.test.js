@@ -145,7 +145,7 @@ const EXPECTED_KEYS = [
   'batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
   'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced',
   // The Plugin value slot's source and how often it is read (its dialog; phone-side only).
-  'pluginValuePlugin', 'pluginValueReading', 'pluginValueEvery'
+  'pluginValuePlugin', 'pluginValueId', 'pluginValueEvery'
 ].concat(THRESH_KEYS).concat(UNIT_KEYS).concat(GRAPH_COLOR_KEYS).concat(ALERT_KEYS);
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {

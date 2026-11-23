@@ -598,14 +598,15 @@
 
   /**
    * The settings the Plugin value slot owns: the plugin, the value of it and how often it is
-   * read (plugin-values.js sourceOf, everyMs). The item's own, so every slot that holds it
-   * shows the same value. ONE list for the rows of its dialog and the keys resetStatusSlots
-   * clears. None of them is signed (renderSignature): a new source needs a read, which the
-   * save starts (plugin-value-source.js refresh), and no weather fetch.
+   * read (plugin-values.js sourceOf, everyMs), which its dialog's rows store
+   * (plugin-value-schema.js). The item's own, so every slot that holds it shows the same value.
+   * The keys resetStatusSlots clears with the slots. None of them is signed (renderSignature):
+   * a new source needs a read, which the save starts (plugin-value-source.js refresh), and no
+   * weather fetch.
    * @returns {string[]}
    */
   function pluginValueSettingKeys() {
-    return ['pluginValuePlugin', 'pluginValueReading', 'pluginValueEvery'];
+    return ['pluginValuePlugin', 'pluginValueId', 'pluginValueEvery'];
   }
 
   /**

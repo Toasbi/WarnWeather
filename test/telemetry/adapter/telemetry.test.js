@@ -302,7 +302,7 @@ test('snapshot reports the watch battery\'s Look and what its text shows', () =>
 // leave the phone. Absent on aplite. Lockstep with the Deno .strip() schema.
 test('snapshot reports whether the Plugin value slot shows a value, never which', () => {
   const source = { pluginValuePlugin: 'd008a08a-6e34-4cc4-98dc-bae02ce5e087',
-    pluginValueReading: 'muninn/stats/daysRemaining' };
+    pluginValueId: 'muninn/stats/daysRemaining' };
   const shown = buildSettingsSnapshot(Object.assign({ statusTopRight: 'pluginValue' }, source), { platform: 'basalt' });
   assert.strictEqual(shown.pluginValue, true);
   assert.strictEqual(buildSettingsSnapshot({ statusTopRight: 'pluginValue' }, { platform: 'basalt' }).pluginValue, false,

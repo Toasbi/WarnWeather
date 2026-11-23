@@ -4,9 +4,10 @@
 // value. The lists are the plugins the phone listed as the page opened (userData.plugins,
 // plugin-value-list.js listOf): the page reads no plugin itself, since a read costs the user
 // (plugin-reader.js). The phone sends each plugin's items with their properties' names, and the
-// page makes each value's id and label of them. The value read last (userData.pluginValue,
-// checked on the phone) is judged against the source the rows pick right then, as a bake
-// judges it (plugin-values.js shownReading); the bars' pictures print it through barText.
+// page makes each value's id (plugin-values.js valueId) and label (labelOf) of them. The value
+// read last (userData.pluginValue, checked on the phone) is judged against the source the rows
+// pick right then, as a bake judges it (plugin-values.js shownReading); the bars' pictures print
+// it through barText.
 //
 // A plugin or a value the settings hold that the phone no longer lists stays in its row's list,
 // said as such: the engine would otherwise move the row onto another option as soon as it is
@@ -26,9 +27,6 @@
     var pluginValues = node ? require('../../status-bars/domain/plugin-values.js') : window.PluginValues;
     var catalog = node ? require('../../status-bars/domain/status-line-catalog.js') : window.StatusLineCatalog;
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
-    var KEYS = catalog.pluginValueSettingKeys();
-    var PLUGIN_KEY = KEYS[0];
-    var READING_KEY = KEYS[1];
     // What the slot shows while it has no value to show (status-lines.js formatValue).
     var NONE_SHOWN = pluginValues.textFor(null, catalog.CAPS.MID_TEXT_MAX);
 
@@ -57,6 +55,24 @@
     }
 
     /**
+     * A property's name as the dialog lists it: 'battery_level' reads 'Battery level',
+     * 'daysRemaining' 'Days remaining'; a word in capitals stays as it is ('UV index'). The
+     * dialog names a value of a plugin that serves more than one item after both
+     * ('location: uv_index' reads 'Location: uv index').
+     * @param {string} name The name.
+     * @returns {string}
+     */
+    function labelOf(name) {
+        var words = String(name).replace(/([a-z])([A-Z])/g, '$1 $2')
+            .replace(/([A-Z0-9]+)([A-Z][a-z])/g, '$1 $2').replace(/[_\-\s]+/g, ' ')
+            .replace(/^ | $/g, '').split(' ');
+        var text = words.map(function (w) {
+            return w.length > 1 && w === w.toUpperCase() ? w : w.toLowerCase();
+        }).join(' ');
+        return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+
+    /**
      * The values a listed plugin offers, in its order: each property of each of its items,
      * named after the property, and after the item first where the plugin serves more than one.
      * @param {?Object} plugin A listed plugin, or null.
@@ -67,8 +83,8 @@
         var out = [];
         items.forEach(function (it) {
             it.properties.forEach(function (property) {
-                out.push({ id: it.category + '/' + it.item + '/' + property, multiple: it.multiple,
-                    label: pluginValues.labelOf(items.length > 1 ? it.item + ': ' + property : property) });
+                out.push({ id: pluginValues.valueId(it.category, it.item, property), multiple: it.multiple,
+                    label: labelOf(items.length > 1 ? it.item + ': ' + property : property) });
             });
         });
         return out;
@@ -91,7 +107,7 @@
      * @returns {Array<Array>} [label, value] options.
      */
     function pluginOptions(S) {
-        var stored = S[PLUGIN_KEY];
+        var stored = S.pluginValuePlugin;
         var out = [['None', '']].concat(listed().map(function (p) { return [p.name, p.uuid]; }));
         if (stored && !pluginOf(stored)) { out.push(['Not on this phone', stored]); }
         return out;
@@ -103,12 +119,12 @@
      * @param {Object} S Settings.
      * @returns {Array<Array>} [label, value, meta?] options.
      */
-    function readingOptions(S) {
-        var plugin = pluginOf(S[PLUGIN_KEY]);
+    function valueOptions(S) {
+        var plugin = pluginOf(S.pluginValuePlugin);
         var source = pluginValues.sourceOf(S);
         var out = valuesOf(plugin).map(function (v) { return [v.label, v.id]; });
         if (source && !valueIn(plugin, source.id)) {
-            out.push([pluginValues.labelOf(source.property), source.id, {desc: 'Not offered now'}]);
+            out.push([labelOf(source.property), source.id, {desc: 'Not offered now'}]);
         }
         return out;
     }
@@ -120,7 +136,7 @@
      * @returns {?string} HTML (plain text), or null for none.
      */
     function pluginHint(S) {
-        if (S[PLUGIN_KEY] && !pluginOf(S[PLUGIN_KEY])) {
+        if (S.pluginValuePlugin && !pluginOf(S.pluginValuePlugin)) {
             return 'This plugin is not on this phone. Until it is, the slot shows ' + NONE_SHOWN + '.';
         }
         return listed().length ? null : 'No app on this phone offers a value this slot can show.';
@@ -132,11 +148,13 @@
      * @param {Object} S Settings.
      * @returns {?string} HTML (plain text), or null for none.
      */
-    function readingHint(S) {
-        var plugin = pluginOf(S[PLUGIN_KEY]);
-        var value = valueIn(plugin, S[READING_KEY]);
-        if (!plugin || !S[READING_KEY]) { return null; }
-        if (!value) { return 'The plugin no longer offers this value. Until it does, the slot shows ' + NONE_SHOWN + '.'; }
+    function valueHint(S) {
+        var plugin = pluginOf(S.pluginValuePlugin);
+        var value = valueIn(plugin, S.pluginValueId);
+        if (!plugin || !S.pluginValueId) { return null; }
+        if (!value) {
+            return 'The plugin no longer offers this value. Until it does, the slot shows ' + NONE_SHOWN + '.';
+        }
         return value.multiple ? 'The plugin offers this for more than one thing. The slot shows the first.' : null;
     }
 
@@ -174,7 +192,9 @@
         var now = Date.now();
         var text;
         if (!pluginValues.sourceOf(S)) { return ''; }
-        if (!value) { return 'Nothing read yet. Once you save, the watch shows the value within about a minute.'; }
+        if (!value) {
+            return 'Nothing read yet. Once you save, the watch shows the value within about a minute.';
+        }
         text = 'Last value: ' + pluginValues.textFor(value.reading, catalog.CAPS.MID_TEXT_MAX)
             + ' (' + agoText(value.at, now) + ').';
         if (!pluginValues.shownReading(value, S, now)) {
@@ -192,7 +212,7 @@
      */
     function pluginPicked(S, oldV, newV) {
         var first = valuesOf(pluginOf(newV))[0];
-        if (oldV !== newV) { S[READING_KEY] = first ? first.id : ''; }
+        if (oldV !== newV) { S.pluginValueId = first ? first.id : ''; }
     }
 
     /**
@@ -209,15 +229,15 @@
 
     if (PConf && PConf.optionsResolvers) {
         PConf.optionsResolvers.register('pluginValuePlugins', pluginOptions);
-        PConf.optionsResolvers.register('pluginValueReadings', readingOptions);
+        PConf.optionsResolvers.register('pluginValueIds', valueOptions);
         PConf.hintResolvers.register('pluginValuePluginHint', pluginHint);
-        PConf.hintResolvers.register('pluginValueReadingHint', readingHint);
+        PConf.hintResolvers.register('pluginValueIdHint', valueHint);
         PConf.hintResolvers.register('pluginValueLast', lastLine);
         PConf.onChange.register('pluginValuePluginPicked', pluginPicked);
     }
 
-    var api = { pluginOptions: pluginOptions, readingOptions: readingOptions, pluginHint: pluginHint,
-        readingHint: readingHint, lastLine: lastLine, pluginPicked: pluginPicked, barText: barText };
+    var api = { labelOf: labelOf, pluginOptions: pluginOptions, valueOptions: valueOptions, pluginHint: pluginHint,
+        valueHint: valueHint, lastLine: lastLine, pluginPicked: pluginPicked, barText: barText };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PluginValuePage = api; }
 })();

@@ -253,10 +253,11 @@ property a source declares as a text or a number, of a source this app may read 
 asked for a permission it never declared, of any plugin but this app's own. The value is a
 plugin read, after each Updates interval or once the plugin's own word on when it has
 something new runs out (`plugin-value-source.js`, `plugin-value-reads.js`); picking a source
-reads at once. The slot prints text alone, with an
-icon id that loads no drawing (`status_line.h` STATUS_ICON_PLUGIN_TEXT): the value's short
-text, else its number with its unit where the slot has room, else its long text
-(`plugin-values.js` textFor). A value shows for three Updates intervals, three hours at least,
+reads at once. What a read brings is the value's reading: the shapes the plugin answers in
+that the slot prints, a short text, a number with its unit and a long text, each of them or
+none (`plugin-reader.js` readingOf). The slot prints text alone, with an icon id that loads no
+drawing (`status_line.h` STATUS_ICON_PLUGIN_TEXT): the reading's short text, else its number
+with its unit where the slot has room, else its long text (`plugin-values.js` textFor). A value shows for three Updates intervals, three hours at least,
 or while the plugin says it holds, twelve hours at most; then the slot shows -- (shownReading).
 Not on aplite, and only where the Pebble app runs plugins.
 _Avoid_: custom slot, complication.

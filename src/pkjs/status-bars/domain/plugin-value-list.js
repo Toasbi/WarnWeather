@@ -36,7 +36,7 @@ var TEXT_SHAPES = ['shortText', 'numericValue', 'longText'];
 
 /**
  * @param {*} name A category's, item's or property's name.
- * @returns {boolean} Whether it can be a part of a value's id ('category/item/property'): a
+ * @returns {boolean} Whether it can be a part of a value's id (plugin-values.js valueId): a
  *   text without a '/', which would split the id wrongly (plugin-values.js sourceOf).
  */
 function idPart(name) {
@@ -110,7 +110,7 @@ function entryOf(plugin, permissions, ownUuid) {
             var item = src.items[i];
             var names = [];
             for (var name in props) {
-                var id = src.category + '/' + item + '/' + name;
+                var id = pluginValues.valueId(src.category, item, name);
                 if (count < MAX_VALUES && Object.prototype.hasOwnProperty.call(props, name) && idPart(name)
                         && id.length <= MAX_ID && seen[id] !== true && printable(props[name])) {
                     seen[id] = true;
@@ -168,8 +168,6 @@ function listOf(plugins, permissions, ownUuid) {
 
 module.exports = {
     MAX_PLUGINS: MAX_PLUGINS,
-    MAX_VALUES: MAX_VALUES,
-    MAX_NAME: MAX_NAME,
     MAX_ID: MAX_ID,
     LIST_COST: LIST_COST,
     urlCost: urlCost,

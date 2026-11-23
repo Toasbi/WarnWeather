@@ -31,7 +31,7 @@ const PLUGINS = [
   { uuid: MUNINN, name: 'Muninn', items: [
     { category: 'muninn', item: 'stats', multiple: false, properties: ['daysRemaining'] },
     { category: 'muninn', item: 'estimate', multiple: true, properties: ['batteryLife'] }] }];
-const LEVEL = { pluginValuePlugin: PHONE, pluginValueReading: 'phone/phone_state/battery_level' };
+const LEVEL = { pluginValuePlugin: PHONE, pluginValueId: 'phone/phone_state/battery_level' };
 const LEVEL_KEY = PHONE + '/phone/phone_state/battery_level';
 
 /**
@@ -90,42 +90,49 @@ test('a phone that lists no plugin: None alone, and the hint says why', (t) => {
   assert.equal(page.pluginHint(LEVEL), null, 'a listed plugin needs no words');
 });
 
+test('a property\'s name made readable, after its item\'s where the plugin serves more than one', () => {
+  [['battery_level', 'Battery level'], ['daysRemaining', 'Days remaining'], ['UVIndex', 'UV index'],
+    ['uv_index', 'Uv index'], ['5G', '5G'], ['mobile_data', 'Mobile data'], ['HTTPStatus', 'HTTP status'],
+    ['wifi', 'Wifi'], ['a-b c', 'A b c'], ['location: uv_index', 'Location: uv index'], ['a: UVIndex', 'A: UV index'],
+    ['stats: daysRemaining', 'Stats: days remaining']].forEach(([name, label]) => assert.equal(page.labelOf(name), label, name));
+});
+
 test('the Value row lists the picked plugin\'s values, and keeps one it no longer offers under its name', (t) => {
   userData(t, { plugins: PLUGINS });
-  assert.deepEqual(page.readingOptions(LEVEL), [['Battery level', 'phone/phone_state/battery_level'],
+  assert.deepEqual(page.valueOptions(LEVEL), [['Battery level', 'phone/phone_state/battery_level'],
     ['Cell', 'phone/phone_state/cell']]);
-  assert.deepEqual(page.readingOptions({ pluginValuePlugin: MUNINN, pluginValueReading: 'muninn/stats/daysRemaining' }),
+  assert.deepEqual(page.valueOptions({ pluginValuePlugin: MUNINN, pluginValueId: 'muninn/stats/daysRemaining' }),
     [['Stats: days remaining', 'muninn/stats/daysRemaining'], ['Estimate: battery life', 'muninn/estimate/batteryLife']],
     'a plugin that serves more than one item: each value after its item');
-  const old = { pluginValuePlugin: PHONE, pluginValueReading: 'phone/phone_state/wifi_name' };
-  assert.deepEqual(page.readingOptions(old).slice(-1),
+  const old = { pluginValuePlugin: PHONE, pluginValueId: 'phone/phone_state/wifi_name' };
+  assert.deepEqual(page.valueOptions(old).slice(-1),
     [['Wifi name', 'phone/phone_state/wifi_name', { desc: 'Not offered now' }]]);
-  assert.equal(page.readingHint(old), 'The plugin no longer offers this value. Until it does, the slot shows --.');
-  const gone = { pluginValuePlugin: 'gone', pluginValueReading: 'muninn/stats/daysRemaining' };
-  assert.deepEqual(page.readingOptions(gone), [['Days remaining', 'muninn/stats/daysRemaining', { desc: 'Not offered now' }]],
+  assert.equal(page.valueHint(old), 'The plugin no longer offers this value. Until it does, the slot shows --.');
+  const gone = { pluginValuePlugin: 'gone', pluginValueId: 'muninn/stats/daysRemaining' };
+  assert.deepEqual(page.valueOptions(gone), [['Days remaining', 'muninn/stats/daysRemaining', { desc: 'Not offered now' }]],
     'a plugin not on this phone: its value, under its name');
-  assert.equal(page.readingHint(gone), null, 'the Plugin row says it');
-  assert.deepEqual(page.readingOptions({ pluginValuePlugin: '' }), [], 'None: no values');
+  assert.equal(page.valueHint(gone), null, 'the Plugin row says it');
+  assert.deepEqual(page.valueOptions({ pluginValuePlugin: '' }), [], 'None: no values');
 });
 
 test('the Value row says when the plugin offers the value for more than one thing', (t) => {
   userData(t, { plugins: PLUGINS });
-  assert.equal(page.readingHint({ pluginValuePlugin: MUNINN, pluginValueReading: 'muninn/estimate/batteryLife' }),
+  assert.equal(page.valueHint({ pluginValuePlugin: MUNINN, pluginValueId: 'muninn/estimate/batteryLife' }),
     'The plugin offers this for more than one thing. The slot shows the first.');
-  assert.equal(page.readingHint({ pluginValuePlugin: MUNINN, pluginValueReading: 'muninn/stats/daysRemaining' }), null);
+  assert.equal(page.valueHint({ pluginValuePlugin: MUNINN, pluginValueId: 'muninn/stats/daysRemaining' }), null);
 });
 
 test('a new plugin starts on its first value; None on none', (t) => {
   userData(t, { plugins: PLUGINS });
-  const S = Object.assign({}, LEVEL, { pluginValueReading: 'phone/phone_state/cell' });
+  const S = Object.assign({}, LEVEL, { pluginValueId: 'phone/phone_state/cell' });
   page.pluginPicked(S, PHONE, PHONE);
-  assert.equal(S.pluginValueReading, 'phone/phone_state/cell', 'the same plugin keeps its value');
+  assert.equal(S.pluginValueId, 'phone/phone_state/cell', 'the same plugin keeps its value');
   page.pluginPicked(S, PHONE, MUNINN);
-  assert.equal(S.pluginValueReading, 'muninn/stats/daysRemaining');
+  assert.equal(S.pluginValueId, 'muninn/stats/daysRemaining');
   page.pluginPicked(S, MUNINN, '');
-  assert.equal(S.pluginValueReading, '');
+  assert.equal(S.pluginValueId, '');
   page.pluginPicked(S, '', 'gone');
-  assert.equal(S.pluginValueReading, '', 'a plugin the phone does not list');
+  assert.equal(S.pluginValueId, '', 'a plugin the phone does not list');
 });
 
 test('the last line: the value read last, as a middle slot prints it, and how long ago', (t) => {
@@ -149,7 +156,7 @@ test('the last line: nothing read yet for the source the rows pick, and nothing 
   clock(t, NOW);
   userData(t, { plugins: PLUGINS, pluginValue: kept({ short: '87%' }) });
   const NOTHING = 'Nothing read yet. Once you save, the watch shows the value within about a minute.';
-  assert.equal(page.lastLine(Object.assign({}, LEVEL, { pluginValueReading: 'phone/phone_state/cell' })), NOTHING,
+  assert.equal(page.lastLine(Object.assign({}, LEVEL, { pluginValueId: 'phone/phone_state/cell' })), NOTHING,
     'another value\'s');
   global.INJECTED_USERDATA.pluginValue = null;
   assert.equal(page.lastLine(LEVEL), NOTHING);
@@ -162,7 +169,7 @@ test('the bars\' pictures print the value read last at each slot\'s room, else -
   const S = Object.assign({ statusTopLeft: 'pluginValue' }, LEVEL);
   assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.EDGE_TEXT_MAX, env: BASALT }), '12345');
   assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.MID_TEXT_MAX, env: BASALT }), '12345 kWh');
-  assert.equal(page.barText(Object.assign({}, S, { pluginValueReading: 'phone/phone_state/cell' }), 19), '--',
+  assert.equal(page.barText(Object.assign({}, S, { pluginValueId: 'phone/phone_state/cell' }), 19), '--',
     'another value\'s');
   global.INJECTED_USERDATA.pluginValue = kept({ short: '87%' }, { at: NOW - 3 * HOUR });
   assert.equal(page.barText(S, 19), '--', 'too old for the watch to show');
@@ -199,16 +206,16 @@ test('the dialog: Plugin with its list, then Value, Updates and the last line on
 test('a plugin the phone no longer lists is not swapped for another as the dialog draws', (t) => {
   userData(t, { plugins: PLUGINS });
   const S = PConf.engine.hydrate(schema, { statusTopLeft: 'pluginValue', pluginValuePlugin: 'gone',
-    pluginValueReading: 'gone/item/value' }, BASALT);
+    pluginValueId: 'gone/item/value' }, BASALT);
   const cx = { S: S, ENV: BASALT, USERDATA: {}, openColor: null, openSelect: null, openEdit: 'threshPluginValue',
     selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: BASALT }) };
   PConf.engine.renderEditModal(schema, cx);
-  assert.deepEqual([S.pluginValuePlugin, S.pluginValueReading], ['gone', 'gone/item/value']);
+  assert.deepEqual([S.pluginValuePlugin, S.pluginValueId], ['gone', 'gone/item/value']);
 });
 
 test('Reset status bars puts the Plugin value\'s source and Updates back', () => {
   const S = Object.assign({ pluginValueEvery: '360' }, LEVEL);
-  const defaults = { pluginValuePlugin: '', pluginValueReading: '', pluginValueEvery: '60' };
+  const defaults = { pluginValuePlugin: '', pluginValueId: '', pluginValueEvery: '60' };
   PConf.actions.resetStatusSlots(null, S, BASALT, (key) => (key in defaults ? defaults[key] : undefined));
-  assert.deepEqual([S.pluginValuePlugin, S.pluginValueReading, S.pluginValueEvery], ['', '', '60']);
+  assert.deepEqual([S.pluginValuePlugin, S.pluginValueId, S.pluginValueEvery], ['', '', '60']);
 });

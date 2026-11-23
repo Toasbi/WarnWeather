@@ -93,10 +93,15 @@ function previewFailureData() {
   };
 }
 
-// The Plugin value slot's dialog (plugin-value-page.js): what a phone with the Phone plugin and
-// Muninn lists (plugin-value-list.js listOf, from what Pebble.enumeratePlugins() would hand
-// over), and the Phone plugin's charge as read five minutes ago, which the dialog's last line and
-// the bars' pictures show once the slot picks it. Left out with the item (PREVIEW_PLUGINS=0).
+/**
+ * The Plugin value slot's dialog (plugin-value-page.js): what a phone with the Phone plugin and
+ * Muninn lists (plugin-value-list.js listOf, from what Pebble.enumeratePlugins() would hand
+ * over), and the Phone plugin's charge as read five minutes ago, which the dialog's last line
+ * and the bars' pictures show once the slot picks it. Left out with the item (PREVIEW_PLUGINS=0).
+ * @param {{plugins: boolean}} env The preview's env.
+ * @returns {{plugins: (Array<Object>|undefined), pluginValue: (Object|undefined)}} userData's
+ *   plugins and pluginValue, or neither where the preview's Pebble app reads no plugins.
+ */
 function previewPlugins(env) {
   if (!env.plugins) { return {}; }
   var phone = '00000000-0000-0000-0001-000000000001';

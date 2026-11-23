@@ -6,10 +6,11 @@
 // read, how long a value read from it shows, and the text the slot prints.
 //
 // The settings page loads this file too (window.PluginValues): the dialog's last value and the
-// bars' pictures print the text the bake prints, and the dialog names each value with labelOf.
-// Every byte of it rides the page's URL, so what only the phone needs is elsewhere: the reading
-// is plugin-reader.js' (readingOf), when it is read again and the value a read keeps
-// plugin-value-reads.js', and the dialog's list plugin-value-list.js'.
+// bars' pictures print the text the bake prints, and the dialog's rows store the ids valueId
+// makes. Every byte of it rides the page's URL, so what only one side needs is elsewhere: the
+// reading is plugin-reader.js' (readingOf), when it is read again and the value a read keeps
+// plugin-value-reads.js', the dialog's list plugin-value-list.js', and its labels
+// page/status-bars/plugin-value-page.js'.
 //
 // Pure. ES5 only (aplite PKJS).
 (function () {
@@ -34,7 +35,17 @@
     var LONGEST_WAIT_MS = 12 * HOUR_MS;
 
     /**
-     * The source the settings pick (pluginValuePlugin, pluginValueReading).
+     * A value's id, as the settings keep it (pluginValueId) and sourceOf takes it apart.
+     * @param {string} category Its source's category. @param {string} item Its item.
+     * @param {string} property Its property.
+     * @returns {string} 'category/item/property'.
+     */
+    function valueId(category, item, property) {
+        return category + '/' + item + '/' + property;
+    }
+
+    /**
+     * The source the settings pick (pluginValuePlugin, pluginValueId: valueId's).
      * @param {?Object} settings Settings.
      * @returns {?{plugin: string, id: string, category: string, item: string, property: string,
      *   key: string}} The source, or null while none is picked. `key` names it whole, plugin
@@ -42,7 +53,7 @@
      */
     function sourceOf(settings) {
         var plugin = settings && settings.pluginValuePlugin;
-        var id = settings && settings.pluginValueReading;
+        var id = settings && settings.pluginValueId;
         var parts = typeof id === 'string' ? id.split('/') : [];
         if (typeof plugin !== 'string' || !plugin || parts.length !== 3
                 || !parts[0] || !parts[1] || !parts[2]) {
@@ -138,34 +149,16 @@
             value.validUntil) ? value.reading : null;
     }
 
-    /**
-     * A property's name as the dialog lists it: 'battery_level' reads 'Battery level',
-     * 'daysRemaining' 'Days remaining'; a word in capitals stays as it is ('UV index'). The
-     * dialog names a value of a plugin that serves more than one item after both
-     * ('location: uv_index' reads 'Location: uv index').
-     * @param {string} name The name.
-     * @returns {string}
-     */
-    function labelOf(name) {
-        var words = String(name).replace(/([a-z])([A-Z])/g, '$1 $2')
-            .replace(/([A-Z0-9]+)([A-Z][a-z])/g, '$1 $2').replace(/[_\-\s]+/g, ' ')
-            .replace(/^ | $/g, '').split(' ');
-        var text = words.map(function (w) {
-            return w.length > 1 && w === w.toUpperCase() ? w : w.toLowerCase();
-        }).join(' ');
-        return text.charAt(0).toUpperCase() + text.slice(1);
-    }
-
     var api = {
         EVERY_CHOICES: EVERY_CHOICES,
         EVERY_DEFAULT: EVERY_DEFAULT,
+        valueId: valueId,
         sourceOf: sourceOf,
         everyMs: everyMs,
         oneLine: oneLine,
         textFor: textFor,
         heldUntil: heldUntil,
-        shownReading: shownReading,
-        labelOf: labelOf
+        shownReading: shownReading
     };
 
     // Dual-context export, the tail of status-line-catalog.js.

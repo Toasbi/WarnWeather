@@ -13,7 +13,7 @@ const HOUR = 60 * 60 * 1000;
 const BASALT = { platform: 'basalt' };
 const APLITE = { platform: 'aplite' };
 const PHONE = '00000000-0000-0000-0001-000000000001';
-const SOURCE = { pluginValuePlugin: PHONE, pluginValueReading: 'phone/phone_state/battery_level' };
+const SOURCE = { pluginValuePlugin: PHONE, pluginValueId: 'phone/phone_state/battery_level' };
 const KEY = PHONE + '/phone/phone_state/battery_level';
 /** The slot in all three of the Watch bar's places. */
 const EVERYWHERE = Object.assign({ statusTopLeft: 'pluginValue', statusTopMid: 'pluginValue',

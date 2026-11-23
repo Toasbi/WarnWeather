@@ -11,7 +11,7 @@ const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
 const T0 = Date.UTC(2026, 10, 23, 12, 0, 0);
 const UUID = '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5f6';
-const SETTINGS = { pluginValuePlugin: UUID, pluginValueReading: 'muninn/stats/daysRemaining' };
+const SETTINGS = { pluginValuePlugin: UUID, pluginValueId: 'muninn/stats/daysRemaining' };
 
 /**
  * @param {Object} fields The reading's fields that are set.
@@ -24,11 +24,17 @@ function reading(fields) {
 test('sourceOf: the plugin and the value the settings pick, null while either is missing', () => {
   assert.deepEqual(pv.sourceOf(SETTINGS), { plugin: UUID, id: 'muninn/stats/daysRemaining', category: 'muninn',
     item: 'stats', property: 'daysRemaining', key: UUID + '/muninn/stats/daysRemaining' });
-  [null, {}, { pluginValuePlugin: UUID }, { pluginValueReading: 'a/b/c' },
-    { pluginValuePlugin: '', pluginValueReading: 'a/b/c' }, { pluginValuePlugin: UUID, pluginValueReading: '' },
-    { pluginValuePlugin: UUID, pluginValueReading: 'a/b' }, { pluginValuePlugin: UUID, pluginValueReading: 'a/b/c/d' },
-    { pluginValuePlugin: UUID, pluginValueReading: 'a//c' }, { pluginValuePlugin: 5, pluginValueReading: 'a/b/c' }]
+  [null, {}, { pluginValuePlugin: UUID }, { pluginValueId: 'a/b/c' },
+    { pluginValuePlugin: '', pluginValueId: 'a/b/c' }, { pluginValuePlugin: UUID, pluginValueId: '' },
+    { pluginValuePlugin: UUID, pluginValueId: 'a/b' }, { pluginValuePlugin: UUID, pluginValueId: 'a/b/c/d' },
+    { pluginValuePlugin: UUID, pluginValueId: 'a//c' }, { pluginValuePlugin: 5, pluginValueId: 'a/b/c' }]
     .forEach((s) => assert.equal(pv.sourceOf(s), null, JSON.stringify(s)));
+});
+
+test('valueId: the id the settings keep a value under, which sourceOf takes apart', () => {
+  assert.equal(pv.valueId('muninn', 'stats', 'daysRemaining'), 'muninn/stats/daysRemaining');
+  assert.deepEqual(pv.sourceOf({ pluginValuePlugin: UUID, pluginValueId: pv.valueId('c', 'i', 'p') }),
+    { plugin: UUID, id: 'c/i/p', category: 'c', item: 'i', property: 'p', key: UUID + '/c/i/p' });
 });
 
 test('everyMs: the Updates row, every hour by default', () => {
@@ -114,17 +120,10 @@ test('a value the plugin said holds longer shows until then, but no more than 12
 
 test('a value shows only for the source it was read from', () => {
   const value = { source: pv.sourceOf(SETTINGS).key, reading: reading({ number: 5 }), at: T0, validUntil: null };
-  assert.equal(pv.shownReading(value, Object.assign({}, SETTINGS, { pluginValueReading: 'muninn/stats/batteryLife' }),
+  assert.equal(pv.shownReading(value, Object.assign({}, SETTINGS, { pluginValueId: 'muninn/stats/batteryLife' }),
     T0), null, 'another value');
   assert.equal(pv.shownReading(value, Object.assign({}, SETTINGS, { pluginValuePlugin: 'other' }), T0), null,
     'another plugin');
   assert.equal(pv.shownReading(value, {}, T0), null, 'none picked');
   assert.equal(pv.shownReading(null, SETTINGS, T0), null, 'none kept');
-});
-
-test('labelOf: a name made readable', () => {
-  [['battery_level', 'Battery level'], ['daysRemaining', 'Days remaining'], ['UVIndex', 'UV index'],
-    ['uv_index', 'Uv index'], ['5G', '5G'], ['mobile_data', 'Mobile data'], ['HTTPStatus', 'HTTP status'],
-    ['wifi', 'Wifi'], ['a-b c', 'A b c'], ['location: uv_index', 'Location: uv index'], ['a: UVIndex', 'A: UV index'],
-    ['stats: daysRemaining', 'Stats: days remaining']].forEach(([name, label]) => assert.equal(pv.labelOf(name), label, name));
 });
