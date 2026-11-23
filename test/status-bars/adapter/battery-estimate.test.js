@@ -326,22 +326,19 @@ test('Muninn removed: its rhythm goes with it, and it is asked every 12 hours', 
   assert.equal(h.pebble.subs.length, 3);
 });
 
-test('the Night battery saver: switching the days on in its window asks at once, and the watch hears after it', () => {
+test('the Night battery saver: switching the days on in its window asks at once, and the watch hears at the next tick', () => {
   const h = boot({ settings: Object.assign({}, TEXT_LOOK, SAVER_ON),
     clock: new Date(2026, 10, 21, 3, 0, 0).getTime() });
   h.settings = Object.assign({}, DAYS_ON, SAVER_ON);
   batteryEstimate.refresh();
   assert.equal(h.pebble.subs.length, 1, 'the user is at the phone, waiting to see the days');
   h.pebble.subs[0].push(stats(5, h.clock));
-  assert.equal(h.sends.length, 0, 'no wake-up for a battery readout overnight');
-  assert.ok(storage[KEYS.BATTERY_ESTIMATE], 'but the estimate is kept');
-  statusRebake.onTick(false);
-  assert.equal(h.sends.length, 0, 'still inside the window');
-  h.clock = new Date(2026, 10, 21, 7, 0, 0).getTime();
+  assert.equal(h.sends.length, 0, 'never sent from the answer');
+  assert.ok(storage[KEYS.BATTERY_ESTIMATE], 'the estimate is kept');
   statusRebake.onTick(true);
   assert.equal(h.sends.length, 0, 'not beside a fetch in flight, whose message bakes it anyway');
   statusRebake.onTick(false);
-  assert.equal(h.sends.length, 1, 'paid on the first free tick after the window');
+  assert.equal(h.sends.length, 1, 'paid at the next free tick, inside the window: the user waits for it');
   assert.equal(sentDays(h), '5d');
   statusRebake.onTick(false);
   assert.equal(h.sends.length, 1, 'once');

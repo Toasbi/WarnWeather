@@ -13,7 +13,9 @@
 // between sun and moon without a fetch. A battery reading can wait: inside the
 // Night battery saver's window the phone's charge is owed its send, and the
 // days the watch has left always are (resendStatusAwake, oweStatus). The first
-// tick that may send pays what is owed. A version-stamped
+// tick that may send pays what is owed, and owes it again when the watch NACKs it.
+// What the user waits for at the phone (a read a settings save asked for) is paid
+// inside the window too, as the save's own send was. A version-stamped
 // flash snapshot backs the in-memory inputs across PKJS restarts (PKJS dies
 // whenever the user leaves the watchface).
 //
@@ -126,6 +128,7 @@ var lastWritten = null;   // last serialized snapshot, to skip no-op flash write
 var bakedNight;           // day or night of the last bake (undefined: nothing baked yet)
 var owed = null;          // the send the Night battery saver's window swallowed: each trigger's
                           // step before it (resendStatusAwake); null = nothing is owed
+var owedWaitedFor = false;    // whether the user waits for what is owed (oweStatus waitedFor)
 
 /**
  * @returns {?{getItem: Function, setItem: Function, removeItem: Function}} The injected
@@ -426,12 +429,16 @@ function resendStatusAwake(reason, prepare) {
  * or a boot, while their own messages are on the half-duplex channel. Those messages bake
  * the news themselves where it came in time, and the outbox then drops the paid send.
  *
- * @param {Function} [prepare] The trigger's step before the send (resendStatusAwake).
+ * @param {?Function} [prepare] The trigger's step before the send (resendStatusAwake).
+ * @param {boolean} [waitedFor] Whether the user waits for the news at the phone: the answer to
+ *   a read that a settings save asked for. The next tick pays it inside the Night battery
+ *   saver's window too, as the save's own send went then.
  * @returns {void}
  */
-function oweStatus(prepare) {
+function oweStatus(prepare, waitedFor) {
     owed = owed || [];
     if (prepare && owed.indexOf(prepare) === -1) { owed.push(prepare); }
+    if (waitedFor) { owedWaitedFor = true; }
 }
 
 /**
@@ -441,9 +448,15 @@ function oweStatus(prepare) {
  */
 function payOwed(reason) {
     var steps = owed || [];
+    var waitedFor = owedWaitedFor;
     owed = null;
+    owedWaitedFor = false;
     steps.forEach(function (step) { step(); });
-    return resendStatus(reason);
+    // A NACK leaves the news off the watch, so it is owed again, to the next tick. A bake that
+    // threw would throw again: that one is not.
+    return resendStatus(reason, null, function (err) {
+        if (!(err instanceof Error)) { oweStatus(null, waitedFor); }
+    });
 }
 
 /**
@@ -459,7 +472,8 @@ function payOwed(reason) {
  * Both wait while a weather fetch is in flight, whose message carries the status anyway
  * and whose bake latches the side of the sky it is on, and inside the battery saver's
  * window (battery-saver.js), which wakes the watch for nothing: the first tick after it,
- * or the fetch due then, brings them. Nothing is latched or paid while it waits, so a
+ * or the fetch due then, brings them. A debt the user waits for at the phone (oweStatus
+ * waitedFor) is paid inside the window. Nothing is latched or paid while it waits, so a
  * fetch that fails, or whose message did not carry the news, leaves it to the next tick
  * (the outbox drops a send whose bytes the watch already has).
  *
@@ -471,9 +485,9 @@ function onTick(fetchInFlight) {
     var night = src ? nightNow(src.payload) : bakedNight;
     var turned = night !== bakedNight;
     if (!turned && !owed) { return false; }
-    if (fetchInFlight || saverWindowOpen()) { return false; }
+    if (fetchInFlight || (saverWindowOpen() && !owedWaitedFor)) { return false; }
     bakedNight = night;
-    return payOwed(turned ? (night ? 'sunset' : 'sunrise') : 'post-saver-window');
+    return payOwed(turned ? (night ? 'sunset' : 'sunrise') : 'owed');
 }
 
 /**
@@ -606,6 +620,7 @@ function init(options) {
     lastWritten = null;
     bakedNight = undefined;
     owed = null;
+    owedWaitedFor = false;
     restored = restoreSnapshot();
     if (restored) { bakedNight = nightNow(restored.payload); }
 }

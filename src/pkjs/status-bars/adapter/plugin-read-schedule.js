@@ -33,8 +33,11 @@
 // and here, which is what a bake reads. When what the slot shows of it changes, with a new
 // value or with the time (a value grown too old, which only a bake drops), the watch is owed a
 // status send, which the re-bake's next tick makes: within a minute, after the Night battery
-// saver's window, and not beside a fetch in flight (status-rebake.js oweStatus). The value is
-// never logged: it is another app's data.
+// saver's window, and not beside a fetch in flight (status-rebake.js oweStatus). The answer to
+// a read a save asked for is paid inside the window too: the user waits for it at the phone. A
+// start owes one as well while the slot shows a value kept, since a debt dies with its PKJS:
+// whether the watch got the value is not known then, and the outbox sends nothing when it
+// has. The value is never logged: it is another app's data.
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
@@ -164,9 +167,11 @@ function create(spec) {
     /**
      * Keep a value (or none), and tell the watch when that changes what its slot shows.
      * @param {?Object} next The value heard (as spec.valueOf hands it back), or null for none.
+     * @param {boolean} [waitedFor] Whether a settings save asked for the read it came from
+     *   (status-rebake.js oweStatus).
      * @returns {void}
      */
-    function keep(next) {
+    function keep(next, waitedFor) {
         var settings = deps.getSettings();
         var at = nowMs();
         var before = spec.shown(value, settings, at);
@@ -188,16 +193,17 @@ function create(spec) {
         // Never sent from here. The plugin answers at any moment, right after a settings save or a
         // boot among them, while their own messages are on the channel. Those bake the value just
         // kept where it came in time; the re-bake's next tick sends what is left.
-        statusRebake.oweStatus();
+        statusRebake.oweStatus(null, waitedFor);
     }
 
     /**
      * Ask the plugin, once.
      * @param {{key: ?string, request: Object}} want What is wanted (spec.wanted).
      * @param {number} at Now, in epoch milliseconds.
+     * @param {boolean} fromSave Whether a settings save asked for it.
      * @returns {void}
      */
-    function read(want, at) {
+    function read(want, at, fromSave) {
         var failures = record ? record.failures : 0;
         var time = record ? record[spec.timeField] : null;
         inFlight = true;
@@ -222,12 +228,12 @@ function create(spec) {
             if (fail) {
                 console.log(spec.name + ': the plugin is not there.');
                 stamp(want.key, at, 0, null);
-                keep(null);
+                keep(null, fromSave);
                 return;
             }
             heard = spec.heard(envelope, want, nowMs());
             stamp(want.key, at, 0, heard.time);
-            keep(heard.value);
+            keep(heard.value, fromSave);
         }, deps.timers);
     }
 
@@ -267,7 +273,7 @@ function create(spec) {
         }
         if (record && at < spec.nextReadAt(record, settings)) { return; }
         if ((record || !fromSave) && batterySaver.isWithinSleepWindow(new Date(at), settings)) { return; }
-        read(want, at);
+        read(want, at, fromSave);
     }
 
     /**
@@ -294,7 +300,9 @@ function create(spec) {
         inFlight = false;
         record = pluginReads.recordOf(stored(spec.recordKey), spec.timeField);
         value = spec.valueOf(stored(spec.valueKey));
-        shown = spec.shown(value, deps.getSettings(), nowMs());
+        // Not known: what the last PKJS owed the watch died with it. The first look owes a send
+        // while the slot shows the value kept.
+        shown = null;
         consider(false);
     }
 

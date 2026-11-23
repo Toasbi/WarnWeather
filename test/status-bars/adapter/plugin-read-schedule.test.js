@@ -31,9 +31,14 @@ const realLog = console.log;
 const realOwe = statusRebake.oweStatus;
 // The status sends the watch is owed (status-rebake.js oweStatus), counted since the last boot.
 let owed = 0;
+// Of them, the ones the user waits for at the phone (oweStatus waitedFor): a save's read.
+let waited = 0;
 test.before(() => {
   console.log = function () {};
-  statusRebake.oweStatus = () => { owed += 1; };
+  statusRebake.oweStatus = (prepare, waitedFor) => {
+    owed += 1;
+    if (waitedFor) { waited += 1; }
+  };
 });
 test.after(() => {
   console.log = realLog;
@@ -109,6 +114,7 @@ function boot(opts) {
   opts = opts || {};
   if (!opts.keepStorage) { Object.keys(storage).forEach((k) => { delete storage[k]; }); }
   owed = 0;
+  waited = 0;
   writes.length = 0;
   const h = {
     clock: opts.clock || NOON,
@@ -211,13 +217,37 @@ test('a restart reads nothing before the next read is due, and holds the value k
   schedule.refresh();
   assert.equal(h.pebble.subs.length, 0, 'neither the start nor a save');
   assert.deepEqual(schedule.value(), { source: 'a', text: '87%', at: NOON });
-  assert.equal(owed, 0, 'a start owes nothing: the boot sends its own status');
+  assert.equal(owed, 1, 'a start owes a send: whether the watch got the value died with the last PKJS');
   h.clock = NOON + 3 * HOUR - MIN;
   schedule.onTick();
   assert.equal(h.pebble.subs.length, 0);
   h.clock = NOON + 3 * HOUR;
   schedule.onTick();
   assert.equal(h.pebble.subs.length, 1, 'due by the reader\'s time, kept in storage');
+});
+
+test('a start owes a send only while the slot shows a value kept', () => {
+  let h = boot();
+  assert.equal(owed, 0, 'nothing kept');
+  h.pebble.subs[0].push({ text: '87%' });
+  h = boot({ keepStorage: true, clock: NOON + MIN });
+  assert.equal(owed, 1);
+  boot({ keepStorage: true, clock: NOON + SHOWN });
+  assert.equal(owed, 0, 'grown too old: the slot shows none');
+  boot({ keepStorage: true, clock: NOON + MIN, settings: {} });
+  assert.equal(owed, 0, 'nothing wanted');
+});
+
+test('the answer to a read a save asked for is owed as waited for; one the clock asked for is not', () => {
+  const h = boot({ settings: {} });
+  h.settings = WANT_A;
+  schedule.refresh();
+  h.pebble.subs[0].push({ text: '87%' });
+  assert.deepEqual([owed, waited], [1, 1], 'the user waits at the phone: paid inside the saver\'s window too');
+  h.clock = NOON + EVERY;
+  schedule.onTick();
+  h.pebble.subs[1].push({ text: '90%' });
+  assert.deepEqual([owed, waited], [2, 1], 'the next one waits for the window\'s end');
 });
 
 test('a read that PKJS ends before the answer still counts', () => {

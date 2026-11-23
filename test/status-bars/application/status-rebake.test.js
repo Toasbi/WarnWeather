@@ -298,14 +298,16 @@ test('a re-bake reads the supplier\'s facts, the phone\'s replaced where the cal
  * @param {Object} [settings] Settings (the saver on by default).
  * @returns {{sends: Object[], at: function(number, number): void}} What was sent, and the clock's setter.
  */
-function bootSaver(settings) {
+function bootSaver(settings, build) {
   storage = {};
-  const h = { sends: [], now: 0 };
+  // sends: what went out; answers: each send's outbox callbacks, to ACK or NACK it.
+  const h = { sends: [], answers: [], now: 0 };
   h.at = (hour, minute) => { h.now = new Date(2026, 5, 16, hour, minute).getTime(); };
   h.at(12, 0);
   statusRebake.init(withHost({
     getSettings: () => settings || { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' },
-    sendWeather: (p) => h.sends.push(p), buildStatusLines: fakeBake, now: () => h.now }));
+    sendWeather: (p, onSuccess, onFailure) => { h.answers.push({ onSuccess, onFailure }); h.sends.push(p); },
+    buildStatusLines: build || fakeBake, now: () => h.now }));
   // Baked at noon, with no sun events: no day/night turn of its own in these tests.
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null, new Date(h.now));
   return h;
@@ -389,6 +391,52 @@ test('oweStatus sends nothing now, by day or by night: the next tick that may se
   h.at(7, 0);
   assert.equal(statusRebake.onTick(false), true);
   assert.equal(h.sends.length, 2);
+});
+
+test('a debt the user waits for at the phone is paid inside the window, at the next tick', () => {
+  const h = bootSaver();
+  h.at(3, 0);
+  statusRebake.oweStatus(null, true);
+  assert.equal(h.sends.length, 0, 'never sent from here');
+  assert.equal(statusRebake.onTick(true), false, 'not beside a fetch in flight');
+  assert.equal(statusRebake.onTick(false), true, 'inside the window: a save asked for it');
+  assert.equal(h.sends.length, 1);
+  statusRebake.oweStatus();
+  assert.equal(statusRebake.onTick(false), false, 'paid, the window holds the next debt again');
+  statusRebake.oweStatus(null, true);
+  assert.equal(statusRebake.onTick(false), true, 'one waited for pays the others with it');
+  assert.equal(h.sends.length, 2);
+  assert.equal(statusRebake.onTick(false), false, 'once');
+});
+
+test('a NACKed owed send is owed again, to the next tick, waited for as it was', () => {
+  const h = bootSaver();
+  statusRebake.oweStatus();
+  assert.equal(statusRebake.onTick(false), true);
+  h.answers[0].onFailure({ data: { transactionId: 1 } });
+  assert.equal(statusRebake.onTick(false), true, 'sent again');
+  if (h.answers[1].onSuccess) { h.answers[1].onSuccess(); }
+  assert.equal(statusRebake.onTick(false), false, 'ACKed: paid');
+
+  h.at(3, 0);
+  statusRebake.oweStatus(null, true);
+  assert.equal(statusRebake.onTick(false), true);
+  h.answers[2].onFailure({ data: { transactionId: 2 } });
+  assert.equal(statusRebake.onTick(false), true, 'inside the window still: the user waits for it');
+  assert.equal(h.sends.length, 4);
+});
+
+test('an owed send whose bake throws is not owed again: it would throw again', () => {
+  let broken = true;
+  const h = bootSaver(null, (payload) => {
+    if (broken) { throw new Error('broken bake'); }
+    return fakeBake(payload);
+  });
+  statusRebake.oweStatus();
+  assert.equal(statusRebake.onTick(false), false, 'nothing sent');
+  broken = false;
+  assert.equal(statusRebake.onTick(false), false, 'nothing owed: the next tick sends nothing');
+  assert.equal(h.sends.length, 0);
 });
 
 test('a resend for another reason inside the window leaves the debt, and init forgets it', () => {

@@ -216,7 +216,8 @@ restart nor a settings save reads again before the next is due; a read at once w
 value is wanted again or another source is picked; one read at a time; inside the Night
 battery saver's window only the read a save asks for with none before it; sooner after a
 failure; and the value last heard, kept, with the watch owed a status send when what the slot
-shows of it changes.
+shows of it changes and at a start while it shows one. The next tick pays it, inside the Night
+battery saver's window too when a save asked for the read.
 _Avoid_: poll, fetch (a fetch is the weather's).
 
 **Days left (watch battery)**:
