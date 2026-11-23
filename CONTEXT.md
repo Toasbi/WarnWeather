@@ -229,6 +229,24 @@ and a half hours (longer when that read falls in the Night battery saver's windo
 estimate is owed to the watch, not sent at once: the re-bake's next tick sends it
 (`status-rebake.js` oweStatus).
 
+**Plugin value (status slot)**:
+A slot item that shows one value another app's plugin serves, such as the Phone plugin's
+network type. Its dialog picks the plugin, which of its values and how often it is read
+(`plugin-values.js` sourceOf, everyMs); the source is the item's setting, so every slot that
+holds the item shows the same value. The dialog lists what the phone's plugins serve, from
+`Pebble.enumeratePlugins()`, which runs no plugin (`plugin-value-list.js` listOf): each
+property a source declares as a text or a number, of a source this app may read without being
+asked for a permission it never declared, of any plugin but this app's own. The value is read
+once at a time, never subscribed, after each Updates interval or once the plugin's own word on
+when it has something new runs out, as the days left are (`plugin-value-source.js`,
+`plugin-value-reads.js`); picking a source reads at once. The slot prints text alone, with an
+icon id that loads no drawing (`status_line.h` STATUS_ICON_PLUGIN_TEXT): the value's short
+text, else its number with its unit where the slot has room, else its long text
+(`plugin-values.js` textFor). A value shows for three Updates intervals, three hours at least,
+or while the plugin says it holds, twelve hours at most; then the slot shows -- (shownReading).
+Not on aplite, and only where the Pebble app runs plugins.
+_Avoid_: custom slot, complication.
+
 **Short form (status slot)**:
 The shorter text a slot draws where its bar has no room for its own. Two items have one. The
 weather condition's is its code ("PCLDY" for Partly cloudy), which the phone bakes after the

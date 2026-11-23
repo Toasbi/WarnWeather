@@ -54,8 +54,18 @@ test('an install from before the tips is shown them; one that has seen them is s
   assert.deepEqual(ids(featureTips.pending(['goneSince'], BASALT)), ids(featureTips.pending([], BASALT)));
 });
 
+/**
+ * @param {string} id A tip's id.
+ * @param {?Object} env The page's env.
+ * @returns {boolean} Whether an install that has seen every other tip is shown it: the card
+ *   shows MAX_SHOWN at once, so the others are kept out of its way.
+ */
+function shows(id, env) {
+  return ids(featureTips.pending(featureTips.allIds().filter((other) => other !== id), env)).indexOf(id) !== -1;
+}
+
 test('a tip shows only where its feature can be used', () => {
-  const days = (env) => ids(featureTips.pending([], env)).indexOf('batteryDays') !== -1;
+  const days = (env) => shows('batteryDays', env);
   assert.equal(days({ platform: 'basalt', plugins: true }), true);
   assert.equal(days({ platform: 'emery', plugins: true }), true);
   assert.equal(days({ platform: 'basalt', plugins: false }), false, 'a Pebble app without plugins has no days');
@@ -64,7 +74,7 @@ test('a tip shows only where its feature can be used', () => {
   assert.equal(days(null), false);
   // The watch battery's Icon + text look: every watch with the Look, plugins or not (the
   // percentage is the watch's own reading).
-  const iconText = (env) => ids(featureTips.pending([], env)).indexOf('batteryIconText') !== -1;
+  const iconText = (env) => shows('batteryIconText', env);
   assert.equal(iconText({ platform: 'basalt', plugins: true }), true);
   assert.equal(iconText({ platform: 'basalt', plugins: false }), true, 'no plugin needed');
   assert.equal(iconText({ platform: 'emery', plugins: false }), true);
@@ -73,9 +83,17 @@ test('a tip shows only where its feature can be used', () => {
   assert.equal(iconText({ platform: 'aplite', plugins: true }), false, 'aplite\'s battery slot has no Look');
   assert.equal(iconText({ platform: 'aplite', plugins: false }), false);
   assert.equal(iconText(null), false);
+  // The Plugin value slot: a Pebble app that reads plugins, and a watch that is not aplite.
+  const pluginValue = (env) => shows('pluginValue', env);
+  assert.equal(pluginValue({ platform: 'basalt', plugins: true }), true);
+  assert.equal(pluginValue({ platform: 'emery', plugins: true }), true);
+  assert.equal(pluginValue({ platform: 'basalt', plugins: false }), false, 'a Pebble app without plugins');
+  assert.equal(pluginValue({ platform: 'basalt' }), false, 'plugins unknown: fail closed');
+  assert.equal(pluginValue({ platform: 'aplite', plugins: true }), false, 'aplite has no such slot');
+  assert.equal(pluginValue(null), false);
   // A tip without a rule is for every watch.
   [{ platform: 'aplite', plugins: false }, null, {}].forEach((env) =>
-    assert.ok(ids(featureTips.pending([], env)).indexOf('blackTheme') !== -1, JSON.stringify(env)));
+    assert.ok(shows('blackTheme', env), JSON.stringify(env)));
 });
 
 test('the card shows a few at once, the rest once those are seen', () => {
@@ -110,6 +128,7 @@ test('the page gets plain data, and nothing when there is nothing to show', () =
   assert.equal(forPage.find((tip) => tip.id === 'batteryIconText').sheet, 'bar-top', 'the same dialog');
   assert.equal(forPage.find((tip) => tip.id === 'blackTheme').tab, 'setup');
   assert.equal(forPage.find((tip) => tip.id === 'weatherFrom').sheet, 'weatherSources', 'the Weather dialog');
+  assert.equal(forPage.find((tip) => tip.id === 'pluginValue').tab, 'watch', 'the Status bars tab: any bar');
 });
 
 /**

@@ -297,6 +297,28 @@ test('snapshot reports the watch battery\'s Look and what its text shows', () =>
   assert.equal(handler.indexOf('batteryPctSlotShow'), -1);
 });
 
+// The Plugin value slot, one yes or no: a bar the watch is sent shows it with a source picked
+// (status-lines.js wantsPluginValue, plugin-values.js sourceOf). The plugin and its value never
+// leave the phone. Absent on aplite. Lockstep with the Deno .strip() schema.
+test('snapshot reports whether the Plugin value slot shows a value, never which', () => {
+  const source = { pluginValuePlugin: 'd008a08a-6e34-4cc4-98dc-bae02ce5e087',
+    pluginValueReading: 'muninn/stats/daysRemaining' };
+  const shown = buildSettingsSnapshot(Object.assign({ statusTopRight: 'pluginValue' }, source), { platform: 'basalt' });
+  assert.strictEqual(shown.pluginValue, true);
+  assert.strictEqual(buildSettingsSnapshot({ statusTopRight: 'pluginValue' }, { platform: 'basalt' }).pluginValue, false,
+    'no source picked');
+  assert.strictEqual(buildSettingsSnapshot(source, { platform: 'basalt' }).pluginValue, false, 'no slot holds it');
+  assert.strictEqual(buildSettingsSnapshot(Object.assign({ statusHealthLeft: 'pluginValue' }, source),
+    { platform: 'basalt' }).pluginValue, false, 'a bar no screen shows');
+  const aplite = buildSettingsSnapshot(Object.assign({ statusTopRight: 'pluginValue' }, source), { platform: 'aplite' });
+  assert.strictEqual(aplite.pluginValue, undefined, 'aplite has no such slot');
+  const sent = JSON.stringify(shown);
+  ['d008a08a', 'muninn', 'daysRemaining'].forEach((part) => assert.equal(sent.indexOf(part), -1, part + ' stays on the phone'));
+  const handler = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', '..',
+    'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
+  assert.ok(handler.indexOf('    pluginValue: z.boolean().optional(),') !== -1, 'pluginValue is in handler.ts');
+});
+
 test('buildSettingsSnapshot includes radarMode (default graph)', () => {
   assert.strictEqual(buildSettingsSnapshot({ radarMode: 'status' }).radarMode, 'status');
   assert.strictEqual(buildSettingsSnapshot({}).radarMode, 'graph');

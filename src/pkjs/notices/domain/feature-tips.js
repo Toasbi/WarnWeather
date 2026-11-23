@@ -34,6 +34,19 @@ var batteryDays = require('../../status-bars/domain/battery-days.js');
 /** @type {FeatureTip[]} */
 var TIPS = [
     {
+        id: 'pluginValue',
+        since: '3.4.0',
+        title: 'A value from another app',
+        // The Plugin value slot (status-line-catalog.js 'pluginValue'), in any bar, so Show me
+        // opens the Status bars tab. Its dialog lists what the phone's plugins serve.
+        html: 'A status slot can show a value that another app\'s plugin serves, such as your phone\'s ' +
+            'network type. In any bar, set a slot to Plugin value and tap Edit, then pick the plugin and ' +
+            'its value.',
+        open: { tab: 'watch' },
+        // The value is read from another app's plugin, and aplite's feature set is frozen.
+        when: function (env) { return Boolean(env) && env.plugins === true && env.platform !== 'aplite'; }
+    },
+    {
         id: 'weatherFrom',
         since: '3.3.0',
         title: 'Weather from more than one provider',

@@ -30,6 +30,7 @@ STATUS BARS
 - Steps, sleep, distance, heart rate*
 - Watch battery as icon, text or both, with days left from the Muninn app*
 - Phone battery as text, with or without its icon*
+- A value from another app's plugin, like your phone's network type*
 - Name your own bars and place them on any screen*
 
 HEALTH*
