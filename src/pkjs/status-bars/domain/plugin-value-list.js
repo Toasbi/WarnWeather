@@ -14,6 +14,7 @@
 //
 // Pure. ES5 only (aplite PKJS).
 
+var utf8 = require('../../lib/utf8.js');
 var pluginValues = require('./plugin-values.js');
 
 /**
@@ -45,10 +46,12 @@ function idPart(name) {
 
 /**
  * @param {string} text A name.
- * @returns {string} It, cut to MAX_NAME characters.
+ * @returns {string} It, cut to MAX_NAME characters, a character outside the BMP (two UTF-16
+ *   units) whole.
  */
 function capped(text) {
-    return text.length > MAX_NAME ? text.slice(0, MAX_NAME - 1) + '\u2026' : text;
+    var chars = utf8.codePoints(text);
+    return chars.length > MAX_NAME ? chars.slice(0, MAX_NAME - 1).join('') + '\u2026' : text;
 }
 
 /**
@@ -100,27 +103,29 @@ function entryOf(plugin, permissions, ownUuid) {
             || plugin.uuid.toLowerCase() === String(ownUuid).toLowerCase()) {
         return null;
     }
-    for (var s = 0; s < sources.length; s++) {
+    for (var s = 0; s < sources.length && count < MAX_VALUES; s++) {
         var src = sources[s];
         if (!src || !idPart(src.category) || !Array.isArray(src.items) || !readableBy(src, permissions)) {
             continue;
         }
         var props = src.properties && typeof src.properties === 'object' ? src.properties : {};
-        for (var i = 0; i < src.items.length; i++) {
+        var names = Object.keys(props);
+        for (var i = 0; i < src.items.length && count < MAX_VALUES; i++) {
             var item = src.items[i];
-            var names = [];
-            for (var name in props) {
-                var id = pluginValues.valueId(src.category, item, name);
-                if (count < MAX_VALUES && Object.prototype.hasOwnProperty.call(props, name) && idPart(name)
-                        && id.length <= MAX_ID && seen[id] !== true && printable(props[name])) {
+            var kept = [];
+            // An item no id can hold offers nothing, and takes none of the values' room.
+            if (!idPart(item)) { continue; }
+            for (var n = 0; n < names.length && count < MAX_VALUES; n++) {
+                var id = pluginValues.valueId(src.category, item, names[n]);
+                if (idPart(names[n]) && id.length <= MAX_ID && seen[id] !== true && printable(props[names[n]])) {
                     seen[id] = true;
                     count += 1;
-                    names.push(name);
+                    kept.push(names[n]);
                 }
             }
-            if (idPart(item) && names.length) {
+            if (kept.length) {
                 items.push({ category: src.category, item: item, multiple: Boolean(src.supportsMultiple),
-                    properties: names });
+                    properties: kept });
             }
         }
     }

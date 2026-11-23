@@ -14,6 +14,7 @@
 // a dev build too.
 
 var batteryDays = require('../../status-bars/domain/battery-days.js');
+var statusLineCatalog = require('../../status-bars/domain/status-line-catalog.js');
 
 /**
  * @typedef {Object} FeatureTip
@@ -43,8 +44,11 @@ var TIPS = [
             'network type. In any bar, set a slot to Plugin value and tap Edit, then pick the plugin and ' +
             'its value.',
         open: { tab: 'watch' },
-        // The value is read from another app's plugin, and aplite's feature set is frozen.
-        when: function (env) { return Boolean(env) && env.plugins === true && env.platform !== 'aplite'; }
+        // Where the status lists offer the slot: a Pebble app that reads plugins, and not on
+        // aplite, whose feature set is frozen.
+        when: function (env) {
+            return statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, env);
+        }
     },
     {
         id: 'weatherFrom',

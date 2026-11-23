@@ -78,6 +78,20 @@ test('the caps: 12 plugins, 24 values each, names of 32 characters', () => {
   assert.equal(listed[0].name, 'A plugin with a long name, numb\u2026');
 });
 
+test('an item no value id can hold takes none of the 24 values\' room', () => {
+  const props = {};
+  for (let i = 0; i < 20; i++) { props['v' + i] = ['shortText']; }
+  const listed = list.listOf([plugin('u', 'U', [{ category: 'c', items: ['a/b', 'temp'], properties: props }])],
+    PERMS, 'own');
+  assert.deepEqual(listed[0].items.map((it) => [it.item, it.properties.length]), [['temp', 20]]);
+});
+
+test('a name is cut at a character\'s edge: a character outside the BMP stays whole', () => {
+  const name = 'A'.repeat(30) + '\ud83d\ude00' + ' and more';
+  assert.equal(list.listOf([plugin('u', name, PHONE.sources)], PERMS, 'own')[0].name,
+    'A'.repeat(30) + '\ud83d\ude00\u2026');
+});
+
 test('the list costs the settings page\'s URL no more than LIST_COST characters: a plugin past that is left out', () => {
   const props = {};
   for (let i = 0; i < 24; i++) { props['a_long_property_name_number_' + i] = ['shortText']; }

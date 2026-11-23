@@ -155,7 +155,7 @@ test('the last line: a value too old to show says what the watch shows instead',
 test('the last line: nothing read yet for the source the rows pick, and nothing while none is picked', (t) => {
   clock(t, NOW);
   userData(t, { plugins: PLUGINS, pluginValue: kept({ short: '87%' }) });
-  const NOTHING = 'Nothing read yet. Once you save, the watch shows the value within about a minute.';
+  const NOTHING = 'No value yet. When you pick a value and save, the watch shows it within about a minute.';
   assert.equal(page.lastLine(Object.assign({}, LEVEL, { pluginValueId: 'phone/phone_state/cell' })), NOTHING,
     'another value\'s');
   global.INJECTED_USERDATA.pluginValue = null;

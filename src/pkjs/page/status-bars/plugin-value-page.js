@@ -193,7 +193,7 @@
         var text;
         if (!pluginValues.sourceOf(S)) { return ''; }
         if (!value) {
-            return 'Nothing read yet. Once you save, the watch shows the value within about a minute.';
+            return 'No value yet. When you pick a value and save, the watch shows it within about a minute.';
         }
         text = 'Last value: ' + pluginValues.textFor(value.reading, catalog.CAPS.MID_TEXT_MAX)
             + ' (' + agoText(value.at, now) + ').';

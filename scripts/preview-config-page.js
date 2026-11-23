@@ -18,6 +18,7 @@ var notices = require(path.join(ROOT, 'src/pkjs/notices/adapter/notices.js'));
 var featureTips = require(path.join(ROOT, 'src/pkjs/notices/domain/feature-tips.js'));
 var gpsFailure = require(path.join(ROOT, 'src/pkjs/weather/adapter/location.js')).gpsFailure;
 var pluginValueList = require(path.join(ROOT, 'src/pkjs/status-bars/domain/plugin-value-list.js'));
+var statusLineCatalog = require(path.join(ROOT, 'src/pkjs/status-bars/domain/status-line-catalog.js'));
 // The bundle IS the build's bundle: same files, same order. It used to be a
 // second copy of the list, which is exactly how the preview came to load the
 // Weather tab's stylesheet before the module whose settle curve it bakes in.
@@ -97,13 +98,14 @@ function previewFailureData() {
  * The Plugin value slot's dialog (plugin-value-page.js): what a phone with the Phone plugin and
  * Muninn lists (plugin-value-list.js listOf, from what Pebble.enumeratePlugins() would hand
  * over), and the Phone plugin's charge as read five minutes ago, which the dialog's last line
- * and the bars' pictures show once the slot picks it. Left out with the item (PREVIEW_PLUGINS=0).
- * @param {{plugins: boolean}} env The preview's env.
+ * and the bars' pictures show once the slot picks it. Left out where the status lists leave the
+ * item out, as the phone leaves them out (index.js): on aplite, and with PREVIEW_PLUGINS=0.
+ * @param {Object} env The preview's env (envFor).
  * @returns {{plugins: (Array<Object>|undefined), pluginValue: (Object|undefined)}} userData's
- *   plugins and pluginValue, or neither where the preview's Pebble app reads no plugins.
+ *   plugins and pluginValue, or neither.
  */
 function previewPlugins(env) {
-  if (!env.plugins) { return {}; }
+  if (!statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, env)) { return {}; }
   var phone = '00000000-0000-0000-0001-000000000001';
   var plugins = [
     { uuid: phone, name: 'Phone', sources: [{ category: 'phone', items: ['phone_state'],

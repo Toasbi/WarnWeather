@@ -44,6 +44,7 @@ var batteryEstimate = require('./status-bars/adapter/battery-estimate.js');
 var pluginValueSource = require('./status-bars/adapter/plugin-value-source.js');
 var pluginReader = require('./status-bars/adapter/plugin-reader.js');
 var pluginValueList = require('./status-bars/domain/plugin-value-list.js');
+var statusLineCatalog = require('./status-bars/domain/status-line-catalog.js');
 var statusRebake = require('./status-bars/application/status-rebake.js');
 var notifyWatch = require('./notices/adapter/notify-watch.js').notifyWatch;
 
@@ -229,18 +230,21 @@ Pebble.addEventListener('showConfiguration', function(e) {
     var phoneBatteryEnv = phoneBattery.isSupported();
     // One more fact about the PHONE: whether this Pebble app can read plugins at all. The
     // page offers what is read from another app's plugin only there (the watch battery's
-    // days left, battery-estimate.js).
-    var pluginsEnv = pluginReader.available(Pebble);
+    // days left, battery-estimate.js, and the Plugin value slot).
+    var offer = offerEnv();
+    var pluginsEnv = offer.plugins;
     console.log('Config env: phoneBattery=' + phoneBatteryEnv + ' plugins=' + pluginsEnv);
     // The new features this install has not seen and can use: the card the page opens on
     // (page/notices/feature-tips-panel.js). null for none.
-    userData.featureTips = featureTipsSeen.forPage(featureTipsEnv());
-    // The Plugin value slot's dialog (page/status-bars/plugin-value-page.js): the plugins on
-    // the phone with a value the slot can show (listing them runs no plugin), and the value read
-    // last.
-    userData.plugins = pluginValueList.listOf(pluginReader.plugins(Pebble), declaredPermissions(),
-        pkg.pebble.uuid);
-    userData.pluginValue = pluginValueSource.value();
+    userData.featureTips = featureTipsSeen.forPage(offer);
+    // The Plugin value slot's dialog (page/status-bars/plugin-value-page.js), where the status
+    // lists offer the slot: the plugins on the phone with a value it can show (listing them runs
+    // no plugin), and the value read last.
+    if (statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, offer)) {
+        userData.plugins = pluginValueList.listOf(pluginReader.plugins(Pebble), declaredPermissions(),
+            pkg.pebble.uuid);
+        userData.pluginValue = pluginValueSource.value();
+    }
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see page/settings/index.js options).
     Pebble.openURL(settings.generateUrl({
@@ -349,7 +353,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     pluginValueSource.refresh();
     var providerOrLocationChanged = refreshProvider();
     // The new-features card's Got it: the tips it showed are seen.
-    if (app.settings.featureTipsAck === true) { featureTipsSeen.acknowledge(featureTipsEnv()); }
+    if (app.settings.featureTipsAck === true) { featureTipsSeen.acknowledge(offerEnv()); }
     var acked = app.settings.fetchNoticeAck === true;
     // Only an error notice puts text on the watch overlay; capture that BEFORE
     // dismissAll() empties the list, so we push the watch clear only when there
@@ -567,11 +571,13 @@ function bakeFacts() {
 }
 
 /**
- * What decides which new-feature tips this watch and phone can use (feature-tips.js): the
- * watch's platform, and whether the Pebble app can read plugins.
+ * What decides what the settings page offers this watch and phone beyond the watch's own
+ * facts: the new-feature tips (feature-tips.js) and the Plugin value slot's list
+ * (status-line-catalog.js itemAvailable). The watch's platform, and whether the Pebble app can
+ * read plugins.
  * @returns {{platform: string, plugins: boolean}}
  */
-function featureTipsEnv() {
+function offerEnv() {
     return {
         platform: (app.watchInfo && app.watchInfo.platform) || '',
         plugins: pluginReader.available(Pebble)
