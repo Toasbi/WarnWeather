@@ -113,6 +113,31 @@ test('readOnce: an answer from another plugin than the named one ends it as PLUG
   assert.equal(fake.unsubscribed, 1);
 });
 
+test('watch: a named plugin the phone\'s list says cannot answer is not asked, so no other plugin runs for it', () => {
+  const listed = (uuid, items) => ({ uuid: uuid, name: 'X', sources: [{ category: 'muninn', items: items,
+    properties: { daysRemaining: ['numericValue'] } }] });
+  const asked = (list) => {
+    const fake = fakePebble();
+    const fails = [];
+    fake.pebble.enumeratePlugins = () => list;
+    const sub = pluginReader.watch(fake.pebble, NAMED, () => {}, (f) => fails.push(f.code));
+    return { subscribed: fake.requests.length === 1, fails: fails, live: sub.live() };
+  };
+  const other = '00000000-0000-0000-0001-000000000001';
+  assert.deepEqual(asked([listed(other, ['stats'])]), { subscribed: false, fails: ['PLUGIN_UNAVAILABLE'], live: false },
+    'gone: another plugin serves the source');
+  assert.deepEqual(asked([listed(NAMED.plugin, ['other'])]).subscribed, false, 'listed, but not with the item');
+  assert.deepEqual(asked([{ uuid: NAMED.plugin, sources: [{ category: 'phone', items: ['stats'] }] }]).subscribed,
+    false, 'listed, but not with the category');
+  assert.deepEqual(asked([null, { uuid: 5 }, listed(other, ['stats']), listed(NAMED.plugin.toUpperCase(), ['stats'])]),
+    { subscribed: true, fails: [], live: true }, 'listed, in either case');
+  assert.equal(asked([]).subscribed, true, 'a Pebble app that cannot list them');
+  const fake = fakePebble();
+  fake.pebble.enumeratePlugins = () => [listed(other, ['stats'])];
+  pluginReader.watch(fake.pebble, REQUEST, () => {}, () => {});
+  assert.equal(fake.requests.length, 1, 'a request that names no plugin');
+});
+
 test('watch maps onError({code}) to a plugin failure and keeps the subscription', () => {
   const fake = fakePebble();
   const fails = [];

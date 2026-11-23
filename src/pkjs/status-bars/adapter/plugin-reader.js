@@ -37,7 +37,9 @@ var READ_TIMEOUT_MS = 20000;
  * @property {string[]} [properties] The properties wanted (a hint; a plugin may send more).
  * @property {string} [plugin] The uuid of the plugin that must answer. The Pebble app takes
  *   it as a preference and lets another plugin that serves the source answer when that one
- *   is gone, so an answer from any other plugin reads as PLUGIN_UNAVAILABLE here.
+ *   is gone, so an answer from any other plugin reads as PLUGIN_UNAVAILABLE here, and a read
+ *   that the phone's list of plugins says the named one cannot answer does not start at all:
+ *   the other plugin's script would run for nothing (namedCanAnswer).
  * @property {number} [limit] The most instances wanted (a Pebble app from 2.0.0 sends no
  *   more; an older one ignores it).
  */
@@ -83,6 +85,29 @@ function fromNamedPlugin(envelope, plugin) {
 }
 
 /**
+ * @param {?Object} pebble The Pebble object.
+ * @param {PluginRequest} request The source to read.
+ * @returns {boolean} Whether the plugin the request names can answer it, as far as the phone's
+ *   list of plugins says (plugins): one listed under its uuid declares a source of the
+ *   request's category that serves its item. True where the request names no plugin, and
+ *   where the list is empty (a Pebble app that cannot list them).
+ */
+function namedCanAnswer(pebble, request) {
+    var list;
+    var named;
+    if (!request.plugin) { return true; }
+    list = plugins(pebble);
+    named = String(request.plugin).toLowerCase();
+    return !list.length || list.some(function (p) {
+        return Boolean(p) && typeof p.uuid === 'string' && p.uuid.toLowerCase() === named
+            && Array.isArray(p.sources) && p.sources.some(function (src) {
+                return Boolean(src) && src.category === request.category && Array.isArray(src.items)
+                    && src.items.indexOf(request.item) !== -1;
+            });
+    });
+}
+
+/**
  * @typedef {Object} PluginSubscription
  * @property {function(): void} unsubscribe Ends it. Never throws, may be called again, and
  *   is valid inside a callback, even one that runs before watch() has returned. No
@@ -95,8 +120,9 @@ function fromNamedPlugin(envelope, plugin) {
  * Subscribe to a source for as long as PKJS lives (or until unsubscribe()). An error does
  * not end a subscription: a later update may succeed, so onFailure can be called more than
  * once, and onData after it. A subscription that could not start (no plugins in this
- * Pebble app, or subscribeToSource threw) reports one failure and is handed back ended. An
- * update from a plugin other than the one the request names is a PLUGIN_UNAVAILABLE failure.
+ * Pebble app, a named plugin that cannot answer it, or subscribeToSource threw) reports one
+ * failure and is handed back ended. An update from a plugin other than the one the request
+ * names is a PLUGIN_UNAVAILABLE failure.
  *
  * @param {?Object} pebble The Pebble object.
  * @param {PluginRequest} request The source to read.
@@ -121,7 +147,7 @@ function watch(pebble, request, onData, onFailure) {
         },
         live: function () { return !ended; }
     };
-    if (!available(pebble)) {
+    if (!available(pebble) || !namedCanAnswer(pebble, request)) {
         ended = true;
         onFailure(failure('PLUGIN_UNAVAILABLE'), handle);
         return handle;

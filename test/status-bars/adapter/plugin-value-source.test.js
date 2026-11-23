@@ -360,6 +360,22 @@ test('the plugin not there drops the value kept, and is asked again after the Up
   assert.equal(h.pebble.subs.length, 3);
 });
 
+test('a picked plugin the phone no longer lists is not asked, so no other plugin runs for it: the slot shows --', () => {
+  const h = boot();
+  h.pebble.subs[0].push(answer());
+  minute();
+  assert.equal(sentText(h), '87%');
+  h.pebble.enumeratePlugins = () => [{ uuid: 'aaaaaaaa-0000-0000-0000-000000000001', name: 'Another',
+    sources: [{ category: 'phone', items: ['phone_state'], properties: { battery_level: ['numericValue'] } }] }];
+  h.clock = NOON + HOUR;
+  minute();
+  assert.equal(h.pebble.subs.length, 1, 'not asked');
+  assert.equal(stored(KEYS.PLUGIN_VALUE), null);
+  assert.equal(sentText(h), '--');
+  assert.deepEqual(stored(KEYS.PLUGIN_VALUE_READ), { source: KEY, at: NOON + HOUR, failures: 0, validUntil: null },
+    'an answer of nothing: the next read after the Updates interval');
+});
+
 test('an answer from another plugin than the one picked counts as the picked one not being there', () => {
   const h = boot();
   h.pebble.subs[0].push(answer());
