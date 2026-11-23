@@ -2,6 +2,7 @@
 #include <pebble.h>
 #include "../appendix/alert_set.h"
 #include "../appendix/on_demand.h"
+#include "status_row_slot.h"   // StatusRowSlot: the slots the layout makes room among
 
 // On demand's SDK half: which items of a bar are active, their glyphs, measures and
 // paint, and the slots' short forms measured. The layout — how the bar's slots make
@@ -94,17 +95,6 @@ typedef struct {
     bool top_strip;         // the strip's box floor
 } StatusOnDemandEnv;
 
-// One of the row's slots as the row resolved it: what its short family
-// (status_short_text.h) is derived from.
-typedef struct {
-    uint8_t kind;           // StatusSlotKind
-    uint8_t icon;           // StatusIconId
-    GFont font;             // the font it measures and draws in
-    char *text;             // its full text; the layout writes the member it drew
-    size_t cap;             // over it, in a buffer of this size
-    const char *alt;        // the short form it brought ("" none: status_short_member)
-} StatusOnDemandSlot;
-
 // The entries and item states one pass resolves.
 typedef struct {
     uint8_t bytes[ALERT_ENTRIES_MAX_BYTES];    // the stored ALERT_ENTRIES tuple
@@ -159,7 +149,7 @@ static inline uint8_t status_on_demand_merge(const StatusOnDemandPass *pass, int
 // so a quiet bar lays out as it would without the feature, and measures no short
 // form. Keeps the glyph cache holding exactly the glyphs the active items need.
 void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
-                             const StatusOnDemandEnv *env, const StatusOnDemandSlot slots[3],
+                             const StatusOnDemandEnv *env, StatusRowSlot slots[3],
                              StatusSlotMeasure m[3], StatusSlotPlace places[3],
                              int16_t content_w);
 

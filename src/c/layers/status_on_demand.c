@@ -281,9 +281,9 @@ typedef struct {
 // Member `v` of slot `slot`'s short family into `buf` (status_short_member: the short form
 // it brought, else the ones its text derives). Its flags, 0 for none. `suffix`: the slot's
 // full form draws the wind arrow.
-static uint8_t family_member(const Families *f, const StatusOnDemandSlot *slot, bool suffix,
+static uint8_t family_member(const Families *f, const StatusRowSlot *slot, bool suffix,
                              uint8_t v, char *buf) {
-    return status_short_member(slot->kind, slot->icon, slot->text, slot->alt, suffix,
+    return status_short_member(slot->slot.kind, slot->slot.icon, slot->text, slot->alt, suffix,
                                f->charging, v, buf, STATUS_SHORT_CAP);
 }
 
@@ -294,7 +294,7 @@ static uint8_t family_member(const Families *f, const StatusOnDemandSlot *slot, 
 // members, as many as any family has (test/c/status_short_text_test.c holds every
 // kind to that). Run only once a side has an item to show, so a quiet bar measures
 // nothing extra.
-static void measure_family(Families *f, int i, const StatusOnDemandSlot *slot,
+static void measure_family(Families *f, int i, const StatusRowSlot *slot,
                            const StatusSlotMeasure *full, const StatusOnDemandEnv *env,
                            int16_t content_w) {
     OdSlotIn *in = &f->in[i];
@@ -329,7 +329,7 @@ void status_on_demand_collect(const StatusOnDemandRow *row, StatusOnDemandPass *
 }
 
 void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
-                             const StatusOnDemandEnv *env, const StatusOnDemandSlot slots[3],
+                             const StatusOnDemandEnv *env, StatusRowSlot slots[3],
                              StatusSlotMeasure m[3], StatusSlotPlace places[3],
                              int16_t content_w) {
     pass->any = false;
@@ -352,8 +352,8 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     // slot shows, active (its entry is in the set) on the slot's side.
     int merged[2];
     for (int d = 0; d < 2; d++) {
-        merged[d] = alert_set_item(status_threshold_kind_for_slot(slots[2 * d].kind,
-                                                                  slots[2 * d].icon));
+        merged[d] = alert_set_item(status_threshold_kind_for_slot(slots[2 * d].slot.kind,
+                                                                  slots[2 * d].slot.icon));
     }
     // Each side's active items, nearest the side's own slot first: the item order is
     // the priority.
@@ -387,7 +387,7 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     // item stands in only once the layout has hidden every such slot.
     uint8_t battery_slots = 0;
     for (int i = 0; i < 3 && s->active[OD_BATTERY]; i++) {
-        if (od_slot_shows_battery(slots[i].kind)) { battery_slots |= (uint8_t)(1 << i); }
+        if (od_slot_shows_battery(slots[i].slot.kind)) { battery_slots |= (uint8_t)(1 << i); }
     }
     od_layout(content_w, f.in, pass->sides, bleed, battery_slots, &pass->layout);
     // Each slot draws the member the layout picked: its measure (the boxes and the
@@ -398,8 +398,9 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         uint8_t v = pass->layout.variant[i];
         if (v == 0 || v >= f.in[i].n) { continue; }
         char buf[STATUS_SHORT_CAP];
+        _Static_assert(sizeof(buf) <= sizeof(slots[i].text), "a member fits the slot's text");
         if (family_member(&f, &slots[i], f.in[i].m[0].suffix_w > 0, v, buf)) {
-            snprintf(slots[i].text, slots[i].cap, "%s", buf);
+            strcpy(slots[i].text, buf);
         }
         m[i] = f.in[i].m[v];
     }

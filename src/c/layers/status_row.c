@@ -13,6 +13,7 @@
 #include "../appendix/view_spec.h"   // LayoutTier (row_font)
 #include "../services/watch_services.h"
 #include "status_on_demand.h"
+#include "status_row_slot.h"
 #include "status_sig.h"
 #include "paint_scratch.h"
 #if defined(PBL_HEALTH)
@@ -78,7 +79,7 @@ struct StatusRow {
 // Main-app drawing and refresh callbacks are serialized, so all row instances can
 // reuse them without retaining expanded copies of their packed blobs. The
 // resolved slot TEXT has no such shared buffer: it rides the caller's transient
-// ResolvedSlot, so a pass takes exactly the slots it needs — all three to fold or
+// StatusRowSlot, so a pass takes exactly the slots it needs — all three to fold or
 // paint a row.
 //  - s_blob_scratch: the line's packed blob.
 //  - s_thresh_scratch: the threshold-highlight settings blob (CLAY_THRESHOLDS_UINT8),
@@ -433,37 +434,17 @@ static int slot_health_value(int kind) {
     return -1;
 }
 
-// One slot resolved to everything a pass needs that does NOT depend on
-// measurement. The refresh pass signs these fields (the look through the blob it is
-// read from), the draw pass measures and paints them — one resolution, every
-// consumer. They used to be three hand-copied resolutions on eight parallel arrays,
-// and one copy (the retired right-slot width query) silently omitted the threshold
-// load (see load_pass).
-//
-// NO measurement here, deliberately: measure_slot() reads row->glyphs[i], which is
-// only valid after ensure_glyphs(), and a resolver that measured would drag PDC
-// glyph loads onto every minute tick's refresh. The draw then sets `font` from the
-// look's bold bit, and measures with it: the same font it goes on to draw with.
-// A slot's short form: the condition's as the phone baked it (STATUS_TEXT_ALT_MAX), or the
-// date's, which the watch formats (date_format.h DATE_FORMAT_SHORT_MAX).
-#define ROW_ALT_MAX (DATE_FORMAT_SHORT_MAX > STATUS_TEXT_ALT_MAX ? DATE_FORMAT_SHORT_MAX \
-                                                                  : STATUS_TEXT_ALT_MAX)
-typedef struct {
-    StatusSlotView slot;                    // the packed slot
-    GFont          font;                    // regular, or the bold one (the draw's)
-    char    text[STATUS_TEXT_MID_MAX + 1];  // direction sentinel already stripped
-    char    alt[ROW_ALT_MAX + 1];           // its short form, if it brought one ("")
-    int8_t  dir;                            // wind sector 0..15, -1 = none
-    uint8_t level;                          // ThreshLevel, gated on the Highlight switch
-    ThreshLook look;                        // box, bold bit, RAW accent byte at `level`
-} ResolvedSlot;
+// A slot (status_row_slot.h StatusRowSlot) holds the longer of the two short forms.
+_Static_assert(STATUS_ROW_ALT_MAX == (DATE_FORMAT_SHORT_MAX > STATUS_TEXT_ALT_MAX
+                                      ? DATE_FORMAT_SHORT_MAX : STATUS_TEXT_ALT_MAX),
+               "a slot's alt holds the condition's and the date's short forms");
 
 // Resolve one slot of an already-loaded pass (load_pass filled `view`), all but its
 // font. `i` is the slot's position in a draw (0 left, 1 middle, 2 right), after
 // status_on_demand_collect(), so it can take the level of a weather alert it merged;
 // -1 outside a draw.
 static void resolve_slot(const StatusRow *row, const StatusSlotView *view,
-                         ResolvedSlot *out, int i) {
+                         StatusRowSlot *out, int i) {
     out->slot = *view;
     out->dir = resolve_slot_text(row, &out->slot, out->text, sizeof(out->text), out->alt,
                                  sizeof(out->alt));
@@ -498,7 +479,7 @@ static void resolve_slot(const StatusRow *row, const StatusSlotView *view,
 // refresh path's resolver — the draw path resolves per slot itself, so it can
 // measure each one as it goes.
 static void resolve_row(const StatusRow *row, const StatusSlotView views[STATUS_SLOT_COUNT],
-                        ResolvedSlot out[STATUS_SLOT_COUNT]) {
+                        StatusRowSlot out[STATUS_SLOT_COUNT]) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         resolve_slot(row, &views[i], &out[i], -1);
     }
@@ -589,10 +570,10 @@ bool status_row_refresh(StatusRow *row) {
     // the row would let a slot that changed while hidden come back stale.
     if (has_line) {
         track_battery_days(views);
-        ResolvedSlot resolved[STATUS_SLOT_COUNT];
+        StatusRowSlot resolved[STATUS_SLOT_COUNT];
         resolve_row(row, views, resolved);
         for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-            const ResolvedSlot *r = &resolved[i];
+            const StatusRowSlot *r = &resolved[i];
             const StatusSlotView *slot = &r->slot;
             sig = sig_fold(sig, &slot->kind, 1);
             sig = sig_fold(sig, &slot->icon, 1);
@@ -697,7 +678,7 @@ int16_t status_row_text_w(const char *text, GFont font, int16_t content_w, int16
 // Measured footprint of one slot: icon width (status_row_layout.h status_slot_icon_w: the
 // battery glyph, alone or before the Watch battery's text, a loaded PDC, or the drawn-sun
 // arrow) + text width + the trailing wind-direction arrow's lane.
-// The draw pass feeds it a ResolvedSlot's font/slot/text/dir — the slot's own font
+// The draw pass feeds it a StatusRowSlot's font/slot/text/dir — the slot's own font
 // above all, since a bold slot's glyphs are wider than the regular font would
 // measure — and whether the watch is `charging` (the battery glyph's bolt lane).
 static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
@@ -750,7 +731,7 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
 // (status_row_layout.h status_row_swap_short_forms has the rule). Judged on the plain
 // layout, before On demand makes room, so the ladder starts from the form the slot draws; a
 // slot that swaps has no short member left (`alt` is spent).
-static void swap_in_short_forms(const StatusRow *row, ResolvedSlot slots[STATUS_SLOT_COUNT],
+static void swap_in_short_forms(const StatusRow *row, StatusRowSlot slots[STATUS_SLOT_COUNT],
                                 StatusSlotMeasure m[STATUS_SLOT_COUNT],
                                 StatusSlotPlace plain[STATUS_SLOT_COUNT], int16_t content_w) {
     int16_t alt_w[STATUS_SLOT_COUNT];
@@ -764,7 +745,7 @@ static void swap_in_short_forms(const StatusRow *row, ResolvedSlot slots[STATUS_
     uint8_t swapped = status_row_swap_short_forms(content_w, m, alt_w, own, plain);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!((swapped >> i) & 1u)) { continue; }
-        ResolvedSlot *s = &slots[i];
+        StatusRowSlot *s = &slots[i];
         copy_text(s->text, sizeof(s->text), s->alt, strlen(s->alt));
         s->alt[0] = '\0';
     }
@@ -801,7 +782,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
 
     int16_t content_w = (int16_t)(row->bounds.size.w - 2 * STATUS_ROW_MARGIN);
     if (content_w < 0) { content_w = 0; }
-    ResolvedSlot slots[STATUS_SLOT_COUNT];
+    StatusRowSlot slots[STATUS_SLOT_COUNT];
     StatusSlotMeasure measures[STATUS_SLOT_COUNT];
 
     // The bar's On demand items first: a slot that merged a weather alert is resolved
@@ -857,13 +838,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         .bleed_left = top ? STATUS_ROW_MARGIN : 0,
         .top_strip = top
     };
-    StatusOnDemandSlot od_slots[STATUS_SLOT_COUNT];
-    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        od_slots[i] = (StatusOnDemandSlot) { slots[i].slot.kind, slots[i].slot.icon,
-                                             slots[i].font, slots[i].text,
-                                             sizeof(slots[i].text), slots[i].alt };
-    }
-    status_on_demand_layout(&row->od, &s_od_pass, &od_env, od_slots, measures, places,
+    status_on_demand_layout(&row->od, &s_od_pass, &od_env, slots, measures, places,
                             content_w);
 
     // Threshold-highlight pass: paint each crossed slot's box — an outline, or a
