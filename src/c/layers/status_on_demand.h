@@ -108,12 +108,13 @@ typedef struct {
 // The entries and item states one pass resolves.
 typedef struct {
     uint8_t bytes[ALERT_ENTRIES_MAX_BYTES];    // the stored ALERT_ENTRIES tuple
-    AlertSet set;                              // the metric entries, in wire order
+    AlertSet set;                              // the metric entries, by item
     RainCountdown rain;                        // the rain alert, while Rain is active
     int rain_display;                          // ThreshRainDisplay, from the blob
     uint8_t side[OD_ITEM_COUNT];               // OdSide of each item on this bar
     bool active[OD_ITEM_COUNT];
-    uint8_t bt_key;                            // the Bluetooth glyph (0: none)
+    uint8_t key[OD_ITEM_COUNT];                // each active item's glyph (0: none,
+                                               // and the drawn Battery and Sleep)
     uint8_t charge;                            // the watch's charge in %
     bool charging;                             // charging or plugged in
     bool battery_value;                        // Look Icon + value

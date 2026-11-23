@@ -30,7 +30,7 @@ int main(void) {
                     return 1;
                 }
                 char lane[16];
-                alert_set_lane(&set.entries[0], on == 1, lane, sizeof(lane));
+                alert_set_lane(alert_set_entry(&set, OD_UV), on == 1, lane, sizeof(lane));
                 printf("%d %d %s ", day, on, values[v][0] ? values[v] : "-");
                 if (lane[0] == '\0') { printf("-"); }
                 for (const char *p = lane; *p; p++) { printf("%02x", (unsigned char)*p); }
