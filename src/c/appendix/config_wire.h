@@ -22,12 +22,12 @@
 // persist_set_config's memcmp change detection. It holds nothing to use when the
 // parse returns false.
 //
-// Returns false when any CORE key (config_wire.c CORE_KEYS) is absent — the
+// Returns false when any CORE key (config_wire.c CORE_KEY_LIST) is absent — the
 // all-or-nothing presence chain is the category detector ("this message carries no config", normal
 // for weather messages) and the version-skew guard (an older phone omitting
 // a core key drops the whole config rather than half-applying it).
 //
-// New keys must NOT join the core chain (the table): add them as individually-guarded
-// optionals (like view_0..2, view_reset, theme), which default to 0 when an
-// older phone omits them.
+// New keys must NOT join the core chain: add them as optionals (config_wire.c
+// OPTIONAL_KEY_LIST, or read by hand after it), which default to 0 when an older phone
+// omits them.
 bool config_parse_wire(DictionaryIterator *iterator, Config *out);

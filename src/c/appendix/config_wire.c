@@ -1,3 +1,4 @@
+#include <stddef.h>   // offsetof: the key table
 #include <string.h>
 
 #include "config_wire.h"
@@ -32,118 +33,124 @@ static void read_view_tuple(const Tuple *t, int i, uint16_t *spec, uint16_t *ext
 }
 #endif
 
-// How a core key's tuple fills its Config field.
+// How a key's tuple fills its Config field.
 enum {
-    CORE_FLAG,    // a bool: any non-zero int
-    CORE_BYTE,    // a uint8_t: the int's low byte
-    CORE_INT16,   // an int16_t
-    CORE_COLOR,   // a GColor, sent as its 0xRRGGBB int
+    READ_FLAG,    // a bool: any non-zero int16
+    READ_BYTE,    // a uint8_t: the int's low byte
+    READ_INT16,   // a 16-bit field: the int's low half
+    READ_COLOR,   // a GColor, sent as its 0xRRGGBB int
 };
 // The field size each read writes. A kind on a field of another size would write past it
 // or leave part of it unset, so every row below is checked against these as it compiles.
-#define CORE_SIZE_CORE_FLAG  sizeof(bool)
-#define CORE_SIZE_CORE_BYTE  sizeof(uint8_t)
-#define CORE_SIZE_CORE_INT16 sizeof(int16_t)
-#define CORE_SIZE_CORE_COLOR sizeof(GColor)
+#define SIZE_OF_READ_FLAG  sizeof(bool)
+#define SIZE_OF_READ_BYTE  sizeof(uint8_t)
+#define SIZE_OF_READ_INT16 sizeof(int16_t)
+#define SIZE_OF_READ_COLOR sizeof(GColor)
 
 // The core keys (config_wire.h): each with the field it fills and how. The parse stops at
 // the first one missing, so a message without config (every weather message) costs one
-// lookup here. New keys do not join this list; they are the optionals below it.
+// lookup here. New keys never join this list.
 #define CORE_KEY_LIST(X) \
-    X(MESSAGE_KEY_CLAY_CELSIUS,                celsius,                    CORE_FLAG)  \
-    X(MESSAGE_KEY_CLAY_TIME_LEAD_ZERO,         time_lead_zero,             CORE_FLAG)  \
-    X(MESSAGE_KEY_CLAY_AXIS_12H,               axis_12h,                   CORE_FLAG)  \
-    X(MESSAGE_KEY_CLAY_START_MON,              start_mon,                  CORE_FLAG)  \
-    X(MESSAGE_KEY_CLAY_PREV_WEEK,              prev_week,                  CORE_FLAG)  \
-    X(MESSAGE_KEY_CLAY_VIBE,                   vibe,                       CORE_FLAG)  \
-    X(MESSAGE_KEY_CLAY_SHOW_QT,                show_qt,                    CORE_FLAG)  \
-    X(MESSAGE_KEY_CLAY_SHOW_BT,                show_bt,                    CORE_FLAG)  \
-    X(MESSAGE_KEY_CLAY_SHOW_BT_DISCONNECT,     show_bt_disconnect,         CORE_FLAG)  \
-    X(MESSAGE_KEY_CLAY_SHOW_AM_PM,             show_am_pm,                 CORE_FLAG)  \
-    X(MESSAGE_KEY_CLAY_DAY_NIGHT_SHADING,      day_night_shading,          CORE_FLAG)  \
-    X(MESSAGE_KEY_CLAY_HEALTH_MODE,            health_mode,                CORE_BYTE)  \
-    X(MESSAGE_KEY_CLAY_TOP_VIEW_MODE,          top_view_mode,              CORE_BYTE)  \
-    X(MESSAGE_KEY_CLAY_FETCH_INTERVAL_MIN,     fetch_interval_min,         CORE_INT16) \
-    X(MESSAGE_KEY_CLAY_RAIN_COUNTDOWN_HORIZON, rain_countdown_horizon_min, CORE_INT16) \
-    X(MESSAGE_KEY_CLAY_TIME_FONT,              time_font,                  CORE_INT16) \
-    X(MESSAGE_KEY_CLAY_COLOR_TODAY,            color_today,                CORE_COLOR) \
-    X(MESSAGE_KEY_CLAY_COLOR_SATURDAY,         color_saturday,             CORE_COLOR) \
-    X(MESSAGE_KEY_CLAY_COLOR_SUNDAY,           color_sunday,               CORE_COLOR) \
-    X(MESSAGE_KEY_CLAY_COLOR_US_FEDERAL,       color_us_federal,           CORE_COLOR) \
-    X(MESSAGE_KEY_CLAY_COLOR_TIME,             color_time,                 CORE_COLOR)
+    X(MESSAGE_KEY_CLAY_CELSIUS,                celsius,                    READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_TIME_LEAD_ZERO,         time_lead_zero,             READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_AXIS_12H,               axis_12h,                   READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_START_MON,              start_mon,                  READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_PREV_WEEK,              prev_week,                  READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_VIBE,                   vibe,                       READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_SHOW_QT,                show_qt,                    READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_SHOW_BT,                show_bt,                    READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_SHOW_BT_DISCONNECT,     show_bt_disconnect,         READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_SHOW_AM_PM,             show_am_pm,                 READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_DAY_NIGHT_SHADING,      day_night_shading,          READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_HEALTH_MODE,            health_mode,                READ_BYTE)  \
+    X(MESSAGE_KEY_CLAY_TOP_VIEW_MODE,          top_view_mode,              READ_BYTE)  \
+    X(MESSAGE_KEY_CLAY_FETCH_INTERVAL_MIN,     fetch_interval_min,         READ_INT16) \
+    X(MESSAGE_KEY_CLAY_RAIN_COUNTDOWN_HORIZON, rain_countdown_horizon_min, READ_INT16) \
+    X(MESSAGE_KEY_CLAY_TIME_FONT,              time_font,                  READ_INT16) \
+    X(MESSAGE_KEY_CLAY_COLOR_TODAY,            color_today,                READ_COLOR) \
+    X(MESSAGE_KEY_CLAY_COLOR_SATURDAY,         color_saturday,             READ_COLOR) \
+    X(MESSAGE_KEY_CLAY_COLOR_SUNDAY,           color_sunday,               READ_COLOR) \
+    X(MESSAGE_KEY_CLAY_COLOR_US_FEDERAL,       color_us_federal,           READ_COLOR) \
+    X(MESSAGE_KEY_CLAY_COLOR_TIME,             color_time,                 READ_COLOR)
+
+// The optional keys that read as one plain int: an older phone omits them, and each field
+// then keeps its zero from the parse's memset (theme 0 = dark, day-first dates). A new key
+// with such a read joins this list; one with any other read is read by hand after the
+// table, like the views off aplite below.
+#if defined(PBL_PLATFORM_APLITE)
+// The packed view slots (config.h view_spec2): the full low half, the tier bits 8-9
+// included. Without them the phone re-sends the real cycle on connect. And the flick
+// word's low byte, the auto-return minutes (config_wire.h): aplite has no Double flick.
+#define APLITE_VIEW_KEY_LIST(X) \
+    X(MESSAGE_KEY_CLAY_VIEW_0,                 view_spec2[0],              READ_INT16) \
+    X(MESSAGE_KEY_CLAY_VIEW_1,                 view_spec2[1],              READ_INT16) \
+    X(MESSAGE_KEY_CLAY_VIEW_2,                 view_spec2[2],              READ_INT16) \
+    X(MESSAGE_KEY_CLAY_VIEW_RESET_MIN,         view_reset_min,             READ_BYTE)
+#else
+#define APLITE_VIEW_KEY_LIST(X)
+#endif
+#define OPTIONAL_KEY_LIST(X) \
+    X(MESSAGE_KEY_CLAY_THEME,                  theme,                      READ_BYTE)  \
+    X(MESSAGE_KEY_CLAY_BATTERY_LOW_ONLY,       battery_low_only,           READ_FLAG)  \
+    X(MESSAGE_KEY_CLAY_DATE_MONTH_FIRST,       date_month_first,           READ_FLAG)  \
+    APLITE_VIEW_KEY_LIST(X)
 
 typedef struct {
     uint16_t key;
     uint8_t  offset;
     uint8_t  read;
-} CoreKey;
-_Static_assert(sizeof(Config) <= 255, "a core key's field offset is one byte");
+} WireKey;
+_Static_assert(sizeof(Config) <= 255, "a key's field offset is one byte");
 // Every key id fits the table's 16 bits (message_key_ids.auto.h: small constants), and
 // every field is the size its read writes.
-#define CORE_KEY_CHECK(id, field, read) \
-    _Static_assert((id) <= 0xFFFFu, #id " does not fit a core key's 16 bits"); \
-    _Static_assert(sizeof(((Config *) 0)->field) == CORE_SIZE_##read, \
+#define WIRE_KEY_CHECK(id, field, read) \
+    _Static_assert((id) <= 0xFFFFu, #id " does not fit a key's 16 bits"); \
+    _Static_assert(sizeof(((Config *) 0)->field) == SIZE_OF_##read, \
                    "Config." #field " is not the size a " #read " read writes");
-CORE_KEY_LIST(CORE_KEY_CHECK)
-#define CORE_KEY_ROW(id, field, read) { (uint16_t) (id), offsetof(Config, field), (read) },
-static const CoreKey CORE_KEYS[] = { CORE_KEY_LIST(CORE_KEY_ROW) };
+CORE_KEY_LIST(WIRE_KEY_CHECK)
+OPTIONAL_KEY_LIST(WIRE_KEY_CHECK)
+#define WIRE_KEY_ROW(id, field, read) { (uint16_t) (id), offsetof(Config, field), (read) },
+#define WIRE_KEY_ONE(id, field, read) + 1
+// The core rows first: the parse gives up at a missing one, and skips a missing optional.
+static const WireKey WIRE_KEYS[] = { CORE_KEY_LIST(WIRE_KEY_ROW) OPTIONAL_KEY_LIST(WIRE_KEY_ROW) };
+enum { CORE_KEY_COUNT = 0 CORE_KEY_LIST(WIRE_KEY_ONE) };
 
 bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     // Zero the struct first so padding bytes compare deterministically in
     // persist_set_config's change detection.
     memset(out, 0, sizeof(*out));
-    for (unsigned i = 0; i < sizeof(CORE_KEYS) / sizeof(CORE_KEYS[0]); ++i) {
-        const Tuple *t = dict_find(iterator, CORE_KEYS[i].key);
-        if (!t) { return false; }
-        uint8_t *const field = (uint8_t *) out + CORE_KEYS[i].offset;
+    for (unsigned i = 0; i < sizeof(WIRE_KEYS) / sizeof(WIRE_KEYS[0]); ++i) {
+        const Tuple *t = dict_find(iterator, WIRE_KEYS[i].key);
+        if (!t) {
+            if (i < CORE_KEY_COUNT) { return false; }
+            continue;
+        }
+        uint8_t *const field = (uint8_t *) out + WIRE_KEYS[i].offset;
         const int16_t v = t->value->int16;
-        switch (CORE_KEYS[i].read) {
-            case CORE_FLAG:  *field = (v != 0); break;
-            case CORE_BYTE:  *field = (uint8_t) v; break;
-            case CORE_INT16: memcpy(field, &v, sizeof(v)); break;
+        switch (WIRE_KEYS[i].read) {
+            case READ_FLAG:  *field = (v != 0); break;
+            case READ_BYTE:  *field = (uint8_t) v; break;
+            case READ_INT16: memcpy(field, &v, sizeof(v)); break;
             default:         *field = GColorFromHEX(t->value->int32).argb; break;
         }
     }
 
-    // The optional keys: older phone builds omit them, and each field then keeps its
-    // zero from the memset above. Each is looked up where it is read.
-    // Packed view slots — read the full int16 tuple as uint16 (NOT truncated to a byte;
-    // the tier bits 8-9 live above the low byte). See config.h view_spec2 / view_spec_unpack.
-    // Without them the phone re-sends the real cycle on connect. Off aplite the high half
-    // carries the view's ext word too (read_view_tuple above).
+    // The optional keys the table cannot read, each looked up where it is read; like the
+    // table's, each field keeps its zero when an older phone omits the key.
 #if !defined(PBL_PLATFORM_APLITE)
+    // The packed view slots (config.h view_spec2): the low half as aplite's rows read it,
+    // and the high half the view's ext word (read_view_tuple).
     read_view_tuple(dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_0), 0, &out->view_spec2[0], &out->view_ext[0]);
     read_view_tuple(dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_1), 1, &out->view_spec2[1], &out->view_ext[1]);
     read_view_tuple(dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_2), 2, &out->view_spec2[2], &out->view_ext[2]);
-#else
-    const Tuple *clay_view_0_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_0);
-    if (clay_view_0_tuple) { out->view_spec2[0] = (uint16_t) clay_view_0_tuple->value->int16; }
-    const Tuple *clay_view_1_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_1);
-    if (clay_view_1_tuple) { out->view_spec2[1] = (uint16_t) clay_view_1_tuple->value->int16; }
-    const Tuple *clay_view_2_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_2);
-    if (clay_view_2_tuple) { out->view_spec2[2] = (uint16_t) clay_view_2_tuple->value->int16; }
-#endif
     const Tuple *clay_view_reset_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_RESET_MIN);
     if (clay_view_reset_tuple) {
         // Low byte: the auto-return minutes; the cast drops the flag bits (config_wire.h).
         out->view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16;
-#if !defined(PBL_PLATFORM_APLITE)
         // Bit 8: Double flick (an older phone never sets it).
         out->view_double_flick = (clay_view_reset_tuple->value->int16 & VIEW_RESET_DOUBLE_FLICK) != 0;
+    }
 #endif
-    }
-    // Without it, config.theme stays 0 = dark.
-    const Tuple *clay_theme_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_THEME);
-    if (clay_theme_tuple) { out->theme = (uint8_t) clay_theme_tuple->value->int16; }
-    const Tuple *clay_battery_low_only_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_BATTERY_LOW_ONLY);
-    if (clay_battery_low_only_tuple) {
-        out->battery_low_only = (bool) (clay_battery_low_only_tuple->value->int16);
-    }
-    // Without it, date_month_first stays false = day-first.
-    const Tuple *clay_date_month_first_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DATE_MONTH_FIRST);
-    if (clay_date_month_first_tuple) {
-        out->date_month_first = (bool) (clay_date_month_first_tuple->value->int16);
-    }
 #if defined(PBL_PLATFORM_EMERY)
     // emery-only, like the field (config.h): the tuple still RIDES to every platform,
     // but only emery pays the dict_find to look it up.

@@ -143,7 +143,7 @@ The settings AppMessage on the wire: all watch-bound settings keys
 
 **Guarded key (of the Clay bundle)**:
 A key in `config_parse_wire`'s all-or-nothing presence chain
-(the `CORE_KEYS` table in `src/c/appendix/config_wire.c`). The chain is the category detector: it tells a
+(the `CORE_KEY_LIST` rows in `src/c/appendix/config_wire.c`). The chain is the category detector: it tells a
 message that carries no config (normal for weather messages) from one that carries
 config. Holidays and palettes are left unguarded on purpose. They have their own
 handlers and dirty flags, so a parse problem there cannot take the whole config down.

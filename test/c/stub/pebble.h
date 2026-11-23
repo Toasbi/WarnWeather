@@ -210,6 +210,34 @@ status_t persist_delete(const uint32_t key);
 #define GColorDarkGray ((GColor){ .argb = 0xD5 })
 #define GColorPictonBlue ((GColor){ .argb = 0xDB })
 
+// The colour of a 0xRRGGBB int, as the SDK's GColorFromHEX packs it: opaque, each
+// channel's top two bits (appendix/config_wire.c reads the colour tuples through it).
+#define GColorFromHEX(v) ((GColor){ .argb = (uint8_t)(0xC0 | ((((v) >> 22) & 3) << 4) \
+                                                  | ((((v) >> 14) & 3) << 2) | (((v) >> 6) & 3)) })
+
+// The dictionary API appendix/config_wire.c reads a message with. A host Tuple holds its
+// value in a fixed union (the SDK's is a packed flexible array) with the same member names;
+// the iterator is opaque here, and each test that calls dict_find defines both.
+typedef enum {
+    TUPLE_BYTE_ARRAY = 0,
+    TUPLE_CSTRING = 1,
+    TUPLE_UINT = 2,
+    TUPLE_INT = 3,
+} TupleType;
+typedef union {
+    uint8_t data[8];
+    int16_t int16;
+    int32_t int32;
+} TupleValue;
+typedef struct {
+    uint32_t key;
+    TupleType type;
+    uint16_t length;
+    TupleValue value[1];
+} Tuple;
+typedef struct DictionaryIterator DictionaryIterator;
+Tuple *dict_find(const DictionaryIterator *iter, const uint32_t key);
+
 #ifdef WW_HOST_FAKE_TIME
 // Redirect the code-under-test's time(NULL) to the test's controllable clock.
 // time.h is included above, so its real prototype is untouched; only call

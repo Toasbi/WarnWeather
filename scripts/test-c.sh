@@ -37,6 +37,16 @@ build/host/config_size_test_emery
 cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
    test/c/config_size_test.c -o build/host/config_size_test_aplite
 build/host/config_size_test_aplite
+# The Clay bundle's parse (appendix/config_wire.c): the core keys all or nothing, each
+# optional key read as sent or left 0, on each platform arm of config.h.
+cc $CFLAGS test/c/config_wire_test.c src/c/appendix/config_wire.c -o build/host/config_wire_test
+build/host/config_wire_test
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/config_wire_test.c src/c/appendix/config_wire.c \
+   -o build/host/config_wire_test_emery
+build/host/config_wire_test_emery
+cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
+   test/c/config_wire_test.c src/c/appendix/config_wire.c -o build/host/config_wire_test_aplite
+build/host/config_wire_test_aplite
 # The Bluetooth disconnect vibe (services/disconnect_vibe.h): a drop buzzes only while Quiet
 # Time is off.
 cc $CFLAGS test/c/disconnect_vibe_test.c -o build/host/disconnect_vibe_test
