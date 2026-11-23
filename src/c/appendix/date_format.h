@@ -163,6 +163,9 @@ static void date_format_full(char *buf, size_t cap, const struct tm *tm_now, uin
     int year = t.tm_year + 1900;
     int yy = year % 100;
     if (yy < 0) { yy = 0; }
+    // The numeric formats' first and second numbers: month and day, or day and month.
+    const int first = month_first ? mon : mday;
+    const int second = month_first ? mday : mon;
     // The abbreviated month name, only for the two text formats.
     char mon_name[8] = "";
     if (fmt == DATE_FULL_TEXT || fmt == DATE_FULL_TEXTYEAR) {
@@ -170,16 +173,13 @@ static void date_format_full(char *buf, size_t cap, const struct tm *tm_now, uin
     }
     switch (fmt) {
         case DATE_FULL_LONG:
-            if (month_first) { snprintf(buf, cap, "%02d.%02d.%04d", mon, mday, year); }
-            else { snprintf(buf, cap, "%02d.%02d.%04d", mday, mon, year); }
+            snprintf(buf, cap, "%02d.%02d.%04d", first, second, year);
             return;
         case DATE_FULL_NOYEAR:
-            if (month_first) { snprintf(buf, cap, "%d.%d.", mon, mday); }
-            else { snprintf(buf, cap, "%d.%d.", mday, mon); }
+            snprintf(buf, cap, "%d.%d.", first, second);
             return;
         case DATE_FULL_SLASH:
-            if (month_first) { snprintf(buf, cap, "%d/%d/%02d", mon, mday, yy); }
-            else { snprintf(buf, cap, "%d/%d/%02d", mday, mon, yy); }
+            snprintf(buf, cap, "%d/%d/%02d", first, second, yy);
             return;
         case DATE_FULL_ISO:
             snprintf(buf, cap, "%04d-%02d-%02d", year, mon, mday);
@@ -193,8 +193,7 @@ static void date_format_full(char *buf, size_t cap, const struct tm *tm_now, uin
             else { snprintf(buf, cap, "%d. %s %04d", mday, mon_name, year); }
             return;
         default:
-            if (month_first) { snprintf(buf, cap, "%02d.%02d.%02d", mon, mday, yy); }
-            else { snprintf(buf, cap, "%02d.%02d.%02d", mday, mon, yy); }
+            snprintf(buf, cap, "%02d.%02d.%02d", first, second, yy);
             return;
     }
 }
