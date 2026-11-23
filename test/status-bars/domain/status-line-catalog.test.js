@@ -399,64 +399,42 @@ test('slotOptions marks multi-item groups and collapses single-item groups', () 
   assert.ok(edge.some(o => o[1] === '__hdr_datelocation'), 'multi-item group gets a header');
 });
 
-test('battery is a LIVE_BATTERY item offered in any slot', () => {
+test('the watch battery is one LIVE_BATTERY item for both looks; the retired batteryPct is gone', () => {
+  // Until 3.3.0 the Text look was an item of its own, 'batteryPct'. Now the Look is a
+  // setting of the one 'battery' item (slot-text.js batteryLook); the catalog only
+  // keeps the Icon look's kind. The bake's kind 10 for the Text look, and kind 9 on
+  // aplite whatever the look, are pinned in status-lines.test.js.
   const item = catalog.byCode('battery');
   assert.ok(item, 'battery item exists');
   assert.equal(item.kind, catalog.KINDS.LIVE_BATTERY);
   assert.equal(item.icon, catalog.ICONS.NONE);
   assert.equal(item.category, 'battery');
-  const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
+  assert.equal(item.notAplite, undefined, 'the item stays on aplite');
+  assert.equal(catalog.byCode('batteryPct'), undefined, 'the retired item is gone');
+  // A stored 'batteryPct' is migrated (mergeBatterySlots); the catalog no longer resolves it.
   const topRight = { slotKey: 'statusTopRight', position: 'right' };
-  const topLeft = { slotKey: 'statusTopLeft', position: 'left' };
-  assert.ok(catalog.itemAvailable(item, s, ENV_BASALT, topRight), 'available top-right');
-  assert.ok(catalog.itemAvailable(item, s, ENV_BASALT, topLeft), 'in the left slot');
-  assert.ok(catalog.itemAvailable(item, s, ENV_BASALT,
-    { slotKey: 'statusForecastRight', position: 'right' }), 'in other bars');
+  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_BASALT, topRight), 'empty');
   // ENV_BASALT carries no phoneBattery, so the Battery category holds the WATCH item
   // alone, and a group of one has no header (with env.phoneBattery it has two; below).
-  [topRight, topLeft].forEach((slot) => {
-    const opts = catalog.slotOptions(s, ENV_BASALT, slot);
-    assert.ok(opts.some(o => o[1] === 'battery'), slot.slotKey + ': the watch battery is offered');
-    assert.ok(!opts.some(o => o[1] === '__hdr_battery'), slot.slotKey + ': a lone watch battery gets no header');
-    assert.ok(!opts.some(o => o[1] === 'batteryPct'), slot.slotKey + ': the retired batteryPct item is gone');
-  });
-});
-
-test('the watch battery is one item for both looks, in any slot; aplite keeps the corner', () => {
-  // Until 3.3.0 the Text look was an item of its own, 'batteryPct'. Now the Look is a
-  // setting of the one 'battery' item (slot-text.js batteryLook); the catalog only
-  // keeps the Icon look's kind. The bake's kind 10 for the Text look, and kind 9 on
-  // aplite whatever the look, are pinned in status-lines.test.js.
-  assert.equal(catalog.byCode('batteryPct'), undefined, 'the retired item is gone');
-  const item = catalog.byCode('battery');
-  assert.equal(item.kind, catalog.KINDS.LIVE_BATTERY);
-  assert.equal(item.notAplite, undefined, 'the item stays on aplite');
-  const topRight = { slotKey: 'statusTopRight', position: 'right' };
-  const ctx = { slotKey: 'statusForecastLeft', position: 'left' };
-  [ENV_BASALT, ENV_EMERY, ENV_DIORITE, ENV_APLITE].forEach((env) => {
-    [topRight, ctx].forEach((slot) => {
-      const offered = env !== ENV_APLITE || slot === topRight;
-      assert.equal(catalog.itemAvailable(item, {}, env, slot), offered, env.platform + ': ' + slot.slotKey);
-      assert.equal(catalog.slotOptions({}, env, slot).some(o => o[1] === 'battery'), offered,
-        'the ' + env.platform + ' ' + slot.slotKey + ' dropdown');
-      assert.equal(catalog.resolveSelection('battery', {}, env, slot), offered ? 'battery' : 'empty');
-    });
-  });
-  // A stored 'batteryPct' is migrated (mergeBatterySlots); the catalog no longer resolves it.
-  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_BASALT, topRight), 'empty');
+  const opts = catalog.slotOptions({}, ENV_BASALT, topRight);
+  assert.ok(!opts.some(o => o[1] === '__hdr_battery'), 'a lone watch battery gets no header');
+  assert.ok(!opts.some(o => o[1] === 'batteryPct'), 'the retired batteryPct is not offered');
 });
 
 test('the WATCH battery is offered in every slot of every bar; on aplite only in the top strip\'s corner', () => {
   // Until 2026-11-23 the top strip's right-hand corner alone could hold it. Aplite's frozen
   // twin repaints only the top strip on a battery change, so it keeps the corner.
+  const item = catalog.byCode('battery');
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
-  [ENV_BASALT, ENV_EMERY, ENV_APLITE].forEach((env) => {
+  [ENV_BASALT, ENV_EMERY, ENV_DIORITE, ENV_APLITE].forEach((env) => {
     catalog.ALL_LINES.forEach((line) => {
       line.slots.forEach((slotKey, i) => {
-        const codes = catalog.slotOptions(s, env, { slotKey, position: catalog.SLOT_POSITIONS[i] })
-          .map(o => o[1]);
-        assert.equal(codes.includes('battery'), env !== ENV_APLITE || slotKey === 'statusTopRight',
-          env.platform + ' ' + slotKey + ': the watch battery');
+        const slot = { slotKey, position: catalog.SLOT_POSITIONS[i] };
+        const offered = env !== ENV_APLITE || slotKey === 'statusTopRight';
+        const where = env.platform + ' ' + slotKey;
+        assert.equal(catalog.itemAvailable(item, s, env, slot), offered, where + ': available');
+        assert.equal(catalog.slotOptions(s, env, slot).some(o => o[1] === 'battery'), offered, where + ': in the dropdown');
+        assert.equal(catalog.resolveSelection('battery', s, env, slot), offered ? 'battery' : 'empty', where + ': kept');
       });
     });
   });

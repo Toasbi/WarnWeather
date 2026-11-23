@@ -186,21 +186,38 @@ test('the Edit button opens the dialog from every slot that holds the item, not 
   });
 });
 
+/**
+ * Settings with a Plugin value in the Watch bar's left slot, hydrated as the page holds them.
+ * @param {Object} [over] Settings over the slot's.
+ * @returns {Object} The settings.
+ */
+function slotSettings(over) {
+  return PConf.engine.hydrate(schema, Object.assign({ statusTopLeft: 'pluginValue' }, over), BASALT);
+}
+
+/**
+ * The Plugin value dialog as the engine draws it open over these settings.
+ * @param {Object} state Settings (slotSettings).
+ * @returns {string} The dialog's HTML.
+ */
+function dialogHtml(state) {
+  return PConf.engine.renderEditModal(schema, { S: state, ENV: BASALT, USERDATA: {}, openColor: null,
+    openSelect: null, openEdit: 'threshPluginValue', selectQuery: '', collapsed: {},
+    evalCtx: Object.assign({}, state, { env: BASALT }) });
+}
+
 test('the dialog: Plugin with its list, then Value, Updates and the last line once one is picked', (t) => {
   clock(t, NOW);
   userData(t, { plugins: PLUGINS, pluginValue: kept({ short: '87%' }) });
-  const S = PConf.engine.hydrate(schema, Object.assign({ statusTopLeft: 'pluginValue' }, LEVEL), BASALT);
+  const S = slotSettings(LEVEL);
   assert.equal(S.pluginValueEvery, '60', 'every hour by default');
-  const cx = (state) => ({ S: state, ENV: BASALT, USERDATA: {}, openColor: null, openSelect: null,
-    openEdit: 'threshPluginValue', selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, state, { env: BASALT }) });
-  const html = PConf.engine.renderEditModal(schema, cx(S));
+  const html = dialogHtml(S);
   ['Plugin value slot', 'Plugin', 'Phone', 'Value', 'Battery level', 'Updates', 'Every hour']
     .forEach((text) => assert.ok(html.indexOf(text) !== -1, 'the dialog shows ' + text));
   assert.ok(html.indexOf('<div class="lbl">Last value</div><div class="hint">87% (5 min ago).</div>') !== -1,
     'the last value is a row like the others: its label, the value in the hint\'s grey under it');
   assert.ok(html.indexOf('BoldMode') === -1, 'no Bold: the item has no bold kind');
-  const none = PConf.engine.hydrate(schema, { statusTopLeft: 'pluginValue' }, BASALT);
-  const empty = PConf.engine.renderEditModal(schema, cx(none));
+  const empty = dialogHtml(slotSettings());
   ['Value', 'Updates', 'Last value'].forEach((text) =>
     assert.equal(empty.indexOf('>' + text + '<'), -1, 'no ' + text + ' while no plugin is picked'));
 });
@@ -211,11 +228,7 @@ test('Muninn picked: a note above the Plugin row says the Watch battery slot sho
   assert.equal(page.fromMuninn(LEVEL), false, 'the Phone plugin');
   assert.equal(page.fromMuninn({ pluginValuePlugin: '' }), false, 'none picked');
   assert.equal(page.fromMuninn({ pluginValuePlugin: 'gone' }), false, 'one the phone no longer lists');
-  const cx = (state) => ({ S: state, ENV: BASALT, USERDATA: {}, openColor: null, openSelect: null,
-    openEdit: 'threshPluginValue', selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, state, { env: BASALT }) });
-  const draw = (over) => PConf.engine.renderEditModal(schema,
-    cx(PConf.engine.hydrate(schema, Object.assign({ statusTopLeft: 'pluginValue' }, over), BASALT)));
-  const muninn = draw({ pluginValuePlugin: MUNINN, pluginValueId: 'muninn/stats/daysRemaining' });
+  const muninn = dialogHtml(slotSettings({ pluginValuePlugin: MUNINN, pluginValueId: 'muninn/stats/daysRemaining' }));
   const at = muninn.indexOf('<div class="card info"><div class="cardHdr"><span class="ttlwrap"><span class="ttl">Days left from Muninn</span>');
   assert.ok(at !== -1, 'a card of its own in the info look');
   const text = muninn.indexOf('The Watch battery slot can show Muninn\'s estimate by itself');
@@ -223,7 +236,7 @@ test('Muninn picked: a note above the Plugin row says the Watch battery slot sho
   const rows = muninn.indexOf('data-select="pluginValuePlugin"');
   assert.ok(rows > text, 'above the Plugin row');
   assert.ok(muninn.slice(text, rows).indexOf('<div class="card nohdr">') !== -1, 'which is in a plain card of its own');
-  [draw(LEVEL), draw({})].forEach((html, i) => {
+  [dialogHtml(slotSettings(LEVEL)), dialogHtml(slotSettings())].forEach((html, i) => {
     assert.equal(html.indexOf('card info'), -1, i ? 'none while no plugin is picked' : 'none for another plugin');
     assert.ok(html.indexOf('<div class="card nohdr"><div><div class="row') !== -1, 'the rows\' card opens the dialog');
   });
@@ -231,11 +244,8 @@ test('Muninn picked: a note above the Plugin row says the Watch battery slot sho
 
 test('a plugin the phone no longer lists is not swapped for another as the dialog draws', (t) => {
   userData(t, { plugins: PLUGINS });
-  const S = PConf.engine.hydrate(schema, { statusTopLeft: 'pluginValue', pluginValuePlugin: 'gone',
-    pluginValueId: 'gone/item/value' }, BASALT);
-  const cx = { S: S, ENV: BASALT, USERDATA: {}, openColor: null, openSelect: null, openEdit: 'threshPluginValue',
-    selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: BASALT }) };
-  PConf.engine.renderEditModal(schema, cx);
+  const S = slotSettings({ pluginValuePlugin: 'gone', pluginValueId: 'gone/item/value' });
+  dialogHtml(S);
   assert.deepEqual([S.pluginValuePlugin, S.pluginValueId], ['gone', 'gone/item/value']);
 });
 

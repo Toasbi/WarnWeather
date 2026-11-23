@@ -296,7 +296,9 @@ test('a re-bake reads the supplier\'s facts, the phone\'s replaced where the cal
 /**
  * A re-baker with bake inputs, at a clock the test moves, under the saver's 0:00-07:00 window.
  * @param {Object} [settings] Settings (the saver on by default).
- * @returns {{sends: Object[], at: function(number, number): void}} What was sent, and the clock's setter.
+ * @param {function(Object, Object, Object, number, Object): Object} [build] The bake (fakeBake by default).
+ * @returns {{sends: Object[], answers: Array<{onSuccess: function(): void, onFailure: function(Object): void}>,
+ *   at: function(number, number): void}} What was sent, each send's outbox callbacks, and the clock's setter.
  */
 function bootSaver(settings, build) {
   storage = {};
