@@ -423,6 +423,34 @@ test('a save after a read that failed reads again at once, in the Night battery 
   assert.equal(h.pebble.subs.length, 2, 'a save does');
 });
 
+test('one read for the saves after a failed read: a plugin that fails again waits for its reader\'s wait, however often the settings are saved', () => {
+  let h = boot();
+  h.pebble.subs[0].fail('PERMISSION_DENIED');
+  h.clock += MIN;
+  schedule.refresh();
+  assert.equal(h.pebble.subs.length, 2, 'the first save after the failure reads again');
+  h.pebble.subs[1].fail('PERMISSION_DENIED');
+  for (let save = 0; save < 5; save++) {
+    h.clock += MIN;
+    schedule.refresh();
+  }
+  assert.equal(h.pebble.subs.length, 2, 'failed again: no later save runs the other app\'s script');
+  h.clock = NOON + MIN + RETRY;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 3, 'the reader\'s wait after a failure reads it');
+
+  h = boot({ settings: {} });
+  h.settings = WANT_A;
+  schedule.refresh();
+  h.pebble.subs[0].fail('TIMEOUT');
+  h.clock += MIN;
+  schedule.onTick();
+  h.pebble.subs[1].fail('TIMEOUT');
+  h.clock += MIN;
+  schedule.refresh();
+  assert.equal(h.pebble.subs.length, 2, 'a save after the save\'s read and its read again both failed reads nothing');
+});
+
 test('another source picked forgets the read again owed to the old one: the new one is read at once', () => {
   const h = boot({ settings: {} });
   h.settings = WANT_A;

@@ -13,9 +13,11 @@
 // reads plugins at all.
 //   - The record of the last read (plugin-reads.js recordOf) is stamped as the read starts, so
 //     a read that PKJS ends before the answer still counts, and kept in storage, so neither a
-//     PKJS restart nor a settings save reads again before the next is due. A save after a read
-//     that failed does: no value has come for what the user picked, and they are at the phone,
-//     waiting to see it. A record that storage refuses still counts for the rest of this PKJS life.
+//     PKJS restart nor a settings save reads again before the next is due. A save after the
+//     first read that failed does: no value has come for what the user picked, and they are at
+//     the phone, waiting to see it. Only after the first: each read runs the other app's script,
+//     so a plugin that fails again waits for its reader's wait, however often the settings are
+//     saved. A record that storage refuses still counts for the rest of this PKJS life.
 //   - Not wanted: nothing is read, and the record is forgotten, so the value wanted again is
 //     read at once. Another key wanted (another source picked): the record and the value heard
 //     of the old key are forgotten, and the new key is read at once.
@@ -23,7 +25,7 @@
 //     the save that changed it, which that read held up, reads then.
 //   - A clock that went back starts the wait again from now (plugin-reads.js clockWentBack).
 //   - Inside the Night battery saver's window only a read that a settings save asks for, with
-//     none before it or after one that failed, goes ahead: the user is at the phone, waiting to
+//     none before it or after the first that failed, goes ahead: the user is at the phone, waiting to
 //     see the value. Any other waits for the first tick after the window. The window keeps the
 //     watch's link quiet, and a read is not quiet: a permission the plugin's app asked for comes
 //     back to the watch with it.
@@ -39,10 +41,10 @@
 // status send, which the re-bake's next tick makes: within a minute, after the Night battery
 // saver's window, and not beside a fetch in flight (status-rebake.js oweStatus). The answer to
 // a read a save asked for is paid two seconds after it comes, inside the window too: the user
-// waits for it at the phone (status-rebake.js paySoon). A
-// start owes one as well while the slot shows a value kept, since a debt dies with its PKJS:
-// whether the watch got the value is not known then, and the outbox sends nothing when it
-// has. The value is never logged: it is another app's data.
+// waits for it at the phone (status-rebake.js paySoon). A start owes one as well while the
+// slot shows a value kept, since a debt dies with its PKJS: whether the watch got the value is
+// not known then, and the outbox sends nothing when it has. The value is never logged: it is
+// another app's data.
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
@@ -212,13 +214,14 @@ function create(spec) {
      * @param {number} at Now, in epoch milliseconds.
      * @param {boolean} fromSave Whether a settings save asked for it, or for the read before
      *   it that this one reads again (againAtTick).
-     * @param {boolean} again Whether it reads again for a save's read that failed: when it
-     *   fails as well, the reader's wait after a failure stands.
      * @returns {void}
      */
-    function read(want, at, fromSave, again) {
+    function read(want, at, fromSave) {
         var failures = record ? record.failures : 0;
         var time = record ? record[spec.timeField] : null;
+        // The read again a save's failed read earned (againAtTick) earns none of its own: when it
+        // fails as well, the reader's wait after a failure stands.
+        var again = againAtTick;
         inFlight = true;
         againAtTick = false;
         // Stamped before the plugin answers: a read that PKJS ends before the answer still counts,
@@ -256,8 +259,8 @@ function create(spec) {
      * Read when a read is due, and only while the value is wanted. The one step behind a start,
      * a tick and a settings save.
      * @param {boolean} fromSave Whether the settings were just saved. Only then does a read with
-     *   none before it, or after one that failed, go ahead before it is due and inside the Night
-     *   battery saver's window.
+     *   none before it, or after the first one that failed, go ahead before it is due and inside
+     *   the Night battery saver's window.
      * @returns {void}
      */
     function consider(fromSave) {
@@ -288,19 +291,14 @@ function create(spec) {
             stamp(record.source, at, record.failures, record[spec.timeField]);
             return;
         }
-        // Read again for a save whose read failed: neither the wait after a failure nor the
-        // Night battery saver's window holds it, as neither held the save's read. Another key
-        // forgot it above: that one is read at once anyway.
-        if (againAtTick) {
-            read(want, at, true, true);
-            return;
-        }
-        // A save asks for a read when there is none before it, or the last one failed: no value
-        // has come for what the user picked, and they are at the phone, waiting to see it.
-        asked = fromSave && (!record || record.failures > 0);
+        // A save asks for a read when there is none before it, or after the first one that
+        // failed (the header says why only then), and so does the read again a save's failed
+        // read earned (againAtTick; another key forgot it above). Neither the wait after a
+        // failure nor the Night battery saver's window holds it.
+        asked = againAtTick || (fromSave && (!record || record.failures === 1));
         if (record && !asked && at < spec.nextReadAt(record, settings)) { return; }
         if (!asked && batterySaver.isWithinSleepWindow(new Date(at), settings)) { return; }
-        read(want, at, fromSave, false);
+        read(want, at, fromSave || againAtTick);
     }
 
     /**
