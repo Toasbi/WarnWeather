@@ -575,9 +575,24 @@ function wantsBatteryDays(settings, watchInfo) {
 }
 
 /**
- * Whether the Plugin value slot is wanted on this watch at all: a bar the bake sends shows it.
- * What decides whether its value is worth reading (plugin-value-source.js), which asks only
- * where this Pebble app reads plugins: the catalog's needsPlugins gate is taken as passed.
+ * Whether any slot of the given lines shows the Plugin value with a source picked
+ * (plugin-values.js sourceOf). The source first: it alone rules out most settings, without
+ * working out the bars.
+ * @param {Array<Object>} lines catalog line definitions
+ * @param {Object} settings Clay settings blob
+ * @param {Object} env platform environment
+ * @returns {boolean}
+ */
+function showsPluginValue(lines, settings, env) {
+  return pluginValues.sourceOf(settings) !== null && showsItem(lines, settings, env, 'pluginValue');
+}
+
+/**
+ * Whether the Plugin value is wanted on this watch at all: a source is picked, and a bar the
+ * bake sends shows the slot. What decides whether its value is worth reading
+ * (plugin-value-source.js) and what telemetry reports. Whether this Pebble app reads plugins
+ * is a fact of the phone, its callers' to add: the catalog's needsPlugins gate is taken as
+ * passed.
  * @param {Object} settings Clay settings blob
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
  * @returns {boolean}
@@ -585,7 +600,7 @@ function wantsBatteryDays(settings, watchInfo) {
 function wantsPluginValue(settings, watchInfo) {
   var env = platformLib.computeEnv(watchInfo);
   env.plugins = true;
-  return showsItem(catalog.bakedLines(settings, env), settings, env, 'pluginValue');
+  return showsPluginValue(catalog.bakedLines(settings, env), settings, env);
 }
 
 /**
@@ -733,7 +748,7 @@ function buildStatusLines(payload, settings, watchInfo, now, facts) {
     ? watch.estimate() : null;
   // And the Plugin value slot's value: none once it is too old at this instant, or another
   // source's.
-  var value = env.plugins && plugin.value && showsItem(lines, settings, env, 'pluginValue')
+  var value = env.plugins && plugin.value && showsPluginValue(lines, settings, env)
     ? plugin.value() : null;
   var bake = bakeEnv(now, reading, batteryDays.daysLeft(estimate, now.getTime()),
     pluginValues.shownReading(value, settings, now.getTime()));

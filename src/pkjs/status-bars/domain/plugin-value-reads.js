@@ -20,6 +20,7 @@
 //
 // ES5 only (aplite's JavaScriptCore): var + function.
 
+var utf8 = require('../../lib/utf8.js');
 var pluginReads = require('./plugin-reads.js');
 var pluginValues = require('./plugin-values.js');
 
@@ -31,51 +32,47 @@ var pluginValues = require('./plugin-values.js');
  * @returns {number} The time of the next read, in epoch milliseconds.
  */
 function nextReadAt(record, everyMs) {
-    var next = record.at + everyMs;
     if (record.failures > 0) { return record.at + pluginReads.retryWait(record.failures, everyMs); }
-    if (record.validUntil !== null && record.validUntil > next) {
-        next = Math.min(record.validUntil, record.at + pluginValues.LONGEST_WAIT_MS);
-    }
-    return next;
+    return pluginValues.heldUntil(record.at, everyMs, record.validUntil);
 }
 
 /**
- * The most characters of a text a value keeps (a reading's short text, long text and unit):
- * more than the widest slot prints, and the value kept rides the settings page's URL
+ * The most bytes of a text a value keeps (a reading's short text, long text and unit): more
+ * than the widest slot prints, and the value kept rides the settings page's URL
  * (userData.pluginValue).
  */
 var MAX_TEXT = 64;
 
 /**
- * @param {*} v A text field.
- * @returns {?string} It, when it is a text, cut to MAX_TEXT characters (never between the two
- *   halves of a character outside the BMP); null for none.
+ * @param {*} v A text field, as a plugin sent it or as it was stored.
+ * @returns {?string} It, when it is a text, trimmed and cut to MAX_TEXT bytes at a character's
+ *   edge; null for none.
  */
 function keptText(v) {
-    var cut = typeof v === 'string' && v ? v.slice(0, MAX_TEXT) : null;
-    return cut && /[\ud800-\udbff]$/.test(cut) ? cut.slice(0, -1) || null : cut;
+    var text = typeof v === 'string' ? v.replace(/^\s+|\s+$/g, '') : '';
+    return text ? utf8.truncateToByteCap(text, MAX_TEXT).str : null;
 }
 
 /**
- * A value as kept, checked: the source it was read from (plugin-values.js sourceOf's key), its
- * reading (plugin-reader.js readingOf), when it was read and until when the plugin said it
- * holds. Its texts are cut to MAX_TEXT characters.
+ * A value as kept, checked: where a plugin's answer and storage come in, once. The source it
+ * was read from (plugin-values.js sourceOf's key); its reading (plugin-reader.js readingOf):
+ * its texts trimmed and cut to MAX_TEXT bytes, its number a finite one, null for each it lacks;
+ * when it was read; and until when the plugin said it holds (plugin-reads.js timeOf).
  * @param {*} value What was stored (parsed JSON), or a value just read.
  * @returns {?{source: string, reading: Object, at: number, validUntil: ?number}} The value,
- *   or null when it is none.
+ *   or null when it is none: no reading that brings a text or a number among them.
  */
 function valueOf(value) {
     var r = value && value.reading;
-    if (!value || typeof value.source !== 'string' || !r || typeof r !== 'object'
-            || typeof value.at !== 'number' || !isFinite(value.at) || value.at <= 0) {
+    var at = pluginReads.timeOf(value && value.at);
+    var reading;
+    if (!value || typeof value.source !== 'string' || !r || typeof r !== 'object' || at === null) {
         return null;
     }
-    var reading = { short: keptText(r.short), long: keptText(r.long), unit: keptText(r.unit),
+    reading = { short: keptText(r.short), long: keptText(r.long), unit: keptText(r.unit),
         number: typeof r.number === 'number' && isFinite(r.number) ? r.number : null };
     if (reading.short === null && reading.number === null && reading.long === null) { return null; }
-    return { source: value.source, reading: reading, at: value.at,
-        validUntil: typeof value.validUntil === 'number' && isFinite(value.validUntil)
-            && value.validUntil > 0 ? value.validUntil : null };
+    return { source: value.source, reading: reading, at: at, validUntil: pluginReads.timeOf(value.validUntil) };
 }
 
 /**

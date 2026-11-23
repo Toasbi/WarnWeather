@@ -110,13 +110,15 @@ test('the value is read once per bake, and only when a bar it sends shows the sl
   assert.equal(hidden.reads, 0, 'a bar no screen shows is not baked');
 });
 
-test('wantsPluginValue: a slot of a bar the watch is sent holds it', () => {
+test('wantsPluginValue: a source is picked, and a slot of a bar the watch is sent holds it', () => {
   assert.equal(statusLines.wantsPluginValue(Object.assign({ statusTopLeft: 'pluginValue' }, SOURCE), BASALT), true);
   assert.equal(statusLines.wantsPluginValue(Object.assign({ statusForecastMid: 'pluginValue' }, SOURCE), BASALT), true);
   assert.equal(statusLines.wantsPluginValue(SOURCE, BASALT), false, 'no slot');
   assert.equal(statusLines.wantsPluginValue(Object.assign({ statusHealthLeft: 'pluginValue' }, SOURCE), BASALT), false,
     'a bar no screen shows');
   assert.equal(statusLines.wantsPluginValue(Object.assign({ statusTopLeft: 'pluginValue' }, SOURCE), APLITE), false);
-  assert.equal(statusLines.wantsPluginValue({ statusTopLeft: 'pluginValue' }, null), true,
+  assert.equal(statusLines.wantsPluginValue(Object.assign({ statusTopLeft: 'pluginValue' }, SOURCE), null), true,
     'an unknown watch may be one that shows it');
+  assert.equal(statusLines.wantsPluginValue({ statusTopLeft: 'pluginValue' }, BASALT), false,
+    'no source picked: the slot shows --, and nothing is read for it');
 });

@@ -75,7 +75,13 @@ test('the text: else the long text, else --', () => {
   assert.equal(pv.textFor(reading({ long: 'Next: Design review' }), 19), 'Next: Design review');
   assert.equal(pv.textFor(reading({}), 19), '--');
   assert.equal(pv.textFor(null, 19), '--');
-  assert.equal(pv.textFor(reading({ number: NaN, long: 'x' }), 19), 'x');
+});
+
+test('the text: cut to the slot\'s bytes at a character\'s edge, as the bake cuts it', () => {
+  assert.equal(pv.textFor(reading({ short: 'Days remaining 12' }), 8), 'Days rem');
+  assert.equal(pv.textFor(reading({ long: 'Next: Design review at 14:00' }), 19), 'Next: Design review');
+  assert.equal(pv.textFor(reading({ short: 'Gr\u00fc\u00dfe' }), 4), 'Gr\u00fc', 'two bytes each');
+  assert.equal(pv.textFor(reading({ number: 123456789 }), 8), '12345678');
 });
 
 test('a value shows for three Updates intervals after it was read, three hours at least', () => {

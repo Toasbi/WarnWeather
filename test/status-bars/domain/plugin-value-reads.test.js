@@ -59,12 +59,25 @@ test('valueOf: a stored value, checked', () => {
     Object.assign({}, value, { at: 'x' })].forEach((v) => assert.equal(reads.valueOf(v), null, JSON.stringify(v)));
 });
 
-test('valueOf: a value keeps 64 characters of each text, never half a character', () => {
+test('valueOf: a plugin\'s answer, checked as it comes in: texts trimmed, a finite number, none without either', () => {
+  const answer = (r) => reads.valueOf({ source: 's', reading: r, at: T0, validUntil: null });
+  assert.deepEqual(answer({ short: '  5G \n', number: 0, unit: ' kWh ', long: undefined }).reading,
+    reading({ short: '5G', number: 0, unit: 'kWh' }), 'trimmed; zero is a number');
+  assert.deepEqual(answer({ short: 87, number: '87', unit: 3, long: 'ok' }).reading, reading({ long: 'ok' }),
+    'fields of the wrong type');
+  [{ short: null, number: null, unit: null, long: null }, { short: '   ', long: '' },
+    { number: NaN, unit: '%' }, { number: Infinity }].forEach((r) =>
+    assert.equal(answer(r), null, JSON.stringify(r) + ': no text and no number; a unit alone says nothing'));
+});
+
+test('valueOf: a value keeps 64 bytes of each text, never half a character', () => {
   const long = 'x'.repeat(100);
   const value = reads.valueOf({ source: 's', reading: { short: long, long: long, unit: long }, at: T0 });
   assert.equal(reads.MAX_TEXT, 64);
   assert.deepEqual([value.reading.short, value.reading.long, value.reading.unit], ['x'.repeat(64), 'x'.repeat(64),
     'x'.repeat(64)]);
+  assert.equal(reads.valueOf({ source: 's', reading: { short: '\u00e4'.repeat(40) }, at: T0 }).reading.short,
+    '\u00e4'.repeat(32), 'two bytes each');
   const emoji = 'x'.repeat(63) + '\ud83d\ude00';
   assert.equal(reads.valueOf({ source: 's', reading: { short: emoji }, at: T0 }).reading.short, 'x'.repeat(63),
     'the emoji would be cut in half: it goes whole');

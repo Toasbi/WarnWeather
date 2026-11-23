@@ -13,8 +13,9 @@
 //
 // Pure. ES5 only (aplite PKJS).
 (function () {
-    var slotText = (typeof require !== 'undefined')
-        ? require('./slot-text.js') : window.SlotText;
+    var node = typeof require !== 'undefined';
+    var slotText = node ? require('./slot-text.js') : window.SlotText;
+    var utf8 = node ? require('../../lib/utf8.js') : window.Utf8;
 
     var MINUTE_MS = 60 * 1000;
     var HOUR_MS = 60 * MINUTE_MS;
@@ -84,23 +85,41 @@
     /**
      * The text the slot prints of a reading: its short text; else its number, with its unit
      * where the slot has the room ('%' and a unit that starts with the degree sign attach, any
-     * other follows a space); else its long text. The bake cuts it to the slot's cap as any
-     * text.
+     * other follows a space); else its long text. Cut to the slot's cap at a character's
+     * edge, as the bake cuts any text, so the settings page prints what the watch does.
      * @param {?{short: ?string, number: ?number, unit: ?string, long: ?string}} reading The
-     *   reading (plugin-reader.js readingOf), or null for none.
+     *   reading of a value kept (plugin-value-reads.js valueOf), or null for none.
      * @param {number} cap The slot's byte cap.
      * @returns {string} The text; '--' for none.
      */
     function textFor(reading, cap) {
         var short = oneLine(reading && reading.short);
         var unit;
-        if (short) { return short; }
-        if (reading && typeof reading.number === 'number' && isFinite(reading.number)) {
+        var text;
+        if (short) {
+            text = short;
+        } else if (reading && reading.number !== null) {
             unit = oneLine(reading.unit);
-            return slotText.withUnit(numberText(reading.number),
+            text = slotText.withUnit(numberText(reading.number),
                 unit && unit !== '%' && unit.charAt(0) !== '\u00b0' ? ' ' + unit : unit, cap);
+        } else {
+            text = oneLine(reading && reading.long) || '--';
         }
-        return oneLine(reading && reading.long) || '--';
+        return utf8.truncateToByteCap(text, cap).str;
+    }
+
+    /**
+     * Until when something read at an instant holds: a wait after it, or until the plugin said
+     * it holds, whichever is later, but no more than LONGEST_WAIT_MS on. The rule both of when a
+     * value is read again (plugin-value-reads.js nextReadAt) and of how long it shows.
+     * @param {number} at When it was read, in epoch milliseconds.
+     * @param {number} waitMs The wait.
+     * @param {?number} validUntil Until when the plugin said it holds, or null.
+     * @returns {number} The instant, in epoch milliseconds.
+     */
+    function heldUntil(at, waitMs, validUntil) {
+        var until = at + waitMs;
+        return validUntil === null ? until : Math.max(until, Math.min(validUntil, at + LONGEST_WAIT_MS));
     }
 
     /**
@@ -114,13 +133,9 @@
      */
     function shownReading(value, settings, nowMs) {
         var source = sourceOf(settings);
-        var until;
         if (!value || !source || value.source !== source.key) { return null; }
-        until = value.at + Math.max(3 * everyMs(settings), SHOWN_AT_LEAST_MS);
-        if (value.validUntil !== null) {
-            until = Math.max(until, Math.min(value.validUntil, value.at + LONGEST_WAIT_MS));
-        }
-        return nowMs < until ? value.reading : null;
+        return nowMs < heldUntil(value.at, Math.max(3 * everyMs(settings), SHOWN_AT_LEAST_MS),
+            value.validUntil) ? value.reading : null;
     }
 
     /**
@@ -144,12 +159,11 @@
     var api = {
         EVERY_CHOICES: EVERY_CHOICES,
         EVERY_DEFAULT: EVERY_DEFAULT,
-        SHOWN_AT_LEAST_MS: SHOWN_AT_LEAST_MS,
-        LONGEST_WAIT_MS: LONGEST_WAIT_MS,
         sourceOf: sourceOf,
         everyMs: everyMs,
         oneLine: oneLine,
         textFor: textFor,
+        heldUntil: heldUntil,
         shownReading: shownReading,
         labelOf: labelOf
     };

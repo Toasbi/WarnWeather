@@ -27,6 +27,8 @@
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
+var pluginReads = require('../domain/plugin-reads.js');
+
 /** How long readOnce waits for a plugin's first answer before it gives up. */
 var READ_TIMEOUT_MS = 20000;
 
@@ -246,15 +248,6 @@ function finite(value) {
 }
 
 /**
- * @param {?Object} shape A text shape ({text}).
- * @returns {?string} Its text, trimmed, or null for none or an empty one.
- */
-function textIn(shape) {
-    var text = shape && typeof shape.text === 'string' ? shape.text.replace(/^\s+|\s+$/g, '') : '';
-    return text ? text : null;
-}
-
-/**
  * A property's number: the numericValue of the envelope's first instance.
  *
  * @param {?Object} envelope A source update.
@@ -268,33 +261,30 @@ function numberOf(envelope, property) {
 
 /**
  * @typedef {Object} PluginReading
- * @property {?string} short The property's shortText.
- * @property {?number} number Its numericValue's value.
- * @property {?string} unit That value's unit ('%', '°C', 'kWh').
- * @property {?string} long Its longText.
+ * @property {*} short The property's shortText's text.
+ * @property {*} number Its numericValue's value.
+ * @property {*} unit That value's unit ('%', '°C', 'kWh').
+ * @property {*} long Its longText's text.
  */
 
 /**
- * A property's reading in the envelope's first instance: each text shape and the number,
- * as the plugin sent them (texts trimmed). What the slot shows of it is the status bars'
- * rule (plugin-values.js).
+ * A property's reading in the envelope's first instance: each text shape's text and the
+ * number with its unit, as the plugin sent them, unchecked. What of it is kept, and what the
+ * slot shows, are the status bars' rules, checked once (plugin-value-reads.js valueOf).
  *
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
- * @returns {?PluginReading} The reading, or null where the property brings neither a text
- *   nor a number.
+ * @returns {?PluginReading} The reading, or null where the plugin did not send the property.
  */
 function readingOf(envelope, property) {
     var shapes = shapesOf(envelope, property);
-    if (!shapes) { return null; }
-    var numeric = shapes.numericValue;
-    var reading = {
-        short: textIn(shapes.shortText),
-        number: finite(numeric ? numeric.value : null),
-        unit: numeric && typeof numeric.unit === 'string' ? textIn({ text: numeric.unit }) : null,
-        long: textIn(shapes.longText)
-    };
-    return reading.short === null && reading.number === null && reading.long === null ? null : reading;
+    var numeric = shapes && shapes.numericValue;
+    return shapes ? {
+        short: shapes.shortText ? shapes.shortText.text : null,
+        number: numeric ? numeric.value : null,
+        unit: numeric ? numeric.unit : null,
+        long: shapes.longText ? shapes.longText.text : null
+    } : null;
 }
 
 /**
@@ -327,8 +317,7 @@ function plugins(pebble) {
  * @returns {?number} The time in ms since the epoch, or null where it said nothing usable.
  */
 function validUntilOf(envelope) {
-    var until = finite(envelope ? envelope.validUntilMs : null);
-    return until !== null && until > 0 ? until : null;
+    return pluginReads.timeOf(envelope ? envelope.validUntilMs : null);
 }
 
 module.exports = {

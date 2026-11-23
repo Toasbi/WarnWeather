@@ -28,6 +28,7 @@ var schedule = pluginReadSchedule.create({
     // Until when the plugin said its last answer holds: its own word on when it has something new.
     timeField: 'validUntil',
     wanted: function (settings, watchInfo) {
+        // The source first: it alone rules out most settings, without working out the bars.
         var source = pluginValues.sourceOf(settings);
         return source && statusLines.wantsPluginValue(settings, watchInfo) ? {
             key: source.key,
@@ -40,10 +41,10 @@ var schedule = pluginReadSchedule.create({
     },
     heard: function (envelope, want, nowMs) {
         var until = pluginReader.validUntilOf(envelope);
-        var reading = pluginReader.readingOf(envelope, want.request.properties[0]);
-        // Kept as valueOf checks it: its texts cut to what a value keeps.
-        return { time: until, value: reading ? pluginValueReads.valueOf({ source: want.key,
-            reading: reading, at: nowMs, validUntil: until }) : null };
+        // Checked as a stored value is, once: valueOf.
+        return { time: until, value: pluginValueReads.valueOf({ source: want.key,
+            reading: pluginReader.readingOf(envelope, want.request.properties[0]), at: nowMs,
+            validUntil: until }) };
     },
     valueOf: pluginValueReads.valueOf,
     shown: pluginValues.shownReading,
