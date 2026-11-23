@@ -1,13 +1,13 @@
 'use strict';
 // The watchface's permissions (package.template.json pebble.usesPermissions). SDK 4.44 builds a
-// manifest version 2 pbw. With the Pebble app's permissions preview on, its PebbleKit JS and
-// settings page reach only the domains the Internet entries list (each covering its subdomains),
-// and the app asks before the rest it declares. Each entry says why (`reason`) and whether the app
-// needs it from the start (`required`, app 1.18.0.1: installing waits for an answer on those). So
-// every host the code requests must be declared, and every URL in the code that is NOT a request (a
-// link in a hint, a source comment, a header value) is named below with why. A new URL fails
-// here until it is one or the other. (Buy Me a Coffee, only linked, is declared all the same: the
-// owner's, 2026-11-14.) scripts/lib/uses-permissions.js adds the build-injected
+// manifest version 2 pbw. From Pebble app 2.0.0 (before it, with its permissions preview on), its
+// PebbleKit JS and settings page reach only the domains the Internet entries list (each covering
+// its subdomains), and the app asks before the rest it declares. Each entry says why (`reason`) and
+// whether the app needs it from the start (`required`, app 1.18.0.1: installing waits for an answer
+// on those). So every host the code requests must be declared, and every URL in the code that is
+// NOT a request (a link in a hint, a source comment, a header value) is named below with why. A new
+// URL fails here until it is one or the other. (Buy Me a Coffee, only linked, is declared all the
+// same: the owner's, 2026-11-14.) scripts/lib/uses-permissions.js adds the build-injected
 // endpoints' hosts (telemetry, the Rainbow proxy, news) at build time, as an entry of their own.
 const test = require('node:test');
 const assert = require('node:assert');
@@ -34,7 +34,7 @@ const NOT_REQUESTED = {
   'creativecommons.org': 'the CC BY 4.0 licence link in Setup › Privacy & data sources',
   'openweathermap.org': 'the OpenWeatherMap signup and plan links',
   'yandex.com': 'the Yandex Weather API key link',
-  'apps.repebble.com': 'the store listing link in the news panel',
+  'apps.repebble.com': 'store listing links: the news panel, and Muninn\'s in the battery slot\'s hint',
   'github.com': 'the issues links, and the User-Agent and Origin values met.no asks for',
   'toasbi.github.io': 'the emulator\'s settings page helper, opened with Pebble.openURL under the emulator only',
   'developer.repebble.com': 'a source comment',
@@ -183,8 +183,9 @@ test('each service has an entry of its own, whose reason names it', () => {
   domains.forEach((d) => assert.ok(NAMED[d] || /^appstore-api\./.test(d), d + ': name its service here'));
 });
 
-// Pebble app 1.18.0: Pebble.showSimpleNotificationOnPebble needs ShowNotifications, or the phone drops
-// the notification; navigator.geolocation needs Location.
+// Pebble app 2.0.0 (1.18.0 with its permissions preview on): Pebble.showSimpleNotificationOnPebble
+// needs ShowNotifications, or the phone drops the notification; navigator.geolocation needs
+// Location.
 test('ShowNotifications and Location are declared because the code uses them', () => {
   const code = sources().map((f) => fs.readFileSync(f, 'utf8')).join('\n');
   assert.match(code, /showSimpleNotificationOnPebble/, 'premise: the code shows notifications on the watch');

@@ -308,7 +308,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var P = (userData && userData.palette) || FALLBACK_PALETTE;
         var radarWhite = state.radarColor === 'white' || !isColor;
         var radarBarFg = barFg(state, isColor, ink);
-        // rain_radar_layer.c draws BAR_OUTLINED, which chart.c strokes in theme_fg() in
+        // rain_radar_layer.c's bars get chart.c's bar outline, stroked in theme_fg() in
         // every theme but colour-dark: the light colour theme outlines its bars too.
         var radarBarEdge = (isColor && isLightPolarity(state.theme)) ? ink.fg : null;
         // Only DWD carries a 2 km-area signal; Met.no and Rainbow are

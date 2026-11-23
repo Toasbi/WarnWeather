@@ -189,7 +189,6 @@ static void render_active_view(void) {
     // resolved on every render, so a font change in settings re-seats the clock with no extra
     // invalidation path (render_active_view runs before main_window_refresh re-measures text).
     LayoutMetrics metrics = LAYOUT_METRICS_NOW();
-    MainLayout L;
 #if defined(WW_QUICK_VIEW)
     // Peek is derived LIVE from the unobstructed bounds every render (never a cached flag),
     // so it stays correct across settings/timeline/relaunch — any path that lands here
@@ -197,7 +196,8 @@ static void render_active_view(void) {
     // the active view minus its calendar (date strip, clock, status row and a small body,
     // fit into the clear area) via layout_compute_peek. Reuses the ViewSpec->visibility
     // pipeline: dropping the top/calendar makes layout_visibility hide the calendar while
-    // the body + status stay on.
+    // the body + status stay on, unless layout_compute_peek drops a body too squeezed for the
+    // clock above it to fit.
     GRect unobstructed = quick_view_unobstructed_bounds(root_layer);
     bool peek = unobstructed.size.h < bounds.size.h;
     if (peek) {
@@ -205,12 +205,13 @@ static void render_active_view(void) {
         // (layout_compute_peek never reads those flags, but the visibility toggles below
         // do) — one helper in layout.h, shared with the host tests.
         layout_peek_spec(&spec);
-        L = layout_compute_peek(unobstructed, &spec, metrics);
-    } else
-#endif
-    {
-        L = layout_compute_spec(bounds, &spec, metrics);
     }
+    // Built straight into L (an initialiser, not an assignment), so the layout is not copied.
+    MainLayout L = peek ? layout_compute_peek(unobstructed, &spec, metrics)
+                        : layout_compute_spec(bounds, &spec, metrics);
+#else
+    MainLayout L = layout_compute_spec(bounds, &spec, metrics);
+#endif
     // Tier push: per-view layout facts flow one way, view spec -> window -> owner ->
     // layer/row state. Layers never read tier facts from config (see CONTEXT.md
     // "Tier push"). Sits after the peek fork above, so the pushed facts track
@@ -685,7 +686,7 @@ void main_window_refresh() {
     // The loading/notice overlay too: it is a whole-window surface like the rest,
     // and keeping it out of this set is what made each new repaint path forget it
     // (a config-only theme flip left it on the old polarity, most recently). Cheap
-    // and idempotent — a recolor plus one or two persist reads — so the flick/peek
+    // and idempotent — a repaint mark plus one or two persist reads — so the flick/peek
     // paths can afford it; on aplite (no flick — WW_VIEW_CYCLE is compiled out)
     // this runs on the settings/fetch checkpoints only.
     loading_layer_refresh();

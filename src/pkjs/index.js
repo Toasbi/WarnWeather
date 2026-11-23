@@ -4,6 +4,7 @@
 require('./lib/polyfills.js');
 
 var notices = require('./notices/adapter/notices.js');
+var featureTipsSeen = require('./notices/adapter/feature-tips-seen.js');
 var WeatherProvider = require('./weather/adapter/provider.js');
 var createTelemetryClient = require('./telemetry/adapter/telemetry.js');
 var settings = require('./page/settings');
@@ -31,6 +32,7 @@ var providerFactory = require('./weather/adapter/provider-factory.js');
 var previewPalette = require('./theme/domain/preview-palette.js');
 var newsCache = require('./notices/adapter/news-cache.js');
 var weatherTabCache = require('./weather/adapter/weather-tab-cache.js');
+var forecastSnapshots = require('./weather/adapter/forecast-snapshots.js');
 var createChannelScheduler = require('./wire/adapter/channel-scheduler.js');
 var createFetchCycle = require('./shell/fetch-cycle.js');
 // The render-affecting-settings signature (the force-fetch rule) lives in its own
@@ -38,6 +40,8 @@ var createFetchCycle = require('./shell/fetch-cycle.js');
 var renderSignature = require('./settings/domain/render-signature.js').renderSignature;
 var decideConfigClose = require('./settings/domain/config-close.js').decideConfigClose;
 var phoneBattery = require('./status-bars/adapter/phone-battery.js');
+var batteryEstimate = require('./status-bars/adapter/battery-estimate.js');
+var pluginReader = require('./status-bars/adapter/plugin-reader.js');
 var statusRebake = require('./status-bars/application/status-rebake.js');
 var notifyWatch = require('./notices/adapter/notify-watch.js').notifyWatch;
 
@@ -112,7 +116,7 @@ var fetchCycle = createFetchCycle({
         rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || ''
     },
     now: function () { return new Date(); },
-    getPhoneBattery: phoneBattery.bakeFacts,
+    getBakeFacts: bakeFacts,
     // Wrapped like the scheduler's below (WebView receiver check).
     setTimeout: function (fn, ms) { return setTimeout(fn, ms); }
 });
@@ -216,24 +220,31 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // renders the news pill from this instead of fetching the list itself.
         newsCache: newsCache.readBody() || ''
     };
-    // Logged, not just passed: false here silently OMITS both phone-battery slot
-    // items from all twelve slot dropdowns, and nothing on the page says why. This
+    // Logged, not just passed: false here silently OMITS the phone battery slot
+    // item from all twelve slot dropdowns, and nothing on the page says why. This
     // is the only place that verdict is read, so it is the only place it can be
     // observed at the moment it decides what the user is offered.
     var phoneBatteryEnv = phoneBattery.isSupported();
-    console.log('Config env: phoneBattery=' + phoneBatteryEnv);
+    // One more fact about the PHONE: whether this Pebble app can read plugins at all. The
+    // page offers what is read from another app's plugin only there (the watch battery's
+    // days left, battery-estimate.js).
+    var pluginsEnv = pluginReader.available(Pebble);
+    console.log('Config env: phoneBattery=' + phoneBatteryEnv + ' plugins=' + pluginsEnv);
+    // The new features this install has not seen and can use: the card the page opens on
+    // (page/notices/feature-tips-panel.js). null for none.
+    userData.featureTips = featureTipsSeen.forPage(featureTipsEnv());
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see page/settings/index.js options).
     Pebble.openURL(settings.generateUrl({
         values: values,
         watchInfo: app.watchInfo,
         // Env facts the config-UI library can't derive from watchInfo because they
-        // describe the PHONE, not the watch. Whether this PKJS host exposes a battery
-        // API at all is one: Android's Chromium WebView does, iOS's JavaScriptCore and
-        // the emulator never can. The catalog's needsPhoneBattery gate omits the
-        // phone-battery slot items wherever this is false. Merged over the derived env
-        // by createConfig, so this stays a single key.
-        env: { phoneBattery: phoneBatteryEnv },
+        // describe the PHONE, not the watch. Whether this PKJS host has a source of the
+        // phone's charge is one: the Pebble app's Phone plugin, or the battery API of
+        // Android's Chromium WebView; the emulator has neither. The catalog's
+        // needsPhoneBattery gate omits the phone-battery slot items wherever this is
+        // false. Merged over the derived env by createConfig, so this stays a single key.
+        env: { phoneBattery: phoneBatteryEnv, plugins: pluginsEnv },
         userData: userData
     }));
     console.log('Showing clay: ' + JSON.stringify(claySettings.redactForLog(values)));
@@ -285,6 +296,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // fetch below still has one to fetch with instead of failing on an empty
         // key the user never actually removed.
         var preserved = claySettings.resetAll(clayMigrations.RESET_SAFE_MARKERS);
+        // The wipe took the list of new-feature tips this install has seen. A reset
+        // install is a fresh one, to which nothing is new: it has seen them all. Left
+        // absent, the next settings open would show the card again, and a save before
+        // the next boot would make that boot read it as an install from before the tips.
+        featureTipsSeen.init(false);
         // Storage stays EMPTY on purpose: the next boot reads the absent blob as a
         // fresh install (hadExistingInstall false), so the onboarding migration
         // leaves onboardingDone false and the wizard reopens (wizard.js
@@ -319,7 +335,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     // A new install is counted on its first Save, not ~12 h later (telemetry.js).
     app.telemetry.onSettingsSaved({ settings: app.settings, watchInfo: app.watchInfo });
+    // A watch battery slot just set to show the days it has left gets its estimate now.
+    batteryEstimate.refresh();
     var providerOrLocationChanged = refreshProvider();
+    // The new-features card's Got it: the tips it showed are seen.
+    if (app.settings.featureTipsAck === true) { featureTipsSeen.acknowledge(featureTipsEnv()); }
     var acked = app.settings.fetchNoticeAck === true;
     // Only an error notice puts text on the watch overlay; capture that BEFORE
     // dismissAll() empties the list, so we push the watch clear only when there
@@ -346,6 +366,9 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // The watch's current data (or chart) is wrong; drop the last-sent caches
         // (including radar) so the next fetch resends every category.
         outbox.clearWeatherCaches();
+    }
+    if (decision.dropSnapshots) {
+        forecastSnapshots.clear();
     }
     // Send Clay settings, then re-bake the status category from the last payload
     // against the settings just saved, then (when forced) fetch. The scheduler
@@ -390,6 +413,8 @@ Pebble.addEventListener('ready',
             hadExistingInstall,
             app.devConfig.forceShowReleaseNotificationOnBoot
         );
+        // Nothing is new to a fresh install; one from before the tips has seen none.
+        featureTipsSeen.init(hadExistingInstall);
         claySettings.seedDefaults(DEFAULT_HOLIDAY_COLORS);
         var statusMigrationPlatform = 'basalt';
         var knownPlatform = '';
@@ -423,28 +448,31 @@ Pebble.addEventListener('ready',
             console.log('Unable to read watch info: ' + ex.message);
         }
         app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
-        // Phone battery: detect + subscribe once. Inert on iOS and in the
-        // emulator (no battery API there at all), so this is safe to run before
+        // Phone battery: detect + subscribe once. Inert in the emulator and on a
+        // phone with no source of its charge, so this is safe to run before
         // the fixture branch below — which is deliberate, so the dev-config
         // fake also populates the cache for fixture screenshots.
         // The rebaker restores its flash backstop FIRST: phoneBattery.init's
         // subscribe can fire a micro-send synchronously (see status-rebake.js).
         statusRebake.init({
             getSettings: function () { return app.settings; },
-            getPhoneBattery: phoneBattery.bakeFacts,
+            getBakeFacts: bakeFacts,
             sendWeather: outbox.sendWeather,
             storage: localStorage,
             now: function () { return Date.now(); }
         });
-        phoneBattery.init({
-            devConfig: app.devConfig,
-            getSettings: function () { return app.settings; },
-            now: function () { return new Date(); }
-        });
+        phoneBattery.init({ devConfig: app.devConfig });
         // A weather message that goes out anyway takes the phone battery's exact reading
         // along (bytes, never a wake-up); a fetch's bake shows the reading the watch was
         // last sent, so the charge drifting inside its bucket sends nothing by itself.
         outbox.setRideAlong(phoneBattery.statusRideAlong);
+        // The estimate of the days the watch has left (another app's plugin), read only
+        // while the watch battery's text (its Text or Icon + text look) is set to show them.
+        batteryEstimate.init({
+            getSettings: function () { return app.settings; },
+            getWatchInfo: function () { return app.watchInfo; },
+            now: function () { return Date.now(); }
+        });
         refreshProvider();
         // 7-day localStorage cache GC: caches are re-derivable, so entries older
         // than a week are dropped instead of building up (stale notices, the
@@ -465,7 +493,7 @@ Pebble.addEventListener('ready',
         if (activeFixture) {
             var sendFixture = function () {
                 fixtureWeather.sendFixtureWeather(activeFixture, { settings: app.settings, watchInfo: app.watchInfo,
-                    now: new Date(), phone: phoneBattery.bakeFacts() });
+                    now: new Date(), facts: bakeFacts() });
             };
             // After the settings send, whether the watch ACKs it or not.
             sendClaySettings(sendFixture, sendFixture);
@@ -502,6 +530,27 @@ function getRuntimeTelemetryConfig() {
         endpoint: endpoint,
         appVersion: pkg.version,
         buildProfile: pkg.buildProfile
+    };
+}
+
+/**
+ * What every status-line bake reads of the two batteries (status-lines.js BakeFacts): a
+ * fetch's, the fixture's and a re-bake's.
+ * @returns {{phone: Object, watch: Object}}
+ */
+function bakeFacts() {
+    return { phone: phoneBattery.bakeFacts(), watch: batteryEstimate.bakeFacts() };
+}
+
+/**
+ * What decides which new-feature tips this watch and phone can use (feature-tips.js): the
+ * watch's platform, and whether the Pebble app can read plugins.
+ * @returns {{platform: string, plugins: boolean}}
+ */
+function featureTipsEnv() {
+    return {
+        platform: (app.watchInfo && app.watchInfo.platform) || '',
+        plugins: pluginReader.available(Pebble)
     };
 }
 
@@ -558,22 +607,22 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
  * Everything index.js owns that must happen on every 60 s scheduler tick.
  *
  * The scheduler calls this as its `checkForUpdate` dep, which it invokes once
- * per tick unconditionally — so it is the tick hook, and hanging the
- * phone-battery post-saver-window push here keeps this at ONE timer instead of
- * arming a second one. The update check throttles itself to once a day
+ * per tick unconditionally — so it is the tick hook, and hanging the status
+ * re-bake's tick here (the battery sends the Night battery saver's window
+ * swallowed, the day/night turn) keeps this at ONE timer instead of arming a
+ * second one. The update check throttles itself to once a day
  * (update-check-runner.js — the XHR/notify half; update-check.js stays the
  * pure decision), so the extra work per tick is a flag test.
  *
  * It runs after the tick's fetch decision, so a fetch due this minute is in
- * flight by then: the push and the day/night re-bake wait for a tick without
- * one, as that fetch's message carries the same news.
+ * flight by then: the re-bake's sends wait for a tick without one, as that
+ * fetch's message carries the same news.
  *
  * @returns {void}
  */
 function onSchedulerTick() {
-    var fetching = fetchCycle.isInFlight();
-    phoneBattery.onTick(fetching);
-    statusRebake.onTick(fetching);
+    batteryEstimate.onTick();
+    statusRebake.onTick(fetchCycle.isInFlight());
     updateCheckRunner.runDailyUpdateCheck({
         stores: UPDATE_CHECK_STORES,
         appVersion: pkg.version,

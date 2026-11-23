@@ -34,6 +34,7 @@
     var esc = NODE ? require('../../config-ui/lib/html.js').esc : PConf.html.esc;
     var previewInk = (NODE ? require('../settings/preview-svg.js') : window.PreviewSvg).previewInk;
     var slotText = NODE ? require('../../status-bars/domain/slot-text.js') : window.SlotText;
+    var batteryDays = NODE ? require('../../status-bars/domain/battery-days.js') : window.BatteryDays;
     var condition = NODE ? require('../../weather/domain/condition.js') : window.Condition;
     var utf8 = NODE ? require('../../lib/utf8.js') : window.Utf8;
     var dateFormat = NODE ? require('../../calendar/domain/date-format.js') : window.DateFormat;
@@ -60,6 +61,8 @@
         dewF: 48.2,
         // A partly cloudy afternoon.
         condition: condition.names('partly', false),
+        // The days the watch battery has left, as another app estimates them.
+        batteryDays: 5,
         uv: [3, 7],
         aqi: [42, 58],
         wind: {kph: [12, 30], mph: [7, 19], knots: [6, 16]},
@@ -166,6 +169,34 @@
     }
 
     /**
+     * The date slot's short form, as the watch formats it with the date (status_row.c
+     * format_status_date): the date in the shorter format its format falls back to where the
+     * slot cannot show it whole (date-format.js MONTH_SHORT / FULL_SHORT). None on aplite,
+     * whose lean twin cuts the date as before.
+     * @param {Object} S Settings.
+     * @param {Object} [env] Platform env.
+     * @param {Date} now Today.
+     * @param {boolean} fullDate Whether the bar's view shows no calendar.
+     * @returns {string} e.g. 'Oct', '3.10.'; '' for none.
+     */
+    function dateShortText(S, env, now, fullDate) {
+        if (env && env.platform === 'aplite') { return ''; }
+        if (!fullDate) { return dateFormat.formatMonthYearShort(now, S.dateSlotMonthFormat); }
+        return dateFormat.formatFullDateShort(now, S.dateSlotFullFormat, dateFormat.dateMonthFirst(S));
+    }
+
+    /**
+     * What the bake carries in the watch battery's text for the sample's days
+     * (battery-days.js slotText): none for the percentage alone, the days, or the pair
+     * around the place of the percentage.
+     * @param {Object} S Settings. @param {number} cap The slot's byte cap.
+     * @returns {string}
+     */
+    function batteryCarried(S, cap) {
+        return batteryDays.slotText(SAMPLE.batteryDays, S, cap);
+    }
+
+    /**
      * One slot's sample text, exactly as the watch would print the sample reading.
      * @param {string} code The catalog item the slot shows.
      * @param {Object} S Settings.
@@ -204,19 +235,23 @@
             if (slotText.conditionLook(S, c.env) === 'icon') { return ''; }
             return slotText.conditionText(SAMPLE.condition, cap, c.env, slotText.conditionName(S));
         case 'countdown':
-            return slotText.formatCountdown(c.slotKey ? S[c.slotKey + 'Countdown'] : undefined, now,
+            return slotText.formatCountdown(c.slotKey ? S[catalog.countdownKey(c.slotKey)] : undefined, now,
                 slotText.unitEnabled(S, 'countdownSlotUnit'), cap);
         // The watch-rendered kinds, in status_row.c format_live_value's shapes.
         case 'steps': return '6.2k';
         case 'distance': return S.distanceUnits === 'imperial' ? '2.6mi' : '4.2km';
         case 'hr': return '64';
         case 'sleep': return '7h12';
-        case 'batteryPct': return '80%';
         case 'phoneBattery': return '72%';
-        case 'phoneBatteryPlain': return '72%';
-        // The battery item is its glyph alone, except on aplite, whose lean twin prints
-        // the charge (status_row_aplite.c format_live_value).
-        case 'battery': return c.env && c.env.platform === 'aplite' ? '80%' : '';
+        // The watch battery: in its Icon look the glyph alone, except on aplite, whose lean
+        // twin prints the charge (status_row_aplite.c format_live_value); in its Text and
+        // Icon + text looks the percentage, the days the watch has left or both, as the
+        // watch draws what the bake carries (battery-days.js; the watch prints its
+        // percentage alone while there is no estimate).
+        case 'battery':
+            if (c.env && c.env.platform === 'aplite') { return '80%'; }
+            if (slotText.batteryLook(S, c.env) === 'icon') { return ''; }
+            return batteryDays.drawn(batteryCarried(S, cap), '80%');
         default: return '';
         }
     }
@@ -233,12 +268,18 @@
      * watch pictures (preview-watch.js) both ask here.
      * @param {string} code The slot's item.
      * @param {Object} [env] Platform env.
-     * @param {Object} [S] Settings: the weather condition in its Text look draws none.
+     * @param {Object} [S] Settings: the weather condition and the two batteries in their
+     *     Text look draw none.
+     * @param {string} [slotKey] The slot's settings key: the phone battery's Look is the slot's.
      * @returns {?string} The glyph's <svg>, or null for none.
      */
-    function slotIcon(code, env, S) {
+    function slotIcon(code, env, S, slotKey) {
         if (env && env.platform === 'aplite' && !APLITE_GLYPHS[code]) { return null; }
         if (code === 'condition' && slotText.conditionLook(S, env) === 'text') { return null; }
+        if (code === 'phoneBattery' && slotText.phoneBatteryLook(S, slotKey) === 'text') { return null; }
+        // The watch battery's Text look is its text alone; its Icon look the battery itself,
+        // its Icon + text look the battery before the text.
+        if (code === 'battery' && slotText.batteryLook(S, env) === 'text') { return null; }
         // The city draws the current weather's icon before its name (citySlotIcon); the
         // sample's weather is the condition slot's, partly cloudy.
         if (code === 'city') {
@@ -267,10 +308,11 @@
      * @param {string} code The slot's item.
      * @param {Object} [env] Platform env.
      * @param {Object} [S] Settings.
+     * @param {string} [slotKey] The slot's settings key (slotIcon).
      * @returns {?string} The drawing's key, or null for none.
      */
-    function slotDrawing(code, env, S) {
-        if (!slotIcon(code, env, S)) { return null; }
+    function slotDrawing(code, env, S, slotKey) {
+        if (!slotIcon(code, env, S, slotKey)) { return null; }
         return SLOT_DRAWINGS[code === 'city' ? 'condition' : code] || null;
     }
 
@@ -305,10 +347,14 @@
      *     date slot prints the full date there).
      * @param {Date} [now] Today (absent = the clock's).
      * @returns {Array<{pos: string, key: string, code: string, text: string, alt: string,
-     *     arrow: boolean, icon: ?string, drawing: ?string}>} The left, middle and right slots (pos
-     *     'left' | 'mid' | 'right', key the slot's setting, e.g. 'statusTopLeft'; alt the short form
-     *     the text brought after catalog.ALT_SEP, '' for none; icon its glyph's <svg>, slotIcon;
-     *     drawing the watch's drawing of it, slotDrawing); [] for an unknown bar.
+     *     own: boolean, arrow: boolean, icon: ?string, drawing: ?string, batteryGlyph: boolean}>}
+     *     The left, middle and right slots (pos 'left' | 'mid' | 'right', key the slot's
+     *     setting, e.g. 'statusTopLeft'; alt the short form the text brought after
+     *     catalog.ALT_SEP, or the date's shorter format (dateShortText), '' for none; own whether
+     *     the slot takes it only where its own text is cut, as the date does (preview-watch.js
+     *     swapShortForms); icon its glyph's <svg>, slotIcon; drawing the watch's drawing of it, slotDrawing;
+     *     batteryGlyph whether the watch draws its battery glyph there, drawsBatteryGlyph); [] for
+     *     an unknown bar.
      */
     function barSlots(S, env, bar, fullDate, now) {
         var st = S || {}, when = now || new Date();
@@ -330,10 +376,25 @@
         take.forEach(function (t, p) { if (t) { texts[p] = wide[p]; } });
         return codes.map(function (c, p) {
             var forms = texts[p].split(catalog.ALT_SEP);
-            return {pos: c.pos, key: c.key, code: c.code, text: forms[0], alt: forms[1] || '',
-                arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: slotIcon(c.code, env, st),
-                drawing: slotDrawing(c.code, env, st)};
+            var date = c.code === 'date';
+            return {pos: c.pos, key: c.key, code: c.code, text: forms[0],
+                alt: date ? dateShortText(st, env, when, fullDate) : forms[1] || '', own: date,
+                arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: slotIcon(c.code, env, st, c.key),
+                drawing: slotDrawing(c.code, env, st, c.key), batteryGlyph: drawsBatteryGlyph(c.code, env, st)};
         });
+    }
+
+    /**
+     * Whether the watch draws its battery glyph in a slot (status_line.h
+     * status_slot_draws_battery): the watch battery in its Icon look, or before its text in
+     * its Icon + text look. Never on aplite, whose lean row prints the charge.
+     * @param {string} code The slot's item.
+     * @param {Object} [env] Platform env.
+     * @param {Object} [S] Settings.
+     * @returns {boolean}
+     */
+    function drawsBatteryGlyph(code, env, S) {
+        return code === 'battery' && !(env && env.platform === 'aplite') && slotText.batteryLook(S, env) !== 'text';
     }
 
     /**
@@ -345,8 +406,12 @@
      */
     function wireBytes(code, text, S, env, cap) {
         var item = catalog.byCode(code);
-        if (!item || item.kind !== catalog.KINDS.TEXT) { return 3; }
-        return 3 + utf8.byteLength(text || '') + (arrowShown(code, text, S, env, cap) ? 1 : 0);
+        // A kind the watch draws from its own readings carries no bytes.
+        if (!item || !catalog.kindHasText(slotText.wireKind(code, item, S, env))) { return 3; }
+        // The watch battery's value is what the bake carries (the days, with the one-byte
+        // place of the percentage in a pair), not the text the watch draws from it.
+        var value = code === 'battery' ? batteryCarried(S, cap) : (text || '');
+        return 3 + utf8.byteLength(value) + (arrowShown(code, text, S, env, cap) ? 1 : 0);
     }
 
     /**
@@ -510,7 +575,7 @@
     if (PConf && PConf.blocks) { PConf.blocks.register('statusBarsPreview', statusBarsPreview); }
     var api = {statusBarsPreview: statusBarsPreview, barPicture: barPicture, sample: sample, arrowDue: arrowDue,
         arrowShown: arrowShown, calendarShown: calendarShown, barCodes: barCodes, barSlots: barSlots,
-        slotIcon: slotIcon, SLOT_DRAWINGS: SLOT_DRAWINGS};
+        slotIcon: slotIcon, drawsBatteryGlyph: drawsBatteryGlyph, SLOT_DRAWINGS: SLOT_DRAWINGS};
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     // The page: the Watchface tab's watch reads the slots too (preview-watch.js).
     if (typeof window !== 'undefined') { window.PreviewStatusBars = api; }

@@ -21,9 +21,9 @@
 // Where the alerts come from:
 //  - the metric alerts are baked by the phone into their own weather tuple,
 //    ALERT_ENTRIES_UINT8 (encoding below), which app_message.c checks with
-//    alert_set_bytes_ok() and persists — alert_set_parse() reads them, in wire
-//    order; each entry is the On demand item of its kind (alert_set_item), and the
-//    item order is the priority;
+//    alert_set_bytes_ok() and persists — alert_set_parse() reads them into the
+//    set by item; each entry is the On demand item of its kind (alert_set_item),
+//    and the item order is the priority;
 //  - the rain alert is no entry: the watch resolves it from its own radar cache as
 //    numbers (rain_countdown_get()), and alert_set_rain_text() prints them.
 
@@ -94,18 +94,31 @@ typedef struct {
                            // value_len is 0 (the kind's Look is 'icon' on the phone)
 } AlertEntry;
 
+// The metric entries by On demand item: entry[item - OD_GUST] is the entry of metric
+// item `item` (alert_set_item of its kind), and a level of 0 there means it has none.
+// Read it through alert_set_entry().
 typedef struct {
-    uint8_t count;
-    AlertEntry entries[ALERT_SET_MAX];
+    AlertEntry entry[ALERT_SET_MAX];
 } AlertSet;
-
-// The StatusIconId a metric kind draws with; STATUS_ICON_NONE for a kind that is
-// not an alert kind (the health trio, the bold-only kinds, out of range).
-uint8_t alert_set_icon(int kind);
+_Static_assert(ALERT_SET_MAX == OD_ITEM_COUNT - OD_GUST && OD_GUST > OD_RAIN,
+               "AlertSet holds one entry per metric item, the items from OD_GUST on");
 
 // The On demand item (an OdItem) a metric kind's entry is; -1 for a kind that is
-// not an alert kind (alert_set_parse already skips those).
+// not an alert kind (the health trio, the bold-only kinds, out of range), which
+// alert_set_parse skips.
 int alert_set_item(int kind);
+
+// The StatusIconId metric item `item` draws with; STATUS_ICON_NONE for every item that
+// is no metric item.
+uint8_t alert_set_item_icon(int item);
+
+// The entry of On demand item `item`; NULL when the item has none, and for every item
+// that is no metric item.
+static inline const AlertEntry *alert_set_entry(const AlertSet *set, int item) {
+    if (item < OD_GUST || item >= OD_ITEM_COUNT) { return NULL; }
+    const AlertEntry *e = &set->entry[item - OD_GUST];
+    return e->level != 0 ? e : NULL;
+}
 
 // Whether slot `slot` of a bar (0 left, 1 middle, 2 right) merged a weather alert: an
 // entry of the metric the slot shows (`kind`, the slot's ThreshKind,
@@ -116,17 +129,12 @@ int alert_set_item(int kind);
 // slot. The middle slot never merges, and an alert on the other side never does.
 // Returns the entry's level (THRESH_LEVEL_WARN or _DANGER); 0 for none. A pure query:
 // the item that merged is alert_set_item(kind) (one item per alert kind), which the
-// On demand layout derives from the slot itself.
+// status row records in the slot for the On demand layout.
 static inline uint8_t alert_set_merge(const AlertSet *set, const uint8_t side[OD_ITEM_COUNT],
                                       int slot, int kind) {
-    if (slot == 1) { return 0; }
-    for (int i = 0; i < set->count; i++) {
-        const AlertEntry *e = &set->entries[i];
-        if (e->kind == kind && side[alert_set_item(e->kind)] == (slot >> 1) + OD_SIDE_LEFT) {
-            return e->level;
-        }
-    }
-    return 0;
+    const int item = alert_set_item(kind);
+    if (slot == 1 || item < 0 || side[item] != (slot >> 1) + OD_SIDE_LEFT) { return 0; }
+    return set->entry[item - OD_GUST].level;
 }
 
 // Whether an ALERT_ENTRIES_UINT8 payload is well formed: at most
@@ -138,13 +146,15 @@ static inline uint8_t alert_set_merge(const AlertSet *set, const uint8_t side[OD
 // keeping the last good entries.
 bool alert_set_bytes_ok(const uint8_t *bytes, size_t len);
 
-// Parse the stored alert entries (ALERT_ENTRIES_UINT8) into metric entries, in
-// wire order. Every `value` points into `bytes`, so the set must not outlive the
+// Parse the stored alert entries (ALERT_ENTRIES_UINT8) into the set, each entry at
+// its item. Every `value` points into `bytes`, so the set must not outlive the
 // buffer.
 // Tolerant, although alert_set_bytes_ok() already rejects malformed bytes: value
-// bytes before the first header are skipped, an entry whose kind has no icon is
+// bytes before the first header are skipped, an entry whose kind has no item is
 // skipped (its value bytes with it), an unused day code (6, 7) reads as
-// STATUS_ALERT_MARK_NONE, and the parse stops at ALERT_SET_MAX. Returns out->count.
+// STATUS_ALERT_MARK_NONE, a second entry of a kind leaves the first in place (the
+// phone bakes one per kind), and the parse stops after ALERT_SET_MAX entries, kept or
+// not. Returns the entries read.
 int alert_set_parse(const uint8_t *bytes, size_t len, AlertSet *out);
 
 // A metric entry's text lane, what its item prints after its icon, into `out`

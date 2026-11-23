@@ -11,18 +11,20 @@
  * its blank rows above and below its ink are its seat, and how tall its ink is, its size.
  *   resources/data/PX_<KEY>_<FAMILY>_<box>.pdc   each drawing in its version (VERSIONS): by
  *                                        default the pixel drawing as 1 px lines through pixel
- *                                        centres (level, upright and 45-degree runs, joined end to
- *                                        end, and single dots), which the watch draws exactly,
- *                                        smoothing on or off; or 3.1.1's icon scaled the old way
- *                                        (old), or a drawing in lines (drawing), by their kept
- *                                        lines; its view box as tall as the drawing's box, as wide
- *                                        as its ink;
- *                                        and after its own lines its faded pixels (FADED_STROKE), which the
- *                                        colour watches shade between the ink and what is behind it;
- *   resources/data/PX_<KEY>_<FAMILY>_<box>_BW.pdc   for a line drawing, its pixels again, for
- *                                        the black and white watches (Pebble 2, Pebble 2 Duo): they
- *                                        have no grey pixels to smooth with, and the pixels are the
- *                                        drawing as they draw it;
+ *                                        centres (level, upright and 45-degree runs and single
+ *                                        dots, in as few bytes as pixel-paths.js finds), which the
+ *                                        watch draws exactly, smoothing on or off; or 3.1.1's icon
+ *                                        scaled the old way (old), or a drawing in lines (drawing),
+ *                                        by their kept lines, written as their pixels where those
+ *                                        light exact pixels; its view box as tall as the drawing's
+ *                                        box, as wide as its ink; with its faded pixels
+ *                                        (FADED_STROKE), which the colour watches shade between the
+ *                                        ink and what is behind it;
+ *   resources/data/PX_<KEY>_<FAMILY>_<box>_BW.pdc   the drawing for the black and white watches
+ *                                        (Pebble 2, Pebble 2 Duo), where theirs differs: without its
+ *                                        faded pixels, which they cannot shade, and a line
+ *                                        drawing's pixels, as they have no grey pixels to smooth
+ *                                        its lines with;
  *   package.template.json                one raw resource per drawing, on its family's watches;
  *   src/c/layers/status_pixel_icons.generated.h   which drawing each icon id uses at each box
  *                                        (the rain alert's too: status_rain_glyph);
@@ -37,6 +39,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { commands, classesOf, exactPixels } = require('./pixel-paths.js');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const PIXELS = path.join(ROOT, 'resources', 'pixel-icons.json');
@@ -56,12 +59,12 @@ const MASK_BOX_ROWS = 17;
 // lines (drawing). The last two keep their lines in the file, under their name.
 const VERSIONS = ['pixel', 'old', 'drawing'];
 const PU = 8;
-// A faded pixel's stroke, by its thirds of the ink. A faded pixel is a 1 px line or dot after the
-// drawing's own, so it goes over them, whose fill marks it: a colour with no alpha, which draws
-// nothing, its thirds in the low two bits (0x01, 0x02; src/c/layers/faded_pixel.h). Its stroke is
-// the shade the dark theme draws it in, as the drawing's own are its white ink; the watch paints
-// both for its theme and for what is behind the icon, and hides a faded pixel on the black and
-// white watches.
+// A faded pixel's stroke, by its thirds of the ink. A faded pixel is a 1 px line or dot whose fill
+// marks it: a colour with no alpha, which draws nothing, its thirds in the low two bits (0x01,
+// 0x02; src/c/layers/faded_pixel.h). Its stroke is the shade the dark theme draws it in, as the
+// drawing's own are its white ink; the watch paints both for its theme and for what is behind the
+// icon. A pixel drawing's commands come in the order that costs least (pixel-paths.js); a kept
+// drawing with a sloped line has its faded pixels after its lines, which they go over.
 const FADED_STROKE = { 1: 0xD5, 2: 0xEA };   // GColorDarkGray, GColorLightGray
 
 // The icon catalogue: the watch's icon ids each drawing serves
@@ -72,7 +75,8 @@ const ICON_IDS = Object.fromEntries(JSON.parse(fs.readFileSync(ICONS_JSON, 'utf8
 const TARGETS = { basalt: ['basalt', 'diorite', 'flint'], emery: ['emery'] };
 // The header's watch families (one table each): the Pebble Time 2, the black and white 144 px
 // watches (PBL_BW: diorite, flint), and the colour one (basalt). A platform's drawing goes to
-// each of its families; a smoothed version to its colour watches alone.
+// each of its families; where the black and white watches draw it otherwise, to its colour
+// watches alone, and theirs (_BW) to them.
 const FAMILIES = { basalt: ['basalt', 'bw'], emery: ['emery'] };
 const COLOUR_TARGETS = { basalt: ['basalt'], emery: ['emery'] };
 
@@ -100,74 +104,6 @@ function boxPixels(lines) {
     if (!px.length) return px;
     const x0 = Math.min(...px.map(p => p[0]));
     return px.map(([x, y]) => [x - x0, y]);
-}
-
-/**
- * The pixels as runs: level, upright and 45-degree lines through lit pixels only, chosen greedily
- * (the run that covers the most pixels not yet drawn first), so drawing every run lights exactly
- * these pixels. A pixel no run of two reaches is a dot (both ends the same).
- * @param {!Array<!Array<number>>} px [x, y] of each lit pixel.
- * @returns {!Array<!Array<!Array<number>>>} [[x0, y0], [x1, y1]] per run.
- */
-function runs(px) {
-    const lit = new Set(px.map(([x, y]) => x + ',' + y));
-    const todo = new Set(lit);
-    const has = (x, y) => lit.has(x + ',' + y);
-    const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]];
-    const order = px.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0]);
-    const out = [];
-    while (todo.size) {
-        let best = null;
-        for (const [x, y] of order) {
-            if (!todo.has(x + ',' + y)) continue;
-            for (const [dx, dy] of dirs) {
-                let ax = x, ay = y, bx = x, by = y;
-                while (has(ax - dx, ay - dy)) { ax -= dx; ay -= dy; }
-                while (has(bx + dx, by + dy)) { bx += dx; by += dy; }
-                const len = Math.max(Math.abs(bx - ax), Math.abs(by - ay)) + 1;
-                let gain = 0;
-                for (let i = 0; i < len; i++) if (todo.has((ax + i * dx) + ',' + (ay + i * dy))) gain++;
-                if (!best || gain > best.gain || (gain === best.gain && len > best.len)) {
-                    best = { gain, len, ax, ay, dx, dy };
-                }
-            }
-        }
-        for (let i = 0; i < best.len; i++) todo.delete((best.ax + i * best.dx) + ',' + (best.ay + i * best.dy));
-        out.push([[best.ax, best.ay], [best.ax + (best.len - 1) * best.dx, best.ay + (best.len - 1) * best.dy]]);
-    }
-    return out;
-}
-
-/**
- * The runs joined end to end into open paths: a run that starts where another ends continues it,
- * so the image holds fewer commands (9 bytes each, plus 4 per point) and costs the watch less heap.
- * The pixels stay the same: a path is drawn as its runs, one after another.
- * @param {!Array<!Array<!Array<number>>>} segs runs() of the drawing.
- * @returns {!Array<!Array<!Array<number>>>} The paths' points, [x, y] each.
- */
-function paths(segs) {
-    const key = (p) => p[0] + ',' + p[1];
-    const at = {};
-    segs.forEach((s, i) => s.forEach(p => { (at[key(p)] = at[key(p)] || []).push(i); }));
-    const used = segs.map(() => false);
-    const out = [];
-    segs.forEach((seg, i) => {
-        if (used[i]) return;
-        used[i] = true;
-        const pts = seg.slice();
-        for (const tail of [true, false]) {
-            for (;;) {
-                const end = tail ? pts[pts.length - 1] : pts[0];
-                const j = at[key(end)].find(q => !used[q]);
-                if (j === undefined) break;
-                used[j] = true;
-                const next = key(segs[j][0]) === key(end) ? segs[j][1] : segs[j][0];
-                if (tail) pts.push(next); else pts.unshift(next);
-            }
-        }
-        out.push(pts);
-    });
-    return out;
 }
 
 /**
@@ -221,30 +157,27 @@ function fadedInBox(where, faded, ink) {
 
 /**
  * A PDC image of 1 px open precise paths, its points in pixels (on the 1/8 px grid), pixel (x, y)'s
- * centre at (x + 1/2, y + 1/2): the drawing's lines, then its faded pixels (FADED_STROKE), each shade's
- * as runs joined end to end like the lines.
- * @param {!Array<!Array<!Array<number>>>} lines The paths' points, [x, y] each (paths()).
+ * centre at (x + 1/2, y + 1/2): the commands in their order, the drawing's own in white ink, a faded
+ * pixel's in its shade (FADED_STROKE) and marked by its fill.
+ * @param {!Array<{thirds: number, pts: !Array<!Array<number>>}>} cmds The commands: thirds 0 for
+ *     the drawing's own, 1 or 2 for a faded pixel's (pixel-paths.js commands()), points [x, y].
  * @param {number} w The image's width in pixels, its view box.
  * @param {number} h Its height.
- * @param {!Array<!Array<number>>=} faded Its faded pixels, [x, y, thirds] each, in the view box
- *     (fadedInBox).
  * @returns {!Buffer} The .pdc file.
  */
-function pdc(lines, w, h, faded = []) {
+function pdc(cmds, w, h) {
     /**
      * One 1 px open path command.
-     * @param {!Array<!Array<number>>} pts Its points, [x, y] each, in pixels.
-     * @param {number} stroke Its stroke colour, a GColor8 byte.
-     * @param {number} fill Its fill: clear, or a faded pixel's mark (FADED_STROKE).
+     * @param {{thirds: number, pts: !Array<!Array<number>>}} cmd Its class and points, in pixels.
      * @returns {!Buffer} The command's bytes.
      */
-    const command = (pts, stroke, fill) => {
+    const command = ({ thirds, pts }) => {
         const b = Buffer.alloc(9 + 4 * pts.length);
         b.writeUInt8(3, 0);        // precise path
         b.writeUInt8(0, 1);        // not hidden
-        b.writeUInt8(stroke, 2);   // stroke colour, painted on load
+        b.writeUInt8(thirds ? FADED_STROKE[thirds] : 0xFF, 2);   // stroke colour, painted on load
         b.writeUInt8(1, 3);        // stroke width
-        b.writeUInt8(fill, 4);     // fill: none, or a faded pixel's mark
+        b.writeUInt8(thirds, 4);   // fill: none, or a faded pixel's mark
         b.writeUInt16LE(1, 5);     // open
         b.writeUInt16LE(pts.length, 7);
         pts.forEach(([x, y], k) => {
@@ -253,18 +186,13 @@ function pdc(lines, w, h, faded = []) {
         });
         return b;
     };
-    const cmds = lines.map((pts) => command(pts, 0xFF, 0x00));
-    for (const thirds of [1, 2]) {
-        const px = faded.filter(p => p[2] === thirds);
-        if (px.length) paths(runs(px)).forEach((pts) => cmds.push(command(pts, FADED_STROKE[thirds], thirds)));
-    }
     const head = Buffer.alloc(8);
     head.writeUInt8(1, 0);         // version
     head.writeUInt8(0, 1);
     head.writeInt16LE(w, 2);
     head.writeInt16LE(h, 4);
     head.writeUInt16LE(cmds.length, 6);
-    const body = Buffer.concat([head, ...cmds]);
+    const body = Buffer.concat([head, ...cmds.map(command)]);
     const size = Buffer.alloc(4);
     size.writeUInt32LE(body.length, 0);
     return Buffer.concat([Buffer.from('PDCI'), size, body]);
@@ -321,23 +249,40 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
             if (!VERSIONS.includes(version)) throw new Error(key + ' ' + id + ': unknown version ' + version);
             const name = 'PX_' + key + '_' + plat.toUpperCase() + '_' + rows;
             const where = key + ' ' + id;
-            const own = paths(runs(px));
-            // The colour watches' drawing, then its faded pixels: the pixel drawing's own lines, or
-            // the old icon's or the line drawing's kept lines. The pixel drawing and the old icon go
-            // to the black and white watches too, which draw the old icon as before the pixel
-            // drawings, unsmoothed, exactly as these lines draw there, and hide the faded pixels. A
-            // line drawing goes to the colour watches alone, its pixels in a _BW file without any.
-            const v = version === 'pixel' ? { lines: own, w, h } : keptInBox(where, version, s);
-            const smoothed = version === 'drawing';
-            // [resource name, its file's content, its watches, its header families].
-            const drawn = [[name, pdc(v.lines, v.w, v.h, fadedInBox(where, s.faded, v.lines.flat())),
-                [...(smoothed ? COLOUR_TARGETS : TARGETS)[plat]], smoothed ? [plat] : FAMILIES[plat]]];
-            if (smoothed && plat === 'basalt') {
-                drawn.push([name + '_BW', pdc(own, w, h), TARGETS.basalt.filter(t => !COLOUR_TARGETS.basalt.includes(t)), ['bw']]);
+            // The pixels alone: what the black and white watches draw of a pixel or line drawing.
+            const pixels = () => pdc(commands(classesOf(px), where), w, h);
+            // The colour watches' drawing: the pixel drawing, its faded pixels among its own in
+            // the order that costs least; or the old icon's or the line drawing's kept lines. Lines
+            // all level, upright or at 45 degrees light exact pixels, smoothing on or off, and are
+            // written as those pixels like a pixel drawing; others stay as they are, their faded
+            // pixels after them. The black and white watches' (a family's other watches): the
+            // drawing without its faded pixels, which they cannot shade; a line drawing's pixels, as
+            // they have no grey pixels to smooth its lines with; the old icon's lines as they drew
+            // it before the pixel drawings, unsmoothed, exactly as these lines draw there.
+            let colour, bw;
+            if (version === 'pixel') {
+                colour = pdc(commands(classesOf(px, fadedInBox(where, s.faded, px)), where), w, h);
+                bw = pixels;
+            } else {
+                const v = keptInBox(where, version, s);
+                const own = v.lines.map((pts) => ({ thirds: 0, pts }));
+                const faded = fadedInBox(where, s.faded, v.lines.flat());
+                const lit = exactPixels(v.lines);
+                colour = lit ? pdc(commands(classesOf(lit, faded), where), v.w, v.h)
+                    : pdc(own.concat(commands(classesOf([], faded), where)), v.w, v.h);
+                bw = version !== 'old' ? pixels
+                    : () => pdc(lit ? commands(classesOf(lit), where) : own, v.w, v.h);
             }
+            const others = TARGETS[plat].filter((t) => !COLOUR_TARGETS[plat].includes(t));
+            const theirs = others.length ? bw() : colour;
+            // [resource name, its file's content, its watches, its header families]: one file when
+            // all the family's watches draw the same, else the colour watches' and theirs (_BW).
+            const drawn = colour.equals(theirs)
+                ? [[name, colour, TARGETS[plat], FAMILIES[plat]]]
+                : [[name, colour, COLOUR_TARGETS[plat], [plat]], [name + '_BW', theirs, others, ['bw']]];
             for (const [res, buf, targets, fams] of drawn) {
                 files[path.join(DATA_DIR, res + '.pdc')] = buf;
-                media.push({ type: 'raw', name: res, file: 'data/' + res + '.pdc', targetPlatforms: targets.sort() });
+                media.push({ type: 'raw', name: res, file: 'data/' + res + '.pdc', targetPlatforms: targets.slice().sort() });
                 ICON_IDS[key].forEach(icon => table.push([icon, rows, 'RESOURCE_ID_' + res, fams]));
             }
         }
@@ -515,5 +460,5 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { outputs, header, apliteSource, pagePixels, runs, paths, pdc, keptLines, inkPixels, boxPixels, VERSIONS, ICON_IDS, TARGETS, COLOUR_TARGETS,
+module.exports = { outputs, header, apliteSource, pagePixels, pdc, keptLines, fadedInBox, inkPixels, boxPixels, VERSIONS, ICON_IDS, TARGETS, COLOUR_TARGETS,
     SIZE_KEY, PACKAGE, HEADER, APLITE_C, PAGE_PIXELS, DATA_DIR };

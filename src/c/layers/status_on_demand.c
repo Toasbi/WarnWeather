@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "status_on_demand.h"
-#include "battery_glyph.h"
+#include "../appendix/battery_glyph.h"
 #include "battery_item.h"
 #include "status_highlight.h"
 #include "status_row.h"
@@ -75,7 +75,7 @@ static int find_key(const StatusOnDemandCache *cache, uint8_t key) {
     return -1;
 }
 
-// Make the cache hold exactly the glyphs in `keys` (n of them): load each at
+// Make the cache hold exactly the glyphs in `keys` (n of them, 0 for none): load each at
 // `target_h` (the row's icon tier, through status_row_icons_load) and EVICT every cached glyph no
 // longer wanted — resident only while its item is active, so an idle bar holds no
 // glyph heap. The foreground and the icon height are part of the key: a theme or tier
@@ -113,17 +113,10 @@ static GDrawCommandImage *image_for(const StatusOnDemandCache *cache, uint8_t ke
     return slot >= 0 ? cache->images[slot] : NULL;
 }
 
-// The entry of metric item `item`: the first of its kind in the set (the phone bakes at
-// most one per kind); NULL for none, and for every other item.
-static const AlertEntry *item_entry(const StatusOnDemandState *s, int item) {
-    for (int i = 0; i < s->set.count; i++) {
-        if (alert_set_item(s->set.entries[i].kind) == item) { return &s->set.entries[i]; }
-    }
-    return NULL;
-}
-
 // Everything that decides what the bar's items draw: which item sits on which side
-// of `bar`, which of them are active, and what they show. Beside the battery state
+// of `bar`, which of them are active, what they show and the glyph each draws (the
+// Bluetooth rune or its crossed one, Quiet time's, the rain's drops by their bucket, a
+// metric alert's icon; none for the drawn Battery and Sleep). Beside the battery state
 // (the Battery item's charge, and whether the slots' battery glyph keeps its bolt
 // lane), only what an assigned item needs is read — the link for Bluetooth, the radar
 // cache for Rain, the entries for a metric alert — so a bar without items costs ten
@@ -135,9 +128,9 @@ static const AlertEntry *item_entry(const StatusOnDemandState *s, int item) {
 // bytes read into s->bytes: 0 when none is stored, or the bar has no metric item; -1
 // when the bar has no item at all.
 static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SCRATCH_BYTES]) {
-    s->set.count = 0;
+    memset(&s->set, 0, sizeof(s->set));
+    memset(s->key, 0, sizeof(s->key));
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
-    s->bt_key = 0;
     s->battery_value = false;
     s->rain_replaces = status_threshold_rain_replaces(blob);
     BatteryChargeState bs = watch_services_battery_state();
@@ -158,11 +151,12 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SC
         const Config *cfg = config_get();
         bool connected = connection_service_peek_pebble_app_connection();
         bool show = cfg && (connected ? cfg->show_bt : cfg->show_bt_disconnect);
-        s->bt_key = show ? (connected ? STATUS_ROW_ICON_BT : STATUS_ROW_ICON_BT_OFF) : 0;
+        s->key[OD_BLUETOOTH] = show ? (connected ? STATUS_ROW_ICON_BT : STATUS_ROW_ICON_BT_OFF) : 0;
         s->active[OD_BLUETOOTH] = show;
     }
     if (s->side[OD_QUIET_TIME] != OD_SIDE_NONE) {
         s->active[OD_QUIET_TIME] = quiet_time_is_active();
+        s->key[OD_QUIET_TIME] = s->active[OD_QUIET_TIME] ? STATUS_ROW_ICON_QUIET : 0;
     }
     if (s->side[OD_SLEEP] != OD_SIDE_NONE) {
         s->active[OD_SLEEP] = persist_get_is_sleeping();
@@ -170,12 +164,15 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SC
     if (s->side[OD_RAIN] != OD_SIDE_NONE) {
         s->rain_display = status_threshold_rain_display(blob);
         s->active[OD_RAIN] = rain_countdown_get(&s->rain, watch_services_now());
+        s->key[OD_RAIN] = s->active[OD_RAIN] ? status_rain_glyph(s->rain.bucket) : 0;
     }
     if (!(assigned & 2)) { return assigned - 1; }   // no metric item: 0, or -1 for none
     const int n = persist_get_alert_entries(s->bytes, sizeof(s->bytes));   // >= 0
     alert_set_parse(s->bytes, (size_t)n, &s->set);
     for (int item = OD_GUST; item < OD_ITEM_COUNT; item++) {
-        s->active[item] = s->side[item] != OD_SIDE_NONE && item_entry(s, item);
+        const AlertEntry *e = alert_set_entry(&s->set, item);
+        s->active[item] = s->side[item] != OD_SIDE_NONE && e;
+        s->key[item] = s->active[item] ? alert_set_item_icon(item) : 0;
     }
     return n;
 }
@@ -194,34 +191,19 @@ static GFont item_text(const StatusOnDemandState *s, int item, int lane,
     od_lane_look(s->rain_display, lane, &rd, &values);
     if (item == OD_BATTERY) {
         if (s->battery_value && values) { snprintf(buf, cap, "%d%%", s->charge); }
-        return env->font;
+        return env->fonts[0];
     }
     if (item == OD_RAIN) {
         if (rd != THRESH_RAIN_DISPLAY_ICON) {
             alert_set_rain_text(&s->rain, rd == THRESH_RAIN_DISPLAY_MINUTES, buf, cap);
         }
-        return env->font;
+        return env->fonts[0];
     }
-    const AlertEntry *e = item_entry(s, item);
-    if (!e) { return env->font; }
+    const AlertEntry *e = alert_set_entry(&s->set, item);
+    if (!e) { return env->fonts[0]; }
     alert_set_lane(e, values, buf, cap);
     return status_threshold_look(env->blob, e->kind, e->level).bold
-        ? env->bold : env->font;
-}
-
-// The glyph an active item draws; 0 for the procedural Battery and Sleep.
-static uint8_t item_key(const StatusOnDemandState *s, int item) {
-    switch (item) {
-        case OD_BATTERY:
-        case OD_SLEEP:      return 0;
-        case OD_BLUETOOTH:  return s->bt_key;
-        case OD_QUIET_TIME: return STATUS_ROW_ICON_QUIET;
-        case OD_RAIN:       return status_rain_glyph(s->rain.bucket);
-        default: {
-            const AlertEntry *e = item_entry(s, item);
-            return e ? alert_set_icon(e->kind) : 0;
-        }
-    }
+        ? env->fonts[1] : env->fonts[0];
 }
 
 // The width of active item `item`'s glyph: the battery's, Sleep's square, a cached
@@ -231,7 +213,7 @@ static int16_t item_icon_w(const StatusOnDemandRow *row, const StatusOnDemandSta
                            const StatusOnDemandEnv *env, int item) {
     if (item == OD_BATTERY) { return battery_item_width(env->icon_h, s->charging); }
     if (item == OD_SLEEP) { return env->icon_h; }
-    GDrawCommandImage *image = image_for(row->cache, item_key(s, item));
+    GDrawCommandImage *image = image_for(row->cache, s->key[item]);
     return image ? gdraw_command_image_get_bounds_size(image).w : 0;
 }
 
@@ -278,10 +260,10 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
     const bool batt = s.active[OD_BATTERY];
     const bool rain = s.active[OD_RAIN];
     const bool text = rain && s.rain_display != THRESH_RAIN_DISPLAY_ICON;
-    uint8_t live[10] = { (uint8_t)batt, s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
+    uint8_t live[10] = { (uint8_t)batt, s.key[OD_BLUETOOTH], (uint8_t)s.active[OD_QUIET_TIME],
                          (uint8_t)s.active[OD_SLEEP], (uint8_t)rain,
                          batt ? s.charge : 0, (uint8_t)(batt && s.charging),
-                         rain ? s.rain.tier : 0, text ? s.rain.mins : 0,
+                         rain ? s.rain.bucket : 0, text ? s.rain.mins : 0,
                          (uint8_t)(text && s.rain.raining) };
     sig = sig_fold(sig, live, sizeof(live));
     return sig_fold(sig, s.bytes, (size_t)n);
@@ -299,9 +281,9 @@ typedef struct {
 // Member `v` of slot `slot`'s short family into `buf` (status_short_member: the short form
 // it brought, else the ones its text derives). Its flags, 0 for none. `suffix`: the slot's
 // full form draws the wind arrow.
-static uint8_t family_member(const Families *f, const StatusOnDemandSlot *slot, bool suffix,
+static uint8_t family_member(const Families *f, const StatusRowSlot *slot, bool suffix,
                              uint8_t v, char *buf) {
-    return status_short_member(slot->kind, slot->icon, slot->text, slot->alt, suffix,
+    return status_short_member(slot->slot.kind, slot->slot.icon, slot->text, slot->alt, suffix,
                                f->charging, v, buf, STATUS_SHORT_CAP);
 }
 
@@ -312,7 +294,7 @@ static uint8_t family_member(const Families *f, const StatusOnDemandSlot *slot, 
 // members, as many as any family has (test/c/status_short_text_test.c holds every
 // kind to that). Run only once a side has an item to show, so a quiet bar measures
 // nothing extra.
-static void measure_family(Families *f, int i, const StatusOnDemandSlot *slot,
+static void measure_family(Families *f, int i, const StatusRowSlot *slot,
                            const StatusSlotMeasure *full, const StatusOnDemandEnv *env,
                            int16_t content_w) {
     OdSlotIn *in = &f->in[i];
@@ -320,17 +302,18 @@ static void measure_family(Families *f, int i, const StatusOnDemandSlot *slot,
     in->m[0] = *full;
     if (!full->present) { return; }
     const int16_t h = env->band.size.h;
+    const GFont font = env->fonts[slot->look.bold];   // the slot's, as the row draws it
     char buf[STATUS_SHORT_CAP];
     uint8_t v = 1;
     while (v < OD_VARIANTS) {
         uint8_t flags = family_member(f, slot, full->suffix_w > 0, v, buf);
         if (!flags) { break; }
         StatusSlotMeasure m = *full;
-        m.text_w = status_row_text_w(buf, slot->font, content_w, h);
+        m.text_w = status_row_text_w(buf, font, content_w, h);
         if (flags & SST_NO_SUFFIX) { m.suffix_w = 0; }
         if (flags & SST_NO_LANE) { m.icon_w = (int16_t)(m.icon_w - BATTERY_BOLT_LANE_W); }
         if ((flags & SST_ELASTIC) && status_short_floor(slot->text, buf, sizeof(buf))) {
-            in->floor_w = status_row_text_w(buf, slot->font, content_w, h);
+            in->floor_w = status_row_text_w(buf, font, content_w, h);
         }
         in->m[v++] = m;
     }
@@ -339,12 +322,15 @@ static void measure_family(Families *f, int i, const StatusOnDemandSlot *slot,
 
 void status_on_demand_collect(const StatusOnDemandRow *row, StatusOnDemandPass *pass,
                               int bar, const uint8_t blob[THRESH_SCRATCH_BYTES]) {
-    pass->state.set.count = 0;
-    if (row->assigned && bar >= 0) { collect(&pass->state, bar, blob); }
+    if (row->assigned && bar >= 0) {
+        collect(&pass->state, bar, blob);
+    } else {
+        memset(&pass->state.set, 0, sizeof(pass->state.set));   // no slot merges an alert
+    }
 }
 
 void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
-                             const StatusOnDemandEnv *env, const StatusOnDemandSlot slots[3],
+                             const StatusOnDemandEnv *env, StatusRowSlot slots[3],
                              StatusSlotMeasure m[3], StatusSlotPlace places[3],
                              int16_t content_w) {
     pass->any = false;
@@ -353,17 +339,14 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         return;
     }
     StatusOnDemandState *s = &pass->state;
-    // The glyphs the active items need; the cache is created by the first draw that
-    // has one, and emptied of the rest by every draw.
-    uint8_t keys[GLYPH_SLOTS];
-    int nkeys = 0;
-    for (int item = 0; item < OD_ITEM_COUNT; item++) {
-        uint8_t key = s->active[item] ? item_key(s, item) : 0;
-        if (key != 0 && nkeys < GLYPH_SLOTS) { keys[nkeys++] = key; }
-    }
-    if (!row->cache && nkeys > 0) { row->cache = cache_create(); }
+    // The glyphs the active items need (s->key: at most GLYPH_SLOTS distinct ones, the
+    // rest 0); the cache is created by the first draw that has one, and emptied of the
+    // rest by every draw.
+    bool any_key = false;
+    for (int item = 0; item < OD_ITEM_COUNT; item++) { any_key |= s->key[item] != 0; }
+    if (!row->cache && any_key) { row->cache = cache_create(); }
     if (row->cache) {
-        ensure(row->cache, keys, nkeys, env->icon_h);
+        ensure(row->cache, s->key, OD_ITEM_COUNT, env->icon_h);
     }
     // Each side's active items, nearest the side's own slot first: the item order is
     // the priority.
@@ -376,13 +359,9 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         const int d = s->side[item] == OD_SIDE_LEFT ? 0 : 1;
         OdSideIn *side = &pass->sides[d];
         int i = side->n++;
-        // The alert its own slot (0 left, 2 right) merged stands in for that slot only
-        // (on_demand.h). By alert_set_merge's rule that is the item of the metric the slot
-        // shows, active (its entry is in the set) on the slot's side, as this one is.
-        const StatusOnDemandSlot *own = &slots[2 * d];
-        if (item == alert_set_item(status_threshold_kind_for_slot(own->kind, own->icon))) {
-            side->merged = (uint8_t)(i + 1);
-        }
+        // The alert the side's own slot (0 left, 2 right) merged stands in for that slot
+        // only (on_demand.h).
+        if (item == slots[2 * d].merged_item) { side->merged = (uint8_t)(i + 1); }
         side->rank[i] = (uint8_t)item;
         for (int lane = 0; lane < OD_LANES; lane++) { side->w[lane][i] = w[lane]; }
     }
@@ -403,7 +382,7 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     // item stands in only once the layout has hidden every such slot.
     uint8_t battery_slots = 0;
     for (int i = 0; i < 3 && s->active[OD_BATTERY]; i++) {
-        if (od_slot_shows_battery(slots[i].kind)) { battery_slots |= (uint8_t)(1 << i); }
+        if (od_slot_shows_battery(slots[i].slot.kind)) { battery_slots |= (uint8_t)(1 << i); }
     }
     od_layout(content_w, f.in, pass->sides, bleed, battery_slots, &pass->layout);
     // Each slot draws the member the layout picked: its measure (the boxes and the
@@ -414,8 +393,9 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         uint8_t v = pass->layout.variant[i];
         if (v == 0 || v >= f.in[i].n) { continue; }
         char buf[STATUS_SHORT_CAP];
+        _Static_assert(sizeof(buf) <= sizeof(slots[i].text), "a member fits the slot's text");
         if (family_member(&f, &slots[i], f.in[i].m[0].suffix_w > 0, v, buf)) {
-            snprintf(slots[i].text, slots[i].cap, "%s", buf);
+            strcpy(slots[i].text, buf);
         }
         m[i] = f.in[i].m[v];
     }
@@ -445,7 +425,7 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
     // box IS the footprint: the padding was measured in either way, so the widths do
     // not shift when a box appears.
     if (od_item_boxed(item)) {
-        const AlertEntry *e = item_entry(s, item);
+        const AlertEntry *e = alert_set_entry(&s->set, item);
         ThreshLook look = status_threshold_look(env->blob, e->kind, e->level);
         if (look.box != THRESH_BOX_NONE) {
             StatusHighlightExtent v = status_highlight_extent(
@@ -459,7 +439,7 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
     } else if (item == OD_SLEEP) {
         snooze_draw(ctx, GRect(icon_x, icon_top, env->icon_h, env->icon_h), paint.ink);
     } else {
-        uint8_t key = item_key(s, item);
+        const uint8_t key = s->key[item];
         GDrawCommandImage *image = image_for(row->cache, key);
         if (image) {
             StatusPaint glyph = paint;

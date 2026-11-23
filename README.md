@@ -32,6 +32,8 @@ Features marked * depend on your watch model.
 - 12 to 66 hours ahead* and up to six graphs, one per screen*
 - Day/night shading
 - Weather from Open-Meteo, Met.no, Bright Sky (DWD), OpenWeatherMap, Tomorrow.io, Weather Underground or Yandex Weather
+- One provider for everything, or a provider of its own for any reading, with the calls a day shown in the settings
+- Readings a provider lacks, like DWD's UV index, come from Open-Meteo
 
 ### Alerts*
 
@@ -50,10 +52,11 @@ Icons at the edge of a status bar that appear only when something needs your att
 ### Status bars
 
 - Weather condition with a sun or moon icon, temperature, air quality, wind, gusts, UV index, pollen, dew point, air pressure, sunrise and sunset
-- Date, calendar week, city, countdown to a date
+- Date, calendar week, city with the current weather's icon, countdown to a date
 - Steps, sleep, distance, heart rate*
-- Watch and phone battery
-- Short forms when a bar runs out of room (Partly cloudy becomes PCLDY)
+- Watch battery as an icon, as text or both, with the days it has left from the Muninn app*
+- Phone battery as text, with or without its icon*
+- Short forms when a bar runs out of room (Partly cloudy becomes PCLDY, Nov 2026 becomes Nov)
 - Name your own bars and place them on any screen*
 
 ### Health*
@@ -78,6 +81,8 @@ Icons at the edge of a status bar that appear only when something needs your att
 - Live preview of every screen
 - Weather tab with a 5-day forecast for your location and up to three saved places
 - First-run setup with defaults for your country and watch
+- Light, dark or black theme
+- What's new after an update, with a Show me for each new feature
 
 ## Platforms
 

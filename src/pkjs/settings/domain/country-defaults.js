@@ -1,7 +1,8 @@
-// src/pkjs/page/settings/country-defaults.js — ES5. Country → recommended providers + locale units.
+// src/pkjs/settings/domain/country-defaults.js — ES5. Country → recommended providers + locale units.
 //
 // The single source for "what's best where": the onboarding wizard derives a fresh install's
-// settings from the inferred country (page/settings/wizard/wizard.js), and the Provider-settings dropdowns
+// settings from the inferred country (page/settings/wizard/wizard.js, whose inferCountry reads the
+// phone's time zone and locale through the two lookups here), and the Provider-settings dropdowns
 // mark the country-matched option "(Recommended)" (blocks.js recommend resolvers). Both read
 // mapCountry() here so the wizard's picks and the dropdown hints can never drift apart.
 //
@@ -11,7 +12,7 @@
 
 // Compact IANA-timezone -> ISO-3166-1 alpha-2 table. Covers DE + the Nordic metno zones (the
 // countries that change the derived provider) plus common others; anything absent falls through
-// to the navigator.language region subtag.
+// to the locale's region subtag (countryFromLocale).
 var TZ_COUNTRY = {
     'Europe/Berlin': 'DE', 'Europe/Busingen': 'DE',
     'Europe/Oslo': 'NO', 'Europe/Stockholm': 'SE', 'Europe/Copenhagen': 'DK',
@@ -56,25 +57,6 @@ function countryFromLocale(lang) {
 }
 
 /**
- * Best-effort country inference: timezone first, then locale region subtag.
- * @returns {?string} ISO alpha-2 code, or null if it can't be determined.
- */
-function inferCountry() {
-    var tz = null, lang = null;
-    try {
-        if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
-            tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        }
-    } catch (e) { tz = null; }
-    var fromTz = countryFromTimezone(tz);
-    if (fromTz) { return fromTz; }
-    try {
-        lang = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : null;
-    } catch (e2) { lang = null; }
-    return countryFromLocale(lang);
-}
-
-/**
  * Derive the recommended weather + radar provider and locale units (temperature, wind, distance,
  * week-start) from a country code. DE → DWD, the Nordics → Met.no, everyone else → Open-Meteo
  * weather with a Rainbow radar nowcast.
@@ -98,7 +80,6 @@ function mapCountry(cc) {
 var COUNTRY_DEFAULTS = {
     countryFromTimezone: countryFromTimezone,
     countryFromLocale: countryFromLocale,
-    inferCountry: inferCountry,
     mapCountry: mapCountry,
     METNO_COUNTRIES: METNO_COUNTRIES
 };

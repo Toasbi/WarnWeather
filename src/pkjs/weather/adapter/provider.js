@@ -9,6 +9,7 @@ var dayPeaks = require('../domain/day-peaks.js');
 var dayPeaksStore = require('./day-peaks-store.js');
 var fetchOptions = require('../domain/fetch-options.js');
 var forecastModel = require('../domain/forecast-model.js');
+var fetchSources = require('../application/fetch-sources.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
 // fetches can require them without the old provider-cycle lazy-require hack);
@@ -112,6 +113,10 @@ var WeatherProvider = function() {
     // and the condition slot shows '--'. Transient: consumed by the condition
     // slot, never wired.
     this.currentCondition = null;
+    // The provider's own sunrise and sunset times when its forecast carries them
+    // (OpenWeatherMap's daily), [{type, at}] with `at` in epoch seconds: withSunEvents
+    // prefers them to SunCalc's. Null for every other provider.
+    this.sunTimes = null;
 };
 
 /**
@@ -189,11 +194,12 @@ WeatherProvider.prototype.isGeocodeBackoffActive = function() {
 };
 
 /**
- * Compute the next sun events from local SunCalc (synchronous). The callback
- * receives exactly two events, each `{ type: 'sunrise' | 'sunset', date:
- * Date }`, including during polar day and night (see nextSunEvents).
- * Subclasses may override with a network-based source (see
- * OpenWeatherMapProvider).
+ * Compute the next sun events (synchronous): from the provider's own sun times
+ * when its forecast carried them (sunTimes, OpenWeatherMap's daily), else from
+ * local SunCalc. The callback receives exactly two events, each `{ type:
+ * 'sunrise' | 'sunset', date: Date }`, including during polar day and night:
+ * own times that make no usable pair give way to SunCalc's (see
+ * nextSunEvents). It runs after the forecast is in, which brings the sun times.
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
@@ -203,10 +209,16 @@ WeatherProvider.prototype.isGeocodeBackoffActive = function() {
  */
 WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure) {
     var sunEvents;
+    var own;
 
     try {
+        // The provider's own sun times where it sends them (forecast-model.js MAPPED_KEYS.sun),
+        // read in here too: a forecast snapshot brings them back from storage.
+        own = Array.isArray(this.sunTimes) ? this.sunTimes.map(function(e) {
+            return { type: e.type, date: new Date(e.at * 1000) };
+        }) : undefined;
         // The span widens a polar pair to cover a long graph (sun-events.js).
-        sunEvents = nextSunEvents(new Date(), lat, lon, undefined, this.options.forecastHours);
+        sunEvents = nextSunEvents(new Date(), lat, lon, own, this.options.forecastHours);
     }
     catch (ex) {
         onFailure(failure('sun_events', 'calc_error'));
@@ -551,8 +563,11 @@ WeatherProvider.prototype.composeWeatherPayload = function(extraPayload, payload
 
 /**
  * Run the weather-fetch chain for already-resolved coordinates: reverse-geocode
- * the city (never fatal — see withCityName), compute sun events, fetch provider
- * data, then send the composed payload via the deduping outbox. Callers MUST
+ * the city (never fatal — see withCityName), fetch the weather sources (this
+ * provider's data, and what the source plan fills in for it:
+ * weather/application/fetch-sources.js), compute the sun events (from the
+ * provider's own sun times when its forecast brought them), then send the
+ * composed payload via the deduping outbox. Callers MUST
  * resolve coordinates via withCoordinates() first — it owns the
  * usedGpsCache/gpsErrorCode/locationMode resets this method relies on.
  *
@@ -565,22 +580,18 @@ WeatherProvider.prototype.composeWeatherPayload = function(extraPayload, payload
  * @param {Function} [payloadTransform] Optional PKJS render transform.
  * @param {function(): boolean} [isCurrent] False once the caller abandoned this
  *   fetch; the composed payload is then dropped instead of sent.
+ * @param {Object} ports The source ports the fetch's sources run through
+ *   (shell/fetch-cycle.js prepareFetch).
  * @returns {void}
  */
-WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, onFailure, force, extraPayload, payloadTransform, isCurrent) {
+WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, onFailure, force, extraPayload, payloadTransform, isCurrent, ports) {
     // Note: withCoordinates() already reset usedGpsCache/gpsErrorCode/locationMode/countryCode
     // for this cycle; this method relies on those resets having already happened.
     this.withCityName(lat, lon, (function(cityName, countryCode) {
         this.countryCode = countryCode;
-        this.withSunEvents(lat, lon, (function(sunEvents) {
-            this.withProviderData(lat, lon, force, (function() {
-                // if `this` (the provider) contains valid weather details,
-                // then we can safely call this.getPayload()
-                if (!this.hasValidData()) {
-                    console.log('Fetch cancelled: insufficient data.');
-                    onFailure(failure('provider_data', 'invalid_data'));
-                    return;
-                }
+        // The sources leave a valid forecast on this provider, or fail the fetch.
+        fetchSources.fetchSources(this, ports, lat, lon, force, (function() {
+            this.withSunEvents(lat, lon, (function(sunEvents) {
                 console.log('Lets get the payload for ' + cityName);
                 this.cityName = cityName;
                 this.sunEvents = sunEvents;
@@ -644,12 +655,10 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                         );
                     });
                 });
-            }).bind(this), function(providerFailure) {
-                onFailure(providerFailure || failure('provider_data', 'unknown_error'));
+            }).bind(this), function(sunFailure) {
+                onFailure(sunFailure || failure('sun_events', 'unknown_error'));
             });
-        }).bind(this), function(sunFailure) {
-            onFailure(sunFailure || failure('sun_events', 'unknown_error'));
-        });
+        }).bind(this), onFailure);
     }).bind(this));
 };
 

@@ -23,7 +23,7 @@ test('emulator (no Pebble global): emulatorConfigUrl set -> helper URL with $$RE
   const decoded = decodeURIComponent(url.slice((EMU + '#').length));
   assert.ok(decoded.indexOf('INJECTED_RETURN="$$RETURN_TO$$"') !== -1, 'return target is the helper placeholder');
   // the schema/values still get injected into the hosted page
-  assert.ok(decoded.indexOf('"messageKey":"provider"') !== -1, 'schema injected into the helper page');
+  assert.ok(decoded.indexOf("messageKey:'provider'") !== -1, 'schema injected into the helper page');
 });
 
 test('emulator: Pebble.platform === "pypkjs" triggers the helper path', () => {

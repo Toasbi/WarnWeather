@@ -144,7 +144,12 @@ enum key {
     STATUS_LINE_7,                // 65 — bar 6
     // Appended: bars 4 to 6's On demand cells (CLAY_OD_EXTRA_UINT8, layout in
     // status_threshold.h), stored as sent. emery only, listed everywhere (append-only).
-    OD_EXTRA_CELLS                // 66 — OD_ITEM_COUNT bytes, absent = nothing ticked
+    OD_EXTRA_CELLS,               // 66 — OD_ITEM_COUNT bytes, absent = nothing ticked
+    // Appended: the days text the watch battery slot carried the last time the watch was
+    // on the charger (status_line.h StatusBatteryDaysMark), so they stay hidden after the
+    // watchface was left and opened again. No aplite caller (its lean row
+    // draws no such slot), listed everywhere (append-only).
+    BATTERY_DAYS_MARK             // 67 — a StatusBatteryDaysMark's text, absent = none yet
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -532,6 +537,16 @@ int persist_get_status_line(uint8_t line_id, uint8_t *buffer, size_t buffer_size
 bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len) {
     if (line_id >= STATUS_LINE_COUNT || len > STATUS_LINE_MAX_BYTES) { return false; }
     return write_sized_data_if_changed(status_line_key(line_id), data, len);
+}
+
+// The mark is stored as its text alone, as many bytes as it has.
+void persist_get_battery_days_mark(StatusBatteryDaysMark *mark) {
+    const int n = store_read_data(BATTERY_DAYS_MARK, mark->text, sizeof(mark->text));
+    mark->len = (uint8_t)(n > 0 ? n : 0);
+}
+
+bool persist_set_battery_days_mark(const StatusBatteryDaysMark *mark) {
+    return write_sized_data_if_changed(BATTERY_DAYS_MARK, mark->text, mark->len);
 }
 
 // A stored text into `buffer`: its length in bytes, or -1 while the slot is

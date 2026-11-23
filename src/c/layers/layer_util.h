@@ -3,11 +3,6 @@
 #include <pebble.h>
 #include "c/appendix/status_metrics.h"
 
-// Move a TextLayer's frame in one call (its layer is its only sized child).
-static inline void text_layer_move_frame(TextLayer *text_layer, GRect frame) {
-    layer_set_frame(text_layer_get_layer(text_layer), frame);
-}
-
 // Status-bar glyph geometry, shared by the weather and health rows so a line of the same
 // font lands at the same height in a band of the same size — no per-bar, per-tier offsets.
 // The arithmetic lives in status_metrics.h (SDK-free, so windows/layout.c and the host tests
@@ -73,6 +68,18 @@ static inline int status_forecast_band_h(GFont font) {
 #define STATUS_TOP_TIER_FONT_KEY FONT_KEY_GOTHIC_24
 #else
 #define STATUS_TOP_TIER_FONT_KEY FONT_KEY_GOTHIC_18
+#endif
+
+// The two fonts' bold siblings, which a slot whose threshold is crossed draws in. The
+// Gothic bolds share their regular siblings' metrics, so a bold slot seats and boxes as
+// a regular one.
+// emery: the bolds of its one-notch-larger regular fonts.
+#ifdef PBL_PLATFORM_EMERY
+#define STATUS_FULL_TIER_FONT_KEY_BOLD FONT_KEY_GOTHIC_18_BOLD
+#define STATUS_TOP_TIER_FONT_KEY_BOLD FONT_KEY_GOTHIC_24_BOLD
+#else
+#define STATUS_FULL_TIER_FONT_KEY_BOLD FONT_KEY_GOTHIC_14_BOLD
+#define STATUS_TOP_TIER_FONT_KEY_BOLD FONT_KEY_GOTHIC_18_BOLD
 #endif
 static inline GFont status_full_tier_font(void) {
     return fonts_get_system_font(STATUS_FULL_TIER_FONT_KEY);

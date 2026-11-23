@@ -15,6 +15,17 @@
     LIVE_STEPS: 3, LIVE_HR: 4, LIVE_SLEEP: 5, LIVE_DISTANCE: 6, LIVE_WEEK: 7,
     LIVE_DISTANCE_MI: 8, LIVE_BATTERY: 9, LIVE_BATTERY_PCT: 10
   };
+  /**
+   * Whether a kind's slot carries value bytes: a text slot, and the watch battery as text,
+   * into which the phone may bake the days the watch has left. Every other kind carries
+   * none (status_line.h status_slot_kind_has_text, kept in lockstep by
+   * test/status-bars/domain/status-line-contract.test.js).
+   * @param {number} kind A KINDS value.
+   * @returns {boolean}
+   */
+  function kindHasText(kind) {
+    return kind === KINDS.TEXT || kind === KINDS.LIVE_BATTERY_PCT;
+  }
   var ICONS = {
     NONE: 0, DRAWN_SUN: 1, TEMP: 2, UV: 3, WIND: 4, GUST: 5,
     STEPS: 7, SLEEP: 8, HR: 9, DISTANCE: 10, AQI: 11,
@@ -27,20 +38,24 @@
     // without one the dew slot would be TEXT + NONE and inherit city's bold mode.
     // Id 6 is a retired hole (STATUS_ICON_PRECIP, 3dae9f4) — never reuse it.
     DEWPOINT: 15,
-    // The PHONE's battery, baked phone-side as "NN%" TEXT. One catalog item,
-    // two glyphs: the baker swaps in PHONE_BATTERY_CHG while the phone charges,
-    // so charging costs no wire field and no watch-side logic.
-    PHONE_BATTERY: 16, PHONE_BATTERY_CHG: 17,
-    // Text-only, exactly like PRESSURE: the no-icon phone-battery item never
+    // The PHONE's battery, baked phone-side as "NN%" TEXT. Id 17 is a retired hole
+    // (PHONE_BATTERY_CHG, the glyph of a phone that charges; the slot shows the charge
+    // alone now) — never reuse it.
+    PHONE_BATTERY: 16,
+    // Text-only, exactly like PRESSURE: the phone battery in its Text look never
     // loads a glyph, and the id exists so it does not arrive as TEXT + NONE and
     // inherit city's bold mode.
     PHONE_BATTERY_PLAIN: 18,
     // The weather condition slot (weather/domain/condition.js): the glyph of the condition now,
-    // picked per bake like the phone battery's pair; COND_TEXT its text-only look, which
+    // picked per bake; COND_TEXT its text-only look, which
     // loads no glyph (and, like PRESSURE, keeps it off TEXT + NONE).
     COND_TEXT: 19, COND_SUN: 20, COND_MOON: 21, COND_SUN_CLOUD: 22, COND_MOON_CLOUD: 23,
     COND_CLOUD: 24, COND_FOG: 25, COND_HAZE: 26, COND_DRIZZLE: 27, COND_RAIN: 28,
-    COND_SLEET: 29, COND_SNOW: 30, COND_HAIL: 31, COND_THUNDER: 32, COND_WIND: 33
+    COND_SLEET: 29, COND_SNOW: 30, COND_HAIL: 31, COND_THUNDER: 32, COND_WIND: 33,
+    // The watch battery's Icon + text look: on LIVE_BATTERY_PCT, the battery glyph the watch
+    // draws in code before the charge, as it draws it alone for LIVE_BATTERY. A sentinel like
+    // DRAWN_SUN: no drawing loads.
+    DRAWN_BATTERY: 34
   };
   // A TEXT slot's short form rides after this byte (status_line.h STATUS_TEXT_ALT_SEP).
   var ALT_SEP = '\u001f';
@@ -85,9 +100,10 @@
     // SLOT_LIVE_DATE renderer never cared about position).
     { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, category: 'datelocation' },
     { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, category: 'datelocation' },
-    // iconLabel: the slot lists' name while the city draws the current weather's icon before
-    // it (iconLabelKey switched on, every watch but aplite; slot-text.js cityIcon).
-    { code: 'city', label: 'City', iconLabel: 'City with weather icon', iconLabelKey: 'citySlotIcon',
+    // iconLabel: the slot lists' name on every watch that can draw the current weather's icon
+    // before the city (every watch but aplite, which keeps the label), whether the icon is
+    // switched on or off (citySlotIcon; slot-text.js cityIcon).
+    { code: 'city', label: 'City', iconLabel: 'City with weather icon',
       kind: KINDS.TEXT, icon: ICONS.NONE, category: 'datelocation' },
     { code: 'countdown', label: 'Date countdown', kind: KINDS.TEXT,
       icon: ICONS.COUNTDOWN, category: 'datelocation' },
@@ -95,27 +111,32 @@
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
     { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, needsHr: true, category: 'health' },
     { code: 'sleep', label: 'Sleep', kind: KINDS.LIVE_SLEEP, icon: ICONS.SLEEP, needsHealth: true, category: 'health' },
+    // The watch's own battery, one item with three looks (its dialog's Look,
+    // slot-text.js batteryLook): the battery the watch draws (this entry's kind), its
+    // charge as text, which the bake packs as LIVE_BATTERY_PCT (status-lines.js packLine)
+    // and which can show the days the watch has left (battery-days.js), or both, the text
+    // with the battery before it (ICONS.DRAWN_BATTERY). Until 3.3.0 the text look was an
+    // item of its own, 'batteryPct'
+    // (settings/domain/migrations/status-slots.js mergeBatterySlots).
     { code: 'battery', label: 'Watch battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnly: true, category: 'battery' },
-    { code: 'batteryPct', label: 'Watch battery percentage', kind: KINDS.LIVE_BATTERY_PCT, icon: ICONS.NONE, topRightOnly: true, notAplite: true, category: 'battery' },
-    // The PHONE's battery: phone-baked TEXT, so unlike the watch items above it
-    // is NOT corner-pinned — those sit top-right because that corner already
-    // reads as the watch's battery, while these carry their own icon (or, for
-    // the plain variant, deliberately none) and fit any slot.
+    // The PHONE's battery: phone-baked TEXT, so unlike the watch item above it
+    // is NOT corner-pinned — that one sits top-right because that corner already
+    // reads as the watch's battery, while this one carries its own icon (or, in its Text
+    // look, deliberately none: slot-text.js phoneBatteryLook, status-lines.js iconFor)
+    // and fits any slot. Its Look is each slot's own (phoneBatteryLookKey), so it can
+    // show its icon in one slot and not in another. Until 3.3.0 the Text look was an
+    // item of its own, 'phoneBatteryPlain'.
     { code: 'phoneBattery', label: 'Phone battery', kind: KINDS.TEXT,
-      icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' },
-    { code: 'phoneBatteryPlain', label: 'Phone battery (no icon)', kind: KINDS.TEXT,
-      icon: ICONS.PHONE_BATTERY_PLAIN, needsPhoneBattery: true, notAplite: true, category: 'battery' }
+      icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' }
   ];
 
   // Dropdown grouping order + header labels (Part F). A category with no
   // available item for a slot emits no header, so gated items never leave an
-  // orphan heading. 'battery' holds four items: the WATCH glyph item and the
-  // watch "NN%" text item — both top-right only (the watch battery belongs in
-  // the corner already read as its own), the "NN%" one additionally absent on
-  // aplite — plus the two PHONE-battery items, which are selectable in any slot
-  // but exist only where the phone can report its charge (needsPhoneBattery,
-  // Android-only) and never on aplite. The labels carry the Watch/Phone
-  // qualifier because all four otherwise read as "battery".
+  // orphan heading. 'battery' holds two items: the WATCH's — top-right only (the
+  // watch battery belongs in the corner already read as its own) — and the
+  // PHONE's, which is selectable in any slot but exists only where the phone can
+  // report its charge (needsPhoneBattery) and never on aplite. The labels carry the
+  // Watch/Phone qualifier because both otherwise read as "battery".
   var CATEGORIES = [
     ['weather', 'Weather'], ['datelocation', 'Date and location'],
     ['health', 'Health'], ['battery', 'Battery']
@@ -197,18 +218,18 @@
     // and the slots (screens.js deriveModes), so a slot can pick a health item in any mode.
     if (item.needsHealth && (!env || !env.health)) { return false; }
     if (item.needsHr && (!env || !env.hr)) { return false; }
-    // The phone's battery is readable only where the PKJS host exposes the
-    // Battery Status API — Android's Chromium WebView, never iOS's
-    // JavaScriptCore and never the emulator. env.phoneBattery carries that
+    // The phone's battery is readable only where the PKJS host has a source of it:
+    // the Pebble app's Phone plugin, or the Battery Status API of Android's
+    // Chromium WebView (phone-battery.js); never the emulator. env.phoneBattery carries that
     // answer (from the PHONE_BATTERY_SUPPORTED storage key). Like notAplite and
     // UNLIKE needsProvider, a false gate OMITS the item rather than showing a
     // disabled row: there is no setting the user could change to earn it.
     if (item.needsPhoneBattery && (!env || !env.phoneBattery)) { return false; }
     // Items whose watch-side C rendering is compiled out on aplite (frozen
-    // image budget): batteryPct — the lean status-row twin never learned kind
-    // 10, and aplite's glyph battery slot already renders as "NN%" text anyway
-    // — and the two phone-battery items, which ship no aplite glyph at all.
-    // (Calendar-week used this gate once — the watch-side iso_week() is
+    // image budget): the phone battery, which ships no aplite glyph at all. (The
+    // watch battery's text looks are not items: aplite's lean status-row twin never
+    // learned kind 10, so its bake keeps the battery kind, which that twin prints as
+    // "NN%" anyway. Calendar-week used this gate once — the watch-side iso_week() is
     // aplite-excluded — but the phone now bakes that slot as phone-side TEXT
     // for aplite instead; status-lines.js.)
     if (item.notAplite && env && env.platform === 'aplite') { return false; }
@@ -242,15 +263,14 @@
   }
 
   /**
-   * An item's name in the slot lists: its iconLabel while the watch draws that icon (its
-   * iconLabelKey switched on, never on aplite).
-   * @param {Object} item A catalog item. @param {Object} settings Settings.
+   * An item's name in the slot lists: its iconLabel on every watch that can draw that icon
+   * (switched on or off; never aplite), else its label.
+   * @param {Object} item A catalog item.
    * @param {Object} env Platform env.
    * @returns {string}
    */
-  function optionLabel(item, settings, env) {
-    var on = item.iconLabel && settings && settings[item.iconLabelKey] === true;
-    return on && !(env && env.platform === 'aplite') ? item.iconLabel : item.label;
+  function optionLabel(item, env) {
+    return item.iconLabel && !(env && env.platform === 'aplite') ? item.iconLabel : item.label;
   }
 
   /**
@@ -282,10 +302,10 @@
             || (taken[item.code] && item.code !== 'countdown')) { continue; }
         if (!itemAvailable(item, settings, env, slotCtx)) {
           if (!itemAvailableExceptProvider(item, settings, env, slotCtx)) { continue; }
-          children.push([optionLabel(item, settings, env), item.code, { disabled: true }]);
+          children.push([optionLabel(item, env), item.code, { disabled: true }]);
           continue;
         }
-        children.push([optionLabel(item, settings, env), item.code]);
+        children.push([optionLabel(item, env), item.code]);
       }
       if (!children.length) { continue; }
       if (children.length === 1) {
@@ -311,7 +331,7 @@
    * The effective slot codes of every line the bake sends (bakedLines: the Watch bar's and
    * each bar a screen shows), answering each unset slot with the default the bake packs for
    * this watch (slotDefault with env: status-lines.js packLine). Its callers are fetch gates
-   * (forecast-series.js's needsUv / needsAqi / needsPollen, dayMaxInUse) asking whether a
+   * (drawn-readings.js drawn, forecast-series.js's needsAqi / needsPollen, dayMaxInUse) asking whether a
    * code is on screen anywhere, and a flavor moves one of those: air quality sits in the top
    * row's corner on emery and in its left slot elsewhere. So a slot on a bar no screen shows
    * fetches nothing, and an unset slot fetches what the watch draws in it.
@@ -552,6 +572,74 @@
   }
 
   /**
+   * The settings the watch battery owns: its Look, what its text shows and how its pair
+   * reads (slot-text.js batteryLook, battery-days.js). The item's own, since it sits in one
+   * slot. ONE list for the rows schema.js builds, the keys resetStatusSlots clears and the
+   * ones renderSignature watches (every one of them is baked into the line).
+   * @returns {string[]}
+   */
+  function batterySettingKeys() {
+    return ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
+      'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced'];
+  }
+
+  /**
+   * The setting a slot keeps its countdown's target date in (status-lines.js): the slot's
+   * own, so each countdown slot counts down to its own day.
+   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
+   * @returns {string}
+   */
+  function countdownKey(slotKey) {
+    return slotKey + 'Countdown';
+  }
+
+  /**
+   * The setting a slot keeps its phone battery's Look in (slot-text.js phoneBatteryLook): the
+   * slot's own, like its countdown date, so the phone battery can show its icon in one slot
+   * and not in another.
+   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
+   * @returns {string}
+   */
+  function phoneBatteryLookKey(slotKey) {
+    return slotKey + 'PhoneBatteryLook';
+  }
+
+  /**
+   * The settings page's dialog a slot's Edit button opens while the slot holds the phone
+   * battery: the slot's own, since the Look in it is (phoneBatteryLookKey), and a dialog
+   * cannot tell which slot opened it. The page builds one per slot (schema.js
+   * phoneBatterySlotSheet) and the Edit button names it (blocks.js statusSlotEditSheet).
+   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
+   * @returns {string} The dialog's sheet id, e.g. 'threshPhoneBatteryForecastLeft'.
+   */
+  function phoneBatterySheet(slotKey) {
+    return 'threshPhoneBattery' + slotKey.replace(/^status/, '');
+  }
+
+  // The phone battery's Look in a slot that has none set: the phone's icon before its charge
+  // (the Look row's default, schema.js phoneBatterySlotSheet; slot-text.js phoneBatteryLook
+  // reads anything but 'text' as it too).
+  var PHONE_BATTERY_LOOK_DEFAULT = 'both';
+
+  /**
+   * What a slot keeps beside its item: a setting of the slot's own that one item reads, its
+   * countdown's date (status-lines.js) and its phone battery's Look. ONE list for what a
+   * bar that is made or deleted puts back on its default with the slot (screens.js makeBar,
+   * unmakeBar) and what renderSignature watches while the slot holds the item (signSlots).
+   * @param {string} slotKey A slot's settings key.
+   * @returns {Array<{code: string, key: string, defaultValue: (string|undefined)}>} Each
+   *   companion's item, settings key and the value it starts on: the Look's default, which
+   *   its row marks as picked; none for the countdown's date, which its row and the bake read
+   *   as today.
+   */
+  function slotCompanions(slotKey) {
+    return [
+      { code: 'countdown', key: countdownKey(slotKey), defaultValue: undefined },
+      { code: 'phoneBattery', key: phoneBatteryLookKey(slotKey), defaultValue: PHONE_BATTERY_LOOK_DEFAULT }
+    ];
+  }
+
+  /**
    * Whether a day-max kind's slot needs its day peaks: it sits in a status slot
    * whose display mode prints one. The slot half of the fetch gate — the metric
    * alerts, which judge the day whatever any slot shows, join it in
@@ -593,7 +681,7 @@
   }
 
   var api = {
-    KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, ALT_SEP: ALT_SEP, CITY_GLYPH: CITY_GLYPH, LINES: LINES,
+    KINDS: KINDS, kindHasText: kindHasText, ICONS: ICONS, CAPS: CAPS, ALT_SEP: ALT_SEP, CITY_GLYPH: CITY_GLYPH, LINES: LINES,
     widenEdges: widenEdges,
     SLOT_POSITIONS: SLOT_POSITIONS,
     EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
@@ -603,7 +691,10 @@
     lineOf: lineOf, siblingHolds: siblingHolds, healthSlots: healthSlots,
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,
-    DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse
+    DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
+    batterySettingKeys: batterySettingKeys, countdownKey: countdownKey,
+    phoneBatteryLookKey: phoneBatteryLookKey, phoneBatterySheet: phoneBatterySheet,
+    PHONE_BATTERY_LOOK_DEFAULT: PHONE_BATTERY_LOOK_DEFAULT, slotCompanions: slotCompanions
   };
 
   // Dual-context export - mirror the exact tail of src/pkjs/layout/domain/view-cycle.js.

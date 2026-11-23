@@ -214,5 +214,9 @@
   "3.2.0": {
     "title": "Weather condition slot",
     "body": "A status bar slot can now show the weather in words with a sun or moon icon, such as Partly cloudy. Pebble Classic and Steel show the text only."
+  },
+  "3.3.0": {
+    "title": "Weather from more than one provider",
+    "body": "Each weather value can now come from a provider of its own. The Watch battery slot can show its icon and percentage together, or the days left from the Muninn app (not on Pebble Classic or Steel). Open the settings to see what's new."
   }
 }

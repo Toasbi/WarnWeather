@@ -48,13 +48,13 @@ typedef struct {
 #define FORECAST_FIT_N(ds, n) (n)
 #endif
 
-// forecast_update_proc: the dataset, its layer list (the plot's, then each stripe
-// band's), the lines' vertices and the area fill's contour (one buffer: chart.h
-// ChartLineLayer.points), the hour axis, the night bands and the rain bars' palette
-// rescaled to the wire range.
+// forecast_update_proc: the dataset, the chart layer it builds and draws in turn (the
+// plot's, then each stripe band's), the lines' vertices and the area fill's contour (one
+// buffer: chart.h ChartLineLayer.points), the hour axis, the night bands and the rain
+// bars' palette rescaled to the wire range.
 typedef struct {
     ForecastDataset ds;
-    ChartLayer      layers[SERIES_COUNT + 6];
+    ChartLayer      layer;
     GPoint          area_pts[FORECAST_MAX_ENTRIES + 2];
     ChartAxisSlot   axis_slots[FORECAST_MAX_ENTRIES];
     ChartBand       night_bands[FORECAST_NIGHTS_MAX];   // forecast_night.h NightSegments' cap
@@ -65,17 +65,20 @@ typedef struct {
 #endif
 } ForecastPaint;
 
-// health_graph_update_proc: its layer list (sleep, gridlines, bars, HR, clamp dots,
-// frame, axis), the HR line's vertices, the hour axis and the bars' one colour stop.
+// health_graph_update_proc: the chart layer it builds and draws in turn (sleep,
+// gridlines, bars, HR, clamp dots, frame, axis), the HR line's vertices, the hour axis
+// and the bars' one colour stop.
 typedef struct {
-    ChartLayer     layers[7];
+    ChartLayer     layer;
     GPoint         hr_pts[MAX_BOTTOM_VIEW_ENTRIES];
     ChartAxisSlot  axis_slots[MAX_BOTTOM_VIEW_ENTRIES];
     ChartColorStop step_stops[1];
 } HealthPaint;
 
-// radar_update_proc: the sky rows' blob, the exact bars in permille and the top axis.
+// radar_update_proc: the sky rows' blob, the exact bars in permille, the top axis and
+// the chart layer it builds and draws in turn (the axis, the nearby area, the bars).
 typedef struct {
+    ChartLayer    layer;
     uint8_t       sky[RADAR_SKY_MAX_BYTES];
     int16_t       exact_pm[RADAR_NUM_SLOTS];
     ChartAxisSlot axis_slots[RADAR_NUM_SLOTS];

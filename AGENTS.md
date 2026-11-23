@@ -57,7 +57,7 @@ The build and codegen regenerate these files and silently overwrite manual edits
 | `src/pkjs/page/layout/clock-glyphs.generated.js` (committed: the settings page's watch preview draws its clock with it) | the glyph images and headers above, `scripts/clock-glyphs-system.json`, `src/c/layers/clock_ink.c` | `node scripts/gen-clock-glyphs-page.js`; `test/page/layout/clock-glyphs-page.test.js` fails while it is stale |
 | `scripts/text-fonts-system.json` (committed: every glyph of the six Gothic text fonts the watch draws its status bars, calendar and graph labels in) | nothing: read out of the SDK's emulator firmware | `python3 scripts/extract-system-text-fonts.py`, run by hand after an SDK update |
 | `src/pkjs/page/layout/watch-fonts.generated.js` (committed: the settings page's pictures of the watch draw their text in it, `watch-text.js`) | `scripts/text-fonts-system.json`, `scripts/gen-watch-fonts-page.js` | `node scripts/gen-watch-fonts-page.js`; `test/page/layout/watch-fonts-page.test.js` fails while it is stale |
-| `resources/data/PX_*.pdc` (each drawing in its version, one per watch family and box, and `PX_*_BW.pdc`, a line drawing's pixels for the black and white watches), their `PX_*` entries in `package.template.json`, `src/c/layers/status_pixel_icons.generated.h`, the `MASK_*` rows in `src/c/layers/status_row_aplite.c` (all committed: the drawings built into the watch, the only status icons it draws) and `src/pkjs/settings/status-pixels.generated.js` (committed: every drawing's pixels with its seat rows, and the Classic's masks, which the settings page's pictures of the watch draw the status icons with, through `page/weather/pixel-icon.js`, at each bar's box and seat; the page's labels draw outlines of their own, `src/pkjs/page/weather/condition-icons.js` and `page/status-bars/status-slot-icons.js`) | `resources/pixel-icons.json` | `node scripts/pixel-icons/gen_watch_icons.js`; `test/pixel-icons.test.js` fails while they are stale or while a line drawing inks a pixel on the black and white watches that the colour watches draw nothing at, `test/c/status_icon_drawings_test.c` while a box a bar asks for has no drawing, and `scripts/check-icon-sizes.js` (in `scripts/test-c.sh`) while a drawing is made for a box no bar asks for. Each drawing carries its size and seat (`docs/adr/0006-status-icons-carry-their-size-and-seat.md`) and its faded pixels, marked paths after its own that the colour watches shade (`docs/adr/0007-status-icons-draw-faded-pixels.md`); edit them in the icon creator |
+| `resources/data/PX_*.pdc` (each drawing in its version, one per watch family and box, and `PX_*_BW.pdc`, the black and white watches' drawing where theirs differs: a line drawing's pixels, a drawing with faded pixels without them), their `PX_*` entries in `package.template.json`, `src/c/layers/status_pixel_icons.generated.h`, the `MASK_*` rows in `src/c/layers/status_row_aplite.c` (all committed: the drawings built into the watch, the only status icons it draws) and `src/pkjs/settings/status-pixels.generated.js` (committed: every drawing's pixels with its seat rows, and the Classic's masks, which the settings page's pictures of the watch draw the status icons with, through `page/weather/pixel-icon.js`, at each bar's box and seat; the page's labels draw outlines of their own, `src/pkjs/page/weather/condition-icons.js` and `page/status-bars/status-slot-icons.js`) | `resources/pixel-icons.json` | `node scripts/pixel-icons/gen_watch_icons.js`; `test/pixel-icons.test.js` fails while they are stale or while a line drawing inks a pixel on the black and white watches that the colour watches draw nothing at, `test/c/status_icon_drawings_test.c` while a box a bar asks for has no drawing, and `scripts/check-icon-sizes.js` (in `scripts/test-c.sh`) while a drawing is made for a box no bar asks for. Each drawing carries its size and seat (`docs/adr/0006-status-icons-carry-their-size-and-seat.md`) and its faded pixels, marked paths that the colour watches shade (`docs/adr/0007-status-icons-draw-faded-pixels.md`), written in as few bytes as the build finds (`scripts/pixel-icons/pixel-paths.js`, `docs/adr/0008-status-icons-in-fewer-bytes.md`); edit them in the icon creator |
 
 AppMessage keys live in the `messageKeys` array of `package.template.json`, not in the
 generated `package.json`. A key missing there shows up as `MESSAGE_KEY_<NAME>
@@ -156,12 +156,15 @@ README.md.
     (`CLAY_OD_EXTRA_UINT8`). Check `test/repo/inbox-size.test.js` either way.
 - Declare every new API host in the `usesPermissions` of `package.template.json`, in an
   `Internet` entry of its own service (each domain covers its subdomains).
-  - SDK 4.44 builds manifest version 2 pbws. With the Pebble app's permissions preview on
-    (its Settings › Plugins), the phone lets PKJS and the settings page reach only the
-    declared domains the user allowed, and asks before the other permissions the app
+  - SDK 4.44 builds manifest version 2 pbws. From Pebble app 2.0.0 the phone checks such an
+    app's permissions for every user: PKJS and the settings page reach only the declared
+    domains the user allowed, and the phone asks before the other permissions the app
     declares (`Location`; `ShowNotifications` for `Pebble.showSimpleNotificationOnPebble`,
-    which goes through `notify-watch.js`). With the preview off, the phone grants
-    everything and ignores `reason` and `required`.
+    which goes through `notify-watch.js`). The Pebble app's Settings › Apps › Ask before apps
+    use permissions says when the phone asks: When needed (the default), Always, or Never,
+    which allows everything but reading notifications without asking. A Pebble app from
+    before 2.0.0 checks only with Settings › Plugins › Plugins / permissions preview on, which
+    is off by default; with it off, it grants everything and ignores `reason` and `required`.
   - Every entry carries a `reason` and `required`. Installing waits for an answer on the
     required ones, though a "no" counts and the install goes on. The others are asked
     about on first use, and that first request fails.
@@ -182,6 +185,31 @@ README.md.
     news) are added at build time, as an entry of their own
     (`scripts/lib/uses-permissions.js`).
   - Docs: https://developer.repebble.com/guides/plugins/preview/ (Declaring, Approval).
+- Read a plugin of the Pebble app (its own, like the phone's state, or another app's)
+  through `src/pkjs/status-bars/adapter/plugin-reader.js`, never by calling
+  `Pebble.subscribeToSource` directly.
+  - A Pebble app from before 2.0.0 may have no plugins. Before 1.11.0 it has no
+    `subscribeToSource`: feature-detect with `available()`, and fall back or keep the
+    setting hidden there (`env.plugins` on the settings page). From 1.11.0 to 1.18.0.3 it has
+    the function but runs plugins only with a setting that is off by default, and a read
+    then fails with `PLUGIN_UNAVAILABLE`, as for a plugin that is not installed.
+  - `watch()` stays subscribed and is for a source the Pebble app pushes by itself (its
+    built-in ones). Use `readOnce()` for another app's plugin: the Pebble app runs such a
+    plugin's script again at every refresh interval for as long as anything is subscribed.
+  - Read another app's plugin only when it has something new, and keep the last read in
+    storage so a PKJS restart does not read again. Each read runs its script, and while it
+    runs, every permission that app asked for and the user has not answered comes back as a
+    notification on the phone and on the watch (Muninn's Timeline). `battery-estimate.js`
+    reads each of Muninn's estimates once, soon after the wakeup that makes it, about four
+    times a day (`status-bars/domain/estimate-reads.js`).
+  - A source that names no caller permission needs no `usesPermissions` entry
+    (`phone/phone_state`, Muninn's `muninn/stats`). One that does should get an entry
+    with a `reason`, or the phone asks with nothing but the permission's name.
+- The settings page reaches the phone as one `data:` URL, which Android's WebView refuses
+  past 2 MiB: page code, schema text and anything added to `userData` all cost that budget
+  (`test/settings/adapter/settings-url-budget.test.js`). A `"` costs three URL characters, so
+  the schema, the stored values and `userData` are written into the page as JavaScript
+  literals, not JSON (`config-ui/index.js` `inlineScriptLiteral`).
 - Add a new telemetry setting in two places, or it is silently dropped: the watch-side
   snapshot (`buildSettingsSnapshot` in `src/pkjs/telemetry/application/telemetry-settings.js`)
   and the Deno `.strip()` schema in
@@ -191,7 +219,8 @@ README.md.
 
 ## Weather plugins (`plugins/`)
 
-The weather plugins are plugin-only pbws for the Pebble app's plugin system (a preview).
+The weather plugins are plugin-only pbws for the Pebble app's plugin system, which is on for
+everyone from Pebble app 2.0.0.
 They are released separately from the watchface, with their own UUID, version and
 CHANGELOG. The watchface doesn't read plugins yet. `plugins/README.md` has the layout,
 build and release steps.
@@ -346,8 +375,10 @@ Third-party weather and geocoding APIs (met.no, DWD, Open-Meteo, LocationIQ, tom
   commit bare subjects like `wip` or `nudge`.
 - release-please cuts the releases from these commits, so the prefixes decide the version
   bump. Every release, patches included, needs a row in the `public.news` Supabase table, and
-  a feature release (`x.y.0`) also needs a `release-notifications.json` toast entry. The
-  release steps, the toast and news rules and the changelog style are in `RELEASE.md`.
+  a feature release (`x.y.0`) also needs a `release-notifications.json` toast entry. A
+  feature the user has to switch on also gets a tip on the settings page's "New in this
+  update" card (`src/pkjs/notices/domain/feature-tips.js`). The release steps, the toast,
+  tip and news rules and the changelog style are in `RELEASE.md`.
 - Brainstorming spec and plan files (under `docs/`, which git ignores apart from `docs/adr/`
   and `docs/quality-goals.md`) stay untracked; don't `git add -f` them.
 

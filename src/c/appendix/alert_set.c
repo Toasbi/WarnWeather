@@ -8,17 +8,6 @@
 // WW_ON_DEMAND — still compiles this file to an empty object.
 #if defined(WW_ON_DEMAND)
 
-uint8_t alert_set_icon(int kind) {
-    switch (kind) {
-        case THRESH_UV:     return STATUS_ICON_UV;
-        case THRESH_WIND:   return STATUS_ICON_WIND;
-        case THRESH_GUST:   return STATUS_ICON_GUST;
-        case THRESH_AQI:    return STATUS_ICON_AQI;
-        case THRESH_POLLEN: return STATUS_ICON_POLLEN;
-        default:            return STATUS_ICON_NONE;
-    }
-}
-
 int alert_set_item(int kind) {
     switch (kind) {
         case THRESH_GUST:   return OD_GUST;
@@ -28,6 +17,17 @@ int alert_set_item(int kind) {
         case THRESH_WIND:   return OD_WIND;
         default:            return -1;
     }
+}
+
+uint8_t alert_set_item_icon(int item) {
+    static const uint8_t ICON[ALERT_SET_MAX] = {
+        [OD_GUST - OD_GUST] = STATUS_ICON_GUST,
+        [OD_UV - OD_GUST] = STATUS_ICON_UV,
+        [OD_AQI - OD_GUST] = STATUS_ICON_AQI,
+        [OD_POLLEN - OD_GUST] = STATUS_ICON_POLLEN,
+        [OD_WIND - OD_GUST] = STATUS_ICON_WIND,
+    };
+    return item >= OD_GUST && item < OD_ITEM_COUNT ? ICON[item - OD_GUST] : STATUS_ICON_NONE;
 }
 
 bool alert_set_bytes_ok(const uint8_t *bytes, size_t len) {
@@ -45,10 +45,11 @@ bool alert_set_bytes_ok(const uint8_t *bytes, size_t len) {
 
 int alert_set_parse(const uint8_t *bytes, size_t len, AlertSet *out) {
     if (!out) { return 0; }
-    out->count = 0;
+    memset(out, 0, sizeof(*out));
     if (!bytes) { return 0; }
+    int count = 0;   // the entries read, kept or not
     size_t i = 0;
-    while (i < len && out->count < ALERT_SET_MAX) {
+    while (i < len && count < ALERT_SET_MAX) {
         uint8_t header = bytes[i++];
         // A value byte with no header before it belongs to no entry.
         if (!(header & STATUS_ALERT_HEADER)) { continue; }
@@ -57,18 +58,21 @@ int alert_set_parse(const uint8_t *bytes, size_t len, AlertSet *out) {
         while (i < len && !(bytes[i] & STATUS_ALERT_HEADER)) { i++; }
         size_t n = i - start;
         int kind = header & STATUS_ALERT_KIND_MASK;
-        // A kind with no icon has nothing to show: skipped, value and all.
-        if (alert_set_icon(kind) == STATUS_ICON_NONE) { continue; }
+        // A kind with no item has nothing to show: skipped, value and all.
+        int item = alert_set_item(kind);
+        if (item < 0) { continue; }
+        count++;
+        AlertEntry *e = &out->entry[item - OD_GUST];
+        if (e->level != 0) { continue; }   // the kind's first entry stands
         int day = (header >> STATUS_ALERT_DAY_SHIFT) & STATUS_ALERT_DAY_MASK;
         if (day > STATUS_ALERT_MARK_NONE) { day = STATUS_ALERT_MARK_NONE; }
-        AlertEntry *e = &out->entries[out->count++];
         e->kind = (uint8_t)kind;
         e->level = (header & STATUS_ALERT_DANGER) ? THRESH_LEVEL_DANGER : THRESH_LEVEL_WARN;
         e->day = (uint8_t)day;
         e->value_len = (uint8_t)n;
         e->value = n > 0 ? (const char *)(bytes + start) : NULL;
     }
-    return out->count;
+    return count;
 }
 
 // Tomorrow's marks by day code (STATUS_ALERT_DAY_TODAY, then STATUS_ALERT_MARK_*):

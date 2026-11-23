@@ -293,6 +293,32 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
   }
 });
 
+test('the charts draw in the palette of the theme the page renders', () => {
+  const realFetch = data.fetchWeather;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { cb(fixture(), null); };
+  /** The graphs block's HTML under a page theme. */
+  const drawn = (theme) => {
+    tab._resetState();
+    const state = { graphsLocation: 'current', temperatureUnits: 'c', windUnits: 'kph', configTheme: theme };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    return tab.weatherGraphsBlock(state, {}, SEED);
+  };
+  try {
+    const light = charts.palette('light'), dark = charts.palette('dark'), black = charts.palette('black');
+    const onLight = drawn('light'), onDark = drawn('dark'), onBlack = drawn('black');
+    assert.ok(onLight.indexOf(light.ink) !== -1 && onLight.indexOf(dark.ink) === -1, 'light: the light inks');
+    assert.ok(onDark.indexOf(dark.ink) !== -1 && onDark.indexOf(light.ink) === -1, 'dark: the dark inks');
+    // Black is dark's inks on the Black card: only the surface tells them apart.
+    assert.ok(onDark.indexOf(dark.surface) !== -1 && onDark.indexOf(black.surface) === -1);
+    assert.ok(onBlack.indexOf(black.surface) !== -1 && onBlack.indexOf(dark.surface) === -1, 'black: its own surface');
+    assert.ok(onBlack.indexOf(dark.ink) !== -1);
+  } finally {
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
 // The view (day 0, the now line, the settled past) is built once, at FETCH time, and
 // only a refetch rebuilds it. The Today label has to use that same clock, or a
 // re-render past the location's midnight labels tile 1 "Today" while every chart
@@ -460,7 +486,7 @@ test('the value tip always sits just above the hour\'s topmost mark — overflow
     tab.weatherGraphsBlock(state, {}, SEED);
     // The anchor paintScrub derives, recomputed from the same view + spec.
     const view = tab._fetchState().view;
-    const marksOf = () => charts.tempPanelSvg(view, state, charts.palette(false)).marks;
+    const marksOf = () => charts.tempPanelSvg(view, state, charts.palette('dark')).marks;
     const anchorAt = (i) => {
       const marks = marksOf();
       const ln = marks.lines[0];
@@ -638,7 +664,7 @@ test('the crosshair lands in the hour the finger is INSIDE, and outlines its bar
     // The border IS the selection: the bar it leaves carries none, and the
     // one it lands on is at full strength as well as outlined.
     tab._scrubTo(svg, at(19.5));
-    const marks = charts.tempPanelSvg(view, state, charts.palette(false)).marks;
+    const marks = charts.tempPanelSvg(view, state, charts.palette('dark')).marks;
     assert.equal(bars['wx-bar-temp-19'].attrs.stroke, marks.bar.lit,
       'the selected bar wears the page ink');
     assert.equal(bars['wx-bar-temp-19'].attrs.opacity, '1', 'at full strength');
@@ -1568,7 +1594,7 @@ function tileStub(day) {
 }
 
 test('the tile highlight is handed over BY the drag, not after it', () => {
-  const pal = charts.palette(false);
+  const pal = charts.palette('dark');
   const tiles = [tileStub(0), tileStub(1), tileStub(2), tileStub(3)];
   tiles[3].disabled = true;      // past the timeline's end
   global.document = { querySelectorAll: (sel) => (sel === '.wx-day' ? tiles : []) };

@@ -1,7 +1,6 @@
 var WeatherProvider = require('../provider.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
-var openmeteo = require('./openmeteo.js');
 var feelsLike = require('../../domain/feels-like.js');
 var feelsLikeF = feelsLike.feelsLikeF;
 var feelsLikeFromDewF = feelsLike.feelsLikeFromDewF;
@@ -377,9 +376,6 @@ var DwdProvider = function() {
     this.name = 'Brightsky (Deutscher Wetterdienst)';
     this.shortName = 'DWD';
     this.id = 'dwd';
-    // Its UV is Open-Meteo's (openmeteo.fetchUvInto): the UV day record carries
-    // across a switch between the two.
-    this.uvFeedId = 'openmeteo';
 };
 
 DwdProvider.prototype = Object.create(WeatherProvider.prototype);
@@ -500,12 +496,13 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
                 onFailure(failure('provider_data', 'dwd_map_error'));
                 return;
             }
-            // Total: no uvTrend key, so adoptMapped leaves uvTrend at [] and the
-            // Open-Meteo UV fetch below fills it in when options.fetchUv is on —
-            // a failed UV call on a reused instance cannot ship the previous
-            // cycle's window against the new startTime.
+            // Total: DWD sends no UV, so there is no uvTrend key and adoptMapped
+            // leaves uvTrend at []. The source plan fills it from Open-Meteo when the
+            // screens draw it (weather/application/fetch-sources.js), so a failed UV
+            // call on a reused instance cannot ship the previous cycle's window
+            // against the new startTime.
             this.adoptMapped(mapped);
-            openmeteo.fetchUvInto(this, lat, lon, onSuccess);
+            onSuccess();
         }).bind(this), onFailure);
     }).bind(this), onFailure);
 };

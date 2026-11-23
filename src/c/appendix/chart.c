@@ -5,36 +5,22 @@
 #include "theme.h"
 #include "chart_stripe.h"
 
-// The forecast keeps 12 of these in a static array: the from_top byte
+// Each graph builds its layers in one of these in the paint scratch: the from_top byte
 // sits in the padding after the 1-byte type, so a layer must not grow past 28 B.
 _Static_assert(sizeof(ChartLayer) <= 28, "ChartLayer grew: narrow the new field (chart.h)");
 
-static void graph_frame_draw(GContext *ctx, GraphFrame f, GRect outer) {
-    if (f.left.width > 0) {
-        graphics_context_set_fill_color(ctx, f.left.color);
+static void graph_frame_draw(GContext *ctx, ChartFrameLayer f, GRect outer) {
+    if (f.left == 0 && f.bottom == 0) { return; }
+    graphics_context_set_fill_color(ctx, f.color);
+    if (f.left > 0) {
         graphics_fill_rect(ctx,
-            GRect(outer.origin.x, outer.origin.y, f.left.width, outer.size.h),
+            GRect(outer.origin.x, outer.origin.y, f.left, outer.size.h),
             0, GCornerNone);
     }
-    if (f.right.width > 0) {
-        graphics_context_set_fill_color(ctx, f.right.color);
+    if (f.bottom > 0) {
         graphics_fill_rect(ctx,
-            GRect(outer.origin.x + outer.size.w - f.right.width,
-                  outer.origin.y, f.right.width, outer.size.h),
-            0, GCornerNone);
-    }
-    if (f.top.width > 0) {
-        graphics_context_set_fill_color(ctx, f.top.color);
-        graphics_fill_rect(ctx,
-            GRect(outer.origin.x, outer.origin.y, outer.size.w, f.top.width),
-            0, GCornerNone);
-    }
-    if (f.bottom.width > 0) {
-        graphics_context_set_fill_color(ctx, f.bottom.color);
-        graphics_fill_rect(ctx,
-            GRect(outer.origin.x,
-                  outer.origin.y + outer.size.h - f.bottom.width,
-                  outer.size.w, f.bottom.width),
+            GRect(outer.origin.x, outer.origin.y + outer.size.h - f.bottom,
+                  outer.size.w, f.bottom),
             0, GCornerNone);
     }
 }
@@ -176,7 +162,6 @@ static void chart_render_axis(const ChartRender *r, const ChartAxisLayer *a) {
     graphics_context_set_text_color(r->ctx, theme_fg());
     const ChartAxisLabel lbl = chart_axis_label();   // per draw call -- the emery
                                                      // toggle flips without a relaunch
-    const int  mid_shift = r->geo.slots.pitch / 2;
     for (int i = 0; i < r->def->num_slots; ++i) {
         const ChartAxisSlot *s = &a->slots[i];
         const int base = chart_slot_tick_x(&r->geo, i);
@@ -185,11 +170,10 @@ static void chart_render_axis(const ChartRender *r, const ChartAxisLayer *a) {
             chart_draw_tick(r, a->side,
                             big ? a->style.big_length : a->style.length,
                             big ? a->style.big_color  : a->style.color,
-                            base + (a->tick_align == ALIGN_MIDDLE ? mid_shift : 0));
+                            base);
         }
         if (s->label[0] != '\0') {
-            chart_draw_axis_label(r, a->side, s->label, &lbl,
-                                  base + (a->label_align == ALIGN_MIDDLE ? mid_shift : 0));
+            chart_draw_axis_label(r, a->side, s->label, &lbl, base);
         }
     }
 }
@@ -210,6 +194,12 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
     const int  w           = r->def->bar_w;   // every bar: every pitch is whole px
     const int  count       = chart_clamp_count(r, b->count);
     if (plot_h <= 0 || b->num_stops < 1) return;
+    // Every theme gets the same halo + bar outline anatomy below; only the interior
+    // differs (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
+    // ones). Color-dark opts out of both — no halo, no silhouette: the exact pre-theme
+    // look the user tuned before theming existed. On B&W builds theme_is_bw() is
+    // constant-true, so the dark-only skips compile out.
+    const bool dark = !theme_is_bw() && !theme_is_light();
 
     for (int i = 0; i < count; ++i) {
         const int v = b->values[i];
@@ -222,13 +212,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         // painted before the segment fills so the colored segments keep their full
         // width/height on top. Not expanded past the anchored end — the x-axis baseline
         // sits there standing (painting over it would notch the axis), and hanging it
-        // would reach above the plot's top. Every theme gets the
-        // same halo + BAR_OUTLINED silhouette anatomy; only the interior differs
-        // (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
-        // ones). Color-dark opts out of both — no halo, no silhouette: the exact
-        // pre-theme look the user tuned before theming existed. On B&W builds
-        // theme_is_bw() is constant-true, so the dark-only skips compile out.
-        const bool dark = !theme_is_bw() && !theme_is_light();
+        // would reach above the plot's top.
         if (!dark) {
             graphics_context_set_fill_color(r->ctx, theme_bg());
             graphics_fill_rect(r->ctx,
@@ -252,7 +236,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
                 0, GCornerNone);
         }
 
-        if (b->style == BAR_OUTLINED && !dark) {
+        if (!dark) {
             // theme_fg() silhouette around the bar interior — the shared bar look in
             // every theme (all three call sites: rain bars, radar bars, health step
             // bars). Draw only the free-end + side walls and leave the anchored end
@@ -710,9 +694,8 @@ static void chart_render_stripe(const ChartRender *r, const ChartStripeLayer *s)
     const int   count = chart_clamp_count(r, s->count);
     const GRect c     = r->geo.content;
     const int   pitch = r->geo.slots.pitch;
-    const int   y     = s->top ? c.origin.y + s->y_offset
-                               : c.origin.y + c.size.h - s->height - s->y_offset;
-    if (s->height <= 0 || y < c.origin.y) return;
+    const int   y     = c.origin.y + s->y_offset;
+    if (s->height <= 0) return;
 
     for (int i = 0; i < count; ++i) {
         chart_stripe_fill_cell(r->ctx,
@@ -722,50 +705,44 @@ static void chart_render_stripe(const ChartRender *r, const ChartStripeLayer *s)
 }
 #endif
 
-void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
-                const ChartLayer *layers, int num_layers) {
-    ChartRender r = {
-        .ctx   = ctx,
-        .def   = def,
-        .outer = outer,
-        .geo   = chart_geometry(def, outer),
-    };
-    for (int i = 0; i < num_layers; ++i) {
-        const ChartLayer *l = &layers[i];
+void chart_begin(ChartRender *r, GContext *ctx, const ChartDef *def, GRect outer) {
+    // zero and dir are chart_layer's, set before each layer reads them.
+    r->ctx   = ctx;
+    r->def   = def;
+    r->outer = outer;
+    r->geo   = chart_geometry(def, outer);
+}
+
+void chart_layer(ChartRender *r, const ChartLayer *l) {
 #if defined(WW_LINE_STYLE)
-        // This layer's zero row and direction (chart_flip.h): standing on the content's
-        // bottom, or hanging from its top. FRAME, AXIS and STRIPE ignore both.
-        r.zero = (int16_t)chart_flip_zero(l->from_top, r.geo.content.origin.y,
-                                          r.geo.content.origin.y + r.geo.content.size.h);
-        r.dir  = (int8_t)chart_flip_dir(l->from_top);
+    // This layer's zero row and direction (chart_flip.h): standing on the content's
+    // bottom, or hanging from its top. FRAME, AXIS and STRIPE ignore both.
+    r->zero = CHART_FLIP_ZERO(r, l->from_top);
+    r->dir  = CHART_FLIP_DIR(l->from_top);
 #endif
-        switch (l->type) {
-            case CHART_LAYER_FRAME:
-                graph_frame_draw(ctx, l->frame.frame, outer);
-                break;
-            case CHART_LAYER_CUSTOM:
-                l->custom.fn(&r, l->custom.user);
-                break;
-            case CHART_LAYER_AXIS:
-                chart_render_axis(&r, &l->axis);
-                break;
-            case CHART_LAYER_BARS:
-                chart_render_bars(&r, &l->bars);
-                break;
-            case CHART_LAYER_LINE:
-                chart_render_line(&r, &l->line);
-                break;
-            case CHART_LAYER_AREA:
-                chart_render_area(&r, &l->area);
-                break;
-            case CHART_LAYER_HATCH:
-                chart_render_hatch(&r, &l->hatch);
-                break;
-            case CHART_LAYER_STRIPE:
+    switch (l->type) {
+        case CHART_LAYER_FRAME:
+            graph_frame_draw(r->ctx, l->frame, r->outer);
+            break;
+        case CHART_LAYER_AXIS:
+            chart_render_axis(r, &l->axis);
+            break;
+        case CHART_LAYER_BARS:
+            chart_render_bars(r, &l->bars);
+            break;
+        case CHART_LAYER_LINE:
+            chart_render_line(r, &l->line);
+            break;
+        case CHART_LAYER_AREA:
+            chart_render_area(r, &l->area);
+            break;
+        case CHART_LAYER_HATCH:
+            chart_render_hatch(r, &l->hatch);
+            break;
+        case CHART_LAYER_STRIPE:
 #if defined(WW_LINE_STYLE)
-                chart_render_stripe(&r, &l->stripe);
+            chart_render_stripe(r, &l->stripe);
 #endif
-                break;
-        }
+            break;
     }
 }

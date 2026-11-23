@@ -95,7 +95,7 @@ function snapshot(p) {
 }
 
 test('MAPPED_KEYS.all is the union of the groups, without duplicates', () => {
-  const union = [].concat(KEYS.core, KEYS.zeroed, KEYS.empty, KEYS.feels, KEYS.uv, KEYS.condition);
+  const union = [].concat(KEYS.core, KEYS.zeroed, KEYS.empty, KEYS.feels, KEYS.uv, KEYS.condition, KEYS.sun);
   assert.deepEqual(KEYS.all, union);
   assert.equal(new Set(KEYS.all).size, KEYS.all.length, 'no key in two groups');
   assert.deepEqual(KEYS.core, ['tempTrend', 'precipTrend', 'startTime', 'currentTemp']);
@@ -296,6 +296,25 @@ test('condition: absent, null or anything but a condition.js id → null, never 
     if (value !== undefined) { mapped.currentCondition = value; }
     p.adoptMapped(mapped);
     assert.equal(p.currentCondition, null, 'value ' + JSON.stringify(value));
+  });
+});
+
+// ---- sun times ----------------------------------------------------------------
+
+test('sun times: a provider\'s own are copied, and none (not the stale ones) when it sends none', () => {
+  assert.equal(new WeatherProvider().sunTimes, null, 'a fresh provider starts with none');
+  const own = [{ type: 'sunrise', at: 1782009780 }, { type: 'sunset', at: 1782070380 }];
+  const p = new WeatherProvider();
+  const mapped = coreOnly();
+  mapped.sunTimes = own;
+  p.adoptMapped(mapped);
+  assert.equal(p.sunTimes, own);
+  [undefined, null, 'x', { at: 1 }].forEach((value) => {
+    const next = coreOnly();
+    if (value !== undefined) { next.sunTimes = value; }
+    p.sunTimes = own;
+    p.adoptMapped(next);
+    assert.equal(p.sunTimes, null, 'value ' + JSON.stringify(value));
   });
 });
 

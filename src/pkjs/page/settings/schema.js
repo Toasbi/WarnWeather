@@ -38,6 +38,7 @@ var customLayout = require('../layout/custom-layout-schema.js');
 var gates = require('./schema-gates.js');
 var HEALTH_SLOT_WHEN = gates.HEALTH_SLOT_WHEN;
 var HR_SLOT_WHEN = gates.HR_SLOT_WHEN;
+var PLUGINS_WHEN = gates.PLUGINS_WHEN;
 var THRESHOLD_WHEN = gates.THRESHOLD_WHEN;
 var ON_DEMAND_WHEN = gates.ON_DEMAND_WHEN;
 var BOLD_MASTER_WHEN = gates.BOLD_MASTER_WHEN;
@@ -49,6 +50,8 @@ var LINE_STYLES_WHEN = gates.LINE_STYLES_WHEN;
 var EMERY_WHEN = gates.EMERY_WHEN;
 var GRAPH_STYLES_WHEN = gates.GRAPH_STYLES_WHEN;
 var gateAll = gates.gateAll;
+var alsoWhen = gates.alsoWhen;
+var bothWhen = gates.bothWhen;
 var tabLink = gates.tabLink;
 var linkRow = gates.linkRow;
 // A kind's level group (its Alert levels or Goals: the header, the slider, the warn look
@@ -79,6 +82,9 @@ var onDemandRow = alertsSchema.onDemandRow;
 // picker carries (Line style, Draw from, the graph scales, Visible values), the metric
 // pickers' derived hint and the two stripe styles the Area fill row reads.
 var forecastLines = require('../forecast-graphs/forecast-lines-schema.js');
+// Where the weather comes from: the Weather row of Setup › Data sources, the Provider's
+// options and the notes under it, and the pickers of the Weather dialog's Other sources.
+var weatherSources = require('../weather/weather-sources-schema.js');
 var METRIC_HINT_FROM = forecastLines.METRIC_HINT_FROM;
 var STRIPE_STYLES = forecastLines.STRIPE_STYLES;
 var lineStyleCopy = forecastLines.lineStyleCopy;
@@ -107,12 +113,14 @@ var BARS_TOP_HINT = 'The more rain, the further down they reach.';
  * @param {string} keyStem Kind key stem, e.g. 'City'.
  * @param {string} title Catalog label of the slot kind.
  * @param {Object[]} items The sheet's rows.
+ * @param {string} [sheetId] The id of a dialog that is one slot's own rather than the
+ *     kind's (a phone battery slot's: phoneBatterySlotSheet); thresh<Stem> without it.
  * @returns {Object} Schema section.
  */
-function sheetOf(keyStem, title, items) {
+function sheetOf(keyStem, title, items, sheetId) {
     return {
         sheetOnly: true,
-        sheetId: 'thresh' + keyStem,
+        sheetId: sheetId || 'thresh' + keyStem,
         showWhen: THRESHOLD_WHEN,
         title: title + ' slot',
         items: items
@@ -293,7 +301,7 @@ function pairFallbackHints(prefix, first, second, values) {
 // only those, then the first two. Spaces are kept, not trimmed: ', ' is a real separator.
 /**
  * The Custom separator row's hint. Empty falls back to the kind's default separator.
- * @param {string} prefix Key prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {string} prefix Key prefix: 'temp' | 'battery' | 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {string} first Sample of the value that leads by default, e.g. '12'.
  * @param {string} second Sample of the other value, e.g. '10'.
  * @returns {string} The hint.
@@ -311,7 +319,7 @@ function pairCustomHint(prefix, first, second) {
  * A two-value slot's Order row: which value leads the pair. Shown only in the kind's
  * "Both" mode — the one mode that prints a pair — and joined tight to the row above,
  * the way every group of rows revealed by a control joins that control.
- * @param {string} prefix Key prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {string} prefix Key prefix: 'temp' | 'battery' | 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {Array<Array<string>>} orderOptions The order pills as [label, value]; the
  *     first one is the default (the order the slot has always printed).
  * @returns {Object} The Order row.
@@ -340,13 +348,16 @@ function orderRow(prefix, orderOptions) {
  * alike, so the dropdown stays one entry per separator instead of doubling (with the
  * toggle on, the slot prints the label's spaced form).
  *
- * @param {string} prefix Key prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {string} prefix Key prefix: 'temp' | 'battery' | 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {string} first Sample of the value that leads by default, e.g. '12'.
  * @param {string} second Sample of the other value, e.g. '10'.
+ * @param {Object} [fitHints] The Separator row's hints for a kind whose pair fits its slot
+ *     by a rule of its own (the watch battery's: BATTERY_FIT_HINTS); without them, the fit
+ *     rule's (pairFallbackHints).
  * @returns {Object[]} The separator select, the custom-separator text field, the spacing
  *     toggle.
  */
-function separatorRows(prefix, first, second) {
+function separatorRows(prefix, first, second, fitHints) {
     var bothWhen = {key: prefix + 'SlotDisplay', eq: 'both'};
     var presets = STATUS_PAIR.SEPARATORS;
     var def = STATUS_PAIR.defaultSeparator(prefix);
@@ -360,7 +371,7 @@ function separatorRows(prefix, first, second) {
         messageKey: prefix + 'SlotSeparator',
         label: 'Separator',
         defaultValue: def,
-        hintByValue: pairFallbackHints(prefix, first, second,
+        hintByValue: fitHints || pairFallbackHints(prefix, first, second,
             separators.map(function (option) { return option[1]; })),
         options: separators,
         joinPrevious: true,
@@ -661,10 +672,9 @@ function alertLevelsRow(keyStem) {
 // so the threshold sheets' middle option would promise a trigger that can never
 // fire. 'off' (packs 1) and the unset default 'warn' (packs 0) both render
 // non-bold on a level-less kind — it resolves THRESH_LEVEL_NORMAL — so the
-// options-snapping of an unset store to 'off' is benign. The battery GLYPH item
-// deliberately gets NO sheet: its slot draws a glyph, not text, so a Bold option
-// would be a no-op lie (no KINDS entry, hence no Edit button either) — the battery
-// PERCENTAGE item is a separate text kind and gets a normal bold sheet below.
+// options-snapping of an unset store to 'off' is benign. A look that draws a glyph and
+// no text gets no Bold row, which would be a no-op there: the watch battery's dialog
+// hides it in the Icon look, the drawn battery alone (batterySlotSheet).
 /**
  * @param {string} title Catalog label of the slot kind, e.g. 'City'.
  * @param {string} keyStem Kind key stem, e.g. 'City' (thresh<Stem>BoldMode).
@@ -676,7 +686,18 @@ function alertLevelsRow(keyStem) {
  * @returns {Object} Schema section (sheetOnly).
  */
 function boldSection(title, keyStem, gate, extraItems, afterItems) {
-    var bold = {
+    // Bold closes the sheet, as it does in the alert kinds' sheets: the rows that
+    // shape what the slot shows come first, then how boldly it prints.
+    var items = (extraItems || []).concat([boldOnlyRow(keyStem)], afterItems || []);
+    return sheetOf(keyStem, title, gateAll(items, gate));
+}
+/**
+ * A level-less kind's Bold row: Off or Always.
+ * @param {string} keyStem Kind key stem, e.g. 'City' (thresh<Stem>BoldMode).
+ * @returns {Object} The row.
+ */
+function boldOnlyRow(keyStem) {
+    return {
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'BoldMode',
         label: 'Bold',
@@ -686,10 +707,110 @@ function boldSection(title, keyStem, gate, extraItems, afterItems) {
         options: [['Off', 'off'], ['Always', 'always']],
         disabledWhen: BOLD_MASTER_WHEN
     };
-    // Bold closes the sheet, as it does in the alert kinds' sheets: the rows that
-    // shape what the slot shows come first, then how boldly it prints.
-    var items = (extraItems || []).concat([bold], afterItems || []);
-    return sheetOf(keyStem, title, gateAll(items, gate));
+}
+
+// The watch battery's dialog (its slot's Edit button opens it in every look: blocks.js
+// statusSlotEditSheet). Its Look leads, with the weather condition's options in its order:
+// the battery the watch draws and its charge as text after it (Icon + text), the text alone
+// (Text) or the battery alone (Icon; slot-text.js batteryLook). The item's setting, since the
+// watch battery sits in one slot. Every other row shows while text prints, in Text and Icon +
+// text: the drawn battery alone has no text to set or to print bold. The text shows the
+// percentage, which the watch reads itself, the days it has left, which the Muninn app
+// estimates and the phone bakes in (battery-days.js), or both as a pair shaped like the
+// temperature slot's (the Order and Separator rows, status-pair.js formatBatteryPair). The
+// days need a Pebble app that can read another app's plugin, so Value selection and the
+// pair's rows show only there (PLUGINS_WHEN).
+//
+// The hints under Days left and Both: when the percentage shows instead (battery-days.js
+// daysLeft, status_row.c shows_battery_days; after a charge the days from before it stay
+// hidden until other days arrive) and, set apart on a line of its own, where the days
+// come from. A plain <br> would run that line on as the same paragraph; the gap above it
+// keeps it apart. What each mode shows is in the picture of the bar above the rows, so the
+// hints leave it out.
+var MUNINN_NOTE = '<span style="display:block;margin-top:6px">The days are an estimate from the ' +
+    require('../../status-bars/domain/battery-days.js').MUNINN_LINK + ', which has to be on your watch.</span>';
+var BATTERY_FALLBACK = ' while the watch charges, your phone is out of reach or there is no new estimate.';
+var BATTERY_DAYS_HINT = 'Shows the percentage instead' + BATTERY_FALLBACK + MUNINN_NOTE;
+var BATTERY_BOTH_HINT = 'Shows the percentage alone' + BATTERY_FALLBACK + MUNINN_NOTE;
+// The watch battery's pair is short (the place of the percentage and at most '99d'): every
+// preset fits its slot, spaced too, and only a custom separator of two wide characters can
+// outgrow it with its spaces, which it then drops. So that is all its Separator row says
+// (test/status-bars/domain/battery-days.test.js walks every form).
+var BATTERY_FIT_HINTS = {custom: 'If the pair doesn\'t fit, the slot drops the spaces.'};
+// The watch battery's text rows show while its Look prints text: Icon + text and Text (the
+// values slot-text.js batteryLook reads as such; anything else is the Icon look).
+var BATTERY_TEXT_WHEN = {key: 'batterySlotLook', in: ['both', 'text']};
+/**
+ * The watch battery slot's dialog: its Look, then the rows of the looks that print text
+ * (what the text shows, the pair's rows, Bold). Built from sheetOf rather than boldSection,
+ * whose gate would cover the Look too: here only the rows after it follow the Look.
+ * @returns {Object} The watch battery slot's sheet (sheetOnly).
+ */
+function batterySlotSheet() {
+    var look = {
+        // No hint: the picture of the bar above the rows shows what each look draws.
+        type: 'segmented',
+        messageKey: 'batterySlotLook',
+        label: 'Look',
+        defaultValue: 'icon',
+        options: [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']]
+    };
+    var textRows = alsoWhen([{
+        // Global, like the temperature slot's: the watch battery sits in one slot. The
+        // phone bakes the days and the pair's separator (status-lines.js packLine) and it
+        // rides renderSignature(), so a change re-bakes without waiting for the next fetch.
+        type: 'segmented',
+        messageKey: 'batterySlotDisplay',
+        label: 'Value selection',
+        // The selected mode only; the percentage (the default) needs none.
+        hintByValue: {days: BATTERY_DAYS_HINT, both: BATTERY_BOTH_HINT},
+        defaultValue: 'percent',
+        options: [['Percentage', 'percent'], ['Days left', 'days'], ['Both', 'both']]
+    }, orderRow('battery', [['Percentage first', 'percent'], ['Days left first', 'days']])]
+        .concat(separatorRows('battery', '80%', '5d', BATTERY_FIT_HINTS)),
+        bothWhen(BATTERY_TEXT_WHEN, PLUGINS_WHEN));
+    var bold = alsoWhen([boldOnlyRow('BatteryPct')], BATTERY_TEXT_WHEN);
+    return sheetOf('BatteryPct', 'Watch battery', [look].concat(textRows, bold));
+}
+
+/**
+ * One slot's Phone battery dialog: the slot's Look (slot-text.js phoneBatteryLook), the
+ * phone's icon before its charge or the charge alone, then Bold. The Look is the slot's own
+ * setting, like its countdown date, so one slot can show the phone's icon and another the
+ * charge alone. The engine hands a dialog no word of the slot that opened it, so each slot has
+ * a dialog of its own (status-line-catalog.js phoneBatterySheet), which its Edit button names
+ * (blocks.js statusSlotEditSheet). Bold is the item's, one setting for every slot: the two
+ * looks are separate wire kinds (18/19), so the Text look can't drive City's bold row, and
+ * both KINDS entries share key 'PhoneBattery', so the one mode packs into both cells. Only
+ * where the phone can tell its charge on the slot side; the dialog needs no extra gate,
+ * because a slot that can't be chosen never opens it.
+ * @param {string} slotKey The slot's settings key, e.g. 'statusForecastLeft'.
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function phoneBatterySlotSheet(slotKey) {
+    return sheetOf('PhoneBattery', 'Phone battery', [{
+        type: 'segmented',
+        messageKey: STATUS_LINE_CATALOG.phoneBatteryLookKey(slotKey),
+        label: 'Look',
+        // What the dialog does not show: Bold below is every phone battery slot's.
+        hint: 'For this slot only.',
+        // 'both': the value a new or deleted bar's slot starts on too (screens.js makeBar).
+        defaultValue: STATUS_LINE_CATALOG.PHONE_BATTERY_LOOK_DEFAULT,
+        options: [['Icon + text', 'both'], ['Text', 'text']]
+    }, boldOnlyRow('PhoneBattery')], STATUS_LINE_CATALOG.phoneBatterySheet(slotKey));
+}
+
+/**
+ * Every slot's Phone battery dialog (phoneBatterySlotSheet), the four bars' and bars 4 to
+ * 6's, in the catalog's line order.
+ * @returns {Object[]} Schema sections (sheetOnly).
+ */
+function phoneBatterySheets() {
+    var sheets = [];
+    STATUS_LINE_CATALOG.ALL_LINES.forEach(function (line) {
+        line.slots.forEach(function (slotKey) { sheets.push(phoneBatterySlotSheet(slotKey)); });
+    });
+    return sheets;
 }
 
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
@@ -703,15 +824,12 @@ var SCALE_NOTE = 'The bars don\'t scale linearly. Their height is split into 5 p
 // B/W watches hide the color picker (no colors to choose), so this stands in for COLOR_LEGEND
 // there: text-only, since height is the only encoding (no color steps to show).
 var BW_LEGEND = 'The bars don\'t scale linearly. Their height is split into 5 parts, for rain up to 0.1, 0.5, 2, 10 and 40 mm/h.';
-// Per-provider "why it's best" note — the picker's hintByValue, so only the selected provider's
-// rationale renders. The hinted-row wrap layout flows it around the trigger and gives it the
-// full row width below, so the fuller prose no longer needs its own staticText. The short
-// tags live in the dropdown option descs; these give the fuller rationale.
 // The data sources' credits their terms ask for where their data is picked: Tomorrow.io a
-// linked "Powered by Tomorrow.io", the air quality sources theirs (Open-Meteo's model runs on
+// linked "Powered by Tomorrow.io" (weather-sources-schema.js, beside the Provider's rationale
+// that carries it too), the air quality sources theirs (Open-Meteo's model runs on
 // Copernicus data; WAQI asks for the agencies its stations belong to), LocationIQ a link. The
 // rest are named by their pickers and listed in Setup › Privacy & data sources.
-var TOMORROWIO_CREDIT = 'Powered by <a target=\'_blank\' href=\'https://www.tomorrow.io\'>Tomorrow.io</a>.';
+var TOMORROWIO_CREDIT = weatherSources.TOMORROWIO_CREDIT;
 var OPENMETEO_AQI_CREDIT = 'Data from Open-Meteo.com and the Copernicus Atmosphere Monitoring Service.';
 var WAQI_CREDIT = 'Data from the World Air Quality Index Project and the environmental agencies of its stations.';
 var PRIVACY_TEXT = '<b>Privacy</b><br>While Share anonymous telemetry is on, WarnWeather sends: whether each '
@@ -731,15 +849,6 @@ var DATA_SOURCES_TEXT = '<b>Data sources</b><br>'
     + 'Public holidays: Nager.Date.<br>'
     + 'Data from Open-Meteo.com, MET Norway and the Copernicus Atmosphere Monitoring Service is licensed under '
     + CC_BY + ', GeoNames data too. Weather data &copy; OpenWeather.';
-var PROVIDER_WHY = {
-    dwd: 'Germany\'s national weather service, with the most accurate forecasts in Germany and decent ones across Central Europe (ICON model). No API key needed.',
-    metno: 'The service behind yr.no. Best in the Nordics, with a 2.5 km model, and solid worldwide. No API key needed.',
-    openmeteo: 'Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.',
-    openweathermap: 'A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.',
-    tomorrowio: 'Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key. ' + TOMORROWIO_CREDIT,
-    wunderground: 'A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.',
-    yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key.'
-};
 // The radar picker's options in order. desc (3rd tuple slot) = the short "what it's best at"
 // tag under each name in the dropdown, mirroring the weather picker. DWD/Met.no are real
 // radar; Rainbow/Tomorrow.io are model nowcasts (Tomorrow.io is the precise, worldwide one).
@@ -818,14 +927,13 @@ function copyBtn(url, label) {
  * @returns {Object} Date-control schema item.
  */
 function countdownDateItem(slotKey, barWhen) {
-    var countdownWhen = {key: slotKey, eq: 'countdown'};
     return {
         type: 'date',
-        messageKey: slotKey + 'Countdown',
+        messageKey: STATUS_LINE_CATALOG.countdownKey(slotKey),
         label: 'Countdown date',
         defaultFrom: {resolver: 'todayDate'},
         joinPrevious: true,
-        showWhen: barWhen ? {all: [barWhen, countdownWhen]} : countdownWhen
+        showWhen: bothWhen(barWhen, {key: slotKey, eq: 'countdown'})
     };
 }
 
@@ -865,10 +973,12 @@ function slotItem(slotKey, position, barWhen, joins) {
 }
 
 /**
- * A status bar's seven items — left/mid/right selects, each followed by its countdown
- * companion date row, then its read-only Alerts row (onDemandRow) — all sharing the bar's
- * gate. Mid, right and the Alerts row always join the row above; the left slot joins only when
- * the bar opens with its own intro row.
+ * A status bar's seven items: left/mid/right selects, each followed by its countdown
+ * companion date row (the slot's own day, shown while the slot holds Date countdown; every
+ * other setting of a slot's item is in the dialog its Edit button opens), then its read-only
+ * Alerts row (onDemandRow), all sharing the bar's gate. Mid and right join the row above and
+ * the Alerts row stands apart; the left slot joins only when the bar opens with its own intro
+ * row.
  * @param {string} prefix Slot-key prefix, e.g. 'statusForecast'.
  * @param {?Object} barWhen The bar's shared visibility gate (null = always).
  * @param {boolean} [leftJoins] The left slot joins the previous row too.
@@ -1488,6 +1598,17 @@ module.exports = {
                 defaultValue: false
             }]
         }, {
+            // What is new to try on this watch (feature-tips-panel.js), under the notices and
+            // above the pinned preview too: the card draws only while the phone hands over
+            // tips this install has not seen, and until its Got it.
+            block: 'featureTips',
+            beforePin: true,
+            items: [{
+                type: 'hidden',
+                messageKey: 'featureTipsAck',
+                defaultValue: false
+            }]
+        }, {
             // The screens (screens-page.js): one row per screen, what it shows, a ✕ on each
             // flick screen and "+ Add screen". The pinned watch above draws them and opens
             // each one's editor on a tap (preview-watch.js). aplite has no screens.
@@ -2032,8 +2153,9 @@ module.exports = {
         goalSlotSheet('Walked distance', 'Distance', 'Distance walked per day.', HEALTH_SLOT_WHEN),
         // Bold-only dialogs for the level-less slot kinds (one row — plus the display
         // rows a few kinds add above it: Temp's mode and pair, the units, the date
-        // formats). Order and labels mirror the contract's KINDS appendix (wire ids
-        // 8..19); the battery GLYPH item is deliberately absent — see boldSection.
+        // formats; the batteries lead with their Look). Order and labels mirror the
+        // contract's KINDS appendix (wire ids 8..20), and the phone battery has one dialog
+        // per slot (phoneBatterySheets).
         // "Temperature slot", not the catalog's "Temperature (actual/feels like)": the
         // parenthetical exists to advertise the choice from the dropdown, and repeating
         // it on the dialog that MAKES the choice is noise.
@@ -2113,12 +2235,12 @@ module.exports = {
         }]),
         boldSection('Calendar week', 'Week'),
         // The city's own row: the current weather's icon before its name (slot-text.js
-        // cityIcon), off until switched on.
+        // cityIcon), on by default.
         boldSection('City', 'City', null, [{
             type: 'toggle',
             messageKey: 'citySlotIcon',
             label: 'Weather icon',
-            defaultValue: false,
+            defaultValue: true,
             hintByValue: {'true': 'Shows the current weather\'s icon before the city name.'}
         }]),
         // 'd' is a unit like any other here — the countdown reads '5d' today, and
@@ -2126,17 +2248,14 @@ module.exports = {
         boldSection('Date countdown', 'Countdown', null,
             [unitRow('countdownSlotUnit', '5d', '5')]),
         boldSection('Heart rate', 'Hr', HR_SLOT_WHEN),
-        boldSection('Battery percentage', 'BatteryPct'),
+        // The watch battery's dialog: its Look, then what its text shows and how
+        // (batterySlotSheet).
+        batterySlotSheet(),
         // Dew point shares temperature's degree sign and its reasoning.
-        boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', '12°', '12')]),
-        // ONE dialog for TWO catalog items: 'phoneBattery' (icon + NN%) and
-        // 'phoneBatteryPlain' (NN%, no icon) are separate wire kinds (18/19) so the
-        // no-icon variant can't drive City's bold row, but both KINDS entries share
-        // key 'PhoneBattery' — and the sheet resolver returns 'thresh' + key
-        // (blocks.js statusSlotEditSheet), so both Edit buttons open this dialog and the
-        // one mode packs into both cells. Android-only on the slot side; the dialog
-        // needs no extra gate, because a slot that can't be chosen never opens it.
-        boldSection('Phone battery', 'PhoneBattery'),
+        boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', '12°', '12')])
+        // The phone battery's dialogs, one per slot, in the place of the one dialog per item
+        // the other kinds have: its Look is each slot's own (phoneBatterySlotSheet).
+        ].concat(phoneBatterySheets(), [
         // The weather condition slot's dialog: its Look (slot-text.js conditionLook) and the
         // length of its Name (conditionName, hidden while the Look shows no name), which every
         // condition slot shares, then Bold like every text slot (kind 20, whose cell rides the
@@ -2171,7 +2290,7 @@ module.exports = {
             type: 'staticText',
             textFrom: {resolver: 'conditionList'}
         }])
-        ].map(function (sec) {
+        ]).map(function (sec) {
             // Every slot dialog keeps the bars pinned above its rows: the bar it was opened
             // from, a bar's dialog (preview-status-bars.js statusBarsPreview). The bars' own
             // dialogs pin their bar (barDialog).
@@ -2548,49 +2667,13 @@ module.exports = {
                 showWhen: {key: 'locationMode', eq: 'gps'},
                 hint: 'Sets how long a GPS position is reused before the phone gets a new one. Longer saves battery; shorter keeps your location up to date when you move. The shortest option matches your update interval.'
             }]
-        }, {
-            // Where the data comes from: the weather, the rain radar, the air quality, and how
-            // often the phone asks.
+        },
+        {
+            // Where the data comes from: the weather (its row opens the Weather dialog below), the
+            // rain radar, the air quality, and how often the phone asks.
             id: 'dataSources',
             title: 'Data sources',
-            items: [{
-                type: 'select',
-                messageKey: 'provider',
-                label: 'Weather',
-                defaultValue: 'wunderground',
-                onChange: 'clearPollenForProvider',
-                // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→Open-Meteo),
-                // reading the same country→provider map the wizard uses. See blocks.js recommend resolvers.
-                recommendFrom: 'recommendedWeatherProvider',
-                // Options are alphabetical by name. The 3rd tuple slot's desc is the short "what it's
-                // best at" tag shown under each name in the dropdown; the selected provider's fuller
-                // rationale is the row's info text (PROVIDER_WHY).
-                // DWD carries a `short` so the trigger reads "DWD" while the list keeps the full name.
-                hintByValue: PROVIDER_WHY,
-                // A provider that needs a key gets its key row under this one (keyRow), which
-                // opens its key dialog — the key field, its Test, the links and any budget
-                // guard live there. A key that is missing or known to be rejected puts a dot
-                // on this tab and a dialog in front of Save ("Add key" / "Save anyway"). The
-                // missing-key note is the staticText right below.
-                attentionFrom: {resolver: 'keyAttention'},
-                options: [
-                    ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
-                    ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
-                    ['Open-Meteo', 'openmeteo', {desc: 'Picks the best national model · no key'}],
-                    ['OpenWeatherMap', 'openweathermap', {desc: 'Popular general-purpose API, worldwide · needs a free key'}],
-                    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise local forecasts, worldwide · needs a free key'}],
-                    ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
-                    ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
-                ]
-            }, {
-                // The keyed provider's empty key, said where it cannot be missed: an amber note
-                // hugging the row, only while the picked provider's key is blank (textFrom
-                // answers '' otherwise and the note is gone, divider and all).
-                type: 'staticText',
-                style: 'info',
-                joinPrevious: true,
-                textFrom: {resolver: 'keyMissingNote', args: {picker: 'provider'}}
-            }, keyRow('provider', null), {
+            items: [weatherSources.WEATHER_ROW, {
                 // The rain radar's source, or Off (screens-page.js): a page-only picker over
                 // radarEnabled and radarProvider, so Off keeps the source and turning the radar
                 // on again restores it. Flags the country-matched source "(Recommended)"
@@ -2643,10 +2726,10 @@ module.exports = {
                 // the updates: said here, from its hours (screens-page.js).
                 hintFrom: {resolver: 'batterySaverPauseHint'},
                 optionsFrom: {resolver: 'fetchIntervalBudget'}
-            }]
-        },
-        // The keyed weather providers' key dialogs, opened by the key row under the Weather
-        // provider and rendered nowhere else (sheetOnly). The keys, their trimming and
+            }, weatherSources.CALLS_LINE]
+        }].concat(weatherSources.dialogSections(keyRow), [
+        // The keyed weather providers' key dialogs, opened by the key row under the Provider
+        // (the Weather dialog) and rendered nowhere else (sheetOnly). The keys, their trimming and
         // refetch on Save (onbuild.js) and the Test actions are the ones the card's rows
         // carried.
         keySheetSection(PROVIDER_KEYS.openweathermap, {key: 'provider', eq: 'openweathermap'}, [{
@@ -2803,12 +2886,12 @@ module.exports = {
             }]
         }, {
             title: 'Advanced', collapsible: true, items: [{
-                type: 'segmented',
+                type: 'select',
                 messageKey: 'configTheme',
                 label: 'Settings Theme',
                 defaultValue: 'auto',
-                options: [['Auto', 'auto'], ['Light', 'light'], ['Dark', 'dark']],
-                hint: 'Sets the theme of this settings page. Auto follows your Pebble app theme. The watchface is not affected.'
+                options: [['Auto', 'auto'], ['Light', 'light'], ['Dark', 'dark'], ['Black', 'black']],
+                hint: 'Auto follows the Pebble app\'s light or dark theme. Black matches its Black theme and has to be chosen here. The watchface is not affected.'
             }, {
                 type: 'toggle',
                 messageKey: 'fetch',
@@ -2837,7 +2920,7 @@ module.exports = {
                 defaultValue: false,
                 showWhen: {key: 'devStatsEnabled', eq: true}
             }]
-        }]
+        }])
     }]
 };
 

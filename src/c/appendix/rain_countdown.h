@@ -16,9 +16,9 @@ typedef struct {
     uint8_t mins;     // 1..RAIN_COUNTDOWN_MINS_MAX, or RAIN_COUNTDOWN_MINS_MAX + 1
                       // past it: until the rain starts, or while it rains until it stops
     bool raining;     // it is raining now
-    uint8_t tier;     // radar tier 1..5 of the segment's peak: the drops' tint
-    uint8_t bucket;   // 1 drizzle, 2 rain, 3 downpour (rain_tier_to_bucket3, never 0):
-                      // the drops' density and the noun
+    uint8_t bucket;   // 1 drizzle, 2 rain, 3 downpour (rain_tier_to_bucket3 of the radar
+                      // tier of the segment's peak, never 0): the drops' glyph
+                      // (status_rain_glyph) and the noun
 } RainCountdown;
 
 // Phase A: rescan the persisted radar data and cache the current/next rain

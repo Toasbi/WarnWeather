@@ -463,7 +463,7 @@ function onDemandRow(prefix, barWhen) {
         gotoTab: 'alerts',
         navNote: 'Alerts',
         hintFrom: {resolver: 'onDemandBarIcons', args: {bar: bar, where: 'None'}},
-        showWhen: barWhen ? {all: [ON_DEMAND_WHEN, barWhen]} : ON_DEMAND_WHEN
+        showWhen: gates.bothWhen(ON_DEMAND_WHEN, barWhen)
     };
 }
 /**

@@ -3,6 +3,7 @@
 // on the app's one shared key) and ArcGIS (reverse: lat/lon → the City slot's
 // name, keyless) — must never be mistaken for the weather provider, and must
 // not hammer their service when a lookup cannot succeed.
+const { testPorts } = require('../../helpers/source-ports.js');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { beforeEach } = require('node:test');
@@ -203,7 +204,7 @@ test('the forecast is sent when ArcGIS fails and the weather provider answers', 
     p.fetchWithCoordinates(52.52, 13.405,
       function () { result = 'success'; },
       function (f) { result = 'failure ' + JSON.stringify(f); },
-      false, {}, null);
+      false, {}, null, undefined, testPorts());
   } finally {
     outbox.sendWeather = originalSend;
     airQuality.fetchAqiInto = originalAqi;

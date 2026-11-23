@@ -1,7 +1,7 @@
 // test/helpers/config-schema-golden.js — builds test/config-schema.golden.json, the
 // settings page's whole schema surface as data:
 //  - `schema`: the schema exactly as the page receives it. generateUrl injects it as
-//    JSON (config-ui/index.js inlineScriptJson), and it is ONE object for every
+//    one literal (config-ui/index.js inlineScriptLiteral), and it is ONE object for every
 //    platform — the platform facts are showWhen predicates the page evaluates — so its
 //    JSON text is everything a builder refactor in schema.js can change. Only the
 //    version label is normalised: release-please bumps it, and a dev build tags it.

@@ -23,7 +23,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Dual-context (see line-style.js): CommonJS modules under Node, the globals of the files
     // concatenated ahead of this one in the page (scripts/build-config-page.js APP_FILES).
     var node = typeof require !== 'undefined';
-    var CD = node ? require('../country-defaults.js') : COUNTRY_DEFAULTS;
+    var CD = node ? require('../../../settings/domain/country-defaults.js') : COUNTRY_DEFAULTS;
     var CSS = node ? require('./wizard-css.js') : window.WizardCss;
     var SCREENS = node ? require('./wizard-screens.js') : window.WizardScreens;
     var FORECAST = node ? require('./wizard-forecast.js') : window.WizardForecast;
@@ -1195,6 +1195,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (forecast) { forecast.textContent = forecastLabel(); }
     }
 
+    /**
+     * Best-effort country inference: timezone first, then locale region subtag.
+     * @returns {?string} ISO alpha-2 code, or null if it can't be determined.
+     */
+    function inferCountry() {
+        var tz = null, lang = null;
+        try {
+            if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
+                tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            }
+        } catch (e) { tz = null; }
+        var fromTz = CD.countryFromTimezone(tz);
+        if (fromTz) { return fromTz; }
+        try {
+            lang = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : null;
+        } catch (e2) { lang = null; }
+        return CD.countryFromLocale(lang);
+    }
+
     function ensureStyle() {
         if (document.getElementById('wiz-style')) { return; }
         var st = document.createElement('style');
@@ -1218,7 +1237,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // the schema default 'DE', which would derive Germany's DWD weather and radar and German
             // holidays as if detected. mapCountry('none') is the "everyone else" row: Open-Meteo and
             // Rainbow, metric.
-            var cc = CD.inferCountry();
+            var cc = inferCountry();
             var country = FINISH.findItem(ctx.schema, 'holidayCountry');
             ctx.S.holidayCountry = (cc && labelFor(country.options, cc)) ? cc : 'none';
             ctx.S.holidayRegion = 'all';

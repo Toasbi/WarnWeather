@@ -145,6 +145,12 @@ static GRect content_rect(void) {
     return GRect((int16_t)(bounds.origin.x + left), bounds.origin.y, w, bounds.size.h);
 }
 
+// The strip's view facts into its row: its content rect at the full tier, and the date
+// density the window pushed (top_status_layer_set_full_date).
+static void seat_row(void) {
+    status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, s_full_date);
+}
+
 static void top_status_update_proc(Layer *layer, GContext *ctx) {
     GRect bounds = layer_get_bounds(layer);
     bool connected = connection_service_peek_pebble_app_connection();
@@ -200,7 +206,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
         }
     }
 
-    status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
+    seat_row();
     status_row_draw(s_row, ctx);
 }
 
@@ -217,14 +223,13 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
     MEMORY_HEAP_PROBE_SAMPLE("after_connection_subscribe", &probe);
 
     s_row = status_row_create(STATUS_LINE_TOP);
-    status_row_set_full_date(s_row, s_full_date);
     // The battery now lives in the top-right status slot (status_row draws it);
     // own its event source here as the retired battery corner layer used to.
     update_battery_override();
     if (!watch_services_battery_is_fixture()) {
         battery_state_service_subscribe(battery_state_callback);
     }
-    status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
+    seat_row();
 
     top_status_layer_refresh();
 
@@ -242,7 +247,7 @@ void top_status_layer_set_full_date(bool full_date) {
     if (full_date == s_full_date) { return; }
     s_full_date = full_date;
     if (s_row) {
-        status_row_set_full_date(s_row, s_full_date);
+        seat_row();
         top_status_layer_refresh();
     }
 }

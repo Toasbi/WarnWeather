@@ -4,6 +4,7 @@
 // use. Above the Arctic Circle SunCalc has no sunrise/sunset during midnight
 // sun and polar night; the empty list used to throw inside the XHR callback
 // chain, so the fetch never finished and every later fetch was skipped.
+const { testPorts } = require('../../helpers/source-ports.js');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -77,7 +78,8 @@ test('a real pair still encodes as start byte + two little-endian epochs', () =>
 // The whole chain, with the REAL base withSunEvents: the stages that would
 // hit the network are stubbed to answer synchronously, so a throw anywhere in
 // the continuation surfaces here instead of being lost in an XHR callback.
-function runFetch(t, isoNow) {
+// `mapped` adds fields to the provider's answer.
+function runFetch(t, isoNow, mapped) {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse(isoNow) });
   const realSend = outbox.sendWeather;
   const sent = [];
@@ -91,13 +93,14 @@ function runFetch(t, isoNow) {
     p.precipTrend = new Array(24).fill(0);
     p.startTime = Math.floor(Date.now() / 1000);
     p.currentTemp = 5;
+    Object.assign(p, mapped);
     onSuccess();
   };
   const outcome = { success: 0, failure: [] };
   p.fetchWithCoordinates(TROMSO.lat, TROMSO.lon,
     function () { outcome.success += 1; },
     function (f) { outcome.failure.push(f); },
-    false, null, null);
+    false, null, null, undefined, testPorts());
   outcome.sent = sent;
   return outcome;
 }
@@ -120,4 +123,12 @@ test('a Tromso fetch during polar night completes and sends the forecast', (t) =
   const sun = outcome.sent[0].SUN_EVENTS;
   assert.equal(sun && sun.length, 9);
   assert.equal(sun[0], 1, 'sunset then sunrise: the whole chart is night');
+});
+
+test('own sun times that cannot be read fail the fetch as a sun events failure, never as a throw', (t) => {
+  // A forecast snapshot brings them back from storage, where they may have been damaged.
+  const outcome = runFetch(t, '2026-06-21T12:00:00Z', { sunTimes: [null] });
+  assert.equal(outcome.success, 0);
+  assert.deepEqual(outcome.failure, [{ stage: 'sun_events', code: 'calc_error' }]);
+  assert.equal(outcome.sent.length, 0);
 });

@@ -49,6 +49,12 @@ module.exports = {
     // the top row's defaults changed (settings/domain/migrations/status-slots.js keepSlotDefaults27). Named
     // while 3.0.0 was still planned as 2.7.0; test builds already marked it, so it stays.
     SLOT_DEFAULTS_2_7_MIGRATION_KEY: 'v2.7.0_slot_defaults_migration',
+    // 3.3.0: every install onto the city slot's weather icon, on by default now
+    // (settings/domain/migrations/status-slots.js migrateCitySlotIconOn).
+    CITY_SLOT_ICON_MIGRATION_KEY: 'v3.3.0_city_slot_icon_migration',
+    // 3.3.0: the two watch battery items and the two phone battery items became one each,
+    // with a Look (settings/domain/migrations/status-slots.js mergeBatterySlots).
+    BATTERY_SLOTS_MERGE_MIGRATION_KEY: 'v3.3.0_battery_slots_merge_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',
@@ -99,6 +105,10 @@ module.exports = {
     LAST_AQI_KEY: 'lastAqi',
     NEWS_CACHE_KEY: 'newsCache',
     NOTICES_KEY: 'notices',
+    // The ids of the new-feature tips this install has seen (feature-tips-seen.js): a JSON
+    // list. Absent until the first boot of a build with tips, which writes every id for a
+    // fresh install and none for one from before.
+    FEATURE_TIPS_SEEN_KEY: 'feature_tips_seen',
     LAST_SENT_NOTICE_KEY: 'lastSentNotice',
     // The Weather Underground key is scraped rather than typed, and has always
     // lived outside the settings blob under this literal name (wunderground.js).
@@ -106,21 +116,34 @@ module.exports = {
     // Where "Reset watchface" parks the credentials it deliberately keeps, until
     // the next boot's seedDefaults folds them back into a fresh blob.
     PRESERVED_KEYS_KEY: 'preservedApiKeys',
-    // Phone battery (Android only — the Battery Status API exists solely in the
-    // Chromium WebView PKJS runs in there). SUPPORTED is the persisted detector
-    // result, so the config page's env can omit the slot items before any
-    // reading has landed; LEVEL is the EXACT percentage (0..100, rounded) and
-    // CHARGING the charging flag, both read back by the baker. LEVEL is NOT the
-    // 5-point bucket: the bucket is the send trigger and lives in memory only
-    // (phone-battery.js), so the watch always shows the phone's real charge.
-    PHONE_BATTERY_SUPPORTED: 'phoneBatterySupported',
+    // Phone battery (the Pebble app's Phone plugin, or the Battery Status API of the
+    // Chromium WebView PKJS runs in on Android; phone-battery.js). SUPPORTED is the
+    // persisted detector result, so the config page's env can omit the slot items before
+    // any reading has landed; LEVEL is the EXACT percentage (0..100, rounded), read back
+    // by the baker. LEVEL is NOT the 5-point bucket: the bucket is the send trigger and
+    // lives in memory only, so the watch always shows the phone's real charge.
+    // SUPPORTED was 'phoneBatterySupported' while the WebView was the only source: under
+    // a new name every phone judges again, now that the Phone plugin is one.
+    PHONE_BATTERY_SUPPORTED: 'phoneBatteryReadable',
     PHONE_BATTERY_LEVEL: 'phoneBatteryLevel',
-    PHONE_BATTERY_CHARGING: 'phoneBatteryCharging',
-    // The phone's battery as the watch was last sent it ({level, charging}; phone-battery.js
+    // What a build from before the Phone plugin left behind, dropped at every start: its
+    // verdict, and the charging flag the slot no longer shows.
+    PHONE_BATTERY_RETIRED_KEYS: ['phoneBatterySupported', 'phoneBatteryCharging'],
+    // The phone's battery as the watch was last sent it ({level}; phone-battery.js
     // readShown): what a weather fetch's bake shows, so the charge drifting inside its
-    // 5-point bucket does not change the status. Kept across PKJS restarts, unlike the two
-    // above, because the watch keeps showing it.
+    // 5-point bucket does not change the status. Kept across PKJS restarts, unlike the
+    // level above, because the watch keeps showing it.
     PHONE_BATTERY_SHOWN: 'phoneBatteryShown',
+    // The estimate of the days the watch has left on its charge as it was last heard
+    // ({days, updatedAt}; battery-estimate.js), which the watch battery's text (its Text
+    // and Icon + text looks) can show. Kept across PKJS restarts so a bake shows the days
+    // at once.
+    BATTERY_ESTIMATE: 'batteryEstimate',
+    // When that estimate was last read ({at: epoch ms, failures: failed reads in a row, made:
+    // when Muninn made the estimate it heard, or null}; battery-estimate.js), so neither a PKJS
+    // restart nor a settings save reads it again before estimate-reads.js says. Absent while
+    // the days are not wanted, so switching them on reads at once.
+    BATTERY_ESTIMATE_READ: 'batteryEstimateRead',
     // The re-bake snapshot: the handful of payload keys buildStatusLines reads,
     // plus the watchInfo its platform env is derived from, version-stamped as
     // one JSON blob. PKJS is torn down whenever the user leaves the watchface,
@@ -184,5 +207,10 @@ module.exports = {
     // true = outside its area; plus misses: {dwd: n}, DWD's 404s in a row from inside its
     // area; weather/domain/radar/radar-coverage.js), never the position itself. The settings page reads
     // it as userData.radarCoverage for the note under the Radar provider row.
-    RADAR_COVERAGE_KEY: 'radarCoverage'
+    RADAR_COVERAGE_KEY: 'radarCoverage',
+    // What each weather provider last answered ({v: 1, entries: [{provider, kind, place, at,
+    // request, startTime, fields}]}), so a fetch soon after asks nobody again;
+    // weather/domain/forecast-snapshot.js says what is kept and how long it serves. The
+    // Force weather fetch toggle drops it (index.js), as does a reset.
+    FORECAST_SNAPSHOTS_KEY: 'forecastSnapshots'
 };

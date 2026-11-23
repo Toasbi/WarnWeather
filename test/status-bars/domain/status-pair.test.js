@@ -37,15 +37,16 @@ test('the preset tables hold exactly the contract values', () => {
   assert.equal(pair.CUSTOM_MAX_CHARS, 2);
 });
 
-test('defaultSeparator: the bar for temperature, the slash for every other pair', () => {
+test('defaultSeparator: the bar for temperature and the watch battery, the slash for every other pair', () => {
   assert.equal(pair.defaultSeparator('temp'), 'bar');
+  assert.equal(pair.defaultSeparator('battery'), 'bar');
   for (const prefix of ['uv', 'wind', 'gust', 'aqi']) {
     assert.equal(pair.defaultSeparator(prefix), 'slash', prefix);
   }
   for (const bogus of [undefined, null, '', 'constructor', '__proto__', 'toString', 7]) {
     assert.equal(pair.defaultSeparator(bogus), 'slash', String(bogus));
   }
-  assert.deepEqual(pair.DEFAULT_SEPARATOR, { temp: 'bar' });
+  assert.deepEqual(pair.DEFAULT_SEPARATOR, { temp: 'bar', battery: 'bar' });
   for (const key of Object.keys(pair.DEFAULT_SEPARATOR)) {
     assert.ok(Object.prototype.hasOwnProperty.call(pair.SEPARATORS, pair.DEFAULT_SEPARATOR[key]),
       key + ': a default is a preset');

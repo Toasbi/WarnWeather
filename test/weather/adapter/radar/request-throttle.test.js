@@ -40,12 +40,6 @@ function stored() {
 
 test.beforeEach(() => { localStorage.clear(); });
 
-test('isPastSlot trips only once a later UTC-aligned slot starts', () => {
-  assert.equal(requestThrottle.isPastSlot(T0, T0 + HALF_HOUR - 1, HALF_HOUR), false);
-  assert.equal(requestThrottle.isPastSlot(T0, T0 + HALF_HOUR, HALF_HOUR), true);
-  assert.equal(requestThrottle.isPastSlot(T0 + 29 * MIN, T0 + HALF_HOUR, HALF_HOUR), true);
-});
-
 test('when failures count, the request holds its slot before it is answered', () => {
   const throttle = counting();
   assert.equal(throttle.take('rainbow', HALF_HOUR, T0 + 5 * MIN, false).request, true);

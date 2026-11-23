@@ -226,7 +226,7 @@ test('the Open-Meteo AQI fetch reads PEAK_HOURS and names its feed; WAQI names n
 
 test('each day-max metric keeps its own record, keyed by its own feed', () => {
   Object.keys(store).forEach((k) => delete store[k]);
-  const p = provider({ id: 'dwd', uvFeedId: 'openmeteo',
+  const p = provider({ id: 'dwd', feeds: { uv: 'openmeteo' },
     windTrend: new Array(48).fill(10), gustTrend: new Array(48).fill(20),
     uvTrend: new Array(48).fill(3), aqiTrend: [42], aqiFeedId: null });
   const records = dayPeaks.recall(p, 49.2, 7.0, Math.floor(Date.now() / 1000), dayPeaksStore.load).records;

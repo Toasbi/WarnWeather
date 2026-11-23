@@ -29,7 +29,7 @@ _Avoid_: module, feature (for the whole context).
 | Theme | palettes, night light | theme schedule | previews colours | – |
 | Settings | reads the settings message | stores, migrates, sends them | the schema and pages | – |
 | Wire transport | AppMessage inbox, persist | outbox, change detector, scheduler, battery saver | – | – |
-| App notices | release toast | news, update check | news panel | `news` |
+| App notices | release toast | news, update check, feature tips | news panel, new-features card | `news` |
 | Health | reads the watch's health data | – | previews it | – |
 | Telemetry | – | snapshot and upload | – | `telemetry-ingest` |
 
@@ -143,7 +143,7 @@ The settings AppMessage on the wire: all watch-bound settings keys
 
 **Guarded key (of the Clay bundle)**:
 A key in `config_parse_wire`'s all-or-nothing presence chain
-(the `CORE_KEYS` table in `src/c/appendix/config_wire.c`). The chain is the category detector: it tells a
+(the `CORE_KEY_LIST` rows in `src/c/appendix/config_wire.c`). The chain is the category detector: it tells a
 message that carries no config (normal for weather messages) from one that carries
 config. Holidays and palettes are left unguarded on purpose. They have their own
 handlers and dirty flags, so a parse problem there cannot take the whole config down.
@@ -185,9 +185,75 @@ reading (`phone-battery.js` statusRideAlong).
 
 **Shown reading (phone battery)**:
 The phone's charge as the watch was last sent it: what a weather fetch's bake shows, so
-the charge drifting inside its 5-point bucket changes nothing by itself. A bucket move, a
-charging flip and the ride-along make the exact reading the shown one; so does the first
-reading after a PKJS restart when it lands in another bucket (`phone-battery.js` readShown).
+the charge drifting inside its 5-point bucket changes nothing by itself. A bucket move and the
+ride-along make the exact reading the shown one; so does the first reading after a PKJS restart
+when it lands in another bucket (`phone-battery.js` readShown). The reading comes from the Pebble
+app's Phone plugin, or from the Android WebView's battery API where the app has no plugins.
+
+**Look (battery slots)**:
+How a battery slot draws, the first row of the dialog its slot's Edit button opens
+(`slot-text.js` batteryLook, phoneBatteryLook). The Watch battery's has the weather
+condition's three options: the battery the watch draws and its charge as text after it
+(Icon + text), the text alone (Text) or the battery alone (Icon). The Phone battery's has two:
+the phone's icon before its charge (Icon + text), or the charge alone (Text). The Phone
+battery's Look is each slot's own setting, like a countdown's date, so two slots can differ,
+and each slot opens a Phone battery dialog of its own (`status-line-catalog.js`
+phoneBatterySheet); the Watch battery sits in one slot, so its Look is the item's. One slot
+item each: the bake picks the wire kind or the icon id by the Look (`status-lines.js`
+packLine, iconFor; the Watch battery's Icon + text is its text's kind with the id of the
+battery the watch draws, `status_line.h` STATUS_ICON_DRAWN_BATTERY).
+_Avoid_: battery percentage slot, phone battery (no icon), which were items of their own
+until 3.3.0.
+
+**Days left (watch battery)**:
+What the Watch battery's text (its Text and Icon + text looks) can show in place of the
+percentage, or beside it: the days the watch has left, an estimate the Muninn app makes at
+its watch app's wakeups, every 6 hours, and serves as a plugin of the Pebble app.
+`battery-estimate.js` reads each estimate once, never subscribed, about 20 minutes after the
+wakeup that makes it, worked out from the time Muninn stamped on the estimate before
+(`estimate-reads.js`): about four reads a day. Never more, since every read runs Muninn's
+plugin script, and while it runs the Pebble app brings back the permissions Muninn asked for
+that the user has not answered. Switching the days on reads at once; a restart or a settings
+save reads nothing before the next read is due. The phone bakes Muninn's figure into the
+slot as it was made and drops it once it is a day old (`battery-days.js`, the one live kind
+that carries text). It never counts the figure down, since the watch takes any change of the
+text for a new estimate. Beside the percentage it bakes the pair's separator and the place
+of the percentage too (the percentage mark), since only the watch knows its charge of the
+moment. The watch shows the days only while they can be current: the phone in reach, the
+watch not charging, and not charged since the days arrived (`status_row.c`
+shows_battery_days). Otherwise the slot shows the percentage alone. For the last of the
+three the watch keeps a mark of the carried text and the lowest charge since it arrived
+(`status_line.h` StatusBatteryDaysMark): an estimate from before a charge stays hidden until
+another one arrives, after Muninn's next wakeup and the read that follows it, up to about six
+and a half hours (longer when that read falls in the Night battery saver's window). A new
+estimate is owed to the watch, not sent at once: the re-bake's next tick sends it
+(`status-rebake.js` oweStatus).
+
+**Short form (status slot)**:
+The shorter text a slot draws where its bar has no room for its own. Two items have one. The
+weather condition's is its code ("PCLDY" for Partly cloudy), which the phone bakes after the
+name (`status_line.h` STATUS_TEXT_ALT_SEP). The date's is the shorter format of the list its
+format falls back to, which the watch formats with the date (`date_format.h` date_format_slot):
+the month names drop the year ("Nov 2026" to "Nov"), the numeric month and year take the
+two-digit year ("11.2026" to "11.26"), the numeric full dates take the day and month alone
+("21.11.26" and "2026-11-21" to "21.11.") and the written-out date drops its year ("21. Nov
+2026" to "21 Nov"). A format with none shorter has none, and no short form is a bare day. The
+row swaps a short form in before it cuts a text with an ellipsis (`status_row_layout.h`
+status_row_swap_short_forms): a side slot's condition gives way as soon as any text in its row
+is cut, while the date gives way only where its own text is cut, so a side slot's date keeps
+its width as every side slot does. On demand takes the short form as the slot's first short
+member (`status_short_text.h`), and the settings page's pictures swap in the same ones
+(`preview-watch.js` swapShortForms). The Classic's lean row swaps in none: the phone sends it
+the condition's code alone, and it cuts the date.
+_Avoid_: abbreviation.
+
+**Feature tip**:
+One entry of the settings page's "New in this update" card: a feature the user has to switch
+on, how to do it, and the dialog or tab its Show me opens (`notices/domain/feature-tips.js`).
+An install is shown the tips it has not seen, kept by id (`feature-tips-seen.js`), until the
+card's Got it is saved. A fresh install has seen them all.
+_Avoid_: news (the server's changelog rows behind the bell), release toast (the watch's
+notification after an update).
 
 **Battery saver**:
 The night window (`sleepStartHour` to `sleepEndHour`) in which the phone fetches no weather and
@@ -281,6 +347,76 @@ response(s): the series, scalars and feels inputs named by
 fetch options' gates and the one missing-value convention per field and writes
 the instance. An adapter only maps; only adopt decides.
 _Avoid_: normalized provider fields, provider instance shape.
+
+**Reading**:
+One of the fourteen parts a forecast is made of, each the mapped key one provider fills: the
+three of the moment (the temperature, the feels-like and the weather condition now), then the
+hourly temperature, feels-like, dew point, rain chance, rain amount, wind speed, wind gusts,
+wind direction, UV, cloud cover and air pressure. Each provider computes its own feels-like
+from its own hours. `src/pkjs/weather/domain/provider-readings.js` lists them, and per provider
+which readings it sends (Yandex sends no dew point, wind direction, cloud cover or air
+pressure; DWD no UV), the setting that holds its key, the area it covers and the requests one
+fetch makes. Air quality, pollen and the rain radar are no readings: each has its own source.
+_Avoid_: metric (a metric is what a graph line or slot draws), field.
+
+**Source plan**:
+What one fetch asks for, in order (`src/pkjs/weather/domain/source-plan.js`): its steps. The
+Provider (the Weather dialog's first picker) is the fetch's anchor: its instance holds every reading at the end,
+and the rest of the fetch (the sun events, air quality, pollen, the day records, the payload)
+reads it. Its own forecast is the first step, and a fetch without it fails; it serves the
+readings it sends, and a reading it lacks is a fill: it comes from Open-Meteo while the watch
+draws it (a drawn reading). DWD's UV comes by Open-Meteo's UV-only request, Yandex's dew point,
+wind direction, cloud cover and air pressure by one request for all four.
+`src/pkjs/weather/application/fetch-sources.js` runs the steps through the source ports. The
+plan also counts the calls a day it comes to while no provider fails (`callsPerDay`: each
+update's requests, outside the Battery saver's window, and the UV-only fill once its answer
+stops serving), which the settings page shows under the Provider and at the end of Setup › Data
+sources, and the tomorrow.io budget counts its share by.
+_Avoid_: provider chain, fallback provider.
+
+**Reading pick**:
+A reading's provider of its own: its row in the Weather dialog's Other sources list
+(Setup › Data sources › Weather; `weatherSource<Reading>`, '' for the Provider's), where that
+provider sends the reading, has its key and covers the place (`source-plan.js`
+feedsOf). The list holds only the readings with a pick; Use another source adds one. A new
+Provider takes back the values picked to it or left at the old one.
+The Provider always serves the forecast and stays the fetch's anchor; each other provider a pick names is asked
+once for its whole forecast, and the readings picked to it are laid on by time (a part:
+`partSteps`, `forecast-model.js` adoptReadings). A part that fails, or whose hours do not line
+up, leaves its readings the Provider's. The anchor's `feeds` name the provider each
+reading came from, which the day records follow.
+_Avoid_: Per reading, mixed mode, custom sources, override.
+
+**Drawn reading**:
+A reading only some screens draw that the watch draws now
+(`src/pkjs/weather/domain/drawn-readings.js`): UV, the dew point, the cloud cover and the air
+pressure on a forecast line the watch draws, in a status slot or as a placed alert, and the
+wind direction as the wind and gust slots' arrow. The fetch asks for UV, and fills a reading
+the provider lacks, only while it is drawn; the settings page names the fills by the same rule.
+_Avoid_: wanted reading, used metric.
+
+**Source ports**:
+What a fetch's source plan runs through (`src/pkjs/weather/adapter/source-ports.js`): the
+requests to providers other than the Provider and to Open-Meteo's fills, the forecast
+snapshots, the clock and the update interval. Where the weather comes from (the reading picks,
+the stored keys) rides the fetch options instead
+(`source-plan.js` sourcesOf). The fetch cycle builds a set for each fetch (`shell/fetch-cycle.js`
+prepareFetch) and hands it to `fetchWithCoordinates`.
+_Avoid_: sources (the radar, air quality and plugins have sources of their own).
+
+**Forecast snapshot**:
+What a provider answered, kept so a fetch soon after (a start-up, a settings save) asks nobody
+again (`src/pkjs/weather/domain/forecast-snapshot.js`, stored by
+`src/pkjs/weather/adapter/forecast-snapshots.js`). It holds what its kind keeps of a valid
+answer (a provider's whole forecast, a UV fill, or the fill of the other readings a provider
+lacks), the place, the time and what the request asked for (the hours, the day maxima, the
+optional series, the feels-like formula, the key's fingerprint). It keeps one per provider and
+kind. A fetch reuses it for the same request at a place close by while its kind serves it: a
+forecast or the other readings' fill as it was kept, for the rest of its refresh slot within
+the hour it was kept in; the UV fill for a few hours, re-anchored to the hour the new forecast
+starts at.
+Force weather fetch drops them, and a fetch on its way then keeps nothing it asked for before.
+_Avoid_: forecast cache (the Weather tab has a cache of its own), response cache.
 
 ## Radar
 

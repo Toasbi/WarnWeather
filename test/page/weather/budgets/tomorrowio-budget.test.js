@@ -3,6 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const budget = require('../../../../src/pkjs/page/weather/budgets/tomorrowio-budget.js');
 const batterySaver = require('../../../../src/pkjs/wire/domain/battery-saver.js');
+const providerReadings = require('../../../../src/pkjs/weather/domain/provider-readings.js');
+const sourcePlan = require('../../../../src/pkjs/weather/domain/source-plan.js');
 
 // Base state: tomorrow.io weather + radar, night pause off.
 function S(over) {
@@ -72,6 +74,18 @@ test('callsPerCycle counts weather and radar selections independently', () => {
   assert.equal(budget.callsPerCycle(S({ provider: 'dwd', radarMode: 'off' })), 0);
 });
 
+test('callsPerCycle: tomorrow.io is asked for a reading picked to it with its key, or as the Provider', () => {
+  const weatherOnly = (over) => S(Object.assign({ radarMode: 'off' }, over));
+  assert.equal(budget.callsPerCycle(weatherOnly({ provider: 'dwd', weatherSourceUv: 'tomorrowio', tomorrowioApiKey: 'k' })), 1);
+  assert.equal(budget.callsPerCycle(weatherOnly({ provider: 'dwd', weatherSourceUv: 'tomorrowio', tomorrowioApiKey: '' })), 0,
+    'without its key the reading comes from the Provider');
+  const everyValueElsewhere = { provider: 'tomorrowio' };
+  providerReadings.READING_IDS.forEach((id) => { everyValueElsewhere[sourcePlan.choiceKey(id)] = 'metno'; });
+  assert.equal(budget.callsPerCycle(weatherOnly(everyValueElsewhere)), 1,
+    'the Provider serves the forecast with every value picked elsewhere');
+  assert.equal(budget.callsPerCycle(weatherOnly({ provider: 'tomorrowio' })), 1);
+});
+
 test('callsPerCycle: radarMode off zeroes the radar call even with tomorrow.io selected; any other mode still costs it', () => {
   // provider: 'dwd' isolates the radar contribution (weather call excluded).
   assert.equal(budget.callsPerCycle(S({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'off' })), 0);
@@ -125,4 +139,35 @@ test('STATE_KEYS lists every settings key the budget math reads', () => {
   budget.fits(spy, 5);
   budget.minSleepHoursFor(spy, 5);
   assert.deepEqual([...read].sort(), budget.STATE_KEYS.slice().sort());
+});
+
+// The calls line at the end of Data sources counts with the source plan (source-plan.js
+// callsPerDay); the budget's weather share is the same count, so the two agree wherever every
+// reading tomorrow.io brings is drawn.
+
+test('the weather calls a day are the source plan\'s tomorrow.io calls, at every interval and night pause', () => {
+  const pauses = [{ sleepNightEnabled: false }, { sleepNightEnabled: true, sleepStartHour: '22', sleepEndHour: '7' },
+    { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' }];
+  const settings = [
+    { provider: 'tomorrowio', tomorrowioApiKey: 'k' },
+    { provider: 'dwd', weatherSourceWind: 'tomorrowio', tomorrowioApiKey: 'k' },
+    { provider: 'tomorrowio', weatherSourceTemperature: 'dwd', tomorrowioApiKey: 'k' },
+    { provider: 'metno', weatherSourceWind: 'tomorrowio', tomorrowioApiKey: '' },
+    { provider: 'openmeteo' }
+  ];
+  settings.forEach((over) => pauses.forEach((pause) => budget.INTERVAL_LADDER.forEach(([, value]) => {
+    const state = S(Object.assign({ radarMode: 'off' }, pause, over));
+    const minutes = parseInt(value, 10);
+    const input = sourcePlan.inputOf(state);
+    const planned = sourcePlan.callsPerDay(input, providerReadings.DRAWN_ONLY, minutes, budget.sleepHours(state));
+    assert.equal(budget.dailyCalls(state, minutes), planned.tomorrowio || 0, JSON.stringify(state) + ' ' + minutes);
+  })));
+});
+
+test('where the calls line counts fewer, the budget errs toward more: every reading counts', () => {
+  const noRadar = { radarMode: 'off', tomorrowioApiKey: 'k' };
+  const cloudOnly = S(Object.assign({ provider: 'metno', weatherSourceCloud: 'tomorrowio' }, noRadar));
+  assert.equal(budget.callsPerCycle(cloudOnly), 1, 'a reading picked to it counts, drawn or not');
+  const input = sourcePlan.inputOf(cloudOnly);
+  assert.equal(sourcePlan.refreshRequests(input, []).tomorrowio, undefined, 'the line counts what the watch draws');
 });

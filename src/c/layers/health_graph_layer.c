@@ -80,22 +80,21 @@ static int    s_step_mark_n;       // number of marks in use (1 or 2)
 static time_t s_end_hour;          // hour boundary the last visible slot ends at
 static int    s_hr_lo, s_hr_hi;    // resolved HR scale for this refresh
 
-// Sleep-stripe payload handed to the CUSTOM layer's fn via the user pointer.
+// What the sleep stripe draws.
 typedef struct {
     const uint8_t *sleep;        // per-slot HEALTH_SLEEP_* state
     int            count;        // visible slots
     int            height;       // stripe height in px
 } SleepStripe;
 
-// CUSTOM layer: draws the bottom sleep band. For each slot whose state is not
+// The bottom sleep band, drawn under every layer. For each slot whose state is not
 // AWAKE, fills a fixed-height rect at the BOTTOM of the plot spanning the full
 // slot pitch (a continuous band). On colour, DEEP is plain blue and LIGHT is a
 // brighter blue; on B&W, DEEP is a solid white rect and LIGHT a lighter dither
 // (GColorLightGray, which the 1-bit display renders as a checkerboard), so the two
 // are distinguishable without colour and deep reads as the stronger fill.
-static void sleep_stripe_draw(const ChartRender *r, void *user) {
-    const SleepStripe *st = (const SleepStripe *)user;
-    if (!st || !st->sleep || st->height <= 0) {
+static void sleep_stripe_draw(const ChartRender *r, const SleepStripe *st) {
+    if (!st->sleep || st->height <= 0) {
         return;
     }
     const GRect c          = r->geo.content;
@@ -128,13 +127,12 @@ static void sleep_stripe_draw(const ChartRender *r, void *user) {
     }
 }
 
-// CUSTOM layer: dashed horizontal gridline at each labeled step mark (see
+// A dashed horizontal gridline at each labeled step mark (see
 // step_scale_marks / step_scale_grid / draw_left_axis) — the marks are the ONLY
 // gridlines, so the left strip never carries an unlabeled line. Drawn under the bars so
 // data sits on top.
 
-static void step_grid_draw(const ChartRender *r, void *user) {
-    const StepGrid *g = (const StepGrid *)user;
+static void step_grid_draw(const ChartRender *r, const StepGrid *g) {
     const GRect c           = r->geo.content;
     const int   x0          = c.origin.x;
     const int   x1          = c.origin.x + c.size.w;
@@ -149,7 +147,7 @@ static void step_grid_draw(const ChartRender *r, void *user) {
     }
 }
 
-// CUSTOM layer: one dot per off-scale hour, at the edge the HR line left through
+// One dot per off-scale hour, at the edge the HR line left through
 // (see hr_scale_apply). Those hours are CHART_ABSENT in the LINE layer's values, so
 // the solid line breaks around them; the dots are what makes the break legible as
 // "off scale" rather than "no reading". Drawn AFTER the line so they sit on top.
@@ -169,9 +167,8 @@ typedef struct {
 
 #define HR_CLAMP_DOT_SIZE 3
 
-static void hr_clamp_draw(const ChartRender *r, void *user) {
-    const HrClampDots *d = (const HrClampDots *)user;
-    if (!d || !d->clamp) {
+static void hr_clamp_draw(const ChartRender *r, const HrClampDots *d) {
+    if (!d->clamp) {
         return;
     }
     const GRect c        = r->geo.content;
@@ -304,7 +301,7 @@ static void health_graph_compute(void) {
 
 // Left-axis strip: labels the marks of `g` (step_scale_grid) as single-row numbers in
 // thousands ("2", "0.5") — no "k" suffix — each seated by its ink (step_label_ink_y). The
-// vertical axis line itself is painted by the FRAME layer in chart_draw.
+// vertical axis line itself is painted by the FRAME layer.
 static void draw_left_axis(GContext *ctx, int h, const StepGrid *g) {
     const int strip_w = bottom_view_label_strip_w(BOTTOM_VIEW_SRC_HEALTH);
     const int inset_w = bottom_view_graph_inset(BOTTOM_VIEW_SRC_HEALTH);
@@ -380,8 +377,8 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
                                   outer.origin.x, pitch,
                                   bounds.size.w, start_local);
 
-    // CUSTOM-layer payloads. The step marks this plot labels apart and their rows, the lines'
-    // and the labels' alike (step_scale_grid): the plot's content rows are 0..axis_y, as
+    // What the sleep stripe and the gridlines draw. The step marks this plot labels apart and
+    // their rows, the lines' and the labels' alike (step_scale_grid): the plot's content rows are 0..axis_y, as
     // health_grid_def keeps FORECAST_GRID_DEF's insets (none on top, the frame's one at the
     // bottom of `outer`). At draw time, not in health_graph_compute: the plot is the view's own
     // (a top band is shorter than a body), and a flick computes before render_active_view
@@ -392,16 +389,17 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     step_scale_grid(&grid, s_step_marks, s_step_mark_n, s_step_hi, axis_y,
                     bottom_view_label_font_h());
 
-    // Z-order = array order, bottom first.
-    //  1. Sleep stripe (CUSTOM) — bottom band, drawn under everything else.
-    //  2. Step gridlines (CUSTOM) — dashed 1k rules, under the data.
+    // Z-order = drawing order, bottom first: each layer is built into the one scratch
+    // layer and drawn at once.
+    //  1. Sleep stripe (drawn here) — bottom band, drawn under everything else.
+    //  2. Step gridlines (drawn here) — dashed 1k rules, under the data.
     //  3. Step bars (BARS) — green, scaled to s_step_hi.
     //  4. HR line (LINE, solid) — primary line, styled like forecast's temp line.
-    //  4b. Clamp dots (CUSTOM) — off-scale hours, over the line.
+    //  4b. Clamp dots (drawn here) — off-scale hours, over the line.
     //  5. Frame (left + bottom borders).
     //  6. Axis (bottom hour labels/ticks).
     // On B&W (device or bw theme) the fill is theme_bg() — the polarity background,
-    // not a fixed color — and BAR_OUTLINED adds a theme_fg() silhouette on top
+    // not a fixed color — and the bar outline (chart.c) adds a theme_fg() silhouette on top
     // (matching the rain bars, palette.c): bw-dark fills black (pixel-identical to
     // pre-theme v1, combining with the white outline into what reads as a solid
     // white bar) and bw-light fills white with a black outline, the polarity
@@ -411,22 +409,19 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     ChartColorStop *const step_stops = paint->step_stops;
     step_stops[0] = (ChartColorStop){ .from = 0, .color = theme_pick(GColorGreen, theme_bg()) };
 
-    // aplite-style discipline: the per-frame layer array is scratch, not stack.
-    // Max reachable here is 7 (sleep + gridlines + bars + HR + clamp dots + frame + axis).
-    ChartLayer *const layers = paint->layers;
-    int n = 0;
+    // aplite-style discipline: the layer is scratch, not stack.
+    ChartLayer *const l = &paint->layer;
+    ChartRender cr;
+    chart_begin(&cr, ctx, &def, outer);
 
-    layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM, .custom = {
-        .fn = sleep_stripe_draw, .user = &stripe } };
+    sleep_stripe_draw(&cr, &stripe);
+    step_grid_draw(&cr, &grid);
 
-    layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM, .custom = {
-        .fn = step_grid_draw, .user = &grid } };
-
-    layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {
+    *l = (ChartLayer){ CHART_LAYER_BARS, .bars = {
         .values = s_steps, .count = visible_slots,
         .lo = 0, .hi = s_step_hi,
-        .stops = step_stops, .num_stops = 1,
-        .style = BAR_OUTLINED } };
+        .stops = step_stops, .num_stops = 1 } };
+    chart_layer(&cr, l);
 
     // Always add the HR line: the cache stores CHART_ABSENT for hours with no
     // reading, so the solid line breaks across gaps and draws nothing when HR is
@@ -438,7 +433,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
                                                              : HR_STRIPE_GAP_OTHER);
     const GColor hr_color     = theme_pick(GColorRed, theme_fg());
 
-    layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
+    *l = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = s_hr, .points = paint->hr_pts, .count = visible_slots,
         .lo = s_hr_lo, .hi = s_hr_hi,
         .color = hr_color,
@@ -449,26 +444,22 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         // gap to avoid squashing the line.
         .inset_top    = hr_inset_top,
         .inset_bottom = hr_inset_bottom } };
+    chart_layer(&cr, l);
 
     // Off-scale hours: dots on the edge the line left through, over the line itself.
-    // A plain local (like `stripe` / `grid` above) — chart_draw() runs before this
-    // frame's stack unwinds, so the .user pointer stays valid.
-    HrClampDots hr_dots = { .clamp = s_hr_clamp, .count = visible_slots,
-                            .inset_top = hr_inset_top, .inset_bottom = hr_inset_bottom,
-                            .color = hr_color };
-    layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM, .custom = {
-        .fn = hr_clamp_draw, .user = &hr_dots } };
+    const HrClampDots hr_dots = { .clamp = s_hr_clamp, .count = visible_slots,
+                                  .inset_top = hr_inset_top, .inset_bottom = hr_inset_bottom,
+                                  .color = hr_color };
+    hr_clamp_draw(&cr, &hr_dots);
 
-    layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
-        .left   = { 1, HEALTH_AXIS_COLOR },
-        .bottom = { 1, HEALTH_AXIS_COLOR } } } };
+    *l = (ChartLayer){ CHART_LAYER_FRAME, .frame = {
+        .left = 1, .bottom = 1, .color = HEALTH_AXIS_COLOR } };
+    chart_layer(&cr, l);
 
-    layers[n++] = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
+    *l = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
         .side = GRAPH_SIDE_BOTTOM, .style = bottom_view_tick_style(),
-        .slots = axis_slots,
-        .label_align = ALIGN_START, .tick_align = ALIGN_START } };
-
-    chart_draw(ctx, &def, outer, layers, n);
+        .slots = axis_slots } };
+    chart_layer(&cr, l);
 
     // "1"/"2" gridline labels — chart-adjacent chrome, not a chart layer.
     draw_left_axis(ctx, h, &grid);

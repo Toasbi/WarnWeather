@@ -17,6 +17,9 @@
     // against battery-saver.js) — reused, not copied a third time. build-config-page.js
     // concatenates tomorrowio-budget.js ahead of this file.
     var tio = (typeof require !== 'undefined') ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
+    // The updates a day (source-plan.js refreshesPerDay, concatenated ahead of this file).
+    var sourcePlan = (typeof require !== 'undefined')
+        ? require('../../../weather/domain/source-plan.js') : window.SourcePlan;
     // The radarProvider of "Rainbow (own key)": the radar source id fetch-cycle.js runs it
     // under (weather/adapter/radar-factory.js OWN_KEY_RADAR_ID; the page cannot load the runtime's
     // radar modules, so test/page/weather/budgets/rainbow-budget.test.js pins the two equal).
@@ -60,7 +63,7 @@
      * @returns {number} Calls per day.
      */
     function dailyCalls(S, intervalMin) {
-        return (24 - sleepHours(S)) * (60 / intervalMin) * callsPerCycle(S);
+        return sourcePlan.refreshesPerDay(intervalMin, sleepHours(S)) * callsPerCycle(S);
     }
 
     /**

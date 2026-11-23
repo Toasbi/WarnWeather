@@ -314,6 +314,13 @@ function bootGeneratedPage(cfg, platformName, opts) {
       els.scroll.dispatch('click', { target: t });
       assert.ok(els.modal.innerHTML.length > 0, 'the edit sheet rendered into #modal');
     },
+    // Bring a tab to the front and tap its row that opens a dialog (Setup › Data sources ›
+    // Weather); answers the dialog's markup.
+    openTabSheet(tabId, sheetId) {
+      this.clickTab(tabId);
+      this.openEditSheet(sheetId);
+      return els.modal.innerHTML;
+    },
     // Tap a row INSIDE the open dialog that opens another dialog (a nested one, ‹ back).
     openNestedSheet(sheetId) {
       assert.ok(els.modal.innerHTML.indexOf('data-edit-sheet="' + sheetId + '"') !== -1,
@@ -438,10 +445,16 @@ function bootGeneratedPage(cfg, platformName, opts) {
       els.modal.dispatch('click', { target: t });
     },
     // Pick an option in a select sheet — the engine's #modal pick handler (sets the value,
-    // runs the item's onChange, closes the sheet).
+    // runs the item's onChange, closes the sheet). An option the open list draws with the
+    // select to pick next (data-select-next: engine.js renderSelectOptions) carries it too.
     pickOption(key, value) {
+      const lit = (text) => String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const drawn = new RegExp('data-select-pick="' + lit(value) + '" data-k="' + lit(key)
+        + '"(?: data-select-next="([^"]*)")?').exec(els.modal.innerHTML);
+      const attrs = { 'data-k': key, 'data-select-pick': value,
+        'data-select-next': drawn && drawn[1] !== undefined ? drawn[1] : null };
       const t = {
-        getAttribute: n => (n === 'data-k' ? key : (n === 'data-select-pick' ? value : null)),
+        getAttribute: n => (Object.prototype.hasOwnProperty.call(attrs, n) ? attrs[n] : null),
         closest: sel => (sel === '[data-select-pick]' ? t : null)
       };
       els.modal.dispatch('click', { target: t });

@@ -9,23 +9,7 @@
 // settings and decodes the userData the page receives.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const vm = require('node:vm');
-
-/**
- * Decode the INJECTED_USERDATA a device data: URL carries.
- * @param {string} url The URL index.js handed to Pebble.openURL.
- * @returns {Object} The page's userData.
- */
-function userDataOf(url) {
-  const prefix = 'data:text/html;charset=utf-8,';
-  assert.equal(url.indexOf(prefix), 0, 'device branch gives a data: URL');
-  const html = decodeURIComponent(url.slice(prefix.length));
-  const line = html.split('\n').filter((l) => l.indexOf('INJECTED_SCHEMA=') === 0)[0];
-  assert.ok(line, 'the injected snippet is one line');
-  const ctx = {};
-  vm.runInNewContext(line, ctx);
-  return JSON.parse(JSON.stringify(ctx.INJECTED_USERDATA));
-}
+const { injectedOf, userDataOf } = require('../helpers/settings-url.js');
 
 test('settings open hands the page the key results and the last success as stored', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -97,10 +81,7 @@ test('settings open hands the page the key results and the last success as store
   });
   listeners.showConfiguration({});
   const withHolidays = userDataOf(opened[2]).holidays;
-  const html = decodeURIComponent(opened[2].slice('data:text/html;charset=utf-8,'.length));
-  const ctx = {};
-  vm.runInNewContext(html.split('\n').filter((l) => l.indexOf('INJECTED_SCHEMA=') === 0)[0], ctx);
-  const country = ctx.INJECTED_CFG.holidayCountry || 'US';
+  const country = injectedOf(opened[2]).INJECTED_CFG.holidayCountry || 'US';
   assert.equal(withHolidays.country, country, 'the stored country\'s holidays, not another\'s');
   assert.deepEqual(withHolidays.years[year], cached[country], 'its cached entries, as stored');
 });

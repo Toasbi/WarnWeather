@@ -101,6 +101,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // fetchNoticeAck is a one-shot dismiss signal consumed on webviewclosed;
         // never let a stored true survive to the next open (would auto-dismiss).
         ctx.set('fetchNoticeAck', false);
+        // Likewise the new-features card's Got it (feature-tips-panel.js).
+        ctx.set('featureTipsAck', false);
         // "Reset watchface" is one-shot and destructive: never let a prior save
         // leave it pre-checked on the next open.
         ctx.set('reset', false);

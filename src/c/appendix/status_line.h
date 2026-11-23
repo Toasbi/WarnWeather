@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <string.h>
 
 // Packed status-line contract, shared with the phone.
 // LOCKSTEP: src/pkjs/status-bars/domain/status-line-catalog.js mirrors every enum value and cap
@@ -51,9 +52,75 @@ typedef enum {
     SLOT_LIVE_WEEK = 7,     // watch formats the current ISO-8601 calendar week
     SLOT_LIVE_DISTANCE_MI = 8,  // walked distance in miles (imperial); unit chosen by the phone
     SLOT_LIVE_BATTERY = 9,      // watch draws the battery glyph; state read on-device
-    SLOT_LIVE_BATTERY_PCT = 10, // watch formats the charge as "NN%" text; icon NONE
+    SLOT_LIVE_BATTERY_PCT = 10, // watch formats the charge as "NN%" text; icon NONE, or
+                                // STATUS_ICON_DRAWN_BATTERY for the glyph before it (the
+                                // Icon + text look). May carry text all the same: the days
+                                // the watch has left ("5d"), alone or beside the percentage
+                                // (STATUS_BATTERY_PCT_MARK), which the watch shows in
+                                // place of the percentage while they can be current
+                                // (status_slot_kind_has_text)
 } StatusSlotKind;
 #define STATUS_SLOT_KIND_MAX SLOT_LIVE_BATTERY_PCT
+
+// Whether a kind's slot carries value bytes: a text slot, and the watch battery as text
+// (SLOT_LIVE_BATTERY_PCT). Into that one the phone may bake the days the watch has left,
+// another app's estimate (src/pkjs/status-bars/domain/battery-days.js); zero bytes there
+// is the percentage alone, as every watch before knew the kind. Every other kind carries
+// none, and a line that gives it some is malformed.
+static inline bool status_slot_kind_has_text(uint8_t kind) {
+    return kind == SLOT_TEXT || kind == SLOT_LIVE_BATTERY_PCT;
+}
+
+// In a SLOT_LIVE_BATTERY_PCT value: where the watch prints its own percentage, for a slot
+// that shows the percentage and the days together ("83%|5d", "5d (83%)"). The phone bakes
+// the days and what stands between the two around it (battery-days.js PCT_MARK); a value
+// without it is the days alone. Below 0x80, so the line stays well-formed UTF-8.
+#define STATUS_BATTERY_PCT_MARK 0x1E
+
+// The watch battery slot's carried text as the watch draws it: `value` with "<percent>%" in
+// place of each STATUS_BATTERY_PCT_MARK, cut to `cap` bytes with its NUL. `percent` is the
+// watch's charge, read as 0..100.
+static inline void status_battery_text(char *buf, size_t cap, const char *value, size_t len,
+                                       int percent) {
+    if (cap == 0) { return; }
+    size_t o = 0;
+    for (size_t i = 0; i < len && o + 1 < cap; i++) {
+        if ((uint8_t)value[i] != STATUS_BATTERY_PCT_MARK) {
+            buf[o++] = value[i];
+            continue;
+        }
+        int p = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
+        char digits[3];
+        int n = 0;
+        do {
+            digits[n++] = (char)('0' + p % 10);
+            p /= 10;
+        } while (p > 0);
+        while (n > 0 && o + 1 < cap) { buf[o++] = digits[--n]; }
+        if (o + 1 < cap) { buf[o++] = '%'; }
+    }
+    buf[o] = '\0';
+}
+
+// The days text the watch battery slot carried the last time the watch was on the charger.
+// The days are another app's estimate, made at the charge the watch had then. Once the
+// watch has been on the charger they are too few, and stay so until a new estimate arrives,
+// which can take hours. The watch cannot ask for one, so it shows its percentage alone
+// until the slot carries other days (status_row.c shows_battery_days), after a short top-up
+// too. Kept on flash, so leaving the watchface after a charge and coming back does not
+// bring the old days back.
+typedef struct {
+    uint8_t len;                      // the text's length, and its bytes
+    char text[STATUS_TEXT_EDGE_MAX];  // (the slot is an edge slot: the Watch bar's right)
+} StatusBatteryDaysMark;
+
+// Whether the mark is of this carried text (`len` bytes at `value`; the mark keeps and
+// compares the first STATUS_TEXT_EDGE_MAX of them).
+bool status_battery_days_same(const StatusBatteryDaysMark *mark, const char *value, size_t len);
+
+// Mark the carried text as days from before a charge, while the watch is on the charger.
+// True when the mark changed, which is when it is worth writing back.
+bool status_battery_days_mark(StatusBatteryDaysMark *mark, const char *value, size_t len);
 
 typedef enum {
     STATUS_ICON_NONE = 0,
@@ -80,19 +147,16 @@ typedef enum {
                                 // STATUS_ICON_NONE inherits THRESH_CITY's bold mode
     STATUS_ICON_PHONE_BATTERY = 16,      // phone glyph; the PHONE's charge, baked
                                          // as "NN%" text by the phone (SLOT_TEXT)
-    STATUS_ICON_PHONE_BATTERY_CHG = 17,  // phone-charging glyph; the phone picks
-                                         // it over id 16 at bake time, so charging
-                                         // costs no wire field and no watch logic
     STATUS_ICON_PHONE_BATTERY_PLAIN = 18,
-                                // TEXT-ONLY: the no-icon phone-battery item, for
+                                // TEXT-ONLY: the phone battery's Text look, for
                                 // which no PDC/bit-mask glyph exists and none may
                                 // load — exactly like STATUS_ICON_PRESSURE above.
-                                // The id is what stops the no-icon variant from
+                                // The id is what stops the Text look from
                                 // arriving as SLOT_TEXT + STATUS_ICON_NONE, falling
                                 // through to THRESH_CITY and silently driving
                                 // City's Bold row (status_threshold.h)
     // The weather condition slot (src/pkjs/weather/domain/condition.js): phone-baked SLOT_TEXT
-    // whose icon is the condition's glyph, picked per bake like the phone-battery pair.
+    // whose icon is the condition's glyph, picked per bake.
     // COND_TEXT is its text-only look: no glyph may load, and like PRESSURE above the id
     // keeps it from arriving as TEXT + NONE. Its text may carry a short form after
     // STATUS_TEXT_ALT_SEP ("Partly cloudy" SEP "PCLDY").
@@ -112,10 +176,25 @@ typedef enum {
     STATUS_ICON_COND_THUNDER = 32,
     STATUS_ICON_COND_WIND = 33,     // the wind glyph, under an id of its own: STATUS_ICON_WIND
                                     // is the wind speed slot's (its bold mode, its pair)
+    // Sentinel, like STATUS_ICON_DRAWN_SUN: the watch draws its battery glyph (battery_draw.h)
+    // before the Watch battery's text, the Icon + text look of SLOT_LIVE_BATTERY_PCT. Drawn in
+    // code: no drawing loads (status_slot_draws_battery).
+    STATUS_ICON_DRAWN_BATTERY = 34,
 } StatusIconId;
 // Id 6 (STATUS_ICON_PRECIP, removed in 3dae9f4) is a retired hole: never reuse it —
-// a pre-3dae9f4 install can still hold a persisted blob referencing it.
-#define STATUS_ICON_MAX STATUS_ICON_COND_WIND
+// a pre-3dae9f4 install can still hold a persisted blob referencing it. So is id 17
+// (STATUS_ICON_PHONE_BATTERY_CHG, the glyph of a phone that charges: the phone packed it
+// in place of id 16 while it charged, until the slot came to show the charge alone). A
+// line stored with it draws its text without a glyph until the phone's next bake.
+#define STATUS_ICON_MAX STATUS_ICON_DRAWN_BATTERY
+
+// Whether a slot draws the Watch battery's glyph: alone (SLOT_LIVE_BATTERY, the Icon look), or
+// before its charge as text (SLOT_LIVE_BATTERY_PCT with STATUS_ICON_DRAWN_BATTERY, the Icon +
+// text look). On any other kind the id means nothing.
+static inline bool status_slot_draws_battery(uint8_t kind, uint8_t icon) {
+    return kind == SLOT_LIVE_BATTERY
+        || (kind == SLOT_LIVE_BATTERY_PCT && icon == STATUS_ICON_DRAWN_BATTERY);
+}
 
 // The city slot can draw the current weather's glyph before its name: the glyph's id
 // (STATUS_ICON_COND_SUN..STATUS_ICON_COND_WIND) with this bit set, so the slot stays the
@@ -173,7 +252,8 @@ typedef struct {
     uint8_t kind;
     uint8_t icon;
     uint8_t value_len;
-    const char *value;  // into the blob, NOT NUL-terminated; NULL unless SLOT_TEXT
+    const char *value;  // into the blob, NOT NUL-terminated; NULL for a kind that carries
+                        // none (status_slot_kind_has_text)
 } StatusSlotView;
 
 // Parse a packed line in ONE walk: validates the whole blob and fills all three

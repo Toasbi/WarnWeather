@@ -9,7 +9,7 @@ python = "3.13"
 # https://developer.rebble.io/sdk/
 # https://github.com/coredevices/pebble-tool
 # https://mise.jdx.dev/dev-tools/backends/pipx.html
-"pipx:pebble-tool" = "5.1.2"
+"pipx:pebble-tool" = "5.2.0"
 
 # pebble-tool 5.1 builds each SDK's virtualenv with uv and stops without it on PATH
 # ("uv not found"). https://docs.astral.sh/uv/

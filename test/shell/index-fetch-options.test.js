@@ -10,7 +10,8 @@
 // reads the difference off the requests Open-Meteo is sent.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { HARNESS_NOW, bootIndex } = require('../helpers/index-harness.js');
+const { HARNESS_NOW, bootIndex, healthyNetwork } = require('../helpers/index-harness.js');
+const world = require('../helpers/provider-world.js');
 const statusCatalog = require('../../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -88,6 +89,20 @@ test('no UV and no AQI selection spends neither request', (t) => {
 test('a placed UV alert with no UV slot or line sends the UV request too', (t) => {
   const h = bootAndFetch(t, noUvNoAqi({ statusTopOnDemandRightItems: 'uv' }));
   assert.equal(h.requestsTo(UV_REQUEST), 1, 'the alert needs the metric it judges');
+});
+
+// DWD sends no UV: the source plan takes it from Open-Meteo's UV request, through the
+// sources the fetch hands the provider beside its options (weather/adapter/source-ports.js).
+test('DWD with a UV slot gets its UV from Open-Meteo\'s UV request', (t) => {
+  // Bright Sky answers as in the provider world, which follows the hours a request asks for.
+  const network = (url, req) => (/^https:\/\/api\.brightsky\.dev\//.test(url)
+    ? { status: 200, body: world.respond(req.method, url).text } : healthyNetwork(url));
+  const h = bootIndex(t, { settings: noUvNoAqi({ provider: 'dwd', statusForecastLeft: 'uv' }),
+    store: staleSuccess(), network });
+  h.ready();
+  h.advance(5 * 1000);
+  assert.equal(h.count(/Successfully fetched weather/), 1, 'the boot fetch completed');
+  assert.equal(h.requestsTo(UV_REQUEST), 1, 'the fetch cycle handed DWD the sources that fill its UV');
 });
 
 test('an AQI slot asks the AQI feed in the stored source and scale', (t) => {

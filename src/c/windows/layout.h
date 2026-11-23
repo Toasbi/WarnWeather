@@ -76,7 +76,7 @@ LayerVisibility layout_visibility(const ViewSpec *spec);
 // of the forecast-abutting status band (status_forecast_band_h(status_full_tier_font())
 // on the watch; a fixed representative value in host tests). m.clock describes the active time
 // font and moves ONLY the clock — see clock_seat_y above and the clock seating in
-// layout.c's compute_layout: every other rect is byte-identical whatever `ink` says.
+// layout.c's layout_compute_spec: every other rect is byte-identical whatever `ink` says.
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m);
 
 #if defined(WW_QUICK_VIEW)
@@ -112,10 +112,13 @@ static inline void layout_peek_spec(ViewSpec *s) {
 // "Peek" geometry for the Timeline Quick View overlay: the active view minus its calendar,
 // fit into `bounds` (the unobstructed area above the overlay) — the date strip stays at the
 // top, then the clock, the status row(s), and the body (forecast/graph/radar) below. Clock
-// and body keep ~full-tier proportions (the freed calendar space covers the ~51px overlay).
+// and body keep ~full-tier proportions (the freed calendar space covers the overlay: 51 px,
+// 57 on emery).
 // `spec` supplies the status shape (NONE / single / DUAL); its top/calendar fields are
-// ignored. Pure; excluded on aplite.
-MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics m);
+// ignored. Where the clock's share would be shorter than its digits, the clock takes the
+// body's room too and spec->body becomes BODY_NONE, so layout_visibility hides the body.
+// It writes nothing else; excluded on aplite.
+MainLayout layout_compute_peek(GRect bounds, ViewSpec *spec, LayoutMetrics m);
 #endif
 
 #if defined(WW_VIEW_CYCLE)

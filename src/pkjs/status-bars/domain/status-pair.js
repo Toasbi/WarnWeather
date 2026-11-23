@@ -1,9 +1,10 @@
 // src/pkjs/status-bars/domain/status-pair.js — how a two-value status slot presents its pair.
 //
-// Two kinds of slot can show two readings at once: Temperature in 'both' mode
-// (actual and feels-like), and the day-max kinds -- UV, wind, gusts and AQI -- in
+// Three kinds of slot can show two readings at once: Temperature in 'both' mode
+// (actual and feels-like), the day-max kinds -- UV, wind, gusts and AQI -- in
 // 'both' mode (now and the day's peak: today's while it is still ahead or
-// running, then tomorrow's).
+// running, then tomorrow's), and the watch battery in 'both' mode (its percentage and
+// the days it has left).
 // Which reading comes first, what stands between the two (and whether spaces flank
 // it), and how UV marks a peak that is tomorrow's are per-kind settings (each
 // kind's Edit sheet); this module turns them into the text status-lines.js bakes. Phone-side only: the watch
@@ -47,8 +48,8 @@
     // ('12|10'): the owner's call for 1.24.0, with a one-time move of every stored
     // 'slash' (settings/domain/migrations/v1_24.js). Every other pair keeps the slash ('3/7'). Both
     // are one byte, so the last resort fits wherever the slash did: '-12|-10' is 7
-    // bytes, like '-12/-10'.
-    var DEFAULT_SEPARATOR = { temp: 'bar' };
+    // bytes, like '-12/-10'. The watch battery's pair reads like temperature's ('83%|5d').
+    var DEFAULT_SEPARATOR = { temp: 'bar', battery: 'bar' };
 
     // A custom separator keeps at most this many characters.
     var CUSTOM_MAX_CHARS = 2;
@@ -104,8 +105,10 @@
      * A kind's default separator (DEFAULT_SEPARATOR): the preset its pair takes when
      * the setting is absent, unknown or an empty custom, and its fit rule's last
      * resort. The settings page reads it for the Separator row's default.
-     * @param {*} prefix the kind's settings prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'
-     * @returns {string} a SEPARATORS key: 'bar' for temp, 'slash' for every other kind
+     * @param {*} prefix the kind's settings prefix: 'temp' | 'battery' | 'uv' | 'wind' |
+     *   'gust' | 'aqi'
+     * @returns {string} a SEPARATORS key: 'bar' for temp and battery, 'slash' for every
+     *   other kind
      */
     function defaultSeparator(prefix) {
         return has(DEFAULT_SEPARATOR, prefix) ? DEFAULT_SEPARATOR[prefix] : 'slash';
@@ -250,6 +253,31 @@
     }
 
     /**
+     * The watch battery slot's 'both' text: its percentage and the days it has left in the
+     * user's order (batterySlotOrder, absent = the percentage first), joined by the user's
+     * separator (absent = the bar, defaultSeparator), spaced or tight
+     * (batterySlotSeparatorSpaced, absent = tight), narrowed like any pair where it would
+     * not fit the cap (joinPair).
+     *
+     * The percentage is the watch's to print, so the bake passes its one-byte place
+     * (battery-days.js PCT_MARK) and the cap judges the bytes on the wire; the settings
+     * page passes a sample ('80%').
+     * @param {string} percent the percentage, or its place on the wire
+     * @param {string} days the days left ('5d')
+     * @param {Object} settings Clay settings blob (batterySlotOrder, batterySlotSeparator,
+     *   batterySlotSeparatorCustom, batterySlotSeparatorSpaced)
+     * @param {number} [cap] the slot's byte cap
+     * @returns {string} e.g. '80%|5d', or '5d (80%)' days first in spaced brackets
+     */
+    function formatBatteryPair(percent, days, settings, cap) {
+        var s = settings || {};
+        var daysFirst = s.batterySlotOrder === 'days';
+        return joinPair(daysFirst ? days : percent, daysFirst ? percent : days,
+            s.batterySlotSeparator, s.batterySlotSeparatorCustom,
+            s.batterySlotSeparatorSpaced, cap, defaultSeparator('battery'));
+    }
+
+    /**
      * A day-max slot's text for the numbers wire-units' dayMaxShown picked, in every
      * mode. The next-day mark goes on the peak wherever it shows
      * -- alone in 'max' mode, paired in 'both' -- and the pair takes the kind's own
@@ -360,6 +388,7 @@
         joinPair: joinPair,
         markNextDay: markNextDay,
         formatTempPair: formatTempPair,
+        formatBatteryPair: formatBatteryPair,
         formatPeak: formatPeak,
         mergeAlert: mergeAlert
     };

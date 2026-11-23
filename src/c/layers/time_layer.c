@@ -43,8 +43,8 @@
 // Nothing in C links a font key to its size — FONT_KEY_GOTHIC_18 is a resource name, not a
 // number — so AM_PM_CONTENT_H is that 18 TRANSCRIBED BY HAND, and changing the face means
 // changing both lines. Get it wrong and nothing complains: the build stays green, the label is
-// seated by a leading measured for the wrong size, and the frame below is the wrong height, so
-// the caps are mis-seated AND clipped. Only the emulator row-scan described above catches it.
+// seated by a leading measured for the wrong size, and its box (s_am_pm_box) is the wrong
+// height, so the caps are mis-seated AND clipped. Only the emulator row-scan described above catches it.
 //
 // AM_PM_INK_TOP is the one that does follow. Gothic's measured content height is exactly its
 // nominal size (verified on device at 14/18/24 — see status_content_h in layer_util.h), and
@@ -62,12 +62,12 @@
 #define AM_PM_INK_TOP status_ink_top(AM_PM_CONTENT_H)
 
 // The label's box width, and it is LOAD-BEARING that this is a fixed number wider than the text
-// rather than the measured width. The box is what text_layer_get_content_size() measures the
+// rather than the measured width. The box is what time_layer_tick measures the
 // string against, and the string changes under it at noon and midnight — "AM" is a pixel or two
 // wider than "PM" — so a box sized to the previous string could make the next measurement wrap
 // or ellipsize. 30 px clears either string in Gothic 18 on every platform; the surplus is empty
 // because the text is left-aligned, and it clips harmlessly at the band edge. Only the MEASURED
-// width (am_pm_size.w) is ever used to place anything.
+// width (am_pm_text_w) is ever used to place anything.
 #define AM_PM_BOX_W 30
 
 // Air asked for between the digits and the label, ON TOP of the right side bearing the digits'
@@ -85,27 +85,54 @@
 
 
 static Layer *s_container_layer;
-static TextLayer *s_time_layer;
-static TextLayer *s_am_pm_layer;
 static char s_time_text[8];
+// What the container draws (container_update), set by time_layer_refresh (the font) and
+// time_layer_tick (the text and the boxes), in the band's coordinates. The font is NULL
+// until that first refresh, which main_window_create runs right after the window push,
+// before the first frame:
+static GFont s_time_font;          // the digits' font, where they draw as text
+static GRect s_time_box;           // the digits' box, where they draw as text
+static const char *s_am_pm_text;   // the label, "AM" or "PM"; NULL while it is off
+static GRect s_am_pm_box;          // the label's box
 
 #if defined(PBL_COLOR)
-// The anti-aliased digits (clock_glyphs.h), for the faces that have them, are painted by the
-// container's own update proc: the container already IS the band — main_window re-frames it per
-// view, it clips to it, and it draws before its children, so the glyphs land under the AM/PM
-// label just as the text layer's digits do. LECO keeps drawing through s_time_layer. Which of
-// the two renders depends only on the font, so time_layer_refresh() picks it; the tick seats the
-// glyphs at s_glyph_origin.
-static bool s_glyphs;            // true: the container draws the glyphs; s_time_layer is hidden
+// The anti-aliased digits (clock_glyphs.h), for the faces that have them. LECO draws as text.
+// Which of the two renders depends only on the font, so time_layer_refresh() picks it; the
+// tick seats the glyphs at s_glyph_origin.
+static bool s_glyphs;            // true: the digits draw as glyphs, else as text
 static GPoint s_glyph_origin;    // pen x of the first digit, and the digits' first inked row
+#endif
 
+// The clock draws in the container itself, which IS the band: main_window re-frames it per
+// view, and it clips to it. The digits first (the glyphs, or the text in the active time font),
+// then the AM/PM label over them, each in the ink the theme gives it at this draw. The text
+// draws as a TextLayer would draw it: in its box, left-aligned, with a trailing ellipsis.
 static void container_update(Layer *layer, GContext *ctx) {
+    (void) layer;
+    const GColor time_ink = theme_pick(config_get()->color_time, theme_fg());
+#if defined(PBL_COLOR)
     if (s_glyphs) {
-        clock_glyphs_draw(ctx, config_get()->time_font, s_time_text, s_glyph_origin,
-                          theme_pick(config_get()->color_time, theme_fg()));
+        clock_glyphs_draw(ctx, config_get()->time_font, s_time_text, s_glyph_origin, time_ink);
+    } else
+#endif
+    {
+        graphics_context_set_text_color(ctx, time_ink);
+        graphics_draw_text(ctx, s_time_text, s_time_font, s_time_box,
+                           GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    }
+    if (s_am_pm_text) {
+        graphics_context_set_text_color(ctx, theme_fg());
+        graphics_draw_text(ctx, s_am_pm_text, fonts_get_system_font(AM_PM_FONT_KEY), s_am_pm_box,
+                           GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
     }
 }
-#endif
+
+// The size `text` takes in `font` in a box of `w` x `h`, laid out as the clock draws it.
+static GSize text_size(const char *text, GFont font, int w, int h) {
+    return graphics_text_layout_get_content_size(text, font, GRect(0, 0, w, h),
+                                                 GTextOverflowModeTrailingEllipsis,
+                                                 GTextAlignmentLeft);
+}
 
 // The active time font's measured ink — where its digits sit inside their line box, which is
 // what both the band solver and the AM/PM label are seated against.
@@ -124,38 +151,9 @@ static ClockInk time_layer_ink(void) {
 
 void time_layer_create(Layer* parent_layer, GRect frame) {
     s_container_layer = layer_create(frame);
-#if defined(PBL_COLOR)
-    s_glyphs = false;   // the text layer draws until the first time_layer_refresh() picks
     layer_set_update_proc(s_container_layer, container_update);
-#endif
-    s_time_layer = text_layer_create(GRect(0, 0, frame.size.w, frame.size.h));
-    s_am_pm_layer = text_layer_create(GRect(0, 0, AM_PM_BOX_W, frame.size.h));
-
-    // Main time formatting
-    text_layer_set_background_color(s_time_layer, GColorClear);
-    text_layer_set_text(s_time_layer, "00:00");
-    text_layer_set_text_alignment(s_time_layer, GTextAlignmentLeft);
-
-    // AM/PM formatting
-    text_layer_set_font(s_am_pm_layer, fonts_get_system_font(AM_PM_FONT_KEY));
-    text_layer_set_background_color(s_am_pm_layer, GColorClear);
-    text_layer_set_text_color(s_am_pm_layer, theme_fg());
-    text_layer_set_text(s_am_pm_layer, "PM");
-    text_layer_set_text_alignment(s_am_pm_layer, GTextAlignmentLeft);
-
-    // Both text layers are children of the CONTAINER, i.e. siblings. The label used to hang off
-    // the digits' layer, which forced that frame to be grown to contain it and made the
-    // digits-plus-label width the thing that got centred — the lean this change removes. Both of
-    // the label's seats are BAND-relative now (clock_label_seat_y / clock_label_x), so as
-    // siblings each layer is placed in exactly the coordinate system its seat is computed in;
-    // as a child, every tick would have to subtract the digits' own origin back out again.
-    // Not a clipping question either way: the digits' frame runs to the band's right edge and
-    // bottom (see time_layer_tick), so it would contain the label's ink whichever way round.
-    layer_add_child(s_container_layer, text_layer_get_layer(s_time_layer));
-    layer_add_child(s_container_layer, text_layer_get_layer(s_am_pm_layer));
     layer_add_child(parent_layer, s_container_layer);
     MEMORY_LOG_HEAP("after_time_layer_create");
-
 }
 
 Layer *time_layer_get_root(void) {
@@ -167,49 +165,47 @@ void time_layer_tick() {
 
     config_format_time(s_time_text, sizeof(s_time_text), &tick_time);
 
-    bool show_am_pm = config_get()->show_am_pm;
-    text_layer_set_text(s_time_layer, s_time_text);
-    if (show_am_pm)
-        text_layer_set_text(s_am_pm_layer, tick_time.tm_hour < 12 ? "AM" : "PM");
+    const bool show_am_pm = config_get()->show_am_pm;
+    s_am_pm_text = show_am_pm ? (tick_time.tm_hour < 12 ? "AM" : "PM") : NULL;
 
     GRect bounds = layer_get_bounds(s_container_layer);
-    GSize am_pm_size = text_layer_get_content_size(s_am_pm_layer);
-    int am_pm_w = show_am_pm ? am_pm_size.w : 0;
+    // The label is measured in its own box (AM_PM_BOX_W), never in the band.
+    const int am_pm_text_w = show_am_pm
+        ? text_size(s_am_pm_text, fonts_get_system_font(AM_PM_FONT_KEY),
+                    AM_PM_BOX_W, AM_PM_CONTENT_H).w
+        : 0;
     int text_left, digits_w;
 
 #if defined(PBL_COLOR)
     if (s_glyphs) {
         // The glyphs carry their own metrics, so the digits are seated from the model directly:
-        // the pen advance centres them exactly as the text layer's content width does below, and
+        // the pen advance centres them exactly as the text's content width does below, and
         // the first inked row is the one the band solver was given (clock_ink_for reports these
         // faces' ink_h from the same glyphs), so the band's centring holds with no line box in
         // between to measure.
         digits_w = clock_glyphs_width(config_get()->time_font, s_time_text);
-        text_left = clock_seat_x(bounds.size.w, digits_w, am_pm_w);
+        text_left = clock_seat_x(bounds.size.w, digits_w, am_pm_text_w);
         s_glyph_origin = GPoint(text_left, clock_ink_top_in_band(bounds.size.h, time_layer_ink()));
-        layer_mark_dirty(s_container_layer);
     } else
 #endif
     {
-        text_layer_move_frame(s_time_layer, GRect(0, 0, bounds.size.w, bounds.size.h)); // Reset for size calculation
-        GSize time_size = text_layer_get_content_size(s_time_layer);
+        const GSize time_size = text_size(s_time_text, s_time_font, bounds.size.w, bounds.size.h);
         digits_w = time_size.w;
 
         int text_h = time_size.h - MT_TIME; // Remove top margin, approximately
         int text_top = -MT_TIME + (bounds.size.h/2 - text_h/2);
         // The DIGITS carry the centring; the label rides in the margin left over beside them and
         // pushes the clock aside only when it would otherwise run off the band (clock_seat_x).
-        text_left = clock_seat_x(bounds.size.w, digits_w, am_pm_w);
+        text_left = clock_seat_x(bounds.size.w, digits_w, am_pm_text_w);
 
-        // Height spans from text_top down to the container bottom rather than time_size.h: the
-        // text layer's content size is a LINE box, and a content-sized frame has clipped the
-        // bottom few px of round digits on the larger faces before. These are descenderless
-        // numeric fonts and the container clips us, so extending the frame downward only
-        // reclaims the clipped glyph bottoms. The width runs to the band's right edge for the
-        // same reason, in the other axis — the text is left-aligned, so the surplus costs
-        // nothing, and nothing depends on this frame ending at the digits.
-        text_layer_move_frame(s_time_layer, GRect(text_left, text_top,
-                                                  bounds.size.w - text_left, bounds.size.h - text_top));
+        // Height spans from text_top down to the band's bottom rather than time_size.h: the
+        // measured content size is a LINE box, and a content-sized box has clipped the bottom
+        // few px of round digits on the larger faces before. These are descenderless numeric
+        // fonts and the band clips them, so extending the box downward only reclaims the
+        // clipped glyph bottoms. The width runs to the band's right edge for the same reason, in
+        // the other axis — the text is left-aligned, so the surplus costs nothing, and nothing
+        // depends on this box ending at the digits.
+        s_time_box = GRect(text_left, text_top, bounds.size.w - text_left, bounds.size.h - text_top);
     }
     if (show_am_pm) {
         // Seat the label's ink on the digits' ink: clock_label_seat_y takes the digits' first
@@ -218,29 +214,23 @@ void time_layer_tick() {
         // models that already had to be right for the clock band and the status rows.
         int am_pm_y = clock_label_seat_y(bounds.size.h, time_layer_ink(), AM_PM_INK_TOP);
         int am_pm_x = clock_label_x(bounds.size.w, text_left + digits_w, AM_PM_GAP,
-                                    am_pm_size.w);
-        text_layer_move_frame(s_am_pm_layer,
-                              GRect(am_pm_x, am_pm_y, AM_PM_BOX_W, AM_PM_CONTENT_H));
+                                    am_pm_text_w);
+        s_am_pm_box = GRect(am_pm_x, am_pm_y, AM_PM_BOX_W, AM_PM_CONTENT_H);
     }
-    layer_set_hidden(text_layer_get_layer(s_am_pm_layer), !show_am_pm);
+    layer_mark_dirty(s_container_layer);
 }
 
 void time_layer_refresh() {
-    text_layer_set_font(s_time_layer, config_time_font());
+    s_time_font = config_time_font();
 #if defined(PBL_COLOR)
     // Every font change arrives here (main_window_refresh) before the next redraw.
     s_glyphs = clock_glyphs_face(config_get()->time_font);
-    layer_set_hidden(text_layer_get_layer(s_time_layer), s_glyphs);
 #endif
-    text_layer_set_text_color(s_time_layer, theme_pick(config_get()->color_time, theme_fg()));
-    text_layer_set_text_color(s_am_pm_layer, theme_fg());  // re-apply: create-time value goes stale on a live theme flip
-    time_layer_tick();  // Update main time text and layer positions
+    time_layer_tick();  // Update the time text and the boxes
 }
 
 void time_layer_destroy() {
     MEMORY_LOG_HEAP("time_layer_destroy:before");
-    text_layer_destroy(s_am_pm_layer);
-    text_layer_destroy(s_time_layer);
     layer_destroy(s_container_layer);
     MEMORY_LOG_HEAP("time_layer_destroy:after");
 }

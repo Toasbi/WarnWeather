@@ -158,14 +158,20 @@ function buildPayload(forecast, nowEpoch) {
  *   uv     — the UV series, adopted only when options.fetchUv is on.
  *   condition — the weather condition now (a condition.js id), read off the
  *            moment currentTemp describes; null when the response names none.
+ *   sun    — the provider's own sunrise and sunset times, [{type, at}] with `at`
+ *            in epoch seconds (OpenWeatherMap's daily), which the sun events use
+ *            in place of SunCalc's; null when the response names none.
  */
+// The feels-like resolvers' inputs: adoptMapped reads them and never keeps them.
+var FEELS_INPUTS = ['humidityTrend', 'currentHumidity', 'currentWindKmh'];
 var MAPPED_KEYS = {
     core: ['tempTrend', 'precipTrend', 'startTime', 'currentTemp'],
     zeroed: ['rainTrend', 'windTrend', 'gustTrend'],
     empty: ['pressureTrend', 'cloudTrend', 'dewTrend', 'windDirTrend'],
-    feels: ['feelsTrend', 'currentFeels', 'humidityTrend', 'currentHumidity', 'currentWindKmh'],
+    feels: ['feelsTrend', 'currentFeels'].concat(FEELS_INPUTS),
     uv: ['uvTrend'],
-    condition: ['currentCondition']
+    condition: ['currentCondition'],
+    sun: ['sunTimes']
 };
 MAPPED_KEYS.all = [].concat(
     MAPPED_KEYS.core,
@@ -173,8 +179,15 @@ MAPPED_KEYS.all = [].concat(
     MAPPED_KEYS.empty,
     MAPPED_KEYS.feels,
     MAPPED_KEYS.uv,
-    MAPPED_KEYS.condition
+    MAPPED_KEYS.condition,
+    MAPPED_KEYS.sun
 );
+
+// The fields adoptMapped writes on the instance: every mapped key but the feels-like inputs.
+var ADOPTED_KEYS = MAPPED_KEYS.all.filter(function (key) { return FEELS_INPUTS.indexOf(key) === -1; });
+// The adopted fields that hold one value per hour, from startTime on.
+var HOURLY_KEYS = ['tempTrend', 'precipTrend'].concat(MAPPED_KEYS.zeroed, MAPPED_KEYS.empty, ['feelsTrend'],
+    MAPPED_KEYS.uv);
 
 /**
  * Own-key presence on a mapped object (a key set to undefined still counts:
@@ -208,6 +221,7 @@ function hasKey(obj, key) {
  *   uv     — options.fetchUv on and uvTrend present → copied; else [].
  *   condition — present and a condition.js id → copied; absent, null or any
  *            other value → null.
+ *   sun    — an array → copied; anything else → null.
  *
  * These are the semantic feels/uv gates, in ONE place for every adapter. An
  * adapter may still skip computing a feels series when options.fetchFeels is
@@ -271,12 +285,59 @@ function adoptMapped(target, mapped) {
     }
     target.uvTrend = (options.fetchUv && hasKey(mapped, 'uvTrend')) ? mapped.uvTrend : [];
     target.currentCondition = condition.isCondition(mapped.currentCondition) ? mapped.currentCondition : null;
+    target.sunTimes = Array.isArray(mapped.sunTimes) ? mapped.sunTimes : null;
+}
+
+/**
+ * The whole hours from one forecast's start to another's: how many hours of the first to drop so
+ * it starts where the second does.
+ * @param {number} fromStart The first forecast's start, epoch seconds.
+ * @param {number} toStart The second's.
+ * @returns {?number} The hours; null when the second starts before the first, or off its
+ *   hour grid.
+ */
+function hourShift(fromStart, toStart) {
+    var shift = (toStart - fromStart) / hourlyWindow.HOUR_SECONDS;
+    return shift >= 0 && Math.floor(shift) === shift ? shift : null;
+}
+
+/**
+ * Lay some of another provider's forecast on this one, hour by hour: each hourly series from
+ * the hour `target` starts at (its startTime) on, the values of the moment as they are (a
+ * reading pick: weather/application/fetch-sources.js). A series that starts earlier loses its first
+ * hours and comes up as much shorter; the payload carries the fewest hours a drawn series
+ * holds (payloadEntries). Where the two do not line up (`source` starting after `target`, or
+ * off its hour grid) only the values of the moment are laid on, since they have no hours.
+ *
+ * @param {Object} target The forecast the keys land on (reads startTime).
+ * @param {Object} source The forecast they come from (reads startTime).
+ * @param {string[]} keys Adopted keys (provider-readings.js keysOf); one `source` lacks is
+ *   left off `target` too.
+ * @returns {string[]} The keys laid on: all of them where the two line up, else those that are
+ *   no hourly series.
+ */
+function adoptReadings(target, source, keys) {
+    var shift = hourShift(source.startTime, target.startTime);
+    var laid = shift === null ? keys.filter(function (key) { return HOURLY_KEYS.indexOf(key) === -1; }) : keys;
+    laid.forEach(function (key) {
+        if (!hasKey(source, key)) {
+            delete target[key];
+            return;
+        }
+        var value = source[key];
+        target[key] = shift > 0 && HOURLY_KEYS.indexOf(key) !== -1 && Array.isArray(value) ? value.slice(shift) : value;
+    });
+    return laid;
 }
 
 module.exports = {
     GRAPH_SERIES: GRAPH_SERIES,
     MAPPED_KEYS: MAPPED_KEYS,
+    ADOPTED_KEYS: ADOPTED_KEYS,
+    HOURLY_KEYS: HOURLY_KEYS,
     adoptMapped: adoptMapped,
+    hourShift: hourShift,
+    adoptReadings: adoptReadings,
     payloadEntries: payloadEntries,
     buildPayload: buildPayload
 };

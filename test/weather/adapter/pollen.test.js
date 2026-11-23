@@ -1,3 +1,4 @@
+const { testPorts } = require('../../helpers/source-ports.js');
 const test = require('node:test');
 // The time every bake in this file runs at, where the test does not care which it is.
 const NOW = new Date(2026, 5, 15, 12, 0, 0);
@@ -300,7 +301,7 @@ test('fetchWithCoordinates completes AQI then pollen before composing the payloa
   };
 
   try {
-    provider.fetchWithCoordinates(52.52, 13.405, function() {}, assert.fail, false, {}, null);
+    provider.fetchWithCoordinates(52.52, 13.405, function() {}, assert.fail, false, {}, null, undefined, testPorts());
   } finally {
     airQuality.fetchAqiInto = originalAqi;
     pollen.fetchPollenInto = originalPollen;
@@ -359,7 +360,7 @@ test('a failed second pollen refresh packs -- instead of the previous severity a
   function fetchOnce() {
     provider.fetchWithCoordinates(52.52, 13.405, function() {
       successCalls += 1;
-    }, assert.fail, false, {}, transform);
+    }, assert.fail, false, {}, transform, undefined, testPorts());
   }
 
   try {
@@ -462,8 +463,8 @@ test('each fetch cycle resets tomorrow\'s band: a refresh without it composes nu
   };
   outbox.sendWeather = function(payload, done) { done(); };
   try {
-    provider.fetchWithCoordinates(52.52, 13.405, function() {}, assert.fail, false, {}, null);
-    provider.fetchWithCoordinates(52.52, 13.405, function() {}, assert.fail, false, {}, null);
+    provider.fetchWithCoordinates(52.52, 13.405, function() {}, assert.fail, false, {}, null, undefined, testPorts());
+    provider.fetchWithCoordinates(52.52, 13.405, function() {}, assert.fail, false, {}, null, undefined, testPorts());
   } finally {
     airQuality.fetchAqiInto = originalAqi;
     pollen.fetchPollenInto = originalPollen;

@@ -20,8 +20,136 @@ require('../lib/polyfills.js');                    // Object.assign / Array.find
  * @returns {string} JSON text safe inside an HTML <script> element.
  */
 function inlineScriptJson(value) {
-  return String(JSON.stringify(value)).replace(/</g, '\\u003c')
+  return scriptSafe(String(JSON.stringify(value)));
+}
+
+/**
+ * Escape what may not stand raw in the page's inline <script>: '<' and the two line
+ * separators (inlineScriptJson says why). All three can only stand inside a string of JSON
+ * or of a literal made from it, where the escape reads as the same character.
+ *
+ * @param {string} text JSON text, or inlineScriptLiteral's.
+ * @returns {string} The text, safe inside an HTML <script> element.
+ */
+function scriptSafe(text) {
+  return text.replace(/</g, '\\u003c')
     .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
+
+// The names inlineScriptLiteral never writes bare: ES3's keywords and future reserved words
+// (an ES3 engine, as the oldest Android WebViews have, takes none of them as a bare property
+// name), ES5's additions and the three literals.
+var RESERVED_NAMES = {};
+('abstract boolean break byte case catch char class const continue debugger' +
+  ' default delete do double else enum export extends false final finally float for function' +
+  ' goto if implements import in instanceof int interface let long native new null package' +
+  ' private protected public return short static super switch synchronized this throw throws' +
+  ' transient true try typeof var void volatile while with yield').split(' ')
+  .forEach(function (name) { RESERVED_NAMES[name] = true; });
+
+/**
+ * One JSON string token as the JavaScript string literal that costs the fewest URL
+ * characters. Single quotes cost one character each in the page's URL where a double quote
+ * costs three ('%22'), so the token is requoted with them; a string with more apostrophes
+ * than that pays for stays as JSON wrote it.
+ *
+ * @param {string} body The token's text between its quotes, still JSON-escaped.
+ * @returns {string} A string literal of the same value.
+ */
+function leanString(body) {
+  var hasApostrophe = body.indexOf("'") !== -1;
+  // Every '"' inside a token is one JSON escaped ('\"'): a bare one would have ended it.
+  var hasQuote = body.indexOf('"') !== -1;
+  if (!hasApostrophe && !hasQuote) { return "'" + body + "'"; }   // most tokens: nothing to count
+  var apostrophes = hasApostrophe ? body.split("'").length - 1 : 0;
+  var quotes = hasQuote ? body.split('"').length - 1 : 0;
+  // In the URL a single-quoted literal costs 2, plus 4 per apostrophe (it needs a backslash)
+  // and 3 per quote; a double-quoted one costs 6, plus 1 per apostrophe and 6 per quote.
+  if (apostrophes > quotes + 1) { return '"' + body + '"'; }
+  return "'" + body.split('\\"').join('"').split("'").join("\\'") + "'";
+}
+
+/**
+ * One JSON object key as a property name: bare where it is a plain identifier (no quotes
+ * to pay for), a string literal otherwise.
+ *
+ * @param {string} body The key's text between its quotes, still JSON-escaped.
+ * @returns {string} The property name.
+ */
+function leanKey(body) {
+  // `=== true`: a name Object.prototype has (constructor, toString) is not a reserved one.
+  var bare = RESERVED_NAMES[body] !== true && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(body);
+  return bare ? body : leanString(body);
+}
+
+/**
+ * A value as a JavaScript literal for the page's inline <script>, written to cost as few URL
+ * characters as it can. The page travels as one data: URL that Android's WebView refuses
+ * past 2 MiB, and in it every '"' of JSON costs three characters: the schema alone holds
+ * 28,000 of them. This is JSON.stringify's own text (so what it leaves out, how it prints a
+ * number and what toJSON answers are all its doing) with only its string tokens rewritten:
+ * a key becomes a bare name, a string takes single quotes. The page assigns the text to a
+ * variable and never parses it as JSON, and it evaluates to the same value.
+ *
+ * The scan is by indexOf, not by a regex over each token: a stored string can be tens of
+ * thousands of characters long (the news cache), which a repeated group does not survive on
+ * every engine. '<' and U+2028/2029 are escaped as inlineScriptJson escapes them
+ * (scriptSafe).
+ *
+ * @param {*} value Any JSON-serialisable value.
+ * @returns {string} JavaScript source for the value, safe inside an HTML <script> element.
+ */
+function inlineScriptLiteral(value) {
+  var json = String(JSON.stringify(value));
+  var out = [];
+  var at = 0;
+  var open = json.indexOf('"');
+  // The next backslash from where the scan stands (-1: none is left). Looked up again only
+  // once the scan has passed it, so the whole text is searched for them once, not per token.
+  var slash = json.indexOf('\\');
+  var close, from, quote;
+  while (open !== -1) {
+    // The token's closing quote: the first '"' no backslash escapes.
+    from = open + 1;
+    for (;;) {
+      quote = json.indexOf('"', from);
+      if (slash !== -1 && slash < from) { slash = json.indexOf('\\', from); }
+      if (quote === -1 || slash === -1 || slash > quote) { break; }
+      from = slash + 2;
+    }
+    close = quote;
+    if (close === -1) { break; }                          // not JSON.stringify's text: left as it is
+    out.push(json.slice(at, open));
+    // JSON.stringify writes no blanks, so a key is the string a ':' follows.
+    out.push(json.charAt(close + 1) === ':' ? leanKey(json.slice(open + 1, close))
+      : leanString(json.slice(open + 1, close)));
+    at = close + 1;
+    open = json.indexOf('"', at);
+  }
+  out.push(json.slice(at));
+  return scriptSafe(out.join(''));
+}
+
+/**
+ * A page with its injected line filled in: the five variables the shell declares
+ * (shell.html INJECTED_*), assigned where its marker stands. The one writer of that line,
+ * for the page a phone opens (generateUrl) and for the desktop preview (build-page.js
+ * previewPage). The return target stays JSON text: the emulator helper finds its
+ * placeholder there, and it is a few characters either way.
+ *
+ * @param {string} pageStr The built page, with its marker.
+ * @param {{schema: *, cfg: *, env: *, userData: *, returnTo: string}} parts What each
+ *   variable holds.
+ * @returns {string} The page.
+ */
+function injectPage(pageStr, parts) {
+  var snippet =
+    'INJECTED_SCHEMA='   + inlineScriptLiteral(parts.schema)   + ';' +
+    'INJECTED_CFG='      + inlineScriptLiteral(parts.cfg)      + ';' +
+    'INJECTED_ENV='      + inlineScriptLiteral(parts.env)      + ';' +
+    'INJECTED_USERDATA=' + inlineScriptLiteral(parts.userData) + ';' +
+    'INJECTED_RETURN='   + inlineScriptJson(parts.returnTo)    + ';';
+  return pageStr.replace('/*__PCONF_INJECT__*/', function () { return snippet; });
 }
 
 function createConfig(cfg) {
@@ -59,13 +187,8 @@ function createConfig(cfg) {
     var valuesHex = Object.assign({}, opts.values), i, ck;
     for (i = 0; i < colorKeys.length; i += 1) { ck = colorKeys[i];
       if (typeof valuesHex[ck] === 'number') { valuesHex[ck] = color.intToHex(valuesHex[ck]); } }
-    var snippet =                                        // inlineScriptJson: see its doc
-      'INJECTED_SCHEMA='   + inlineScriptJson(schema)               + ';' +
-      'INJECTED_CFG='      + inlineScriptJson(valuesHex)            + ';' +
-      'INJECTED_ENV='      + inlineScriptJson(opts.env || null)     + ';' +
-      'INJECTED_USERDATA=' + inlineScriptJson(opts.userData || null)+ ';' +
-      'INJECTED_RETURN='   + inlineScriptJson(opts.returnTo || 'pebblejs://close#') + ';';
-    return pageStr.replace('/*__PCONF_INJECT__*/', function () { return snippet; });
+    return injectPage(pageStr, { schema: schema, cfg: valuesHex, env: opts.env || null,
+      userData: opts.userData || null, returnTo: opts.returnTo || 'pebblejs://close#' });
   }
 
   function isEmulator() {                                 // matches Clay's pypkjs check
@@ -129,6 +252,7 @@ module.exports = {                                        // factory + reusable 
   isLineStylePlatform: platform.isLineStylePlatform,
   intToHex: color.intToHex, hexToInt: color.hexToInt,
   deriveDefaults: defaults.deriveDefaults, deriveColorKeys: defaults.deriveColorKeys,
-  // scripts/build-page.js previewPage fills the same markers for the dev preview.
-  inlineScriptJson: inlineScriptJson
+  // scripts/build-page.js previewPage fills the same marker for the dev preview.
+  injectPage: injectPage,
+  inlineScriptJson: inlineScriptJson, inlineScriptLiteral: inlineScriptLiteral
 };

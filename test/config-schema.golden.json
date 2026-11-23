@@ -99,6 +99,17 @@
             ]
           },
           {
+            "block": "featureTips",
+            "beforePin": true,
+            "items": [
+              {
+                "type": "hidden",
+                "messageKey": "featureTipsAck",
+                "defaultValue": false
+              }
+            ]
+          },
+          {
             "id": "screens",
             "title": "Screens",
             "block": "screensCard",
@@ -7914,7 +7925,7 @@
                 "type": "toggle",
                 "messageKey": "citySlotIcon",
                 "label": "Weather icon",
-                "defaultValue": false,
+                "defaultValue": true,
                 "hintByValue": {
                   "true": "Shows the current weather's icon before the city name."
                 }
@@ -8049,8 +8060,236 @@
             "showWhen": {
               "env": "thresholds"
             },
-            "title": "Battery percentage slot",
+            "title": "Watch battery slot",
             "items": [
+              {
+                "type": "segmented",
+                "messageKey": "batterySlotLook",
+                "label": "Look",
+                "defaultValue": "icon",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "batterySlotDisplay",
+                "label": "Value selection",
+                "hintByValue": {
+                  "days": "Shows the percentage instead while the watch charges, your phone is out of reach or there is no new estimate.<span style=\"display:block;margin-top:6px\">The days are an estimate from the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a>, which has to be on your watch.</span>",
+                  "both": "Shows the percentage alone while the watch charges, your phone is out of reach or there is no new estimate.<span style=\"display:block;margin-top:6px\">The days are an estimate from the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a>, which has to be on your watch.</span>"
+                },
+                "defaultValue": "percent",
+                "options": [
+                  [
+                    "Percentage",
+                    "percent"
+                  ],
+                  [
+                    "Days left",
+                    "days"
+                  ],
+                  [
+                    "Both",
+                    "both"
+                  ]
+                ],
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "batterySlotLook",
+                      "in": [
+                        "both",
+                        "text"
+                      ]
+                    },
+                    {
+                      "env": "plugins"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "batterySlotOrder",
+                "label": "Order",
+                "defaultValue": "percent",
+                "options": [
+                  [
+                    "Percentage first",
+                    "percent"
+                  ],
+                  [
+                    "Days left first",
+                    "days"
+                  ]
+                ],
+                "joinPrevious": true,
+                "more": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "key": "batterySlotLook",
+                          "in": [
+                            "both",
+                            "text"
+                          ]
+                        },
+                        {
+                          "env": "plugins"
+                        }
+                      ]
+                    },
+                    {
+                      "key": "batterySlotDisplay",
+                      "eq": "both"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "batterySlotSeparator",
+                "label": "Separator",
+                "defaultValue": "bar",
+                "hintByValue": {
+                  "custom": "If the pair doesn't fit, the slot drops the spaces."
+                },
+                "options": [
+                  [
+                    "80%/5d",
+                    "slash"
+                  ],
+                  [
+                    "80%(5d)",
+                    "brackets"
+                  ],
+                  [
+                    "80%·5d",
+                    "dot"
+                  ],
+                  [
+                    "80%|5d",
+                    "bar"
+                  ],
+                  [
+                    "Custom",
+                    "custom"
+                  ]
+                ],
+                "joinPrevious": true,
+                "more": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "key": "batterySlotLook",
+                          "in": [
+                            "both",
+                            "text"
+                          ]
+                        },
+                        {
+                          "env": "plugins"
+                        }
+                      ]
+                    },
+                    {
+                      "key": "batterySlotDisplay",
+                      "eq": "both"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "text",
+                "messageKey": "batterySlotSeparatorCustom",
+                "label": "Custom separator",
+                "defaultValue": "",
+                "attributes": {
+                  "maxlength": 2
+                },
+                "hint": "Up to 2 characters, spaces included. Leave it empty to print 80%|5d. The watch keeps only the characters its font can draw (printable ASCII and Latin-1).",
+                "joinPrevious": true,
+                "more": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "key": "batterySlotLook",
+                          "in": [
+                            "both",
+                            "text"
+                          ]
+                        },
+                        {
+                          "env": "plugins"
+                        }
+                      ]
+                    },
+                    {
+                      "all": [
+                        {
+                          "key": "batterySlotDisplay",
+                          "eq": "both"
+                        },
+                        {
+                          "key": "batterySlotSeparator",
+                          "eq": "custom"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "batterySlotSeparatorSpaced",
+                "label": "Spaces around separator",
+                "defaultValue": false,
+                "hintByValue": {
+                  "true": "Adds spaces to any separator: 80% | 5d, 80% (5d)."
+                },
+                "joinPrevious": true,
+                "more": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "all": [
+                        {
+                          "key": "batterySlotLook",
+                          "in": [
+                            "both",
+                            "text"
+                          ]
+                        },
+                        {
+                          "env": "plugins"
+                        }
+                      ]
+                    },
+                    {
+                      "key": "batterySlotDisplay",
+                      "eq": "both"
+                    }
+                  ]
+                }
+              },
               {
                 "type": "segmented",
                 "messageKey": "threshBatteryPctBoldMode",
@@ -8074,6 +8313,13 @@
                   "in": [
                     "off",
                     "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "batterySlotLook",
+                  "in": [
+                    "both",
+                    "text"
                   ]
                 }
               }
@@ -8126,12 +8372,1109 @@
           },
           {
             "sheetOnly": true,
-            "sheetId": "threshPhoneBattery",
+            "sheetId": "threshPhoneBatteryForecastLeft",
             "showWhen": {
               "env": "thresholds"
             },
             "title": "Phone battery slot",
             "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusForecastLeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryForecastMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusForecastMidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryForecastRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusForecastRightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryRadarLeft",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusRadarLeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryRadarMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusRadarMidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryRadarRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusRadarRightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryTopLeft",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusTopLeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryTopMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusTopMidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryTopRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusTopRightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryHealthLeft",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusHealthLeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryHealthMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusHealthMidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryHealthRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusHealthRightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar4Left",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar4LeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar4Mid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar4MidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar4Right",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar4RightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar5Left",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar5LeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar5Mid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar5MidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar5Right",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar5RightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar6Left",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar6LeftPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar6Mid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar6MidPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPhoneBatteryBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot that shows this value prints it in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPhoneBatteryBar6Right",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Phone battery slot",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "statusBar6RightPhoneBatteryLook",
+                "label": "Look",
+                "hint": "For this slot only.",
+                "defaultValue": "both",
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ]
+                ]
+              },
               {
                 "type": "segmented",
                 "messageKey": "threshPhoneBatteryBoldMode",
@@ -15011,106 +16354,14 @@
             "title": "Data sources",
             "items": [
               {
-                "type": "select",
-                "messageKey": "provider",
+                "type": "sheet",
+                "sheetId": "weatherSources",
                 "label": "Weather",
-                "defaultValue": "wunderground",
-                "onChange": "clearPollenForProvider",
-                "recommendFrom": "recommendedWeatherProvider",
-                "hintByValue": {
-                  "dwd": "Germany's national weather service, with the most accurate forecasts in Germany and decent ones across Central Europe (ICON model). No API key needed.",
-                  "metno": "The service behind yr.no. Best in the Nordics, with a 2.5 km model, and solid worldwide. No API key needed.",
-                  "openmeteo": "Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.",
-                  "openweathermap": "A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.",
-                  "tomorrowio": "Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key. Powered by <a target='_blank' href='https://www.tomorrow.io'>Tomorrow.io</a>.",
-                  "wunderground": "A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.",
-                  "yandex": "Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key."
+                "hintFrom": {
+                  "resolver": "weatherSourcesSummary"
                 },
                 "attentionFrom": {
-                  "resolver": "keyAttention"
-                },
-                "options": [
-                  [
-                    "Deutscher Wetterdienst",
-                    "dwd",
-                    {
-                      "desc": "Best in Germany · no key",
-                      "short": "DWD"
-                    }
-                  ],
-                  [
-                    "Met.no",
-                    "metno",
-                    {
-                      "desc": "Best in the Nordics (behind yr.no) · no key"
-                    }
-                  ],
-                  [
-                    "Open-Meteo",
-                    "openmeteo",
-                    {
-                      "desc": "Picks the best national model · no key"
-                    }
-                  ],
-                  [
-                    "OpenWeatherMap",
-                    "openweathermap",
-                    {
-                      "desc": "Popular general-purpose API, worldwide · needs a free key"
-                    }
-                  ],
-                  [
-                    "Tomorrow.io",
-                    "tomorrowio",
-                    {
-                      "desc": "Precise local forecasts, worldwide · needs a free key"
-                    }
-                  ],
-                  [
-                    "Weather Underground",
-                    "wunderground",
-                    {
-                      "desc": "Crowd-sourced network of 250,000+ local stations · no key"
-                    }
-                  ],
-                  [
-                    "Yandex Weather",
-                    "yandex",
-                    {
-                      "desc": "Best across Russia & CIS · needs a key"
-                    }
-                  ]
-                ]
-              },
-              {
-                "type": "staticText",
-                "style": "info",
-                "joinPrevious": true,
-                "textFrom": {
-                  "resolver": "keyMissingNote",
-                  "args": {
-                    "picker": "provider"
-                  }
-                }
-              },
-              {
-                "type": "sheet",
-                "label": "API key",
-                "indent": true,
-                "editSheetFrom": {
-                  "resolver": "keySheet",
-                  "args": {
-                    "picker": "provider"
-                  }
-                },
-                "labelFrom": {
-                  "resolver": "keyRowLabel",
-                  "args": {
-                    "picker": "provider"
-                  }
-                },
-                "hintFrom": {
-                  "resolver": "keyRowSummary",
+                  "resolver": "keyAttention",
                   "args": {
                     "picker": "provider"
                   }
@@ -15277,6 +16528,349 @@
                 },
                 "optionsFrom": {
                   "resolver": "fetchIntervalBudget"
+                }
+              },
+              {
+                "type": "staticText",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "weatherCallsLine"
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "weatherSources",
+            "title": "Weather",
+            "block": "weatherOtherSources",
+            "items": [
+              {
+                "type": "select",
+                "messageKey": "provider",
+                "label": "Provider",
+                "defaultValue": "wunderground",
+                "onChange": [
+                  "clearPollenForProvider",
+                  "weatherProviderPicked"
+                ],
+                "recommendFrom": "recommendedWeatherProvider",
+                "hintByValue": {
+                  "dwd": "Germany's national weather service, with the most accurate forecasts in Germany and decent ones across Central Europe (ICON model). No API key needed.",
+                  "metno": "The service behind yr.no. Best in the Nordics, with a 2.5 km model, and solid worldwide. No API key needed.",
+                  "openmeteo": "Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.",
+                  "openweathermap": "A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.",
+                  "tomorrowio": "Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key. Powered by <a target='_blank' href='https://www.tomorrow.io'>Tomorrow.io</a>.",
+                  "wunderground": "A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.",
+                  "yandex": "Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key."
+                },
+                "bottomSheet": true,
+                "options": [
+                  [
+                    "Deutscher Wetterdienst",
+                    "dwd",
+                    {
+                      "desc": "Best in Germany · no key",
+                      "short": "DWD"
+                    }
+                  ],
+                  [
+                    "Met.no",
+                    "metno",
+                    {
+                      "desc": "Best in the Nordics (behind yr.no) · no key"
+                    }
+                  ],
+                  [
+                    "Open-Meteo",
+                    "openmeteo",
+                    {
+                      "desc": "Picks the best national model · no key"
+                    }
+                  ],
+                  [
+                    "OpenWeatherMap",
+                    "openweathermap",
+                    {
+                      "desc": "Popular general-purpose API, worldwide · needs a free key"
+                    }
+                  ],
+                  [
+                    "Tomorrow.io",
+                    "tomorrowio",
+                    {
+                      "desc": "Precise local forecasts, worldwide · needs a free key"
+                    }
+                  ],
+                  [
+                    "Weather Underground",
+                    "wunderground",
+                    {
+                      "desc": "Crowd-sourced network of 250,000+ local stations · no key"
+                    }
+                  ],
+                  [
+                    "Yandex Weather",
+                    "yandex",
+                    {
+                      "desc": "Best across Russia & CIS · needs a key"
+                    }
+                  ]
+                ]
+              },
+              {
+                "type": "staticText",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "weatherFillNote"
+                }
+              },
+              {
+                "type": "staticText",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "weatherCallsLine"
+                }
+              },
+              {
+                "type": "staticText",
+                "style": "info",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "keyMissingNote",
+                  "args": {
+                    "picker": "provider"
+                  }
+                }
+              },
+              {
+                "type": "sheet",
+                "label": "API key",
+                "indent": true,
+                "editSheetFrom": {
+                  "resolver": "keySheet",
+                  "args": {
+                    "picker": "provider"
+                  }
+                },
+                "labelFrom": {
+                  "resolver": "keyRowLabel",
+                  "args": {
+                    "picker": "provider"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "keyRowSummary",
+                  "args": {
+                    "picker": "provider"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": "Other sources"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "weatherSourcePickers",
+            "title": "Other sources",
+            "items": [
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceCurrentTemp",
+                "label": "Current temperature",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "currentTemp"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceCurrentFeels",
+                "label": "Current feels-like",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "currentFeels"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceCondition",
+                "label": "Weather condition",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "condition"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceTemperature",
+                "label": "Temperature",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "temperature"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceFeels",
+                "label": "Feels-like",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "feels"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceDew",
+                "label": "Dew point",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "dew"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceRainChance",
+                "label": "Rain chance",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "rainChance"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceRainAmount",
+                "label": "Rain amount",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "rainAmount"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceWind",
+                "label": "Wind speed",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "wind"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceGust",
+                "label": "Wind gusts",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "gust"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceWindDir",
+                "label": "Wind direction",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "windDir"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceUv",
+                "label": "UV index",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "uv"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourceCloud",
+                "label": "Cloud cover",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "cloud"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "weatherSourcePressure",
+                "label": "Air pressure",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "weatherValueSources",
+                  "args": {
+                    "reading": "pressure"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "uiOnly": true,
+                "messageKey": "weatherOtherSourceFor",
+                "label": "Use another source for",
+                "defaultValue": "",
+                "dormantValues": [
+                  ""
+                ],
+                "optionsFrom": {
+                  "resolver": "weatherFreeValues"
                 }
               }
             ]
@@ -15667,7 +17261,7 @@
             "collapsible": true,
             "items": [
               {
-                "type": "segmented",
+                "type": "select",
                 "messageKey": "configTheme",
                 "label": "Settings Theme",
                 "defaultValue": "auto",
@@ -15683,9 +17277,13 @@
                   [
                     "Dark",
                     "dark"
+                  ],
+                  [
+                    "Black",
+                    "black"
                   ]
                 ],
-                "hint": "Sets the theme of this settings page. Auto follows your Pebble app theme. The watchface is not affected."
+                "hint": "Auto follows the Pebble app's light or dark theme. Black matches its Black theme and has to be chosen here. The watchface is not affected."
               },
               {
                 "type": "toggle",

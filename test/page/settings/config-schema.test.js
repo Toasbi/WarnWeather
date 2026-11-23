@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 const showWhen = require('../../../src/pkjs/config-ui/lib/show-when.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
+// The status slots: every bar's slot keys and each slot's Phone battery dialog.
+const slotCatalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 // The settings instance clay-settings.js seeds a fresh install from (getDefaults).
 const settings = require('../../../src/pkjs/page/settings/index');
 // Pulled in so PConf.optionsResolvers is populated (blocks.js registers layoutPresetOptions
@@ -89,7 +91,7 @@ const EXPECTED_KEYS = [
   // always been. Every Nighttime feature keeps its hours in its own keys — there is no
   // shared window and no mode key selecting between one, so sleepNightMode /
   // sleepNightStartHour / sleepNightEndHour / backlightDimMode are gone.
-  'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
+  'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','featureTipsAck','locationMode','location',
   'backlightDim','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','fifthLine','fifthLineStyle','tempSlotDisplay',
   'windLineShow','gustLineShow','uvLineShow',
@@ -98,6 +100,11 @@ const EXPECTED_KEYS = [
   'dateSlotMonthFormat','dateSlotFullFormat',
   // The weather condition slot's Look (Icon + text / Text / Icon).
   'conditionSlotLook', 'conditionSlotName', 'citySlotIcon',
+  // The reading picks (the Weather dialog's Other sources): a provider of its own for each
+  // reading; phone-side only.
+  'weatherSourceCurrentTemp', 'weatherSourceCurrentFeels', 'weatherSourceCondition', 'weatherSourceTemperature',
+  'weatherSourceFeels', 'weatherSourceDew', 'weatherSourceRainChance', 'weatherSourceRainAmount', 'weatherSourceWind',
+  'weatherSourceGust', 'weatherSourceWindDir', 'weatherSourceUv', 'weatherSourceCloud', 'weatherSourcePressure',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','forecastHours',
   'forecastAxisNumbers','forecastAxisScale','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
@@ -124,11 +131,19 @@ const EXPECTED_KEYS = [
   // countdown dates (its side lists are on-demand.js DEFAULTS', ALERT_KEYS).
   ...['statusBar4', 'statusBar5', 'statusBar6'].reduce((all, p) => all.concat([p + 'Made', p + 'Name',
     p + 'Left', p + 'LeftCountdown', p + 'Mid', p + 'MidCountdown', p + 'Right', p + 'RightCountdown']), []),
+  // Every slot's phone battery Look, the slot's own like its countdown date (the row under
+  // the slot while it holds the phone battery).
+  ...['statusForecast', 'statusRadar', 'statusTop', 'statusHealth', 'statusBar4', 'statusBar5', 'statusBar6']
+    .reduce((all, p) => all.concat(['Left', 'Mid', 'Right'].map((slot) => p + slot + 'PhoneBatteryLook')), []),
   'statusBoldAll',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
   'statusTopLeft','statusTopLeftCountdown','statusTopMid','statusTopMidCountdown','statusTopRight','statusTopRightCountdown',
-  'batteryLowOnly','statusHealthLeft','statusHealthLeftCountdown','statusHealthMid','statusHealthMidCountdown','statusHealthRight','statusHealthRightCountdown'
+  'batteryLowOnly','statusHealthLeft','statusHealthLeftCountdown','statusHealthMid','statusHealthMidCountdown','statusHealthRight','statusHealthRightCountdown',
+  // The watch battery's Look (the row under its slot), and what its text shows (the
+  // percentage, the days left or both, and the pair's look: battery-days.js).
+  'batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
+  'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced'
 ].concat(THRESH_KEYS).concat(UNIT_KEYS).concat(GRAPH_COLOR_KEYS).concat(ALERT_KEYS);
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
@@ -158,12 +173,17 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // windLineShow/gustLineShow/uvLineShow: one per metric picker, like
   // pressureScale — the row follows its metric to whichever picker shows it. The four
   // Draw from keys the same way (rainBarFrom/radarBarFrom are one row each).
+  // threshPhoneBatteryBoldMode: the phone battery's Bold, the item's one setting, in each
+  // slot's Phone battery dialog (one per slot, as its Look is the slot's own).
   assert.deepEqual(dups.sort(),
     ['batteryLowLevel', 'btIcons', 'cloudLineFrom', 'colorUSFederal', 'gustLineShow',
       'precipLineFrom', 'pressureScale', 'theme', 'themeAutoMode', 'themeNight',
+      'threshPhoneBatteryBoldMode',
       'tomorrowioApiKey', 'tomorrowioFitBudget', 'uvLineFrom', 'uvLineShow', 'vibe',
       'windLineFrom', 'windLineShow', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
+  assert.equal(counts.threshPhoneBatteryBoldMode, slotCatalog.ALL_LINES.reduce((n, line) => n + line.slots.length, 0),
+    'the phone battery\'s Bold, in each slot\'s dialog (bars 4 to 6\'s too)');
   ['windLineShow', 'gustLineShow', 'uvLineShow',
     'precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom'].forEach((k) =>
     assert.equal(counts[k], 4, k + ' appears in four slots (one per metric picker)'));
@@ -572,7 +592,10 @@ test('the Theme & night card sits between the screens\' cards and Time, and open
   // right below the card whose row opens it.
   const cards = wf.sections.filter((s) => !s.sheetOnly);
   const nightIndex = cards.indexOf(night);
-  assert.deepEqual(cards.slice(1, nightIndex).map((c) => c.id), ['screens', 'layout', 'screenSwitching'],
+  // The tab opens on its two blocks above the pinned watch: the notices and the new features.
+  assert.deepEqual(cards.slice(0, 2).map((c) => [c.block, c.beforePin]),
+    [['noticesPanel', true], ['featureTips', true]]);
+  assert.deepEqual(cards.slice(2, nightIndex).map((c) => c.id), ['screens', 'layout', 'screenSwitching'],
     'the Screens card (Layout on aplite) and Screen switching above it');
   assert.equal(cards[nightIndex + 1].id, 'time', 'Time follows Theme & night');
   // The theme pickers moved here from General's top card; the location rows did not.
@@ -976,7 +999,7 @@ test('the Theme & night card opens on the theme, then the shared Night hours, wh
 });
 
 // The saver no longer only stops weather FETCHES: with the phone-battery slot it also
-// suppresses the status micro-send (level changes and charging transitions alike), so
+// suppresses the status micro-send (a move of the charge into another 5-point bucket), so
 // the copy has to describe sending rather than fetching or it under-promises what the
 // toggle now turns off. The wording was dictated by the design
 // (docs/superpowers/specs/2026-08-20-phone-battery-slot-design.md §3), not derived. It
@@ -1136,13 +1159,13 @@ test('metric pickers keep only the notes that hold whatever the style', () => {
 
 test('a metric picker names a gap in the picked provider only', () => {
   const pick = (m, provider) => hintOf('secondaryLine', { secondaryLine: m, provider }, STYLED_ENV);
-  const YANDEX = 'Not available with Yandex.';
   const METNO = 'Not available with Met.no outside the Nordics.';
-  ['cloud', 'pressure'].forEach((m) => assert.equal(pick(m, 'yandex'), YANDEX, m));
-  assert.equal(pick('dew', 'yandex'),
-    'The closer it runs to the temperature, the more humid it feels. ' + YANDEX, 'after the metric\'s note');
+  // Yandex's cloud cover, air pressure and dew point come from Open-Meteo (the note under the
+  // Provider says so), so its pickers name no gap.
+  ['cloud', 'pressure'].forEach((m) => assert.equal(pick(m, 'yandex'), '', m));
+  assert.equal(pick('dew', 'yandex'), 'The closer it runs to the temperature, the more humid it feels.');
+  assert.equal(pick('gust', 'metno'), 'Shows the hourly peak. ' + METNO, 'after the metric\'s note');
   assert.equal(pick('precip_prob', 'metno'), METNO);
-  assert.equal(pick('gust', 'metno'), 'Shows the hourly peak. ' + METNO);
   assert.equal(pick('cloud', 'metno'), '', 'Met.no sends clouds');
   assert.equal(pick('precip_prob', 'dwd'), '', 'nothing for a provider without the gap');
 });
@@ -1643,10 +1666,16 @@ test('the Rain radar picker (Setup › Data sources): Off, then DWD/Met.no/Rainb
 // provider (page/weather/keys/key-status.js): one table for every key-status resolver.
 const RAINBOW_OWN_KEY_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbowkey' }, { key: 'radarEnabled', ne: false }] };
 const radarPickerSection = () => schema.tabs.find((t) => t.id === 'setup').sections.find((sec) => sec.id === 'dataSources');
-// Each key table's picker row: the Weather picker for provider, the Rain radar picker for
+// Each key table's picker row: the Provider picker for provider, the Rain radar picker for
 // radarProvider (it writes radarProvider, so its key rows name that key as their picker).
 const PICKER_ROW = { provider: 'provider', radarProvider: 'radarSource' };
-const PICKER_ATTENTION = { provider: { resolver: 'keyAttention' }, radarProvider: { resolver: 'radarKeyAttention' } };
+// Where each picker row sits: the Provider in the Weather dialog, the Rain radar on the card.
+const PICKER_SECTION = {
+  provider: function inTheWeatherDialog() {
+    return schema.tabs.find((t) => t.id === 'setup').sections.find((sec) => sec.sheetId === 'weatherSources');
+  },
+  radarProvider: function onTheDataSourcesCard() { return radarPickerSection(); }
+};
 
 // The key tables live in page/weather/keys/key-sources.js, one per picker, by the picker's
 // messageKey. The rows' key-status resolvers read them in the page by the row's picker —
@@ -1659,11 +1688,9 @@ test('the provider and radar rows read their key tables from key-sources.js', ()
   assert.deepEqual(Object.keys(KEY_SOURCES), ['provider', 'radarProvider']);
   Object.keys(KEY_SOURCES).forEach((picker) => {
     const row = byKey(PICKER_ROW[picker]);
-    assert.deepEqual(row.attentionFrom, PICKER_ATTENTION[picker],
-      picker + ': no args, the table is found by the picker\'s messageKey');
     const section = schema.tabs.reduce((found, t) => found
       || t.sections.find((sec) => sec.items.indexOf(row) !== -1), null);
-    assert.equal(section, radarPickerSection(), picker + ': on the Data sources card');
+    assert.equal(section, PICKER_SECTION[picker](), picker + ': ' + PICKER_SECTION[picker].name);
     const keyRow = section.items.find((i) => i.type === 'sheet' && i.labelFrom && i.labelFrom.resolver === 'keyRowLabel'
       && i.labelFrom.args.picker === picker);
     assert.ok(keyRow, picker + ': a key row under the picker');
@@ -1678,6 +1705,12 @@ test('the provider and radar rows read their key tables from key-sources.js', ()
       assert.equal(sheet.items[0].messageKey, sources[id].keyField, picker + '/' + id);
     });
   });
+  // The key checks: the Weather row's names its picker (the row opens the dialog and has no
+  // messageKey); the Rain radar picker's radarKeyAttention reads its own.
+  const dataSources = schema.tabs.find((t) => t.id === 'setup').sections.find((sec) => sec.id === 'dataSources');
+  assert.deepEqual(dataSources.items[0].attentionFrom, { resolver: 'keyAttention', args: { picker: 'provider' } });
+  assert.equal(byKey('provider').attentionFrom, undefined, 'the Provider\'s check rides the Weather row');
+  assert.deepEqual(byKey('radarSource').attentionFrom, { resolver: 'radarKeyAttention' });
   assert.ok(JSON.stringify(schema).indexOf('"keyed"') === -1, 'no row carries a key table into the page');
   const shared = KEY_SOURCES.radarProvider.sources.tomorrowio.sharedSheet;
   const setup = schema.tabs.find((t) => t.id === 'setup');
@@ -2068,15 +2101,18 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
       'Walked distance slot'],
     'per-slot edit sheets follow the bars, in kind order');
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
-  // the contract's wire-id order (KINDS 8..19). 'Phone battery slot' is last and
-  // serves BOTH phone-battery kinds (18 and 19) — they share key 'PhoneBattery',
-  // so there are eleven sheets for twelve bold-only kinds. The weather condition slot's
-  // dialog, its Look and no Bold row, closes the tab.
+  // the contract's wire-id order (KINDS 8..20). The watch battery's sheet ('Watch battery
+  // slot', kind 16) serves both of its looks. The phone battery has one 'Phone battery
+  // slot' per slot instead of one per kind, since its Look is each slot's own; each serves
+  // BOTH phone-battery kinds (18 and 19, the Icon + text and the Text look), which share
+  // key 'PhoneBattery'. The weather condition slot's dialog closes the tab.
+  const PHONE_DIALOGS = slotCatalog.ALL_LINES.reduce((n, line) => n + line.slots.length, 0);
+  assert.equal(PHONE_DIALOGS, 21, 'the four bars\' slots and bars 4 to 6\'s');
   assert.deepEqual(titles.slice(17),
     ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
-      'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
-      'Phone battery slot', 'Weather condition slot'],
+      'Heart rate slot', 'Watch battery slot', 'Dew point slot']
+      .concat(Array(PHONE_DIALOGS).fill('Phone battery slot'), ['Weather condition slot']),
     'bold-only slot sheets follow, in wire-id order, then the condition slot\'s');
   // Every slot sheet previews the bars while it is open (the bar it came from, when it came
   // from a bar's dialog: preview-status-bars.js statusBarsPreview).
@@ -2104,6 +2140,8 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
   const alertsIdx = wsb.findIndex((i) => i.type === 'button' && i.label === 'Alerts');
   const battIdx = wsb.findIndex((i) => i.messageKey === 'batteryLowOnly');
   assert.equal(countdownIdx, rightIdx + 1, 'top-right countdown date follows its slot');
+  // Nothing else under the slot: the batteries' Looks are in the dialogs their Edit button
+  // opens (test/page/status-bars/battery-slots.test.js).
   assert.equal(alertsIdx, countdownIdx + 1, 'the Alerts row follows the slots');
   assert.deepEqual(wsb[alertsIdx + 1], { type: 'subheader', text: 'Icons and vibration', showWhen: { not: ON_DEMAND_WHEN } },
     'then aplite\'s card of its own');
@@ -2471,15 +2509,18 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // holds slots, not levels (barDialog).
   const sheets = watch.sections.filter((s) => s.sheetOnly && s.sheetId !== 'barKeys' && !/^bar-/.test(s.sheetId));
   // The weather condition slot's dialog comes last: its Look, then Bold like every text slot.
-  assert.equal(sheets.length, 20,
-    'one edit sheet per boldable slot kind (8 threshold + 12 bold-only)');
+  // The phone battery has one dialog per slot (its Look is each slot's own), the others one per
+  // kind.
+  const SLOT_KEYS = slotCatalog.ALL_LINES.reduce((keys, line) => keys.concat(line.slots), []);
+  assert.equal(sheets.length, 19 + SLOT_KEYS.length,
+    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only), the phone battery\'s one per slot');
   assert.deepEqual(sheets.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
-      'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct',
-      'threshDew', 'threshPhoneBattery', 'threshCondition'],
-    'sheet ids follow the thresh<Stem> convention the slot resolver derives');
+      'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct', 'threshDew']
+      .concat(SLOT_KEYS.map(slotCatalog.phoneBatterySheet), ['threshCondition']),
+    'sheet ids follow the thresh<Stem> convention the slot resolver derives, a slot\'s own after it');
   // The On demand sheets (the side lists' section + 10 item sheets) moved with the alerts
   // to the Alerts tab, and carry the On demand gate (aplite has no On demand).
   const odSheets = schema.tabs.find((t) => t.id === 'alerts').sections.filter((s) => s.sheetOnly);
@@ -2525,46 +2566,51 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   });
 });
 
-// The phone-battery slot's Bold sheet. Unlike every other bold-only sheet this ONE
-// section serves TWO catalog items and TWO wire kinds: 'phoneBattery' (icon + NN%,
-// kind 18) and 'phoneBatteryPlain' (NN%, no icon, kind 19). The no-icon variant needs
-// its own wire kind so it can't fall through to City's bold row (the pressure-slot bug,
-// d22581f/0a05a7a), but both KINDS entries carry key 'PhoneBattery', so the resolver
-// lands both pencils on this one sheet and the packer writes the one mode into both
-// cells. If someone ever splits them into two keys, this test is what says the sheet
-// list has to grow with them.
-test('the Phone battery sheet exists once and BOTH phone-battery slot codes resolve to it', () => {
+// The phone-battery slots' sheets: each slot's Look and the item's Bold row. The ONE catalog
+// item has TWO wire kinds, by Look: 'phoneBattery' (icon + NN%, kind 18) and
+// 'phoneBatteryPlain' (NN%, no icon, kind 19; no catalog item since 3.3.0). The Text look
+// needs its own wire kind so it can't fall through to City's bold row (the pressure-slot bug,
+// d22581f/0a05a7a), but both KINDS entries carry key 'PhoneBattery', so the packer writes the
+// one mode into both cells, and every slot's sheet holds that one Bold row. If someone ever
+// splits them into two keys, this test is what says the sheets have to grow with them.
+test('each slot has its Phone battery sheet, and the phone battery resolves to it in both looks', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
-  const sheets = watch.sections.filter((s) => s.sheetId === 'threshPhoneBattery');
-  assert.equal(sheets.length, 1, 'exactly one Phone battery sheet, shared by both kinds');
-  const sheet = sheets[0];
-  assert.equal(sheet.title, 'Phone battery slot');
-  assert.equal(sheet.sheetOnly, true, 'opened from a slot pencil, never rendered as a card');
-  assert.deepEqual(sheet.showWhen, { env: 'thresholds' },
-    'aplite compiles the highlight machinery out, so the sheet must not exist there');
-  // Bold is its whole sheet: no thresholds, no levels, no extra rows.
-  assert.deepEqual(sheet.items.map((i) => i.messageKey), ['threshPhoneBatteryBoldMode'],
-    'one Bold row and nothing else — the slot has no levels to threshold');
-  const bold = sheet.items[0];
-  assert.equal(bold.type, 'segmented');
-  assert.equal(bold.defaultValue, 'off');
-  assert.deepEqual(bold.options, [['Off', 'off'], ['Always', 'always']]);
-
-  // ...and the pencil actually gets here. The slot resolver walks the threshold
-  // contract's KINDS and returns 'thresh' + key, so this is the end-to-end proof that
-  // the shared key really does collapse two codes onto one sheet.
+  assert.equal(watch.sections.filter((s) => s.sheetId === 'threshPhoneBattery').length, 0,
+    'no sheet shared by every slot: the Look in it is each slot\'s own');
   const resolve = PConf.sheetResolvers.get('statusSlotEditSheet');
   assert.ok(resolve, 'blocks.js registered statusSlotEditSheet');
-  ['phoneBattery', 'phoneBatteryPlain'].forEach((code) => {
-    assert.equal(
-      resolve({ statusForecastLeft: code }, { thresholds: true }, { messageKey: 'statusForecastLeft' }),
-      'threshPhoneBattery', code + ' opens the shared Phone battery sheet');
+  ['statusForecastLeft', 'statusTopRight', 'statusBar6Mid'].forEach((slotKey) => {
+    const id = slotCatalog.phoneBatterySheet(slotKey);
+    const sheets = watch.sections.filter((s) => s.sheetId === id);
+    assert.equal(sheets.length, 1, slotKey + ': exactly one Phone battery sheet of its own');
+    const sheet = sheets[0];
+    assert.equal(sheet.title, 'Phone battery slot');
+    assert.equal(sheet.sheetOnly, true, 'opened from a slot pencil, never rendered as a card');
+    assert.deepEqual(sheet.showWhen, { env: 'thresholds' },
+      'aplite compiles the highlight machinery out, so the sheet must not exist there');
+    // The slot's Look and Bold: no thresholds, no levels, no other rows.
+    assert.deepEqual(sheet.items.map((i) => i.messageKey), [slotKey + 'PhoneBatteryLook', 'threshPhoneBatteryBoldMode'],
+      'the Look, then one Bold row — the slot has no levels to threshold');
+    const bold = sheet.items[1];
+    assert.equal(bold.type, 'segmented');
+    assert.equal(bold.defaultValue, 'off');
+    assert.deepEqual(bold.options, [['Off', 'off'], ['Always', 'always']]);
+
+    // ...and the pencil actually gets here, in both looks: the end-to-end proof that both
+    // looks open the slot's one sheet.
+    ['both', 'text'].forEach((look) => {
+      const S = {};
+      S[slotKey] = 'phoneBattery';
+      S[slotKey + 'PhoneBatteryLook'] = look;
+      assert.equal(resolve(S, { thresholds: true }, { messageKey: slotKey }), id,
+        slotKey + ': the ' + look + ' look opens its Phone battery sheet');
+    });
+    // The gate is the same env flag the section carries — no pencil on aplite.
+    const S = {};
+    S[slotKey] = 'phoneBattery';
+    assert.equal(resolve(S, platform.computeEnv({ platform: 'aplite' }), { messageKey: slotKey }),
+      null, 'no edit pencil on aplite, which has no threshold machinery');
   });
-  // The gate is the same env flag the section carries — no pencil on aplite.
-  assert.equal(
-    resolve({ statusForecastLeft: 'phoneBattery' },
-      platform.computeEnv({ platform: 'aplite' }), { messageKey: 'statusForecastLeft' }),
-    null, 'no edit pencil on aplite, which has no threshold machinery');
 });
 
 test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt, nothing on aplite', () => {
@@ -3413,4 +3459,17 @@ test('no key is a colour in one item and another type in the next', () => {
   const mixed = Object.keys(types).filter((k) => types[k].has('color') && types[k].size > 1);
   assert.deepEqual(mixed, []);
   assert.ok(Object.keys(types).filter((k) => types[k].has('color')).length > 10, 'the rule has colours to hold');
+});
+
+test('Settings Theme is a dropdown of Auto, Light, Dark, Black', () => {
+  let found = null;
+  (function walk(n) {
+    if (!n || typeof n !== 'object') { return; }
+    if (n.messageKey === 'configTheme') { found = n; return; }
+    Object.keys(n).forEach((k) => walk(n[k]));
+  })(schema);
+  assert.ok(found, 'configTheme item');
+  assert.equal(found.type, 'select');
+  assert.equal(found.defaultValue, 'auto');
+  assert.deepEqual(found.options, [['Auto', 'auto'], ['Light', 'light'], ['Dark', 'dark'], ['Black', 'black']]);
 });

@@ -21,7 +21,7 @@ const d = (over) => decide(Object.assign({
 
 test('a no-op close: nothing forced, nothing cleared, caches kept', () => {
   assert.deepEqual(d(), {
-    needsRefetch: false, pureAck: false, forceFetch: false, clearNotice: false,
+    needsRefetch: false, pureAck: false, forceFetch: false, clearNotice: false, dropSnapshots: false,
   });
 });
 
@@ -38,6 +38,12 @@ test('the Force toggle forces a fetch without dropping the caches', () => {
   const dec = d({ fetchToggle: true });
   assert.equal(dec.forceFetch, true);
   assert.equal(dec.needsRefetch, false, 'a plain forced fetch resends what changed');
+});
+
+test('only the Force toggle drops the forecast snapshots: every other forced fetch may reuse them', () => {
+  assert.equal(d({ fetchToggle: true }).dropSnapshots, true, 'it asks every provider again');
+  ['providerOrLocationChanged', 'radarProviderChanged', 'renderSettingsChanged', 'authBackoffActive', 'acked']
+    .forEach((flag) => { assert.equal(d({ [flag]: true }).dropSnapshots, false, flag); });
 });
 
 test('an active auth backoff forces an immediate retry on close', () => {

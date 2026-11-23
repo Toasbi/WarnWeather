@@ -46,12 +46,16 @@ if (typeof require !== 'undefined') {
     var intervalBudget = (typeof require !== 'undefined')
         ? require('../weather/budgets/interval-budget.js') : PConf.intervalBudget;
     // Country → recommended-provider mapping (shared with the wizard).
-    var CD = (typeof require !== 'undefined') ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
+    var CD = (typeof require !== 'undefined') ? require('../../settings/domain/country-defaults.js') : COUNTRY_DEFAULTS;
     // The weather condition icons (condition-icons.js), for the condition slot's list of conditions.
     var conditionIcons = (typeof require !== 'undefined')
         ? require('../weather/condition-icons.js') : window.ConditionIcons;
     // The weather condition slot's vocabulary, for its list of every condition.
     var conditionLib = (typeof require !== 'undefined') ? require('../../weather/domain/condition.js') : window.Condition;
+    // The slots' looks as the bake reads them (slot-text.js, concatenated ahead of this file):
+    // the watch battery's, whose Icon look badges no bold.
+    var slotText = (typeof require !== 'undefined')
+        ? require('../../status-bars/domain/slot-text.js') : window.SlotText;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
     // the same module the watch's wire is packed from, so the row badges below preview
     // exactly what the graph draws. Same dual-context rule as the preview blocks:
@@ -152,19 +156,35 @@ if (typeof require !== 'undefined') {
     PConf.hintResolvers.register('dayMaxHint', dayMaxHint);
 
     // Per-slot edit sheet: the Edit button beside a slot dropdown opens the threshold sheet
-    // for the slot's CURRENT value, when that value is a threshold kind. The catalog's
-    // slot codes and the threshold contract's KINDS codes are the same vocabulary
-    // ('wind', 'aqi', 'steps', ...), so the contract IS the mapping — no hand-copied
-    // list to drift. env gate mirrors the sheets' own showWhen (aplite compiles the
-    // highlight out).
+    // for the slot's CURRENT value, when that value is a threshold kind, whatever its Look
+    // (the Look is the dialog's first row). The catalog's slot codes and the threshold
+    // contract's KINDS codes are the same vocabulary ('wind', 'aqi', 'steps', ...), so the
+    // contract IS the mapping — no hand-copied list to drift. The phone battery's dialog is
+    // its slot's own, since its Look is (status-line-catalog.js phoneBatterySheet): a dialog
+    // is told nothing of the slot that opened it, but this resolver is. env gate mirrors the
+    // sheets' own showWhen (aplite compiles the highlight out).
     PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
-        if (!env || !env.thresholds) { return null; }
         var code = S[args.messageKey];
-        for (var i = 0; i < thresholds.KINDS.length; i++) {
-            if (thresholds.KINDS[i].code === code) { return 'thresh' + thresholds.KINDS[i].key; }
-        }
-        return null;
+        var kind = slotKindIndex(env, code);
+        if (kind === -1) { return null; }
+        if (code === 'phoneBattery') { return statusLineCatalog.phoneBatterySheet(args.messageKey); }
+        return 'thresh' + thresholds.KINDS[kind].key;
     });
+
+    /**
+     * The threshold kind a slot's item opens a dialog for: the contract's index of its code,
+     * -1 for an item without one and on a watch without dialogs (aplite).
+     * @param {Object} env Platform env.
+     * @param {*} code The slot's item code.
+     * @returns {number} Index into thresholds.KINDS, or -1.
+     */
+    function slotKindIndex(env, code) {
+        if (!env || !env.thresholds) { return -1; }
+        for (var i = 0; i < thresholds.KINDS.length; i++) {
+            if (thresholds.KINDS[i].code === code) { return i; }
+        }
+        return -1;
+    }
 
     // --- threshold sliders (the per-slot edit sheets' controls) ------------------
 
@@ -622,8 +642,9 @@ if (typeof require !== 'undefined') {
 
     // Reset-to-defaults for every status bar (the "Reset status bars to defaults" link
     // row in the Status bars tab's All status bars card — schema-gates.js linkRow): every slot
-    // of every bar back to its platform-aware default (the same statusSlotDefault seed a
-    // fresh install gets, hrDefaults flavor included), and every other covered key back
+    // of the Watch, Forecast, Health and Radar bars back to its platform-aware default (the
+    // same statusSlotDefault seed a fresh install gets, hrDefaults flavor included; catalog
+    // allSlotKeys, so bars 4 to 6 keep theirs), and every other covered key back
     // to ITS SCHEMA DEFAULT, resolved through the engine — no value is mirrored here, because
     // mirrored literals drift when the schema changes: the wind arrow's hardcoded
     // false outlived the schema flipping it to true, and the non-uniform "Show
@@ -632,8 +653,11 @@ if (typeof require !== 'undefined') {
     // (their sheets carry no reset of their own), the per-kind display options
     // (the temp slot's Temp/Feels/Both and the day-max kinds' Now/Alert/Both pills
     // with the rows shaping their pair and UV's tomorrow mark, the wind/gust
-    // direction arrows), the date formats and the Show-unit toggles
-    // (the Alert levels group's own reset deliberately covers only the levels),
+    // direction arrows, the weather condition's Look and Name, the city's weather icon,
+    // the watch battery's Look and its text rows), the date formats and the Show-unit
+    // toggles (the Alert levels group's own reset deliberately covers only the levels),
+    // each of those slots' phone battery Look (the slot's own setting, like a countdown
+    // date, but how the slot draws rather than what it counts to, so it goes back too),
     // each weather kind's slot Highlight switch (a slot-sheet row, like Bold — a
     // goal kind's rides its Goals header and that group's reset), each bar's two Alerts
     // sides (on-demand.js DEFAULTS' eight side lists — each bar's Alerts nav row on
@@ -669,8 +693,12 @@ if (typeof require !== 'undefined') {
             'dateSlotMonthFormat',
             'windSlotDirection', 'gustSlotDirection']
             // ...and every day-max kind's mode, pair and tomorrow-mark rows (UV,
-            // wind, gusts, AQI), from the catalog's one table.
-            .concat(statusLineCatalog.dayMaxSettingKeys());
+            // wind, gusts, AQI), from the catalog's one table...
+            .concat(statusLineCatalog.dayMaxSettingKeys())
+            // ...and the watch battery's Look and text rows, and each of these slots'
+            // phone battery Look.
+            .concat(statusLineCatalog.batterySettingKeys())
+            .concat(slotKeys.map(statusLineCatalog.phoneBatteryLookKey));
         // The Watch Status Bar's own toggles exist only where On demand does not.
         if (env && env.onDemand === false) {
             schemaKeys.push('batteryLowOnly', 'showQt', 'vibe', 'btIcons');
@@ -826,14 +854,14 @@ if (typeof require !== 'undefined') {
     // Edit-button badge (engine item.editBadgeFrom): when the slot's current value is an
     // ENABLED threshold kind, the row shows a warn-color ring + danger-color dot before
     // its Edit button, and a 'B' when the slot prints always-bold. Same env gate +
-    // code→kind mapping as the sheet resolver above.
+    // code→kind mapping as the sheet resolver above. The watch battery in its Icon look
+    // draws a battery alone, which has no text to print bold, so its Edit button carries no
+    // badge; in Text and Icon + text its text prints, and bold.
     PConf.badgeResolvers.register('thresholdPenState', function (S, env, args) {
-        if (!env || !env.thresholds) { return null; }
         var code = S[args.messageKey];
-        for (var i = 0; i < thresholds.KINDS.length; i++) {
-            if (thresholds.KINDS[i].code === code) { return penStateForKind(S, env, i); }
-        }
-        return null;
+        var kind = slotKindIndex(env, code);
+        if (kind === -1 || (code === 'battery' && slotText.batteryLook(S, env) === 'icon')) { return null; }
+        return penStateForKind(S, env, kind);
     });
 
     // Platform-aware slot default (Approach A single-source): a status slot's fresh-install
@@ -887,36 +915,6 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The settings as the call budgets read them on the page: radarMode as Save will store it
-     * (screens-page.js radarModeToSave), so a read-out neither counts a radar call Save drops
-     * nor misses one it adds. A copy only while the stored mode lags. (Save's own fit,
-     * onbuild.js, reads the mode the screens page's onSubmit hook has written by then.)
-     * @param {Object} state Settings state.
-     * @param {?Object} env Platform env.
-     * @returns {Object} The state to read.
-     */
-    function budgetState(state, env) {
-        var S = state || {};
-        // screens-page.js loads after this file in the page: looked up at call time.
-        var SP = (typeof require !== 'undefined') ? require('../layout/screens-page.js') : window.ScreensPage;
-        var mode = SP ? SP.radarModeToSave(S, env) : S.radarMode;
-        return mode === S.radarMode ? S : Object.assign({}, S, { radarMode: mode });
-    }
-
-    /**
-     * The interval a budget read-out computes with: the one Save will store (interval-budget.js
-     * fitInterval), not the raw stored value. With a "Fit update interval" guard on, a stored
-     * interval the budget no longer affords (radar picked in Graphs › Rain radar, the interval
-     * set in Setup › Data sources) is replaced at Save; warning "over budget" about it would contradict the toggle.
-     *
-     * @param {Object} state Settings state.
-     * @returns {number} Minutes.
-     */
-    function readoutInterval(state) {
-        return parseInt(intervalBudget.fitInterval(state, state.fetchIntervalMin), 10) || 15;
-    }
-
-    /**
      * Rate-limit info block under the tomorrow.io key field: free-tier limits,
      * the user's projected usage at the current settings, a ✓/✗ verdict, the
      * derived sleep->cadence unlock rule, and (near the hourly ceiling) a
@@ -929,10 +927,10 @@ if (typeof require !== 'undefined') {
      */
     function tomorrowioBudgetBlock(state, env) {
         var B = tomorrowioBudget;
-        state = budgetState(state, env);
+        state = intervalBudget.readoutState(state, env);
         var cpc = B.callsPerCycle(state);
         if (cpc === 0) { return ''; }
-        var interval = readoutInterval(state);
+        var interval = intervalBudget.readoutInterval(state);
         var sleep = B.sleepHours(state);
         var daily = Math.round(B.dailyCalls(state, interval));
         var ok = B.fits(state, interval);
@@ -971,11 +969,12 @@ if (typeof require !== 'undefined') {
      */
     function tomorrowioUsageLine(state, env) {
         var B = tomorrowioBudget;
-        state = budgetState(state, env);
+        state = intervalBudget.readoutState(state, env);
         if (B.callsPerCycle(state) === 0) { return null; }
-        return '~' + Math.round(B.dailyCalls(state, readoutInterval(state))) + ' of ' + B.LIMIT_DAY + ' calls a day';
+        return '~' + Math.round(B.dailyCalls(state, intervalBudget.readoutInterval(state))) + ' of ' + B.LIMIT_DAY + ' calls a day';
     }
     if (keyStatus) { keyStatus.registerUsage('tomorrowio', tomorrowioUsageLine); }
+
 
     /**
      * Monthly-usage info block under the Rainbow API key field ("Rainbow (own key)"'s key
@@ -990,9 +989,9 @@ if (typeof require !== 'undefined') {
      */
     function rainbowBudgetBlock(state, env) {
         var B = rainbowBudget;
-        state = budgetState(state, env);
+        state = intervalBudget.readoutState(state, env);
         if (B.callsPerCycle(state) === 0) { return ''; }
-        var interval = readoutInterval(state);
+        var interval = intervalBudget.readoutInterval(state);
         var sleep = B.sleepHours(state);
         var monthly = Math.round(B.monthlyCalls(state, interval));
         var settingsBits = 'every ' + interval + ' min, '
@@ -1019,9 +1018,9 @@ if (typeof require !== 'undefined') {
      */
     function rainbowUsageLine(state, env) {
         var B = rainbowBudget;
-        state = budgetState(state, env);
+        state = intervalBudget.readoutState(state, env);
         if (B.callsPerCycle(state) === 0) { return null; }
-        return '~' + withThousands(Math.round(B.monthlyCalls(state, readoutInterval(state))))
+        return '~' + withThousands(Math.round(B.monthlyCalls(state, intervalBudget.readoutInterval(state))))
             + ' of ' + withThousands(B.LIMIT_MONTH) + ' calls a month';
     }
     if (keyStatus) { keyStatus.registerUsage('rainbow', rainbowUsageLine); }
@@ -1036,7 +1035,7 @@ if (typeof require !== 'undefined') {
     // same interval-budget.js, at save time for a change made elsewhere (the screens, which
     // decide whether the radar is fetched, on the Watchface tab).
     PConf.optionsResolvers.register('fetchIntervalBudget', function (S, env) {
-        return intervalBudget.fittingOptions(budgetState(S, env));
+        return intervalBudget.fittingOptions(intervalBudget.readoutState(S, env));
     });
 
     // "(Recommended)" markers on the weather + radar provider dropdowns: the option matching the

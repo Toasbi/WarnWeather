@@ -82,7 +82,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function resetCountdownDate(S, changedKey, oldValue, newValue) {
         if (newValue !== 'countdown' || oldValue === 'countdown') { return; }
-        S[changedKey + 'Countdown'] = todayDateValue(new Date());
+        S[catalog.countdownKey(changedKey)] = todayDateValue(new Date());
     }
 
     PConf.onChange.register('clearPollenForProvider', function (S, oldValue, newValue) {

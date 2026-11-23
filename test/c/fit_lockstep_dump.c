@@ -1,5 +1,5 @@
 // Host dump for scripts/check-fit-lockstep.js: what the watch's ONE layout engine
-// (layout.c compute_layout) does with every custom shape the editor can size — each laid
+// (layout.c layout_compute_spec) does with every custom shape the editor can size — each laid
 // out in all four data states (radar / health present or missing) through the watch's own
 // view_spec_resolve — so the phone's fit check (view-cycle.js stackFits: resolveForFit +
 // stackNeed) can be compared with it line by line. Built once per screen family by

@@ -7,15 +7,17 @@ typedef struct StatusRow StatusRow;
 
 StatusRow *status_row_create(uint8_t line_id);
 void status_row_destroy(StatusRow *row);
-// tier is a LayoutTier value (appendix/view_spec.h) — the font tier this row renders at.
-void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, uint8_t line_id);
+// The view facts the row renders with, pushed window -> owner -> row; the resolver reads
+// only row state. The top strip pushes them at create, on a date density change and before
+// each draw (top_status_layer.c seat_row); a band bar before each refresh (status_bar.c
+// refresh_row), so a bar no configured view shows gets them when it joins. `bounds` is the
+// row's band, `tier` a LayoutTier value (appendix/view_spec.h), the font tier it renders
+// at, and `full_date` says no calendar is on screen (layout_full_date in
+// appendix/view_spec.h: a none-tier view, a radar or graph top, or a quick-view peek), so
+// the row's SLOT_LIVE_DATE renders the full date ("Jul 4. 2026") instead of month-year
+// ("Jul 2026").
+void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, bool full_date);
 bool status_row_refresh(StatusRow *row);
-// Per-instance: no calendar is on screen (layout_full_date in appendix/view_spec.h: a
-// none-tier view, a radar or graph top, or a quick-view peek) -> this row's
-// SLOT_LIVE_DATE renders the full date
-// ("Jul 4. 2026") instead of month-year ("Jul 2026"). Pushed window -> owner ->
-// row (tier push); the resolver reads only row state.
-void status_row_set_full_date(StatusRow *row, bool full_date);
 #if defined(PBL_HEALTH)
 // The health readings the row's slots show (services/health_summary.h HEALTH_SUMMARY_*),
 // as of its last refresh; 0 when it shows none. Health watches only: aplite's lean twin

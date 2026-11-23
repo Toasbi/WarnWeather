@@ -199,8 +199,8 @@ test('a resend for another reason counts as the bake of its side of sunset', () 
     buildStatusLines: fakeBake, now: () => now }));
   statusRebake.rememberBakeInputs({ SUN_EVENTS: sunEvents(1, T + 3600, T + 13 * 3600) }, null);
   now = (T + 7200) * 1000;
-  statusRebake.resendStatus('charging');
-  assert.equal(statusRebake.onTick(), false, 'the charging resend already baked the night');
+  statusRebake.resendStatus('level');
+  assert.equal(statusRebake.onTick(), false, 'the level resend already baked the night');
   assert.equal(sends.length, 1);
 });
 
@@ -250,13 +250,165 @@ test('a tick with a fetch in flight leaves the sunset to that fetch\'s bake', ()
   assert.equal(sends.length, 1);
 });
 
-test('the scheduler\'s minute tick runs the day/night check, told whether a fetch is in flight', () => {
+test('the scheduler\'s minute tick runs the re-bake\'s, told whether a fetch is in flight', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
   const body = src.slice(src.indexOf('function onSchedulerTick() {'));
   const tick = body.slice(0, body.indexOf('\n}'));
-  assert.ok(tick.indexOf('statusRebake.onTick(fetching);') > 0);
-  assert.ok(tick.indexOf('phoneBattery.onTick(fetching);') > 0);
-  assert.ok(tick.indexOf('fetchCycle.isInFlight()') > 0);
+  assert.ok(tick.indexOf('statusRebake.onTick(fetchCycle.isInFlight());') > 0);
+});
+
+test('index.js composes the batteries\' facts once: the fetch\'s bake, the re-bake\'s and the fixture\'s read the same', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
+  assert.match(src, /function bakeFacts\(\) \{\n    return \{ phone: phoneBattery\.bakeFacts\(\), watch: batteryEstimate\.bakeFacts\(\) \};\n\}/);
+  assert.equal((src.match(/getBakeFacts: bakeFacts,/g) || []).length, 2, 'the fetch cycle and the re-bake');
+  assert.ok(src.indexOf('facts: bakeFacts() });') > 0, 'the fixture send');
+});
+
+test('a re-bake reads the supplier\'s facts, the phone\'s replaced where the caller brings its own', () => {
+  storage = {};
+  const seen = [];
+  const supplied = { phone: { supported: true }, watch: { estimate: () => null } };
+  statusRebake.init(withHost({ getSettings: () => ({}), sendWeather: () => {}, getBakeFacts: () => supplied,
+    buildStatusLines: (payload, settings, watchInfo, now, facts) => { seen.push(facts); return fakeBake(payload); } }));
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null);
+  statusRebake.resendStatus('test');
+  assert.equal(seen[0], supplied, 'as supplied');
+  const exact = { supported: true, reading: () => ({ available: true, level: 62 }) };
+  statusRebake.bakeStatus(exact);
+  assert.equal(seen[1].phone, exact, 'the ride-along\'s exact reading');
+  assert.equal(seen[1].watch, supplied.watch, 'beside the watch battery\'s, untouched');
+  assert.equal(supplied.phone.reading, undefined, 'and the supplier\'s object is not written to');
+
+  // A host that supplies none: the bake is handed null, or the caller's phone alone.
+  statusRebake.init(withHost({ getSettings: () => ({}), sendWeather: () => {},
+    buildStatusLines: (payload, settings, watchInfo, now, facts) => { seen.push(facts); return fakeBake(payload); } }));
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null);
+  statusRebake.resendStatus('test');
+  assert.equal(seen[2], null);
+  statusRebake.bakeStatus(exact);
+  assert.deepEqual(Object.keys(seen[3]), ['phone']);
+});
+
+// --- News that can wait for the morning (resendStatusAwake) -------------------
+// A battery reading that moved is sent at once by day. Inside the Night battery saver's
+// window its send is owed, and the first tick after the window pays it.
+
+/**
+ * A re-baker with bake inputs, at a clock the test moves, under the saver's 0:00-07:00 window.
+ * @param {Object} [settings] Settings (the saver on by default).
+ * @returns {{sends: Object[], at: function(number, number): void}} What was sent, and the clock's setter.
+ */
+function bootSaver(settings) {
+  storage = {};
+  const h = { sends: [], now: 0 };
+  h.at = (hour, minute) => { h.now = new Date(2026, 5, 16, hour, minute).getTime(); };
+  h.at(12, 0);
+  statusRebake.init(withHost({
+    getSettings: () => settings || { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' },
+    sendWeather: (p) => h.sends.push(p), buildStatusLines: fakeBake, now: () => h.now }));
+  // Baked at noon, with no sun events: no day/night turn of its own in these tests.
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null, new Date(h.now));
+  return h;
+}
+
+test('resendStatusAwake sends at once outside the saver window, after its step', () => {
+  const h = bootSaver();
+  const order = [];
+  h.sends.push = (p) => { order.push('send'); return Array.prototype.push.call(h.sends, p); };
+  assert.equal(statusRebake.resendStatusAwake('level', () => order.push('step')), true);
+  assert.deepEqual(order, ['step', 'send'], 'the step runs before the bake that is sent');
+  assert.equal(statusRebake.onTick(false), false, 'nothing is owed afterwards');
+  assert.equal(h.sends.length, 1);
+});
+
+test('inside the saver window the send is owed: no step, no send, until the first tick after it', () => {
+  const h = bootSaver();
+  let steps = 0;
+  const step = () => { steps += 1; };
+  h.at(3, 0);
+  assert.equal(statusRebake.resendStatusAwake('level', step), false);
+  assert.equal(statusRebake.resendStatusAwake('level', step), false, 'a second move inside the window');
+  assert.equal(h.sends.length, 0, 'no wake-up for a readout overnight');
+  assert.equal(steps, 0, 'and its step waits with it');
+  h.at(6, 59);
+  assert.equal(statusRebake.onTick(false), false, 'still inside [0, 7)');
+  h.at(7, 0);
+  assert.equal(statusRebake.onTick(true), false, 'not beside a fetch in flight, whose message carries the status');
+  assert.equal(h.sends.length, 0);
+  assert.equal(statusRebake.onTick(false), true, 'the next tick pays it');
+  assert.equal(h.sends.length, 1, 'one send');
+  assert.equal(steps, 1, 'a trigger\'s step runs once, however often it owed');
+  assert.equal(statusRebake.onTick(false), false, 'once');
+  assert.equal(h.sends.length, 1);
+});
+
+test('one send pays every trigger: the steps of all, in the order they came to owe', () => {
+  const h = bootSaver();
+  const ran = [];
+  h.at(3, 0);
+  statusRebake.resendStatusAwake('level', () => ran.push('phone'));
+  statusRebake.resendStatusAwake('battery-days');   // a trigger without a step owes a send too
+  h.at(7, 30);
+  // A reading that moves after the window, before the tick: its send carries what was owed.
+  assert.equal(statusRebake.resendStatusAwake('other', () => ran.push('other')), true);
+  assert.deepEqual(ran, ['phone', 'other']);
+  assert.equal(h.sends.length, 1);
+  assert.equal(statusRebake.onTick(false), false, 'the debt went with it');
+});
+
+test('a trigger without a step owes a send all the same; with the saver off nothing is ever owed', () => {
+  const h = bootSaver();
+  h.at(3, 0);
+  assert.equal(statusRebake.resendStatusAwake('battery-days'), false);
+  h.at(7, 0);
+  assert.equal(statusRebake.onTick(false), true);
+  assert.equal(h.sends.length, 1);
+
+  const off = bootSaver({ sleepNightEnabled: false });
+  off.at(3, 0);
+  assert.equal(statusRebake.resendStatusAwake('battery-days'), true, '03:00 with the saver off is an ordinary minute');
+  assert.equal(off.sends.length, 1);
+});
+
+test('oweStatus sends nothing now, by day or by night: the next tick that may send pays it', () => {
+  const h = bootSaver();
+  let steps = 0;
+  statusRebake.oweStatus(() => { steps += 1; });
+  statusRebake.oweStatus();
+  assert.equal(h.sends.length, 0, 'noon, outside the window: still not sent from here');
+  assert.equal(statusRebake.onTick(true), false, 'not beside a fetch in flight');
+  assert.equal(h.sends.length, 0);
+  assert.equal(statusRebake.onTick(false), true);
+  assert.equal(h.sends.length, 1, 'one send for both');
+  assert.equal(steps, 1);
+  assert.equal(statusRebake.onTick(false), false, 'once');
+
+  h.at(3, 0);
+  statusRebake.oweStatus();
+  assert.equal(statusRebake.onTick(false), false, 'inside the saver window it waits, as any owed send');
+  h.at(7, 0);
+  assert.equal(statusRebake.onTick(false), true);
+  assert.equal(h.sends.length, 2);
+});
+
+test('a resend for another reason inside the window leaves the debt, and init forgets it', () => {
+  const h = bootSaver();
+  let steps = 0;
+  h.at(3, 0);
+  statusRebake.resendStatusAwake('level', () => { steps += 1; });
+  // A settings save at night (the user is awake) re-bakes at once, without the owed step.
+  assert.equal(statusRebake.resendStatus('config-close'), true);
+  assert.equal(steps, 0);
+  h.at(7, 0);
+  assert.equal(statusRebake.onTick(false), true, 'still owed');
+  assert.equal(steps, 1);
+
+  const again = bootSaver();
+  again.at(3, 0);
+  statusRebake.resendStatusAwake('level');
+  const fresh = bootSaver();   // a new PKJS life
+  fresh.at(7, 0);
+  assert.equal(statusRebake.onTick(false), false, 'a debt does not outlive its PKJS');
 });
 
 test('init without a clock is refused at once, not at the first tick', () => {

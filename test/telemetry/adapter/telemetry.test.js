@@ -110,6 +110,14 @@ test('snapshot includes aqiScale', () => {
   assert.equal(buildSettingsSnapshot({ aqiScale: 'european' }).aqiScale, 'european');
 });
 
+// Lockstep: it is also in the Deno .strip() schema (telemetry-ingest/handler.ts).
+test('snapshot includes the reading picks', () => {
+  const picks = { weatherSourceUv: 'openmeteo', weatherSourceWind: 'dwd', weatherSourceDew: '' };
+  assert.strictEqual(buildSettingsSnapshot(picks).weatherSources, 'wind:dwd,uv:openmeteo', 'in the readings\' order');
+  assert.strictEqual(buildSettingsSnapshot({}).weatherSources, '');
+  assert.strictEqual(buildSettingsSnapshot({}).weatherSourceMode, undefined, 'no Weather from mode any more');
+});
+
 test('snapshot includes aqiSource', () => {
   assert.strictEqual(buildSettingsSnapshot({ aqiSource: 'waqi' }).aqiSource, 'waqi');
   assert.strictEqual(buildSettingsSnapshot({ aqiSource: 'auto' }).aqiSource, 'auto');
@@ -255,6 +263,38 @@ test('snapshot reports rainReplacesSlot where On demand exists', () => {
   assert.ok(Object.prototype.hasOwnProperty.call(aplite, 'rainReplacesSlot'), 'still emitted as a key');
   assert.ok(!Object.prototype.hasOwnProperty.call(buildSettingsSnapshot({ alertsReplaceSlot: 'now' }),
     'alertsReplaceSlot'), 'the 3.2.0 field is gone');
+});
+
+// The watch battery's Look and what its text shows, read as the bake reads them
+// (slot-text.js batteryLook, battery-days.js display), absent on aplite. Lockstep: they are
+// also in the Deno .strip() schema (telemetry-ingest/handler.ts). The phone battery's Look
+// is each slot's own and is not reported; 3.3.0's batteryPctSlotShow never shipped.
+test('snapshot reports the watch battery\'s Look and what its text shows', () => {
+  const fresh = buildSettingsSnapshot({}, { platform: 'basalt' });
+  assert.equal(fresh.batterySlotLook, 'icon', 'absent: the drawn battery');
+  assert.equal(fresh.batterySlotDisplay, 'percent');
+  const set = buildSettingsSnapshot({ batterySlotLook: 'text', batterySlotDisplay: 'both' }, { platform: 'basalt' });
+  assert.deepEqual([set.batterySlotLook, set.batterySlotDisplay], ['text', 'both']);
+  assert.equal(buildSettingsSnapshot({ batterySlotLook: 'both' }, { platform: 'basalt' }).batterySlotLook, 'both',
+    'the Icon + text look');
+  assert.equal(buildSettingsSnapshot({ batterySlotDisplay: 'days' }, { platform: 'basalt' }).batterySlotDisplay, 'days');
+  const junk = buildSettingsSnapshot({ batterySlotLook: 7, batterySlotDisplay: 'weeks' }, { platform: 'basalt' });
+  assert.deepEqual([junk.batterySlotLook, junk.batterySlotDisplay], ['icon', 'percent'],
+    'anything unknown reads as the default, as the bake reads it');
+  const aplite = buildSettingsSnapshot({ batterySlotLook: 'text', batterySlotDisplay: 'both' }, { platform: 'aplite' });
+  ['batterySlotLook', 'batterySlotDisplay'].forEach((key) => {
+    assert.strictEqual(aplite[key], undefined, key + ': aplite draws its one battery slot its own way');
+  });
+  ['batteryPctSlotShow', 'phoneBatterySlotLook'].forEach((key) => {
+    assert.ok(!Object.prototype.hasOwnProperty.call(set, key), key + ' is not sent');
+  });
+  // The server keeps what the phone sends: each field is in the function's schema.
+  const handler = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', '..',
+    'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
+  ['batterySlotLook', 'batterySlotDisplay'].forEach((key) => {
+    assert.ok(handler.indexOf('    ' + key + ': z.string().optional(),') !== -1, key + ' is in handler.ts');
+  });
+  assert.equal(handler.indexOf('batteryPctSlotShow'), -1);
 });
 
 test('buildSettingsSnapshot includes radarMode (default graph)', () => {
@@ -422,6 +462,13 @@ const HEAVIEST_SETTINGS = {
   windSlotDisplay: 'current', gustSlotDisplay: 'current',
   dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
   aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
+  // Every reading set to the longest provider id.
+  weatherSourceCurrentTemp: 'openweathermap', weatherSourceCurrentFeels: 'openweathermap',
+  weatherSourceCondition: 'openweathermap', weatherSourceTemperature: 'openweathermap',
+  weatherSourceFeels: 'openweathermap', weatherSourceDew: 'openweathermap', weatherSourceRainChance: 'openweathermap',
+  weatherSourceRainAmount: 'openweathermap', weatherSourceWind: 'openweathermap', weatherSourceGust: 'openweathermap',
+  weatherSourceWindDir: 'openweathermap', weatherSourceUv: 'openweathermap', weatherSourceCloud: 'openweathermap',
+  weatherSourcePressure: 'openweathermap',
   gustSlotDirection: true,
   threshPhoneBatteryBoldMode: 'always', threshConditionBoldMode: 'always', dayNightShading: true,
   healthMode: 'status', fetchIntervalMin: '120',

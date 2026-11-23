@@ -93,10 +93,9 @@
     // value, and it carries NO health-threshold blob entry.
     { code: 'uv',       key: 'Uv' },
     // Bold-only kinds (appended, wire ids 8..15): every remaining selectable
-    // slot option except battery, which renders a drawn glyph with no text run
-    // so a Bold option would be a no-op lie. They own NO enable bit (blob[0]
-    // covers the 8 paired kinds only), no color pair, and no health u16 — only
-    // their 2-bit bold cell in the bold area (bytes 29..33).
+    // slot option but the watch battery, which has its entry further down. They own
+    // NO enable bit (blob[0] covers the 8 paired kinds only), no color pair, and no
+    // health u16 — only their 2-bit bold cell in the bold area (bytes 29..33).
     { code: 'temp',      key: 'Temp', boldOnly: true },
     { code: 'pressure',  key: 'Pressure', boldOnly: true },
     { code: 'sun',       key: 'Sun', boldOnly: true },
@@ -105,10 +104,13 @@
     { code: 'city',      key: 'City', boldOnly: true },
     { code: 'countdown', key: 'Countdown', boldOnly: true },
     { code: 'hr',        key: 'Hr', boldOnly: true },
-    // Battery % (kind 16, appended): unlike the GLYPH battery slot — still
-    // kind-less, a drawn glyph has no text run to bold — the % slot renders
-    // text, so it owns a bold cell: the first one in byte 33.
-    { code: 'batteryPct', key: 'BatteryPct', boldOnly: true },
+    // The watch battery (kind 16, appended): its Text and Icon + text looks render
+    // text (SLOT_LIVE_BATTERY_PCT), so it owns a bold cell: the first one in byte 33. In
+    // its Icon look the watch draws a battery alone, which has no text run to bold and
+    // no kind on the watch, so the cell is read by no slot then. The key is from when
+    // the text look was an item of its own ('batteryPct', until 3.3.0); it names the
+    // stored threshBatteryPctBoldMode, so it stays.
+    { code: 'battery', key: 'BatteryPct', boldOnly: true },
     // Dew point (kind 17, appended): byte 33's SECOND cell, so SETTINGS_BYTES
     // stays 34 and the Clay message does not grow. Dew is a temperature, and the
     // temp slot already has its own kind, so it needs one too — otherwise its
@@ -116,13 +118,15 @@
     { code: 'dew', key: 'Dew', boldOnly: true },
     // Phone battery (kinds 18/19, appended): byte 33's THIRD and FOURTH cells —
     // the last two, so SETTINGS_BYTES still stays 34. TWO wire kinds because the
-    // watch must tell the no-icon variant apart from a plain TEXT+ICON_NONE city
+    // watch must tell its Text look apart from a plain TEXT+ICON_NONE city
     // slot (status_threshold.h), but ONE settings key on purpose: both entries
-    // carry key 'PhoneBattery', so the sheet resolver hands both catalog codes
-    // the same Bold sheet and status-wire.js buildSettingsBlob reads the one
+    // carry key 'PhoneBattery', so status-wire.js buildSettingsBlob reads the one
     // threshPhoneBatteryBoldMode setting twice, writing the SAME mode into both
     // cells. Nothing in the packer keys off `key` being unique — boldModeFor()
     // is a plain per-entry lookup — so the duplicate is a share, not a clash.
+    // 'phoneBatteryPlain' is the wire kind of the Text look alone: no catalog item
+    // has the code since 3.3.0 (the look is the phone battery's own setting), so no
+    // slot's Edit button resolves through it.
     { code: 'phoneBattery', key: 'PhoneBattery', boldOnly: true },
     { code: 'phoneBatteryPlain', key: 'PhoneBattery', boldOnly: true },
     // The weather condition (kind 20, appended): bold-only, for its Text look and every

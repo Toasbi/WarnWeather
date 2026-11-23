@@ -11,7 +11,8 @@
 // under antialiasing, or the old icon or a line drawing, whose slanted lines antialiasing smooths
 // with grey pixels on the colour watches (the black and white ones draw the old icon as it is and
 // a line drawing's pixels). Drawn 1:1, nothing is scaled; each drawing carries its size and seat
-// (status_icon_size.h). After its own lines come its faded pixels (faded_pixel.h).
+// (status_icon_size.h). Its faded pixels are commands marked by their fill (faded_pixel.h), in
+// whatever order costs the file fewest bytes: each command is painted by its own mark.
 
 // The drawing's own lines in the ink; a faded pixel shaded between the paper and the ink on the
 // colour watches, hidden on the black and white ones.

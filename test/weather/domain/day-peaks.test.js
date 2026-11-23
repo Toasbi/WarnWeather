@@ -20,6 +20,8 @@ const record = require('../../../src/pkjs/weather/domain/day-peaks.js');
 const recordStore = require('../../../src/pkjs/weather/adapter/day-peaks-store.js');
 const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
 const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
+const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
+const { testPorts } = require('../../helpers/source-ports.js');
 // The UV slot's reader, in the (trend, peaks, mode) shape these tests grew up on.
 const uvShown = (trend, peaks, mode) => require('../../../src/pkjs/wire/domain/wire-units.js')
   .dayMaxShown('uv', { UV_TREND_UINT8: trend, UV_DAY_PEAKS: peaks }, { uvSlotDisplay: mode });
@@ -102,7 +104,8 @@ const CURVE = TODAY.concat(TOMORROW, [0, 0]);
 
 /**
  * One fetch at `hour`:10 on the 15th; resolves with the composed payload, or
- * null when it was abandoned before sending.
+ * null when it was abandoned before sending. A provider that sends UV brings the
+ * curve itself; for one that does not (DWD), the source plan's UV fill brings it.
  */
 function fetchAt(provider, hour, opts) {
   const o = opts || {};
@@ -115,16 +118,18 @@ function fetchAt(provider, hour, opts) {
   provider.withCityName = (lat, lon, cb) => cb('Testville', 'DE');
   provider.withSunEvents = (lat, lon, cb) => cb([{ type: 'sunrise', date: new Date(0) },
     { type: 'sunset', date: new Date(1000) }]);
+  const uv = (o.curve || CURVE).slice(hour, hour + 49);
   provider.withProviderData = function (lat, lon, force, ok) {
     Object.assign(this, { numEntries: 24, startTime: start, currentTemp: 60,
       tempTrend: new Array(24).fill(60), precipTrend: new Array(24).fill(0),
-      uvTrend: (o.curve || CURVE).slice(hour, hour + 49) });
+      uvTrend: providerReadings.serves(this.id, 'uv') ? uv : [] });
     ok();
   };
+  const ports = testPorts({ fillUv: (p, lat, lon, done) => { p.uvTrend = uv; done(); } });
   try {
     provider.fetchWithCoordinates(o.lat || SRC.lat, SRC.lon, () => {}, (f) => {
       throw new Error('fetch failed: ' + JSON.stringify(f));
-    }, false, null, null, o.abandoned ? () => false : undefined);
+    }, false, null, null, o.abandoned ? () => false : undefined, ports);
   } finally {
     Date.now = realNow;
     outbox.sendWeather = realSend;
@@ -179,6 +184,8 @@ test('a switch between DWD and Open-Meteo keeps the record: both read Open-Meteo
   fetchAt(om, 0);
   fetchAt(om, 11);
   const dwd = new Dwd();
+  // DWD sends no UV: with UV drawn the source plan takes it from Open-Meteo (source-plan.js).
+  dwd.options = require('../../../src/pkjs/weather/domain/fetch-options.js').defaults({ fetchUv: true, drawn: ['uv'] });
   assert.equal(both(fetchAt(dwd, 13)), '5/5');
 });
 
@@ -233,6 +240,26 @@ test('a UV day record that cannot be read never fails the fetch', () => {
   } finally {
     global.localStorage.getItem = realGet;
   }
+});
+
+test('each record is keyed by the provider its reading came from (the fetch\'s feeds)', () => {
+  // A reading pick lays another provider's reading on the Provider's, and a fill brings
+  // a reading of its own (fetch-sources.js).
+  const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
+  const p = Object.assign(new WeatherProvider(), { id: 'openweathermap', startTime: at(15, 9),
+    uvTrend: CURVE.slice(9, 58), windTrend: new Array(49).fill(10), gustTrend: new Array(49).fill(20) });
+  p.options = fetchOptions.defaults({ fetchUv: true, dayPeakCodes: ['uv', 'wind', 'gust'] });
+  const ids = () => record.recall(p, SRC.lat, SRC.lon, at(15, 9) + 600, () => null).records
+    .map((e) => e.storageKey + ':' + e.record.id);
+  p.feeds = { uv: 'metno', wind: 'metno', gust: 'metno' };
+  assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':metno', KEYS.WIND_DAY_RECORD_KEY + ':metno',
+    KEYS.GUST_DAY_RECORD_KEY + ':metno']);
+  p.feeds = { uv: 'openmeteo', wind: 'dwd', gust: 'yandex' };
+  assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':openmeteo', KEYS.WIND_DAY_RECORD_KEY + ':dwd',
+    KEYS.GUST_DAY_RECORD_KEY + ':yandex'], 'the gusts are a reading of their own');
+  p.feeds = null;
+  assert.deepEqual(ids(), [KEYS.UV_DAY_RECORD_KEY + ':openweathermap', KEYS.WIND_DAY_RECORD_KEY + ':openweathermap',
+    KEYS.GUST_DAY_RECORD_KEY + ':openweathermap'], 'a fetch that names none: its own');
 });
 
 test('without UV nothing is read or stored', () => {

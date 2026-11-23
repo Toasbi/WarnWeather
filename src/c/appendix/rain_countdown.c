@@ -86,11 +86,9 @@ bool rain_countdown_get(RainCountdown *rc, time_t now) {
     }
     // A cached segment has at least one rain slot, so its tier is never 0; the bucket
     // is clamped all the same, so the drops always draw.
-    const int tier = rain_tier_of_tenths((int) s_rc_peak_tenths);
-    const int bucket = rain_tier_to_bucket3(tier);
+    const int bucket = rain_tier_to_bucket3(rain_tier_of_tenths((int) s_rc_peak_tenths));
     rc->mins = (uint8_t) (mins > RAIN_COUNTDOWN_MINS_MAX ? RAIN_COUNTDOWN_MINS_MAX + 1 : mins);
     rc->raining = raining;
-    rc->tier = (uint8_t) tier;
     rc->bucket = (uint8_t) (bucket < 1 ? 1 : bucket);
     return true;
 }

@@ -1,6 +1,37 @@
 #include "status_threshold.h"
 #include <string.h>
 
+// A text slot's kind by its icon id, and every other slot's by its slot kind, each stored as
+// ThreshKind + 1 so that every id left out reads 0: no kind (-1).
+static const uint8_t TEXT_KIND[] = {
+    [STATUS_ICON_AQI]       = THRESH_AQI + 1,
+    [STATUS_ICON_POLLEN]    = THRESH_POLLEN + 1,
+    [STATUS_ICON_WIND]      = THRESH_WIND + 1,
+    [STATUS_ICON_GUST]      = THRESH_GUST + 1,
+    [STATUS_ICON_DEWPOINT]  = THRESH_DEW + 1,
+    [STATUS_ICON_PHONE_BATTERY] = THRESH_PHONE_BATTERY + 1,
+    // The no-icon phone-battery item: its own kind exists precisely so it does not read as
+    // STATUS_ICON_NONE, the city, and drive City's bold.
+    [STATUS_ICON_PHONE_BATTERY_PLAIN] = THRESH_PHONE_BATTERY_PLAIN + 1,
+    [STATUS_ICON_UV]        = THRESH_UV + 1,
+    [STATUS_ICON_TEMP]      = THRESH_TEMP + 1,
+    [STATUS_ICON_PRESSURE]  = THRESH_PRESSURE + 1,
+    [STATUS_ICON_DRAWN_SUN] = THRESH_SUN + 1,
+    [STATUS_ICON_COUNTDOWN] = THRESH_COUNTDOWN + 1,
+};
+static const uint8_t LIVE_KIND[] = {
+    [SLOT_LIVE_STEPS]       = THRESH_STEPS + 1,
+    [SLOT_LIVE_SLEEP]       = THRESH_SLEEP + 1,
+    [SLOT_LIVE_DISTANCE]    = THRESH_DISTANCE + 1,
+    [SLOT_LIVE_DISTANCE_MI] = THRESH_DISTANCE + 1,
+    [SLOT_LIVE_DATE]        = THRESH_DATE + 1,
+    [SLOT_LIVE_WEEK]        = THRESH_WEEK + 1,
+    [SLOT_LIVE_HR]          = THRESH_HR + 1,
+    [SLOT_LIVE_BATTERY_PCT] = THRESH_BATTERY_PCT + 1,
+    // SLOT_LIVE_BATTERY has none: the glyph battery slot draws no text run, so a bold mode
+    // could never render. SLOT_EMPTY likewise.
+};
+
 int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
     if (slot_kind == SLOT_TEXT) {
         // The city, with or without the current weather's glyph (status_line.h
@@ -10,40 +41,9 @@ int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
         if (status_icon_is_city(icon)) { return THRESH_CITY; }
         // The weather condition: its Text look and every glyph (status_line.h).
         if (status_icon_is_condition(icon)) { return THRESH_CONDITION; }
-        switch (icon) {
-            case STATUS_ICON_AQI:       return THRESH_AQI;
-            case STATUS_ICON_POLLEN:    return THRESH_POLLEN;
-            case STATUS_ICON_WIND:      return THRESH_WIND;
-            case STATUS_ICON_GUST:      return THRESH_GUST;
-            case STATUS_ICON_DEWPOINT:  return THRESH_DEW;
-            // One item, two glyphs: the phone picks _CHG at bake time, so both
-            // icons carry the SAME kind and one Bold row covers charging or not.
-            case STATUS_ICON_PHONE_BATTERY:
-            case STATUS_ICON_PHONE_BATTERY_CHG: return THRESH_PHONE_BATTERY;
-            // The no-icon phone-battery item: its own kind exists precisely so
-            // it does not land on STATUS_ICON_NONE below and drive City's bold.
-            case STATUS_ICON_PHONE_BATTERY_PLAIN: return THRESH_PHONE_BATTERY_PLAIN;
-            case STATUS_ICON_UV:        return THRESH_UV;
-            case STATUS_ICON_TEMP:      return THRESH_TEMP;
-            case STATUS_ICON_PRESSURE:  return THRESH_PRESSURE;
-            case STATUS_ICON_DRAWN_SUN: return THRESH_SUN;
-            case STATUS_ICON_COUNTDOWN: return THRESH_COUNTDOWN;
-            default: return -1;
-        }
+        return icon < sizeof(TEXT_KIND) ? TEXT_KIND[icon] - 1 : -1;
     }
-    switch (slot_kind) {
-        case SLOT_LIVE_STEPS: return THRESH_STEPS;
-        case SLOT_LIVE_SLEEP: return THRESH_SLEEP;
-        case SLOT_LIVE_DISTANCE:
-        case SLOT_LIVE_DISTANCE_MI: return THRESH_DISTANCE;
-        case SLOT_LIVE_DATE: return THRESH_DATE;
-        case SLOT_LIVE_WEEK: return THRESH_WEEK;
-        case SLOT_LIVE_HR:   return THRESH_HR;
-        case SLOT_LIVE_BATTERY_PCT: return THRESH_BATTERY_PCT;
-        // SLOT_LIVE_BATTERY stays -1: the glyph battery slot draws, no text
-        // run, so a bold mode could never render. SLOT_EMPTY likewise.
-        default: return -1;
-    }
+    return slot_kind < sizeof(LIVE_KIND) ? LIVE_KIND[slot_kind] - 1 : -1;
 }
 
 // Level for a value against an ordered threshold pair. Crossing is inclusive:
@@ -252,7 +252,7 @@ ThreshLook status_threshold_look(const uint8_t blob[THRESH_SETTINGS_BYTES], int 
         ? status_threshold_warn_look(blob, kind) : THRESH_WARN_LOOK_NONE;
     ThreshLook look = {
         .box = (uint8_t)(level == THRESH_LEVEL_DANGER ? THRESH_BOX_FILL : warn_look),
-        .bold = (uint8_t)status_threshold_is_bold(blob, kind, level),
+        .bold = status_threshold_is_bold(blob, kind, level),
         .color8 = status_threshold_color8(blob, kind, level),
     };
     return look;

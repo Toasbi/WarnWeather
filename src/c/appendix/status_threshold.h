@@ -170,8 +170,8 @@ typedef enum {
     // TWO kinds, ONE settings key: the phone's KINDS table gives both entries
     // key 'PhoneBattery' (src/pkjs/alerts/domain/status-thresholds.js), so they share one Bold
     // sheet and the packer writes the same mode into both cells. Kind 18 covers
-    // the icon variants (STATUS_ICON_PHONE_BATTERY and _CHG — one item, two
-    // glyphs); kind 19 covers the no-icon variant, which without its own kind
+    // the item with its glyph (STATUS_ICON_PHONE_BATTERY); kind 19 covers the
+    // no-icon variant, which without its own kind
     // would arrive as SLOT_TEXT + STATUS_ICON_NONE and drive THRESH_CITY.
     THRESH_PHONE_BATTERY = 18,
     THRESH_PHONE_BATTERY_PLAIN = 19,
@@ -386,7 +386,7 @@ bool status_threshold_battery_value(const uint8_t blob[THRESH_SETTINGS_BYTES]);
 typedef struct {
     uint8_t box;      // ThreshBox: NORMAL none, DANGER fill, WARN the kind's warn look
                       // (none for a kind without a pair; the reserved 3 an outline)
-    uint8_t bold;     // 1 = the bold companion font, per the kind's ThreshBold ladder
+    bool bold;        // the bold companion font, per the kind's ThreshBold ladder
                       // (an out-of-range kind, and the reserved 3, take the default
                       // WARN); never for kind -1 (no threshold-capable content)
     uint8_t color8;   // the RAW GColor8 byte behind the box: the kind's warn or danger

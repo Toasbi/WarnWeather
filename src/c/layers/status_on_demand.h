@@ -2,6 +2,7 @@
 #include <pebble.h>
 #include "../appendix/alert_set.h"
 #include "../appendix/on_demand.h"
+#include "status_row_slot.h"   // StatusRowSlot: the slots the layout makes room among
 
 // On demand's SDK half: which items of a bar are active, their glyphs, measures and
 // paint, and the slots' short forms measured. The layout — how the bar's slots make
@@ -28,8 +29,8 @@
 //                 Bluetooth colours (PictonBlue / red on a dark colour theme).
 //  - Quiet time   quiet_time_is_active(): the muted speaker.
 //  - Sleep        the phone's Battery saver hours (IS_SLEEPING): the Z's.
-//  - Rain         the watch-resolved rain countdown: the drops tinted by the radar
-//                 tier, the text per the rain look.
+//  - Rain         the watch-resolved rain countdown: the drops of its bucket (drizzle,
+//                 rain or downpour), the text per the rain look.
 //  - the metric alerts (gust, UV, AQI, pollen, wind): an ALERT_ENTRIES entry of the
 //                 kind, drawn as a mini status slot at its real level. Where the
 //                 status slot on its side of the bar shows the same metric, that
@@ -80,8 +81,7 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
 // What the row hands the layout and the paint, in absolute coordinates in the row's
 // layer.
 typedef struct {
-    GFont font;             // the row's regular font
-    GFont bold;             // its bold companion
+    GFont fonts[2];         // the row's regular font [0] and its bold companion [1]
     const uint8_t *blob;    // thresholds settings blob, normalized (THRESH_SCRATCH_BYTES)
     GRect band;             // the row's band — the highlight boxes clamp to it
     int16_t x;              // left edge of the row's content (the slots' origin)
@@ -94,26 +94,16 @@ typedef struct {
     bool top_strip;         // the strip's box floor
 } StatusOnDemandEnv;
 
-// One of the row's slots as the row resolved it: what its short family
-// (status_short_text.h) is derived from.
-typedef struct {
-    uint8_t kind;           // StatusSlotKind
-    uint8_t icon;           // StatusIconId
-    GFont font;             // the font it measures and draws in
-    char *text;             // its full text; the layout writes the member it drew
-    size_t cap;             // over it, in a buffer of this size
-    const char *alt;        // the short form it brought ("" none: status_short_member)
-} StatusOnDemandSlot;
-
 // The entries and item states one pass resolves.
 typedef struct {
     uint8_t bytes[ALERT_ENTRIES_MAX_BYTES];    // the stored ALERT_ENTRIES tuple
-    AlertSet set;                              // the metric entries, in wire order
+    AlertSet set;                              // the metric entries, by item
     RainCountdown rain;                        // the rain alert, while Rain is active
     int rain_display;                          // ThreshRainDisplay, from the blob
     uint8_t side[OD_ITEM_COUNT];               // OdSide of each item on this bar
     bool active[OD_ITEM_COUNT];
-    uint8_t bt_key;                            // the Bluetooth glyph (0: none)
+    uint8_t key[OD_ITEM_COUNT];                // each active item's glyph (0: none,
+                                               // and the drawn Battery and Sleep)
     uint8_t charge;                            // the watch's charge in %
     bool charging;                             // charging or plugged in
     bool battery_value;                        // Look Icon + value
@@ -142,8 +132,8 @@ void status_on_demand_collect(const StatusOnDemandRow *row, StatusOnDemandPass *
 // After status_on_demand_collect(), for slot `i` (0 left, 1 middle, 2 right) of the
 // draw, `kind` its ThreshKind: the level the slot is drawn at for the weather alert it
 // merged (alert_set_merge) — the alert's, whatever the slot's own Alert highlighting
-// says — and 0 for a slot that merged none. A query: status_on_demand_layout() derives
-// which item merged from the slots it is given, whether or not this ran.
+// says — and 0 for a slot that merged none. The row records the item that merged in
+// the slot (StatusRowSlot.merged_item), which status_on_demand_layout() reads.
 static inline uint8_t status_on_demand_merge(const StatusOnDemandPass *pass, int i,
                                              int kind) {
     return alert_set_merge(&pass->state.set, pass->state.side, i, kind);
@@ -158,7 +148,7 @@ static inline uint8_t status_on_demand_merge(const StatusOnDemandPass *pass, int
 // so a quiet bar lays out as it would without the feature, and measures no short
 // form. Keeps the glyph cache holding exactly the glyphs the active items need.
 void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
-                             const StatusOnDemandEnv *env, const StatusOnDemandSlot slots[3],
+                             const StatusOnDemandEnv *env, StatusRowSlot slots[3],
                              StatusSlotMeasure m[3], StatusSlotPlace places[3],
                              int16_t content_w);
 

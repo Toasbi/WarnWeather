@@ -30,6 +30,21 @@ test('feelsFormula joins the signature', () => {
 // tempSlotDisplay changes the phone-side temp-slot bake (formatValue), so per the
 // force-fetch rule it must be part of the signature or switching Temp/Feels like/Both
 // would not show until the next scheduled fetch.
+test('every one of the reading picks joins the signature: the source plan asks again', () => {
+  const sourcePlan = require('../../../src/pkjs/weather/domain/source-plan.js');
+  const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
+  const base = { provider: 'metno' };
+  const seen = new Set([renderSignature(base)]);
+  providerReadings.READING_IDS.forEach((id) => {
+    const picked = Object.assign({}, base);
+    picked[sourcePlan.choiceKey(id)] = 'dwd';
+    seen.add(renderSignature(picked));
+  });
+  assert.equal(seen.size, providerReadings.READING_IDS.length + 1, 'each pick signs on its own');
+  assert.equal(renderSignature(Object.assign({ weatherSourceUv: '' }, base)), renderSignature(base),
+    'the Provider\'s (\'\') is no pick');
+});
+
 test('tempSlotDisplay changes the render signature (forces a rebake)', () => {
   const base = renderSignature({});
   assert.notEqual(renderSignature({ tempSlotDisplay: 'feels' }), base);
@@ -63,6 +78,42 @@ test('the temp pair separator, its custom text, the spacing and the order change
   assert.notEqual(renderSignature({ tempSlotOrder: 'feels' }), base);
   assert.notEqual(renderSignature({ tempSlotOrder: 'feels' }),
     renderSignature({ tempSlotOrder: 'actual' }));
+});
+
+// The watch battery's Look is baked into the line (its kind), and so is what its text
+// carries: the days left and the pair's order, separator and spacing. Each of the catalog's
+// battery keys forces the rebake.
+test('the watch battery\'s Look and its text rows change the render signature', () => {
+  const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
+  const base = renderSignature({});
+  const changed = { batterySlotLook: 'text', batterySlotDisplay: 'both', batterySlotOrder: 'days',
+    batterySlotSeparator: 'brackets', batterySlotSeparatorCustom: '~', batterySlotSeparatorSpaced: true };
+  assert.deepEqual(Object.keys(changed).sort(), catalog.batterySettingKeys().slice().sort(),
+    'every battery key the catalog lists is walked below');
+  Object.keys(changed).forEach((key) => {
+    const settings = {};
+    settings[key] = changed[key];
+    assert.notEqual(renderSignature(settings), base, key);
+  });
+  assert.notEqual(renderSignature({ batterySlotDisplay: 'days' }), renderSignature({ batterySlotDisplay: 'both' }));
+  assert.notEqual(renderSignature({ batterySlotSeparator: 'custom', batterySlotSeparatorCustom: '-' }),
+    renderSignature({ batterySlotSeparator: 'custom', batterySlotSeparatorCustom: '~' }));
+});
+
+// The phone battery's Look is each slot's own, baked into that slot's icon id. Like the
+// countdown's date it is signed only while its slot shows the phone battery: the page writes
+// every slot's Look whether it is used or not, and an unused one must force no fetch.
+test('a slot\'s phone battery Look changes the render signature only while the slot shows the phone battery', () => {
+  const shown = { statusTopLeft: 'phoneBattery' };
+  const look = (value, more) => Object.assign({ statusTopLeftPhoneBatteryLook: value }, more);
+  assert.notEqual(renderSignature(look('text', shown)), renderSignature(look('both', shown)));
+  assert.notEqual(renderSignature(look('text', shown)), renderSignature(shown));
+  assert.equal(renderSignature(look('text', { statusTopLeft: 'aqi' })), renderSignature({ statusTopLeft: 'aqi' }),
+    'another item in the slot: its stored Look is inert');
+  assert.equal(renderSignature(look('text')), renderSignature({}), 'the slot\'s default item is no phone battery');
+  // A slot's Look never signs as another slot's.
+  assert.notEqual(renderSignature({ statusTopLeft: 'phoneBattery', statusTopMid: 'phoneBattery', statusTopLeftPhoneBatteryLook: 'text' }),
+    renderSignature({ statusTopLeft: 'phoneBattery', statusTopMid: 'phoneBattery', statusTopMidPhoneBatteryLook: 'text' }));
 });
 
 test('the UV pair separator, its custom text, the spacing, the order and the next-day mark change the render signature', () => {

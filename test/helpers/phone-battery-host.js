@@ -6,7 +6,9 @@
 'use strict';
 const assert = require('node:assert/strict');
 const { withHost } = require('./rebake-host.js');
-const { fakeManager, modernNavigator, legacyNavigator } = require('./fake-battery.js');
+const {
+  fakeManager, modernNavigator, legacyNavigator, fakePluginPebble, pluginEnvelope, fakeTimers
+} = require('./fake-battery.js');
 
 // AGENTS.md: a module that touches storage needs `global.localStorage` mocked
 // BEFORE the watch modules load (the pattern is test/wire/adapter/change-detector.test.js).
@@ -41,7 +43,8 @@ const catalog = require('../../src/pkjs/status-bars/domain/status-line-catalog.j
 /**
  * Boot the module against a clean store with every dependency injected.
  * init() resets all module state, so this is the whole per-test reset.
- * @param {Object} [opts] {navigator, devConfig, settings, clock, realBake, keepStorage}.
+ * @param {Object} [opts] {navigator, pebble, timers, devConfig, settings, clock, realBake,
+ *   keepStorage}.
  * @returns {Object} Handle: mutable .clock/.settings, collected .sends/.bakes.
  */
 function boot(opts) {
@@ -60,8 +63,10 @@ function boot(opts) {
   // order; see status-rebake.js init).
   statusRebake.init(withHost({
     getSettings: function () { return h.settings; },
-    getPhoneBattery: phoneBattery.bakeFacts,
+    getBakeFacts: function () { return { phone: phoneBattery.bakeFacts() }; },
     sendWeather: function (p) { h.sends.push(p); },
+    // The re-baker's clock decides whether the Night battery saver's window is open.
+    now: function () { return h.clock; },
     // undefined falls through to the real status-lines baker.
     buildStatusLines: opts.realBake ? undefined : function (payload, settings, watchInfo) {
       h.bakes.push({ payload: payload, settings: settings, watchInfo: watchInfo });
@@ -79,9 +84,9 @@ function boot(opts) {
   }));
   phoneBattery.init({
     navigator: opts.navigator,
-    devConfig: opts.devConfig,
-    getSettings: function () { return h.settings; },
-    now: function () { return h.clock; }
+    pebble: opts.pebble,
+    timers: opts.timers,
+    devConfig: opts.devConfig
   });
   return h;
 }
@@ -123,6 +128,6 @@ function bakePayload() {
 
 module.exports = {
   storage, clearStorage, boot, SAVER_ON, decodeLine, SLOT_SETTINGS, bakePayload,
-  fakeManager, modernNavigator, legacyNavigator,
+  fakeManager, modernNavigator, legacyNavigator, fakePluginPebble, pluginEnvelope, fakeTimers,
   phoneBattery, statusRebake, KEYS, catalog
 };

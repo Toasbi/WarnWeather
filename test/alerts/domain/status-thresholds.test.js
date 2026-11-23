@@ -14,11 +14,12 @@ test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.code),
     ['aqi', 'pollen', 'wind', 'gust', 'steps', 'sleep', 'distance', 'uv',
      'temp', 'pressure', 'sun', 'date', 'week', 'city', 'countdown', 'hr',
-     'batteryPct', 'dew', 'phoneBattery', 'phoneBatteryPlain', 'condition']);
+     'battery', 'dew', 'phoneBattery', 'phoneBatteryPlain', 'condition']);
   // Two kinds, ONE settings key. The sheet resolver maps a catalog code to
-  // 'thresh' + KINDS[i].key, so both phone-battery codes land on the single
-  // threshPhoneBattery* sheet — one Bold row covering the iconed and the no-icon
-  // variant. The duplicate is deliberate; see the packer test below.
+  // 'thresh' + KINDS[i].key, so the phone battery's code lands on the single
+  // threshPhoneBattery* sheet — one Bold row covering its Icon + text and its
+  // Text look ('phoneBatteryPlain' is only the wire kind of the Text look, no
+  // catalog item). The duplicate is deliberate; see the packer test below.
   assert.deepEqual(th.KINDS.map(k => k.key),
     ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv',
      'Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr',

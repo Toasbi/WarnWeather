@@ -1,5 +1,5 @@
 // test/page/settings/config-page-strip.test.js
-// build-page.js drops whole-line comments and indentation from every JS file it
+// build-page.js drops whole-line comments, blank lines and indentation from every JS file it
 // concatenates into the settings page (the page travels as one data: URL that
 // Android's WebView refuses past 2 MiB). That is only safe if the program is
 // untouched, so this proves it for every file that ships: the stripped source must
@@ -68,6 +68,9 @@ test('stripJs drops only what it can prove is a comment or indentation', () => {
     ['/* open\nvar c;', '/* open\nvar c;'],
     // Removing a comment between two lines keeps a break between them (ASI).
     ['return\n// why\nx;', 'return\nx;'],
+    // A blank line goes; one line break stays between the code on either side (ASI).
+    ['var a;\n\n  \nvar b;\n', 'var a;\nvar b;\n'],
+    ['return\n\nx;', 'return\nx;'],
   ];
   cases.forEach(([input, expected]) => {
     assert.equal(build.stripJs(input), expected, JSON.stringify(input));

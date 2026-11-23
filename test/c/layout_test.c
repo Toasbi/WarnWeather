@@ -2239,7 +2239,11 @@ static void peek_tests(void) {
     expect("peek.forecast_visible",       v.forecast, true);
     expect("peek.weather_status_visible", v.weather_status, true);
 
+#ifndef PBL_PLATFORM_EMERY
     GRect clear = GRect(0, 0, 144, 117);   // 168 - 51 overlay
+#else
+    GRect clear = GRect(0, 0, 200, 171);   // emery: 228 - 57 overlay (measured on the emulator)
+#endif
     MainLayout L = layout_compute_peek(clear, &s, MET(FC_BAND_H, INK));
     // The strip band is the same clamp-free height peek creates on the main window (17 / 23),
     // so growing it shifts the peek's clock/status/body down by the same amount — peek has no
@@ -2251,18 +2255,16 @@ static void peek_tests(void) {
     check("peek.time",       L.time,       0, 17, 144, 37);
     check("peek.status",     L.status,     0, 54, 144, 20);
     check("peek.bottom",     L.bottom,     0, 74, 144, 43);
+    expect("peek.graph_kept", s.body == BODY_FORECAST, true);   // the clock fits: 37 >= 35
 #else
-    // strip 21; available 117-21-24=72; clock 72*45/96=33; status@54 h24; forecast@78 h39.
-    check("peek.top_status", L.top_status, 0, 0,  144, 21);
-    check("peek.top",        L.top,        0, 21, 144, 0);
-    // 19 = 21 - 2, the folded MT_TIME_ROBOTO. Both peek blocks pass a 144-SHAPED clear area
-    // even under the emery compile, which is a synthetic stress case: a 33px clock band is
-    // shorter than emery Roboto's 46 rows of ink, so the ink overflows the space between
-    // its neighbours and clock_seat_y() splits that overflow evenly rather than dumping it
-    // at one end. A real emery peek is ~200x177 and leaves the clock 63px, which fits.
-    check("peek.time",       L.time,       0, 19, 144, 33);
-    check("peek.status",     L.status,     0, 54, 144, 24);
-    check("peek.bottom",     L.bottom,     0, 78, 144, 39);
+    // strip 21; available 171-21-24=126; clock 126*45/96=59; status@80 h24; forecast@104 h67.
+    check("peek.top_status", L.top_status, 0, 0,  200, 21);
+    check("peek.top",        L.top,        0, 21, 200, 0);
+    // 19: clock_seat_y() centres the 46 rows of ink between the strip's ink and the row's.
+    check("peek.time",       L.time,       0, 19, 200, 59);
+    check("peek.status",     L.status,     0, 80, 200, 24);
+    check("peek.bottom",     L.bottom,     0, 104, 200, 67);
+    expect("peek.graph_kept", s.body == BODY_FORECAST, true);   // the clock fits: 59 >= 46
 #endif
 
     // A statusless view: clock + body only, status band collapses to zero height.
@@ -2280,18 +2282,25 @@ static void peek_tests(void) {
     LayerVisibility vd = layout_visibility(&sd);
     expect("peekDual.both_status", vd.weather_status && vd.health_status, true);
     MainLayout Ld = layout_compute_peek(clear, &sd, MET(FC_BAND_H, INK));
+    LayerVisibility vd2 = layout_visibility(&sd);
 #ifndef PBL_PLATFORM_EMERY
-    // strip 17; available 117-17-40=60; clock 60*45/96=28; health@45 weather@65 (h20); fc@85 h32.
-    check("peekDual.time",         Ld.time,         0, 17, 144, 28);
-    check("peekDual.status",       Ld.status,       0, 45, 144, 20);
-    check("peekDual.status_lower", Ld.status_lower, 0, 65, 144, 20);
-    check("peekDual.bottom",       Ld.bottom,       0, 85, 144, 32);
+    // strip 17; available 117-17-40=60. The weights would leave the clock 60*45/96=28 rows, short
+    // of its 35 rows of ink, and the graph 32: the clock takes all 60 instead, the rows sit on
+    // the overlay (health@77 weather@97, h20) and the graph hides.
+    check("peekDual.time",         Ld.time,         0, 17, 144, 60);
+    check("peekDual.status",       Ld.status,       0, 77, 144, 20);
+    check("peekDual.status_lower", Ld.status_lower, 0, 97, 144, 20);
+    check("peekDual.bottom",       Ld.bottom,       0, 117, 144, 0);
+    expect("peekDual.graph_hidden", sd.body == BODY_NONE && !vd2.forecast && !vd2.health_graph, true);
+    expect("peekDual.rows_kept",    vd2.weather_status && vd2.health_status, true);
 #else
-    // strip 21; available 117-21-48=48; clock 48*45/96=22; health@43 weather@67 (h24); fc@91 h26.
-    check("peekDual.time",         Ld.time,         0, 19, 144, 22);
-    check("peekDual.status",       Ld.status,       0, 43, 144, 24);
-    check("peekDual.status_lower", Ld.status_lower, 0, 67, 144, 24);
-    check("peekDual.bottom",       Ld.bottom,       0, 91, 144, 26);
+    // strip 21; available 171-21-48=102; clock 102*45/96=47, room for its 46 rows of ink, so
+    // the graph stays: health@68 weather@92 (h24); fc@116 h55.
+    check("peekDual.time",         Ld.time,         0, 19, 200, 47);
+    check("peekDual.status",       Ld.status,       0, 68, 200, 24);
+    check("peekDual.status_lower", Ld.status_lower, 0, 92, 200, 24);
+    check("peekDual.bottom",       Ld.bottom,       0, 116, 200, 55);
+    expect("peekDual.graph_kept", sd.body == BODY_FORECAST && vd2.forecast, true);
 #endif
 
     // A graphless custom flick (no graph, top bar and clock removed, a Position and a
@@ -2931,24 +2940,21 @@ static void view_flick_tests(void) {
 // size (verified on device at 14 / 18 / 24), so the size doubles as the metric here.
 #ifdef PBL_PLATFORM_EMERY
 #define TOP_ROW_H 24        // STATUS_TOP_TIER_FONT_KEY
-#define NONE_ROW_H 24       // NONE_ROW_FONT_KEY
-#define COMPACT_ROW_H 24    // COMPACT_ROW_FONT_KEY
 #define FULL_ROW_H 18       // STATUS_FULL_TIER_FONT_KEY (a DUAL squeezes both rows to this)
 #define FC_CLEARANCE 1      // STATUS_FORECAST_CLEARANCE
 #else
 #define TOP_ROW_H 18
-#define NONE_ROW_H 18
-#define COMPACT_ROW_H 18
 #define FULL_ROW_H 14
 #define FC_CLEARANCE 3
 #endif
+// A compact or none-tier row draws in the top strip's font (layout.c STATUS_LARGE_FONT_H).
+#define LARGE_ROW_H TOP_ROW_H
 // The SHIPPING forecast-abutting band: status_forecast_band_h() == content_h + 2*clearance.
 // (FC_BAND_H above is a 24px stand-in on emery; the seating sweep uses the real value.)
 #define FC_BAND_H_SHIPPING (FULL_ROW_H + 2 * FC_CLEARANCE)
 
 static int status_row_content_h(uint8_t tier) {
-    return (tier == LAYOUT_TIER_NONE) ? NONE_ROW_H
-         : (tier == LAYOUT_TIER_COMPACT) ? COMPACT_ROW_H : FULL_ROW_H;
+    return (tier == LAYOUT_TIER_NONE || tier == LAYOUT_TIER_COMPACT) ? LARGE_ROW_H : FULL_ROW_H;
 }
 
 // The invariant the band resize exists to hold: status_seat_y() must not CLAMP on any band the
@@ -3075,7 +3081,7 @@ static void seating_no_lift(void) {
         if (views[i].tier == 2 && spec.status_upper != STATUS_SRC_NONE
                 && spec.status_lower == STATUS_SRC_NONE) {
             expect("seating.lone_compact_is_shortest_clamp_free",
-                   L.status.size.h == status_min_band_h(COMPACT_ROW_H), true);
+                   L.status.size.h == status_min_band_h(LARGE_ROW_H), true);
         }
     }
 
@@ -3312,7 +3318,7 @@ static void calendar_status_clearance(void) {
     MainLayout Lc = layout_compute_spec(BOUNDS, &cc, MET(FC_BAND_H_SHIPPING, INK));
     int old_ink_end = Lc.top.origin.y + STATUS_TOP_STRIP_LIFT
                     + calendar_ink_h(Lc.top.size.h, 2);
-    int cc_cap = status_cap_top(Lc.status.origin.y, Lc.status.size.h, COMPACT_ROW_H);
+    int cc_cap = status_cap_top(Lc.status.origin.y, Lc.status.size.h, LARGE_ROW_H);
     expect("clearance.old_anchor_was_short",
            cc_cap - old_ink_end < FC_CLEARANCE, true);
     expect("clearance.old_anchor_overlapped_box",
@@ -3355,32 +3361,30 @@ static int cal_ink_bottom_of(GRect top, int rows, int content_h) {
 }
 
 // The clock's two ink neighbours for a laid-out view. Mirrors — deliberately, see above — the
-// neighbour selection in layout.c's compute_layout (for the preset orders).
+// neighbour selection in layout.c's layout_compute_spec (for the preset orders).
 static void clock_neighbours(const MainLayout *L, uint8_t tier, bool upper, bool lower,
                              int *above, int *below) {
     bool compact = (tier == LAYOUT_TIER_COMPACT);
-    bool two_rows = upper && lower;
-    int upper_ch = (tier == LAYOUT_TIER_NONE) ? NONE_ROW_H
-                 : compact ? (two_rows ? FULL_ROW_H : COMPACT_ROW_H)
-                 : FULL_ROW_H;
-    int lower_ch = (tier == LAYOUT_TIER_NONE) ? NONE_ROW_H
-                 : (compact && !two_rows) ? COMPACT_ROW_H : FULL_ROW_H;
+    // Both rows draw in one font: the large one, but a compact DUAL squeezes both to the full
+    // tier's, as every full-tier row is.
+    int row_ch = (tier == LAYOUT_TIER_NONE || (compact && !(upper && lower))) ? LARGE_ROW_H
+               : FULL_ROW_H;
 
     if (tier == LAYOUT_TIER_NONE) {
         // The strip's CAP floor — not its descender-inclusive ink floor; see layout.c.
         *above = L->top_status.origin.y
                  + status_strip_seat_y(L->top_status.size.h, TOP_ROW_H) + TOP_ROW_H - 1;
     } else if (compact && upper) {
-        *above = status_band_ink_top(L->status.origin.y, L->status.size.h, upper_ch)
-                 + status_cap_h(upper_ch) - 1;
+        *above = status_band_ink_top(L->status.origin.y, L->status.size.h, row_ch)
+                 + status_cap_h(row_ch) - 1;
     } else {
         *above = cal_ink_bottom_of(L->top, (tier == LAYOUT_TIER_FULL) ? 3 : 2, TOP_ROW_H);
     }
 
     if (upper && tier != LAYOUT_TIER_COMPACT) {
-        *below = status_band_ink_top(L->status.origin.y, L->status.size.h, upper_ch);
+        *below = status_band_ink_top(L->status.origin.y, L->status.size.h, row_ch);
     } else if (lower) {
-        *below = status_band_ink_top(L->status_lower.origin.y, L->status_lower.size.h, lower_ch);
+        *below = status_band_ink_top(L->status_lower.origin.y, L->status_lower.size.h, row_ch);
     } else {
         *below = L->bottom.origin.y;
     }

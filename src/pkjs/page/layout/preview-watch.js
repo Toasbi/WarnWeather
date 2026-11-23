@@ -2,7 +2,7 @@
 // pinned preview (block 'watchPreview'): each view of the cycle — Default, then the flicks —
 // drawn as the watch shows it, on its screen's own grid (144×168, emery 200×228) with every
 // band on the seat the watch gives it (view-cycle.js stackSeats: the walk layout.c's
-// compute_layout makes, presets in their tier's legacy order), in the theme's colours.
+// layout_compute_spec makes, presets in their tier's legacy order), in the theme's colours.
 // What fills the bands: the top bar and the status bars with the Status bars tab's sample
 // slots (preview-status-bars.js barSlots), the calendar around today in its weekday and
 // today colours, the clock at the samples' 15:00 in the watch's own digits, and the
@@ -130,7 +130,7 @@
 
     /**
      * Where each band of one view sits on its screen: where the watch places it
-     * (watch-layout.js stackLayout, layout.c compute_layout, kept in lockstep with it), the
+     * (watch-layout.js stackLayout, layout.c layout_compute_spec, kept in lockstep with it), the
      * clock's ink centred between its neighbours' for the time font drawn. A band that fills
      * the stack and ends it runs on to the screen's bottom edge (emery's floor keeps 4 rows the
      * forecast's hour labels end in: graphBand's foot).
@@ -330,6 +330,12 @@
     // top area leading under it starts, on the strip's ink (strip_calendar_seat: the pad, the
     // band less STATUS_TOP_STRIP_LIFT, and emery's STATUS_STRIP_CAL_GAP).
     var STRIP = [{ y: 0, h: 17, calY: 15 }, { y: 2, h: 21, calY: 23 }];
+    // The Watch bar's row sits inset in its strip (top_status_layer.c content_rect): PADDING
+    // columns at the left, and at the right on the 144 px watches, where a flush right slot
+    // would clip the battery's nub; emery's right is flush. The other bars' rows span their
+    // band (status_bar.c), so only the Watch bar has these. test/page/layout/
+    // watch-bar-geometry.test.js reads both from the C.
+    var STRIP_INSET = [{ left: 4, right: 4 }, { left: 4, right: 0 }];
     // The Watch battery glyph (battery_glyph.h): the charging bolt's lane (empty while the
     // watch is not charging), a 17 × 10 body, a 2-column nub.
     var BATTERY = { w: 29, h: 10, lane: 10, nub: 2 };
@@ -506,12 +512,14 @@
      * watch does it (status_row_layout.c status_row_swap_short_forms, which
      * scripts/check-row-swap-lockstep.js holds this to): a slot that brought one draws it
      * where the plain row would cut or hide a text, an edge's whole name giving way whenever
-     * any text is cut, the wider name first, then the middle where its own is cut, each swap
-     * laid out again. A slot that swaps takes its short form's width as its `tw`.
+     * any text is cut (an `own` slot's, the date's, only where its own text is cut), the wider
+     * name first, then the middle where its own is cut, each swap laid out again. A slot that
+     * swaps takes its short form's width as its `tw`.
      * @param {number} cw The row's content width.
-     * @param {!Array<?{iw: number, tw: number, sw: number, aw: number}>} m Left, middle and
-     *     right slots' measures (null: empty); `aw` the short form's text width, negative when
-     *     the slot brought none.
+     * @param {!Array<?{iw: number, tw: number, sw: number, aw: number, own: boolean}>} m Left,
+     *     middle and right slots' measures (null: empty); `aw` the short form's text width,
+     *     negative when the slot brought none; `own` whether it gives way only where its own
+     *     text is cut.
      * @returns {{swapped: number, placed: !Array<?{x: number, tw: number}>}} The slots that
      *     swapped, bit i for slot i, and where each goes (placeSlots).
      */
@@ -523,7 +531,8 @@
             if (!m.some(function (it, i) { return cut(it, placed[i]); })) { break; }
             var pick = -1;
             [0, 2].forEach(function (i) {
-                if (left[i] && (pick < 0 || m[i].tw > m[pick].tw)) { pick = i; }
+                var may = left[i] && (!m[i].own || cut(m[i], placed[i]));
+                if (may && (pick < 0 || m[i].tw > m[pick].tw)) { pick = i; }
             });
             if (pick < 0 && left[1] && cut(m[1], placed[1])) { pick = 1; }
             if (pick < 0) { break; }
@@ -550,14 +559,19 @@
         var slots = [null, null, null], at = { left: 0, mid: 1, right: 2 };
         bars.forEach(function (c) {
             if (c.code === 'empty' || !(c.pos in at)) { return; }
-            var glyph = c.code === 'battery' && !c.text;
+            // The watch battery's glyph, alone (its Icon look) or before its text (Icon + text).
+            var glyph = Boolean(c.batteryGlyph);
             var icon = glyph ? null : c.icon;
             // A glyph the watch draws from a drawing takes the drawing's width, as the watch
-            // measures it (its bounds); one it draws in code the row's icon height.
+            // measures it (its bounds); one it draws in code the row's icon height. The
+            // battery's glyph is BATTERY.w with its bolt lane, which is empty while the watch is
+            // not charging, as in every picture: before its text the watch then reserves the
+            // glyph without it (status_row_layout.h status_slot_icon_w).
             var drawing = glyph ? null : drawingAt(c.drawing, iconH, fam);
+            var batteryW = c.text ? BATTERY.w - BATTERY.lane : BATTERY.w;
             slots[at[c.pos]] = { label: c.text || '', alt: c.alt, glyph: glyph, icon: icon, drawing: drawing,
-                iw: glyph ? BATTERY.w : (drawing ? drawing.w : (icon ? iconH : 0)), tw: c.text ? WT.width(ch, false, c.text) : 0,
-                sw: c.arrow ? arrowW : 0, aw: c.alt ? WT.width(ch, false, c.alt) : -1 };
+                iw: glyph ? batteryW : (drawing ? drawing.w : (icon ? iconH : 0)), tw: c.text ? WT.width(ch, false, c.text) : 0,
+                sw: c.arrow ? arrowW : 0, aw: c.alt ? WT.width(ch, false, c.alt) : -1, own: Boolean(c.own) };
         });
         var swap = swapShortForms(cw, slots);
         slots.forEach(function (it, i) {
@@ -570,6 +584,20 @@
     }
 
     /**
+     * The box a bar's row is laid out in, as the watch hands it to its row (status_row_apply):
+     * the band less emery's LAYOUT_PAD_X columns at each side, and for the Watch bar its
+     * strip's inset too (STRIP_INSET). The row keeps ROW_MARGIN inside it.
+     * @param {string} bar 'top' (the Watch bar) or another bar.
+     * @param {number} f Screen family (0: 144 px, 1: emery).
+     * @param {number} y The band's top. @param {number} h Its height.
+     * @returns {{x: number, y: number, w: number, h: number}}
+     */
+    function barRowBox(bar, f, y, h) {
+        var pad = f ? 2 : 0, inset = bar === 'top' ? STRIP_INSET[f] : { left: 0, right: 0 };
+        return { x: pad + inset.left, y: y, w: SCREEN[f].w - 2 * pad - inset.left - inset.right, h: h };
+    }
+
+    /**
      * The text each slot of a bar shows on the watch, short forms swapped in where the watch
      * swaps them: on the first screen showing the bar (spec), in its row's font and width.
      * The status bar pictures on the Status bars tab print these.
@@ -579,14 +607,15 @@
      * @returns {{left: string, mid: string, right: string}} Each slot's text.
      */
     function barLabels(S, env, bar, spec, bars) {
-        var f = env && env.platform === 'emery' ? 1 : 0, sc = SCREEN[f], pad = f ? 2 : 0, ch;
+        var f = env && env.platform === 'emery' ? 1 : 0, ch;
         if (bar === 'top') { ch = f ? 24 : 18; }
         else {
             var rowFull = Boolean(spec)
                 && layoutView(spec, f, clockInk(S, f, Boolean(env && env.color === false))).tier === VC.TIER_FULL;
             ch = f ? (rowFull ? 18 : 24) : (rowFull ? 14 : 18);
         }
-        var slots = rowLayout(bars, sc.w - 2 * pad - 2 * ROW_MARGIN, ch, rowIconH(bar === 'top', ch, Infinity), f, watchFamily(env)).slots;
+        var slots = rowLayout(bars, barRowBox(bar, f, 0, 0).w - 2 * ROW_MARGIN, ch, rowIconH(bar === 'top', ch, Infinity), f,
+            watchFamily(env)).slots;
         var out = { left: '', mid: '', right: '' };
         ['left', 'mid', 'right'].forEach(function (pos, i) { if (slots[i]) { out[pos] = slots[i].label; } });
         return out;
@@ -617,7 +646,9 @@
         placed.forEach(function (p, i) {
             if (!p) { return; }
             var it = slots[i], x = x0 + p.x;
-            if (it.glyph) { e += batteryGlyph(x, mid, cx.fg); }
+            // A glyph measured without its lane draws that much further left, so its body
+            // lands where the slot was placed (status_row.c).
+            if (it.glyph) { e += batteryGlyph(x - (BATTERY.w - it.iw), mid, cx.fg); }
             else if (it.drawing) { e += drawingOnRow(it.drawing, x, mid, cx.fg, fam === 'aplite'); }
             else if (it.icon) { e += iconAt(it.icon, x, mid, iconH, cx.fg); }
             var tx = x + it.iw + (it.iw > 0 && p.tw > 0 ? ICON_GAP : 0);
@@ -767,7 +798,7 @@
         // emery's window keeps LAYOUT_PAD_X columns clear at each side of its text bands (layout.c).
         var pad = f ? 2 : 0;
         if (lay.strip) {
-            e += rowBand(S, env, 'top', { x: pad, y: STRIP[f].y, w: sc.w - 2 * pad, h: STRIP[f].h }, f ? 24 : 18, cx);
+            e += rowBand(S, env, 'top', barRowBox('top', f, STRIP[f].y, STRIP[f].h), f ? 24 : 18, cx);
         }
         lay.bands.forEach(function (b, bi) {
             var box = { x: 0, y: b.y, w: sc.w, h: b.h }, tag = (idPrefix || 'w' + vi) + bi;
@@ -792,7 +823,10 @@
     // its screen on the screen's own background, black or white throughout, so no grey shows
     // round it; the screen keeps a margin of that ground (framedSvg), so the card's round
     // corners clip nothing on it. Its name under it.
-    var CSS = '.wpv{display:flex;justify-content:center;align-items:flex-start}'
+    // The card's edge is a ring outside it (box-shadow: 1 px, 2 px focused), and the pin sits at
+    // the very top of the page's scroll box, which clips all above it: the row keeps that room at
+    // its top, on the pin's ground, or the ring's top edge is cut (on Black, the card's only edge).
+    var CSS = '.wpv{display:flex;justify-content:center;align-items:flex-start;padding-top:2px}'
         + '.wpv-v{flex:1 1 0;min-width:0;max-width:150px;text-align:center}'
         + '.wpv-v+.wpv-v{margin-left:10px}'
         + '.wpv-card{display:block;border-radius:12px;overflow:hidden;'
@@ -899,8 +933,8 @@
     var api = { watchPreview: watchPreview, layoutView: layoutView, clockInk: clockInk, screenSvg: screenSvg,
         barLabels: barLabels, swapShortForms: swapShortForms,
         graphKinds: graphKinds,
-                fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN,
-        _drawingAt: drawingAt, _drawingOnRow: drawingOnRow };
+                fontPicture: fontPicture, viewScreen: viewScreen, SCREEN: SCREEN, CSS: CSS,
+        _drawingAt: drawingAt, _drawingOnRow: drawingOnRow, _barRowBox: barRowBox, ROW_MARGIN: ROW_MARGIN };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PreviewWatch = api; }
 })();

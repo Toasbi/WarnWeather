@@ -18,6 +18,7 @@
 
 // unitEnabled — a Show unit toggle, read like the bake prints the slot.
 var slotText = require('../../status-bars/domain/slot-text.js');
+var batteryDays = require('../../status-bars/domain/battery-days.js');
 var platforms = require('../../config-ui/lib/platform.js');
 var color = require('../../lib/color.js');
 // renderContextFor / graphColorKey / graphColorIsDefault — the module that resolves the
@@ -41,6 +42,8 @@ var forecastAxis = require('../../forecast-graphs/domain/forecast-axis.js');
 var graphStyles = require('../../forecast-graphs/domain/graph-styles.js');
 // SLOT_KEYS / parseSlot — the Weather tab's saved places, read like the tab reads them.
 var weatherTabModel = require('../../weather/domain/weather-tab-model.js');
+// The reading picks (Setup › Data sources): their setting keys and stored values.
+var sourcePlan = require('../../weather/domain/source-plan.js');
 
 // The Show unit toggles worth a field (status-line-catalog.js UNIT_TOGGLES has three more:
 // pressure, rain countdown and dew point read the same on every 2.6 watch).
@@ -210,6 +213,17 @@ function weatherTabPlaces(safe) {
 }
 
 /**
+ * The reading picks as telemetry reports them: 'reading:provider' for each reading set to
+ * a provider of its own, comma separated in the readings' order.
+ * @param {Object} settings Clay settings.
+ * @returns {string} '' with none.
+ */
+function weatherSourcesOf(settings) {
+    var picks = sourcePlan.choicesOf(settings);
+    return Object.keys(picks).map(function (id) { return id + ':' + picks[id]; }).join(',');
+}
+
+/**
  * Build a compact, allowlisted settings snapshot for telemetry.
  *
  * @param {Object} settings Clay settings object.
@@ -293,6 +307,9 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         dateSlotFullFormat: safe.dateSlotFullFormat,
         aqiScale: safe.aqiScale,
         aqiSource: safe.aqiSource,
+        // The reading picks, the readings set to a provider of their own, in the table's
+        // order ('uv:openmeteo,wind:dwd'); '' with none.
+        weatherSources: weatherSourcesOf(safe),
         windUnits: safe.windUnits,
         distanceUnits: safe.distanceUnits,
         gustSlotDirection: Boolean(safe.gustSlotDirection),
@@ -374,6 +391,13 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         conditionSlotLook: isAplite ? undefined : slotText.conditionLook(safe),
         conditionSlotName: isAplite ? undefined : slotText.conditionName(safe),
         citySlotIcon: isAplite ? undefined : slotText.cityIcon(safe),
+        // The watch battery's Look ('icon' the drawn battery, 'text', 'both' the battery and
+        // its text) and what its text shows ('percent', 'days' left from another app's
+        // estimate, 'both'). Absent on
+        // aplite, which draws its one battery slot its own way. (The phone battery's Look
+        // is each slot's own and not reported.) Lockstep with handler.ts -- deploy it first.
+        batterySlotLook: isAplite ? undefined : slotText.batteryLook(safe),
+        batterySlotDisplay: isAplite ? undefined : batteryDays.display(safe),
         // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),

@@ -41,6 +41,31 @@ test('aplite\'s date slot keeps the two original formats whatever is picked', ()
   assert.equal(sample('date', S, { fullDate: true, env }), '07.09.26');
 });
 
+// The date slot brings its short form, the shorter format its format falls back to
+// (date_format.h), which the watch draws where the slot cannot show the date whole, and it
+// gives way only where its own text is cut (`own`). None on aplite, whose lean twin cuts it.
+test('the date slot brings its shorter format as its short form, in the region\'s order', () => {
+  const basalt = { platform: 'basalt' };
+  const date = (S, fullDate, env) => {
+    const slot = preview.barSlots(Object.assign({ statusForecastMid: 'date' }, S), env || basalt, 'forecast',
+      fullDate, SEP_7_2026)[1];
+    return [slot.text, slot.alt, slot.own];
+  };
+  assert.deepEqual(date({}, false), ['Sep 2026', 'Sep', true]);
+  assert.deepEqual(date({ dateSlotMonthFormat: 'iso' }, false), ['2026-09', '09.26', true]);
+  assert.deepEqual(date({ dateSlotMonthFormat: 'noyear' }, false), ['Sep', '', true], 'none shorter');
+  assert.deepEqual(date({ holidayCountry: 'DE', dateSlotFullFormat: 'long' }, true), ['07.09.2026', '7.9.', true]);
+  assert.deepEqual(date({ holidayCountry: 'US', dateSlotFullFormat: 'long' }, true), ['09.07.2026', '9.7.', true]);
+  assert.deepEqual(date({ holidayCountry: 'US', dateSlotFullFormat: 'textyear' }, true),
+    ['Sep 7, 2026', 'Sep 7', true]);
+  assert.deepEqual(date({ holidayCountry: 'DE', dateSlotFullFormat: 'text' }, true), ['7 Sep', '', true]);
+  assert.deepEqual(date({ holidayCountry: 'DE' }, true, { platform: 'aplite' }), ['07.09.26', '', true],
+    'aplite: none');
+  // Another slot brings what its text carries, and gives way as before.
+  const city = preview.barSlots({ statusForecastMid: 'city' }, basalt, 'forecast', false, SEP_7_2026)[1];
+  assert.deepEqual([city.alt, city.own], ['', false]);
+});
+
 test('the date and week follow today, not a fixed sample', () => {
   const now = new Date();
   assert.equal(preview.sample('date', { dateSlotMonthFormat: 'dots' }, { fullDate: false }),
@@ -142,6 +167,15 @@ test('the watch-rendered kinds print in the watch\'s own shapes', () => {
   assert.equal(sample('battery', {}), '', 'the watch battery is its glyph alone');
   assert.equal(sample('battery', {}, { env: { platform: 'aplite' } }), '80%',
     'aplite\'s lean twin prints the charge instead');
+  // Its text looks print the charge: alone (Text), or after the glyph (Icon + text).
+  assert.equal(sample('battery', { batterySlotLook: 'text' }), '80%');
+  assert.equal(sample('battery', { batterySlotLook: 'both' }), '80%');
+  assert.deepEqual(['icon', 'text', 'both'].map((look) => preview.drawsBatteryGlyph('battery', {}, { batterySlotLook: look })),
+    [true, false, true], 'the glyph the watch draws: alone, none, before the text');
+  assert.equal(preview.drawsBatteryGlyph('battery', { platform: 'aplite' }, { batterySlotLook: 'both' }), false,
+    'aplite\'s lean twin prints the charge');
+  assert.equal(preview.drawsBatteryGlyph('phoneBattery', {}, { batterySlotLook: 'both' }), false,
+    'the watch battery\'s alone');
 });
 
 test('the block prints the date by whether the bar\'s view shows a calendar', () => {
@@ -270,6 +304,29 @@ test('barCodes reads each bar\'s slots as barSlots does, without the sample text
   });
   assert.equal(preview.barCodes(S, basalt, 'health')[2].code, 'empty');
   assert.deepEqual(preview.barCodes(S, basalt, 'unknown'), []);
+});
+
+// How much room a line has left for an edge's wide weather condition is counted in the bytes
+// the bake packs. An item the watch draws from its own readings carries none, whatever its
+// sample prints, so the picture gives the edges the room the bake does.
+test('a slot the watch draws itself costs the line no text bytes, as in the bake', () => {
+  const statusLines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
+  const { decodeLine } = require('../../helpers/status-line-bytes.js');
+  const basalt = { platform: 'basalt' };
+  // Two wide conditions (22 bytes each) fill the 48 beside a middle of 3. The date's sample
+  // is nine characters: counted, the right edge would be left its short form.
+  const S = { statusForecastLeft: 'condition', statusForecastMid: 'date', statusForecastRight: 'condition' };
+  const drawn = preview.barSlots(S, basalt, 'forecast', false, SEP_7_2026);
+  assert.equal(drawn[1].text, 'Sep 2026', 'the middle shows the watch\'s own date');
+  assert.deepEqual([drawn[0].text, drawn[0].alt], ['Partly cloudy', 'PCLDY']);
+  assert.deepEqual([drawn[2].text, drawn[2].alt], ['Partly cloudy', 'PCLDY']);
+  // The bake, for the same line and a partly cloudy afternoon.
+  const noon = Math.floor(SEP_7_2026.getTime() / 1000);
+  const payload = statusLines.buildStatusLines({ CITY: 'Bonn', CURRENT_CONDITION: 'partly',
+    SUN_EVENTS: [1, noon + 3600, 0, 0, 0] }, S, basalt, SEP_7_2026);
+  const baked = decodeLine(payload.STATUS_LINE_1_UINT8);
+  const forms = 'Partly cloudy' + catalog.ALT_SEP + 'PCLDY';
+  assert.deepEqual([baked[0].text, baked[1].text, baked[2].text], [forms, '', forms]);
 });
 
 // The weather condition slot's picture prints the sample partly cloudy afternoon as the bake

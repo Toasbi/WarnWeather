@@ -317,13 +317,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {Object} schema Config schema (reads schema.themeKey).
    * @param {Object} S Settings state.
    * @param {boolean} prefersLight Result of the prefers-color-scheme: light media query.
-   * @returns {string} 'light' or 'dark' — the class applied to <body> ('dark' = class absent).
+   * @returns {string} 'light', 'dark' or 'black' — the class applied to <body> ('dark' = class
+   *   absent). 'black' only when the setting is exactly 'black'; Auto gives light or dark.
    */
   function resolveTheme(schema, S, prefersLight) {
     if (!schema || !schema.themeKey) { return 'dark'; }
     var v = S ? S[schema.themeKey] : undefined;
     if (v === 'light') { return 'light'; }
     if (v === 'dark') { return 'dark'; }
+    if (v === 'black') { return 'black'; }
     return prefersLight ? 'light' : 'dark';
   }
 
@@ -591,6 +593,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // no data-select-pick, so the delegated pick handler can never match, plus
       // the disabled attribute against taps/keyboard. Muted inline — .ssel-opt
       // has no [disabled] rule of its own — mirroring .seg button[disabled].
+      // meta.next names a select to pick next: in a dialog the option stores nothing and opens
+      // that select's list instead (a value, then its provider: the dialog's pick handler).
       gated = meta.disabled || offVals.indexOf(o[1]) !== -1;
       pic = pictures && pictures[o[1]] ? '<span class="ssel-pic" aria-hidden="true">' + pictures[o[1]] + '</span>' : '';
       if (pic) { classes += ' has-pic'; }
@@ -598,7 +602,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         + (value === o[1] ? 'true' : 'false') + '"'
         + (gated
           ? ' disabled aria-disabled="true" style="opacity:.38;cursor:not-allowed"'
-          : ' data-select-pick="' + esc(o[1]) + '" data-k="' + esc(item.messageKey) + '"')
+          : ' data-select-pick="' + esc(o[1]) + '" data-k="' + esc(item.messageKey) + '"'
+            + (meta.next ? ' data-select-next="' + esc(meta.next) + '"' : ''))
         + '>' + pic + labelCell
         + (value === o[1] ? '<span class="ssel-chk">&#10003;</span>' : '') + '</button>';
       shown++;
@@ -807,14 +812,30 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * A staticText's HTML (resolveStaticText) through the render's own answers (cx.texts, by
+   * resolver, args and text): the look-ahead (derivedTextEmpty) and the row each ask for a
+   * note, and one note may show in a card and in its dialog, while the settings stay as they
+   * are through a render. A context without cx.texts asks the resolver every time.
+   * @param {Object} item staticText item.
+   * @param {Object} cx Render context ({S, ENV, texts?}).
+   * @returns {string} The note's HTML ('' for none).
+   */
+  function staticTextOf(item, cx) {
+    if (!item.textFrom || !cx.texts) { return resolveStaticText(item, cx.S, cx.ENV); }
+    var id = JSON.stringify([item.textFrom.resolver, item.textFrom.args || {}, item.text || '']);
+    if (!Object.prototype.hasOwnProperty.call(cx.texts, id)) { cx.texts[id] = resolveStaticText(item, cx.S, cx.ENV); }
+    return cx.texts[id];
+  }
+
+  /**
    * Whether a staticText whose text is derived (textFrom) has nothing to say right now,
    * so it renders nothing although its showWhen holds.
    * @param {Object} item Schema item.
-   * @param {Object} cx Render context ({S, ENV}).
+   * @param {Object} cx Render context ({S, ENV, texts?}).
    * @returns {boolean} True for a textFrom staticText resolving to ''.
    */
   function derivedTextEmpty(item, cx) {
-    return item.type === 'staticText' && Boolean(item.textFrom) && resolveStaticText(item, cx.S, cx.ENV) === '';
+    return item.type === 'staticText' && Boolean(item.textFrom) && staticTextOf(item, cx) === '';
   }
 
   /**
@@ -1853,7 +1874,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // should not scroll past as body copy (e.g. "this is set on another tab").
       var isInfo = item.style === 'info';
       // textFrom: a note derived from the live settings; '' renders nothing at all.
-      var staticText = resolveStaticText(item, cx.S, cx.ENV);
+      var staticText = staticTextOf(item, cx);
       if (item.textFrom && staticText === '') { return { html: '', kind: 'hidden' }; }
       var staticCls = 'static' + (item.joinPrevious === true ? ' join' : '') + (item.hinted ? ' hinted' : '')
         + (isInfo ? ' info' : '') + nbClass(noDivider);
@@ -2790,6 +2811,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // tap or ctx.openDialog's rename sets it, OK, Enter, Escape, leaving the field or the
     // dialog going clear it.
     var renaming = null;
+    // A list one option handed on to (its meta.next): {key: the list it opened, back: where
+    // focus went back to from the list it was picked in (backTo)}, null for none. Focus goes
+    // back there when the list closes without a pick, the list's own trigger being a row the
+    // pick may not have made yet; it counts only while that list is the one expanded.
+    var handedFrom = null;
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
     /**
@@ -2840,6 +2866,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     function expandedTrigger() {
       var attr = { color: 'data-color', date: 'data-date' }[expandedType()] || 'data-select';
       return '[' + attr + '="' + expanded + '"]';
+    }
+    /**
+     * Where focus goes when the expanded control closes: its trigger, else where it would go
+     * from the list that handed it on (handedFrom).
+     * @returns {Array<string>} Selectors, most wanted first (call only while something is
+     *   expanded).
+     */
+    function backTo() {
+      return [expandedTrigger()].concat(handedFrom && handedFrom.key === expanded ? handedFrom.back : []);
     }
     /**
      * The date whose wheels are open: a tab's date sheet, or a dialog's date sheet over it
@@ -3100,6 +3135,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // Escape would spend its first press collapsing it and the dialog would open at the
       // raised .picking cap.
       expanded = null;
+      handedFrom = null;
       if (renaming !== id) { renaming = null; }
       var stacked = Boolean(nested && editStack.length);
       if (stacked) {
@@ -3190,18 +3226,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // boot() requires the DOM; it is never called from Node tests (which exercise the pure
     // helpers above), so DOM access here is unguarded by design.
 
-    // Toggle body.light from the theme setting; re-run on every render + on OS theme change.
+    // Set body.light or body.black (neither = dark) from the theme setting; re-run on every
+    // render + on OS theme change.
     // Guarded for the pure-render Node test harness, which shims `document` without a
     // `window`/`body` — real browser boot always has both.
     function applyTheme() {
       if (typeof window === 'undefined' || !document.body) { return; }
       var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
       var prefersLight = Boolean(mq && mq.matches);
-      if (resolveTheme(SCHEMA, S, prefersLight) === 'light') {
-        document.body.classList.add('light');
-      } else {
-        document.body.classList.remove('light');
-      }
+      var theme = resolveTheme(SCHEMA, S, prefersLight);
+      document.body.classList[theme === 'light' ? 'add' : 'remove']('light');
+      document.body.classList[theme === 'black' ? 'add' : 'remove']('black');
     }
 
     /**
@@ -3228,9 +3263,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       snapShownOptions(SCHEMA, S, ENV, INITIAL);
       // A palette reads `expanded` as openColor in the tab body and in the sheet (only a
       // palette: a pinned header lets go for it, pinClass); a select's list reads it as
-      // openInline in the edit sheet only (renderEditModal).
+      // openInline in the edit sheet only (renderEditModal). texts: the derived notes this
+      // render has resolved (staticTextOf).
       var cx = {
-        S: S, ENV: ENV, USERDATA: USERDATA, openColor: expandedIsPalette() ? expanded : null,
+        S: S, ENV: ENV, USERDATA: USERDATA, texts: {}, openColor: expandedIsPalette() ? expanded : null,
         openSelect: openKey('select'), openDate: openDateKey(), openEdit: openKey('edit'),
         selectQuery: selectQuery,
         collapsed: collapsed, evalCtx: evalCtx(),
@@ -3523,15 +3559,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
     /**
      * Put focus back on the element a tap re-rendered (render() replaced the node): the
-     * first match in the open dialog, else in the tab body.
-     * @param {string} selector What to find again.
+     * first match of the selectors, in order, in the open dialog, else in the tab body.
+     * @param {string|Array<string>} selectors What to find again, most wanted first.
      * @returns {void}
      */
-    function refocus(selector) {
-      var hosts = [sheetIs('edit') ? document.getElementById('modal') : null, document.getElementById('scroll')], i, el;
+    function refocus(selectors) {
+      var list = [].concat(selectors), i, j, el;
+      var hosts = [sheetIs('edit') ? document.getElementById('modal') : null, document.getElementById('scroll')];
       for (i = 0; i < hosts.length; i++) {
-        el = (hosts[i] && hosts[i].querySelector) ? hosts[i].querySelector(selector) : null;
-        if (el && el.focus) { el.focus(); return; }
+        for (j = 0; hosts[i] && hosts[i].querySelector && j < list.length; j++) {
+          el = hosts[i].querySelector(list[j]);
+          if (el && el.focus) { el.focus(); return; }
+        }
       }
     }
     // The delegated control cases #scroll and the edit sheet share — ONE matcher,
@@ -3617,11 +3656,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if ((t = e.target.closest('[data-action]'))) {
         var act = t.getAttribute('data-action');
         // Actions receive (arg, S, ENV, defaultAsStored); returning true asks for
-        // a re-render (e.g. resetThresholds rewrites several keys). Legacy
-        // actions ignore all of it.
-        if (PConf.actions[act]
-            && PConf.actions[act](t.getAttribute('data-action-arg'), S, ENV, defaultAsStored) === true) {
+        // a re-render (e.g. resetThresholds rewrites several keys), and {focus: [selectors]}
+        // for one with focus on the first match (refocus): the stand-in for the button the
+        // re-render took away. Legacy actions ignore all of it.
+        var done = PConf.actions[act]
+          ? PConf.actions[act](t.getAttribute('data-action-arg'), S, ENV, defaultAsStored) : null;
+        if (done === true || (done && done.focus)) {
           render();
+          if (done.focus) { refocus(done.focus); }
         }
         return true;
       }
@@ -3830,6 +3872,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     /**
+     * Focus the expanded list's ticked option, else its first pickable one: [data-select-pick]
+     * on the ticked one too, since a gated current value renders a disabled button, which
+     * cannot take focus. In a bottom sheet only its list scrolls (focusInModal).
+     * @returns {void}
+     */
+    function focusExpanded() {
+      var modal = document.getElementById('modal');
+      focusInModal(['.isel-list .ssel-opt.on[data-select-pick]', '.isel-list [data-select-pick]'],
+        Boolean(modal && modal.querySelector && modal.querySelector('.psheet')));
+    }
+
+    /**
      * Scroll an option's list (its closest .isel-list) so the option sits in its middle,
      * by rect math alone (scrollIntoView's options form is unsafe in old Android WebViews).
      * Nothing else scrolls.
@@ -3857,10 +3911,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (!sheetIs('edit') || !expanded) { return false; }
       // A date's wheels keep the day a spin left them on, as every close of a date sheet does.
       dateWiring.flushPending();
-      var sel = expandedTrigger();
+      var sel = backTo();
+      handedFrom = null;
       expanded = null;
       render();
-      focusInModal([sel]);
+      focusInModal(sel);
       return true;
     }
 
@@ -3905,17 +3960,30 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         }
         if (e.target.closest && (t = e.target.closest('[data-select-pick]'))) {
           var k = t.getAttribute('data-k'), v = t.getAttribute('data-select-pick');
-          setValue(k, v);
+          var next = t.getAttribute('data-select-next');
           // A pick in a list expanded inside an edit sheet collapses that list and
           // leaves the sheet open, focus back on the row's trigger (the node render()
-          // just rebuilt). Anywhere else a pick closes the select sheet, and leaves alone
-          // a palette open in the tab body, which `expanded` may also hold.
+          // just rebuilt), or the trigger that handed the list on. An option that names a
+          // select to pick next (meta.next) stores nothing and opens that select's list in
+          // its place. Anywhere else a pick closes the select sheet, and leaves alone a
+          // palette open in the tab body, which `expanded` may also hold.
           if (sheetIs('edit') && expanded) {
+            if (next) {
+              handedFrom = { key: next, back: backTo() };
+              expanded = next;
+              render();
+              focusExpanded();
+              return;
+            }
+            var back = backTo();
+            setValue(k, v);
+            handedFrom = null;
             expanded = null;
             render();
-            focusInModal(['[data-select="' + k + '"]']);
+            focusInModal(back);
             return;
           }
+          setValue(k, v);
           closeModal(); return;
         }
         // Edit-sheet controls: the sheet renders ordinary rows inside the dialog,
@@ -3928,14 +3996,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // (renderInlineList); a second tap on its trigger collapses them.
         if (sheetIs('edit') && e.target.closest && (t = e.target.closest('[data-select]'))) {
           var sk = t.getAttribute('data-select');
+          handedFrom = null;
           expanded = (expanded === sk ? null : sk);
           render();
-          // [data-select-pick] on the current option too: a gated current value renders a
-          // disabled button, which cannot take focus — fall through to the first pickable one.
           // A tap that opened nothing (render() dropped the key) lands back on the trigger.
-          focusInModal(expanded
-            ? ['.isel-list .ssel-opt.on[data-select-pick]', '.isel-list [data-select-pick]']
-            : ['[data-select="' + sk + '"]'], Boolean(expanded && modal.querySelector('.psheet')));
+          if (expanded) { focusExpanded(); } else { focusInModal(['[data-select="' + sk + '"]']); }
           return;
         }
         if (sheetIs('edit') && e.target.closest && controlClick(e)) { return; }

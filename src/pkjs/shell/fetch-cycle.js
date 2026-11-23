@@ -33,6 +33,7 @@ var radarSkySource = require('../weather/adapter/radar/radar-sky-source.js');
 var requestThrottle = require('../weather/adapter/radar/request-throttle.js');
 var radarCoverageStore = require('../weather/adapter/radar/radar-coverage-store.js');
 var WeatherProvider = require('../weather/adapter/provider.js');
+var sourcePorts = require('../weather/adapter/source-ports.js');
 var renderPayload = require('../weather/application/render-payload.js');
 var keyResult = require('../weather/domain/keys/key-result.js');
 var keyResultsStore = require('../weather/adapter/key-results-store.js');
@@ -46,14 +47,15 @@ var KEY_SERVER_STREAK = storageKeys.SERVER_FAILURE_STREAK_KEY;
 // healthy chain is bounded by its own timeouts, step after step: the GPS fix
 // (10 s) or the address's geocode; the radar (twice for Rainbow (own key), which
 // retries without its start time; the sky rows ask alongside); the city; the
-// provider (up to three requests for DWD and Open-Meteo, five for Weather
-// Underground when it re-scrapes a refused key); AQI (twice when Auto falls back);
-// pollen. Each request takes at most 10 s (weather/adapter/http.js XHR_TIMEOUT_MS), then
-// comes the AppMessage ACK: twelve such waits at the very worst, 120 s plus the
-// ACK. So one still running after 3 min had a callback that threw or never came
-// back, and its in-progress flag would otherwise block every later fetch until
-// PKJS restarts.
-var FETCH_WATCHDOG_MS = 3 * 60 * 1000;
+// forecast's providers one after another (up to three requests for DWD and
+// Open-Meteo, five for Weather Underground when it re-scrapes a refused key; the
+// reading picks may ask every provider) and the two fills; AQI (twice when Auto falls
+// back); pollen. Each request takes at most 10 s (weather/adapter/http.js
+// XHR_TIMEOUT_MS), then comes the AppMessage ACK: 24 such waits at the very worst
+// (test/shell/fetch-cycle.test.js counts them). So one still running after 5 min
+// had a callback that threw or never came back, and its in-progress flag would
+// otherwise block every later fetch until PKJS restarts.
+var FETCH_WATCHDOG_MS = 5 * 60 * 1000;
 // Tolerance when comparing a failure backoff against the tick clock (see
 // isFailureBackoffActive): half of the 60 s scheduler tick.
 var FAILURE_BACKOFF_SLACK_MS = 30 * 1000;
@@ -62,10 +64,9 @@ var FAILURE_BACKOFF_BASE_MS = 60 * 1000;
 
 // --- fetch cadence ----------------------------------------------------------
 // When-do-we-fetch vocabulary, read by shouldFetchNow (isRefreshDue and
-// isFailureBackoffActive). A refresh slot is a request throttle's slot
-// (request-throttle.js isPastSlot: UTC-aligned chunks of the interval since the
-// epoch). Static on the factory: the cadence probe is stateless and shared.
-var isPastRefreshSlot = requestThrottle.isPastSlot;
+// isFailureBackoffActive). A refresh slot is a UTC-aligned chunk of the update interval
+// since the epoch (weather/domain/refresh-slot.js).
+var refreshSlot = require('../weather/domain/refresh-slot.js');
 
 /**
  * How long a scheduled (non-forced) refresh waits after a failed attempt: one
@@ -219,6 +220,42 @@ var skyThrottle = requestThrottle.createRequestThrottle({
 // single-acquisition invariant stays visible in one place.
 
 /**
+ * Record what each keyed provider a fetch asked said about its key (key-result.js; the settings
+ * page's key status): 200 for an answer, the 401/403 of a refusal. Any other failure says
+ * nothing about the key here, and a keyless provider records nothing (key-results-store.js).
+ * @param {Object} provider The Provider after a fetch (its answers:
+ *   fetch-sources.js).
+ * @param {function(Object): boolean} isAuthFailure auth-backoff.js isAuthFailure.
+ * @returns {void}
+ */
+function recordKeyAnswers(provider, isAuthFailure) {
+    (provider.answers || []).forEach(function (answer) {
+        if (answer.failure && !isAuthFailure(answer.failure)) { return; }
+        keyResultsStore.record(answer.id, answer.apiKey,
+            answer.failure ? keyResult.statusOfCode(answer.failure.code) : 200);
+    });
+}
+
+/**
+ * Prepare a provider for one fetch, as start() does: its options from the settings, and the
+ * source ports its fetch runs through.
+ *
+ * @param {Object} provider The weather provider.
+ * @param {Object} settings Clay settings.
+ * @param {?Object} watchInfo getActiveWatchInfo() result, or null.
+ * @param {{waqiToken: string}} env Build-injected secrets (package.json's waqi.token).
+ * @param {function(): number} now The clock, epoch ms.
+ * @returns {Object} The source ports (weather/adapter/source-ports.js), fetchWithCoordinates'
+ *   last argument.
+ */
+function prepareFetch(provider, settings, watchInfo, env, now) {
+    // This fetch's knobs (UV/AQI/pollen requests, feels work + formula, day-max codes, units,
+    // the WAQI token) as one value — set before any request is built.
+    provider.options = fetchOptions.build(settings, watchInfo, { waqiToken: env.waqiToken });
+    return sourcePorts.create(now, refreshSlot.updateIntervalMs(settings), settings, provider.options);
+}
+
+/**
  * @param {Object} deps
  * @param {Object} deps.provider Provider exposing withCoordinates + fetchWithCoordinates.
  * @param {Function} deps.fetchRadar fetchRadar(lat, lon, cb) -> cb(radarTuples|null).
@@ -233,6 +270,7 @@ var skyThrottle = requestThrottle.createRequestThrottle({
  * @param {function(): boolean} [deps.isCurrent] False once the caller gave up on
  *   this cycle (its watchdog fired): the rest of the chain then stops instead of
  *   spending requests and sending a stale payload.
+ * @param {Object} deps.ports The source ports (prepareFetch).
  * @returns {void}
  */
 function runCycle(deps) {
@@ -248,7 +286,7 @@ function runCycle(deps) {
             deps.provider.fetchWithCoordinates(
                 lat, lon, deps.onSuccess,
                 function(failure) { deps.onFailure(failure, radarTuples); },
-                deps.force, extras, deps.payloadTransform, deps.isCurrent
+                deps.force, extras, deps.payloadTransform, deps.isCurrent, deps.ports
             );
         });
     }, function(coordinateFailure) {
@@ -272,8 +310,8 @@ function runCycle(deps) {
  * @param {function(Object):void} deps.trackWeatherFetch Receives each fetch's telemetry event (the caller owns the telemetry-enabled gate).
  * @param {{waqiToken: string, rainbowEndpoint: string}} deps.env Build-injected secrets (package.json's waqi.token and rainbow.endpoint; '' when absent).
  * @param {function():Date} deps.now Current-time supplier (same contract as the channel scheduler's deps.now).
- * @param {function():?Object} [deps.getPhoneBattery] The phone's battery facts for the bake
- *   (phone-battery.js bakeFacts); absent = a host that cannot read the phone's battery.
+ * @param {function():?Object} [deps.getBakeFacts] The two batteries' facts for the bake
+ *   (status-lines.js BakeFacts); absent = a host that can read neither.
  * @param {function(Function, number):*} deps.setTimeout Timer function (the watchdog and the queued-force drain; wrap the native one — see index.js).
  * @returns {{shouldFetchNow: function():boolean, start: function(boolean):boolean, isInFlight: function():boolean}}
  *   The fetch cycle.
@@ -495,9 +533,8 @@ function createFetchCycle(deps) {
         }
 
         console.log('Fetching from ' + provider.name);
-        // This fetch's knobs (UV/AQI/pollen requests, feels work + formula, day-max
-        // codes, units, the WAQI token) as one value — set before any request is built.
-        provider.options = fetchOptions.build(deps.getSettings(), deps.getWatchInfo(), { waqiToken: deps.env.waqiToken });
+        var ports = prepareFetch(provider, deps.getSettings(), deps.getWatchInfo(), deps.env,
+            function () { return +deps.now(); });
         fetchInProgress = true;
         // This fetch's once-guard: set by the first of success, failure or the
         // watchdog, after which every later completion from this fetch is a no-op.
@@ -554,9 +591,9 @@ function createFetchCycle(deps) {
             if (!settle()) { return; }
             // Success: record the fetch time and reset the attempt counter.
             localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
-            // A keyed provider served the key this fetch carried: the settings page's key
-            // status (key-result.js; a keyless provider records nothing).
-            keyResultsStore.record(provider.id, provider.apiKey, 200);
+            // Each keyed provider asked answered the key this fetch carried, or refused it: the
+            // settings page's key status (a reading pick's too).
+            recordKeyAnswers(provider, deps.authBackoff.isAuthFailure);
             resetFetchAttemptCounter();
             // The payload reached the watch (ACK, or unchanged since the last ACK):
             // only now is its IS_SLEEPING the watch's state.
@@ -597,9 +634,12 @@ function createFetchCycle(deps) {
             if (deps.authBackoff.isAuthFailure(failure)) {
                 console.log('[!] Auth failure — pausing auto-fetch until Force fetch or config change.');
                 deps.authBackoff.set(failure);
-                // And the key's verdict, kept apart from the gate: a forced fetch clears
-                // the backoff, never this (key-result.js).
-                keyResultsStore.record(provider.id, provider.apiKey, keyResult.statusOfCode(failure.code));
+            }
+            // The keys' verdicts, kept apart from the gate: a forced fetch clears the backoff,
+            // never these (key-result.js). Only the forecast's own failure carries this fetch's
+            // answers; any other failure came before or after them.
+            if (failure && failure.stage === 'provider_data') {
+                recordKeyAnswers(provider, deps.authBackoff.isAuthFailure);
             }
             // No weather data is available on failure, so whatever the watch still
             // needs rides alone, bundled into ONE send (the channel is half-duplex;
@@ -675,7 +715,7 @@ function createFetchCycle(deps) {
          */
         function toRenderPayload(payload) {
             return renderPayload.toRenderPayload(payload, deps.getSettings(), deps.getWatchInfo(),
-                deps.now(), typeof deps.getPhoneBattery === 'function' ? deps.getPhoneBattery() : null);
+                deps.now(), typeof deps.getBakeFacts === 'function' ? deps.getBakeFacts() : null);
         }
 
         // Watchdog: the chain is asynchronous, so a callback that throws — or a
@@ -704,7 +744,8 @@ function createFetchCycle(deps) {
                 onFailure: onFetchFailure,
                 force: force,
                 payloadTransform: toRenderPayload,
-                isCurrent: isCurrent
+                isCurrent: isCurrent,
+                ports: ports
             });
         }
         catch (e) {
@@ -781,7 +822,7 @@ function createFetchCycle(deps) {
      */
     function shouldFetchNow() {
         if (!isRefreshDue()) { return false; }
-        return !isFailureBackoffActive(deps.getSettings().fetchIntervalMin * 60 * 1000);
+        return !isFailureBackoffActive(refreshSlot.updateIntervalMs(deps.getSettings()));
     }
 
     /**
@@ -852,8 +893,8 @@ function createFetchCycle(deps) {
         if (isNaN(lastTimeMs)) {
             return true;
         }
-        var intervalMs = deps.getSettings().fetchIntervalMin * 60 * 1000;
-        if (!isPastRefreshSlot(lastTimeMs, +deps.now(), intervalMs)) { return false; }
+        var intervalMs = refreshSlot.updateIntervalMs(deps.getSettings());
+        if (!refreshSlot.isPastSlot(lastTimeMs, +deps.now(), intervalMs)) { return false; }
         if (isSleepingNow() && lastIsSleeping === true) { return false; }
         return true;
     }
@@ -875,7 +916,7 @@ function createFetchCycle(deps) {
     };
 }
 
-createFetchCycle.isPastRefreshSlot = isPastRefreshSlot;
+createFetchCycle.prepareFetch = prepareFetch;
 createFetchCycle.failureBackoffMs = failureBackoffMs;
 createFetchCycle.FETCH_WATCHDOG_MS = FETCH_WATCHDOG_MS;
 createFetchCycle.FAILURE_BACKOFF_SLACK_MS = FAILURE_BACKOFF_SLACK_MS;

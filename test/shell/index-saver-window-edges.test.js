@@ -1,7 +1,7 @@
 // test/shell/index-saver-window-edges.test.js
 //
 // The battery saver's window in the real index.js, at its closing edge: a phone-battery
-// update the window swallowed is owed to the watch (phone-battery.js pendingPush), and the
+// update the window swallowed is owed to the watch (status-rebake.js resendStatusAwake), and the
 // window's first fetch is due in the same minute. The push waits out that fetch, whose
 // message goes out anyway (the sleep flag ends) and takes the exact reading along, so the
 // minute costs one message, not a push and a fetch. Local hours throughout, as the saver's.
@@ -11,7 +11,7 @@ const { bootIndex } = require('../helpers/index-harness.js');
 const { fakeManager } = require('../helpers/fake-battery.js');
 
 test('the window closes with one message: the owed push rides the fetch due that minute', (t) => {
-  const battery = fakeManager(0.84, false);
+  const battery = fakeManager(0.84);
   const h = bootIndex(t, {
     now: new Date(2026, 0, 6, 6, 40).getTime(),
     battery: battery,

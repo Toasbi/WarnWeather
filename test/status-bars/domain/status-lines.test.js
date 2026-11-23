@@ -20,13 +20,12 @@ let phone = { supported: false, reading: null };
  * are deliberately not multiples of 5.
  *
  * @param {number|null} pct Exact charge percentage 0..100, or null for "no reading".
- * @param {boolean} [charging] Whether the phone is plugged in.
  * @returns {void}
  */
-function setPhoneBattery(pct, charging) {
+function setPhoneBattery(pct) {
   const reading = pct === null
-    ? { available: false, level: null, charging: false }
-    : { available: true, level: pct, charging: Boolean(charging) };
+    ? { available: false, level: null }
+    : { available: true, level: pct };
   phone = { supported: true, reading: () => reading };
 }
 
@@ -48,12 +47,12 @@ function bakeNow() {
 
 /**
  * A phone-battery item's slot text, baked with the phone's facts set above.
- * @param {string} code 'phoneBattery' or 'phoneBatteryPlain'
+ * @param {string} look The phone battery's Look: 'both' (icon + text) or 'text'
  * @returns {string}
  */
-function batteryText(code) {
-  return statusLines.formatValue(code, {}, {}, 'statusForecastLeft', undefined, undefined,
-    undefined, undefined, bakeNow());
+function batteryText(look) {
+  return statusLines.formatValue('phoneBattery', {}, { statusForecastLeftPhoneBatteryLook: look },
+    'statusForecastLeft', undefined, undefined, undefined, undefined, bakeNow());
 }
 
 const K = catalog.KINDS, I = catalog.ICONS;
@@ -1199,25 +1198,25 @@ test('the wind unit gives way only to an arrow the slot actually draws', () => {
 
 // --- Phone battery ---------------------------------------------------------
 // The one status item with nothing to do with the weather fetch: the phone bakes
-// its OWN charge into the slot's text, and picks the icon id per bake so charging
-// reaches the watch inside a byte the slot already pays for (no wire field, no C
-// plumbing). Android only — see phone-battery.js and test/status-bars/adapter/phone-battery.test.js.
+// its OWN charge into the slot's text. The slot shows the charge alone (no charging
+// state is read), so its icon id never varies. A phone with the Pebble app's Phone
+// plugin or an Android WebView can report it — see phone-battery.js and
+// test/status-bars/adapter/phone-battery.test.js.
 //
 // The text is the EXACT percentage. phone-battery.js's 5-point bucket decides
 // only WHEN a resend fires; baking it would show a phone at 31% as "30%", which
 // is precisely the on-device bug this pair of jobs was split to fix.
 
-test('phone battery renders the cached percentage as NN%, both codes alike', () => {
-  setPhoneBattery(87, false);
-  assert.equal(batteryText('phoneBattery'), '87%');
-  assert.equal(batteryText('phoneBatteryPlain'), '87%');
-  // The two items differ only in the icon they pack; the text is identical.
-  setPhoneBattery(0, false);
-  assert.equal(batteryText('phoneBattery'), '0%');
-  setPhoneBattery(100, true);
-  assert.equal(batteryText('phoneBattery'), '100%',
-    'charging changes the icon, never the text');
-  assert.equal(batteryText('phoneBatteryPlain'), '100%');
+test('phone battery renders the cached percentage as NN%, in both looks', () => {
+  setPhoneBattery(87);
+  assert.equal(batteryText('both'), '87%');
+  assert.equal(batteryText('text'), '87%');
+  // The two looks differ only in the icon they pack; the text is identical.
+  setPhoneBattery(0);
+  assert.equal(batteryText('both'), '0%');
+  setPhoneBattery(100);
+  assert.equal(batteryText('both'), '100%');
+  assert.equal(batteryText('text'), '100%');
 });
 
 test('the reported percentage is never rounded to a 5-point step', () => {
@@ -1225,62 +1224,92 @@ test('the reported percentage is never rounded to a 5-point step', () => {
   // quantize, the display must not. Every value the phone can report survives
   // the bake intact.
   [31, 30, 1, 7, 49, 63, 99].forEach((pct) => {
-    setPhoneBattery(pct, false);
-    assert.equal(batteryText('phoneBattery'), pct + '%');
-    assert.equal(batteryText('phoneBatteryPlain'), pct + '%');
+    setPhoneBattery(pct);
+    assert.equal(batteryText('both'), pct + '%');
+    assert.equal(batteryText('text'), pct + '%');
   });
 });
 
 test('phone battery is -- with no reading, and on a phone that cannot report one', () => {
-  // '--' covers "Android, but no event has landed yet" and "no battery API at
+  // '--' covers "a source, but no reading has landed yet" and "no source at
   // all". It is also what the watch substitutes while Bluetooth is down
   // (status_row.c's freshness rule), so the two paths agree by construction.
   setPhoneBattery(null);
-  assert.equal(batteryText('phoneBattery'), '--');
-  assert.equal(batteryText('phoneBatteryPlain'), '--');
+  assert.equal(batteryText('both'), '--');
+  assert.equal(batteryText('text'), '--');
   clearPhoneBattery();
-  assert.equal(batteryText('phoneBattery'), '--');
-  assert.equal(batteryText('phoneBatteryPlain'), '--');
+  assert.equal(batteryText('both'), '--');
+  assert.equal(batteryText('text'), '--');
 });
 
 test('phone battery text fits the narrow edge cap at every whole percentage', () => {
   // Every value 0..100 now, not just the 5-point steps: any of them can be baked.
   for (let pct = 0; pct <= 100; pct += 1) {
-    for (const charging of [false, true]) {
-      setPhoneBattery(pct, charging);
-      const text = batteryText('phoneBattery');
-      assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
-        `${pct}% overflows the edge slot`);
-    }
+    setPhoneBattery(pct);
+    const text = batteryText('both');
+    assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
+      `${pct}% overflows the edge slot`);
   }
 });
 
-test('charging swaps the packed icon id, and only for the icon-bearing item', () => {
+test('the packed icon id never varies with the reading: 16 in the Icon + text look, 18 in the Text look', () => {
   const env = Object.assign(basaltEnv(), { phoneBattery: true });
   const line = forecastLine();
   const sel = (code) => ({ statusForecastLeft: code, statusForecastMid: 'empty',
                            statusForecastRight: 'empty' });
 
-  setPhoneBattery(63, false);
-  let slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBattery'), env, null, bakeNow()))[0];
-  assert.equal(slot.kind, catalog.KINDS.TEXT);
-  assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY);
-  assert.equal(slot.text, '63%');
-
-  setPhoneBattery(63, true);
-  slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBattery'), env, null, bakeNow()))[0];
-  assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY_CHG, 'charging glyph, same text');
-  assert.equal(slot.text, '63%');
-
-  // The no-icon variant draws nothing in either state, so its id never varies.
-  // It still needs an id of its own: TEXT + ICON_NONE maps to THRESH_CITY on the
-  // watch, so without one its Bold row would silently drive City.
-  for (const charging of [false, true]) {
-    setPhoneBattery(63, charging);
-    slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBatteryPlain'), env, null, bakeNow()))[0];
-    assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY_PLAIN, `plain, charging=${charging}`);
-    assert.equal(slot.text, '63%');
+  for (const pct of [63, 5, 100]) {
+    setPhoneBattery(pct);
+    const slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBattery'), env, null, bakeNow()))[0];
+    assert.equal(slot.kind, catalog.KINDS.TEXT);
+    assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY, `iconed at ${pct}%`);
+    assert.equal(slot.text, pct + '%');
   }
+  assert.equal(catalog.ICONS.PHONE_BATTERY, 16);
+  assert.equal(catalog.ICONS.PHONE_BATTERY_CHG, undefined, 'there is no charging glyph id any more');
+
+  // The Text look draws no icon, so its id never varies either.
+  // It still needs an id of its own: TEXT + ICON_NONE maps to THRESH_CITY on the
+  // watch, so without one its Bold row would silently drive City. The Look is the
+  // slot's own (catalog phoneBatteryLookKey).
+  for (const pct of [63, 5, 100]) {
+    setPhoneBattery(pct);
+    const slot = decodeLine(statusLines.packLine(line, {},
+      Object.assign(sel('phoneBattery'), { statusForecastLeftPhoneBatteryLook: 'text' }), env, null, bakeNow()))[0];
+    assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY_PLAIN, `plain at ${pct}%`);
+    assert.equal(slot.icon, 18);
+    assert.equal(slot.text, pct + '%');
+  }
+  // Another slot's Look, and a look of the item as a whole, say nothing about this slot.
+  setPhoneBattery(63);
+  [{ statusForecastRightPhoneBatteryLook: 'text' }, { phoneBatterySlotLook: 'text' }].forEach((other) => {
+    const slot = decodeLine(statusLines.packLine(line, {}, Object.assign(sel('phoneBattery'), other), env, null, bakeNow()))[0];
+    assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY, JSON.stringify(other));
+  });
+});
+
+test('the watch battery bakes kind 9 in the Icon look and kind 10 in the text looks, never 10 on aplite', () => {
+  const sel = { statusTopLeft: 'empty', statusTopMid: 'empty', statusTopRight: 'battery' };
+  const slotFor = (settings, watch) => {
+    const p = basePayload();
+    statusLines.buildStatusLines(p, baseSettings(Object.assign({}, sel, settings)), watch, NOW);
+    const slot = decodeLine(p.STATUS_LINE_3_UINT8)[2];
+    return [slot.kind, slot.icon];
+  };
+  const NONE = catalog.ICONS.NONE;
+  const DRAWN = catalog.ICONS.DRAWN_BATTERY;
+  assert.deepEqual(slotFor({}, WATCH_BASALT), [K.LIVE_BATTERY, NONE], 'the default look is the icon');
+  assert.deepEqual(slotFor({ batterySlotLook: 'icon' }, WATCH_BASALT), [K.LIVE_BATTERY, NONE]);
+  assert.deepEqual(slotFor({ batterySlotLook: 'text' }, WATCH_BASALT), [K.LIVE_BATTERY_PCT, NONE]);
+  assert.deepEqual(slotFor({ batterySlotLook: 'text' }, WATCH_EMERY), [K.LIVE_BATTERY_PCT, NONE]);
+  // Icon + text: the text's kind, and the id of the battery the watch draws before it
+  // (status_line.h status_slot_draws_battery).
+  assert.deepEqual(slotFor({ batterySlotLook: 'both' }, WATCH_BASALT), [K.LIVE_BATTERY_PCT, DRAWN]);
+  assert.deepEqual(slotFor({ batterySlotLook: 'both' }, WATCH_EMERY), [K.LIVE_BATTERY_PCT, DRAWN]);
+  ['text', 'both'].forEach((look) => {
+    assert.deepEqual(slotFor({ batterySlotLook: look }, WATCH_APLITE), [K.LIVE_BATTERY, NONE],
+      look + ': aplite keeps kind 9 whatever the look: its status row prints the percentage itself');
+  });
 });
 
 test('an unreadable phone battery still packs its slot, as --', () => {
@@ -1289,7 +1318,7 @@ test('an unreadable phone battery still packs its slot, as --', () => {
   const slot = decodeLine(statusLines.packLine(forecastLine(), {},
     { statusForecastLeft: 'phoneBattery', statusForecastMid: 'empty',
       statusForecastRight: 'empty' }, env, null, bakeNow()))[0];
-  assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY, 'not the charging glyph');
+  assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY, 'the one battery glyph');
   assert.equal(slot.text, '--');
 });
 
@@ -1302,7 +1331,7 @@ test('buildStatusLines derives env.phoneBattery from the phone\'s detector verdi
 
   setPhoneBattery(47, false);
   let p = basePayload();
-  statusLines.buildStatusLines(p, settings, WATCH_BASALT, NOW, phone);
+  statusLines.buildStatusLines(p, settings, WATCH_BASALT, NOW, { phone: phone });
   let slot = decodeLine(p.STATUS_LINE_1_UINT8)[0];
   assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY);
   assert.equal(slot.text, '47%');
@@ -1311,7 +1340,7 @@ test('buildStatusLines derives env.phoneBattery from the phone\'s detector verdi
   // resolves to 'empty' rather than baking a made-up value.
   clearPhoneBattery();
   p = basePayload();
-  statusLines.buildStatusLines(p, settings, WATCH_BASALT, NOW, phone);
+  statusLines.buildStatusLines(p, settings, WATCH_BASALT, NOW, { phone: phone });
   slot = decodeLine(p.STATUS_LINE_1_UINT8)[0];
   assert.equal(slot.kind, catalog.KINDS.EMPTY);
   assert.equal(slot.text, '');
@@ -1320,7 +1349,7 @@ test('buildStatusLines derives env.phoneBattery from the phone\'s detector verdi
 // ── SOURCE_KEYS is the snapshot contract ──────────────────────────────────────
 //
 // status-rebake.js persists exactly the payload slice named by SOURCE_KEYS so a
-// charging event can re-bake after a PKJS restart. If a new slot starts reading a
+// battery event can re-bake after a PKJS restart. If a new slot starts reading a
 // payload key that is not on the list, the key is absent from the restored blob
 // and that slot silently re-bakes as '--' -- no throw, no failing assertion, just
 // a wrong watchface after every relaunch. So pin the list to the code: scan the
@@ -1489,15 +1518,15 @@ test('the entry cap holds all five alerts with their widest values for tomorrow 
 test('the bake reads the phone battery only when a slot shows it, and once per bake', () => {
   let reads = 0;
   const lazyPhone = { supported: true,
-    reading: () => { reads++; return { available: true, level: 52, charging: false }; } };
+    reading: () => { reads++; return { available: true, level: 52 }; } };
   // No phone-battery slot anywhere: nothing reads the battery.
-  statusLines.buildStatusLines(basePayload(), baseSettings({}), WATCH_BASALT, NOW, lazyPhone);
+  statusLines.buildStatusLines(basePayload(), baseSettings({}), WATCH_BASALT, NOW, { phone: lazyPhone });
   assert.equal(reads, 0, 'a bake without a battery slot must not read the battery');
-  // Two battery slots (text and icon): one read serves both.
+  // Two phone-battery slots: one read serves both.
   const p = basePayload();
   statusLines.buildStatusLines(p, baseSettings({ statusForecastLeft: 'phoneBattery',
-    statusForecastMid: 'phoneBatteryPlain', statusForecastRight: 'empty' }), WATCH_BASALT, NOW,
-    lazyPhone);
+    statusForecastMid: 'phoneBattery', statusForecastRight: 'empty' }), WATCH_BASALT, NOW,
+    { phone: lazyPhone });
   assert.equal(reads, 1);
   assert.equal(decodeLine(p.STATUS_LINE_1_UINT8)[0].text, '52%');
 });
@@ -1506,6 +1535,6 @@ test('a phone-battery reader that answers null (storage blocked) bakes its slots
   const p = basePayload();
   const blocked = { supported: true, reading: () => null };
   statusLines.buildStatusLines(p, baseSettings({ statusForecastLeft: 'phoneBattery',
-    statusForecastMid: 'empty', statusForecastRight: 'empty' }), WATCH_BASALT, NOW, blocked);
+    statusForecastMid: 'empty', statusForecastRight: 'empty' }), WATCH_BASALT, NOW, { phone: blocked });
   assert.equal(decodeLine(p.STATUS_LINE_1_UINT8)[0].text, '--');
 });

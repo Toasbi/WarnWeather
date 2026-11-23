@@ -1,8 +1,8 @@
 'use strict';
 // src/pkjs/notices/adapter/notify-watch.js: a notification on the watch as far as the Pebble app's permissions
-// let it show (ShowNotifications, app 1.18.0 with the permissions preview on). It shows unless the
-// user turned notifications off for the app, and says whether the user has decided: false while
-// the phone asks first and drops this one, so the caller keeps it for a later run.
+// let it show (ShowNotifications: app 2.0.0, or 1.18.0 with its permissions preview on). It shows
+// unless the user turned notifications off for the app, and says whether the user has decided:
+// false while the phone asks first and drops this one, so the caller keeps it for a later run.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { notifyWatch } = require('../../../src/pkjs/notices/adapter/notify-watch.js');
@@ -38,7 +38,7 @@ async function runWith(permissions) {
   return { shown, decided };
 }
 
-test('an app without Pebble.permissions (preview off, or before 1.17.0) shows it: decided', async () => {
+test('an app without Pebble.permissions (before 1.17.0) shows it: decided', async () => {
   const r = await runWith(undefined);
   assert.deepEqual(r.shown, [['Title', 'Body']]);
   assert.deepEqual(r.decided, [true]);

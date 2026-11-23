@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "series.h"
+#include "status_line.h"
 
 int persist_get_temp_trend(int16_t *buffer, const size_t buffer_size);
 
@@ -85,6 +86,12 @@ bool persist_set_radar_palette(uint8_t *data, const size_t size);
 
 int persist_get_status_line(uint8_t line_id, uint8_t *buffer, size_t buffer_size);
 bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len);
+
+// The days text the watch battery slot carried the last time the watch was on the charger
+// (status_line.h StatusBatteryDaysMark). Absent reads as an empty mark. The setter writes
+// only a mark that changed.
+void persist_get_battery_days_mark(StatusBatteryDaysMark *mark);
+bool persist_set_battery_days_mark(const StatusBatteryDaysMark *mark);
 
 // Threshold highlighting is compiled out of aplite (WW_THRESHOLD_HIGHLIGHT,
 // wscript): its lean status-row twin cannot render a highlight, so the accessors

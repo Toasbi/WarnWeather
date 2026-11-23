@@ -10,19 +10,20 @@
 const fs = require('fs');
 const pw = require('../src/pkjs/page/layout/preview-watch.js');
 
-const MIN_LINES = 40000;   // a truncated or empty dump must not pass
+const MIN_LINES = 150000;   // a truncated or empty dump must not pass
 
 /**
  * One dump line checked against the page's copy.
- * @param {string} line "<content_w> <slot> <slot> <slot> <swapped> <place> <place> <place>".
+ * @param {string} line "<content_w> <slot> <slot> <slot> <swapped> <place> <place> <place>",
+ *     a slot "<icon_w>,<text_w>,<suffix_w>,<alt_w>,<own>".
  * @returns {?string} What the page gives instead, or null when it agrees.
  */
 function check(line) {
   const f = line.trim().split(' ');
   const m = f.slice(1, 4).map((s) => {
     if (s === '-') return null;
-    const [iw, tw, sw, aw] = s.split(',').map(Number);
-    return { iw, tw, sw, aw };
+    const [iw, tw, sw, aw, own] = s.split(',').map(Number);
+    return { iw, tw, sw, aw, own: own === 1 };
   });
   const got = pw.swapShortForms(Number(f[0]), m);
   const have = [String(got.swapped)].concat(got.placed.map((p) => (p ? p.x + ',' + p.tw : '-'))).join(' ');

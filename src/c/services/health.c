@@ -130,18 +130,37 @@ int health_hr_current(void) {
     return bpm;
 }
 
+/* The minute-history scratch, HEALTH_MINUTE_RECORDS long: lent by the window
+   (health_set_minute_scratch), not this module's .bss and not stack, since 60 *
+   sizeof(HealthMinuteData) is too large for either to spare. The hourly reader
+   below runs serialized on the single event loop and consumes the records within
+   its own call. */
+static HealthMinuteData *s_minute_data;
+
+void health_set_minute_scratch(HealthMinuteData *records) {
+    s_minute_data = records;
+}
+
 /**
- * Sum the steps actually recorded in [h0, h1) from the minute-by-minute history.
+ * Read one hour, [h0, h1), from the minute-by-minute history in one call: the steps
+ * actually recorded in it, and the average of its minutes' heart-rate samples.
  *
- * health_service_sum(HealthMetricStepCount, ...) can NOT be used for a sub-day
+ * Steps: health_service_sum(HealthMetricStepCount, ...) can NOT be used for a sub-day
  * window: it returns the DAILY total weighted by the window length, so every
  * equal-length hour comes back identical (≈ today's steps / 24). Verified on
  * device — sum() reported 211 for all six trailing hours while the real counts
  * were 78/12/42/1562/721/12. The minute history holds the true per-minute
  * counts, so we sum the (up to 60) records that fall in the hour; an hour is
- * exactly 60 minutes, hence the 60-record buffer. Records flagged invalid are
- * skipped. Each minute's `steps` is a uint8, so a full hour maxes at 60*255 =
- * 15300, well within int16_t.
+ * exactly 60 minutes, hence the 60-record buffer. Each minute's `steps` is a uint8,
+ * so a full hour maxes at 60*255 = 15300, well within int16_t.
+ *
+ * Heart rate: health_service_aggregate_averaged(HealthMetricHeartRateBPM, ...) only
+ * answers a short recent window, so trailing hours came back empty. Each
+ * HealthMinuteData carries a uint8 heart_rate_bpm (0 when no sample that minute);
+ * we average the non-zero readings in the hour, 0 when there are none.
+ *
+ * Records flagged invalid are skipped, and a minute with no steps or no sample adds
+ * nothing (to the sum, or to the readings averaged).
  *
  * CRITICAL: health_service_get_minute_history REWRITES *time_start to the first
  * second of the first record it actually returns, and for a window that predates
@@ -150,81 +169,39 @@ int health_hr_current(void) {
  * on came back with the same oldest 60-minute window, ~12 phantom steps each).
  * The records are consecutive minutes from the returned `ts`, so record k covers
  * [ts + k*60, +60); we count only those whose minute actually falls in [h0, h1).
- * A clamped / non-overlapping window then correctly contributes 0.
+ * A clamped / non-overlapping window then correctly contributes 0, and borrows no
+ * other window's heart rate.
  *
  * @param h0 UTC start of the hour (inclusive).
  * @param h1 UTC end of the hour (exclusive).
- * @return Total steps recorded in the window.
+ * @param bpm Out: the hour's average BPM (0 with no reading).
+ * @return The hour's steps.
  */
-/* The minute-history scratch, HEALTH_MINUTE_RECORDS long: lent by the window
-   (health_set_minute_scratch), not this module's .bss and not stack, since 60 *
-   sizeof(HealthMinuteData) is too large for either to spare. One buffer serves both
-   readers below — they run serialized on the single event loop and consume the
-   records within their own call. */
-static HealthMinuteData *s_minute_data;
-
-void health_set_minute_scratch(HealthMinuteData *records) {
-    s_minute_data = records;
-}
-
-static int s_minute_steps(time_t h0, time_t h1) {
+static int16_t s_minute_hour(time_t h0, time_t h1, int16_t *bpm) {
     HealthMinuteData *md = s_minute_data;
     time_t   ts = h0, te = h1;
-    uint32_t n   = health_service_get_minute_history(md, HEALTH_MINUTE_RECORDS, &ts, &te);
-    int      sum = 0;
+    uint32_t n  = health_service_get_minute_history(md, HEALTH_MINUTE_RECORDS, &ts, &te);
+    int      steps = 0, hr_sum = 0, hr_cnt = 0;
     for (uint32_t k = 0; k < n; k++) {
         const time_t rec = ts + (time_t)k * 60;   // start of record k's minute
-        if (rec >= h0 && rec < h1 && !md[k].is_invalid) {
-            sum += md[k].steps;
+        if (rec < h0 || rec >= h1 || md[k].is_invalid) { continue; }
+        steps += md[k].steps;
+        if (md[k].heart_rate_bpm > 0) {
+            hr_sum += md[k].heart_rate_bpm;
+            hr_cnt++;
         }
     }
-    return sum;
+    *bpm = (int16_t)(hr_cnt ? hr_sum / hr_cnt : 0);
+    return (int16_t)steps;
 }
 
-/**
- * Average the per-minute heart-rate samples recorded in [h0, h1) from the
- * minute history — the same source health_fill_hourly_steps uses, and for the
- * same reason: health_service_aggregate_averaged(HealthMetricHeartRateBPM, ...)
- * only answers a short recent window, so trailing hours came back empty. Each
- * HealthMinuteData carries a uint8 heart_rate_bpm (0 when no sample that
- * minute); we average the non-zero readings in the hour.
- *
- * Same window-clamp guard as s_minute_steps: only records whose minute falls in
- * [h0, h1) count, so an empty (pre-history) hour that the API clamped to the
- * oldest available window averages to 0 rather than borrowing that window's HR.
- *
- * @param h0 UTC start of the hour (inclusive).
- * @param h1 UTC end of the hour (exclusive).
- * @return Average recorded BPM in the window, or 0 if no reading.
- */
-static int s_minute_hr_avg(time_t h0, time_t h1) {
-    HealthMinuteData *md = s_minute_data;
-    time_t   ts = h0, te = h1;
-    uint32_t n   = health_service_get_minute_history(md, HEALTH_MINUTE_RECORDS, &ts, &te);
-    int      sum = 0, cnt = 0;
-    for (uint32_t k = 0; k < n; k++) {
-        const time_t rec = ts + (time_t)k * 60;   // start of record k's minute
-        if (rec >= h0 && rec < h1 && !md[k].is_invalid && md[k].heart_rate_bpm > 0) {
-            sum += md[k].heart_rate_bpm;
-            cnt++;
-        }
-    }
-    return cnt ? (sum / cnt) : 0;
-}
-
-void health_fill_hourly_steps(int16_t *out, int count, time_t end_hour) {
+void health_fill_hourly(int16_t *steps, int16_t *hr, int count, int hr_count,
+                        time_t end_hour) {
     for (int i = 0; i < count; i++) {
-        time_t h1 = end_hour - (time_t)(count - 1 - i) * HOUR_SECS;
-        time_t h0 = h1 - HOUR_SECS;
-        out[i] = (int16_t)s_minute_steps(h0, h1);
-    }
-}
-
-void health_fill_hourly_hr(int16_t *out, int count, time_t end_hour) {
-    for (int i = 0; i < count; i++) {
-        time_t h1 = end_hour - (time_t)(count - 1 - i) * HOUR_SECS;
-        time_t h0 = h1 - HOUR_SECS;
-        out[i] = (int16_t)s_minute_hr_avg(h0, h1);
+        const time_t h1 = end_hour - (time_t)(count - 1 - i) * HOUR_SECS;
+        int16_t bpm;
+        steps[i] = s_minute_hour(h1 - HOUR_SECS, h1, &bpm);
+        if (i < hr_count) { hr[i] = bpm; }
     }
 }
 

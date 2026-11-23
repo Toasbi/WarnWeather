@@ -150,9 +150,9 @@ int config_n_today(uint8_t calendar_rows) {
 }
 
 // On the colour platforms only LECO is drawn with this font: Roboto and Bitham draw their
-// anti-aliased digits from layers/clock_glyphs.c instead (time_layer.c hides the text layer
-// then), which is also what gives emery its larger Roboto and Bitham — no stock face goes past
-// 49/42.
+// anti-aliased digits from layers/clock_glyphs.c instead (time_layer.c draws the glyphs in
+// place of the text then), which is also what gives emery its larger Roboto and Bitham — no
+// stock face goes past 49/42.
 GFont config_time_font() {
     const char *font_keys[] = {
         [TIME_FONT_ROBOTO] = FONT_KEY_ROBOTO_BOLD_SUBSET_49,

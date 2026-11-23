@@ -10,15 +10,17 @@ const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js'
 const forecastSeries = require('../../../src/pkjs/weather/domain/forecast-series.js');
 
 const KNOBS = ['fetchUv', 'fetchAqi', 'fetchPollen', 'fetchFeels', 'feelsFormula',
-  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours'];
+  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours', 'drawn', 'sources'];
 
 test('DEFAULTS names every knob with its fail-safe default', () => {
   assert.deepEqual(Object.keys(fetchOptions.DEFAULTS).sort(), KNOBS.slice().sort());
   assert.deepEqual(fetchOptions.DEFAULTS, {
     fetchUv: false, fetchAqi: false, fetchPollen: false, fetchFeels: true,
     feelsFormula: 'provider', dayPeakCodes: null, windUnits: 'kph',
-    aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24
+    aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24, drawn: [],
+    sources: { choices: {}, keyed: [] }
   });
+  assert.ok(Object.isFrozen(fetchOptions.DEFAULTS.drawn), 'one default list, shared by every defaults(), stays empty');
 });
 
 test('defaults() returns a fresh object with every key each call', () => {
@@ -84,7 +86,7 @@ test('build\'s booleans are exactly forecast-series\' predicates on the raw sett
     [watch, { platform: 'aplite' }, null].forEach((wi) => {
       const out = fetchOptions.build(s, wi);
       const label = JSON.stringify([s, wi]);
-      assert.equal(out.fetchUv, forecastSeries.needsUv(s, wi), 'fetchUv ' + label);
+      assert.equal(out.fetchUv, out.drawn.indexOf('uv') !== -1, 'fetchUv ' + label);
       assert.equal(out.fetchAqi, forecastSeries.needsAqi(s, wi), 'fetchAqi ' + label);
       assert.equal(out.fetchPollen, forecastSeries.needsPollen(s, wi), 'fetchPollen ' + label);
       assert.equal(out.fetchFeels, forecastSeries.needsFeels(s, wi), 'fetchFeels ' + label);
@@ -136,6 +138,27 @@ test('build() returns every knob and a fresh object per call', () => {
   const b = fetchOptions.build({});
   assert.deepEqual(Object.keys(a).sort(), KNOBS.slice().sort());
   assert.notEqual(a, b);
+});
+
+test('build() carries where the weather comes from, as the source plan reads the settings', () => {
+  const sourcePlan = require('../../../src/pkjs/weather/domain/source-plan.js');
+  [{ owmApiKey: 'k' }, { weatherSourceWind: 'dwd' }, null]
+    .forEach((settings) => {
+      assert.deepEqual(fetchOptions.build(settings).sources, sourcePlan.sourcesOf(settings), JSON.stringify(settings));
+    });
+  assert.ok(Object.isFrozen(fetchOptions.DEFAULTS.sources.choices) && Object.isFrozen(fetchOptions.DEFAULTS.sources.keyed));
+});
+
+test('build() names the drawn readings (drawn-readings.js), and asks for UV exactly when it is one', () => {
+  const drawnReadings = require('../../../src/pkjs/weather/domain/drawn-readings.js');
+  const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
+  [{ secondaryLine: 'cloud', statusForecastMid: 'dew' }, { thirdLine: 'uv' }, {}].forEach((settings) => {
+    const out = fetchOptions.build(settings, { platform: 'basalt' });
+    assert.deepEqual(out.drawn, drawnReadings.drawn(settings, platform.computeEnv({ platform: 'basalt' })));
+    assert.equal(out.fetchUv, out.drawn.indexOf('uv') !== -1, JSON.stringify(settings));
+  });
+  assert.ok(fetchOptions.build({ secondaryLine: 'cloud' }, { platform: 'basalt' }).drawn.indexOf('cloud') !== -1);
+  assert.deepEqual(fetchOptions.build(null).drawn, [], 'no stored settings draw nothing');
 });
 
 test('a placed alert fetches its metric AND its day peaks with no slot showing it — not on aplite', () => {

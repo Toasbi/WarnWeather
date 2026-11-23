@@ -13,9 +13,11 @@
 // (key-fingerprint.js, never the key itself) and the HTTP status that answered it.
 // Tomorrow.io's key serves the forecast and the radar under the one id 'tomorrowio', so
 // the newest answer either of them got is that key's verdict. Who writes it:
-//   fetch-cycle.js   a weather update: 200 once its forecast reached the watch, the
-//                    provider's 401/403 when it refused the key (the auth failure that
-//                    arms auth-backoff.js);
+//   fetch-cycle.js   a weather update, for each keyed provider its sources asked
+//                    (fetch-sources.js answers: the Provider, and the provider of
+//                    each reading pick): 200 once its forecast reached the watch, a 401/403
+//                    when the provider refused the key (when the forecast's own failure is
+//                    one, it arms auth-backoff.js);
 //   radar-fetch.js   a keyed radar request (fetchRadarJson's opts.keyResult): 200 for an
 //                    answer it could parse, the status of one that failed.
 // Only an answer that says something about the key is kept (classify): a 2xx (stored as

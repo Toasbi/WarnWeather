@@ -190,7 +190,7 @@ test('kind indices are in lockstep with the ThreshKind enum', () => {
     distance: 'THRESH_DISTANCE', uv: 'THRESH_UV',
     temp: 'THRESH_TEMP', pressure: 'THRESH_PRESSURE', sun: 'THRESH_SUN',
     date: 'THRESH_DATE', week: 'THRESH_WEEK', city: 'THRESH_CITY',
-    countdown: 'THRESH_COUNTDOWN', hr: 'THRESH_HR', batteryPct: 'THRESH_BATTERY_PCT',
+    countdown: 'THRESH_COUNTDOWN', hr: 'THRESH_HR', battery: 'THRESH_BATTERY_PCT',
     dew: 'THRESH_DEW', phoneBattery: 'THRESH_PHONE_BATTERY',
     phoneBatteryPlain: 'THRESH_PHONE_BATTERY_PLAIN', condition: 'THRESH_CONDITION' };
   th.KINDS.forEach((k, i) => {
@@ -203,7 +203,7 @@ test('kind indices are in lockstep with the ThreshKind enum', () => {
 });
 
 // The phone battery is TWO kinds sharing ONE settings key: the iconed variant
-// (icons 16/17 — the phone swaps in _CHG while charging) and the no-icon variant
+// (icon 16) and the no-icon variant
 // (icon 18). Kind 19 exists for exactly the reason kind 14 (pressure) had to be
 // retrofitted: without it the no-icon slot arrives as SLOT_TEXT + ICON_NONE and
 // falls through to THRESH_CITY, so its Bold row would drive City's.

@@ -183,18 +183,18 @@ function earlierPeak(record, source, startEpoch, nowEpoch, hold, toShown) {
 // is wire-units' dayMaxPeaksKey), the record's storage key, the provider field
 // naming its feed (records are keyed by feed: DWD's UV is Open-Meteo's), and
 // its same-place radius (`degrees`: UV is regional, wind/gusts/air quality
-// change over a few km). A `feedRequired` metric has no peaks without a feed —
-// AQI from WAQI is the current reading, not a forecast. A `wind` metric judges
-// its hours in the user's wind unit (provider.options.windUnits).
+// change over a few km). A metric with a `feedField` has no peaks without that
+// feed — AQI from WAQI is the current reading, not a forecast. A `wind` metric
+// judges its hours in the user's wind unit (provider.options.windUnits).
 var METRICS = [
-    { code: 'uv', series: 'uvTrend', scale: 10, degrees: 0.5,
-        storageKey: storageKeys.UV_DAY_RECORD_KEY, feedField: 'uvFeedId' },
-    { code: 'wind', series: 'windTrend', scale: 1, degrees: 0.1, wind: true,
+    { code: 'uv', series: 'uvTrend', scale: 10, degrees: 0.5, reading: 'uv',
+        storageKey: storageKeys.UV_DAY_RECORD_KEY },
+    { code: 'wind', series: 'windTrend', scale: 1, degrees: 0.1, wind: true, reading: 'wind',
         storageKey: storageKeys.WIND_DAY_RECORD_KEY },
-    { code: 'gust', series: 'gustTrend', scale: 1, degrees: 0.1, wind: true,
+    { code: 'gust', series: 'gustTrend', scale: 1, degrees: 0.1, wind: true, reading: 'gust',
         storageKey: storageKeys.GUST_DAY_RECORD_KEY },
     { code: 'aqi', series: 'aqiTrend', scale: 1, degrees: 0.1,
-        storageKey: storageKeys.AQI_DAY_RECORD_KEY, feedField: 'aqiFeedId', feedRequired: true }
+        storageKey: storageKeys.AQI_DAY_RECORD_KEY, feedField: 'aqiFeedId' }
 ];
 
 /**
@@ -214,17 +214,19 @@ function wanted(provider, code) {
 }
 
 /**
- * The feed a metric's series comes from — what its record is keyed by. Null
- * when a feedRequired metric has none (AQI from WAQI): no day max at all.
+ * The feed a metric's series comes from — what its record is keyed by: the
+ * provider its reading came from (provider.feeds, which the fetch names:
+ * fetch-sources.js; a fill's, or a reading pick), else the fetching
+ * provider's own. A metric with a feedField (AQI) reads that field alone,
+ * and has none from WAQI: null, no day max at all.
  *
  * @param {Object} provider The fetching provider.
  * @param {Object} metric A METRICS row.
  * @returns {?string}
  */
 function feedOf(provider, metric) {
-    var feed = metric.feedField ? provider[metric.feedField] : null;
-    if (metric.feedRequired) { return feed || null; }
-    return feed || provider.id;
+    if (metric.feedField) { return provider[metric.feedField] || null; }
+    return (provider.feeds && provider.feeds[metric.reading]) || provider.id;
 }
 
 /**

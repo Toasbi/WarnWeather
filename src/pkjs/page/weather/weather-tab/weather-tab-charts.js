@@ -88,6 +88,9 @@
             hiBox: '#1B2536', hiText: '#FFFFFF'
         }
     };
+    // The Black theme: the dark palette on the Black card (shell.html body.black --card).
+    // Only the panel surface differs, the knock-out ring of a marker.
+    PALETTES.black = Object.assign({}, PALETTES.dark, { surface: '#141414' });
 
     var DAY_W = 360;            // viewBox units per day (= one viewport width)
     var HOUR_W = DAY_W / 24;    // 15 units per hour
@@ -109,11 +112,12 @@
     var NOW_OP = 1;
 
     /**
-     * @param {boolean} isLight Whether the page renders its light theme.
+     * @param {string} theme The theme the page renders: 'light', 'dark' or 'black'
+     *   (engine.js resolveTheme). Anything else reads as dark.
      * @returns {Object} The palette for that surface.
      */
-    function palette(isLight) {
-        return isLight ? PALETTES.light : PALETTES.dark;
+    function palette(theme) {
+        return theme === 'light' ? PALETTES.light : theme === 'black' ? PALETTES.black : PALETTES.dark;
     }
 
     /**

@@ -7,6 +7,7 @@
 // every forced fetch (a settings save) started a 3 s retry loop that re-armed
 // itself for the rest of the PKJS session — one loop per save. These tests pin
 // the watchdog, the single queued forced fetch, and the once-only completion.
+const { testPorts } = require('../helpers/source-ports.js');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { HARNESS_NOW, bootIndex, healthyNetwork } = require('../helpers/index-harness.js');
@@ -123,7 +124,7 @@ test('fetchWithCoordinates reports a compose throw as a failure instead of stran
   outbox.sendWeather = () => { sent += 1; };
   const failures = [];
   try {
-    p.fetchWithCoordinates(69.65, 18.96, assert.fail, (f) => { failures.push(f); }, false, {}, null);
+    p.fetchWithCoordinates(69.65, 18.96, assert.fail, (f) => { failures.push(f); }, false, {}, null, undefined, testPorts());
   } finally {
     [airQuality.fetchAqiInto, pollen.fetchPollenInto, outbox.sendWeather] = saved;
   }
@@ -148,9 +149,9 @@ test('fetchWithCoordinates drops the payload of a fetch its caller abandoned', (
   let sent = 0;
   outbox.sendWeather = () => { sent += 1; };
   try {
-    p.fetchWithCoordinates(52.52, 13.4, assert.fail, assert.fail, false, {}, null, () => false);
+    p.fetchWithCoordinates(52.52, 13.4, assert.fail, assert.fail, false, {}, null, () => false, testPorts());
     assert.equal(sent, 0, 'an abandoned fetch never sends');
-    p.fetchWithCoordinates(52.52, 13.4, assert.fail, assert.fail, false, {}, null, () => true);
+    p.fetchWithCoordinates(52.52, 13.4, assert.fail, assert.fail, false, {}, null, () => true, testPorts());
     assert.equal(sent, 1, 'the live one does');
   } finally {
     [airQuality.fetchAqiInto, pollen.fetchPollenInto, outbox.sendWeather] = saved;

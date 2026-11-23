@@ -15,6 +15,7 @@ var platformLib = require(path.join(ROOT, 'src/pkjs/config-ui/lib/platform.js'))
 var schema = require(path.join(ROOT, 'src/pkjs/page/settings/schema.js'));
 var previewPalette = require(path.join(ROOT, 'src/pkjs/theme/domain/preview-palette.js'));
 var notices = require(path.join(ROOT, 'src/pkjs/notices/adapter/notices.js'));
+var featureTips = require(path.join(ROOT, 'src/pkjs/notices/domain/feature-tips.js'));
 var gpsFailure = require(path.join(ROOT, 'src/pkjs/weather/adapter/location.js')).gpsFailure;
 // The bundle IS the build's bundle: same files, same order. It used to be a
 // second copy of the list, which is exactly how the preview came to load the
@@ -51,11 +52,22 @@ function parseArgs(args) {
 // {phoneBattery: ...}), which this script bypasses — so without this overlay the
 // preview silently omits every phone-gated item and cannot be used to review them.
 // Default on, because the preview exists to eyeball items that exist; set
-// PREVIEW_PHONE_BATTERY=0 to see what an iPhone user's slot dropdown looks like.
+// PREVIEW_PHONE_BATTERY=0 to see the slot dropdown of a phone that cannot tell its charge.
 function envFor(platform) {
   var env = platformLib.computeEnv({ platform: platform });
   env.phoneBattery = process.env.PREVIEW_PHONE_BATTERY !== '0';
+  // Likewise whether the Pebble app can read plugins (the watch battery's days left);
+  // PREVIEW_PLUGINS=0 shows the page of a Pebble app without them.
+  env.plugins = process.env.PREVIEW_PLUGINS !== '0';
   return env;
+}
+
+// PREVIEW_TIPS=1: the card of new features to try (Watchface tab), as an install from
+// before the tips sees it after an update: every tip this watch and phone can use
+// (feature-tips.js). Off by default, as on a fresh install.
+function previewTips(env) {
+  if (process.env.PREVIEW_TIPS !== '1') { return {}; }
+  return { featureTips: featureTips.forPage(featureTips.pending([], env)) };
 }
 
 // PREVIEW_NOTICES=1: the fetch-error notice card (Watchface tab) and the Advanced
@@ -82,10 +94,11 @@ function previewFailureData() {
 
 function run(opts) {
   opts = opts || {};
+  var env = envFor(opts.platform || 'basalt');
   return build.previewPage({
     appFiles: APP_FILES,
     schema: schema,
-    env: envFor(opts.platform || 'basalt'),
+    env: env,
     cfg: {},
     userData: Object.assign({
       palette: previewPalette.buildPreviewPalette(),
@@ -116,7 +129,7 @@ function run(opts) {
         ],
         lastSeenId: 1
       })
-    }, previewFailureData()),
+    }, previewFailureData(), previewTips(env)),
     returnTo: '#'
   });
 }

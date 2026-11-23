@@ -6,25 +6,20 @@
 #include "c/appendix/slot_x.h"
 #endif
 
-// Chart engine — shared types and the one public entry point chart_draw().
+// Chart engine — shared types and its two calls, chart_begin() and chart_layer().
 
 // The layer records below hold px sizes, slot counts and value ranges in the narrowest
-// type that fits them, pointers first: a ChartLayer is 28 B, and the forecast keeps
-// twelve in the paint scratch (paint_scratch.h), which is RAM on every watch.
+// type that fits them, pointers first: a ChartLayer is 28 B, and each graph keeps one in
+// the paint scratch (paint_scratch.h), which is RAM on every watch.
 
 // --- Frame ----------------------------------------------------------
 
+// The graph's axis lines along its left and bottom edges, in one colour.
 typedef struct {
-    uint8_t width;    // border thickness in px; 0 = no border on this side
-    GColor color;
-} Border;
-
-typedef struct {
-    Border left;
-    Border right;
-    Border top;
-    Border bottom;
-} GraphFrame;
+    uint8_t left;     // px; 0 = no left line
+    uint8_t bottom;   // px; 0 = no bottom line
+    GColor  color;
+} ChartFrameLayer;
 
 // --- Ticks ----------------------------------------------------------
 
@@ -49,10 +44,11 @@ typedef struct {
 } ChartGeometry;
 
 // =====================================================================
-// One public entry point: chart_draw(). A chart is a ChartDef (grid) plus
-// an ordered list of ChartLayers — z-order IS array order, bottom first.
-// A ChartLayer is NOT a Pebble Layer: no heap, no framebuffer, 28 B of the
-// caller's memory describing one draw pass.
+// A chart is a ChartDef (grid) over a rect, and the ChartLayers drawn into it:
+// chart_begin() sets up the grid, then each chart_layer() call draws one layer, so
+// z-order IS call order, bottom first. A ChartLayer is NOT a Pebble Layer: no heap,
+// no framebuffer, 28 B of the caller's memory describing one draw pass, which the
+// caller may fill again for the next layer as soon as chart_layer() returns.
 
 typedef struct {
     int num_slots;
@@ -104,48 +100,49 @@ typedef struct {
     ChartGeometry   geo;
 #if defined(WW_LINE_STYLE)
     int16_t         zero;   // the current layer's zero row and direction (chart_flip.h),
-    int8_t          dir;    // set by chart_draw from ChartLayer.from_top
+    int8_t          dir;    // set by chart_layer from ChartLayer.from_top
 #endif
 } ChartRender;
 
-// The zero row and direction of the layer being drawn, for every renderer and for a
-// CUSTOM layer's own bars (the radar's nearby-area pass), so they all hang by the one
-// rule. aplite has no Top (WW_LINE_STYLE): the bottom edge and -1, constant-folded,
+// The zero row and direction of a layer that hangs from the top of `r`'s content
+// (`from_top`) or stands on its bottom: what chart_layer() gives each layer, and what a
+// caller's own drawing between layers hangs by (the radar's nearby-area bars, the
+// forecast's day lines). CHART_ZERO/CHART_DIR are the layer being drawn's, for every
+// renderer. aplite has no Top (WW_LINE_STYLE): the bottom edge and -1, constant-folded,
 // which is today's "baseline minus height" there.
 #if defined(WW_LINE_STYLE)
+#define CHART_FLIP_ZERO(r, from_top) ((int16_t)chart_flip_zero((from_top), \
+    (r)->geo.content.origin.y, (r)->geo.content.origin.y + (r)->geo.content.size.h))
+#define CHART_FLIP_DIR(from_top) ((int8_t)chart_flip_dir(from_top))
 #define CHART_ZERO(r) ((r)->zero)
 #define CHART_DIR(r)  ((r)->dir)
 #define CHART_VERTEX_Y(zero, dir, h, held) chart_flip_vertex_y((zero), (dir), (h), (held))
 #else
+#define CHART_FLIP_ZERO(r, from_top) ((void)(from_top), \
+    (r)->geo.content.origin.y + (r)->geo.content.size.h)
+#define CHART_FLIP_DIR(from_top) ((void)(from_top), -1)
 #define CHART_ZERO(r) ((r)->geo.content.origin.y + (r)->geo.content.size.h)
 #define CHART_DIR(r)  (-1)
 #define CHART_VERTEX_Y(zero, dir, h, held) ((void)(dir), (void)(held), (zero) - (h))
 #endif
 
 typedef enum { TICK_NONE, TICK_SMALL, TICK_BIG } ChartTickKind;
-typedef enum { ALIGN_START, ALIGN_MIDDLE }       ChartSlotAlign;
 
 typedef struct {
     char          label[4];  // "" = no label
     ChartTickKind tick;
 } ChartAxisSlot;
 
-typedef struct {
-    GraphFrame frame;
-} ChartFrameLayer;
-
+// Each slot's tick and label sit on the slot's start (chart_slot_tick_x).
 typedef struct {
     const ChartAxisSlot *slots;       // exactly def->num_slots entries
     TickSide             style;       // small/big tick length+color
     GraphSide            side;        // GRAPH_SIDE_BOTTOM / GRAPH_SIDE_TOP
-    ChartSlotAlign       label_align; // text centered on slot start / middle
-    ChartSlotAlign       tick_align;  // tick line on slot start / middle
 } ChartAxisLayer;
 
 typedef struct { int16_t from; GColor color; } ChartColorStop; // value-space threshold
-typedef enum   { BAR_SOLID, BAR_OUTLINED } ChartBarStyle;      // OUTLINED: +1px theme_fg()
-                                                               // silhouette, every theme
-                                                               // but colour-dark
+// Bars, each with the bar outline (chart.c): a 1 px theme_fg() silhouette in every
+// theme but colour-dark.
 typedef struct {
     const int16_t        *values;
     const ChartColorStop *stops;      // >=1, ascending, stops[0].from <= lo: a negative
@@ -156,7 +153,6 @@ typedef struct {
                                       // the step bars' top passes 32767 (step_scale_hi)
     uint16_t              count;      // clamped to def->num_slots
     uint8_t               num_stops;
-    ChartBarStyle         style;
 } ChartBarsLayer;
 
 // CHART_ABSENT and the solid line's gap/run kernel live in chart_runs.h — an
@@ -241,36 +237,30 @@ typedef struct {
     bool             has_underlay;
 } ChartHatchLayer;
 
-typedef struct {
-    void (*fn)(const ChartRender *r, void *user);
-    void  *user;
-} ChartCustomLayer;
-
 #if defined(WW_LINE_STYLE)
-// A metric as a thin band of per-slot cells along the top or bottom edge of the
-// plot, each shaded by its value (chart_stripe.h): a colour ramp from the
-// background toward `color`, or a B&W dither density. aplite compiles it out
-// (WW_LINE_STYLE) — its lines have no selectable styles.
+// A metric as a thin band of per-slot cells, `y_offset` px below the top of its
+// chart's content (forecast_layer.c draws each stripe band as a chart of its own),
+// each shaded by its value (chart_stripe.h): a colour ramp from the background toward
+// `color`, or a B&W dither density. aplite compiles it out (WW_LINE_STYLE) — its lines
+// have no selectable styles.
 typedef struct {
     const int16_t *values;
     uint16_t       count;
     int16_t        lo, hi;
-    int16_t        y_offset;          // px in from the edge — stacks stripes sharing one
+    int16_t        y_offset;          // px down from the top — stacks stripes sharing one
     int16_t        height;            // px
     GColor         color;             // the line colour; level 4 paints exactly this
-    bool           top;               // top edge (else bottom, over the baseline)
 } ChartStripeLayer;
 #endif
 
 typedef enum { CHART_LAYER_FRAME, CHART_LAYER_AXIS, CHART_LAYER_BARS,
                CHART_LAYER_LINE, CHART_LAYER_AREA, CHART_LAYER_HATCH,
-               CHART_LAYER_CUSTOM, CHART_LAYER_STRIPE } ChartLayerType;
+               CHART_LAYER_STRIPE } ChartLayerType;
 
 typedef struct {
     ChartLayerType type;
-    uint8_t        from_top;   // nonzero: BARS, LINE, AREA and a contour HATCH (and a CUSTOM
-                               // layer through CHART_ZERO/CHART_DIR) hang from the content's
-                               // top instead of standing on its bottom (chart_flip.h).
+    uint8_t        from_top;   // nonzero: BARS, LINE, AREA and a contour HATCH hang from the
+                               // content's top instead of standing on its bottom (chart_flip.h).
                                // FRAME, AXIS, STRIPE and a full-height HATCH ignore it. On
                                // every platform, in the padding after the short enum:
                                // rain_radar_layer.c still compiles on aplite, where nothing
@@ -282,15 +272,17 @@ typedef struct {
         ChartLineLayer   line;
         ChartAreaLayer   area;
         ChartHatchLayer  hatch;
-        ChartCustomLayer custom;
 #if defined(WW_LINE_STYLE)
         ChartStripeLayer stripe;
 #endif
     };
 } ChartLayer;
 
-void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
-                const ChartLayer *layers, int num_layers);
+// Start a chart: `def`'s grid over `outer`, drawn into `ctx`, into `r` (the caller's).
+void chart_begin(ChartRender *r, GContext *ctx, const ChartDef *def, GRect outer);
+
+// Draw layer `l` into the chart `r` began, over the layers drawn before it.
+void chart_layer(ChartRender *r, const ChartLayer *l);
 
 #if defined(WW_LINE_STYLE) || defined(WW_RAIN_RADAR)
 // One stripe cell at `level` (0..4, chart_stripe.h — 0 draws nothing): the

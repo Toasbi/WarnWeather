@@ -166,7 +166,9 @@ test('a level moved across the current value re-bakes levels and entries without
 // An alert's Days and tomorrow mark change only the baked entry, from forecast data
 // the last fetch already brought (tomorrow's peak rides UV_DAY_PEAKS in the stored
 // bake inputs), so the config close's re-bake carries them to the watch with the
-// network down.
+// network down: it is the first status send after the save, ahead of the forced
+// fetch's (which, in the same refresh slot, takes the forecast snapshot and sends the
+// same entry).
 test('an alert\'s Days and tomorrow mark re-bake the entry without the network', (t) => {
   const { h, net } = bootBaked(t, UV_ONLY, {}, lowTodayHighTomorrow);
   const tomorrowRaquo = WIRE.ALERT_HEADER | UV_KIND | WIRE.ALERT_DANGER
@@ -175,23 +177,30 @@ test('an alert\'s Days and tomorrow mark re-bake the entry without the network',
   assert.deepEqual(Array.from(baked[baked.length - 1].ALERT_ENTRIES_UINT8), [tomorrowRaquo],
     'today peaks at 2, tomorrow at 9: the default Today + tomorrow alerts for tomorrow, marked »');
 
-  net.mode = 'down';
-  let before = h.sends.length;
-  h.saveSettings({ alertUvDays: 'today' });
-  h.advance(5 * 1000);
-  let after = statusSends(h).filter((d) => h.sends.indexOf(d) >= before);
-  assert.equal(after.length, 1, 'one status send, from the re-bake');
-  assert.deepEqual(Array.from(after[0].ALERT_ENTRIES_UINT8), [], 'Today only: nothing left today warns');
+  /**
+   * Save `changes` and return the status sends that followed: the re-bake's first.
+   * @param {Object} changes Settings the save carries.
+   * @returns {Object[]} The status-carrying sends since the save.
+   */
+  function saveAndBake(changes) {
+    const before = h.sends.length;
+    h.saveSettings(changes);
+    h.advance(5 * 1000);
+    const after = statusSends(h).filter((d) => h.sends.indexOf(d) >= before);
+    assert.ok(after.length >= 1, 'a status send');
+    assert.equal('FORECAST_START' in after[0], false, 'the first is the re-bake\'s, not the fetch\'s');
+    return after;
+  }
 
-  before = h.sends.length;
-  h.saveSettings({ alertUvDays: 'tomorrow', alertUvNextDayMark: 'star', alertUvDisplay: 'value' });
-  h.advance(5 * 1000);
-  after = statusSends(h).filter((d) => h.sends.indexOf(d) >= before);
-  assert.equal(after.length, 1);
-  assert.deepEqual(Array.from(after[0].ALERT_ENTRIES_UINT8), [WIRE.ALERT_HEADER | UV_KIND | WIRE.ALERT_DANGER
-    | ((TH.ALERT_NEXT_DAY_MARKS.indexOf('star') + 1) << WIRE.ALERT_DAY_SHIFT), '9'.charCodeAt(0)],
-  'back to tomorrow, now marked * and printing tomorrow\'s 9');
-  assert.equal(h.count(FETCHED), 1, 'every forced fetch failed: the re-bakes did it alone');
+  net.mode = 'down';
+  saveAndBake({ alertUvDays: 'today' }).forEach((sent) => {
+    assert.deepEqual(Array.from(sent.ALERT_ENTRIES_UINT8), [], 'Today only: nothing left today warns');
+  });
+  saveAndBake({ alertUvDays: 'tomorrow', alertUvNextDayMark: 'star', alertUvDisplay: 'value' }).forEach((sent) => {
+    assert.deepEqual(Array.from(sent.ALERT_ENTRIES_UINT8), [WIRE.ALERT_HEADER | UV_KIND | WIRE.ALERT_DANGER
+      | ((TH.ALERT_NEXT_DAY_MARKS.indexOf('star') + 1) << WIRE.ALERT_DAY_SHIFT), '9'.charCodeAt(0)],
+    'back to tomorrow, now marked * and printing tomorrow\'s 9');
+  });
   assert.equal(h.uncaught.length, 0);
 });
 

@@ -198,9 +198,16 @@ configUi.deriveDefaults(schema)      // { messageKey: defaultValue, … } — co
 configUi.deriveColorKeys(schema)     // ['key', …] — all type:'color' messageKeys
 
 // Page injection
+configUi.inlineScriptLiteral(value)  // the value as a JavaScript literal: JSON.stringify's text
+                                     // with bare keys and single-quoted strings ('"' costs the
+                                     // page's data: URL three characters, so a schema costs
+                                     // about a fifth less this way), and '<', U+2028/2029
+                                     // escaped. generateUrl and scripts/build-page.js
+                                     // previewPage write the schema, the stored values, the
+                                     // env and userData with it
 configUi.inlineScriptJson(value)     // JSON.stringify with '<', U+2028/2029 escaped — safe to
-                                     // splice into the page's inline <script> (generateUrl and
-                                     // scripts/build-page.js previewPage both use it)
+                                     // splice into the page's inline <script> (the return
+                                     // target, whose placeholder the emulator helper fills)
 ```
 
 ## Schema format
@@ -211,14 +218,14 @@ configUi.inlineScriptJson(value)     // JSON.stringify with '<', U+2028/2029 esc
 module.exports = {
   appName:      "MyApp",
   versionLabel: "v1.0.0",
-  themeKey:     "configTheme",   // optional: messageKey of an 'auto'|'light'|'dark' setting
+  themeKey:     "configTheme",   // optional: messageKey of an 'auto'|'light'|'dark'|'black' setting
   infoIconsKey: "hideInfoText",  // optional: messageKey of a toggle that puts info text behind '?'
   tabs: [ /* Tab, … */ ]
 };
 ```
 
-`themeKey` (optional) names a setting whose value (`'auto' | 'light' | 'dark'`) sets the page
-theme. `'auto'` follows `prefers-color-scheme`; without `matchMedia` or `var()` support the page
+`themeKey` (optional) names a setting whose value (`'auto' | 'light' | 'dark' | 'black'`) sets the page
+theme. `'auto'` follows `prefers-color-scheme` (light or dark, never black); without `matchMedia` or `var()` support the page
 falls back to dark. Without `themeKey` the page stays dark (the base theme). Support floor:
 correct rendering from about Chromium 84, theming from Chromium 49; below that the page stays
 dark and readable through literal fallbacks.
@@ -333,7 +340,11 @@ where it was and reads as open (`aria-expanded="true"`, the row gains `isel-open
 reuses the modal's option rows, so the current value's check, a recommended option and gated
 (`meta.disabled` / `optionDisabledWhen`) options look and behave the same. A pick stores the
 value, fires the item's `onChange` once and collapses the list, leaving the sheet open with
-focus back on the trigger; a second tap on the trigger collapses it without a pick. One expander
+focus back on the trigger; a second tap on the trigger collapses it without a pick. An option
+whose meta names `next`, another select's `messageKey`, stores nothing: its pick opens that
+select's list in its place, as a tap on its row would, even while the select has no row (a
+value, then its provider: WarnWeather's Use another source). Closed without a pick, that list
+hands focus back to the first one's trigger. One expander
 is open at a time: opening a list collapses an open palette and vice versa. Escape first
 collapses an open list or palette and closes the sheet only on the next press; the close button,
 the backdrop and a swipe-down close the sheet, which reopens collapsed. A touch that starts
@@ -605,8 +616,9 @@ env = {
 The host app may add facts by passing them as `generateUrl`'s `env`. The value is merged over
 the computed env, so the app supplies only the keys the library cannot know. This is how
 phone-runtime capabilities get in, because the library derives env from `watchInfo` alone and
-never reads app storage. WarnWeather passes `phoneBattery`: whether this PKJS host exposes the
-Battery Status API, which only Android's Chromium WebView does.
+never reads app storage. WarnWeather passes `phoneBattery`: whether this PKJS host has a source
+of the phone's charge (the Pebble app's Phone plugin, or the Battery Status API of Android's
+Chromium WebView).
 
 The library owns these Pebble facts in `lib/platform.js`: the known 1-bit platforms (`aplite`,
 `diorite`, `flint`), the platform without health, radar, theme polarity, thresholds and on
@@ -920,6 +932,10 @@ PConf.actions.resetThresholds = function (arg, state, env, defaultOf) {
 };
 ```
 
+An action whose button the re-render takes away (a list row's ×) returns
+`{focus: [selector, …]}` instead of `true`: the page re-renders, and focus lands on the first
+element that matches, in the open dialog first, then in the tab body.
+
 Copy can carry the same dispatch inline: a section `intro`, a hint or a `staticText` may hold
 `<button type="button" class="txt-link" data-action="resetThresholds">…</button>`, drawn as a
 link in the copy's own font (`.txt-link`). A tab link has the same markup with
@@ -1000,7 +1016,8 @@ as `PConf.ui` in the page (`require('…/config-ui/lib/ui.js')` under Node). War
 | `foldChev(open)` | The red ▸ of anything that folds open in place, ▾ while open: a collapsible card's header. The button that carries it sets `aria-expanded`. |
 | `deleteButton(label, at)` | Delete: centred in the accent, under (outside) what it deletes. The `style: 'delete'` button item is this. |
 | `undoToast(text, at)` | The Undo after a delete, in the list the thing went from. `flash(box, v, ms, repaint)` keeps its text in `box` for `ms`, then repaints without it; `unflash(box)` removes it early. |
-| `newRow(label, note, at)` | A list's New row at its foot: the plus and what it makes in the accent, how many there are on the right. |
+| `newRow(label, note, at)` | A list's New row at its foot: the plus and what it makes in the accent, how many there are on the right. A note too long for the row wraps there; the words stay on one line. |
+| `listRow(o)` | A list's row that opens something of its own (a picker, a dialog): its name, the line under it and the red arrow, then the × that takes it out where it can go (`o.x`, its attributes with its `aria-label`; `null` for none). The rows' wrapper carries `role="list"`. |
 | `chip(label, at, {icon, on})` | A chip: an Add chip (the plus first) or a toggle chip (tinted and ticked while on). |
 | `dropdown(label, at)` | A dropdown: what is picked, then the ▾ that opens its picker. A `select` row's trigger is this, and so is a value an app's own view picks through a sheet (`ctx.openSheet`). |
 | `editButton(label, at)` | An Edit button: the outlined text button beside a value that opens what changes it (a row's edit sheet, a dialog an app's own view opens). |

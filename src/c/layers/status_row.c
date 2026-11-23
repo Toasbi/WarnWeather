@@ -13,6 +13,7 @@
 #include "../appendix/view_spec.h"   // LayoutTier (row_font)
 #include "../services/watch_services.h"
 #include "status_on_demand.h"
+#include "status_row_slot.h"
 #include "status_sig.h"
 #include "paint_scratch.h"
 #if defined(PBL_HEALTH)
@@ -44,15 +45,11 @@
 #define ICON_BAND_MARGIN 2
 
 #ifdef PBL_PLATFORM_EMERY
-#define COMPACT_ROW_FONT_KEY FONT_KEY_GOTHIC_24
-#define NONE_ROW_FONT_KEY FONT_KEY_GOTHIC_24
 #define ARROW_H 10
 #define ARROW_HEAD_H 4
 #define ARROW_HEAD_W 3
 #define ARROW_W 8
 #else
-#define COMPACT_ROW_FONT_KEY FONT_KEY_GOTHIC_18
-#define NONE_ROW_FONT_KEY FONT_KEY_GOTHIC_18
 #define ARROW_H 8
 #define ARROW_HEAD_H 3
 #define ARROW_HEAD_W 2
@@ -82,7 +79,7 @@ struct StatusRow {
 // Main-app drawing and refresh callbacks are serialized, so all row instances can
 // reuse them without retaining expanded copies of their packed blobs. The
 // resolved slot TEXT has no such shared buffer: it rides the caller's transient
-// ResolvedSlot, so a pass takes exactly the slots it needs — all three to fold or
+// StatusRowSlot, so a pass takes exactly the slots it needs — all three to fold or
 // paint a row.
 //  - s_blob_scratch: the line's packed blob.
 //  - s_thresh_scratch: the threshold-highlight settings blob (CLAY_THRESHOLDS_UINT8),
@@ -102,22 +99,21 @@ struct StatusRow {
 static int s_levels_word;
 
 // The sunrise/sunset arrow, turned for the wind-direction arrow too: one GPath every
-// row shares, created with the first row and destroyed with the last (s_row_count).
+// row shares. It is a static value, never allocated: draw_arrow sets its rotation and
+// offset before each draw, the only fields a draw changes.
 // (The aplite twin draws its sun arrow from primitive lines instead.)
-static GPath *s_arrow_path;
-static const GPathInfo ARROW_PATH_INFO = {
-    .num_points = 6,
-    .points = (GPoint[]) {
-        {0, -ARROW_H / 2},
-        {0, ARROW_H / 2 - ARROW_HEAD_H},
-        {-ARROW_HEAD_W, ARROW_H / 2 - ARROW_HEAD_H},
-        {0, ARROW_H / 2},
-        {ARROW_HEAD_W, ARROW_H / 2 - ARROW_HEAD_H},
-        {0, ARROW_H / 2 - ARROW_HEAD_H}
-    }
+static GPoint s_arrow_points[] = {
+    {0, -ARROW_H / 2},
+    {0, ARROW_H / 2 - ARROW_HEAD_H},
+    {-ARROW_HEAD_W, ARROW_H / 2 - ARROW_HEAD_H},
+    {0, ARROW_H / 2},
+    {ARROW_HEAD_W, ARROW_H / 2 - ARROW_HEAD_H},
+    {0, ARROW_H / 2 - ARROW_HEAD_H}
 };
-
-static int s_row_count;
+static GPath s_arrow = {
+    .num_points = ARRAY_LENGTH(s_arrow_points),
+    .points = s_arrow_points,
+};
 
 uint16_t sig_fold(uint16_t sig, const uint8_t *data, size_t len) {
     for (size_t i = 0; i < len; i++) {
@@ -126,79 +122,40 @@ uint16_t sig_fold(uint16_t sig, const uint8_t *data, size_t len) {
     return sig;
 }
 
-// Seat this row's line in its band. Every row cap-centres (status_text_y) EXCEPT the top
-// strip, which rides STATUS_TOP_STRIP_LIFT rows higher inside an unchanged band — its top edge
-// is the screen edge, so the air above the line is invisible while the gap below, down to the
-// calendar, is what reads. Line-id-keyed like row_font() just below, for the same reason.
-// One seat, minus STATUS_TOP_STRIP_LIFT for the strip: a single measure-and-seat body, which
-// keeps the image small on aplite.
-static int row_text_y(const StatusRow *row, GFont font) {
-    int y = status_text_y(row->bounds.size.h, font);
-    return (row->line_id == STATUS_LINE_TOP) ? y - STATUS_TOP_STRIP_LIFT : y;
+// The row's font, and with `bold` its bold sibling, which a slot whose threshold is
+// crossed draws in (the calendar's today-highlight pattern, CALENDAR_FONT_KEY_BOLD,
+// applied to slots). Two sizes per platform: the large one, the top strip's own
+// (STATUS_TOP_TIER_FONT_KEY), on the top strip and on a compact or none-tier row
+// (windows/layout.c STATUS_LARGE_FONT_H), and the full tier's on the full-tier rows (the
+// top strip renders the full tier but must not share its size). The Gothic bolds share
+// their regular siblings' metrics (MEASURED for 18 in weather_status_layer.c; nominal
+// size == content height family-wide), so the seat, cap-centre and box math are
+// untouched — only glyph WIDTHS change, which is why a crossed slot must measure with
+// the same font it draws.
+static GFont row_font(const StatusRow *row, bool bold) {
+    static const char *const KEYS[2][2] = {
+        { STATUS_FULL_TIER_FONT_KEY, STATUS_FULL_TIER_FONT_KEY_BOLD },
+        { STATUS_TOP_TIER_FONT_KEY, STATUS_TOP_TIER_FONT_KEY_BOLD },
+    };
+    const bool large = row->line_id == STATUS_LINE_TOP || row->tier == LAYOUT_TIER_COMPACT
+        || row->tier == LAYOUT_TIER_NONE;
+    return fonts_get_system_font(KEYS[large][bold]);
 }
 
-static GFont row_font(uint8_t tier, uint8_t line_id) {
-    // The top strip keeps its own (larger) font at all times; it always renders
-    // the FULL tier but must not share the weather/health full-tier size.
-    if (line_id == STATUS_LINE_TOP) {
-        return fonts_get_system_font(STATUS_TOP_TIER_FONT_KEY);
-    }
-    switch (tier) {
-        case LAYOUT_TIER_NONE:
-            return fonts_get_system_font(NONE_ROW_FONT_KEY);
-        case LAYOUT_TIER_COMPACT:
-            return fonts_get_system_font(COMPACT_ROW_FONT_KEY);
-        default:
-            return fonts_get_system_font(STATUS_FULL_TIER_FONT_KEY);
-    }
-}
-
-// The bold companion of row_font(), for slots whose threshold is crossed — the
-// calendar's today-highlight pattern (CALENDAR_FONT_KEY_BOLD) applied to slots. The
-// Gothic bolds share their regular siblings' metrics (MEASURED for 18 in
-// weather_status_layer.c; nominal size == content height family-wide), so the seat,
-// cap-centre and box math are untouched — only glyph WIDTHS change, which is why a
-// crossed slot must measure with the same font it draws.
-static GFont row_font_bold(uint8_t tier, uint8_t line_id) {
-    if (line_id == STATUS_LINE_TOP) {
-#ifdef PBL_PLATFORM_EMERY
-        return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-#else
-        return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-#endif
-    }
-    switch (tier) {
-        case LAYOUT_TIER_NONE:
-        case LAYOUT_TIER_COMPACT:
-#ifdef PBL_PLATFORM_EMERY
-            return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-#else
-            return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-#endif
-        default:
-#ifdef PBL_PLATFORM_EMERY
-            return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-#else
-            return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
-#endif
-    }
-}
-
-static void format_status_date(bool full_date, char *buf, size_t cap) {
+// The date into `buf`, and into `alt` its short form: the shorter format of the list its
+// format falls back to where the slot cannot show it whole (date_format.h date_format_slot),
+// "" where none is shorter. Both from one read of the clock, so they agree across midnight;
+// the watch formats both, so they cost no wire byte. Calendar views already show the day, so
+// the slot carries month + year there; without a calendar it carries the full date, in the
+// user's chosen format (Date slot edit sheet), day and month in the phone's order
+// (config.date_month_first, US -> month first), not the watch system locale.
+static void format_status_date(bool full_date, char *buf, size_t cap, char *alt,
+                               size_t alt_cap) {
     struct tm tm_now = watch_services_localtime();
     const Config *cfg = config_get();
-    if (!full_date) {
-        // Calendar views already show the day; the slot only needs month + year.
-        date_format_month_year(buf, cap, &tm_now,
-                               cfg ? cfg->date_month_format : DATE_MONTH_AUTO);
-        return;
-    }
-    // No-calendar view: the slot carries the full date, in the user's chosen
-    // format (Date slot edit sheet). Day/month order comes from the phone
-    // (config.date_month_first, US -> month first), not the watch system locale.
-    date_format_full(buf, cap, &tm_now,
-                     cfg ? cfg->date_full_format : DATE_FULL_AUTO,
-                     cfg && cfg->date_month_first);
+    const uint8_t fmt = !cfg ? (full_date ? DATE_FULL_AUTO : DATE_MONTH_AUTO)
+        : full_date ? cfg->date_full_format : cfg->date_month_format;
+    date_format_slot(buf, cap, alt, alt_cap, &tm_now, full_date, fmt, cfg && cfg->date_month_first);
 }
 
 #if defined(PBL_HEALTH)
@@ -221,11 +178,8 @@ static void format_distance_value(char *buf, size_t cap, bool imperial) {
 }
 #endif
 
-static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, size_t cap) {
+static void format_live_value(uint8_t kind, char *buf, size_t cap) {
     switch (kind) {
-        case SLOT_LIVE_DATE:
-            format_status_date(row->full_date, buf, cap);
-            return;
         case SLOT_LIVE_WEEK: {
             struct tm tm_now = watch_services_localtime();
             snprintf(buf, cap, "W%d",
@@ -287,15 +241,13 @@ static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, siz
     }
 }
 
-// The phone-battery slots. Three icon ids mark a slot whose text the PHONE baked
+// The phone-battery slots. Two icon ids mark a slot whose text the PHONE baked
 // from its OWN charge; there is no kind-level marker, the kind is plain SLOT_TEXT
-// exactly like a city name, so the icon id is the only discriminator. Ids 16/17 are
-// the same catalog item (the phone picks the charging glyph at bake time, which is
-// why charging costs no wire field); id 18 is the no-icon variant.
+// exactly like a city name, so the icon id is the only discriminator. Id 16 is the
+// phone battery with its phone glyph; id 18 is its Text look, which draws none.
 static bool is_phone_battery_slot(const StatusSlotView *slot) {
     return slot->kind == SLOT_TEXT
         && (slot->icon == STATUS_ICON_PHONE_BATTERY
-            || slot->icon == STATUS_ICON_PHONE_BATTERY_CHG
             || slot->icon == STATUS_ICON_PHONE_BATTERY_PLAIN);
 }
 
@@ -304,6 +256,52 @@ static void copy_text(char *buf, size_t cap, const char *src, size_t n) {
     if (n > cap - 1) { n = cap - 1; }
     memcpy(buf, src, n);
     buf[n] = '\0';
+}
+
+// Whether the watch battery's percentage slot carries the days the watch has left (the
+// phone bakes another app's estimate into it, status_line.h status_slot_kind_has_text),
+// alone or with the place of the percentage beside them (STATUS_BATTERY_PCT_MARK).
+static bool carries_battery_days(const StatusSlotView *slot) {
+    return slot->kind == SLOT_LIVE_BATTERY_PCT && slot->value_len > 0;
+}
+
+// The days from before a charge (status_line.h StatusBatteryDaysMark): read from flash at
+// their first use, written back when they move. One for the face: the watch battery sits in
+// one slot.
+static StatusBatteryDaysMark s_days_mark;
+static bool s_days_mark_read;
+
+// Whether the watch is on the charger, which the days were estimated without.
+static bool on_charger(void) {
+    const BatteryChargeState bs = watch_services_battery_state();
+    return bs.is_charging || bs.is_plugged;
+}
+
+// Mark the days a row's watch battery slot carries while the watch is on the charger, so
+// they stay hidden once it is off. Run by the refresh before it resolves the slots, which
+// is also where the mark is first read.
+static void track_battery_days(const StatusSlotView *views) {
+    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
+        if (!carries_battery_days(&views[i])) { continue; }
+        if (!s_days_mark_read) {
+            persist_get_battery_days_mark(&s_days_mark);
+            s_days_mark_read = true;
+        }
+        if (on_charger()
+                && status_battery_days_mark(&s_days_mark, views[i].value, views[i].value_len)) {
+            persist_set_battery_days_mark(&s_days_mark);
+        }
+    }
+}
+
+// Whether those days are what the slot shows. Only while the estimate can be current: the
+// phone is in reach to correct it, the watch is not on the charger, and the days are not
+// the ones it carried there (the mark). Else the slot shows the percentage, which the watch
+// always knows itself.
+static bool shows_battery_days(const StatusSlotView *slot) {
+    return carries_battery_days(slot) && !on_charger()
+        && !status_battery_days_same(&s_days_mark, slot->value, slot->value_len)
+        && connection_service_peek_pebble_app_connection();
 }
 
 // Materialise one slot's display text, and report the wind-direction sector
@@ -349,8 +347,15 @@ static int8_t resolve_slot_text(const StatusRow *row, const StatusSlotView *slot
         // Glyph battery is icon-only; SLOT_LIVE_BATTERY_PCT must NOT join this
         // arm — it renders its charge as text via format_live_value below.
         buf[0] = '\0';
+    } else if (slot->kind == SLOT_LIVE_DATE) {
+        format_status_date(row->full_date, buf, cap, alt, alt_cap);
+    } else if (shows_battery_days(slot)) {
+        // The days as the phone baked them, with the watch's own percentage where the
+        // phone left its place ("83%|5d").
+        status_battery_text(buf, cap, slot->value, slot->value_len,
+                            watch_services_battery_state().charge_percent);
     } else {
-        format_live_value(row, slot->kind, buf, cap);
+        format_live_value(slot->kind, buf, cap);
     }
     return -1;
 }
@@ -429,41 +434,22 @@ static int slot_health_value(int kind) {
     return -1;
 }
 
-// One slot resolved to everything a pass needs that does NOT depend on
-// measurement. The refresh pass signs these fields (the font and look through the
-// blob they are read from), the draw pass measures and paints them — one
-// resolution, every consumer. They used to be three hand-copied resolutions on
-// eight parallel arrays, and one copy (the retired right-slot width query) silently
-// omitted the threshold load (see load_pass).
-//
-// NO measurement here, deliberately: measure_slot() reads row->glyphs[i], which is
-// only valid after ensure_glyphs(), and a resolver that measured would drag PDC
-// glyph loads onto every minute tick's refresh. Each DRAWING caller runs
-// ensure_glyphs() and then measures with this struct's `font` — the same font it
-// goes on to draw with, which is the whole reason the font is resolved here.
-typedef struct {
-    StatusSlotView slot;                    // the packed slot
-    GFont          font;                    // regular, or the bold companion
-    char    text[STATUS_TEXT_MID_MAX + 1];  // direction sentinel already stripped
-    char    alt[STATUS_TEXT_ALT_MAX + 1];   // its short form, if it brought one ("")
-    int8_t  dir;                            // wind sector 0..15, -1 = none
-    uint8_t level;                          // ThreshLevel, gated on the Highlight switch
-    ThreshLook look;                        // box, bold bit, RAW accent byte at `level`
-} ResolvedSlot;
+// A slot (status_row_slot.h StatusRowSlot) holds the longer of the two short forms.
+_Static_assert(STATUS_ROW_ALT_MAX == (DATE_FORMAT_SHORT_MAX > STATUS_TEXT_ALT_MAX
+                                      ? DATE_FORMAT_SHORT_MAX : STATUS_TEXT_ALT_MAX),
+               "a slot's alt holds the condition's and the date's short forms");
 
-// Resolve one slot of an already-loaded pass (load_pass filled `view`). `base` is
-// the row's regular font; a slot whose bold verdict is set takes the bold
-// companion instead. `i` is the slot's position in a draw (0 left, 1 middle, 2
-// right), after status_on_demand_collect(), so it can take the level of a weather
-// alert it merged; -1 outside a draw.
-static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView *view,
-                         ResolvedSlot *out, int i) {
+// Resolve one slot of an already-loaded pass (load_pass filled `view`). `i` is the
+// slot's position in a draw (0 left, 1 middle, 2 right), after
+// status_on_demand_collect(), so it can take the level of a weather alert it merged;
+// -1 outside a draw.
+static void resolve_slot(const StatusRow *row, const StatusSlotView *view,
+                         StatusRowSlot *out, int i) {
     out->slot = *view;
     out->dir = resolve_slot_text(row, &out->slot, out->text, sizeof(out->text), out->alt,
                                  sizeof(out->alt));
-    // The ThreshKind is scaffolding, not a result: every consumer of it lives in
-    // this function, so it stays a local. (The array it replaced carried it across
-    // two loops, which is why the first cut made it a field.)
+    // The slot's ThreshKind: its level, its look and the alert it merged all follow
+    // from it here.
     const int thresh_kind = status_threshold_kind_for_slot(out->slot.kind,
                                                               out->slot.icon);
     // NORMAL while the kind's Highlight switch is off; weather kinds read the
@@ -475,6 +461,7 @@ static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView 
     // Never on the refresh path: what a merge depends on (the entries, the cells, the
     // slot) is signed there already.
     const uint8_t merged = i < 0 ? 0 : status_on_demand_merge(&s_od_pass, i, thresh_kind);
+    out->merged_item = merged ? (int8_t)alert_set_item(thresh_kind) : -1;
     out->level = merged ? merged : (uint8_t)status_threshold_slot_level(s_thresh_scratch,
         s_levels_word, thresh_kind, slot_health_value(thresh_kind));
     // The box (none at NORMAL, filled at DANGER, the kind's warn look at WARN), the
@@ -486,21 +473,15 @@ static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView 
     // blob read, while one left unwritten on some paths is the uninitialised-read
     // bug this struct exists to make impossible.
     out->look = status_threshold_look(s_thresh_scratch, thresh_kind, out->level);
-    // A crossed slot renders BOLD — the calendar's today-highlight pattern applied
-    // to slots. The bold Gothic shares its regular sibling's metrics, so only
-    // glyph WIDTHS change, which is why the font has to travel with the slot:
-    // whoever measures must measure with the font that will be drawn.
-    out->font = out->look.bold ? row_font_bold(row->tier, row->line_id) : base;
 }
 
 // Resolve all three slots of an already-loaded pass (load_pass filled `views`). The
 // refresh path's resolver — the draw path resolves per slot itself, so it can
 // measure each one as it goes.
 static void resolve_row(const StatusRow *row, const StatusSlotView views[STATUS_SLOT_COUNT],
-                        ResolvedSlot out[STATUS_SLOT_COUNT]) {
-    GFont base = row_font(row->tier, row->line_id);
+                        StatusRowSlot out[STATUS_SLOT_COUNT]) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        resolve_slot(row, base, &views[i], &out[i], -1);
+        resolve_slot(row, &views[i], &out[i], -1);
     }
 }
 
@@ -510,13 +491,6 @@ StatusRow *status_row_create(uint8_t line_id) {
     memset(row, 0, sizeof(StatusRow));
     row->line_id = line_id;
     row->glyph_fg = theme_fg();
-    s_row_count++;
-    if (!s_arrow_path) {
-        s_arrow_path = gpath_create(&ARROW_PATH_INFO);
-        if (!s_arrow_path) {
-            APP_LOG(APP_LOG_LEVEL_ERROR, "No arrow path");
-        }
-    }
     return row;
 }
 
@@ -527,22 +501,13 @@ void status_row_destroy(StatusRow *row) {
     }
     status_on_demand_release(&row->od);
     free(row);
-    s_row_count--;
-    if (s_row_count == 0 && s_arrow_path) {
-        gpath_destroy(s_arrow_path);
-        s_arrow_path = NULL;
-    }
 }
 
-void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, uint8_t line_id) {
+void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, bool full_date) {
     if (!row) { return; }
     row->bounds = bounds;
     row->tier = tier;
-    row->line_id = line_id;
-}
-
-void status_row_set_full_date(StatusRow *row, bool full_date) {
-    if (row) { row->full_date = full_date; }
+    row->full_date = full_date;
 }
 
 #if defined(PBL_HEALTH)
@@ -600,10 +565,11 @@ bool status_row_refresh(StatusRow *row) {
     // measured widths), not a content rule, and a signature describing only part of
     // the row would let a slot that changed while hidden come back stale.
     if (has_line) {
-        ResolvedSlot resolved[STATUS_SLOT_COUNT];
+        track_battery_days(views);
+        StatusRowSlot resolved[STATUS_SLOT_COUNT];
         resolve_row(row, views, resolved);
         for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-            const ResolvedSlot *r = &resolved[i];
+            const StatusRowSlot *r = &resolved[i];
             const StatusSlotView *slot = &r->slot;
             sig = sig_fold(sig, &slot->kind, 1);
             sig = sig_fold(sig, &slot->icon, 1);
@@ -644,7 +610,9 @@ bool status_row_refresh(StatusRow *row) {
             // destroy would then unsubscribe on the others' behalf. The strip's
             // existing callback repaints the strip, and every other row picks the
             // change up on the next minute tick.
-            if (is_phone_battery_slot(slot)) {
+            // Likewise the watch battery's days: the link decides whether the slot
+            // shows them or the percentage, and a day count can read the same either way.
+            if (is_phone_battery_slot(slot) || carries_battery_days(slot)) {
                 uint8_t connected =
                     (uint8_t)connection_service_peek_pebble_app_connection();
                 sig = sig_fold(sig, &connected, 1);
@@ -665,8 +633,8 @@ bool status_row_refresh(StatusRow *row) {
 }
 
 // The row's icon tier: a fraction of the font's content height (smaller on the top
-// strip), capped at the band. Shared by the slot glyphs and the On demand items, so
-// an alert icon is exactly the size the same icon has in a slot beside it.
+// strip), capped at the band. The draw sizes the slot glyphs and the On demand items
+// with it, so an alert icon is exactly the size the same icon has in a slot beside it.
 static int16_t icon_target_h(const StatusRow *row, int content_h) {
     bool top = (row->line_id == STATUS_LINE_TOP);
     int rn = top ? TOP_ICON_RATIO_NUM : ICON_RATIO_NUM;
@@ -677,17 +645,15 @@ static int16_t icon_target_h(const StatusRow *row, int content_h) {
     return target_h;
 }
 
-// `views` are the caller's already-walked slots (load_pass filled them);
-// glyph_icons[] tracks the PACKED icon.
-static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int content_h) {
-    int16_t target_h = icon_target_h(row, content_h);
-
+// `views` are the caller's already-walked slots (load_pass filled them), `target_h`
+// the row's icon tier (icon_target_h); glyph_icons[] tracks the PACKED icon.
+static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int16_t target_h) {
     GColor fg = theme_fg();
     bool env_changed = target_h != row->glyph_h || !gcolor_equal(fg, row->glyph_fg);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        // An id with no glyph (NONE, the drawn sun arrow, the text-only ids such as
-        // PRESSURE) has no drawing and loads as NULL (status_row_icons.c), so its slot
-        // reserves no icon width and draws as bare text.
+        // An id with no glyph (NONE, the drawn sun arrow and battery, the text-only ids
+        // such as PRESSURE) has no drawing and loads as NULL (status_row_icons.c), so its
+        // slot reserves no icon width for it: the drawn ones measure their own.
         uint8_t wanted = views[i].kind != SLOT_EMPTY ? views[i].icon : STATUS_ICON_NONE;
         if (!env_changed && wanted == row->glyph_icons[i]) { continue; }
         status_row_icons_destroy(row->glyphs[i]);
@@ -705,26 +671,23 @@ int16_t status_row_text_w(const char *text, GFont font, int16_t content_w, int16
         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
 }
 
-// Measured footprint of one slot: icon width (battery = fixed glyph, loaded PDC,
-// or the drawn-sun arrow) + text width + the trailing wind-direction arrow's lane.
-// The draw pass feeds it a ResolvedSlot's font/slot/text/dir — the resolver's font
-// above all, since a bold slot's glyphs are wider than the regular font would
-// measure.
-static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
-                                      int16_t content_w, const StatusSlotView *slot,
-                                      const char *text, int8_t dir) {
+// Measured footprint of slot `i`: icon width (status_row_layout.h status_slot_icon_w: the
+// battery glyph, alone or before the Watch battery's text, a loaded PDC, or the drawn-sun
+// arrow) + text width + the trailing wind-direction arrow's lane. The text measures in
+// the font the slot is drawn in, of the row's `fonts` (a bold slot's glyphs are wider),
+// and `charging` says whether the battery glyph keeps its bolt lane.
+static StatusSlotMeasure measure_slot(StatusRow *row, int i, const StatusRowSlot *s,
+                                      const GFont fonts[2], int16_t content_w,
+                                      bool charging) {
     // Zero-init, not field-by-field: an unassigned field here is indeterminate
     // stack memory that status_row_layout would read as a real reserve.
     StatusSlotMeasure m = {0};
-    int16_t icon_w = 0;
-    if (slot->kind == SLOT_LIVE_BATTERY) {
-        icon_w = BATTERY_GLYPH_W;
-    } else if (row->glyphs[i]) {
-        icon_w = gdraw_command_image_get_bounds_size(row->glyphs[i]).w;
-    } else if (slot->icon == STATUS_ICON_DRAWN_SUN && slot->kind != SLOT_EMPTY) {
-        icon_w = ARROW_W;
-    }
-    int16_t text_w = status_row_text_w(text, font, content_w, row->bounds.size.h);
+    const int16_t drawing_w = row->glyphs[i]
+        ? gdraw_command_image_get_bounds_size(row->glyphs[i]).w : 0;
+    const int16_t icon_w = status_slot_icon_w(s->slot.kind, s->slot.icon, charging,
+                                              drawing_w, ARROW_W);
+    int16_t text_w = status_row_text_w(s->text, fonts[s->look.bold], content_w,
+                                       row->bounds.size.h);
     m.present = icon_w > 0 || text_w > 0;
     m.icon_w = icon_w;
     m.text_w = text_w;
@@ -733,7 +696,7 @@ static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
     // down — and this arrow turns to any of 16. At 45 degrees the shape's extent
     // across x is its LONG axis, so the lane is an ARROW_H square: the box a
     // rotation can never push the path out of.
-    m.suffix_w = (dir >= 0) ? ARROW_H : 0;
+    m.suffix_w = (s->dir >= 0) ? ARROW_H : 0;
     return m;
 }
 
@@ -759,38 +722,41 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
     return GRect((int16_t)(x0 + lo - 2), v.y, (int16_t)((hi - lo) + 4), v.h);
 }
 
-// The short forms the slots brought, swapped in where the plain row would cut or hide a
-// text (status_row_layout.h status_row_swap_short_forms has the rule). Judged on the plain
+// The short forms the slots brought (the condition's as the phone baked it, the date's as
+// format_status_date formatted it), swapped in where the plain row would cut or hide a text
+// (status_row_layout.h status_row_swap_short_forms has the rule). Judged on the plain
 // layout, before On demand makes room, so the ladder starts from the form the slot draws; a
 // slot that swaps has no short member left (`alt` is spent).
-static void swap_in_short_forms(const StatusRow *row, ResolvedSlot slots[STATUS_SLOT_COUNT],
-                                StatusSlotMeasure m[STATUS_SLOT_COUNT],
+static void swap_in_short_forms(const StatusRow *row, StatusRowSlot slots[STATUS_SLOT_COUNT],
+                                const GFont fonts[2], StatusSlotMeasure m[STATUS_SLOT_COUNT],
                                 StatusSlotPlace plain[STATUS_SLOT_COUNT], int16_t content_w) {
     int16_t alt_w[STATUS_SLOT_COUNT];
+    uint8_t own = 0;   // the date: its short form only where its own text is cut
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         alt_w[i] = slots[i].alt[0] != '\0'
-            ? status_row_text_w(slots[i].alt, slots[i].font, content_w, row->bounds.size.h)
+            ? status_row_text_w(slots[i].alt, fonts[slots[i].look.bold], content_w,
+                                row->bounds.size.h)
             : -1;
+        if (slots[i].slot.kind == SLOT_LIVE_DATE) { own |= (uint8_t)(1u << i); }
     }
-    uint8_t swapped = status_row_swap_short_forms(content_w, m, alt_w, plain);
+    uint8_t swapped = status_row_swap_short_forms(content_w, m, alt_w, own, plain);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!((swapped >> i) & 1u)) { continue; }
-        ResolvedSlot *s = &slots[i];
+        StatusRowSlot *s = &slots[i];
         copy_text(s->text, sizeof(s->text), s->alt, strlen(s->alt));
         s->alt[0] = '\0';
     }
 }
 
-// The shared arrow (s_arrow_path), turned to `angle`, centred on `at` and drawn in
-// `ink`, outline and fill: the sunrise/sunset arrow and the wind-direction arrow.
+// The shared arrow (s_arrow), turned to `angle`, centred on `at` and drawn in `ink`,
+// outline and fill: the sunrise/sunset arrow and the wind-direction arrow.
 static void draw_arrow(GContext *ctx, int32_t angle, GPoint at, GColor ink) {
-    if (!s_arrow_path) { return; }
-    gpath_rotate_to(s_arrow_path, angle);
-    gpath_move_to(s_arrow_path, at);
+    gpath_rotate_to(&s_arrow, angle);
+    gpath_move_to(&s_arrow, at);
     graphics_context_set_stroke_color(ctx, ink);
     graphics_context_set_fill_color(ctx, ink);
-    gpath_draw_outline_open(ctx, s_arrow_path);
-    gpath_draw_filled(ctx, s_arrow_path);
+    gpath_draw_outline_open(ctx, &s_arrow);
+    gpath_draw_filled(ctx, &s_arrow);
 }
 
 void status_row_draw(StatusRow *row, GContext *ctx) {
@@ -804,33 +770,41 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         memset(views, 0, sizeof(views));
     }
 
-    GFont font = row_font(row->tier, row->line_id);
-    int content_h = graphics_text_layout_get_content_size(
-        "0", font, GRect(0, 0, 100, 100),
-        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
-    ensure_glyphs(row, views, content_h);
+    // The row's fonts, regular and bold, and the one measurement its seat, glyph centre
+    // and icon size derive from (the bold shares the regular's metrics).
+    const GFont fonts[2] = { row_font(row, false), row_font(row, true) };
+    const int content_h = status_content_h(fonts[0]);
+    const int16_t icon_h = icon_target_h(row, content_h);
+    ensure_glyphs(row, views, icon_h);
 
     int16_t content_w = (int16_t)(row->bounds.size.w - 2 * STATUS_ROW_MARGIN);
     if (content_w < 0) { content_w = 0; }
-    ResolvedSlot slots[STATUS_SLOT_COUNT];
+    StatusRowSlot slots[STATUS_SLOT_COUNT];
     StatusSlotMeasure measures[STATUS_SLOT_COUNT];
 
     // The bar's On demand items first: a slot that merged a weather alert is resolved
     // at the alert's level, so it measures with the font it is drawn in.
     const int8_t bar = (int8_t)status_threshold_bar_of_line(row->line_id);
     status_on_demand_collect(&row->od, &s_od_pass, bar, s_thresh_scratch);
+    // Whether the watch charges, as the battery glyph draws it (battery_draw.c): its bolt
+    // lane is empty otherwise, and the Icon + text look reserves none for it.
+    const BatteryChargeState batt = watch_services_battery_state();
+    const bool charging = batt.is_charging || batt.is_plugged;
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        resolve_slot(row, font, &views[i], &slots[i], i);
-        // The resolver's font, not `font`: a bold slot's glyphs are wider, so it
-        // must MEASURE with the font it is about to be drawn with.
-        measures[i] = measure_slot(row, i, slots[i].font, content_w,
-                                   &slots[i].slot, slots[i].text, slots[i].dir);
+        resolve_slot(row, &views[i], &slots[i], i);
+        measures[i] = measure_slot(row, i, &slots[i], fonts, content_w, charging);
     }
     // Its scratch is the layout's own places, which status_on_demand_layout overwrites.
     StatusSlotPlace places[STATUS_SLOT_COUNT];
-    swap_in_short_forms(row, slots, measures, places, content_w);
+    swap_in_short_forms(row, slots, fonts, measures, places, content_w);
 
-    int text_y_rel = row_text_y(row, font);
+    // Every row cap-centres its line (status_seat_y) EXCEPT the top strip, which rides
+    // STATUS_TOP_STRIP_LIFT rows higher inside an unchanged band (status_strip_seat_y): its
+    // top edge is the screen edge, so the air above the line is invisible while the gap
+    // below, down to the calendar, is what reads.
+    const bool top = row->line_id == STATUS_LINE_TOP;
+    int text_y_rel = top ? status_strip_seat_y(row->bounds.size.h, content_h)
+                         : status_seat_y(row->bounds.size.h, content_h);
     int text_y = row->bounds.origin.y + text_y_rel;
     int glyph_cy = row->bounds.origin.y
         + status_glyph_center_y(text_y_rel, content_h);
@@ -843,28 +817,20 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     // STATUS_ROW_MARGIN into the margin while no left slot shows beside it, so its
     // first item sits where the old indicators drew (screen x 4) while its content
     // rect stays the quiet one.
-    const bool top = row->line_id == STATUS_LINE_TOP;
     const StatusOnDemandEnv od_env = {
-        .font = font,
-        .bold = row_font_bold(row->tier, row->line_id),
+        .fonts = { fonts[0], fonts[1] },
         .blob = s_thresh_scratch,
         .band = row->bounds,
         .x = x0,
         .glyph_cy = (int16_t)glyph_cy,
         .text_y = (int16_t)text_y,
         .content_h = (int16_t)content_h,
-        .icon_h = icon_target_h(row, content_h),
+        .icon_h = icon_h,
         .bar = bar,
         .bleed_left = top ? STATUS_ROW_MARGIN : 0,
         .top_strip = top
     };
-    StatusOnDemandSlot od_slots[STATUS_SLOT_COUNT];
-    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        od_slots[i] = (StatusOnDemandSlot) { slots[i].slot.kind, slots[i].slot.icon,
-                                             slots[i].font, slots[i].text,
-                                             sizeof(slots[i].text), slots[i].alt };
-    }
-    status_on_demand_layout(&row->od, &s_od_pass, &od_env, od_slots, measures, places,
+    status_on_demand_layout(&row->od, &s_od_pass, &od_env, slots, measures, places,
                             content_w);
 
     // Threshold-highlight pass: paint each crossed slot's box — an outline, or a
@@ -894,11 +860,13 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         const GColor ink = paints[i].ink;
         graphics_context_set_text_color(ctx, ink);
         int16_t icon_x = (int16_t)(x0 + places[i].icon_x);
-        if (slots[i].slot.kind == SLOT_LIVE_BATTERY) {
-            // The short battery (On demand) is measured without its bolt lane, which
-            // is empty while the watch is not charging: the glyph draws that much
-            // further left, so its body lands where the slot was placed.
-            int16_t lane = (int16_t)(BATTERY_GLYPH_W - measures[i].icon_w);
+        // The battery glyph, alone or before the charge (the Icon + text look). Where it is
+        // measured without its bolt lane, which is empty while the watch is not charging (the
+        // Icon + text look, and On demand's short battery), the glyph draws that much further
+        // left, so its body lands where the slot was placed (status_row_layout.h).
+        const int16_t lane = status_slot_battery_lane(slots[i].slot.kind, slots[i].slot.icon,
+                                                      measures[i].icon_w);
+        if (lane >= 0) {
             battery_draw(ctx, GRect(icon_x - lane, glyph_cy - BATTERY_GLYPH_H / 2,
                                     BATTERY_GLYPH_W, BATTERY_GLYPH_H), ink);
         } else if (row->glyphs[i]) {
@@ -912,7 +880,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                        GPoint(icon_x + ARROW_W / 2, glyph_cy), theme_fg());
         }
         if (places[i].text_visible) {
-            graphics_draw_text(ctx, slots[i].text, slots[i].font,
+            graphics_draw_text(ctx, slots[i].text, fonts[slots[i].look.bold],
                 GRect(x0 + places[i].text_x, text_y, places[i].text_w,
                       row->bounds.size.h - text_y_rel),
                 GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);

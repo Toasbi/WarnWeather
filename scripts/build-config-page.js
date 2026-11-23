@@ -13,7 +13,13 @@ var APP_FILES = [
   // this shared top-level scope.
   // country-defaults.js is the same shape (COUNTRY_DEFAULTS global) and must precede its
   // consumers blocks.js (recommend resolvers) and wizard.js (fresh-install derivation).
-  path.join(ROOT, 'src/pkjs/page/settings/country-defaults.js'),
+  path.join(ROOT, 'src/pkjs/settings/domain/country-defaults.js'),
+  // What each weather provider sends (window.ProviderReadings) and the source plan
+  // (window.SourcePlan): the plan binds ProviderReadings while its body runs, and the budgets
+  // below, forecast-span-hours.js and the weather sources' page files bind the plan while
+  // theirs run, so both sit here, ahead of all of those.
+  path.join(ROOT, 'src/pkjs/weather/domain/provider-readings.js'),
+  path.join(ROOT, 'src/pkjs/weather/domain/source-plan.js'),
   path.join(ROOT, 'src/pkjs/layout/domain/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-bars/domain/status-line-catalog.js'),
   // The On demand contract (window.OnDemand). It reads window.VIEW_CYCLE (the radar and
@@ -105,6 +111,15 @@ var APP_FILES = [
   // window.Screens and window.ForecastSpanHours, and forecast-hints.js and screens-page.js bind
   // the page module while THEIRS run, so both sit here, ahead of all of those.
   path.join(ROOT, 'src/pkjs/forecast-graphs/domain/graph-styles.js'),
+  // Where the weather comes from (Setup › Data sources): what the watch draws
+  // (window.DrawnReadings: reads LineStyle, GraphStyles, StatusLineCatalog and StatusThresholds,
+  // all above) and the words the page names the weather with (window.WeatherWords), then the
+  // Weather dialog's page side: the notes under its Provider, its Other sources list and the
+  // calls line (weather-sources-page.js binds the plan, ProviderReadings, DrawnReadings and
+  // WeatherWords while its body runs).
+  path.join(ROOT, 'src/pkjs/weather/domain/drawn-readings.js'),
+  path.join(ROOT, 'src/pkjs/page/weather/weather-words.js'),
+  path.join(ROOT, 'src/pkjs/page/weather/weather-sources-page.js'),
   // The forecast metrics' names (window.ForecastMetrics: a metric as its pickers name it and as
   // a sentence does). It reads nothing at load; graph-styles-page.js, forecast-hints.js,
   // blocks.js and wizard-forecast.js bind it while their bodies run, so it precedes all four.
@@ -156,6 +171,12 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/lib/utf8.js'),
   path.join(ROOT, 'src/pkjs/status-bars/domain/status-pair.js'),
   path.join(ROOT, 'src/pkjs/status-bars/domain/slot-text.js'),
+  // What the watch battery's text prints (window.BatteryDays): the percentage, the days
+  // left or both. It binds window.StatusPair while its own body runs (the pair's separator),
+  // so it follows status-pair.js; the Status bars tab's sample binds it while its body runs,
+  // and blocks.js reads window.SlotText for the battery's Edit badge, so both follow —
+  // test/page/settings/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/status-bars/domain/battery-days.js'),
   path.join(ROOT, 'src/pkjs/calendar/domain/date-format.js'),
   // The weather condition slot's vocabulary (window.Condition, a leaf): the Status bars tab's
   // sample reads it while preview-status-bars.js' body runs, and blocks.js' list of every
@@ -265,6 +286,11 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/page/theme/theme-convert.js'),
   path.join(ROOT, 'src/pkjs/page/status-bars/reset-status-defaults.js'),
   path.join(ROOT, 'src/pkjs/page/notices/notices-panel.js'),
+  // The card of new features to try (block 'featureTips', the Watchface tab's second
+  // section). It reads nothing at load. Dropped, nothing throws: the block is unregistered
+  // and the card never shows — test/page/settings/config-page-bundle.test.js pins its
+  // registration into the page.
+  path.join(ROOT, 'src/pkjs/page/notices/feature-tips-panel.js'),
   // The Weather tab kit (live graphs / 5-day / saved locations), nine
   // files. Order is load-bearing within the group for all but
   // vendor-suncalc.js (window.SunCalc is read lazily at render time, so it

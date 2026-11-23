@@ -350,7 +350,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // this variable also equals there — same value, different role.
         var barFg = isColor ? (isLightPolarity(cx.theme) ? '#555555' : '#FFFFFF') : ink.fg;
         // The light colour theme keeps that interior and adds chart.c's theme_fg()
-        // silhouette on top (BAR_OUTLINED is drawn in every theme but colour-dark).
+        // silhouette on top (the bar outline is drawn in every theme but colour-dark).
         var barEdge = (isColor && isLightPolarity(cx.theme)) ? ink.fg : null;
 
         // The frozen-styles gate: env.lineStyles is the WW_LINE_STYLE mirror
@@ -1356,7 +1356,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         if (state.barSource === 'rain') {
             // White (or theme-flipped) when the setting says so OR effectively-B&W. The watch
-            // draws every one of these bars BAR_OUTLINED: B&W as a theme_bg()-filled
+            // draws every one of these bars with chart.c's bar outline: B&W as a theme_bg()-filled
             // silhouette, colour-light as the palette/Solid interior with the theme_fg()
             // silhouette over it (barEdge), colour-dark with no outline at all.
             var rainWhite = state.rainBarColor === 'white' || !isColor;

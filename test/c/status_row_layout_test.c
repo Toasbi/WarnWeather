@@ -822,28 +822,28 @@ static void swap_short_forms(void) {
     const int16_t no_alt[3] = { -1, -1, -1 };
     StatusSlotPlace p[3];
     p[1].text_w = 77;
-    expect("swap.none", status_row_swap_short_forms(138, none, no_alt, p), 0);
+    expect("swap.none", status_row_swap_short_forms(138, none, no_alt, 0, p), 0);
     expect("swap.none.untouched", p[1].text_w, 77);
     expect("swap.none.text", none[1].text_w, 200);
 
     // The middle's name is cut to 37 between the edges (typical_row): its short form fits.
     StatusSlotMeasure mid[3] = { { true, 10, 30, 0 }, { true, 10, 200, 0 }, { true, 10, 20, 0 } };
     const int16_t mid_alt[3] = { -1, 30, -1 };
-    expect("swap.mid", status_row_swap_short_forms(138, mid, mid_alt, p), 2);
+    expect("swap.mid", status_row_swap_short_forms(138, mid, mid_alt, 0, p), 2);
     expect("swap.mid.text", mid[1].text_w, 30);
     expect("swap.mid.placed", p[1].text_w, 30);
     expect("swap.mid.shows", p[1].text_visible, 1);
 
     // The middle's name fits: it keeps it.
     StatusSlotMeasure fits[3] = { { true, 10, 30, 0 }, { true, 10, 30, 0 }, { true, 10, 20, 0 } };
-    expect("swap.fits", status_row_swap_short_forms(138, fits, mid_alt, p), 0);
+    expect("swap.fits", status_row_swap_short_forms(138, fits, mid_alt, 0, p), 0);
     expect("swap.fits.text", fits[1].text_w, 30);
 
     // A left edge's whole name (10+3+60) leaves the middle 59 for its 80: the edge gives
     // way, and then the middle's text fits.
     StatusSlotMeasure edge[3] = { { true, 10, 60, 0 }, { true, 0, 80, 0 }, { false, 0, 0, 0 } };
     const int16_t edge_alt[3] = { 25, -1, -1 };
-    expect("swap.edge", status_row_swap_short_forms(138, edge, edge_alt, p), 1);
+    expect("swap.edge", status_row_swap_short_forms(138, edge, edge_alt, 0, p), 1);
     expect("swap.edge.text", edge[0].text_w, 25);
     expect("swap.edge.mid", p[1].text_w, 80);
 
@@ -851,30 +851,156 @@ static void swap_short_forms(void) {
     // the middle, which brought none, stays cut.
     StatusSlotMeasure both[3] = { { true, 10, 50, 0 }, { true, 0, 100, 0 }, { true, 10, 70, 0 } };
     const int16_t both_alt[3] = { 20, -1, 30 };
-    expect("swap.both", status_row_swap_short_forms(138, both, both_alt, p), 5);
+    expect("swap.both", status_row_swap_short_forms(138, both, both_alt, 0, p), 5);
     expect("swap.both.left", both[0].text_w, 20);
     expect("swap.both.right", both[2].text_w, 30);
     expect("swap.both.mid", p[1].text_w, 50);
     // With a shorter middle the right's swap is enough, and the left keeps its name.
     StatusSlotMeasure wider_first[3] = { { true, 10, 50, 0 }, { true, 0, 16, 0 }, { true, 10, 70, 0 } };
-    expect("swap.wider.first", status_row_swap_short_forms(138, wider_first, both_alt, p), 4);
+    expect("swap.wider.first", status_row_swap_short_forms(138, wider_first, both_alt, 0, p), 4);
     expect("swap.wider.left", wider_first[0].text_w, 50);
 
     // A middle hidden between two full edges has its text cut too: it swaps, though its
     // short form finds no room either.
     StatusSlotMeasure hidden[3] = { { true, 10, 80, 0 }, { true, 0, 30, 0 }, { true, 10, 80, 0 } };
     const int16_t hidden_alt[3] = { -1, 10, -1 };
-    expect("swap.hidden", status_row_swap_short_forms(138, hidden, hidden_alt, p), 2);
+    expect("swap.hidden", status_row_swap_short_forms(138, hidden, hidden_alt, 0, p), 2);
     expect("swap.hidden.text", hidden[1].text_w, 10);
     expect("swap.hidden.still", p[1].visible, 0);
 
     // A middle without text of its own is never cut, so its form waits.
     StatusSlotMeasure blank[3] = { { true, 10, 80, 0 }, { true, 10, 0, 0 }, { true, 10, 80, 0 } };
-    expect("swap.blank", status_row_swap_short_forms(138, blank, hidden_alt, p), 0);
+    expect("swap.blank", status_row_swap_short_forms(138, blank, hidden_alt, 0, p), 0);
+}
+
+// A slot in `own` (the date) gives way only where its own text is cut, content_w 138. An
+// edge date keeps its width beside a cut middle, as the row's rule has it, where a condition
+// would swap; it takes its short form where the two edges cannot both show theirs. The
+// middle's rule is the same either way.
+static void swap_own_short_forms(void) {
+    StatusSlotPlace p[3];
+    const int16_t date_left[3] = { 22, -1, -1 };
+    // The left date's 53 leaves the middle 40 of its 80 (59 to 99): the date keeps its name.
+    StatusSlotMeasure keeps[3] = { { true, 0, 53, 0 }, { true, 0, 80, 0 }, { true, 10, 20, 0 } };
+    expect("own.keeps", status_row_swap_short_forms(138, keeps, date_left, 1, p), 0);
+    expect("own.keeps.text", keeps[0].text_w, 53);
+    expect("own.keeps.placed", p[0].text_w, 53);
+    expect("own.keeps.mid", p[1].text_w, 40);
+    // The same row with a slot outside `own` (a condition's form): the edge gives way.
+    StatusSlotMeasure yields[3] = { { true, 0, 53, 0 }, { true, 0, 80, 0 }, { true, 10, 20, 0 } };
+    expect("own.contrast", status_row_swap_short_forms(138, yields, date_left, 0, p), 1);
+    expect("own.contrast.mid", p[1].text_w, 71);
+
+    // The edges' whole names (80, and the right's 10+3+70) do not both fit: the date's text is
+    // cut, so it takes its short form, and then both show whole.
+    StatusSlotMeasure cut[3] = { { true, 0, 80, 0 }, { false, 0, 0, 0 }, { true, 10, 70, 0 } };
+    expect("own.cut", status_row_swap_short_forms(138, cut, date_left, 1, p), 1);
+    expect("own.cut.text", p[0].text_w, 22);
+    expect("own.cut.right", p[2].text_w, 70);
+
+    // A condition on the left and the date on the right, the middle cut: the condition gives
+    // way though the date's name is the wider, and the date keeps its own.
+    StatusSlotMeasure mixed[3] = { { true, 10, 50, 0 }, { true, 0, 100, 0 }, { true, 0, 53, 0 } };
+    const int16_t mixed_alt[3] = { 20, -1, 22 };
+    expect("own.mixed", status_row_swap_short_forms(138, mixed, mixed_alt, 4, p), 1);
+    expect("own.mixed.date", p[2].text_w, 53);
+
+    // The middle date swaps where its own text is cut, as any middle does.
+    StatusSlotMeasure mid[3] = { { true, 10, 30, 0 }, { true, 0, 80, 0 }, { true, 10, 20, 0 } };
+    const int16_t date_mid[3] = { -1, 22, -1 };
+    expect("own.mid", status_row_swap_short_forms(138, mid, date_mid, 2, p), 2);
+    expect("own.mid.text", p[1].text_w, 22);
+}
+
+// The default Watch bar of the 144 px watches at its 132 px (icon_text_battery_gives_the_date_
+// its_lane), the date "Nov 2026" (53 px in Gothic 18) with its short form "Nov" (22 px): beside
+// "80%" the date gets 48, so it shows "Nov" whole; beside "100%|99d" (57 px) it gets 17, too
+// few for "Nov" too, which the watch then cuts with an ellipsis.
+static void default_bar_date_short_form(void) {
+    const int16_t icon = status_slot_icon_w(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, false, 0, 6);
+    const int16_t alt[3] = { -1, 22, -1 };
+    StatusSlotPlace p[3];
+    StatusSlotMeasure pct[3] = { { true, 7, 14, 0 }, { true, 0, 53, 0 }, { true, icon, 26, 0 } };
+    expect("default_bar.pct", status_row_swap_short_forms(132, pct, alt, 2, p), 2);
+    expect("default_bar.pct.date", p[1].text_w, 22);
+    expect("default_bar.pct.shows", p[1].text_visible, 1);
+    expect("default_bar.pct.battery", p[2].text_w, 26);
+    StatusSlotMeasure pair[3] = { { true, 7, 14, 0 }, { true, 0, 53, 0 }, { true, icon, 57, 0 } };
+    expect("default_bar.pair", status_row_swap_short_forms(132, pair, alt, 2, p), 2);
+    expect("default_bar.pair.date", p[1].text_w, 17);
+    expect("default_bar.pair.battery", p[2].text_w, 57);
+}
+
+// The width a slot's icon takes (status_slot_icon_w): the Watch battery's glyph, with its bolt
+// lane, or without it in the Icon + text look while the watch is not charging; else a loaded
+// drawing's width; else the sun arrow's; else none.
+static void slot_icon_widths(void) {
+    const long whole = BATTERY_GLYPH_W, laneless = BATTERY_GLYPH_W - BATTERY_BOLT_LANE_W;
+    expect("icon_w.icon", status_slot_icon_w(SLOT_LIVE_BATTERY, STATUS_ICON_NONE, false, 0, 6), whole);
+    expect("icon_w.icon.charging", status_slot_icon_w(SLOT_LIVE_BATTERY, STATUS_ICON_NONE, true, 0, 6),
+           whole);
+    expect("icon_w.icon_text",
+           status_slot_icon_w(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, false, 0, 6), laneless);
+    expect("icon_w.icon_text.charging",
+           status_slot_icon_w(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, true, 0, 6), whole);
+    expect("icon_w.text", status_slot_icon_w(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, false, 0, 6), 0);
+    expect("icon_w.id_elsewhere", status_slot_icon_w(SLOT_TEXT, STATUS_ICON_DRAWN_BATTERY, false, 0, 6), 0);
+    expect("icon_w.drawing", status_slot_icon_w(SLOT_TEXT, STATUS_ICON_UV, false, 11, 6), 11);
+    expect("icon_w.sun", status_slot_icon_w(SLOT_TEXT, STATUS_ICON_DRAWN_SUN, false, 0, 6), 6);
+    expect("icon_w.sun.empty", status_slot_icon_w(SLOT_EMPTY, STATUS_ICON_DRAWN_SUN, false, 0, 6), 0);
+    expect("icon_w.none", status_slot_icon_w(SLOT_TEXT, STATUS_ICON_NONE, false, 0, 6), 0);
+}
+
+// Where the glyph draws (status_slot_battery_lane): as far left of the slot's icon x as the
+// measure left its lane out, so the body lands where the slot was placed; nowhere for a slot
+// that draws no battery.
+static void battery_glyph_lanes(void) {
+    const int16_t icon_text = status_slot_icon_w(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, false, 0, 6);
+    expect("lane.icon", status_slot_battery_lane(SLOT_LIVE_BATTERY, STATUS_ICON_NONE, BATTERY_GLYPH_W), 0);
+    expect("lane.icon.short", status_slot_battery_lane(SLOT_LIVE_BATTERY, STATUS_ICON_NONE,
+                                                       BATTERY_GLYPH_W - BATTERY_BOLT_LANE_W), BATTERY_BOLT_LANE_W);
+    expect("lane.icon_text", status_slot_battery_lane(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, icon_text),
+           BATTERY_BOLT_LANE_W);
+    expect("lane.icon_text.charging",
+           status_slot_battery_lane(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, BATTERY_GLYPH_W), 0);
+    expect("lane.text", status_slot_battery_lane(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, 0), -1);
+    expect("lane.id_elsewhere", status_slot_battery_lane(SLOT_TEXT, STATUS_ICON_DRAWN_BATTERY, 0), -1);
+    expect("lane.drawing", status_slot_battery_lane(SLOT_TEXT, STATUS_ICON_UV, 11), -1);
+}
+
+// The default Watch bar of the 144 px watches: Air quality (its 7 px drawing and "42"), the
+// date "Nov 2026" and the Watch battery in its Icon + text look, at the Gothic 18 widths the
+// settings page reads out of the firmware (watch-text.js): "42" 14 px, the date 53, "80%" 26.
+// The bar's content is 132 px: top_status_layer.c insets the strip by its PADDING (4 px) on
+// both sides before the row's STATUS_ROW_MARGIN (the settings page's picture lays it out at
+// 140). Without the empty bolt lane the date gets those 10 px back, 48 of its 53 (the emulator
+// shows "Jun 2026", 50 px, as "Jun 20..."); with the lane, which holds the bolt while the watch
+// charges, it gets 38. The row's rule is the same either way: the edges keep their width.
+static void icon_text_battery_gives_the_date_its_lane(void) {
+    for (int charging = 0; charging <= 1; charging++) {
+        StatusSlotMeasure m[3] = {
+            { true, 7, 14, 0 },
+            { true, 0, 53, 0 },
+            { true, status_slot_icon_w(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_DRAWN_BATTERY, charging, 0, 6),
+              26, 0 },
+        };
+        StatusSlotPlace p[3];
+        status_row_layout(132, m, p);
+        expect(charging ? "icon_text.date.charging" : "icon_text.date", p[1].text_w, charging ? 38 : 48);
+        expect(charging ? "icon_text.text.charging" : "icon_text.text", p[2].text_w, 26);
+        // The text ends at the row's right edge; the glyph's body sits the gap before it.
+        expect("icon_text.right_edge", p[2].text_x + p[2].text_w, 132);
+        expect("icon_text.icon_x", p[2].icon_x, 132 - 26 - STATUS_ROW_ICON_TEXT_GAP - m[2].icon_w);
+    }
 }
 
 int main(void) {
+    slot_icon_widths();
+    battery_glyph_lanes();
+    icon_text_battery_gives_the_date_its_lane();
     swap_short_forms();
+    swap_own_short_forms();
+    default_bar_date_short_form();
     place_at_matches_the_row_layout();
     placed_w_pins();
     empty_row();

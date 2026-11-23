@@ -177,7 +177,9 @@ typedef struct {
 // config_unload() (NULL outside that window) — code on the unload path must not
 // call it: watchface.c's deinit() unloads config BEFORE main_window_destroy().
 // Only config.c writes the struct; everyone else reads through this pointer.
-const Config *config_get(void);
+// Pure: it only reads, and the config changes only inside config.c's calls, so the
+// compiler may reuse one call's pointer until the next call or memory write.
+const Config *config_get(void) __attribute__((pure));
 
 // The one platform-aware accessor for the emery-only field above: constant false
 // everywhere else, so call-site branches fold away and non-emery platforms still pay

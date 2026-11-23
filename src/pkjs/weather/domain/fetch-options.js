@@ -18,6 +18,12 @@
 // back to the fail-safe answer.
 var forecastSeries = require('./forecast-series.js');
 var feelsLike = require('./feels-like.js');
+// drawn-readings.js reads line-style.js, graph-styles.js, status-line-catalog.js and
+// status-thresholds.js, all dual-context leaves forecast-series.js already loads, so the
+// invariant holds.
+var drawnReadings = require('./drawn-readings.js');
+// source-plan.js reads provider-readings.js, a leaf.
+var sourcePlan = require('./source-plan.js');
 // forecast-span.js requires hourly-window.js (a leaf), forecast-axis.js (line-style.js, as
 // forecast-series.js already does) and forecast-span-hours.js (that and view-cycle.js, a
 // leaf), so the invariant above holds.
@@ -66,7 +72,16 @@ var DEFAULTS = {
     // every watch but an emery set otherwise. The adapters map hourly-window.js windowHours()
     // of this (24, or 26 or 68 past it) and getPayload sends
     // WeatherProvider#payloadEntries() hours.
-    forecastHours: forecastSpan.DAY_HOURS
+    forecastHours: forecastSpan.DAY_HOURS,
+    // Which of the readings only some screens draw the watch draws (drawn-readings.js): the
+    // source plan asks for one, and fills one its provider lacks, only while it is drawn
+    // (source-plan.js wanted, fillSteps); fetchUv is whether it holds UV. None by default.
+    // Frozen: defaults() hands every caller this one list.
+    drawn: Object.freeze([]),
+    // Where the weather comes from besides the Provider (Setup › Data sources;
+    // source-plan.js sourcesOf): the reading picks and the providers whose key is stored.
+    // Frozen like drawn.
+    sources: Object.freeze({ choices: Object.freeze({}), keyed: Object.freeze([]) })
 };
 // Shared and exported: frozen so no consumer can shift every later provider's
 // default by writing to it (Object.freeze is ES5).
@@ -123,12 +138,18 @@ function build(settings, watchInfo, env) {
     // The graph's series and length: with screens showing several graph styles (emery), the
     // shown styles' union and the longest one's hours (graph-style-wire.js weatherSettings).
     var graph = graphStyleWire.weatherSettings(settings, watchInfo);
+    // The readings only some screens draw that this watch draws: drawn-readings.js reads the
+    // shown graph styles' union from the settings themselves.
+    var watchEnv = platform.computeEnv(watchInfo);
+    var drawn = drawnReadings.drawn(settings, watchEnv);
     return defaults({
         // Whether UV is wanted: DWD/Open-Meteo spend a request on it; every
         // adapter adopts it only when this is on (adoptMapped).
         // A placed alert asks for its metric too, but only on a watch that draws On
         // demand: a known aplite never fetches for alerts (watchInfo).
-        fetchUv: forecastSeries.needsUv(graph, watchInfo),
+        fetchUv: drawn.indexOf('uv') !== -1,
+        drawn: drawn,
+        sources: sourcePlan.sourcesOf(settings),
         fetchAqi: forecastSeries.needsAqi(settings, watchInfo),
         fetchPollen: forecastSeries.needsPollen(settings, watchInfo),
         // Apparent temperature: no provider spends an extra REQUEST on it (it always
@@ -150,7 +171,7 @@ function build(settings, watchInfo, env) {
         // The forecast's time span: the stored option's 14 | 24 | 68 hours on an emery (26 for
         // 24 h with no left axis), 24 on every other watch and an unknown one (their inboxes
         // cannot take a 68-hour bundle).
-        forecastHours: forecastSpan.hours(graph, platform.computeEnv(watchInfo))
+        forecastHours: forecastSpan.hours(graph, watchEnv)
     });
 }
 

@@ -153,7 +153,9 @@ test('feedHours: OpenWeatherMap 48, Weather Underground 49, every other provider
   const ids = providerItem.options.map((o) => o[1]);
   assert.deepEqual(ids.slice().sort(),
     ['dwd', 'metno', 'openmeteo', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex']);
-  Object.keys(spanHours.PROVIDER_HOURS).forEach((id) => assert.ok(ids.includes(id), id + ' is a provider'));
+  const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
+  assert.deepEqual(ids.filter((id) => providerReadings.hours(id)), ['openweathermap', 'wunderground'],
+    'the short feeds are providers the picker offers');
   const want = { openweathermap: 48, wunderground: 49 };
   ids.forEach((id) => assert.equal(spanHours.feedHours({ provider: id }), want[id] || 68, id));
   // The short feeds' sources: WU's 48-hour endpoint plus the hour in progress the anchor
@@ -229,4 +231,37 @@ test('shownHours: the hours each span draws, as the watch fits its grid to the p
   const grid = read('src/c/appendix/forecast_grid.h');
   const small = grid.slice(grid.indexOf('DISPLAY_WIDTH_144'));
   assert.equal(1 + 2 * cDefine(small, 'FORECAST_GRID_PAD') + cDefine(small, 'FORECAST_GRID_BAR_W'), 7);
+});
+
+test('feedHours with the reading picks: the shortest feed of the providers each graph reading comes from', () => {
+  const picked = (over) => Object.assign({ provider: 'dwd', barSource: 'rain',
+    secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', owmApiKey: 'k' }, over);
+  assert.equal(spanHours.feedHours(picked({})), 68);
+  assert.equal(spanHours.feedHours(picked({ weatherSourceRainAmount: 'openweathermap' })), 48, 'the rain');
+  assert.equal(spanHours.feedHours(picked({ weatherSourceRainChance: 'openweathermap', barSource: 'off',
+    secondaryLine: 'off' })), 48, 'the rain is sent whether the graph draws it or not');
+  assert.equal(spanHours.feedHours(picked({ weatherSourceWind: 'wunderground' })), 49,
+    'the wind too, with no wind or gust line');
+  assert.equal(spanHours.feedHours(picked({ weatherSourceCloud: 'openweathermap' })), 48,
+    'a reading only some screens draw counts as drawn: the page does not know the watch');
+  assert.equal(spanHours.feedHours(picked({ weatherSourceTemperature: 'openweathermap', owmApiKey: '' })), 68,
+    'a pick without its key follows the Provider');
+  assert.equal(spanHours.feedHours({ provider: 'yandex', weatherSourceTemperature: 'openweathermap',
+    owmApiKey: 'k' }), 48, 'a picked temperature counts like any other reading');
+  assert.equal(spanHours.feedHours({ provider: 'openweathermap', weatherSourceTemperature: 'dwd', owmApiKey: 'k' }), 48,
+    'the Provider\'s own readings still count');
+});
+
+test('a provider whose feed stops short sends every reading: no reading of it is filled from a fuller feed', () => {
+  const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
+  Object.keys(providerReadings.PROVIDERS).filter((id) => providerReadings.hours(id)).forEach((id) => {
+    assert.deepEqual(providerReadings.READING_IDS.filter((r) => !providerReadings.serves(id, r)), [], id);
+  });
+});
+
+test('the graph readings are those with an hourly series the payload sends', () => {
+  const model = require('../../../src/pkjs/weather/domain/forecast-model.js');
+  const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
+  assert.deepEqual(spanHours.GRAPH_READINGS, providerReadings.READING_IDS.filter((id) =>
+    providerReadings.keysOf(id).some((key) => model.GRAPH_SERIES.indexOf(key) !== -1)));
 });

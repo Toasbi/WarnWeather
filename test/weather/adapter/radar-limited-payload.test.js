@@ -7,6 +7,7 @@
 // (radar-permanent-failure, rainbow-radar-throttle) stub fetchWithCoordinates
 // and merge the extras by hand, so a change to this path that dropped the limit
 // notice or the radar arrays would pass them all.
+const { testPorts } = require('../../helpers/source-ports.js');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 // The time every bake in this file runs at, where the test does not care which it is.
@@ -102,7 +103,7 @@ test('the limit notice reaches the wire through fetchWithCoordinates and the out
   let ok = 0;
   withoutAuxFetches(function() {
     provider.fetchWithCoordinates(52.5, 13.4, function() { ok += 1; }, assert.fail, false,
-      Object.assign({ IS_SLEEPING: false }, radarWire.limitedRadarTuples()), transform);
+      Object.assign({ IS_SLEEPING: false }, radarWire.limitedRadarTuples()), transform, undefined, testPorts());
   });
   assert.equal(ok, 1, 'the fetch succeeds');
   assert.equal(sent.length, 1, 'one bundled send');
@@ -123,7 +124,7 @@ test('a radar window reaches the wire through the same path, without the notice'
       RAIN_RADAR_TREND_UINT8: exact,
       RAIN_RADAR_TREND_AREA_UINT8: area,
       RAIN_RADAR_START: 1790000100
-    }, transform);
+    }, transform, undefined, testPorts());
   });
   assert.equal(sent.length, 1, 'one bundled send');
   assert.deepEqual(sent[0].RAIN_RADAR_TREND_UINT8, exact);

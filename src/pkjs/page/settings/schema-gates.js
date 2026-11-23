@@ -3,8 +3,8 @@
 // of the schema (schema.js, level-rows-schema.js, alerts-schema.js and
 // forecast-lines-schema.js) can read them without requiring each other: the named
 // showWhen predicates (the capability gates and the setting gates several rows repeat),
-// the one-pass gateAll, the link that brings a tab to the front and the link row a reset
-// rides. Plain CommonJS with an
+// the one-pass gateAll and its siblings that combine predicates (bothWhen, alsoWhen), the
+// link that brings a tab to the front and the link row a reset rides. Plain CommonJS with an
 // unguarded require(), like schema.js itself (custom-layout-schema.js's precedent): the
 // schema is evaluated in PKJS and injected into the page as data, never concatenated into
 // it as a flat browser file.
@@ -113,6 +113,29 @@ function gateAll(items, gate) {
     return items;
 }
 /**
+ * Two showWhen predicates as one that holds while both do. Either may be absent.
+ * @param {?Object} a showWhen predicate, or null.
+ * @param {?Object} b showWhen predicate, or null.
+ * @returns {?Object} Both, the one there is, or null for neither.
+ */
+function bothWhen(a, b) {
+    if (!a || !b) { return a || b || null; }
+    return {all: [a, b]};
+}
+/**
+ * Add a condition to every row: each shows only while `gate` holds and its own showWhen,
+ * if it has one, does too (gateAll leaves a row with a showWhen of its own alone).
+ * @param {Object[]} items Schema items (mutated).
+ * @param {Object} gate showWhen predicate.
+ * @returns {Object[]} The same array.
+ */
+function alsoWhen(items, gate) {
+    items.forEach(function (item) {
+        item.showWhen = bothWhen(gate, item.showWhen);
+    });
+    return items;
+}
+/**
  * A link row (a `button` drawn as a line of link text, engine.js chevronRow): a reset,
  * e.g. the About alerts card's.
  * @param {string} action A registered PConf.actions id, e.g. 'resetOnDemand'.
@@ -126,7 +149,13 @@ function linkRow(action, label, more) {
     return row;
 }
 
+// "This Pebble app can read plugins": what gates a setting that shows another app's
+// reading (index.js passes env.plugins; plugin-reader.js available). An older Pebble app
+// has no plugins, and the setting would change nothing there.
+var PLUGINS_WHEN = {env: 'plugins'};
+
 module.exports = {
+    PLUGINS_WHEN: PLUGINS_WHEN,
     HEALTH_SLOT_WHEN: HEALTH_SLOT_WHEN,
     HR_SLOT_WHEN: HR_SLOT_WHEN,
     THRESHOLD_WHEN: THRESHOLD_WHEN,
@@ -142,6 +171,8 @@ module.exports = {
     EMERY_WHEN: EMERY_WHEN,
     GRAPH_STYLES_WHEN: GRAPH_STYLES_WHEN,
     gateAll: gateAll,
+    alsoWhen: alsoWhen,
+    bothWhen: bothWhen,
     tabLink: tabLink,
     linkRow: linkRow
 };

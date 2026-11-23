@@ -42,17 +42,13 @@ int health_hr_current(void);
 void health_set_minute_scratch(HealthMinuteData *records);
 
 /**
- * Fills `count` hourly step-count buckets.
- * out[0] = oldest hour, out[count-1] = the hour ending at end_hour.
- * Zeroes a bucket when no data is available for that hour.
+ * Fills `count` hourly buckets from one minute-history read per hour: steps[i] the
+ * hour's step count, and for the first `hr_count` hours (hr_count <= count) hr[i] its
+ * average BPM. [0] = oldest hour, [count-1] = the hour ending at end_hour. A bucket
+ * with no data for its hour reads 0.
  */
-void health_fill_hourly_steps(int16_t *out, int count, time_t end_hour);
-
-/**
- * Fills `count` hourly average-BPM buckets (0 if no data for that hour).
- * out[0] = oldest hour, out[count-1] = the hour ending at end_hour.
- */
-void health_fill_hourly_hr(int16_t *out, int count, time_t end_hour);
+void health_fill_hourly(int16_t *steps, int16_t *hr, int count, int hr_count,
+                        time_t end_hour);
 
 /**
  * Fills `count` hourly sleep-state buckets with HEALTH_SLEEP_* values.

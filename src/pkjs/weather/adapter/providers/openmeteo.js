@@ -525,7 +525,8 @@ function mapUv(json, startTime, hours) {
  * carries no UV) — so a failed/empty UV call leaves the UV line off and the slot
  * at '--' rather than failing the whole forecast, or, on a reused provider
  * instance, shipping the previous cycle's window against the new startTime.
- * Shared by the Open-Meteo provider and the DWD fallback.
+ * Shared by the Open-Meteo provider and the source plan's UV fill for a provider
+ * that sends none (weather/adapter/source-ports.js: DWD's).
  * @param {Object} provider Active provider (reads .options.fetchUv/.startTime, writes .uvTrend).
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
@@ -545,6 +546,125 @@ function fetchUvInto(provider, lat, lon, done) {
         done();
     }, function(err) {
         console.log('[!] Open-Meteo uv request failed: ' + JSON.stringify(err));
+        done();
+    });
+}
+
+/**
+ * Whether a mapped window holds a reading: a number for one hour at least. A window the
+ * response has no bucket for comes back all null (a forecast whose hours are not on the GMT
+ * hour, such as a provider's local hours on the half hour), and its reading stays empty
+ * rather than drawing a clear sky.
+ * @param {?Array} series A mapped window (alignHourly), or null when malformed.
+ * @returns {boolean}
+ */
+function holdsReading(series) {
+    return Boolean(series) && series.some(function(v) { return typeof v === 'number'; });
+}
+
+/**
+ * The cloud cover of a fill's answer, from the hour startTime on: its layers weighted as the
+ * main request's are (cloudSlice).
+ * @param {Object} json Parsed Open-Meteo response.
+ * @param {number} startTime Window start in epoch seconds.
+ * @param {number} hours Window length (windowHours).
+ * @returns {?Array.<number>} null when the answer holds no total cover.
+ */
+function mapFillCloud(json, startTime, hours) {
+    var aligned = {};
+    FILL_FIELDS.cloud.hourly.forEach(function(field) { aligned[field] = alignHourly(json, field, startTime, hours); });
+    return holdsReading(aligned.cloud_cover) ? cloudSlice(aligned, 0, aligned.cloud_cover.length) : null;
+}
+
+/**
+ * The air pressure of a fill's answer, from the hour startTime on.
+ * @param {Object} json Parsed Open-Meteo response.
+ * @param {number} startTime Window start in epoch seconds.
+ * @param {number} hours Window length (windowHours).
+ * @returns {?Array.<(number|null)>}
+ */
+function mapFillPressure(json, startTime, hours) {
+    return alignHourly(json, 'pressure_msl', startTime, hours);
+}
+
+// Open-Meteo's request for the other readings a provider lacks (fetchReadingsInto), per reading
+// it brings: the hourly fields it asks for, the series they land on and how they are read,
+// aligned by time to the provider's startTime. All four are values at the hour's stamp, so none
+// reads a bucket ahead, and all four come from best_match: ECMWF IFS, which the main request
+// pins, sends no dew point or wind bearing. A reading whose window holds no number keeps what
+// the provider had (holdsReading).
+var FILL_FIELDS = {
+    dew: { hourly: ['dew_point_2m'], key: 'dewTrend', map: mapDew },
+    windDir: { hourly: ['wind_direction_10m'], key: 'windDirTrend', map: mapWindDirection },
+    cloud: { hourly: ['cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high'], key: 'cloudTrend',
+        map: mapFillCloud },
+    pressure: { hourly: ['pressure_msl'], key: 'pressureTrend', map: mapFillPressure }
+};
+/**
+ * Put the readings of a fill's answer on the provider, aligned to its startTime: each one whose
+ * window holds a number; the others keep what the provider had (FILL_FIELDS).
+ * @param {Object} provider The provider the readings go on (reads startTime).
+ * @param {Object} json Parsed Open-Meteo response.
+ * @param {number} hours The graph's window (windowHours).
+ * @param {string[]} readings FILL_FIELDS ids.
+ * @returns {void}
+ */
+function adoptFill(provider, json, hours, readings) {
+    readings.forEach(function(id) {
+        var field = FILL_FIELDS[id];
+        var series = field.map(json, provider.startTime, hours);
+        if (holdsReading(series)) { provider[field.key] = series; }
+    });
+}
+
+/**
+ * Build Open-Meteo's request for the other readings a provider lacks: the hourly fields of the readings asked for, in °F (the dew
+ * point), unixtime and GMT like the aux calls, so the buckets line up with the provider's
+ * hours by timestamp, over the graph's window (auxDays).
+ * @param {number} lat Latitude in decimal degrees.
+ * @param {number} lon Longitude in decimal degrees.
+ * @param {string[]} readings FILL_FIELDS ids.
+ * @param {number} [hours] The graph's window (windowHours); 24 when absent.
+ * @returns {string} Fully-formed request URL.
+ */
+function buildReadingsUrl(lat, lon, readings, hours) {
+    var fields = [];
+    readings.forEach(function(id) { fields = fields.concat(FILL_FIELDS[id].hourly); });
+    return OPEN_METEO_BASE
+        + '?latitude=' + lat
+        + '&longitude=' + lon
+        + '&hourly=' + fields.join(',')
+        + '&temperature_unit=fahrenheit'
+        + '&timeformat=unixtime'
+        + '&timezone=GMT'
+        + '&forecast_days=' + auxDays(false, hours);
+}
+
+/**
+ * Fetch the readings a provider lacks from Open-Meteo in one request, onto the provider's
+ * series, aligned to its startTime: the source plan's fill of the other readings
+ * (source-plan.js fillSteps, run through weather/adapter/source-ports.js). It always calls back; a failed request leaves
+ * every series as it was, and an answer without a reading's hours leaves that one.
+ * @param {Object} provider The provider the readings go on (reads .options and .startTime).
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {string[]} readings Reading ids (the drawn-only readings but UV: provider-readings.js
+ *   DRAWN_ONLY); others are skipped.
+ * @param {Function} done Continuation (always called exactly once).
+ * @returns {void}
+ */
+function fetchReadingsInto(provider, lat, lon, readings, done) {
+    var wanted = readings.filter(function(id) { return Object.prototype.hasOwnProperty.call(FILL_FIELDS, id); });
+    if (!wanted.length) { done(); return; }
+    var hours = hourlyWindow.windowHours(provider.options);
+    request(buildReadingsUrl(lat, lon, wanted, hours), 'GET', function(resp) {
+        var json = null;
+        try { json = JSON.parse(resp); }
+        catch (ex) { json = null; }
+        if (json) { adoptFill(provider, json, hours, wanted); }
+        done();
+    }, function(err) {
+        console.log('[!] Open-Meteo readings request failed: ' + JSON.stringify(err));
         done();
     });
 }
@@ -609,5 +729,9 @@ module.exports = {
     buildUvUrl: buildUvUrl,
     mapUv: mapUv,
     fetchUvInto: fetchUvInto,
+    FILL_FIELDS: FILL_FIELDS,
+    adoptFill: adoptFill,
+    buildReadingsUrl: buildReadingsUrl,
+    fetchReadingsInto: fetchReadingsInto,
     OpenMeteoProvider: OpenMeteoProvider
 };

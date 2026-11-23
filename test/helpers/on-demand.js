@@ -36,4 +36,9 @@ function placedOnly(codes, extra) {
   return Object.assign(placeOn(Object.assign({}, NOTHING_PLACED), 'top', 'right', codes), extra || {});
 }
 
-module.exports = { NOTHING_PLACED, placeOn, placedOnly };
+// Nothing that draws a reading only some screens draw (drawn-readings.js): no alert placed, and
+// the slots a fresh install's radar bar and Watch bar fill with UV and others emptied.
+const NOTHING_DRAWN = Object.assign({ statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
+  statusTopLeft: 'empty' }, NOTHING_PLACED);
+
+module.exports = { NOTHING_PLACED, NOTHING_DRAWN, placeOn, placedOnly };

@@ -96,7 +96,7 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
   });
   assert.ok(idx('layout/domain/screens.js') < idx('page/settings/wizard/wizard-screens.js'));
   assert.ok(idx('status-bars/domain/status-line-catalog.js') < idx('page/settings/wizard/wizard-finish.js'));
-  assert.ok(idx('page/settings/country-defaults.js') < idx('page/settings/wizard/wizard-upsell.js'));
+  assert.ok(idx('settings/domain/country-defaults.js') < idx('page/settings/wizard/wizard-upsell.js'));
   ['ForecastSample', 'PreviewForecast'].forEach((name) => {
     assert.ok(page().indexOf('window.' + name + ' = api') !== -1,
       'nothing assigns window.' + name + ': the forecast step would draw an empty card');
@@ -615,6 +615,17 @@ test('the Status bars preview and the Night hours reach the page, in dependency 
   assert.ok(idx('lib/utf8.js') < idx('status-bars/domain/status-pair.js'), 'status-pair.js reads window.Utf8');
   assert.ok(idx('status-bars/domain/status-pair.js') < idx('status-bars/domain/slot-text.js'), 'slot-text.js reads window.StatusPair');
   assert.ok(idx('status-bars/domain/slot-text.js') < idx('page/status-bars/preview-status-bars.js'));
+  // The watch battery's text: battery-days.js binds window.StatusPair while its body runs,
+  // the preview binds window.BatteryDays while its own does, and blocks.js window.SlotText
+  // (the battery's Look, for its Edit badge). Out of order the page throws at boot on a
+  // real phone.
+  assert.ok(idx('status-bars/domain/status-pair.js') < idx('status-bars/domain/battery-days.js'),
+    'battery-days.js reads window.StatusPair');
+  assert.ok(idx('status-bars/domain/battery-days.js') < idx('page/status-bars/preview-status-bars.js'),
+    'preview-status-bars.js reads window.BatteryDays');
+  assert.ok(idx('status-bars/domain/slot-text.js') < idx('page/settings/blocks.js'), 'blocks.js reads window.SlotText');
+  assert.ok(page().indexOf('window.BatteryDays = api') !== -1, 'nothing assigns window.BatteryDays');
+  assert.ok(page().indexOf('window.SlotText = api') !== -1, 'nothing assigns window.SlotText');
   assert.ok(idx('calendar/domain/date-format.js') < idx('page/status-bars/preview-status-bars.js'));
   idx('page/theme/night-hours.js');
   const src = page();
@@ -820,4 +831,47 @@ test('the threshold contract reaches the generated page between resolve-ink and 
   assert.notEqual(defined, -1, 'nothing assigns window.StatusThresholds in the page');
   assert.ok(defined < src.indexOf("register('thresholdRange'"),
     'the page must define window.StatusThresholds before blocks.js runs');
+});
+
+// The card of new features to try is a block the Watchface tab's second section names
+// (schema.js block: 'featureTips'). An unregistered block draws nothing and throws nothing, so
+// with its file dropped from APP_FILES the card would never show on a real phone, while every
+// Node test passes through require().
+test('the new-features card reaches the generated page and registers its block', () => {
+  const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
+  assert.notEqual(appFiles.findIndex((f) => f.endsWith('/page/notices/feature-tips-panel.js')), -1,
+    'feature-tips-panel.js is not in APP_FILES at all');
+  const src = page();
+  assert.ok(src.indexOf("PConf.blocks.register('featureTips'") !== -1, 'the page registers no featureTips block');
+  // The generated file holds the page as one JSON string: a '"' of the page reads '\\"' there.
+  assert.ok(src.indexOf('data-k=\\"featureTipsAck\\"') !== -1, 'its Got it flips the flag the phone reads');
+  assert.ok(src.indexOf("ctx.set('featureTipsAck', false)") !== -1, 'the flag is cleared on every open (onbuild.js onLoad)');
+});
+
+// The note under the Provider (page/weather/weather-sources-page.js) binds the provider
+// table, the source plan and the drawn rule while its body runs, and drawn-readings.js binds
+// the line, graph style, slot and alert modules while ITS body runs: out of order, the Setup tab
+// throws on a real phone while every Node test passes through require().
+test('where the weather comes from: each module is bundled ahead of the ones that bind it', () => {
+  const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  ['forecast-graphs/domain/line-style.js', 'forecast-graphs/domain/graph-styles.js',
+    'status-bars/domain/status-line-catalog.js', 'alerts/domain/status-thresholds.js'].forEach((file) => {
+    assert.ok(idx(file) < idx('weather/domain/drawn-readings.js'), file + ' must precede drawn-readings.js');
+  });
+  assert.ok(idx('weather/domain/provider-readings.js') < idx('weather/domain/source-plan.js'));
+  ['page/weather/budgets/tomorrowio-budget.js', 'weather/domain/forecast-span-hours.js'].forEach((file) => {
+    assert.ok(idx('weather/domain/source-plan.js') < idx(file), file + ' binds the plan while its body runs');
+  });
+  ['weather/domain/source-plan.js', 'weather/domain/drawn-readings.js'].forEach((file) => {
+    assert.ok(idx(file) < idx('page/weather/weather-sources-page.js'), file + ' must precede weather-sources-page.js');
+  });
+  ['window.ProviderReadings = api', 'window.SourcePlan = api', 'window.DrawnReadings = api',
+    'window.WeatherSourcesPage = api', "register('weatherFillNote'"].forEach((s) => {
+    assert.ok(page().indexOf(s) !== -1, s + ' is not in the generated page');
+  });
 });

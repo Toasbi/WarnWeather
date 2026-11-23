@@ -11,6 +11,7 @@ FORECAST
 - Lines, stripes, dots or bars, with your own colors*
 - 12 to 66 hours ahead* and up to six graphs*
 - Day/night shading
+- Weather from one provider, or a provider of its own for any reading
 
 ALERTS*
 Icons that appear only when something needs your attention:
@@ -25,9 +26,10 @@ RAIN RADAR*
 
 STATUS BARS
 - Weather condition, temperature, air quality, wind, UV, sunrise and sunset, pollen
-- Date, week, city, countdown
+- Date, week, city with weather icon, countdown
 - Steps, sleep, distance, heart rate*
-- Watch and phone battery
+- Watch battery as icon, text or both, with days left from the Muninn app*
+- Phone battery as text, with or without its icon*
 - Name your own bars and place them on any screen*
 
 HEALTH*
@@ -45,6 +47,8 @@ WATCH
 SETTINGS
 - Live preview of your watch
 - 5-day forecast for your saved places
+- Light, dark or black theme
+- What's new after an update
 
 * Depends on your watch model.
 

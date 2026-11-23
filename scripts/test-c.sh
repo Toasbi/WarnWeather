@@ -37,6 +37,29 @@ build/host/config_size_test_emery
 cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
    test/c/config_size_test.c -o build/host/config_size_test_aplite
 build/host/config_size_test_aplite
+# The Clay bundle's parse (appendix/config_wire.c): the core keys all or nothing, each
+# optional key read as sent or left 0, on each platform arm of config.h.
+cc $CFLAGS test/c/config_wire_test.c src/c/appendix/config_wire.c -o build/host/config_wire_test
+build/host/config_wire_test
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/config_wire_test.c src/c/appendix/config_wire.c \
+   -o build/host/config_wire_test_emery
+build/host/config_wire_test_emery
+cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
+   test/c/config_wire_test.c src/c/appendix/config_wire.c -o build/host/config_wire_test_aplite
+build/host/config_wire_test_aplite
+# The two palette channels (appendix/palette.c): a set changes and saves only new stops, a
+# malformed blob changes nothing, and the first read comes from persist or the defaults.
+# Built per theme.h arm the watches take: colour (basalt; emery, with the graph styles'
+# parse) and B&W (diorite, flint). aplite has its twin, palette_aplite.c.
+cc $CFLAGS -DPBL_COLOR -DWW_THEME_POLARITY test/c/palette_test.c src/c/appendix/palette.c \
+   -o build/host/palette_test
+build/host/palette_test
+cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR -DWW_THEME_POLARITY test/c/palette_test.c \
+   src/c/appendix/palette.c -o build/host/palette_test_emery
+build/host/palette_test_emery
+cc $CFLAGS -DWW_THEME_POLARITY test/c/palette_test.c src/c/appendix/palette.c \
+   -o build/host/palette_test_bw
+build/host/palette_test_bw
 # The Bluetooth disconnect vibe (services/disconnect_vibe.h): a drop buzzes only while Quiet
 # Time is off.
 cc $CFLAGS test/c/disconnect_vibe_test.c -o build/host/disconnect_vibe_test
@@ -195,6 +218,9 @@ build/host/status_row_alloc_test
 # never compiles the caller (its status_row twin keeps the hardcoded formats).
 cc $CFLAGS test/c/date_format_test.c -o build/host/date_format_test
 build/host/date_format_test
+# The Sleep item's two Z's (appendix/snooze.c), every area up to 40 x 25 as drawn.
+cc $CFLAGS test/c/snooze_test.c -o build/host/snooze_test
+build/host/snooze_test
 # The status slots' short forms (status_short_text.h, header-only like date_format.h):
 # every kind's family, the date's year and day members over date_format.h's real
 # outputs, the city's word ladder, whose vector table test/status-bars/domain/city-ladder.test.js also
@@ -326,10 +352,11 @@ build/host/radar_notice_persist_test
 # On demand cells in the slots appended for them (emery). Built for emery, with On demand
 # (whose accessors the cells ride), and plain.
 cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR -DWW_ON_DEMAND test/c/status_line_persist_test.c \
-   src/c/appendix/persist.c src/c/appendix/persist_store.c -o build/host/status_line_persist_test_emery
+   src/c/appendix/persist.c src/c/appendix/persist_store.c src/c/appendix/status_line.c \
+   -o build/host/status_line_persist_test_emery
 build/host/status_line_persist_test_emery
 cc $CFLAGS test/c/status_line_persist_test.c src/c/appendix/persist.c src/c/appendix/persist_store.c \
-   -o build/host/status_line_persist_test
+   src/c/appendix/status_line.c -o build/host/status_line_persist_test
 build/host/status_line_persist_test
 # persist_store.c's RAM copy of the store (emery only): a key's second read costs no flash
 # call, absent keys too, and every write keeps the copy exact. Built again with an arena the

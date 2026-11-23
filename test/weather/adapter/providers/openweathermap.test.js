@@ -248,30 +248,52 @@ test('OWM leaves currentFeels null when current.feels_like is missing', () => {
   assert.equal(p.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
 });
 
-test('withWeatherData is consume-once: a reused instance never serves a stale cycle', () => {
-  // withSunEvents populates the cache (one metered One Call XHR serves both
-  // consumers) and withWeatherData consumes it — so freshness no longer depends
-  // on the base chain's call order, and a standalone withProviderData on a
-  // persisted provider instance re-fetches instead of serving last cycle.
+test('OWM asks One Call once a fetch: the forecast and the sun times ride one response', () => {
+  const urls = [];
+  responder = function(url, onSuccess) {
+    urls.push(url);
+    const response = twoHourResponse();
+    response.daily = [{ sunrise: 1782009780, sunset: 1782070380 }, { sunrise: 1782096180, sunset: 1782156780 }];
+    onSuccess(JSON.stringify(response));
+  };
   const p = new OpenWeatherMapProvider('test-key');
-  p.weatherDataCache = { marker: 'cycle-1' };
-  let served = null;
-  p.withWeatherData(0, 0, (data) => { served = data; }, () => { throw new Error('unexpected failure'); });
-  assert.equal(served.marker, 'cycle-1', 'the cached response is served once');
-  assert.equal(p.weatherDataCache, null, 'and consumed');
-
-  p.withOwmResponse = (lat, lon, cb) => cb({ marker: 'cycle-2-fresh' });
-  p.withWeatherData(0, 0, (data) => { served = data; }, () => { throw new Error('unexpected failure'); });
-  assert.equal(served.marker, 'cycle-2-fresh', 'an empty cache re-fetches, never replays');
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(p.sunTimes, [{ type: 'sunrise', at: 1782009780 }, { type: 'sunset', at: 1782070380 },
+    { type: 'sunrise', at: 1782096180 }, { type: 'sunset', at: 1782156780 }]);
+  p.withSunEvents(52.52, 13.40, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.equal(urls.length, 1, 'the sun events ask nothing more');
 });
 
+test('OWM sends no sun times with fewer than two days, and the sun events take SunCalc\'s', (t) => {
+  const now = Date.parse('2026-06-21T12:00:00Z');
+  t.mock.timers.enable({ apis: ['Date'], now: now });
+  const p = sunFrom([{ sunrise: 1782009780, sunset: 1782070380 }]);
+  assert.equal(p.sunTimes, null);
+  let got = null;
+  p.withSunEvents(52.52, 13.40, (events) => { got = events; },
+    (f) => { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(got, require('../../../../src/pkjs/weather/domain/sun-events.js').nextSunEvents(new Date(now), 52.52, 13.40));
+});
+
+/**
+ * An OWM provider that adopted a One Call answer with this `daily`.
+ * @param {Array} daily One Call `daily`.
+ * @returns {Object} The provider.
+ */
+function sunFrom(daily) {
+  const p = new OpenWeatherMapProvider('test-key');
+  const response = twoHourResponse();
+  response.daily = daily;
+  p.adoptMapped(OpenWeatherMapProvider.mapOneCall(response));
+  return p;
+}
+
 // In polar day/night One Call leaves daily sunrise/sunset out (or sends 0).
-// The override used to hand back [], which crashed the payload build.
+// The sun-events override this replaced handed back [], which crashed the payload build.
 test('OWM withSunEvents still yields a sun-event pair when daily sunrise/sunset are missing', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-06-21T12:00:00Z') });
   [[{}, {}], [{ sunrise: 0, sunset: 0 }, { sunrise: 0, sunset: 0 }]].forEach((daily) => {
-    const p = new OpenWeatherMapProvider('test-key');
-    p.withOwmResponse = (lat, lon, cb) => cb({ daily: daily });
+    const p = sunFrom(daily);
     let got = null;
     p.withSunEvents(69.65, 18.96, (events) => { got = events; },
       (f) => { throw new Error('unexpected failure ' + JSON.stringify(f)); });
@@ -280,15 +302,14 @@ test('OWM withSunEvents still yields a sun-event pair when daily sunrise/sunset 
   });
 });
 
-// The override hands the fetch's span to nextSunEvents like the base class does
+// OWM's own times get the fetch's span like SunCalc's do
 // (test/weather/domain/sun-events.test.js): a longer fetch's polar pair reaches further (68 h: five days).
 test('OWM withSunEvents passes the fetch\'s span to the polar pair (68 h: five days out, 48 h: four)', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-06-21T12:00:00Z') });
   const midnight = Date.parse('2026-06-21T00:00:00Z');
   [[68, 5], [48, 4], [26, 4], [24, 3]].forEach(([span, days]) => {
-    const p = new OpenWeatherMapProvider('test-key');
+    const p = sunFrom([{}, {}]);
     p.options = fetchOptions.defaults({ forecastHours: span });
-    p.withOwmResponse = (lat, lon, cb) => cb({ daily: [{}, {}] });
     let got = null;
     p.withSunEvents(69.65, 18.96, (events) => { got = events; },
       (f) => { throw new Error('unexpected failure ' + JSON.stringify(f)); });
@@ -300,11 +321,10 @@ test('OWM withSunEvents passes the fetch\'s span to the polar pair (68 h: five d
 
 test('OWM withSunEvents keeps its own daily times when they are usable', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-06-21T12:00:00Z') });
-  const p = new OpenWeatherMapProvider('test-key');
-  p.withOwmResponse = (lat, lon, cb) => cb({ daily: [
+  const p = sunFrom([
     { sunrise: 1782009780, sunset: 1782070380 },
     { sunrise: 1782096180, sunset: 1782156780 }
-  ] });
+  ]);
   let got = null;
   p.withSunEvents(52.52, 13.40, (events) => { got = events; },
     (f) => { throw new Error('unexpected failure ' + JSON.stringify(f)); });
@@ -313,15 +333,14 @@ test('OWM withSunEvents keeps its own daily times when they are usable', (t) => 
 
 // The day midnight sun begins, One Call can list a sunrise with no sunset.
 // Its next two upcoming events are then two sunrises, which the watch would
-// read as a sunrise and a sunset. The override takes SunCalc's pair instead.
+// read as a sunrise and a sunset. The sun events take SunCalc's pair instead.
 test('OWM withSunEvents falls back to SunCalc when its daily times make no usable pair', (t) => {
   const now = Date.parse('2026-06-20T00:30:00Z');
   t.mock.timers.enable({ apis: ['Date'], now: now });
-  const p = new OpenWeatherMapProvider('test-key');
-  p.withOwmResponse = (lat, lon, cb) => cb({ daily: [
+  const p = sunFrom([
     { sunrise: Date.parse('2026-06-20T01:00:00Z') / 1000, sunset: 0 },
     { sunrise: Date.parse('2026-06-21T00:55:00Z') / 1000, sunset: Date.parse('2026-06-21T23:10:00Z') / 1000 }
-  ] });
+  ]);
   let got = null;
   p.withSunEvents(66.6, 25.7, (events) => { got = events; },
     (f) => { throw new Error('unexpected failure ' + JSON.stringify(f)); });
@@ -421,14 +440,14 @@ test('OWM names no condition when current.weather names none, and a reused insta
     assert.equal(mapped.currentCondition, null, 'weather ' + JSON.stringify(weather));
     assert.deepEqual(mapped.tempTrend, [50, 60], 'the rest maps as before');
   });
-  // Each cycle's One Call answer, as the chain's withSunEvents leaves it for withProviderData.
+  // One reused instance, two cycles' One Call answers.
   const p = new OpenWeatherMapProvider('test-key');
   const snowy = twoHourResponse();
   snowy.current.weather = [{ id: 601 }];
-  p.weatherDataCache = snowy;
+  responder = function(url, onSuccess) { onSuccess(JSON.stringify(snowy)); };
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   assert.equal(p.currentCondition, 'snow');
-  p.weatherDataCache = twoHourResponse();
+  responder = function(url, onSuccess) { onSuccess(JSON.stringify(twoHourResponse())); };
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   assert.equal(p.currentCondition, null, 'not the previous cycle\'s');
   assert.equal('CURRENT_CONDITION' in p.getPayload(), false);

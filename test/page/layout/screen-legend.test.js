@@ -177,10 +177,11 @@ test('a screen\'s legend: each row its glyph and name; a screen of two graphs gi
 });
 
 test('what the weather service leaves out of the forecast graph', () => {
-  assert.equal(L.gapNote(legendOf('meteogram', EMERY), 'yandex'), 'Yandex sends no clouds or air pressure.');
   assert.equal(L.gapNote(legendOf('clean', EMERY), 'metno'), 'Met.no outside the Nordics sends no rain chance.');
-  assert.equal(L.gapNote(legendOf('wind', EMERY), 'yandex'), '', 'Yandex sends the wind and gusts');
-  assert.equal(L.gapNote(legendOf('health', EMERY), 'yandex'), '', 'no forecast graph');
+  assert.equal(L.gapNote(legendOf('meteogram', EMERY), 'yandex'), '',
+    'Yandex\'s clouds and air pressure come from Open-Meteo');
+  assert.equal(L.gapNote(legendOf('meteogram', EMERY), 'dwd'), '', 'DWD sends them all');
+  assert.equal(L.gapNote(legendOf('health', EMERY), 'metno'), '', 'no forecast graph');
 });
 
 test('a black-and-white watch\'s legend draws in its ink', () => {

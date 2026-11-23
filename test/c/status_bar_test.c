@@ -125,6 +125,10 @@ void layer_set_frame(Layer *layer, GRect frame) {
 }
 
 GRect layer_get_frame(const Layer *layer) { return layer->frame; }
+bool grect_equal(const GRect *const a, const GRect *const b) {
+    return a->origin.x == b->origin.x && a->origin.y == b->origin.y
+        && a->size.w == b->size.w && a->size.h == b->size.h;
+}
 
 void layer_set_hidden(Layer *layer, bool hidden) { layer->hidden = hidden; }
 bool layer_get_hidden(const Layer *layer) { return layer->hidden; }
@@ -149,10 +153,11 @@ void status_row_destroy(StatusRow *row) {
     free(row);
 }
 
-void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, uint8_t line_id) {
-    (void) row;
+void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, bool full_date) {
+    const uint8_t line_id = row->line_id;
     s_last_bounds[line_id] = bounds;
     s_last_tier[line_id] = tier;
+    s_last_full_date[line_id] = full_date;
     s_apply_count[line_id]++;
     s_apply_seq[line_id] = ++s_sequence;
 }
@@ -166,10 +171,6 @@ bool status_row_refresh(StatusRow *row) {
 
 void status_row_draw(StatusRow *row, GContext *ctx) {
     if (row && ctx) { s_draw_count[row->line_id]++; }
-}
-
-void status_row_set_full_date(StatusRow *row, bool full_date) {
-    if (row) { s_last_full_date[row->line_id] = full_date; }
 }
 
 #if defined(PBL_HEALTH)

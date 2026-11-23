@@ -32,6 +32,13 @@ static uint8_t header(int kind, int level, int day) {
         | ((day & STATUS_ALERT_DAY_MASK) << STATUS_ALERT_DAY_SHIFT));
 }
 
+// The entry of `item`, or an all-zero one when it has none, so a failing case reads 0s.
+static const AlertEntry *at(const AlertSet *set, int item) {
+    static const AlertEntry none = { 0 };
+    const AlertEntry *e = alert_set_entry(set, item);
+    return e ? e : &none;
+}
+
 static void parse_tests(void) {
     // UV danger "8", wind warn (icon only), gust warn "90", AQI danger "152".
     uint8_t bytes[] = {
@@ -42,27 +49,34 @@ static void parse_tests(void) {
     };
     AlertSet set;
     expect("parse.count", alert_set_parse(bytes, sizeof(bytes), &set), 4);
-    expect("parse.count_field", set.count, 4);
-    expect("parse.0.kind", set.entries[0].kind, THRESH_UV);
-    expect("parse.0.level", set.entries[0].level, THRESH_LEVEL_DANGER);
-    expect("parse.0.day", set.entries[0].day, STATUS_ALERT_DAY_TODAY);
-    expect("parse.0.len", set.entries[0].value_len, 1);
+    expect("parse.uv.kind", at(&set, OD_UV)->kind, THRESH_UV);
+    expect("parse.uv.level", at(&set, OD_UV)->level, THRESH_LEVEL_DANGER);
+    expect("parse.uv.day", at(&set, OD_UV)->day, STATUS_ALERT_DAY_TODAY);
+    expect("parse.uv.len", at(&set, OD_UV)->value_len, 1);
     // Values point INTO the buffer (not copies): the set lives as long as it.
-    expect("parse.0.value_ptr", set.entries[0].value == (const char *)&bytes[1], 1);
-    expect("parse.1.kind", set.entries[1].kind, THRESH_WIND);
-    expect("parse.1.level", set.entries[1].level, THRESH_LEVEL_WARN);
-    expect("parse.1.len", set.entries[1].value_len, 0);
-    expect("parse.1.value_null", set.entries[1].value == NULL, 1);
-    expect("parse.2.kind", set.entries[2].kind, THRESH_GUST);
-    expect("parse.2.value_ptr", set.entries[2].value == (const char *)&bytes[4], 1);
-    expect("parse.2.value0", set.entries[2].value[0], '9');
-    expect("parse.2.len", set.entries[2].value_len, 2);
-    expect("parse.3.kind", set.entries[3].kind, THRESH_AQI);
-    expect("parse.3.len", set.entries[3].value_len, 3);
-    expect("parse.3.value_ptr", set.entries[3].value == (const char *)&bytes[7], 1);
+    expect("parse.uv.value_ptr", at(&set, OD_UV)->value == (const char *)&bytes[1], 1);
+    expect("parse.wind.kind", at(&set, OD_WIND)->kind, THRESH_WIND);
+    expect("parse.wind.level", at(&set, OD_WIND)->level, THRESH_LEVEL_WARN);
+    expect("parse.wind.len", at(&set, OD_WIND)->value_len, 0);
+    expect("parse.wind.value_null", at(&set, OD_WIND)->value == NULL, 1);
+    expect("parse.gust.kind", at(&set, OD_GUST)->kind, THRESH_GUST);
+    expect("parse.gust.value_ptr", at(&set, OD_GUST)->value == (const char *)&bytes[4], 1);
+    expect("parse.gust.len", at(&set, OD_GUST)->value_len, 2);
+    expect("parse.aqi.kind", at(&set, OD_AQI)->kind, THRESH_AQI);
+    expect("parse.aqi.len", at(&set, OD_AQI)->value_len, 3);
+    expect("parse.aqi.value_ptr", at(&set, OD_AQI)->value == (const char *)&bytes[7], 1);
+    // No pollen entry; and only the metric items have entries at all.
+    expect("parse.pollen.none", alert_set_entry(&set, OD_POLLEN) == NULL, 1);
+    for (int item = -1; item <= OD_ITEM_COUNT; item++) {
+        if (item >= OD_GUST && item < OD_ITEM_COUNT) { continue; }
+        char name[32];
+        snprintf(name, sizeof(name), "parse.item%d.none", item);
+        expect(name, alert_set_entry(&set, item) == NULL, 1);
+    }
 
     // Zero bytes: nothing alerting.
     expect("parse.empty", alert_set_parse(bytes, 0, &set), 0);
+    expect("parse.empty.uv", alert_set_entry(&set, OD_UV) == NULL, 1);
     expect("parse.null_bytes", alert_set_parse(NULL, 4, &set), 0);
     expect("parse.null_out", alert_set_parse(bytes, sizeof(bytes), NULL), 0);
 
@@ -78,34 +92,35 @@ static void parse_tests(void) {
         header(THRESH_POLLEN, THRESH_LEVEL_DANGER, STATUS_ALERT_MARK_PLUS), '2', '-', '3',
     };
     expect("parse.tomorrow.count", alert_set_parse(tomorrow, sizeof(tomorrow), &set), 5);
-    expect("parse.tomorrow.0.day", set.entries[0].day, STATUS_ALERT_MARK_RAQUO);
-    expect("parse.tomorrow.0.level", set.entries[0].level, THRESH_LEVEL_DANGER);
-    expect("parse.tomorrow.0.len", set.entries[0].value_len, 1);
-    expect("parse.tomorrow.1.day", set.entries[1].day, STATUS_ALERT_MARK_GT);
-    expect("parse.tomorrow.1.len", set.entries[1].value_len, 0);
-    expect("parse.tomorrow.2.day", set.entries[2].day, STATUS_ALERT_MARK_NONE);
-    expect("parse.tomorrow.2.len", set.entries[2].value_len, 2);
-    expect("parse.tomorrow.3.day", set.entries[3].day, STATUS_ALERT_MARK_STAR);
-    expect("parse.tomorrow.3.level", set.entries[3].level, THRESH_LEVEL_WARN);
-    expect("parse.tomorrow.3.len", set.entries[3].value_len, 3);
-    expect("parse.tomorrow.4.kind", set.entries[4].kind, THRESH_POLLEN);
-    expect("parse.tomorrow.4.day", set.entries[4].day, STATUS_ALERT_MARK_PLUS);
-    expect("parse.tomorrow.4.len", set.entries[4].value_len, 3);
-    expect("parse.tomorrow.4.value2", set.entries[4].value[2], '3');
+    expect("parse.tomorrow.uv.day", at(&set, OD_UV)->day, STATUS_ALERT_MARK_RAQUO);
+    expect("parse.tomorrow.uv.level", at(&set, OD_UV)->level, THRESH_LEVEL_DANGER);
+    expect("parse.tomorrow.uv.len", at(&set, OD_UV)->value_len, 1);
+    expect("parse.tomorrow.wind.day", at(&set, OD_WIND)->day, STATUS_ALERT_MARK_GT);
+    expect("parse.tomorrow.wind.len", at(&set, OD_WIND)->value_len, 0);
+    expect("parse.tomorrow.gust.day", at(&set, OD_GUST)->day, STATUS_ALERT_MARK_NONE);
+    expect("parse.tomorrow.gust.len", at(&set, OD_GUST)->value_len, 2);
+    expect("parse.tomorrow.aqi.day", at(&set, OD_AQI)->day, STATUS_ALERT_MARK_STAR);
+    expect("parse.tomorrow.aqi.level", at(&set, OD_AQI)->level, THRESH_LEVEL_WARN);
+    expect("parse.tomorrow.aqi.len", at(&set, OD_AQI)->value_len, 3);
+    expect("parse.tomorrow.pollen.kind", at(&set, OD_POLLEN)->kind, THRESH_POLLEN);
+    expect("parse.tomorrow.pollen.day", at(&set, OD_POLLEN)->day, STATUS_ALERT_MARK_PLUS);
+    expect("parse.tomorrow.pollen.len", at(&set, OD_POLLEN)->value_len, 3);
+    expect("parse.tomorrow.pollen.value_ptr",
+           at(&set, OD_POLLEN)->value == (const char *)&tomorrow[11], 1);
     // The unused day codes 6 and 7 read as tomorrow's, unmarked.
     uint8_t unused[] = {
         header(THRESH_UV, THRESH_LEVEL_WARN, 6), header(THRESH_WIND, THRESH_LEVEL_WARN, 7),
     };
     alert_set_parse(unused, sizeof(unused), &set);
-    expect("parse.day6", set.entries[0].day, STATUS_ALERT_MARK_NONE);
-    expect("parse.day7", set.entries[1].day, STATUS_ALERT_MARK_NONE);
+    expect("parse.day6", at(&set, OD_UV)->day, STATUS_ALERT_MARK_NONE);
+    expect("parse.day7", at(&set, OD_WIND)->day, STATUS_ALERT_MARK_NONE);
 
     // Value bytes before the first header belong to no entry: skipped.
     uint8_t stray[] = { '4', '5', header(THRESH_UV, THRESH_LEVEL_WARN, 0), '7' };
     expect("parse.stray", alert_set_parse(stray, sizeof(stray), &set), 1);
-    expect("parse.stray.kind", set.entries[0].kind, THRESH_UV);
-    expect("parse.stray.value", set.entries[0].value[0], '7');
-    expect("parse.stray.len", set.entries[0].value_len, 1);
+    expect("parse.stray.kind", at(&set, OD_UV)->kind, THRESH_UV);
+    expect("parse.stray.value_ptr", at(&set, OD_UV)->value == (const char *)&stray[3], 1);
+    expect("parse.stray.len", at(&set, OD_UV)->value_len, 1);
 
     // A kind that is no alert kind (steps) is skipped with its value, so the next
     // header lines up.
@@ -114,16 +129,32 @@ static void parse_tests(void) {
         header(THRESH_POLLEN, THRESH_LEVEL_WARN, 0), '2',
     };
     expect("parse.skips", alert_set_parse(skips, sizeof(skips), &set), 1);
-    expect("parse.skips.kind", set.entries[0].kind, THRESH_POLLEN);
-    expect("parse.skips.value", set.entries[0].value[0], '2');
-    expect("parse.skips.len", set.entries[0].value_len, 1);
+    expect("parse.skips.kind", at(&set, OD_POLLEN)->kind, THRESH_POLLEN);
+    expect("parse.skips.value_ptr", at(&set, OD_POLLEN)->value == (const char *)&skips[4], 1);
+    expect("parse.skips.len", at(&set, OD_POLLEN)->value_len, 1);
+
+    // A second entry of a kind (the phone bakes one) leaves the first in place, and
+    // still counts as read.
+    uint8_t twice[] = {
+        header(THRESH_UV, THRESH_LEVEL_WARN, 0), '3',
+        header(THRESH_UV, THRESH_LEVEL_DANGER, STATUS_ALERT_MARK_GT), '9',
+    };
+    expect("parse.twice", alert_set_parse(twice, sizeof(twice), &set), 2);
+    expect("parse.twice.level", at(&set, OD_UV)->level, THRESH_LEVEL_WARN);
+    expect("parse.twice.day", at(&set, OD_UV)->day, STATUS_ALERT_DAY_TODAY);
+    expect("parse.twice.value_ptr", at(&set, OD_UV)->value == (const char *)&twice[1], 1);
 
     // Capped at ALERT_SET_MAX — one entry per metric kind — however many headers
-    // arrive.
+    // arrive: the cap counts every entry read, so a gust after five UV headers is
+    // never reached.
     expect("parse.max_pinned", ALERT_SET_MAX, 5);
     uint8_t many[9];
     for (int i = 0; i < 9; i++) { many[i] = header(THRESH_UV, THRESH_LEVEL_WARN, 0); }
     expect("parse.cap", alert_set_parse(many, sizeof(many), &set), ALERT_SET_MAX);
+    many[5] = header(THRESH_GUST, THRESH_LEVEL_DANGER, 0);
+    expect("parse.cap.gust_after", alert_set_parse(many, 6, &set), ALERT_SET_MAX);
+    expect("parse.cap.gust_after.none", alert_set_entry(&set, OD_GUST) == NULL, 1);
+    expect("parse.cap.uv", at(&set, OD_UV)->level, THRESH_LEVEL_WARN);
 }
 
 // alert_set_bytes_ok: what app_message.c lets into persist from the
@@ -201,14 +232,18 @@ static void bytes_ok_tests(void) {
 }
 
 static void icon_tests(void) {
-    expect("icon.uv", alert_set_icon(THRESH_UV), STATUS_ICON_UV);
-    expect("icon.wind", alert_set_icon(THRESH_WIND), STATUS_ICON_WIND);
-    expect("icon.gust", alert_set_icon(THRESH_GUST), STATUS_ICON_GUST);
-    expect("icon.aqi", alert_set_icon(THRESH_AQI), STATUS_ICON_AQI);
-    expect("icon.pollen", alert_set_icon(THRESH_POLLEN), STATUS_ICON_POLLEN);
-    expect("icon.steps", alert_set_icon(THRESH_STEPS), STATUS_ICON_NONE);
-    expect("icon.temp", alert_set_icon(THRESH_TEMP), STATUS_ICON_NONE);
-    expect("icon.negative", alert_set_icon(-1), STATUS_ICON_NONE);
+    expect("icon.uv", alert_set_item_icon(OD_UV), STATUS_ICON_UV);
+    expect("icon.wind", alert_set_item_icon(OD_WIND), STATUS_ICON_WIND);
+    expect("icon.gust", alert_set_item_icon(OD_GUST), STATUS_ICON_GUST);
+    expect("icon.aqi", alert_set_item_icon(OD_AQI), STATUS_ICON_AQI);
+    expect("icon.pollen", alert_set_item_icon(OD_POLLEN), STATUS_ICON_POLLEN);
+    // Every item that is no metric item, and no item, draws no metric icon.
+    for (int item = -1; item < OD_GUST; item++) {
+        char name[32];
+        snprintf(name, sizeof(name), "icon.item%d", item);
+        expect(name, alert_set_item_icon(item), STATUS_ICON_NONE);
+    }
+    expect("icon.past_end", alert_set_item_icon(OD_ITEM_COUNT), STATUS_ICON_NONE);
 }
 
 // Each metric kind's entry is the On demand item of that kind; every other kind none.
@@ -218,13 +253,14 @@ static void item_tests(void) {
     expect("item.aqi", alert_set_item(THRESH_AQI), OD_AQI);
     expect("item.pollen", alert_set_item(THRESH_POLLEN), OD_POLLEN);
     expect("item.wind", alert_set_item(THRESH_WIND), OD_WIND);
-    // Exactly the kinds with an icon have an item, and every metric item has its kind.
+    // Exactly the five metric kinds have an item, and every metric item has its kind.
     int items = 0;
     for (int kind = -1; kind <= THRESH_KIND_COUNT; kind++) {
         char name[32];
         snprintf(name, sizeof(name), "item.kind%d", kind);
         int item = alert_set_item(kind);
-        expect(name, item >= 0, alert_set_icon(kind) != STATUS_ICON_NONE);
+        expect(name, item >= 0, kind == THRESH_GUST || kind == THRESH_UV || kind == THRESH_AQI
+                                || kind == THRESH_POLLEN || kind == THRESH_WIND);
         if (item >= 0) {
             snprintf(name, sizeof(name), "item.kind%d.metric", kind);
             expect(name, item >= OD_GUST && item < OD_ITEM_COUNT, 1);
@@ -301,13 +337,16 @@ static void merge_tests(void) {
     expect("merge.one_item_per_kind", shared, 0);
 }
 
-// The lane of the first entry `bytes` parses to, with `values` as its On demand lane
-// has it.
+// The lane of the entry `bytes` starts with (bytes[0] its header), with `values` as its
+// On demand lane has it.
 static const char *lane_of(const uint8_t *bytes, size_t len, bool values, char *out,
                            size_t cap) {
     AlertSet set;
-    if (alert_set_parse(bytes, len, &set) < 1) { out[0] = '\0'; return out; }
-    alert_set_lane(&set.entries[0], values, out, cap);
+    alert_set_parse(bytes, len, &set);
+    const AlertEntry *e = alert_set_entry(&set,
+                                          alert_set_item(bytes[0] & STATUS_ALERT_KIND_MASK));
+    if (!e) { out[0] = '\0'; return out; }
+    alert_set_lane(e, values, out, cap);
     return out;
 }
 
@@ -330,7 +369,7 @@ static void lane_tests(void) {
         snprintf(name, sizeof(name), "lane.value.len.day%d", day);
         AlertSet set;
         alert_set_parse(v, sizeof(v), &set);
-        expect(name, (long)alert_set_lane(&set.entries[0], true, out, sizeof(out)),
+        expect(name, (long)alert_set_lane(alert_set_entry(&set, OD_UV), true, out, sizeof(out)),
                (long)strlen(with_value[day]));
         uint8_t icon[] = { header(THRESH_WIND, THRESH_LEVEL_WARN, day) };
         snprintf(name, sizeof(name), "lane.icon.day%d", day);
@@ -365,11 +404,12 @@ static void lane_tests(void) {
     };
     AlertSet set;
     expect("lane.row.count", alert_set_parse(row, sizeof(row), &set), 3);
+    static const int row_items[] = { OD_UV, OD_WIND, OD_AQI };
     static const char *const row_lanes[] = { ">9", "58", "+" };
     for (int i = 0; i < 3; i++) {
         char name[24];
         snprintf(name, sizeof(name), "lane.row.%d", i);
-        alert_set_lane(&set.entries[i], true, out, sizeof(out));
+        alert_set_lane(alert_set_entry(&set, row_items[i]), true, out, sizeof(out));
         expect_str(name, out, row_lanes[i]);
     }
 
@@ -379,9 +419,9 @@ static void lane_tests(void) {
     bool values = true;
     od_lane_look(THRESH_RAIN_DISPLAY_TEXT, OD_LANES - 1, &rd, &values);
     expect("lane.last_lane.values_off", values, 0);
-    alert_set_lane(&set.entries[0], values, out, sizeof(out));
+    alert_set_lane(alert_set_entry(&set, OD_UV), values, out, sizeof(out));
     expect_str("lane.last_lane.tomorrow_keeps_mark", out, ">");
-    alert_set_lane(&set.entries[1], values, out, sizeof(out));
+    alert_set_lane(alert_set_entry(&set, OD_WIND), values, out, sizeof(out));
     expect_str("lane.last_lane.today_empty", out, "");
 
     // Each part whole or not at all: the widest lane (a 2-byte mark + 7 value bytes)
@@ -397,14 +437,15 @@ static void lane_tests(void) {
     expect_str("lane.cap2_gt", lane_of(gt, sizeof(gt), true, out, 2), ">");
     expect("lane.null_entry", (long)alert_set_lane(NULL, true, out, sizeof(out)), 0);
     expect_str("lane.null_entry.out", out, "");
-    expect("lane.null_out", (long)alert_set_lane(&set.entries[1], true, NULL, 8), 0);
-    expect("lane.cap0", (long)alert_set_lane(&set.entries[1], true, out, 0), 0);
+    expect("lane.null_out", (long)alert_set_lane(alert_set_entry(&set, OD_WIND), true, NULL, 8),
+           0);
+    expect("lane.cap0", (long)alert_set_lane(alert_set_entry(&set, OD_WIND), true, out, 0), 0);
 }
 
 // One rain alert's two texts: the full one and the minutes alone.
 static void expect_rain(const char *name, int mins, bool raining, int bucket,
                         const char *full, const char *minutes) {
-    RainCountdown rc = { .mins = (uint8_t)mins, .raining = raining, .tier = 3,
+    RainCountdown rc = { .mins = (uint8_t)mins, .raining = raining,
                          .bucket = (uint8_t)bucket };
     char out[ALERT_SET_LANE_CAP];
     char label[48];
@@ -439,7 +480,7 @@ static void rain_text_tests(void) {
     // The longest text fills ALERT_SET_LANE_CAP exactly, uncut.
     expect("rain.cap_pinned", (long)strlen("Downpour for +99'") + 1, ALERT_SET_LANE_CAP);
     // A short buffer cuts the text, still NUL-terminated.
-    RainCountdown rc = { .mins = 20, .raining = true, .tier = 3, .bucket = 2 };
+    RainCountdown rc = { .mins = 20, .raining = true, .bucket = 2 };
     char tiny[3];
     alert_set_rain_text(&rc, true, tiny, sizeof(tiny));
     expect_str("rain.tiny", tiny, "+2");

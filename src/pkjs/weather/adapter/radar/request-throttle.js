@@ -9,19 +9,7 @@
 // - the sky rows' (radar-sky-source.js minRequestIntervalMs), whose failures do not, so
 //   the next cycle asks again.
 
-/**
- * Slot-boundary check: true when `nowMs` sits in a later interval slot than
- * `lastTimeMs`. Slots are UTC-aligned chunks of `intervalMs` since the epoch, so a
- * 5/10/15-min cadence crosses a 30-min slot at :00 and :30 with no tick-drift skips.
- *
- * @param {number} lastTimeMs The earlier time, epoch ms.
- * @param {number} nowMs Current epoch ms.
- * @param {number} intervalMs Slot length in ms.
- * @returns {boolean} True when a new slot has begun.
- */
-function isPastSlot(lastTimeMs, nowMs, intervalMs) {
-    return Math.floor(nowMs / intervalMs) > Math.floor(lastTimeMs / intervalMs);
-}
+var isPastSlot = require('../../domain/refresh-slot.js').isPastSlot;
 
 /**
  * A request throttle over one localStorage record, {id, at, <answerField>}.
@@ -116,4 +104,4 @@ function createRequestThrottle(options) {
     return { take: take, remember: remember };
 }
 
-module.exports = { createRequestThrottle: createRequestThrottle, isPastSlot: isPastSlot };
+module.exports = { createRequestThrottle: createRequestThrottle };

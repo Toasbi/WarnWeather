@@ -13,6 +13,8 @@ typedef struct { GPoint origin; GSize size; } GRect;
 // Same trick as the real SDK: GRect is both a type and a constructor macro.
 #define GRect(x, y, w, h) \
     ((GRect){ .origin = { (int16_t)(x), (int16_t)(y) }, .size = { (int16_t)(w), (int16_t)(h) } })
+#define GPoint(x, y) ((GPoint){ (int16_t)(x), (int16_t)(y) })
+bool grect_equal(const GRect *const rect_a, const GRect *const rect_b);
 
 // --- health_cache_test.c additions ------------------------------------------
 // health_cache.c pulls in persist.h/bottom_view.h/chart.h, whose DECLARATIONS
@@ -27,6 +29,11 @@ typedef struct GContext GContext;
 typedef struct Layer Layer;
 typedef struct Window Window;
 typedef void (*LayerUpdateProc)(Layer *layer, GContext *ctx);
+
+// --- Drawing: a test that compiles drawing code defines these as recorders -----------
+void graphics_context_set_stroke_color(GContext *ctx, GColor color);
+void graphics_context_set_stroke_width(GContext *ctx, uint8_t stroke_width);
+void graphics_draw_line(GContext *ctx, GPoint p0, GPoint p1);
 
 Layer *layer_create(GRect frame);
 void layer_set_update_proc(Layer *layer, LayerUpdateProc update_proc);
@@ -194,14 +201,47 @@ int persist_write_data(const uint32_t key, const void *data, const size_t size);
 int persist_write_string(const uint32_t key, const char *cstring);
 status_t persist_delete(const uint32_t key);
 
-// The palette constants persist.c names as its built-in colour defaults. ARGB
-// values from the firmware's graphics/gcolor_definitions.h.
+// The palette constants persist.c and palette.c name as their built-in colour defaults.
+// ARGB values from the firmware's graphics/gcolor_definitions.h.
 #define GColorDukeBlue ((GColor){ .argb = 0xC2 })
 #define GColorBlue ((GColor){ .argb = 0xC3 })
 #define GColorCobaltBlue ((GColor){ .argb = 0xC6 })
 #define GColorVividCerulean ((GColor){ .argb = 0xCB })
 #define GColorDarkGray ((GColor){ .argb = 0xD5 })
 #define GColorPictonBlue ((GColor){ .argb = 0xDB })
+#define GColorGreen ((GColor){ .argb = 0xCC })
+#define GColorElectricBlue ((GColor){ .argb = 0xDF })
+#define GColorLightGray ((GColor){ .argb = 0xEA })
+#define GColorSunsetOrange ((GColor){ .argb = 0xF5 })
+#define GColorYellow ((GColor){ .argb = 0xFC })
+
+// The colour of a 0xRRGGBB int, as the SDK's GColorFromHEX packs it: opaque, each
+// channel's top two bits (appendix/config_wire.c reads the colour tuples through it).
+#define GColorFromHEX(v) ((GColor){ .argb = (uint8_t)(0xC0 | ((((v) >> 22) & 3) << 4) \
+                                                  | ((((v) >> 14) & 3) << 2) | (((v) >> 6) & 3)) })
+
+// The dictionary API appendix/config_wire.c reads a message with. A host Tuple holds its
+// value in a fixed union (the SDK's is a packed flexible array) with the same member names;
+// the iterator is opaque here, and each test that calls dict_find defines both.
+typedef enum {
+    TUPLE_BYTE_ARRAY = 0,
+    TUPLE_CSTRING = 1,
+    TUPLE_UINT = 2,
+    TUPLE_INT = 3,
+} TupleType;
+typedef union {
+    uint8_t data[8];
+    int16_t int16;
+    int32_t int32;
+} TupleValue;
+typedef struct {
+    uint32_t key;
+    TupleType type;
+    uint16_t length;
+    TupleValue value[1];
+} Tuple;
+typedef struct DictionaryIterator DictionaryIterator;
+Tuple *dict_find(const DictionaryIterator *iter, const uint32_t key);
 
 #ifdef WW_HOST_FAKE_TIME
 // Redirect the code-under-test's time(NULL) to the test's controllable clock.

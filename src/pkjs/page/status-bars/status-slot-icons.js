@@ -28,8 +28,7 @@
 //   temp         -> STATUS_TEMP.pdc          (thermometer)
 //   dew          -> STATUS_DEW.pdc           (two drops)
 //   countdown    -> STATUS_COUNTDOWN.pdc     (a calendar page with day dots)
-//   phoneBattery -> STATUS_PHONE_BATTERY.pdc (a phone with a bolt; the phone bakes
-//                   the _CHG plug in while it charges, the samples never do)
+//   phoneBattery -> STATUS_PHONE_BATTERY.pdc (a phone with a bolt)
 //   distance     -> STATUS_DISTANCE.pdc      (a route between two stops)
 //   steps        -> HEALTH_STEPS.pdc         (a shoe)
 //   sleep        -> HEALTH_SLEEP.pdc         (a pillow with a Z)

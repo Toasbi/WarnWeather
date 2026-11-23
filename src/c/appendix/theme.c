@@ -8,7 +8,8 @@
 #if defined(WW_THEME_POLARITY)
 
 bool theme_is_light(void) {
-    return config_get()->theme == 1 || config_get()->theme == 3;
+    const uint8_t theme = config_get()->theme;
+    return theme == 1 || theme == 3;
 }
 
 GColor theme_fg(void) {
@@ -25,7 +26,8 @@ GColor theme_furniture(GColor gray) {
 
 #ifdef PBL_COLOR
 bool theme_is_bw(void) {
-    return config_get()->theme == 2 || config_get()->theme == 3;
+    const uint8_t theme = config_get()->theme;
+    return theme == 2 || theme == 3;
 }
 
 GColor theme_pick(GColor color_arm, GColor bw_arm) {

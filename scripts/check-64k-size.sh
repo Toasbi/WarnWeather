@@ -55,8 +55,8 @@ ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
   "basalt:${BASALT_IMAGE_CEILING:-54801}"
-  "diorite:${DIORITE_IMAGE_CEILING:-52617}"
-  "flint:${FLINT_IMAGE_CEILING:-52725}"
+  "diorite:${DIORITE_IMAGE_CEILING:-53257}"
+  "flint:${FLINT_IMAGE_CEILING:-53365}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).

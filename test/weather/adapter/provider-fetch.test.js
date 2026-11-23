@@ -1,4 +1,5 @@
 // test/weather/adapter/provider-fetch.test.js
+const { testPorts } = require('../../helpers/source-ports.js');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
@@ -11,7 +12,7 @@ test('fetchWithCoordinates drives the chain from the passed coords, never resolv
   // Stub the first link in the chain to capture coords and stop (no network).
   p.withCityName = function (lat, lon) { seen = { lat: lat, lon: lon }; };
 
-  p.fetchWithCoordinates(52.5, 13.4, function () {}, function () {}, false, {}, null);
+  p.fetchWithCoordinates(52.5, 13.4, function () {}, function () {}, false, {}, null, undefined, testPorts());
 
   assert.deepEqual(seen, { lat: 52.5, lon: 13.4 });
   assert.equal(resolvedAgain, false);
@@ -71,7 +72,7 @@ function composeHarness(t, payloadTransform, onAckHook) {
     p.fetchWithCoordinates(52.5, 13.4,
       function () { outcome.success += 1; if (onAckHook) { onAckHook(); } },
       function (f) { outcome.failures.push(f); },
-      false, null, payloadTransform);
+      false, null, payloadTransform, undefined, testPorts());
   } catch (ex) {
     outcome.escaped = ex;
   }
@@ -92,4 +93,30 @@ test('a throw from inside the ACK callback is not also reported as a failure', (
   assert.equal(outcome.success, 1);
   assert.deepEqual(outcome.failures, [], 'sendWeather sits outside the compose guard');
   assert.equal(outcome.escaped && outcome.escaped.message, 'in onSuccess');
+});
+
+// A provider's own sun times (OpenWeatherMap's daily) ride its forecast, so the sun events
+// run after the sources: before them the times were not in yet, and SunCalc's would stand in.
+test('the sun events follow the sources, so a provider\'s own sun times count', (t) => {
+  const START = Date.parse('2026-06-20T08:00:00Z') / 1000;
+  t.mock.timers.enable({ apis: ['Date'], now: (START + 600) * 1000 });
+  const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
+  const realSend = outbox.sendWeather;
+  outbox.sendWeather = function (payload, onAck) { onAck(); };
+  t.after(function () { outbox.sendWeather = realSend; });
+  const p = new WeatherProvider();
+  p.withCityName = function (lat, lon, cb) { cb('Berlin', 'DE'); };
+  p.withProviderData = function (lat, lon, force, onSuccess) {
+    Object.assign(p, { tempTrend: new Array(24).fill(10), precipTrend: new Array(24).fill(0),
+      startTime: START, currentTemp: 5, sunTimes: [
+        { type: 'sunrise', at: START + 3600 }, { type: 'sunset', at: START + 10 * 3600 },
+        { type: 'sunrise', at: START + 19 * 3600 }, { type: 'sunset', at: START + 35 * 3600 }] });
+    onSuccess();
+  };
+  let ok = false;
+  p.fetchWithCoordinates(52.5, 13.4, function () { ok = true; },
+    function (f) { throw new Error('failed: ' + JSON.stringify(f)); }, false, null, null, undefined, testPorts());
+  assert.equal(ok, true);
+  assert.deepEqual(p.sunEvents.map((e) => e.date.getTime() / 1000), [START + 3600, START + 10 * 3600],
+    'the provider\'s next sunrise and sunset, not SunCalc\'s');
 });

@@ -55,8 +55,9 @@ bool health_cache_ready(void) {
     return s_ready;
 }
 
-// Fill window buckets [start, start+len) for steps, and the COMPLETED subset for HR
-// (HR excludes the in-progress bucket N-1, which is set from live BPM at completion).
+// Fill window buckets [start, start+len): the steps of each, and the heart rate of the
+// COMPLETED ones (all but the in-progress bucket N-1, which is set from the live BPM at
+// completion), from one minute-history read per bucket.
 static void health_cache_fill_range(int start, int len) {
     if (len < 1) { return; }
     if (start + len == N) {
@@ -65,21 +66,18 @@ static void health_cache_fill_range(int start, int len) {
         s_quarter = time(NULL) / HEALTH_CACHE_QUARTER_S;
     }
     const time_t fa = s_end_hour + STEP;                 // exclusive end of bucket N-1
-    health_fill_hourly_steps(&s_steps[start],
-                             len,
-                             health_build_range_end(fa, N, STEP, start, len));
-    // HR: only completed buckets in [start, min(start+len, N-1)). Window of the
-    // completed buckets is (fa - STEP, N-1).
-    int hstart = start;
-    int hend   = (start + len < N - 1) ? (start + len) : (N - 1);
-    int hlen   = hend - hstart;
-    if (hlen > 0) {
-        health_fill_hourly_hr(&s_hr[hstart], hlen,
-                              health_build_range_end(fa - STEP, N - 1, STEP, hstart, hlen));
-        for (int k = hstart; k < hend; ++k) {
-            if (s_hr[k] == 0) { s_hr[k] = CHART_ABSENT; }
-        }
+    const int hr_len = (start + len < N) ? len : len - 1;   // the completed buckets
+    health_fill_hourly(&s_steps[start], &s_hr[start], len, hr_len,
+                       health_build_range_end(fa, N, STEP, start, len));
+    for (int k = start; k < start + hr_len; ++k) {
+        if (s_hr[k] == 0) { s_hr[k] = CHART_ABSENT; }
     }
+}
+
+// The in-progress hour's HR: the live BPM (the peek), absent while there is none.
+static void health_cache_set_live_hr(void) {
+    const int bpm = health_hr_current();
+    s_hr[N - 1] = (bpm > 0) ? (int16_t)bpm : CHART_ABSENT;
 }
 
 // One build slice. Every slice does at most ONE kind of work, then yields the
@@ -104,8 +102,7 @@ static void health_cache_build_step(void *ctx) {
         s_timer = app_timer_register(0, health_cache_build_step, NULL);  // yield, finalize next
         return;
     }
-    const int bpm = health_hr_current();                          // in-progress hour = live BPM
-    s_hr[N - 1] = (bpm > 0) ? (int16_t)bpm : CHART_ABSENT;
+    health_cache_set_live_hr();
     s_build_pending = false;
     s_ready = true;
     if (s_repaint) { s_repaint(); }
@@ -136,11 +133,10 @@ void health_cache_recalc(time_t end_hour, int count) {
 
     if (count == 1) {
         // Cheap inline path (current-hour refresh): one minute-history read
-        // (steps; HR of the in-progress bucket comes from the peek) — safe to
+        // (its steps; the in-progress bucket's HR comes from the peek) — safe to
         // run inside a handler.
         health_cache_fill_range(N - 1, 1);
-        const int bpm = health_hr_current();
-        s_hr[N - 1] = (bpm > 0) ? (int16_t)bpm : CHART_ABSENT;
+        health_cache_set_live_hr();
         s_ready = true;
         return;
     }
@@ -185,11 +181,9 @@ static bool health_cache_rollover_to(time_t now_hour) {
 }
 
 void health_cache_reset(void) {
-    if (s_timer) { app_timer_cancel(s_timer); s_timer = NULL; }
-    s_ready = false;
-    s_build_pending = false;
-    s_build_sleep_done = false;
-    health_cache_recalc(current_hour_top(), N);   // full build => sliced + loading
+    // A full build: health_cache_start_build cancels the timer and drops the cache to
+    // the loading state before the slices refill it.
+    health_cache_recalc(current_hour_top(), N);
 }
 
 void health_cache_keep(bool keep) {

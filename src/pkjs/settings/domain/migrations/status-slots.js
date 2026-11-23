@@ -1,10 +1,11 @@
 // src/pkjs/settings/domain/migrations/status-slots.js
 //
-// The status-slot migrations (1.8.0, 3.0.0). Registry bodies (settings/domain/migrations/registry.js):
+// The status-slot migrations (1.8.0, 3.0.0, 3.3.0). Registry bodies (settings/domain/migrations/registry.js):
 // run(blob, ctx) -> {changed, send}, mutating the blob in place; the runner in
 // clay-migrations.js owns the marker, the save and the send.
 
 var platformLib = require('../../../config-ui/lib/platform.js');   // isHrPlatform (emery + diorite)
+var catalog = require('../../../status-bars/domain/status-line-catalog.js');   // every bar's slot keys
 
 /**
  * Upgrade the seeded health-line defaults to the HR-capable triple (emery +
@@ -83,9 +84,61 @@ function keepSlotDefaults27(blob, ctx) {
     return { changed: changed, send: false };
 }
 
+/**
+ * 3.3.0 made the city slot's weather icon (citySlotIcon) on by default. A default alone
+ * does not reach an existing install: it stores the explicit false the old default seeded,
+ * so this switches it on once, for every install. The ledger's marker keeps it once: a
+ * user who switches the icon off afterwards stays off. Asks for no send: the icon rides
+ * the weather bake, which the next fetch runs.
+ *
+ * @param {Object} blob Stored settings, mutated in place.
+ * @returns {{changed: boolean, send: boolean}}
+ */
+function migrateCitySlotIconOn(blob) {
+    if (blob.citySlotIcon === true) { return { changed: false, send: false }; }
+    blob.citySlotIcon = true;
+    console.log('Migrated city slot weather icon on');
+    return { changed: true, send: false };
+}
+
+/**
+ * 3.3.0 made one slot item of each battery's two: the watch battery's percentage
+ * ('batteryPct') is the Watch battery's Text look, and the phone battery without its icon
+ * ('phoneBatteryPlain') the Phone battery's. A slot holding an old item takes the merged
+ * one in its Text look, so every slot shows what it showed: the watch battery's Look is
+ * the item's (it sits in one slot), the phone battery's each slot's own (catalog
+ * phoneBatteryLookKey), so one slot can keep the phone's icon while another shows none.
+ *
+ * No send: the lines bake to the bytes they had (the kind and the icon come from the Look
+ * now).
+ *
+ * @param {Object} blob Stored settings, mutated in place.
+ * @returns {{changed: boolean, send: boolean}}
+ */
+function mergeBatterySlots(blob) {
+    var changed = false;
+    catalog.ALL_LINES.forEach(function (line) {
+        line.slots.forEach(function (key) {
+            if (blob[key] === 'batteryPct') {
+                blob[key] = 'battery';
+                blob.batterySlotLook = 'text';
+                changed = true;
+            } else if (blob[key] === 'phoneBatteryPlain') {
+                blob[key] = 'phoneBattery';
+                blob[catalog.phoneBatteryLookKey(key)] = 'text';
+                changed = true;
+            }
+        });
+    });
+    if (changed) { console.log('Migrated the battery slots onto their merged items'); }
+    return { changed: changed, send: false };
+}
+
 module.exports = {
     migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults,
     migrateStatusTopRightBattery: migrateStatusTopRightBattery,
     keepSlotDefaults27: keepSlotDefaults27,
+    migrateCitySlotIconOn: migrateCitySlotIconOn,
+    mergeBatterySlots: mergeBatterySlots,
     SLOT_DEFAULTS_BEFORE_2_7: SLOT_DEFAULTS_BEFORE_2_7
 };

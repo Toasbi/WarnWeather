@@ -6,10 +6,11 @@ const ENV_EMERY = { color: true, platform: 'emery', health: true, radar: true, h
 const ENV_DIORITE = { color: false, platform: 'diorite', health: true, radar: true, hr: true };
 const ENV_BASALT = { color: true, platform: 'basalt', health: true, radar: true, hr: false };
 const ENV_APLITE = { color: false, platform: 'aplite', health: false, radar: false, hr: false };
-// env.phoneBattery is the Android-only Battery Status API verdict, threaded from
+// env.phoneBattery is the verdict that the phone can report its charge (the Pebble
+// app's Phone plugin or an Android WebView's Battery Status API), threaded from
 // the PHONE_BATTERY_SUPPORTED storage key. Every env above deliberately LACKS the
-// flag — that is the iOS/emulator default, under which the two phone-battery items
-// must not exist at all.
+// flag — that is the emulator default (no plugin, no API), under which the two
+// phone-battery items must not exist at all.
 const ENV_BASALT_PHONE = Object.assign({}, ENV_BASALT, { phoneBattery: true });
 const ENV_EMERY_PHONE = Object.assign({}, ENV_EMERY, { phoneBattery: true });
 const ENV_APLITE_PHONE = Object.assign({}, ENV_APLITE, { phoneBattery: true });
@@ -412,71 +413,60 @@ test('battery is a LIVE_BATTERY item offered only in the top-right slot', () => 
   assert.ok(!catalog.itemAvailable(item, s, ENV_BASALT,
     { slotKey: 'statusForecastRight', position: 'right' }), 'not in other lines');
   const opts = catalog.slotOptions(s, ENV_BASALT, topRight);
-  assert.ok(opts.some(o => o[1] === '__hdr_battery'),
-    'the Battery group (watch glyph + watch %) gets a header top-right');
-  const glyph = opts.find(o => o[1] === 'battery');
-  assert.ok(glyph && glyph[2].groupChild, 'battery offered top-right as a group child');
+  assert.ok(!opts.some(o => o[1] === '__hdr_battery'),
+    'without a phone battery the Battery category holds one item here, so it has no header');
+  assert.ok(opts.some(o => o[1] === 'battery'), 'the watch battery is offered top-right');
   const leftOpts = catalog.slotOptions(s, ENV_BASALT, topLeft);
   // ENV_BASALT carries no phoneBattery, so the Battery category holds only the
-  // two WATCH items here and both are top-right only — hence no header at all
-  // elsewhere. (With env.phoneBattery the phone items DO populate this category
+  // WATCH item here and it is top-right only — hence no header at all
+  // elsewhere. (With env.phoneBattery the phone item DOES populate this category
   // in every slot; covered below.)
   assert.ok(!leftOpts.some(o => o[1] === '__hdr_battery'),
-    'the watch Battery items are top-right only, so the category emits no header elsewhere');
-  assert.ok(!leftOpts.some(o => o[1] === 'battery'), 'no glyph battery elsewhere');
-  assert.ok(!leftOpts.some(o => o[1] === 'batteryPct'), 'no battery % elsewhere either');
+    'the watch battery is top-right only, so the category emits no header elsewhere');
+  assert.ok(!leftOpts.some(o => o[1] === 'battery'), 'no watch battery elsewhere');
+  assert.ok(!leftOpts.some(o => o[1] === 'batteryPct'), 'the retired batteryPct item is gone');
 });
 
-test('batteryPct is a LIVE_BATTERY_PCT text item, top-right only, gated off aplite', () => {
-  const item = catalog.byCode('batteryPct');
-  assert.ok(item, 'batteryPct item exists');
-  assert.equal(item.kind, catalog.KINDS.LIVE_BATTERY_PCT);
-  assert.equal(item.icon, catalog.ICONS.NONE);
-  assert.equal(item.category, 'battery');
-  assert.equal(item.notAplite, true);
-  // Both battery items live in the top-right slot — the corner the watch already
-  // reads as the battery's — so the glyph and the "NN%" text are two renderings of
-  // the same thing in the same place rather than one of them roaming the other rows.
+test('the watch battery is one item for both looks: top-right only, offered on aplite too', () => {
+  // Until 3.3.0 the Text look was an item of its own, 'batteryPct'. Now the Look is a
+  // setting of the one 'battery' item (slot-text.js batteryLook); the catalog only
+  // keeps the Icon look's kind. The bake's kind 10 for the Text look, and kind 9 on
+  // aplite whatever the look, are pinned in status-lines.test.js.
+  assert.equal(catalog.byCode('batteryPct'), undefined, 'the retired item is gone');
+  const item = catalog.byCode('battery');
+  assert.equal(item.kind, catalog.KINDS.LIVE_BATTERY);
+  assert.equal(item.notAplite, undefined, 'the item stays on aplite');
   assert.equal(item.topRightOnly, true);
   const topRight = { slotKey: 'statusTopRight', position: 'right' };
   const ctx = { slotKey: 'statusForecastLeft', position: 'left' };
-  assert.ok(catalog.itemAvailable(item, {}, ENV_BASALT, topRight), 'available on basalt');
-  assert.ok(catalog.itemAvailable(item, {}, ENV_EMERY, topRight), 'available on emery');
-  assert.ok(catalog.itemAvailable(item, {}, ENV_DIORITE, topRight), 'available on diorite');
-  assert.ok(!catalog.itemAvailable(item, {}, ENV_BASALT, ctx), 'not in a non-top-right slot');
-  assert.ok(!catalog.itemAvailable(item, {}, ENV_APLITE, topRight),
-    'absent on aplite — its glyph battery slot already renders "NN%" text');
-  const basalt = catalog.slotOptions({}, ENV_BASALT, topRight).map(o => o[1]);
-  assert.ok(basalt.indexOf('batteryPct') !== -1, 'offered on a basalt top-right dropdown');
-  const basaltLeft = catalog.slotOptions({}, ENV_BASALT, ctx).map(o => o[1]);
-  assert.equal(basaltLeft.indexOf('batteryPct'), -1, 'not offered on a non-top-right dropdown');
-  const aplite = catalog.slotOptions({}, ENV_APLITE, topRight).map(o => o[1]);
-  assert.equal(aplite.indexOf('batteryPct'), -1, 'not offered on an aplite dropdown');
-  // Defensive resolve mirrors the gate (a synced non-aplite top-right selection).
-  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_BASALT, topRight), 'batteryPct');
-  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_BASALT, ctx), 'empty');
-  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_APLITE, topRight), 'empty');
+  [ENV_BASALT, ENV_EMERY, ENV_DIORITE, ENV_APLITE].forEach((env) => {
+    assert.ok(catalog.itemAvailable(item, {}, env, topRight), 'available on ' + env.platform);
+    assert.ok(!catalog.itemAvailable(item, {}, env, ctx), 'not in a non-top-right slot');
+    assert.ok(catalog.slotOptions({}, env, topRight).some(o => o[1] === 'battery'),
+      'offered in the ' + env.platform + ' top-right dropdown');
+    assert.equal(catalog.resolveSelection('battery', {}, env, topRight), 'battery');
+    assert.equal(catalog.resolveSelection('battery', {}, env, ctx), 'empty');
+  });
+  // A stored 'batteryPct' is migrated (mergeBatterySlots); the catalog no longer resolves it.
+  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_BASALT, topRight), 'empty');
 });
 
-test('the WATCH battery items are top-right only — there, and nowhere else', () => {
+test('the WATCH battery is top-right only — there, and nowhere else', () => {
   // Scoped to an env WITHOUT phoneBattery: the category itself is no longer
-  // top-right-only (the two phone items roam every slot), but the two watch
-  // items still are, and that pinning is what keeps the glyph and its "NN%"
-  // rendering in the corner the watch already reads as its own battery.
+  // top-right-only (the phone item roams every slot), but the watch item still is,
+  // and that pinning keeps it in the corner the watch already reads as its own battery.
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   assert.equal(ENV_BASALT.phoneBattery, undefined, 'this test needs the no-phone env');
   const trCodes = catalog.slotOptions(s, ENV_BASALT,
     { slotKey: 'statusTopRight', position: 'right' }).map(o => o[1]);
-  assert.ok(trCodes.includes('battery'), 'top-right offers the glyph item');
-  assert.ok(trCodes.includes('batteryPct'), 'top-right offers the % item');
+  assert.ok(trCodes.includes('battery'), 'top-right offers the watch battery');
   [
     { slotKey: 'statusTopLeft', position: 'left' },
     { slotKey: 'statusForecastMid', position: 'mid' },
     { slotKey: 'statusHealthRight', position: 'right' }
   ].forEach((ctx) => {
     const codes = catalog.slotOptions(s, ENV_BASALT, ctx).map(o => o[1]);
-    assert.ok(!codes.includes('battery'), ctx.slotKey + ': no glyph battery');
-    assert.ok(!codes.includes('batteryPct'), ctx.slotKey + ': no battery %');
+    assert.ok(!codes.includes('battery'), ctx.slotKey + ': no watch battery');
     assert.ok(!codes.includes('__hdr_battery'), ctx.slotKey + ': no orphan Battery header');
   });
 });
@@ -506,16 +496,15 @@ test('health items are selectable in any health mode, on a watch with Health', (
   });
 });
 
-// --- Phone battery (Android-only, phone-baked TEXT) -------------------------
+// --- Phone battery (phone-baked TEXT, where the phone can report it) -------------------------
 
-test('the phone-battery items are TEXT with their own icon ids and no position pinning', () => {
-  const plain = catalog.byCode('phoneBatteryPlain');
+test('the phone battery is a TEXT item with its own icon id and no position pinning', () => {
   const iconed = catalog.byCode('phoneBattery');
   assert.ok(iconed, 'phoneBattery item exists');
-  assert.ok(plain, 'phoneBatteryPlain item exists');
   assert.equal(iconed.label, 'Phone battery');
-  assert.equal(plain.label, 'Phone battery (no icon)');
-  [iconed, plain].forEach((item) => {
+  // The no-icon variant is the item's Text look (slot-text.js phoneBatteryLook), not an item.
+  assert.equal(catalog.byCode('phoneBatteryPlain'), undefined, 'no item of its own');
+  [iconed].forEach((item) => {
     // SLOT_TEXT, not a new SLOT_LIVE_* kind: the phone bakes "NN%" and the watch
     // just prints it, which is why the feature costs no watch-side plumbing.
     assert.equal(item.kind, catalog.KINDS.TEXT, item.code + ' kind');
@@ -530,11 +519,10 @@ test('the phone-battery items are TEXT with their own icon ids and no position p
     assert.equal(item.needsProvider, undefined, item.code + ' must not be provider-gated');
   });
   assert.equal(iconed.icon, catalog.ICONS.PHONE_BATTERY);
-  assert.equal(plain.icon, catalog.ICONS.PHONE_BATTERY_PLAIN);
-  // The plain variant must NOT be TEXT + ICON_NONE: that is City's shape on the
-  // watch, and the no-icon slot would silently drive City's Bold row.
-  assert.notEqual(plain.icon, catalog.ICONS.NONE);
-  assert.notEqual(plain.icon, iconed.icon);
+  // The Text look's icon id (18) is packed by the bake, never TEXT + ICON_NONE: that is
+  // City's shape on the watch, and the slot would silently drive City's Bold row.
+  assert.notEqual(catalog.ICONS.PHONE_BATTERY_PLAIN, catalog.ICONS.NONE);
+  assert.notEqual(catalog.ICONS.PHONE_BATTERY_PLAIN, iconed.icon);
 });
 
 test('the phone battery is OMITTED, not shown disabled, without env.phoneBattery', () => {
@@ -545,13 +533,11 @@ test('the phone battery is OMITTED, not shown disabled, without env.phoneBattery
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   [ENV_BASALT, ENV_EMERY, ENV_DIORITE].forEach((env) => {
     ALL_SLOT_CTXS.forEach((ctx) => {
-      ['phoneBattery', 'phoneBatteryPlain'].forEach((code) => {
-        assert.ok(!catalog.itemAvailable(catalog.byCode(code), s, env, ctx),
-          code + ' must be unavailable on ' + env.platform + ' / ' + ctx.slotKey);
-        const row = catalog.slotOptions(s, env, ctx).find(o => o[1] === code);
-        assert.equal(row, undefined,
-          code + ' must be absent from the ' + ctx.slotKey + ' dropdown, not disabled');
-      });
+      assert.ok(!catalog.itemAvailable(catalog.byCode('phoneBattery'), s, env, ctx),
+        'phoneBattery must be unavailable on ' + env.platform + ' / ' + ctx.slotKey);
+      const row = catalog.slotOptions(s, env, ctx).find(o => o[1] === 'phoneBattery');
+      assert.equal(row, undefined,
+        'phoneBattery must be absent from the ' + ctx.slotKey + ' dropdown, not disabled');
     });
   });
   // An env object missing entirely is the same answer.
@@ -560,28 +546,24 @@ test('the phone battery is OMITTED, not shown disabled, without env.phoneBattery
   // A slot synced from an Android phone and then opened on an iPhone resolves
   // away rather than packing an item the phone can never fill.
   assert.equal(catalog.resolveSelection('phoneBattery', s, ENV_BASALT, ALL_SLOT_CTXS[0]), 'empty');
-  assert.equal(catalog.resolveSelection('phoneBatteryPlain', s, ENV_BASALT, ALL_SLOT_CTXS[0]), 'empty');
 });
 
-test('both phone-battery items are selectable in all 12 slots when the phone supports it', () => {
+test('the phone battery is selectable in all 12 slots when the phone supports it', () => {
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   assert.equal(ALL_SLOT_CTXS.length, catalog.allSlotKeys().length, 'all 12 slots covered');
   ALL_SLOT_CTXS.forEach((ctx) => {
     const codes = catalog.slotOptions(s, ENV_BASALT_PHONE, ctx).map(o => o[1]);
-    ['phoneBattery', 'phoneBatteryPlain'].forEach((code) => {
-      assert.ok(catalog.itemAvailable(catalog.byCode(code), s, ENV_BASALT_PHONE, ctx),
-        code + ' available in ' + ctx.slotKey);
-      assert.ok(codes.indexOf(code) !== -1, code + ' offered in the ' + ctx.slotKey + ' dropdown');
-      assert.equal(catalog.resolveSelection(code, s, ENV_BASALT_PHONE, ctx), code,
-        code + ' resolves in ' + ctx.slotKey);
-    });
+    assert.ok(catalog.itemAvailable(catalog.byCode('phoneBattery'), s, ENV_BASALT_PHONE, ctx),
+      'phoneBattery available in ' + ctx.slotKey);
+    assert.ok(codes.indexOf('phoneBattery') !== -1,
+      'phoneBattery offered in the ' + ctx.slotKey + ' dropdown');
+    assert.equal(catalog.resolveSelection('phoneBattery', s, ENV_BASALT_PHONE, ctx), 'phoneBattery',
+      'phoneBattery resolves in ' + ctx.slotKey);
   });
   // Also available with no slot context at all (unlike date/battery, which are
   // position-gated and answer false without one).
-  ['phoneBattery', 'phoneBatteryPlain'].forEach((code) => {
-    assert.ok(catalog.itemAvailable(catalog.byCode(code), s, ENV_EMERY_PHONE),
-      code + ' needs no slot context');
-  });
+  assert.ok(catalog.itemAvailable(catalog.byCode('phoneBattery'), s, ENV_EMERY_PHONE),
+    'phoneBattery needs no slot context');
 });
 
 test('the phone battery is absent on aplite even where the phone reports a charge', () => {
@@ -590,12 +572,10 @@ test('the phone battery is absent on aplite even where the phone reports a charg
   const s = { healthMode: 'all' };
   ALL_SLOT_CTXS.forEach((ctx) => {
     const codes = catalog.slotOptions(s, ENV_APLITE_PHONE, ctx).map(o => o[1]);
-    ['phoneBattery', 'phoneBatteryPlain'].forEach((code) => {
-      assert.ok(!catalog.itemAvailable(catalog.byCode(code), s, ENV_APLITE_PHONE, ctx),
-        code + ' must be unavailable on aplite (' + ctx.slotKey + ')');
-      assert.equal(codes.indexOf(code), -1,
-        code + ' must not reach an aplite dropdown (' + ctx.slotKey + ')');
-    });
+    assert.ok(!catalog.itemAvailable(catalog.byCode('phoneBattery'), s, ENV_APLITE_PHONE, ctx),
+      'phoneBattery must be unavailable on aplite (' + ctx.slotKey + ')');
+    assert.equal(codes.indexOf('phoneBattery'), -1,
+      'phoneBattery must not reach an aplite dropdown (' + ctx.slotKey + ')');
   });
   assert.equal(catalog.resolveSelection('phoneBattery', s, ENV_APLITE_PHONE, ALL_SLOT_CTXS[0]),
     'empty');
@@ -603,50 +583,46 @@ test('the phone battery is absent on aplite even where the phone reports a charg
 
 test('with env.phoneBattery the Battery category populates non-top-right slots too', () => {
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
-  // Top-right sees all four items and a header.
+  // Top-right sees both items and a header.
   const topRight = catalog.slotOptions(s, ENV_BASALT_PHONE,
     { slotKey: 'statusTopRight', position: 'right' });
   const trCodes = topRight.map(o => o[1]);
-  ['battery', 'batteryPct', 'phoneBattery', 'phoneBatteryPlain'].forEach((code) => {
+  ['battery', 'phoneBattery'].forEach((code) => {
     assert.ok(trCodes.indexOf(code) !== -1, code + ' offered top-right');
   });
-  assert.ok(trCodes.indexOf('__hdr_battery') !== -1, 'four-item Battery group gets a header');
-  // Elsewhere the two WATCH items drop out and only the phone pair remains —
-  // still two children, so the group keeps its header rather than collapsing.
+  assert.ok(trCodes.indexOf('__hdr_battery') !== -1, 'two-item Battery group gets a header');
+  // Elsewhere the watch item drops out and only the phone battery remains. A group
+  // of one has no header (the same collapse as any single-item category).
   const left = catalog.slotOptions(s, ENV_BASALT_PHONE,
     { slotKey: 'statusForecastLeft', position: 'left' });
   const leftCodes = left.map(o => o[1]);
-  assert.equal(leftCodes.indexOf('battery'), -1, 'watch glyph stays top-right');
-  assert.equal(leftCodes.indexOf('batteryPct'), -1, 'watch % stays top-right');
+  assert.equal(leftCodes.indexOf('battery'), -1, 'watch battery stays top-right');
   assert.ok(leftCodes.indexOf('phoneBattery') !== -1, 'phone battery roams');
-  assert.ok(leftCodes.indexOf('phoneBatteryPlain') !== -1, 'phone battery (no icon) roams');
-  assert.ok(leftCodes.indexOf('__hdr_battery') !== -1, 'the phone pair still gets a header');
-  const children = left.filter(o => o[2] && o[2].groupChild
-    && ['phoneBattery', 'phoneBatteryPlain'].indexOf(o[1]) !== -1);
-  assert.equal(children.length, 2, 'both phone rows are group children');
-  assert.equal(children[children.length - 1][2].groupEnd, true, 'the group is closed');
+  assert.equal(leftCodes.indexOf('__hdr_battery'), -1, 'a lone phone battery gets no header');
 });
 
-test('the four Battery rows are labelled Watch/Phone so none of them just reads "battery"', () => {
+test('the two Battery rows are labelled Watch/Phone so neither just reads "battery"', () => {
   assert.equal(catalog.byCode('battery').label, 'Watch battery');
-  assert.equal(catalog.byCode('batteryPct').label, 'Watch battery percentage');
+  assert.equal(catalog.byCode('phoneBattery').label, 'Phone battery');
   const labels = catalog.slotOptions({}, ENV_BASALT_PHONE,
     { slotKey: 'statusTopRight', position: 'right' })
-    .filter(o => ['battery', 'batteryPct', 'phoneBattery', 'phoneBatteryPlain'].indexOf(o[1]) !== -1)
+    .filter(o => ['battery', 'phoneBattery'].indexOf(o[1]) !== -1)
     .map(o => o[0]);
-  assert.deepEqual(labels,
-    ['Watch battery', 'Watch battery percentage', 'Phone battery', 'Phone battery (no icon)']);
-  // Every label is unique: four rows under one header would otherwise be
+  assert.deepEqual(labels, ['Watch battery', 'Phone battery']);
+  // Every label is unique: two rows under one header would otherwise be
   // indistinguishable in the dropdown.
   assert.equal(new Set(labels).size, labels.length, 'Battery labels must be unique');
 });
 
-test('the slot lists name the city with its weather icon while it is on, never on aplite', () => {
+test('the slot lists always name the city with its weather icon, except on aplite', () => {
   const label = (env, settings) => catalog.slotOptions(settings || {}, env, { slotKey: 'statusTopLeft', position: 'left' })
     .filter((o) => o[1] === 'city').map((o) => o[0])[0];
-  assert.equal(label(ENV_BASALT), 'City', 'the icon is off by default');
+  assert.equal(label(ENV_BASALT), 'City with weather icon');
   assert.equal(label(ENV_BASALT, { citySlotIcon: true }), 'City with weather icon');
+  assert.equal(label(ENV_BASALT, { citySlotIcon: false }), 'City with weather icon', 'the toggle off: same name');
+  assert.equal(label({ platform: 'aplite' }), 'City');
   assert.equal(label({ platform: 'aplite' }, { citySlotIcon: true }), 'City');
+  assert.equal(label({ platform: 'aplite' }, { citySlotIcon: false }), 'City');
 });
 
 // An edge slot's weather condition takes the middle's room while the whole line fits its 48

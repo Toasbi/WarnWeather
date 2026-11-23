@@ -112,20 +112,59 @@ test('the calendar draws in the watch\'s cells: its Gothic dates centred on them
 });
 
 test('a status row seats its slots as the watch does: the edge slots from the margin, the middle centred', () => {
-  // The city without its weather icon (citySlotIcon), so its text starts at the margin.
+  // The Watch bar's row on the 144 px watches: 132 px from x 6, the strip's PADDING (4 px) at
+  // each side inside the row's 2 px margin (top_status_layer.c content_rect; watch-bar-geometry.test.js
+  // reads it from the C). It was drawn at 140 px from x 2, the other bars' row, and cut or kept
+  // the bar's texts where the watch does not.
+  const L = 6, R = 138;
+  // The city without its weather icon (citySlotIcon), so its text starts at the row's edge.
   const svg = picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'city', statusTopMid: 'empty',
     statusTopRight: 'battery', citySlotIcon: false });
   // The top strip (status_metrics.h status_seat_y, 2 rows higher): Gothic 18 in its 17-row band.
   const city = text(/<text [^>]*>Berlin<\/text>/.exec(svg)[0]);
-  assert.deepEqual([city.x, city.y, city.size, city.weight], [2, 12, 18, 400], 'the city from the 2 px margin, regular');
+  assert.deepEqual([city.x, city.y, city.size, city.weight], [L, 12, 18, 400], 'the city from the row\'s edge, regular');
   // The battery glyph (battery_glyph.h, 29 wide: a 10 px bolt lane, a 17 px body, a 2 px nub)
-  // against the right margin: its body outlined from x 123, its nub at 140.
-  assert.match(svg, /<rect x="123\.5" y="[^"]*" width="16" height="9" fill="none" stroke="#FFFFFF" stroke-width="1"><\/rect><rect x="140" y="[^"]*" width="2" height="4"/);
+  // against the row's right edge: its body outlined from x 119, its nub at 136.
+  assert.match(svg, /<rect x="119\.5" y="[^"]*" width="16" height="9" fill="none" stroke="#FFFFFF" stroke-width="1"><\/rect><rect x="136" y="[^"]*" width="2" height="4"/);
+  // The watch battery in its Icon + text look: the glyph, STATUS_ROW_ICON_TEXT_GAP (3), then its
+  // charge, the whole against the right edge; in its Text look the charge alone, at the same place.
+  const look = (value) => picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'empty', statusTopMid: 'empty',
+    statusTopRight: 'battery', batterySlotLook: value });
+  const both = look('both');
+  const pct = text(/<text [^>]*>80%<\/text>/.exec(both)[0]);
+  assert.deepEqual([pct.x, pct.size, pct.weight], [R - WT.width(18, false, '80%'), 18, 400], 'the charge at the edge');
+  // Its body and nub (19 px: the glyph without its empty bolt lane, status_row_layout.h
+  // status_slot_icon_w) and the gap before the charge.
+  const body = (pct.x - 3 - 19 + 0.5).toString().replace('.', '\\.');
+  assert.match(both, new RegExp('<rect x="' + body + '" y="[^"]*" width="16" height="9" fill="none"'),
+    'the battery\'s body before it, its body, nub and the gap left of the charge');
+  const plain = look('text');
+  assert.equal(text(/<text [^>]*>80%<\/text>/.exec(plain)[0]).x, pct.x, 'the Text look: the charge where it was');
+  assert.doesNotMatch(plain, /width="16" height="9" fill="none"/, 'and no battery');
+  // The default Watch bar (Air quality, the date, the battery): the slot reserves no room for
+  // the empty lane, and the date gives way as the watch's row has it (the edges keep their
+  // width): beside "80%" it gets 48 of its 53 px, beside the pair 31, so it shows its short
+  // form whole, the month alone, as on the watch (test/c/status_row_layout_test.c
+  // default_bar_date_short_form). Before the date had one the watch cut it ("Nov 20…").
+  const bar = (display) => picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'aqi', statusTopMid: 'date',
+    statusTopRight: 'battery', batterySlotLook: 'both', batterySlotDisplay: display });
+  const percent = bar('percent');
+  assert.ok(/<text [^>]*>80%<\/text>/.test(percent));
+  assert.ok(/<text [^>]*>Nov<\/text>/.test(percent), 'the date\'s short form beside "80%", as the watch draws it');
+  const pair = bar('both');
+  assert.ok(/<text [^>]*>80%\|5d<\/text>/.test(pair), 'the pair whole');
+  assert.ok(/<text [^>]*>Nov<\/text>/.test(pair), 'the date\'s short form beside it too');
+  // The date at an edge keeps its width beside a middle the row cuts, as the watch's does
+  // (status_row_swap_short_forms: the date gives way only where its own text is cut).
+  const edge = picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'date', statusTopMid: 'city',
+    statusTopRight: 'battery', batterySlotLook: 'both', citySlotIcon: false });
+  assert.ok(/<text x="6" [^>]*>Nov 2026<\/text>/.test(edge), 'the edge date whole beside the cut city');
+  assert.ok(/<text [^>]*>B…<\/text>/.test(edge), 'the city cut between them');
   // A middle slot centred on the row.
   const mid = picture('basalt', { layoutPreset: 'compactCal', statusTopLeft: 'empty', statusTopMid: 'city',
     statusTopRight: 'empty', citySlotIcon: false });
   const m = text(/<text [^>]*>Berlin<\/text>/.exec(mid)[0]);
-  assert.equal(m.x, 2 + Math.trunc((140 - WT.width(18, false, 'Berlin')) / 2), 'the middle slot centred in the margins');
+  assert.equal(m.x, L + Math.trunc((R - L - WT.width(18, false, 'Berlin')) / 2), 'the middle slot centred in the row');
 });
 
 test('the forecast band draws the watch\'s axis: its labels in Gothic, its ticks, its frame lines', () => {

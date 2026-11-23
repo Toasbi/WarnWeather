@@ -120,6 +120,35 @@
         return activeGuards(GUARDS, S || {});
     }
 
+    /**
+     * The settings as the call budgets read them on the page: radarMode as Save will store it
+     * (screens-page.js radarModeToSave), so a read-out neither counts a radar call Save drops
+     * nor misses one it adds. A copy only while the stored mode lags. (Save's own fit,
+     * onbuild.js, reads the mode the screens page's onSubmit hook has written by then.)
+     * @param {Object} state Settings state.
+     * @param {?Object} env Platform env.
+     * @returns {Object} The state to read.
+     */
+    function readoutState(state, env) {
+        var S = state || {};
+        // screens-page.js loads after this file in the page: looked up at call time.
+        var SP = (typeof require !== 'undefined') ? require('../../layout/screens-page.js') : window.ScreensPage;
+        var mode = SP ? SP.radarModeToSave(S, env) : S.radarMode;
+        return mode === S.radarMode ? S : Object.assign({}, S, { radarMode: mode });
+    }
+
+    /**
+     * The interval a read-out computes with: the one Save will store (fitInterval), not the raw
+     * stored value. With a "Fit update interval" guard on, a stored interval the budget no
+     * longer affords (radar picked in Graphs › Rain radar, the interval set in Setup › Data
+     * sources) is replaced at Save; warning "over budget" about it would contradict the toggle.
+     * @param {Object} state Settings state (readoutState).
+     * @returns {number} Minutes.
+     */
+    function readoutInterval(state) {
+        return parseInt(fitInterval(state, state.fetchIntervalMin), 10) || 15;
+    }
+
     // Every key the guards read, plus both toggles: onbuild's onSubmit builds S from these.
     var STATE_KEYS = [];
     var sources = [tio.STATE_KEYS, rb.STATE_KEYS];
@@ -138,7 +167,9 @@
         fittingOptionsFor: fittingOptionsFor,
         fittingOptions: fittingOptions,
         fitIntervalFor: fitIntervalFor,
-        fitInterval: fitInterval
+        fitInterval: fitInterval,
+        readoutState: readoutState,
+        readoutInterval: readoutInterval
     };
 
     // Webview: expose the API on the shared PConf object. Node: a CommonJS export.

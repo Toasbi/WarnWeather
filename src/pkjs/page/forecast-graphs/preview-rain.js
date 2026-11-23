@@ -91,14 +91,14 @@
     /**
      * Tier-banded rain bar at full plot height (mimics the watch). mm -> tenths
      * internally. white=true is the B&W silhouette: outline=true draws top+sides with an
-     * open bottom (the x-axis closes it, matching chart.c BAR_OUTLINED); outline=false is
+     * open bottom (the x-axis closes it, matching chart.c's bar outline); outline=false is
      * a solid white bar. The outline path is filled with `bg` (the polarity background,
      * theme_bg() on the watch) so it's opaque — matching chart.c's theme_bg()-filled +
      * theme_fg()-outlined bar — rather than transparent, which would let whatever's
      * painted behind it (e.g. a dithered area fill) show through. SVG fills an open
      * subpath as if closed by a straight line back to its start, so the implicit 4th
      * (bottom) edge closes exactly on the baseline without needing to be stroked.
-     * `edge` is the colour-light half of the same BAR_OUTLINED rule: chart.c strokes the
+     * `edge` is the colour-light half of the same bar outline rule: chart.c strokes the
      * theme_fg() top+sides in every theme but colour-dark, so a light colour theme keeps
      * its palette interior (tier bands, or the Solid bar) and gets that open-bottom
      * silhouette stroked on top, unfilled.
