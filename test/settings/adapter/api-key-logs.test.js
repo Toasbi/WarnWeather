@@ -29,6 +29,18 @@ test('redactForLog masks each API key on a copy and leaves the blob alone', () =
   assert.equal('owmApiKey' in claySettings.redactForLog({ a: 1 }), false, 'absent keys stay absent');
 });
 
+test('redactForLog hides each place the user typed, as it does the keys', () => {
+  const store = {};
+  global.localStorage = { getItem: (k) => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } };
+  const claySettings = require('../../../src/pkjs/settings/adapter/clay-settings.js');
+  const blob = { location: '52.55,13.40', savedLocation1: 'Some Street 1, Berlin', savedLocation2: '',
+    savedLocation3: 'Miami', locationMode: 'manual', graphsLocation: 'current' };
+  assert.deepEqual(claySettings.redactForLog(blob), { location: '<set>', savedLocation1: '<set>', savedLocation2: '',
+    savedLocation3: '<set>', locationMode: 'manual', graphsLocation: 'current' }, 'the modes stay readable');
+  assert.equal(blob.location, '52.55,13.40', 'the real blob keeps the place');
+});
+
 test('settings open/close and provider construction never log an API key', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const store = {};
