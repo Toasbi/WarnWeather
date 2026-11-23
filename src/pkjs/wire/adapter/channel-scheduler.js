@@ -371,19 +371,26 @@ function createChannelScheduler(deps) {
      * @returns {void}
      */
     function tick() {
-        console.log('Tick from PKJS!');
-        // One Clay send per tick keeps the half-duplex channel clean: when the
-        // day-change resend fires it also carries the effective theme, and its
-        // ACK/NACK callbacks own the flip stamp. Both are the resend of a NACKed
-        // settings message, so both wait out its backoff.
-        if (!clayRetry.waitTick() && !maybeResendHolidaysOnDayChange()) {
-            maybeResendThemeOnFlip();
+        try {
+            console.log('Tick from PKJS!');
+            // One Clay send per tick keeps the half-duplex channel clean: when the
+            // day-change resend fires it also carries the effective theme, and its
+            // ACK/NACK callbacks own the flip stamp. Both are the resend of a NACKed
+            // settings message, so both wait out its backoff.
+            if (!clayRetry.waitTick() && !maybeResendHolidaysOnDayChange()) {
+                maybeResendThemeOnFlip();
+            }
+            if (deps.shouldFetchNow()) {
+                deps.startFetch(false);
+            }
+            deps.checkForUpdate();
         }
-        if (deps.shouldFetchNow()) {
-            deps.startFetch(false);
+        finally {
+            // Re-armed whatever a job did: one that throws (its error still reaches the log)
+            // must not stop the minute for good, and with it the fetches and every send the
+            // watch is owed, until PKJS restarts or a settings save sends them.
+            deps.setTimeout(tick, 60 * 1000); // 60 * 1000 milsec = 1 minute
         }
-        deps.checkForUpdate();
-        deps.setTimeout(tick, 60 * 1000); // 60 * 1000 milsec = 1 minute
     }
 
     /**
