@@ -142,8 +142,8 @@ void health_set_minute_scratch(HealthMinuteData *records) {
 }
 
 /**
- * Read one hour, [h0, h1), from the minute-by-minute history: the steps actually
- * recorded in it, or with `hr` the average of its minutes' heart-rate samples.
+ * Read one hour, [h0, h1), from the minute-by-minute history in one call: the steps
+ * actually recorded in it, and the average of its minutes' heart-rate samples.
  *
  * Steps: health_service_sum(HealthMetricStepCount, ...) can NOT be used for a sub-day
  * window: it returns the DAILY total weighted by the window length, so every
@@ -174,40 +174,35 @@ void health_set_minute_scratch(HealthMinuteData *records) {
  *
  * @param h0 UTC start of the hour (inclusive).
  * @param h1 UTC end of the hour (exclusive).
- * @param hr Average the heart rate instead of summing the steps.
- * @return The hour's steps, or its average BPM (0 with no reading).
+ * @param bpm Out: the hour's average BPM (0 with no reading).
+ * @return The hour's steps.
  */
-static int s_minute_hour(time_t h0, time_t h1, bool hr) {
+static int16_t s_minute_hour(time_t h0, time_t h1, int16_t *bpm) {
     HealthMinuteData *md = s_minute_data;
     time_t   ts = h0, te = h1;
-    uint32_t n   = health_service_get_minute_history(md, HEALTH_MINUTE_RECORDS, &ts, &te);
-    int      sum = 0, cnt = 0;
+    uint32_t n  = health_service_get_minute_history(md, HEALTH_MINUTE_RECORDS, &ts, &te);
+    int      steps = 0, hr_sum = 0, hr_cnt = 0;
     for (uint32_t k = 0; k < n; k++) {
         const time_t rec = ts + (time_t)k * 60;   // start of record k's minute
-        const int v = hr ? md[k].heart_rate_bpm : md[k].steps;
-        if (rec >= h0 && rec < h1 && !md[k].is_invalid && v > 0) {
-            sum += v;
-            cnt++;
+        if (rec < h0 || rec >= h1 || md[k].is_invalid) { continue; }
+        steps += md[k].steps;
+        if (md[k].heart_rate_bpm > 0) {
+            hr_sum += md[k].heart_rate_bpm;
+            hr_cnt++;
         }
     }
-    return !hr ? sum : cnt ? (sum / cnt) : 0;
+    *bpm = (int16_t)(hr_cnt ? hr_sum / hr_cnt : 0);
+    return (int16_t)steps;
 }
 
-// Hour i of `count` ending at `end_hour` into out[i], steps or (with `hr`) heart rate.
-static void s_fill_hourly(int16_t *out, int count, time_t end_hour, bool hr) {
+void health_fill_hourly(int16_t *steps, int16_t *hr, int count, int hr_count,
+                        time_t end_hour) {
     for (int i = 0; i < count; i++) {
-        time_t h1 = end_hour - (time_t)(count - 1 - i) * HOUR_SECS;
-        time_t h0 = h1 - HOUR_SECS;
-        out[i] = (int16_t)s_minute_hour(h0, h1, hr);
+        const time_t h1 = end_hour - (time_t)(count - 1 - i) * HOUR_SECS;
+        int16_t bpm;
+        steps[i] = s_minute_hour(h1 - HOUR_SECS, h1, &bpm);
+        if (i < hr_count) { hr[i] = bpm; }
     }
-}
-
-void health_fill_hourly_steps(int16_t *out, int count, time_t end_hour) {
-    s_fill_hourly(out, count, end_hour, false);
-}
-
-void health_fill_hourly_hr(int16_t *out, int count, time_t end_hour) {
-    s_fill_hourly(out, count, end_hour, true);
 }
 
 /* Context for the sleep-activity iterator: the slot array to fill and the hour

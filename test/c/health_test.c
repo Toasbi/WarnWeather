@@ -256,20 +256,26 @@ static void hourly_reads_count_their_own_valid_minutes(void) {
     const time_t end_hour = 200 * 3600;           // slot 2 = the hour ending here
     s_history_start = end_hour - 2 * 3600;        // slot 0 lies before the history
     int16_t steps[3] = { -1, -1, -1 };
+    int16_t hr[3] = { -1, -1, -1 };
     s_history_calls = 0;
-    health_fill_hourly_steps(steps, 3, end_hour);
-    expect_int("hourly.steps.calls", s_history_calls, 3);
+    health_fill_hourly(steps, hr, 3, 3, end_hour);
+    expect_int("hourly.calls", s_history_calls, 3);   // one read per hour for both
     expect_int("hourly.steps.before_history", steps[0], 0);
     expect_int("hourly.steps.first_hour", steps[1], 59 * 2);   // minute 10 invalid
     expect_int("hourly.steps.second_hour", steps[2], 59 * 1);
 
     // The first hour: 29 valid even minutes, 15 at 60 and 14 at 62 (minute 10 is one of
     // the 62s), whose average 1768 / 29 truncates to 60.
-    int16_t hr[3] = { -1, -1, -1 };
-    health_fill_hourly_hr(hr, 3, end_hour);
     expect_int("hourly.hr.before_history", hr[0], 0);
     expect_int("hourly.hr.first_hour", hr[1], 60);
     expect_int("hourly.hr.no_reading", hr[2], 0);
+
+    // Only the first hr_count hours take a heart rate: the in-progress hour's comes
+    // from the live peek (health_cache.c).
+    int16_t hr2[3] = { -1, -1, -1 };
+    health_fill_hourly(steps, hr2, 3, 2, end_hour);
+    expect_int("hourly.hr_count.first_hour", hr2[1], 60);
+    expect_int("hourly.hr_count.last_untouched", hr2[2], -1);
 }
 
 static void accessible_distance_returns_today_sum(void) {

@@ -57,18 +57,13 @@ static int s_sleep_iters;  // whole-window activity iterates
 static int s_peeks;        // live-BPM peeks
 static int s_live_bpm = 72;
 
-void health_fill_hourly_steps(int16_t *out, int count, time_t end_hour) {
-    s_reads += count;
+void health_fill_hourly(int16_t *steps, int16_t *hr, int count, int hr_count,
+                        time_t end_hour) {
+    s_reads += count;   // one minute-history read per hour, both values
     for (int i = 0; i < count; i++) {
         time_t h1 = end_hour - (time_t)(count - 1 - i) * STEP;
-        out[i] = (int16_t)(100 + (h1 / STEP) % 100);
-    }
-}
-void health_fill_hourly_hr(int16_t *out, int count, time_t end_hour) {
-    s_reads += count;
-    for (int i = 0; i < count; i++) {
-        time_t h1 = end_hour - (time_t)(count - 1 - i) * STEP;
-        out[i] = (int16_t)(200 + (h1 / STEP) % 55);
+        steps[i] = (int16_t)(100 + (h1 / STEP) % 100);
+        if (i < hr_count) { hr[i] = (int16_t)(200 + (h1 / STEP) % 55); }
     }
 }
 void health_fill_hourly_sleep(uint8_t *state_out, int count, time_t end_hour) {
@@ -133,8 +128,8 @@ static int drain(const char *name) {
         timer_fire();
         fires++;
         int dr = s_reads - reads0, ds = s_sleep_iters - sleeps0;
-        if (dr > 2) {
-            printf("FAIL %s: fire %d did %d bucket-reads (max 2)\n", name, fires, dr);
+        if (dr > 1) {
+            printf("FAIL %s: fire %d did %d bucket-reads (max 1)\n", name, fires, dr);
             s_failures++;
         }
         if (ds > 0 && dr > 0) {
@@ -180,7 +175,7 @@ static void tick_rollover_is_sliced(void) {
     expect_int("tick.roll.bg_armed", timer_pending(), 1);
 
     drain("tick.roll");
-    expect_int("tick.roll.total_reads", s_reads, 3);   // 2 steps + 1 completed-HR bucket
+    expect_int("tick.roll.total_reads", s_reads, 2);   // the finalized and the new hour
     expect_int("tick.roll.total_sleep", s_sleep_iters, 1);
     expect_int("tick.roll.total_peeks", s_peeks, 1);
 
@@ -207,7 +202,7 @@ static void full_build_slices(void) {
 
     int fires = drain("build");
     expect_int("build.fires", fires, N + 2);       // N fill slices + sleep + finalize
-    expect_int("build.reads", s_reads, N + N - 1); // N steps + N-1 completed-HR
+    expect_int("build.reads", s_reads, N);         // one per bucket, steps and HR
     expect_int("build.sleep", s_sleep_iters, 1);
     expect_int("build.peeks", s_peeks, 1);
     expect_int("build.ready", health_cache_ready(), 1);
@@ -431,7 +426,7 @@ static void keeping_on_restores_or_builds(void) {
     expect_int("keep.build.loading", health_cache_ready(), 0);
     expect_int("keep.build.defer_ms", (long)s_timer_ms, 1500);
     drain("keep.build");
-    expect_int("keep.build.reads", s_reads, N + N - 1);
+    expect_int("keep.build.reads", s_reads, N);
     expect_int("keep.build.ready", health_cache_ready(), 1);
     reset_counters();
     health_cache_tick(true);

@@ -78,29 +78,24 @@ int health_hr_current(void) {
 #define FIXTURE_STEP_DIV 1
 #endif
 
-// Map each trailing bucket to its local hour-of-day and read the canned curve, matching
-// health.c's out[0]=oldest .. out[count-1]=hour ending at end_hour ordering.
-void health_fill_hourly_steps(int16_t *out, int count, time_t end_hour) {
+// Map each trailing bucket to its local hour-of-day and read the canned curves, matching
+// health.c's [0]=oldest .. [count-1]=hour ending at end_hour ordering. No HRM off emery:
+// every hour's heart rate is 0 (no reading), which health_cache.c maps to CHART_ABSENT, so
+// the graph's HR line draws nothing, as on real hardware.
+void health_fill_hourly(int16_t *steps, int16_t *hr, int count, int hr_count,
+                        time_t end_hour) {
     for (int i = 0; i < count; ++i) {
         time_t t = end_hour - (time_t)(count - 1 - i) * HOUR_SECS;
         struct tm *lt = localtime(&t);
-        out[i] = s_step_curve[lt->tm_hour % 24] / FIXTURE_STEP_DIV;
-    }
-}
-
-void health_fill_hourly_hr(int16_t *out, int count, time_t end_hour) {
+        steps[i] = s_step_curve[lt->tm_hour % 24] / FIXTURE_STEP_DIV;
+        if (i < hr_count) {
 #ifdef PBL_PLATFORM_EMERY
-    for (int i = 0; i < count; ++i) {
-        time_t t = end_hour - (time_t)(count - 1 - i) * HOUR_SECS;
-        struct tm *lt = localtime(&t);
-        out[i] = s_hr_curve[lt->tm_hour % 24];
-    }
+            hr[i] = s_hr_curve[lt->tm_hour % 24];
 #else
-    // No HRM off emery: fill 0 (no reading) for every hour. health_cache.c maps a 0
-    // reading to CHART_ABSENT, so the graph's HR line draws nothing — as on real hardware.
-    (void)end_hour;
-    for (int i = 0; i < count; ++i) { out[i] = 0; }
+            hr[i] = 0;
 #endif
+        }
+    }
 }
 
 void health_fill_hourly_sleep(uint8_t *state_out, int count, time_t end_hour) {
