@@ -197,7 +197,8 @@ static void render_active_view(void) {
     // the active view minus its calendar (date strip, clock, status row and a small body,
     // fit into the clear area) via layout_compute_peek. Reuses the ViewSpec->visibility
     // pipeline: dropping the top/calendar makes layout_visibility hide the calendar while
-    // the body + status stay on.
+    // the body + status stay on, unless layout_compute_peek drops a body too squeezed for the
+    // clock above it to fit.
     GRect unobstructed = quick_view_unobstructed_bounds(root_layer);
     bool peek = unobstructed.size.h < bounds.size.h;
     if (peek) {

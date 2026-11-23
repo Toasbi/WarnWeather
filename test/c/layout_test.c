@@ -2239,7 +2239,11 @@ static void peek_tests(void) {
     expect("peek.forecast_visible",       v.forecast, true);
     expect("peek.weather_status_visible", v.weather_status, true);
 
+#ifndef PBL_PLATFORM_EMERY
     GRect clear = GRect(0, 0, 144, 117);   // 168 - 51 overlay
+#else
+    GRect clear = GRect(0, 0, 200, 171);   // emery: 228 - 57 overlay (measured on the emulator)
+#endif
     MainLayout L = layout_compute_peek(clear, &s, MET(FC_BAND_H, INK));
     // The strip band is the same clamp-free height peek creates on the main window (17 / 23),
     // so growing it shifts the peek's clock/status/body down by the same amount — peek has no
@@ -2251,18 +2255,16 @@ static void peek_tests(void) {
     check("peek.time",       L.time,       0, 17, 144, 37);
     check("peek.status",     L.status,     0, 54, 144, 20);
     check("peek.bottom",     L.bottom,     0, 74, 144, 43);
+    expect("peek.graph_kept", s.body == BODY_FORECAST, true);   // the clock fits: 37 >= 35
 #else
-    // strip 21; available 117-21-24=72; clock 72*45/96=33; status@54 h24; forecast@78 h39.
-    check("peek.top_status", L.top_status, 0, 0,  144, 21);
-    check("peek.top",        L.top,        0, 21, 144, 0);
-    // 19 = 21 - 2, the folded MT_TIME_ROBOTO. Both peek blocks pass a 144-SHAPED clear area
-    // even under the emery compile, which is a synthetic stress case: a 33px clock band is
-    // shorter than emery Roboto's 46 rows of ink, so the ink overflows the space between
-    // its neighbours and clock_seat_y() splits that overflow evenly rather than dumping it
-    // at one end. A real emery peek is ~200x177 and leaves the clock 63px, which fits.
-    check("peek.time",       L.time,       0, 19, 144, 33);
-    check("peek.status",     L.status,     0, 54, 144, 24);
-    check("peek.bottom",     L.bottom,     0, 78, 144, 39);
+    // strip 21; available 171-21-24=126; clock 126*45/96=59; status@80 h24; forecast@104 h67.
+    check("peek.top_status", L.top_status, 0, 0,  200, 21);
+    check("peek.top",        L.top,        0, 21, 200, 0);
+    // 19: clock_seat_y() centres the 46 rows of ink between the strip's ink and the row's.
+    check("peek.time",       L.time,       0, 19, 200, 59);
+    check("peek.status",     L.status,     0, 80, 200, 24);
+    check("peek.bottom",     L.bottom,     0, 104, 200, 67);
+    expect("peek.graph_kept", s.body == BODY_FORECAST, true);   // the clock fits: 59 >= 46
 #endif
 
     // A statusless view: clock + body only, status band collapses to zero height.
@@ -2280,18 +2282,25 @@ static void peek_tests(void) {
     LayerVisibility vd = layout_visibility(&sd);
     expect("peekDual.both_status", vd.weather_status && vd.health_status, true);
     MainLayout Ld = layout_compute_peek(clear, &sd, MET(FC_BAND_H, INK));
+    LayerVisibility vd2 = layout_visibility(&sd);
 #ifndef PBL_PLATFORM_EMERY
-    // strip 17; available 117-17-40=60; clock 60*45/96=28; health@45 weather@65 (h20); fc@85 h32.
-    check("peekDual.time",         Ld.time,         0, 17, 144, 28);
-    check("peekDual.status",       Ld.status,       0, 45, 144, 20);
-    check("peekDual.status_lower", Ld.status_lower, 0, 65, 144, 20);
-    check("peekDual.bottom",       Ld.bottom,       0, 85, 144, 32);
+    // strip 17; available 117-17-40=60. The weights would leave the clock 60*45/96=28 rows, short
+    // of its 35 rows of ink, and the graph 32: the clock takes all 60 instead, the rows sit on
+    // the overlay (health@77 weather@97, h20) and the graph hides.
+    check("peekDual.time",         Ld.time,         0, 17, 144, 60);
+    check("peekDual.status",       Ld.status,       0, 77, 144, 20);
+    check("peekDual.status_lower", Ld.status_lower, 0, 97, 144, 20);
+    check("peekDual.bottom",       Ld.bottom,       0, 117, 144, 0);
+    expect("peekDual.graph_hidden", sd.body == BODY_NONE && !vd2.forecast && !vd2.health_graph, true);
+    expect("peekDual.rows_kept",    vd2.weather_status && vd2.health_status, true);
 #else
-    // strip 21; available 117-21-48=48; clock 48*45/96=22; health@43 weather@67 (h24); fc@91 h26.
-    check("peekDual.time",         Ld.time,         0, 19, 144, 22);
-    check("peekDual.status",       Ld.status,       0, 43, 144, 24);
-    check("peekDual.status_lower", Ld.status_lower, 0, 67, 144, 24);
-    check("peekDual.bottom",       Ld.bottom,       0, 91, 144, 26);
+    // strip 21; available 171-21-48=102; clock 102*45/96=47, room for its 46 rows of ink, so
+    // the graph stays: health@68 weather@92 (h24); fc@116 h55.
+    check("peekDual.time",         Ld.time,         0, 19, 200, 47);
+    check("peekDual.status",       Ld.status,       0, 68, 200, 24);
+    check("peekDual.status_lower", Ld.status_lower, 0, 92, 200, 24);
+    check("peekDual.bottom",       Ld.bottom,       0, 116, 200, 55);
+    expect("peekDual.graph_kept", sd.body == BODY_FORECAST && vd2.forecast, true);
 #endif
 
     // A graphless custom flick (no graph, top bar and clock removed, a Position and a

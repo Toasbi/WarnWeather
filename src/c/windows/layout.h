@@ -112,10 +112,13 @@ static inline void layout_peek_spec(ViewSpec *s) {
 // "Peek" geometry for the Timeline Quick View overlay: the active view minus its calendar,
 // fit into `bounds` (the unobstructed area above the overlay) — the date strip stays at the
 // top, then the clock, the status row(s), and the body (forecast/graph/radar) below. Clock
-// and body keep ~full-tier proportions (the freed calendar space covers the ~51px overlay).
+// and body keep ~full-tier proportions (the freed calendar space covers the overlay: 51 px,
+// 57 on emery).
 // `spec` supplies the status shape (NONE / single / DUAL); its top/calendar fields are
-// ignored. Pure; excluded on aplite.
-MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics m);
+// ignored. Where the clock's share would be shorter than its digits, the clock takes the
+// body's room too and spec->body becomes BODY_NONE, so layout_visibility hides the body.
+// It writes nothing else; excluded on aplite.
+MainLayout layout_compute_peek(GRect bounds, ViewSpec *spec, LayoutMetrics m);
 #endif
 
 #if defined(WW_VIEW_CYCLE)

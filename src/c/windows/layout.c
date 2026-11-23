@@ -388,7 +388,7 @@ LayerVisibility layout_visibility(const ViewSpec *spec) {
 #if defined(WW_QUICK_VIEW)
 // Excluded on aplite (Timeline Quick View is compiled out there via WW_QUICK_VIEW, see
 // wscript) so aplite's layout code pays nothing for a view it never renders.
-MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
+MainLayout layout_compute_peek(GRect bounds, ViewSpec *spec, LayoutMetrics m) {
     int fc_band_h = m.fc_band_h;
     ClockInk ink = m.clock;
     // The active view minus its calendar: date strip at the top (kept), then the clock, the
@@ -406,6 +406,13 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics
     int status_total = nbands * fc_band_h;
     int available = h - strip_h - status_total;    // clock + body share this
     int clock_h = available * WEIGHT_TIME / (WEIGHT_TIME + WEIGHT_BOTTOM);
+    // A clock band shorter than the digits cuts them off, and the body's share is then too
+    // squeezed to read (two status rows on the 144 px watches): the body gives its room to
+    // the clock, and BODY_NONE hides its layer (layout_visibility).
+    if (clock_h < ink.ink_h) {
+        clock_h = available;
+        spec->body = BODY_NONE;
+    }
 
     int time_y = y + strip_h;
     int status_y = time_y + clock_h;
