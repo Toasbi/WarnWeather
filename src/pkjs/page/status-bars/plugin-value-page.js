@@ -178,7 +178,10 @@
     /**
      * The Value row's list: the values the picked plugin offers, one WarnWeather may not read
      * greyed out with why, then the one the settings hold where it offers it no more, named
-     * after its property, or for a complication after its place.
+     * after its property, or for a complication after its place. None first while the settings
+     * hold no value of a listed plugin, as pluginPicked leaves them where it offers none
+     * WarnWeather can read: the engine would otherwise move the row onto the first option
+     * (engine.js resolveRowItem), which may be one greyed out, and Save would store it.
      * @param {Object} S Settings.
      * @returns {Array<Array>} [label, value, meta?] options.
      */
@@ -188,6 +191,7 @@
         var out = valuesOf(plugin).map(function (v) {
             return v.unreadable ? [v.label, v.id, {disabled: true, desc: v.unreadable}] : [v.label, v.id];
         });
+        if (plugin && !source) { out.unshift(['None', '']); }
         if (source && !valueIn(plugin, source.id)) {
             out.push(source.complication !== null ? [(source.complication + 1) + ' \u00b7 Empty', source.id]
                 : [labelOf(source.property), source.id, {desc: 'Not offered now'}]);

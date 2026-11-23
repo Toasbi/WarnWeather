@@ -286,6 +286,24 @@ test('picking Preferences starts on the first complication WarnWeather can read'
   assert.equal(S.pluginValueId, '', 'none known');
 });
 
+test('Preferences picked where no complication can be read: the Value row holds None, never one greyed out', (t) => {
+  userData(t, { plugins: withPrefs([COMPLICATIONS[2], COMPLICATIONS[4]]) });
+  const S = slotSettings(LEVEL);
+  S.pluginValuePlugin = PREFS;
+  page.pluginPicked(S, PHONE, PREFS);
+  assert.deepEqual(page.valueOptions(S).map((o) => o[1]), ['', 'preferences/complications/2',
+    'preferences/complications/4'], 'None first');
+  dialogHtml(S);
+  assert.equal(S.pluginValueId, '', 'drawn, the row keeps None');
+  PConf.engine.snapShownOptions(schema, S, BASALT);
+  assert.equal(S.pluginValueId, '', 'and so does the snap of every shown row, which Save stores');
+  global.INJECTED_USERDATA.plugins = withPrefs(COMPLICATIONS);
+  dialogHtml(S);
+  assert.equal(S.pluginValueId, '', 'None stays while one can be read now: the user picks it');
+  assert.deepEqual(page.valueOptions(Object.assign({}, S, { pluginValueId: 'preferences/complications/0' }))[0],
+    ['1 \u00b7 Temperature (weather)', 'preferences/complications/0'], 'no None once one is picked');
+});
+
 test('the last line and the bars\' pictures show the value the phone hands for a complication\'s place, by the place', (t) => {
   // The phone hands the page a complication's value only while its place names the reading it
   // was read from (plugin-value-source.js forPage), so the page judges it by the place alone.
