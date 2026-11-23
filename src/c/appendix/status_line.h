@@ -111,7 +111,7 @@ static inline void status_battery_text(char *buf, size_t cap, const char *value,
 // bring the old days back.
 typedef struct {
     uint8_t len;                      // the text's length, and its bytes
-    char text[STATUS_TEXT_EDGE_MAX];  // (the slot is an edge slot: the Watch bar's right)
+    char text[STATUS_TEXT_EDGE_MAX];  // (every slot carries it at an edge slot's cap)
 } StatusBatteryDaysMark;
 
 // Whether the mark is of this carried text (`len` bytes at `value`; the mark keeps and

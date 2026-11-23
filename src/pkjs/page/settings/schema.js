@@ -713,8 +713,8 @@ function boldOnlyRow(keyStem) {
 // The watch battery's dialog (its slot's Edit button opens it in every look: blocks.js
 // statusSlotEditSheet). Its Look leads, with the weather condition's options in its order:
 // the battery the watch draws and its charge as text after it (Icon + text), the text alone
-// (Text) or the battery alone (Icon; slot-text.js batteryLook). The item's setting, since the
-// watch battery sits in one slot. Every other row shows while text prints, in Text and Icon +
+// (Text) or the battery alone (Icon; slot-text.js batteryLook). The item's setting: every slot
+// that holds the watch battery shows it alike. Every other row shows while text prints, in Text and Icon +
 // text: the drawn battery alone has no text to set or to print bold. The text shows the
 // percentage, which the watch reads itself, the days it has left, which the Muninn app
 // estimates and the phone bakes in (battery-days.js), or both as a pair shaped like the

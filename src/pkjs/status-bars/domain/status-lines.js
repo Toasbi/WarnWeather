@@ -327,7 +327,11 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
   // left while it is to show them, alone or with the place of the percentage beside them
   // (battery-days.js slotText), which the watch prints in place of its percentage while
   // they can be current. No text is the percentage alone, which the watch prints itself.
-  if (code === 'battery') { return batteryDays.slotText(bake.batteryDays, settings, cap); }
+  // At an edge slot's cap in every slot: the watch keeps one 8-byte mark of the days for
+  // the face (status_line.h StatusBatteryDaysMark), so every slot carries the same bytes.
+  if (code === 'battery') {
+    return batteryDays.slotText(bake.batteryDays, settings, catalog.CAPS.EDGE_TEXT_MAX);
+  }
   // The ISO week, where the phone bakes it (slot-text.js wireKind: aplite).
   if (code === 'week') { return 'W' + isoWeek(bake.now); }
   // A value another app's plugin serves, as the slot prints it (plugin-values.js textFor):

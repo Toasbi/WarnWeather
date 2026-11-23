@@ -266,8 +266,8 @@ static bool carries_battery_days(const StatusSlotView *slot) {
 }
 
 // The days from before a charge (status_line.h StatusBatteryDaysMark): read from flash at
-// their first use, written back when they move. One for the face: the watch battery sits in
-// one slot.
+// their first use, written back when they move. One for the face: every slot that shows the
+// watch battery carries the same bytes (the phone bakes them at an edge slot's cap).
 static StatusBatteryDaysMark s_days_mark;
 static bool s_days_mark_read;
 

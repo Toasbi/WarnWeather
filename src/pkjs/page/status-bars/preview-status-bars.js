@@ -190,12 +190,13 @@
     /**
      * What the bake carries in the watch battery's text for the sample's days
      * (battery-days.js slotText): none for the percentage alone, the days, or the pair
-     * around the place of the percentage.
-     * @param {Object} S Settings. @param {number} cap The slot's byte cap.
+     * around the place of the percentage. At an edge slot's cap in every slot, as the bake
+     * carries it (status-lines.js).
+     * @param {Object} S Settings.
      * @returns {string}
      */
-    function batteryCarried(S, cap) {
-        return batteryDays.slotText(SAMPLE.batteryDays, S, cap);
+    function batteryCarried(S) {
+        return batteryDays.slotText(SAMPLE.batteryDays, S, catalog.CAPS.EDGE_TEXT_MAX);
     }
 
     /**
@@ -256,7 +257,7 @@
         case 'battery':
             if (c.env && c.env.platform === 'aplite') { return '80%'; }
             if (slotText.batteryLook(S, c.env) === 'icon') { return ''; }
-            return batteryDays.drawn(batteryCarried(S, cap), '80%');
+            return batteryDays.drawn(batteryCarried(S), '80%');
         default: return '';
         }
     }
@@ -415,7 +416,7 @@
         if (!item || !catalog.kindHasText(slotText.wireKind(code, item, S, env))) { return 3; }
         // The watch battery's value is what the bake carries (the days, with the one-byte
         // place of the percentage in a pair), not the text the watch draws from it.
-        var value = code === 'battery' ? batteryCarried(S, cap) : (text || '');
+        var value = code === 'battery' ? batteryCarried(S) : (text || '');
         return 3 + utf8.byteLength(value) + (arrowShown(code, text, S, env, cap) ? 1 : 0);
     }
 

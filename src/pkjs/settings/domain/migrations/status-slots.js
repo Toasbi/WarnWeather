@@ -106,7 +106,7 @@ function migrateCitySlotIconOn(blob) {
  * ('batteryPct') is the Watch battery's Text look, and the phone battery without its icon
  * ('phoneBatteryPlain') the Phone battery's. A slot holding an old item takes the merged
  * one in its Text look, so every slot shows what it showed: the watch battery's Look is
- * the item's (it sits in one slot), the phone battery's each slot's own (catalog
+ * the item's (every slot shows it alike), the phone battery's each slot's own (catalog
  * phoneBatteryLookKey), so one slot can keep the phone's icon while another shows none.
  *
  * No send: the lines bake to the bytes they had (the kind and the icon come from the Look
