@@ -29,9 +29,9 @@
 var KEYS = require('../../settings/domain/storage-keys.js');
 var statusRebake = require('../application/status-rebake.js');
 var statusLines = require('../domain/status-lines.js');
-var catalog = require('../domain/status-line-catalog.js');
 var pluginValues = require('../domain/plugin-values.js');
 var pluginValueReads = require('../domain/plugin-value-reads.js');
+var pluginValueList = require('../domain/plugin-value-list.js');
 var pluginReads = require('../domain/plugin-reads.js');
 var batterySaver = require('../../wire/domain/battery-saver.js');
 var pluginReader = require('./plugin-reader.js');
@@ -84,10 +84,10 @@ function wantedSource() {
 }
 
 /**
- * @returns {?Object} The value last heard, as stored (plugin-values.js valueOf), or null.
+ * @returns {?Object} The value last heard, as stored (plugin-value-reads.js valueOf), or null.
  */
 function readValue() {
-    return pluginValues.valueOf(stored(KEYS.PLUGIN_VALUE));
+    return pluginValueReads.valueOf(stored(KEYS.PLUGIN_VALUE));
 }
 
 /**
@@ -150,7 +150,7 @@ function keep(value) {
     } else {
         localStorage.removeItem(KEYS.PLUGIN_VALUE);
     }
-    if (pluginValues.sameReading(before, after)) { return; }
+    if (pluginValueReads.sameReading(before, after)) { return; }
     console.log('plugin-value: ' + (after ? 'a new value' : 'no value') + '.');
     // Never sent from here. The plugin answers at any moment, right after a settings save or a
     // boot among them, while their own messages are on the channel. Those bake the value just
@@ -203,7 +203,9 @@ function read(source, at) {
         until = pluginReader.validUntilOf(envelope);
         stamp(source.key, at, 0, until);
         reading = pluginReader.readingOf(envelope, source.property);
-        keep(reading ? { source: source.key, reading: reading, at: nowMs(), validUntil: until } : null);
+        // Kept as valueOf checks it: its texts cut to what a value keeps.
+        keep(reading ? pluginValueReads.valueOf({ source: source.key, reading: reading, at: nowMs(), validUntil: until })
+            : null);
     }, deps.timers);
 }
 
@@ -264,18 +266,29 @@ function bakeFacts() {
 }
 
 /**
- * The value last heard, for the settings page's dialog: its text as textFor makes it for a
- * middle slot (whose bake then cuts it to the slot's bytes) and when it was read; null while
- * the source the settings pick has none.
+ * The value last heard, for the settings page (userData.pluginValue): the Plugin value
+ * dialog's last value and the bars' pictures. The page judges it against the source its rows
+ * pick right then, as a bake does (plugin-values.js shownReading), so it is handed over whole,
+ * whichever source it was read from.
  *
- * @returns {?{text: string, at: number}}
+ * @returns {?{source: string, reading: Object, at: number, validUntil: ?number}} The value
+ *   (plugin-value-reads.js valueOf), or null for none.
  */
 function forPage() {
-    var settings = deps.getSettings();
-    var value = readValue();
-    var source = settings ? pluginValues.sourceOf(settings) : null;
-    if (!value || !source || value.source !== source.key) { return null; }
-    return { text: pluginValues.textFor(value.reading, catalog.CAPS.MID_TEXT_MAX), at: value.at };
+    return readValue();
+}
+
+/**
+ * The plugins on the phone with a value the slot can show, for the settings page's dialog
+ * (userData.plugins; plugin-value-list.js listOf). Listing them runs no plugin.
+ *
+ * @param {string[]} permissions The permissions this app declares (package.json
+ *   usesPermissions' names): a source that asks its reader for another is left out.
+ * @param {string} ownUuid This app's uuid: its own plugin is left out.
+ * @returns {Array<Object>} The list (plugin-value-list.js listOf).
+ */
+function pluginsForPage(permissions, ownUuid) {
+    return pluginValueList.listOf(pluginReader.plugins(pluginReader.pebbleOf(deps)), permissions, ownUuid);
 }
 
 /**
@@ -329,5 +342,6 @@ module.exports = {
     onTick: onTick,
     refresh: refresh,
     bakeFacts: bakeFacts,
-    forPage: forPage
+    forPage: forPage,
+    pluginsForPage: pluginsForPage
 };

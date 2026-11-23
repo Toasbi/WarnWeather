@@ -205,6 +205,12 @@ test('a message that goes out before the tick carries the value, and the tick th
   assert.equal(JSON.stringify(h.sends[h.sends.length - 1]), sent);
 });
 
+test('a long text is kept cut to what a value keeps', () => {
+  const h = boot();
+  h.pebble.subs[0].push(answer({ battery_level: { longText: { text: 'y'.repeat(5000) } } }));
+  assert.equal(stored(KEYS.PLUGIN_VALUE).reading.long, 'y'.repeat(64));
+});
+
 test('each slot that shows the value prints it at its own room, from one read', () => {
   const h = boot({ settings: Object.assign({}, SLOT, { statusTopMid: 'pluginValue' }) });
   h.pebble.subs[0].push(answer({ battery_level: { numericValue: { value: 12345, unit: 'kWh' } } }));
@@ -546,13 +552,29 @@ test('the value is never logged: it is another app\'s data', () => {
   assert.deepEqual(logged.filter((line) => /4711|Secret|kWh/.test(line)), []);
 });
 
-test('the dialog\'s last value: the value the settings pick, as a middle slot gets it, and when it was read', () => {
+test('the settings page gets the value last heard whole, whichever source the settings pick', () => {
   const h = boot();
   assert.equal(pluginValueSource.forPage(), null, 'none yet');
-  h.pebble.subs[0].push(answer({ battery_level: { numericValue: { value: 12345, unit: 'kWh' } } }));
-  assert.deepEqual(pluginValueSource.forPage(), { text: '12345 kWh', at: NOON });
+  h.pebble.subs[0].push(answer(null, { validUntilMs: NOON + 2 * HOUR }));
+  const value = { source: KEY, reading: { short: '87%', number: 87, unit: '%', long: null }, at: NOON,
+    validUntil: NOON + 2 * HOUR };
+  assert.deepEqual(pluginValueSource.forPage(), value);
   h.settings = CELL;
-  assert.equal(pluginValueSource.forPage(), null, 'another value\'s');
-  h.settings = {};
-  assert.equal(pluginValueSource.forPage(), null, 'none picked');
+  assert.deepEqual(pluginValueSource.forPage(), value, 'the page judges it against its own pick');
+  storage[KEYS.PLUGIN_VALUE] = '{oops';
+  assert.equal(pluginValueSource.forPage(), null, 'unreadable: none');
+});
+
+test('the settings page gets the plugins on the phone the slot can read a value of', () => {
+  const h = boot();
+  h.pebble.enumeratePlugins = () => [
+    { uuid: PHONE, name: 'Phone', sources: [{ category: 'phone', items: ['phone_state'],
+      properties: { battery_level: ['numericValue', 'shortText'], charging: ['boolean'] } }], actions: [] },
+    { uuid: 'OWN', name: 'Mine', sources: [{ category: 'w', items: ['x'], properties: { v: ['shortText'] } }] },
+    { uuid: 'cal', name: 'Calendar', sources: [{ category: 'calendar', items: ['event'],
+      properties: { name: ['shortText'] }, callerPermissions: [{ name: 'Calendar' }] }] }];
+  assert.deepEqual(pluginValueSource.pluginsForPage(['Location'], 'own'), [{ uuid: PHONE, name: 'Phone',
+    items: [{ category: 'phone', item: 'phone_state', multiple: false, properties: ['battery_level'] }] }]);
+  boot({ pebble: { subscribeToSource() {} } });
+  assert.deepEqual(pluginValueSource.pluginsForPage(['Location'], 'own'), [], 'a Pebble app that cannot list them');
 });

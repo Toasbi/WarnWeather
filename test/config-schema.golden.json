@@ -9604,6 +9604,87 @@
               }
             ],
             "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValue",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "pluginValuePlugin",
+                "label": "Plugin",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint"
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "bottomSheet": true,
+                "messageKey": "pluginValueReading",
+                "label": "Value",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "pluginValueReadings"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueReadingHint"
+                },
+                "showWhen": {
+                  "key": "pluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "pluginValueEvery",
+                "label": "Updates",
+                "hint": "Each read runs the other app's plugin on your phone. If that app asked for a permission you haven't answered yet, your phone asks you again.",
+                "defaultValue": "60",
+                "options": [
+                  [
+                    "Every 30 minutes",
+                    "30"
+                  ],
+                  [
+                    "Every hour",
+                    "60"
+                  ],
+                  [
+                    "Every 3 hours",
+                    "180"
+                  ],
+                  [
+                    "Every 6 hours",
+                    "360"
+                  ]
+                ],
+                "showWhen": {
+                  "key": "pluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueLast"
+                },
+                "showWhen": {
+                  "key": "pluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
           }
         ]
       },

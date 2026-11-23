@@ -1,7 +1,8 @@
 'use strict';
 // The Plugin value slot's rules (plugin-values.js): the source the settings pick, the text the
-// slot prints, how long a value shows, and which plugins' values the dialog lists. When it is
-// read is plugin-value-reads.test.js'; the reading and keeping, plugin-value-source.test.js'.
+// slot prints, how long a value shows, and a value's name. When it is read and what a read
+// keeps are plugin-value-reads.test.js'; the dialog's list, plugin-value-list.test.js'; the
+// reading and keeping, plugin-value-source.test.js'.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const pv = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
@@ -77,17 +78,6 @@ test('the text: else the long text, else --', () => {
   assert.equal(pv.textFor(reading({ number: NaN, long: 'x' }), 19), 'x');
 });
 
-test('valueOf: a stored value, checked', () => {
-  const value = { source: 's', reading: reading({ number: 5, unit: 'days' }), at: T0, validUntil: T0 + HOUR };
-  assert.deepEqual(pv.valueOf(value), value);
-  assert.deepEqual(pv.valueOf(Object.assign({}, value, { validUntil: 'x' })).validUntil, null);
-  assert.deepEqual(pv.valueOf({ source: 's', reading: { short: 'a', number: '5', unit: 7, long: '', extra: 1 }, at: T0 }),
-    { source: 's', reading: reading({ short: 'a' }), at: T0, validUntil: null }, 'its fields, each of its type');
-  [null, 5, {}, Object.assign({}, value, { source: 7 }), Object.assign({}, value, { reading: null }),
-    Object.assign({}, value, { reading: reading({}) }), Object.assign({}, value, { at: 0 }),
-    Object.assign({}, value, { at: 'x' })].forEach((v) => assert.equal(pv.valueOf(v), null, JSON.stringify(v)));
-});
-
 test('a value shows for three Updates intervals after it was read, three hours at least', () => {
   const r = reading({ number: 5 });
   const value = { source: pv.sourceOf(SETTINGS).key, reading: r, at: T0, validUntil: null };
@@ -126,94 +116,9 @@ test('a value shows only for the source it was read from', () => {
   assert.equal(pv.shownReading(null, SETTINGS, T0), null, 'none kept');
 });
 
-test('sameReading: the same four fields, in whatever order they come', () => {
-  const r = reading({ short: '87%', number: 87, unit: '%' });
-  assert.equal(pv.sameReading(r, { long: null, unit: '%', number: 87, short: '87%' }), true);
-  assert.equal(pv.sameReading(r, pv.valueOf({ source: 's', reading: r, at: T0 }).reading), true, 'through storage');
-  [{ short: '86%' }, { number: 86 }, { unit: 'pct' }, { long: 'x' }].forEach((change) =>
-    assert.equal(pv.sameReading(r, Object.assign({}, r, change)), false, JSON.stringify(change)));
-  assert.equal(pv.sameReading(null, null), true);
-  assert.equal(pv.sameReading(r, null), false);
-  assert.equal(pv.sameReading(null, r), false);
-});
-
 test('labelOf: a name made readable', () => {
   [['battery_level', 'Battery level'], ['daysRemaining', 'Days remaining'], ['UVIndex', 'UV index'],
     ['uv_index', 'Uv index'], ['5G', '5G'], ['mobile_data', 'Mobile data'], ['HTTPStatus', 'HTTP status'],
-    ['wifi', 'Wifi'], ['a-b c', 'A b c']].forEach(([name, label]) => assert.equal(pv.labelOf(name), label, name));
-});
-
-/**
- * @param {string} uuid The plugin's uuid.
- * @param {string} name Its name.
- * @param {Array<Object>} sources Its sources' declarations.
- * @returns {Object} A plugin as Pebble.enumeratePlugins() lists it.
- */
-function plugin(uuid, name, sources) {
-  return { uuid: uuid, name: name, sources: sources, actions: [] };
-}
-
-const PHONE = plugin('00000000-0000-0000-0001-000000000001', 'Phone', [{ category: 'phone', items: ['phone_state'],
-  properties: { battery_level: ['numericValue', 'shortText'], cell: ['shortText'], wifi: ['boolean', 'shortText'],
-    charging: ['boolean'] }, suggestedRefreshIntervalSec: 60 }]);
-const PERMS = ['Location', 'Internet', 'ShowNotifications', 'Health'];
-
-test('the dialog lists each plugin\'s values the slot can print', () => {
-  assert.deepEqual(pv.readableSources([PHONE], PERMS, 'own'), [{ uuid: PHONE.uuid, name: 'Phone', values: [
-    { id: 'phone/phone_state/battery_level', label: 'Battery level', multiple: false },
-    { id: 'phone/phone_state/cell', label: 'Cell', multiple: false },
-    { id: 'phone/phone_state/wifi', label: 'Wifi', multiple: false }] }], 'a boolean alone is left out');
-});
-
-test('a value of a plugin that serves more than one thing names it first', () => {
-  const weather = plugin('w', 'Weather', [
-    { category: 'weather', items: ['location'], properties: { temperature: ['shortText'], uv_index: ['numericValue'] },
-      supportsMultiple: true, callerPermissions: [{ name: 'Location' }] },
-    { category: 'weather', items: ['hour'], properties: { temperature: ['numericValue'] }, supportsMultiple: true,
-      callerPermissions: ['Location'] }]);
-  assert.deepEqual(pv.readableSources([weather], PERMS, 'own')[0].values, [
-    { id: 'weather/location/temperature', label: 'Location: temperature', multiple: true },
-    { id: 'weather/location/uv_index', label: 'Location: uv index', multiple: true },
-    { id: 'weather/hour/temperature', label: 'Hour: temperature', multiple: true }]);
-  const twoItems = plugin('x', 'X', [{ category: 'c', items: ['a', 'b'], properties: { UVIndex: ['shortText'] } }]);
-  assert.deepEqual(pv.readableSources([twoItems], PERMS, 'own')[0].values.map((v) => v.label),
-    ['A: UV index', 'B: UV index'], 'items listed together count too; a word in capitals keeps them');
-});
-
-test('a source that asks for a permission this app never declares is left out, as is this app\'s own plugin', () => {
-  const calendar = plugin('cal', 'Calendar', [{ category: 'calendar', items: ['event'],
-    properties: { name: ['shortText'] }, callerPermissions: [{ name: 'Calendar' }] }]);
-  const theirs = plugin('t', 'Theirs', [{ category: 't', items: ['x'], properties: { v: ['shortText'] },
-    callerPermissions: [{ name: 'Location', plugin: 'someone' }] }]);
-  const odd = plugin('o', 'Odd', [{ category: 'o', items: ['x'], properties: { v: ['shortText'] },
-    callerPermissions: [42] }]);
-  const own = plugin('OWN', 'WarnWeather', [{ category: 'w', items: ['x'], properties: { v: ['shortText'] } }]);
-  assert.deepEqual(pv.readableSources([calendar, theirs, odd, own, PHONE], PERMS, 'own').map((p) => p.name),
-    ['Phone']);
-});
-
-test('the dialog\'s caps: 12 plugins, 16 values each, names of 32 characters', () => {
-  const props = {};
-  for (let i = 0; i < 20; i++) { props['v' + String(i).padStart(2, '0')] = ['shortText']; }
-  const many = [];
-  for (let i = 0; i < 15; i++) {
-    many.push(plugin('u' + i, 'A plugin with a long name, number ' + i, [{ category: 'c', items: ['i'], properties: props }]));
-  }
-  const listed = pv.readableSources(many, PERMS, 'own');
-  assert.equal(listed.length, 12);
-  assert.equal(listed[0].values.length, 16);
-  assert.equal(listed[0].values[15].id, 'c/i/v15', 'the first 16, as declared');
-  assert.equal(listed[0].name.length, 32);
-  assert.equal(listed[0].name, 'A plugin with a long name, numb\u2026');
-});
-
-test('the dialog\'s list takes what enumeratePlugins hands over, whatever its shape', () => {
-  [null, undefined, 5, 'x', {}].forEach((v) => assert.deepEqual(pv.readableSources(v, PERMS, 'own'), []));
-  assert.deepEqual(pv.readableSources([null, {}, { uuid: '' }, { uuid: 'n', sources: 'x' },
-    { uuid: 'm', sources: [null, { category: 'c' }, { category: 'c', items: [5], properties: { v: ['shortText'] } },
-      { category: 'c', items: 'i', properties: { v: ['shortText'] } },
-      { category: 'c', items: ['i'], properties: { v: 'shortText', w: null } }] }], PERMS, 'own'), [],
-    'shapes and items given as text, not as lists, are left out');
-  assert.equal(pv.readableSources([plugin('nameless', '', PHONE.sources)], PERMS, 'own')[0].name, 'nameless',
-    'a plugin with no name goes by its uuid');
+    ['wifi', 'Wifi'], ['a-b c', 'A b c'], ['location: uv_index', 'Location: uv index'], ['a: UVIndex', 'A: UV index'],
+    ['stats: daysRemaining', 'Stats: days remaining']].forEach(([name, label]) => assert.equal(pv.labelOf(name), label, name));
 });

@@ -39,6 +39,8 @@
     var utf8 = NODE ? require('../../lib/utf8.js') : window.Utf8;
     var dateFormat = NODE ? require('../../calendar/domain/date-format.js') : window.DateFormat;
     var VC = NODE ? require('../../layout/domain/view-cycle.js') : VIEW_CYCLE;
+    // The Plugin value slot's text: the value read last (plugin-value-page.js barText).
+    var pluginValuePage = NODE ? require('./plugin-value-page.js') : window.PluginValuePage;
 
     // The bars in the page's order, each with the view-cycle status source a screen's row
     // seats it by (view-cycle.js barOfSource, read back); the Watch bar is the top strip
@@ -243,6 +245,9 @@
         case 'hr': return '64';
         case 'sleep': return '7h12';
         case 'phoneBattery': return '72%';
+        // Another app's value: no sample would fit every plugin, so the value read last
+        // where the watch still shows it, else what the watch shows without one ('--').
+        case 'pluginValue': return pluginValuePage.barText(S, cap);
         // The watch battery: in its Icon look the glyph alone, except on aplite, whose lean
         // twin prints the charge (status_row_aplite.c format_live_value); in its Text and
         // Icon + text looks the percentage, the days the watch has left or both, as the

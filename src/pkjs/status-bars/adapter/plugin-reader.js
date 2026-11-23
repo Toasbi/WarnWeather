@@ -3,7 +3,8 @@
 // Reads a source of the Pebble app's plugins (Pebble.subscribeToSource): the phone's own
 // state, or what another app's plugin serves. A reading is a property of an instance of an
 // item: phone/phone_state has one instance, the phone, whose battery_level offers a
-// numericValue ({value: 84, unit: '%'}).
+// numericValue ({value: 84, unit: '%'}). And lists the plugins on the phone and what they
+// serve (Pebble.enumeratePlugins), which reads nothing and runs no plugin.
 //
 // Every Pebble app from 2.0.0 runs plugins. One from before 1.11.0 has no subscribeToSource
 // (available() is false there), and every reader here then fails as a plugin that is not
@@ -271,6 +272,28 @@ function readingOf(envelope, property) {
 }
 
 /**
+ * The plugins on the phone and what each serves, as the Pebble app lists them
+ * (Pebble.enumeratePlugins: [{uuid, name, sources: [{category, items, properties, ...}],
+ * actions}]). Nothing runs for it: the list is what the plugins declared when they were
+ * installed. A Pebble app without plugins has no enumeratePlugins, and one that cannot list
+ * them answers [] (its bridge catches its own failure).
+ *
+ * @param {?Object} pebble The Pebble object.
+ * @returns {Array<Object>} The list as the Pebble app hands it over, unchecked; [] for none.
+ */
+function plugins(pebble) {
+    var list;
+    if (!pebble || typeof pebble.enumeratePlugins !== 'function') { return []; }
+    try {
+        list = pebble.enumeratePlugins();
+    }
+    catch (ex) {
+        return [];
+    }
+    return Array.isArray(list) ? list : [];
+}
+
+/**
  * Until when the plugin says its update holds (the envelope's validUntilMs): the plugin's
  * own word on when it has something new.
  *
@@ -291,5 +314,6 @@ module.exports = {
     readOnce: readOnce,
     numberOf: numberOf,
     readingOf: readingOf,
-    validUntilOf: validUntilOf
+    validUntilOf: validUntilOf,
+    plugins: plugins
 };

@@ -393,3 +393,13 @@ test('validUntilOf: the envelope\'s validUntilMs when it is a time', () => {
   [0, -5, NaN, Infinity, '1795000000000', null].forEach((bad) =>
     assert.equal(pluginReader.validUntilOf({ validUntilMs: bad }), null, String(bad)));
 });
+
+test('plugins: the Pebble app\'s list of the plugins on the phone; [] where it has none or cannot list them', () => {
+  const list = [{ uuid: 'u', name: 'N', sources: [], actions: [] }];
+  assert.deepEqual(pluginReader.plugins({ enumeratePlugins: () => list }), list);
+  assert.deepEqual(pluginReader.plugins(null), [], 'no Pebble object');
+  assert.deepEqual(pluginReader.plugins({ subscribeToSource() {} }), [], 'a Pebble app that cannot list them');
+  assert.deepEqual(pluginReader.plugins({ enumeratePlugins: () => { throw new Error('bridge'); } }), []);
+  ['[]', null, undefined, {}].forEach((bad) =>
+    assert.deepEqual(pluginReader.plugins({ enumeratePlugins: () => bad }), [], JSON.stringify(bad)));
+});

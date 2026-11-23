@@ -1,0 +1,214 @@
+// test/page/status-bars/plugin-value-page.test.js — the Plugin value slot's dialog on the
+// settings page: the Plugin and Value rows' lists (the plugins the phone listed as the page
+// opened, userData.plugins), their hints, the line with the value read last
+// (userData.pluginValue), the Plugin row's change, the Edit button that opens the dialog, the
+// slot reset and the bars' pictures.
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+require('../../../src/pkjs/config-ui/lib/schema-walk.js');
+require('../../../src/pkjs/lib/color.js');
+require('../../../src/pkjs/config-ui/lib/show-when.js');
+require('../../../src/pkjs/config-ui/lib/engine.js');
+require('../../../src/pkjs/page/settings/blocks.js');
+const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
+const schema = require('../../../src/pkjs/page/settings/schema.js');
+const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
+const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
+const { sample } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
+
+const PConf = global.PConf;
+const MIN = 60 * 1000;
+const HOUR = 60 * MIN;
+const NOW = Date.UTC(2026, 10, 23, 12, 0, 0);
+const BASALT = Object.assign(platform.computeEnv({ platform: 'basalt' }), { plugins: true });
+const PHONE = '00000000-0000-0000-0001-000000000001';
+const MUNINN = 'd008a08a-6e34-4cc4-98dc-bae02ce5e087';
+/** What the phone lists (plugin-value-list.js listOf). */
+const PLUGINS = [
+  { uuid: PHONE, name: 'Phone', items: [
+    { category: 'phone', item: 'phone_state', multiple: false, properties: ['battery_level', 'cell'] }] },
+  { uuid: MUNINN, name: 'Muninn', items: [
+    { category: 'muninn', item: 'stats', multiple: false, properties: ['daysRemaining'] },
+    { category: 'muninn', item: 'estimate', multiple: true, properties: ['batteryLife'] }] }];
+const LEVEL = { pluginValuePlugin: PHONE, pluginValueReading: 'phone/phone_state/battery_level' };
+const LEVEL_KEY = PHONE + '/phone/phone_state/battery_level';
+
+/**
+ * The phone's userData for one test, the way the page reads it (INJECTED_USERDATA).
+ * @param {Object} t The test context (its after hook clears it).
+ * @param {Object} data userData.
+ * @returns {void}
+ */
+function userData(t, data) {
+  global.INJECTED_USERDATA = data;
+  t.after(() => { delete global.INJECTED_USERDATA; });
+}
+
+/**
+ * The page's clock, for one test.
+ * @param {Object} t The test context.
+ * @param {number} ms Now.
+ * @returns {void}
+ */
+function clock(t, ms) {
+  t.mock.method(Date, 'now', () => ms);
+}
+
+/**
+ * A value as the phone kept it (plugin-value-source.js forPage).
+ * @param {Object} reading Its reading's set fields.
+ * @param {Object} [extra] Its other fields.
+ * @returns {Object} The value.
+ */
+function kept(reading, extra) {
+  return Object.assign({ source: LEVEL_KEY, reading: Object.assign({ short: null, number: null, unit: null,
+    long: null }, reading), at: NOW - 5 * MIN, validUntil: null }, extra || {});
+}
+
+test('the Plugin row lists None, then each plugin the phone listed', (t) => {
+  userData(t, { plugins: PLUGINS });
+  assert.deepEqual(page.pluginOptions({ pluginValuePlugin: '' }), [['None', ''], ['Phone', PHONE], ['Muninn', MUNINN]]);
+  assert.deepEqual(page.pluginOptions(LEVEL), [['None', ''], ['Phone', PHONE], ['Muninn', MUNINN]]);
+});
+
+test('a plugin the settings hold that the phone no longer lists stays, said as such', (t) => {
+  userData(t, { plugins: PLUGINS });
+  assert.deepEqual(page.pluginOptions({ pluginValuePlugin: 'gone' }).slice(-1), [['Not on this phone', 'gone']]);
+  assert.equal(page.pluginHint({ pluginValuePlugin: 'gone' }),
+    'This plugin is not on this phone. Until it is, the slot shows --.');
+});
+
+test('a phone that lists no plugin: None alone, and the hint says why', (t) => {
+  [{}, { plugins: [] }, { plugins: 'x' }, null].forEach((data) => {
+    global.INJECTED_USERDATA = data;
+    assert.deepEqual(page.pluginOptions({ pluginValuePlugin: '' }), [['None', '']], JSON.stringify(data));
+    assert.equal(page.pluginHint({ pluginValuePlugin: '' }), 'No app on this phone offers a value this slot can show.');
+  });
+  delete global.INJECTED_USERDATA;
+  userData(t, { plugins: PLUGINS });
+  assert.equal(page.pluginHint(LEVEL), null, 'a listed plugin needs no words');
+});
+
+test('the Value row lists the picked plugin\'s values, and keeps one it no longer offers under its name', (t) => {
+  userData(t, { plugins: PLUGINS });
+  assert.deepEqual(page.readingOptions(LEVEL), [['Battery level', 'phone/phone_state/battery_level'],
+    ['Cell', 'phone/phone_state/cell']]);
+  assert.deepEqual(page.readingOptions({ pluginValuePlugin: MUNINN, pluginValueReading: 'muninn/stats/daysRemaining' }),
+    [['Stats: days remaining', 'muninn/stats/daysRemaining'], ['Estimate: battery life', 'muninn/estimate/batteryLife']],
+    'a plugin that serves more than one item: each value after its item');
+  const old = { pluginValuePlugin: PHONE, pluginValueReading: 'phone/phone_state/wifi_name' };
+  assert.deepEqual(page.readingOptions(old).slice(-1),
+    [['Wifi name', 'phone/phone_state/wifi_name', { desc: 'Not offered now' }]]);
+  assert.equal(page.readingHint(old), 'The plugin no longer offers this value. Until it does, the slot shows --.');
+  const gone = { pluginValuePlugin: 'gone', pluginValueReading: 'muninn/stats/daysRemaining' };
+  assert.deepEqual(page.readingOptions(gone), [['Days remaining', 'muninn/stats/daysRemaining', { desc: 'Not offered now' }]],
+    'a plugin not on this phone: its value, under its name');
+  assert.equal(page.readingHint(gone), null, 'the Plugin row says it');
+  assert.deepEqual(page.readingOptions({ pluginValuePlugin: '' }), [], 'None: no values');
+});
+
+test('the Value row says when the plugin offers the value for more than one thing', (t) => {
+  userData(t, { plugins: PLUGINS });
+  assert.equal(page.readingHint({ pluginValuePlugin: MUNINN, pluginValueReading: 'muninn/estimate/batteryLife' }),
+    'The plugin offers this for more than one thing. The slot shows the first.');
+  assert.equal(page.readingHint({ pluginValuePlugin: MUNINN, pluginValueReading: 'muninn/stats/daysRemaining' }), null);
+});
+
+test('a new plugin starts on its first value; None on none', (t) => {
+  userData(t, { plugins: PLUGINS });
+  const S = Object.assign({}, LEVEL, { pluginValueReading: 'phone/phone_state/cell' });
+  page.pluginPicked(S, PHONE, PHONE);
+  assert.equal(S.pluginValueReading, 'phone/phone_state/cell', 'the same plugin keeps its value');
+  page.pluginPicked(S, PHONE, MUNINN);
+  assert.equal(S.pluginValueReading, 'muninn/stats/daysRemaining');
+  page.pluginPicked(S, MUNINN, '');
+  assert.equal(S.pluginValueReading, '');
+  page.pluginPicked(S, '', 'gone');
+  assert.equal(S.pluginValueReading, '', 'a plugin the phone does not list');
+});
+
+test('the last line: the value read last, as a middle slot prints it, and how long ago', (t) => {
+  clock(t, NOW);
+  userData(t, { plugins: PLUGINS, pluginValue: kept({ short: '87%', number: 87, unit: '%' }) });
+  assert.equal(page.lastLine(LEVEL), 'Last value: 87% (5 min ago).');
+  global.INJECTED_USERDATA.pluginValue = kept({ number: 12345, unit: 'kWh' });
+  assert.equal(page.lastLine(LEVEL), 'Last value: 12345 kWh (5 min ago).', 'the middle slot has room for the unit');
+  global.INJECTED_USERDATA.pluginValue = kept({ short: '<b>87</b>' });
+  assert.equal(page.lastLine(LEVEL), 'Last value: &lt;b&gt;87&lt;/b&gt; (5 min ago).', 'another app\'s text, escaped');
+});
+
+test('the last line: a value too old to show says what the watch shows instead', (t) => {
+  clock(t, NOW);
+  userData(t, { plugins: PLUGINS, pluginValue: kept({ short: '87%' }, { at: NOW - 4 * HOUR }) });
+  assert.equal(page.lastLine(LEVEL),
+    'Last value: 87% (4 h ago). It is too old to show, so the watch shows -- until a new one comes in.');
+});
+
+test('the last line: nothing read yet for the source the rows pick, and nothing while none is picked', (t) => {
+  clock(t, NOW);
+  userData(t, { plugins: PLUGINS, pluginValue: kept({ short: '87%' }) });
+  const NOTHING = 'Nothing read yet. Once you save, the watch shows the value within about a minute.';
+  assert.equal(page.lastLine(Object.assign({}, LEVEL, { pluginValueReading: 'phone/phone_state/cell' })), NOTHING,
+    'another value\'s');
+  global.INJECTED_USERDATA.pluginValue = null;
+  assert.equal(page.lastLine(LEVEL), NOTHING);
+  assert.equal(page.lastLine({ pluginValuePlugin: '' }), '');
+});
+
+test('the bars\' pictures print the value read last at each slot\'s room, else --', (t) => {
+  clock(t, NOW);
+  userData(t, { plugins: PLUGINS, pluginValue: kept({ number: 12345, unit: 'kWh' }) });
+  const S = Object.assign({ statusTopLeft: 'pluginValue' }, LEVEL);
+  assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.EDGE_TEXT_MAX, env: BASALT }), '12345');
+  assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.MID_TEXT_MAX, env: BASALT }), '12345 kWh');
+  assert.equal(page.barText(Object.assign({}, S, { pluginValueReading: 'phone/phone_state/cell' }), 19), '--',
+    'another value\'s');
+  global.INJECTED_USERDATA.pluginValue = kept({ short: '87%' }, { at: NOW - 3 * HOUR });
+  assert.equal(page.barText(S, 19), '--', 'too old for the watch to show');
+  global.INJECTED_USERDATA = {};
+  assert.equal(page.barText(S, 19), '--', 'none read');
+});
+
+test('the Edit button opens the dialog from every slot that holds the item, not on aplite', () => {
+  const resolve = PConf.sheetResolvers.get('statusSlotEditSheet');
+  catalog.allSlotKeys().forEach((slotKey) => {
+    const S = { [slotKey]: 'pluginValue' };
+    assert.equal(resolve(S, { thresholds: true }, { messageKey: slotKey }), 'threshPluginValue', slotKey);
+    assert.equal(resolve(S, { thresholds: false }, { messageKey: slotKey }), null, slotKey + ' on aplite');
+  });
+});
+
+test('the dialog: Plugin with its list, then Value, Updates and the last line once one is picked', (t) => {
+  clock(t, NOW);
+  userData(t, { plugins: PLUGINS, pluginValue: kept({ short: '87%' }) });
+  const S = PConf.engine.hydrate(schema, Object.assign({ statusTopLeft: 'pluginValue' }, LEVEL), BASALT);
+  assert.equal(S.pluginValueEvery, '60', 'every hour by default');
+  const cx = (state) => ({ S: state, ENV: BASALT, USERDATA: {}, openColor: null, openSelect: null,
+    openEdit: 'threshPluginValue', selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, state, { env: BASALT }) });
+  const html = PConf.engine.renderEditModal(schema, cx(S));
+  ['Plugin value slot', 'Plugin', 'Phone', 'Value', 'Battery level', 'Updates', 'Every hour',
+    'Last value: 87% (5 min ago).'].forEach((text) => assert.ok(html.indexOf(text) !== -1, 'the dialog shows ' + text));
+  assert.ok(html.indexOf('BoldMode') === -1, 'no Bold: the item has no bold kind');
+  const none = PConf.engine.hydrate(schema, { statusTopLeft: 'pluginValue' }, BASALT);
+  const empty = PConf.engine.renderEditModal(schema, cx(none));
+  ['Value', 'Updates', 'Last value'].forEach((text) =>
+    assert.equal(empty.indexOf('>' + text + '<'), -1, 'no ' + text + ' while no plugin is picked'));
+});
+
+test('a plugin the phone no longer lists is not swapped for another as the dialog draws', (t) => {
+  userData(t, { plugins: PLUGINS });
+  const S = PConf.engine.hydrate(schema, { statusTopLeft: 'pluginValue', pluginValuePlugin: 'gone',
+    pluginValueReading: 'gone/item/value' }, BASALT);
+  const cx = { S: S, ENV: BASALT, USERDATA: {}, openColor: null, openSelect: null, openEdit: 'threshPluginValue',
+    selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: BASALT }) };
+  PConf.engine.renderEditModal(schema, cx);
+  assert.deepEqual([S.pluginValuePlugin, S.pluginValueReading], ['gone', 'gone/item/value']);
+});
+
+test('Reset status bars puts the Plugin value\'s source and Updates back', () => {
+  const S = Object.assign({ pluginValueEvery: '360' }, LEVEL);
+  const defaults = { pluginValuePlugin: '', pluginValueReading: '', pluginValueEvery: '60' };
+  PConf.actions.resetStatusSlots(null, S, BASALT, (key) => (key in defaults ? defaults[key] : undefined));
+  assert.deepEqual([S.pluginValuePlugin, S.pluginValueReading, S.pluginValueEvery], ['', '', '60']);
+});

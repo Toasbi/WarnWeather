@@ -85,6 +85,8 @@ var forecastLines = require('../forecast-graphs/forecast-lines-schema.js');
 // Where the weather comes from: the Weather row of Setup › Data sources, the Provider's
 // options and the notes under it, and the pickers of the Weather dialog's Other sources.
 var weatherSources = require('../weather/weather-sources-schema.js');
+// The Plugin value slot's dialog (its rows' lists and texts are plugin-value-page.js').
+var pluginValueSchema = require('../status-bars/plugin-value-schema.js');
 var METRIC_HINT_FROM = forecastLines.METRIC_HINT_FROM;
 var STRIPE_STYLES = forecastLines.STRIPE_STYLES;
 var lineStyleCopy = forecastLines.lineStyleCopy;
@@ -2289,7 +2291,10 @@ module.exports = {
             // reference card under the settings (blocks.js conditionList draws it).
             type: 'staticText',
             textFrom: {resolver: 'conditionList'}
-        }])
+        }]),
+        // The Plugin value slot's dialog: the plugin, its value and how often it is read. Last,
+        // as it has no wire kind and no Bold (plugin-value-schema.js).
+        pluginValueSchema.dialogSection(sheetOf)
         ]).map(function (sec) {
             // Every slot dialog keeps the bars pinned above its rows: the bar it was opened
             // from, a bar's dialog (preview-status-bars.js statusBarsPreview). The bars' own

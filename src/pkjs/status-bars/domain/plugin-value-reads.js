@@ -1,8 +1,9 @@
 // src/pkjs/status-bars/domain/plugin-value-reads.js
 //
-// When the Plugin value slot's value is read from its plugin again. The reading, and the
-// record of the last read this works from, are plugin-value-source.js'; the record's shape and
-// the waits after a failure are every plugin read's (plugin-reads.js).
+// The Plugin value slot's reads: when the value is read from its plugin again, and the value a
+// read keeps. The reading, the record of the last read this works from and the keeping are
+// plugin-value-source.js'; the record's shape and the waits after a failure are every plugin
+// read's (plugin-reads.js).
 //
 // A read costs the user something (plugin-reader.js), and only the user knows how fast their
 // value changes, so the slot's Updates setting says how often (plugin-values.js everyMs). From
@@ -38,6 +39,59 @@ function nextReadAt(record, everyMs) {
     return next;
 }
 
+/**
+ * The most characters of a text a value keeps (a reading's short text, long text and unit):
+ * more than the widest slot prints, and the value kept rides the settings page's URL
+ * (userData.pluginValue).
+ */
+var MAX_TEXT = 64;
+
+/**
+ * @param {*} v A text field.
+ * @returns {?string} It, when it is a text, cut to MAX_TEXT characters (never between the two
+ *   halves of a character outside the BMP); null for none.
+ */
+function keptText(v) {
+    var cut = typeof v === 'string' && v ? v.slice(0, MAX_TEXT) : null;
+    return cut && /[\ud800-\udbff]$/.test(cut) ? cut.slice(0, -1) || null : cut;
+}
+
+/**
+ * A value as kept, checked: the source it was read from (plugin-values.js sourceOf's key), its
+ * reading (plugin-reader.js readingOf), when it was read and until when the plugin said it
+ * holds. Its texts are cut to MAX_TEXT characters.
+ * @param {*} value What was stored (parsed JSON), or a value just read.
+ * @returns {?{source: string, reading: Object, at: number, validUntil: ?number}} The value,
+ *   or null when it is none.
+ */
+function valueOf(value) {
+    var r = value && value.reading;
+    if (!value || typeof value.source !== 'string' || !r || typeof r !== 'object'
+            || typeof value.at !== 'number' || !isFinite(value.at) || value.at <= 0) {
+        return null;
+    }
+    var reading = { short: keptText(r.short), long: keptText(r.long), unit: keptText(r.unit),
+        number: typeof r.number === 'number' && isFinite(r.number) ? r.number : null };
+    if (reading.short === null && reading.number === null && reading.long === null) { return null; }
+    return { source: value.source, reading: reading, at: value.at,
+        validUntil: typeof value.validUntil === 'number' && isFinite(value.validUntil)
+            && value.validUntil > 0 ? value.validUntil : null };
+}
+
+/**
+ * @param {?Object} a A reading (plugin-reader.js readingOf, or valueOf's), or null.
+ * @param {?Object} b Another, or null.
+ * @returns {boolean} Whether the two say the same, field by field: a reading's fields come in
+ *   another order once it has been through storage.
+ */
+function sameReading(a, b) {
+    if (!a || !b) { return !a && !b; }
+    return a.short === b.short && a.number === b.number && a.unit === b.unit && a.long === b.long;
+}
+
 module.exports = {
-    nextReadAt: nextReadAt
+    MAX_TEXT: MAX_TEXT,
+    nextReadAt: nextReadAt,
+    valueOf: valueOf,
+    sameReading: sameReading
 };

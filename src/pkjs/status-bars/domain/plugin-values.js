@@ -2,13 +2,14 @@
 //
 // The Plugin value status slot ('pluginValue', status-line-catalog.js): a value another app's
 // plugin serves, which the user picks in the slot's dialog. The source is the item's, so every
-// slot that holds it shows the same value. Here: the source the settings pick, the values of
-// which plugins the slot can show (the dialog's lists), how long a value read from it shows,
-// and the text the slot prints.
+// slot that holds it shows the same value. Here: the source the settings pick, how often it is
+// read, how long a value read from it shows, and the text the slot prints.
 //
-// The reading itself is plugin-reader.js' (readingOf), and when it is read again
-// plugin-value-reads.js'. The settings page loads this file too (window.PluginValues): the
-// dialog's last value and the bars' pictures print the text the bake prints.
+// The settings page loads this file too (window.PluginValues): the dialog's last value and the
+// bars' pictures print the text the bake prints, and the dialog names each value with labelOf.
+// Every byte of it rides the page's URL, so what only the phone needs is elsewhere: the reading
+// is plugin-reader.js' (readingOf), when it is read again and the value a read keeps
+// plugin-value-reads.js', and the dialog's list plugin-value-list.js'.
 //
 // Pure. ES5 only (aplite PKJS).
 (function () {
@@ -30,24 +31,6 @@
      * next read away, and keeps its value shown.
      */
     var LONGEST_WAIT_MS = 12 * HOUR_MS;
-
-    /** The dialog's caps: the plugins it lists, the values of each, a name's length. */
-    var MAX_PLUGINS = 12;
-    var MAX_VALUES = 16;
-    var MAX_NAME = 32;
-
-    /** The shapes the slot prints. A property needs one of them to be listed. */
-    var TEXT_SHAPES = ['shortText', 'numericValue', 'longText'];
-
-    /**
-     * @param {string} category The source's category.
-     * @param {string} item Its item.
-     * @param {string} property The property.
-     * @returns {string} The value's id, as the settings keep it: 'category/item/property'.
-     */
-    function valueId(category, item, property) {
-        return category + '/' + item + '/' + property;
-    }
 
     /**
      * The source the settings pick (pluginValuePlugin, pluginValueReading).
@@ -121,47 +104,10 @@
     }
 
     /**
-     * A value as stored, checked: the source it was read from, its reading, when it was read
-     * and until when the plugin said it holds.
-     * @param {*} value What was stored (parsed JSON).
-     * @returns {?{source: string, reading: Object, at: number, validUntil: ?number}} The value,
-     *   or null when it is none.
-     */
-    function valueOf(value) {
-        var r = value && value.reading;
-        /**
-         * @param {*} v A text field.
-         * @returns {?string} It, when it is a text.
-         */
-        function text(v) { return typeof v === 'string' && v ? v : null; }
-        if (!value || typeof value.source !== 'string' || !r || typeof r !== 'object'
-                || typeof value.at !== 'number' || !isFinite(value.at) || value.at <= 0) {
-            return null;
-        }
-        var reading = { short: text(r.short), long: text(r.long), unit: text(r.unit),
-            number: typeof r.number === 'number' && isFinite(r.number) ? r.number : null };
-        if (reading.short === null && reading.number === null && reading.long === null) { return null; }
-        return { source: value.source, reading: reading, at: value.at,
-            validUntil: typeof value.validUntil === 'number' && isFinite(value.validUntil)
-                && value.validUntil > 0 ? value.validUntil : null };
-    }
-
-    /**
-     * @param {?Object} a A reading (plugin-reader.js readingOf, or valueOf's), or null.
-     * @param {?Object} b Another, or null.
-     * @returns {boolean} Whether the two say the same, field by field: a reading's fields come
-     *   in another order once it has been through storage.
-     */
-    function sameReading(a, b) {
-        if (!a || !b) { return !a && !b; }
-        return a.short === b.short && a.number === b.number && a.unit === b.unit && a.long === b.long;
-    }
-
-    /**
      * The reading the slot shows of a value at an instant: the value of the source the settings
      * pick, until three Updates intervals (at least SHOWN_AT_LEAST_MS) after it was read, or
      * until the plugin said it holds, whichever is later, but no more than LONGEST_WAIT_MS on.
-     * @param {?Object} value The value kept (valueOf), or null.
+     * @param {?Object} value The value kept (plugin-value-reads.js valueOf), or null.
      * @param {?Object} settings Settings.
      * @param {number} nowMs The instant, in epoch milliseconds.
      * @returns {?Object} The reading, or null: none kept, another source's, or too old.
@@ -178,8 +124,10 @@
     }
 
     /**
-     * A property's or an item's name as the dialog lists it: 'battery_level' reads 'Battery
-     * level', 'daysRemaining' 'Days remaining'; a word in capitals stays as it is ('UV index').
+     * A property's name as the dialog lists it: 'battery_level' reads 'Battery level',
+     * 'daysRemaining' 'Days remaining'; a word in capitals stays as it is ('UV index'). The
+     * dialog names a value of a plugin that serves more than one item after both
+     * ('location: uv_index' reads 'Location: uv index').
      * @param {string} name The name.
      * @returns {string}
      */
@@ -193,119 +141,17 @@
         return text.charAt(0).toUpperCase() + text.slice(1);
     }
 
-    /**
-     * @param {string} text A name.
-     * @returns {string} It, cut to MAX_NAME characters.
-     */
-    function capped(text) {
-        return text.length > MAX_NAME ? text.slice(0, MAX_NAME - 1) + '\u2026' : text;
-    }
-
-    /**
-     * @param {Object} source A source's declaration.
-     * @param {string[]} permissions The permissions this app declares.
-     * @returns {boolean} Whether this app may read it without being asked for a permission it
-     *   never declared: every caller permission it names is one this app declares (one that
-     *   another plugin defines never is).
-     */
-    function readableBy(source, permissions) {
-        var asks = Array.isArray(source.callerPermissions) ? source.callerPermissions : [];
-        for (var i = 0; i < asks.length; i++) {
-            var p = asks[i];
-            var name = typeof p === 'string' ? p : p && !p.plugin ? p.name : null;
-            if (typeof name !== 'string' || permissions.indexOf(name) === -1) { return false; }
-        }
-        return true;
-    }
-
-    /**
-     * @param {*} shapes A property's declared shapes.
-     * @returns {boolean} Whether the slot can print it.
-     */
-    function printable(shapes) {
-        if (!Array.isArray(shapes)) { return false; }
-        for (var i = 0; i < TEXT_SHAPES.length; i++) {
-            if (shapes.indexOf(TEXT_SHAPES[i]) !== -1) { return true; }
-        }
-        return false;
-    }
-
-    /**
-     * The values each plugin on the phone offers that the slot can show, for the dialog's
-     * Plugin and Value lists: a property its source declares a text or a number for, of a
-     * source this app may read (readableBy), of any plugin but this app's own. Up to
-     * MAX_PLUGINS plugins with MAX_VALUES values each, names cut to MAX_NAME characters; a
-     * plugin with none is left out. A value's label is its property's name made readable, after
-     * its item's where the plugin serves more than one.
-     * @param {*} plugins What Pebble.enumeratePlugins() returned.
-     * @param {string[]} permissions The permissions this app declares (package.json
-     *   usesPermissions' names).
-     * @param {string} ownUuid This app's uuid.
-     * @returns {Array<{uuid: string, name: string, values: Array<{id: string, label: string,
-     *   multiple: boolean}>}>}
-     */
-    function readableSources(plugins, permissions, ownUuid) {
-        var out = [];
-        if (!Array.isArray(plugins)) { return out; }
-        for (var p = 0; p < plugins.length && out.length < MAX_PLUGINS; p++) {
-            var plugin = plugins[p];
-            if (!plugin || typeof plugin.uuid !== 'string' || !plugin.uuid
-                    || plugin.uuid.toLowerCase() === String(ownUuid).toLowerCase()) {
-                continue;
-            }
-            var sources = Array.isArray(plugin.sources) ? plugin.sources : [];
-            var found = [];
-            var items = {};
-            for (var s = 0; s < sources.length; s++) {
-                var src = sources[s];
-                if (!src || typeof src.category !== 'string' || !Array.isArray(src.items)
-                        || !readableBy(src, permissions)) {
-                    continue;
-                }
-                var props = src.properties && typeof src.properties === 'object' ? src.properties : {};
-                for (var i = 0; i < src.items.length; i++) {
-                    if (typeof src.items[i] !== 'string') { continue; }
-                    for (var name in props) {
-                        if (Object.prototype.hasOwnProperty.call(props, name) && printable(props[name])) {
-                            items[src.category + '/' + src.items[i]] = true;
-                            found.push({ item: src.items[i], property: name, multiple: Boolean(src.supportsMultiple),
-                                id: valueId(src.category, src.items[i], name) });
-                        }
-                    }
-                }
-            }
-            var several = Object.keys(items).length > 1;
-            var values = found.slice(0, MAX_VALUES).map(function (v) {
-                var label = labelOf(v.property);
-                if (several) {
-                    label = labelOf(v.item) + ': '
-                        + (/^[A-Z]{2}/.test(label) ? label : label.charAt(0).toLowerCase() + label.slice(1));
-                }
-                return { id: v.id, label: capped(label), multiple: v.multiple };
-            });
-            if (values.length) {
-                out.push({ uuid: plugin.uuid, name: capped(oneLine(plugin.name) || plugin.uuid), values: values });
-            }
-        }
-        return out;
-    }
-
     var api = {
         EVERY_CHOICES: EVERY_CHOICES,
         EVERY_DEFAULT: EVERY_DEFAULT,
         SHOWN_AT_LEAST_MS: SHOWN_AT_LEAST_MS,
         LONGEST_WAIT_MS: LONGEST_WAIT_MS,
-        MAX_PLUGINS: MAX_PLUGINS,
-        MAX_VALUES: MAX_VALUES,
-        MAX_NAME: MAX_NAME,
         sourceOf: sourceOf,
         everyMs: everyMs,
+        oneLine: oneLine,
         textFor: textFor,
-        valueOf: valueOf,
-        sameReading: sameReading,
         shownReading: shownReading,
-        labelOf: labelOf,
-        readableSources: readableSources
+        labelOf: labelOf
     };
 
     // Dual-context export, the tail of status-line-catalog.js.

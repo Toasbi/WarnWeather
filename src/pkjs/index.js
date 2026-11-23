@@ -234,6 +234,10 @@ Pebble.addEventListener('showConfiguration', function(e) {
     // The new features this install has not seen and can use: the card the page opens on
     // (page/notices/feature-tips-panel.js). null for none.
     userData.featureTips = featureTipsSeen.forPage(featureTipsEnv());
+    // The Plugin value slot's dialog (page/status-bars/plugin-value-page.js): the plugins on
+    // the phone with a value the slot can show, and the value read last.
+    userData.plugins = pluginValueSource.pluginsForPage(declaredPermissions(), pkg.pebble.uuid);
+    userData.pluginValue = pluginValueSource.forPage();
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see page/settings/index.js options).
     Pebble.openURL(settings.generateUrl({
@@ -540,6 +544,13 @@ function getRuntimeTelemetryConfig() {
         appVersion: pkg.version,
         buildProfile: pkg.buildProfile
     };
+}
+
+/**
+ * @returns {string[]} The permissions this app declares (package.json usesPermissions' names).
+ */
+function declaredPermissions() {
+    return ((pkg.pebble && pkg.pebble.usesPermissions) || []).map(function (p) { return p.name; });
 }
 
 /**

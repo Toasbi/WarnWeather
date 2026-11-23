@@ -161,10 +161,12 @@ if (typeof require !== 'undefined') {
     // contract's KINDS codes are the same vocabulary ('wind', 'aqi', 'steps', ...), so the
     // contract IS the mapping — no hand-copied list to drift. The phone battery's dialog is
     // its slot's own, since its Look is (status-line-catalog.js phoneBatterySheet): a dialog
-    // is told nothing of the slot that opened it, but this resolver is. env gate mirrors the
-    // sheets' own showWhen (aplite compiles the highlight out).
+    // is told nothing of the slot that opened it, but this resolver is. The Plugin value has
+    // no threshold kind and a dialog all the same, its source (plugin-value-schema.js). env
+    // gate mirrors the sheets' own showWhen (aplite compiles the highlight out).
     PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
         var code = S[args.messageKey];
+        if (code === 'pluginValue') { return env && env.thresholds ? 'threshPluginValue' : null; }
         var kind = slotKindIndex(env, code);
         if (kind === -1) { return null; }
         if (code === 'phoneBattery') { return statusLineCatalog.phoneBatterySheet(args.messageKey); }
@@ -695,10 +697,11 @@ if (typeof require !== 'undefined') {
             // ...and every day-max kind's mode, pair and tomorrow-mark rows (UV,
             // wind, gusts, AQI), from the catalog's one table...
             .concat(statusLineCatalog.dayMaxSettingKeys())
-            // ...and the watch battery's Look and text rows, and each of these slots'
-            // phone battery Look.
+            // ...and the watch battery's Look and text rows, each of these slots' phone
+            // battery Look, and the Plugin value's source and Updates.
             .concat(statusLineCatalog.batterySettingKeys())
-            .concat(slotKeys.map(statusLineCatalog.phoneBatteryLookKey));
+            .concat(slotKeys.map(statusLineCatalog.phoneBatteryLookKey))
+            .concat(statusLineCatalog.pluginValueSettingKeys());
         // The Watch Status Bar's own toggles exist only where On demand does not.
         if (env && env.onDemand === false) {
             schemaKeys.push('batteryLowOnly', 'showQt', 'vibe', 'btIcons');
