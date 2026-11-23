@@ -13,6 +13,7 @@ typedef struct { GPoint origin; GSize size; } GRect;
 // Same trick as the real SDK: GRect is both a type and a constructor macro.
 #define GRect(x, y, w, h) \
     ((GRect){ .origin = { (int16_t)(x), (int16_t)(y) }, .size = { (int16_t)(w), (int16_t)(h) } })
+#define GPoint(x, y) ((GPoint){ (int16_t)(x), (int16_t)(y) })
 
 // --- health_cache_test.c additions ------------------------------------------
 // health_cache.c pulls in persist.h/bottom_view.h/chart.h, whose DECLARATIONS
@@ -27,6 +28,11 @@ typedef struct GContext GContext;
 typedef struct Layer Layer;
 typedef struct Window Window;
 typedef void (*LayerUpdateProc)(Layer *layer, GContext *ctx);
+
+// --- Drawing: a test that compiles drawing code defines these as recorders -----------
+void graphics_context_set_stroke_color(GContext *ctx, GColor color);
+void graphics_context_set_stroke_width(GContext *ctx, uint8_t stroke_width);
+void graphics_draw_line(GContext *ctx, GPoint p0, GPoint p1);
 
 Layer *layer_create(GRect frame);
 void layer_set_update_proc(Layer *layer, LayerUpdateProc update_proc);

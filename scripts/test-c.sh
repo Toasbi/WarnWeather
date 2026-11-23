@@ -195,6 +195,9 @@ build/host/status_row_alloc_test
 # never compiles the caller (its status_row twin keeps the hardcoded formats).
 cc $CFLAGS test/c/date_format_test.c -o build/host/date_format_test
 build/host/date_format_test
+# The Sleep item's two Z's (appendix/snooze.c), every area up to 40 x 25 as drawn.
+cc $CFLAGS test/c/snooze_test.c -o build/host/snooze_test
+build/host/snooze_test
 # The status slots' short forms (status_short_text.h, header-only like date_format.h):
 # every kind's family, the date's year and day members over date_format.h's real
 # outputs, the city's word ladder, whose vector table test/status-bars/domain/city-ladder.test.js also

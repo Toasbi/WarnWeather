@@ -3,8 +3,7 @@
 
 #include <pebble.h>
 
-// Draw comic-style snooze glyphs: Z's ascending diagonally, the smallest at
-// the lower-left and the largest at the upper-right, scaled to fit `area`.
-// Short areas (status row) get a compact 2-glyph variant; taller areas
-// (radar slot) get 3 glyphs. Integer math only.
+// Draw the Sleep item's comic-style snooze glyph into its icon square: two Z's rising
+// diagonally, the smaller at the lower left and the larger at the upper right, scaled to
+// fit `area`, in 1 px strokes. Integer math only.
 void snooze_draw(GContext *ctx, GRect area, GColor color);
