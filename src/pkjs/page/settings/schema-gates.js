@@ -149,6 +149,23 @@ function linkRow(action, label, more) {
     return row;
 }
 
+/**
+ * A note above a dialog's rows: its own card in the info look (a title and its text), shown
+ * while `when` holds, then the start of the rows' card, plain and untitled (the dialog's
+ * title says it). The Watch battery and Plugin value dialogs open with their Muninn note so.
+ * @param {string} title The note's title.
+ * @param {string} text The note's text.
+ * @param {Object} when showWhen predicate: while the note shows.
+ * @returns {Object[]} Schema items: the note's card, then the rows' card header.
+ */
+function noteCards(title, text, when) {
+    return [
+        {type: 'subheader', text: title, style: 'info', showWhen: when},
+        {type: 'staticText', text: text, showWhen: when},
+        {type: 'subheader', text: ''}
+    ];
+}
+
 // "This Pebble app can read plugins": what gates a setting that shows another app's
 // reading (index.js passes env.plugins; plugin-reader.js available). An older Pebble app
 // has no plugins, and the setting would change nothing there.
@@ -174,5 +191,6 @@ module.exports = {
     alsoWhen: alsoWhen,
     bothWhen: bothWhen,
     tabLink: tabLink,
-    linkRow: linkRow
+    linkRow: linkRow,
+    noteCards: noteCards
 };

@@ -12,6 +12,7 @@
 
 var batteryDays = require('../../status-bars/domain/battery-days.js');
 var pluginValues = require('../../status-bars/domain/plugin-values.js');
+var gates = require('../settings/schema-gates.js');
 
 // The rows after Plugin, while one is picked.
 var PICKED_WHEN = {key: 'pluginValuePlugin', ne: ''};
@@ -42,20 +43,8 @@ var MUNINN_NOTE = 'The Watch battery slot can show Muninn\'s estimate by itself:
  * @returns {Object} Schema section (sheetOnly), 'threshPluginValue'.
  */
 function dialogSection(sheetOf) {
-    return sheetOf('PluginValue', 'Plugin value', [{
-        type: 'subheader',
-        text: 'Days left from Muninn',
-        style: 'info',
-        showWhen: MUNINN_WHEN
-    }, {
-        type: 'staticText',
-        text: MUNINN_NOTE,
-        showWhen: MUNINN_WHEN
-    }, {
-        // The rows' card, under the note: a plain one, untitled (the dialog's title says it).
-        type: 'subheader',
-        text: ''
-    }, {
+    return sheetOf('PluginValue', 'Plugin value', gates.noteCards('Days left from Muninn', MUNINN_NOTE,
+        MUNINN_WHEN).concat([{
         type: 'select',
         messageKey: 'pluginValuePlugin',
         label: 'Plugin',
@@ -88,7 +77,7 @@ function dialogSection(sheetOf) {
         label: 'Last value',
         hintFrom: {resolver: 'pluginValueLast'},
         showWhen: PICKED_WHEN
-    }]);
+    }]));
 }
 
 module.exports = {

@@ -760,21 +760,7 @@ var BATTERY_MUNINN_NOTE = 'The slot can show how many days your watch has left. 
  * @returns {Object} The watch battery slot's sheet (sheetOnly).
  */
 function batterySlotSheet() {
-    var note = [{
-        // A card of its own in the info look, as the Plugin value dialog's Muninn note is.
-        type: 'subheader',
-        text: 'Days left from Muninn',
-        style: 'info',
-        showWhen: BATTERY_MUNINN_WHEN
-    }, {
-        type: 'staticText',
-        text: BATTERY_MUNINN_NOTE,
-        showWhen: BATTERY_MUNINN_WHEN
-    }, {
-        // The rows' card, under the note: a plain one, untitled (the dialog's title says it).
-        type: 'subheader',
-        text: ''
-    }];
+    var note = gates.noteCards('Days left from Muninn', BATTERY_MUNINN_NOTE, BATTERY_MUNINN_WHEN);
     var look = {
         // No hint: the picture of the bar above the rows shows what each look draws.
         type: 'segmented',
