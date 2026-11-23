@@ -7,12 +7,15 @@ typedef struct StatusRow StatusRow;
 
 StatusRow *status_row_create(uint8_t line_id);
 void status_row_destroy(StatusRow *row);
-// The view facts the row renders with, pushed window -> owner -> row before each refresh
-// and draw; the resolver reads only row state. `bounds` is the row's band, `tier` a
-// LayoutTier value (appendix/view_spec.h), the font tier it renders at, and `full_date`
-// says no calendar is on screen (layout_full_date in appendix/view_spec.h: a none-tier
-// view, a radar or graph top, or a quick-view peek), so the row's SLOT_LIVE_DATE renders
-// the full date ("Jul 4. 2026") instead of month-year ("Jul 2026").
+// The view facts the row renders with, pushed window -> owner -> row; the resolver reads
+// only row state. The top strip pushes them at create, on a date density change and before
+// each draw (top_status_layer.c seat_row); a band bar before each refresh (status_bar.c
+// refresh_row), so a bar no configured view shows gets them when it joins. `bounds` is the
+// row's band, `tier` a LayoutTier value (appendix/view_spec.h), the font tier it renders
+// at, and `full_date` says no calendar is on screen (layout_full_date in
+// appendix/view_spec.h: a none-tier view, a radar or graph top, or a quick-view peek), so
+// the row's SLOT_LIVE_DATE renders the full date ("Jul 4. 2026") instead of month-year
+// ("Jul 2026").
 void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, bool full_date);
 bool status_row_refresh(StatusRow *row);
 #if defined(PBL_HEALTH)
