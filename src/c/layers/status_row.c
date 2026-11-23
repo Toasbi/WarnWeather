@@ -102,22 +102,21 @@ struct StatusRow {
 static int s_levels_word;
 
 // The sunrise/sunset arrow, turned for the wind-direction arrow too: one GPath every
-// row shares, created with the first row and destroyed with the last (s_row_count).
+// row shares. It is a static value, never allocated: draw_arrow sets its rotation and
+// offset before each draw, the only fields a draw changes.
 // (The aplite twin draws its sun arrow from primitive lines instead.)
-static GPath *s_arrow_path;
-static const GPathInfo ARROW_PATH_INFO = {
-    .num_points = 6,
-    .points = (GPoint[]) {
-        {0, -ARROW_H / 2},
-        {0, ARROW_H / 2 - ARROW_HEAD_H},
-        {-ARROW_HEAD_W, ARROW_H / 2 - ARROW_HEAD_H},
-        {0, ARROW_H / 2},
-        {ARROW_HEAD_W, ARROW_H / 2 - ARROW_HEAD_H},
-        {0, ARROW_H / 2 - ARROW_HEAD_H}
-    }
+static GPoint s_arrow_points[] = {
+    {0, -ARROW_H / 2},
+    {0, ARROW_H / 2 - ARROW_HEAD_H},
+    {-ARROW_HEAD_W, ARROW_H / 2 - ARROW_HEAD_H},
+    {0, ARROW_H / 2},
+    {ARROW_HEAD_W, ARROW_H / 2 - ARROW_HEAD_H},
+    {0, ARROW_H / 2 - ARROW_HEAD_H}
 };
-
-static int s_row_count;
+static GPath s_arrow = {
+    .num_points = ARRAY_LENGTH(s_arrow_points),
+    .points = s_arrow_points,
+};
 
 uint16_t sig_fold(uint16_t sig, const uint8_t *data, size_t len) {
     for (size_t i = 0; i < len; i++) {
@@ -561,13 +560,6 @@ StatusRow *status_row_create(uint8_t line_id) {
     memset(row, 0, sizeof(StatusRow));
     row->line_id = line_id;
     row->glyph_fg = theme_fg();
-    s_row_count++;
-    if (!s_arrow_path) {
-        s_arrow_path = gpath_create(&ARROW_PATH_INFO);
-        if (!s_arrow_path) {
-            APP_LOG(APP_LOG_LEVEL_ERROR, "No arrow path");
-        }
-    }
     return row;
 }
 
@@ -578,11 +570,6 @@ void status_row_destroy(StatusRow *row) {
     }
     status_on_demand_release(&row->od);
     free(row);
-    s_row_count--;
-    if (s_row_count == 0 && s_arrow_path) {
-        gpath_destroy(s_arrow_path);
-        s_arrow_path = NULL;
-    }
 }
 
 void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, uint8_t line_id) {
@@ -835,16 +822,15 @@ static void swap_in_short_forms(const StatusRow *row, ResolvedSlot slots[STATUS_
     }
 }
 
-// The shared arrow (s_arrow_path), turned to `angle`, centred on `at` and drawn in
-// `ink`, outline and fill: the sunrise/sunset arrow and the wind-direction arrow.
+// The shared arrow (s_arrow), turned to `angle`, centred on `at` and drawn in `ink`,
+// outline and fill: the sunrise/sunset arrow and the wind-direction arrow.
 static void draw_arrow(GContext *ctx, int32_t angle, GPoint at, GColor ink) {
-    if (!s_arrow_path) { return; }
-    gpath_rotate_to(s_arrow_path, angle);
-    gpath_move_to(s_arrow_path, at);
+    gpath_rotate_to(&s_arrow, angle);
+    gpath_move_to(&s_arrow, at);
     graphics_context_set_stroke_color(ctx, ink);
     graphics_context_set_fill_color(ctx, ink);
-    gpath_draw_outline_open(ctx, s_arrow_path);
-    gpath_draw_filled(ctx, s_arrow_path);
+    gpath_draw_outline_open(ctx, &s_arrow);
+    gpath_draw_filled(ctx, &s_arrow);
 }
 
 void status_row_draw(StatusRow *row, GContext *ctx) {
