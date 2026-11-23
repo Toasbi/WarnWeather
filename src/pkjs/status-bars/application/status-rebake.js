@@ -453,15 +453,18 @@ function oweStatus(waitedFor) {
 
 /**
  * Pay what is owed OWED_SOON_MS from now, as the minute's tick would (onTick, with its waits:
- * a NACK's backoff, a weather fetch in flight), rather than up to a minute later: the user is
- * at the phone, looking at the bar for the value they just picked. One timer at a time. With
- * no timer (a host that gives none), or when one of those waits holds it, the tick pays it.
+ * a weather fetch in flight, the Night battery saver's window), rather than up to a minute
+ * later: the user is at the phone, looking at the bar for the value they just picked. One
+ * timer at a time. With no timer (a host that gives none), or when one of those waits holds
+ * it, the tick pays it. So it does while the watch refuses sends (a NACK in a row): their
+ * backoff counts the minute's ticks, and an early payment would cut it short.
  * @returns {void}
  */
 function paySoon() {
     if (soonTimer !== null || typeof deps.setTimeout !== 'function') { return; }
     soonTimer = deps.setTimeout(function () {
         soonTimer = null;
+        if (retry.nacksInARow() > 0) { return; }
         onTick(typeof deps.fetchInFlight === 'function' && Boolean(deps.fetchInFlight()));
     }, OWED_SOON_MS);
 }
@@ -534,12 +537,18 @@ function onTick(fetchInFlight) {
  * snapshot to re-bake, or a bake that throws. A broken re-bake must not strand
  * the forced fetch queued behind it, which may yet heal the watch.
  *
+ * It pays a debt of no trigger's step (oweStatus): its bake carries the news that debt is
+ * for, and paid again while this send waits for its ACK, the same bytes would go out twice
+ * (the outbox can only drop a send the watch already has). A debt with a step waits for its
+ * own payment, the step with it.
+ *
  * @param {string} reason Log label for why the resend fired.
  * @param {Function} [onSuccess] Called after ACK, or at once when nothing is sent.
  * @param {Function} [onFailure] Called on NACK.
  * @returns {boolean} True when a send was attempted.
  */
 function resendStatus(reason, onSuccess, onFailure) {
+    if (owed && !owed.steps.length) { owed = null; }
     return sendStatus(reason, true, onSuccess, onFailure);
 }
 

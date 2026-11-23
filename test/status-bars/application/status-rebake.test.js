@@ -457,6 +457,33 @@ test('news nobody waits for still waits for the tick; a fetch in flight or a NAC
   assert.equal(statusRebake.onTick(false), true, 'sent again by the tick');
 });
 
+test('while the watch refuses sends, a debt the user waits for keeps to their backoff: the timer leaves it to the tick', () => {
+  const h = bootSoon();
+  statusRebake.oweStatus(false);
+  assert.equal(statusRebake.onTick(false), true, 'minute 1');
+  h.answers[0].onFailure({});
+  assert.equal(statusRebake.onTick(false), true, 'minute 2');
+  h.answers[1].onFailure({});
+  statusRebake.oweStatus(true);
+  h.timers[0].fn();
+  assert.equal(h.sends.length, 2, 'not sent by the timer to a watch that refuses');
+  assert.equal(statusRebake.onTick(false), false, 'minute 3: the backoff still waits, its step not taken by the timer');
+  assert.equal(statusRebake.onTick(false), true, 'minute 4, as after any second NACK');
+});
+
+test('a settings save\'s send pays a debt of no step, so the timer sends nothing twice; an answer after it is news of its own', () => {
+  const h = bootSoon();
+  statusRebake.oweStatus(true);   // the answer came before the save's own bake
+  assert.equal(statusRebake.resendStatus('config-close'), true);
+  h.timers[0].fn();
+  assert.equal(h.sends.length, 1, 'the save\'s bake carried it: nothing sent again before its ACK');
+  assert.equal(statusRebake.onTick(false), false, 'nor at the tick');
+  h.answers[0].onSuccess();
+  statusRebake.oweStatus(true);   // an answer after the save's bake is news of its own
+  h.timers[1].fn();
+  assert.equal(h.sends.length, 2);
+});
+
 test('a NACKed owed send is owed again, to the next tick, waited for as it was', () => {
   const h = bootSaver();
   statusRebake.oweStatus(false);
