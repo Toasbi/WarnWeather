@@ -13,6 +13,7 @@
 var settings = require('../../page/settings');
 var KEYS = require('../domain/storage-keys');
 var statusCatalog = require('../../status-bars/domain/status-line-catalog.js');
+var weatherTabModel = require('../../weather/domain/weather-tab-model.js');
 
 var STORAGE_KEY = 'clay-settings';
 
@@ -25,8 +26,12 @@ var STORAGE_KEY = 'clay-settings';
 // separately below.
 var PRESERVED_SETTING_KEYS = ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', 'rainbowApiKey'];
 
-/** The settings that name a place the user typed: the logs never carry a position (redactForLog). */
-var PLACE_SETTING_KEYS = ['location', 'savedLocation1', 'savedLocation2', 'savedLocation3'];
+/**
+ * The settings a log line hides (redactForLog): the credentials, and each place the user typed,
+ * the watch's location and the Weather tab's saved places, since a log never says where the
+ * user is.
+ */
+var LOG_HIDDEN_KEYS = PRESERVED_SETTING_KEYS.concat(['location'], weatherTabModel.SLOT_KEYS);
 
 /**
  * Wipe phone-side PKJS localStorage — the settings blob and every cache /
@@ -163,9 +168,9 @@ function restorePreserved(target) {
 }
 
 /**
- * A copy of a settings blob fit for console.log: each user API key
- * (PRESERVED_SETTING_KEYS, the one list of credential keys) and each place the user
- * typed (PLACE_SETTING_KEYS) becomes '<set>' or ''. PKJS logs end up in bug reports
+ * A copy of a settings blob fit for console.log: each key of LOG_HIDDEN_KEYS, the user's
+ * API keys (PRESERVED_SETTING_KEYS, the one list of credential keys) and each place the
+ * user typed, becomes '<set>' or ''. PKJS logs end up in bug reports
  * and pasted issues, so they must not carry a key someone may have paid for, or
  * where the user is. Logging only -- the copy must never be saved or sent, and the
  * blob itself is left untouched (the page and providers need the real values).
@@ -177,13 +182,12 @@ function redactForLog(blob) {
     var out;
     var i;
     var k;
-    var hidden = PRESERVED_SETTING_KEYS.concat(PLACE_SETTING_KEYS);
     if (!blob || typeof blob !== 'object') {
         return blob;
     }
     out = Object.assign({}, blob);
-    for (i = 0; i < hidden.length; i++) {
-        k = hidden[i];
+    for (i = 0; i < LOG_HIDDEN_KEYS.length; i++) {
+        k = LOG_HIDDEN_KEYS[i];
         if (Object.prototype.hasOwnProperty.call(out, k)) {
             out[k] = out[k] ? '<set>' : '';
         }
