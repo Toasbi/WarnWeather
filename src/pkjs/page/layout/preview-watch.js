@@ -2,7 +2,7 @@
 // pinned preview (block 'watchPreview'): each view of the cycle — Default, then the flicks —
 // drawn as the watch shows it, on its screen's own grid (144×168, emery 200×228) with every
 // band on the seat the watch gives it (view-cycle.js stackSeats: the walk layout.c's
-// compute_layout makes, presets in their tier's legacy order), in the theme's colours.
+// layout_compute_spec makes, presets in their tier's legacy order), in the theme's colours.
 // What fills the bands: the top bar and the status bars with the Status bars tab's sample
 // slots (preview-status-bars.js barSlots), the calendar around today in its weekday and
 // today colours, the clock at the samples' 15:00 in the watch's own digits, and the
@@ -130,7 +130,7 @@
 
     /**
      * Where each band of one view sits on its screen: where the watch places it
-     * (watch-layout.js stackLayout, layout.c compute_layout, kept in lockstep with it), the
+     * (watch-layout.js stackLayout, layout.c layout_compute_spec, kept in lockstep with it), the
      * clock's ink centred between its neighbours' for the time font drawn. A band that fills
      * the stack and ends it runs on to the screen's bottom edge (emery's floor keeps 4 rows the
      * forecast's hour labels end in: graphBand's foot).

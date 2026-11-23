@@ -3364,7 +3364,7 @@ static int cal_ink_bottom_of(GRect top, int rows, int content_h) {
 }
 
 // The clock's two ink neighbours for a laid-out view. Mirrors — deliberately, see above — the
-// neighbour selection in layout.c's compute_layout (for the preset orders).
+// neighbour selection in layout.c's layout_compute_spec (for the preset orders).
 static void clock_neighbours(const MainLayout *L, uint8_t tier, bool upper, bool lower,
                              int *above, int *below) {
     bool compact = (tier == LAYOUT_TIER_COMPACT);

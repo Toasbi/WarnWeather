@@ -1,9 +1,9 @@
 // src/pkjs/page/layout/watch-layout.js — ES5, WebView (+ Node for tests). Where the watch places
-// each band of a view on its screen (layout.c compute_layout), for the settings page's pictures
-// of the watch (preview-watch.js layoutView). It places the bands on the seats of the phone's fit
-// engine (view-cycle.js: topShape, rowTier, rowSeat) and is held to the watch's own placement by
-// scripts/check-fit-lockstep.js (its R lines). Only the page draws with it, so it stays out of
-// view-cycle.js, which the watch-runtime bake carries.
+// each band of a view on its screen (layout.c layout_compute_spec), for the settings page's
+// pictures of the watch (preview-watch.js layoutView). It places the bands on the seats of the
+// phone's fit engine (view-cycle.js: topShape, rowTier, rowSeat) and is held to the watch's own
+// placement by scripts/check-fit-lockstep.js (its R lines). Only the page draws with it, so it
+// stays out of view-cycle.js, which the watch-runtime bake carries.
 (function () {
   var VC = typeof require !== 'undefined' ? require('../../layout/domain/view-cycle.js') : VIEW_CYCLE;
   var FIT_PX = VC.FIT_PX, STACK_ORDERS = VC.STACK_ORDERS;
@@ -64,7 +64,7 @@
   }
 
   /**
-   * Where each band of a view lands on its screen: layout.c compute_layout, for the settings
+   * Where each band of a view lands on its screen: layout.c layout_compute_spec, for the settings
    * page's pictures of the watch. The seats of stackSeats' walk, placed from the strip's
    * reserve down: a top area leading under the strip on the strip's ink, a row on the band
    * row_seat gives it inside its slot (trimmed clear of a radar or graph above it), the band

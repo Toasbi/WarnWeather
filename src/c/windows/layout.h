@@ -76,7 +76,7 @@ LayerVisibility layout_visibility(const ViewSpec *spec);
 // of the forecast-abutting status band (status_forecast_band_h(status_full_tier_font())
 // on the watch; a fixed representative value in host tests). m.clock describes the active time
 // font and moves ONLY the clock — see clock_seat_y above and the clock seating in
-// layout.c's compute_layout: every other rect is byte-identical whatever `ink` says.
+// layout.c's layout_compute_spec: every other rect is byte-identical whatever `ink` says.
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m);
 
 #if defined(WW_QUICK_VIEW)

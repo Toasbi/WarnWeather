@@ -331,7 +331,7 @@ function hasFill(s) {
 
 // ── Fit check (the editor's size pickers) ───────────────────────────────────
 // The watch's band arithmetic in pixels, per screen family (index 0: the 144 px watches,
-// 1: emery) — the SEATS src/c/windows/layout.c compute_layout gives each band, as the
+// 1: emery) — the SEATS src/c/windows/layout.c layout_compute_spec gives each band, as the
 // device renders them (the emery FULL-squeezed status band is 20 px on the watch; the C
 // host goldens use a 24 px stand-in). Kept in lockstep with the C engine by
 // scripts/check-fit-lockstep.js (run from scripts/test-c.sh). `avail*` = floor minus the
@@ -436,7 +436,7 @@ function rowSeat(prev, next, prevUnder, f, tier) {
 /**
  * The seats a stack's bands take on one screen family, in the watch's walk order: the
  * bands the compiled spec shows (STACK_ORDERS[order] + the body), each on its SEAT
- * (compute_layout's row_seat rules), with the clearance a band owes the next one. The
+ * (layout_compute_spec's row_seat rules), with the clearance a band owes the next one. The
  * status rows' tier follows the top area's row count, like the watch (layout.c
  * status_tier_for). A FILL band is counted at its floor: 2 rows, or 3 for the forecast
  * (its labels collide below that). The walk stackNeed sums.

@@ -102,7 +102,7 @@
 //
 // These are ROW lifts and they stay. The clock's own three — FULL_TIME_INK_LIFT,
 // SWAP_TIME_INK_LIFT and NONE_TIME_DROP — are gone: clock_seat_y() now derives that offset from
-// the fonts (see the clock seating in compute_layout). A status row moving is a
+// the fonts (see the clock seating in layout_compute_spec). A status row moving is a
 // different question from where the clock sits, and the rows must NOT move; they keep anchoring
 // to the unlifted `time_y`, which is a plain local the solver never touches.
 #define COMPACT_LONE_ROW_INK_LIFT 0
@@ -586,7 +586,7 @@ static Seat row_seat(uint8_t prev, uint8_t next, bool prev_under,
     return s;
 }
 
-static MainLayout compute_layout(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
+MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
     ClockInk ink = m.clock;
     bool upper = (spec->status_upper != STATUS_SRC_NONE);
     bool lower = (spec->status_lower != STATUS_SRC_NONE);
@@ -834,9 +834,11 @@ static MainLayout compute_layout(GRect bounds, const ViewSpec *spec, LayoutMetri
         if (loading_h < STACK_LOADING_MIN_H) { loading_h = 0; }
         L.loading = GRect(content_x, loading_y, bottom_w, loading_h);
     }
-    // The radar frame: the top area when it is a calendar/radar seat, else the body
-    // (layout_compute_spec re-aliases it to wherever a radar actually sits).
-    L.radar = (present[STK_TOP] && !graph_top) ? L.top : L.bottom;
+    // The radar rides wherever it is placed: the top band when it replaces the calendar,
+    // the body when it is the body (under a kept calendar, or the whole screen), and with
+    // no radar on the screen the top area when that is a calendar seat, else the body.
+    L.radar = (spec->top == TOP_BAND_RADAR
+               || (spec->body != BODY_RADAR && present[STK_TOP] && !graph_top)) ? L.top : L.bottom;
     return L;
 }
 
@@ -854,18 +856,6 @@ static bool spec_is_stacked(const ViewSpec *s) {
     return s->stacked || s->order >= 1 || s->clock_off || s->strip_off
         || s->body == BODY_NONE || s->top == TOP_BAND_GRAPH
         || s->top_size != BAND_SIZE_DEFAULT || s->body_size != BAND_SIZE_DEFAULT;
-}
-
-MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
-    MainLayout L = compute_layout(bounds, spec, m);
-    // Radar rides wherever it's placed: the top band when it replaces the calendar,
-    // otherwise the body band (under a retained calendar, or full-screen in none tier).
-    if (spec->top == TOP_BAND_RADAR) {
-        L.radar = L.top;
-    } else if (spec->body == BODY_RADAR) {
-        L.radar = L.bottom;
-    }
-    return L;
 }
 
 #if defined(WW_VIEW_CYCLE)

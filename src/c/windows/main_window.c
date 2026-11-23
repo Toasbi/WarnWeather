@@ -189,7 +189,6 @@ static void render_active_view(void) {
     // resolved on every render, so a font change in settings re-seats the clock with no extra
     // invalidation path (render_active_view runs before main_window_refresh re-measures text).
     LayoutMetrics metrics = LAYOUT_METRICS_NOW();
-    MainLayout L;
 #if defined(WW_QUICK_VIEW)
     // Peek is derived LIVE from the unobstructed bounds every render (never a cached flag),
     // so it stays correct across settings/timeline/relaunch — any path that lands here
@@ -206,12 +205,13 @@ static void render_active_view(void) {
         // (layout_compute_peek never reads those flags, but the visibility toggles below
         // do) — one helper in layout.h, shared with the host tests.
         layout_peek_spec(&spec);
-        L = layout_compute_peek(unobstructed, &spec, metrics);
-    } else
-#endif
-    {
-        L = layout_compute_spec(bounds, &spec, metrics);
     }
+    // Built straight into L (an initialiser, not an assignment), so the layout is not copied.
+    MainLayout L = peek ? layout_compute_peek(unobstructed, &spec, metrics)
+                        : layout_compute_spec(bounds, &spec, metrics);
+#else
+    MainLayout L = layout_compute_spec(bounds, &spec, metrics);
+#endif
     // Tier push: per-view layout facts flow one way, view spec -> window -> owner ->
     // layer/row state. Layers never read tier facts from config (see CONTEXT.md
     // "Tier push"). Sits after the peek fork above, so the pushed facts track
