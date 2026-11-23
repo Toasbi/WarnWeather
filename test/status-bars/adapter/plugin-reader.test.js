@@ -59,10 +59,58 @@ test('watch passes the category, item and properties through and relays data', (
   assert.equal(fake.requests[0].category, 'phone');
   assert.equal(fake.requests[0].item, 'phone_state');
   assert.deepEqual(fake.requests[0].properties, ['battery_level']);
+  assert.equal('plugin' in fake.requests[0], false, 'no plugin named: the Pebble app picks');
+  assert.equal('limit' in fake.requests[0], false, 'no limit asked');
   fake.push(envelope(84));
   fake.push(envelope(83));
   assert.deepEqual(got.map((e) => pluginReader.numberOf(e, 'battery_level')), [84, 83],
     'every update is relayed, not just the first');
+});
+
+// --- a named plugin -------------------------------------------------------------
+
+const NAMED = { category: 'muninn', item: 'stats', properties: ['daysRemaining'],
+  plugin: '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5f6', limit: 1 };
+
+/**
+ * @param {string} uuid The plugin the update comes from.
+ * @returns {Object} An update with one instance.
+ */
+function from(uuid) {
+  return { pluginUuid: uuid, instances: [{ instanceId: 'a', properties: { daysRemaining: { numericValue: { value: 5 } } } }] };
+}
+
+test('watch passes a named plugin and a limit to subscribeToSource', () => {
+  const fake = fakePebble();
+  pluginReader.watch(fake.pebble, NAMED, () => {}, () => {});
+  assert.equal(fake.requests[0].plugin, NAMED.plugin);
+  assert.equal(fake.requests[0].limit, 1);
+});
+
+test('watch: an update from the named plugin is data, from any other one PLUGIN_UNAVAILABLE', () => {
+  const fake = fakePebble();
+  const got = [];
+  const fails = [];
+  const sub = pluginReader.watch(fake.pebble, NAMED, (e) => got.push(e), (f) => fails.push(f.code));
+  fake.push(from(NAMED.plugin));
+  fake.push(from(NAMED.plugin.toUpperCase()));
+  assert.equal(got.length, 2, 'the named plugin, in either case');
+  // The Pebble app lets another plugin that serves the source answer once the named one is gone.
+  fake.push(from('00000000-0000-0000-0001-000000000001'));
+  fake.push({ instances: [] });
+  assert.deepEqual(fails, ['PLUGIN_UNAVAILABLE', 'PLUGIN_UNAVAILABLE'], 'another plugin, and none named');
+  assert.equal(got.length, 2);
+  assert.equal(sub.live(), true, 'a standing subscription keeps listening');
+});
+
+test('readOnce: an answer from another plugin than the named one ends it as PLUGIN_UNAVAILABLE', () => {
+  const fake = fakePebble();
+  const timers = fakeTimers();
+  const calls = [];
+  pluginReader.readOnce(fake.pebble, NAMED, (e, f) => calls.push([e, f]), timers);
+  fake.push(from('00000000-0000-0000-0001-000000000001'));
+  assert.deepEqual(calls, [[null, { stage: 'plugin', code: 'PLUGIN_UNAVAILABLE' }]]);
+  assert.equal(fake.unsubscribed, 1);
 });
 
 test('watch maps onError({code}) to a plugin failure and keeps the subscription', () => {
@@ -291,4 +339,57 @@ test('numberOf is null for anything that is not a number', () => {
   [NaN, Infinity, -Infinity, '84', null, undefined, {}].forEach((bad) =>
     assert.equal(pluginReader.numberOf(envelope(bad), 'battery_level'), null,
       'value ' + String(bad)));
+});
+
+// --- readingOf ---------------------------------------------------------------
+
+/**
+ * @param {Object} shapes A property's shapes.
+ * @returns {Object} An update whose first instance has the property `v` with those shapes.
+ */
+function withShapes(shapes) {
+  return { pluginUuid: 'p', instances: [{ instanceId: 'a', properties: { v: shapes } }] };
+}
+
+test('readingOf: each text shape and the number with its unit, as the plugin sent them', () => {
+  assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: '87%' },
+    numericValue: { value: 87, unit: '%', min: 0, max: 100 }, longText: { text: 'Battery at 87%' } }), 'v'),
+  { short: '87%', number: 87, unit: '%', long: 'Battery at 87%' });
+  assert.deepEqual(pluginReader.readingOf(withShapes({ numericValue: { value: 21.5 } }), 'v'),
+    { short: null, number: 21.5, unit: null, long: null }, 'a number alone');
+  assert.deepEqual(pluginReader.readingOf(withShapes({ longText: { text: 'Next: Design review' } }), 'v'),
+    { short: null, number: null, unit: null, long: 'Next: Design review' }, 'a long text alone');
+  assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: '  5G \n' },
+    numericValue: { value: 0, unit: ' kWh ' } }), 'v'),
+  { short: '5G', number: 0, unit: 'kWh', long: null }, 'trimmed; zero is a number');
+});
+
+test('readingOf: the first instance only', () => {
+  const two = withShapes({ shortText: { text: 'first' } });
+  two.instances.push({ instanceId: 'b', properties: { v: { shortText: { text: 'second' } } } });
+  assert.equal(pluginReader.readingOf(two, 'v').short, 'first');
+});
+
+test('readingOf: null where the property brings neither a text nor a number', () => {
+  assert.equal(pluginReader.readingOf(withShapes({ shortText: { text: 'x' } }), 'other'), null, 'a missing property');
+  assert.equal(pluginReader.readingOf(null, 'v'), null);
+  assert.equal(pluginReader.readingOf({ instances: [] }, 'v'), null, 'no instance');
+  assert.equal(pluginReader.readingOf(withShapes({ boolean: { value: true } }), 'v'), null, 'a boolean alone');
+  assert.equal(pluginReader.readingOf(withShapes({ shortText: { text: '   ' }, longText: { text: '' } }), 'v'), null,
+    'empty texts');
+  assert.equal(pluginReader.readingOf(withShapes({ numericValue: { value: NaN, unit: '%' } }), 'v'), null,
+    'no number: its unit alone says nothing');
+  assert.equal(pluginReader.readingOf(withShapes('87%'), 'v'), null, 'shapes that are not an object');
+  assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: 87 }, numericValue: { value: '87', unit: 3 },
+    longText: { text: 'ok' } }), 'v'), { short: null, number: null, unit: null, long: 'ok' }, 'fields of the wrong type');
+});
+
+// --- validUntilOf ------------------------------------------------------------
+
+test('validUntilOf: the envelope\'s validUntilMs when it is a time', () => {
+  assert.equal(pluginReader.validUntilOf({ validUntilMs: 1795000000000, instances: [] }), 1795000000000);
+  assert.equal(pluginReader.validUntilOf({ instances: [] }), null, 'none sent');
+  assert.equal(pluginReader.validUntilOf(null), null);
+  [0, -5, NaN, Infinity, '1795000000000', null].forEach((bad) =>
+    assert.equal(pluginReader.validUntilOf({ validUntilMs: bad }), null, String(bad)));
 });

@@ -34,6 +34,11 @@ var READ_TIMEOUT_MS = 20000;
  * @property {string} category The source's category, e.g. 'phone'.
  * @property {string} item Its item, e.g. 'phone_state'.
  * @property {string[]} [properties] The properties wanted (a hint; a plugin may send more).
+ * @property {string} [plugin] The uuid of the plugin that must answer. The Pebble app takes
+ *   it as a preference and lets another plugin that serves the source answer when that one
+ *   is gone, so an answer from any other plugin reads as PLUGIN_UNAVAILABLE here.
+ * @property {number} [limit] The most instances wanted (a Pebble app from 2.0.0 sends no
+ *   more; an older one ignores it).
  */
 
 /**
@@ -65,6 +70,18 @@ function failure(code) {
 }
 
 /**
+ * @param {?Object} envelope A source update.
+ * @param {string} [plugin] The uuid the request named, if any.
+ * @returns {boolean} Whether the update may stand for the request: any update when the
+ *   request named no plugin, else one from that plugin.
+ */
+function fromNamedPlugin(envelope, plugin) {
+    if (!plugin) { return true; }
+    var from = envelope && envelope.pluginUuid;
+    return typeof from === 'string' && from.toLowerCase() === String(plugin).toLowerCase();
+}
+
+/**
  * @typedef {Object} PluginSubscription
  * @property {function(): void} unsubscribe Ends it. Never throws, may be called again, and
  *   is valid inside a callback, even one that runs before watch() has returned. No
@@ -77,7 +94,8 @@ function failure(code) {
  * Subscribe to a source for as long as PKJS lives (or until unsubscribe()). An error does
  * not end a subscription: a later update may succeed, so onFailure can be called more than
  * once, and onData after it. A subscription that could not start (no plugins in this
- * Pebble app, or subscribeToSource threw) reports one failure and is handed back ended.
+ * Pebble app, or subscribeToSource threw) reports one failure and is handed back ended. An
+ * update from a plugin other than the one the request names is a PLUGIN_UNAVAILABLE failure.
  *
  * @param {?Object} pebble The Pebble object.
  * @param {PluginRequest} request The source to read.
@@ -107,14 +125,21 @@ function watch(pebble, request, onData, onFailure) {
         onFailure(failure('PLUGIN_UNAVAILABLE'), handle);
         return handle;
     }
+    var config = {
+        category: request.category,
+        item: request.item,
+        properties: request.properties,
+        onData: function (envelope) {
+            if (ended) { return; }
+            if (fromNamedPlugin(envelope, request.plugin)) { onData(envelope, handle); }
+            else { onFailure(failure('PLUGIN_UNAVAILABLE'), handle); }
+        },
+        onError: function (err) { if (!ended) { onFailure(failure(err && err.code), handle); } }
+    };
+    if (request.plugin) { config.plugin = request.plugin; }
+    if (request.limit) { config.limit = request.limit; }
     try {
-        inner = pebble.subscribeToSource({
-            category: request.category,
-            item: request.item,
-            properties: request.properties,
-            onData: function (envelope) { if (!ended) { onData(envelope, handle); } },
-            onError: function (err) { if (!ended) { onFailure(failure(err && err.code), handle); } }
-        }) || null;
+        inner = pebble.subscribeToSource(config) || null;
     }
     catch (ex) {
         if (!ended) {
@@ -171,18 +196,90 @@ function readOnce(pebble, request, done, timers) {
 }
 
 /**
+ * A property's shapes in the envelope's first instance: {shortText: {text}, numericValue:
+ * {value, unit}, longText: {text}, ...} as the plugin sent them.
+ *
+ * @param {?Object} envelope A source update.
+ * @param {string} property The property's name.
+ * @returns {?Object} The shapes, or null where the plugin did not send the property (a
+ *   missing property means the plugin cannot serve it right now).
+ */
+function shapesOf(envelope, property) {
+    var instance = envelope && envelope.instances && envelope.instances[0];
+    var shapes = instance && instance.properties && instance.properties[property];
+    return shapes && typeof shapes === 'object' ? shapes : null;
+}
+
+/**
+ * @param {*} value A shape's field.
+ * @returns {?number} The value when it is a finite number, else null.
+ */
+function finite(value) {
+    return typeof value === 'number' && isFinite(value) ? value : null;
+}
+
+/**
+ * @param {?Object} shape A text shape ({text}).
+ * @returns {?string} Its text, trimmed, or null for none or an empty one.
+ */
+function textIn(shape) {
+    var text = shape && typeof shape.text === 'string' ? shape.text.replace(/^\s+|\s+$/g, '') : '';
+    return text ? text : null;
+}
+
+/**
  * A property's number: the numericValue of the envelope's first instance.
  *
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
- * @returns {?number} The number, or null where the plugin did not send one (a missing
- *   property means the plugin cannot serve it right now).
+ * @returns {?number} The number, or null where the plugin did not send one.
  */
 function numberOf(envelope, property) {
-    var instance = envelope && envelope.instances && envelope.instances[0];
-    var shapes = instance && instance.properties && instance.properties[property];
-    var value = shapes && shapes.numericValue ? shapes.numericValue.value : null;
-    return typeof value === 'number' && isFinite(value) ? value : null;
+    var shapes = shapesOf(envelope, property);
+    return finite(shapes && shapes.numericValue ? shapes.numericValue.value : null);
+}
+
+/**
+ * @typedef {Object} PluginReading
+ * @property {?string} short The property's shortText.
+ * @property {?number} number Its numericValue's value.
+ * @property {?string} unit That value's unit ('%', '°C', 'kWh').
+ * @property {?string} long Its longText.
+ */
+
+/**
+ * A property's reading in the envelope's first instance: each text shape and the number,
+ * as the plugin sent them (texts trimmed). What the slot shows of it is the status bars'
+ * rule (plugin-values.js).
+ *
+ * @param {?Object} envelope A source update.
+ * @param {string} property The property's name.
+ * @returns {?PluginReading} The reading, or null where the property brings neither a text
+ *   nor a number.
+ */
+function readingOf(envelope, property) {
+    var shapes = shapesOf(envelope, property);
+    if (!shapes) { return null; }
+    var numeric = shapes.numericValue;
+    var reading = {
+        short: textIn(shapes.shortText),
+        number: finite(numeric ? numeric.value : null),
+        unit: numeric && typeof numeric.unit === 'string' ? textIn({ text: numeric.unit }) : null,
+        long: textIn(shapes.longText)
+    };
+    return reading.short === null && reading.number === null && reading.long === null ? null : reading;
+}
+
+/**
+ * Until when the plugin says its update holds (the envelope's validUntilMs): the plugin's
+ * own word on when it has something new.
+ *
+ * @param {?Object} envelope A source update.
+ * @returns {?number} The time in ms since the epoch, or null where it said nothing usable.
+ */
+function validUntilOf(envelope) {
+    var until = finite(envelope ? envelope.validUntilMs : null);
+    return until !== null && until > 0 ? until : null;
 }
 
 module.exports = {
@@ -192,5 +289,7 @@ module.exports = {
     failure: failure,
     watch: watch,
     readOnce: readOnce,
-    numberOf: numberOf
+    numberOf: numberOf,
+    readingOf: readingOf,
+    validUntilOf: validUntilOf
 };
