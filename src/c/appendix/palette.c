@@ -3,15 +3,28 @@
 #include "persist.h"
 #include <string.h>
 
-// Two independent channels. Legacy defaults (colour build / single black on
-// B&W) render until each channel's first palette arrives.
-static ChartColorStop s_bar_stops[PALETTE_MAX_STOPS];
-static int s_bar_num_stops = 0;
-static ChartColorStop s_radar_stops[PALETTE_MAX_STOPS];
-static int s_radar_num_stops = 0;
+// One palette channel: its stops, and how many (0 until it is set, or read from
+// persist). Two independent channels, the bars' and the radar's. Legacy defaults
+// (colour build / single black on B&W) render until each channel's first palette
+// arrives.
+typedef struct {
+    ChartColorStop stops[PALETTE_MAX_STOPS];
+    int num;
+} PaletteChannel;
 
-static void fill_defaults(ChartColorStop *stops, int *num) {
-    if (*num > 0) { return; }
+static PaletteChannel s_bar;
+static PaletteChannel s_radar;
+
+// A persist_get_bar/radar_palette accessor: fills the buffer, returns byte count
+// (<=0 when the key is absent). Top-level const on the size param is not part of
+// the function type, so the persist_get_* functions match this exactly.
+typedef int (*PaletteReader)(uint8_t *buffer, const size_t buffer_size);
+// A persist_set_bar/radar_palette accessor: stores the packed blob.
+typedef bool (*PaletteWriter)(uint8_t *data, const size_t size);
+
+static void fill_defaults(PaletteChannel *c) {
+    if (c->num > 0) { return; }
+    ChartColorStop *stops = c->stops;
     if (theme_is_bw()) {
         // B&W (real hardware, or the Black & White theme on a color build): single
         // theme_bg() stop; the watch pairs it with a theme_fg() outline
@@ -20,7 +33,7 @@ static void fill_defaults(ChartColorStop *stops, int *num) {
         // bw-light's theme_bg() is white, the polarity mirror (white fill, black
         // outline).
         stops[0] = (ChartColorStop){ 0, theme_bg() };
-        *num = 1;
+        c->num = 1;
         return;
     }
     stops[0] = (ChartColorStop){ 0,   GColorLightGray };
@@ -28,7 +41,7 @@ static void fill_defaults(ChartColorStop *stops, int *num) {
     stops[2] = (ChartColorStop){ 340, GColorGreen };
     stops[3] = (ChartColorStop){ 560, GColorYellow };
     stops[4] = (ChartColorStop){ 780, GColorSunsetOrange };
-    *num = 5;
+    c->num = 5;
 }
 
 // Parse the packed blob (3 B/stop) into `out`. Returns count, or -1 if the
@@ -45,24 +58,19 @@ static int parse_packed(const uint8_t *packed, int len, ChartColorStop *out) {
     return count;
 }
 
-// A persist_get_bar/radar_palette accessor: fills the buffer, returns byte count
-// (<=0 when the key is absent). Top-level const on the size param is not part of
-// the function type, so the persist_get_* functions match this exactly.
-typedef int (*PaletteReader)(uint8_t *buffer, const size_t buffer_size);
-
-// Load a persisted packed palette into `store`. Returns true when a valid blob
-// was read; false (store untouched) when the key is absent or malformed.
-static bool load_persisted(ChartColorStop *store, int *store_num, PaletteReader get_fn) {
+// Load a persisted packed palette into channel `c`. Returns true when a valid blob
+// was read; false (channel untouched) when the key is absent or malformed.
+static bool load_persisted(PaletteChannel *c, PaletteReader get_fn) {
     uint8_t packed[PALETTE_MAX_STOPS * 3];
     int len = get_fn(packed, sizeof(packed));
     if (len <= 0) { return false; }
-    int count = parse_packed(packed, len, store);
+    int count = parse_packed(packed, len, c->stops);
     if (count < 1) { return false; }
-    *store_num = count;
+    c->num = count;
     return true;
 }
 
-static bool apply(const uint8_t *packed, int len, ChartColorStop *store, int *store_num) {
+static bool apply(const uint8_t *packed, int len, PaletteChannel *c) {
     // Zero-init so the struct's 1-byte tail padding is deterministic: the
     // changed-check below memcmp's whole structs (incl. padding), and an
     // uninitialized pad byte could spuriously report a change — at most one
@@ -70,13 +78,34 @@ static bool apply(const uint8_t *packed, int len, ChartColorStop *store, int *st
     ChartColorStop next[PALETTE_MAX_STOPS] = {0};
     int count = parse_packed(packed, len, next);
     if (count < 1) { return false; }
-    bool changed = (count != *store_num)
-        || memcmp(next, store, sizeof(ChartColorStop) * count) != 0;
+    bool changed = (count != c->num)
+        || memcmp(next, c->stops, sizeof(ChartColorStop) * count) != 0;
     if (changed) {
-        memcpy(store, next, sizeof(ChartColorStop) * count);
-        *store_num = count;
+        memcpy(c->stops, next, sizeof(ChartColorStop) * count);
+        c->num = count;
     }
     return changed;
+}
+
+// Set channel `c` from a packed blob, and persist the blob through `save` when it
+// changed the channel. Returns whether it did.
+static bool channel_set(PaletteChannel *c, const uint8_t *packed, int len, PaletteWriter save) {
+    bool changed = apply(packed, len, c);
+    if (changed) {
+        save((uint8_t*) packed, (size_t) len);
+    }
+    return changed;
+}
+
+// Channel `c`'s stops: as set, else as persisted (read through `read`), else the
+// defaults.
+static const ChartColorStop *channel_stops(PaletteChannel *c, int *num_stops,
+                                           PaletteReader read) {
+    if (c->num == 0 && !load_persisted(c, read)) {
+        fill_defaults(c);
+    }
+    *num_stops = c->num;
+    return c->stops;
 }
 
 #if defined(PBL_PLATFORM_EMERY)
@@ -88,37 +117,19 @@ int palette_parse_stops(const uint8_t *packed, int len, ChartColorStop *out) {
 #endif
 
 bool palette_set_bar(const uint8_t *packed, int len) {
-    bool changed = apply(packed, len, s_bar_stops, &s_bar_num_stops);
-    if (changed) {
-        persist_set_bar_palette((uint8_t*) packed, (size_t) len);
-    }
-    return changed;
+    return channel_set(&s_bar, packed, len, persist_set_bar_palette);
 }
 
 bool palette_set_radar(const uint8_t *packed, int len) {
-    bool changed = apply(packed, len, s_radar_stops, &s_radar_num_stops);
-    if (changed) {
-        persist_set_radar_palette((uint8_t*) packed, (size_t) len);
-    }
-    return changed;
+    return channel_set(&s_radar, packed, len, persist_set_radar_palette);
 }
 
 const ChartColorStop *palette_bar_stops(int *num_stops) {
-    if (s_bar_num_stops == 0
-            && !load_persisted(s_bar_stops, &s_bar_num_stops, persist_get_bar_palette)) {
-        fill_defaults(s_bar_stops, &s_bar_num_stops);
-    }
-    *num_stops = s_bar_num_stops;
-    return s_bar_stops;
+    return channel_stops(&s_bar, num_stops, persist_get_bar_palette);
 }
 
 const ChartColorStop *palette_radar_stops(int *num_stops) {
-    if (s_radar_num_stops == 0
-            && !load_persisted(s_radar_stops, &s_radar_num_stops, persist_get_radar_palette)) {
-        fill_defaults(s_radar_stops, &s_radar_num_stops);
-    }
-    *num_stops = s_radar_num_stops;
-    return s_radar_stops;
+    return channel_stops(&s_radar, num_stops, persist_get_radar_palette);
 }
 
 GColor palette_radar_color(int tier) {
