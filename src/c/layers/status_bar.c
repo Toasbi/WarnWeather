@@ -10,28 +10,16 @@
 typedef struct {
     Layer *layer;
     StatusRow *row;
-    uint8_t tier;
-    bool full_date;
 } StatusBar;
 
-// The pre-create tier is COMPACT, as it was in each of the three predecessors.
-// Keep the explicit initialiser: defaulting it to 0 would silently make the
-// pre-create tier FULL. (It moves the struct from .bss to .data; the aplite image
-// check sums text+data+bss, so the total is unchanged.)
-static StatusBar s_bars[STATUS_BAR_COUNT] = {
-    [STATUS_BAR_FORECAST] = { .tier = LAYOUT_TIER_COMPACT },
-#if defined(WW_RAIN_RADAR)
-    [STATUS_BAR_RADAR]    = { .tier = LAYOUT_TIER_COMPACT },
-#endif
-#if defined(PBL_HEALTH)
-    [STATUS_BAR_HEALTH]   = { .tier = LAYOUT_TIER_COMPACT },
-#endif
-#if defined(PBL_PLATFORM_EMERY)
-    [STATUS_BAR_4]        = { .tier = LAYOUT_TIER_COMPACT },   // emery: bars 4 to 6
-    [STATUS_BAR_5]        = { .tier = LAYOUT_TIER_COMPACT },
-    [STATUS_BAR_6]        = { .tier = LAYOUT_TIER_COMPACT },
-#endif
-};
+static StatusBar s_bars[STATUS_BAR_COUNT];
+
+// The view facts every bar takes alike (the view spec's status tier and date density),
+// held once. The pre-create tier is COMPACT, as it was in each of the three predecessors.
+// Keep the explicit initialiser: defaulting it to 0 would silently make the pre-create
+// tier FULL.
+static uint8_t s_tier = LAYOUT_TIER_COMPACT;
+static bool s_full_date;
 
 #if defined(WW_VIEW_CYCLE)
 // The bars the configured views show (status_bar_set_in_use), as a mask of
@@ -142,7 +130,7 @@ static inline LayerUpdateProc bar_proc(StatusBarId id) {
 static void apply_row(StatusBarId id) {
     StatusBar *b = &s_bars[id];
     if (!b->row || !b->layer) { return; }
-    status_row_apply(b->row, layer_get_bounds(b->layer), b->tier, bar_line(id));
+    status_row_apply(b->row, layer_get_bounds(b->layer), s_tier, bar_line(id));
 }
 
 static void refresh_row(StatusBarId id) {
@@ -159,27 +147,20 @@ static void refresh_row(StatusBarId id) {
     }
 }
 
-static bool frame_equal(GRect a, GRect b) {
-    return a.origin.x == b.origin.x && a.origin.y == b.origin.y
-        && a.size.w == b.size.w && a.size.h == b.size.h;
-}
-
 // ── External ─────────────────────────────────────────────────────────────────
 
 void status_bar_create_all(Layer *parent, const ViewSpec *spec, const MainLayout *L) {
-    // Seed the per-view facts BEFORE creating, so each row's first layout already
-    // uses the boot view's tier and date density rather than a default.
-    const uint8_t tier = spec->status_tier;
-    const bool full_date = layout_full_date(spec);
+    // Seed the view facts BEFORE creating, so each row's first layout already uses the
+    // boot view's tier and date density rather than a default.
+    s_tier = spec->status_tier;
+    s_full_date = layout_full_date(spec);
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
         StatusBar *b = &s_bars[i];
-        b->tier = tier;
-        b->full_date = full_date;
         b->layer = layer_create(layout_status_band(spec, L, bar_source((StatusBarId) i)));
         layer_set_update_proc(b->layer, bar_proc((StatusBarId) i));
         layer_add_child(parent, b->layer);
         b->row = status_row_create(bar_line((StatusBarId) i));
-        status_row_set_full_date(b->row, full_date);
+        status_row_set_full_date(b->row, s_full_date);
         refresh_row((StatusBarId) i);   // seats the row (refresh_row applies first)
     }
 }
@@ -196,8 +177,13 @@ void status_bar_set_in_use(uint8_t sources) {
 #endif
 
 void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L) {
-    const uint8_t tier = spec->status_tier;
     const bool full_date = layout_full_date(spec);
+    const bool date_changed = full_date != s_full_date;
+    // Change-gated: an unchanged view must not re-resolve a row, or a settings save
+    // would re-read persist for rows whose content never moved.
+    const bool view_changed = date_changed || spec->status_tier != s_tier;
+    s_tier = spec->status_tier;
+    s_full_date = full_date;
 
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
         StatusBar *b = &s_bars[i];
@@ -213,21 +199,13 @@ void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L) {
         // pairing is exactly the implicit coupling this module exists to remove.
         // Frame every bar, hidden ones included, so a later un-hide lands right.
         const GRect band = layout_status_band(spec, L, src);
-        const bool moved = !frame_equal(band, layer_get_frame(b->layer));
+        const GRect frame = layer_get_frame(b->layer);
+        const bool moved = !grect_equal(&band, &frame);
         layer_set_frame(b->layer, band);
         layer_set_hidden(b->layer, !layout_status_visible(spec, src));
 
-        // Change-gated: an unchanged view must not re-resolve a row, or a settings
-        // save would re-read persist for rows whose content never moved. A band
-        // that moves needs no arm of its own: `moved` already catches it.
-        bool changed = moved;
-        if (b->tier != tier) { b->tier = tier; changed = true; }
-        if (b->full_date != full_date) {
-            b->full_date = full_date;
-            status_row_set_full_date(b->row, full_date);
-            changed = true;
-        }
-        if (changed) { refresh_row(id); }
+        if (date_changed) { status_row_set_full_date(b->row, full_date); }
+        if (moved || view_changed) { refresh_row(id); }
     }
 }
 

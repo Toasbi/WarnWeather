@@ -125,6 +125,10 @@ void layer_set_frame(Layer *layer, GRect frame) {
 }
 
 GRect layer_get_frame(const Layer *layer) { return layer->frame; }
+bool grect_equal(const GRect *const a, const GRect *const b) {
+    return a->origin.x == b->origin.x && a->origin.y == b->origin.y
+        && a->size.w == b->size.w && a->size.h == b->size.h;
+}
 
 void layer_set_hidden(Layer *layer, bool hidden) { layer->hidden = hidden; }
 bool layer_get_hidden(const Layer *layer) { return layer->hidden; }

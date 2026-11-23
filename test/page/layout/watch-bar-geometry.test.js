@@ -86,7 +86,7 @@ test('the Pebble Classic and Steel inset their strip as the 144 px watches do wh
 });
 
 test('the other bars\' rows span their band: no inset of their own', () => {
-  assert.match(C('layers/status_bar.c'), /status_row_apply\(b->row, layer_get_bounds\(b->layer\), b->tier, bar_line\(id\)\);/);
+  assert.match(C('layers/status_bar.c'), /status_row_apply\(b->row, layer_get_bounds\(b->layer\), s_tier, bar_line\(id\)\);/);
   [0, 1].forEach((f) => {
     const pad = f ? 2 : 0;
     ['forecast', 'health', 'radar', 'bar4'].forEach((bar) => {

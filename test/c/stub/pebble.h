@@ -14,6 +14,7 @@ typedef struct { GPoint origin; GSize size; } GRect;
 #define GRect(x, y, w, h) \
     ((GRect){ .origin = { (int16_t)(x), (int16_t)(y) }, .size = { (int16_t)(w), (int16_t)(h) } })
 #define GPoint(x, y) ((GPoint){ (int16_t)(x), (int16_t)(y) })
+bool grect_equal(const GRect *const rect_a, const GRect *const rect_b);
 
 // --- health_cache_test.c additions ------------------------------------------
 // health_cache.c pulls in persist.h/bottom_view.h/chart.h, whose DECLARATIONS
