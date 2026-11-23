@@ -81,8 +81,7 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
 // What the row hands the layout and the paint, in absolute coordinates in the row's
 // layer.
 typedef struct {
-    GFont font;             // the row's regular font
-    GFont bold;             // its bold companion
+    GFont fonts[2];         // the row's regular font [0] and its bold companion [1]
     const uint8_t *blob;    // thresholds settings blob, normalized (THRESH_SCRATCH_BYTES)
     GRect band;             // the row's band — the highlight boxes clamp to it
     int16_t x;              // left edge of the row's content (the slots' origin)
@@ -133,8 +132,8 @@ void status_on_demand_collect(const StatusOnDemandRow *row, StatusOnDemandPass *
 // After status_on_demand_collect(), for slot `i` (0 left, 1 middle, 2 right) of the
 // draw, `kind` its ThreshKind: the level the slot is drawn at for the weather alert it
 // merged (alert_set_merge) — the alert's, whatever the slot's own Alert highlighting
-// says — and 0 for a slot that merged none. A query: status_on_demand_layout() derives
-// which item merged from the slots it is given, whether or not this ran.
+// says — and 0 for a slot that merged none. The row records the item that merged in
+// the slot (StatusRowSlot.merged_item), which status_on_demand_layout() reads.
 static inline uint8_t status_on_demand_merge(const StatusOnDemandPass *pass, int i,
                                              int kind) {
     return alert_set_merge(&pass->state.set, pass->state.side, i, kind);

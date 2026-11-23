@@ -439,8 +439,8 @@ _Static_assert(STATUS_ROW_ALT_MAX == (DATE_FORMAT_SHORT_MAX > STATUS_TEXT_ALT_MA
                                       ? DATE_FORMAT_SHORT_MAX : STATUS_TEXT_ALT_MAX),
                "a slot's alt holds the condition's and the date's short forms");
 
-// Resolve one slot of an already-loaded pass (load_pass filled `view`), all but its
-// font. `i` is the slot's position in a draw (0 left, 1 middle, 2 right), after
+// Resolve one slot of an already-loaded pass (load_pass filled `view`). `i` is the
+// slot's position in a draw (0 left, 1 middle, 2 right), after
 // status_on_demand_collect(), so it can take the level of a weather alert it merged;
 // -1 outside a draw.
 static void resolve_slot(const StatusRow *row, const StatusSlotView *view,
@@ -448,9 +448,8 @@ static void resolve_slot(const StatusRow *row, const StatusSlotView *view,
     out->slot = *view;
     out->dir = resolve_slot_text(row, &out->slot, out->text, sizeof(out->text), out->alt,
                                  sizeof(out->alt));
-    // The ThreshKind is scaffolding, not a result: every consumer of it lives in
-    // this function, so it stays a local. (The array it replaced carried it across
-    // two loops, which is why the first cut made it a field.)
+    // The slot's ThreshKind: its level, its look and the alert it merged all follow
+    // from it here.
     const int thresh_kind = status_threshold_kind_for_slot(out->slot.kind,
                                                               out->slot.icon);
     // NORMAL while the kind's Highlight switch is off; weather kinds read the
@@ -462,6 +461,7 @@ static void resolve_slot(const StatusRow *row, const StatusSlotView *view,
     // Never on the refresh path: what a merge depends on (the entries, the cells, the
     // slot) is signed there already.
     const uint8_t merged = i < 0 ? 0 : status_on_demand_merge(&s_od_pass, i, thresh_kind);
+    out->merged_item = merged ? (int8_t)alert_set_item(thresh_kind) : -1;
     out->level = merged ? merged : (uint8_t)status_threshold_slot_level(s_thresh_scratch,
         s_levels_word, thresh_kind, slot_health_value(thresh_kind));
     // The box (none at NORMAL, filled at DANGER, the kind's warn look at WARN), the
@@ -675,23 +675,23 @@ int16_t status_row_text_w(const char *text, GFont font, int16_t content_w, int16
         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
 }
 
-// Measured footprint of one slot: icon width (status_row_layout.h status_slot_icon_w: the
+// Measured footprint of slot `i`: icon width (status_row_layout.h status_slot_icon_w: the
 // battery glyph, alone or before the Watch battery's text, a loaded PDC, or the drawn-sun
-// arrow) + text width + the trailing wind-direction arrow's lane.
-// The draw pass feeds it a StatusRowSlot's font/slot/text/dir — the slot's own font
-// above all, since a bold slot's glyphs are wider than the regular font would
-// measure — and whether the watch is `charging` (the battery glyph's bolt lane).
-static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
-                                      int16_t content_w, const StatusSlotView *slot,
-                                      const char *text, int8_t dir, bool charging) {
+// arrow) + text width + the trailing wind-direction arrow's lane. The text measures in
+// the font the slot is drawn in, of the row's `fonts` (a bold slot's glyphs are wider),
+// and `charging` says whether the battery glyph keeps its bolt lane.
+static StatusSlotMeasure measure_slot(StatusRow *row, int i, const StatusRowSlot *s,
+                                      const GFont fonts[2], int16_t content_w,
+                                      bool charging) {
     // Zero-init, not field-by-field: an unassigned field here is indeterminate
     // stack memory that status_row_layout would read as a real reserve.
     StatusSlotMeasure m = {0};
     const int16_t drawing_w = row->glyphs[i]
         ? gdraw_command_image_get_bounds_size(row->glyphs[i]).w : 0;
-    const int16_t icon_w = status_slot_icon_w(slot->kind, slot->icon, charging, drawing_w,
-                                              ARROW_W);
-    int16_t text_w = status_row_text_w(text, font, content_w, row->bounds.size.h);
+    const int16_t icon_w = status_slot_icon_w(s->slot.kind, s->slot.icon, charging,
+                                              drawing_w, ARROW_W);
+    int16_t text_w = status_row_text_w(s->text, fonts[s->look.bold], content_w,
+                                       row->bounds.size.h);
     m.present = icon_w > 0 || text_w > 0;
     m.icon_w = icon_w;
     m.text_w = text_w;
@@ -700,7 +700,7 @@ static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
     // down — and this arrow turns to any of 16. At 45 degrees the shape's extent
     // across x is its LONG axis, so the lane is an ARROW_H square: the box a
     // rotation can never push the path out of.
-    m.suffix_w = (dir >= 0) ? ARROW_H : 0;
+    m.suffix_w = (s->dir >= 0) ? ARROW_H : 0;
     return m;
 }
 
@@ -732,13 +732,14 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
 // layout, before On demand makes room, so the ladder starts from the form the slot draws; a
 // slot that swaps has no short member left (`alt` is spent).
 static void swap_in_short_forms(const StatusRow *row, StatusRowSlot slots[STATUS_SLOT_COUNT],
-                                StatusSlotMeasure m[STATUS_SLOT_COUNT],
+                                const GFont fonts[2], StatusSlotMeasure m[STATUS_SLOT_COUNT],
                                 StatusSlotPlace plain[STATUS_SLOT_COUNT], int16_t content_w) {
     int16_t alt_w[STATUS_SLOT_COUNT];
     uint8_t own = 0;   // the date: its short form only where its own text is cut
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         alt_w[i] = slots[i].alt[0] != '\0'
-            ? status_row_text_w(slots[i].alt, slots[i].font, content_w, row->bounds.size.h)
+            ? status_row_text_w(slots[i].alt, fonts[slots[i].look.bold], content_w,
+                                row->bounds.size.h)
             : -1;
         if (slots[i].slot.kind == SLOT_LIVE_DATE) { own |= (uint8_t)(1u << i); }
     }
@@ -795,15 +796,11 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     const bool charging = batt.is_charging || batt.is_plugged;
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         resolve_slot(row, &views[i], &slots[i], i);
-        // A crossed slot's glyphs are wider in bold, so it MEASURES with the font it is
-        // about to be drawn with.
-        slots[i].font = fonts[slots[i].look.bold];
-        measures[i] = measure_slot(row, i, slots[i].font, content_w,
-                                   &slots[i].slot, slots[i].text, slots[i].dir, charging);
+        measures[i] = measure_slot(row, i, &slots[i], fonts, content_w, charging);
     }
     // Its scratch is the layout's own places, which status_on_demand_layout overwrites.
     StatusSlotPlace places[STATUS_SLOT_COUNT];
-    swap_in_short_forms(row, slots, measures, places, content_w);
+    swap_in_short_forms(row, slots, fonts, measures, places, content_w);
 
     // Every row cap-centres its line (status_seat_y) EXCEPT the top strip, which rides
     // STATUS_TOP_STRIP_LIFT rows higher inside an unchanged band (status_strip_seat_y): its
@@ -825,8 +822,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     // first item sits where the old indicators drew (screen x 4) while its content
     // rect stays the quiet one.
     const StatusOnDemandEnv od_env = {
-        .font = fonts[0],
-        .bold = fonts[1],
+        .fonts = { fonts[0], fonts[1] },
         .blob = s_thresh_scratch,
         .band = row->bounds,
         .x = x0,
@@ -888,7 +884,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                        GPoint(icon_x + ARROW_W / 2, glyph_cy), theme_fg());
         }
         if (places[i].text_visible) {
-            graphics_draw_text(ctx, slots[i].text, slots[i].font,
+            graphics_draw_text(ctx, slots[i].text, fonts[slots[i].look.bold],
                 GRect(x0 + places[i].text_x, text_y, places[i].text_w,
                       row->bounds.size.h - text_y_rel),
                 GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);

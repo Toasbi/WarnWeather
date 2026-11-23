@@ -191,19 +191,19 @@ static GFont item_text(const StatusOnDemandState *s, int item, int lane,
     od_lane_look(s->rain_display, lane, &rd, &values);
     if (item == OD_BATTERY) {
         if (s->battery_value && values) { snprintf(buf, cap, "%d%%", s->charge); }
-        return env->font;
+        return env->fonts[0];
     }
     if (item == OD_RAIN) {
         if (rd != THRESH_RAIN_DISPLAY_ICON) {
             alert_set_rain_text(&s->rain, rd == THRESH_RAIN_DISPLAY_MINUTES, buf, cap);
         }
-        return env->font;
+        return env->fonts[0];
     }
     const AlertEntry *e = alert_set_entry(&s->set, item);
-    if (!e) { return env->font; }
+    if (!e) { return env->fonts[0]; }
     alert_set_lane(e, values, buf, cap);
     return status_threshold_look(env->blob, e->kind, e->level).bold
-        ? env->bold : env->font;
+        ? env->fonts[1] : env->fonts[0];
 }
 
 // The width of active item `item`'s glyph: the battery's, Sleep's square, a cached
@@ -302,17 +302,18 @@ static void measure_family(Families *f, int i, const StatusRowSlot *slot,
     in->m[0] = *full;
     if (!full->present) { return; }
     const int16_t h = env->band.size.h;
+    const GFont font = env->fonts[slot->look.bold];   // the slot's, as the row draws it
     char buf[STATUS_SHORT_CAP];
     uint8_t v = 1;
     while (v < OD_VARIANTS) {
         uint8_t flags = family_member(f, slot, full->suffix_w > 0, v, buf);
         if (!flags) { break; }
         StatusSlotMeasure m = *full;
-        m.text_w = status_row_text_w(buf, slot->font, content_w, h);
+        m.text_w = status_row_text_w(buf, font, content_w, h);
         if (flags & SST_NO_SUFFIX) { m.suffix_w = 0; }
         if (flags & SST_NO_LANE) { m.icon_w = (int16_t)(m.icon_w - BATTERY_BOLT_LANE_W); }
         if ((flags & SST_ELASTIC) && status_short_floor(slot->text, buf, sizeof(buf))) {
-            in->floor_w = status_row_text_w(buf, slot->font, content_w, h);
+            in->floor_w = status_row_text_w(buf, font, content_w, h);
         }
         in->m[v++] = m;
     }
@@ -347,14 +348,6 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     if (row->cache) {
         ensure(row->cache, s->key, OD_ITEM_COUNT, env->icon_h);
     }
-    // The alert each side's own slot (0 left, 2 right) merged stands in for that slot
-    // only (on_demand.h). By alert_set_merge's rule that is the item of the metric the
-    // slot shows, active (its entry is in the set) on the slot's side.
-    int merged[2];
-    for (int d = 0; d < 2; d++) {
-        merged[d] = alert_set_item(status_threshold_kind_for_slot(slots[2 * d].slot.kind,
-                                                                  slots[2 * d].slot.icon));
-    }
     // Each side's active items, nearest the side's own slot first: the item order is
     // the priority.
     memset(pass->sides, 0, sizeof(pass->sides));
@@ -366,7 +359,9 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         const int d = s->side[item] == OD_SIDE_LEFT ? 0 : 1;
         OdSideIn *side = &pass->sides[d];
         int i = side->n++;
-        if (item == merged[d]) { side->merged = (uint8_t)(i + 1); }
+        // The alert the side's own slot (0 left, 2 right) merged stands in for that slot
+        // only (on_demand.h).
+        if (item == slots[2 * d].merged_item) { side->merged = (uint8_t)(i + 1); }
         side->rank[i] = (uint8_t)item;
         for (int lane = 0; lane < OD_LANES; lane++) { side->w[lane][i] = w[lane]; }
     }

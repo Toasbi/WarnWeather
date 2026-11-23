@@ -129,7 +129,7 @@ static inline const AlertEntry *alert_set_entry(const AlertSet *set, int item) {
 // slot. The middle slot never merges, and an alert on the other side never does.
 // Returns the entry's level (THRESH_LEVEL_WARN or _DANGER); 0 for none. A pure query:
 // the item that merged is alert_set_item(kind) (one item per alert kind), which the
-// On demand layout derives from the slot itself.
+// status row records in the slot for the On demand layout.
 static inline uint8_t alert_set_merge(const AlertSet *set, const uint8_t side[OD_ITEM_COUNT],
                                       int slot, int kind) {
     const int item = alert_set_item(kind);
