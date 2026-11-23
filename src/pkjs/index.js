@@ -99,6 +99,16 @@ var DEFAULT_COLOR_BLUE_MOON = pebbleColors.GColorBlueMoon;
 // Blue Moon so it reads as distinct from the weekend accent.
 var DEFAULT_HOLIDAY_COLORS = { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY, holiday: DEFAULT_COLOR_BLUE_MOON };
 
+/**
+ * The host's timer, for every module that takes one. Never handed on bare: called as
+ * deps.setTimeout(...), the native timer gets the deps object as its receiver, and WebView
+ * runtimes (WebIDL receiver check) throw "Illegal invocation" for that; a plain call is safe.
+ * @param {Function} fn What to run.
+ * @param {number} ms After how many milliseconds.
+ * @returns {*} The timer's handle.
+ */
+function hostSetTimeout(fn, ms) { return setTimeout(fn, ms); }
+
 // The channel scheduler owns WHEN Clay settings / weather fetches ride the
 // half-duplex AppMessage channel; the fetch cycle (fetch-cycle.js) owns one
 // weather fetch's lifecycle and the "is a scheduled refresh due" gate. index.js
@@ -120,8 +130,7 @@ var fetchCycle = createFetchCycle({
     },
     now: function () { return new Date(); },
     getBakeFacts: bakeFacts,
-    // Wrapped like the scheduler's below (WebView receiver check).
-    setTimeout: function (fn, ms) { return setTimeout(fn, ms); }
+    setTimeout: hostSetTimeout
 });
 
 var scheduler = createChannelScheduler({
@@ -141,10 +150,7 @@ var scheduler = createChannelScheduler({
         if (!app.settings || !app.settings.themeAuto) { return null; }
         return themeSchedule.effectiveThemeId(app.settings, isNightForTheme());
     },
-    // Wrap the native timer: deps.setTimeout(...) would otherwise invoke it
-    // with the deps object as receiver — WebView runtimes (WebIDL receiver
-    // check) throw "Illegal invocation" for that; a plain call stays safe.
-    setTimeout: function (fn, ms) { return setTimeout(fn, ms); },
+    setTimeout: hostSetTimeout,
     now: function () { return new Date(); }
 });
 
@@ -474,8 +480,8 @@ Pebble.addEventListener('ready',
             sendWeather: outbox.sendWeather,
             storage: localStorage,
             now: function () { return Date.now(); },
-            setTimeout: function (fn, ms) { return setTimeout(fn, ms); },
-            fetchInFlight: function () { return fetchCycle.isInFlight(); }
+            setTimeout: hostSetTimeout,
+            fetchInFlight: fetchCycle.isInFlight
         });
         phoneBattery.init({ devConfig: app.devConfig });
         // A weather message that goes out anyway takes the phone battery's exact reading
