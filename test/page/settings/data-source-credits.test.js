@@ -30,12 +30,15 @@ test('the air quality sources and the place search name their data', () => {
 
 test('Setup lists the privacy summary and every data source with its licence', () => {
   const setup = schema.tabs.find((t) => t.id === 'setup');
-  const texts = items().filter((i) => i.type === 'staticText' && typeof i.text === 'string').map((i) => i.text).join('\n');
+  const privacy = setup.sections.find((s) => s.id === 'privacy');
+  // Read-only rows: a label over grey text, as the telemetry switch above them reads.
+  const rows = privacy.items.filter((i) => i.type === 'readout');
+  assert.deepEqual(rows.map((i) => i.label), ['Privacy', 'Data sources']);
+  const texts = rows.map((i) => i.hint).join('\n');
   ['Open-Meteo.com', 'MET Norway', 'Deutscher Wetterdienst', 'OpenWeather', 'Tomorrow.io', 'Weather Underground',
     'Yandex Weather', 'Rainbow.ai', 'Copernicus Atmosphere Monitoring Service', 'World Air Quality Index Project',
     'powered by Esri', 'LocationIQ.com', 'GeoNames', 'Nager.Date', 'CC BY 4.0', '&copy; OpenWeather',
     'never sends your location'].forEach((name) => assert.ok(texts.indexOf(name) !== -1, name));
-  assert.ok(setup.sections.some((s) => s.id === 'privacy'), 'the card sits in Setup');
 });
 
 test('the telemetry switch sits in Setup › Privacy & data sources, above what it sends, not in Misc', () => {

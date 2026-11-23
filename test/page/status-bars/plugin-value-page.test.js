@@ -138,24 +138,24 @@ test('a new plugin starts on its first value; None on none', (t) => {
 test('the last line: the value read last, as a middle slot prints it, and how long ago', (t) => {
   clock(t, NOW);
   userData(t, { plugins: PLUGINS, pluginValue: kept({ short: '87%', number: 87, unit: '%' }) });
-  assert.equal(page.lastLine(LEVEL), 'Last value: 87% (5 min ago).');
+  assert.equal(page.lastLine(LEVEL), '87% (5 min ago).');
   global.INJECTED_USERDATA.pluginValue = kept({ number: 12345, unit: 'kWh' });
-  assert.equal(page.lastLine(LEVEL), 'Last value: 12345 kWh (5 min ago).', 'the middle slot has room for the unit');
+  assert.equal(page.lastLine(LEVEL), '12345 kWh (5 min ago).', 'the middle slot has room for the unit');
   global.INJECTED_USERDATA.pluginValue = kept({ short: '<b>87</b>' });
-  assert.equal(page.lastLine(LEVEL), 'Last value: &lt;b&gt;87&lt;/b&gt; (5 min ago).', 'another app\'s text, escaped');
+  assert.equal(page.lastLine(LEVEL), '&lt;b&gt;87&lt;/b&gt; (5 min ago).', 'another app\'s text, escaped');
 });
 
 test('the last line: a value too old to show says what the watch shows instead', (t) => {
   clock(t, NOW);
   userData(t, { plugins: PLUGINS, pluginValue: kept({ short: '87%' }, { at: NOW - 4 * HOUR }) });
   assert.equal(page.lastLine(LEVEL),
-    'Last value: 87% (4 h ago). It is too old to show, so the watch shows -- until a new one comes in.');
+    '87% (4 h ago). It is too old to show, so the watch shows -- until a new one comes in.');
 });
 
 test('the last line: nothing read yet for the source the rows pick, and nothing while none is picked', (t) => {
   clock(t, NOW);
   userData(t, { plugins: PLUGINS, pluginValue: kept({ short: '87%' }) });
-  const NOTHING = 'No value yet. When you pick a value and save, the watch shows it within about a minute.';
+  const NOTHING = 'None yet. When you pick a value and save, the watch shows it within about a minute.';
   assert.equal(page.lastLine(Object.assign({}, LEVEL, { pluginValueId: 'phone/phone_state/cell' })), NOTHING,
     'another value\'s');
   global.INJECTED_USERDATA.pluginValue = null;
@@ -194,8 +194,10 @@ test('the dialog: Plugin with its list, then Value, Updates and the last line on
   const cx = (state) => ({ S: state, ENV: BASALT, USERDATA: {}, openColor: null, openSelect: null,
     openEdit: 'threshPluginValue', selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, state, { env: BASALT }) });
   const html = PConf.engine.renderEditModal(schema, cx(S));
-  ['Plugin value slot', 'Plugin', 'Phone', 'Value', 'Battery level', 'Updates', 'Every hour',
-    'Last value: 87% (5 min ago).'].forEach((text) => assert.ok(html.indexOf(text) !== -1, 'the dialog shows ' + text));
+  ['Plugin value slot', 'Plugin', 'Phone', 'Value', 'Battery level', 'Updates', 'Every hour']
+    .forEach((text) => assert.ok(html.indexOf(text) !== -1, 'the dialog shows ' + text));
+  assert.ok(html.indexOf('<div class="lbl">Last value</div><div class="hint">87% (5 min ago).</div>') !== -1,
+    'the last value is a row like the others: its label, the value in the hint\'s grey under it');
   assert.ok(html.indexOf('BoldMode') === -1, 'no Bold: the item has no bold kind');
   const none = PConf.engine.hydrate(schema, { statusTopLeft: 'pluginValue' }, BASALT);
   const empty = PConf.engine.renderEditModal(schema, cx(none));

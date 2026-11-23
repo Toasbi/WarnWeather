@@ -833,14 +833,13 @@ var BW_LEGEND = 'The bars don\'t scale linearly. Their height is split into 5 pa
 var TOMORROWIO_CREDIT = weatherSources.TOMORROWIO_CREDIT;
 var OPENMETEO_AQI_CREDIT = 'Data from Open-Meteo.com and the Copernicus Atmosphere Monitoring Service.';
 var WAQI_CREDIT = 'Data from the World Air Quality Index Project and the environmental agencies of its stations.';
-var PRIVACY_TEXT = '<b>Privacy</b><br>While Share anonymous telemetry is on, WarnWeather sends: whether each '
+var PRIVACY_TEXT = 'While Share anonymous telemetry is on, WarnWeather sends: whether each '
     + 'weather update worked and how long it took, the weather provider, a rough country, the app and watch '
     + 'versions, and which settings are used. It never sends your location, the places you type, your API keys '
     + 'or any health data: steps, sleep and heart rate stay on the watch. Your account and watch are stored only '
     + 'as one-way hashes.';
 var CC_BY = '<a target=\'_blank\' href=\'https://creativecommons.org/licenses/by/4.0/\'>CC BY 4.0</a>';
-var DATA_SOURCES_TEXT = '<b>Data sources</b><br>'
-    + 'Weather: Open-Meteo.com, MET Norway, Deutscher Wetterdienst (via Bright Sky), OpenWeather, Tomorrow.io, '
+var DATA_SOURCES_TEXT = 'Weather: Open-Meteo.com, MET Norway, Deutscher Wetterdienst (via Bright Sky), OpenWeather, Tomorrow.io, '
     + 'Weather Underground, Yandex Weather.<br>'
     + 'Rain radar: Deutscher Wetterdienst, MET Norway, Rainbow.ai, Tomorrow.io.<br>'
     + 'Air quality: Open-Meteo.com with Copernicus Atmosphere Monitoring Service data, and the World Air Quality '
@@ -2879,11 +2878,14 @@ module.exports = {
                 defaultValue: true,
                 hint: 'Sends anonymous data about weather updates and how the watchface is used, to improve reliability.'
             }, {
-                type: 'staticText',
-                text: PRIVACY_TEXT
+                // Read-only rows, a label over grey text, as the switch above reads.
+                type: 'readout',
+                label: 'Privacy',
+                hint: PRIVACY_TEXT
             }, {
-                type: 'staticText',
-                text: DATA_SOURCES_TEXT
+                type: 'readout',
+                label: 'Data sources',
+                hint: DATA_SOURCES_TEXT
             }]
         }, {
             title: 'Advanced', collapsible: true, items: [{

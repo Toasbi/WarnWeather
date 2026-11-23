@@ -59,9 +59,11 @@ function dialogSection(sheetOf) {
         options: pluginValues.EVERY_CHOICES.map(function (every) { return [EVERY_LABELS[every], every]; }),
         showWhen: PICKED_WHEN
     }, {
-        // The value read last and when, or that none is yet.
-        type: 'staticText',
-        textFrom: {resolver: 'pluginValueLast'},
+        // The value read last and when, or that none is yet: a row like the others, its
+        // line in the hint's grey.
+        type: 'readout',
+        label: 'Last value',
+        hintFrom: {resolver: 'pluginValueLast'},
         showWhen: PICKED_WHEN
     }]);
 }

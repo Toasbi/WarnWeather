@@ -9651,8 +9651,9 @@
                 }
               },
               {
-                "type": "staticText",
-                "textFrom": {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
                   "resolver": "pluginValueLast"
                 },
                 "showWhen": {
@@ -17289,12 +17290,14 @@
                 "hint": "Sends anonymous data about weather updates and how the watchface is used, to improve reliability."
               },
               {
-                "type": "staticText",
-                "text": "<b>Privacy</b><br>While Share anonymous telemetry is on, WarnWeather sends: whether each weather update worked and how long it took, the weather provider, a rough country, the app and watch versions, and which settings are used. It never sends your location, the places you type, your API keys or any health data: steps, sleep and heart rate stay on the watch. Your account and watch are stored only as one-way hashes."
+                "type": "readout",
+                "label": "Privacy",
+                "hint": "While Share anonymous telemetry is on, WarnWeather sends: whether each weather update worked and how long it took, the weather provider, a rough country, the app and watch versions, and which settings are used. It never sends your location, the places you type, your API keys or any health data: steps, sleep and heart rate stay on the watch. Your account and watch are stored only as one-way hashes."
               },
               {
-                "type": "staticText",
-                "text": "<b>Data sources</b><br>Weather: Open-Meteo.com, MET Norway, Deutscher Wetterdienst (via Bright Sky), OpenWeather, Tomorrow.io, Weather Underground, Yandex Weather.<br>Rain radar: Deutscher Wetterdienst, MET Norway, Rainbow.ai, Tomorrow.io.<br>Air quality: Open-Meteo.com with Copernicus Atmosphere Monitoring Service data, and the World Air Quality Index Project with the environmental agencies of its stations.<br>Pollen: Deutscher Wetterdienst.<br>Places: town names powered by Esri, place search by Open-Meteo.com (GeoNames) and LocationIQ.com.<br>Public holidays: Nager.Date.<br>Data from Open-Meteo.com, MET Norway and the Copernicus Atmosphere Monitoring Service is licensed under <a target='_blank' href='https://creativecommons.org/licenses/by/4.0/'>CC BY 4.0</a>, GeoNames data too. Weather data &copy; OpenWeather."
+                "type": "readout",
+                "label": "Data sources",
+                "hint": "Weather: Open-Meteo.com, MET Norway, Deutscher Wetterdienst (via Bright Sky), OpenWeather, Tomorrow.io, Weather Underground, Yandex Weather.<br>Rain radar: Deutscher Wetterdienst, MET Norway, Rainbow.ai, Tomorrow.io.<br>Air quality: Open-Meteo.com with Copernicus Atmosphere Monitoring Service data, and the World Air Quality Index Project with the environmental agencies of its stations.<br>Pollen: Deutscher Wetterdienst.<br>Places: town names powered by Esri, place search by Open-Meteo.com (GeoNames) and LocationIQ.com.<br>Public holidays: Nager.Date.<br>Data from Open-Meteo.com, MET Norway and the Copernicus Atmosphere Monitoring Service is licensed under <a target='_blank' href='https://creativecommons.org/licenses/by/4.0/'>CC BY 4.0</a>, GeoNames data too. Weather data &copy; OpenWeather."
               }
             ]
           },

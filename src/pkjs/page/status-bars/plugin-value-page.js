@@ -182,8 +182,9 @@
     }
 
     /**
-     * The dialog's last line: the value read last, as a middle slot prints it, and how long
-     * ago, with what the watch shows once that is too old; or that none is read yet.
+     * The line under the dialog's Last value: the value read last, as a middle slot prints it,
+     * and how long ago, with what the watch shows once that is too old; or that none is read
+     * yet.
      * @param {Object} S Settings.
      * @returns {string} HTML ('' while no source is picked).
      */
@@ -193,10 +194,9 @@
         var text;
         if (!pluginValues.sourceOf(S)) { return ''; }
         if (!value) {
-            return 'No value yet. When you pick a value and save, the watch shows it within about a minute.';
+            return 'None yet. When you pick a value and save, the watch shows it within about a minute.';
         }
-        text = 'Last value: ' + pluginValues.textFor(value.reading, catalog.CAPS.MID_TEXT_MAX)
-            + ' (' + agoText(value.at, now) + ').';
+        text = pluginValues.textFor(value.reading, catalog.CAPS.MID_TEXT_MAX) + ' (' + agoText(value.at, now) + ').';
         if (!pluginValues.shownReading(value, S, now)) {
             text += ' It is too old to show, so the watch shows ' + NONE_SHOWN + ' until a new one comes in.';
         }
