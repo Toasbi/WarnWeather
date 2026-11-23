@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/banner-pebble-time2-red.png" alt="WarnWeather — weather, calendar, health &amp; radar" width="720">
+  <img src="resources/banner-emery@2x.png" alt="WarnWeather: forecast graph, rain radar, weather alerts, calendar &amp; health" width="720">
 </p>
 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/Toasbi/WarnWeather?label=latest&color=85C1E9&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAQAAABKfvVzAAAAAmJLR0QA/4ePzL8AAAC0SURBVDjLldLLCcJAFEbhP4oIE1xYhw1pA4JWYRGCVbhxoTshWIUNaAnBgB4XBiTJ3HncbALznXAZIpnDmHnnmSqAS470p2Fn8wrfNEzS+INX++ZS+J6CRZu4lGWWEgVPT2DsfmfFwbMSjiuxcXn8H5gX6Q+S+ZtRDofT7/uXRF5RSmJEncEliS2fDC5JrCPJjVn/lwglQx5M/NxMbO5NwnyQxHknSeOSxIaac+feo0lhn30BIXaN/u4MXmAAAAAASUVORK5CYII=)](https://github.com/Toasbi/WarnWeather/releases/latest)

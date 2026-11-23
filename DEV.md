@@ -130,12 +130,9 @@ Composite a single screenshot PNG into an SVG Pebble frame:
 mise composite-screenshot
 ```
 
-Regenerate `resources/banner-*.png` (README and store banners) from a showcase scene
-and a phone settings-UI screenshot. It rebuilds the gradient background, the tagline and
-the phone and watch mockups (needs Pillow: `pip install pillow`):
-```bash
-mise gen-banner v1.6.2 3 "resources/app screenshot.jpeg"
-```
+The store banners are `resources/banner-<platform>.png` (720 × 320, one per watch); the
+README shows `resources/banner-emery@2x.png`. They are made outside this repo: replace the
+files to change them.
 
 Serve the `telemetry-ingest` edge function locally:
 ```bash
