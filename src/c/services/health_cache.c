@@ -82,6 +82,12 @@ static void health_cache_fill_range(int start, int len) {
     }
 }
 
+// The in-progress hour's HR: the live BPM (the peek), absent while there is none.
+static void health_cache_set_live_hr(void) {
+    const int bpm = health_hr_current();
+    s_hr[N - 1] = (bpm > 0) ? (int16_t)bpm : CHART_ABSENT;
+}
+
 // One build slice. Every slice does at most ONE kind of work, then yields the
 // event loop (re-arms a 0 ms timer), so a tap or tick queued behind it waits a
 // fraction of a second, not the whole read burst:
@@ -104,8 +110,7 @@ static void health_cache_build_step(void *ctx) {
         s_timer = app_timer_register(0, health_cache_build_step, NULL);  // yield, finalize next
         return;
     }
-    const int bpm = health_hr_current();                          // in-progress hour = live BPM
-    s_hr[N - 1] = (bpm > 0) ? (int16_t)bpm : CHART_ABSENT;
+    health_cache_set_live_hr();
     s_build_pending = false;
     s_ready = true;
     if (s_repaint) { s_repaint(); }
@@ -139,8 +144,7 @@ void health_cache_recalc(time_t end_hour, int count) {
         // (steps; HR of the in-progress bucket comes from the peek) — safe to
         // run inside a handler.
         health_cache_fill_range(N - 1, 1);
-        const int bpm = health_hr_current();
-        s_hr[N - 1] = (bpm > 0) ? (int16_t)bpm : CHART_ABSENT;
+        health_cache_set_live_hr();
         s_ready = true;
         return;
     }
@@ -185,11 +189,9 @@ static bool health_cache_rollover_to(time_t now_hour) {
 }
 
 void health_cache_reset(void) {
-    if (s_timer) { app_timer_cancel(s_timer); s_timer = NULL; }
-    s_ready = false;
-    s_build_pending = false;
-    s_build_sleep_done = false;
-    health_cache_recalc(current_hour_top(), N);   // full build => sliced + loading
+    // A full build: health_cache_start_build cancels the timer and drops the cache to
+    // the loading state before the slices refill it.
+    health_cache_recalc(current_hour_top(), N);
 }
 
 void health_cache_keep(bool keep) {
