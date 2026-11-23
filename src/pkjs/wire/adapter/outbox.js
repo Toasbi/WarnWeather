@@ -46,6 +46,10 @@ var devStats = require('../../telemetry/adapter/dev-stats');
 var sendCount = 0;
 var newestSend = {};
 
+// How many sends wait for the watch's ACK or NACK (sendsInFlight). The channel is
+// half-duplex: a send made while one waits can collide with it, and one of the two is NACKed.
+var awaiting = 0;
+
 var WEATHER_CATEGORIES = require('../domain/weather-categories.js');
 
 // The two kinds of message, and what sets them apart: the label a send logs, the type
@@ -126,27 +130,54 @@ function sendChangedCategories(payload, categories, kind, onSuccess, onFailure) 
         newestSend[entry.cacheKey] = sendId;
         localStorage.removeItem(entry.cacheKey);
     });
-    Pebble.sendAppMessage(outgoing, function() {
-        // Commit caches only after the watch ACKed, so NACKs retry next time,
-        // and only those no later send has carried since: that send may have
-        // replaced this content on the watch, ACKed or not.
-        changed.forEach(function(entry) {
-            if (newestSend[entry.cacheKey] === sendId) {
-                localStorage.setItem(entry.cacheKey, entry.serialized);
+    var settled = false;
+    /**
+     * The send's answer came, or the send never left: it waits no more (sendsInFlight). Once,
+     * whatever calls it again.
+     * @returns {void}
+     */
+    function settle() {
+        if (settled) { return; }
+        settled = true;
+        awaiting -= 1;
+    }
+    awaiting += 1;
+    try {
+        Pebble.sendAppMessage(outgoing, function() {
+            settle();
+            // Commit caches only after the watch ACKed, so NACKs retry next time,
+            // and only those no later send has carried since: that send may have
+            // replaced this content on the watch, ACKed or not.
+            changed.forEach(function(entry) {
+                if (newestSend[entry.cacheKey] === sendId) {
+                    localStorage.setItem(entry.cacheKey, entry.serialized);
+                }
+            });
+            devStats.record(statsDescriptor(kind.statsType, result, 'ack'));
+            console.log('Outbox: ' + label + ' sent successfully.');
+            if (typeof onSuccess === 'function') {
+                onSuccess();
+            }
+        }, function(e) {
+            settle();
+            devStats.record(statsDescriptor(kind.statsType, result, 'nack'));
+            console.log('Outbox: ' + label + ' send failed: ' + JSON.stringify(e));
+            if (typeof onFailure === 'function') {
+                onFailure(e);
             }
         });
-        devStats.record(statsDescriptor(kind.statsType, result, 'ack'));
-        console.log('Outbox: ' + label + ' sent successfully.');
-        if (typeof onSuccess === 'function') {
-            onSuccess();
-        }
-    }, function(e) {
-        devStats.record(statsDescriptor(kind.statsType, result, 'nack'));
-        console.log('Outbox: ' + label + ' send failed: ' + JSON.stringify(e));
-        if (typeof onFailure === 'function') {
-            onFailure(e);
-        }
-    });
+    } catch (e) {
+        settle();
+        throw e;
+    }
+}
+
+/**
+ * @returns {number} How many sends wait for the watch's ACK or NACK: while one does, another
+ *   send can collide with it on the half-duplex channel.
+ */
+function sendsInFlight() {
+    return awaiting;
 }
 
 /**
@@ -258,6 +289,7 @@ module.exports = {
     WEATHER_CATEGORIES: WEATHER_CATEGORIES,
     sendWeather: sendWeather,
     sendClay: sendClay,
+    sendsInFlight: sendsInFlight,
     setRideAlong: setRideAlong,
     clearWeatherCaches: clearWeatherCaches,
     clearClayCache: clearClayCache,

@@ -1,5 +1,6 @@
 'use strict';
 const { withHost } = require('../../helpers/rebake-host.js');
+const { heldTimers } = require('../../helpers/plugin-host.js');
 // status-rebake.js' own contract, apart from its phone-battery trigger (whose
 // micro-send tests live in status-rebake-battery.test.js): the resend reports back
 // through exactly one callback, which is what lets the config close chain the
@@ -257,6 +258,16 @@ test('the scheduler\'s minute tick runs the re-bake\'s, told whether a fetch is 
   assert.ok(tick.indexOf('statusRebake.onTick(fetchCycle.isInFlight());') > 0);
 });
 
+test('index.js hands the re-bake the host\'s timer and the channel\'s state, which a debt paid early needs', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
+  const call = src.slice(src.indexOf('statusRebake.init({'));
+  const options = call.slice(0, call.indexOf('});'));
+  // Without them paySoon falls back to the tick without a word: a value picked would wait up
+  // to a minute again, with every test of the re-bake still green.
+  ['setTimeout: hostSetTimeout', 'fetchInFlight: fetchCycle.isInFlight', 'sendsInFlight: outbox.sendsInFlight']
+    .forEach((wired) => { assert.ok(options.indexOf(wired) > 0, wired); });
+});
+
 test('index.js composes the batteries\' and the Plugin value\'s facts once: the fetch\'s bake, the re-bake\'s and the fixture\'s read the same', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
   assert.match(src, /function bakeFacts\(\) \{\n    return \{ phone: phoneBattery\.bakeFacts\(\), watch: batteryEstimate\.bakeFacts\(\),\n        plugin: pluginValueSource\.bakeFacts\(\) \};\n\}/);
@@ -412,15 +423,13 @@ test('a debt the user waits for at the phone is paid inside the window, at the n
 
 /**
  * bootSaver with the host's timer, whose callbacks the test fires by hand.
- * @param {function(): boolean} [fetchInFlight] Whether a weather fetch is running.
+ * @param {{fetchInFlight: (function(): boolean|undefined), sendsInFlight: (function(): number|undefined)}} [host]
+ *   Whether a weather fetch is running, and how many sends wait for the watch's answer.
  * @returns {Object} bootSaver's harness, and timers: each timer's callback and delay.
  */
-function bootSoon(fetchInFlight) {
+function bootSoon(host) {
   const timers = [];
-  const h = bootSaver(null, null, {
-    setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
-    fetchInFlight: fetchInFlight
-  });
+  const h = bootSaver(null, null, Object.assign(heldTimers(timers), host));
   h.timers = timers;
   return h;
 }
@@ -444,7 +453,7 @@ test('a debt the user waits for at the phone is paid a moment after it is owed, 
 
 test('news nobody waits for still waits for the tick; a fetch in flight or a NACK leaves a debt to it', () => {
   let fetching = true;
-  const h = bootSoon(() => fetching);
+  const h = bootSoon({ fetchInFlight: () => fetching });
   statusRebake.oweStatus(false);
   assert.equal(h.timers.length, 0, 'no timer for news that can wait');
   statusRebake.oweStatus(true);
@@ -469,6 +478,28 @@ test('while the watch refuses sends, a debt the user waits for keeps to their ba
   assert.equal(h.sends.length, 2, 'not sent by the timer to a watch that refuses');
   assert.equal(statusRebake.onTick(false), false, 'minute 3: the backoff still waits, its step not taken by the timer');
   assert.equal(statusRebake.onTick(false), true, 'minute 4, as after any second NACK');
+});
+
+test('a debt paid early waits out a send still on the channel, then pays; a channel that stays busy leaves it to the tick', () => {
+  let busy = 1;
+  const h = bootSoon({ sendsInFlight: () => busy });
+  statusRebake.oweStatus(true);
+  h.timers[0].fn();
+  assert.equal(h.sends.length, 0, 'not beside the save\'s own send, which waits for its answer');
+  assert.equal(h.timers.length, 2, 'it waits again');
+  busy = 0;
+  h.timers[1].fn();
+  assert.equal(h.sends.length, 1, 'the channel is free: paid');
+
+  busy = 1;
+  h.answers[0].onSuccess();
+  statusRebake.oweStatus(true);
+  const before = h.timers.length;
+  for (let i = 0; i < statusRebake.OWED_SOON_TRIES; i++) { h.timers[h.timers.length - 1].fn(); }
+  assert.equal(h.timers.length, before + statusRebake.OWED_SOON_TRIES - 1, 'a few waits, then no more');
+  assert.equal(h.sends.length, 1, 'never sent beside the busy channel');
+  busy = 0;
+  assert.equal(statusRebake.onTick(false), true, 'the tick pays it');
 });
 
 test('a settings save\'s send pays a debt of no step, so the timer sends nothing twice; an answer after it is news of its own', () => {

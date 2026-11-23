@@ -481,7 +481,8 @@ Pebble.addEventListener('ready',
             storage: localStorage,
             now: function () { return Date.now(); },
             setTimeout: hostSetTimeout,
-            fetchInFlight: fetchCycle.isInFlight
+            fetchInFlight: fetchCycle.isInFlight,
+            sendsInFlight: outbox.sendsInFlight
         });
         phoneBattery.init({ devConfig: app.devConfig });
         // A weather message that goes out anyway takes the phone battery's exact reading

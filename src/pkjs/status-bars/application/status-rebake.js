@@ -142,6 +142,12 @@ var soonTimer = null;     // the timer that pays a debt the user waits for (payS
 var OWED_SOON_MS = 2000;
 
 /**
+ * How many times paySoon waits OWED_SOON_MS while a send is still on the channel, waiting for
+ * its answer (a slow link), before it leaves the debt to the tick.
+ */
+var OWED_SOON_TRIES = 5;
+
+/**
  * @returns {?{getItem: Function, setItem: Function, removeItem: Function}} The injected
  *   storage (index.js passes localStorage), or null without one.
  */
@@ -462,9 +468,24 @@ function oweStatus(waitedFor) {
  */
 function paySoon() {
     if (soonTimer !== null || typeof deps.setTimeout !== 'function') { return; }
+    paySoonAfter(OWED_SOON_TRIES);
+}
+
+/**
+ * paySoon's timer. While another send is on the channel, waiting for its answer (the settings
+ * save's own, on a slow link), it waits again rather than send beside it, where one of the two
+ * would be NACKed: at most `tries` times, then the tick pays the debt.
+ * @param {number} tries How many more times it may wait.
+ * @returns {void}
+ */
+function paySoonAfter(tries) {
     soonTimer = deps.setTimeout(function () {
         soonTimer = null;
         if (retry.nacksInARow() > 0) { return; }
+        if (typeof deps.sendsInFlight === 'function' && deps.sendsInFlight() > 0) {
+            if (tries > 1) { paySoonAfter(tries - 1); }
+            return;
+        }
         onTick(typeof deps.fetchInFlight === 'function' && Boolean(deps.fetchInFlight()));
     }, OWED_SOON_MS);
 }
@@ -679,6 +700,8 @@ function invalidatePersisted() {
  *   user waits for (paySoon); absent = the tick pays it.
  * @param {function():boolean} [options.fetchInFlight] Whether a weather fetch is running, as
  *   the tick is told (onTick); absent = none is.
+ * @param {function():number} [options.sendsInFlight] How many sends wait for the watch's
+ *   answer (outbox.js sendsInFlight), which a debt paid early waits out (paySoon); absent = none.
  * @returns {void}
  */
 function init(options) {
@@ -706,5 +729,6 @@ module.exports = {
     onTick: onTick,
     invalidatePersisted: invalidatePersisted,
     STATUS_KEYS: STATUS_KEYS,
-    OWED_SOON_MS: OWED_SOON_MS
+    OWED_SOON_MS: OWED_SOON_MS,
+    OWED_SOON_TRIES: OWED_SOON_TRIES
 };
