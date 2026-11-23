@@ -89,6 +89,9 @@
         "sections": [
           {
             "block": "noticesPanel",
+            "styleFrom": {
+              "resolver": "noticesCardStyle"
+            },
             "beforePin": true,
             "items": [
               {
@@ -100,6 +103,7 @@
           },
           {
             "block": "featureTips",
+            "style": "info",
             "beforePin": true,
             "items": [
               {

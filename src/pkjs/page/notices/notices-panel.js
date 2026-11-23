@@ -1,11 +1,13 @@
 // src/pkjs/page/notices/notices-panel.js — config UI (phone webview) + Node-testable.
 //
 // Renders the General-tab alert panel from the phone-injected notice list
-// (USERDATA.notices; see ../notices.js). A scrollable, fixed-max-height list
-// differentiating error vs info, with a single "Understood" button that flips the
-// transient fetchNoticeAck flag (the devStatsClear pattern) — PKJS reads it on
-// webviewclosed to dismiss the notices. Pure renderNoticesPanelHtml is exported
-// for tests; the block registration is guarded like reset-status-defaults.js.
+// (USERDATA.notices; see ../notices.js). A scrollable, fixed-max-height list with a
+// single "Understood" button that flips the transient fetchNoticeAck flag (the
+// devStatsClear pattern) — PKJS reads it on webviewclosed to dismiss the notices. The
+// card is the note: an error note while any notice is an error, else an info note (its
+// section's styleFrom, noticesCardStyle; shell.html .card.error / .card.info). Pure
+// renderNoticesPanelHtml is exported for tests; the block registration is guarded like
+// reset-status-defaults.js.
 /* global PConf */
 (function () {
     /**
@@ -68,24 +70,43 @@
      */
     function buildNoticesPanel(S, USERDATA) {
         if (S && S.fetchNoticeAck) { return ''; }
-        var list = [];
-        try {
-            list = JSON.parse((USERDATA && USERDATA.notices) || '[]') || [];
-        } catch (ex) { list = []; }
-        return renderNoticesPanelHtml(list);
+        return renderNoticesPanelHtml(noticesOf(USERDATA));
     }
 
-    // Scoped styles injected once; scroll + fixed max-height + type differentiation.
-    // The info item takes the page's info amber from shell.html's --info-tint/--info-rule,
-    // the same two variables the staticText info box uses, so the two boxes cannot drift
-    // and both follow the light theme. Errors keep their red.
+    /**
+     * @param {Object} USERDATA Injected userData ({notices: JSON string}).
+     * @returns {Array<Object>} The notices it lists; [] for none or a malformed list.
+     */
+    function noticesOf(USERDATA) {
+        var list;
+        try {
+            list = JSON.parse((USERDATA && USERDATA.notices) || '[]');
+        } catch (ex) { list = null; }
+        return Object.prototype.toString.call(list) === '[object Array]' ? list : [];
+    }
+
+    /**
+     * The card's look (its section's styleFrom, a display resolver): an error note while any
+     * notice is an error, else an info note.
+     * @param {Object} S Engine settings state.
+     * @param {Object} ENV The platform env.
+     * @param {Object} args The section's styleFrom args.
+     * @param {Object} USERDATA Injected userData ({notices: JSON string}).
+     * @returns {string} 'error' or 'info'.
+     */
+    function noticesCardStyle(S, ENV, args, USERDATA) {
+        return noticesOf(USERDATA).some(function (n) { return n && n.type === 'error'; }) ? 'error' : 'info';
+    }
+
+    // Scoped styles injected once: the list scrolls past a fixed height. The card is the note
+    // (shell.html .card.error / .card.info), so the notices sit on it with no box of their
+    // own, a line in the card's colour between them.
     var NOTICE_CSS =
-        '.notice-panel{padding:2px 0;margin:4px 0}'
-        + '.notice-list{max-height:180px;overflow-y:auto}'
-        + '.notice-item{padding:6px 8px;border-radius:6px;margin-bottom:6px}'
-        + '.notice-item.error{background:rgba(255,106,82,0.12);border-left:3px solid #FF6A52}'
-        + '.notice-item.info{background:var(--info-tint);border-left:3px solid var(--info-rule)}'
-        + '.notice-since{font-size:11px;opacity:0.6;margin-top:2px}'
+        '.notice-list{max-height:180px;overflow-y:auto}'
+        + '.notice-item{padding:4px 0 10px;font-size:13.5px;line-height:1.5}'
+        + '.notice-item+.notice-item{border-top:1px solid var(--err-line-soft);padding-top:10px}'
+        + '.card.info .notice-item+.notice-item{border-top-color:var(--info-line-soft)}'
+        + '.notice-since{font-size:11.5px;opacity:.75;margin-top:2px}'
         // Match the app's neutral button look (like the "Test" .txt-act-btn) instead of a raw browser button.
         + '.notice-ack{margin-top:8px;width:100%;padding:9px 14px;border:1px solid var(--ctl-line);border-radius:9px;'
         + 'background:var(--ctl);color:var(--lbl);font:600 13px \'Inter\',sans-serif;cursor:pointer;transition:background .15s,border-color .15s}'
@@ -98,6 +119,7 @@
 
     if (PConf && PConf.blocks && typeof PConf.blocks.register === 'function') {
         var stylesInjected = false;
+        if (PConf.displayResolvers) { PConf.displayResolvers.register('noticesCardStyle', noticesCardStyle); }
         PConf.blocks.register('noticesPanel', function (S, ENV, USERDATA) {
             var html = buildNoticesPanel(S, USERDATA);
             if (html && !stylesInjected && typeof document !== 'undefined') {
@@ -115,6 +137,7 @@
             renderNoticesPanelHtml: renderNoticesPanelHtml,
             sinceLabel: sinceLabel,
             buildNoticesPanel: buildNoticesPanel,
+            noticesCardStyle: noticesCardStyle,
             NOTICE_CSS: NOTICE_CSS
         };
     }

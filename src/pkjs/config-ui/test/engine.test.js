@@ -434,6 +434,37 @@ test('renderBody: a subheader\'s style info makes its card a note in the info lo
     'a subheader without a style opens a plain card');
 });
 
+test('renderBody: a section\'s style, or its styleFrom\'s answer, makes its first card a note', () => {
+  let asked = null;
+  PConf.displayResolvers.register('testNoteLook', (S, env, args, userData) => {
+    asked = { args: args, userData: userData };
+    return userData.look;
+  });
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
+    { style: 'info', items: [ { type: 'staticText', text: 'Tip.' } ] },
+    { styleFrom: { resolver: 'testNoteLook', args: { a: 1 } }, items: [
+      { type: 'staticText', text: 'Notice.' },
+      { type: 'subheader', text: 'Under it' },
+      { type: 'staticText', text: 'Plain.' }
+    ] },
+    { style: 'loud', items: [ { type: 'staticText', text: 'Odd.' } ] }
+  ] } ] };
+  const S = E.hydrate(SCH, {});
+  const render = (look) => E.renderBody(SCH, 't', { S: S, ENV: {}, USERDATA: { look: look }, collapsed: {},
+    evalCtx: Object.assign({}, S, { env: {} }) });
+  let html = render('error');
+  assert.match(html, /<div class="card nohdr info"><div><div class="static[^"]*">Tip\./, 'a static style');
+  assert.match(html, /<div class="card nohdr error"><div><div class="static[^"]*">Notice\./, 'the resolver\'s answer');
+  assert.deepEqual(asked, { args: { a: 1 }, userData: { look: 'error' } }, 'asked with its args and the userData');
+  assert.ok(html.indexOf('<div class="card"><div class="cardHdr"><span class="ttlwrap"><span class="ttl">Under it</span>') !== -1,
+    'the section\'s look is its first card\'s only');
+  assert.equal((html.match(/class="card[^"]*(info|error)/g) || []).length, 2, 'a style the page has no look for is a plain card');
+  html = render('info');
+  assert.match(html, /<div class="card nohdr info"><div><div class="static[^"]*">Notice\./);
+  html = render(null);
+  assert.match(html, /<div class="card nohdr"><div><div class="static[^"]*">Notice\./, 'none: a plain card');
+});
+
 test('renderBody: groupCard merges consecutive sections into one card with in-card sub-headers', () => {
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
     { groupCard: 'g', intro: 'Lead-in text.', items: [] },

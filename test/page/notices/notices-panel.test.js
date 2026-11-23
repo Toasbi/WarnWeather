@@ -44,26 +44,37 @@ test('buildNoticesPanel returns empty string for an empty, absent, or malformed 
   assert.strictEqual(panel.buildNoticesPanel({}, { notices: 'not json' }), '');
 });
 
-// The panel's info item and the settings page's staticText info box are one look, in
-// the page's info amber: both read shell.html's --info-tint / --info-rule, so a colour
-// change (or the light theme's flip) reaches both. The error item keeps its own red.
-test('the info item shares the info box\'s amber variables; the error item keeps its red', function () {
+// The card is the note, in the page's own colours (shell.html .card.error / .card.info): an
+// error note while any notice is an error, else an info note. The notices have no box of
+// their own and no colour of their own, so the light theme's flip reaches them.
+test('the card is an error note while any notice is an error, else an info note', function () {
+  var list = function (types) {
+    return { notices: JSON.stringify(types.map(function (t) { return { type: t, html: 'x', since: 1 }; })) };
+  };
+  assert.strictEqual(panel.noticesCardStyle({}, {}, {}, list(['info', 'error'])), 'error');
+  assert.strictEqual(panel.noticesCardStyle({}, {}, {}, list(['error'])), 'error');
+  assert.strictEqual(panel.noticesCardStyle({}, {}, {}, list(['info'])), 'info');
+  assert.strictEqual(panel.noticesCardStyle({}, {}, {}, { notices: 'not json' }), 'info');
+  var schema = require('../../../src/pkjs/page/settings/schema.js');
+  var section = schema.tabs.filter(function (t) { return t.id === 'watchface'; })[0].sections[0];
+  assert.strictEqual(section.block, 'noticesPanel');
+  assert.deepStrictEqual(section.styleFrom, { resolver: 'noticesCardStyle' });
+});
+
+test('the notices take the note\'s colours and none of their own', function () {
   var fs = require('fs');
   var path = require('path');
-  var css = panel.NOTICE_CSS;
-  var info = /\.notice-item\.info\{([^}]*)\}/.exec(css);
-  var error = /\.notice-item\.error\{([^}]*)\}/.exec(css);
-  assert.ok(info && error, 'the panel styles both item types');
-  assert.ok(info[1].indexOf('background:var(--info-tint)') !== -1, 'info fill is the shared tint');
-  assert.ok(info[1].indexOf('border-left:3px solid var(--info-rule)') !== -1, 'info rule is the shared rule');
-  assert.ok(error[1].indexOf('border-left:3px solid #FF6A52') !== -1, 'the error rule stays red');
-  assert.ok(error[1].indexOf('background:rgba(255,106,82,0.12)') !== -1, 'and so does its fill');
+  // The notices' rules; the Understood button's come after them.
+  var css = panel.NOTICE_CSS.split('.notice-ack')[0];
+  assert.strictEqual(/#[0-9a-f]{3,6}\b|rgba?\(/i.test(css), false, 'no colour of its own');
+  assert.ok(css.indexOf('var(--err-line-soft)') !== -1 && css.indexOf('var(--info-line-soft)') !== -1,
+    'the line between notices is the card\'s');
+  assert.strictEqual(css.indexOf('background'), -1, 'no box');
   var shell = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'src', 'pkjs', 'config-ui', 'lib', 'shell.html'), 'utf8');
-  var box = /\.static\.info \.info-box \{([^}]*)\}/.exec(shell);
-  assert.ok(box, 'shell.html styles the info box');
-  assert.ok(box[1].indexOf('var(--info-tint)') !== -1 && box[1].indexOf('var(--info-rule)') !== -1,
-    'the info box reads the same two variables');
-  ['--info-tint:', '--info-rule:'].forEach(function (v) {
+  ['--info-tint:', '--info-rule:', '--info-line:', '--info-line-soft:',
+    '--err-tint:', '--err-rule:', '--err-line:', '--err-line-soft:'].forEach(function (v) {
     assert.equal(shell.split(v).length - 1, 2, v + ' is defined once per theme (body, body.light)');
   });
+  assert.match(shell, /\.card\.error \{ background: linear-gradient\(var\(--err-tint\), var\(--err-tint\)\), var\(--card\); border-color: var\(--err-line\); \}/);
+  assert.match(shell, /\.card\.info \{ background: linear-gradient\(var\(--info-tint\), var\(--info-tint\)\), var\(--card\); border-color: var\(--info-line\); \}/);
 });

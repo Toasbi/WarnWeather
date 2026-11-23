@@ -133,10 +133,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // name (item.displayFrom: {resolver, args}); fn(S, env, args) returns the value to
   // PAINT while the stored value stays untouched, so a key whose effective value is
   // resolved elsewhere (from other keys, the theme or the platform) still shows what it
-  // actually renders as. Read at render time, like the badge resolver. Two ways in:
-  // `color` items via displayFrom (args get the item's messageKey merged under them) and
+  // actually renders as. Read at render time, like the badge resolver. The ways in:
+  // `color` items via displayFrom (args get the item's messageKey merged under them),
   // collapsible sections via titleFrom (the collapsed card header's value; args pass
-  // through verbatim — sections have no messageKey). Writes are unaffected: a control
+  // through verbatim — sections have no messageKey), and sections via styleFrom (the look
+  // of a note card, 'info' or 'error': sectionStyle, which also hands over the userData). Writes are unaffected: a control
   // still stores under its own messageKey, so picking the shown value pins it.
   PConf.displayResolvers = makeRegistry();
 
@@ -2100,6 +2101,30 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * A card's look, as a style names it: 'info' and 'error' make the card a note in that look
+   * (shell.html .card.info, .card.error); anything else is a plain card.
+   * @param {*} style A subheader's or a section's style.
+   * @returns {string} 'info', 'error' or ''.
+   */
+  function cardLook(style) {
+    return style === 'info' || style === 'error' ? style : '';
+  }
+
+  /**
+   * A section's own look (its first card's): styleFrom's display resolver fn(S, env, args,
+   * userData) when the section names one, for a note whose look follows what it says (the
+   * fetch notices: error or info), else its style.
+   * @param {Object} sec The section.
+   * @param {Object} cx Render context.
+   * @returns {*} The style ('info', 'error', or anything else for a plain card).
+   */
+  function sectionStyle(sec, cx) {
+    var by = sec.styleFrom;
+    var fn = by && PConf.displayResolvers.get(by.resolver);
+    return fn ? fn(cx.S, cx.ENV, by.args || {}, cx.USERDATA) : sec.style;
+  }
+
+  /**
    * A section's header note (noteFrom): a display resolver fn(S, env, args) answering a short
    * text for the right of its card's header ("4/5 metrics active"), the words a screen reader
    * says for it (label) and the info text (HTML) its '?' shows at the top of the card. The '?'
@@ -2416,9 +2441,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           + (mOpen ? 'Fewer options' : 'More options') + '</span>'
           + (mOpen ? '' : '<span class="more-n">' + moreCount + ' more</span>') + '</button>';
       }
-      // A subheader's style 'info' makes its card a note in the info look (shell.html .card.info).
+      // A note's look ('info' or 'error', shell.html .card.info / .card.error): a subheader's
+      // style for its card, the section's (sectionStyle) for the section's first card.
+      var look = cardLook(g.head ? g.head.style : (gi === 0 ? sectionStyle(sec, cx) : ''));
       cards.push({ isEmpty: false, html: '<div class="card' + (hdr ? '' : ' nohdr')
-        + (g.head && g.head.style === 'info' ? ' info' : '') + '">' + hdr
+        + (look ? ' ' + look : '') + '">' + hdr
         + (isOpen ? '<div>' + body + '</div>' : '') + '</div>'
         + dels.map(function (d) { return renderItem(d, null, cx, false).html; }).join('') });
     }

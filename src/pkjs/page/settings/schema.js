@@ -1586,8 +1586,9 @@ module.exports = {
         pinThrough: 'screenSwitching', sections: [{
             // The fetch-error notices stay first, above the pinned layout preview: the
             // panel draws nothing until a fetch fails, and then it is the news the page
-            // opens on.
+            // opens on. Its card is an error note, or an info one when no notice is an error.
             block: 'noticesPanel',
+            styleFrom: {resolver: 'noticesCardStyle'},
             beforePin: true,
             items: [{
                 type: 'hidden',
@@ -1597,8 +1598,9 @@ module.exports = {
         }, {
             // What is new to try on this watch (feature-tips-panel.js), under the notices and
             // above the pinned preview too: the card draws only while the phone hands over
-            // tips this install has not seen, and until its Got it.
+            // tips this install has not seen, and until its Got it. Its card is an info note.
             block: 'featureTips',
+            style: 'info',
             beforePin: true,
             items: [{
                 type: 'hidden',

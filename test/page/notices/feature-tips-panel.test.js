@@ -31,6 +31,10 @@ test('the card names each tip, says how, and ends on Got it', () => {
   assert.equal((html.match(/<div class="tip">/g) || []).length, 2);
   // A title is text: its markup is escaped. The how-to is the phone's own markup, as written.
   assert.ok(html.indexOf('<div class="tip-ttl">Days &lt;b&gt;left&lt;/b&gt; &amp; more</div>') !== -1);
+  // Show me sits beside its tip's title, the how-to under both.
+  assert.ok(html.indexOf('<div class="tip-head"><div class="tip-ttl">A black page</div>'
+    + '<button type="button" class="txt-act-btn" data-goto-tab="setup">Show me</button></div>'
+    + '<div class="tip-body">On the Setup tab.</div>') !== -1);
   assert.ok(html.indexOf('<div class="tip-body">Set the <a href=\'https://example.com\'>thing</a>.</div>') !== -1);
   assert.ok(html.indexOf('one') < html.indexOf('A black page'), 'in the order handed over');
   assert.match(html, /<button type="button" class="txt-act-btn tips-ack" data-k="featureTipsAck" data-toggle="1">Got it<\/button><\/div>$/);
@@ -55,6 +59,7 @@ test('Got it hides the card for the session; the flag is one of the page\'s own 
   const wf = schema.tabs.find((tab) => tab.id === 'watchface');
   const section = wf.sections[1];
   assert.equal(section.block, 'featureTips');
+  assert.equal(section.style, 'info', 'the card is an info note (shell.html .card.info)');
   assert.equal(section.beforePin, true);
   assert.deepEqual(section.items, [{ type: 'hidden', messageKey: 'featureTipsAck', defaultValue: false }]);
   assert.equal(wf.sections[0].block, 'noticesPanel', 'the fetch notices stay first');
@@ -74,7 +79,11 @@ test('the block is registered, and draws the phone\'s tips as they come', () => 
 });
 
 test('the card\'s styles follow the page\'s theme, and its buttons are the page\'s own', () => {
-  assert.ok(panel.TIPS_CSS.indexOf('var(--info-tint)') !== -1);
+  // The card is the note: the tips have no box of their own, and the header and the lines
+  // between them take the note's colours.
+  assert.equal(panel.TIPS_CSS.indexOf('var(--info-tint)'), -1, 'no box inside the card');
+  assert.ok(panel.TIPS_CSS.indexOf('color:var(--info-rule)') !== -1);
+  assert.ok(panel.TIPS_CSS.indexOf('var(--info-line-soft)') !== -1);
   assert.equal(/#[0-9a-f]{3,6}\b/i.test(panel.TIPS_CSS), false, 'no colour of its own');
   // The buttons take the page's neutral button (shell.html .txt-act-btn), which the shell
   // always carries; the card's sheet only sizes them.

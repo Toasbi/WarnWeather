@@ -32,8 +32,13 @@
     --chip-line: rgba(255,255,255,0.25);
     --screen-line: rgba(255,255,255,0.14); --link: #FF6A52;
     /* the info box's amber (staticText style: 'info', and the notice panel's info items):
-       rule 6.1:1 against the card, box text 6.0:1 */
+       rule 6.1:1 against the card, box text 6.0:1. A note card (.card.info) takes the tint,
+       the line round it and the soft line between its entries. */
     --info-rule: #FFB02E; --info-tint: rgba(255,176,46,0.12);
+    --info-line: rgba(255,176,46,0.5); --info-line-soft: rgba(255,176,46,0.2);
+    /* an error note card's red (.card.error: the fetch notices), the link's red */
+    --err-rule: #FF6A52; --err-tint: rgba(255,106,82,0.12);
+    --err-line: rgba(255,106,82,0.5); --err-line-soft: rgba(255,106,82,0.2);
     font-family: 'Inter', -apple-system, system-ui, sans-serif;
     color: #F0F2F6; color: var(--fg);
     max-width: 460px; margin: 0 auto;
@@ -52,6 +57,9 @@
     --screen-line: rgba(0,0,0,0.16); --link: #D93A24;
     /* light amber: rule 3.65:1 against the card (the 3:1 non-text minimum), text ~8.6:1 */
     --info-rule: #B86E00; --info-tint: rgba(217,142,4,0.12);
+    --info-line: rgba(184,110,0,0.45); --info-line-soft: rgba(184,110,0,0.2);
+    --err-rule: #D93A24; --err-tint: rgba(217,58,36,0.08);
+    --err-line: rgba(217,58,36,0.45); --err-line-soft: rgba(217,58,36,0.2);
   }
   /* Black: the Pebble app's Black theme (surface #000000, containers #141414 / #1F1F1F /
      #2B2930). Overrides only what differs from the dark default; the text, accent and amber
@@ -124,12 +132,15 @@
   /* overflow:clip clips like hidden but (unlike hidden) does NOT trap a descendant position:sticky;
      hidden stays as the fallback for webviews without clip support (they just lose the sticky preview) */
   .card { background: var(--card); border: 1px solid var(--card-line); border-radius: 16px; margin-bottom: 14px; overflow: hidden; overflow: clip; box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
-  /* A subheader's style 'info' (engine buildCards): its card is a note, the card itself in the
-     info box's look (.static.info .info-box), never a box inside a card: the amber tint over the
-     card's colour, the amber rule on its left and its title in amber. Its text keeps --static,
-     as the box's does: the hint grey is only 3.97:1 on the dark amber. */
-  .card.info { background: linear-gradient(var(--info-tint), var(--info-tint)), var(--card); border-left: 4px solid var(--info-rule); }
+  /* A note card: a subheader's or a section's style 'info' or 'error' (engine buildCards). The
+     card itself is the note, never a box inside a card: the tint over the card's colour, a thin
+     line round it in the note's colour, and its title in that colour. Its text keeps --static:
+     the hint grey is only 3.97:1 on the dark amber. */
+  .card.info { background: linear-gradient(var(--info-tint), var(--info-tint)), var(--card); border-color: var(--info-line); }
   .card.info .cardHdr .ttl { color: var(--info-rule); }
+  .card.error { background: linear-gradient(var(--err-tint), var(--err-tint)), var(--card); border-color: var(--err-line); }
+  .card.error .cardHdr .ttl { color: var(--err-rule); }
+  .card.info .blockrow, .card.error .blockrow { color: var(--static); border-bottom: 0; }
   /* a blockBeforeSticky preview pins just below the topbar while its card's controls scroll under it.
      translateZ(0) forces its own compositing layer so older phone WebViews don't leak the scrolling
      rows through the pinned preview. */

@@ -405,16 +405,19 @@ own. The toggle keeps its normal place in `items`, so hydrate, serialize and `on
 unaffected. The hosted toggle's `disabledWhen` still applies there: while it holds, the header's
 switch renders `disabled` (dimmed, showing the held value) and a tap on it changes nothing. A
 card with no row to show drops out. Only sections merged by `groupCard` keep their subheaders as
-in-card headers. A subheader's `style: 'info'` makes its card a note: the card itself takes the
-info look (the tint and the amber rule of a boxed `staticText`, below, and its title in amber), so
-a note that must not be missed needs no box inside a card (the Plugin value dialog's note while
-Muninn is picked).
+in-card headers. A subheader's `style: 'info'` or `'error'` makes its card a note: the card
+itself takes the note's look (the tint, a thin line round the card and its title in the note's
+colour: `.card.info`, `.card.error` in `shell.html`), so a note that must not be missed needs no
+box inside a card (the Plugin value dialog's note while Muninn is picked). A section's own
+`style` does the same for its first card (the New in this update card), and its `styleFrom:
+{resolver, args}` asks a display resolver `fn(S, env, args, userData)` for the look, for a note
+whose look follows what it says (the fetch notices: an error note while any notice is an error,
+else an info note).
 
 `staticText` items carry their HTML in a `text` field, emitted verbatim without control chrome.
 They are not serialized (no `messageKey`). `style: 'info'` boxes the note in the tinted,
-left-ruled look of the Watchface tab's fetch-notice items, in the page's info amber
-(`--info-tint` / `--info-rule` in `shell.html`, shared with those notice items and flipped by
-the light theme; error boxes stay red). It is for a pointer the reader should not skim past as
+left-ruled look, in the page's info amber (`--info-tint` / `--info-rule` in `shell.html`,
+flipped by the light theme). It is for a pointer the reader should not skim past as
 body copy ("this is set on another tab"). A boxed note keeps the row padding (14px) to whatever
 sits above and below it. A `joinPrevious` drops the divider next to it but never that gap, and
 the box does not hug the row above the way a plain joined note does. The same holds for a box
