@@ -1281,6 +1281,21 @@ function sheetFor(stem) {
   return s;
 }
 /**
+ * A sheet's items from its rows on: a note card that leads it (the Watch battery's Muninn
+ * note: an info subheader, its text, then the untitled subheader that opens the rows' card)
+ * is a card of its own above the rows.
+ * @param {Object} sheet A slot sheet.
+ * @returns {Object[]} Its items under that note, or all of them when none leads it.
+ */
+function rowsOf(sheet) {
+  const items = sheet.items;
+  if (!items.length || items[0].type !== 'subheader' || items[0].style !== 'info') { return items; }
+  const opens = items.findIndex((it, i) => i > 0 && it.type === 'subheader');
+  assert.ok(opens !== -1 && items[opens].text === '' && !items[opens].style,
+    sheet.title + ': a note that leads the sheet ends where an untitled card opens the rows');
+  return items.slice(opens + 1);
+}
+/**
  * @param {string} stem Kind key stem.
  * @returns {Object} The sheet holding the kind's levels group: its alert sheet in the
  *     Alert settings card for an alert kind, its slot sheet for a goal kind.
@@ -1587,7 +1602,8 @@ const BOLD_CODES = {
 // Rows a bold-only sheet carries ABOVE its Bold row, in order. Absent stem = Bold
 // alone. The unit toggles exist only for the kinds the phone bakes the text for
 // (status-lines.js); the watch-formatted ones — Hr, BatteryPct — have no such row.
-// The watch battery's sheet leads with its Look, like the weather condition's.
+// The watch battery's sheet leads with its Look, like the weather condition's, under its
+// Muninn note (a card of its own above the rows: rowsOf).
 const BOLD_SHEET_EXTRA_ROWS = {
   Temp: ['tempSlotDisplay', 'tempSlotOrder', 'tempSlotSeparator', 'tempSlotSeparatorCustom',
     'tempSlotSeparatorSpaced', 'tempSlotUnit'],
@@ -1612,13 +1628,14 @@ test('Bold is the last row before any Goals or Alert highlighting group on every
   assert.ok(!plugin.items.some((it) => /BoldMode$/.test(String(it.messageKey))), 'with no Bold row');
   assert.ok(sheets.length >= 17, 'found ' + sheets.length + ' slot sheets');
   sheets.forEach((s) => {
-    const group = s.items.findIndex(it => it.type === 'subheader');
+    const rows = rowsOf(s);
+    const group = rows.findIndex(it => it.type === 'subheader');
     if (group !== -1) {
-      assert.ok(['Goals', 'Alert highlighting', 'Every condition'].includes(s.items[group].text),
+      assert.ok(['Goals', 'Alert highlighting', 'Every condition'].includes(rows[group].text),
         s.title + ': the only group a slot sheet opens is its Goals, Alert highlighting or Every condition card');
     }
-    const end = group === -1 ? s.items.length : group;
-    const last = s.items[end - 1];
+    const end = group === -1 ? rows.length : group;
+    const last = rows[end - 1];
     assert.ok(last, s.title + ' has no rows');
     assert.match(String(last.messageKey), /BoldMode$/,
       s.title + ' must close its own rows with Bold, got ' + (last.label || last.messageKey));
@@ -1852,7 +1869,7 @@ test('every bold-only kind gets a sheet whose Bold row is its LAST control', () 
     // phone-baked unit kinds their "Show unit" toggle. Naming the extra rows per stem
     // rather than counting them keeps this a real guard: a row added later has to be
     // declared here, and it cannot be declared in the wrong sheet or below the Bold row.
-    assert.deepEqual(s.items.slice(0, -1).map(it => it.messageKey),
+    assert.deepEqual(rowsOf(s).slice(0, -1).map(it => it.messageKey),
       BOLD_SHEET_EXTRA_ROWS[stem] || [], stem + ' rows above Bold');
     const bold = boldFor(stem);
     assert.equal(s.items[s.items.length - 1], bold,
@@ -1922,7 +1939,8 @@ test('the watch battery\'s sheet holds its Look, so the pencil opens it in every
   assert.equal(pencil({ batterySlotLook: 'both' }), 'threshBatteryPct', 'the Icon + text look');
   const sheet = sheetFor('BatteryPct');
   assert.ok(sheet, 'threshBatteryPct sheet exists');
-  assert.equal(sheet.items[0].messageKey, 'batterySlotLook', 'the Look leads the sheet, as the weather condition\'s does');
+  assert.equal(rowsOf(sheet)[0].messageKey, 'batterySlotLook',
+    'the Look leads the sheet\'s rows, as the weather condition\'s does (the Muninn note is a card above them)');
   // The retired item no longer resolves.
   assert.equal(resolve({ statusTopRight: 'batteryPct' }, ENV, { messageKey: 'statusTopRight' }),
     null, 'batteryPct is no slot item any more');

@@ -81,15 +81,19 @@ function visible(item, S, env) {
 }
 
 /**
- * The rows of a section that show, by their keys, in order.
+ * The rows of a section that show, by their keys, in order (a note above them is none).
  * @param {Object} section The section. @param {Object} S Settings. @param {Object} env Platform env.
  * @returns {string[]}
  */
 function shown(section, S, env) {
-  return section.items.filter((item) => visible(item, S, env)).map((item) => item.messageKey);
+  return section.items.filter((item) => item.messageKey && visible(item, S, env)).map((item) => item.messageKey);
 }
 
 const BATTERY = sheet('threshBatteryPct');
+/** The Watch battery dialog's rows, its Muninn note left out. */
+const BATTERY_ROWS = BATTERY.items.filter((item) => item.messageKey);
+/** The note's title and text (an info card above the rows). */
+const MUNINN_NOTE = BATTERY.items.filter((item) => item.style === 'info' || item.type === 'staticText');
 const PAIR_ROWS = ['batterySlotOrder', 'batterySlotSeparator', 'batterySlotSeparatorSpaced'];
 
 test('the slot lists offer one Watch battery and one Phone battery', () => {
@@ -107,7 +111,7 @@ test('the slot lists offer one Watch battery and one Phone battery', () => {
 
 test('the watch battery\'s Look leads its dialog in every look; its slot keeps the picker alone', () => {
   const look = row('batterySlotLook');
-  assert.equal(BATTERY.items[0], look, 'the dialog\'s first row, like the weather condition\'s Look');
+  assert.equal(BATTERY_ROWS[0], look, 'the dialog\'s first row, like the weather condition\'s Look');
   assert.equal(look.type, 'segmented');
   assert.equal(look.label, 'Look');
   // The weather condition's options, in its order and with its stored values.
@@ -166,7 +170,7 @@ test('every slot has a Phone battery dialog of its own: the slot\'s Look, then B
 });
 
 test('the keys the rows write are the catalog\'s: the watch battery\'s list and one Look per slot', () => {
-  const sheetKeys = BATTERY.items.map((i) => i.messageKey).filter((key) => !/BoldMode$/.test(key));
+  const sheetKeys = BATTERY_ROWS.map((i) => i.messageKey).filter((key) => !/BoldMode$/.test(key));
   assert.deepEqual(sheetKeys.slice().sort(), catalog.batterySettingKeys().slice().sort());
   const lookRows = nodes((node) => /PhoneBatteryLook$/.test(String(node.messageKey || ''))).map((i) => i.messageKey);
   assert.deepEqual(lookRows.slice().sort(), SLOT_KEYS.map(catalog.phoneBatteryLookKey).sort());
@@ -181,7 +185,7 @@ test('the keys the rows write are the catalog\'s: the watch battery\'s list and 
 
 test('the Watch battery dialog: its Look, what the text shows, the pair\'s rows, then Bold', () => {
   assert.equal(BATTERY.title, 'Watch battery slot');
-  assert.deepEqual(BATTERY.items.map((i) => i.messageKey), ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder',
+  assert.deepEqual(BATTERY_ROWS.map((i) => i.messageKey), ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder',
     'batterySlotSeparator', 'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced', 'threshBatteryPctBoldMode']);
   const display = row('batterySlotDisplay');
   assert.equal(display.type, 'segmented');
@@ -203,7 +207,7 @@ test('the steps every how-to for the days ends on name this dialog\'s rows and t
   const note = nodes((node) => node.type === 'staticText' && Boolean(node.showWhen)
     && node.showWhen.when === 'pluginValueFromMuninn');
   assert.equal(note.length, 1, 'one Muninn note');
-  [tip.html, note[0].text].forEach((howTo) =>
+  [tip.html, note[0].text, MUNINN_NOTE[1].text].forEach((howTo) =>
     assert.ok(howTo.endsWith(', ' + batteryDays.DAYS_STEPS), howTo.slice(0, 40) + '…: ends on the steps'));
 });
 
@@ -225,6 +229,22 @@ test('the hints under Days left and Both say when the percentage shows, then nam
   });
   assert.match(hints.days, /^Shows the percentage instead while/);
   assert.match(hints.both, /^Shows the percentage alone while/);
+});
+
+test('a note above the rows names the Muninn plugin while the slot does not show the days, where they can be read', () => {
+  assert.deepEqual(MUNINN_NOTE.map((i) => [i.type, i.style]), [['subheader', 'info'], ['staticText', undefined]]);
+  assert.equal(MUNINN_NOTE[0].text, 'Days left from Muninn', 'titled as the Plugin value dialog\'s Muninn note');
+  assert.ok(BATTERY.items.indexOf(MUNINN_NOTE[1]) < BATTERY.items.indexOf(row('batterySlotLook')), 'above the rows');
+  const text = MUNINN_NOTE[1].text;
+  assert.match(text, /the Muninn plugin, part of the <a href='https:\/\/apps\.repebble\.com\/muninn-battery-wisdom_[0-9a-f]+'>Muninn app<\/a>, which has to be on your watch/);
+  assert.ok(text.endsWith('To show the days, ' + batteryDays.DAYS_STEPS), 'then how to show them');
+  const noteShows = (S, env) => MUNINN_NOTE.map((item) => visible(item, S, env));
+  [{}, { batterySlotDisplay: 'days' }, { batterySlotLook: 'text' }, { batterySlotLook: 'both', batterySlotDisplay: 'percent' }]
+    .forEach((S) => assert.deepEqual(noteShows(S, BASALT), [true, true], JSON.stringify(S) + ': no days on the watch'));
+  ['text', 'both'].forEach((look) => ['days', 'both'].forEach((display) =>
+    assert.deepEqual(noteShows({ batterySlotLook: look, batterySlotDisplay: display }, BASALT), [false, false],
+      look + ', ' + display + ': the days show, and the hint under them names Muninn')));
+  assert.deepEqual(noteShows({}, NO_PLUGINS), [false, false], 'no days without plugins');
 });
 
 test('the dialog\'s rows: the drawn battery\'s Look alone; the text looks add Value selection and Bold, Both the pair\'s rows', () => {
@@ -258,7 +278,7 @@ test('a Pebble app without plugins has no days: a text look\'s dialog is its Loo
 
 test('the pair\'s rows are the temperature slot\'s, on the battery\'s own samples', () => {
   const byKey = {};
-  BATTERY.items.forEach((item) => { byKey[item.messageKey] = item; });
+  BATTERY_ROWS.forEach((item) => { byKey[item.messageKey] = item; });
   assert.deepEqual(byKey.batterySlotOrder.options, [['Percentage first', 'percent'], ['Days left first', 'days']]);
   assert.equal(byKey.batterySlotOrder.defaultValue, 'percent');
   assert.equal(byKey.batterySlotSeparator.defaultValue, statusPair.defaultSeparator('battery'));

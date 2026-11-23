@@ -8047,6 +8047,73 @@
             "title": "Watch battery slot",
             "items": [
               {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "plugins"
+                    },
+                    {
+                      "any": [
+                        {
+                          "not": {
+                            "key": "batterySlotLook",
+                            "in": [
+                              "both",
+                              "text"
+                            ]
+                          }
+                        },
+                        {
+                          "key": "batterySlotDisplay",
+                          "nin": [
+                            "days",
+                            "both"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "staticText",
+                "text": "The slot can show how many days your watch has left. The estimate comes from the Muninn plugin, part of the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a>, which has to be on your watch. To show the days, set Look to Icon + text or Text, then set Value selection to Days left or Both.",
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "plugins"
+                    },
+                    {
+                      "any": [
+                        {
+                          "not": {
+                            "key": "batterySlotLook",
+                            "in": [
+                              "both",
+                              "text"
+                            ]
+                          }
+                        },
+                        {
+                          "key": "batterySlotDisplay",
+                          "nin": [
+                            "days",
+                            "both"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
                 "type": "segmented",
                 "messageKey": "batterySlotLook",
                 "label": "Look",

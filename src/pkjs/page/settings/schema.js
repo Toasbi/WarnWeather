@@ -728,8 +728,9 @@ function boldOnlyRow(keyStem) {
 // come from. A plain <br> would run that line on as the same paragraph; the gap above it
 // keeps it apart. What each mode shows is in the picture of the bar above the rows, so the
 // hints leave it out.
+var batteryDays = require('../../status-bars/domain/battery-days.js');
 var DAYS_SOURCE_LINE = '<span style="display:block;margin-top:6px">The days are an estimate from the ' +
-    require('../../status-bars/domain/battery-days.js').MUNINN_LINK + ', which has to be on your watch.</span>';
+    batteryDays.MUNINN_LINK + ', which has to be on your watch.</span>';
 var BATTERY_FALLBACK = ' while the watch charges, your phone is out of reach or there is no new estimate.';
 var BATTERY_DAYS_HINT = 'Shows the percentage instead' + BATTERY_FALLBACK + DAYS_SOURCE_LINE;
 var BATTERY_BOTH_HINT = 'Shows the percentage alone' + BATTERY_FALLBACK + DAYS_SOURCE_LINE;
@@ -741,13 +742,39 @@ var BATTERY_FIT_HINTS = {custom: 'If the pair doesn\'t fit, the slot drops the s
 // The watch battery's text rows show while its Look prints text: Icon + text and Text (the
 // values slot-text.js batteryLook reads as such; anything else is the Icon look).
 var BATTERY_TEXT_WHEN = {key: 'batterySlotLook', in: ['both', 'text']};
+// While the slot does not show the days (the drawn battery alone, or the percentage), a note
+// above the rows names the Muninn plugin they come from and how to show them, ending on the
+// steps every how-to for the days ends on (battery-days.js DAYS_STEPS). Once the days show,
+// the hint under Days left or Both names Muninn (DAYS_SOURCE_LINE). Only where the days can
+// be read (PLUGINS_WHEN). The owner's, 2026-11-23.
+var BATTERY_MUNINN_WHEN = bothWhen(PLUGINS_WHEN,
+    {any: [{not: BATTERY_TEXT_WHEN}, {key: 'batterySlotDisplay', nin: ['days', 'both']}]});
+var BATTERY_MUNINN_NOTE = 'The slot can show how many days your watch has left. The estimate comes from the '
+    + 'Muninn plugin, part of the ' + batteryDays.MUNINN_LINK + ', which has to be on your watch. To show the days, '
+    + batteryDays.DAYS_STEPS;
 /**
- * The watch battery slot's dialog: its Look, then the rows of the looks that print text
- * (what the text shows, the pair's rows, Bold). Built from sheetOf rather than boldSection,
- * whose gate would cover the Look too: here only the rows after it follow the Look.
+ * The watch battery slot's dialog: the Muninn note while the days do not show, then its Look
+ * and the rows of the looks that print text (what the text shows, the pair's rows, Bold).
+ * Built from sheetOf rather than boldSection, whose gate would cover the Look too: here only
+ * the rows after it follow the Look.
  * @returns {Object} The watch battery slot's sheet (sheetOnly).
  */
 function batterySlotSheet() {
+    var note = [{
+        // A card of its own in the info look, as the Plugin value dialog's Muninn note is.
+        type: 'subheader',
+        text: 'Days left from Muninn',
+        style: 'info',
+        showWhen: BATTERY_MUNINN_WHEN
+    }, {
+        type: 'staticText',
+        text: BATTERY_MUNINN_NOTE,
+        showWhen: BATTERY_MUNINN_WHEN
+    }, {
+        // The rows' card, under the note: a plain one, untitled (the dialog's title says it).
+        type: 'subheader',
+        text: ''
+    }];
     var look = {
         // No hint: the picture of the bar above the rows shows what each look draws.
         type: 'segmented',
@@ -771,7 +798,7 @@ function batterySlotSheet() {
         .concat(separatorRows('battery', '80%', '5d', BATTERY_FIT_HINTS)),
         bothWhen(BATTERY_TEXT_WHEN, PLUGINS_WHEN));
     var bold = alsoWhen([boldOnlyRow('BatteryPct')], BATTERY_TEXT_WHEN);
-    return sheetOf('BatteryPct', 'Watch battery', [look].concat(textRows, bold));
+    return sheetOf('BatteryPct', 'Watch battery', note.concat([look], textRows, bold));
 }
 
 /**
