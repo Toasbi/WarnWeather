@@ -271,9 +271,10 @@ readingOf). The moment is a timestamp's, or a number's whose name says it is one
 Time, _at or _time) and that counts epoch seconds or milliseconds, as Muninn's updatedAt does
 (`plugin-value-reads.js` momentOf). The slot prints text alone, with an icon id that loads no
 drawing (`status_line.h` STATUS_ICON_PLUGIN_TEXT): the reading's short text, else its moment as
-a clock time in the user's 12/24 h setting, as the sun slot prints sunrise, else its number
-with its unit where the slot has room, else its state, Yes or No, else its long text
-(`plugin-values.js` textFor). A value shows for three Updates intervals, three hours at least,
+a clock time in the user's 12/24 h setting, as the sun slot prints sunrise, with its date after
+it on another day than the one the slot is baked for ("23:10 24 Nov"; the date alone where the
+slot has no room for both, `slot-text.js` momentText), else its number with its unit where the
+slot has room, else its state, Yes or No, else its long text (`plugin-values.js` textFor). A value shows for three Updates intervals, three hours at least,
 or while the plugin says it holds, twelve hours at most; then the slot shows -- (shownReading).
 Not on aplite, and only where the Pebble app runs plugins.
 _Avoid_: custom slot; complication, which is one of the user's in the Pebble app.

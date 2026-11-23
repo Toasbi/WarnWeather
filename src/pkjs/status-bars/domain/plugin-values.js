@@ -137,8 +137,9 @@
      *      shape beside them can ('All day' beside the midnight timestamp of an all-day event,
      *      'Off' beside a boolean). The Pebble app's own plugin screens show it first too.
      *   2. Its moment, as a clock time in the user's 12/24 h setting, as the sun slot prints
-     *      sunrise (slot-text.js clockText): a timestamp, which the plugin API leaves to the
-     *      watch to show in the user's format, or a number its name says is a moment
+     *      sunrise, with its date after it on another day than the one the slot is baked for
+     *      (slot-text.js momentText): a timestamp, which the plugin API leaves to the watch to
+     *      show in the user's format, or a number its name says is a moment
      *      (plugin-value-reads.js momentOf). Before the number: the slot is read every half
      *      hour at most, and a moment stays true between reads where a count towards it does not.
      *   3. Its number, with its unit where the slot has the room ('%' and a unit that starts
@@ -153,19 +154,19 @@
      * @param {number} cap The slot's byte cap.
      * @param {?Object} [settings] Settings: the clock's format (axisTimeFormat, timeShowAmPm,
      *   timeLeadingZero); absent, 24 hours.
+     * @param {number} [nowMs] The instant the slot is baked for, in epoch milliseconds, whose
+     *   local date is today's for a moment (needed for a reading with one).
      * @returns {string} The text; '--' for none.
      */
-    function textFor(reading, cap, settings) {
+    function textFor(reading, cap, settings, nowMs) {
         var r = reading || {};
         var short = oneLine(r.short);
         var unit;
         var text;
-        var at;
         if (short) {
             text = short;
         } else if (typeof r.time === 'number') {
-            at = new Date(r.time);
-            text = slotText.clockText(at.getHours(), at.getMinutes(), settings || {});
+            text = slotText.momentText(r.time, nowMs, settings || {}, cap);
         } else if (typeof r.number === 'number') {
             unit = oneLine(r.unit);
             text = slotText.withUnit(numberText(r.number),

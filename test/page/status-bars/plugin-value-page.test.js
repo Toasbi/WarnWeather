@@ -146,9 +146,18 @@ test('the last line: the value read last, as a middle slot prints it, and how lo
   assert.equal(page.lastLine(LEVEL), '&lt;b&gt;87&lt;/b&gt; (5 min ago).', 'another app\'s text, escaped');
 });
 
+/**
+ * @param {number} days Days after NOW's, here.
+ * @returns {Date} 13:40 here on that day.
+ */
+function twentyTo2(days) {
+  const today = new Date(NOW);
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate() + days, 13, 40, 0);
+}
+
 test('the last line and the bars\' pictures print a moment as the watch does: a clock time in the user\'s format', (t) => {
   clock(t, NOW);
-  const at = new Date(2026, 10, 23, 13, 40, 0).getTime();
+  const at = twentyTo2(0).getTime();
   userData(t, { plugins: PLUGINS, pluginValue: kept({ time: at, number: at }) });
   const S = Object.assign({ statusTopLeft: 'pluginValue', axisTimeFormat: '12h', timeShowAmPm: true }, LEVEL);
   assert.equal(page.lastLine(S), '1:40p (5 min ago).');
@@ -156,6 +165,18 @@ test('the last line and the bars\' pictures print a moment as the watch does: a 
   assert.equal(page.lastLine(LEVEL), '13:40 (5 min ago).', '24 hours');
   global.INJECTED_USERDATA.pluginValue = kept({ state: true });
   assert.equal(page.lastLine(LEVEL), 'Yes (5 min ago).');
+});
+
+test('the last line and the bars\' pictures print a moment on another day with its date, as the watch does', (t) => {
+  clock(t, NOW);
+  const tomorrow = twentyTo2(1);
+  const date = tomorrow.getDate() + ' Nov';
+  userData(t, { plugins: PLUGINS, pluginValue: kept({ time: tomorrow.getTime() }) });
+  const S = Object.assign({ statusTopLeft: 'pluginValue' }, LEVEL);
+  assert.equal(page.lastLine(S), '13:40 ' + date + ' (5 min ago).');
+  assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.MID_TEXT_MAX, env: BASALT }), '13:40 ' + date);
+  assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.EDGE_TEXT_MAX, env: BASALT }), date,
+    'an edge has no room for both');
 });
 
 test('the last line: a value too old to show says what the watch shows instead', (t) => {

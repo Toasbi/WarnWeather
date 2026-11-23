@@ -1,6 +1,7 @@
 // src/pkjs/status-bars/domain/slot-text.js — how a phone-baked status slot prints its numbers: the
 // per-kind unit (and whether it fits), the temperature slot's three modes, the day-max
-// kinds' text, the sun slot's clock, the countdown's days and the calendar week.
+// kinds' text, the sun slot's clock, a plugin's moment, the countdown's days and the calendar
+// week.
 // status-lines.js formats every slot through it, and the settings page loads it too
 // (window.SlotText), so the Status bars tab's preview prints a sample exactly the
 // way the bake prints the real reading.
@@ -199,6 +200,34 @@
         return hourText + ':' + pad2(m) + marker;
     }
 
+    /** The months as a moment's date names them ('24 Nov'). */
+    var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    /**
+     * A moment as a slot prints it (the Plugin value's, plugin-values.js textFor): its clock
+     * time in the user's format (clockText) while it is on the day the slot is baked for, else
+     * with its date after it ('23:10 24 Nov'), as Shapeshifter prints a plugin's times; the
+     * date alone ('24 Nov') where the slot has no room for both, since a bare clock time would
+     * read as today's. Never a cut text.
+     * @param {number} epochMs The moment, in epoch milliseconds.
+     * @param {number} nowMs The instant the slot is baked for, in epoch milliseconds: its local
+     *   date is today's.
+     * @param {Object} settings Clay settings blob (clockText's).
+     * @param {number} cap The slot's byte cap.
+     * @returns {string} e.g. '17:04', '5:04p', '23:10 24 Nov', '24 Nov'
+     */
+    function momentText(epochMs, nowMs, settings, cap) {
+        var at = new Date(epochMs);
+        var now = new Date(nowMs);
+        var clock = clockText(at.getHours(), at.getMinutes(), settings);
+        var date = at.getDate() + ' ' + MONTHS[at.getMonth()];
+        if (at.getFullYear() === now.getFullYear() && at.getMonth() === now.getMonth()
+                && at.getDate() === now.getDate()) {
+            return clock;
+        }
+        return utf8.byteLength(clock + ' ' + date) <= cap ? clock + ' ' + date : date;
+    }
+
     /**
      * Parse YYYY-MM-DD at local midnight, returning fallback for malformed or
      * normalized-away dates such as 2028-02-31.
@@ -390,6 +419,7 @@
         dayMaxText: dayMaxText,
         pad2: pad2,
         clockText: clockText,
+        momentText: momentText,
         formatCountdown: formatCountdown,
         isoWeek: isoWeek,
         conditionLook: conditionLook,

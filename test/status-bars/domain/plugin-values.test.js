@@ -106,26 +106,40 @@ test('the text: a unit the slot has no room for is left off', () => {
   assert.equal(pv.textFor(reading({ number: 123456, unit: '\u00b0C' }), 8), '123456');
 });
 
-/** 17:04 and 9:05 here, in epoch milliseconds, as a value keeps a moment. */
+/** 17:04 and 9:05 here, in epoch milliseconds, as a value keeps a moment, and noon of their day. */
 const EVENING = new Date(2026, 10, 23, 17, 4, 0).getTime();
 const MORNING = new Date(2026, 10, 23, 9, 5, 0).getTime();
+const TODAY = new Date(2026, 10, 23, 12, 0, 0).getTime();
 
 test('the text: else its moment, as a clock time in the user\'s format, as the sun slot prints sunrise', () => {
-  assert.equal(pv.textFor(reading({ time: EVENING }), 8), '17:04', 'no settings: 24 hours');
-  assert.equal(pv.textFor(reading({ time: MORNING }), 8, {}), '9:05');
-  assert.equal(pv.textFor(reading({ time: MORNING }), 8, { timeLeadingZero: true }), '09:05');
-  assert.equal(pv.textFor(reading({ time: EVENING }), 8, { axisTimeFormat: '12h' }), '5:04');
-  assert.equal(pv.textFor(reading({ time: EVENING }), 8, { axisTimeFormat: '12h', timeShowAmPm: true }), '5:04p');
+  assert.equal(pv.textFor(reading({ time: EVENING }), 8, undefined, TODAY), '17:04', 'no settings: 24 hours');
+  assert.equal(pv.textFor(reading({ time: MORNING }), 8, {}, TODAY), '9:05');
+  assert.equal(pv.textFor(reading({ time: MORNING }), 8, { timeLeadingZero: true }, TODAY), '09:05');
+  assert.equal(pv.textFor(reading({ time: EVENING }), 8, { axisTimeFormat: '12h' }, TODAY), '5:04');
+  assert.equal(pv.textFor(reading({ time: EVENING }), 8, { axisTimeFormat: '12h', timeShowAmPm: true }, TODAY),
+    '5:04p');
   assert.equal(pv.textFor(reading({ time: MORNING }), 8, { axisTimeFormat: '12h', timeShowAmPm: true,
-    timeLeadingZero: true }), '09:05a');
+    timeLeadingZero: true }, TODAY), '09:05a');
   assert.equal(pv.textFor(reading({ time: new Date(2026, 10, 23, 0, 30).getTime() }), 8,
-    { axisTimeFormat: '12h', timeShowAmPm: true }), '12:30a', 'half past midnight');
+    { axisTimeFormat: '12h', timeShowAmPm: true }, TODAY), '12:30a', 'half past midnight');
   assert.equal(pv.textFor(reading({ time: new Date(2026, 10, 23, 12, 45).getTime() }), 8,
-    { axisTimeFormat: '12h', timeShowAmPm: true, timeLeadingZero: true }), '12:45p', 'the longest fits an edge slot');
+    { axisTimeFormat: '12h', timeShowAmPm: true, timeLeadingZero: true }, TODAY), '12:45p',
+  'the longest fits an edge slot');
+});
+
+test('the text: a moment on another day than the slot is baked for carries its date, alone where both do not fit', () => {
+  const tomorrow = new Date(2026, 10, 24, 23, 10).getTime();
+  assert.equal(pv.textFor(reading({ time: tomorrow }), 19, {}, TODAY), '23:10 24 Nov', 'the middle');
+  assert.equal(pv.textFor(reading({ time: tomorrow }), 19, { axisTimeFormat: '12h', timeShowAmPm: true }, TODAY),
+    '11:10p 24 Nov');
+  assert.equal(pv.textFor(reading({ time: tomorrow }), 8, {}, TODAY), '24 Nov', 'an edge');
+  assert.equal(pv.textFor(reading({ time: tomorrow }), 8, { axisTimeFormat: '12h', timeShowAmPm: true }, TODAY),
+    '24 Nov');
+  assert.equal(pv.textFor(reading({ time: tomorrow }), 19, {}, tomorrow), '23:10', 'baked on its day');
 });
 
 test('the text: the moment over the number, so Muninn\'s updatedAt prints as the time it was updated', () => {
-  assert.equal(pv.textFor(reading({ time: EVENING, number: EVENING }), 19), '17:04');
+  assert.equal(pv.textFor(reading({ time: EVENING, number: EVENING }), 19, {}, TODAY), '17:04');
   assert.equal(pv.textFor(reading({ number: EVENING }), 19), String(EVENING), 'a number alone stays a number');
 });
 

@@ -335,9 +335,11 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
   // The ISO week, where the phone bakes it (slot-text.js wireKind: aplite).
   if (code === 'week') { return 'W' + isoWeek(bake.now); }
   // A value another app's plugin serves, as the slot prints it (plugin-values.js textFor): a
-  // moment in the user's clock format, as the sun slot; '--' until it is read, and once it is
-  // too old.
-  if (code === 'pluginValue') { return pluginValues.textFor(bake.pluginReading, cap, settings); }
+  // moment in the user's clock format, as the sun slot, with its date on another day than the
+  // bake's; '--' until it is read, and once it is too old.
+  if (code === 'pluginValue') {
+    return pluginValues.textFor(bake.pluginReading, cap, settings, bake.now.getTime());
+  }
   return '--';
 }
 

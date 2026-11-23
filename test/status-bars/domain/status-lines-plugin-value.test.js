@@ -54,10 +54,11 @@ function facts(kept, available) {
  * @param {Object} settings Settings.
  * @param {?Object} plugin The Plugin value slot's facts (or null).
  * @param {Object} [watchInfo] The watch (basalt by default).
+ * @param {Date} [now] The instant the bake is for (NOW by default).
  * @returns {{bytes: number[], slots: Object[]}}
  */
-function bakeTop(settings, plugin, watchInfo) {
-  const p = statusLines.buildStatusLines(payload(), settings, watchInfo || BASALT, NOW, { plugin: plugin });
+function bakeTop(settings, plugin, watchInfo, now) {
+  const p = statusLines.buildStatusLines(payload(), settings, watchInfo || BASALT, now || NOW, { plugin: plugin });
   return { bytes: p.STATUS_LINE_3_UINT8, slots: decodeLine(p.STATUS_LINE_3_UINT8) };
 }
 
@@ -78,6 +79,21 @@ test('a moment prints as a clock time in the user\'s format, as the sun slot pri
     ['13:40', '13:40', '13:40']);
   assert.deepEqual(bakeTop(Object.assign({ axisTimeFormat: '12h', timeShowAmPm: true }, EVERYWHERE),
     facts(value({ time: at }))).slots.map((s) => s.text), ['1:40p', '1:40p', '1:40p']);
+});
+
+test('a moment on another day than the bake\'s carries its date: after its time in the middle, alone at the edges', () => {
+  // Years from the clock the tests run by, so only the bake's own instant can make its day today.
+  const baked = new Date(2030, 2, 14, 12, 0, 0);
+  const read = { at: baked.getTime() - 10 * 60 * 1000 };
+  const today = new Date(2030, 2, 14, 9, 5, 0).getTime();
+  const tomorrow = new Date(2030, 2, 15, 9, 5, 0).getTime();
+  assert.deepEqual(bakeTop(EVERYWHERE, facts(value({ time: today }, read)), BASALT, baked).slots
+    .map((s) => s.text), ['9:05', '9:05', '9:05']);
+  assert.deepEqual(bakeTop(EVERYWHERE, facts(value({ time: tomorrow }, read)), BASALT, baked).slots
+    .map((s) => s.text), ['15 Mar', '9:05 15 Mar', '15 Mar']);
+  assert.deepEqual(bakeTop(Object.assign({ axisTimeFormat: '12h', timeShowAmPm: true }, EVERYWHERE),
+    facts(value({ time: tomorrow }, read)), BASALT, baked).slots.map((s) => s.text),
+  ['15 Mar', '9:05a 15 Mar', '15 Mar']);
 });
 
 test('a state prints Yes or No', () => {
