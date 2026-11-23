@@ -78,8 +78,9 @@ function urlHosts() {
 const uses = pebble.usesPermissions || [];
 const domains = perms.declaredDomains(uses);
 // The permissions this app declares. Names the phone app knows (its PermissionRegistry; Health is
-// not enforced yet, and declared anyway as the docs ask).
-const NAMES = ['Health', 'Internet', 'Location', 'ShowNotifications'];
+// not enforced yet, and declared anyway as the docs ask). Calendar, optional, lets the Plugin value
+// slot read a calendar complication (the calendar plugin asks it of whoever reads it).
+const NAMES = ['Calendar', 'Health', 'Internet', 'Location', 'ShowNotifications'];
 
 /**
  * The Internet entry that lists `domain`.

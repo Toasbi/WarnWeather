@@ -175,7 +175,8 @@ README.md.
     not, air quality, pollen), the town's name and the settings' place search, the public
     holidays (Nager.Date), Buy Me a Coffee (the Support me link: only linked, declared at
     the owner's wish) and the app's own backend. Optional: LocationIQ (a typed Manual
-    location), the update check, notifications and Health.
+    location), the update check, notifications, Health and Calendar (a calendar complication
+    in the Plugin value slot).
   - A settings-page link to another site opens through `Pebble.openUrl` where the app
     offers it, declared or not (`config-ui/lib/links.js`).
   - `test/repo/uses-permissions.test.js` fails on a URL in `src/pkjs` that is neither declared

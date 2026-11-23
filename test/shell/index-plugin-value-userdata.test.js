@@ -16,9 +16,13 @@ const PKJS_DIR = path.resolve(__dirname, '..', '..', 'src', 'pkjs') + path.sep;
 const VALUE = { source: 'x/muninn/stats/daysRemaining', at: 1700000000000, validUntil: null,
   reading: { short: '5 d', time: null, number: 5, unit: 'd', state: null, long: null } };
 const PREFS = '00000000-0000-0000-0001-000000000009';
-/** The user's complications as kept: a weather reading, and a calendar one this app may not read. */
+/**
+ * The user's complications as kept: a weather and a calendar reading this app may read (it
+ * declares Calendar, optional), and a music one it may not (ReadMusic, which it never declares).
+ */
 const COMPLICATIONS = [{ position: 0, category: 'weather', item: 'now', index: 0, property: 'level' },
-  { position: 2, category: 'calendar', item: 'now', index: 1, property: 'level' }];
+  { position: 1, category: 'calendar', item: 'now', index: 0, property: 'level' },
+  { position: 2, category: 'music', item: 'now', index: 1, property: 'level' }];
 
 /**
  * @param {string} category A source's category.
@@ -69,6 +73,7 @@ function openedUserData(t, platform, plugins) {
       { uuid: pkg.pebble.uuid.toUpperCase(), name: 'This app', sources: [source('own', [])] },
       { uuid: 'aaaaaaaa-0000-0000-0000-000000000001', name: 'Weather', sources: [source('weather', ['Location'])] },
       { uuid: 'aaaaaaaa-0000-0000-0000-000000000002', name: 'Calendar', sources: [source('calendar', ['Calendar'])] },
+      { uuid: 'aaaaaaaa-0000-0000-0000-000000000003', name: 'Music', sources: [source('music', ['ReadMusic'])] },
       { uuid: PREFS, name: 'Preferences', sources: [{ category: 'preferences', items: ['complications'],
         properties: { category: ['shortText'], item: ['shortText'], index: ['numericValue'], property: ['shortText'] } }] }],
   }, plugins ? { subscribeToSource: () => ({ unsubscribe: () => {} }) } : {});
@@ -102,10 +107,14 @@ test('settings open hands the page the plugins the slot can read, the user\'s co
   const ud = openedUserData(t, 'basalt', true);
   assert.deepEqual(ud.plugins, [{ uuid: 'aaaaaaaa-0000-0000-0000-000000000001', name: 'Weather',
     items: [{ category: 'weather', item: 'now', multiple: false, properties: ['level'] }] },
+  { uuid: 'aaaaaaaa-0000-0000-0000-000000000002', name: 'Calendar',
+    items: [{ category: 'calendar', item: 'now', multiple: false, properties: ['level'] }] },
   { uuid: PREFS, name: 'Preferences', items: [], complications: [{ position: 0, property: 'level', category: 'weather' },
-    { position: 2, property: 'level', category: 'calendar', why: 'Calendar' }] }],
-  'one whose source asks for a permission this app declares; neither this app\'s own nor one asking for another; '
-    + 'the Preferences plugin with the complications kept, each with why this app may not read it');
+    { position: 1, property: 'level', category: 'calendar' },
+    { position: 2, property: 'level', category: 'music', why: 'ReadMusic' }] }],
+  'one whose source asks for a permission this app declares (Calendar among them, optional); neither this app\'s '
+    + 'own nor one asking for another; the Preferences plugin with the complications kept, each with why this app '
+    + 'may not read it');
   assert.deepEqual(ud.pluginValue, VALUE, 'the value read last, whichever source it is of');
 });
 

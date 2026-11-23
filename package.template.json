@@ -2183,6 +2183,11 @@
         "name": "Health",
         "reason": "Steps, sleep and heart rate",
         "required": false
+      },
+      {
+        "name": "Calendar",
+        "reason": "Calendar complications in your status bars",
+        "required": false
       }
     ],
     "messageKeys": [
