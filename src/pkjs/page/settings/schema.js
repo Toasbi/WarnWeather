@@ -1599,6 +1599,7 @@ module.exports = {
             // What is new to try on this watch (feature-tips-panel.js), under the notices and
             // above the pinned preview too: the card draws only while the phone hands over
             // tips this install has not seen, and until its Got it. Its card is an info note.
+            title: 'New in this update',
             block: 'featureTips',
             style: 'info',
             beforePin: true,

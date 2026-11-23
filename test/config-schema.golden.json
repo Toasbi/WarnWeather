@@ -102,6 +102,7 @@
             ]
           },
           {
+            "title": "New in this update",
             "block": "featureTips",
             "style": "info",
             "beforePin": true,

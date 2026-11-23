@@ -4,7 +4,7 @@
 // the phone hands over (USERDATA.featureTips; notices/domain/feature-tips.js), each with
 // how to switch it on and a Show me button beside its title that opens the dialog or the
 // tab it is set in (the engine's [data-edit-sheet] and [data-goto-tab] paths). The card is
-// an info note (its section's style, shell.html .card.info). Got it flips the transient
+// an info note under its section's title (its style, shell.html .card.info). Got it flips the transient
 // featureTipsAck flag, the notices panel's pattern: the card goes, and PKJS marks the tips
 // seen when the page is saved. The pure renderFeatureTipsHtml is exported for tests; the
 // block registration is guarded like notices-panel.js'.
@@ -46,7 +46,6 @@
                 + '</div>';
         }
         return '<div class="tips">'
-            + '<div class="tips-hdr">New in this update</div>'
             + '<div class="tips-list">' + rows + '</div>'
             + '<button type="button" class="txt-act-btn tips-ack" data-k="featureTipsAck" data-toggle="1">Got it</button>'
             + '</div>';
@@ -66,13 +65,12 @@
     }
 
     // Scoped styles, injected once. The card is the note (shell.html .card.info), so the tips
-    // sit on it with no box of their own: the header and the lines between the tips in the
-    // info colours, each Show me beside its tip's title. The buttons are the page's neutral
-    // ones (shell.html .txt-act-btn), at a card's size.
+    // sit on it with no box of their own: the note's soft line between them, each Show me
+    // beside its tip's title. The buttons are the page's neutral ones (shell.html
+    // .txt-act-btn), at a card's size.
     var TIPS_CSS =
-        '.tips-hdr{font:700 11px \'Inter\',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--info-rule);margin:2px 0 4px}'
-        + '.tip{padding:8px 0 10px}'
-        + '.tip+.tip{border-top:1px solid var(--info-line-soft);padding-top:12px}'
+        '.tip{padding:8px 0 10px}'
+        + '.tip+.tip{border-top:1px solid var(--note-line-soft);padding-top:12px}'
         + '.tip-head{display:flex;align-items:center}'
         + '.tip-ttl{flex:1;min-width:0;font-weight:700;font-size:15px;color:var(--lbl)}'
         + '.tip-head .txt-act-btn{flex:none;margin-left:12px;padding:6px 12px;font-size:13px}'

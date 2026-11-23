@@ -137,8 +137,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // `color` items via displayFrom (args get the item's messageKey merged under them),
   // collapsible sections via titleFrom (the collapsed card header's value; args pass
   // through verbatim — sections have no messageKey), and sections via styleFrom (the look
-  // of a note card, 'info' or 'error': sectionStyle, which also hands over the userData). Writes are unaffected: a control
-  // still stores under its own messageKey, so picking the shown value pins it.
+  // of a note card, 'info' or 'error': sectionStyle). Every way in calls fn(S, env, args);
+  // a resolver that reads the page's userData reads INJECTED_USERDATA itself. Writes are
+  // unaffected: a control still stores under its own messageKey, so picking the shown value
+  // pins it.
   PConf.displayResolvers = makeRegistry();
 
   // --- hint-resolver registry --- a value row opts into a DERIVED hint by name
@@ -1888,9 +1890,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // (e.g. below a preview block) that should still read as secondary, hint-coloured text.
       // Only a tight join (joinPrevious: true) gets the .join pull-up that hugs the row above; a
       // loose join keeps the static's normal standoff (the row above just drops its divider).
-      // style 'info': the note is boxed like the Watchface tab's fetch-notice panel (its
-      // tinted, left-ruled .notice-item) in the page's info amber — a pointer the reader
-      // should not scroll past as body copy (e.g. "this is set on another tab").
+      // style 'info': the note is boxed in the page's info amber (tinted, left-ruled): a
+      // pointer the reader should not scroll past as body copy (e.g. "this is set on another
+      // tab"). A note that is a card of its own takes the card's look instead (cardLook).
       var isInfo = item.style === 'info';
       // textFrom: a note derived from the live settings; '' renders nothing at all.
       var staticText = staticTextOf(item, cx);
@@ -2079,18 +2081,28 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * A display resolver's answer for the live settings: fn(S, env, args) of the resolver a
+   * field names ({resolver, args}: titleBy, sheetTitleBy, titleFrom, noteFrom, styleFrom).
+   * @param {?{resolver: string, args: (Object|undefined)}} by The field.
+   * @param {?Object} cx Render context.
+   * @returns {*} The answer, or null with no field, context or registered resolver.
+   */
+  function displayAnswer(by, cx) {
+    var fn = by && cx && PConf.displayResolvers.get(by.resolver);
+    return fn ? fn(cx.S, cx.ENV, by.args || {}) : null;
+  }
+
+  /**
    * A title that follows the settings: a section's titleBy (its first card's header) or a
-   * select's sheetTitleBy (its picker's), a display resolver fn(S, env, args) answering the
-   * text (a status bar's name). '' when there is none, or it answers nothing: the caller's
-   * static title stands.
+   * select's sheetTitleBy (its picker's), a display resolver answering the text (a status
+   * bar's name). '' when there is none, or it answers nothing: the caller's static title
+   * stands.
    * @param {?{resolver: string, args: (Object|undefined)}} by The titleBy / sheetTitleBy.
    * @param {Object} cx Render context.
    * @returns {string}
    */
   function resolvedTitle(by, cx) {
-    if (!by || !cx) { return ''; }
-    var fn = PConf.displayResolvers.get(by.resolver);
-    var v = fn ? fn(cx.S, cx.ENV, by.args || {}) : null;
+    var v = displayAnswer(by, cx);
     return v ? String(v) : '';
   }
 
@@ -2115,17 +2127,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * A section's own look (its first card's): styleFrom's display resolver fn(S, env, args,
-   * userData) when the section names one, for a note whose look follows what it says (the
-   * fetch notices: error or info), else its style.
+   * A section's own look (its first card's): its styleFrom's answer, for a note whose look
+   * follows what it says (the fetch notices: error or info), else its style.
    * @param {Object} sec The section.
    * @param {Object} cx Render context.
    * @returns {*} The style ('info', 'error', or anything else for a plain card).
    */
   function sectionStyle(sec, cx) {
-    var by = sec.styleFrom;
-    var fn = by && PConf.displayResolvers.get(by.resolver);
-    return fn ? fn(cx.S, cx.ENV, by.args || {}, cx.USERDATA) : sec.style;
+    return displayAnswer(sec.styleFrom, cx) || sec.style;
   }
 
   /**
@@ -2139,9 +2148,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {?{text: string, label: string, info: string}} The note, or null for none.
    */
   function sectionNote(sec, cx) {
-    var by = sec.noteFrom;
-    var fn = by && cx && PConf.displayResolvers.get(by.resolver);
-    var v = fn ? fn(cx.S, cx.ENV, by.args || {}) : null;
+    var v = displayAnswer(sec.noteFrom, cx);
     if (!v || !v.text) { return null; }
     return { text: String(v.text), label: String(v.label || v.text), info: v.info ? String(v.info) : '' };
   }
@@ -2190,9 +2197,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // rows themselves carry the values there. Resolver grammar matches
       // displayFrom: fn(S, env, args) from PConf.displayResolvers.
       var val = '';
-      if (h.titleFrom && !h.open && cx) {
-        var fn = PConf.displayResolvers.get(h.titleFrom.resolver);
-        var v = fn ? fn(cx.S, cx.ENV, h.titleFrom.args || {}) : null;
+      if (h.titleFrom && !h.open) {
+        var v = displayAnswer(h.titleFrom, cx);
         if (v !== null && v !== undefined && v !== '') {
           val = '<span class="ttlval">' + esc(String(v)) + '</span>';
         }
@@ -2446,8 +2452,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           + (mOpen ? '' : '<span class="more-n">' + moreCount + ' more</span>') + '</button>';
       }
       // A note's look ('info' or 'error', shell.html .card.info / .card.error): a subheader's
-      // style for its card, the section's (sectionStyle) for the section's first card.
-      var look = cardLook(g.head ? g.head.style : (gi === 0 ? sectionStyle(sec, cx) : ''));
+      // style for its card, the section's (sectionStyle) for its first card, the one card
+      // without a subheader.
+      var look = cardLook(g.head ? g.head.style : sectionStyle(sec, cx));
       cards.push({ isEmpty: false, html: '<div class="card' + (hdr ? '' : ' nohdr')
         + (look ? ' ' + look : '') + '">' + hdr
         + (isOpen ? '<div>' + body + '</div>' : '') + '</div>'

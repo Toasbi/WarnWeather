@@ -410,9 +410,11 @@ itself takes the note's look (the tint, a thin line round the card and its title
 colour: `.card.info`, `.card.error` in `shell.html`), so a note that must not be missed needs no
 box inside a card (the Plugin value dialog's note while Muninn is picked). A section's own
 `style` does the same for its first card (the New in this update card), and its `styleFrom:
-{resolver, args}` asks a display resolver `fn(S, env, args, userData)` for the look, for a note
-whose look follows what it says (the fetch notices: an error note while any notice is an error,
-else an info note).
+{resolver, args}` asks a display resolver for the look, for a note whose look follows what it
+says (the fetch notices: an error note while any notice is an error, else an info note). Each
+look sets the note's colours as custom properties (`--note`, `--note-tint`, `--note-line`,
+`--note-line-soft`), so a block that draws in a note card draws its lines in
+`var(--note-line-soft)` and needs no rule of its own per look.
 
 `staticText` items carry their HTML in a `text` field, emitted verbatim without control chrome.
 They are not serialized (no `messageKey`). `style: 'info'` boxes the note in the tinted,
@@ -446,6 +448,8 @@ Section fields:
 |-------|------|-------------|
 | `title` | string | Section heading |
 | `intro` | string | HTML rendered above items |
+| `style` | `'info'` \| `'error'` | The section's first card is a note card in that look (`.card.info`, `.card.error`); any other value is a plain card. |
+| `styleFrom` | `{resolver, args?}` | The first card's look follows the settings: a `PConf.displayResolvers` id whose `fn(S, env, args)` answers the `style`; no answer keeps `style`. |
 | `block` | string | Custom-block id rendered below the items (see [Registries](#registries-and-hooks)). A block above the items is the item-level `blockBefore` on the section's first item; the engine has no section-level `blockBefore`. For a card that stacks several blocks, share a `groupCard` id across consecutive sections instead. |
 | `collapsible` | boolean | Collapses the section into an expandable card (collapsed by default; state is per page open). Its header ends on the red ▸, ▾ while open ([`ui.foldChev`](#shared-parts-pconfui)). |
 | `titleBy` | `{resolver, args?}` | The card header's title follows the settings: a `PConf.displayResolvers` id whose `fn(S, env, args)` answer replaces `title` (escaped); `''` or no answer keeps `title`. The header marks it (`data-title-by`), so a text commit that skips the re-render retitles it in place. A dialog's title follows it too (e.g. a status bar's name titling the bar's dialog). |
@@ -477,7 +481,7 @@ Item fields:
 | `showWhen` | Predicate | Conditional-visibility predicate (see grammar below) |
 | `text` | string | HTML body for `staticText` items |
 | `textFrom` | `{ resolver, args }` | `staticText` only: the body derived by a named hint resolver; `''` renders nothing (see above) |
-| `style` | `'info'` | `staticText` only: render the note as a boxed info note (see above) |
+| `style` | `'info'` \| `'error'` | `staticText`: `'info'` renders the note as a boxed info note (see above). `subheader`: `'info'` or `'error'` makes its card a note card in that look (see above). |
 | `compact` | boolean | Gives any row the tight vertical rhythm of the status-slot rows (`.slot`). |
 | `more` | boolean | The row renders behind its card's "More options · N more" row (see Progressive disclosure). |
 | `indent` | boolean | Indents the row (32px), as a child of the row above. |
@@ -780,6 +784,11 @@ colour that cascades from a sibling key until the user pins it). These read the 
   verbatim, with no messageKey merged in, since sections have none.
 - Titles through a section's `titleBy` and a select's `sheetTitleBy` (args verbatim too).
 - A section's header note through `noteFrom` (an object, `{text, label?, info?}`; args verbatim).
+- A section's look through `styleFrom` (`'info'`, `'error'`, or anything else for a plain first
+  card; args verbatim).
+
+Every way in calls `fn(S, env, args)`. A resolver that reads the page's userData reads the
+page global `INJECTED_USERDATA` itself, at call time.
 
 ```js
 // Returns the value to display; return null/undefined for "use the stored value".

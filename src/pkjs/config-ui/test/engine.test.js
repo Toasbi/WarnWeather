@@ -436,9 +436,10 @@ test('renderBody: a subheader\'s style info makes its card a note in the info lo
 
 test('renderBody: a section\'s style, or its styleFrom\'s answer, makes its first card a note', () => {
   let asked = null;
-  PConf.displayResolvers.register('testNoteLook', (S, env, args, userData) => {
-    asked = { args: args, userData: userData };
-    return userData.look;
+  let answer = null;
+  PConf.displayResolvers.register('testNoteLook', function (S, env, args) {
+    asked = { args: args, count: arguments.length };
+    return answer;
   });
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
     { style: 'info', items: [ { type: 'staticText', text: 'Tip.' } ] },
@@ -450,12 +451,14 @@ test('renderBody: a section\'s style, or its styleFrom\'s answer, makes its firs
     { style: 'loud', items: [ { type: 'staticText', text: 'Odd.' } ] }
   ] } ] };
   const S = E.hydrate(SCH, {});
-  const render = (look) => E.renderBody(SCH, 't', { S: S, ENV: {}, USERDATA: { look: look }, collapsed: {},
-    evalCtx: Object.assign({}, S, { env: {} }) });
+  const render = (look) => {
+    answer = look;
+    return E.renderBody(SCH, 't', { S: S, ENV: {}, USERDATA: {}, collapsed: {}, evalCtx: Object.assign({}, S, { env: {} }) });
+  };
   let html = render('error');
   assert.match(html, /<div class="card nohdr info"><div><div class="static[^"]*">Tip\./, 'a static style');
   assert.match(html, /<div class="card nohdr error"><div><div class="static[^"]*">Notice\./, 'the resolver\'s answer');
-  assert.deepEqual(asked, { args: { a: 1 }, userData: { look: 'error' } }, 'asked with its args and the userData');
+  assert.deepEqual(asked, { args: { a: 1 }, count: 3 }, 'asked fn(S, env, args), as every display resolver is');
   assert.ok(html.indexOf('<div class="card"><div class="cardHdr"><span class="ttlwrap"><span class="ttl">Under it</span>') !== -1,
     'the section\'s look is its first card\'s only');
   assert.equal((html.match(/class="card[^"]*(info|error)/g) || []).length, 2, 'a style the page has no look for is a plain card');
@@ -547,9 +550,8 @@ test('renderBody: a hinted staticText carries the hinted class (hint style) but 
   assert.equal(html.indexOf('join'), -1, 'hinted does not imply join (no spacing pull-up)');
 });
 
-// style: 'info' boxes a note like the General tab's fetch-notice items (the tinted,
-// left-ruled .notice-item) in the page's info amber — for a pointer the reader should
-// not skim past as body copy.
+// style: 'info' boxes a note in the page's info amber (tinted, left-ruled), for a pointer
+// the reader should not skim past as body copy.
 test('renderBody: a staticText with style info renders boxed, with its own class', () => {
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
     { type: 'staticText', style: 'info', text: 'Set <b>elsewhere</b>.' },

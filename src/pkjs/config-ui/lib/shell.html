@@ -31,7 +31,7 @@
     --ctl-line-soft: rgba(255,255,255,0.1); --swatch-line: rgba(255,255,255,0.18);
     --chip-line: rgba(255,255,255,0.25);
     --screen-line: rgba(255,255,255,0.14); --link: #FF6A52;
-    /* the info box's amber (staticText style: 'info', and the notice panel's info items):
+    /* the info box's amber (staticText style: 'info', and a note card's: .card.info):
        rule 6.1:1 against the card, box text 6.0:1. A note card (.card.info) takes the tint,
        the line round it and the soft line between its entries. */
     --info-rule: #FFB02E; --info-tint: rgba(255,176,46,0.12);
@@ -136,10 +136,12 @@
      card itself is the note, never a box inside a card: the tint over the card's colour, a thin
      line round it in the note's colour, and its title in that colour. Its text keeps --static:
      the hint grey is only 3.97:1 on the dark amber. */
-  .card.info { background: linear-gradient(var(--info-tint), var(--info-tint)), var(--card); border-color: var(--info-line); }
-  .card.info .cardHdr .ttl { color: var(--info-rule); }
-  .card.error { background: linear-gradient(var(--err-tint), var(--err-tint)), var(--card); border-color: var(--err-line); }
-  .card.error .cardHdr .ttl { color: var(--err-rule); }
+  /* A note card in its look: the look sets the --note colours, which the card, its title and
+     whatever a block draws in it (the line between its entries: --note-line-soft) read. */
+  .card.info { --note: var(--info-rule); --note-tint: var(--info-tint); --note-line: var(--info-line); --note-line-soft: var(--info-line-soft); }
+  .card.error { --note: var(--err-rule); --note-tint: var(--err-tint); --note-line: var(--err-line); --note-line-soft: var(--err-line-soft); }
+  .card.info, .card.error { background: linear-gradient(var(--note-tint), var(--note-tint)), var(--card); border-color: var(--note-line); }
+  .card.info .cardHdr .ttl, .card.error .cardHdr .ttl { color: var(--note); }
   .card.info .blockrow, .card.error .blockrow { color: var(--static); border-bottom: 0; }
   /* a blockBeforeSticky preview pins just below the topbar while its card's controls scroll under it.
      translateZ(0) forces its own compositing layer so older phone WebViews don't leak the scrolling
@@ -320,9 +322,8 @@
      the join variant reuses the same appearance and adds the pull-up spacing below. */
   .static.join, .static.hinted { color: var(--hint); font-size: 12.5px; line-height: 1.55; }
   .static.join { margin-top: -5px; padding-top: 0; }
-  /* style: 'info' — a boxed note, the Watchface tab's fetch-notice item (notices-panel.js
-     .notice-item) in the page's info amber (--info-tint / --info-rule, in tune with the
-     orange accents; error boxes stay red): tinted fill, 3px left rule, rounded. The
+  /* style: 'info' — a boxed note in the page's info amber (--info-tint / --info-rule, in
+     tune with the orange accents): tinted fill, 3px left rule, rounded. The
      explicit text colour keeps a tight-joined box (.static.join) off the hint grey, which
      is only 3.97:1 on the dark amber. */
   .static.info .info-box { padding: 8px 10px; border-radius: 6px; background: var(--info-tint); border-left: 3px solid var(--info-rule); color: var(--static); }
