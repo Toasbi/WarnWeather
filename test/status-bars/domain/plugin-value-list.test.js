@@ -38,7 +38,7 @@ const prefs = (sources) => plugin(PREFS, 'Preferences', sources);
 test('each plugin with its items and the properties of them the slot can print', () => {
   assert.deepEqual(list.listOf([PHONE], PERMS, 'own'), [{ uuid: PHONE.uuid, name: 'Phone', items: [
     { category: 'phone', item: 'phone_state', multiple: false,
-      properties: ['battery_level', 'cell', 'wifi', 'charging'] }] }], 'a boolean alone is printed too: Yes or No');
+      properties: ['battery_level', 'cell', 'wifi', 'charging'] }] }], 'a boolean alone is printed too: on or off');
 });
 
 test('a timestamp alone is printed, as a clock time; a shape the slot cannot print is left out', () => {

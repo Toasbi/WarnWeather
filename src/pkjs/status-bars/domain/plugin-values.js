@@ -127,9 +127,12 @@
         return String(Math.abs(tenths) < 10 ? tenths : Math.round(n));
     }
 
-    /** A state (a boolean the plugin sent without words of its own for it), as the slot prints it. */
-    var YES = 'Yes';
-    var NO = 'No';
+    /**
+     * A state (a boolean the plugin sent without words of its own for it), as the slot prints
+     * it: lowercase, as Shapeshifter prints a plugin's state.
+     */
+    var ON = 'on';
+    var OFF = 'off';
 
     /**
      * The text the slot prints of a reading, from the first of its shapes in this order:
@@ -144,7 +147,7 @@
      *      hour at most, and a moment stays true between reads where a count towards it does not.
      *   3. Its number, with its unit where the slot has the room ('%' and a unit that starts
      *      with the degree sign attach, any other follows a space).
-     *   4. Its state, Yes or No.
+     *   4. Its state, on or off.
      *   5. Its long text, last: it is written for a screen with room, and the slot cuts it.
      * Cut to the slot's cap at a character's edge, as the bake cuts any text, so the settings
      * page prints what the watch does.
@@ -172,7 +175,7 @@
             text = slotText.withUnit(numberText(r.number),
                 unit && unit !== '%' && unit.charAt(0) !== '\u00b0' ? ' ' + unit : unit, cap);
         } else if (typeof r.state === 'boolean') {
-            text = r.state ? YES : NO;
+            text = r.state ? ON : OFF;
         } else {
             text = oneLine(r.long) || '--';
         }

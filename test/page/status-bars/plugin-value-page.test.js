@@ -164,7 +164,7 @@ test('the last line and the bars\' pictures print a moment as the watch does: a 
   assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.EDGE_TEXT_MAX, env: BASALT }), '1:40p');
   assert.equal(page.lastLine(LEVEL), '13:40 (5 min ago).', '24 hours');
   global.INJECTED_USERDATA.pluginValue = kept({ state: true });
-  assert.equal(page.lastLine(LEVEL), 'Yes (5 min ago).');
+  assert.equal(page.lastLine(LEVEL), 'on (5 min ago).');
 });
 
 test('the last line and the bars\' pictures print a moment on another day with its date, as the watch does', (t) => {

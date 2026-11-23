@@ -96,8 +96,8 @@ test('a moment on another day than the bake\'s carries its date: after its time 
   ['15 Mar', '9:05a 15 Mar', '15 Mar']);
 });
 
-test('a state prints Yes or No', () => {
-  assert.deepEqual(bakeTop(EVERYWHERE, facts(value({ state: false }))).slots.map((s) => s.text), ['No', 'No', 'No']);
+test('a state prints on or off', () => {
+  assert.deepEqual(bakeTop(EVERYWHERE, facts(value({ state: false }))).slots.map((s) => s.text), ['off', 'off', 'off']);
 });
 
 test('a long text is cut to each place\'s bytes', () => {

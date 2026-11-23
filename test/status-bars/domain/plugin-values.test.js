@@ -148,11 +148,11 @@ test('the text: the plugin\'s short text over its moment and its state: its word
   assert.equal(pv.textFor(reading({ short: 'Off', state: false }), 8), 'Off');
 });
 
-test('the text: else its state, Yes or No; the number before it, the long text after it', () => {
-  assert.equal(pv.textFor(reading({ state: true }), 8), 'Yes');
-  assert.equal(pv.textFor(reading({ state: false }), 8), 'No');
+test('the text: else its state, on or off, lowercase; the number before it, the long text after it', () => {
+  assert.equal(pv.textFor(reading({ state: true }), 8), 'on');
+  assert.equal(pv.textFor(reading({ state: false }), 8), 'off');
   assert.equal(pv.textFor(reading({ state: true, number: 1 }), 8), '1');
-  assert.equal(pv.textFor(reading({ state: false, long: 'Not charging' }), 19), 'No');
+  assert.equal(pv.textFor(reading({ state: false, long: 'Not charging' }), 19), 'off');
 });
 
 test('the text: else the long text, else --', () => {
