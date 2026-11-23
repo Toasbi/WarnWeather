@@ -297,19 +297,20 @@ test('a re-bake reads the supplier\'s facts, the phone\'s replaced where the cal
  * A re-baker with bake inputs, at a clock the test moves, under the saver's 0:00-07:00 window.
  * @param {Object} [settings] Settings (the saver on by default).
  * @param {function(Object, Object, Object, number, Object): Object} [build] The bake (fakeBake by default).
+ * @param {Object} [host] More of the host's options (its timer, the fetch's state).
  * @returns {{sends: Object[], answers: Array<{onSuccess: function(): void, onFailure: function(Object): void}>,
  *   at: function(number, number): void}} What was sent, each send's outbox callbacks, and the clock's setter.
  */
-function bootSaver(settings, build) {
+function bootSaver(settings, build, host) {
   storage = {};
   // sends: what went out; answers: each send's outbox callbacks, to ACK or NACK it.
   const h = { sends: [], answers: [], now: 0 };
   h.at = (hour, minute) => { h.now = new Date(2026, 5, 16, hour, minute).getTime(); };
   h.at(12, 0);
-  statusRebake.init(withHost({
+  statusRebake.init(withHost(Object.assign({
     getSettings: () => settings || { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' },
     sendWeather: (p, onSuccess, onFailure) => { h.answers.push({ onSuccess, onFailure }); h.sends.push(p); },
-    buildStatusLines: build || fakeBake, now: () => h.now }));
+    buildStatusLines: build || fakeBake, now: () => h.now }, host)));
   // Baked at noon, with no sun events: no day/night turn of its own in these tests.
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null, new Date(h.now));
   return h;
@@ -407,6 +408,53 @@ test('a debt the user waits for at the phone is paid inside the window, at the n
   assert.equal(statusRebake.onTick(false), true, 'one waited for pays the others with it');
   assert.equal(h.sends.length, 2);
   assert.equal(statusRebake.onTick(false), false, 'once');
+});
+
+/**
+ * bootSaver with the host's timer, whose callbacks the test fires by hand.
+ * @param {function(): boolean} [fetchInFlight] Whether a weather fetch is running.
+ * @returns {Object} bootSaver's harness, and timers: each timer's callback and delay.
+ */
+function bootSoon(fetchInFlight) {
+  const timers = [];
+  const h = bootSaver(null, null, {
+    setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
+    fetchInFlight: fetchInFlight
+  });
+  h.timers = timers;
+  return h;
+}
+
+test('a debt the user waits for at the phone is paid a moment after it is owed, not at the next tick', () => {
+  const h = bootSoon();
+  statusRebake.oweStatus(true);
+  statusRebake.oweStatus(true);
+  assert.equal(h.sends.length, 0, 'not from here: the save\'s own messages go first');
+  assert.deepEqual(h.timers.map((t) => t.ms), [statusRebake.OWED_SOON_MS], 'one timer for both');
+  assert.ok(statusRebake.OWED_SOON_MS <= 5000, 'seconds, where the tick can take a minute');
+  h.timers[0].fn();
+  assert.equal(h.sends.length, 1, 'paid');
+  assert.equal(statusRebake.onTick(false), false, 'the tick finds nothing owed');
+  statusRebake.oweStatus(true);
+  assert.equal(h.timers.length, 2, 'the next debt sets a timer of its own');
+  h.at(3, 0);
+  h.timers[1].fn();
+  assert.equal(h.sends.length, 2, 'inside the Night battery saver\'s window too: a save asked for it');
+});
+
+test('news nobody waits for still waits for the tick; a fetch in flight or a NACK leaves a debt to it', () => {
+  let fetching = true;
+  const h = bootSoon(() => fetching);
+  statusRebake.oweStatus(false);
+  assert.equal(h.timers.length, 0, 'no timer for news that can wait');
+  statusRebake.oweStatus(true);
+  h.timers[0].fn();
+  assert.equal(h.sends.length, 0, 'not beside a fetch in flight, whose message carries the status');
+  fetching = false;
+  assert.equal(statusRebake.onTick(false), true, 'the tick pays it');
+  h.answers[0].onFailure({});
+  assert.equal(h.timers.length, 1, 'a NACK owes it again to the tick, at its backoff');
+  assert.equal(statusRebake.onTick(false), true, 'sent again by the tick');
 });
 
 test('a NACKed owed send is owed again, to the next tick, waited for as it was', () => {

@@ -220,8 +220,8 @@ one read at a time; inside the Night battery saver's window only the read a save
 with none before it or after one that failed; sooner after a failure, and at the next tick,
 once, after a save's read that timed out or failed without a reason; and the value last heard,
 kept, with the watch owed a status send when what the slot shows of it changes and at a start
-while it shows one. The next tick pays it, inside the Night battery saver's window too when a
-save asked for the read. A read takes the first answer that brings the value asked for; one
+while it shows one. The next tick pays it; when a save asked for the read, two seconds after
+the answer, inside the Night battery saver's window too. A read takes the first answer that brings the value asked for; one
 without it is the answer only after a few seconds without a fuller one, since a built-in
 plugin of the Pebble app answers with what the phone knows at once and with the rest as it
 comes in (`plugin-reader.js` readOnce).

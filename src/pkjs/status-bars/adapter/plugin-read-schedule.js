@@ -38,7 +38,8 @@
 // value or with the time (a value grown too old, which only a bake drops), the watch is owed a
 // status send, which the re-bake's next tick makes: within a minute, after the Night battery
 // saver's window, and not beside a fetch in flight (status-rebake.js oweStatus). The answer to
-// a read a save asked for is paid inside the window too: the user waits for it at the phone. A
+// a read a save asked for is paid two seconds after it comes, inside the window too: the user
+// waits for it at the phone (status-rebake.js paySoon). A
 // start owes one as well while the slot shows a value kept, since a debt dies with its PKJS:
 // whether the watch got the value is not known then, and the outbox sends nothing when it
 // has. The value is never logged: it is another app's data.
@@ -200,7 +201,8 @@ function create(spec) {
         console.log(spec.name + ': ' + (after === null ? 'nothing to show' : 'a new value to show') + '.');
         // Never sent from here. The plugin answers at any moment, right after a settings save or a
         // boot among them, while their own messages are on the channel. Those bake the value just
-        // kept where it came in time; the re-bake's next tick sends what is left.
+        // kept where it came in time; the re-bake sends what is left, a moment later when the user
+        // waits for it at the phone, else at its next tick.
         statusRebake.oweStatus(waitedFor);
     }
 

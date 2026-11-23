@@ -132,6 +132,14 @@ var owed = null;          // the send the watch is owed (oweStatus): {steps, wai
                           // trigger's step before it and whether the user waits for it at the
                           // phone; null = nothing is owed
 var retry = nackBackoff.createNackBackoff();   // the owed send's resends while NACKs come in a row
+var soonTimer = null;     // the timer that pays a debt the user waits for (paySoon), or null
+
+/**
+ * How long after it is owed a debt the user waits for at the phone is paid (paySoon): long
+ * enough for the settings save that asked for it to have sent its own messages, instead of
+ * up to a minute later, at the next tick.
+ */
+var OWED_SOON_MS = 2000;
 
 /**
  * @returns {?{getItem: Function, setItem: Function, removeItem: Function}} The injected
@@ -431,14 +439,31 @@ function resendStatusAwake(reason, prepare) {
  * the watch has left, which another app's plugin answers with right after a settings save
  * or a boot, while their own messages are on the half-duplex channel. Those messages bake
  * the news themselves where it came in time, and the outbox then drops the paid send.
+ * News the user waits for at the phone is paid OWED_SOON_MS later instead (paySoon).
  *
  * @param {boolean} waitedFor Whether the user waits for the news at the phone: the answer to
- *   a read that a settings save asked for. The next tick pays it inside the Night battery
- *   saver's window too, as the save's own send went then.
+ *   a read that a settings save asked for. It is paid a moment later, inside the Night
+ *   battery saver's window too, as the save's own send went then.
  * @returns {void}
  */
 function oweStatus(waitedFor) {
     owe(null, waitedFor);
+    if (waitedFor) { paySoon(); }
+}
+
+/**
+ * Pay what is owed OWED_SOON_MS from now, as the minute's tick would (onTick, with its waits:
+ * a NACK's backoff, a weather fetch in flight), rather than up to a minute later: the user is
+ * at the phone, looking at the bar for the value they just picked. One timer at a time. With
+ * no timer (a host that gives none), or when one of those waits holds it, the tick pays it.
+ * @returns {void}
+ */
+function paySoon() {
+    if (soonTimer !== null || typeof deps.setTimeout !== 'function') { return; }
+    soonTimer = deps.setTimeout(function () {
+        soonTimer = null;
+        onTick(typeof deps.fetchInFlight === 'function' && Boolean(deps.fetchInFlight()));
+    }, OWED_SOON_MS);
 }
 
 /**
@@ -641,6 +666,10 @@ function invalidatePersisted() {
  *   restart backstop lives (localStorage); absent = no backstop.
  * @param {function():?Object} [options.getBakeFacts] The two batteries' facts for the re-bake
  *   (status-lines.js BakeFacts); absent = a host that can read neither.
+ * @param {function(Function, number):*} [options.setTimeout] The host's timer, for a debt the
+ *   user waits for (paySoon); absent = the tick pays it.
+ * @param {function():boolean} [options.fetchInFlight] Whether a weather fetch is running, as
+ *   the tick is told (onTick); absent = none is.
  * @returns {void}
  */
 function init(options) {
@@ -652,6 +681,7 @@ function init(options) {
     lastWritten = null;
     bakedNight = undefined;
     owed = null;
+    soonTimer = null;
     retry = nackBackoff.createNackBackoff();
     restored = restoreSnapshot();
     if (restored) { bakedNight = nightNow(restored.payload); }
@@ -666,5 +696,6 @@ module.exports = {
     bakeStatus: bakeStatus,
     onTick: onTick,
     invalidatePersisted: invalidatePersisted,
-    STATUS_KEYS: STATUS_KEYS
+    STATUS_KEYS: STATUS_KEYS,
+    OWED_SOON_MS: OWED_SOON_MS
 };
