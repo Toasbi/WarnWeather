@@ -57,6 +57,12 @@ var FULLER_ANSWER_MS = 3000;
  *   the other plugin's script would run for nothing (namedCanAnswer).
  * @property {number} [limit] The most instances wanted (a Pebble app from 2.0.0 sends no
  *   more; an older one ignores it).
+ * @property {number} [instance] Which instance's properties the read is for, 0 (the first) by
+ *   default: what makes an answer the one asked for (readOnce) and what a reading reads
+ *   (readingOf). Never sent.
+ * @property {string[]} [permissions] The permissions this app declares, for a read that must
+ *   never ask the user for one it did not: it starts only where the phone's list of plugins
+ *   says no plugin that may answer it asks for another (permitted). Never sent.
  */
 
 /**
@@ -123,6 +129,34 @@ function namedCanAnswer(pebble, request) {
 }
 
 /**
+ * @param {?Object} pebble The Pebble object.
+ * @param {PluginRequest} request The source to read.
+ * @returns {boolean} Whether the read may start as far as the permissions go. A request that
+ *   carries this app's permissions starts only where the phone's list of plugins says that
+ *   every plugin that may answer it asks for none this app never declared (plugin-reads.js
+ *   undeclaredFor), since the Pebble app would ask the user for it: the named plugin alone, and
+ *   where none is named, every one that serves the source, as the Pebble app picks among them.
+ *   One that names none does not start without the list either. A request without them starts.
+ */
+function permitted(pebble, request) {
+    var list;
+    var named;
+    var needs;
+    if (!Array.isArray(request.permissions)) { return true; }
+    list = plugins(pebble);
+    if (request.plugin) {
+        // A Pebble app that cannot list them: as namedCanAnswer, which let the read start.
+        if (!list.length) { return true; }
+        named = String(request.plugin).toLowerCase();
+        list = list.filter(function (p) {
+            return Boolean(p) && typeof p.uuid === 'string' && p.uuid.toLowerCase() === named;
+        });
+    }
+    needs = pluginReads.undeclaredFor(list, request.category, request.item, request.permissions);
+    return needs !== null && needs.length === 0;
+}
+
+/**
  * @typedef {Object} PluginSubscription
  * @property {function(): void} unsubscribe Ends it. Never throws, may be called again, and
  *   is valid inside a callback, even one that runs before watch() has returned. No
@@ -136,8 +170,9 @@ function namedCanAnswer(pebble, request) {
  * not end a subscription: a later update may succeed, so onFailure can be called more than
  * once, and onData after it. A subscription that could not start (no plugins in this
  * Pebble app, a named plugin that cannot answer it, a source that acts when it is read,
- * plugin-reads.js actsWhenRead, or subscribeToSource threw) reports one failure and is handed
- * back ended. An update from a plugin other than the one the request names is a
+ * plugin-reads.js actsWhenRead, one that may ask the user for a permission this app never
+ * declared, permitted, or subscribeToSource threw) reports one failure and is handed back
+ * ended. An update from a plugin other than the one the request names is a
  * PLUGIN_UNAVAILABLE failure.
  *
  * @param {?Object} pebble The Pebble object.
@@ -164,7 +199,7 @@ function watch(pebble, request, onData, onFailure) {
         live: function () { return !ended; }
     };
     if (!available(pebble) || pluginReads.actsWhenRead(request.category, request.item)
-            || !namedCanAnswer(pebble, request)) {
+            || !namedCanAnswer(pebble, request) || !permitted(pebble, request)) {
         ended = true;
         onFailure(failure('PLUGIN_UNAVAILABLE'), handle);
         return handle;
@@ -200,13 +235,13 @@ function watch(pebble, request, onData, onFailure) {
 /**
  * @param {?Object} envelope A source update.
  * @param {PluginRequest} request The request it answers.
- * @returns {boolean} Whether it brings a property the request asks for: any update does where
- *   the request names none.
+ * @returns {boolean} Whether it brings a property the request asks for, in the instance it is
+ *   for: any update does where the request names none.
  */
 function bringsAsked(envelope, request) {
     var asked = request.properties;
     if (!Array.isArray(asked) || !asked.length) { return true; }
-    return asked.some(function (property) { return shapesOf(envelope, property) !== null; });
+    return asked.some(function (property) { return shapesOf(envelope, property, request.instance) !== null; });
 }
 
 /**
@@ -278,16 +313,19 @@ function readOnce(pebble, request, done, timers) {
 }
 
 /**
- * A property's shapes in the envelope's first instance: {shortText: {text}, numericValue:
+ * A property's shapes in one of the envelope's instances: {shortText: {text}, numericValue:
  * {value, unit}, longText: {text}, ...} as the plugin sent them.
  *
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
+ * @param {number} [index] Which instance, in the order the plugin sent them: 0 (the first) by
+ *   default.
  * @returns {?Object} The shapes, or null where the plugin did not send the property (a
- *   missing property means the plugin cannot serve it right now).
+ *   missing property means the plugin cannot serve it right now), or not that instance.
  */
-function shapesOf(envelope, property) {
-    var instance = envelope && envelope.instances && envelope.instances[0];
+function shapesOf(envelope, property, index) {
+    var instances = envelope && Array.isArray(envelope.instances) ? envelope.instances : [];
+    var instance = instances[typeof index === 'number' ? index : 0];
     var shapes = instance && instance.properties && instance.properties[property];
     return shapes && typeof shapes === 'object' ? shapes : null;
 }
@@ -331,17 +369,18 @@ function shapeValue(shape) {
 }
 
 /**
- * A property's reading in the envelope's first instance: the value of each shape the slot
- * prints (each text shape's text, the timestamp, the number with its unit, the boolean), as
- * the plugin sent them, unchecked. What of it is kept, and what the slot shows, are the status
- * bars' rules, checked once (plugin-value-reads.js valueOf).
+ * A property's reading in one of the envelope's instances, the first by default: the value of
+ * each shape the slot prints (each text shape's text, the timestamp, the number with its unit,
+ * the boolean), as the plugin sent them, unchecked. What of it is kept, and what the slot
+ * shows, are the status bars' rules, checked once (plugin-value-reads.js valueOf).
  *
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
+ * @param {number} [index] Which instance (shapesOf).
  * @returns {?PluginReading} The reading, or null where the plugin did not send the property.
  */
-function readingOf(envelope, property) {
-    var shapes = shapesOf(envelope, property);
+function readingOf(envelope, property, index) {
+    var shapes = shapesOf(envelope, property, index);
     var numeric = shapes && shapes.numericValue;
     return shapes ? {
         short: shapes.shortText ? shapes.shortText.text : null,

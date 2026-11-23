@@ -2,7 +2,8 @@
 // The plugins the Plugin value slot's dialog lists (plugin-value-list.js): what each plugin on
 // the phone serves that the slot can show, written short (each item with its properties'
 // names, from which the page makes the values; plugin-value-page.test.js) and capped, since the
-// list rides the settings page's URL.
+// list rides the settings page's URL. The Preferences plugin's entry carries the user's
+// complications instead (what they are is complications.test.js').
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const list = require('../../../src/pkjs/status-bars/domain/plugin-value-list.js');
@@ -22,6 +23,16 @@ function plugin(uuid, name, sources) {
 const PHONE = plugin('00000000-0000-0000-0001-000000000001', 'Phone', [{ category: 'phone', items: ['phone_state'],
   properties: { battery_level: ['numericValue', 'shortText'], cell: ['shortText'], wifi: ['boolean', 'shortText'],
     charging: ['boolean'] }, suggestedRefreshIntervalSec: 60 }]);
+
+const PREFS = '00000000-0000-0000-0001-000000000009';
+/** The Preferences plugin's source of the user's complications, as it declares it. */
+const COMPLICATIONS = { category: 'preferences', items: ['complications'], supportsMultiple: true,
+  properties: { category: ['shortText'], item: ['shortText'], index: ['numericValue'], property: ['shortText'] } };
+/**
+ * @param {Array<Object>} sources Its sources.
+ * @returns {Object} The Pebble app's Preferences plugin, as Pebble.enumeratePlugins() lists it.
+ */
+const prefs = (sources) => plugin(PREFS, 'Preferences', sources);
 
 test('each plugin with its items and the properties of them the slot can print', () => {
   assert.deepEqual(list.listOf([PHONE], PERMS, 'own'), [{ uuid: PHONE.uuid, name: 'Phone', items: [
@@ -66,6 +77,46 @@ test('a source that asks for a permission this app never declares is left out, a
     callerPermissions: [42] }]);
   const own = plugin('OWN', 'WarnWeather', [{ category: 'w', items: ['x'], properties: { v: ['shortText'] } }]);
   assert.deepEqual(list.listOf([calendar, theirs, odd, own, PHONE], PERMS, 'own').map((p) => p.name), ['Phone']);
+});
+
+test('the Preferences plugin offers the user\'s complications, and nothing else of what it serves', () => {
+  const UNITS = { category: 'preferences', items: ['units'], properties: { clock: ['shortText'], locale: ['shortText'] } };
+  const LOCATIONS = { category: 'preferences', items: ['weather_location'], supportsMultiple: true,
+    properties: { name: ['shortText'], latitude: ['numericValue'], longitude: ['numericValue'], current: ['boolean'] },
+    callerPermissions: [{ name: 'Location' }] };
+  const KNOWN = [{ position: 1, category: 'phone', item: 'phone_state', index: 0, property: 'battery_level' }];
+  assert.deepEqual(list.listOf([prefs([UNITS, COMPLICATIONS, LOCATIONS]), PHONE], PERMS, 'own', KNOWN).map((p) => [p.name,
+    p.items, p.complications]), [['Preferences', [], [{ position: 1, property: 'battery_level', category: 'phone' }]],
+  ['Phone', list.listOf([PHONE], PERMS, 'own')[0].items, undefined]],
+  'its units are plumbing, and its weather locations\' coordinates are the user\'s position');
+  assert.deepEqual(list.listOf([prefs([COMPLICATIONS])], PERMS, 'own', null)[0].complications, [], 'none known yet');
+  assert.deepEqual(list.listOf([prefs([UNITS, LOCATIONS])], PERMS, 'own', KNOWN), [], 'a Pebble app without complications');
+  assert.equal(list.listOf([plugin(PREFS.toUpperCase(), 'Preferences', [COMPLICATIONS])], PERMS, 'own', KNOWN)[0]
+    .complications.length, 1, 'its uuid in either case');
+});
+
+test('each complication by its place, what it shows, and why this app may not read it, where it may not', () => {
+  const weather = plugin('w', 'Weather', [{ category: 'weather', items: ['location'],
+    properties: { temperature: ['shortText'] }, callerPermissions: ['Location'] }]);
+  const calendar = plugin('c', 'Calendar', [{ category: 'calendar', items: ['event'],
+    properties: { starts_at: ['timestamp'] }, callerPermissions: [{ name: 'Calendar' }] }]);
+  const find = plugin('f', 'Phone', [{ category: 'phone', items: ['find_my_phone'], properties: { ringing: ['boolean'] } }]);
+  const known = [
+    { position: 0, category: 'muninn', item: 'stats', index: 0, property: 'daysRemaining' },
+    { position: 1, category: 'weather', item: 'location', index: 0, property: 'temperature' },
+    { position: 3, category: 'calendar', item: 'event', index: 0, property: 'starts_at' },
+    { position: 4, category: 'phone', item: 'find_my_phone', index: 0, property: 'ringing' }];
+  assert.deepEqual(list.listOf([prefs([COMPLICATIONS]), weather, calendar, find], PERMS, 'own', known)[0].complications, [
+    { position: 0, property: 'daysRemaining', category: 'muninn', why: '' },
+    { position: 1, property: 'temperature', category: 'weather' },
+    { position: 3, property: 'starts_at', category: 'calendar', why: 'Calendar' },
+    { position: 4, property: 'ringing', category: 'phone', why: '' }],
+  'no plugin on the phone serves the first; reading the last rings the phone; neither the item nor the index rides');
+  const long = { position: 0, category: 'c'.repeat(64), item: 'i', index: 0, property: 'p'.repeat(64) };
+  const asks = plugin('a', 'Asks', [{ category: long.category, items: ['i'], callerPermissions: ['A'.repeat(64)] }]);
+  assert.deepEqual(list.listOf([prefs([COMPLICATIONS]), asks], PERMS, 'own', [long])[0].complications, [{ position: 0,
+    property: 'p'.repeat(31) + '\u2026', category: 'c'.repeat(31) + '\u2026', why: 'A'.repeat(31) + '\u2026' }],
+  'each name capped as a plugin\'s is: the list rides the page\'s URL');
 });
 
 test('each plugin once', () => {

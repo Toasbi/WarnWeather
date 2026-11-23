@@ -29,7 +29,8 @@
 //     see the value. Any other waits for the first tick after the window. The window keeps the
 //     watch's link quiet, and a read is not quiet: a permission the plugin's app asked for comes
 //     back to the watch with it.
-//   - A plugin that is not there is an answer of nothing, and the value kept is dropped. Any
+//   - A plugin that is not there is an answer of nothing, and the value kept is dropped; a key
+//     with nothing to read under it (the spec's wanted: a request of null) drops it too. Any
 //     other failure keeps it, and the reader's nextReadAt tries again sooner (plugin-reads.js
 //     retryWait). A read a save asked for that failed for a reason that can pass by the next
 //     minute (the plugin did not answer in time, or failed without saying why: plugin-reads.js
@@ -60,10 +61,11 @@ var pluginReader = require('./plugin-reader.js');
  * @property {string} valueKey The storage key of the value last heard.
  * @property {string} timeField The time the record keeps beside `at` and `failures`
  *   (plugin-reads.js recordOf), which the reader's nextReadAt works from.
- * @property {function(?Object, ?Object): ?{key: ?string, request: Object}} wanted What to read
+ * @property {function(?Object, ?Object): ?{key: ?string, request: ?Object}} wanted What to read
  *   under the settings and the watch info: the request (plugin-reader.js PluginRequest) and
  *   its key, which the record keeps (null for a reader that reads one thing only). Null while
- *   nothing is wanted.
+ *   nothing is wanted. A request of null wants a key with nothing to read under it (a
+ *   complication's place left empty): each read of it is an answer of nothing, at once.
  * @property {function(Object, ?Object): number} nextReadAt When the read after a record is
  *   due under the settings, in epoch milliseconds.
  * @property {function(Object, {key: ?string, request: Object}, number): {time: ?number,
@@ -209,8 +211,8 @@ function create(spec) {
     }
 
     /**
-     * Ask the plugin, once.
-     * @param {{key: ?string, request: Object}} want What is wanted (spec.wanted).
+     * Ask the plugin, once (a request of null asks nothing: an answer of nothing, at once).
+     * @param {{key: ?string, request: ?Object}} want What is wanted (spec.wanted).
      * @param {number} at Now, in epoch milliseconds.
      * @param {boolean} fromSave Whether a settings save asked for it, or for the read before
      *   it that this one reads again (againAtTick).
@@ -222,8 +224,13 @@ function create(spec) {
         // The read again a save's failed read earned (againAtTick) earns none of its own: when it
         // fails as well, the reader's wait after a failure stands.
         var again = againAtTick;
-        inFlight = true;
         againAtTick = false;
+        if (!want.request) {
+            stamp(want.key, at, 0, null);
+            keep(null, fromSave);
+            return;
+        }
+        inFlight = true;
         // Stamped before the plugin answers: a read that PKJS ends before the answer still counts,
         // or leaving the watchface and coming back every few seconds would read at every start.
         stamp(want.key, at, failures, time);

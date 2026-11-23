@@ -189,6 +189,101 @@ test('the bars\' pictures print the value read last at each slot\'s room, else -
   assert.equal(page.barText(S, 19), '--', 'none read');
 });
 
+// --- the user's complications ---------------------------------------------------
+
+const PREFS = '00000000-0000-0000-0001-000000000009';
+/**
+ * What the phone lists: Preferences among the plugins, with the user's complications.
+ * @param {*} list Its complications (plugin-value-list.js complicationsFor).
+ * @returns {Array<Object>} The plugins.
+ */
+const withPrefs = (list) => PLUGINS.concat([{ uuid: PREFS, name: 'Preferences', items: [], complications: list }]);
+const COMPLICATIONS = [
+  { position: 0, property: 'temperature', category: 'weather' },
+  { position: 1, property: 'battery_level', category: 'phone' },
+  { position: 2, property: 'starts_at', category: 'calendar', why: 'Calendar' },
+  { position: 3, property: 'daysRemaining', category: 'muninn' },
+  { position: 4, property: 'ringing', category: 'phone', why: '' }];
+const PLACE = (n) => ({ pluginValuePlugin: PREFS, pluginValueId: 'preferences/complications/' + n });
+
+test('the Preferences plugin is listed as the user\'s complications in the Pebble app', (t) => {
+  userData(t, { plugins: withPrefs(COMPLICATIONS) });
+  assert.deepEqual(page.pluginOptions({ pluginValuePlugin: '' }).slice(-1),
+    [['Preferences', PREFS, { desc: 'Your complications in the Pebble app' }]]);
+});
+
+test('its values are the complications by their places, each by what it shows, none of the plumbing', (t) => {
+  userData(t, { plugins: withPrefs(COMPLICATIONS) });
+  assert.deepEqual(page.valueOptions(PLACE(0)), [
+    ['1 · Temperature (weather)', 'preferences/complications/0'],
+    ['2 · Battery level (phone)', 'preferences/complications/1'],
+    ['3 · Starts at (calendar)', 'preferences/complications/2', { disabled: true,
+      desc: 'Needs the Calendar permission, which WarnWeather never asks for' }],
+    ['4 · Days remaining (muninn)', 'preferences/complications/3'],
+    ['5 · Ringing (phone)', 'preferences/complications/4', { disabled: true,
+      desc: 'WarnWeather cannot read it here' }]]);
+  assert.deepEqual(page.valueOptions(PLACE(1)).map((o) => o[1]), page.valueOptions(PLACE(0)).map((o) => o[1]),
+    'the same list, whichever is picked');
+  global.INJECTED_USERDATA.plugins = withPrefs([{ position: 1, property: 'battery_level', category: 'phone' }]);
+  assert.deepEqual(page.valueOptions(PLACE(1)), [['2 · Battery level (phone)', 'preferences/complications/1']],
+    'an empty place is not listed: the others keep their numbers');
+  assert.deepEqual(page.valueOptions(PLACE(3)), [['2 · Battery level (phone)', 'preferences/complications/1'],
+    ['4 · Empty', 'preferences/complications/3']], 'one the settings hold where the place is empty now');
+  global.INJECTED_USERDATA.plugins = withPrefs([{ position: 0, property: 'hourly_UV_index', category: 'smartHome' }]);
+  assert.equal(page.valueOptions(PLACE(0))[0][0], '1 · Hourly UV index (smart home)', 'names made readable');
+  global.INJECTED_USERDATA.plugins = withPrefs([{ position: 0, property: 'state', category: 'lights',
+    why: 'ReadWatchSettings' }]);
+  assert.equal(page.valueOptions(PLACE(0))[0][2].desc, 'Needs the Read watch settings permission, which WarnWeather '
+    + 'never asks for');
+  [[], null, undefined, 'x'].forEach((list) => {
+    global.INJECTED_USERDATA.plugins = withPrefs(list);
+    assert.deepEqual(page.valueOptions(PLACE(0)), [['1 · Empty', 'preferences/complications/0']], String(list));
+  });
+});
+
+test('the Value row\'s hint says where the complications are set, that the slot follows the one picked, '
+  + 'and why it shows -- where it does', (t) => {
+  userData(t, { plugins: withPrefs(COMPLICATIONS) });
+  const hint = 'Your complications in the Pebble app (Settings › Plugins › Complications). The slot '
+    + 'follows the one you pick when you change it there.';
+  [PLACE(0), PLACE(3), { pluginValuePlugin: PREFS, pluginValueId: '' }].forEach((S) =>
+    assert.equal(page.valueHint(S), hint, S.pluginValueId));
+  assert.equal(page.valueHint(PLACE(2)), hint + ' Needs the Calendar permission, which WarnWeather never asks for, '
+    + 'so the slot shows --.', 'one it may not read: the place\'s complication changed in the Pebble app since');
+  assert.equal(page.valueHint(PLACE(4)), hint + ' WarnWeather cannot read it here, so the slot shows --.');
+  assert.equal(page.valueHint(PLACE(9)), hint + ' This place is empty there, so the slot shows --.');
+  global.INJECTED_USERDATA.plugins = withPrefs([]);
+  assert.equal(page.valueHint(PLACE(0)), hint + ' This place is empty there, so the slot shows --.', 'none set up');
+  assert.equal(page.valueHint({ pluginValuePlugin: PREFS, pluginValueId: '' }), hint, 'none set up, none picked');
+  global.INJECTED_USERDATA.plugins = withPrefs([{ position: 0, property: 'p', category: 'c', why: '<b>' }]);
+  assert.equal(page.valueHint(PLACE(0)), hint + ' Needs the &lt;b&gt; permission, which WarnWeather never asks for, '
+    + 'so the slot shows --.', 'another app\'s words, escaped: the hint is HTML');
+});
+
+test('picking Preferences starts on the first complication WarnWeather can read', (t) => {
+  userData(t, { plugins: withPrefs(COMPLICATIONS.slice(2)) });
+  const S = Object.assign({}, LEVEL);
+  page.pluginPicked(S, PHONE, PREFS);
+  assert.equal(S.pluginValueId, 'preferences/complications/3', 'the calendar one is passed over');
+  global.INJECTED_USERDATA.plugins = withPrefs([COMPLICATIONS[2]]);
+  page.pluginPicked(S, PHONE, PREFS);
+  assert.equal(S.pluginValueId, '', 'none it can read');
+  global.INJECTED_USERDATA.plugins = withPrefs([]);
+  page.pluginPicked(S, PHONE, PREFS);
+  assert.equal(S.pluginValueId, '', 'none known');
+});
+
+test('the last line and the bars\' pictures show a complication\'s value, whatever reading it names', (t) => {
+  clock(t, NOW);
+  userData(t, { plugins: withPrefs(COMPLICATIONS), pluginValue: kept({ short: '21°' },
+    { source: PREFS + '/preferences/complications/0/weather/location/0/temperature' }) });
+  const S = Object.assign({ statusTopLeft: 'pluginValue' }, PLACE(0));
+  assert.equal(page.lastLine(S), '21° (5 min ago).');
+  assert.equal(page.barText(S, 8), '21°');
+  assert.equal(page.barText(PLACE(1), 8), '--', 'another place\'s');
+  assert.equal(page.lastLine(PLACE(1)), 'None yet. When you pick a value and save, the watch shows it within about a minute.');
+});
+
 test('the Edit button opens the dialog from every slot that holds the item, not on aplite', () => {
   const resolve = PConf.sheetResolvers.get('statusSlotEditSheet');
   catalog.allSlotKeys().forEach((slotKey) => {

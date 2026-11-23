@@ -23,7 +23,7 @@ function reading(fields) {
 
 test('sourceOf: the plugin and the value the settings pick, null while either is missing', () => {
   assert.deepEqual(pv.sourceOf(SETTINGS), { plugin: UUID, id: 'muninn/stats/daysRemaining', category: 'muninn',
-    item: 'stats', property: 'daysRemaining', key: UUID + '/muninn/stats/daysRemaining' });
+    item: 'stats', property: 'daysRemaining', key: UUID + '/muninn/stats/daysRemaining', complication: null });
   [null, {}, { pluginValuePlugin: UUID }, { pluginValueId: 'a/b/c' },
     { pluginValuePlugin: '', pluginValueId: 'a/b/c' }, { pluginValuePlugin: UUID, pluginValueId: '' },
     { pluginValuePlugin: UUID, pluginValueId: 'a/b' }, { pluginValuePlugin: UUID, pluginValueId: 'a/b/c/d' },
@@ -34,7 +34,36 @@ test('sourceOf: the plugin and the value the settings pick, null while either is
 test('valueId: the id the settings keep a value under, which sourceOf takes apart', () => {
   assert.equal(pv.valueId('muninn', 'stats', 'daysRemaining'), 'muninn/stats/daysRemaining');
   assert.deepEqual(pv.sourceOf({ pluginValuePlugin: UUID, pluginValueId: pv.valueId('c', 'i', 'p') }),
-    { plugin: UUID, id: 'c/i/p', category: 'c', item: 'i', property: 'p', key: UUID + '/c/i/p' });
+    { plugin: UUID, id: 'c/i/p', category: 'c', item: 'i', property: 'p', key: UUID + '/c/i/p', complication: null });
+});
+
+test('a complication: the Preferences plugin\'s, by its place in the user\'s list', () => {
+  const PREFS = '00000000-0000-0000-0001-000000000009';
+  assert.equal(pv.PREFERENCES, PREFS);
+  assert.equal(pv.complicationId(0), 'preferences/complications/0');
+  assert.deepEqual(pv.sourceOf({ pluginValuePlugin: PREFS, pluginValueId: pv.complicationId(2) }),
+    { plugin: PREFS, id: 'preferences/complications/2', category: 'preferences', item: 'complications',
+      property: '2', key: PREFS + '/preferences/complications/2', complication: 2 });
+  assert.equal(pv.sourceOf({ pluginValuePlugin: PREFS.toUpperCase(), pluginValueId: pv.complicationId(9) }).complication,
+    9, 'the uuid in either case; the tenth place');
+  [['another plugin', UUID, 'preferences/complications/0'], ['not a place', PREFS, 'preferences/complications/x'],
+    ['written otherwise', PREFS, 'preferences/complications/01'], ['past the places', PREFS, 'preferences/complications/10'],
+    ['another of its sources', PREFS, 'preferences/units/clock'], ['a part', PREFS, 'preferences/complications/1.5']]
+    .forEach(([why, plugin, id]) => assert.equal(pv.sourceOf({ pluginValuePlugin: plugin, pluginValueId: id }).complication,
+      null, why));
+});
+
+test('readFrom: a value is the source\'s when it was read from it; a complication\'s, from any reading it names', () => {
+  const PREFS = pv.PREFERENCES;
+  const first = pv.sourceOf({ pluginValuePlugin: PREFS, pluginValueId: pv.complicationId(0) });
+  const own = pv.sourceOf(SETTINGS);
+  assert.equal(pv.readFrom({ source: own.key }, own), true);
+  assert.equal(pv.readFrom({ source: own.key + '/x' }, own), false, 'a value of a plugin\'s own is only its source\'s');
+  assert.equal(pv.readFrom({ source: first.key + '/weather/location/0/temperature' }, first), true);
+  assert.equal(pv.readFrom({ source: first.key + '0/weather/location/0/temperature' }, first), false, 'the eleventh place');
+  assert.equal(pv.readFrom({ source: PREFS + '/preferences/complications/1/w/l/0/t' }, first), false, 'another place');
+  assert.equal(pv.readFrom(null, first), false);
+  assert.equal(pv.readFrom({ source: first.key }, null), false);
 });
 
 test('everyMs: the Updates row, every hour by default', () => {

@@ -13,6 +13,12 @@
 // said as such: the engine would otherwise move the row onto another option as soon as it is
 // drawn (engine.js resolveRowItem), and the slot would change without the user picking it.
 //
+// The Pebble app's Preferences plugin offers the user's complications in the Pebble app in
+// place of values of its own (its entry's complications, plugin-value-list.js complicationsFor):
+// each by its place and what it shows ('1 · Temperature (weather)'), and one that WarnWeather
+// may not read greyed out with the reason, so the places keep the numbers the Pebble app gives
+// them.
+//
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
 // page (scripts/build-config-page.js APP_FILES, after plugin-values.js, which it binds while its
 // body runs; window.PluginValuePage). userData is the page global INJECTED_USERDATA, read at
@@ -30,6 +36,11 @@
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
     // What the slot shows while it has no value to show (status-lines.js formatValue).
     var NONE_SHOWN = pluginValues.textFor(null, catalog.CAPS.MID_TEXT_MAX);
+    // The Value row's hint while the Preferences plugin is picked: where the complications are
+    // set, and that the slot shows the one at its place, whatever it is set to there. An empty
+    // place, or one WarnWeather may not read, shows NONE_SHOWN.
+    var COMPLICATIONS_HINT = 'Your complications in the Pebble app (Settings \u203a Plugins \u203a Complications). '
+        + 'The slot follows the one you pick when you change it there.';
 
     /**
      * @returns {Object} The page's userData (INJECTED_USERDATA), read at call time.
@@ -74,14 +85,44 @@
     }
 
     /**
+     * @param {?Object} plugin A listed plugin, or null.
+     * @returns {boolean} Whether it is the Preferences plugin, which offers the user's
+     *   complications (plugin-value-list.js complicationsFor).
+     */
+    function offersComplications(plugin) {
+        return Boolean(plugin) && Array.isArray(plugin.complications);
+    }
+
+    /**
+     * The user's complications as the Value row lists them, as the phone listed them under the
+     * Preferences plugin: each by its place, as the Pebble app numbers it, with what it shows and
+     * its source's category ('1 · Temperature (weather)'), and one WarnWeather may not read with
+     * why: the permission it needs, which WarnWeather never asks for (`why`), or none, where
+     * nothing on the phone lets it read it ('').
+     * @param {Array<Object>} list The complications (plugin-value-list.js complicationsFor).
+     * @returns {Array<{id: string, label: string, multiple: boolean, unreadable: ?string}>}
+     */
+    function complicationValues(list) {
+        return list.map(function (c) {
+            var why = typeof c.why === 'string' ? (c.why ? 'Needs the ' + labelOf(c.why)
+                + ' permission, which WarnWeather never asks for' : 'WarnWeather cannot read it here') : null;
+            return { id: pluginValues.complicationId(c.position), multiple: false, unreadable: why,
+                label: (c.position + 1) + ' \u00b7 ' + labelOf(c.property)
+                    + ' (' + labelOf(c.category).toLowerCase() + ')' };
+        });
+    }
+
+    /**
      * The values a listed plugin offers, in its order: each property of each of its items,
      * named after the property, and after the item first where the plugin serves more than one.
+     * The Preferences plugin's are the user's complications (complicationValues).
      * @param {?Object} plugin A listed plugin, or null.
-     * @returns {Array<{id: string, label: string, multiple: boolean}>}
+     * @returns {Array<{id: string, label: string, multiple: boolean, unreadable: ?string}>}
      */
     function valuesOf(plugin) {
         var items = plugin ? plugin.items : [];
         var out = [];
+        if (offersComplications(plugin)) { return complicationValues(plugin.complications); }
         items.forEach(function (it) {
             it.properties.forEach(function (property) {
                 out.push({ id: pluginValues.valueId(it.category, it.item, property), multiple: it.multiple,
@@ -109,23 +150,30 @@
      */
     function pluginOptions(S) {
         var stored = S.pluginValuePlugin;
-        var out = [['None', '']].concat(listed().map(function (p) { return [p.name, p.uuid]; }));
+        var out = [['None', '']].concat(listed().map(function (p) {
+            return offersComplications(p) ? [p.name, p.uuid, {desc: 'Your complications in the Pebble app'}]
+                : [p.name, p.uuid];
+        }));
         if (stored && !pluginOf(stored)) { out.push(['Not on this phone', stored]); }
         return out;
     }
 
     /**
-     * The Value row's list: the values the picked plugin offers, then the one the settings hold
-     * where it offers it no more, named after its property.
+     * The Value row's list: the values the picked plugin offers, one WarnWeather may not read
+     * greyed out with why, then the one the settings hold where it offers it no more, named
+     * after its property, or for a complication after its place.
      * @param {Object} S Settings.
      * @returns {Array<Array>} [label, value, meta?] options.
      */
     function valueOptions(S) {
         var plugin = pluginOf(S.pluginValuePlugin);
         var source = pluginValues.sourceOf(S);
-        var out = valuesOf(plugin).map(function (v) { return [v.label, v.id]; });
+        var out = valuesOf(plugin).map(function (v) {
+            return v.unreadable ? [v.label, v.id, {disabled: true, desc: v.unreadable}] : [v.label, v.id];
+        });
         if (source && !valueIn(plugin, source.id)) {
-            out.push([labelOf(source.property), source.id, {desc: 'Not offered now'}]);
+            out.push(source.complication !== null ? [(source.complication + 1) + ' \u00b7 Empty', source.id]
+                : [labelOf(source.property), source.id, {desc: 'Not offered now'}]);
         }
         return out;
     }
@@ -144,14 +192,33 @@
     }
 
     /**
+     * The Value row's hint while the Preferences plugin is picked (COMPLICATIONS_HINT), with why
+     * the slot shows NONE_SHOWN where the complication the settings hold cannot be shown: its
+     * place is empty, or WarnWeather may not read it.
+     * @param {Object} S Settings.
+     * @param {?Object} value The complication the settings hold, as the Value row lists it, or
+     *   null.
+     * @returns {string} HTML.
+     */
+    function complicationHint(S, value) {
+        var source = pluginValues.sourceOf(S);
+        var why = !source || source.complication === null ? null
+            : value ? value.unreadable : 'This place is empty there';
+        return why ? COMPLICATIONS_HINT + ' ' + html.esc(why) + ', so the slot shows ' + NONE_SHOWN + '.'
+            : COMPLICATIONS_HINT;
+    }
+
+    /**
      * The Value row's hint: the plugin no longer offers the value, or offers it for more than
      * one thing (its source serves several instances, and the slot reads the first). Else none.
+     * The Preferences plugin's is complicationHint.
      * @param {Object} S Settings.
      * @returns {?string} HTML (plain text), or null for none.
      */
     function valueHint(S) {
         var plugin = pluginOf(S.pluginValuePlugin);
         var value = valueIn(plugin, S.pluginValueId);
+        if (offersComplications(plugin)) { return complicationHint(S, value); }
         if (!plugin || !S.pluginValueId) { return null; }
         if (!value) {
             return 'The plugin no longer offers this value. Until it does, the slot shows ' + NONE_SHOWN + '.';
@@ -165,9 +232,8 @@
      * @returns {?Object} The value (plugin-value-reads.js valueOf), or null.
      */
     function lastValue(S) {
-        var source = pluginValues.sourceOf(S);
         var value = userData().pluginValue;
-        return source && value && value.source === source.key ? value : null;
+        return pluginValues.readFrom(value, pluginValues.sourceOf(S)) ? value : null;
     }
 
     /**
@@ -216,14 +282,15 @@
     }
 
     /**
-     * onChange of the Plugin row: a new plugin starts on its first value, None on none.
+     * onChange of the Plugin row: a new plugin starts on its first value WarnWeather can read,
+     * None on none.
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The plugin before.
      * @param {string} newV The plugin now.
      * @returns {void}
      */
     function pluginPicked(S, oldV, newV) {
-        var first = valuesOf(pluginOf(newV))[0];
+        var first = valuesOf(pluginOf(newV)).filter(function (v) { return !v.unreadable; })[0];
         if (oldV !== newV) { S.pluginValueId = first ? first.id : ''; }
     }
 

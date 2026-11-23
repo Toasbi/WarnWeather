@@ -10,7 +10,9 @@
 // a row it ends with, and for Muninn when it made the estimate the read heard
 // (plugin-read-schedule.js keeps it).
 //
-// And the sources no read ever reads, since reading them does something (actsWhenRead).
+// And which sources this app may read at all: none that does something when it is read
+// (actsWhenRead), and none that would ask the user for a permission this app never declared
+// (readableBy, undeclaredFor).
 //
 // ES5 only (aplite's JavaScriptCore): var + function.
 
@@ -39,6 +41,82 @@ var ACTS_WHEN_READ = ['phone/find_my_phone'];
  */
 function actsWhenRead(category, item) {
     return ACTS_WHEN_READ.indexOf(category + '/' + item) !== -1;
+}
+
+/**
+ * @param {Object} source A source's declaration (Pebble.enumeratePlugins' sources).
+ * @param {string[]} permissions The permissions this app declares.
+ * @returns {string[]} The caller permissions it names that this app never declared, by name
+ *   ('' for one without a name). One that another plugin defines never is: this app cannot
+ *   declare it.
+ */
+function undeclared(source, permissions) {
+    var asks = Array.isArray(source.callerPermissions) ? source.callerPermissions : [];
+    var out = [];
+    for (var i = 0; i < asks.length; i++) {
+        var p = asks[i];
+        var name = typeof p === 'string' ? p : p && typeof p.name === 'string' ? p.name : '';
+        var ours = typeof p === 'string' || (Boolean(p) && typeof p === 'object' && !p.plugin);
+        if (!ours || permissions.indexOf(name) === -1) { out.push(name); }
+    }
+    return out;
+}
+
+/**
+ * @param {Object} source A source's declaration.
+ * @param {string[]} permissions The permissions this app declares.
+ * @returns {boolean} Whether this app may read it without being asked for a permission it
+ *   never declared (undeclared).
+ */
+function readableBy(source, permissions) {
+    return undeclared(source, permissions).length === 0;
+}
+
+/**
+ * The declarations of a source among the phone's plugins: for each plugin that serves the item
+ * of the category, the first of its sources that does.
+ * @param {*} plugins What Pebble.enumeratePlugins() returned.
+ * @param {string} category The source's category. @param {string} item Its item.
+ * @returns {Object[]} The declarations, one for each plugin that serves it.
+ */
+function servingSources(plugins, category, item) {
+    var list = Array.isArray(plugins) ? plugins : [];
+    var out = [];
+    for (var p = 0; p < list.length; p++) {
+        var sources = list[p] && Array.isArray(list[p].sources) ? list[p].sources : [];
+        for (var s = 0; s < sources.length; s++) {
+            var src = sources[s];
+            if (src && src.category === category && Array.isArray(src.items)
+                    && src.items.indexOf(item) !== -1) {
+                out.push(src);
+                break;
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * What stands between this app and a source whichever of the plugins that serve it answers. A
+ * read that names no plugin goes to the one the user prefers for the source in the Pebble app,
+ * else to a built-in one, else to the first by name, so each of them must ask for no permission
+ * this app never declared.
+ * @param {*} plugins What Pebble.enumeratePlugins() returned (or the named plugin alone).
+ * @param {string} category The source's category. @param {string} item Its item.
+ * @param {string[]} permissions The permissions this app declares.
+ * @returns {?string[]} The permissions they ask for that this app never declared, each once
+ *   ([] when it may read the source), or null when no plugin serves the source.
+ */
+function undeclaredFor(plugins, category, item, permissions) {
+    var sources = servingSources(plugins, category, item);
+    var out = [];
+    if (!sources.length) { return null; }
+    sources.forEach(function (src) {
+        undeclared(src, permissions).forEach(function (name) {
+            if (out.indexOf(name) === -1) { out.push(name); }
+        });
+    });
+    return out;
 }
 
 /**
@@ -107,6 +185,8 @@ function passing(code) {
 module.exports = {
     RETRY_MS: RETRY_MS,
     actsWhenRead: actsWhenRead,
+    readableBy: readableBy,
+    undeclaredFor: undeclaredFor,
     timeOf: timeOf,
     recordOf: recordOf,
     clockWentBack: clockWentBack,

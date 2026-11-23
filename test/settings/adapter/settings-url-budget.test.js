@@ -93,13 +93,28 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
 
   // The Plugin value slot's list as long as it may be (plugin-value-list.js listOf: as many
   // plugins as cost the URL LIST_COST characters), from more plugins than it lists, each with
-  // more values than it takes, and a value kept with texts longer than a value keeps.
+  // more values than it takes, and a value kept with texts longer than a value keeps. The
+  // Preferences plugin comes first, with every place of the user's complications held, each
+  // name longer than the list takes, and each read by a plugin that asks for a permission this
+  // app never declares, named as long: its entry takes the list's room as any other does.
   const pluginValueList = require('../../../src/pkjs/status-bars/domain/plugin-value-list.js');
+  const complications = require('../../../src/pkjs/status-bars/domain/complications.js');
   const props = {};
   for (let v = 0; v < 30; v += 1) {
     props['a_property_with_a_long_name_' + v] = ['shortText', 'numericValue'];
   }
-  const plugins = [];
+  const places = [];
+  const plugins = [{ uuid: '00000000-0000-0000-0001-000000000009', name: 'Preferences', sources: [{
+    category: 'preferences', items: ['complications'], supportsMultiple: true, properties: { category: ['shortText'],
+      item: ['shortText'], index: ['numericValue'], property: ['shortText'] } }], actions: [] }];
+  for (let c = 0; c < complications.MAX_COMPLICATIONS; c += 1) {
+    places.push({ position: c, category: 'a_category_with_a_long_name_' + c + 'x'.repeat(30), item: 'item',
+      index: 99, property: 'a_property_with_a_long_name_' + c + 'x'.repeat(30) });
+    plugins.push({ uuid: '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4f0' + String(c).padStart(2, '0'), name: 'Asks ' + c,
+      sources: [{ category: places[c].category, items: ['item'],
+        callerPermissions: [{ name: 'A_permission_with_a_long_name_' + c + 'x'.repeat(30) }] }], actions: [] });
+  }
+  store[KEYS.COMPLICATIONS] = JSON.stringify(places);
   for (let p = 0; p < 15; p += 1) {
     plugins.push({ uuid: '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5' + String(p).padStart(2, '0'),
       name: 'A plugin with a very long name that the list cuts ' + p, sources: [{ category: 'cat',
@@ -149,11 +164,16 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
     'the news cache really rode along');
   assert.ok(decoded.indexOf('weatherTabCache:{') !== -1, 'the Weather tab copy really rode along');
   assert.ok(decoded.indexOf('featureTips:[{id:') !== -1, 'the new-feature tips really rode along');
-  const list = pluginValueList.listOf(plugins, pkg.pebble.usesPermissions.map((p) => p.name), pkg.pebble.uuid);
+  const list = pluginValueList.listOf(plugins, pkg.pebble.usesPermissions.map((p) => p.name), pkg.pebble.uuid,
+    complications.storedListOf(places));
   const cost = list.reduce((sum, entry) => sum + pluginValueList.urlCost(entry), 0);
-  assert.ok(list.length < pluginValueList.MAX_PLUGINS && cost > pluginValueList.LIST_COST - pluginValueList.urlCost(list[0]),
-    'the plugin list is as long as its cost lets it be');
+  assert.ok(list.length < pluginValueList.MAX_PLUGINS
+    && cost > pluginValueList.LIST_COST - pluginValueList.urlCost(list[list.length - 1]),
+  'the plugin list is as long as its cost lets it be');
   assert.equal(decoded.split('{uuid:').length - 1, list.length, 'the plugin list really rode along');
+  places.forEach((c) => assert.ok(decoded.indexOf('{position:' + c.position + ",property:'a_property_with_a_long_name_"
+    + c.position) !== -1 && decoded.indexOf("why:'A_permission_with_a_long_name_" + c.position) !== -1,
+  'complication ' + c.position + ' really rode along, with why'));
   assert.ok(decoded.indexOf('pluginValue:{source:') !== -1, 'the value kept really rode along');
   assert.ok(url.length <= URL_CAP - HEADROOM,
     'settings URL is ' + url.length + ' chars; Android WebView refuses more than ' + URL_CAP

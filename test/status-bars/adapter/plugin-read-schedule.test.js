@@ -340,6 +340,34 @@ test('the plugin not there: the value kept is dropped, and the record keeps no f
   assert.equal(owed, 2, 'the slot shows nothing now');
 });
 
+test('a key with nothing to read under it: no plugin is asked, the value kept is dropped, and the record stamped', () => {
+  // The test's reader with one key that names nothing to read, as a complication's place left
+  // empty does (plugin-value-source.js).
+  const empty = pluginReadSchedule.create(Object.assign({}, SPEC, {
+    wanted: (settings) => (settings && settings.want
+      ? { key: settings.want, request: settings.want === 'empty' ? null : { category: 'test', item: settings.want } }
+      : null)
+  }));
+  const h = boot({ schedule: empty });
+  h.pebble.subs[0].push({ text: '87%' });
+  h.clock += 10 * MIN;
+  h.settings = { want: 'empty' };
+  empty.refresh();
+  assert.equal(h.pebble.subs.length, 1, 'nothing asked');
+  assert.equal(empty.value(), null);
+  assert.equal(stored(VALUE), null);
+  assert.deepEqual(stored(READ), { source: 'empty', at: NOON + 10 * MIN, failures: 0, until: null });
+  assert.equal(h.timers.length, 1, 'no read, so no timeout either');
+  writes.length = 0;
+  h.clock += EVERY;
+  empty.onTick();
+  assert.equal(h.pebble.subs.length, 1);
+  assert.deepEqual(writes, [READ], 'its next read, when it is due: the record alone');
+  h.settings = WANT_A;
+  empty.refresh();
+  assert.equal(h.pebble.subs.length, 2, 'something to read again: read at once');
+});
+
 test('any other failure keeps the value and the reader\'s time, and counts; an answer ends the count', () => {
   const h = boot();
   h.pebble.subs[0].push({ text: '87%', until: NOON + 3 * HOUR });

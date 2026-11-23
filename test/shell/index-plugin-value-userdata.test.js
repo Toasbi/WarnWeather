@@ -15,6 +15,10 @@ const { userDataOf } = require('../helpers/settings-url.js');
 const PKJS_DIR = path.resolve(__dirname, '..', '..', 'src', 'pkjs') + path.sep;
 const VALUE = { source: 'x/muninn/stats/daysRemaining', at: 1700000000000, validUntil: null,
   reading: { short: '5 d', time: null, number: 5, unit: 'd', state: null, long: null } };
+const PREFS = '00000000-0000-0000-0001-000000000009';
+/** The user's complications as kept: a weather reading, and a calendar one this app may not read. */
+const COMPLICATIONS = [{ position: 0, category: 'weather', item: 'now', index: 0, property: 'level' },
+  { position: 2, category: 'calendar', item: 'now', index: 1, property: 'level' }];
 
 /**
  * @param {string} category A source's category.
@@ -51,6 +55,7 @@ function openedUserData(t, platform, plugins) {
     name: 'Berlin' });
   store.last_update_check = String(Date.now());
   store[KEYS.PLUGIN_VALUE] = JSON.stringify(VALUE);
+  store[KEYS.COMPLICATIONS] = JSON.stringify(COMPLICATIONS);
   const listeners = {};
   const opened = [];
   global.Pebble = Object.assign({
@@ -63,7 +68,9 @@ function openedUserData(t, platform, plugins) {
     enumeratePlugins: () => [
       { uuid: pkg.pebble.uuid.toUpperCase(), name: 'This app', sources: [source('own', [])] },
       { uuid: 'aaaaaaaa-0000-0000-0000-000000000001', name: 'Weather', sources: [source('weather', ['Location'])] },
-      { uuid: 'aaaaaaaa-0000-0000-0000-000000000002', name: 'Calendar', sources: [source('calendar', ['Calendar'])] }],
+      { uuid: 'aaaaaaaa-0000-0000-0000-000000000002', name: 'Calendar', sources: [source('calendar', ['Calendar'])] },
+      { uuid: PREFS, name: 'Preferences', sources: [{ category: 'preferences', items: ['complications'],
+        properties: { category: ['shortText'], item: ['shortText'], index: ['numericValue'], property: ['shortText'] } }] }],
   }, plugins ? { subscribeToSource: () => ({ unsubscribe: () => {} }) } : {});
   global.XMLHttpRequest = function () {
     this.open = () => {};
@@ -91,11 +98,14 @@ function openedUserData(t, platform, plugins) {
   return userDataOf(opened[0]);
 }
 
-test('settings open hands the page the plugins the slot can read and the value read last', (t) => {
+test('settings open hands the page the plugins the slot can read, the user\'s complications and the value read last', (t) => {
   const ud = openedUserData(t, 'basalt', true);
   assert.deepEqual(ud.plugins, [{ uuid: 'aaaaaaaa-0000-0000-0000-000000000001', name: 'Weather',
-    items: [{ category: 'weather', item: 'now', multiple: false, properties: ['level'] }] }],
-  'one whose source asks for a permission this app declares; neither this app\'s own nor one asking for another');
+    items: [{ category: 'weather', item: 'now', multiple: false, properties: ['level'] }] },
+  { uuid: PREFS, name: 'Preferences', items: [], complications: [{ position: 0, property: 'level', category: 'weather' },
+    { position: 2, property: 'level', category: 'calendar', why: 'Calendar' }] }],
+  'one whose source asks for a permission this app declares; neither this app\'s own nor one asking for another; '
+    + 'the Preferences plugin with the complications kept, each with why this app may not read it');
   assert.deepEqual(ud.pluginValue, VALUE, 'the value read last, whichever source it is of');
 });
 

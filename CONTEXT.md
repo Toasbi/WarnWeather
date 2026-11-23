@@ -260,21 +260,39 @@ holds the item shows the same value. The dialog lists what the phone's plugins s
 property a source declares as a text, a timestamp, a number or a boolean, of a source this app
 may read without being asked for a permission it never declared and that does nothing when it
 is read (Find My Phone rings the phone: `plugin-reads.js` actsWhenRead), of any plugin but this
-app's own. The value is a plugin read, after each Updates interval or once the plugin's own
-word on when it has something new runs out (`plugin-value-source.js`, `plugin-value-reads.js`);
-picking a source reads at once. What a read brings is the value's reading: the shapes the
-plugin answers in that the slot prints, a short text, a moment, a number with its unit, a state
-and a long text, each of them or none (`plugin-reader.js` readingOf). The moment is a
-timestamp's, or a number's whose name says it is one (ends in At, Time, _at or _time) and that
-counts epoch seconds or milliseconds, as Muninn's updatedAt does (`plugin-value-reads.js`
-momentOf). The slot prints text alone, with an icon id that loads no drawing (`status_line.h`
-STATUS_ICON_PLUGIN_TEXT): the reading's short text, else its moment as a clock time in the
-user's 12/24 h setting, as the sun slot prints sunrise, else its number with its unit where
-the slot has room, else its state, Yes or No, else its long text (`plugin-values.js` textFor).
-A value shows for three Updates intervals, three hours at least, or while the plugin says it
-holds, twelve hours at most; then the slot shows -- (shownReading). Not on aplite, and only
-where the Pebble app runs plugins.
-_Avoid_: custom slot, complication.
+app's own. The Pebble app's Preferences plugin lists the user's complications in place of
+values of its own (Complication). The value is a plugin read, after each Updates interval or
+once the plugin's own word on when it has something new runs out (`plugin-value-source.js`,
+`plugin-value-reads.js`); picking a source reads at once. What a read brings is the value's
+reading: the shapes the plugin answers in that the slot prints, a short text, a moment, a
+number with its unit, a state and a long text, each of them or none (`plugin-reader.js`
+readingOf). The moment is a timestamp's, or a number's whose name says it is one (ends in At,
+Time, _at or _time) and that counts epoch seconds or milliseconds, as Muninn's updatedAt does
+(`plugin-value-reads.js` momentOf). The slot prints text alone, with an icon id that loads no
+drawing (`status_line.h` STATUS_ICON_PLUGIN_TEXT): the reading's short text, else its moment as
+a clock time in the user's 12/24 h setting, as the sun slot prints sunrise, else its number
+with its unit where the slot has room, else its state, Yes or No, else its long text
+(`plugin-values.js` textFor). A value shows for three Updates intervals, three hours at least,
+or while the plugin says it holds, twelve hours at most; then the slot shows -- (shownReading).
+Not on aplite, and only where the Pebble app runs plugins.
+_Avoid_: custom slot; complication, which is one of the user's in the Pebble app.
+
+**Complication**:
+One of the readings the user picks in the Pebble app for every watchface to show (its Settings
+› Plugins › Complications), in five places, which the Pebble app's Preferences plugin serves
+(`preferences/complications`): each place that holds one names a property of a source, and
+which of its instances, read from whichever plugin the Pebble app picks for that source
+(`complications.js`). The Plugin value can show one by its place. Its dialog lists the
+Preferences plugin with the complications in place of values of its own, each by its place and
+what it shows ("1 · Temperature (weather)"), and one this app may not read greyed out with why
+(`plugin-value-list.js` complicationsFor): its source would ask for a permission this app never
+declared, or reading it does something. None of the Preferences plugin's own readings: its
+units are plumbing, and its weather locations' coordinates are the user's position. The phone
+watches the list where the slot is offered, a built-in source that sends each change by itself,
+and keeps it in storage for the settings page (`complication-list.js`). The slot reads the
+reading the complication at its place names: a new one there is read at once, and an empty
+place shows -- (`plugin-value-source.js`).
+_Avoid_: slot, for a complication's place (a slot is a status bar's).
 
 **Short form (status slot)**:
 The shorter text a slot draws where its bar has no room for its own. Two items have one. The

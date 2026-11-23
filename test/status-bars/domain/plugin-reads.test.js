@@ -62,3 +62,45 @@ test('a failure can pass by the next minute when the plugin did not answer in ti
   ['PERMISSION_DENIED', 'RATE_LIMITED', 'AUTH_REQUIRED', 'INVALID_ARGS', 'INVALID_REQUEST',
     'PLUGIN_UNAVAILABLE', '', undefined].forEach((code) => assert.equal(reads.passing(code), false, String(code)));
 });
+
+test('a source that does something when it is read: Find My Phone, whose read rings the phone', () => {
+  assert.equal(reads.actsWhenRead('phone', 'find_my_phone'), true);
+  [['phone', 'phone_state'], ['find_my_phone', 'phone'], ['phone', 'find_my_phone_2']].forEach(([c, i]) =>
+    assert.equal(reads.actsWhenRead(c, i), false, c + '/' + i));
+});
+
+const PERMS = ['Location', 'Internet', 'ShowNotifications', 'Health'];
+
+/**
+ * @param {string} uuid The plugin's uuid.
+ * @param {Array<Object>} sources Its sources' declarations.
+ * @returns {Object} A plugin as Pebble.enumeratePlugins() lists it.
+ */
+function plugin(uuid, sources) {
+  return { uuid: uuid, name: uuid, sources: sources, actions: [] };
+}
+
+test('readableBy: every caller permission a source names is one this app declares; one another plugin defines never is', () => {
+  const source = (asks) => ({ category: 'c', items: ['i'], callerPermissions: asks });
+  [undefined, [], ['Location'], [{ name: 'Location' }], ['Health', { name: 'Internet' }]].forEach((asks) =>
+    assert.equal(reads.readableBy(source(asks), PERMS), true, JSON.stringify(asks)));
+  [['Calendar'], [{ name: 'Location' }, 'Calendar'], [{ name: 'Location', plugin: 'someone' }], [42], [null],
+    [{}]].forEach((asks) => assert.equal(reads.readableBy(source(asks), PERMS), false, JSON.stringify(asks)));
+});
+
+test('undeclaredFor: what each plugin that serves a source asks for that this app never declared, each once', () => {
+  const weather = (uuid, asks) => plugin(uuid, [{ category: 'weather', items: ['hour'] },
+    { category: 'weather', items: ['location'], callerPermissions: asks }, { category: 'weather', items: ['location'],
+      callerPermissions: ['Contacts'] }]);
+  assert.deepEqual(reads.undeclaredFor([weather('a', ['Location'])], 'weather', 'location', PERMS), [],
+    'readable: the first of a plugin\'s sources that serves it counts');
+  assert.deepEqual(reads.undeclaredFor([weather('a', ['Location']), weather('b', ['Calendar', { name: 'Location' }]),
+    weather('c', ['Calendar', 'ReadMusic'])], 'weather', 'location', PERMS), ['Calendar', 'ReadMusic'],
+  'whichever of them the Pebble app picks');
+  assert.deepEqual(reads.undeclaredFor([weather('a', [{ name: 'HomeControl', plugin: 'lights' }, {}])], 'weather',
+    'location', PERMS), ['HomeControl', ''], 'another plugin\'s permission by its name; one without a name as \'\'');
+  assert.equal(reads.undeclaredFor([weather('a', [])], 'weather', 'day', PERMS), null, 'none serves it');
+  assert.equal(reads.undeclaredFor([weather('a', [])], 'calendar', 'location', PERMS), null);
+  [null, undefined, 'x', {}, [null, { sources: 'x' }, { sources: [null, { category: 'weather', items: 'location' }] }]]
+    .forEach((list) => assert.equal(reads.undeclaredFor(list, 'weather', 'location', PERMS), null, JSON.stringify(list)));
+});

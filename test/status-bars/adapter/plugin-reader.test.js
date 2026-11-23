@@ -499,10 +499,58 @@ test('readingOf: a timestamp\'s moment in epoch seconds, and a boolean\'s state,
     raw({ time: '1795453201', state: undefined }), 'unchecked: valueOf\'s to check');
 });
 
-test('readingOf: the first instance only', () => {
+test('readingOf: the first instance, or the one it is asked for, in the order the plugin sent them', () => {
   const two = withShapes({ shortText: { text: 'first' } });
   two.instances.push({ instanceId: 'b', properties: { v: { shortText: { text: 'second' } } } });
   assert.equal(pluginReader.readingOf(two, 'v').short, 'first');
+  assert.equal(pluginReader.readingOf(two, 'v', 0).short, 'first');
+  assert.equal(pluginReader.readingOf(two, 'v', 1).short, 'second');
+  assert.equal(pluginReader.readingOf(two, 'v', 2), null, 'an instance the plugin did not send');
+});
+
+test('readOnce: an answer is the one asked for when the instance asked for brings the property', () => {
+  const fake = fakePebble();
+  const timers = fakeTimers();
+  const calls = [];
+  const second = { pluginUuid: 'w', instances: [{ instanceId: 'berlin', properties: { temperature: { shortText: { text: '4°' } } } }] };
+  pluginReader.readOnce(fake.pebble, { category: 'weather', item: 'location', properties: ['temperature'], limit: 2,
+    instance: 1 }, (e, f) => calls.push([e, f]), timers);
+  assert.equal(fake.requests[0].limit, 2);
+  assert.equal(fake.requests[0].instance, undefined, 'never sent');
+  fake.push(second);
+  assert.deepEqual(calls, [], 'the first place alone: held for a fuller answer');
+  const both = { pluginUuid: 'w', instances: second.instances.concat([{ instanceId: 'oslo',
+    properties: { temperature: { shortText: { text: '-2°' } } } }]) };
+  fake.push(both);
+  assert.deepEqual(calls, [[both, null]]);
+});
+
+test('watch: a read that carries this app\'s permissions starts only where no plugin that may answer asks for another', () => {
+  const PERMS = ['Location', 'Health'];
+  const weather = (uuid, asks) => ({ uuid: uuid, name: uuid, sources: [{ category: 'weather', items: ['location'],
+    properties: { temperature: ['shortText'] }, callerPermissions: asks }] });
+  const asked = (list, request) => {
+    const fake = fakePebble();
+    const fails = [];
+    if (list) { fake.pebble.enumeratePlugins = () => list; }
+    pluginReader.watch(fake.pebble, request, () => {}, (f) => fails.push(f.code));
+    return { subscribed: fake.requests.length === 1, fails: fails };
+  };
+  const ANY = { category: 'weather', item: 'location', properties: ['temperature'], permissions: PERMS };
+  assert.deepEqual(asked([weather('a', ['Location']), weather('b', [])], ANY), { subscribed: true, fails: [] });
+  assert.deepEqual(asked([weather('a', ['Location']), weather('b', ['Calendar'])], ANY),
+    { subscribed: false, fails: ['PLUGIN_UNAVAILABLE'] }, 'one of them would ask for Calendar, if the Pebble app picks it');
+  assert.deepEqual(asked([], ANY).subscribed, false, 'a Pebble app that cannot list them: not known, not asked');
+  assert.deepEqual(asked(null, ANY).subscribed, false, 'nor one without the list at all');
+  assert.equal(asked([weather('a', [])], Object.assign({}, ANY, { item: 'hour' })).subscribed, false, 'none serves it');
+  const named = Object.assign({ plugin: 'a' }, ANY);
+  assert.equal(asked([weather('a', ['Location']), weather('b', ['Calendar'])], named).subscribed, true,
+    'a named plugin: only its own word counts');
+  assert.equal(asked([weather('a', ['Calendar'])], named).subscribed, false);
+  assert.equal(asked(null, named).subscribed, true, 'named, where the Pebble app cannot list them: as before');
+  assert.equal(asked([weather('a', ['Calendar'])], { category: 'weather', item: 'location' }).subscribed, true,
+    'a read without the permissions is not checked');
+  assert.equal(fakePebble().pebble.enumeratePlugins, undefined);
 });
 
 test('readingOf: null where the plugin did not send the property; anything else as it came, unchecked', () => {

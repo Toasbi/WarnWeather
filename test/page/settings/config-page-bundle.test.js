@@ -893,6 +893,7 @@ test('the Plugin value slot\'s rules and dialog reach the page ahead of the Stat
     "register('pluginValueLast'", "register('pluginValuePluginPicked'"].forEach((s) => {
     assert.ok(page().indexOf(s) !== -1, s + ' is not in the generated page');
   });
-  ['status-bars/domain/plugin-value-list.js', 'status-bars/domain/plugin-value-reads.js'].forEach((file) =>
+  ['status-bars/domain/plugin-value-list.js', 'status-bars/domain/plugin-value-reads.js',
+    'status-bars/domain/complications.js'].forEach((file) =>
     assert.equal(idx(file), -1, file + ' is the phone\'s alone'));
 });

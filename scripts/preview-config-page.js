@@ -95,29 +95,46 @@ function previewFailureData() {
 }
 
 /**
- * The Plugin value slot's dialog (plugin-value-page.js): what a phone with the Phone plugin and
- * Muninn lists (plugin-value-list.js listOf, from what Pebble.enumeratePlugins() would hand
- * over), and the Phone plugin's charge as read five minutes ago, which the dialog's last line
- * and the bars' pictures show once the slot picks it. Left out where the status lists leave the
- * item out, as the phone leaves them out (index.js): on aplite, and with PREVIEW_PLUGINS=0.
+ * The Plugin value slot's dialog (plugin-value-page.js): what a phone with the Phone plugin,
+ * Muninn and the Pebble app's Weather, Calendar and Preferences plugins lists
+ * (plugin-value-list.js listOf, from what Pebble.enumeratePlugins() would hand over), with the
+ * Pebble app's own four complications and the time of Muninn's last estimate in the fifth
+ * place. The value read last, five minutes ago, is that time, which the dialog's last line and
+ * the bars' pictures show once the slot picks the fifth complication. Left out where the status
+ * lists leave the item out, as the phone leaves them out (index.js): on aplite, and with
+ * PREVIEW_PLUGINS=0.
  * @param {Object} env The preview's env (envFor).
  * @returns {{plugins: (Array<Object>|undefined), pluginValue: (Object|undefined)}} userData's
  *   plugins and pluginValue, or neither.
  */
 function previewPlugins(env) {
   if (!statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, env)) { return {}; }
-  var phone = '00000000-0000-0000-0001-000000000001';
+  var prefs = '00000000-0000-0000-0001-000000000009';
   var plugins = [
-    { uuid: phone, name: 'Phone', sources: [{ category: 'phone', items: ['phone_state'],
-      properties: { battery_level: ['numericValue', 'shortText'], cell: ['shortText'],
+    { uuid: '00000000-0000-0000-0001-000000000001', name: 'Phone', sources: [{ category: 'phone',
+      items: ['phone_state'], properties: { battery_level: ['numericValue', 'shortText'], cell: ['shortText'],
         wifi: ['boolean', 'shortText'], mobile_data: ['boolean', 'shortText'] } }] },
     { uuid: 'd008a08a-6e34-4cc4-98dc-bae02ce5e087', name: 'Muninn', sources: [{ category: 'muninn',
       items: ['stats'], properties: { daysRemaining: ['numericValue', 'shortText'],
-        batteryLife: ['numericValue', 'shortText'] } }] }];
+        batteryLife: ['numericValue', 'shortText'], updatedAt: ['numericValue'] } }] },
+    { uuid: '00000000-0000-0000-0001-000000000002', name: 'Weather', sources: [{ category: 'weather',
+      items: ['location'], properties: { temperature: ['shortText'], condition: ['shortText'],
+        sunrise: ['timestamp'] }, supportsMultiple: true, callerPermissions: [{ name: 'Location' }] }] },
+    { uuid: '00000000-0000-0000-0001-000000000004', name: 'Calendar', sources: [{ category: 'calendar',
+      items: ['event'], properties: { starts_at: ['shortText', 'timestamp'] }, supportsMultiple: true,
+      callerPermissions: [{ name: 'Calendar' }] }] },
+    { uuid: prefs, name: 'Preferences', sources: [{ category: 'preferences', items: ['complications'],
+      properties: { category: ['shortText'], item: ['shortText'], index: ['numericValue'],
+        property: ['shortText'] }, supportsMultiple: true }] }];
+  var known = [['weather', 'location', 'temperature'], ['phone', 'phone_state', 'battery_level'],
+    ['calendar', 'event', 'starts_at'], ['weather', 'location', 'condition'], ['muninn', 'stats', 'updatedAt']]
+    .map(function (c, i) { return { position: i, category: c[0], item: c[1], index: 0, property: c[2] }; });
+  var estimated = Date.now() - 2 * 60 * 60 * 1000;
   return {
-    plugins: pluginValueList.listOf(plugins, ['Location', 'Internet', 'ShowNotifications', 'Health'], ''),
-    pluginValue: { source: phone + '/phone/phone_state/battery_level', at: Date.now() - 5 * 60 * 1000,
-      validUntil: null, reading: { short: '87%', number: 87, unit: '%', long: null } }
+    plugins: pluginValueList.listOf(plugins, ['Location', 'Internet', 'ShowNotifications', 'Health'], '', known),
+    pluginValue: { source: prefs + '/preferences/complications/4/muninn/stats/0/updatedAt',
+      at: Date.now() - 5 * 60 * 1000, validUntil: null,
+      reading: { short: null, time: estimated, number: estimated, unit: null, state: null, long: null } }
   };
 }
 

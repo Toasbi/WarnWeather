@@ -42,6 +42,7 @@ var decideConfigClose = require('./settings/domain/config-close.js').decideConfi
 var phoneBattery = require('./status-bars/adapter/phone-battery.js');
 var batteryEstimate = require('./status-bars/adapter/battery-estimate.js');
 var pluginValueSource = require('./status-bars/adapter/plugin-value-source.js');
+var complicationList = require('./status-bars/adapter/complication-list.js');
 var pluginReader = require('./status-bars/adapter/plugin-reader.js');
 var pluginValueList = require('./status-bars/domain/plugin-value-list.js');
 var statusLineCatalog = require('./status-bars/domain/status-line-catalog.js');
@@ -245,10 +246,11 @@ Pebble.addEventListener('showConfiguration', function(e) {
     userData.featureTips = featureTipsSeen.forPage(offer);
     // The Plugin value slot's dialog (page/status-bars/plugin-value-page.js), where the status
     // lists offer the slot: the plugins on the phone with a value it can show (listing them runs
-    // no plugin), and the value read last.
-    if (statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, offer)) {
+    // no plugin), the Pebble app's Preferences plugin with the user's complications, and the
+    // value read last.
+    if (pluginValueOffered(offer)) {
         userData.plugins = pluginValueList.listOf(pluginReader.plugins(Pebble), declaredPermissions(),
-            pkg.pebble.uuid);
+            pkg.pebble.uuid, complicationList.current());
         userData.pluginValue = pluginValueSource.value();
     }
     // Let the library pick the return target: pebblejs://close# on device, or the
@@ -496,11 +498,16 @@ Pebble.addEventListener('ready',
             getWatchInfo: function () { return app.watchInfo; },
             now: function () { return Date.now(); }
         });
+        // The user's complications in the Pebble app, which the Plugin value slot can show one
+        // of: watched where the slot is offered, before the slot's value reads the one it picks.
+        complicationList.init({ offered: pluginValueOffered(offerEnv()) });
         // The Plugin value slot's value (another app's plugin), read only while a bar shows it.
         pluginValueSource.init({
             getSettings: function () { return app.settings; },
             getWatchInfo: function () { return app.watchInfo; },
-            now: function () { return Date.now(); }
+            now: function () { return Date.now(); },
+            permissions: declaredPermissions(),
+            getComplications: complicationList.current
         });
         refreshProvider();
         // 7-day localStorage cache GC: caches are re-derivable, so entries older
@@ -591,6 +598,15 @@ function offerEnv() {
         platform: (app.watchInfo && app.watchInfo.platform) || '',
         plugins: pluginReader.available(Pebble)
     };
+}
+
+/**
+ * @param {{platform: string, plugins: boolean}} offer What the page is offered by (offerEnv).
+ * @returns {boolean} Whether the status lists offer the Plugin value slot: a Pebble app that
+ *   reads plugins, and not aplite (status-line-catalog.js itemAvailable).
+ */
+function pluginValueOffered(offer) {
+    return statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, offer);
 }
 
 /**

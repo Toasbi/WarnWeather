@@ -35,6 +35,13 @@
     var LONGEST_WAIT_MS = 12 * HOUR_MS;
 
     /**
+     * The Pebble app's Preferences plugin. Its complications source lists the user's
+     * complications: the readings they picked in the Pebble app for every watchface to show
+     * (complications.js). The slot can show one of them, by its place in that list.
+     */
+    var PREFERENCES = '00000000-0000-0000-0001-000000000009';
+
+    /**
      * A value's id, as the settings keep it (pluginValueId) and sourceOf takes it apart.
      * @param {string} category Its source's category. @param {string} item Its item.
      * @param {string} property Its property.
@@ -45,11 +52,23 @@
     }
 
     /**
+     * A complication's id, as the settings keep it (pluginValueId, beside the Preferences plugin):
+     * its place in the user's list, in the property's place of a value's id. One digit: ten
+     * places, more than the Pebble app has (five).
+     * @param {number} position Its place, 0 for the first.
+     * @returns {string} 'preferences/complications/<place>'.
+     */
+    function complicationId(position) {
+        return 'preferences/complications/' + position;
+    }
+
+    /**
      * The source the settings pick (pluginValuePlugin, pluginValueId: valueId's).
      * @param {?Object} settings Settings.
      * @returns {?{plugin: string, id: string, category: string, item: string, property: string,
-     *   key: string}} The source, or null while none is picked. `key` names it whole, plugin
-     *   and value, for the records kept of it.
+     *   key: string, complication: ?number}} The source, or null while none is picked. `key`
+     *   names it whole, plugin and value, for the records kept of it. `complication` is the place
+     *   of the complication it picks (complicationId), or null for a value of a plugin's own.
      */
     function sourceOf(settings) {
         var plugin = settings && settings.pluginValuePlugin;
@@ -60,7 +79,20 @@
             return null;
         }
         return { plugin: plugin, id: id, category: parts[0], item: parts[1], property: parts[2],
-            key: plugin + '/' + id };
+            key: plugin + '/' + id, complication: plugin.toLowerCase() === PREFERENCES
+                && /^preferences\/complications\/[0-9]$/.test(id) ? Number(parts[2]) : null };
+    }
+
+    /**
+     * @param {?Object} value A value kept (plugin-value-reads.js valueOf), or null.
+     * @param {?Object} source A source (sourceOf), or null.
+     * @returns {boolean} Whether the value was read from the source. A complication's value names
+     *   the reading the complication named as it was read after the complication's own key
+     *   (plugin-value-source.js), so a value of any reading the complication has named is its.
+     */
+    function readFrom(value, source) {
+        return Boolean(value) && Boolean(source) && (value.source === source.key
+            || (source.complication !== null && value.source.indexOf(source.key + '/') === 0));
     }
 
     /**
@@ -160,16 +192,16 @@
 
     /**
      * The reading the slot shows of a value at an instant: the value of the source the settings
-     * pick, until three Updates intervals (at least SHOWN_AT_LEAST_MS) after it was read, or
-     * until the plugin said it holds, whichever is later, but no more than LONGEST_WAIT_MS on.
+     * pick (readFrom), until three Updates intervals (at least SHOWN_AT_LEAST_MS) after it was
+     * read, or until the plugin said it holds, whichever is later, but no more than
+     * LONGEST_WAIT_MS on.
      * @param {?Object} value The value kept (plugin-value-reads.js valueOf), or null.
      * @param {?Object} settings Settings.
      * @param {number} nowMs The instant, in epoch milliseconds.
      * @returns {?Object} The reading, or null: none kept, another source's, or too old.
      */
     function shownReading(value, settings, nowMs) {
-        var source = sourceOf(settings);
-        if (!value || !source || value.source !== source.key) { return null; }
+        if (!readFrom(value, sourceOf(settings))) { return null; }
         return nowMs < heldUntil(value.at, Math.max(3 * everyMs(settings), SHOWN_AT_LEAST_MS),
             value.validUntil) ? value.reading : null;
     }
@@ -177,8 +209,11 @@
     var api = {
         EVERY_CHOICES: EVERY_CHOICES,
         EVERY_DEFAULT: EVERY_DEFAULT,
+        PREFERENCES: PREFERENCES,
         valueId: valueId,
+        complicationId: complicationId,
         sourceOf: sourceOf,
+        readFrom: readFrom,
         everyMs: everyMs,
         oneLine: oneLine,
         textFor: textFor,

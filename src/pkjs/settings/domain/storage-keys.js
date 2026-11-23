@@ -155,6 +155,11 @@ module.exports = {
     // again before plugin-value-reads.js says. Absent while the slot is not wanted, and
     // forgotten with a new source, so either reads at once.
     PLUGIN_VALUE_READ: 'pluginValueRead',
+    // The user's complications in the Pebble app as last heard ([{position, category, item,
+    // index, property}]; complication-list.js, complications.js), so the settings page lists
+    // them as it opens and the Plugin value slot reads its complication right after a PKJS
+    // start. Absent while the Pebble app has served none.
+    COMPLICATIONS: 'complications',
     // The re-bake snapshot: the handful of payload keys buildStatusLines reads,
     // plus the watchInfo its platform env is derived from, version-stamped as
     // one JSON blob. PKJS is torn down whenever the user leaves the watchface,

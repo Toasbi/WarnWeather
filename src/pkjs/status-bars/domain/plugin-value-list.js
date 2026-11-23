@@ -6,8 +6,12 @@
 //
 // A value is a property of an item of a source the plugin declares: a property declared in a
 // shape the slot prints (a text, a timestamp, a number or a boolean), of a source this app may
-// read (readableBy) that does nothing when it is read (plugin-reads.js actsWhenRead), of any
-// plugin but this app's own. The list rides the settings page's URL (userData.plugins), which
+// read (plugin-reads.js readableBy) that does nothing when it is read (actsWhenRead), of any
+// plugin but this app's own. The Pebble app's Preferences plugin offers the user's
+// complications instead (complications.js), which its entry carries (complicationsFor): the
+// rest of what it serves is the Pebble app's own plumbing (the user's units, and the weather
+// locations' coordinates, which are the user's own position), never a value to show.
+// The list rides the settings page's URL (userData.plugins), which
 // Android's WebView refuses past 2 MiB (test/settings/adapter/settings-url-budget.test.js), so
 // it is written short and capped: each plugin's items with their properties' names, from which
 // the page makes each value's id and label, at most MAX_PLUGINS plugins of MAX_VALUES values
@@ -16,6 +20,7 @@
 // Pure. ES5 only (aplite PKJS).
 
 var utf8 = require('../../lib/utf8.js');
+var complications = require('./complications.js');
 var pluginReads = require('./plugin-reads.js');
 var pluginValues = require('./plugin-values.js');
 
@@ -30,7 +35,8 @@ var MAX_ID = 64;
 
 /**
  * The most characters of the settings page's URL the list may cost (urlCost): twice what a
- * phone with the Phone plugin, Muninn and both of WarnWeather's weather plugins lists (1,800).
+ * phone with the Phone plugin, Muninn and both of WarnWeather's weather plugins lists (1,800),
+ * and still well over it with the Pebble app's own four complications under Preferences (2,400).
  */
 var LIST_COST = 4000;
 
@@ -60,23 +66,6 @@ function capped(text) {
 }
 
 /**
- * @param {Object} source A source's declaration.
- * @param {string[]} permissions The permissions this app declares.
- * @returns {boolean} Whether this app may read it without being asked for a permission it
- *   never declared: every caller permission it names is one this app declares (one that
- *   another plugin defines never is).
- */
-function readableBy(source, permissions) {
-    var asks = Array.isArray(source.callerPermissions) ? source.callerPermissions : [];
-    for (var i = 0; i < asks.length; i++) {
-        var p = asks[i];
-        var name = typeof p === 'string' ? p : p && !p.plugin ? p.name : null;
-        if (typeof name !== 'string' || permissions.indexOf(name) === -1) { return false; }
-    }
-    return true;
-}
-
-/**
  * @param {*} shapes A property's declared shapes.
  * @returns {boolean} Whether the slot can print it.
  */
@@ -89,17 +78,60 @@ function printable(shapes) {
 }
 
 /**
+ * @param {Array<*>} sources A plugin's sources' declarations.
+ * @returns {boolean} Whether one of them is the complications source (preferences/complications).
+ */
+function servesComplications(sources) {
+    return sources.some(function (src) {
+        return Boolean(src) && src.category === 'preferences' && Array.isArray(src.items)
+            && src.items.indexOf('complications') !== -1;
+    });
+}
+
+/**
+ * @param {*} plugin A plugin as Pebble.enumeratePlugins() lists it, whose uuid is a value id's part.
+ * @returns {string} Its name as the dialog lists it.
+ */
+function nameOf(plugin) {
+    return capped(pluginValues.oneLine(plugin.name) || plugin.uuid);
+}
+
+/**
+ * The user's complications as the dialog lists them, under the Preferences plugin: each one's
+ * place, what it shows (its property and its source's category, for its label), and, where
+ * this app may not read it, why (complications.js whyNot: the permission it needs, or '').
+ * Not the source's item, nor which of its instances: the label needs neither. Each name capped
+ * as a plugin's is.
+ * @param {?Array<Object>} known The user's complications (complication-list.js current), or
+ *   null while they are not known.
+ * @param {Array<*>} plugins What Pebble.enumeratePlugins() returned.
+ * @param {string[]} permissions The permissions this app declares.
+ * @returns {Array<{position: number, property: string, category: string, why: (string|undefined)}>}
+ *   [] for none, or none known.
+ */
+function complicationsFor(known, plugins, permissions) {
+    return (known || []).map(function (c) {
+        var why = complications.whyNot(c, plugins, permissions);
+        var entry = { position: c.position, property: capped(c.property), category: capped(c.category) };
+        if (why !== null) { entry.why = capped(why); }
+        return entry;
+    });
+}
+
+/**
  * One plugin as the dialog lists it: its uuid, its name, and each item of a source this app
  * may read, with the names of its properties the slot can print, in the order the plugin
- * declares them. The first MAX_VALUES values, each once.
+ * declares them. The first MAX_VALUES values, each once. The Preferences plugin lists no item:
+ * it offers the user's complications (`complications`), where it serves them.
  * @param {*} plugin A plugin as Pebble.enumeratePlugins() lists it.
  * @param {string[]} permissions The permissions this app declares.
  * @param {string} ownUuid This app's uuid.
+ * @param {Array<Object>} theirs The user's complications as the dialog lists them (complicationsFor).
  * @returns {?{uuid: string, name: string, items: Array<{category: string, item: string,
- *   multiple: boolean, properties: string[]}>}} The plugin, or null when it offers nothing
- *   the slot can show.
+ *   multiple: boolean, properties: string[]}>, complications: (Array<Object>|undefined)}} The
+ *   plugin, or null when it offers nothing the slot can show.
  */
-function entryOf(plugin, permissions, ownUuid) {
+function entryOf(plugin, permissions, ownUuid, theirs) {
     var sources = plugin && Array.isArray(plugin.sources) ? plugin.sources : [];
     var items = [];
     var seen = {};
@@ -108,9 +140,14 @@ function entryOf(plugin, permissions, ownUuid) {
             || plugin.uuid.toLowerCase() === String(ownUuid).toLowerCase()) {
         return null;
     }
+    if (plugin.uuid.toLowerCase() === pluginValues.PREFERENCES) {
+        return servesComplications(sources)
+            ? { uuid: plugin.uuid, name: nameOf(plugin), items: [], complications: theirs } : null;
+    }
     for (var s = 0; s < sources.length && count < MAX_VALUES; s++) {
         var src = sources[s];
-        if (!src || !idPart(src.category) || !Array.isArray(src.items) || !readableBy(src, permissions)) {
+        if (!src || !idPart(src.category) || !Array.isArray(src.items)
+                || !pluginReads.readableBy(src, permissions)) {
             continue;
         }
         var props = src.properties && typeof src.properties === 'object' ? src.properties : {};
@@ -135,9 +172,7 @@ function entryOf(plugin, permissions, ownUuid) {
             }
         }
     }
-    return items.length
-        ? { uuid: plugin.uuid, name: capped(pluginValues.oneLine(plugin.name) || plugin.uuid), items: items }
-        : null;
+    return items.length ? { uuid: plugin.uuid, name: nameOf(plugin), items: items } : null;
 }
 
 /**
@@ -158,15 +193,18 @@ function urlCost(entry) {
  * @param {string[]} permissions The permissions this app declares (package.json
  *   usesPermissions' names).
  * @param {string} ownUuid This app's uuid.
+ * @param {?Array<Object>} known The user's complications (complication-list.js current), or
+ *   null while they are not known: the Preferences plugin's entry lists them.
  * @returns {Array<Object>} The plugins (entryOf), in the phone's order.
  */
-function listOf(plugins, permissions, ownUuid) {
+function listOf(plugins, permissions, ownUuid, known) {
     var out = [];
     var cost = 0;
     var list = Array.isArray(plugins) ? plugins : [];
     var uuids = [];
+    var theirs = complicationsFor(known, list, permissions);
     for (var p = 0; p < list.length && out.length < MAX_PLUGINS; p++) {
-        var entry = entryOf(list[p], permissions, ownUuid);
+        var entry = entryOf(list[p], permissions, ownUuid, theirs);
         var more = entry ? urlCost(entry) : 0;
         if (entry && uuids.indexOf(entry.uuid) === -1 && cost + more <= LIST_COST) {
             out.push(entry);
