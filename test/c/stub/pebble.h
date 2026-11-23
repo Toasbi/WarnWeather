@@ -201,14 +201,19 @@ int persist_write_data(const uint32_t key, const void *data, const size_t size);
 int persist_write_string(const uint32_t key, const char *cstring);
 status_t persist_delete(const uint32_t key);
 
-// The palette constants persist.c names as its built-in colour defaults. ARGB
-// values from the firmware's graphics/gcolor_definitions.h.
+// The palette constants persist.c and palette.c name as their built-in colour defaults.
+// ARGB values from the firmware's graphics/gcolor_definitions.h.
 #define GColorDukeBlue ((GColor){ .argb = 0xC2 })
 #define GColorBlue ((GColor){ .argb = 0xC3 })
 #define GColorCobaltBlue ((GColor){ .argb = 0xC6 })
 #define GColorVividCerulean ((GColor){ .argb = 0xCB })
 #define GColorDarkGray ((GColor){ .argb = 0xD5 })
 #define GColorPictonBlue ((GColor){ .argb = 0xDB })
+#define GColorGreen ((GColor){ .argb = 0xCC })
+#define GColorElectricBlue ((GColor){ .argb = 0xDF })
+#define GColorLightGray ((GColor){ .argb = 0xEA })
+#define GColorSunsetOrange ((GColor){ .argb = 0xF5 })
+#define GColorYellow ((GColor){ .argb = 0xFC })
 
 // The colour of a 0xRRGGBB int, as the SDK's GColorFromHEX packs it: opaque, each
 // channel's top two bits (appendix/config_wire.c reads the colour tuples through it).

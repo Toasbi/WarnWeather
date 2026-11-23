@@ -23,7 +23,6 @@ typedef int (*PaletteReader)(uint8_t *buffer, const size_t buffer_size);
 typedef bool (*PaletteWriter)(uint8_t *data, const size_t size);
 
 static void fill_defaults(PaletteChannel *c) {
-    if (c->num > 0) { return; }
     ChartColorStop *stops = c->stops;
     if (theme_is_bw()) {
         // B&W (real hardware, or the Black & White theme on a color build): single
@@ -58,19 +57,9 @@ static int parse_packed(const uint8_t *packed, int len, ChartColorStop *out) {
     return count;
 }
 
-// Load a persisted packed palette into channel `c`. Returns true when a valid blob
-// was read; false (channel untouched) when the key is absent or malformed.
-static bool load_persisted(PaletteChannel *c, PaletteReader get_fn) {
-    uint8_t packed[PALETTE_MAX_STOPS * 3];
-    int len = get_fn(packed, sizeof(packed));
-    if (len <= 0) { return false; }
-    int count = parse_packed(packed, len, c->stops);
-    if (count < 1) { return false; }
-    c->num = count;
-    return true;
-}
-
-static bool apply(const uint8_t *packed, int len, PaletteChannel *c) {
+// Set channel `c` from a packed blob, and persist the blob through `save` when it
+// changed the channel. Returns whether it did; a malformed blob changes nothing.
+static bool channel_set(PaletteChannel *c, const uint8_t *packed, int len, PaletteWriter save) {
     // Zero-init so the struct's 1-byte tail padding is deterministic: the
     // changed-check below memcmp's whole structs (incl. padding), and an
     // uninitialized pad byte could spuriously report a change — at most one
@@ -78,31 +67,28 @@ static bool apply(const uint8_t *packed, int len, PaletteChannel *c) {
     ChartColorStop next[PALETTE_MAX_STOPS] = {0};
     int count = parse_packed(packed, len, next);
     if (count < 1) { return false; }
-    bool changed = (count != c->num)
-        || memcmp(next, c->stops, sizeof(ChartColorStop) * count) != 0;
-    if (changed) {
-        memcpy(c->stops, next, sizeof(ChartColorStop) * count);
-        c->num = count;
+    if (count == c->num && memcmp(next, c->stops, sizeof(ChartColorStop) * count) == 0) {
+        return false;
     }
-    return changed;
+    memcpy(c->stops, next, sizeof(ChartColorStop) * count);
+    c->num = count;
+    save((uint8_t*) packed, (size_t) len);
+    return true;
 }
 
-// Set channel `c` from a packed blob, and persist the blob through `save` when it
-// changed the channel. Returns whether it did.
-static bool channel_set(PaletteChannel *c, const uint8_t *packed, int len, PaletteWriter save) {
-    bool changed = apply(packed, len, c);
-    if (changed) {
-        save((uint8_t*) packed, (size_t) len);
-    }
-    return changed;
-}
-
-// Channel `c`'s stops: as set, else as persisted (read through `read`), else the
-// defaults.
+// Channel `c`'s stops: as set, else as persisted (read through `load`; a missing or
+// malformed blob leaves the channel untouched), else the defaults.
 static const ChartColorStop *channel_stops(PaletteChannel *c, int *num_stops,
-                                           PaletteReader read) {
-    if (c->num == 0 && !load_persisted(c, read)) {
-        fill_defaults(c);
+                                           PaletteReader load) {
+    if (c->num == 0) {
+        uint8_t packed[PALETTE_MAX_STOPS * 3];
+        const int len = load(packed, sizeof(packed));   // <= 0: no blob, parsed as malformed
+        const int count = parse_packed(packed, len, c->stops);
+        if (count >= 1) {
+            c->num = count;
+        } else {
+            fill_defaults(c);
+        }
     }
     *num_stops = c->num;
     return c->stops;

@@ -47,6 +47,19 @@ build/host/config_wire_test_emery
 cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
    test/c/config_wire_test.c src/c/appendix/config_wire.c -o build/host/config_wire_test_aplite
 build/host/config_wire_test_aplite
+# The two palette channels (appendix/palette.c): a set changes and saves only new stops, a
+# malformed blob changes nothing, and the first read comes from persist or the defaults.
+# Built per theme.h arm the watches take: colour (basalt; emery, with the graph styles'
+# parse) and B&W (diorite, flint). aplite has its twin, palette_aplite.c.
+cc $CFLAGS -DPBL_COLOR -DWW_THEME_POLARITY test/c/palette_test.c src/c/appendix/palette.c \
+   -o build/host/palette_test
+build/host/palette_test
+cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR -DWW_THEME_POLARITY test/c/palette_test.c \
+   src/c/appendix/palette.c -o build/host/palette_test_emery
+build/host/palette_test_emery
+cc $CFLAGS -DWW_THEME_POLARITY test/c/palette_test.c src/c/appendix/palette.c \
+   -o build/host/palette_test_bw
+build/host/palette_test_bw
 # The Bluetooth disconnect vibe (services/disconnect_vibe.h): a drop buzzes only while Quiet
 # Time is off.
 cc $CFLAGS test/c/disconnect_vibe_test.c -o build/host/disconnect_vibe_test
