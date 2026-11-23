@@ -6,11 +6,11 @@
 #include "c/appendix/slot_x.h"
 #endif
 
-// Chart engine — shared types and the one public entry point chart_draw().
+// Chart engine — shared types and its two calls, chart_begin() and chart_layer().
 
 // The layer records below hold px sizes, slot counts and value ranges in the narrowest
-// type that fits them, pointers first: a ChartLayer is 28 B, and the forecast keeps
-// twelve in the paint scratch (paint_scratch.h), which is RAM on every watch.
+// type that fits them, pointers first: a ChartLayer is 28 B, and each graph keeps one in
+// the paint scratch (paint_scratch.h), which is RAM on every watch.
 
 // --- Frame ----------------------------------------------------------
 
@@ -44,10 +44,11 @@ typedef struct {
 } ChartGeometry;
 
 // =====================================================================
-// One public entry point: chart_draw(). A chart is a ChartDef (grid) plus
-// an ordered list of ChartLayers — z-order IS array order, bottom first.
-// A ChartLayer is NOT a Pebble Layer: no heap, no framebuffer, 28 B of the
-// caller's memory describing one draw pass.
+// A chart is a ChartDef (grid) over a rect, and the ChartLayers drawn into it:
+// chart_begin() sets up the grid, then each chart_layer() call draws one layer, so
+// z-order IS call order, bottom first. A ChartLayer is NOT a Pebble Layer: no heap,
+// no framebuffer, 28 B of the caller's memory describing one draw pass, which the
+// caller may fill again for the next layer as soon as chart_layer() returns.
 
 typedef struct {
     int num_slots;
@@ -99,7 +100,7 @@ typedef struct {
     ChartGeometry   geo;
 #if defined(WW_LINE_STYLE)
     int16_t         zero;   // the current layer's zero row and direction (chart_flip.h),
-    int8_t          dir;    // set by chart_draw from ChartLayer.from_top
+    int8_t          dir;    // set by chart_layer from ChartLayer.from_top
 #endif
 } ChartRender;
 
@@ -280,8 +281,11 @@ typedef struct {
     };
 } ChartLayer;
 
-void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
-                const ChartLayer *layers, int num_layers);
+// Start a chart: `def`'s grid over `outer`, drawn into `ctx`, into `r` (the caller's).
+void chart_begin(ChartRender *r, GContext *ctx, const ChartDef *def, GRect outer);
+
+// Draw layer `l` into the chart `r` began, over the layers drawn before it.
+void chart_layer(ChartRender *r, const ChartLayer *l);
 
 #if defined(WW_LINE_STYLE) || defined(WW_RAIN_RADAR)
 // One stripe cell at `level` (0..4, chart_stripe.h — 0 draws nothing): the

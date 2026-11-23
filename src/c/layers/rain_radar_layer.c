@@ -398,17 +398,14 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     radar_fill_axis_slots(axis_slots, radar_start);
 
     // The axis hangs off the top of the whole plot (above the sky band); the
-    // bars fill `outer`, below the band. Same slot grid either way. Its layer
-    // sits in a block of its own, so the bars' layers and the empty-state
-    // buffers below reuse its stack slot: a smaller frame on this paint path.
-    {
-        const ChartLayer axis_layers[] = {
-            { CHART_LAYER_AXIS, .axis = {
-                  .side = GRAPH_SIDE_TOP, .style = radar_tick_style(),
-                  .slots = axis_slots } },
-        };
-        chart_draw(ctx, &RADAR_DEF, axis_outer, axis_layers, 1);
-    }
+    // bars fill `outer`, below the band. Same slot grid either way. Each chart's
+    // layers are built into the one scratch layer and drawn at once.
+    ChartLayer *const l = &g_paint_scratch.radar.layer;
+    ChartRender cr;
+    chart_begin(&cr, ctx, &RADAR_DEF, axis_outer);
+    *l = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
+        .side = GRAPH_SIDE_TOP, .style = radar_tick_style(), .slots = axis_slots } };
+    chart_layer(&cr, l);
 #if defined(WW_RAIN_RADAR)
     if (sky_band > 0) {
         draw_radar_sky(ctx, GRect(axis_outer.origin.x, axis_outer.origin.y,
@@ -434,13 +431,6 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
             .exact_tenths = exact_tenths,
             .area_tenths  = area_tenths,
         };
-        // Both passes hang together: the exact bars through chart_render_bars, the
-        // nearby-area bars under them through CHART_ZERO / CHART_DIR.
-        ChartLayer layers[] = {
-            { CHART_LAYER_CUSTOM, .custom = { radar_area_bars_layer, &area_ctx } },
-            { CHART_LAYER_BARS, .bars = {
-                  .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000 } },
-        };
         // The radar palette goes straight into the bars layer. "Bars from: Top" rides it
         // (palette.h palette_from_top), so a flip repaints this chart. Hanging bars
         // anchor on the row above their rect: the sky band's trailing gap row, or
@@ -448,14 +438,20 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
         // bar never meets the ticks and the nearby-area outline in a tick column never
         // continues a tick.
         int num_stops;
-        layers[1].bars.stops = palette_radar_stops(&num_stops);
-        layers[1].bars.num_stops = (uint8_t) num_stops;
-        const bool bars_top = palette_from_top(layers[1].bars.stops);
-        layers[0].from_top = layers[1].from_top = bars_top;
+        const ChartColorStop *const stops = palette_radar_stops(&num_stops);
+        const bool bars_top = palette_from_top(stops);
         const int gap = !sky_band && bars_top;
-        chart_draw(ctx, &RADAR_DEF,
-                   GRect(outer.origin.x, outer.origin.y + gap, outer.size.w, outer.size.h - gap),
-                   layers, (int)(sizeof(layers) / sizeof(layers[0])));
+        chart_begin(&cr, ctx, &RADAR_DEF,
+                    GRect(outer.origin.x, outer.origin.y + gap, outer.size.w, outer.size.h - gap));
+        // Both passes hang together: the nearby-area bars through CHART_ZERO / CHART_DIR,
+        // the exact bars over them through chart_render_bars.
+        *l = (ChartLayer){ CHART_LAYER_CUSTOM, .from_top = bars_top,
+                           .custom = { radar_area_bars_layer, &area_ctx } };
+        chart_layer(&cr, l);
+        *l = (ChartLayer){ CHART_LAYER_BARS, .from_top = bars_top, .bars = {
+            .values = exact_pm, .stops = stops, .lo = 0, .hi = 1000,
+            .count = RADAR_NUM_SLOTS, .num_stops = (uint8_t) num_stops } };
+        chart_layer(&cr, l);
         MEMORY_LOG_HEAP("radar_update:exit");
         return;
     }

@@ -705,50 +705,48 @@ static void chart_render_stripe(const ChartRender *r, const ChartStripeLayer *s)
 }
 #endif
 
-void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
-                const ChartLayer *layers, int num_layers) {
-    ChartRender r = {
-        .ctx   = ctx,
-        .def   = def,
-        .outer = outer,
-        .geo   = chart_geometry(def, outer),
-    };
-    for (int i = 0; i < num_layers; ++i) {
-        const ChartLayer *l = &layers[i];
+void chart_begin(ChartRender *r, GContext *ctx, const ChartDef *def, GRect outer) {
+    // zero and dir are chart_layer's, set before each layer reads them.
+    r->ctx   = ctx;
+    r->def   = def;
+    r->outer = outer;
+    r->geo   = chart_geometry(def, outer);
+}
+
+void chart_layer(ChartRender *r, const ChartLayer *l) {
 #if defined(WW_LINE_STYLE)
-        // This layer's zero row and direction (chart_flip.h): standing on the content's
-        // bottom, or hanging from its top. FRAME, AXIS and STRIPE ignore both.
-        r.zero = (int16_t)chart_flip_zero(l->from_top, r.geo.content.origin.y,
-                                          r.geo.content.origin.y + r.geo.content.size.h);
-        r.dir  = (int8_t)chart_flip_dir(l->from_top);
+    // This layer's zero row and direction (chart_flip.h): standing on the content's
+    // bottom, or hanging from its top. FRAME, AXIS and STRIPE ignore both.
+    r->zero = (int16_t)chart_flip_zero(l->from_top, r->geo.content.origin.y,
+                                       r->geo.content.origin.y + r->geo.content.size.h);
+    r->dir  = (int8_t)chart_flip_dir(l->from_top);
 #endif
-        switch (l->type) {
-            case CHART_LAYER_FRAME:
-                graph_frame_draw(ctx, l->frame.frame, outer);
-                break;
-            case CHART_LAYER_CUSTOM:
-                l->custom.fn(&r, l->custom.user);
-                break;
-            case CHART_LAYER_AXIS:
-                chart_render_axis(&r, &l->axis);
-                break;
-            case CHART_LAYER_BARS:
-                chart_render_bars(&r, &l->bars);
-                break;
-            case CHART_LAYER_LINE:
-                chart_render_line(&r, &l->line);
-                break;
-            case CHART_LAYER_AREA:
-                chart_render_area(&r, &l->area);
-                break;
-            case CHART_LAYER_HATCH:
-                chart_render_hatch(&r, &l->hatch);
-                break;
-            case CHART_LAYER_STRIPE:
+    switch (l->type) {
+        case CHART_LAYER_FRAME:
+            graph_frame_draw(r->ctx, l->frame.frame, r->outer);
+            break;
+        case CHART_LAYER_CUSTOM:
+            l->custom.fn(r, l->custom.user);
+            break;
+        case CHART_LAYER_AXIS:
+            chart_render_axis(r, &l->axis);
+            break;
+        case CHART_LAYER_BARS:
+            chart_render_bars(r, &l->bars);
+            break;
+        case CHART_LAYER_LINE:
+            chart_render_line(r, &l->line);
+            break;
+        case CHART_LAYER_AREA:
+            chart_render_area(r, &l->area);
+            break;
+        case CHART_LAYER_HATCH:
+            chart_render_hatch(r, &l->hatch);
+            break;
+        case CHART_LAYER_STRIPE:
 #if defined(WW_LINE_STYLE)
-                chart_render_stripe(&r, &l->stripe);
+            chart_render_stripe(r, &l->stripe);
 #endif
-                break;
-        }
+            break;
     }
 }

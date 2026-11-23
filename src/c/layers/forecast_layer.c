@@ -349,21 +349,26 @@ static void load_dataset(ForecastDataset *ds) {
 #endif
 
 /**
- * The ChartLayer for one bar-aligned mark line (SERIES_THIRD..SERIES_FIFTH):
- * the one place their layer literal exists, whatever z-slot the fill decides.
- * aplite reads the frozen DOTS style through series_style_pick (series.h) —
- * only SERIES_THIRD is reachable there, and its style is fixed. `hi` is the
+ * Draw one metric line into chart `cr` through `l`, the chart's one layer: the Main
+ * metric's line or a bar-aligned mark line (SERIES_THIRD..SERIES_FIFTH), the one place
+ * their layer literal exists, whatever z-slot the fill decides. `frozen` is the style
+ * where the line has no selectable one (series_style_pick, series.h): aplite's mark line
+ * (only SERIES_THIRD is reachable there) draws DOTS, its Main metric SOLID. `hi` is the
  * line's full scale, LINE_HI: its rows on the temperature axis, else 250.
  */
-static ChartLayer mark_line_layer(const Series *s, int count, int hi) {
-    return (ChartLayer){ CHART_LAYER_LINE, .from_top = SERIES_FROM_TOP(s), .line = {
+static void draw_metric_line(ChartRender *cr, ChartLayer *l, const Series *s, int count, int hi,
+                             ChartLineStyle frozen) {
+    (void) frozen;   // read only where series_style_pick picks it
+    *l = (ChartLayer){ CHART_LAYER_LINE, .from_top = SERIES_FROM_TOP(s), .line = {
         .values = s->line.values, .points = g_paint_scratch.forecast.area_pts, .count = count,
         .lo = 0, .hi = hi,
         .inset_top = LINE_INSET(s->line.inset_y), .inset_bottom = LINE_INSET(s->line.inset_y),
         .color = s->line.color, .width = s->line.width,
-        .style = series_style_pick(s->line, CHART_LINE_DOTS),
+        .style = series_style_pick(s->line, frozen),
         .zero_absent = LINE_ZERO(s) } };  // metric line: wire byte 0 means "nothing", every style
+    chart_layer(cr, l);
 }
+
 
 static Layer *s_forecast_layer;
 #if defined(PBL_PLATFORM_EMERY)
@@ -471,7 +476,7 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
 // feels-like or dew point line's too). On the graph: the hi number under its point, the lo
 // number over its own (forecast_numbers.h). Off: none. On the graph and Off leave no strip:
 // the plot starts at the screen's left edge (forecast_update_proc).
-// noinline: its locals stay off forecast_update_proc's frame while chart_draw runs
+// noinline: its locals stay off forecast_update_proc's frame while the chart layers draw
 // (fit_temp_axis' reason).
 static __attribute__((noinline)) void draw_axis_numbers(GContext *ctx, const ForecastDataset *ds,
                                                          const ChartDef *grid, int h,
@@ -572,7 +577,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const int h = graph_bounds.size.h;
 
     // The per-redraw buffers are the shared paint scratch's (paint_scratch.h), not stack:
-    // the dataset off the stack keeps nested chart_draw/SDK graphics calls enough
+    // the dataset off the stack keeps nested chart_layer/SDK graphics calls enough
     // headroom, and aplite's small app stack overflows otherwise (PC=0/LR=0). All are
     // recomputed each redraw. Series values are already contiguous int16 permille from
     // PKJS, so the chart layers read them directly; only the contour points + axis
@@ -802,26 +807,22 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     fit_temp_axis(ds, temp_rows, edges.anchors);
 #endif
 
-    // Z-order = array order, bottom first. Frame after the data bands so it
-    // overwrites curve/area pixels at the border columns. Line/bars are gated on
-    // what PKJS sent; the fill + its night re-hatch only exist with the line.
-    ChartLayer *const layers = paint->layers; // largest redraw array — scratch, not stack.
-                                  // Max reachable is SERIES_COUNT + 6, the array's exact
-                                  // size: one layer per present series (a stripe replaces
-                                  // its line, never adds one), plus the area fill, two night
-                                  // hatches, the day line, frame and axis. A new layer has
-                                  // to grow it — 10 on aplite, 11 with the third-metric
-                                  // line, from the enum instead of a hand-maintained
-                                  // platform pair.
-    int n = 0;
+    // Z-order = drawing order, bottom first: each layer is built into the one scratch
+    // layer and drawn at once. Frame after the data bands so it overwrites curve/area
+    // pixels at the border columns. Line/bars are gated on what PKJS sent; the fill + its
+    // night re-hatch only exist with the line.
+    ChartLayer *const l = &paint->layer;
+    ChartRender cr;
+    chart_begin(&cr, ctx, grid, plot);
     // "Draw from: Top" of the Main metric: its fill, the fill's night re-shade and its
     // line or marks all hang.
     const bool second_top = SERIES_FROM_TOP(second);
     if (fill_on) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .from_top = second_top, .area = {
+        *l = (ChartLayer){ CHART_LAYER_AREA, .from_top = second_top, .area = {
             .values = second->line.values, .points = area_pts,
             .count = ds->num_entries, .lo = 0, .hi = LINE_HI(second->line.inset_y),
             .fill_color = second->line.fill_color } };
+        chart_layer(&cr, l);
     }
     // night_under re-shades the filled area, so it needs the AREA layer's
     // exported contour and only runs when the fill is present. Both polarities
@@ -832,7 +833,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // bw themes were never skipped (their fg hatch dots below the contour are
     // B&W's night texture; the underlay is color-only anyway).
     if (night_on && fill_on) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .from_top = second_top, .hatch = {
+        *l = (ChartLayer){ CHART_LAYER_HATCH, .from_top = second_top, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
             .hatch_color    = theme_pick(NIGHT_C(NIGHT_INK_AREA_HATCH), theme_fg()),
             .spacing        = night_hatch_spacing,
@@ -840,11 +841,12 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .has_underlay   = !theme_is_bw(),
             .contour        = area_pts,
             .contour_count  = ds->num_entries + FORECAST_NIGHT_PAST_LAST } };
+        chart_layer(&cr, l);
     }
     // night_over is the full-height day/night hatch, then the day line over it, behind the
     // bars and lines — independent of line/bars.
     if (night_on) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
+        *l = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
             .hatch_color    = theme_pick(NIGHT_C(NIGHT_INK_HATCH), theme_fg()),
             .spacing        = night_hatch_spacing,
@@ -856,17 +858,20 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .extend_top     = top_band,
 #endif
             .contour        = NULL } };
-        layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM, .custom = {
+        chart_layer(&cr, l);
+        *l = (ChartLayer){ CHART_LAYER_CUSTOM, .custom = {
             .fn = day_lines_draw, .user = ds } };
+        chart_layer(&cr, l);
     }
     if (bars_on) {
         // "Bars from: Top" rides the bar palette (palette.h palette_from_top); the
         // scaled copy's stop 0 is negative too, and the renderer clamps it.
-        layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .from_top = palette_from_top(bar_stops),
-                                    .bars = {
+        *l = (ChartLayer){ CHART_LAYER_BARS, .from_top = palette_from_top(bar_stops),
+                           .bars = {
             .values = bars->bars.values, .count = ds->num_entries,
             .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
             .stops = scaled_bar_stops, .num_stops = bar_num_stops } };
+        chart_layer(&cr, l);
     }
     // Mark lines (second + third metric): bar-aligned marks whose styles are
     // user-selectable off the LINE_STYLES blob on capable platforms. The loop
@@ -876,79 +881,77 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // the marks ride ABOVE the line so the fill can't hide them; with no fill
     // (a thin stroke) they sit BELOW so the main line stays the dominant
     // series. Per-metric color on color watches; white on B&W, where the mark
-    // shape (not color) distinguishes them from the main-metric line. One loop for
-    // both orders: with a fill the line's slot is taken first, so the marks land
-    // after it (fill_on implies line_on, so the slot is always filled).
-    const int line_at = fill_on ? n++ : 0;
+    // shape (not color) distinguishes them from the main-metric line. So the Main
+    // metric's line draws before the marks with a fill (fill_on implies line_on), after
+    // them without. Over a fill too, the line computes its vertices by the AREA layer's
+    // own mapping, so it rides the fill's contour; only its zero vertex differs, held on
+    // the plot's first row when it hangs (chart_flip_vertex_y) where the fill's zero
+    // stretch stays on the zero row.
+    if (fill_on) {
+        draw_metric_line(&cr, l, second, ds->num_entries, LINE_HI(second->line.inset_y),
+                         CHART_LINE_SOLID);
+    }
     for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
         if (ds->series[sid].present && !SERIES_IS_STRIPE(&ds->series[sid])) {
-            layers[n++] = mark_line_layer(&ds->series[sid], ds->num_entries,
-                                         LINE_HI(ds->series[sid].line.inset_y));
+            draw_metric_line(&cr, l, &ds->series[sid], ds->num_entries,
+                             LINE_HI(ds->series[sid].line.inset_y), CHART_LINE_DOTS);
         }
     }
-    if (line_on) {
-        // Over a fill too, the line computes its vertices by the AREA layer's own
-        // mapping, so it rides the fill's contour; only its zero vertex differs, held
-        // on the plot's first row when it hangs (chart_flip_vertex_y) where the fill's
-        // zero stretch stays on the zero row.
-        layers[fill_on ? line_at : n++] = (ChartLayer){ CHART_LAYER_LINE, .from_top = second_top, .line = {
-                  .values = second->line.values, .count = ds->num_entries,
-                  .lo = 0, .hi = LINE_HI(second->line.inset_y),
-                  .inset_top = LINE_INSET(second->line.inset_y),
-                  .inset_bottom = LINE_INSET(second->line.inset_y),
-                  .points = area_pts,
-                  .color = second->line.color, .width = second->line.width,
-                  .style = series_style_pick(second->line, CHART_LINE_SOLID),
-                  .zero_absent = LINE_ZERO(second) } };
+    if (line_on && !fill_on) {
+        draw_metric_line(&cr, l, second, ds->num_entries, LINE_HI(second->line.inset_y),
+                         CHART_LINE_SOLID);
     }
 
-    layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
+    *l = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = first->line.values, .points = area_pts, .count = ds->num_entries,
         .lo = 0, .hi = TEMP_HI,
         .inset_top = LINE_INSET(first->line.inset_y), .inset_bottom = LINE_INSET(first->line.inset_y),
         .color = first->line.color, .width = first->line.width } };
-    layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
+    chart_layer(&cr, l);
+    *l = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
         .left = axis_on, .bottom = 1, .color = axis_color } } };
+    chart_layer(&cr, l);
+    // The hour axis, the last layer of the chart whose bottom row is the axis row: the
+    // plot's, or with a bottom stripe band that band's.
     const ChartLayer axis_layer = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
         .side = GRAPH_SIDE_BOTTOM, .style = bottom_view_tick_style(),
         .slots = axis_slots } };
     if (stripe_band == 0) {
-        layers[n++] = axis_layer;
+        chart_layer(&cr, &axis_layer);
     }
-    chart_draw(ctx, grid, plot, layers, n);
 #if defined(WW_LINE_STYLE)
     // The stripe bands, each its own chart over the same columns, drawn after the plot:
     // the top band above it first, then the band under the zero line — so a top
     // stripe's cells land over the night shading the plot's hatch carried up into its
-    // band. layers[] is free again once the plot's chart_draw has returned, so each
-    // band is built in it. A band's stripes stack in line order from its top edge, a
-    // 1 px gap apart; the left axis line carries on through both, so the graph's axis
-    // has no break at the plot's top or between the zero line and the hour ticks. The
-    // bottom band's last row is the original axis row, so the hour ticks and labels
-    // land exactly where they always do.
+    // band. A band's stripes stack in line order from its top edge, a 1 px gap apart;
+    // the left axis line carries on through both, so the graph's axis has no break at
+    // the plot's top or between the zero line and the hour ticks. The bottom band's last
+    // row is the original axis row, so the hour ticks and labels land exactly where they
+    // always do.
     for (int top = 1; top >= 0; --top) {
         const int16_t band_h = top ? top_band : stripe_band;
         if (band_h <= 0) continue;
+        chart_begin(&cr, ctx, grid,
+                    GRect(outer.origin.x, top ? 0 : plot_axis_y + 1, outer.size.w, band_h));
         int nb = 0;
         for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
             const Series *s = &ds->series[sid];
             if (!s->present || !SERIES_IS_STRIPE(s) || s->line.from_top != top) continue;
-            layers[nb] = (ChartLayer){ CHART_LAYER_STRIPE, .stripe = {
+            *l = (ChartLayer){ CHART_LAYER_STRIPE, .stripe = {
                 .values = s->line.values, .count = ds->num_entries,
                 .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
                 .color = s->line.color,
                 .y_offset = (int16_t)(nb * (stripe_h + FORECAST_STRIPE_GAP)),
                 .height = (int16_t)stripe_h } };
+            chart_layer(&cr, l);
             nb++;
         }
-        layers[nb++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
+        *l = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
             .left = axis_on, .color = axis_color } } };
+        chart_layer(&cr, l);
         if (!top) {
-            layers[nb++] = axis_layer;
+            chart_layer(&cr, &axis_layer);
         }
-        chart_draw(ctx, grid,
-                   GRect(outer.origin.x, top ? 0 : plot_axis_y + 1, outer.size.w, band_h),
-                   layers, nb);
     }
 #endif
 
