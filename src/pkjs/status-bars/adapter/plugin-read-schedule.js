@@ -18,7 +18,8 @@
 //   - Not wanted: nothing is read, and the record is forgotten, so the value wanted again is
 //     read at once. Another key wanted (another source picked): the record and the value heard
 //     of the old key are forgotten, and the new key is read at once.
-//   - One read at a time. An answer that comes after what is wanted changed is dropped.
+//   - One read at a time. An answer that comes after what is wanted changed is dropped, and
+//     the save that changed it, which that read held up, reads then.
 //   - A clock that went back starts the wait again from now (plugin-reads.js clockWentBack).
 //   - Inside the Night battery saver's window only a read that a settings save asks for, with
 //     none before it, goes ahead: the user is at the phone, waiting to see the value. Any other
@@ -29,10 +30,11 @@
 //     retryWait).
 //
 // The value last heard is kept in storage, so a bake after a PKJS restart shows it at once,
-// and here, which is what a bake reads. When what the slot shows of it changes, the watch is
-// owed a status send, which the re-bake's next tick makes: within a minute, after the Night
-// battery saver's window, and not beside a fetch in flight (status-rebake.js oweStatus). The
-// value is never logged: it is another app's data.
+// and here, which is what a bake reads. When what the slot shows of it changes, with a new
+// value or with the time (a value grown too old, which only a bake drops), the watch is owed a
+// status send, which the re-bake's next tick makes: within a minute, after the Night battery
+// saver's window, and not beside a fetch in flight (status-rebake.js oweStatus). The value is
+// never logged: it is another app's data.
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
@@ -101,6 +103,8 @@ function create(spec) {
     var record = null;
     // The value last heard (spec.valueOf's), or null for none.
     var value = null;
+    // What the slot showed of it at the last look (spec.shown): at init, a keep and each consider.
+    var shown = null;
 
     /**
      * @returns {number} Now, in epoch milliseconds (the injected clock).
@@ -167,6 +171,7 @@ function create(spec) {
         var at = nowMs();
         var before = spec.shown(value, settings, at);
         var after = spec.shown(next, settings, at);
+        shown = after;
         // The value kept, heard again (Muninn's estimate until its next wakeup): nothing to write.
         if (JSON.stringify(next) !== JSON.stringify(value)) {
             value = next;
@@ -203,8 +208,12 @@ function create(spec) {
             var heard;
             inFlight = false;
             // The record is gone, or another key's, when what is wanted changed while the plugin
-            // answered: the answer is no longer the slot's.
-            if (!record || record.source !== want.key) { return; }
+            // answered: the answer is no longer the slot's. Only a save changes it, and this read
+            // held that save's read up: it goes now, as from the save.
+            if (!record || record.source !== want.key) {
+                consider(true);
+                return;
+            }
             if (fail && fail.code !== 'PLUGIN_UNAVAILABLE') {
                 console.log(spec.name + ': the plugin did not answer (' + fail.code + ').');
                 stamp(want.key, at, failures + 1, time);
@@ -233,6 +242,7 @@ function create(spec) {
         var settings = deps.getSettings();
         var want = available() ? spec.wanted(settings, deps.getWatchInfo()) : null;
         var at;
+        var now;
         if (!want) {
             forget();
             return;
@@ -243,8 +253,14 @@ function create(spec) {
             forget();
             keep(null);
         }
-        if (inFlight) { return; }
         at = nowMs();
+        // A bake drops a value grown too old by itself, but only a bake: when what the slot
+        // shows changed with the time, the watch is owed the status that shows it. A save sends
+        // its own.
+        now = spec.shown(value, settings, at);
+        if (!fromSave && !spec.sameShown(shown, now)) { statusRebake.oweStatus(); }
+        shown = now;
+        if (inFlight) { return; }
         if (record && pluginReads.clockWentBack(record, at)) {
             stamp(record.source, at, record.failures, record[spec.timeField]);
             return;
@@ -278,6 +294,7 @@ function create(spec) {
         inFlight = false;
         record = pluginReads.recordOf(stored(spec.recordKey), spec.timeField);
         value = spec.valueOf(stored(spec.valueKey));
+        shown = spec.shown(value, deps.getSettings(), nowMs());
         consider(false);
     }
 

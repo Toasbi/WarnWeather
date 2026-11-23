@@ -658,6 +658,27 @@ test('three days of restarts, Muninn\'s wakeups and minute ticks: each estimate 
   });
 });
 
+test('an estimate that turns a day old leaves the watch at the tick it does, with no fetch to bake it', () => {
+  const h = boot();
+  h.pebble.subs[0].push(stats(5, NOON));
+  minute();
+  assert.equal(sentDays(h), '5d');
+  const sends = h.sends.length;
+  // Muninn has stopped making estimates: every read after it hears the same, and nothing bakes.
+  for (let t = NOON + LONGEST; t < NOON + DAY; t += LONGEST) {
+    h.clock = t;
+    minute();
+    h.pebble.subs[h.pebble.subs.length - 1].push(stats(5, NOON));
+  }
+  h.clock = NOON + DAY;
+  minute();
+  assert.equal(h.sends.length, sends, 'a day old: still shown');
+  h.clock = NOON + DAY + 1;
+  minute();
+  assert.equal(h.sends.length, sends + 1, 'older: the watch is told');
+  assert.notEqual(sentDays(h), '5d');
+});
+
 test('an estimate older than a day is kept but changes nothing on the watch', () => {
   const h = boot();
   h.pebble.subs[0].push(stats(5, h.clock - DAY - MIN));
@@ -667,11 +688,12 @@ test('an estimate older than a day is kept but changes nothing on the watch', ()
 });
 
 test('unreadable storage reads as no estimate', () => {
-  boot();
-  storage[KEYS.BATTERY_ESTIMATE] = '{not json';
-  assert.equal(batteryEstimate.bakeFacts().estimate(), null);
-  storage[KEYS.BATTERY_ESTIMATE] = 'null';
-  assert.equal(batteryEstimate.bakeFacts().estimate(), null);
+  ['{not json', 'null', '5', '{"days":"x","updatedAt":1}'].forEach((raw) => {
+    boot();
+    storage[KEYS.BATTERY_ESTIMATE] = raw;
+    boot({ keepStorage: true });
+    assert.equal(batteryEstimate.bakeFacts().estimate(), null, raw);
+  });
 });
 
 test('an unreadable record of the last read reads as none: Muninn is asked once, and it is whole again', () => {

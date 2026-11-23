@@ -299,6 +299,30 @@ test('a value not heard again for three Updates intervals shows as -- at the nex
   assert.equal(sentText(h), '--');
 });
 
+test('a value that grows too old turns to -- on the watch at the tick it does, with no fetch to bake it', () => {
+  const h = boot();
+  h.pebble.subs[0].push(answer());
+  minute();
+  assert.equal(sentText(h), '87%');
+  // Every read after it fails, and nothing else bakes: no fetch, no save.
+  [NOON + HOUR, NOON + 2 * HOUR].forEach((t) => {
+    h.clock = t;
+    minute();
+    h.pebble.subs[h.pebble.subs.length - 1].fail('TIMEOUT');
+  });
+  const sends = h.sends.length;
+  h.clock = NOON + 3 * HOUR - MIN;
+  minute();
+  assert.equal(h.sends.length, sends, 'still shown: nothing to send');
+  h.clock = NOON + 3 * HOUR;
+  minute();
+  assert.equal(h.sends.length, sends + 1, 'too old: the watch is told');
+  assert.equal(sentText(h), '--');
+  h.clock += MIN;
+  minute();
+  assert.equal(h.sends.length, sends + 1, 'once');
+});
+
 test('the same value heard again sends nothing; another is sent', () => {
   const h = boot();
   h.pebble.subs[0].push(answer());
@@ -420,16 +444,17 @@ test('switching the slot off forgets the last read, so switching it on again rea
   assert.equal(h.pebble.subs.length, 2);
 });
 
-test('an answer that comes after the value was changed is dropped, and the new one is read on the next tick', () => {
+test('an answer that comes after the value was changed is dropped, and the new one is read as it comes', () => {
   const h = boot();
   h.settings = CELL;
   pluginValueSource.refresh();
   assert.equal(h.pebble.subs.length, 1, 'the first read is still under way');
   h.pebble.subs[0].push(answer());
   assert.equal(stored(KEYS.PLUGIN_VALUE), null, 'the old value\'s answer is not kept');
-  minute();
-  assert.equal(h.pebble.subs.length, 2);
+  assert.equal(h.pebble.subs.length, 2, 'the save\'s read, which the first held up');
   assert.deepEqual(h.pebble.subs[1].request.properties, ['cell']);
+  minute();
+  assert.equal(h.pebble.subs.length, 2, 'one read at a time');
 });
 
 test('an answer without the value, or with none the slot can print, shows -- and counts as an answer', () => {
@@ -480,6 +505,19 @@ test('the Night battery saver: picking a value in its window reads at once, and 
   statusRebake.onTick(false);
   assert.equal(h.sends.length, 1, 'paid on the first tick after the window');
   assert.equal(sentText(h), '87%');
+});
+
+test('the Night battery saver: a value picked while a read is under way is read as that read ends', () => {
+  const h = boot({ settings: Object.assign({}, SAVER_ON), clock: new Date(2026, 10, 21, 5, 0, 0).getTime() });
+  h.settings = Object.assign({}, SLOT, SAVER_ON);
+  pluginValueSource.refresh();
+  assert.equal(h.pebble.subs.length, 1, 'the battery level, read as it is picked');
+  h.settings = Object.assign({}, CELL, SAVER_ON);
+  pluginValueSource.refresh();
+  assert.equal(h.pebble.subs.length, 1, 'no second read while the first is under way');
+  h.pebble.subs[0].fail('TIMEOUT');
+  assert.equal(h.pebble.subs.length, 2, 'the network type, read as the first read ends');
+  assert.deepEqual(h.pebble.subs[1].request.properties, ['cell']);
 });
 
 test('the Night battery saver: a save in its window with a read on record waits like any other read', () => {
