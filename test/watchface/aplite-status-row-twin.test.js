@@ -11,7 +11,6 @@ var PUBLIC_API = [
   ['void', 'status_row_destroy'],
   ['void', 'status_row_apply'],
   ['bool', 'status_row_refresh'],
-  ['void', 'status_row_set_full_date'],
   ['void', 'status_row_set_battery_override'],
   ['void', 'status_row_draw']
 ];

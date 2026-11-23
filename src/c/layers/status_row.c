@@ -503,15 +503,11 @@ void status_row_destroy(StatusRow *row) {
     free(row);
 }
 
-void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, uint8_t line_id) {
+void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, bool full_date) {
     if (!row) { return; }
     row->bounds = bounds;
     row->tier = tier;
-    row->line_id = line_id;
-}
-
-void status_row_set_full_date(StatusRow *row, bool full_date) {
-    if (row) { row->full_date = full_date; }
+    row->full_date = full_date;
 }
 
 #if defined(PBL_HEALTH)

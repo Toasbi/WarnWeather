@@ -123,14 +123,14 @@ static inline LayerUpdateProc bar_proc(StatusBarId id) {
 
 // ── Seating ──────────────────────────────────────────────────────────────────
 
-// Push this bar's bounds/tier/line into its row. Every bar's derived bounds ARE
+// Push this bar's bounds and the view facts into its row. Every bar's derived bounds ARE
 // layer_get_bounds(), the band frame layout_status_band() picks, so any geometric
 // change arrives through layer_set_frame(), which the SDK already marks dirty on a
 // real move.
 static void apply_row(StatusBarId id) {
     StatusBar *b = &s_bars[id];
     if (!b->row || !b->layer) { return; }
-    status_row_apply(b->row, layer_get_bounds(b->layer), s_tier, bar_line(id));
+    status_row_apply(b->row, layer_get_bounds(b->layer), s_tier, s_full_date);
 }
 
 static void refresh_row(StatusBarId id) {
@@ -160,7 +160,6 @@ void status_bar_create_all(Layer *parent, const ViewSpec *spec, const MainLayout
         layer_set_update_proc(b->layer, bar_proc((StatusBarId) i));
         layer_add_child(parent, b->layer);
         b->row = status_row_create(bar_line((StatusBarId) i));
-        status_row_set_full_date(b->row, s_full_date);
         refresh_row((StatusBarId) i);   // seats the row (refresh_row applies first)
     }
 }
@@ -204,8 +203,7 @@ void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L) {
         layer_set_frame(b->layer, band);
         layer_set_hidden(b->layer, !layout_status_visible(spec, src));
 
-        if (date_changed) { status_row_set_full_date(b->row, full_date); }
-        if (moved || view_changed) { refresh_row(id); }
+        if (moved || view_changed) { refresh_row(id); }   // applies the view facts first
     }
 }
 
