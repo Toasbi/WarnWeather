@@ -2416,7 +2416,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           + (mOpen ? 'Fewer options' : 'More options') + '</span>'
           + (mOpen ? '' : '<span class="more-n">' + moreCount + ' more</span>') + '</button>';
       }
-      cards.push({ isEmpty: false, html: '<div class="card' + (hdr ? '' : ' nohdr') + '">' + hdr
+      // A subheader's style 'info' makes its card a note in the info look (shell.html .card.info).
+      cards.push({ isEmpty: false, html: '<div class="card' + (hdr ? '' : ' nohdr')
+        + (g.head && g.head.style === 'info' ? ' info' : '') + '">' + hdr
         + (isOpen ? '<div>' + body + '</div>' : '') + '</div>'
         + dels.map(function (d) { return renderItem(d, null, cx, false).html; }).join('') });
     }

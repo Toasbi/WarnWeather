@@ -414,6 +414,26 @@ test('renderBody: in a standalone section each subheader opens a card of its own
     'the dependent row renders inside the Grp card, divider and all');
 });
 
+test('renderBody: a subheader\'s style info makes its card a note in the info look', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
+    { title: 'S', items: [
+      { type: 'toggle', messageKey: 'lead', label: 'Lead', defaultValue: false },
+      { type: 'subheader', text: 'Heads up', style: 'info' },
+      { type: 'staticText', text: 'Read this.' },
+      { type: 'subheader', text: 'Plain' },
+      { type: 'toggle', messageKey: 'tail', label: 'Tail', defaultValue: false }
+    ] } ] } ] };
+  const S = E.hydrate(SCH, {});
+  const html = E.renderBody(SCH, 't', { S: S, ENV: {}, USERDATA: {}, collapsed: {},
+    evalCtx: Object.assign({}, S, { env: {} }) });
+  assert.ok(html.indexOf('<div class="card info"><div class="cardHdr"><span class="ttlwrap"><span class="ttl">Heads up</span>') !== -1,
+    'the note is the card itself, under its title');
+  assert.ok(html.indexOf('Read this.') > html.indexOf('Heads up'), 'its text in it');
+  assert.equal((html.match(/class="card info"/g) || []).length, 1, 'only that card');
+  assert.ok(html.indexOf('<div class="card"><div class="cardHdr"><span class="ttlwrap"><span class="ttl">Plain</span>') !== -1,
+    'a subheader without a style opens a plain card');
+});
+
 test('renderBody: groupCard merges consecutive sections into one card with in-card sub-headers', () => {
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
     { groupCard: 'g', intro: 'Lead-in text.', items: [] },

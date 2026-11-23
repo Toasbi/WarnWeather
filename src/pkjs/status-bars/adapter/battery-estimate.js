@@ -32,7 +32,7 @@ var pluginReader = require('./plugin-reader.js');
  * reader of one thing, so its key is null.
  */
 var MUNINN = { key: null,
-    request: { category: 'muninn', item: 'stats', properties: ['daysRemaining', 'updatedAt'] } };
+    request: { category: batteryDays.MUNINN_CATEGORY, item: 'stats', properties: ['daysRemaining', 'updatedAt'] } };
 
 var schedule = pluginReadSchedule.create({
     name: 'battery-estimate',

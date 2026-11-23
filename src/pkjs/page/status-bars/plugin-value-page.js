@@ -26,6 +26,7 @@
         : null;
     var pluginValues = node ? require('../../status-bars/domain/plugin-values.js') : window.PluginValues;
     var catalog = node ? require('../../status-bars/domain/status-line-catalog.js') : window.StatusLineCatalog;
+    var batteryDays = node ? require('../../status-bars/domain/battery-days.js') : window.BatteryDays;
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
     // What the slot shows while it has no value to show (status-lines.js formatValue).
     var NONE_SHOWN = pluginValues.textFor(null, catalog.CAPS.MID_TEXT_MAX);
@@ -204,6 +205,17 @@
     }
 
     /**
+     * Whether the plugin picked is Muninn: it serves Muninn's category, whose estimate the Watch
+     * battery slot shows by itself (battery-days.js). The dialog then says so in a note.
+     * @param {Object} S Settings.
+     * @returns {boolean}
+     */
+    function fromMuninn(S) {
+        var plugin = pluginOf(S.pluginValuePlugin);
+        return Boolean(plugin) && plugin.items.some(function (it) { return it.category === batteryDays.MUNINN_CATEGORY; });
+    }
+
+    /**
      * onChange of the Plugin row: a new plugin starts on its first value, None on none.
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The plugin before.
@@ -234,10 +246,11 @@
         PConf.hintResolvers.register('pluginValueIdHint', valueHint);
         PConf.hintResolvers.register('pluginValueLast', lastLine);
         PConf.onChange.register('pluginValuePluginPicked', pluginPicked);
+        PConf.whenResolvers.register('pluginValueFromMuninn', fromMuninn);
     }
 
     var api = { labelOf: labelOf, pluginOptions: pluginOptions, valueOptions: valueOptions, pluginHint: pluginHint,
-        valueHint: valueHint, lastLine: lastLine, pluginPicked: pluginPicked, barText: barText };
+        valueHint: valueHint, lastLine: lastLine, fromMuninn: fromMuninn, pluginPicked: pluginPicked, barText: barText };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PluginValuePage = api; }
 })();

@@ -405,7 +405,10 @@ own. The toggle keeps its normal place in `items`, so hydrate, serialize and `on
 unaffected. The hosted toggle's `disabledWhen` still applies there: while it holds, the header's
 switch renders `disabled` (dimmed, showing the held value) and a tap on it changes nothing. A
 card with no row to show drops out. Only sections merged by `groupCard` keep their subheaders as
-in-card headers.
+in-card headers. A subheader's `style: 'info'` makes its card a note: the card itself takes the
+info look (the tint and the amber rule of a boxed `staticText`, below, and its title in amber), so
+a note that must not be missed needs no box inside a card (the Plugin value dialog's note while
+Muninn is picked).
 
 `staticText` items carry their HTML in a `text` field, emitted verbatim without control chrome.
 They are not serialized (no `messageKey`). `style: 'info'` boxes the note in the tinted,

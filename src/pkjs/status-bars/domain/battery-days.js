@@ -26,6 +26,10 @@
   // page names it with wherever it does (the slot's hints, the new-features tip).
   var MUNINN_URL = 'https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5';
   var MUNINN_LINK = '<a href=\'' + MUNINN_URL + '\'>Muninn app</a>';
+  // The category Muninn's plugin serves its estimate under (battery-estimate.js reads its
+  // stats item there). The Plugin value dialog tells Muninn picked by it, to say that this
+  // slot shows the estimate by itself (plugin-value-page.js fromMuninn).
+  var MUNINN_CATEGORY = 'muninn';
   // Where the watch prints its own percentage in the slot's text (status_line.h
   // STATUS_BATTERY_PCT_MARK; test/status-bars/domain/status-line-contract.test.js keeps the
   // two in lockstep). One byte on the wire, and no character a separator can hold
@@ -127,6 +131,7 @@
     MAX_DAYS: MAX_DAYS,
     MUNINN_URL: MUNINN_URL,
     MUNINN_LINK: MUNINN_LINK,
+    MUNINN_CATEGORY: MUNINN_CATEGORY,
     PCT_MARK: PCT_MARK,
     display: display,
     wanted: wanted,

@@ -9660,6 +9660,21 @@
                   "key": "pluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn"
+                }
+              },
+              {
+                "type": "staticText",
+                "text": "The Watch battery slot can show Muninn's estimate by itself: the days your watch has left, alone or beside its charge. Put the Watch battery in any slot, tap its Edit button, set Look to Icon + text or Text, then set Value selection to Days left or Both.",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn"
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"

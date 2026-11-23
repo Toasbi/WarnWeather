@@ -124,6 +124,12 @@
   /* overflow:clip clips like hidden but (unlike hidden) does NOT trap a descendant position:sticky;
      hidden stays as the fallback for webviews without clip support (they just lose the sticky preview) */
   .card { background: var(--card); border: 1px solid var(--card-line); border-radius: 16px; margin-bottom: 14px; overflow: hidden; overflow: clip; box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+  /* A subheader's style 'info' (engine buildCards): its card is a note, the card itself in the
+     info box's look (.static.info .info-box), never a box inside a card: the amber tint over the
+     card's colour, the amber rule on its left and its title in amber. Its text keeps --static,
+     as the box's does: the hint grey is only 3.97:1 on the dark amber. */
+  .card.info { background: linear-gradient(var(--info-tint), var(--info-tint)), var(--card); border-left: 4px solid var(--info-rule); }
+  .card.info .cardHdr .ttl { color: var(--info-rule); }
   /* a blockBeforeSticky preview pins just below the topbar while its card's controls scroll under it.
      translateZ(0) forces its own compositing layer so older phone WebViews don't leak the scrolling
      rows through the pinned preview. */

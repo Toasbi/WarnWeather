@@ -205,6 +205,25 @@ test('the dialog: Plugin with its list, then Value, Updates and the last line on
     assert.equal(empty.indexOf('>' + text + '<'), -1, 'no ' + text + ' while no plugin is picked'));
 });
 
+test('Muninn picked: a note under the rows says the Watch battery slot shows its estimate by itself', (t) => {
+  userData(t, { plugins: PLUGINS });
+  assert.equal(page.fromMuninn({ pluginValuePlugin: MUNINN }), true, 'a plugin serving Muninn\'s category');
+  assert.equal(page.fromMuninn(LEVEL), false, 'the Phone plugin');
+  assert.equal(page.fromMuninn({ pluginValuePlugin: '' }), false, 'none picked');
+  assert.equal(page.fromMuninn({ pluginValuePlugin: 'gone' }), false, 'one the phone no longer lists');
+  const cx = (state) => ({ S: state, ENV: BASALT, USERDATA: {}, openColor: null, openSelect: null,
+    openEdit: 'threshPluginValue', selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, state, { env: BASALT }) });
+  const draw = (over) => PConf.engine.renderEditModal(schema,
+    cx(PConf.engine.hydrate(schema, Object.assign({ statusTopLeft: 'pluginValue' }, over), BASALT)));
+  const muninn = draw({ pluginValuePlugin: MUNINN, pluginValueId: 'muninn/stats/daysRemaining' });
+  const at = muninn.indexOf('<div class="card info"><div class="cardHdr"><span class="ttlwrap"><span class="ttl">Days left from Muninn</span>');
+  assert.ok(at !== -1, 'a card of its own in the info look');
+  assert.ok(at > muninn.indexOf('>Last value<'), 'under the rows');
+  assert.ok(muninn.indexOf('The Watch battery slot can show Muninn\'s estimate by itself') > at, 'with what to do');
+  assert.equal(draw(LEVEL).indexOf('card info'), -1, 'none for another plugin');
+  assert.equal(draw({}).indexOf('card info'), -1, 'none while no plugin is picked');
+});
+
 test('a plugin the phone no longer lists is not swapped for another as the dialog draws', (t) => {
   userData(t, { plugins: PLUGINS });
   const S = PConf.engine.hydrate(schema, { statusTopLeft: 'pluginValue', pluginValuePlugin: 'gone',
