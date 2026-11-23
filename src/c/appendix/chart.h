@@ -19,7 +19,7 @@ typedef struct {
     uint8_t left;     // px; 0 = no left line
     uint8_t bottom;   // px; 0 = no bottom line
     GColor  color;
-} GraphFrame;
+} ChartFrameLayer;
 
 // --- Ticks ----------------------------------------------------------
 
@@ -104,15 +104,23 @@ typedef struct {
 #endif
 } ChartRender;
 
-// The zero row and direction of the layer being drawn, for every renderer and for a
-// CUSTOM layer's own bars (the radar's nearby-area pass), so they all hang by the one
-// rule. aplite has no Top (WW_LINE_STYLE): the bottom edge and -1, constant-folded,
+// The zero row and direction of a layer that hangs from the top of `r`'s content
+// (`from_top`) or stands on its bottom: what chart_layer() gives each layer, and what a
+// caller's own drawing between layers hangs by (the radar's nearby-area bars, the
+// forecast's day lines). CHART_ZERO/CHART_DIR are the layer being drawn's, for every
+// renderer. aplite has no Top (WW_LINE_STYLE): the bottom edge and -1, constant-folded,
 // which is today's "baseline minus height" there.
 #if defined(WW_LINE_STYLE)
+#define CHART_FLIP_ZERO(r, from_top) ((int16_t)chart_flip_zero((from_top), \
+    (r)->geo.content.origin.y, (r)->geo.content.origin.y + (r)->geo.content.size.h))
+#define CHART_FLIP_DIR(from_top) ((int8_t)chart_flip_dir(from_top))
 #define CHART_ZERO(r) ((r)->zero)
 #define CHART_DIR(r)  ((r)->dir)
 #define CHART_VERTEX_Y(zero, dir, h, held) chart_flip_vertex_y((zero), (dir), (h), (held))
 #else
+#define CHART_FLIP_ZERO(r, from_top) ((void)(from_top), \
+    (r)->geo.content.origin.y + (r)->geo.content.size.h)
+#define CHART_FLIP_DIR(from_top) ((void)(from_top), -1)
 #define CHART_ZERO(r) ((r)->geo.content.origin.y + (r)->geo.content.size.h)
 #define CHART_DIR(r)  (-1)
 #define CHART_VERTEX_Y(zero, dir, h, held) ((void)(dir), (void)(held), (zero) - (h))
@@ -124,10 +132,6 @@ typedef struct {
     char          label[4];  // "" = no label
     ChartTickKind tick;
 } ChartAxisSlot;
-
-typedef struct {
-    GraphFrame frame;
-} ChartFrameLayer;
 
 // Each slot's tick and label sit on the slot's start (chart_slot_tick_x).
 typedef struct {
@@ -233,11 +237,6 @@ typedef struct {
     bool             has_underlay;
 } ChartHatchLayer;
 
-typedef struct {
-    void (*fn)(const ChartRender *r, void *user);
-    void  *user;
-} ChartCustomLayer;
-
 #if defined(WW_LINE_STYLE)
 // A metric as a thin band of per-slot cells, `y_offset` px below the top of its
 // chart's content (forecast_layer.c draws each stripe band as a chart of its own),
@@ -256,13 +255,12 @@ typedef struct {
 
 typedef enum { CHART_LAYER_FRAME, CHART_LAYER_AXIS, CHART_LAYER_BARS,
                CHART_LAYER_LINE, CHART_LAYER_AREA, CHART_LAYER_HATCH,
-               CHART_LAYER_CUSTOM, CHART_LAYER_STRIPE } ChartLayerType;
+               CHART_LAYER_STRIPE } ChartLayerType;
 
 typedef struct {
     ChartLayerType type;
-    uint8_t        from_top;   // nonzero: BARS, LINE, AREA and a contour HATCH (and a CUSTOM
-                               // layer through CHART_ZERO/CHART_DIR) hang from the content's
-                               // top instead of standing on its bottom (chart_flip.h).
+    uint8_t        from_top;   // nonzero: BARS, LINE, AREA and a contour HATCH hang from the
+                               // content's top instead of standing on its bottom (chart_flip.h).
                                // FRAME, AXIS, STRIPE and a full-height HATCH ignore it. On
                                // every platform, in the padding after the short enum:
                                // rain_radar_layer.c still compiles on aplite, where nothing
@@ -274,7 +272,6 @@ typedef struct {
         ChartLineLayer   line;
         ChartAreaLayer   area;
         ChartHatchLayer  hatch;
-        ChartCustomLayer custom;
 #if defined(WW_LINE_STYLE)
         ChartStripeLayer stripe;
 #endif

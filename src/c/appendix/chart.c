@@ -5,11 +5,11 @@
 #include "theme.h"
 #include "chart_stripe.h"
 
-// The forecast keeps 12 of these in a static array: the from_top byte
+// Each graph builds its layers in one of these in the paint scratch: the from_top byte
 // sits in the padding after the 1-byte type, so a layer must not grow past 28 B.
 _Static_assert(sizeof(ChartLayer) <= 28, "ChartLayer grew: narrow the new field (chart.h)");
 
-static void graph_frame_draw(GContext *ctx, GraphFrame f, GRect outer) {
+static void graph_frame_draw(GContext *ctx, ChartFrameLayer f, GRect outer) {
     if (f.left == 0 && f.bottom == 0) { return; }
     graphics_context_set_fill_color(ctx, f.color);
     if (f.left > 0) {
@@ -194,6 +194,12 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
     const int  w           = r->def->bar_w;   // every bar: every pitch is whole px
     const int  count       = chart_clamp_count(r, b->count);
     if (plot_h <= 0 || b->num_stops < 1) return;
+    // Every theme gets the same halo + bar outline anatomy below; only the interior
+    // differs (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
+    // ones). Color-dark opts out of both — no halo, no silhouette: the exact pre-theme
+    // look the user tuned before theming existed. On B&W builds theme_is_bw() is
+    // constant-true, so the dark-only skips compile out.
+    const bool dark = !theme_is_bw() && !theme_is_light();
 
     for (int i = 0; i < count; ++i) {
         const int v = b->values[i];
@@ -206,13 +212,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         // painted before the segment fills so the colored segments keep their full
         // width/height on top. Not expanded past the anchored end — the x-axis baseline
         // sits there standing (painting over it would notch the axis), and hanging it
-        // would reach above the plot's top. Every theme gets the
-        // same halo + bar outline anatomy; only the interior differs
-        // (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
-        // ones). Color-dark opts out of both — no halo, no silhouette: the exact
-        // pre-theme look the user tuned before theming existed. On B&W builds
-        // theme_is_bw() is constant-true, so the dark-only skips compile out.
-        const bool dark = !theme_is_bw() && !theme_is_light();
+        // would reach above the plot's top.
         if (!dark) {
             graphics_context_set_fill_color(r->ctx, theme_bg());
             graphics_fill_rect(r->ctx,
@@ -695,7 +695,7 @@ static void chart_render_stripe(const ChartRender *r, const ChartStripeLayer *s)
     const GRect c     = r->geo.content;
     const int   pitch = r->geo.slots.pitch;
     const int   y     = c.origin.y + s->y_offset;
-    if (s->height <= 0 || y < c.origin.y) return;
+    if (s->height <= 0) return;
 
     for (int i = 0; i < count; ++i) {
         chart_stripe_fill_cell(r->ctx,
@@ -717,16 +717,12 @@ void chart_layer(ChartRender *r, const ChartLayer *l) {
 #if defined(WW_LINE_STYLE)
     // This layer's zero row and direction (chart_flip.h): standing on the content's
     // bottom, or hanging from its top. FRAME, AXIS and STRIPE ignore both.
-    r->zero = (int16_t)chart_flip_zero(l->from_top, r->geo.content.origin.y,
-                                       r->geo.content.origin.y + r->geo.content.size.h);
-    r->dir  = (int8_t)chart_flip_dir(l->from_top);
+    r->zero = CHART_FLIP_ZERO(r, l->from_top);
+    r->dir  = CHART_FLIP_DIR(l->from_top);
 #endif
     switch (l->type) {
         case CHART_LAYER_FRAME:
-            graph_frame_draw(r->ctx, l->frame.frame, r->outer);
-            break;
-        case CHART_LAYER_CUSTOM:
-            l->custom.fn(r, l->custom.user);
+            graph_frame_draw(r->ctx, l->frame, r->outer);
             break;
         case CHART_LAYER_AXIS:
             chart_render_axis(r, &l->axis);

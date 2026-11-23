@@ -349,16 +349,17 @@ static void load_dataset(ForecastDataset *ds) {
 #endif
 
 /**
- * Draw one metric line into chart `cr` through `l`, the chart's one layer: the Main
+ * Draw one metric line into chart `cr`, through the forecast's scratch layer: the Main
  * metric's line or a bar-aligned mark line (SERIES_THIRD..SERIES_FIFTH), the one place
- * their layer literal exists, whatever z-slot the fill decides. `frozen` is the style
- * where the line has no selectable one (series_style_pick, series.h): aplite's mark line
- * (only SERIES_THIRD is reachable there) draws DOTS, its Main metric SOLID. `hi` is the
- * line's full scale, LINE_HI: its rows on the temperature axis, else 250.
+ * their layer literal exists, before or after the marks as the fill decides. `frozen` is
+ * the style where the line has no selectable one (series_style_pick, series.h): aplite's
+ * mark line (only SERIES_THIRD is reachable there) draws DOTS, its Main metric SOLID.
+ * `hi` is the line's full scale, LINE_HI: its rows on the temperature axis, else 250.
  */
-static void draw_metric_line(ChartRender *cr, ChartLayer *l, const Series *s, int count, int hi,
+static void draw_metric_line(ChartRender *cr, const Series *s, int count, int hi,
                              ChartLineStyle frozen) {
     (void) frozen;   // read only where series_style_pick picks it
+    ChartLayer *const l = &g_paint_scratch.forecast.layer;
     *l = (ChartLayer){ CHART_LAYER_LINE, .from_top = SERIES_FROM_TOP(s), .line = {
         .values = s->line.values, .points = g_paint_scratch.forecast.area_pts, .count = count,
         .lo = 0, .hi = hi,
@@ -390,9 +391,9 @@ static char s_buffer_hi[12];
 // the first one, so across a clock change the line can sit a tick from where they put midnight.
 // Slot 0 is the graph's edge, never a line. From the graph's top row (through a top stripe band,
 // as the night shading runs) to the zero row's neighbour.
-static void day_lines_draw(const ChartRender *r, void *user) {
-    const ForecastDataset *const ds = user;
-    const int16_t y_base = chart_flip_y(CHART_ZERO(r), CHART_DIR(r), 1);
+static void day_lines_draw(const ChartRender *r, const ForecastDataset *ds) {
+    // The zero row of a layer standing on the plot's bottom, whatever the bars hang from.
+    const int16_t y_base = chart_flip_y(CHART_FLIP_ZERO(r, false), CHART_FLIP_DIR(false), 1);
     graphics_context_set_stroke_color(r->ctx, theme_pick(NIGHT_C(NIGHT_INK_DAY_LINE),
         theme_is_light() ? GColorDarkGray : GColorLightGray));
     graphics_context_set_stroke_width(r->ctx, 1);
@@ -689,7 +690,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #define plot outer
 #endif
 
-    // Per-redraw data prep + layer list.
+    // Per-redraw data prep.
     GPoint *const area_pts = paint->area_pts;
     ChartAxisSlot *const axis_slots = paint->axis_slots;
 #if defined(PBL_PLATFORM_EMERY)
@@ -859,9 +860,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #endif
             .contour        = NULL } };
         chart_layer(&cr, l);
-        *l = (ChartLayer){ CHART_LAYER_CUSTOM, .custom = {
-            .fn = day_lines_draw, .user = ds } };
-        chart_layer(&cr, l);
+        day_lines_draw(&cr, ds);
     }
     if (bars_on) {
         // "Bars from: Top" rides the bar palette (palette.h palette_from_top); the
@@ -888,17 +887,17 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // the plot's first row when it hangs (chart_flip_vertex_y) where the fill's zero
     // stretch stays on the zero row.
     if (fill_on) {
-        draw_metric_line(&cr, l, second, ds->num_entries, LINE_HI(second->line.inset_y),
+        draw_metric_line(&cr, second, ds->num_entries, LINE_HI(second->line.inset_y),
                          CHART_LINE_SOLID);
     }
     for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
         if (ds->series[sid].present && !SERIES_IS_STRIPE(&ds->series[sid])) {
-            draw_metric_line(&cr, l, &ds->series[sid], ds->num_entries,
+            draw_metric_line(&cr, &ds->series[sid], ds->num_entries,
                              LINE_HI(ds->series[sid].line.inset_y), CHART_LINE_DOTS);
         }
     }
     if (line_on && !fill_on) {
-        draw_metric_line(&cr, l, second, ds->num_entries, LINE_HI(second->line.inset_y),
+        draw_metric_line(&cr, second, ds->num_entries, LINE_HI(second->line.inset_y),
                          CHART_LINE_SOLID);
     }
 
@@ -908,8 +907,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         .inset_top = LINE_INSET(first->line.inset_y), .inset_bottom = LINE_INSET(first->line.inset_y),
         .color = first->line.color, .width = first->line.width } };
     chart_layer(&cr, l);
-    *l = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
-        .left = axis_on, .bottom = 1, .color = axis_color } } };
+    *l = (ChartLayer){ CHART_LAYER_FRAME, .frame = {
+        .left = axis_on, .bottom = 1, .color = axis_color } };
     chart_layer(&cr, l);
     // The hour axis, the last layer of the chart whose bottom row is the axis row: the
     // plot's, or with a bottom stripe band that band's.
@@ -946,8 +945,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             chart_layer(&cr, l);
             nb++;
         }
-        *l = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
-            .left = axis_on, .color = axis_color } } };
+        *l = (ChartLayer){ CHART_LAYER_FRAME, .frame = {
+            .left = axis_on, .color = axis_color } };
         chart_layer(&cr, l);
         if (!top) {
             chart_layer(&cr, &axis_layer);

@@ -261,17 +261,6 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
 #undef Y
 }
 
-typedef struct {
-    const uint8_t *exact_tenths;
-    const uint8_t *area_tenths;
-} RadarAreaCtx;
-
-static void radar_area_bars_layer(const ChartRender *r, void *user) {
-    const RadarAreaCtx *c = user;
-    draw_radar_area_bars(r->ctx, r->geo.content, r->geo.slots,
-                         c->area_tenths, c->exact_tenths, CHART_ZERO(r), CHART_DIR(r));
-}
-
 #if defined(WW_RAIN_RADAR)
 // The sky rows' colours: fixed per polarity (they are not user-pickable).
 // Cloud matches the forecast's cloud-cover built-in, sun is yellow, and the
@@ -427,10 +416,6 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     // are shared with the empty-state buffers.
     if (any_rain) {
         rain_tier_fill_permille(exact_tenths, exact_pm, RADAR_NUM_SLOTS);
-        RadarAreaCtx area_ctx = {
-            .exact_tenths = exact_tenths,
-            .area_tenths  = area_tenths,
-        };
         // The radar palette goes straight into the bars layer. "Bars from: Top" rides it
         // (palette.h palette_from_top), so a flip repaints this chart. Hanging bars
         // anchor on the row above their rect: the sky band's trailing gap row, or
@@ -443,11 +428,11 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
         const int gap = !sky_band && bars_top;
         chart_begin(&cr, ctx, &RADAR_DEF,
                     GRect(outer.origin.x, outer.origin.y + gap, outer.size.w, outer.size.h - gap));
-        // Both passes hang together: the nearby-area bars through CHART_ZERO / CHART_DIR,
-        // the exact bars over them through chart_render_bars.
-        *l = (ChartLayer){ CHART_LAYER_CUSTOM, .from_top = bars_top,
-                           .custom = { radar_area_bars_layer, &area_ctx } };
-        chart_layer(&cr, l);
+        // Both passes hang together: the nearby-area bars from the zero row and direction
+        // their layer would have (CHART_FLIP_ZERO / CHART_FLIP_DIR), the exact bars over
+        // them through chart_render_bars.
+        draw_radar_area_bars(ctx, cr.geo.content, cr.geo.slots, area_tenths, exact_tenths,
+                             CHART_FLIP_ZERO(&cr, bars_top), CHART_FLIP_DIR(bars_top));
         *l = (ChartLayer){ CHART_LAYER_BARS, .from_top = bars_top, .bars = {
             .values = exact_pm, .stops = stops, .lo = 0, .hi = 1000,
             .count = RADAR_NUM_SLOTS, .num_stops = (uint8_t) num_stops } };
