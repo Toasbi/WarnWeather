@@ -148,10 +148,10 @@
   // orphan heading. 'battery' holds two items: the WATCH's and the PHONE's, which
   // exists only where the phone can report its charge (needsPhoneBattery) and never on
   // aplite. The labels carry the Watch/Phone qualifier because both otherwise read as
-  // "battery".
+  // "battery". Plugin comes first, right under Empty (the owner's, 2026-11-23).
   var CATEGORIES = [
-    ['weather', 'Weather'], ['datelocation', 'Date and location'],
-    ['health', 'Health'], ['battery', 'Battery'], ['plugin', 'Plugin']
+    ['plugin', 'Plugin'], ['weather', 'Weather'], ['datelocation', 'Date and location'],
+    ['health', 'Health'], ['battery', 'Battery']
   ];
 
   // A line's slots in order, as the slot context (resolveSelection, itemAvailable) names

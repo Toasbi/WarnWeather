@@ -530,7 +530,8 @@ test('the Plugin value is offered only where the Pebble app reads plugins, never
         'absent, not disabled: ' + where);
       assert.ok(catalog.itemAvailable(item, s, withPlugins, ctx), where);
       const options = catalog.slotOptions(s, withPlugins, ctx);
-      assert.deepEqual(options[options.length - 1], ['Plugin value', 'pluginValue'], 'last, alone: no header');
+      assert.deepEqual(options.slice(0, 2), [['Empty', 'empty'], ['Plugin value', 'pluginValue']],
+        'right under Empty, alone: no header');
     });
   });
   ALL_SLOT_CTXS.forEach((ctx) => {
