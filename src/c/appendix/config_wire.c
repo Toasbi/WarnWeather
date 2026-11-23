@@ -150,6 +150,18 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
         // Bit 8: Double flick (an older phone never sets it).
         out->view_double_flick = (clay_view_reset_tuple->value->int16 & VIEW_RESET_DOUBLE_FLICK) != 0;
     }
+    // The date formats: not on aplite, like the fields (config.h); the phone omits the
+    // tuple for an aplite watch too (clay-payload gates it with the threshold blob).
+    // Without it, both stay 0 = Auto.
+    const Tuple *clay_date_format_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DATE_FORMAT_UINT8);
+    if (clay_date_format_tuple && clay_date_format_tuple->type == TUPLE_BYTE_ARRAY
+        && clay_date_format_tuple->length >= 2) {
+        // [0] month-year format, [1] full-date format (date_format.h wire
+        // vocabulary). Length is a MINIMUM, the line-style tuple's growth
+        // contract: a future byte appends with its own check.
+        out->date_month_format = clay_date_format_tuple->value->data[0];
+        out->date_full_format = clay_date_format_tuple->value->data[1];
+    }
 #endif
 #if defined(PBL_PLATFORM_EMERY)
     // emery-only, like the field (config.h): the tuple still RIDES to every platform,
@@ -163,20 +175,6 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
         const uint16_t word = (uint16_t) clay_large_graph_font_tuple->value->int16;
         out->large_graph_font = (word & GRAPH_OPT_LARGE_FONT) != 0;
         out->forecast_axis = (uint8_t) (word & GRAPH_OPT_AXIS_MASK);
-    }
-#endif
-#if !defined(PBL_PLATFORM_APLITE)
-    // Not on aplite, like the fields (config.h): the phone omits the tuple for an
-    // aplite watch too (clay-payload gates it with the threshold blob). Without it,
-    // both date formats stay 0 = Auto.
-    const Tuple *clay_date_format_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DATE_FORMAT_UINT8);
-    if (clay_date_format_tuple && clay_date_format_tuple->type == TUPLE_BYTE_ARRAY
-        && clay_date_format_tuple->length >= 2) {
-        // [0] month-year format, [1] full-date format (date_format.h wire
-        // vocabulary). Length is a MINIMUM, the line-style tuple's growth
-        // contract: a future byte appends with its own check.
-        out->date_month_format = clay_date_format_tuple->value->data[0];
-        out->date_full_format = clay_date_format_tuple->value->data[1];
     }
 #endif
 #if defined(PBL_HEALTH)
