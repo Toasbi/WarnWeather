@@ -167,8 +167,8 @@ test('as the watch draws it: its percentage in place of the mark, or alone for n
   assert.equal(batteryDays.drawn('5d', '80%'), '5d');
   assert.equal(batteryDays.drawn(MARK + '|5d', '80%'), '80%|5d');
   assert.equal(batteryDays.drawn('5d (' + MARK + ')', '100%'), '5d (100%)');
-  // The longest text a pair draws stays inside the watch's text buffer (status_row.c
-  // ResolvedSlot.text, STATUS_TEXT_MID_MAX + 1 bytes).
+  // The longest text a pair draws stays inside the watch's text buffer (status_row_slot.h
+  // StatusRowSlot.text, STATUS_TEXT_MID_MAX + 1 bytes).
   const longest = batteryDays.drawn(batteryDays.slotText(99, both({ batterySlotSeparator: 'custom',
     batterySlotSeparatorCustom: '--', batterySlotSeparatorSpaced: true }), EDGE), '100%');
   assert.equal(longest, '100% -- 99d');

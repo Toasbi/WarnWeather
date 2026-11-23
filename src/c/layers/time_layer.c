@@ -43,8 +43,8 @@
 // Nothing in C links a font key to its size — FONT_KEY_GOTHIC_18 is a resource name, not a
 // number — so AM_PM_CONTENT_H is that 18 TRANSCRIBED BY HAND, and changing the face means
 // changing both lines. Get it wrong and nothing complains: the build stays green, the label is
-// seated by a leading measured for the wrong size, and the frame below is the wrong height, so
-// the caps are mis-seated AND clipped. Only the emulator row-scan described above catches it.
+// seated by a leading measured for the wrong size, and its box (s_am_pm_box) is the wrong
+// height, so the caps are mis-seated AND clipped. Only the emulator row-scan described above catches it.
 //
 // AM_PM_INK_TOP is the one that does follow. Gothic's measured content height is exactly its
 // nominal size (verified on device at 14/18/24 — see status_content_h in layer_util.h), and

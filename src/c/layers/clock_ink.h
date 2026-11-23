@@ -5,7 +5,7 @@
 #include "c/layers/layer_util.h"  // status_forecast_band_h / status_full_tier_font
 
 // Where each time font's digits actually ink inside the clock band — the one quantity the
-// layout solver cannot derive. The SDK has no ink-bbox call (text_layer_get_content_size
+// layout solver cannot derive. The SDK has no ink-bbox call (graphics_text_layout_get_content_size
 // reports the LINE BOX, and each face relates its ink to that box differently), and every
 // screen x font combination is a genuinely different face:
 //
