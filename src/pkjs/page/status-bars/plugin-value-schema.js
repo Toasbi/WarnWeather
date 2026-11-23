@@ -25,23 +25,37 @@ var EVERY_HINT = 'Each read runs the other app\'s plugin on your phone. If that 
 
 // While the plugin picked is Muninn (plugin-value-page.js fromMuninn): a note that the Watch
 // battery slot shows its estimate by itself (battery-days.js), with the steps of the
-// new-features tip (feature-tips.js batteryDays). A card of its own in the info look, under the
-// rows (the owner's, 2026-11-23).
+// new-features tip (feature-tips.js batteryDays). A card of its own in the info look, above
+// the Plugin row (the owner's, 2026-11-23).
 var MUNINN_WHEN = {when: 'pluginValueFromMuninn'};
 var MUNINN_NOTE = 'The Watch battery slot can show Muninn\'s estimate by itself: the days your watch has left, '
     + 'alone or beside its charge. Put the Watch battery in any slot, tap its Edit button, set Look to '
     + 'Icon + text or Text, then set Value selection to Days left or Both.';
 
 /**
- * The Plugin value slot's dialog: the Plugin, the Value of it and Updates, then the value read
- * last. Each row opens its list over the dialog (engine renderPickSheet): a phone can list a
- * dozen plugins and each up to 24 values (plugin-value-list.js).
+ * The Plugin value slot's dialog: the note while Muninn is picked, then the Plugin, the Value
+ * of it and Updates, then the value read last. Each row opens its list over the dialog (engine
+ * renderPickSheet): a phone can list a dozen plugins and each up to 24 values
+ * (plugin-value-list.js).
  * @param {function(string, string, Object[]): Object} sheetOf schema.js sheetOf: a slot
  *   dialog's envelope (thresh<Stem>, gated where the watch has slot dialogs).
  * @returns {Object} Schema section (sheetOnly), 'threshPluginValue'.
  */
 function dialogSection(sheetOf) {
     return sheetOf('PluginValue', 'Plugin value', [{
+        type: 'subheader',
+        text: 'Days left from Muninn',
+        style: 'info',
+        showWhen: MUNINN_WHEN
+    }, {
+        type: 'staticText',
+        text: MUNINN_NOTE,
+        showWhen: MUNINN_WHEN
+    }, {
+        // The rows' card, under the note: a plain one, untitled (the dialog's title says it).
+        type: 'subheader',
+        text: ''
+    }, {
         type: 'select',
         messageKey: 'pluginValuePlugin',
         label: 'Plugin',
@@ -74,15 +88,6 @@ function dialogSection(sheetOf) {
         label: 'Last value',
         hintFrom: {resolver: 'pluginValueLast'},
         showWhen: PICKED_WHEN
-    }, {
-        type: 'subheader',
-        text: 'Days left from Muninn',
-        style: 'info',
-        showWhen: MUNINN_WHEN
-    }, {
-        type: 'staticText',
-        text: MUNINN_NOTE,
-        showWhen: MUNINN_WHEN
     }]);
 }
 

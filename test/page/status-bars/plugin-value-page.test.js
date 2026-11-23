@@ -205,7 +205,7 @@ test('the dialog: Plugin with its list, then Value, Updates and the last line on
     assert.equal(empty.indexOf('>' + text + '<'), -1, 'no ' + text + ' while no plugin is picked'));
 });
 
-test('Muninn picked: a note under the rows says the Watch battery slot shows its estimate by itself', (t) => {
+test('Muninn picked: a note above the Plugin row says the Watch battery slot shows its estimate by itself', (t) => {
   userData(t, { plugins: PLUGINS });
   assert.equal(page.fromMuninn({ pluginValuePlugin: MUNINN }), true, 'a plugin serving Muninn\'s category');
   assert.equal(page.fromMuninn(LEVEL), false, 'the Phone plugin');
@@ -218,10 +218,15 @@ test('Muninn picked: a note under the rows says the Watch battery slot shows its
   const muninn = draw({ pluginValuePlugin: MUNINN, pluginValueId: 'muninn/stats/daysRemaining' });
   const at = muninn.indexOf('<div class="card info"><div class="cardHdr"><span class="ttlwrap"><span class="ttl">Days left from Muninn</span>');
   assert.ok(at !== -1, 'a card of its own in the info look');
-  assert.ok(at > muninn.indexOf('>Last value<'), 'under the rows');
-  assert.ok(muninn.indexOf('The Watch battery slot can show Muninn\'s estimate by itself') > at, 'with what to do');
-  assert.equal(draw(LEVEL).indexOf('card info'), -1, 'none for another plugin');
-  assert.equal(draw({}).indexOf('card info'), -1, 'none while no plugin is picked');
+  const text = muninn.indexOf('The Watch battery slot can show Muninn\'s estimate by itself');
+  assert.ok(text > at, 'with what to do');
+  const rows = muninn.indexOf('data-select="pluginValuePlugin"');
+  assert.ok(rows > text, 'above the Plugin row');
+  assert.ok(muninn.slice(text, rows).indexOf('<div class="card nohdr">') !== -1, 'which is in a plain card of its own');
+  [draw(LEVEL), draw({})].forEach((html, i) => {
+    assert.equal(html.indexOf('card info'), -1, i ? 'none while no plugin is picked' : 'none for another plugin');
+    assert.ok(html.indexOf('<div class="card nohdr"><div><div class="row') !== -1, 'the rows\' card opens the dialog');
+  });
 });
 
 test('a plugin the phone no longer lists is not swapped for another as the dialog draws', (t) => {
