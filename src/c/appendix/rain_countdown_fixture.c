@@ -9,8 +9,8 @@
 // the persisted radar trend vs the wall clock — fragile to reproduce in a static,
 // compile-time fixture (the upcoming-rain "in X" branch is gated on the look-ahead
 // horizon and the radar/now anchor) — this returns the fixture's numbers, so a captured
-// frame shows a deterministic Rain item (status_on_demand.c): the tier picks the drops,
-// their colour and the noun, and the minutes and raining flag the rest of what each
+// frame shows a deterministic Rain item (status_on_demand.c): the tier's bucket picks the
+// drops and the noun, and the minutes and raining flag the rest of what each
 // rain look prints — "Rain in 15'" / "15'" upcoming, "Rain for 20'" / "+20'" while it
 // rains. Feature-frozen mirror of rain_countdown.h; hand-port interface changes.
 //
@@ -36,7 +36,6 @@ bool rain_countdown_get(RainCountdown *rc, time_t now) {
     const int bucket = rain_tier_to_bucket3(WW_FIXTURE_COUNTDOWN_TIER);
     rc->mins = WW_FIXTURE_COUNTDOWN_MINS;
     rc->raining = WW_FIXTURE_COUNTDOWN_RAINING;
-    rc->tier = WW_FIXTURE_COUNTDOWN_TIER;
     rc->bucket = (uint8_t) (bucket < 1 ? 1 : bucket);
     return true;
 #else

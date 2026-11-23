@@ -281,7 +281,7 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
     uint8_t live[10] = { (uint8_t)batt, s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
                          (uint8_t)s.active[OD_SLEEP], (uint8_t)rain,
                          batt ? s.charge : 0, (uint8_t)(batt && s.charging),
-                         rain ? s.rain.tier : 0, text ? s.rain.mins : 0,
+                         rain ? s.rain.bucket : 0, text ? s.rain.mins : 0,
                          (uint8_t)(text && s.rain.raining) };
     sig = sig_fold(sig, live, sizeof(live));
     return sig_fold(sig, s.bytes, (size_t)n);

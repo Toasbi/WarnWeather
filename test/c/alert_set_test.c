@@ -404,7 +404,7 @@ static void lane_tests(void) {
 // One rain alert's two texts: the full one and the minutes alone.
 static void expect_rain(const char *name, int mins, bool raining, int bucket,
                         const char *full, const char *minutes) {
-    RainCountdown rc = { .mins = (uint8_t)mins, .raining = raining, .tier = 3,
+    RainCountdown rc = { .mins = (uint8_t)mins, .raining = raining,
                          .bucket = (uint8_t)bucket };
     char out[ALERT_SET_LANE_CAP];
     char label[48];
@@ -439,7 +439,7 @@ static void rain_text_tests(void) {
     // The longest text fills ALERT_SET_LANE_CAP exactly, uncut.
     expect("rain.cap_pinned", (long)strlen("Downpour for +99'") + 1, ALERT_SET_LANE_CAP);
     // A short buffer cuts the text, still NUL-terminated.
-    RainCountdown rc = { .mins = 20, .raining = true, .tier = 3, .bucket = 2 };
+    RainCountdown rc = { .mins = 20, .raining = true, .bucket = 2 };
     char tiny[3];
     alert_set_rain_text(&rc, true, tiny, sizeof(tiny));
     expect_str("rain.tiny", tiny, "+2");

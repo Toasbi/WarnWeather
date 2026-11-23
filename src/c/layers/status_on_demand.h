@@ -28,8 +28,8 @@
 //                 Bluetooth colours (PictonBlue / red on a dark colour theme).
 //  - Quiet time   quiet_time_is_active(): the muted speaker.
 //  - Sleep        the phone's Battery saver hours (IS_SLEEPING): the Z's.
-//  - Rain         the watch-resolved rain countdown: the drops tinted by the radar
-//                 tier, the text per the rain look.
+//  - Rain         the watch-resolved rain countdown: the drops of its bucket (drizzle,
+//                 rain or downpour), the text per the rain look.
 //  - the metric alerts (gust, UV, AQI, pollen, wind): an ALERT_ENTRIES entry of the
 //                 kind, drawn as a mini status slot at its real level. Where the
 //                 status slot on its side of the bar shows the same metric, that
