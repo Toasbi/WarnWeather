@@ -85,6 +85,8 @@ var forecastLines = require('../forecast-graphs/forecast-lines-schema.js');
 // Where the weather comes from: the Weather row of Setup › Data sources, the Provider's
 // options and the notes under it, and the pickers of the Weather dialog's Other sources.
 var weatherSources = require('../weather/weather-sources-schema.js');
+// The Plugin value slot's dialog (its rows' lists and texts are plugin-value-page.js').
+var pluginValueSchema = require('../status-bars/plugin-value-schema.js');
 var METRIC_HINT_FROM = forecastLines.METRIC_HINT_FROM;
 var STRIPE_STYLES = forecastLines.STRIPE_STYLES;
 var lineStyleCopy = forecastLines.lineStyleCopy;
@@ -366,7 +368,7 @@ function separatorRows(prefix, first, second, fitHints) {
     }).concat([['Custom', 'custom']]);
     return [{
         // A dropdown, not pills: five choices would be a wide pill row, and the owner
-        // asked for a drop-down of presets. Inside the sheet it expands in place.
+        // asked for a drop-down of presets.
         type: 'select',
         messageKey: prefix + 'SlotSeparator',
         label: 'Separator',
@@ -457,8 +459,7 @@ function dayMaxRows(prefix, copy, now, max) {
         .concat(separatorRows(prefix, now, max), [{
             // The mark on a max that has rolled on to tomorrow's peak — in Day max AND
             // Both, the two modes that print a max. 'raquo' is the '»' the UV slot
-            // printed before this row existed, so it stays the default. Inside the
-            // sheet the list expands in place.
+            // printed before this row existed, so it stays the default.
             type: 'select',
             messageKey: prefix + 'SlotNextDayMark',
             label: 'Tomorrow\'s peak mark',
@@ -712,8 +713,8 @@ function boldOnlyRow(keyStem) {
 // The watch battery's dialog (its slot's Edit button opens it in every look: blocks.js
 // statusSlotEditSheet). Its Look leads, with the weather condition's options in its order:
 // the battery the watch draws and its charge as text after it (Icon + text), the text alone
-// (Text) or the battery alone (Icon; slot-text.js batteryLook). The item's setting, since the
-// watch battery sits in one slot. Every other row shows while text prints, in Text and Icon +
+// (Text) or the battery alone (Icon; slot-text.js batteryLook). The item's setting: every slot
+// that holds the watch battery shows it alike. Every other row shows while text prints, in Text and Icon +
 // text: the drawn battery alone has no text to set or to print bold. The text shows the
 // percentage, which the watch reads itself, the days it has left, which the Muninn app
 // estimates and the phone bakes in (battery-days.js), or both as a pair shaped like the
@@ -727,11 +728,12 @@ function boldOnlyRow(keyStem) {
 // come from. A plain <br> would run that line on as the same paragraph; the gap above it
 // keeps it apart. What each mode shows is in the picture of the bar above the rows, so the
 // hints leave it out.
-var MUNINN_NOTE = '<span style="display:block;margin-top:6px">The days are an estimate from the ' +
-    require('../../status-bars/domain/battery-days.js').MUNINN_LINK + ', which has to be on your watch.</span>';
+var batteryDays = require('../../status-bars/domain/battery-days.js');
+var DAYS_SOURCE_LINE = '<span style="display:block;margin-top:6px">The days are an estimate from the ' +
+    batteryDays.MUNINN_LINK + ', which has to be on your watch.</span>';
 var BATTERY_FALLBACK = ' while the watch charges, your phone is out of reach or there is no new estimate.';
-var BATTERY_DAYS_HINT = 'Shows the percentage instead' + BATTERY_FALLBACK + MUNINN_NOTE;
-var BATTERY_BOTH_HINT = 'Shows the percentage alone' + BATTERY_FALLBACK + MUNINN_NOTE;
+var BATTERY_DAYS_HINT = 'Shows the percentage instead' + BATTERY_FALLBACK + DAYS_SOURCE_LINE;
+var BATTERY_BOTH_HINT = 'Shows the percentage alone' + BATTERY_FALLBACK + DAYS_SOURCE_LINE;
 // The watch battery's pair is short (the place of the percentage and at most '99d'): every
 // preset fits its slot, spaced too, and only a custom separator of two wide characters can
 // outgrow it with its spaces, which it then drops. So that is all its Separator row says
@@ -740,13 +742,25 @@ var BATTERY_FIT_HINTS = {custom: 'If the pair doesn\'t fit, the slot drops the s
 // The watch battery's text rows show while its Look prints text: Icon + text and Text (the
 // values slot-text.js batteryLook reads as such; anything else is the Icon look).
 var BATTERY_TEXT_WHEN = {key: 'batterySlotLook', in: ['both', 'text']};
+// While the slot does not show the days (the drawn battery alone, or the percentage), a note
+// above the rows names the Muninn plugin they come from and how to show them, ending on the
+// steps every how-to for the days ends on (battery-days.js DAYS_STEPS). Once the days show,
+// the hint under Days left or Both names Muninn (DAYS_SOURCE_LINE). Only where the days can
+// be read (PLUGINS_WHEN). The owner's, 2026-11-23.
+var BATTERY_MUNINN_WHEN = bothWhen(PLUGINS_WHEN,
+    {any: [{not: BATTERY_TEXT_WHEN}, {key: 'batterySlotDisplay', nin: ['days', 'both']}]});
+var BATTERY_MUNINN_NOTE = 'The slot can show how many days your watch has left. The estimate comes from the '
+    + 'Muninn plugin, part of the ' + batteryDays.MUNINN_LINK + ', which has to be on your watch. To show the days, '
+    + batteryDays.DAYS_STEPS;
 /**
- * The watch battery slot's dialog: its Look, then the rows of the looks that print text
- * (what the text shows, the pair's rows, Bold). Built from sheetOf rather than boldSection,
- * whose gate would cover the Look too: here only the rows after it follow the Look.
+ * The watch battery slot's dialog: the Muninn note while the days do not show, then its Look
+ * and the rows of the looks that print text (what the text shows, the pair's rows, Bold).
+ * Built from sheetOf rather than boldSection, whose gate would cover the Look too: here only
+ * the rows after it follow the Look.
  * @returns {Object} The watch battery slot's sheet (sheetOnly).
  */
 function batterySlotSheet() {
+    var note = gates.noteCards('Days left from Muninn', BATTERY_MUNINN_NOTE, BATTERY_MUNINN_WHEN);
     var look = {
         // No hint: the picture of the bar above the rows shows what each look draws.
         type: 'segmented',
@@ -756,8 +770,8 @@ function batterySlotSheet() {
         options: [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']]
     };
     var textRows = alsoWhen([{
-        // Global, like the temperature slot's: the watch battery sits in one slot. The
-        // phone bakes the days and the pair's separator (status-lines.js packLine) and it
+        // Global, like the temperature slot's: every slot that holds the watch battery
+        // shows it alike. The phone bakes the days and the pair's separator (status-lines.js packLine) and it
         // rides renderSignature(), so a change re-bakes without waiting for the next fetch.
         type: 'segmented',
         messageKey: 'batterySlotDisplay',
@@ -770,7 +784,7 @@ function batterySlotSheet() {
         .concat(separatorRows('battery', '80%', '5d', BATTERY_FIT_HINTS)),
         bothWhen(BATTERY_TEXT_WHEN, PLUGINS_WHEN));
     var bold = alsoWhen([boldOnlyRow('BatteryPct')], BATTERY_TEXT_WHEN);
-    return sheetOf('BatteryPct', 'Watch battery', [look].concat(textRows, bold));
+    return sheetOf('BatteryPct', 'Watch battery', note.concat([look], textRows, bold));
 }
 
 /**
@@ -832,14 +846,13 @@ var BW_LEGEND = 'The bars don\'t scale linearly. Their height is split into 5 pa
 var TOMORROWIO_CREDIT = weatherSources.TOMORROWIO_CREDIT;
 var OPENMETEO_AQI_CREDIT = 'Data from Open-Meteo.com and the Copernicus Atmosphere Monitoring Service.';
 var WAQI_CREDIT = 'Data from the World Air Quality Index Project and the environmental agencies of its stations.';
-var PRIVACY_TEXT = '<b>Privacy</b><br>While Share anonymous telemetry is on, WarnWeather sends: whether each '
+var PRIVACY_TEXT = 'While Share anonymous telemetry is on, WarnWeather sends: whether each '
     + 'weather update worked and how long it took, the weather provider, a rough country, the app and watch '
     + 'versions, and which settings are used. It never sends your location, the places you type, your API keys '
     + 'or any health data: steps, sleep and heart rate stay on the watch. Your account and watch are stored only '
     + 'as one-way hashes.';
 var CC_BY = '<a target=\'_blank\' href=\'https://creativecommons.org/licenses/by/4.0/\'>CC BY 4.0</a>';
-var DATA_SOURCES_TEXT = '<b>Data sources</b><br>'
-    + 'Weather: Open-Meteo.com, MET Norway, Deutscher Wetterdienst (via Bright Sky), OpenWeather, Tomorrow.io, '
+var DATA_SOURCES_TEXT = 'Weather: Open-Meteo.com, MET Norway, Deutscher Wetterdienst (via Bright Sky), OpenWeather, Tomorrow.io, '
     + 'Weather Underground, Yandex Weather.<br>'
     + 'Rain radar: Deutscher Wetterdienst, MET Norway, Rainbow.ai, Tomorrow.io.<br>'
     + 'Air quality: Open-Meteo.com with Copernicus Atmosphere Monitoring Service data, and the World Air Quality '
@@ -958,9 +971,6 @@ function slotItem(slotKey, position, barWhen, joins) {
         // The picker names the bar too, by its name (screens.js barName).
         sheetTitle: bar.name + ' · ' + labels[position],
         sheetTitleBy: {resolver: 'barSlotTitle', args: {bar: bar.bar, label: labels[position]}},
-        // In the bar's dialog the list rises from the bottom (engine renderPickSheet), as on a
-        // tab, rather than opening in place under the row (the owner's, 2026-11-14).
-        bottomSheet: true,
         defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: slotKey}},
         onChange: 'dedupeStatusSlot',
         editSheetFrom: {resolver: 'statusSlotEditSheet'},
@@ -1589,8 +1599,9 @@ module.exports = {
         pinThrough: 'screenSwitching', sections: [{
             // The fetch-error notices stay first, above the pinned layout preview: the
             // panel draws nothing until a fetch fails, and then it is the news the page
-            // opens on.
+            // opens on. Its card is an error note, or an info one when no notice is an error.
             block: 'noticesPanel',
+            styleFrom: {resolver: 'noticesCardStyle'},
             beforePin: true,
             items: [{
                 type: 'hidden',
@@ -1600,8 +1611,10 @@ module.exports = {
         }, {
             // What is new to try on this watch (feature-tips-panel.js), under the notices and
             // above the pinned preview too: the card draws only while the phone hands over
-            // tips this install has not seen, and until its Got it.
+            // tips this install has not seen, and until its Got it. Its card is an info note.
+            title: 'New in this update',
             block: 'featureTips',
+            style: 'info',
             beforePin: true,
             items: [{
                 type: 'hidden',
@@ -2289,7 +2302,10 @@ module.exports = {
             // reference card under the settings (blocks.js conditionList draws it).
             type: 'staticText',
             textFrom: {resolver: 'conditionList'}
-        }])
+        }]),
+        // The Plugin value slot's dialog: the plugin, its value and how often it is read. Last,
+        // as it has no wire kind and no Bold (plugin-value-schema.js).
+        pluginValueSchema.dialogSection(sheetOf)
         ]).map(function (sec) {
             // Every slot dialog keeps the bars pinned above its rows: the bar it was opened
             // from, a bar's dialog (preview-status-bars.js statusBarsPreview). The bars' own
@@ -2878,11 +2894,14 @@ module.exports = {
                 defaultValue: true,
                 hint: 'Sends anonymous data about weather updates and how the watchface is used, to improve reliability.'
             }, {
-                type: 'staticText',
-                text: PRIVACY_TEXT
+                // Read-only rows, a label over grey text, as the switch above reads.
+                type: 'readout',
+                label: 'Privacy',
+                hint: PRIVACY_TEXT
             }, {
-                type: 'staticText',
-                text: DATA_SOURCES_TEXT
+                type: 'readout',
+                label: 'Data sources',
+                hint: DATA_SOURCES_TEXT
             }]
         }, {
             title: 'Advanced', collapsible: true, items: [{

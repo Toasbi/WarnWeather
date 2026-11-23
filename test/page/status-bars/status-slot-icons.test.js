@@ -78,15 +78,15 @@ test('every Alerts item names a registered glyph (an unknown id would print noth
 });
 
 test('every slot item the watch draws a glyph for has the page copy, and no other item has one', () => {
-  // status-line-catalog.js names each item's watch glyph. NONE and PRESSURE are text on
-  // the watch; everything else, the drawn sun arrow included, is a picture the previews
-  // must show too. The phone battery's Text look (icon 18) is a setting, checked below.
+  // status-line-catalog.js names each item's watch glyph. NONE, PRESSURE and PLUGIN_TEXT
+  // are text on the watch; everything else, the drawn sun arrow included, is a picture the
+  // previews must show too. The phone battery's Text look (icon 18) is a setting, checked below.
   const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
   const { slotIcon } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
   const C = catalog.ICONS, basalt = { platform: 'basalt' };
-  const TEXT = [C.NONE, C.PRESSURE];
+  const TEXT = [C.NONE, C.PRESSURE, C.PLUGIN_TEXT];
   ['empty', 'temp', 'wind', 'gust', 'pressure', 'dew', 'uv', 'aqi', 'pollen', 'sun', 'date', 'week', 'city',
-    'countdown', 'steps', 'distance', 'hr', 'sleep', 'phoneBattery'].forEach((code) => {
+    'countdown', 'steps', 'distance', 'hr', 'sleep', 'phoneBattery', 'pluginValue'].forEach((code) => {
     const item = catalog.byCode(code);
     assert.ok(item, code + ' is a catalog item');
     if (code === 'city') {

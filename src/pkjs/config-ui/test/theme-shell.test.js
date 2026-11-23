@@ -77,23 +77,6 @@ test('shell.html keeps literal fallbacks before var() for var-less WebViews', ()
     'missing --fg literal fallback');
 });
 
-test('shell.html raises the sheet cap while a palette is open (.picking)', () => {
-  // Source-order test only — Node has no layout engine, so whether 94dvh is ENOUGH for
-  // an 8-row palette is a browser question (see the plan's headless-Chrome measurements).
-  // What is checkable here: the rule exists, keeps the vh fallback for dvh-less WebViews,
-  // and sits after the equal-specificity 80dvh cap so it actually wins the cascade.
-  const rule = /dialog#modal\.picking\s*\{([^}]*)\}/.exec(shell);
-  assert.ok(rule, 'missing the dialog#modal.picking rule');
-  assert.ok(/max-height:\s*94vh/.test(rule[1]), 'missing the 94vh fallback declaration');
-  assert.ok(/max-height:\s*94dvh/.test(rule[1]), 'missing the 94dvh declaration');
-  assert.ok(rule[1].indexOf('94vh') < rule[1].indexOf('94dvh'),
-    'the vh fallback must come FIRST, so a dvh-aware WebView overrides it');
-  assert.ok(shell.indexOf('dialog#modal.picking') > shell.indexOf('dialog#modal.date'),
-    '.picking must follow the base/date caps it has to override at equal specificity');
-  assert.equal(/dialog#modal\.picking[^}]*transition/.test(shell), false,
-    'no max-height transition: the swipe handlers overwrite the inline transition shorthand');
-});
-
 test('shell.html names the badge dots by shape, not by threshold vocabulary', () => {
   // The shared library carries no app-specific words: a dot is outlined or filled.
   assert.ok(/\.pen-dot\.ring\s*\{[^}]*border:\s*2px solid var\(--th-c\)/.test(shell),

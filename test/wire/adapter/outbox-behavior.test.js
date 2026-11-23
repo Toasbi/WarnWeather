@@ -237,3 +237,33 @@ test('the ride-along rides weather messages only, and one that throws is ignored
   }
 });
 
+
+test('a send waits for its answer until its ACK or NACK, counted once; one skipped or never sent does not', () => {
+  reset();
+  const before = outbox.sendsInFlight();
+  outbox.sendWeather(FORECAST_AND_STATUS);
+  outbox.sendWeather(Object.assign({}, FORECAST_AND_STATUS, { STATUS_LINE_1_UINT8: [7] }));
+  assert.equal(outbox.sendsInFlight(), before + 2, 'two sends on the channel');
+  sent[1].nack({});
+  sent[1].nack({});
+  assert.equal(outbox.sendsInFlight(), before + 1, 'a send\'s answer counts once, however often it comes');
+  sent[0].ack();
+  assert.equal(outbox.sendsInFlight(), before);
+
+  reset();
+  outbox.sendWeather(FORECAST_AND_STATUS);
+  sent[0].ack();
+  outbox.sendWeather(FORECAST_AND_STATUS);
+  assert.equal(sent.length, 1, 'unchanged: skipped');
+  assert.equal(outbox.sendsInFlight(), before, 'a skipped send never waits');
+
+  const realSend = global.Pebble.sendAppMessage;
+  global.Pebble.sendAppMessage = () => { throw new Error('no channel'); };
+  try {
+    assert.throws(() => outbox.sendWeather(Object.assign({}, FORECAST_AND_STATUS, { STATUS_LINE_1_UINT8: [8] })),
+      /no channel/);
+  } finally {
+    global.Pebble.sendAppMessage = realSend;
+  }
+  assert.equal(outbox.sendsInFlight(), before, 'a send that never left does not wait');
+});

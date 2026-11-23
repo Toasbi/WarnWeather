@@ -177,12 +177,20 @@ var APP_FILES = [
   // and blocks.js reads window.SlotText for the battery's Edit badge, so both follow —
   // test/page/settings/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/status-bars/domain/battery-days.js'),
+  // The Plugin value slot's rules (window.PluginValues): the text the slot prints, how long a
+  // value shows and a value's name. It binds window.SlotText while its body runs, so it follows
+  // slot-text.js. What only the phone needs (plugin-value-list.js, plugin-value-reads.js) stays
+  // off the page, whose URL every byte rides.
+  path.join(ROOT, 'src/pkjs/status-bars/domain/plugin-values.js'),
   path.join(ROOT, 'src/pkjs/calendar/domain/date-format.js'),
   // The weather condition slot's vocabulary (window.Condition, a leaf): the Status bars tab's
   // sample reads it while preview-status-bars.js' body runs, and blocks.js' list of every
   // condition at render, so it precedes both — test/page/settings/config-page-bundle.test.js
   // pins the order.
   path.join(ROOT, 'src/pkjs/weather/domain/condition.js'),
+  // The Plugin value slot's dialog (window.PluginValuePage): its rows' lists and texts. It binds
+  // PluginValues and StatusLineCatalog while its body runs, and preview-status-bars.js binds it.
+  path.join(ROOT, 'src/pkjs/page/status-bars/plugin-value-page.js'),
   // The Status bars tab's pinned preview (reads StatusLineCatalog, OnDemand, VIEW_CYCLE,
   // PreviewSvg and the slot-text chain above at render).
   path.join(ROOT, 'src/pkjs/page/status-bars/preview-status-bars.js'),

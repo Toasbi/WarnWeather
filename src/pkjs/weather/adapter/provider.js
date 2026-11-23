@@ -254,7 +254,7 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback) {
      */
     function fallBack(reason) {
         var name = locationLib.readLastCityNear(lat, lon) || 'Unknown';
-        console.log('[!] Reverse geocode failed (' + reason + '), using city: ' + name);
+        console.log('[!] Reverse geocode failed (' + reason + '), using the name from before.');
         callback(name, null);
     }
 
@@ -283,7 +283,7 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback) {
                 name = 'Unknown';
             }
             countryCode = address.CountryCode || null;
-            console.log('Running callback with city: ' + name + ', countryCode=' + countryCode);
+            console.log('Running callback with the place\'s name.');
             callback(name, countryCode);
         },
         function(error) {
@@ -313,7 +313,7 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
     var cachedGeocode;
     var backoffMs;
 
-    console.log('WeatherProvider.prototype.withGeocodeCoordinates override: ' + JSON.stringify(this.location));
+    console.log('WeatherProvider.prototype.withGeocodeCoordinates: a typed location.');
     if (locationOverride.type === 'manual_coordinates') {
         latitude = locationOverride.latitude;
         longitude = locationOverride.longitude;
@@ -335,7 +335,7 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
     // Keep cached coordinates usable even while LocationIQ is in backoff.
     cachedGeocode = readGeocodeCache(locationOverride.query);
     if (cachedGeocode !== null) {
-        console.log('Using cached geocode for: ' + locationOverride.query);
+        console.log('Using the cached geocode of the typed location.');
         this.locationMode = 'manual_address';
         callback(cachedGeocode.lat, cachedGeocode.lon);
         return;
@@ -384,7 +384,7 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
             }
 
             closest = locations[0];
-            console.log('Query ' + locationOverride.query + ' geocoded to ' + closest.lat + ', ' + closest.lon);
+            console.log('The typed location was geocoded.');
             // Cache the successful geocode result
             writeGeocodeCache(locationOverride.query, closest.lat, closest.lon);
             locationLib.clearGeocodeNotFound();
@@ -447,7 +447,7 @@ WeatherProvider.prototype.withGpsCoordinates = function(callback, onFailure) {
     if (provider.gpsMaxAgeMs > 0) {
         cachedFix = readGpsCache();
         if (cachedFix && Date.now() - cachedFix.time <= provider.gpsMaxAgeMs) {
-            console.log('Reusing cached GPS fix: lat= ' + cachedFix.lat + ' lon= ' + cachedFix.lon);
+            console.log('Reusing the cached GPS fix.');
             provider.usedGpsCache = true;
             callback(cachedFix.lat, cachedFix.lon);
             return;
@@ -457,7 +457,7 @@ WeatherProvider.prototype.withGpsCoordinates = function(callback, onFailure) {
     function success(pos) {
         var lat = pos.coords.latitude;
         var lon = pos.coords.longitude;
-        console.log('FOUND LOCATION: lat= ' + lat + ' lon= ' + lon);
+        console.log('Found the location.');
         locationLib.writeGpsCache(lat, lon);
         provider.usedGpsCache = false;
         provider.gpsErrorCode = null;
@@ -480,7 +480,7 @@ WeatherProvider.prototype.withGpsCoordinates = function(callback, onFailure) {
             fallback &&
             (GPS_CACHE_MAX_AGE_MS <= 0 || Date.now() - fallback.time <= GPS_CACHE_MAX_AGE_MS)
         ) {
-            console.log('Using cached GPS coordinates: lat= ' + fallback.lat + ' lon= ' + fallback.lon);
+            console.log('Using the cached GPS coordinates.');
             provider.usedGpsCache = true;
             callback(fallback.lat, fallback.lon);
             return;
@@ -592,7 +592,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
         // The sources leave a valid forecast on this provider, or fail the fetch.
         fetchSources.fetchSources(this, ports, lat, lon, force, (function() {
             this.withSunEvents(lat, lon, (function(sunEvents) {
-                console.log('Lets get the payload for ' + cityName);
+                console.log('Building the payload.');
                 this.cityName = cityName;
                 this.sunEvents = sunEvents;
                 // Fetch AQI (keyless, shared, gated by options.fetchAqi) using startTime

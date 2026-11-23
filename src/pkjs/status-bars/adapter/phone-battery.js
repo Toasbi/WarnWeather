@@ -244,8 +244,7 @@ function probe(pebble, nav) {
  * wipes the verdict outright via localStorage.clear() (clay-settings.js
  * resetAll). Either way the next config open would read a missing key as false
  * and silently OMIT the phone battery item from all twelve slot dropdowns --
- * leaving only the top-right slot's watch battery, which reads as "a battery only
- * works there".
+ * leaving only the watch battery, which reads as "the phone's battery is gone".
  *
  * A stored 'false' is NEVER re-probed: that is a real verdict, including the one
  * detect() writes when getBattery() exists but REJECTS or the Phone plugin does not
@@ -604,9 +603,8 @@ function detectNavigator(nav) {
     // The one verdict with no visible cause anywhere: a host that exposes no
     // source at all. It makes BOTH slot items vanish from EVERY slot dropdown
     // (needsPhoneBattery omits rather than disables), and the only trace on screen
-    // is that the Battery group survives in the top-right slot alone -- where the
-    // two WATCH items still live -- which reads as "the phone item only works
-    // top-right". Name what the navigator actually had, and which runtime it was:
+    // is that the Battery group holds the watch battery alone, which reads as "the
+    // phone item is gone". Name what the navigator actually had, and which runtime it was:
     // the user agent is the Android-WebView / iOS-JavaScriptCore discriminator.
     console.log('phone-battery: no battery API on this navigator (getBattery='
         + (typeof nav.getBattery) + ', battery=' + (typeof nav.battery)

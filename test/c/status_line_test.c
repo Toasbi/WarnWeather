@@ -534,7 +534,7 @@ static void alt_tests(void) {
     expect("alt.mid-len", v[1].value_len, (int)strlen(both));
     // The short form ends in a letter, never in a wind sentinel.
     expect("alt.no-dir", status_slot_direction(&v[1]), -1);
-    expect("alt.max-icon", STATUS_ICON_MAX, STATUS_ICON_DRAWN_BATTERY);
+    expect("alt.max-icon", STATUS_ICON_MAX, STATUS_ICON_PLUGIN_TEXT);
     n = put_slot(b, 0, SLOT_TEXT, (uint8_t)(STATUS_ICON_MAX + 1), "x");
     n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
     n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
@@ -569,12 +569,46 @@ static void alt_tests(void) {
     expect("edge-cond.past-line-invalid", status_line_validate(b, n), 0);
 }
 
+// The Plugin value slot (STATUS_ICON_PLUGIN_TEXT): a text slot like any other, the phone's
+// text held to the slot's cap, an edge's 8 bytes and the middle's 19; id 35 is a wire value,
+// appended after the drawn battery.
+static void plugin_text_tests(void) {
+    expect("plugin.id", STATUS_ICON_PLUGIN_TEXT, 35);
+    uint8_t b[64];
+    size_t n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT, "87%");
+    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT, "Days remaining 12");
+    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT, "--");
+    expect("plugin.valid", status_line_validate(b, n), 1);
+    StatusSlotView v[STATUS_SLOT_COUNT];
+    expect("plugin.slots", status_line_slots(b, n, v), STATUS_SLOT_COUNT);
+    expect("plugin.kind", v[0].kind, SLOT_TEXT);
+    expect("plugin.icon", v[0].icon, STATUS_ICON_PLUGIN_TEXT);
+    expect("plugin.left-len", v[0].value_len, 3);
+    expect("plugin.left-text", memcmp(v[0].value, "87%", 3), 0);
+    expect("plugin.mid-len", v[1].value_len, 17);
+    expect("plugin.right-len", v[2].value_len, 2);
+    // An edge keeps the edge's cap: a weather condition alone may take the middle's room.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT, "123456789");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("plugin.edge-past-cap", status_line_validate(b, n), 0);
+    n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT, "12345678901234567890");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("plugin.mid-past-cap", status_line_validate(b, n), 0);
+    // It is neither the city nor the weather condition, and draws no battery.
+    expect("plugin.not-city", status_icon_is_city(STATUS_ICON_PLUGIN_TEXT), 0);
+    expect("plugin.not-condition", status_icon_is_condition(STATUS_ICON_PLUGIN_TEXT), 0);
+    expect("plugin.no-battery", status_slot_draws_battery(SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT), 0);
+}
+
 int main(void) {
     validate_tests();
     slot_tests();
     direction_tests();
     iso_week_tests();
     alt_tests();
+    plugin_text_tests();
     if (s_failures) { printf("%d status_line failure(s)\n", s_failures); return 1; }
     printf("status_line OK\n");
     return 0;

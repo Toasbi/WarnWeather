@@ -167,6 +167,17 @@ test('the line with the days stays a well-formed line within its caps', () => {
   assert.ok(both.bytes.length <= catalog.CAPS.LINE_MAX, both.bytes.length + ' bytes');
 });
 
+test('every slot carries the battery\'s bytes as the edge slot does: the watch keeps one mark of the days', () => {
+  // Spaced, a two-character separator fits a middle slot's 19 bytes ('% ·· 12d') but not the
+  // mark's 8, which would keep only part of it and take 12d and 13d for the same estimate.
+  const spaced = { batterySlotSeparator: 'custom', batterySlotSeparatorCustom: '··', batterySlotSeparatorSpaced: true };
+  const top = bakeTop(Object.assign({ statusTopMid: 'battery' }, BOTH, spaced),
+    facts({ days: 12, updatedAt: NOW.getTime() }));
+  assert.equal(top.slots[2].text, MARK + '··12d');
+  assert.equal(top.slots[1].text, top.slots[2].text, 'the middle slot');
+  assert.ok(Buffer.byteLength(top.slots[1].text) <= catalog.CAPS.EDGE_TEXT_MAX);
+});
+
 test('wantsBatteryDays: the Text look set to days or both, on a watch that shows it', () => {
   assert.equal(statusLines.wantsBatteryDays(DAYS, BASALT), true);
   assert.equal(statusLines.wantsBatteryDays(BOTH, BASALT), true);

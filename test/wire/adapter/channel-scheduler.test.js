@@ -20,7 +20,8 @@ function resetStore() { for (var k in store) { delete store[k]; } }
 //
 // resendStatus answers at once, as the real one does with no snapshot or an
 // unchanged status category, unless opts.holdResend keeps its callbacks for the
-// test to answer (ackResend/nackResend). `order` logs every channel event.
+// test to answer (ackResend/nackResend), and opts.checkForUpdate runs inside the
+// tick's last job. `order` logs every channel event.
 function makeHarness(opts) {
     opts = opts || {};
     var timers = [];
@@ -45,7 +46,10 @@ function makeHarness(opts) {
         },
         shouldFetchNow: function () { return shouldFetch; },
         refreshHolidays: function () { calls.refreshHolidays++; },
-        checkForUpdate: function () { calls.checkForUpdate++; },
+        checkForUpdate: function () {
+            calls.checkForUpdate++;
+            if (opts.checkForUpdate) { opts.checkForUpdate(); }
+        },
         clearClayCache: function () { calls.clearClayCache++; },
         clearWeatherCaches: function () { calls.clearWeatherCaches++; },
         clearNoticeOnWatch: function () { calls.order.push('clear'); calls.clearNoticeOnWatch++; },
@@ -519,6 +523,22 @@ test('scenario 7: start() runs a tick immediately and re-arms every 60s', functi
     h.flushTimers();
     assert.equal(h.calls.checkForUpdate, 2, 'the re-armed timer runs the next tick');
     assert.equal(h.timers.length, 1, 'each tick re-arms exactly one timer');
+});
+
+test('scenario 7a: a tick whose job throws still re-arms, so no later minute is lost', function () {
+    resetStore();
+    var failing = true;
+    var h = makeHarness({ checkForUpdate: function () { if (failing) { throw new Error('a job broke'); } } });
+    h.setNow(new Date(2026, 6, 7, 12, 0, 0));
+    localStorage.setItem(KEYS.LAST_HOLIDAY_DAY_KEY, '2026-6-7');
+
+    assert.throws(function () { h.scheduler.start(); }, /a job broke/, 'the error still reaches the log');
+    assert.equal(h.timers.length, 1, 'the next minute is armed all the same');
+    assert.equal(h.timers[0].ms, 60 * 1000);
+    failing = false;
+    h.flushTimers();
+    assert.equal(h.calls.checkForUpdate, 2, 'the next tick runs');
+    assert.equal(h.timers.length, 1, 'and re-arms');
 });
 
 test('scenario 7b: a tick fetches (non-forced) only when shouldFetchNow is true', function () {

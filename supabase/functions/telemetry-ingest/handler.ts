@@ -173,6 +173,10 @@ const settingsSchema = z
     // DEPLOY-ORDERING: ship this function before the app release that sends them.
     batterySlotLook: z.string().optional(),
     batterySlotDisplay: z.string().optional(),
+    // Whether a bar the watch is sent shows the Plugin value slot with a source picked. Never
+    // which plugin or what it serves: those are another app's. Absent on aplite.
+    // DEPLOY-ORDERING: ship this function before the app release that sends it.
+    pluginValue: z.boolean().optional(),
     // The Battery item's warn level as stored (a percentage) and its look ('icon' /
     // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
     batteryLowLevel: z.number().int().min(0).max(100).optional(),

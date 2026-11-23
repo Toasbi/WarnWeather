@@ -143,7 +143,9 @@ const EXPECTED_KEYS = [
   // The watch battery's Look (the row under its slot), and what its text shows (the
   // percentage, the days left or both, and the pair's look: battery-days.js).
   'batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
-  'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced'
+  'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced',
+  // The Plugin value slot's source and how often it is read (its dialog; phone-side only).
+  'pluginValuePlugin', 'pluginValueId', 'pluginValueEvery'
 ].concat(THRESH_KEYS).concat(UNIT_KEYS).concat(GRAPH_COLOR_KEYS).concat(ALERT_KEYS);
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
@@ -2112,8 +2114,8 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
     ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
       'Heart rate slot', 'Watch battery slot', 'Dew point slot']
-      .concat(Array(PHONE_DIALOGS).fill('Phone battery slot'), ['Weather condition slot']),
-    'bold-only slot sheets follow, in wire-id order, then the condition slot\'s');
+      .concat(Array(PHONE_DIALOGS).fill('Phone battery slot'), ['Weather condition slot', 'Plugin value slot']),
+    'bold-only slot sheets follow, in wire-id order, then the condition slot\'s and the Plugin value\'s, which has no kind');
   // Every slot sheet previews the bars while it is open (the bar it came from, when it came
   // from a bar's dialog: preview-status-bars.js statusBarsPreview).
   watch.sections.filter((s) => /^thresh/.test(s.sheetId || '')).forEach((s) =>
@@ -2512,14 +2514,14 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // The phone battery has one dialog per slot (its Look is each slot's own), the others one per
   // kind.
   const SLOT_KEYS = slotCatalog.ALL_LINES.reduce((keys, line) => keys.concat(line.slots), []);
-  assert.equal(sheets.length, 19 + SLOT_KEYS.length,
-    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only), the phone battery\'s one per slot');
+  assert.equal(sheets.length, 20 + SLOT_KEYS.length,
+    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only), the phone battery\'s one per slot, and the Plugin value\'s');
   assert.deepEqual(sheets.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct', 'threshDew']
-      .concat(SLOT_KEYS.map(slotCatalog.phoneBatterySheet), ['threshCondition']),
+      .concat(SLOT_KEYS.map(slotCatalog.phoneBatterySheet), ['threshCondition', 'threshPluginValue']),
     'sheet ids follow the thresh<Stem> convention the slot resolver derives, a slot\'s own after it');
   // The On demand sheets (the side lists' section + 10 item sheets) moved with the alerts
   // to the Alerts tab, and carry the On demand gate (aplite has no On demand).
@@ -3431,10 +3433,10 @@ test('the day-max sheets\' keys are exactly the catalog\'s dayMaxSettingKeys', (
   assert.deepEqual([...new Set(fromSheets)].sort(), catalog.dayMaxSettingKeys().slice().sort());
 });
 
-test('no searchSelect sits in an edit sheet: a select there expands inline, with no search box', () => {
-  // Inside a sheetOnly section a `select` lists its options in place under its row
-  // (config-ui engine renderInlineList). That list has no search field, and no select
-  // modal opens over a sheet any more, so a searchSelect belongs in a tab body.
+test('no searchSelect sits in a dialog: a select there opens its list over the dialog, with no search box', () => {
+  // Inside a sheetOnly section a `select` lists its options in a sheet over the dialog
+  // (config-ui engine renderPickSheet). That list has no search field, and no select
+  // modal opens over a dialog, so a searchSelect belongs in a tab body.
   const inSheets = [];
   schema.tabs.forEach((t) => t.sections.forEach((sec) => {
     if (sec.sheetOnly) { sec.items.forEach((it) => inSheets.push({ sheet: sec.sheetId, item: it })); }
@@ -3444,7 +3446,7 @@ test('no searchSelect sits in an edit sheet: a select there expands inline, with
   // The rule has something to hold: the slot and alert sheets carry plain selects.
   const selects = inSheets.filter((e) => e.item.type === 'select').map((e) => e.item.messageKey);
   assert.ok(selects.indexOf('uvSlotSeparator') !== -1 && selects.indexOf('alertUvNextDayMark') !== -1,
-    'the sheets hold selects that open inline');
+    'the dialogs hold selects');
 });
 
 test('no key is a colour in one item and another type in the next', () => {

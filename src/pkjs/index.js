@@ -41,7 +41,10 @@ var renderSignature = require('./settings/domain/render-signature.js').renderSig
 var decideConfigClose = require('./settings/domain/config-close.js').decideConfigClose;
 var phoneBattery = require('./status-bars/adapter/phone-battery.js');
 var batteryEstimate = require('./status-bars/adapter/battery-estimate.js');
+var pluginValueSource = require('./status-bars/adapter/plugin-value-source.js');
 var pluginReader = require('./status-bars/adapter/plugin-reader.js');
+var pluginValueList = require('./status-bars/domain/plugin-value-list.js');
+var statusLineCatalog = require('./status-bars/domain/status-line-catalog.js');
 var statusRebake = require('./status-bars/application/status-rebake.js');
 var notifyWatch = require('./notices/adapter/notify-watch.js').notifyWatch;
 
@@ -96,6 +99,16 @@ var DEFAULT_COLOR_BLUE_MOON = pebbleColors.GColorBlueMoon;
 // Blue Moon so it reads as distinct from the weekend accent.
 var DEFAULT_HOLIDAY_COLORS = { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY, holiday: DEFAULT_COLOR_BLUE_MOON };
 
+/**
+ * The host's timer, for every module that takes one. Never handed on bare: called as
+ * deps.setTimeout(...), the native timer gets the deps object as its receiver, and WebView
+ * runtimes (WebIDL receiver check) throw "Illegal invocation" for that; a plain call is safe.
+ * @param {Function} fn What to run.
+ * @param {number} ms After how many milliseconds.
+ * @returns {*} The timer's handle.
+ */
+function hostSetTimeout(fn, ms) { return setTimeout(fn, ms); }
+
 // The channel scheduler owns WHEN Clay settings / weather fetches ride the
 // half-duplex AppMessage channel; the fetch cycle (fetch-cycle.js) owns one
 // weather fetch's lifecycle and the "is a scheduled refresh due" gate. index.js
@@ -117,8 +130,7 @@ var fetchCycle = createFetchCycle({
     },
     now: function () { return new Date(); },
     getBakeFacts: bakeFacts,
-    // Wrapped like the scheduler's below (WebView receiver check).
-    setTimeout: function (fn, ms) { return setTimeout(fn, ms); }
+    setTimeout: hostSetTimeout
 });
 
 var scheduler = createChannelScheduler({
@@ -138,10 +150,7 @@ var scheduler = createChannelScheduler({
         if (!app.settings || !app.settings.themeAuto) { return null; }
         return themeSchedule.effectiveThemeId(app.settings, isNightForTheme());
     },
-    // Wrap the native timer: deps.setTimeout(...) would otherwise invoke it
-    // with the deps object as receiver — WebView runtimes (WebIDL receiver
-    // check) throw "Illegal invocation" for that; a plain call stays safe.
-    setTimeout: function (fn, ms) { return setTimeout(fn, ms); },
+    setTimeout: hostSetTimeout,
     now: function () { return new Date(); }
 });
 
@@ -227,12 +236,21 @@ Pebble.addEventListener('showConfiguration', function(e) {
     var phoneBatteryEnv = phoneBattery.isSupported();
     // One more fact about the PHONE: whether this Pebble app can read plugins at all. The
     // page offers what is read from another app's plugin only there (the watch battery's
-    // days left, battery-estimate.js).
-    var pluginsEnv = pluginReader.available(Pebble);
+    // days left, battery-estimate.js, and the Plugin value slot).
+    var offer = offerEnv();
+    var pluginsEnv = offer.plugins;
     console.log('Config env: phoneBattery=' + phoneBatteryEnv + ' plugins=' + pluginsEnv);
     // The new features this install has not seen and can use: the card the page opens on
     // (page/notices/feature-tips-panel.js). null for none.
-    userData.featureTips = featureTipsSeen.forPage(featureTipsEnv());
+    userData.featureTips = featureTipsSeen.forPage(offer);
+    // The Plugin value slot's dialog (page/status-bars/plugin-value-page.js), where the status
+    // lists offer the slot: the plugins on the phone with a value it can show (listing them runs
+    // no plugin), and the value read last.
+    if (statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, offer)) {
+        userData.plugins = pluginValueList.listOf(pluginReader.plugins(Pebble), declaredPermissions(),
+            pkg.pebble.uuid);
+        userData.pluginValue = pluginValueSource.value();
+    }
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see page/settings/index.js options).
     Pebble.openURL(settings.generateUrl({
@@ -335,11 +353,13 @@ Pebble.addEventListener('webviewclosed', function(e) {
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     // A new install is counted on its first Save, not ~12 h later (telemetry.js).
     app.telemetry.onSettingsSaved({ settings: app.settings, watchInfo: app.watchInfo });
-    // A watch battery slot just set to show the days it has left gets its estimate now.
+    // A watch battery slot just set to show the days it has left gets its estimate now, and a
+    // Plugin value slot just given a source its value.
     batteryEstimate.refresh();
+    pluginValueSource.refresh();
     var providerOrLocationChanged = refreshProvider();
     // The new-features card's Got it: the tips it showed are seen.
-    if (app.settings.featureTipsAck === true) { featureTipsSeen.acknowledge(featureTipsEnv()); }
+    if (app.settings.featureTipsAck === true) { featureTipsSeen.acknowledge(offerEnv()); }
     var acked = app.settings.fetchNoticeAck === true;
     // Only an error notice puts text on the watch overlay; capture that BEFORE
     // dismissAll() empties the list, so we push the watch clear only when there
@@ -459,7 +479,10 @@ Pebble.addEventListener('ready',
             getBakeFacts: bakeFacts,
             sendWeather: outbox.sendWeather,
             storage: localStorage,
-            now: function () { return Date.now(); }
+            now: function () { return Date.now(); },
+            setTimeout: hostSetTimeout,
+            fetchInFlight: fetchCycle.isInFlight,
+            sendsInFlight: outbox.sendsInFlight
         });
         phoneBattery.init({ devConfig: app.devConfig });
         // A weather message that goes out anyway takes the phone battery's exact reading
@@ -469,6 +492,12 @@ Pebble.addEventListener('ready',
         // The estimate of the days the watch has left (another app's plugin), read only
         // while the watch battery's text (its Text or Icon + text look) is set to show them.
         batteryEstimate.init({
+            getSettings: function () { return app.settings; },
+            getWatchInfo: function () { return app.watchInfo; },
+            now: function () { return Date.now(); }
+        });
+        // The Plugin value slot's value (another app's plugin), read only while a bar shows it.
+        pluginValueSource.init({
             getSettings: function () { return app.settings; },
             getWatchInfo: function () { return app.watchInfo; },
             now: function () { return Date.now(); }
@@ -534,20 +563,30 @@ function getRuntimeTelemetryConfig() {
 }
 
 /**
- * What every status-line bake reads of the two batteries (status-lines.js BakeFacts): a
- * fetch's, the fixture's and a re-bake's.
- * @returns {{phone: Object, watch: Object}}
+ * @returns {string[]} The permissions this app declares (package.json usesPermissions' names).
  */
-function bakeFacts() {
-    return { phone: phoneBattery.bakeFacts(), watch: batteryEstimate.bakeFacts() };
+function declaredPermissions() {
+    return ((pkg.pebble && pkg.pebble.usesPermissions) || []).map(function (p) { return p.name; });
 }
 
 /**
- * What decides which new-feature tips this watch and phone can use (feature-tips.js): the
- * watch's platform, and whether the Pebble app can read plugins.
+ * What every status-line bake reads of the two batteries and the Plugin value slot
+ * (status-lines.js BakeFacts): a fetch's, the fixture's and a re-bake's.
+ * @returns {{phone: Object, watch: Object, plugin: Object}}
+ */
+function bakeFacts() {
+    return { phone: phoneBattery.bakeFacts(), watch: batteryEstimate.bakeFacts(),
+        plugin: pluginValueSource.bakeFacts() };
+}
+
+/**
+ * What decides what the settings page offers this watch and phone beyond the watch's own
+ * facts: the new-feature tips (feature-tips.js) and the Plugin value slot's list
+ * (status-line-catalog.js itemAvailable). The watch's platform, and whether the Pebble app can
+ * read plugins.
  * @returns {{platform: string, plugins: boolean}}
  */
-function featureTipsEnv() {
+function offerEnv() {
     return {
         platform: (app.watchInfo && app.watchInfo.platform) || '',
         plugins: pluginReader.available(Pebble)
@@ -618,18 +657,41 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
  * flight by then: the re-bake's sends wait for a tick without one, as that
  * fetch's message carries the same news.
  *
+ * Each job runs on its own (runTickJob): one that throws, every minute even,
+ * holds up none of the others.
+ *
  * @returns {void}
  */
 function onSchedulerTick() {
-    batteryEstimate.onTick();
-    statusRebake.onTick(fetchCycle.isInFlight());
-    updateCheckRunner.runDailyUpdateCheck({
-        stores: UPDATE_CHECK_STORES,
-        appVersion: pkg.version,
-        devConfig: app.devConfig,
-        isWatchConnected: isWatchConnected,
-        notify: notifyWatch
+    runTickJob('battery-estimate', function () { batteryEstimate.onTick(); });
+    runTickJob('plugin-value', function () { pluginValueSource.onTick(); });
+    runTickJob('status-rebake', function () { statusRebake.onTick(fetchCycle.isInFlight()); });
+    runTickJob('update-check', function () {
+        updateCheckRunner.runDailyUpdateCheck({
+            stores: UPDATE_CHECK_STORES,
+            appVersion: pkg.version,
+            devConfig: app.devConfig,
+            isWatchConnected: isWatchConnected,
+            notify: notifyWatch
+        });
     });
+}
+
+/**
+ * Run one of the minute's jobs, so that a throw stops it alone. The error is logged by its
+ * kind only: the jobs handle other apps' plugin values, which are never logged, and a
+ * message can quote what it failed on.
+ *
+ * @param {string} name The job's name in the log.
+ * @param {function(): void} job The job.
+ * @returns {void}
+ */
+function runTickJob(name, job) {
+    try {
+        job();
+    } catch (e) {
+        console.log('[!] tick: ' + name + ' failed (' + ((e && e.name) || 'error') + ').');
+    }
 }
 
 /**

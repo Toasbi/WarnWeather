@@ -1,7 +1,8 @@
 // src/pkjs/status-bars/domain/estimate-reads.js
 //
 // When the estimate of the days the watch has left is read from Muninn's plugin again. The
-// reading, and the record of the last read this works from, are battery-estimate.js'.
+// reading is battery-estimate.js'; the record of the last read this works from, and the waits
+// after a failure, are every plugin read's (plugin-reads.js).
 //
 // A read costs the user something. The Pebble app runs Muninn's plugin script for it and
 // counts Muninn as a running app while it does, and every permission a running app has asked
@@ -23,8 +24,8 @@
 //   - It heard no such time (no Muninn, or a Muninn that has made no estimate yet), or one
 //     more than a day before it (Muninn has stopped making them), or one far ahead of it (the
 //     clock went back): there is no rhythm to follow, so read IDLE_INTERVAL_MS later.
-//   - The last read failed (Muninn did not answer): read again RETRY_MS later, doubling with
-//     each failure in a row up to IDLE_INTERVAL_MS.
+//   - The last read failed (Muninn did not answer): read again an hour later, doubling with
+//     each failure in a row up to IDLE_INTERVAL_MS (plugin-reads.js retryWait).
 //   - A record later than now (the clock went back): the wait starts again from now, so a
 //     clock change never brings a read forward.
 //
@@ -39,6 +40,7 @@
 // ES5 only (aplite's JavaScriptCore): var + function.
 
 var batteryDays = require('./battery-days.js');
+var pluginReads = require('./plugin-reads.js');
 
 var MINUTE_MS = 60 * 1000;
 var HOUR_MS = 60 * MINUTE_MS;
@@ -58,9 +60,6 @@ var SETTLE_MS = 20 * MINUTE_MS;
  */
 var IDLE_INTERVAL_MS = 12 * HOUR_MS;
 
-/** How long the first read after a failed one waits. Each further failure doubles it. */
-var RETRY_MS = HOUR_MS;
-
 /**
  * How old the estimate a read heard may be for Muninn to count as still making them: as old
  * as an estimate the slot still shows (battery-days.js MAX_AGE_MS).
@@ -68,64 +67,17 @@ var RETRY_MS = HOUR_MS;
 var STALE_MS = batteryDays.MAX_AGE_MS;
 
 /**
- * When Muninn made the estimate a read heard, from its plugin's updatedAt.
- * @param {?number} updatedAt What the plugin sent (Muninn: -1 while it has made none).
- * @returns {?number} The time, in epoch milliseconds, or null when it is not one.
- */
-function madeOf(updatedAt) {
-    return typeof updatedAt === 'number' && isFinite(updatedAt) && updatedAt > 0 ? updatedAt : null;
-}
-
-/**
- * The record of the last read as stored, checked.
- * @param {*} value What was stored (parsed JSON).
- * @returns {?{at: number, failures: number, made: ?number}} The record, or null when the value
- *   is none: `at` a time after 1970 in epoch milliseconds, `failures` a whole number from 0.
- *   `made` is null where it is missing or not a time: a record from before it was kept.
- */
-function recordOf(value) {
-    var at;
-    var failures;
-    if (!value || typeof value !== 'object') { return null; }
-    at = value.at;
-    failures = value.failures;
-    if (typeof at !== 'number' || !isFinite(at) || at <= 0) { return null; }
-    if (typeof failures !== 'number' || !isFinite(failures) || failures < 0
-            || Math.floor(failures) !== failures) {
-        return null;
-    }
-    return { at: at, failures: failures, made: madeOf(value.made) };
-}
-
-/**
- * @param {{at: number, failures: number, made: ?number}} record The last read (recordOf).
- * @param {number} nowMs Now, in epoch milliseconds.
- * @returns {boolean} Whether the clock is behind the last read. Its wait then starts again
- *   from now.
- */
-function clockWentBack(record, nowMs) {
-    return nowMs < record.at;
-}
-
-/**
- * @param {number} failures Failed reads in a row, 1 or more.
- * @returns {number} How long the next read waits after the last of them: RETRY_MS, doubled
- *   for each failure after the first, at most IDLE_INTERVAL_MS.
- */
-function retryWait(failures) {
-    var wait = RETRY_MS * Math.pow(2, failures - 1);
-    return wait < IDLE_INTERVAL_MS ? wait : IDLE_INTERVAL_MS;
-}
-
-/**
  * When the next read is due.
- * @param {{at: number, failures: number, made: ?number}} record The last read (recordOf).
+ * @param {{at: number, failures: number, made: ?number}} record The last read
+ *   (plugin-reads.js recordOf, its time `made`: when Muninn made the estimate it heard).
  * @returns {number} The time of the next read, in epoch milliseconds.
  */
 function nextReadAt(record) {
     var made = record.made;
     var periods;
-    if (record.failures > 0) { return record.at + retryWait(record.failures); }
+    if (record.failures > 0) {
+        return record.at + pluginReads.retryWait(record.failures, IDLE_INTERVAL_MS);
+    }
     if (made === null || made > record.at + SETTLE_MS || record.at - made > STALE_MS) {
         return record.at + IDLE_INTERVAL_MS;
     }
@@ -139,11 +91,6 @@ module.exports = {
     PERIOD_MS: PERIOD_MS,
     SETTLE_MS: SETTLE_MS,
     IDLE_INTERVAL_MS: IDLE_INTERVAL_MS,
-    RETRY_MS: RETRY_MS,
     STALE_MS: STALE_MS,
-    madeOf: madeOf,
-    recordOf: recordOf,
-    clockWentBack: clockWentBack,
-    retryWait: retryWait,
     nextReadAt: nextReadAt
 };

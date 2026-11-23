@@ -39,6 +39,8 @@
     var utf8 = NODE ? require('../../lib/utf8.js') : window.Utf8;
     var dateFormat = NODE ? require('../../calendar/domain/date-format.js') : window.DateFormat;
     var VC = NODE ? require('../../layout/domain/view-cycle.js') : VIEW_CYCLE;
+    // The Plugin value slot's text: the value read last (plugin-value-page.js barText).
+    var pluginValuePage = NODE ? require('./plugin-value-page.js') : window.PluginValuePage;
 
     // The bars in the page's order, each with the view-cycle status source a screen's row
     // seats it by (view-cycle.js barOfSource, read back); the Watch bar is the top strip
@@ -188,12 +190,13 @@
     /**
      * What the bake carries in the watch battery's text for the sample's days
      * (battery-days.js slotText): none for the percentage alone, the days, or the pair
-     * around the place of the percentage.
-     * @param {Object} S Settings. @param {number} cap The slot's byte cap.
+     * around the place of the percentage. At an edge slot's cap in every slot, as the bake
+     * carries it (status-lines.js).
+     * @param {Object} S Settings.
      * @returns {string}
      */
-    function batteryCarried(S, cap) {
-        return batteryDays.slotText(SAMPLE.batteryDays, S, cap);
+    function batteryCarried(S) {
+        return batteryDays.slotText(SAMPLE.batteryDays, S, catalog.CAPS.EDGE_TEXT_MAX);
     }
 
     /**
@@ -243,6 +246,9 @@
         case 'hr': return '64';
         case 'sleep': return '7h12';
         case 'phoneBattery': return '72%';
+        // Another app's value: no sample would fit every plugin, so the value read last
+        // where the watch still shows it, else what the watch shows without one ('--').
+        case 'pluginValue': return pluginValuePage.barText(S, cap);
         // The watch battery: in its Icon look the glyph alone, except on aplite, whose lean
         // twin prints the charge (status_row_aplite.c format_live_value); in its Text and
         // Icon + text looks the percentage, the days the watch has left or both, as the
@@ -251,7 +257,7 @@
         case 'battery':
             if (c.env && c.env.platform === 'aplite') { return '80%'; }
             if (slotText.batteryLook(S, c.env) === 'icon') { return ''; }
-            return batteryDays.drawn(batteryCarried(S, cap), '80%');
+            return batteryDays.drawn(batteryCarried(S), '80%');
         default: return '';
         }
     }
@@ -410,7 +416,7 @@
         if (!item || !catalog.kindHasText(slotText.wireKind(code, item, S, env))) { return 3; }
         // The watch battery's value is what the bake carries (the days, with the one-byte
         // place of the percentage in a pair), not the text the watch draws from it.
-        var value = code === 'battery' ? batteryCarried(S, cap) : (text || '');
+        var value = code === 'battery' ? batteryCarried(S) : (text || '');
         return 3 + utf8.byteLength(value) + (arrowShown(code, text, S, env, cap) ? 1 : 0);
     }
 

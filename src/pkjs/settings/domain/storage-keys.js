@@ -139,11 +139,22 @@ module.exports = {
     // and Icon + text looks) can show. Kept across PKJS restarts so a bake shows the days
     // at once.
     BATTERY_ESTIMATE: 'batteryEstimate',
-    // When that estimate was last read ({at: epoch ms, failures: failed reads in a row, made:
-    // when Muninn made the estimate it heard, or null}; battery-estimate.js), so neither a PKJS
-    // restart nor a settings save reads it again before estimate-reads.js says. Absent while
-    // the days are not wanted, so switching them on reads at once.
+    // When that estimate was last read ({source: null, at: epoch ms, failures: failed reads in
+    // a row, made: when Muninn made the estimate it heard, or null}; plugin-reads.js recordOf,
+    // plugin-read-schedule.js), so neither a PKJS restart nor a settings save reads it again
+    // before estimate-reads.js says. Absent while the days are not wanted, so switching them on
+    // reads at once.
     BATTERY_ESTIMATE_READ: 'batteryEstimateRead',
+    // The Plugin value slot's value as it was last heard ({source, reading: {short, number,
+    // unit, long}, at, validUntil}; plugin-value-source.js, plugin-value-reads.js valueOf), kept
+    // across PKJS restarts so a bake shows it at once. `source` names the plugin and the value
+    // it was read from; a value of another source is never shown.
+    PLUGIN_VALUE: 'pluginValue',
+    // When that value was last read ({source, at, failures, validUntil}; plugin-reads.js
+    // recordOf, plugin-read-schedule.js), so neither a PKJS restart nor a settings save reads it
+    // again before plugin-value-reads.js says. Absent while the slot is not wanted, and
+    // forgotten with a new source, so either reads at once.
+    PLUGIN_VALUE_READ: 'pluginValueRead',
     // The re-bake snapshot: the handful of payload keys buildStatusLines reads,
     // plus the watchInfo its platform env is derived from, version-stamped as
     // one JSON blob. PKJS is torn down whenever the user leaves the watchface,

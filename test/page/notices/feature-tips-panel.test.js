@@ -27,10 +27,16 @@ test('no tips, no card', () => {
 
 test('the card names each tip, says how, and ends on Got it', () => {
   const html = panel.renderFeatureTipsHtml(TIPS);
-  assert.match(html, /^<div class="tips"><div class="tips-hdr">New in this update<\/div>/);
+  // Its title is the card's own (the section's), in the note's colour.
+  assert.match(html, /^<div class="tips"><div class="tips-list">/);
+  assert.equal(html.indexOf('New in this update'), -1);
   assert.equal((html.match(/<div class="tip">/g) || []).length, 2);
   // A title is text: its markup is escaped. The how-to is the phone's own markup, as written.
   assert.ok(html.indexOf('<div class="tip-ttl">Days &lt;b&gt;left&lt;/b&gt; &amp; more</div>') !== -1);
+  // Show me sits beside its tip's title, the how-to under both.
+  assert.ok(html.indexOf('<div class="tip-head"><div class="tip-ttl">A black page</div>'
+    + '<button type="button" class="txt-act-btn" data-goto-tab="setup">Show me</button></div>'
+    + '<div class="tip-body">On the Setup tab.</div>') !== -1);
   assert.ok(html.indexOf('<div class="tip-body">Set the <a href=\'https://example.com\'>thing</a>.</div>') !== -1);
   assert.ok(html.indexOf('one') < html.indexOf('A black page'), 'in the order handed over');
   assert.match(html, /<button type="button" class="txt-act-btn tips-ack" data-k="featureTipsAck" data-toggle="1">Got it<\/button><\/div>$/);
@@ -55,9 +61,25 @@ test('Got it hides the card for the session; the flag is one of the page\'s own 
   const wf = schema.tabs.find((tab) => tab.id === 'watchface');
   const section = wf.sections[1];
   assert.equal(section.block, 'featureTips');
+  assert.equal(section.style, 'info', 'the card is an info note (shell.html .card.info)');
+  assert.equal(section.title, 'New in this update', 'under a title of its own, in the note\'s colour');
   assert.equal(section.beforePin, true);
   assert.deepEqual(section.items, [{ type: 'hidden', messageKey: 'featureTipsAck', defaultValue: false }]);
   assert.equal(wf.sections[0].block, 'noticesPanel', 'the fetch notices stay first');
+});
+
+test('the card is drawn, title and all, only while it has tips', () => {
+  const E = global.PConf.engine;
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    schema.tabs.find((tab) => tab.id === 'watchface').sections[1]] }] };
+  const S = E.hydrate(SCH, {});
+  const render = (userData) => E.renderBody(SCH, 't', { S: S, ENV: { platform: 'basalt' }, USERDATA: userData,
+    collapsed: {}, evalCtx: Object.assign({}, S, { env: { platform: 'basalt' } }) });
+  const html = render({ featureTips: TIPS });
+  assert.ok(html.indexOf('<div class="card info"><div class="cardHdr"><span class="ttlwrap"><span class="ttl">New in this update</span>') !== -1,
+    'an info note under its title');
+  assert.ok(html.indexOf('<div class="tips">') > html.indexOf('New in this update'), 'the tips in it');
+  assert.equal(render({}).indexOf('New in this update'), -1, 'no tips: no card, no title');
 });
 
 test('the block is registered, and draws the phone\'s tips as they come', () => {
@@ -74,7 +96,11 @@ test('the block is registered, and draws the phone\'s tips as they come', () => 
 });
 
 test('the card\'s styles follow the page\'s theme, and its buttons are the page\'s own', () => {
-  assert.ok(panel.TIPS_CSS.indexOf('var(--info-tint)') !== -1);
+  // The card is the note: the tips have no box of their own, and the lines between them are
+  // the note's (shell.html .card.info sets --note-line-soft).
+  assert.equal(panel.TIPS_CSS.indexOf('var(--info-tint)'), -1, 'no box inside the card');
+  assert.equal(panel.TIPS_CSS.indexOf('--info-'), -1, 'no look of its own: the card\'s');
+  assert.ok(panel.TIPS_CSS.indexOf('border-top:1px solid var(--note-line-soft)') !== -1);
   assert.equal(/#[0-9a-f]{3,6}\b/i.test(panel.TIPS_CSS), false, 'no colour of its own');
   // The buttons take the page's neutral button (shell.html .txt-act-btn), which the shell
   // always carries; the card's sheet only sizes them.

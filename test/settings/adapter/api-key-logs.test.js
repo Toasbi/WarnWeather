@@ -14,11 +14,20 @@ const TIO = 'TIOSECRET_zyxw9876';
 const YDX = 'YDXSECRET_5555';
 const RBW = 'RBWSECRET_0f1e2d3c4b5a69788796a5b4';
 
-test('redactForLog masks each API key on a copy and leaves the blob alone', () => {
+/**
+ * clay-settings.js, loaded under an empty storage mock (AGENTS.md: storage is mocked before a
+ * watch module loads).
+ * @returns {Object} The module.
+ */
+function loadClaySettings() {
   const store = {};
   global.localStorage = { getItem: (k) => (k in store ? store[k] : null),
     setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } };
-  const claySettings = require('../../../src/pkjs/settings/adapter/clay-settings.js');
+  return require('../../../src/pkjs/settings/adapter/clay-settings.js');
+}
+
+test('redactForLog masks each API key on a copy and leaves the blob alone', () => {
+  const claySettings = loadClaySettings();
   const blob = { provider: 'openweathermap', owmApiKey: OWM, yandexApiKey: '', tomorrowioApiKey: TIO, rainbowApiKey: RBW };
   const out = claySettings.redactForLog(blob);
   assert.deepEqual(out, { provider: 'openweathermap', owmApiKey: '<set>', yandexApiKey: '', tomorrowioApiKey: '<set>',
@@ -27,6 +36,15 @@ test('redactForLog masks each API key on a copy and leaves the blob alone', () =
   assert.equal(blob.owmApiKey, OWM, 'the real blob keeps its key');
   assert.equal(claySettings.redactForLog(null), null);
   assert.equal('owmApiKey' in claySettings.redactForLog({ a: 1 }), false, 'absent keys stay absent');
+});
+
+test('redactForLog hides each place the user typed, as it does the keys', () => {
+  const claySettings = loadClaySettings();
+  const blob = { location: '52.55,13.40', savedLocation1: 'Some Street 1, Berlin', savedLocation2: '',
+    savedLocation3: 'Miami', locationMode: 'manual', graphsLocation: 'current' };
+  assert.deepEqual(claySettings.redactForLog(blob), { location: '<set>', savedLocation1: '<set>', savedLocation2: '',
+    savedLocation3: '<set>', locationMode: 'manual', graphsLocation: 'current' }, 'the modes stay readable');
+  assert.equal(blob.location, '52.55,13.40', 'the real blob keeps the place');
 });
 
 test('settings open/close and provider construction never log an API key', (t) => {

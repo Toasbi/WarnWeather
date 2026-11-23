@@ -111,7 +111,7 @@ static inline void status_battery_text(char *buf, size_t cap, const char *value,
 // bring the old days back.
 typedef struct {
     uint8_t len;                      // the text's length, and its bytes
-    char text[STATUS_TEXT_EDGE_MAX];  // (the slot is an edge slot: the Watch bar's right)
+    char text[STATUS_TEXT_EDGE_MAX];  // (every slot carries it at an edge slot's cap)
 } StatusBatteryDaysMark;
 
 // Whether the mark is of this carried text (`len` bytes at `value`; the mark keeps and
@@ -180,13 +180,18 @@ typedef enum {
     // before the Watch battery's text, the Icon + text look of SLOT_LIVE_BATTERY_PCT. Drawn in
     // code: no drawing loads (status_slot_draws_battery).
     STATUS_ICON_DRAWN_BATTERY = 34,
+    // TEXT-ONLY, like PRESSURE: the Plugin value slot, a value another app's plugin serves,
+    // baked as text by the phone. No drawing exists or loads, and the id keeps the slot from
+    // arriving as TEXT + NONE and taking City's bold mode; it has no bold kind of its own
+    // (status_threshold.c TEXT_KIND leaves it out) and no short form (status_short_text.h).
+    STATUS_ICON_PLUGIN_TEXT = 35,
 } StatusIconId;
 // Id 6 (STATUS_ICON_PRECIP, removed in 3dae9f4) is a retired hole: never reuse it —
 // a pre-3dae9f4 install can still hold a persisted blob referencing it. So is id 17
 // (STATUS_ICON_PHONE_BATTERY_CHG, the glyph of a phone that charges: the phone packed it
 // in place of id 16 while it charged, until the slot came to show the charge alone). A
 // line stored with it draws its text without a glyph until the phone's next bake.
-#define STATUS_ICON_MAX STATUS_ICON_DRAWN_BATTERY
+#define STATUS_ICON_MAX STATUS_ICON_PLUGIN_TEXT
 
 // Whether a slot draws the Watch battery's glyph: alone (SLOT_LIVE_BATTERY, the Icon look), or
 // before its charge as text (SLOT_LIVE_BATTERY_PCT with STATUS_ICON_DRAWN_BATTERY, the Icon +

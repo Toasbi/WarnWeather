@@ -334,23 +334,24 @@ provider pickers each have a key row, "<Name> API key", whose summary reads "No 
 
 Rows inside an open sheet behave as they do in a card (including a text row's `suffixAction`
 button and its verdict line, and a hint's tap-to-copy `[data-copy]` button), with one
-difference: a `select` row there expands its option list in place, under the row inside the
-sheet (the colour palette's pattern), instead of opening the select modal. The trigger stays
-where it was and reads as open (`aria-expanded="true"`, the row gains `isel-open`). The list
-reuses the modal's option rows, so the current value's check, a recommended option and gated
-(`meta.disabled` / `optionDisabledWhen`) options look and behave the same. A pick stores the
-value, fires the item's `onChange` once and collapses the list, leaving the sheet open with
-focus back on the trigger; a second tap on the trigger collapses it without a pick. An option
+difference: a `select` row there opens its option list in a sheet that rises from the bottom
+over the dialog (engine `renderPickSheet`), titled as the select modal is (`sheetTitleBy`,
+`sheetTitle`, else the label), instead of opening the select modal. The trigger stays where it
+was and reads as open (`aria-expanded="true"`). The list reuses the modal's option rows, so the
+current value's check, a recommended option and gated (`meta.disabled` / `optionDisabledWhen`)
+options look and behave the same. A pick stores the value, fires the item's `onChange` once and
+closes the list, leaving the dialog open with focus back on the trigger; a second tap on the
+trigger, a tap beside the list's sheet and its × close it without a pick. An option
 whose meta names `next`, another select's `messageKey`, stores nothing: its pick opens that
 select's list in its place, as a tap on its row would, even while the select has no row (a
 value, then its provider: WarnWeather's Use another source). Closed without a pick, that list
 hands focus back to the first one's trigger. One expander
-is open at a time: opening a list collapses an open palette and vice versa. Escape first
-collapses an open list or palette and closes the sheet only on the next press; the close button,
-the backdrop and a swipe-down close the sheet, which reopens collapsed. A touch that starts
-inside the list never arms the swipe-down. A list stays open only while its row renders live:
+is open at a time: opening a list closes an open palette and vice versa. Escape first
+closes an open list or palette and closes the sheet only on the next press; the close button,
+the backdrop and a swipe-down close the sheet, which reopens collapsed. A list stays open only
+while its row renders live:
 when another control in the sheet hides the row (`showWhen`) or mutes it (`disabledWhen`), the
-list collapses with it, and the row comes back collapsed. `searchSelect` has no in-sheet form,
+list closes with it, and the row comes back closed. `searchSelect` has no in-sheet form,
 so keep it out of `sheetOnly` sections (a schema test enforces this). A select in the tab body,
 and one opened through `openSheet()`, still opens the modal.
 
@@ -404,13 +405,21 @@ own. The toggle keeps its normal place in `items`, so hydrate, serialize and `on
 unaffected. The hosted toggle's `disabledWhen` still applies there: while it holds, the header's
 switch renders `disabled` (dimmed, showing the held value) and a tap on it changes nothing. A
 card with no row to show drops out. Only sections merged by `groupCard` keep their subheaders as
-in-card headers.
+in-card headers. A subheader's `style: 'info'` or `'error'` makes its card a note: the card
+itself takes the note's look (the tint, a thin line round the card and its title in the note's
+colour: `.card.info`, `.card.error` in `shell.html`), so a note that must not be missed needs no
+box inside a card (the Plugin value dialog's note while Muninn is picked). A section's own
+`style` does the same for its first card (the New in this update card), and its `styleFrom:
+{resolver, args}` asks a display resolver for the look, for a note whose look follows what it
+says (the fetch notices: an error note while any notice is an error, else an info note). Each
+look sets the note's colours as custom properties (`--note`, `--note-tint`, `--note-line`,
+`--note-line-soft`), so a block that draws in a note card draws its lines in
+`var(--note-line-soft)` and needs no rule of its own per look.
 
 `staticText` items carry their HTML in a `text` field, emitted verbatim without control chrome.
 They are not serialized (no `messageKey`). `style: 'info'` boxes the note in the tinted,
-left-ruled look of the Watchface tab's fetch-notice items, in the page's info amber
-(`--info-tint` / `--info-rule` in `shell.html`, shared with those notice items and flipped by
-the light theme; error boxes stay red). It is for a pointer the reader should not skim past as
+left-ruled look, in the page's info amber (`--info-tint` / `--info-rule` in `shell.html`,
+flipped by the light theme). It is for a pointer the reader should not skim past as
 body copy ("this is set on another tab"). A boxed note keeps the row padding (14px) to whatever
 sits above and below it. A `joinPrevious` drops the divider next to it but never that gap, and
 the box does not hug the row above the way a plain joined note does. The same holds for a box
@@ -439,6 +448,8 @@ Section fields:
 |-------|------|-------------|
 | `title` | string | Section heading |
 | `intro` | string | HTML rendered above items |
+| `style` | `'info'` \| `'error'` | The section's first card is a note card in that look (`.card.info`, `.card.error`); any other value is a plain card. |
+| `styleFrom` | `{resolver, args?}` | The first card's look follows the settings: a `PConf.displayResolvers` id whose `fn(S, env, args)` answers the `style`; no answer keeps `style`. |
 | `block` | string | Custom-block id rendered below the items (see [Registries](#registries-and-hooks)). A block above the items is the item-level `blockBefore` on the section's first item; the engine has no section-level `blockBefore`. For a card that stacks several blocks, share a `groupCard` id across consecutive sections instead. |
 | `collapsible` | boolean | Collapses the section into an expandable card (collapsed by default; state is per page open). Its header ends on the red ▸, ▾ while open ([`ui.foldChev`](#shared-parts-pconfui)). |
 | `titleBy` | `{resolver, args?}` | The card header's title follows the settings: a `PConf.displayResolvers` id whose `fn(S, env, args)` answer replaces `title` (escaped); `''` or no answer keeps `title`. The header marks it (`data-title-by`), so a text commit that skips the re-render retitles it in place. A dialog's title follows it too (e.g. a status bar's name titling the bar's dialog). |
@@ -470,7 +481,7 @@ Item fields:
 | `showWhen` | Predicate | Conditional-visibility predicate (see grammar below) |
 | `text` | string | HTML body for `staticText` items |
 | `textFrom` | `{ resolver, args }` | `staticText` only: the body derived by a named hint resolver; `''` renders nothing (see above) |
-| `style` | `'info'` | `staticText` only: render the note as a boxed info note (see above) |
+| `style` | `'info'` \| `'error'` | `staticText`: `'info'` renders the note as a boxed info note (see above). `subheader`: `'info'` or `'error'` makes its card a note card in that look (see above). |
 | `compact` | boolean | Gives any row the tight vertical rhythm of the status-slot rows (`.slot`). |
 | `more` | boolean | The row renders behind its card's "More options · N more" row (see Progressive disclosure). |
 | `indent` | boolean | Indents the row (32px), as a child of the row above. |
@@ -482,7 +493,6 @@ Item fields:
 | `sheetTitle` | string | `select`/`searchSelect` only: the picker sheet's title, where the row's label alone would not name it (a row whose picker also opens from a preview). Default: the label. |
 | `sheetTitleBy` | `{resolver, args?}` | `select` only: a `PConf.displayResolvers` id whose answer titles the picker sheet instead of `sheetTitle` (a slot picker named by its bar's name); `''` keeps `sheetTitle`. |
 | `sheetLead` | string | `select`/`searchSelect` only: one plain line under the picker sheet's title that says what the picker does (escaped). |
-| `bottomSheet` | boolean | `select` only: in a dialog (a `sheetOnly` section) its list rises from the bottom over the dialog, titled as the picker sheet is (`sheetTitleBy`, `sheetTitle`), instead of opening in place under the row (engine `renderPickSheet`; the status bar slots). A tap beside it, its × or Escape closes it. On a tab it opens the select sheet as every select does. |
 | `pictureFrom` | `{ resolver, args }` | `radio`: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry-pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). `select`/`searchSelect`: each option's picture at the start of its row in the picker sheet. |
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
 | `groupLabel` | string | On the first member of an `inline` group: renders the group as one labelled row, the members side by side joined by a dash (a From/To row). |
@@ -774,6 +784,11 @@ colour that cascades from a sibling key until the user pins it). These read the 
   verbatim, with no messageKey merged in, since sections have none.
 - Titles through a section's `titleBy` and a select's `sheetTitleBy` (args verbatim too).
 - A section's header note through `noteFrom` (an object, `{text, label?, info?}`; args verbatim).
+- A section's look through `styleFrom` (`'info'`, `'error'`, or anything else for a plain first
+  card; args verbatim).
+
+Every way in calls `fn(S, env, args)`. A resolver that reads the page's userData reads the
+page global `INJECTED_USERDATA` itself, at call time.
 
 ```js
 // Returns the value to display; return null/undefined for "use the stored value".

@@ -56,6 +56,7 @@ Icons at the edge of a status bar that appear only when something needs your att
 - Steps, sleep, distance, heart rate*
 - Watch battery as an icon, as text or both, with the days it has left from the Muninn app*
 - Phone battery as text, with or without its icon*
+- Plugin values, such as your phone's network type*
 - Short forms when a bar runs out of room (Partly cloudy becomes PCLDY, Nov 2026 becomes Nov)
 - Name your own bars and place them on any screen*
 

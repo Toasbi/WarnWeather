@@ -55,7 +55,10 @@
     // The watch battery's Icon + text look: on LIVE_BATTERY_PCT, the battery glyph the watch
     // draws in code before the charge, as it draws it alone for LIVE_BATTERY. A sentinel like
     // DRAWN_SUN: no drawing loads.
-    DRAWN_BATTERY: 34
+    DRAWN_BATTERY: 34,
+    // Text-only, like PRESSURE: the Plugin value slot, a value another app's plugin serves.
+    // It loads no glyph, has no bold kind and keeps the slot off TEXT + NONE.
+    PLUGIN_TEXT: 35
   };
   // A TEXT slot's short form rides after this byte (status_line.h STATUS_TEXT_ALT_SEP).
   var ALT_SEP = '\u001f';
@@ -117,28 +120,37 @@
     // and which can show the days the watch has left (battery-days.js), or both, the text
     // with the battery before it (ICONS.DRAWN_BATTERY). Until 3.3.0 the text look was an
     // item of its own, 'batteryPct'
-    // (settings/domain/migrations/status-slots.js mergeBatterySlots).
-    { code: 'battery', label: 'Watch battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnly: true, category: 'battery' },
-    // The PHONE's battery: phone-baked TEXT, so unlike the watch item above it
-    // is NOT corner-pinned — that one sits top-right because that corner already
-    // reads as the watch's battery, while this one carries its own icon (or, in its Text
+    // (settings/domain/migrations/status-slots.js mergeBatterySlots). Any slot can hold it
+    // (the owner's, 2026-11-23): until then only the top strip's right-hand corner could.
+    // The watch refreshes every bar that shows it on a battery or Bluetooth change
+    // (status_bar.c status_bar_system_changed). Aplite keeps the corner (topRightOnAplite):
+    // its frozen twin repaints only the top strip on those changes. Its settings are the
+    // item's own (batterySettingKeys), so every slot that holds it shows it alike.
+    { code: 'battery', label: 'Watch battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnAplite: true,
+      category: 'battery' },
+    // The PHONE's battery: phone-baked TEXT. It carries its own icon (or, in its Text
     // look, deliberately none: slot-text.js phoneBatteryLook, status-lines.js iconFor)
     // and fits any slot. Its Look is each slot's own (phoneBatteryLookKey), so it can
     // show its icon in one slot and not in another. Until 3.3.0 the Text look was an
     // item of its own, 'phoneBatteryPlain'.
     { code: 'phoneBattery', label: 'Phone battery', kind: KINDS.TEXT,
-      icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' }
+      icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' },
+    // A value another app's plugin serves (plugin-values.js), its source the item's own
+    // (pluginValueSettingKeys), so every slot that holds it shows the same value. Text alone:
+    // the watch draws no plugin's picture, and the bold area is full. Only where the Pebble app
+    // reads plugins (needsPlugins), and never on aplite, whose feature set is frozen.
+    { code: 'pluginValue', label: 'Plugin value', kind: KINDS.TEXT, icon: ICONS.PLUGIN_TEXT,
+      needsPlugins: true, notAplite: true, category: 'plugin' }
   ];
 
   // Dropdown grouping order + header labels (Part F). A category with no
   // available item for a slot emits no header, so gated items never leave an
-  // orphan heading. 'battery' holds two items: the WATCH's — top-right only (the
-  // watch battery belongs in the corner already read as its own) — and the
-  // PHONE's, which is selectable in any slot but exists only where the phone can
-  // report its charge (needsPhoneBattery) and never on aplite. The labels carry the
-  // Watch/Phone qualifier because both otherwise read as "battery".
+  // orphan heading. 'battery' holds two items: the WATCH's and the PHONE's, which
+  // exists only where the phone can report its charge (needsPhoneBattery) and never on
+  // aplite. The labels carry the Watch/Phone qualifier because both otherwise read as
+  // "battery". Plugin comes first, right under Empty (the owner's, 2026-11-23).
   var CATEGORIES = [
-    ['weather', 'Weather'], ['datelocation', 'Date and location'],
+    ['plugin', 'Plugin'], ['weather', 'Weather'], ['datelocation', 'Date and location'],
     ['health', 'Health'], ['battery', 'Battery']
   ];
 
@@ -162,8 +174,8 @@
       // sits here, where every screen shows it (the owner's, 2026-11-09: it swapped places
       // with the Forecast bar's sunrise/sunset). emery's 200 px display has the width for
       // three readings: the week, the date and air quality in the right-hand corner. On
-      // the 144/180 px platforms that corner is the battery (it already reads as the
-      // battery: see the topRightOnly items), so air quality takes the left slot. An
+      // the 144/180 px platforms that corner is the battery, where the watch has long drawn
+      // it, so air quality takes the left slot. An
       // install from before keeps what it showed (settings/domain/migrations/status-slots.js
       // keepSlotDefaults27).
       defaults: { statusTopLeft: 'aqi', statusTopMid: 'date', statusTopRight: 'battery' },
@@ -205,7 +217,7 @@
    * Phone-side availability gate. The watch never gates.
    * @param {Object} item catalog entry
    * @param {Object} settings Clay settings blob
-   * @param {Object} env {color, platform, health, radar, hr, phoneBattery}
+   * @param {Object} env {color, platform, health, radar, hr, phoneBattery, plugins}
    * @param {Object} [slotCtx] {slotKey, position: 'left'|'mid'|'right'} of the
    *   slot being resolved; position-gated items are unavailable without it
    * @returns {boolean}
@@ -213,7 +225,10 @@
   function itemAvailable(item, settings, env, slotCtx) {
     if (!item) { return false; }
     if (item.middleOnly && (!slotCtx || slotCtx.position !== 'mid')) { return false; }
-    if (item.topRightOnly && (!slotCtx || slotCtx.slotKey !== 'statusTopRight')) { return false; }
+    if (item.topRightOnAplite && env && env.platform === 'aplite'
+            && (!slotCtx || slotCtx.slotKey !== 'statusTopRight')) {
+        return false;
+    }
     // Health items need the watch's health. Not healthMode: since 2.6 it follows the screens
     // and the slots (screens.js deriveModes), so a slot can pick a health item in any mode.
     if (item.needsHealth && (!env || !env.health)) { return false; }
@@ -225,6 +240,10 @@
     // UNLIKE needsProvider, a false gate OMITS the item rather than showing a
     // disabled row: there is no setting the user could change to earn it.
     if (item.needsPhoneBattery && (!env || !env.phoneBattery)) { return false; }
+    // A value read from another app's plugin needs a Pebble app that reads plugins
+    // (plugin-reader.js available): env.plugins, the page's from index.js, the bake's from its
+    // facts (status-lines.js buildStatusLines). Omitted elsewhere, like the phone battery.
+    if (item.needsPlugins && (!env || !env.plugins)) { return false; }
     // Items whose watch-side C rendering is compiled out on aplite (frozen
     // image budget): the phone battery, which ships no aplite glyph at all. (The
     // watch battery's text looks are not items: aplite's lean status-row twin never
@@ -573,14 +592,28 @@
 
   /**
    * The settings the watch battery owns: its Look, what its text shows and how its pair
-   * reads (slot-text.js batteryLook, battery-days.js). The item's own, since it sits in one
-   * slot. ONE list for the rows schema.js builds, the keys resetStatusSlots clears and the
-   * ones renderSignature watches (every one of them is baked into the line).
+   * reads (slot-text.js batteryLook, battery-days.js). The item's own, so every slot that
+   * holds it shows it alike. ONE list for the rows schema.js builds, the keys
+   * resetStatusSlots clears and the ones renderSignature watches (every one of them is baked
+   * into the line).
    * @returns {string[]}
    */
   function batterySettingKeys() {
     return ['batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
       'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced'];
+  }
+
+  /**
+   * The settings the Plugin value slot owns: the plugin, the value of it and how often it is
+   * read (plugin-values.js sourceOf, everyMs), which its dialog's rows store
+   * (plugin-value-schema.js). The item's own, so every slot that holds it shows the same value.
+   * The keys resetStatusSlots clears with the slots. None of them is signed (renderSignature):
+   * a new source needs a read, which the save starts (plugin-value-source.js refresh), and no
+   * weather fetch.
+   * @returns {string[]}
+   */
+  function pluginValueSettingKeys() {
+    return ['pluginValuePlugin', 'pluginValueId', 'pluginValueEvery'];
   }
 
   /**
@@ -692,7 +725,8 @@
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
-    batterySettingKeys: batterySettingKeys, countdownKey: countdownKey,
+    batterySettingKeys: batterySettingKeys, pluginValueSettingKeys: pluginValueSettingKeys,
+    countdownKey: countdownKey,
     phoneBatteryLookKey: phoneBatteryLookKey, phoneBatterySheet: phoneBatterySheet,
     PHONE_BATTERY_LOOK_DEFAULT: PHONE_BATTERY_LOOK_DEFAULT, slotCompanions: slotCompanions
   };

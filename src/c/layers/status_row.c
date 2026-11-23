@@ -266,8 +266,8 @@ static bool carries_battery_days(const StatusSlotView *slot) {
 }
 
 // The days from before a charge (status_line.h StatusBatteryDaysMark): read from flash at
-// their first use, written back when they move. One for the face: the watch battery sits in
-// one slot.
+// their first use, written back when they move. One for the face: every slot that shows the
+// watch battery carries the same bytes (the phone bakes them at an edge slot's cap).
 static StatusBatteryDaysMark s_days_mark;
 static bool s_days_mark_read;
 
@@ -608,8 +608,8 @@ bool status_row_refresh(StatusRow *row) {
             // would silently replace top_status_layer.c's handler (the BT icon and
             // the disconnect vibe) — and a row is a multi-instance object whose
             // destroy would then unsubscribe on the others' behalf. The strip's
-            // existing callback repaints the strip, and every other row picks the
-            // change up on the next minute tick.
+            // existing callback repaints the strip and refreshes every visible bar
+            // (status_bar_system_changed).
             // Likewise the watch battery's days: the link decides whether the slot
             // shows them or the percentage, and a day count can read the same either way.
             if (is_phone_battery_slot(slot) || carries_battery_days(slot)) {

@@ -14,6 +14,7 @@
 // a dev build too.
 
 var batteryDays = require('../../status-bars/domain/battery-days.js');
+var statusLineCatalog = require('../../status-bars/domain/status-line-catalog.js');
 
 /**
  * @typedef {Object} FeatureTip
@@ -33,6 +34,21 @@ var batteryDays = require('../../status-bars/domain/battery-days.js');
 // In the card's order: a new release's tips go on top.
 /** @type {FeatureTip[]} */
 var TIPS = [
+    {
+        id: 'pluginValue',
+        since: '3.4.0',
+        title: 'Plugin values',
+        // The Plugin value slot (status-line-catalog.js 'pluginValue'), in any bar, so Show me
+        // opens the Status bars tab. Its dialog lists what the phone's plugins serve.
+        html: 'Status bar slots can show plugin values, such as your phone\'s network type. Set a slot ' +
+            'to Plugin value, tap Edit, then pick the plugin and its value.',
+        open: { tab: 'watch' },
+        // Where the status lists offer the slot: a Pebble app that reads plugins, and not on
+        // aplite, whose feature set is frozen.
+        when: function (env) {
+            return statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, env);
+        }
+    },
     {
         id: 'weatherFrom',
         since: '3.3.0',
@@ -62,8 +78,8 @@ var TIPS = [
         // The tip above says how to put the Watch battery in its slot; this one starts from the
         // slot's Edit button, so the two don't say it twice. Days left shows in either text look.
         html: 'With the ' + batteryDays.MUNINN_LINK + ' on your watch, the Watch battery slot ' +
-            'can show how many days the watch has left. Tap its Edit button in the Watch bar, set ' +
-            'Look to Icon + text or Text, then set Value selection to Days left or Both.',
+            'can show how many days the watch has left. Tap its Edit button in the Watch bar, ' +
+            batteryDays.DAYS_STEPS,
         open: { sheet: 'bar-top' },
         // The days are read from another app's plugin, and aplite's battery slot has no text look.
         when: function (env) { return Boolean(env) && env.plugins === true && env.platform !== 'aplite'; }

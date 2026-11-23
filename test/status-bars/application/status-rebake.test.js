@@ -1,5 +1,6 @@
 'use strict';
 const { withHost } = require('../../helpers/rebake-host.js');
+const { heldTimers } = require('../../helpers/plugin-host.js');
 // status-rebake.js' own contract, apart from its phone-battery trigger (whose
 // micro-send tests live in status-rebake-battery.test.js): the resend reports back
 // through exactly one callback, which is what lets the config close chain the
@@ -78,7 +79,7 @@ test('the outbox\'s callbacks are forwarded: ACK runs onSuccess, NACK onFailure'
   assert.deepEqual(cb.log, ['ok', 'fail']);
 });
 
-test('a bake that throws runs onFailure and sends nothing', () => {
+test('a bake that throws runs onSuccess and sends nothing: nothing went out, so nothing failed', () => {
   storage = {};
   const sends = [];
   statusRebake.init(withHost({
@@ -89,7 +90,7 @@ test('a bake that throws runs onFailure and sends nothing', () => {
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null);
   const cb = callbacks();
   assert.doesNotThrow(() => statusRebake.resendStatus('test', cb.ok, cb.fail));
-  assert.deepEqual(cb.log, ['fail'], 'the chain behind it still runs');
+  assert.deepEqual(cb.log, ['ok'], 'the chain behind it still runs');
   assert.equal(sends.length, 0);
 });
 
@@ -257,9 +258,19 @@ test('the scheduler\'s minute tick runs the re-bake\'s, told whether a fetch is 
   assert.ok(tick.indexOf('statusRebake.onTick(fetchCycle.isInFlight());') > 0);
 });
 
-test('index.js composes the batteries\' facts once: the fetch\'s bake, the re-bake\'s and the fixture\'s read the same', () => {
+test('index.js hands the re-bake the host\'s timer and the channel\'s state, which a debt paid early needs', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
-  assert.match(src, /function bakeFacts\(\) \{\n    return \{ phone: phoneBattery\.bakeFacts\(\), watch: batteryEstimate\.bakeFacts\(\) \};\n\}/);
+  const call = src.slice(src.indexOf('statusRebake.init({'));
+  const options = call.slice(0, call.indexOf('});'));
+  // Without them paySoon falls back to the tick without a word: a value picked would wait up
+  // to a minute again, with every test of the re-bake still green.
+  ['setTimeout: hostSetTimeout', 'fetchInFlight: fetchCycle.isInFlight', 'sendsInFlight: outbox.sendsInFlight']
+    .forEach((wired) => { assert.ok(options.indexOf(wired) > 0, wired); });
+});
+
+test('index.js composes the batteries\' and the Plugin value\'s facts once: the fetch\'s bake, the re-bake\'s and the fixture\'s read the same', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
+  assert.match(src, /function bakeFacts\(\) \{\n    return \{ phone: phoneBattery\.bakeFacts\(\), watch: batteryEstimate\.bakeFacts\(\),\n        plugin: pluginValueSource\.bakeFacts\(\) \};\n\}/);
   assert.equal((src.match(/getBakeFacts: bakeFacts,/g) || []).length, 2, 'the fetch cycle and the re-bake');
   assert.ok(src.indexOf('facts: bakeFacts() });') > 0, 'the fixture send');
 });
@@ -296,16 +307,21 @@ test('a re-bake reads the supplier\'s facts, the phone\'s replaced where the cal
 /**
  * A re-baker with bake inputs, at a clock the test moves, under the saver's 0:00-07:00 window.
  * @param {Object} [settings] Settings (the saver on by default).
- * @returns {{sends: Object[], at: function(number, number): void}} What was sent, and the clock's setter.
+ * @param {function(Object, Object, Object, number, Object): Object} [build] The bake (fakeBake by default).
+ * @param {Object} [host] More of the host's options (its timer, the fetch's state).
+ * @returns {{sends: Object[], answers: Array<{onSuccess: function(): void, onFailure: function(Object): void}>,
+ *   at: function(number, number): void}} What was sent, each send's outbox callbacks, and the clock's setter.
  */
-function bootSaver(settings) {
+function bootSaver(settings, build, host) {
   storage = {};
-  const h = { sends: [], now: 0 };
+  // sends: what went out; answers: each send's outbox callbacks, to ACK or NACK it.
+  const h = { sends: [], answers: [], now: 0 };
   h.at = (hour, minute) => { h.now = new Date(2026, 5, 16, hour, minute).getTime(); };
   h.at(12, 0);
-  statusRebake.init(withHost({
+  statusRebake.init(withHost(Object.assign({
     getSettings: () => settings || { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' },
-    sendWeather: (p) => h.sends.push(p), buildStatusLines: fakeBake, now: () => h.now }));
+    sendWeather: (p, onSuccess, onFailure) => { h.answers.push({ onSuccess, onFailure }); h.sends.push(p); },
+    buildStatusLines: build || fakeBake, now: () => h.now }, host)));
   // Baked at noon, with no sun events: no day/night turn of its own in these tests.
   statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, null, new Date(h.now));
   return h;
@@ -372,23 +388,222 @@ test('a trigger without a step owes a send all the same; with the saver off noth
 
 test('oweStatus sends nothing now, by day or by night: the next tick that may send pays it', () => {
   const h = bootSaver();
-  let steps = 0;
-  statusRebake.oweStatus(() => { steps += 1; });
-  statusRebake.oweStatus();
+  statusRebake.oweStatus(false);
+  statusRebake.oweStatus(false);
   assert.equal(h.sends.length, 0, 'noon, outside the window: still not sent from here');
   assert.equal(statusRebake.onTick(true), false, 'not beside a fetch in flight');
   assert.equal(h.sends.length, 0);
   assert.equal(statusRebake.onTick(false), true);
   assert.equal(h.sends.length, 1, 'one send for both');
-  assert.equal(steps, 1);
   assert.equal(statusRebake.onTick(false), false, 'once');
 
   h.at(3, 0);
-  statusRebake.oweStatus();
+  statusRebake.oweStatus(false);
   assert.equal(statusRebake.onTick(false), false, 'inside the saver window it waits, as any owed send');
   h.at(7, 0);
   assert.equal(statusRebake.onTick(false), true);
   assert.equal(h.sends.length, 2);
+});
+
+test('a debt the user waits for at the phone is paid inside the window, at the next tick', () => {
+  const h = bootSaver();
+  h.at(3, 0);
+  statusRebake.oweStatus(true);
+  assert.equal(h.sends.length, 0, 'never sent from here');
+  assert.equal(statusRebake.onTick(true), false, 'not beside a fetch in flight');
+  assert.equal(statusRebake.onTick(false), true, 'inside the window: a save asked for it');
+  assert.equal(h.sends.length, 1);
+  statusRebake.oweStatus(false);
+  assert.equal(statusRebake.onTick(false), false, 'paid, the window holds the next debt again');
+  statusRebake.oweStatus(true);
+  assert.equal(statusRebake.onTick(false), true, 'one waited for pays the others with it');
+  assert.equal(h.sends.length, 2);
+  assert.equal(statusRebake.onTick(false), false, 'once');
+});
+
+/**
+ * bootSaver with the host's timer, whose callbacks the test fires by hand.
+ * @param {{fetchInFlight: (function(): boolean|undefined), sendsInFlight: (function(): number|undefined)}} [host]
+ *   Whether a weather fetch is running, and how many sends wait for the watch's answer.
+ * @returns {Object} bootSaver's harness, and timers: each timer's callback and delay.
+ */
+function bootSoon(host) {
+  const timers = [];
+  const h = bootSaver(null, null, Object.assign(heldTimers(timers), host));
+  h.timers = timers;
+  return h;
+}
+
+test('a debt the user waits for at the phone is paid a moment after it is owed, not at the next tick', () => {
+  const h = bootSoon();
+  statusRebake.oweStatus(true);
+  statusRebake.oweStatus(true);
+  assert.equal(h.sends.length, 0, 'not from here: the save\'s own messages go first');
+  assert.deepEqual(h.timers.map((t) => t.ms), [statusRebake.OWED_SOON_MS], 'one timer for both');
+  assert.ok(statusRebake.OWED_SOON_MS <= 5000, 'seconds, where the tick can take a minute');
+  h.timers[0].fn();
+  assert.equal(h.sends.length, 1, 'paid');
+  assert.equal(statusRebake.onTick(false), false, 'the tick finds nothing owed');
+  statusRebake.oweStatus(true);
+  assert.equal(h.timers.length, 2, 'the next debt sets a timer of its own');
+  h.at(3, 0);
+  h.timers[1].fn();
+  assert.equal(h.sends.length, 2, 'inside the Night battery saver\'s window too: a save asked for it');
+});
+
+test('news nobody waits for still waits for the tick; a fetch in flight or a NACK leaves a debt to it', () => {
+  let fetching = true;
+  const h = bootSoon({ fetchInFlight: () => fetching });
+  statusRebake.oweStatus(false);
+  assert.equal(h.timers.length, 0, 'no timer for news that can wait');
+  statusRebake.oweStatus(true);
+  h.timers[0].fn();
+  assert.equal(h.sends.length, 0, 'not beside a fetch in flight, whose message carries the status');
+  fetching = false;
+  assert.equal(statusRebake.onTick(false), true, 'the tick pays it');
+  h.answers[0].onFailure({});
+  assert.equal(h.timers.length, 1, 'a NACK owes it again to the tick, at its backoff');
+  assert.equal(statusRebake.onTick(false), true, 'sent again by the tick');
+});
+
+test('while the watch refuses sends, a debt the user waits for keeps to their backoff: the timer leaves it to the tick', () => {
+  const h = bootSoon();
+  statusRebake.oweStatus(false);
+  assert.equal(statusRebake.onTick(false), true, 'minute 1');
+  h.answers[0].onFailure({});
+  assert.equal(statusRebake.onTick(false), true, 'minute 2');
+  h.answers[1].onFailure({});
+  statusRebake.oweStatus(true);
+  h.timers[0].fn();
+  assert.equal(h.sends.length, 2, 'not sent by the timer to a watch that refuses');
+  assert.equal(statusRebake.onTick(false), false, 'minute 3: the backoff still waits, its step not taken by the timer');
+  assert.equal(statusRebake.onTick(false), true, 'minute 4, as after any second NACK');
+});
+
+test('a debt paid early waits out a send still on the channel, then pays; a channel that stays busy leaves it to the tick', () => {
+  let busy = 1;
+  const h = bootSoon({ sendsInFlight: () => busy });
+  statusRebake.oweStatus(true);
+  h.timers[0].fn();
+  assert.equal(h.sends.length, 0, 'not beside the save\'s own send, which waits for its answer');
+  assert.equal(h.timers.length, 2, 'it waits again');
+  busy = 0;
+  h.timers[1].fn();
+  assert.equal(h.sends.length, 1, 'the channel is free: paid');
+
+  busy = 1;
+  h.answers[0].onSuccess();
+  statusRebake.oweStatus(true);
+  const before = h.timers.length;
+  for (let i = 0; i < statusRebake.OWED_SOON_TRIES; i++) { h.timers[h.timers.length - 1].fn(); }
+  assert.equal(h.timers.length, before + statusRebake.OWED_SOON_TRIES - 1, 'a few waits, then no more');
+  assert.equal(h.sends.length, 1, 'never sent beside the busy channel');
+  busy = 0;
+  assert.equal(statusRebake.onTick(false), true, 'the tick pays it');
+});
+
+test('a settings save\'s send pays a debt of no step, so the timer sends nothing twice; an answer after it is news of its own', () => {
+  const h = bootSoon();
+  statusRebake.oweStatus(true);   // the answer came before the save's own bake
+  assert.equal(statusRebake.resendStatus('config-close'), true);
+  h.timers[0].fn();
+  assert.equal(h.sends.length, 1, 'the save\'s bake carried it: nothing sent again before its ACK');
+  assert.equal(statusRebake.onTick(false), false, 'nor at the tick');
+  h.answers[0].onSuccess();
+  statusRebake.oweStatus(true);   // an answer after the save's bake is news of its own
+  h.timers[1].fn();
+  assert.equal(h.sends.length, 2);
+});
+
+test('a NACKed owed send is owed again, to the next tick, waited for as it was', () => {
+  const h = bootSaver();
+  statusRebake.oweStatus(false);
+  assert.equal(statusRebake.onTick(false), true);
+  h.answers[0].onFailure({ data: { transactionId: 1 } });
+  assert.equal(statusRebake.onTick(false), true, 'sent again');
+  h.answers[1].onSuccess();
+  assert.equal(statusRebake.onTick(false), false, 'ACKed: paid');
+
+  h.at(3, 0);
+  statusRebake.oweStatus(true);
+  assert.equal(statusRebake.onTick(false), true);
+  h.answers[2].onFailure({ data: { transactionId: 2 } });
+  assert.equal(statusRebake.onTick(false), true, 'inside the window still: the user waits for it');
+  assert.equal(h.sends.length, 4);
+});
+
+test('a status send that keeps NACKing is resent after 1, 2, then every 4 minutes; an ACK ends it', () => {
+  const h = bootSaver();
+  statusRebake.oweStatus(false);
+  const sentAt = [];
+  for (let minute = 1; minute <= 16; minute++) {
+    if (statusRebake.onTick(false)) {
+      sentAt.push(minute);
+      h.answers[h.answers.length - 1].onFailure({});
+    }
+  }
+  assert.deepEqual(sentAt, [1, 2, 4, 8, 12, 16], 'the settings channel\'s backoff (nack-backoff.js)');
+  for (let minute = 17; minute <= 19; minute++) { assert.equal(statusRebake.onTick(false), false); }
+  assert.equal(statusRebake.onTick(false), true, 'minute 20');
+  h.answers[h.answers.length - 1].onSuccess();
+  assert.equal(statusRebake.onTick(false), false, 'ACKed: nothing is owed');
+  statusRebake.oweStatus(false);
+  assert.equal(statusRebake.onTick(false), true);
+  h.answers[h.answers.length - 1].onFailure({});
+  assert.equal(statusRebake.onTick(false), true, 'after an ACK, the next NACK is resent a minute later again');
+});
+
+test('a send the user waits for gets one retry inside the window: NACKed twice, it waits for the window to close', () => {
+  const h = bootSaver();
+  h.at(3, 0);
+  statusRebake.oweStatus(true);
+  assert.equal(statusRebake.onTick(false), true);
+  h.answers[0].onFailure({});
+  h.at(3, 1);
+  assert.equal(statusRebake.onTick(false), true, 'one retry: the user waits for it');
+  h.answers[1].onFailure({});
+  for (let minute = 2; minute < 60; minute++) {
+    h.at(3, minute);
+    assert.equal(statusRebake.onTick(false), false, '03:' + minute);
+  }
+  assert.equal(h.sends.length, 2, 'a watch that keeps refusing is left alone for the night');
+  h.at(7, 0);
+  assert.equal(statusRebake.onTick(false), true, 'the first tick after the window pays it');
+});
+
+test('a settings save\'s status send the watch NACKs is owed again; the chain behind it goes on', () => {
+  const h = bootSaver();
+  const cb = callbacks();
+  assert.equal(statusRebake.resendStatus('config-close', cb.ok, cb.fail), true);
+  h.answers[0].onFailure({});
+  assert.deepEqual(cb.log, ['fail'], 'the forced fetch queued behind it still runs');
+  assert.equal(statusRebake.onTick(true), false, 'not beside that fetch, whose message carries the status');
+  assert.equal(statusRebake.onTick(false), true, 'a failed fetch leaves it to the next tick');
+  h.answers[1].onSuccess();
+  assert.deepEqual(cb.log, ['fail'], 'the retry runs none of the save\'s callbacks');
+
+  h.at(3, 0);
+  statusRebake.resendStatus('config-close', cb.ok, cb.fail);
+  h.answers[2].onFailure({});
+  assert.equal(statusRebake.onTick(false), true, 'a save at night: the user waits for it, so it is retried there');
+  h.answers[3].onFailure({});
+  h.at(3, 5);
+  assert.equal(statusRebake.onTick(false), false);
+  h.at(3, 6);
+  assert.equal(statusRebake.onTick(false), false, 'NACKed twice: left for the window\'s end');
+});
+
+test('an owed send whose bake throws is not owed again: it would throw again', () => {
+  let broken = true;
+  const h = bootSaver(null, (payload) => {
+    if (broken) { throw new Error('broken bake'); }
+    return fakeBake(payload);
+  });
+  statusRebake.oweStatus(false);
+  assert.equal(statusRebake.onTick(false), false, 'nothing sent');
+  broken = false;
+  assert.equal(statusRebake.onTick(false), false, 'nothing owed: the next tick sends nothing');
+  assert.equal(h.sends.length, 0);
 });
 
 test('a resend for another reason inside the window leaves the debt, and init forgets it', () => {

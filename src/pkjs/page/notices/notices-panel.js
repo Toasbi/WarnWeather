@@ -1,12 +1,16 @@
 // src/pkjs/page/notices/notices-panel.js — config UI (phone webview) + Node-testable.
 //
 // Renders the General-tab alert panel from the phone-injected notice list
-// (USERDATA.notices; see ../notices.js). A scrollable, fixed-max-height list
-// differentiating error vs info, with a single "Understood" button that flips the
-// transient fetchNoticeAck flag (the devStatsClear pattern) — PKJS reads it on
-// webviewclosed to dismiss the notices. Pure renderNoticesPanelHtml is exported
-// for tests; the block registration is guarded like reset-status-defaults.js.
-/* global PConf */
+// (USERDATA.notices; see ../notices.js). A scrollable, fixed-max-height list with a
+// single "Understood" button that flips the transient fetchNoticeAck flag (the
+// devStatsClear pattern) — PKJS reads it on webviewclosed to dismiss the notices. The
+// card is the note: an error note while any notice is an error, else an info note (its
+// section's styleFrom, noticesCardStyle; shell.html .card.error / .card.info). In an error
+// note an info notice keeps a mark of its own. Pure renderNoticesPanelHtml is exported for
+// tests; the block registration is guarded like reset-status-defaults.js. The display
+// resolver reads the page's userData (INJECTED_USERDATA) at call time, as the page's other
+// resolvers do (Node tests set global.INJECTED_USERDATA).
+/* global PConf, INJECTED_USERDATA */
 (function () {
     /**
      * @param {string} s Raw text.
@@ -55,7 +59,7 @@
         }
         return '<div class="notice-panel">'
             + '<div class="notice-list">' + rows + '</div>'
-            + '<button type="button" class="notice-ack" data-k="fetchNoticeAck" data-toggle="1">Understood</button>'
+            + '<button type="button" class="txt-act-btn notice-ack" data-k="fetchNoticeAck" data-toggle="1">Understood</button>'
             + '</div>';
     }
 
@@ -68,28 +72,52 @@
      */
     function buildNoticesPanel(S, USERDATA) {
         if (S && S.fetchNoticeAck) { return ''; }
-        var list = [];
-        try {
-            list = JSON.parse((USERDATA && USERDATA.notices) || '[]') || [];
-        } catch (ex) { list = []; }
-        return renderNoticesPanelHtml(list);
+        return renderNoticesPanelHtml(noticesOf(USERDATA));
     }
 
-    // Scoped styles injected once; scroll + fixed max-height + type differentiation.
-    // The info item takes the page's info amber from shell.html's --info-tint/--info-rule,
-    // the same two variables the staticText info box uses, so the two boxes cannot drift
-    // and both follow the light theme. Errors keep their red.
+    // The list parsed last and the text it came from: the block and the card's look read
+    // the same list in a render, and it does not change while the page is open.
+    var parsedFrom = null;
+    var parsed = [];
+
+    /**
+     * @param {Object} USERDATA Injected userData ({notices: JSON string}).
+     * @returns {Array<Object>} The notices it lists; [] for none or a malformed list.
+     */
+    function noticesOf(USERDATA) {
+        var raw = (USERDATA && USERDATA.notices) || '[]';
+        var list;
+        if (raw === parsedFrom) { return parsed; }
+        try {
+            list = JSON.parse(raw);
+        } catch (ex) { list = null; }
+        parsedFrom = raw;
+        parsed = Object.prototype.toString.call(list) === '[object Array]' ? list : [];
+        return parsed;
+    }
+
+    /**
+     * The card's look (its section's styleFrom, a display resolver): an error note while any
+     * notice is an error, else an info note.
+     * @returns {string} 'error' or 'info'.
+     */
+    function noticesCardStyle() {
+        var userData = typeof INJECTED_USERDATA !== 'undefined' ? INJECTED_USERDATA : null;
+        return noticesOf(userData).some(function (n) { return n && n.type === 'error'; }) ? 'error' : 'info';
+    }
+
+    // Scoped styles injected once: the list scrolls past a fixed height. The card is the note
+    // (shell.html .card.error / .card.info), so the notices sit on it with no box of their
+    // own, the note's soft line between them; in an error note an info notice keeps the info
+    // amber's rule beside it. Understood is the page's neutral button (.txt-act-btn), the
+    // card's width.
     var NOTICE_CSS =
-        '.notice-panel{padding:2px 0;margin:4px 0}'
-        + '.notice-list{max-height:180px;overflow-y:auto}'
-        + '.notice-item{padding:6px 8px;border-radius:6px;margin-bottom:6px}'
-        + '.notice-item.error{background:rgba(255,106,82,0.12);border-left:3px solid #FF6A52}'
-        + '.notice-item.info{background:var(--info-tint);border-left:3px solid var(--info-rule)}'
-        + '.notice-since{font-size:11px;opacity:0.6;margin-top:2px}'
-        // Match the app's neutral button look (like the "Test" .txt-act-btn) instead of a raw browser button.
-        + '.notice-ack{margin-top:8px;width:100%;padding:9px 14px;border:1px solid var(--ctl-line);border-radius:9px;'
-        + 'background:var(--ctl);color:var(--lbl);font:600 13px \'Inter\',sans-serif;cursor:pointer;transition:background .15s,border-color .15s}'
-        + '.notice-ack:active{border-color:#FA4A35;background:rgba(250,74,53,0.12)}';
+        '.notice-list{max-height:180px;overflow-y:auto}'
+        + '.notice-item{padding:4px 0 10px;font-size:13.5px;line-height:1.5}'
+        + '.notice-item+.notice-item{border-top:1px solid var(--note-line-soft);padding-top:10px}'
+        + '.card.error .notice-item.info{border-left:3px solid var(--info-rule);padding-left:9px}'
+        + '.notice-since{font-size:11.5px;opacity:.75;margin-top:2px}'
+        + '.notice-panel .notice-ack{display:block;width:100%;margin-top:8px;padding:9px 14px}';
 
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
@@ -98,6 +126,7 @@
 
     if (PConf && PConf.blocks && typeof PConf.blocks.register === 'function') {
         var stylesInjected = false;
+        if (PConf.displayResolvers) { PConf.displayResolvers.register('noticesCardStyle', noticesCardStyle); }
         PConf.blocks.register('noticesPanel', function (S, ENV, USERDATA) {
             var html = buildNoticesPanel(S, USERDATA);
             if (html && !stylesInjected && typeof document !== 'undefined') {
@@ -115,6 +144,7 @@
             renderNoticesPanelHtml: renderNoticesPanelHtml,
             sinceLabel: sinceLabel,
             buildNoticesPanel: buildNoticesPanel,
+            noticesCardStyle: noticesCardStyle,
             NOTICE_CSS: NOTICE_CSS
         };
     }

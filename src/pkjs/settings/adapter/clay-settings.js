@@ -13,6 +13,7 @@
 var settings = require('../../page/settings');
 var KEYS = require('../domain/storage-keys');
 var statusCatalog = require('../../status-bars/domain/status-line-catalog.js');
+var weatherTabModel = require('../../weather/domain/weather-tab-model.js');
 
 var STORAGE_KEY = 'clay-settings';
 
@@ -24,6 +25,13 @@ var STORAGE_KEY = 'clay-settings';
 // and already lives outside the blob (KEYS.WU_API_KEY), so it is preserved
 // separately below.
 var PRESERVED_SETTING_KEYS = ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', 'rainbowApiKey'];
+
+/**
+ * The settings a log line hides (redactForLog): the credentials, and each place the user typed,
+ * the watch's location and the Weather tab's saved places, since a log never says where the
+ * user is.
+ */
+var LOG_HIDDEN_KEYS = PRESERVED_SETTING_KEYS.concat(['location'], weatherTabModel.SLOT_KEYS);
 
 /**
  * Wipe phone-side PKJS localStorage — the settings blob and every cache /
@@ -160,12 +168,12 @@ function restorePreserved(target) {
 }
 
 /**
- * A copy of a settings blob fit for console.log: each user API key
- * (PRESERVED_SETTING_KEYS, the one list of credential keys) becomes '<set>' or
- * ''. PKJS logs end up in bug reports and pasted issues, so they must not carry a
- * key someone may have paid for. Logging only -- the copy must never be saved or
- * sent, and the blob itself is left untouched (the page and providers need the
- * real keys).
+ * A copy of a settings blob fit for console.log: each key of LOG_HIDDEN_KEYS, the user's
+ * API keys (PRESERVED_SETTING_KEYS, the one list of credential keys) and each place the
+ * user typed, becomes '<set>' or ''. PKJS logs end up in bug reports
+ * and pasted issues, so they must not carry a key someone may have paid for, or
+ * where the user is. Logging only -- the copy must never be saved or sent, and the
+ * blob itself is left untouched (the page and providers need the real values).
  *
  * @param {?Object} blob Settings blob (may be null).
  * @returns {?Object} Shallow copy with the keys redacted, or the input when not an object.
@@ -178,8 +186,8 @@ function redactForLog(blob) {
         return blob;
     }
     out = Object.assign({}, blob);
-    for (i = 0; i < PRESERVED_SETTING_KEYS.length; i++) {
-        k = PRESERVED_SETTING_KEYS[i];
+    for (i = 0; i < LOG_HIDDEN_KEYS.length; i++) {
+        k = LOG_HIDDEN_KEYS[i];
         if (Object.prototype.hasOwnProperty.call(out, k)) {
             out[k] = out[k] ? '<set>' : '';
         }

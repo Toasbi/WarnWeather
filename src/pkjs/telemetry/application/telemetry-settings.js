@@ -19,6 +19,8 @@
 // unitEnabled — a Show unit toggle, read like the bake prints the slot.
 var slotText = require('../../status-bars/domain/slot-text.js');
 var batteryDays = require('../../status-bars/domain/battery-days.js');
+// wantsPluginValue: whether the Plugin value slot is shown with a source picked.
+var statusLines = require('../../status-bars/domain/status-lines.js');
 var platforms = require('../../config-ui/lib/platform.js');
 var color = require('../../lib/color.js');
 // renderContextFor / graphColorKey / graphColorIsDefault — the module that resolves the
@@ -398,6 +400,12 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // is each slot's own and not reported.) Lockstep with handler.ts -- deploy it first.
         batterySlotLook: isAplite ? undefined : slotText.batteryLook(safe),
         batterySlotDisplay: isAplite ? undefined : batteryDays.display(safe),
+        // The Plugin value slot: whether a bar the watch is sent shows it with a source picked
+        // (status-lines.js wantsPluginValue). The settings alone, as with the days left: true too
+        // on a Pebble app that cannot read plugins, which draws no such slot. A yes or no alone:
+        // the plugin and what it serves are another app's and never leave the phone. Absent on
+        // aplite, which has no such slot. Lockstep with handler.ts -- deploy it first.
+        pluginValue: isAplite ? undefined : statusLines.wantsPluginValue(safe, watchInfo),
         // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),

@@ -89,6 +89,9 @@
         "sections": [
           {
             "block": "noticesPanel",
+            "styleFrom": {
+              "resolver": "noticesCardStyle"
+            },
             "beforePin": true,
             "items": [
               {
@@ -99,7 +102,9 @@
             ]
           },
           {
+            "title": "New in this update",
             "block": "featureTips",
+            "style": "info",
             "beforePin": true,
             "items": [
               {
@@ -3612,7 +3617,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3659,7 +3663,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3707,7 +3710,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3863,7 +3865,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3910,7 +3911,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -3958,7 +3958,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4047,7 +4046,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4104,7 +4102,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4162,7 +4159,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4271,7 +4267,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4328,7 +4323,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4386,7 +4380,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4495,7 +4488,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4568,7 +4560,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4642,7 +4633,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4790,7 +4780,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4863,7 +4852,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -4937,7 +4925,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -5085,7 +5072,6 @@
                     "label": "Left slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -5158,7 +5144,6 @@
                     "label": "Middle slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -5232,7 +5217,6 @@
                     "label": "Right slot"
                   }
                 },
-                "bottomSheet": true,
                 "defaultFrom": {
                   "resolver": "statusSlotDefault",
                   "args": {
@@ -8063,6 +8047,73 @@
             "title": "Watch battery slot",
             "items": [
               {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "plugins"
+                    },
+                    {
+                      "any": [
+                        {
+                          "not": {
+                            "key": "batterySlotLook",
+                            "in": [
+                              "both",
+                              "text"
+                            ]
+                          }
+                        },
+                        {
+                          "key": "batterySlotDisplay",
+                          "nin": [
+                            "days",
+                            "both"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "staticText",
+                "text": "The slot can show how many days your watch has left. The estimate comes from the Muninn plugin, part of the <a href='https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5'>Muninn app</a>, which has to be on your watch. To show the days, set Look to Icon + text or Text, then set Value selection to Days left or Both.",
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "plugins"
+                    },
+                    {
+                      "any": [
+                        {
+                          "not": {
+                            "key": "batterySlotLook",
+                            "in": [
+                              "both",
+                              "text"
+                            ]
+                          }
+                        },
+                        {
+                          "key": "batterySlotDisplay",
+                          "nin": [
+                            "days",
+                            "both"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
                 "type": "segmented",
                 "messageKey": "batterySlotLook",
                 "label": "Look",
@@ -9600,6 +9651,105 @@
                 "type": "staticText",
                 "textFrom": {
                   "resolver": "conditionList"
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValue",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn"
+                }
+              },
+              {
+                "type": "staticText",
+                "text": "The Watch battery slot can show Muninn's estimate by itself: the days your watch has left, alone or beside its charge. Put the Watch battery in any slot, tap its Edit button, set Look to Icon + text or Text, then set Value selection to Days left or Both.",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn"
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "pluginValuePlugin",
+                "label": "Plugin",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint"
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "pluginValueId",
+                "label": "Value",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "pluginValueIds"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint"
+                },
+                "showWhen": {
+                  "key": "pluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "pluginValueEvery",
+                "label": "Updates",
+                "hint": "Each read runs the other app's plugin on your phone. If that app asked for a permission you haven't answered yet, your phone asks you again.",
+                "defaultValue": "60",
+                "options": [
+                  [
+                    "Every 30 minutes",
+                    "30"
+                  ],
+                  [
+                    "Every hour",
+                    "60"
+                  ],
+                  [
+                    "Every 3 hours",
+                    "180"
+                  ],
+                  [
+                    "Every 6 hours",
+                    "360"
+                  ]
+                ],
+                "showWhen": {
+                  "key": "pluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast"
+                },
+                "showWhen": {
+                  "key": "pluginValuePlugin",
+                  "ne": ""
                 }
               }
             ],
@@ -16564,7 +16714,6 @@
                   "wunderground": "A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.",
                   "yandex": "Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key."
                 },
-                "bottomSheet": true,
                 "options": [
                   [
                     "Deutscher Wetterdienst",
@@ -16679,7 +16828,6 @@
             "items": [
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceCurrentTemp",
                 "label": "Current temperature",
                 "defaultValue": "",
@@ -16692,7 +16840,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceCurrentFeels",
                 "label": "Current feels-like",
                 "defaultValue": "",
@@ -16705,7 +16852,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceCondition",
                 "label": "Weather condition",
                 "defaultValue": "",
@@ -16718,7 +16864,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceTemperature",
                 "label": "Temperature",
                 "defaultValue": "",
@@ -16731,7 +16876,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceFeels",
                 "label": "Feels-like",
                 "defaultValue": "",
@@ -16744,7 +16888,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceDew",
                 "label": "Dew point",
                 "defaultValue": "",
@@ -16757,7 +16900,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceRainChance",
                 "label": "Rain chance",
                 "defaultValue": "",
@@ -16770,7 +16912,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceRainAmount",
                 "label": "Rain amount",
                 "defaultValue": "",
@@ -16783,7 +16924,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceWind",
                 "label": "Wind speed",
                 "defaultValue": "",
@@ -16796,7 +16936,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceGust",
                 "label": "Wind gusts",
                 "defaultValue": "",
@@ -16809,7 +16948,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceWindDir",
                 "label": "Wind direction",
                 "defaultValue": "",
@@ -16822,7 +16960,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceUv",
                 "label": "UV index",
                 "defaultValue": "",
@@ -16835,7 +16972,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourceCloud",
                 "label": "Cloud cover",
                 "defaultValue": "",
@@ -16848,7 +16984,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "messageKey": "weatherSourcePressure",
                 "label": "Air pressure",
                 "defaultValue": "",
@@ -16861,7 +16996,6 @@
               },
               {
                 "type": "select",
-                "bottomSheet": true,
                 "uiOnly": true,
                 "messageKey": "weatherOtherSourceFor",
                 "label": "Use another source for",
@@ -17247,12 +17381,14 @@
                 "hint": "Sends anonymous data about weather updates and how the watchface is used, to improve reliability."
               },
               {
-                "type": "staticText",
-                "text": "<b>Privacy</b><br>While Share anonymous telemetry is on, WarnWeather sends: whether each weather update worked and how long it took, the weather provider, a rough country, the app and watch versions, and which settings are used. It never sends your location, the places you type, your API keys or any health data: steps, sleep and heart rate stay on the watch. Your account and watch are stored only as one-way hashes."
+                "type": "readout",
+                "label": "Privacy",
+                "hint": "While Share anonymous telemetry is on, WarnWeather sends: whether each weather update worked and how long it took, the weather provider, a rough country, the app and watch versions, and which settings are used. It never sends your location, the places you type, your API keys or any health data: steps, sleep and heart rate stay on the watch. Your account and watch are stored only as one-way hashes."
               },
               {
-                "type": "staticText",
-                "text": "<b>Data sources</b><br>Weather: Open-Meteo.com, MET Norway, Deutscher Wetterdienst (via Bright Sky), OpenWeather, Tomorrow.io, Weather Underground, Yandex Weather.<br>Rain radar: Deutscher Wetterdienst, MET Norway, Rainbow.ai, Tomorrow.io.<br>Air quality: Open-Meteo.com with Copernicus Atmosphere Monitoring Service data, and the World Air Quality Index Project with the environmental agencies of its stations.<br>Pollen: Deutscher Wetterdienst.<br>Places: town names powered by Esri, place search by Open-Meteo.com (GeoNames) and LocationIQ.com.<br>Public holidays: Nager.Date.<br>Data from Open-Meteo.com, MET Norway and the Copernicus Atmosphere Monitoring Service is licensed under <a target='_blank' href='https://creativecommons.org/licenses/by/4.0/'>CC BY 4.0</a>, GeoNames data too. Weather data &copy; OpenWeather."
+                "type": "readout",
+                "label": "Data sources",
+                "hint": "Weather: Open-Meteo.com, MET Norway, Deutscher Wetterdienst (via Bright Sky), OpenWeather, Tomorrow.io, Weather Underground, Yandex Weather.<br>Rain radar: Deutscher Wetterdienst, MET Norway, Rainbow.ai, Tomorrow.io.<br>Air quality: Open-Meteo.com with Copernicus Atmosphere Monitoring Service data, and the World Air Quality Index Project with the environmental agencies of its stations.<br>Pollen: Deutscher Wetterdienst.<br>Places: town names powered by Esri, place search by Open-Meteo.com (GeoNames) and LocationIQ.com.<br>Public holidays: Nager.Date.<br>Data from Open-Meteo.com, MET Norway and the Copernicus Atmosphere Monitoring Service is licensed under <a target='_blank' href='https://creativecommons.org/licenses/by/4.0/'>CC BY 4.0</a>, GeoNames data too. Weather data &copy; OpenWeather."
               }
             ]
           },

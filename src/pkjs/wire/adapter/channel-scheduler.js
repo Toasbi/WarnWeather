@@ -11,11 +11,7 @@
 // startup fetch).
 
 var storageKeys = require('../../settings/domain/storage-keys.js');
-
-// The longest wait, in minute ticks, between two resends of a settings message that keeps
-// NACKing (see clayRetryWait). Short on purpose: PKJS has no sign that an unreachable watch
-// is back, so this cap is what bounds how late settings saved during an outage arrive.
-var CLAY_RETRY_MAX_TICKS = 4;
+var nackBackoff = require('../domain/nack-backoff.js');
 
 /**
  * Create a channel scheduler.
@@ -57,15 +53,11 @@ function createChannelScheduler(deps) {
     // the next launch would re-run the migration over whatever the user chose in
     // between (it cannot tell a post-migration pick from the old seeded value).
     var pendingClayAck = null;
-    // The tick's resend of a NACKed settings message backs off while it keeps NACKing:
-    // the n-th NACK in a row waits 2^(n-1) minute ticks, at most CLAY_RETRY_MAX_TICKS
-    // (1, 2, then every 4). Each resend is the whole bundle (the outbox forgot it before
-    // the NACKed send), and a resend every minute woke a watch that was refusing. A
-    // settings ACK ends it; settings saved while the watch was out of reach arrive at
-    // most 4 minutes after it answers again. Kept in memory: a PKJS restart retries at
-    // its first tick.
-    var clayFailures = 0;
-    var clayRetryWait = 0;
+    // The tick's resend of a NACKed settings message backs off while it keeps NACKing
+    // (nack-backoff.js: 1, 2, then every 4 minute ticks). Each resend is the whole bundle
+    // (the outbox forgot it before the NACKed send). A settings ACK ends it; settings saved
+    // while the watch was out of reach arrive at most 4 minutes after it answers again.
+    var clayRetry = nackBackoff.createNackBackoff();
 
     /**
      * Today's local-day stamp (year-month-date) for detecting a day rollover.
@@ -113,7 +105,7 @@ function createChannelScheduler(deps) {
      * policy here, so no send can miss it: a config-close Clay left to wait for
      * midnight would have the forced fetch after it land new alert entries
      * against the old thresholds blob. While NACKs come in a row, that resend
-     * backs off (clayRetryWait); an ACK or the outbox's no-op ends it.
+     * backs off (clayRetry); an ACK or the outbox's no-op ends it.
      *
      * @param {Function} [onSuccess] Called after ACK, or immediately when unchanged.
      * @param {Function} [onFailure] Called on NACK, after the retry is armed.
@@ -123,8 +115,7 @@ function createChannelScheduler(deps) {
         deps.sendClay(function () {
             var commit = pendingClayAck;
             pendingClayAck = null;
-            clayFailures = 0;
-            clayRetryWait = 0;
+            clayRetry.ack();
             if (commit) {
                 commit();
             }
@@ -134,8 +125,7 @@ function createChannelScheduler(deps) {
         }, function (e) {
             lastEffectiveTheme = null;
             forgetHolidayDaySent();
-            clayFailures += 1;
-            clayRetryWait = Math.min(Math.pow(2, Math.min(clayFailures, 6) - 1), CLAY_RETRY_MAX_TICKS) - 1;
+            clayRetry.nack();
             if (typeof onFailure === 'function') {
                 onFailure(e);
             }
@@ -381,21 +371,21 @@ function createChannelScheduler(deps) {
      * @returns {void}
      */
     function tick() {
+        // Armed first: a job that throws (its error still reaches the log) must not stop the
+        // minute for good, and with it the fetches and every send the watch is owed.
+        deps.setTimeout(tick, 60 * 1000); // 60 * 1000 milsec = 1 minute
         console.log('Tick from PKJS!');
         // One Clay send per tick keeps the half-duplex channel clean: when the
         // day-change resend fires it also carries the effective theme, and its
         // ACK/NACK callbacks own the flip stamp. Both are the resend of a NACKed
         // settings message, so both wait out its backoff.
-        if (clayRetryWait > 0) {
-            clayRetryWait -= 1;
-        } else if (!maybeResendHolidaysOnDayChange()) {
+        if (!clayRetry.waitTick() && !maybeResendHolidaysOnDayChange()) {
             maybeResendThemeOnFlip();
         }
         if (deps.shouldFetchNow()) {
             deps.startFetch(false);
         }
         deps.checkForUpdate();
-        deps.setTimeout(tick, 60 * 1000); // 60 * 1000 milsec = 1 minute
     }
 
     /**

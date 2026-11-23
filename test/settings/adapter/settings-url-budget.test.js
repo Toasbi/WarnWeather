@@ -91,9 +91,28 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
     meta: { provider: 'openmeteo', fetchedAt: now, lat: 52.52, lon: 13.405 } } });
   store.gpsCache = JSON.stringify({ lat: 52.52, lon: 13.405, time: now });
 
+  // The Plugin value slot's list as long as it may be (plugin-value-list.js listOf: as many
+  // plugins as cost the URL LIST_COST characters), from more plugins than it lists, each with
+  // more values than it takes, and a value kept with texts longer than a value keeps.
+  const pluginValueList = require('../../../src/pkjs/status-bars/domain/plugin-value-list.js');
+  const props = {};
+  for (let v = 0; v < 30; v += 1) {
+    props['a_property_with_a_long_name_' + v] = ['shortText', 'numericValue'];
+  }
+  const plugins = [];
+  for (let p = 0; p < 15; p += 1) {
+    plugins.push({ uuid: '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5' + String(p).padStart(2, '0'),
+      name: 'A plugin with a very long name that the list cuts ' + p, sources: [{ category: 'cat',
+        items: ['item'], properties: props, supportsMultiple: true }], actions: [] });
+  }
+  store[KEYS.PLUGIN_VALUE] = JSON.stringify({ source: 'x/cat/item/v', at: now, validUntil: null,
+    reading: { short: 's'.repeat(5000), long: 'l'.repeat(5000), unit: 'u'.repeat(5000), number: 1 } });
+
   const listeners = {};
   const opened = [];
   global.Pebble = {  // no `platform: 'pypkjs'` -> generateUrl takes the device data: branch
+    subscribeToSource: () => ({ unsubscribe: () => {} }),
+    enumeratePlugins: () => plugins,
     addEventListener: (name, fn) => { listeners[name] = fn; },
     getActiveWatchInfo: () => ({ platform: 'emery', model: 'qemu_platform_emery', language: 'en' }),
     getAccountToken: () => '0123456789abcdef0123456789abcdef',
@@ -130,6 +149,12 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
     'the news cache really rode along');
   assert.ok(decoded.indexOf('weatherTabCache:{') !== -1, 'the Weather tab copy really rode along');
   assert.ok(decoded.indexOf('featureTips:[{id:') !== -1, 'the new-feature tips really rode along');
+  const list = pluginValueList.listOf(plugins, pkg.pebble.usesPermissions.map((p) => p.name), pkg.pebble.uuid);
+  const cost = list.reduce((sum, entry) => sum + pluginValueList.urlCost(entry), 0);
+  assert.ok(list.length < pluginValueList.MAX_PLUGINS && cost > pluginValueList.LIST_COST - pluginValueList.urlCost(list[0]),
+    'the plugin list is as long as its cost lets it be');
+  assert.equal(decoded.split('{uuid:').length - 1, list.length, 'the plugin list really rode along');
+  assert.ok(decoded.indexOf('pluginValue:{source:') !== -1, 'the value kept really rode along');
   assert.ok(url.length <= URL_CAP - HEADROOM,
     'settings URL is ' + url.length + ' chars; Android WebView refuses more than ' + URL_CAP
     + ' (keep ' + HEADROOM + ' spare)');
