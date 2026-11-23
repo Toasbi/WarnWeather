@@ -715,10 +715,10 @@ test('Battery: "Hidden while a battery slot shows the charge" only where the ite
   const elsewhere = state({ statusTopRight: 'battery', statusTopOnDemandRightItems: 'rain',
     statusForecastOnDemandLeftItems: 'battery' });
   assert.equal(t(elsewhere, ENV.basalt), 'At 10% or below · Forecast bar, left');
-  // A battery slot the catalog cannot place (the glyph is the top-right corner's alone)
-  // resolves to Empty, so it silences nothing.
+  // A battery slot anywhere in the bar silences it: the watch counts every slot that shows
+  // the battery (on_demand.h od_slot_shows_battery).
   assert.equal(t(state({ statusTopRight: 'sun', statusTopLeft: 'battery' }), ENV.basalt),
-    'At 10% or below' + TOP_RIGHT);
+    'At 10% or below' + SUFFIX + TOP_RIGHT);
   // The item on both bars: the top bar's slot silences it.
   assert.equal(t(Object.assign({}, elsewhere, { statusTopOnDemandRightItems: 'battery' }), ENV.basalt),
     'At 10% or below' + SUFFIX + TOP_RIGHT + ' · Forecast bar, left');

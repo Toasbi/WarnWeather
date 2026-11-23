@@ -120,11 +120,12 @@
     // and which can show the days the watch has left (battery-days.js), or both, the text
     // with the battery before it (ICONS.DRAWN_BATTERY). Until 3.3.0 the text look was an
     // item of its own, 'batteryPct'
-    // (settings/domain/migrations/status-slots.js mergeBatterySlots).
-    { code: 'battery', label: 'Watch battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnly: true, category: 'battery' },
-    // The PHONE's battery: phone-baked TEXT, so unlike the watch item above it
-    // is NOT corner-pinned — that one sits top-right because that corner already
-    // reads as the watch's battery, while this one carries its own icon (or, in its Text
+    // (settings/domain/migrations/status-slots.js mergeBatterySlots). Any slot can hold it
+    // (the owner's, 2026-11-23): until then only the top strip's right-hand corner could.
+    // Its settings are the item's own (batterySettingKeys), so every slot that holds it
+    // shows it alike.
+    { code: 'battery', label: 'Watch battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, category: 'battery' },
+    // The PHONE's battery: phone-baked TEXT. It carries its own icon (or, in its Text
     // look, deliberately none: slot-text.js phoneBatteryLook, status-lines.js iconFor)
     // and fits any slot. Its Look is each slot's own (phoneBatteryLookKey), so it can
     // show its icon in one slot and not in another. Until 3.3.0 the Text look was an
@@ -141,11 +142,10 @@
 
   // Dropdown grouping order + header labels (Part F). A category with no
   // available item for a slot emits no header, so gated items never leave an
-  // orphan heading. 'battery' holds two items: the WATCH's — top-right only (the
-  // watch battery belongs in the corner already read as its own) — and the
-  // PHONE's, which is selectable in any slot but exists only where the phone can
-  // report its charge (needsPhoneBattery) and never on aplite. The labels carry the
-  // Watch/Phone qualifier because both otherwise read as "battery".
+  // orphan heading. 'battery' holds two items: the WATCH's and the PHONE's, which
+  // exists only where the phone can report its charge (needsPhoneBattery) and never on
+  // aplite. The labels carry the Watch/Phone qualifier because both otherwise read as
+  // "battery".
   var CATEGORIES = [
     ['weather', 'Weather'], ['datelocation', 'Date and location'],
     ['health', 'Health'], ['battery', 'Battery'], ['plugin', 'Plugin']
@@ -171,8 +171,8 @@
       // sits here, where every screen shows it (the owner's, 2026-11-09: it swapped places
       // with the Forecast bar's sunrise/sunset). emery's 200 px display has the width for
       // three readings: the week, the date and air quality in the right-hand corner. On
-      // the 144/180 px platforms that corner is the battery (it already reads as the
-      // battery: see the topRightOnly items), so air quality takes the left slot. An
+      // the 144/180 px platforms that corner is the battery, where the watch has long drawn
+      // it, so air quality takes the left slot. An
       // install from before keeps what it showed (settings/domain/migrations/status-slots.js
       // keepSlotDefaults27).
       defaults: { statusTopLeft: 'aqi', statusTopMid: 'date', statusTopRight: 'battery' },
@@ -222,7 +222,6 @@
   function itemAvailable(item, settings, env, slotCtx) {
     if (!item) { return false; }
     if (item.middleOnly && (!slotCtx || slotCtx.position !== 'mid')) { return false; }
-    if (item.topRightOnly && (!slotCtx || slotCtx.slotKey !== 'statusTopRight')) { return false; }
     // Health items need the watch's health. Not healthMode: since 2.6 it follows the screens
     // and the slots (screens.js deriveModes), so a slot can pick a health item in any mode.
     if (item.needsHealth && (!env || !env.health)) { return false; }
@@ -586,9 +585,10 @@
 
   /**
    * The settings the watch battery owns: its Look, what its text shows and how its pair
-   * reads (slot-text.js batteryLook, battery-days.js). The item's own, since it sits in one
-   * slot. ONE list for the rows schema.js builds, the keys resetStatusSlots clears and the
-   * ones renderSignature watches (every one of them is baked into the line).
+   * reads (slot-text.js batteryLook, battery-days.js). The item's own, so every slot that
+   * holds it shows it alike. ONE list for the rows schema.js builds, the keys
+   * resetStatusSlots clears and the ones renderSignature watches (every one of them is baked
+   * into the line).
    * @returns {string[]}
    */
   function batterySettingKeys() {

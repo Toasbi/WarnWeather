@@ -100,7 +100,8 @@ test('the slot lists offer one Watch battery and one Phone battery', () => {
   assert.ok(top.indexOf('Watch battery') !== -1 && top.indexOf('Phone battery') !== -1);
   assert.equal(top.filter((l) => /battery/i.test(l)).length, 2, top.join(', '));
   const elsewhere = labels('statusForecastLeft', 'left', BASALT);
-  assert.deepEqual(elsewhere.filter((l) => /battery/i.test(l)), ['Phone battery'], 'the watch battery keeps its corner');
+  assert.deepEqual(elsewhere.filter((l) => /battery/i.test(l)), ['Watch battery', 'Phone battery'],
+    'any slot offers both');
   assert.deepEqual(labels('statusTopRight', 'right', APLITE).filter((l) => /battery/i.test(l)), ['Watch battery']);
 });
 

@@ -757,8 +757,8 @@ function batterySlotSheet() {
         options: [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']]
     };
     var textRows = alsoWhen([{
-        // Global, like the temperature slot's: the watch battery sits in one slot. The
-        // phone bakes the days and the pair's separator (status-lines.js packLine) and it
+        // Global, like the temperature slot's: every slot that holds the watch battery
+        // shows it alike. The phone bakes the days and the pair's separator (status-lines.js packLine) and it
         // rides renderSignature(), so a change re-bakes without waiting for the next fetch.
         type: 'segmented',
         messageKey: 'batterySlotDisplay',
