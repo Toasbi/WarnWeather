@@ -64,7 +64,8 @@ const SAVER_ON = { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '
 const WANT_A = { want: 'a' };
 
 /**
- * The test's reader: it wants what settings.want names (each its own key and item), reads
+ * The test's reader: it wants what settings.want names (each its own key and item, the item
+ * whole: no properties asked for, so any answer is the answer, plugin-reader.js readOnce), reads
  * again EVERY after an answer or once the answer's `until` is past, whichever is later, and
  * RETRY after a failure. It keeps an answer's text, made at the answer's `at` or as it came,
  * and the slot shows it for SHOWN after that while the settings want its key.
@@ -76,7 +77,7 @@ const SPEC = {
   valueKey: VALUE,
   timeField: 'until',
   wanted: (settings) => (settings && settings.want
-    ? { key: settings.want, request: { category: 'test', item: settings.want, properties: ['text'] } } : null),
+    ? { key: settings.want, request: { category: 'test', item: settings.want } } : null),
   nextReadAt: (record) => (record.failures > 0 ? record.at + RETRY
     : Math.max(record.at + EVERY, record.until === null ? 0 : record.until)),
   heard: (envelope, want, nowMs) => ({
@@ -98,7 +99,7 @@ const schedule = pluginReadSchedule.create(SPEC);
  */
 const ONE_THING = pluginReadSchedule.create(Object.assign({}, SPEC, {
   wanted: (settings) => (settings && settings.want
-    ? { key: null, request: { category: 'test', item: 'one', properties: ['text'] } } : null),
+    ? { key: null, request: { category: 'test', item: 'one' } } : null),
   heard: (envelope, want, nowMs) => ({ time: null,
     value: typeof envelope.text === 'string' ? { text: envelope.text, at: nowMs } : null }),
   valueOf: (v) => (v && typeof v.text === 'string' && typeof v.at === 'number' ? v : null),
@@ -150,7 +151,7 @@ test('init refuses to start without its suppliers', () => {
 test('wanted and never read: read at start, its record stamped before the answer, with a timeout', () => {
   const h = boot();
   assert.equal(h.pebble.subs.length, 1);
-  assert.deepEqual(h.pebble.subs[0].request, { category: 'test', item: 'a', properties: ['text'] });
+  assert.deepEqual(h.pebble.subs[0].request, { category: 'test', item: 'a' });
   assert.deepEqual(stored(READ), { source: 'a', at: NOON, failures: 0, until: null });
   assert.equal(h.timers.length, 1);
   assert.equal(owed, 0, 'a read owes nothing');
@@ -358,6 +359,93 @@ test('any other failure keeps the value and the reader\'s time, and counts; an a
   assert.equal(owed, 2, 'the first value and the new one');
 });
 
+test('a save\'s read that times out or fails without a reason is read again at the next tick, once, in the Night battery saver\'s window too', () => {
+  ['TIMEOUT', 'UNKNOWN'].forEach((code) => {
+    const h = boot({ settings: {} });
+    h.settings = WANT_A;
+    schedule.refresh();
+    h.pebble.subs[0].fail(code);
+    h.clock += MIN;
+    schedule.onTick();
+    assert.equal(h.pebble.subs.length, 2, code + ': read again at the next tick, not an hour later');
+    h.pebble.subs[1].fail(code);
+    assert.deepEqual(stored(READ), { source: 'a', at: NOON + MIN, failures: 2, until: null }, code);
+    h.clock += MIN;
+    schedule.onTick();
+    assert.equal(h.pebble.subs.length, 2, code + ': once: then the wait after a failure');
+  });
+  const h = boot({ settings: SAVER_ON, clock: NIGHT });
+  h.settings = Object.assign({}, WANT_A, SAVER_ON);
+  schedule.refresh();
+  h.pebble.subs[0].fail('TIMEOUT');
+  h.clock += MIN;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 2, 'the save\'s read went in the window: so does its read again');
+  h.pebble.subs[1].push({ text: '87%' });
+  assert.deepEqual([owed, waited], [1, 1], 'its answer is owed as the save\'s');
+});
+
+test('no read again at the next tick for a failure that would come back, nor for a read no save asked for', () => {
+  ['PERMISSION_DENIED', 'RATE_LIMITED', 'AUTH_REQUIRED', 'INVALID_REQUEST'].forEach((code) => {
+    const h = boot({ settings: {} });
+    h.settings = WANT_A;
+    schedule.refresh();
+    h.pebble.subs[0].fail(code);
+    h.clock += MIN;
+    schedule.onTick();
+    assert.equal(h.pebble.subs.length, 1, code);
+  });
+  const h = boot();
+  h.pebble.subs[0].fail('TIMEOUT');
+  h.clock += MIN;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 1, 'a start\'s read waits the reader\'s wait after a failure');
+});
+
+test('a save after a read that failed reads again at once, in the Night battery saver\'s window too; after one answered, it does not', () => {
+  let h = boot();
+  h.pebble.subs[0].fail('PERMISSION_DENIED');
+  h.clock += 10 * MIN;
+  schedule.refresh();
+  assert.equal(h.pebble.subs.length, 2, 'no value came for what the user picked: they are at the phone');
+  assert.deepEqual(stored(READ), { source: 'a', at: NOON + 10 * MIN, failures: 1, until: null },
+    'stamped as it starts, its failures still counted');
+  h.pebble.subs[1].push({ text: '87%' });
+  h.clock += 10 * MIN;
+  schedule.refresh();
+  assert.equal(h.pebble.subs.length, 2, 'answered: the next read waits for its time');
+  h = boot({ settings: Object.assign({}, WANT_A, SAVER_ON), clock: new Date(2026, 10, 21, 23, 0, 0).getTime() });
+  h.pebble.subs[0].fail('PERMISSION_DENIED');
+  h.clock = NIGHT;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 1, 'no tick reads in the window');
+  schedule.refresh();
+  assert.equal(h.pebble.subs.length, 2, 'a save does');
+});
+
+test('another source picked forgets the read again owed to the old one: the new one is read at once', () => {
+  const h = boot({ settings: {} });
+  h.settings = WANT_A;
+  schedule.refresh();
+  h.pebble.subs[0].fail('TIMEOUT');
+  h.settings = { want: 'b' };
+  schedule.refresh();
+  assert.equal(h.pebble.subs.length, 2);
+  assert.equal(h.pebble.subs[1].request.item, 'b');
+  h.pebble.subs[1].fail('TIMEOUT');
+  h.clock += MIN;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 3, 'the new source\'s save read gets its own read again');
+  assert.equal(h.pebble.subs[2].request.item, 'b');
+  h.settings = {};
+  schedule.refresh();
+  h.pebble.subs[2].fail('TIMEOUT');
+  h.settings = WANT_A;
+  h.clock += MIN;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 4, 'wanted again: read at once, as a value wanted again is');
+});
+
 test('a clock that went back starts the wait again from now, and never reads early', () => {
   const h = boot();
   h.pebble.subs[0].push({ text: '87%' });
@@ -467,7 +555,7 @@ test('unreadable storage reads as no record and no value: read once, and both ar
 
 test('a reader of one thing only: its record names no key, and a restart reads nothing before it is due', () => {
   const first = boot({ schedule: ONE_THING });
-  assert.deepEqual(first.pebble.subs[0].request, { category: 'test', item: 'one', properties: ['text'] });
+  assert.deepEqual(first.pebble.subs[0].request, { category: 'test', item: 'one' });
   first.pebble.subs[0].push({ text: '87%' });
   assert.deepEqual(stored(READ), { source: null, at: NOON, failures: 0, until: null });
   const h = boot({ schedule: ONE_THING, keepStorage: true, clock: NOON + EVERY - MIN });

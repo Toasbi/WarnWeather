@@ -15,7 +15,8 @@
 // Two ways to read, because they cost differently on the phone:
 //   - watch(): a subscription that stays. Right for a source the Pebble app pushes by
 //     itself when it changes (its built-in ones, like the phone's state).
-//   - readOnce(): the first answer, then the subscription ends. Right for another app's
+//   - readOnce(): the first answer that brings what it asks for (or a moment after one that
+//     does not), then the subscription ends. Right for another app's
 //     plugin: the Pebble app runs such a plugin's script as soon as something subscribes,
 //     and again at every refresh interval for as long as anything is subscribed, a minute
 //     apart for some, which a reading that changes a few times a day is not worth. Even one
@@ -29,8 +30,20 @@
 
 var pluginReads = require('../domain/plugin-reads.js');
 
-/** How long readOnce waits for a plugin's first answer before it gives up. */
-var READ_TIMEOUT_MS = 20000;
+/**
+ * How long readOnce waits for a plugin's answer before it gives up. Longer than the Pebble app
+ * gives another app's plugin (20 s, counted once the plugin's script has started, which itself
+ * takes a while), so a slow start is not cut short here: the app's own TIMEOUT comes first.
+ */
+var READ_TIMEOUT_MS = 45000;
+
+/**
+ * How long readOnce holds an answer with none of the properties it asks for, in case a fuller
+ * one follows: a built-in plugin of the Pebble app answers with what the phone knows at once,
+ * and again as the rest comes in (the Phone plugin's network type, which the phone can report
+ * a moment after its battery level).
+ */
+var FULLER_ANSWER_MS = 3000;
 
 /**
  * @typedef {Object} PluginRequest
@@ -183,8 +196,22 @@ function watch(pebble, request, onData, onFailure) {
 }
 
 /**
- * Read a source once: its first answer, an update or a failure, ends the subscription.
- * A plugin that never answers fails as TIMEOUT.
+ * @param {?Object} envelope A source update.
+ * @param {PluginRequest} request The request it answers.
+ * @returns {boolean} Whether it brings a property the request asks for: any update does where
+ *   the request names none.
+ */
+function bringsAsked(envelope, request) {
+    var asked = request.properties;
+    if (!Array.isArray(asked) || !asked.length) { return true; }
+    return asked.some(function (property) { return shapesOf(envelope, property) !== null; });
+}
+
+/**
+ * Read a source once: its first answer that brings a property the request asks for, or a
+ * failure, ends the subscription. An answer that brings none is held FULLER_ANSWER_MS for a
+ * fuller one, and is the answer when none comes, a failure after it included. A plugin that
+ * never answers fails as TIMEOUT.
  *
  * @param {?Object} pebble The Pebble object.
  * @param {PluginRequest} request The source to read.
@@ -197,6 +224,9 @@ function watch(pebble, request, onData, onFailure) {
 function readOnce(pebble, request, done, timers) {
     var finished = false;
     var timer = null;
+    var fullerTimer = null;
+    // The answer that brought none of the properties asked for, while a fuller one may come.
+    var partial = null;
     var set = (timers && timers.setTimeout) || setTimeout;
     var clear = (timers && timers.clearTimeout) || clearTimeout;
     var timeoutMs = (timers && timers.timeoutMs) || READ_TIMEOUT_MS;
@@ -213,15 +243,36 @@ function readOnce(pebble, request, done, timers) {
         if (finished) { return; }
         finished = true;
         if (timer !== null) { clear(timer); }
+        if (fullerTimer !== null) { clear(fullerTimer); }
         held.unsubscribe();
         done(envelope, fail);
     }
 
+    /**
+     * End the read with the answer held, if any, else with the failure.
+     * @param {{stage: string, code: string}} fail The failure.
+     * @param {PluginSubscription} held The subscription to end.
+     * @returns {void}
+     */
+    function settle(fail, held) {
+        if (partial) { finish(partial, null, held); }
+        else { finish(null, fail, held); }
+    }
+
     subscription = watch(pebble, request,
-        function (envelope, held) { finish(envelope, null, held); },
-        function (fail, held) { finish(null, fail, held); });
+        function (envelope, held) {
+            if (bringsAsked(envelope, request)) {
+                finish(envelope, null, held);
+                return;
+            }
+            partial = envelope;
+            if (fullerTimer === null) {
+                fullerTimer = set(function () { finish(partial, null, held); }, FULLER_ANSWER_MS);
+            }
+        },
+        settle);
     if (finished) { return; }
-    timer = set(function () { finish(null, failure('TIMEOUT'), subscription); }, timeoutMs);
+    timer = set(function () { settle(failure('TIMEOUT'), subscription); }, timeoutMs);
 }
 
 /**
@@ -322,6 +373,7 @@ function validUntilOf(envelope) {
 
 module.exports = {
     READ_TIMEOUT_MS: READ_TIMEOUT_MS,
+    FULLER_ANSWER_MS: FULLER_ANSWER_MS,
     available: available,
     pebbleOf: pebbleOf,
     failure: failure,

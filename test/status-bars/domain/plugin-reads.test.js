@@ -56,3 +56,9 @@ test('the clock went back when it is behind the last read', () => {
   assert.equal(reads.clockWentBack(record, T0), false);
   assert.equal(reads.clockWentBack(record, T0 + DAY), false);
 });
+
+test('a failure can pass by the next minute when the plugin did not answer in time or gave no reason', () => {
+  ['TIMEOUT', 'UNKNOWN'].forEach((code) => assert.equal(reads.passing(code), true, code));
+  ['PERMISSION_DENIED', 'RATE_LIMITED', 'AUTH_REQUIRED', 'INVALID_ARGS', 'INVALID_REQUEST',
+    'PLUGIN_UNAVAILABLE', '', undefined].forEach((code) => assert.equal(reads.passing(code), false, String(code)));
+});

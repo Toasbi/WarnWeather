@@ -18,6 +18,14 @@ var HOUR_MS = 60 * 60 * 1000;
 var RETRY_MS = HOUR_MS;
 
 /**
+ * The failures that can pass by the next minute: the plugin did not answer in time (TIMEOUT:
+ * a slow start, or a permission request the user had not answered yet), or failed without
+ * saying why (UNKNOWN). Any other would come back: a permission refused, a rate limit, a
+ * request the plugin does not take.
+ */
+var PASSING = ['TIMEOUT', 'UNKNOWN'];
+
+/**
  * @param {*} value A time as a plugin sent it, or as it was stored.
  * @returns {?number} The time, in epoch milliseconds, or null when it is not one (a finite
  *   number after 1970).
@@ -71,10 +79,20 @@ function retryWait(failures, longestMs) {
     return wait < longestMs ? wait : longestMs;
 }
 
+/**
+ * @param {string} code A failed read's code (plugin-reader.js failure).
+ * @returns {boolean} Whether the failure can pass by the next minute (PASSING), so a read the
+ *   user waits for is worth trying again then.
+ */
+function passing(code) {
+    return PASSING.indexOf(code) !== -1;
+}
+
 module.exports = {
     RETRY_MS: RETRY_MS,
     timeOf: timeOf,
     recordOf: recordOf,
     clockWentBack: clockWentBack,
-    retryWait: retryWait
+    retryWait: retryWait,
+    passing: passing
 };

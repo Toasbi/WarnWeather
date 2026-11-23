@@ -19,6 +19,7 @@ global.localStorage = {
 };
 
 const pluginValueSource = require('../../../src/pkjs/status-bars/adapter/plugin-value-source.js');
+const pluginReader = require('../../../src/pkjs/status-bars/adapter/plugin-reader.js');
 const statusRebake = require('../../../src/pkjs/status-bars/application/status-rebake.js');
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 const { decodeLine } = require('../../helpers/status-line-bytes.js');
@@ -345,6 +346,9 @@ test('an answer without the value, or with none the slot can print, shows -- and
     { pluginUuid: PHONE, instances: [] }].forEach((envelope) => {
     const h = boot();
     h.pebble.subs[0].push(envelope);
+    // One without the value is held a moment for a fuller one (plugin-reader.js readOnce).
+    h.timers.filter((t) => t.ms === pluginReader.FULLER_ANSWER_MS).forEach((t) => t.fn());
+    assert.equal(h.pebble.subs[0].unsubscribed, 1, 'the read is over');
     assert.equal(stored(KEYS.PLUGIN_VALUE), null);
     assert.equal(stored(KEYS.PLUGIN_VALUE_READ).failures, 0);
     statusRebake.resendStatus('fetch');
@@ -353,6 +357,20 @@ test('an answer without the value, or with none the slot can print, shows -- and
     minute();
     assert.equal(h.pebble.subs.length, 1, 'read again after the Updates interval');
   });
+});
+
+test('the Phone plugin\'s network type, sent a moment after its first answer, is the value: not --', () => {
+  const h = boot({ settings: {} });
+  h.settings = CELL;
+  pluginValueSource.refresh();
+  // The Phone plugin answers with what the phone knows at once, then again with the network type.
+  h.pebble.subs[0].push(answer());
+  assert.equal(h.pebble.subs[0].unsubscribed, 0, 'still listening');
+  h.pebble.subs[0].push(answer(Object.assign({ cell: { shortText: { text: '5G' } } }, LEVEL)));
+  assert.equal(h.pebble.subs[0].unsubscribed, 1);
+  assert.equal(stored(KEYS.PLUGIN_VALUE).reading.short, '5G');
+  minute();
+  assert.equal(sentText(h), '5G', 'on the watch at the next tick');
 });
 
 test('the value is never logged: it is another app\'s data', () => {

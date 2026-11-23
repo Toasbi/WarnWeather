@@ -13,8 +13,9 @@
 // reads plugins at all.
 //   - The record of the last read (plugin-reads.js recordOf) is stamped as the read starts, so
 //     a read that PKJS ends before the answer still counts, and kept in storage, so neither a
-//     PKJS restart nor a settings save reads again before the next is due. A record that
-//     storage refuses still counts for the rest of this PKJS life.
+//     PKJS restart nor a settings save reads again before the next is due. A save after a read
+//     that failed does: no value has come for what the user picked, and they are at the phone,
+//     waiting to see it. A record that storage refuses still counts for the rest of this PKJS life.
 //   - Not wanted: nothing is read, and the record is forgotten, so the value wanted again is
 //     read at once. Another key wanted (another source picked): the record and the value heard
 //     of the old key are forgotten, and the new key is read at once.
@@ -22,12 +23,15 @@
 //     the save that changed it, which that read held up, reads then.
 //   - A clock that went back starts the wait again from now (plugin-reads.js clockWentBack).
 //   - Inside the Night battery saver's window only a read that a settings save asks for, with
-//     none before it, goes ahead: the user is at the phone, waiting to see the value. Any other
-//     waits for the first tick after the window. The window keeps the watch's link quiet, and
-//     a read is not quiet: a permission the plugin's app asked for comes back to the watch with it.
+//     none before it or after one that failed, goes ahead: the user is at the phone, waiting to
+//     see the value. Any other waits for the first tick after the window. The window keeps the
+//     watch's link quiet, and a read is not quiet: a permission the plugin's app asked for comes
+//     back to the watch with it.
 //   - A plugin that is not there is an answer of nothing, and the value kept is dropped. Any
 //     other failure keeps it, and the reader's nextReadAt tries again sooner (plugin-reads.js
-//     retryWait).
+//     retryWait). A read a save asked for that failed for a reason that can pass by the next
+//     minute (the plugin did not answer in time, or failed without saying why: plugin-reads.js
+//     passing) is read again at the next tick, once: the user waits at the phone.
 //
 // The value last heard is kept in storage, so a bake after a PKJS restart shows it at once,
 // and here, which is what a bake reads. When what the slot shows of it changes, with a new
@@ -102,6 +106,9 @@ function stored(key) {
 function create(spec) {
     var deps = INERT;
     var inFlight = false;
+    // A read a save asked for failed for a reason that can pass by the next minute
+    // (plugin-reads.js passing): the next tick reads again, once, as the save would have.
+    var againAtTick = false;
     // The last read ({source, at, failures, <timeField>}), or null for none.
     var record = null;
     // The value last heard (spec.valueOf's), or null for none.
@@ -154,11 +161,12 @@ function create(spec) {
     }
 
     /**
-     * Forget the last read, so the next read comes at once. Writes nothing when there is
-     * nothing to forget.
+     * Forget the last read, so the next read comes at once, and the read again it was owed.
+     * Writes nothing when there is nothing to forget.
      * @returns {void}
      */
     function forget() {
+        againAtTick = false;
         if (record === null) { return; }
         record = null;
         localStorage.removeItem(spec.recordKey);
@@ -200,13 +208,17 @@ function create(spec) {
      * Ask the plugin, once.
      * @param {{key: ?string, request: Object}} want What is wanted (spec.wanted).
      * @param {number} at Now, in epoch milliseconds.
-     * @param {boolean} fromSave Whether a settings save asked for it.
+     * @param {boolean} fromSave Whether a settings save asked for it, or for the read before
+     *   it that this one reads again (againAtTick).
+     * @param {boolean} again Whether it reads again for a save's read that failed: when it
+     *   fails as well, the reader's wait after a failure stands.
      * @returns {void}
      */
-    function read(want, at, fromSave) {
+    function read(want, at, fromSave, again) {
         var failures = record ? record.failures : 0;
         var time = record ? record[spec.timeField] : null;
         inFlight = true;
+        againAtTick = false;
         // Stamped before the plugin answers: a read that PKJS ends before the answer still counts,
         // or leaving the watchface and coming back every few seconds would read at every start.
         stamp(want.key, at, failures, time);
@@ -223,6 +235,7 @@ function create(spec) {
             if (fail && fail.code !== 'PLUGIN_UNAVAILABLE') {
                 console.log(spec.name + ': the plugin did not answer (' + fail.code + ').');
                 stamp(want.key, at, failures + 1, time);
+                againAtTick = fromSave && !again && pluginReads.passing(fail.code);
                 return;
             }
             if (fail) {
@@ -241,7 +254,8 @@ function create(spec) {
      * Read when a read is due, and only while the value is wanted. The one step behind a start,
      * a tick and a settings save.
      * @param {boolean} fromSave Whether the settings were just saved. Only then does a read with
-     *   none before it go ahead inside the Night battery saver's window.
+     *   none before it, or after one that failed, go ahead before it is due and inside the Night
+     *   battery saver's window.
      * @returns {void}
      */
     function consider(fromSave) {
@@ -249,6 +263,7 @@ function create(spec) {
         var want = available() ? spec.wanted(settings, deps.getWatchInfo()) : null;
         var at;
         var now;
+        var asked;
         if (!want) {
             forget();
             return;
@@ -271,9 +286,19 @@ function create(spec) {
             stamp(record.source, at, record.failures, record[spec.timeField]);
             return;
         }
-        if (record && at < spec.nextReadAt(record, settings)) { return; }
-        if ((record || !fromSave) && batterySaver.isWithinSleepWindow(new Date(at), settings)) { return; }
-        read(want, at, fromSave);
+        // Read again for a save whose read failed: neither the wait after a failure nor the
+        // Night battery saver's window holds it, as neither held the save's read. Another key
+        // forgot it above: that one is read at once anyway.
+        if (againAtTick) {
+            read(want, at, true, true);
+            return;
+        }
+        // A save asks for a read when there is none before it, or the last one failed: no value
+        // has come for what the user picked, and they are at the phone, waiting to see it.
+        asked = fromSave && (!record || record.failures > 0);
+        if (record && !asked && at < spec.nextReadAt(record, settings)) { return; }
+        if (!asked && batterySaver.isWithinSleepWindow(new Date(at), settings)) { return; }
+        read(want, at, fromSave, false);
     }
 
     /**
@@ -298,6 +323,7 @@ function create(spec) {
         }
         deps = options;
         inFlight = false;
+        againAtTick = false;
         record = pluginReads.recordOf(stored(spec.recordKey), spec.timeField);
         value = spec.valueOf(stored(spec.valueKey));
         // Not known: what the last PKJS owed the watch died with it. The first look owes a send

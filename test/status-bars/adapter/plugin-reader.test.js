@@ -1,6 +1,7 @@
 'use strict';
 // plugin-reader.js: the wrapper over Pebble.subscribeToSource. Its failures are values,
-// never throws; readOnce ends on the first answer, failure or timeout, exactly once.
+// never throws; readOnce ends on the first answer that brings what it asks for (or a moment
+// after one that does not), a failure or the timeout, exactly once.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const pluginReader = require('../../../src/pkjs/status-bars/adapter/plugin-reader.js');
@@ -252,6 +253,78 @@ test('readOnce: the first answer ends it, and unsubscribes exactly once', () => 
   assert.deepEqual(calls, [[env, null]]);
   assert.equal(fake.unsubscribed, 1);
   assert.equal(timers.cleared.length, 1, 'the timer is cleared');
+});
+
+test('readOnce: its wait outlasts the Pebble app\'s own 20 s, which start only once the plugin has', () => {
+  assert.ok(pluginReader.READ_TIMEOUT_MS >= 40000, String(pluginReader.READ_TIMEOUT_MS));
+});
+
+/**
+ * The Phone plugin's update with the properties given, as it sends what the phone knows so far.
+ * @param {Object} properties The instance's properties.
+ * @returns {Object} The envelope.
+ */
+function phoneAnswer(properties) {
+  return { pluginUuid: 'phone', instances: [{ instanceId: 'phone', properties: properties }] };
+}
+
+const CELL_REQUEST = { category: 'phone', item: 'phone_state', properties: ['cell'] };
+const LTE = { cell: { shortText: { text: 'LTE' } } };
+
+test('readOnce: an answer without what it asks for is held, and a fuller one a moment later is the answer', () => {
+  const fake = fakePebble();
+  const timers = fakeTimers();
+  const calls = [];
+  pluginReader.readOnce(fake.pebble, CELL_REQUEST, (e, f) => calls.push([e, f]), timers);
+  fake.push(envelope(70));            // the battery level, the network type not known yet
+  assert.deepEqual(calls, [], 'held: the network type may follow');
+  assert.equal(fake.unsubscribed, 0);
+  assert.equal(timers.set[1].ms, pluginReader.FULLER_ANSWER_MS, 'for a moment');
+  const fuller = phoneAnswer(Object.assign({}, envelope(70).instances[0].properties, LTE));
+  fake.push(fuller);
+  assert.deepEqual(calls, [[fuller, null]]);
+  assert.equal(fake.unsubscribed, 1);
+  assert.deepEqual(timers.cleared.sort(), [1, 2], 'both timers are cleared');
+});
+
+test('readOnce: an answer without what it asks for is the answer when no fuller one comes, and only one moment is waited', () => {
+  const fake = fakePebble();
+  const timers = fakeTimers();
+  const calls = [];
+  pluginReader.readOnce(fake.pebble, CELL_REQUEST, (e, f) => calls.push([e, f]), timers);
+  const first = envelope(70);
+  const second = envelope(69);
+  fake.push(first);
+  fake.push(second);                  // still without it
+  assert.equal(timers.set.length, 2, 'one wait for a fuller answer, from the first');
+  timers.set[1].fn();
+  assert.deepEqual(calls, [[second, null]], 'the answer held last: an answer of nothing for the network type');
+  assert.equal(fake.unsubscribed, 1);
+});
+
+test('readOnce: a failure or the timeout after an answer without what it asks for ends it with that answer', () => {
+  ['fail', 'timeout'].forEach((how) => {
+    const fake = fakePebble();
+    const timers = fakeTimers();
+    const calls = [];
+    pluginReader.readOnce(fake.pebble, CELL_REQUEST, (e, f) => calls.push([e, f]), timers);
+    const partial = envelope(70);
+    fake.push(partial);
+    if (how === 'fail') { fake.fail('TIMEOUT'); } else { timers.set[0].fn(); }
+    assert.deepEqual(calls, [[partial, null]], how);
+    assert.equal(fake.unsubscribed, 1, how);
+  });
+});
+
+test('readOnce: a request that asks for no property takes any answer', () => {
+  const fake = fakePebble();
+  const timers = fakeTimers();
+  const calls = [];
+  pluginReader.readOnce(fake.pebble, { category: 'phone', item: 'phone_state' }, (e, f) => calls.push([e, f]), timers);
+  const env = phoneAnswer({});
+  fake.push(env);
+  assert.deepEqual(calls, [[env, null]]);
+  assert.equal(timers.set.length, 1, 'no wait for a fuller answer');
 });
 
 test('readOnce: an error ends it with that failure', () => {
