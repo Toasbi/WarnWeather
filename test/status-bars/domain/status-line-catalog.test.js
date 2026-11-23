@@ -548,6 +548,31 @@ test('the phone battery is OMITTED, not shown disabled, without env.phoneBattery
   assert.equal(catalog.resolveSelection('phoneBattery', s, ENV_BASALT, ALL_SLOT_CTXS[0]), 'empty');
 });
 
+test('the Plugin value is offered only where the Pebble app reads plugins, never on aplite, in a group of its own', () => {
+  // env.plugins: plugin-reader.js available, the page's from index.js, the bake's from its facts.
+  const s = {};
+  const item = catalog.byCode('pluginValue');
+  assert.equal(item.kind, catalog.KINDS.TEXT);
+  assert.equal(item.icon, catalog.ICONS.PLUGIN_TEXT, 'text alone: no drawing');
+  [ENV_BASALT, ENV_EMERY, ENV_DIORITE].forEach((env) => {
+    const withPlugins = Object.assign({ plugins: true }, env);
+    ALL_SLOT_CTXS.forEach((ctx) => {
+      const where = env.platform + ' / ' + ctx.slotKey;
+      assert.ok(!catalog.itemAvailable(item, s, env, ctx), where);
+      assert.equal(catalog.slotOptions(s, env, ctx).find((o) => o[1] === 'pluginValue'), undefined,
+        'absent, not disabled: ' + where);
+      assert.ok(catalog.itemAvailable(item, s, withPlugins, ctx), where);
+      const options = catalog.slotOptions(s, withPlugins, ctx);
+      assert.deepEqual(options[options.length - 1], ['Plugin value', 'pluginValue'], 'last, alone: no header');
+    });
+  });
+  ALL_SLOT_CTXS.forEach((ctx) => {
+    assert.ok(!catalog.itemAvailable(item, s, Object.assign({ plugins: true }, ENV_APLITE), ctx), ctx.slotKey);
+  });
+  assert.equal(catalog.resolveSelection('pluginValue', s, ENV_BASALT, ALL_SLOT_CTXS[0]), 'empty');
+  assert.deepEqual(catalog.pluginValueSettingKeys(), ['pluginValuePlugin', 'pluginValueReading', 'pluginValueEvery']);
+});
+
 test('the phone battery is selectable in all 12 slots when the phone supports it', () => {
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   assert.equal(ALL_SLOT_CTXS.length, catalog.allSlotKeys().length, 'all 12 slots covered');

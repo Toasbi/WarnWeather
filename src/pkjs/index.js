@@ -41,6 +41,7 @@ var renderSignature = require('./settings/domain/render-signature.js').renderSig
 var decideConfigClose = require('./settings/domain/config-close.js').decideConfigClose;
 var phoneBattery = require('./status-bars/adapter/phone-battery.js');
 var batteryEstimate = require('./status-bars/adapter/battery-estimate.js');
+var pluginValueSource = require('./status-bars/adapter/plugin-value-source.js');
 var pluginReader = require('./status-bars/adapter/plugin-reader.js');
 var statusRebake = require('./status-bars/application/status-rebake.js');
 var notifyWatch = require('./notices/adapter/notify-watch.js').notifyWatch;
@@ -335,8 +336,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     // A new install is counted on its first Save, not ~12 h later (telemetry.js).
     app.telemetry.onSettingsSaved({ settings: app.settings, watchInfo: app.watchInfo });
-    // A watch battery slot just set to show the days it has left gets its estimate now.
+    // A watch battery slot just set to show the days it has left gets its estimate now, and a
+    // Plugin value slot just given a source its value.
     batteryEstimate.refresh();
+    pluginValueSource.refresh();
     var providerOrLocationChanged = refreshProvider();
     // The new-features card's Got it: the tips it showed are seen.
     if (app.settings.featureTipsAck === true) { featureTipsSeen.acknowledge(featureTipsEnv()); }
@@ -473,6 +476,12 @@ Pebble.addEventListener('ready',
             getWatchInfo: function () { return app.watchInfo; },
             now: function () { return Date.now(); }
         });
+        // The Plugin value slot's value (another app's plugin), read only while a bar shows it.
+        pluginValueSource.init({
+            getSettings: function () { return app.settings; },
+            getWatchInfo: function () { return app.watchInfo; },
+            now: function () { return Date.now(); }
+        });
         refreshProvider();
         // 7-day localStorage cache GC: caches are re-derivable, so entries older
         // than a week are dropped instead of building up (stale notices, the
@@ -534,12 +543,13 @@ function getRuntimeTelemetryConfig() {
 }
 
 /**
- * What every status-line bake reads of the two batteries (status-lines.js BakeFacts): a
- * fetch's, the fixture's and a re-bake's.
- * @returns {{phone: Object, watch: Object}}
+ * What every status-line bake reads of the two batteries and the Plugin value slot
+ * (status-lines.js BakeFacts): a fetch's, the fixture's and a re-bake's.
+ * @returns {{phone: Object, watch: Object, plugin: Object}}
  */
 function bakeFacts() {
-    return { phone: phoneBattery.bakeFacts(), watch: batteryEstimate.bakeFacts() };
+    return { phone: phoneBattery.bakeFacts(), watch: batteryEstimate.bakeFacts(),
+        plugin: pluginValueSource.bakeFacts() };
 }
 
 /**
@@ -622,6 +632,7 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
  */
 function onSchedulerTick() {
     batteryEstimate.onTick();
+    pluginValueSource.onTick();
     statusRebake.onTick(fetchCycle.isInFlight());
     updateCheckRunner.runDailyUpdateCheck({
         stores: UPDATE_CHECK_STORES,

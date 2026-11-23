@@ -257,9 +257,9 @@ test('the scheduler\'s minute tick runs the re-bake\'s, told whether a fetch is 
   assert.ok(tick.indexOf('statusRebake.onTick(fetchCycle.isInFlight());') > 0);
 });
 
-test('index.js composes the batteries\' facts once: the fetch\'s bake, the re-bake\'s and the fixture\'s read the same', () => {
+test('index.js composes the batteries\' and the Plugin value\'s facts once: the fetch\'s bake, the re-bake\'s and the fixture\'s read the same', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
-  assert.match(src, /function bakeFacts\(\) \{\n    return \{ phone: phoneBattery\.bakeFacts\(\), watch: batteryEstimate\.bakeFacts\(\) \};\n\}/);
+  assert.match(src, /function bakeFacts\(\) \{\n    return \{ phone: phoneBattery\.bakeFacts\(\), watch: batteryEstimate\.bakeFacts\(\),\n        plugin: pluginValueSource\.bakeFacts\(\) \};\n\}/);
   assert.equal((src.match(/getBakeFacts: bakeFacts,/g) || []).length, 2, 'the fetch cycle and the re-bake');
   assert.ok(src.indexOf('facts: bakeFacts() });') > 0, 'the fixture send');
 });

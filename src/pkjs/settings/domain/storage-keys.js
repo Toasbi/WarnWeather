@@ -144,6 +144,16 @@ module.exports = {
     // restart nor a settings save reads it again before estimate-reads.js says. Absent while
     // the days are not wanted, so switching them on reads at once.
     BATTERY_ESTIMATE_READ: 'batteryEstimateRead',
+    // The Plugin value slot's value as it was last heard ({source, reading: {short, number,
+    // unit, long}, at, validUntil}; plugin-value-source.js, plugin-values.js valueOf), kept
+    // across PKJS restarts so a bake shows it at once. `source` names the plugin and the value
+    // it was read from; a value of another source is never shown.
+    PLUGIN_VALUE: 'pluginValue',
+    // When that value was last read ({source, at, failures, validUntil}; plugin-value-source.js),
+    // so neither a PKJS restart nor a settings save reads it again before
+    // plugin-value-reads.js says. Absent while the slot is not wanted, and forgotten with a new
+    // source, so either reads at once.
+    PLUGIN_VALUE_READ: 'pluginValueRead',
     // The re-bake snapshot: the handful of payload keys buildStatusLines reads,
     // plus the watchInfo its platform env is derived from, version-stamped as
     // one JSON blob. PKJS is torn down whenever the user leaves the watchface,

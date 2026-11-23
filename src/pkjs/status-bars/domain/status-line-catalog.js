@@ -130,7 +130,13 @@
     // show its icon in one slot and not in another. Until 3.3.0 the Text look was an
     // item of its own, 'phoneBatteryPlain'.
     { code: 'phoneBattery', label: 'Phone battery', kind: KINDS.TEXT,
-      icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' }
+      icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' },
+    // A value another app's plugin serves (plugin-values.js), its source the item's own
+    // (pluginValueSettingKeys), so every slot that holds it shows the same value. Text alone:
+    // the watch draws no plugin's picture, and the bold area is full. Only where the Pebble app
+    // reads plugins (needsPlugins), and never on aplite, whose feature set is frozen.
+    { code: 'pluginValue', label: 'Plugin value', kind: KINDS.TEXT, icon: ICONS.PLUGIN_TEXT,
+      needsPlugins: true, notAplite: true, category: 'plugin' }
   ];
 
   // Dropdown grouping order + header labels (Part F). A category with no
@@ -142,7 +148,7 @@
   // Watch/Phone qualifier because both otherwise read as "battery".
   var CATEGORIES = [
     ['weather', 'Weather'], ['datelocation', 'Date and location'],
-    ['health', 'Health'], ['battery', 'Battery']
+    ['health', 'Health'], ['battery', 'Battery'], ['plugin', 'Plugin']
   ];
 
   // A line's slots in order, as the slot context (resolveSelection, itemAvailable) names
@@ -208,7 +214,7 @@
    * Phone-side availability gate. The watch never gates.
    * @param {Object} item catalog entry
    * @param {Object} settings Clay settings blob
-   * @param {Object} env {color, platform, health, radar, hr, phoneBattery}
+   * @param {Object} env {color, platform, health, radar, hr, phoneBattery, plugins}
    * @param {Object} [slotCtx] {slotKey, position: 'left'|'mid'|'right'} of the
    *   slot being resolved; position-gated items are unavailable without it
    * @returns {boolean}
@@ -228,6 +234,10 @@
     // UNLIKE needsProvider, a false gate OMITS the item rather than showing a
     // disabled row: there is no setting the user could change to earn it.
     if (item.needsPhoneBattery && (!env || !env.phoneBattery)) { return false; }
+    // A value read from another app's plugin needs a Pebble app that reads plugins
+    // (plugin-reader.js available): env.plugins, the page's from index.js, the bake's from its
+    // facts (status-lines.js buildStatusLines). Omitted elsewhere, like the phone battery.
+    if (item.needsPlugins && (!env || !env.plugins)) { return false; }
     // Items whose watch-side C rendering is compiled out on aplite (frozen
     // image budget): the phone battery, which ships no aplite glyph at all. (The
     // watch battery's text looks are not items: aplite's lean status-row twin never
@@ -587,6 +597,18 @@
   }
 
   /**
+   * The settings the Plugin value slot owns: the plugin, the value of it and how often it is
+   * read (plugin-values.js sourceOf, everyMs). The item's own, so every slot that holds it
+   * shows the same value. ONE list for the rows of its dialog and the keys resetStatusSlots
+   * clears. None of them is signed (renderSignature): a new source needs a read, which the
+   * save starts (plugin-value-source.js refresh), and no weather fetch.
+   * @returns {string[]}
+   */
+  function pluginValueSettingKeys() {
+    return ['pluginValuePlugin', 'pluginValueReading', 'pluginValueEvery'];
+  }
+
+  /**
    * The setting a slot keeps its countdown's target date in (status-lines.js): the slot's
    * own, so each countdown slot counts down to its own day.
    * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
@@ -695,7 +717,8 @@
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
-    batterySettingKeys: batterySettingKeys, countdownKey: countdownKey,
+    batterySettingKeys: batterySettingKeys, pluginValueSettingKeys: pluginValueSettingKeys,
+    countdownKey: countdownKey,
     phoneBatteryLookKey: phoneBatteryLookKey, phoneBatterySheet: phoneBatterySheet,
     PHONE_BATTERY_LOOK_DEFAULT: PHONE_BATTERY_LOOK_DEFAULT, slotCompanions: slotCompanions
   };
