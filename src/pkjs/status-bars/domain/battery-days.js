@@ -27,9 +27,12 @@
   var MUNINN_URL = 'https://apps.repebble.com/muninn-battery-wisdom_692b3821d7dcba000a809ba5';
   var MUNINN_LINK = '<a href=\'' + MUNINN_URL + '\'>Muninn app</a>';
   // The category Muninn's plugin serves its estimate under (battery-estimate.js reads its
-  // stats item there). The Plugin value dialog tells Muninn picked by it, to say that this
-  // slot shows the estimate by itself (plugin-value-page.js fromMuninn).
+  // stats item there, and isMuninn tells Muninn by it).
   var MUNINN_CATEGORY = 'muninn';
+  // The steps that set the slot's text to the days, in its dialog's words (the Look and Value
+  // selection rows): how every how-to on the settings page ends (the new-features tip,
+  // feature-tips.js batteryDays, and the Plugin value dialog's note, plugin-value-schema.js).
+  var DAYS_STEPS = 'set Look to Icon + text or Text, then set Value selection to Days left or Both.';
   // Where the watch prints its own percentage in the slot's text (status_line.h
   // STATUS_BATTERY_PCT_MARK; test/status-bars/domain/status-line-contract.test.js keeps the
   // two in lockstep). One byte on the wire, and no character a separator can hold
@@ -126,13 +129,25 @@
     return carried ? carried.split(PCT_MARK).join(percent) : percent;
   }
 
+  /**
+   * Whether a plugin the phone lists is Muninn: it serves Muninn's category. The Plugin value
+   * dialog then says that this slot shows the estimate by itself (plugin-value-page.js).
+   * @param {?{items: Array<{category: string}>}} plugin A plugin as the phone lists it, or none.
+   * @returns {boolean}
+   */
+  function isMuninn(plugin) {
+    return Boolean(plugin) && plugin.items.some(function (it) { return it.category === MUNINN_CATEGORY; });
+  }
+
   var api = {
     MAX_AGE_MS: MAX_AGE_MS,
     MAX_DAYS: MAX_DAYS,
     MUNINN_URL: MUNINN_URL,
     MUNINN_LINK: MUNINN_LINK,
     MUNINN_CATEGORY: MUNINN_CATEGORY,
+    DAYS_STEPS: DAYS_STEPS,
     PCT_MARK: PCT_MARK,
+    isMuninn: isMuninn,
     display: display,
     wanted: wanted,
     estimateOf: estimateOf,

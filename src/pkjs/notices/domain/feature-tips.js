@@ -79,8 +79,8 @@ var TIPS = [
         // The tip above says how to put the Watch battery in its slot; this one starts from the
         // slot's Edit button, so the two don't say it twice. Days left shows in either text look.
         html: 'With the ' + batteryDays.MUNINN_LINK + ' on your watch, the Watch battery slot ' +
-            'can show how many days the watch has left. Tap its Edit button in the Watch bar, set ' +
-            'Look to Icon + text or Text, then set Value selection to Days left or Both.',
+            'can show how many days the watch has left. Tap its Edit button in the Watch bar, ' +
+            batteryDays.DAYS_STEPS,
         open: { sheet: 'bar-top' },
         // The days are read from another app's plugin, and aplite's battery slot has no text look.
         when: function (env) { return Boolean(env) && env.plugins === true && env.platform !== 'aplite'; }

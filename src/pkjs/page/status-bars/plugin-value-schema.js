@@ -10,6 +10,7 @@
 // value. The slot prints text alone, so the dialog has no Look, and no Bold either: the item has
 // no bold kind (status_threshold_kind_for_slot answers -1 for its icon id).
 
+var batteryDays = require('../../status-bars/domain/battery-days.js');
 var pluginValues = require('../../status-bars/domain/plugin-values.js');
 
 // The rows after Plugin, while one is picked.
@@ -24,13 +25,12 @@ var EVERY_HINT = 'Each read runs the other app\'s plugin on your phone. If that 
     + 'you haven\'t answered yet, your phone asks you again.';
 
 // While the plugin picked is Muninn (plugin-value-page.js fromMuninn): a note that the Watch
-// battery slot shows its estimate by itself (battery-days.js), with the steps of the
-// new-features tip (feature-tips.js batteryDays). A card of its own in the info look, above
-// the Plugin row (the owner's, 2026-11-23).
+// battery slot shows its estimate by itself, ending on the steps every how-to for it ends on
+// (battery-days.js DAYS_STEPS). A card of its own in the info look, above the Plugin row (the
+// owner's, 2026-11-23).
 var MUNINN_WHEN = {when: 'pluginValueFromMuninn'};
 var MUNINN_NOTE = 'The Watch battery slot can show Muninn\'s estimate by itself: the days your watch has left, '
-    + 'alone or beside its charge. Put the Watch battery in any slot, tap its Edit button, set Look to '
-    + 'Icon + text or Text, then set Value selection to Days left or Both.';
+    + 'alone or beside its charge. Put the Watch battery in any slot, tap its Edit button, ' + batteryDays.DAYS_STEPS;
 
 /**
  * The Plugin value slot's dialog: the note while Muninn is picked, then the Plugin, the Value

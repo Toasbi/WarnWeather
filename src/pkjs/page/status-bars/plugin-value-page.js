@@ -205,14 +205,13 @@
     }
 
     /**
-     * Whether the plugin picked is Muninn: it serves Muninn's category, whose estimate the Watch
-     * battery slot shows by itself (battery-days.js). The dialog then says so in a note.
+     * Whether the plugin picked is Muninn (battery-days.js isMuninn), whose estimate the Watch
+     * battery slot shows by itself. The dialog then says so in a note.
      * @param {Object} S Settings.
      * @returns {boolean}
      */
     function fromMuninn(S) {
-        var plugin = pluginOf(S.pluginValuePlugin);
-        return Boolean(plugin) && plugin.items.some(function (it) { return it.category === batteryDays.MUNINN_CATEGORY; });
+        return batteryDays.isMuninn(pluginOf(S.pluginValuePlugin));
     }
 
     /**

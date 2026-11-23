@@ -191,6 +191,22 @@ test('the Watch battery dialog: its Look, what the text shows, the pair\'s rows,
   assert.deepEqual(Object.keys(display.hintByValue), ['days', 'both'], 'the percentage needs no words');
 });
 
+test('the steps every how-to for the days ends on name this dialog\'s rows and the choices that show the days', () => {
+  // battery-days.js DAYS_STEPS: the new-features tip and the Plugin value dialog's Muninn note
+  // end on it, so a renamed row or choice here has to change it too.
+  const look = row('batterySlotLook');
+  const display = row('batterySlotDisplay');
+  const choice = (r, value) => r.options.find((o) => o[1] === value)[0];
+  assert.equal(batteryDays.DAYS_STEPS, 'set ' + look.label + ' to ' + choice(look, 'both') + ' or ' + choice(look, 'text')
+    + ', then set ' + display.label + ' to ' + choice(display, 'days') + ' or ' + choice(display, 'both') + '.');
+  const tip = require('../../../src/pkjs/notices/domain/feature-tips.js').TIPS.find((t) => t.id === 'batteryDays');
+  const note = nodes((node) => node.type === 'staticText' && Boolean(node.showWhen)
+    && node.showWhen.when === 'pluginValueFromMuninn');
+  assert.equal(note.length, 1, 'one Muninn note');
+  [tip.html, note[0].text].forEach((howTo) =>
+    assert.ok(howTo.endsWith(', ' + batteryDays.DAYS_STEPS), howTo.slice(0, 40) + '…: ends on the steps'));
+});
+
 test('the hints under Days left and Both say when the percentage shows, then name Muninn on its own line', () => {
   const hints = row('batterySlotDisplay').hintByValue;
   ['days', 'both'].forEach((value) => {

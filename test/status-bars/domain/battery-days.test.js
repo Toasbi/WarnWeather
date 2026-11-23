@@ -175,6 +175,13 @@ test('as the watch draws it: its percentage in place of the mark, or alone for n
   assert.ok(Buffer.byteLength(longest) <= catalog.CAPS.MID_TEXT_MAX);
 });
 
+test('isMuninn: a plugin the phone lists that serves Muninn\'s category', () => {
+  assert.equal(batteryDays.isMuninn({ items: [{ category: 'phone' }, { category: 'muninn' }] }), true);
+  assert.equal(batteryDays.isMuninn({ items: [{ category: 'phone' }] }), false, 'another plugin');
+  assert.equal(batteryDays.isMuninn({ items: [] }), false, 'one that serves nothing');
+  assert.equal(batteryDays.isMuninn(null), false, 'none');
+});
+
 test('formatBatteryPair joins what it is given, so the page can print a sample', () => {
   assert.equal(statusPair.formatBatteryPair('80%', '5d', {}, EDGE), '80%|5d');
   assert.equal(statusPair.formatBatteryPair('80%', '5d', { batterySlotOrder: 'days', batterySlotSeparator: 'slash' }, EDGE), '5d/80%');

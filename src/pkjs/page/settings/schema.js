@@ -728,11 +728,11 @@ function boldOnlyRow(keyStem) {
 // come from. A plain <br> would run that line on as the same paragraph; the gap above it
 // keeps it apart. What each mode shows is in the picture of the bar above the rows, so the
 // hints leave it out.
-var MUNINN_NOTE = '<span style="display:block;margin-top:6px">The days are an estimate from the ' +
+var DAYS_SOURCE_LINE = '<span style="display:block;margin-top:6px">The days are an estimate from the ' +
     require('../../status-bars/domain/battery-days.js').MUNINN_LINK + ', which has to be on your watch.</span>';
 var BATTERY_FALLBACK = ' while the watch charges, your phone is out of reach or there is no new estimate.';
-var BATTERY_DAYS_HINT = 'Shows the percentage instead' + BATTERY_FALLBACK + MUNINN_NOTE;
-var BATTERY_BOTH_HINT = 'Shows the percentage alone' + BATTERY_FALLBACK + MUNINN_NOTE;
+var BATTERY_DAYS_HINT = 'Shows the percentage instead' + BATTERY_FALLBACK + DAYS_SOURCE_LINE;
+var BATTERY_BOTH_HINT = 'Shows the percentage alone' + BATTERY_FALLBACK + DAYS_SOURCE_LINE;
 // The watch battery's pair is short (the place of the percentage and at most '99d'): every
 // preset fits its slot, spaced too, and only a custom separator of two wide characters can
 // outgrow it with its spaces, which it then drops. So that is all its Separator row says
