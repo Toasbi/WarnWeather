@@ -1,5 +1,9 @@
 # Status icons draw faded pixels
 
+> **Partly superseded** by [ADR 0008](0008-status-icons-in-fewer-bytes.md) (2026-11-23): a pixel
+> drawing's faded pixels come among its own commands, in the order that costs fewest bytes, and
+> the black and white watches get the drawings without them, in files of their own.
+
 The colour watches draw a status icon's faded pixels: single pixels beside its ink, or on it,
 drawn a third or two thirds of the way from what is behind the icon to its ink. They soften an
 outline's steps and its small dots as smoothing softens a slanted line. The icon creator sets them

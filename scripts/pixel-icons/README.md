@@ -12,6 +12,7 @@ creator (WarnWeatherTools) draws and tunes them, and exports them here.
 | `resources/pixel-icons.json` | The source of truth: every drawing of every icon, its size and seat drawn in, and the version each is built in. The watch draws these and nothing else |
 | `icons.json` | The icons: each one's key and the watch icon ids its drawings serve |
 | `gen_watch_icons.js` | Builds the drawings into the watch |
+| `pixel-paths.js` | Writes a drawing's pixels as PDC paths, in as few bytes as it finds |
 | `THIRD_PARTY.md` | The licences of the two icon libraries some drawings started from |
 
 ## Changing an icon
@@ -65,12 +66,14 @@ its pixels) and a pixel round it: `1` a third, `2` two thirds, `.` none. The fir
 are the pixels above and left of the ink. The build refuses rows of another size, and faded
 pixels on a mask.
 
-`gen_watch_icons.js` writes them after the drawing's own lines, each shade's pixels as 1 px paths
-joined where they touch, and marks each path by its fill: a colour with no alpha, which draws
-nothing, `0x01` for a third and `0x02` for two thirds. The watch strokes them in their shade
-whenever it paints the drawing (`src/c/layers/faded_pixel.h`): on the bar, in a filled highlight
-box, and in the Bluetooth icon's blue or red. The black and white watches hide them; a Drawing
-size's `_BW` file has none.
+`gen_watch_icons.js` writes each shade's pixels as 1 px paths and marks each path by its fill: a
+colour with no alpha, which draws nothing, `0x01` for a third and `0x02` for two thirds. A pixel
+drawing's faded pixels come among its own lines, in the order that costs fewest bytes (What the
+watch does with a drawing, below), and so do an Old or Drawing size's whose lines light exact
+pixels; a size with a sloped line has them after its kept lines, which they go over. The watch strokes them in their shade whenever it paints the drawing
+(`src/c/layers/faded_pixel.h`): on the bar, in a filled highlight box, and in the Bluetooth icon's
+blue or red. The black and white watches cannot shade them, and get the drawing without them in
+a file of their own (`_BW`).
 
 A Drawing size's pixels hold the touch-ups the black and white watches ink (the creator's Black
 and white inks), and the colour watches draw each such touch-up as a faded pixel. So
@@ -99,8 +102,8 @@ its pixels; take out `mask` to build it from its pixels.
 
 | File | What |
 |---|---|
-| `resources/data/PX_<ICON>_<FAMILY>_<box>.pdc` | Each drawing in its version (Versions, above), its view box as tall as its box and as wide as its ink. The pixel version is 1 px lines through pixel centres: level, upright and 45-degree runs, and single dots, which the watch draws exactly, with smoothing on or off. Runs that touch are joined into one path, which keeps a drawing small on the watch's heap: about 170 bytes, against 140 for today's icons. Its faded pixels follow its own lines (Faded pixels, above) |
-| `resources/data/PX_<ICON>_<FAMILY>_<box>_BW.pdc` | A Drawing size's pixels, for the black and white watches |
+| `resources/data/PX_<ICON>_<FAMILY>_<box>.pdc` | Each drawing in its version (Versions, above), its view box as tall as its box and as wide as its ink. The pixel version is 1 px lines through pixel centres: level, upright and 45-degree runs, and single dots, which the watch draws exactly, with smoothing on or off. A shown icon's file sits on the watch's heap, so `pixel-paths.js` writes it in as few bytes as it finds: each class of pixel (the ink, each shade of faded pixel) in the order that costs least, a path crossing the pixels a later class paints over, and paths merged where a straight run or a corner or two joins them. It checks that the paths paint exactly the drawing ([ADR 0008](../../docs/adr/0008-status-icons-in-fewer-bytes.md)). An Old or Drawing size whose lines are all level, upright or at 45 degrees lights exact pixels too, and is written the same way; one with a sloped line keeps its lines as they are |
+| `resources/data/PX_<ICON>_<FAMILY>_<box>_BW.pdc` | The drawing for the black and white watches where theirs differs: a Drawing size's pixels, and a size with faded pixels without them. Any other drawing is one file for all three 144 px watches |
 | `package.template.json` | One resource per drawing, only on its family's watches |
 | `src/c/layers/status_pixel_icons.generated.h` | Which drawing each icon uses at each box, one table per watch family: the Pebble Time 2, the colour 144 px watch and the black and white ones |
 | `src/c/layers/status_row_aplite.c` | The Pebble Classic and Steel bit mask, for the seven icons that have one |

@@ -1,8 +1,9 @@
 // test/pixel-icons.test.js — the pixel icons' watch build step (scripts/pixel-icons/
-// gen_watch_icons.js; scripts/pixel-icons/README.md): every drawing in
-// resources/pixel-icons.json becomes a PDC of 1 px lines through pixel centres, a resource on the
-// watches that draw that size, an entry in the lookup table of each watch family that draws it,
-// and on Pebble Classic and Steel the icon's bit mask in status_row_aplite.c.
+// gen_watch_icons.js, pixel-paths.js; scripts/pixel-icons/README.md): every drawing in
+// resources/pixel-icons.json becomes a PDC of 1 px lines through pixel centres in as few bytes as
+// the build finds, a resource on the watches that draw that size, an entry in the lookup table of
+// each watch family that draws it, and on Pebble Classic and Steel the icon's bit mask in
+// status_row_aplite.c.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -10,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const gen = require('../scripts/pixel-icons/gen_watch_icons.js');
+const pp = require('../scripts/pixel-icons/pixel-paths.js');
 
 const ROOT = path.join(__dirname, '..');
 const SCRIPT = path.join(ROOT, 'scripts', 'pixel-icons', 'gen_watch_icons.js');
@@ -50,19 +52,21 @@ function drawing(w, h, on) {
 }
 
 /**
- * A PDC image's view box, its paths and its faded pixels' paths, in pixels; fails on anything but
- * 1 px open precise paths through pixel centres, which is all the generator writes: the drawing's
- * own in white ink with no fill, then the faded pixels', each marked by its fill and drawn in the
- * dark theme's shade of it.
+ * A PDC image's view box, its commands in order, its own paths and its faded pixels' paths, in
+ * pixels; fails on anything but 1 px open precise paths through pixel centres, which is all the
+ * generator writes: the drawing's own in white ink with no fill, the faded pixels' each marked by
+ * its fill and drawn in the dark theme's shade of it.
  * @param {!Buffer} buf A .pdc file.
- * @returns {{w: number, h: number, paths: !Array<!Array<!Array<number>>>,
- *     faded: !Object<number, !Array<!Array<!Array<number>>>>}} The image; `faded` by thirds.
+ * @returns {{w: number, h: number, cmds: !Array<{thirds: number, pts: !Array<!Array<number>>}>,
+ *     paths: !Array<!Array<!Array<number>>>, faded: !Object<number, !Array<!Array<!Array<number>>>>}}
+ *     The image; `faded` by thirds.
  */
 function readPdc(buf) {
   assert.equal(buf.toString('ascii', 0, 4), 'PDCI');
   assert.equal(buf.readUInt32LE(4), buf.length - 8, 'the size field');
   assert.equal(buf.readUInt8(8), 1, 'version 1');
   const w = buf.readInt16LE(10), h = buf.readInt16LE(12), n = buf.readUInt16LE(14);
+  const cmds = [];
   const paths = [];
   const faded = { 1: [], 2: [] };
   let at = 16;
@@ -83,18 +87,47 @@ function readPdc(buf) {
     const stroke = buf.readUInt8(at + 2), fill = buf.readUInt8(at + 4);
     if (fill === 0) {
       assert.equal(stroke, 0xFF, 'the drawing\'s own: white ink');
-      assert.equal(faded[1].length + faded[2].length, 0, 'the drawing\'s own before any faded pixel, which goes over them');
       paths.push(pts);
     } else {
       assert.ok(fill === 1 || fill === 2, 'a faded pixel\'s fill: no alpha, its thirds');
       assert.equal(stroke, fill === 1 ? 0xD5 : 0xEA, 'drawn in the dark theme\'s shade of it');
       faded[fill].push(pts);
     }
+    cmds.push({ thirds: fill, pts });
     at += 9 + 4 * np;
   }
   assert.equal(at, buf.length, 'nothing after the last command');
-  return { w, h, paths, faded };
+  return { w, h, cmds, paths, faded };
 }
+
+/**
+ * What an image's commands paint, drawn in order: each pixel's class, the last command's over it
+ * (0 the drawing's own ink, 1 and 2 a faded pixel's thirds).
+ * @param {{cmds: !Array<{thirds: number, pts: !Array<!Array<number>>}>}} img readPdc() of a file.
+ * @returns {!Map<string, number>} By "x,y".
+ */
+function paint(img) {
+  const out = new Map();
+  for (const { thirds, pts } of img.cmds) {
+    for (const p of lights(segmentsOf([pts]))) { out.set(p, thirds); }
+  }
+  return out;
+}
+
+/**
+ * A drawing's pixels by class, as "x,y" keys: '#' rows its ink (0), its faded rows (1, 2) over it.
+ * @param {!Array<!Array<number>>} ink [x, y] of each ink pixel.
+ * @param {!Array<!Array<number>>=} faded [x, y, thirds] of each faded pixel.
+ * @returns {!Map<string, number>}
+ */
+function classes(ink, faded = []) {
+  const out = new Map(ink.map(([x, y]) => [x + ',' + y, 0]));
+  faded.forEach(([x, y, thirds]) => out.set(x + ',' + y, thirds));
+  return out;
+}
+
+/** A command's bytes in the file: 9, and 4 a point. */
+const bytesOf = (paths) => paths.reduce((n, pts) => n + 9 + 4 * pts.length, 0);
 
 /**
  * The runs a path is drawn as: each point to the next.
@@ -110,7 +143,8 @@ function segmentsOf(paths) {
 }
 
 /**
- * Check that a drawing's PDC lights exactly its pixels in a view box of its ink.
+ * Check that a drawing's PDC lights exactly its pixels in a view box of its ink, in no more bytes
+ * than its runs joined end to end.
  * @param {!Array<string>} rows The drawing.
  * @param {string} what Its name, for the failure message.
  * @returns {void}
@@ -118,12 +152,13 @@ function segmentsOf(paths) {
 function checkDrawing(rows, what) {
   const px = gen.inkPixels(rows);
   const want = new Set(px.map(([x, y]) => x + ',' + y));
-  assert.deepEqual(lights(gen.runs(px)), want, what + ': the runs light exactly its pixels');
+  assert.deepEqual(lights(pp.runs(px)), want, what + ': the runs light exactly its pixels');
+  assert.deepEqual(lights(pp.runs(px, px, true)), want, what + ': trimmed too');
   const w = Math.max(...px.map(p => p[0])) + 1, h = Math.max(...px.map(p => p[1])) + 1;
-  const img = readPdc(gen.pdc(gen.paths(gen.runs(px)), w, h));
+  const img = readPdc(gen.pdc(pp.commands(pp.classesOf(px)), w, h));
   assert.deepEqual([img.w, img.h], [w, h], what + ': the view box is its ink');
-  assert.deepEqual(lights(segmentsOf(img.paths)), want, what + ': the PDC lights exactly its pixels');
-  assert.ok(img.paths.length <= gen.runs(px).length, what + ': no more paths than runs');
+  assert.deepEqual(paint(img), classes(px), what + ': the PDC lights exactly its pixels, in ink');
+  assert.ok(bytesOf(img.paths) <= bytesOf(pp.paths(pp.runs(px))), what + ': no more bytes than its runs joined');
 }
 
 test('the generated files match resources/pixel-icons.json', () => {
@@ -166,7 +201,7 @@ test('rings, diagonals, dots and random scatter become runs that light exactly t
   checkDrawing(drawing(7, 5, () => true), 'solid block');
   const square = drawing(6, 6, (x, y) => x === 0 || y === 0 || x === 5 || y === 5);
   checkDrawing(square, 'square outline');
-  assert.equal(gen.paths(gen.runs(gen.inkPixels(square))).length, 1, 'touching runs join into one path');
+  assert.equal(pp.paths(pp.runs(gen.inkPixels(square))).length, 1, 'touching runs join into one path');
   let seed = 7;
   const rand = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
   for (let i = 0; i < 25; i++) {
@@ -289,10 +324,11 @@ test('a size in another version: its kept lines in the same box; the black and w
   const files = gen.outputs(doc);
   const at = (name) => files[path.join(gen.DATA_DIR, name + '.pdc')];
   const px = gen.boxPixels(stairs), w = Math.max(...px.map(p => p[0])) + 1;
-  const pixel = gen.pdc(gen.paths(gen.runs(px)), w, 11);
-  assert.deepEqual(at('PX_SUN_BASALT_11'), gen.pdc([[[0, 1], [6, 4]], [[2, 6], [2, 6]]], 7, 11), 'old: its kept lines, a dot drawn as a point twice');
+  const own = (lines) => lines.map((pts) => ({ thirds: 0, pts }));
+  const pixel = gen.pdc(pp.commands(pp.classesOf(px)), w, 11);
+  assert.deepEqual(at('PX_SUN_BASALT_11'), gen.pdc(own([[[0, 1], [6, 4]], [[2, 6], [2, 6]]]), 7, 11), 'old: its kept lines, a dot drawn as a point twice');
   assert.equal(at('PX_SUN_BASALT_11_BW'), undefined, 'old\'s lines go to the black and white watches too: they drew it so before');
-  assert.deepEqual(at('PX_SUN_BASALT_13'), gen.pdc(made.lines, 9, 11), 'drawing: its kept lines');
+  assert.deepEqual(at('PX_SUN_BASALT_13'), gen.pdc(own(made.lines), 9, 11), 'drawing: its kept lines');
   assert.notDeepEqual(at('PX_SUN_BASALT_13'), pixel, 'the drawing is not the pixel drawing');
   assert.deepEqual(at('PX_SUN_BASALT_13_BW'), pixel, 'the black and white watches: its pixels, in the same box');
   assert.equal(at('PX_SUN_EMERY_13_BW'), undefined, 'the Pebble Time 2 needs none');
@@ -315,12 +351,17 @@ test('a size in another version: its kept lines in the same box; the black and w
   for (const [version, message] of [['half', /unknown version half/], ['old', /no old version/], ['drawing', /no drawing version/]]) {
     assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { 'basalt-11': { pixels: stairs, version } } } } }), message);
   }
+  // Kept lines that light exact pixels are written as those pixels, in as few bytes: three runs in
+  // a row become one.
+  const pieces = { lines: [[[0, 1], [1, 1]], [[1, 1], [2, 1]], [[2, 1], [3, 1]]], w: 4, h: 3 };
+  const bits = gen.outputs({ icons: { SUN: { sizes: { 'emery-13': { pixels: ['....', '####', '....'], version: 'old', old: pieces } } } } });
+  assert.deepEqual(readPdc(bits[path.join(gen.DATA_DIR, 'PX_SUN_EMERY_13.pdc')]).paths, [[[0, 1], [3, 1]]], 'one run');
   // Kept lines in a box of their own would seat apart from the pixels: refused.
   assert.throws(() => gen.outputs({ icons: { SUN: { sizes: { 'basalt-11': { pixels: stairs, version: 'old', old: { ...old, h: 9 } } } } } }),
     /old lines are 9 rows tall, its box 11/);
 });
 
-test('a size\'s faded pixels go over the colour watches\' drawing, from the top left of its ink, and nowhere else', () => {
+test('a size\'s faded pixels go in the colour watches\' drawing, from the top left of its ink; the black and white watches\' file has none', () => {
   // An L in an 11-row box, its ink in columns 3 to 5 and rows 2 to 6: the view box starts at its
   // ink's left, so the ink's top left is (0, 2) there.
   const ell = drawing(9, 11, (x, y) => y >= 2 && y <= 6 && (x === 3 || (y === 6 && x >= 3 && x <= 5)));
@@ -328,34 +369,68 @@ test('a size\'s faded pixels go over the colour watches\' drawing, from the top 
   // box, two thirds right of it and on its corner pixel.
   const faded = ['1....', '..1..', '.....', '.....', '.....', '.2..2', '.....'];
   const inBox = { 1: ['-1,1', '1,2'], 2: ['3,6', '0,6'] };
+  // Lines level and upright light exact pixels, the L's; a slope of two is smoothed. Both in the
+  // L's box, so the same faded rows lie over them.
   const lines = { lines: [[[0, 2], [0, 6], [2, 6]]], w: 3, h: 11 };
+  const sloped = { lines: [[[0, 2], [2, 6]]], w: 3, h: 11 };
   const doc = { icons: { SUN: { sizes: {
     'basalt-11': { pixels: ell, faded },
     'basalt-13': { pixels: ell, version: 'drawing', drawing: lines, faded },
-    'emery-13': { pixels: ell, version: 'old', old: lines, faded },
+    'basalt-15': { pixels: ell, version: 'old', old: lines, faded },
+    'basalt-17': { pixels: ell, version: 'old', old: sloped, faded },
+    'emery-13': { pixels: ell, version: 'drawing', drawing: sloped, faded },
     'emery-15': { pixels: ell },
   } } } };
   const files = gen.outputs(doc);
   const at = (name) => readPdc(files[path.join(gen.DATA_DIR, name + '.pdc')]);
-  const plain = gen.outputs({ icons: { SUN: { sizes: { 'basalt-11': { pixels: ell } } } } });
-  for (const name of ['PX_SUN_BASALT_11', 'PX_SUN_BASALT_13', 'PX_SUN_EMERY_13']) {
-    const img = at(name);
-    for (const thirds of [1, 2]) {
-      assert.deepEqual(lights(segmentsOf(img.faded[thirds])), new Set(inBox[thirds]), name + ': its ' + thirds + ' thirds where the file puts them');
-    }
-    assert.deepEqual(lights(segmentsOf(img.paths)), lights(segmentsOf(readPdc(plain[path.join(gen.DATA_DIR, 'PX_SUN_BASALT_11.pdc')]).paths)),
-      name + ': its own pixels as without them');
+  const ink = gen.boxPixels(ell);
+  const shades = (img) => {
+    const out = {};
+    img.cmds.filter((c) => c.thirds).forEach((c) => lights(segmentsOf([c.pts])).forEach((p) => { (out[c.thirds] = out[c.thirds] || new Set()).add(p); }));
+    return out;
+  };
+  const want = { 1: new Set(inBox[1]), 2: new Set(inBox[2]) };
+  // The pixel drawing, and kept lines that light exact pixels: its ink and faded pixels in the
+  // order that costs least, painting each faded pixel's shade over what is under it.
+  const inBoxFaded = [].concat(...[1, 2].map((t) => inBox[t].map((p) => p.split(',').map(Number).concat(t))));
+  for (const name of ['PX_SUN_BASALT_11', 'PX_SUN_BASALT_13', 'PX_SUN_BASALT_15']) {
+    assert.deepEqual(paint(at(name)), classes(ink, inBoxFaded), name + ': its pixels and its faded pixels over them');
   }
-  const bw = at('PX_SUN_BASALT_13_BW');
-  assert.equal(bw.faded[1].length + bw.faded[2].length, 0, 'a line drawing\'s pixels for the black and white watches: none');
+  // Smoothed kept lines: as they are, then its faded pixels, which go over them.
+  for (const name of ['PX_SUN_BASALT_17', 'PX_SUN_EMERY_13']) {
+    const img = at(name);
+    assert.deepEqual(img.paths, sloped.lines, name + ': its kept lines');
+    assert.equal(img.cmds.findIndex((c) => c.thirds), img.paths.length, name + ': its faded pixels after them');
+    assert.deepEqual(shades(img), want, name + ': its thirds where the file puts them');
+  }
+  // The black and white watches: the drawing without its faded pixels, in a file of its own.
+  for (const [name, own] of [['PX_SUN_BASALT_11_BW', 'pixels'], ['PX_SUN_BASALT_13_BW', 'pixels'], ['PX_SUN_BASALT_15_BW', 'pixels'],
+    ['PX_SUN_BASALT_17_BW', 'lines']]) {
+    const bw = at(name);
+    assert.equal(bw.faded[1].length + bw.faded[2].length, 0, name + ': no faded pixel');
+    if (own === 'pixels') assert.deepEqual(paint(bw), classes(ink), name + ': its pixels');
+    else assert.deepEqual(bw.cmds, sloped.lines.map((pts) => ({ thirds: 0, pts })), name + ': the old icon\'s lines');
+  }
   const none = at('PX_SUN_EMERY_15');
   assert.equal(none.faded[1].length + none.faded[2].length, 0, 'a size without faded pixels: none');
-  const media = JSON.parse(files[gen.PACKAGE]).pebble.resources.media.filter(m => /^PX_SUN_BASALT_11$/.test(m.name));
-  assert.deepEqual(media[0].targetPlatforms, ['basalt', 'diorite', 'flint'], 'a pixel drawing stays one resource: the black and white watches hide them');
+  const media = JSON.parse(files[gen.PACKAGE]).pebble.resources.media.filter((m) => /^PX_SUN_BASALT_1[157]/.test(m.name));
+  assert.deepEqual(media.map((m) => [m.name, m.targetPlatforms]), [
+    ['PX_SUN_BASALT_11', ['basalt']], ['PX_SUN_BASALT_11_BW', ['diorite', 'flint']],
+    ['PX_SUN_BASALT_15', ['basalt']], ['PX_SUN_BASALT_15_BW', ['diorite', 'flint']],
+    ['PX_SUN_BASALT_17', ['basalt']], ['PX_SUN_BASALT_17_BW', ['diorite', 'flint']],
+  ], 'a drawing with faded pixels: the colour watch\'s and the black and white watches\' files apart');
+  const { bw, colour } = sections(files[gen.HEADER]);
+  assert.match(colour, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_BASALT_11\) \}/);
+  assert.match(bw, /\{ STATUS_ICON_COND_SUN, 11, PX_RES\(PX_SUN_BASALT_11_BW\) \}/);
+  const plain = JSON.parse(gen.outputs({ icons: { SUN: { sizes: { 'basalt-11': { pixels: ell } } } } })[gen.PACKAGE])
+    .pebble.resources.media.filter((m) => /^PX_/.test(m.name));
+  assert.deepEqual(plain.map((m) => [m.name, m.targetPlatforms]), [['PX_SUN_BASALT_11', ['basalt', 'diorite', 'flint']]],
+    'without faded pixels: one file for all three');
 
   // A shade's pixels in a row join into one line, as the drawing's own do.
-  const run = readPdc(gen.pdc([[[0, 0], [4, 0]]], 5, 5, [[0, 1, 1], [1, 2, 1], [2, 3, 1], [4, 1, 2]]));
-  assert.deepEqual(run.faded[1], [[[0, 1], [2, 3]]], 'a 45-degree run of thirds: one line');
+  const run = readPdc(gen.pdc(pp.commands(pp.classesOf([], [[0, 1, 1], [1, 2, 1], [2, 3, 1], [4, 1, 2]])), 5, 5));
+  assert.equal(run.faded[1].length, 1, 'a 45-degree run of thirds: one line');
+  assert.deepEqual(lights(segmentsOf(run.faded[1])), new Set(['0,1', '1,2', '2,3']));
   assert.deepEqual(run.faded[2], [[[4, 1], [4, 1]]], 'a single pixel: a dot');
 
   const refused = (sizeFaded) => () => gen.outputs({ icons: { SUN: { sizes: { 'basalt-11': { pixels: ell, faded: sizeFaded } } } } });
@@ -365,6 +440,78 @@ test('a size\'s faded pixels go over the colour watches\' drawing, from the top 
   assert.throws(refused(faded.map(r => r.replace(/[12]/g, '.'))), /with a faded pixel/);
   assert.throws(refused({ x: 1 }), /7 rows of 5/);
   assert.throws(() => gen.outputs({ icons: { GUST: { sizes: { A: { pixels: ['#'], faded: ['...', '.1.', '...'] } } } } }), /mask has no faded pixels/);
+});
+
+test('a drawing\'s commands: its classes in the order that costs least, a path crossing what a later class paints over', () => {
+  // An ink row with a faded pixel in its middle: the ink first, one line across it, and the faded
+  // pixel on top (34 bytes); the other way round the ink would take two lines (51).
+  const row = pp.commands(pp.classesOf([[0, 0], [1, 0], [3, 0], [4, 0]], [[2, 0, 1]]));
+  assert.deepEqual(row.map((c) => c.thirds), [0, 1]);
+  assert.deepEqual(lights(segmentsOf([row[0].pts])), new Set(['0,0', '1,0', '2,0', '3,0', '4,0']), 'the ink crosses the faded pixel');
+  assert.deepEqual(paint({ cmds: row }), classes([[0, 0], [1, 0], [3, 0], [4, 0]], [[2, 0, 1]]));
+  // Two faded pixels round an ink pixel: the faded line first, across the ink, and the ink on top.
+  const dots = pp.commands(pp.classesOf([[1, 0]], [[0, 0, 2], [2, 0, 2]]));
+  assert.deepEqual(dots.map((c) => c.thirds), [2, 0]);
+  assert.deepEqual(paint({ cmds: dots }), classes([[1, 0]], [[0, 0, 2], [2, 0, 2]]));
+  // A T: its bar and its stem in one path, back over the bar to the stem (25 bytes, not 34).
+  const tee = [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [2, 1], [2, 2], [2, 3]];
+  const one = pp.commands(pp.classesOf(tee));
+  assert.equal(one.length, 1, 'one path');
+  assert.equal(one[0].pts.length, 4, 'four points');
+  assert.deepEqual(paint({ cmds: one }), classes(tee));
+  // Nothing to draw: no commands.
+  assert.deepEqual(pp.commands(pp.classesOf([])), []);
+  // Kept lines light exact pixels when every point is a pixel's centre and every run level,
+  // upright or at 45 degrees; any other line is smoothed.
+  assert.deepEqual(pp.exactPixels([[[0, 0], [2, 2], [2, 3]], [[5, 5], [5, 5]]]), [[0, 0], [1, 1], [2, 2], [2, 3], [5, 5]]);
+  assert.equal(pp.exactPixels([[[0, 0], [2, 1]]]), null, 'a slope of a half');
+  assert.equal(pp.exactPixels([[[0, 0.5], [2, 0.5]]]), null, 'between two pixels');
+  // The check commands() runs on its own result reads runs as the watch draws them.
+  assert.deepEqual(pp.painted([{ thirds: 2, pts: [[0, 0], [2, 2]] }]), new Map([['0,0', 2], ['1,1', 2], ['2,2', 2]]));
+  assert.throws(() => pp.painted([{ thirds: 0, pts: [[0, 0], [2, 1]] }]), /not level, upright or at 45 degrees/);
+});
+
+// The files the watches load, as committed (the first test holds them to the generator): the
+// colour watches' paints a drawing's pixels and faded pixels (a kept drawing's lines first, as they
+// are, its faded pixels after them); the black and white watches' the drawing without them.
+test('every saved drawing\'s files paint exactly its pixels: the colour watches\' with its faded pixels, the black and white watches\' without', () => {
+  const media = JSON.parse(fs.readFileSync(gen.PACKAGE, 'utf8')).pebble.resources.media;
+  const on = (name) => (media.find((m) => m.name === name) || {}).targetPlatforms;
+  const file = (name) => readPdc(fs.readFileSync(path.join(gen.DATA_DIR, name + '.pdc')));
+  let n = 0, split = 0;
+  for (const [key, icon] of Object.entries(PIXELS.icons)) {
+    for (const [id, s] of Object.entries(icon.sizes)) {
+      const m = gen.SIZE_KEY.exec(id);
+      if (!m) { continue; }
+      const what = key + ' ' + id;
+      const name = 'PX_' + key + '_' + m[1].toUpperCase() + '_' + m[2];
+      const version = s.version || 'pixel';
+      const px = gen.boxPixels(s.pixels);
+      const kept = version === 'pixel' ? null : gen.keptLines(version, s[version]).lines;
+      // Kept lines that light exact pixels are written as those pixels; smoothed ones as they are.
+      const lit = kept && pp.exactPixels(kept);
+      const faded = gen.fadedInBox(what, s.faded, kept ? kept.flat() : px);
+      const colour = file(name);
+      if (kept && !lit) {
+        assert.deepEqual(colour.paths, kept, what + ': its kept lines');
+        assert.equal(colour.cmds.findIndex((c) => c.thirds), faded.length ? kept.length : -1, what + ': its faded pixels after them');
+        assert.deepEqual(paint({ cmds: colour.cmds.filter((c) => c.thirds) }), classes([], faded), what + ': its faded pixels');
+      } else {
+        assert.deepEqual(paint(colour), classes(lit || px, faded), what + ': its pixels and faded pixels');
+      }
+      if (m[1] === 'basalt') {
+        const own = faded.length > 0 || version === 'drawing';
+        assert.deepEqual(on(name), own ? ['basalt'] : ['basalt', 'diorite', 'flint'], what + ': the colour watch\'s file');
+        const bw = own ? file(name + '_BW') : colour;
+        if (own) { assert.deepEqual(on(name + '_BW'), ['diorite', 'flint'], what + ': the black and white watches\' file'); split++; }
+        assert.equal(bw.faded[1].length + bw.faded[2].length, 0, what + ': no faded pixel for the black and white watches');
+        if (version === 'old' && !lit) assert.deepEqual(bw.paths, kept, what + ': the old icon\'s lines on the black and white watches');
+        else assert.deepEqual(paint(bw), classes(version === 'old' ? lit : px), what + ': its pixels on the black and white watches');
+      }
+      n++;
+    }
+  }
+  assert.ok(n >= 150 && split >= 30, 'premise: every size, and the black and white watches\' own files (' + n + ', ' + split + ')');
 });
 
 /**
