@@ -3,11 +3,6 @@
 #include <pebble.h>
 #include "c/appendix/status_metrics.h"
 
-// Move a TextLayer's frame in one call (its layer is its only sized child).
-static inline void text_layer_move_frame(TextLayer *text_layer, GRect frame) {
-    layer_set_frame(text_layer_get_layer(text_layer), frame);
-}
-
 // Status-bar glyph geometry, shared by the weather and health rows so a line of the same
 // font lands at the same height in a band of the same size — no per-bar, per-tier offsets.
 // The arithmetic lives in status_metrics.h (SDK-free, so windows/layout.c and the host tests
