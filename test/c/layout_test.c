@@ -2940,24 +2940,21 @@ static void view_flick_tests(void) {
 // size (verified on device at 14 / 18 / 24), so the size doubles as the metric here.
 #ifdef PBL_PLATFORM_EMERY
 #define TOP_ROW_H 24        // STATUS_TOP_TIER_FONT_KEY
-#define NONE_ROW_H 24       // NONE_ROW_FONT_KEY
-#define COMPACT_ROW_H 24    // COMPACT_ROW_FONT_KEY
 #define FULL_ROW_H 18       // STATUS_FULL_TIER_FONT_KEY (a DUAL squeezes both rows to this)
 #define FC_CLEARANCE 1      // STATUS_FORECAST_CLEARANCE
 #else
 #define TOP_ROW_H 18
-#define NONE_ROW_H 18
-#define COMPACT_ROW_H 18
 #define FULL_ROW_H 14
 #define FC_CLEARANCE 3
 #endif
+// A compact or none-tier row draws in the top strip's font (layout.c STATUS_LARGE_FONT_H).
+#define LARGE_ROW_H TOP_ROW_H
 // The SHIPPING forecast-abutting band: status_forecast_band_h() == content_h + 2*clearance.
 // (FC_BAND_H above is a 24px stand-in on emery; the seating sweep uses the real value.)
 #define FC_BAND_H_SHIPPING (FULL_ROW_H + 2 * FC_CLEARANCE)
 
 static int status_row_content_h(uint8_t tier) {
-    return (tier == LAYOUT_TIER_NONE) ? NONE_ROW_H
-         : (tier == LAYOUT_TIER_COMPACT) ? COMPACT_ROW_H : FULL_ROW_H;
+    return (tier == LAYOUT_TIER_NONE || tier == LAYOUT_TIER_COMPACT) ? LARGE_ROW_H : FULL_ROW_H;
 }
 
 // The invariant the band resize exists to hold: status_seat_y() must not CLAMP on any band the
@@ -3084,7 +3081,7 @@ static void seating_no_lift(void) {
         if (views[i].tier == 2 && spec.status_upper != STATUS_SRC_NONE
                 && spec.status_lower == STATUS_SRC_NONE) {
             expect("seating.lone_compact_is_shortest_clamp_free",
-                   L.status.size.h == status_min_band_h(COMPACT_ROW_H), true);
+                   L.status.size.h == status_min_band_h(LARGE_ROW_H), true);
         }
     }
 
@@ -3321,7 +3318,7 @@ static void calendar_status_clearance(void) {
     MainLayout Lc = layout_compute_spec(BOUNDS, &cc, MET(FC_BAND_H_SHIPPING, INK));
     int old_ink_end = Lc.top.origin.y + STATUS_TOP_STRIP_LIFT
                     + calendar_ink_h(Lc.top.size.h, 2);
-    int cc_cap = status_cap_top(Lc.status.origin.y, Lc.status.size.h, COMPACT_ROW_H);
+    int cc_cap = status_cap_top(Lc.status.origin.y, Lc.status.size.h, LARGE_ROW_H);
     expect("clearance.old_anchor_was_short",
            cc_cap - old_ink_end < FC_CLEARANCE, true);
     expect("clearance.old_anchor_overlapped_box",
@@ -3368,28 +3365,26 @@ static int cal_ink_bottom_of(GRect top, int rows, int content_h) {
 static void clock_neighbours(const MainLayout *L, uint8_t tier, bool upper, bool lower,
                              int *above, int *below) {
     bool compact = (tier == LAYOUT_TIER_COMPACT);
-    bool two_rows = upper && lower;
-    int upper_ch = (tier == LAYOUT_TIER_NONE) ? NONE_ROW_H
-                 : compact ? (two_rows ? FULL_ROW_H : COMPACT_ROW_H)
-                 : FULL_ROW_H;
-    int lower_ch = (tier == LAYOUT_TIER_NONE) ? NONE_ROW_H
-                 : (compact && !two_rows) ? COMPACT_ROW_H : FULL_ROW_H;
+    // Both rows draw in one font: the large one, but a compact DUAL squeezes both to the full
+    // tier's, as every full-tier row is.
+    int row_ch = (tier == LAYOUT_TIER_NONE || (compact && !(upper && lower))) ? LARGE_ROW_H
+               : FULL_ROW_H;
 
     if (tier == LAYOUT_TIER_NONE) {
         // The strip's CAP floor — not its descender-inclusive ink floor; see layout.c.
         *above = L->top_status.origin.y
                  + status_strip_seat_y(L->top_status.size.h, TOP_ROW_H) + TOP_ROW_H - 1;
     } else if (compact && upper) {
-        *above = status_band_ink_top(L->status.origin.y, L->status.size.h, upper_ch)
-                 + status_cap_h(upper_ch) - 1;
+        *above = status_band_ink_top(L->status.origin.y, L->status.size.h, row_ch)
+                 + status_cap_h(row_ch) - 1;
     } else {
         *above = cal_ink_bottom_of(L->top, (tier == LAYOUT_TIER_FULL) ? 3 : 2, TOP_ROW_H);
     }
 
     if (upper && tier != LAYOUT_TIER_COMPACT) {
-        *below = status_band_ink_top(L->status.origin.y, L->status.size.h, upper_ch);
+        *below = status_band_ink_top(L->status.origin.y, L->status.size.h, row_ch);
     } else if (lower) {
-        *below = status_band_ink_top(L->status_lower.origin.y, L->status_lower.size.h, lower_ch);
+        *below = status_band_ink_top(L->status_lower.origin.y, L->status_lower.size.h, row_ch);
     } else {
         *below = L->bottom.origin.y;
     }
