@@ -482,6 +482,23 @@ test('no read again at the next tick for a failure that would come back, nor for
   assert.equal(h.pebble.subs.length, 1, 'a start\'s read waits the reader\'s wait after a failure');
 });
 
+test('the first read of another key no save asked for (a complication changed in the Pebble app) that times out is read again at the next tick, once', () => {
+  const h = boot();
+  h.pebble.subs[0].push({ text: '87%' });
+  h.settings = { want: 'b' };
+  h.clock += MIN;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 2, 'the new key, read at once');
+  h.pebble.subs[1].fail('TIMEOUT');
+  h.clock += MIN;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 3, 'the phone may have been asking the user for a permission: not an hour later');
+  h.pebble.subs[2].fail('TIMEOUT');
+  h.clock += MIN;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 3, 'once: then the wait after a failure');
+});
+
 test('a save after a read that failed reads again at once, in the Night battery saver\'s window too; after one answered, it does not', () => {
   let h = boot();
   h.pebble.subs[0].fail('PERMISSION_DENIED');

@@ -37,7 +37,10 @@
 //     tries again sooner (plugin-reads.js retryWait). A read a save asked for that failed for a
 //     reason that can pass by the next minute (the plugin did not answer in time, or failed
 //     without saying why: plugin-reads.js passing) is read again at the next tick, once: the
-//     user waits at the phone.
+//     user waits at the phone. So is the first read after a record was forgotten (another key
+//     wanted, or the value wanted again): a complication changed in the Pebble app, whose
+//     plugin's permission the phone may be asking the user for right then. A start's first read
+//     is no change of the user's, and waits the reader's wait.
 //
 // The value last heard is kept in storage, so a bake after a PKJS restart shows it at once,
 // and here, which is what a bake reads. When what the slot shows of it changes, with a new
@@ -102,9 +105,13 @@ var INERT = {
 function create(spec) {
     var deps = INERT;
     var inFlight = false;
-    // A read a save asked for failed for a reason that can pass by the next minute
-    // (plugin-reads.js passing): the next tick reads again, once, as the save would have.
+    // A read a save asked for, or the first after a record was forgotten (renewed), failed for a
+    // reason that can pass by the next minute (plugin-reads.js passing): the next tick reads
+    // again, once, as the save would have.
     var againAtTick = false;
+    // A record was forgotten since the last read started (forget): the next read is the one
+    // that change asks for.
+    var renewed = false;
     // A save came while a read was under way (consider): the read it held up is the save's.
     var heldUp = false;
     // The last read ({source, at, failures, <timeField>}), or null for none.
@@ -167,6 +174,7 @@ function create(spec) {
         againAtTick = false;
         if (record === null) { return; }
         record = null;
+        renewed = true;
         localStorage.removeItem(spec.recordKey);
     }
 
@@ -205,8 +213,11 @@ function create(spec) {
     function read(want, at, fromSave) {
         var failures = record ? record.failures : 0;
         var time = record ? record[spec.timeField] : null;
-        // The read again a save's failed read earned (againAtTick) earns none of its own: when it
-        // fails as well, the reader's wait after a failure stands.
+        // The first read after a record was forgotten (the header says why it earns a read
+        // again as a save's does).
+        var first = renewed;
+        // The read again a failed read earned (againAtTick) earns none of its own: when it fails
+        // as well, the reader's wait after a failure stands.
         var again = againAtTick;
         /** An answer of nothing: the read counts, and the value kept goes. */
         function nothingThere() {
@@ -214,6 +225,7 @@ function create(spec) {
             keep(null, fromSave);
         }
         againAtTick = false;
+        renewed = false;
         if (!want.request) {
             nothingThere();
             return;
@@ -237,7 +249,7 @@ function create(spec) {
             if (fail && fail.code !== 'PLUGIN_UNAVAILABLE') {
                 console.log(spec.name + ': the plugin did not answer (' + fail.code + ').');
                 stamp(want.key, at, failures + 1, time);
-                againAtTick = fromSave && !again && pluginReads.passing(fail.code);
+                againAtTick = (fromSave || first) && !again && pluginReads.passing(fail.code);
                 return;
             }
             if (fail) {
@@ -291,8 +303,8 @@ function create(spec) {
             return;
         }
         // A save asks for a read when there is none before it, or after the first one that
-        // failed (the header says why only then), and so does the read again a save's failed
-        // read earned (againAtTick; another key forgot it above). Neither the wait after a
+        // failed (the header says why only then), and so does the read again a failed read
+        // earned (againAtTick; another key forgot it above). Neither the wait after a
         // failure nor the Night battery saver's window holds it.
         asked = againAtTick || (fromSave && (!record || record.failures === 1));
         if (record && !asked && at < spec.nextReadAt(record, settings)) { return; }
@@ -324,6 +336,7 @@ function create(spec) {
         deps = options;
         inFlight = false;
         againAtTick = false;
+        renewed = false;
         heldUp = false;
         record = pluginReads.recordOf(storedJson.read(spec.recordKey), spec.timeField);
         value = spec.valueOf(storedJson.read(spec.valueKey));
