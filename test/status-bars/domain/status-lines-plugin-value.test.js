@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const statusLines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const { decodeLine } = require('../../helpers/status-line-bytes.js');
+const { reading } = require('../../helpers/plugin-host.js');
 
 const NOW = new Date(2026, 10, 21, 12, 0, 0);
 const HOUR = 60 * 60 * 1000;
@@ -28,13 +29,13 @@ function payload() {
 
 /**
  * A value as plugin-value-source.js keeps it.
- * @param {Object} reading Its reading's fields that are set.
+ * @param {Object} fields Its reading's fields that are set.
  * @param {Object} [extra] Its other fields (source, at, validUntil).
  * @returns {Object} The value.
  */
-function value(reading, extra) {
-  return Object.assign({ source: KEY, reading: Object.assign({ short: null, time: null, number: null, unit: null,
-    state: null, long: null }, reading), at: NOW.getTime() - 10 * 60 * 1000, validUntil: null }, extra || {});
+function value(fields, extra) {
+  return Object.assign({ source: KEY, reading: reading(fields), at: NOW.getTime() - 10 * 60 * 1000, validUntil: null },
+    extra || {});
 }
 
 /**

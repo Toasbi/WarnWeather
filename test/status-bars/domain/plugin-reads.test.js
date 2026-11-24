@@ -4,6 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const reads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
+const { PERMS } = require('../../helpers/plugin-host.js');
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
@@ -76,8 +77,6 @@ test('the sources this app never reads: the Preferences plugin\'s weather locati
     .forEach(([c, i]) => assert.equal(reads.neverRead(c, i), false, c + '/' + i));
 });
 
-/** What this app declares, as the Pebble app keys it (declaredKeys): Internet for one domain. */
-const PERMS = ['Location', 'Internet/api.met.no', 'ShowNotifications', 'Health'];
 /** A permission another app's plugin defines, as the Pebble app hands it over (resolvePermissions). */
 const LIGHTS = '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5f6:HomeControl';
 

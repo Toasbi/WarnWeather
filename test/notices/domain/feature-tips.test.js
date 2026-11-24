@@ -139,10 +139,10 @@ test('the page gets plain data, and nothing when there is nothing to show', () =
 test('the complications tip names the page\'s own words: the slot\'s item, and the Plugin row\'s entry', (t) => {
   const tip = featureTips.TIPS.find((x) => x.id === 'complications');
   const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
+  const { PREFERENCES } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
   // The Plugin row's entry for the Preferences plugin, as the phone lists it with the user's
   // complications (plugin-value-list.js listOf).
-  global.INJECTED_USERDATA = { plugins: [{ uuid: '00000000-0000-0000-0001-000000000009', name: 'Preferences',
-    items: [], complications: [] }] };
+  global.INJECTED_USERDATA = { plugins: [{ uuid: PREFERENCES, name: 'Preferences', items: [], complications: [] }] };
   t.after(() => { delete global.INJECTED_USERDATA; });
   const entry = page.pluginOptions({ pluginValuePlugin: '' })[1][0];
   assert.ok(tip.html.indexOf('Set a slot to ' + catalog.byCode('pluginValue').label + ', tap Edit') !== -1, tip.html);

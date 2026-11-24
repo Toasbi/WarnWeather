@@ -6,20 +6,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const pv = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
+const { reading } = require('../../helpers/plugin-host.js');
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
 const T0 = Date.UTC(2026, 10, 23, 12, 0, 0);
 const UUID = '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5f6';
 const SETTINGS = { pluginValuePlugin: UUID, pluginValueId: 'muninn/stats/daysRemaining' };
-
-/**
- * @param {Object} fields The reading's fields that are set.
- * @returns {Object} A reading as plugin-reader.js readingOf hands it over.
- */
-function reading(fields) {
-  return Object.assign({ short: null, time: null, number: null, unit: null, state: null, long: null }, fields);
-}
 
 test('sourceOf: the plugin and the value the settings pick, null while either is missing', () => {
   assert.deepEqual(pv.sourceOf(SETTINGS), { plugin: UUID, id: 'muninn/stats/daysRemaining', category: 'muninn',

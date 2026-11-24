@@ -5,6 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const reads = require('../../../src/pkjs/status-bars/domain/plugin-value-reads.js');
+const { reading } = require('../../helpers/plugin-host.js');
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
@@ -39,14 +40,6 @@ test('a failed read is tried again an hour later, doubling, up to the Updates in
   assert.equal(reads.nextReadAt(readAt(2, T0 + 10 * HOUR), HOUR), T0 + HOUR,
     'what the plugin said last does not keep a retry away');
 });
-
-/**
- * @param {Object} fields The reading's fields that are set.
- * @returns {Object} A reading as valueOf keeps it, its other fields null.
- */
-function reading(fields) {
-  return Object.assign({ short: null, time: null, number: null, unit: null, state: null, long: null }, fields);
-}
 
 test('valueOf: a stored value, checked', () => {
   const value = { source: 's', reading: reading({ number: 5, unit: 'days' }), at: T0, validUntil: T0 + HOUR };

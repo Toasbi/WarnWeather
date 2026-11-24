@@ -17,6 +17,8 @@ const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalo
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const { sample } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
 const pluginReads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
+const { PREFERENCES } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
+const { reading } = require('../../helpers/plugin-host.js');
 
 const PConf = global.PConf;
 const MIN = 60 * 1000;
@@ -58,13 +60,13 @@ function clock(t, ms) {
 
 /**
  * A value as the phone hands it (plugin-value-source.js forPage).
- * @param {Object} reading Its reading's set fields.
+ * @param {Object} fields Its reading's set fields.
  * @param {Object} [extra] Its other fields.
  * @returns {Object} The value.
  */
-function kept(reading, extra) {
-  return Object.assign({ source: LEVEL_KEY, reading: Object.assign({ short: null, time: null, number: null,
-    unit: null, state: null, long: null }, reading), at: NOW - 5 * MIN, validUntil: null }, extra || {});
+function kept(fields, extra) {
+  return Object.assign({ source: LEVEL_KEY, reading: reading(fields), at: NOW - 5 * MIN, validUntil: null },
+    extra || {});
 }
 
 test('the Plugin row lists None, then each plugin the phone listed', (t) => {
@@ -213,24 +215,23 @@ test('the bars\' pictures print the value read last at each slot\'s room, else -
 
 // --- the user's complications ---------------------------------------------------
 
-const PREFS = '00000000-0000-0000-0001-000000000009';
 /**
  * What the phone lists: Preferences among the plugins, with the user's complications.
  * @param {*} list Its complications (plugin-value-list.js complicationsFor).
  * @returns {Array<Object>} The plugins.
  */
-const withPrefs = (list) => PLUGINS.concat([{ uuid: PREFS, name: 'Preferences', items: [], complications: list }]);
+const withPrefs = (list) => PLUGINS.concat([{ uuid: PREFERENCES, name: 'Preferences', items: [], complications: list }]);
 const COMPLICATIONS = [
   { position: 0, property: 'temperature', category: 'weather' },
   { position: 1, property: 'battery_level', category: 'phone' },
   { position: 2, property: 'starts_at', category: 'calendar', why: 'Calendar' },
   { position: 3, property: 'daysRemaining', category: 'muninn' },
   { position: 4, property: 'ringing', category: 'phone', why: '' }];
-const PLACE = (n) => ({ pluginValuePlugin: PREFS, pluginValueId: 'preferences/complications/' + n });
+const PLACE = (n) => ({ pluginValuePlugin: PREFERENCES, pluginValueId: 'preferences/complications/' + n });
 
 test('the Preferences plugin is listed as Complications, right after None, wherever the phone lists it', (t) => {
   userData(t, { plugins: withPrefs(COMPLICATIONS) });
-  const COMPLICATIONS_ENTRY = ['Complications', PREFS, { desc: 'Your picks in the Pebble app' }];
+  const COMPLICATIONS_ENTRY = ['Complications', PREFERENCES, { desc: 'Your picks in the Pebble app' }];
   assert.deepEqual(page.pluginOptions({ pluginValuePlugin: '' }),
     [['None', ''], COMPLICATIONS_ENTRY, ['Phone', PHONE], ['Muninn', MUNINN]]);
   assert.deepEqual(page.pluginOptions(PLACE(0)), [['None', ''], COMPLICATIONS_ENTRY, ['Phone', PHONE],
@@ -278,7 +279,7 @@ test('the Value row\'s hint says where the complications are set, that the slot 
   userData(t, { plugins: withPrefs(COMPLICATIONS) });
   const hint = 'Your complications in the Pebble app (Settings › Plugins › Complications). The slot '
     + 'follows the one you pick when you change it there.';
-  [PLACE(0), PLACE(3), { pluginValuePlugin: PREFS, pluginValueId: '' }].forEach((S) =>
+  [PLACE(0), PLACE(3), { pluginValuePlugin: PREFERENCES, pluginValueId: '' }].forEach((S) =>
     assert.equal(page.valueHint(S), hint, S.pluginValueId));
   assert.equal(page.valueHint(PLACE(2)), hint + ' Needs the Calendar permission, which WarnWeather never asks for, '
     + 'so the slot shows --.', 'one it may not read: the place\'s complication changed in the Pebble app since');
@@ -286,7 +287,7 @@ test('the Value row\'s hint says where the complications are set, that the slot 
   assert.equal(page.valueHint(PLACE(9)), hint + ' This place is empty there, so the slot shows --.');
   global.INJECTED_USERDATA.plugins = withPrefs([]);
   assert.equal(page.valueHint(PLACE(0)), hint + ' This place is empty there, so the slot shows --.', 'none set up');
-  assert.equal(page.valueHint({ pluginValuePlugin: PREFS, pluginValueId: '' }), hint, 'none set up, none picked');
+  assert.equal(page.valueHint({ pluginValuePlugin: PREFERENCES, pluginValueId: '' }), hint, 'none set up, none picked');
   global.INJECTED_USERDATA.plugins = withPrefs([{ position: 0, property: 'p', category: 'c', why: '<b>' }]);
   assert.equal(page.valueHint(PLACE(0)), hint + ' Needs the &lt;b&gt; permission, which WarnWeather never asks for, '
     + 'so the slot shows --.', 'another app\'s words, escaped: the hint is HTML');
@@ -294,7 +295,7 @@ test('the Value row\'s hint says where the complications are set, that the slot 
 
 test('a pick of the Preferences plugin\'s own reading, which 3.4.0 listed, is a value the plugin no longer offers', (t) => {
   userData(t, { plugins: withPrefs(COMPLICATIONS) });
-  const S = { pluginValuePlugin: PREFS, pluginValueId: 'preferences/weather_location/latitude' };
+  const S = { pluginValuePlugin: PREFERENCES, pluginValueId: 'preferences/weather_location/latitude' };
   assert.equal(page.valueHint(S), 'The plugin no longer offers this value. Until it does, the slot shows --.');
   assert.deepEqual(page.valueOptions(S).slice(-1),
     [['Latitude', 'preferences/weather_location/latitude', { desc: 'Not offered now' }]]);
@@ -303,21 +304,21 @@ test('a pick of the Preferences plugin\'s own reading, which 3.4.0 listed, is a 
 test('picking Preferences starts on the first complication WarnWeather can read', (t) => {
   userData(t, { plugins: withPrefs(COMPLICATIONS.slice(2)) });
   const S = Object.assign({}, LEVEL);
-  page.pluginPicked(S, PHONE, PREFS);
+  page.pluginPicked(S, PHONE, PREFERENCES);
   assert.equal(S.pluginValueId, 'preferences/complications/3', 'the calendar one is passed over');
   global.INJECTED_USERDATA.plugins = withPrefs([COMPLICATIONS[2]]);
-  page.pluginPicked(S, PHONE, PREFS);
+  page.pluginPicked(S, PHONE, PREFERENCES);
   assert.equal(S.pluginValueId, '', 'none it can read');
   global.INJECTED_USERDATA.plugins = withPrefs([]);
-  page.pluginPicked(S, PHONE, PREFS);
+  page.pluginPicked(S, PHONE, PREFERENCES);
   assert.equal(S.pluginValueId, '', 'none known');
 });
 
 test('Preferences picked where no complication can be read: the Value row holds None, never one greyed out', (t) => {
   userData(t, { plugins: withPrefs([COMPLICATIONS[2], COMPLICATIONS[4]]) });
   const S = slotSettings(LEVEL);
-  S.pluginValuePlugin = PREFS;
-  page.pluginPicked(S, PHONE, PREFS);
+  S.pluginValuePlugin = PREFERENCES;
+  page.pluginPicked(S, PHONE, PREFERENCES);
   assert.deepEqual(page.valueOptions(S).map((o) => o[1]), ['', 'preferences/complications/2',
     'preferences/complications/4'], 'None first');
   dialogHtml(S);
@@ -336,7 +337,7 @@ test('the last line and the bars\' pictures show the value the phone hands for a
   // was read from (plugin-value-source.js forPage), so the page judges it by the place alone.
   clock(t, NOW);
   userData(t, { plugins: withPrefs(COMPLICATIONS), pluginValue: kept({ short: '21°' },
-    { source: PREFS + '/preferences/complications/0/weather/location/0/temperature' }) });
+    { source: PREFERENCES + '/preferences/complications/0/weather/location/0/temperature' }) });
   const S = Object.assign({ statusTopLeft: 'pluginValue' }, PLACE(0));
   assert.equal(page.lastLine(S), '21° (5 min ago).');
   assert.equal(page.barText(S, 8), '21°');

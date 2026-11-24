@@ -16,6 +16,7 @@
 // added to userData, eats the remaining headroom.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { preferencesPlugin } = require('../../helpers/plugin-host.js');
 
 const URL_CAP = 2 * 1024 * 1024;  // Chromium url::kMaxURLChars
 // Margin for what the worst case below can't foresee (longer news bodies, a host
@@ -105,9 +106,7 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
     props['a_property_with_a_long_name_' + v] = ['shortText', 'numericValue'];
   }
   const places = [];
-  const plugins = [{ uuid: '00000000-0000-0000-0001-000000000009', name: 'Preferences', sources: [{
-    category: 'preferences', items: ['complications'], supportsMultiple: true, properties: { category: ['shortText'],
-      item: ['shortText'], index: ['numericValue'], property: ['shortText'] } }], actions: [] }];
+  const plugins = [preferencesPlugin()];
   for (let c = 0; c < complications.MAX_COMPLICATIONS; c += 1) {
     places.push({ position: c, category: 'a_category_with_a_long_name_' + c + 'x'.repeat(30), item: 'item',
       index: 99, property: 'a_property_with_a_long_name_' + c + 'x'.repeat(30) });

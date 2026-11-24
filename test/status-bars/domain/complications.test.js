@@ -6,38 +6,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const complications = require('../../../src/pkjs/status-bars/domain/complications.js');
-
-const PERMS = ['Location', 'Internet/api.met.no', 'ShowNotifications', 'Health'];
-
-/**
- * One place of the Preferences plugin's answer, as the Pebble app sends it.
- * @param {string} instanceId The place.
- * @param {string} category The reading's source: its category. @param {string} item Its item.
- * @param {number} index Which instance. @param {string} property Which property.
- * @returns {Object} The instance.
- */
-function place(instanceId, category, item, index, property) {
-  return { instanceId: instanceId, properties: { category: { shortText: { text: category } },
-    item: { shortText: { text: item } }, index: { numericValue: { value: index } },
-    property: { shortText: { text: property } } } };
-}
+const { PERMS, PLUGINS, complicationPlace: place, complicationsAnswer } = require('../../helpers/plugin-host.js');
 
 /** The Pebble app's own five, with the first empty: its defaults, moved down one. */
-const ANSWER = { pluginUuid: '00000000-0000-0000-0001-000000000009', validUntilMs: null, instances: [
-  place('1', 'weather', 'location', 0, 'temperature'), place('2', 'phone', 'phone_state', 0, 'battery_level'),
-  place('3', 'calendar', 'event', 0, 'starts_at'), place('4', 'weather', 'location', 1, 'condition')] };
+const ANSWER = complicationsAnswer([['1', 'weather', 'location', 0, 'temperature'],
+  ['2', 'phone', 'phone_state', 0, 'battery_level'], ['3', 'calendar', 'event', 0, 'starts_at'],
+  ['4', 'weather', 'location', 1, 'condition']]);
 
 const LIST = [
   { position: 1, category: 'weather', item: 'location', index: 0, property: 'temperature' },
   { position: 2, category: 'phone', item: 'phone_state', index: 0, property: 'battery_level' },
   { position: 3, category: 'calendar', item: 'event', index: 0, property: 'starts_at' },
   { position: 4, category: 'weather', item: 'location', index: 1, property: 'condition' }];
-
-/** The plugins the reading's sources come from, as Pebble.enumeratePlugins() lists them. */
-const PLUGINS = [
-  { uuid: 'w', name: 'Weather', sources: [{ category: 'weather', items: ['location'], callerPermissions: ['Location'] }] },
-  { uuid: 'p', name: 'Phone', sources: [{ category: 'phone', items: ['phone_state'] }] },
-  { uuid: 'c', name: 'Calendar', sources: [{ category: 'calendar', items: ['event'], callerPermissions: ['Calendar'] }] }];
 
 test('listOf: one complication for each place the answer holds, in the order of the places', () => {
   assert.deepEqual(complications.listOf(ANSWER), LIST);

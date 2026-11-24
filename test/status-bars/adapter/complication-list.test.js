@@ -4,7 +4,7 @@
 // the settings page and the next PKJS start. What a list holds is complications.test.js'.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { fakePebble } = require('../../helpers/plugin-host.js');
+const { fakePebble, complicationsAnswer: answer } = require('../../helpers/plugin-host.js');
 
 // AGENTS.md: a module that touches storage needs `global.localStorage` mocked BEFORE the
 // watch modules load. One store object, emptied in place; `writes` lists each key written.
@@ -18,24 +18,12 @@ global.localStorage = {
 
 const complicationList = require('../../../src/pkjs/status-bars/adapter/complication-list.js');
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
+const { PREFERENCES } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 
 const logged = [];
 const realLog = console.log;
 test.before(() => { console.log = function () { logged.push(Array.prototype.join.call(arguments, ' ')); }; });
 test.after(() => { console.log = realLog; });
-
-const PREFS = '00000000-0000-0000-0001-000000000009';
-
-/**
- * The Preferences plugin's answer.
- * @param {Array<Array>} places [instanceId, category, item, index, property] for each place.
- * @returns {Object} The envelope.
- */
-function answer(places) {
-  return { pluginUuid: PREFS, validUntilMs: null, instances: places.map(([id, category, item, index, property]) => ({
-    instanceId: id, properties: { category: { shortText: { text: category } }, item: { shortText: { text: item } },
-      index: { numericValue: { value: index } }, property: { shortText: { text: property } } } })) };
-}
 
 const TEMPERATURE = { position: 0, category: 'weather', item: 'location', index: 0, property: 'temperature' };
 const BATTERY = { position: 1, category: 'phone', item: 'phone_state', index: 0, property: 'battery_level' };
@@ -56,7 +44,7 @@ function boot(opts) {
 
 test('watched where the slot is offered: the Preferences plugin, asked by name, for its complications', () => {
   const pebble = boot();
-  assert.deepEqual(pebble.subs.map((s) => s.request), [{ category: 'preferences', item: 'complications', plugin: PREFS }]);
+  assert.deepEqual(pebble.subs.map((s) => s.request), [{ category: 'preferences', item: 'complications', plugin: PREFERENCES }]);
   assert.equal(complicationList.current(), null, 'none known before the first answer');
 });
 

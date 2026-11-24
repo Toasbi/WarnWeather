@@ -12,13 +12,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { userDataOf } = require('../helpers/settings-url.js');
+const { reading, preferencesPlugin, complicationsAnswer } = require('../helpers/plugin-host.js');
+const { PREFERENCES } = require('../../src/pkjs/status-bars/domain/plugin-values.js');
 
 const PKJS_DIR = path.resolve(__dirname, '..', '..', 'src', 'pkjs') + path.sep;
 const VALUE = { source: 'x/muninn/stats/daysRemaining', at: 1700000000000, validUntil: null,
-  reading: { short: '5 d', time: null, number: 5, unit: 'd', state: null, long: null } };
+  reading: reading({ short: '5 d', number: 5, unit: 'd' }) };
 /** The settings that pick the source VALUE was read from, in no slot. */
 const PICKED = { pluginValuePlugin: 'x', pluginValueId: 'muninn/stats/daysRemaining' };
-const PREFS = '00000000-0000-0000-0001-000000000009';
 /**
  * The user's complications as kept: a weather and a calendar reading this app may read (it
  * declares Calendar, optional), and a music one it may not (ReadMusic, which it never declares).
@@ -91,8 +92,7 @@ function boot(t, platform, plugins, seed) {
       { uuid: 'aaaaaaaa-0000-0000-0000-000000000004', name: 'Stocks',
         sources: [source('stocks', [internet('query1.finance.yahoo.com')])] },
       { uuid: 'aaaaaaaa-0000-0000-0000-000000000005', name: 'Forecast', sources: [source('forecast', [internet('api.met.no')])] },
-      { uuid: PREFS, name: 'Preferences', sources: [{ category: 'preferences', items: ['complications'],
-        properties: { category: ['shortText'], item: ['shortText'], index: ['numericValue'], property: ['shortText'] } }] }],
+      preferencesPlugin()],
   }, plugins ? { subscribeToSource: (config) => {
     subs.push(config);
     return { unsubscribe: () => {} };
@@ -144,7 +144,8 @@ test('settings open hands the page the plugins the slot can read, the user\'s co
     items: [{ category: 'calendar', item: 'now', multiple: false, properties: ['level'] }] },
   { uuid: 'aaaaaaaa-0000-0000-0000-000000000005', name: 'Forecast',
     items: [{ category: 'forecast', item: 'now', multiple: false, properties: ['level'] }] },
-  { uuid: PREFS, name: 'Preferences', items: [], complications: [{ position: 0, property: 'level', category: 'weather' },
+  { uuid: PREFERENCES, name: 'Preferences', items: [], complications: [
+    { position: 0, property: 'level', category: 'weather' },
     { position: 1, property: 'level', category: 'calendar' },
     { position: 2, property: 'level', category: 'music', why: 'ReadMusic' },
     { position: 3, property: 'level', category: 'stocks', why: 'Internet' }] }],
@@ -156,14 +157,14 @@ test('settings open hands the page the plugins the slot can read, the user\'s co
 });
 
 /** The settings that pick the user's first complication, in no slot. */
-const FIRST_PLACE = { pluginValuePlugin: PREFS, pluginValueId: 'preferences/complications/0' };
+const FIRST_PLACE = { pluginValuePlugin: PREFERENCES, pluginValueId: 'preferences/complications/0' };
 
 /**
- * @param {string} reading The reading a value was read from ('category/item/index/property').
+ * @param {string} readFrom The reading a value was read from ('category/item/index/property').
  * @returns {Object} VALUE, as the first complication's value of that reading.
  */
-function firstPlaceValue(reading) {
-  return Object.assign({}, VALUE, { source: PREFS + '/preferences/complications/0/' + reading });
+function firstPlaceValue(readFrom) {
+  return Object.assign({}, VALUE, { source: PREFERENCES + '/preferences/complications/0/' + readFrom });
 }
 
 [['another value of the plugin', { settings: { pluginValuePlugin: 'x', pluginValueId: 'muninn/stats/updatedAt' } }],
@@ -190,9 +191,8 @@ test('an answer of the Preferences plugin that changes the slot\'s place drops i
   /** @returns {Array<string>} What is read of plugins but the phone's own state, by category. */
   const reads = () => h.subs.map((c) => c.category).filter((c) => c !== 'phone');
   assert.deepEqual(reads(), ['preferences'], 'the weather was read a minute ago');
-  h.subs.filter((c) => c.category === 'preferences')[0].onData({ pluginUuid: PREFS, instances: [{ instanceId: '0',
-    properties: { category: { shortText: { text: 'calendar' } }, item: { shortText: { text: 'now' } },
-      index: { numericValue: { value: 0 } }, property: { shortText: { text: 'level' } } } }] });
+  h.subs.filter((c) => c.category === 'preferences')[0].onData(complicationsAnswer([['0', 'calendar', 'now', 0,
+    'level']]));
   assert.equal(h.store[KEYS.PLUGIN_VALUE], undefined, 'the weather is not the calendar');
   assert.deepEqual(reads(), ['preferences', 'calendar'], 'the calendar, read at once');
 });

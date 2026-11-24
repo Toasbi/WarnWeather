@@ -7,7 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { withHost } = require('../../helpers/rebake-host.js');
-const { fakePebble, heldTimers } = require('../../helpers/plugin-host.js');
+const { fakePebble, heldTimers, reading, PERMS, PLUGINS, preferencesPlugin } = require('../../helpers/plugin-host.js');
 
 // AGENTS.md: a module that touches storage needs `global.localStorage` mocked BEFORE the
 // watch modules load. One store object, emptied in place.
@@ -22,6 +22,7 @@ const pluginValueSource = require('../../../src/pkjs/status-bars/adapter/plugin-
 const pluginReader = require('../../../src/pkjs/status-bars/adapter/plugin-reader.js');
 const statusRebake = require('../../../src/pkjs/status-bars/application/status-rebake.js');
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
+const { PREFERENCES } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { decodeLine } = require('../../helpers/status-line-bytes.js');
 
 // Every line logged, kept for the test that the value never is.
@@ -160,9 +161,8 @@ test('a value is kept, ends the subscription, and reaches the watch with the nex
   const h = boot();
   h.pebble.subs[0].push(answer());
   assert.equal(h.pebble.subs[0].unsubscribed, 1, 'read once: no subscription stays');
-  assert.deepEqual(stored(KEYS.PLUGIN_VALUE), { source: KEY,
-    reading: { short: '87%', time: null, number: 87, unit: '%', state: null, long: null }, at: NOON,
-    validUntil: null });
+  assert.deepEqual(stored(KEYS.PLUGIN_VALUE), { source: KEY, reading: reading({ short: '87%', number: 87, unit: '%' }),
+    at: NOON, validUntil: null });
   assert.deepEqual(pluginValueSource.bakeFacts().value(), stored(KEYS.PLUGIN_VALUE));
   // Never sent from the answer itself: it comes at any moment, beside a settings save's or a
   // boot's own messages, which bake the value just kept.
@@ -419,8 +419,8 @@ test('the settings page gets the value last heard whole, while it is of the sour
   const h = boot();
   assert.equal(pluginValueSource.forPage(SLOT, null), null, 'none yet');
   h.pebble.subs[0].push(answer(null, { validUntilMs: NOON + 2 * HOUR }));
-  const value = { source: KEY, reading: { short: '87%', time: null, number: 87, unit: '%', state: null, long: null },
-    at: NOON, validUntil: NOON + 2 * HOUR };
+  const value = { source: KEY, reading: reading({ short: '87%', number: 87, unit: '%' }), at: NOON,
+    validUntil: NOON + 2 * HOUR };
   assert.deepEqual(pluginValueSource.forPage(SLOT, null), value);
   assert.deepEqual(pluginValueSource.forPage(Object.assign({}, SLOT, { statusTopLeft: 'aqi' }), null), value,
     'whether a bar shows the slot or not: the dialog is the source\'s');
@@ -430,29 +430,13 @@ test('the settings page gets the value last heard whole, while it is of the sour
 
 // --- a complication ------------------------------------------------------------
 
-const PREFS = '00000000-0000-0000-0001-000000000009';
-const PERMS = ['Location', 'Internet/api.met.no', 'ShowNotifications', 'Health'];
 /** The slot showing the user's second complication. */
-const SECOND = { statusTopLeft: 'pluginValue', pluginValuePlugin: PREFS, pluginValueId: 'preferences/complications/1' };
-const SECOND_KEY = PREFS + '/preferences/complications/1';
+const SECOND = { statusTopLeft: 'pluginValue', pluginValuePlugin: PREFERENCES,
+  pluginValueId: 'preferences/complications/1' };
+const SECOND_KEY = PREFERENCES + '/preferences/complications/1';
 /** The user's complications: the temperature of their second weather location, and the phone's charge. */
 const TEMPERATURE = { position: 1, category: 'weather', item: 'location', index: 1, property: 'temperature' };
 const CHARGE = { position: 1, category: 'phone', item: 'phone_state', index: 0, property: 'battery_level' };
-/** The plugins on the phone that serve them: the weather asks for Location, which this app declares. */
-const PLUGINS = [{ uuid: 'w', name: 'Weather', sources: [{ category: 'weather', items: ['location'],
-  callerPermissions: ['Location'] }] }, { uuid: PHONE, name: 'Phone', sources: [{ category: 'phone',
-  items: ['phone_state'] }] }];
-
-/**
- * A Pebble app that lists the plugins given.
- * @param {Array<Object>} plugins What Pebble.enumeratePlugins() returns.
- * @returns {Object} The fake Pebble.
- */
-function listing(plugins) {
-  const pebble = fakePebble();
-  pebble.enumeratePlugins = () => plugins;
-  return pebble;
-}
 
 /**
  * The weather plugin's answer: a temperature for each of the user's weather locations.
@@ -465,7 +449,7 @@ function weather(temperatures) {
 }
 
 test('a complication: the reading it names, from whichever plugin serves its source, of the instance it names', () => {
-  const h = boot({ settings: SECOND, complications: [TEMPERATURE], permissions: PERMS, pebble: listing(PLUGINS) });
+  const h = boot({ settings: SECOND, complications: [TEMPERATURE], permissions: PERMS, pebble: fakePebble(PLUGINS) });
   assert.deepEqual(h.pebble.subs[0].request, { category: 'weather', item: 'location', properties: ['temperature'],
     limit: 2 }, 'no plugin named: the one the user prefers for it in the Pebble app answers');
   h.pebble.subs[0].push(weather(['21\u00b0', '4\u00b0']));
@@ -476,7 +460,7 @@ test('a complication: the reading it names, from whichever plugin serves its sou
 });
 
 test('a complication changed in the Pebble app: the next tick drops the old reading and reads the new one', () => {
-  const h = boot({ settings: SECOND, complications: [TEMPERATURE], permissions: PERMS, pebble: listing(PLUGINS) });
+  const h = boot({ settings: SECOND, complications: [TEMPERATURE], permissions: PERMS, pebble: fakePebble(PLUGINS) });
   h.pebble.subs[0].push(weather(['21\u00b0', '4\u00b0']));
   minute();
   h.complications = [CHARGE];
@@ -493,9 +477,7 @@ test('a complication changed in the Pebble app: the next tick drops the old read
 
 test('a complication this app may not read is never asked: the slot shows --', () => {
   const calendar = { position: 1, category: 'calendar', item: 'event', index: 0, property: 'starts_at' };
-  const h = boot({ settings: SECOND, complications: [calendar], permissions: PERMS,
-    pebble: listing(PLUGINS.concat([{ uuid: 'c', name: 'Calendar', sources: [{ category: 'calendar', items: ['event'],
-      callerPermissions: ['Calendar'] }] }])) });
+  const h = boot({ settings: SECOND, complications: [calendar], permissions: PERMS, pebble: fakePebble(PLUGINS) });
   assert.equal(h.pebble.subs.length, 0, 'the Pebble app would ask the user for Calendar');
   minute();
   pluginValueSource.refresh();
@@ -505,7 +487,7 @@ test('a complication this app may not read is never asked: the slot shows --', (
 });
 
 test('the settings page gets a complication\'s value only while its place names the reading it was read from', () => {
-  const h = boot({ settings: SECOND, complications: [CHARGE], permissions: PERMS, pebble: listing(PLUGINS) });
+  const h = boot({ settings: SECOND, complications: [CHARGE], permissions: PERMS, pebble: fakePebble(PLUGINS) });
   h.pebble.subs[0].push(answer());
   assert.equal(pluginValueSource.forPage(SECOND, [CHARGE]).reading.short, '87%');
   // The user moved the temperature to the second place in the Pebble app, and opens the
@@ -516,7 +498,7 @@ test('the settings page gets a complication\'s value only while its place names 
 });
 
 test('a complication changed while no bar showed the slot: the save that puts it back shows --, not the old reading', () => {
-  const h = boot({ settings: SECOND, complications: [CHARGE], permissions: PERMS, pebble: listing(PLUGINS) });
+  const h = boot({ settings: SECOND, complications: [CHARGE], permissions: PERMS, pebble: fakePebble(PLUGINS) });
   h.pebble.subs[0].push(answer());
   minute();
   assert.equal(sentText(h), '87%');
@@ -538,7 +520,7 @@ test('a complication changed while no bar showed the slot: the save that puts it
 
 test('a complication changed in the Pebble app is read as the list says so, and a read of the old reading under way is dropped', () => {
   // A start with the list kept from before the change reads the reading the place named then.
-  const h = boot({ settings: SECOND, complications: [CHARGE], permissions: PERMS, pebble: listing(PLUGINS) });
+  const h = boot({ settings: SECOND, complications: [CHARGE], permissions: PERMS, pebble: fakePebble(PLUGINS) });
   assert.deepEqual(h.pebble.subs[0].request.properties, ['battery_level']);
   // The Preferences plugin's first answer says the place names the temperature now.
   h.complications = [TEMPERATURE];
@@ -558,7 +540,7 @@ test('a complication changed in the Pebble app is read as the list says so, and 
 });
 
 test('a place left empty: nothing is read, and the value kept is dropped', () => {
-  const h = boot({ settings: SECOND, complications: [TEMPERATURE], permissions: PERMS, pebble: listing(PLUGINS) });
+  const h = boot({ settings: SECOND, complications: [TEMPERATURE], permissions: PERMS, pebble: fakePebble(PLUGINS) });
   h.pebble.subs[0].push(weather(['21\u00b0', '4\u00b0']));
   h.complications = [];
   h.clock += MIN;
@@ -569,7 +551,7 @@ test('a place left empty: nothing is read, and the value kept is dropped', () =>
 });
 
 test('the complications not known yet: nothing is read until they are, then at once', () => {
-  const h = boot({ settings: SECOND, complications: null, permissions: PERMS, pebble: listing(PLUGINS) });
+  const h = boot({ settings: SECOND, complications: null, permissions: PERMS, pebble: fakePebble(PLUGINS) });
   minute();
   assert.equal(h.pebble.subs.length, 0);
   h.complications = [TEMPERATURE];
@@ -581,7 +563,7 @@ test('a complication\'s moment prints as a clock time: its property\'s name is l
   const at = new Date(2026, 10, 21, 11, 7, 0).getTime();
   const muninn = { position: 1, category: 'muninn', item: 'stats', index: 0, property: 'updatedAt' };
   const h = boot({ settings: SECOND, complications: [muninn], permissions: PERMS,
-    pebble: listing([{ uuid: 'm', name: 'Muninn', sources: [{ category: 'muninn', items: ['stats'] }] }]) });
+    pebble: fakePebble([{ uuid: 'm', name: 'Muninn', sources: [{ category: 'muninn', items: ['stats'] }] }]) });
   h.pebble.subs[0].push({ pluginUuid: 'm', instances: [{ instanceId: '0',
     properties: { updatedAt: { numericValue: { value: at } } } }] });
   minute();
@@ -589,15 +571,15 @@ test('a complication\'s moment prints as a clock time: its property\'s name is l
 });
 
 test('a pick of the Preferences plugin\'s own reading, which 3.4.0 listed, is never read: the value kept is dropped at once', () => {
-  const pick = { statusTopLeft: 'pluginValue', pluginValuePlugin: PREFS, pluginValueId: 'preferences/weather_location/latitude' };
-  const key = PREFS + '/preferences/weather_location/latitude';
+  const pick = { statusTopLeft: 'pluginValue', pluginValuePlugin: PREFERENCES,
+    pluginValueId: 'preferences/weather_location/latitude' };
+  const key = PREFERENCES + '/preferences/weather_location/latitude';
   Object.keys(storage).forEach((k) => { delete storage[k]; });
-  storage[KEYS.PLUGIN_VALUE] = JSON.stringify({ source: key, reading: { short: '52.52', time: null, number: 52.52,
-    unit: null, state: null, long: null }, at: NOON - 10 * MIN, validUntil: null });
+  storage[KEYS.PLUGIN_VALUE] = JSON.stringify({ source: key, reading: reading({ short: '52.52', number: 52.52 }),
+    at: NOON - 10 * MIN, validUntil: null });
   storage[KEYS.PLUGIN_VALUE_READ] = JSON.stringify({ source: key, at: NOON - 10 * MIN, failures: 0, validUntil: null });
-  const h = boot({ keepStorage: true, settings: pick, permissions: PERMS, pebble: listing([{ uuid: PREFS,
-    name: 'Preferences', sources: [{ category: 'preferences', items: ['weather_location'],
-      properties: { latitude: ['numericValue'] } }] }]) });
+  const h = boot({ keepStorage: true, settings: pick, permissions: PERMS, pebble: fakePebble([preferencesPlugin([{
+    category: 'preferences', items: ['weather_location'], properties: { latitude: ['numericValue'] } }])]) });
   assert.equal(stored(KEYS.PLUGIN_VALUE), null, 'the user\'s position, dropped as the slot starts');
   statusRebake.resendStatus('fetch');
   assert.equal(sentText(h), '--');
@@ -609,7 +591,7 @@ test('a pick of the Preferences plugin\'s own reading, which 3.4.0 listed, is ne
 });
 
 test('a value of a plugin\'s own that asks for a permission this app never declared is not read either', () => {
-  const h = boot({ permissions: PERMS, pebble: listing([{ uuid: PHONE, name: 'Phone', sources: [{ category: 'phone',
+  const h = boot({ permissions: PERMS, pebble: fakePebble([{ uuid: PHONE, name: 'Phone', sources: [{ category: 'phone',
     items: ['phone_state'], callerPermissions: ['Contacts'] }] }]) });
   assert.equal(h.pebble.subs.length, 0);
 });

@@ -8,6 +8,8 @@ const pluginReader = require('../../../src/pkjs/status-bars/adapter/plugin-reade
 // The Pebble app's side of a subscription and the Phone plugin's update, shared with the
 // phone battery's tests.
 const { fakePluginPebble: fakePebble, pluginEnvelope: envelope } = require('../../helpers/fake-battery.js');
+const { reading, PERMS } = require('../../helpers/plugin-host.js');
+const { PREFERENCES } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 
 const REQUEST = { category: 'phone', item: 'phone_state', properties: ['battery_level'] };
 
@@ -190,7 +192,7 @@ test('watch: a source that does something when it is read is never asked, nor re
 
 test('watch: a source this app never reads is never asked, whoever asks: the user\'s weather locations and units', () => {
   [{ category: 'preferences', item: 'weather_location', properties: ['latitude'] },
-    { category: 'preferences', item: 'units', properties: ['temperature'], plugin: '00000000-0000-0000-0001-000000000009' }]
+    { category: 'preferences', item: 'units', properties: ['temperature'], plugin: PREFERENCES }]
     .forEach((request) => {
       const fake = fakePebble();
       const fails = [];
@@ -477,39 +479,31 @@ function withShapes(shapes) {
   return { pluginUuid: 'p', instances: [{ instanceId: 'a', properties: { v: shapes } }] };
 }
 
-/**
- * @param {Object} fields The reading's fields that are set.
- * @returns {Object} A reading as readingOf hands it over, its other fields null.
- */
-function raw(fields) {
-  return Object.assign({ short: null, time: null, number: null, unit: null, state: null, long: null }, fields);
-}
-
 test('readingOf: each shape the slot prints, as the plugin sent it', () => {
   assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: '87%' },
     numericValue: { value: 87, unit: '%', min: 0, max: 100 }, longText: { text: 'Battery at 87%' } }), 'v'),
-  raw({ short: '87%', number: 87, unit: '%', long: 'Battery at 87%' }));
+  reading({ short: '87%', number: 87, unit: '%', long: 'Battery at 87%' }));
   assert.deepEqual(pluginReader.readingOf(withShapes({ numericValue: { value: 21.5 } }), 'v'),
-    raw({ number: 21.5, unit: undefined }), 'a number alone, without a unit');
+    reading({ number: 21.5, unit: undefined }), 'a number alone, without a unit');
   assert.deepEqual(pluginReader.readingOf(withShapes({ longText: { text: 'Next: Design review' } }), 'v'),
-    raw({ long: 'Next: Design review' }), 'a long text alone');
+    reading({ long: 'Next: Design review' }), 'a long text alone');
   assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: '  5G \n' },
     numericValue: { value: 0, unit: ' kWh ' } }), 'v'),
-  raw({ short: '  5G \n', number: 0, unit: ' kWh ' }), 'as sent: what is kept of it is valueOf\'s to check');
+  reading({ short: '  5G \n', number: 0, unit: ' kWh ' }), 'as sent: what is kept of it is valueOf\'s to check');
 });
 
 test('readingOf: a timestamp\'s moment in epoch seconds, and a boolean\'s state, as the plugin sent them', () => {
   assert.deepEqual(pluginReader.readingOf(withShapes({ timestamp: { value: 1795453201 } }), 'v'),
-    raw({ time: 1795453201 }), 'a sunrise');
+    reading({ time: 1795453201 }), 'a sunrise');
   assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: '14:00' }, longText: { text: '14:00' },
-    timestamp: { value: 1795453201 } }), 'v'), raw({ short: '14:00', time: 1795453201, long: '14:00' }),
+    timestamp: { value: 1795453201 } }), 'v'), reading({ short: '14:00', time: 1795453201, long: '14:00' }),
   'a calendar event\'s start');
   assert.deepEqual(pluginReader.readingOf(withShapes({ boolean: { value: false }, shortText: { text: 'Off' } }), 'v'),
-    raw({ short: 'Off', state: false }), 'Wi-Fi beside its words');
-  assert.deepEqual(pluginReader.readingOf(withShapes({ boolean: { value: true } }), 'v'), raw({ state: true }),
+    reading({ short: 'Off', state: false }), 'Wi-Fi beside its words');
+  assert.deepEqual(pluginReader.readingOf(withShapes({ boolean: { value: true } }), 'v'), reading({ state: true }),
     'a boolean alone');
   assert.deepEqual(pluginReader.readingOf(withShapes({ timestamp: { value: '1795453201' }, boolean: {} }), 'v'),
-    raw({ time: '1795453201', state: undefined }), 'unchecked: valueOf\'s to check');
+    reading({ time: '1795453201', state: undefined }), 'unchecked: valueOf\'s to check');
 });
 
 test('readingOf: the first instance, or the one it is asked for, in the order the plugin sent them', () => {
@@ -539,7 +533,6 @@ test('readOnce: an answer is the one asked for when the instance asked for bring
 });
 
 test('watch: a read that carries this app\'s permissions starts only where no plugin that may answer asks for another', () => {
-  const PERMS = ['Location', 'Health'];
   const weather = (uuid, asks) => ({ uuid: uuid, name: uuid, sources: [{ category: 'weather', items: ['location'],
     properties: { temperature: ['shortText'] }, callerPermissions: asks }] });
   const asked = (list, request) => {
@@ -583,10 +576,10 @@ test('readingOf: null where the plugin did not send the property; anything else 
   assert.equal(pluginReader.readingOf(null, 'v'), null);
   assert.equal(pluginReader.readingOf({ instances: [] }, 'v'), null, 'no instance');
   assert.equal(pluginReader.readingOf(withShapes('87%'), 'v'), null, 'shapes that are not an object');
-  assert.deepEqual(pluginReader.readingOf(withShapes({ icon: { pixels: '' } }), 'v'), raw({}),
+  assert.deepEqual(pluginReader.readingOf(withShapes({ icon: { pixels: '' } }), 'v'), reading({}),
     'a shape the slot does not print');
   assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: 87 }, numericValue: { value: '87', unit: 3 },
-    longText: 'ok' }), 'v'), raw({ short: 87, number: '87', unit: 3, long: undefined }), 'fields of the wrong type');
+    longText: 'ok' }), 'v'), reading({ short: 87, number: '87', unit: 3, long: undefined }), 'fields of the wrong type');
 });
 
 // --- validUntilOf ------------------------------------------------------------
