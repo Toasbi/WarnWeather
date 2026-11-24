@@ -38,27 +38,44 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // Module state: the engine re-renders blocks wholesale, so everything
     // async or cross-render lives here.
-    var ctx = null;                 // engine context from onReady
+
+    // Engine context from onReady.
+    var ctx = null;
     var fetchState = { key: null, status: 'idle', data: null, error: null, view: null };
-    var inFlight = null;            // key currently being fetched
-    var forceNext = false;          // the next fetch is a manual refresh: skip the cache
-    var scrubIndex = null;          // crosshair index shared by all panels
-    var panDay = 0;                 // day currently in the viewport (0-based)
-    var editingSlot = null;         // overlay target: 1..3
-    var gpsSeed = null;             // {lat, lon, name}: a page-acquired fix fresher than the injected seed
-    var stripPending = false;       // an applyStripPan is scheduled for the render being built
-    var tileTimer = null;           // clears the tiles' inline highlight once a settle has finished
-    var lastPal = null;             // the palette the last render drew with (the tile fade mixes its inks)
-    var panelMarks = null;          // per-panel scale metadata from the last render (dots/bars/tips)
-    var stripIcons = null;          // night-resolved per-hour icon ids from the last render (the chip swap)
-    var litBars = {};               // panel id → bar index currently lit by the crosshair
-    var settleTimer = null;         // pending re-show of tips that rode a pan off-viewport
-    var ageTimer = null;            // rewrites the "x ago" beside the 5-day title in place
+    // Key currently being fetched.
+    var inFlight = null;
+    // The next fetch is a manual refresh: skip the cache.
+    var forceNext = false;
+    // Crosshair index shared by all panels.
+    var scrubIndex = null;
+    // Day currently in the viewport (0-based).
+    var panDay = 0;
+    // Overlay target: 1..3.
+    var editingSlot = null;
+    // {lat, lon, name}: a page-acquired fix fresher than the injected seed.
+    var gpsSeed = null;
+    // An applyStripPan is scheduled for the render being built.
+    var stripPending = false;
+    // Clears the tiles' inline highlight once a settle has finished.
+    var tileTimer = null;
+    // The palette the last render drew with (the tile fade mixes its inks).
+    var lastPal = null;
+    // Per-panel scale metadata from the last render (dots/bars/tips).
+    var panelMarks = null;
+    // Night-resolved per-hour icon ids from the last render (the chip swap).
+    var stripIcons = null;
+    // Panel id → bar index currently lit by the crosshair.
+    var litBars = {};
+    // Pending re-show of tips that rode a pan off-viewport.
+    var settleTimer = null;
+    // Rewrites the "x ago" beside the 5-day title in place.
+    var ageTimer = null;
     // Fine enough that "just now" gives way to "1 min ago" within a few
     // seconds of the minute turning; coarse enough to be free.
     var AGE_TICK_MS = 15000;
     var PANEL_IDS = ['temp', 'wind', 'hum', 'press'];
-    var WEATHER_TAB = 'weather';    // this tab's schema id
+    // This tab's schema id.
+    var WEATHER_TAB = 'weather';
 
     /**
      * Repaint for an async completion (weather data, a GPS fix, a city name)
