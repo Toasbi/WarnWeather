@@ -9741,6 +9741,10 @@
                 "defaultValue": "60",
                 "options": [
                   [
+                    "Every 15 minutes",
+                    "15"
+                  ],
+                  [
                     "Every 30 minutes",
                     "30"
                   ],

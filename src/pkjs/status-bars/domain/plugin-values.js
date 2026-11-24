@@ -23,7 +23,7 @@
     var HOUR_MS = 60 * MINUTE_MS;
 
     /** The Updates row's choices, in minutes, and the one a slot starts on. */
-    var EVERY_CHOICES = ['30', '60', '180', '360'];
+    var EVERY_CHOICES = ['15', '30', '60', '180', '360'];
     var EVERY_DEFAULT = '60';
 
     /**

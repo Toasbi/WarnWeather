@@ -232,7 +232,7 @@ test('the read is kept in storage: its source, when it started, its failures, an
 });
 
 test('the Updates setting says how often: the tick reads again after it, and not a minute before', () => {
-  [['30', 30 * MIN], ['60', HOUR], ['180', 3 * HOUR], ['360', 6 * HOUR]].forEach(([every, ms]) => {
+  [['15', 15 * MIN], ['30', 30 * MIN], ['60', HOUR], ['180', 3 * HOUR], ['360', 6 * HOUR]].forEach(([every, ms]) => {
     const h = boot({ settings: Object.assign({ pluginValueEvery: every }, SLOT) });
     h.pebble.subs[0].push(answer());
     h.clock = NOON + ms - MIN;

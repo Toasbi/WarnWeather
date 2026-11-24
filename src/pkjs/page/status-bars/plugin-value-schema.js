@@ -19,7 +19,8 @@ var gates = require('../settings/schema-gates.js');
 var PICKED_WHEN = {key: 'pluginValuePlugin', ne: ''};
 
 // The Updates row's choices (plugin-values.js EVERY_CHOICES, in minutes).
-var EVERY_LABELS = {'30': 'Every 30 minutes', '60': 'Every hour', '180': 'Every 3 hours', '360': 'Every 6 hours'};
+var EVERY_LABELS = {'15': 'Every 15 minutes', '30': 'Every 30 minutes', '60': 'Every hour', '180': 'Every 3 hours',
+    '360': 'Every 6 hours'};
 
 // What a read costs (plugin-reader.js): the Pebble app runs the other app's plugin, and asks
 // again for each permission that app is still waiting for.
