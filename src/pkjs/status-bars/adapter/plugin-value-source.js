@@ -15,10 +15,11 @@
 //
 // Only while it is wanted: a source is picked and a bar the watch is sent shows the slot
 // (status-lines.js wantsPluginValue). A bake shows the value only for the source it was read
-// from, and drops it once it is too old (plugin-values.js shownReading); when the text the slot
-// prints changes with the time (that, or a moment's date at the midnight after it: shownText),
-// the watch is owed the status that shows it. The settings page gets it only while it is of what
-// the settings pick, and of the reading a complication's place names now (forPage).
+// from, and drops it once it is too old (plugin-values.js shownReading); when what the slot shows
+// changes, with a read or with the time (that, or a moment's date at the midnight after it, or
+// its icon turning: shownSlot), the watch is owed the status that shows it. The settings page
+// gets it only while it is of what the settings pick, and of the reading a complication's place
+// names now (forPage).
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
@@ -53,27 +54,30 @@ function readOf(source, list, permissions) {
 }
 
 /**
- * The text the slot prints of the value at an instant, at the widest a Plugin value slot is
- * (status-lines.js textCap): a value grown too old prints nothing (plugin-values.js
+ * What the slot shows of the value at an instant: the text it prints at the widest a Plugin
+ * value slot is (status-lines.js textCap) and the icon before it, which turns with a value that
+ * is on or off (plugin-values.js iconId). A value grown too old shows nothing (plugin-values.js
  * shownReading), and a moment prints its date once it is on another day (slot-text.js
  * momentText). Never logged: it is another app's data.
  * @param {?Object} value The value kept, or null.
  * @param {?Object} settings Settings.
  * @param {number} nowMs The instant, in epoch milliseconds.
- * @returns {?string} The text, or null for nothing (a start with an empty slot owes nothing).
+ * @returns {?{text: string, icon: number}} What it shows, or null for nothing (a start with an
+ *   empty slot owes nothing).
  */
-function shownText(value, settings, nowMs) {
+function shownSlot(value, settings, nowMs) {
     var reading = pluginValues.shownReading(value, settings, nowMs);
-    return reading ? pluginValues.textFor(reading, catalog.CAPS.MID_TEXT_MAX, settings, nowMs) : null;
+    return reading ? { text: pluginValues.textFor(reading, catalog.CAPS.MID_TEXT_MAX, settings, nowMs),
+        icon: pluginValues.iconId(settings, reading) } : null;
 }
 
 /**
- * @param {?string} a The text the slot printed (shownText).
- * @param {?string} b The text it prints now.
+ * @param {?{text: string, icon: number}} a What the slot showed (shownSlot).
+ * @param {?{text: string, icon: number}} b What it shows now.
  * @returns {boolean} Whether the two are the same.
  */
-function sameText(a, b) {
-    return a === b;
+function sameSlot(a, b) {
+    return a === b || (a !== null && b !== null && a.text === b.text && a.icon === b.icon);
 }
 
 var schedule = pluginReadSchedule.create({
@@ -103,8 +107,8 @@ var schedule = pluginReadSchedule.create({
             at: nowMs, validUntil: until }) };
     },
     valueOf: pluginValueReads.valueOf,
-    shown: shownText,
-    sameShown: sameText
+    shown: shownSlot,
+    sameShown: sameSlot
 });
 
 /**

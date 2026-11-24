@@ -475,6 +475,11 @@ function iconFor(code, item, payload, settings, env, bake, slotKey) {
   if (code === 'battery' && slotText.batteryLook(settings, env) === 'both') {
     return catalog.ICONS.DRAWN_BATTERY;
   }
+  // The Plugin value's icon (its dialog's Icon row), in the form the value shows: none loads
+  // no drawing.
+  if (code === 'pluginValue') {
+    return pluginValues.iconId(settings, bake.pluginReading);
+  }
   return item.icon;
 }
 

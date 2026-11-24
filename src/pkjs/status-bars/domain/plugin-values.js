@@ -3,7 +3,7 @@
 // The Plugin value status slot ('pluginValue', status-line-catalog.js): a value another app's
 // plugin serves, which the user picks in the slot's dialog. The source is the item's, so every
 // slot that holds it shows the same value. Here: the source the settings pick, how often it is
-// read, how long a value read from it shows, and the text the slot prints.
+// read, how long a value read from it shows, the text the slot prints and the icon before it.
 //
 // The settings page loads this file too (window.PluginValues): the dialog's last value and the
 // bars' pictures print the text the bake prints, and the dialog's rows store the ids valueId
@@ -15,6 +15,7 @@
 // Pure. ES5 only (aplite PKJS).
 (function () {
     var node = typeof require !== 'undefined';
+    var catalog = node ? require('./status-line-catalog.js') : window.StatusLineCatalog;
     var slotText = node ? require('./slot-text.js') : window.SlotText;
     var utf8 = node ? require('../../lib/utf8.js') : window.Utf8;
 
@@ -24,6 +25,23 @@
     /** The Updates row's choices, in minutes, and the one a slot starts on. */
     var EVERY_CHOICES = ['30', '60', '180', '360'];
     var EVERY_DEFAULT = '60';
+
+    /**
+     * The Icon row's choices (pluginValueIcon) and the icon each draws before the value's text:
+     * one that turns with a value that is on or off has its on form and its off form, one that
+     * stays the same its one form. None draws nothing, and is where a slot starts.
+     */
+    var ICONS = catalog.ICONS;
+    var ICON_FORMS = {
+        none: [],
+        'switch': [ICONS.PV_SWITCH, ICONS.PV_SWITCH_OFF],
+        wifi: [ICONS.PV_WIFI, ICONS.PV_WIFI_OFF],
+        bluetooth: [ICONS.PV_BT, ICONS.PV_BT_OFF],
+        plug: [ICONS.PV_PLUG],
+        phone: [ICONS.PV_PHONE],
+        calendar: [ICONS.PV_CALENDAR]
+    };
+    var ICON_DEFAULT = 'none';
 
     /** A value shows for three Updates intervals after it was read, and at least this long. */
     var SHOWN_AT_LEAST_MS = 3 * HOUR_MS;
@@ -184,6 +202,32 @@
     }
 
     /**
+     * @param {?Object} settings Settings.
+     * @returns {string} The Icon row's choice (pluginValueIcon): an ICON_FORMS name, none by
+     *   default and for one it does not know.
+     */
+    function iconName(settings) {
+        var name = settings && settings.pluginValueIcon;
+        return typeof name === 'string' && Object.prototype.hasOwnProperty.call(ICON_FORMS, name)
+            ? name : ICON_DEFAULT;
+    }
+
+    /**
+     * The icon the slot draws before the value's text (iconName): one that turns in its on form
+     * while the value is on, and in its off form while it is off, too old or not read; one that
+     * stays the same as it is.
+     * @param {?Object} settings Settings.
+     * @param {?{state: ?boolean}} reading The reading the slot shows (shownReading), or null.
+     * @returns {number} The STATUS_ICON_* id the bake packs: the one that loads no drawing for
+     *   none.
+     */
+    function iconId(settings, reading) {
+        var forms = ICON_FORMS[iconName(settings)];
+        if (!forms.length) { return ICONS.PLUGIN_TEXT; }
+        return forms[reading && reading.state === true ? 0 : forms.length - 1];
+    }
+
+    /**
      * Until when something read at an instant holds: a wait after it, or until the plugin said
      * it holds, whichever is later, but no more than LONGEST_WAIT_MS on. The rule both of when a
      * value is read again (plugin-value-reads.js nextReadAt) and of how long it shows.
@@ -216,6 +260,8 @@
     var api = {
         EVERY_CHOICES: EVERY_CHOICES,
         EVERY_DEFAULT: EVERY_DEFAULT,
+        ICON_FORMS: ICON_FORMS,
+        ICON_DEFAULT: ICON_DEFAULT,
         PREFERENCES: PREFERENCES,
         valueId: valueId,
         complicationId: complicationId,
@@ -224,6 +270,8 @@
         everyMs: everyMs,
         oneLine: oneLine,
         textFor: textFor,
+        iconName: iconName,
+        iconId: iconId,
         heldUntil: heldUntil,
         shownReading: shownReading
     };

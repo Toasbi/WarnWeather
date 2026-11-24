@@ -177,6 +177,10 @@ const settingsSchema = z
     // which plugin or what it serves: those are another app's. Absent on aplite.
     // DEPLOY-ORDERING: ship this function before the app release that sends it.
     pluginValue: z.boolean().optional(),
+    // Its icon ('none', 'switch', 'wifi', ...), one of the app's own choices. Absent on aplite.
+    // z.string() per threshPhoneBatteryBoldMode's rule above, so an icon added later passes.
+    // DEPLOY-ORDERING: ship this function before the app release that sends it.
+    pluginValueIcon: z.string().optional(),
     // The Battery item's warn level as stored (a percentage) and its look ('icon' /
     // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
     batteryLowLevel: z.number().int().min(0).max(100).optional(),

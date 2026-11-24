@@ -1,7 +1,8 @@
 'use strict';
 // The Plugin value slot in a bake: the text of the value another app's plugin serves
-// (plugin-values.js textFor) on the text kind with its own icon id, which loads no drawing.
-// Offered only where the Pebble app reads plugins, and never on aplite.
+// (plugin-values.js textFor) on the text kind, after the icon its dialog picks (iconId), or with
+// its own icon id, which loads no drawing. Offered only where the Pebble app reads plugins, and
+// never on aplite.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const statusLines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
@@ -67,6 +68,23 @@ test('the value on the text kind, with the icon id that loads no drawing, in eve
   const { slots } = bakeTop(EVERYWHERE, facts(value({ short: '87%', number: 87, unit: '%' })));
   assert.deepEqual(slots, [{ kind: TEXT, icon: ICON, text: '87%' }, { kind: TEXT, icon: ICON, text: '87%' },
     { kind: TEXT, icon: ICON, text: '87%' }]);
+});
+
+test('the icon the Icon row picks, before the text in every place: one that turns in the form the value has', () => {
+  const I = catalog.ICONS;
+  const wifi = Object.assign({ pluginValueIcon: 'wifi' }, EVERYWHERE);
+  const icons = (settings, kept, now) => bakeTop(settings, facts(kept), BASALT, now).slots.map((s) => s.icon);
+  assert.deepEqual(icons(wifi, value({ short: 'Home', state: true })), [I.PV_WIFI, I.PV_WIFI, I.PV_WIFI]);
+  assert.deepEqual(icons(wifi, value({ short: 'Home', state: false })), [I.PV_WIFI_OFF, I.PV_WIFI_OFF, I.PV_WIFI_OFF]);
+  assert.deepEqual(bakeTop(wifi, facts(value({ short: 'Home', state: true }))).slots[0],
+    { kind: TEXT, icon: I.PV_WIFI, text: 'Home' }, 'on the text kind, its text as before');
+  const later = new Date(NOW.getTime() + 13 * HOUR);
+  assert.deepEqual(icons(wifi, value({ short: 'Home', state: true }), later), [I.PV_WIFI_OFF, I.PV_WIFI_OFF, I.PV_WIFI_OFF],
+    'a value grown too old: off, beside --');
+  assert.deepEqual(icons(wifi, null), [I.PV_WIFI_OFF, I.PV_WIFI_OFF, I.PV_WIFI_OFF], 'not read: off');
+  const plug = Object.assign({ pluginValueIcon: 'plug' }, EVERYWHERE);
+  assert.deepEqual(icons(plug, value({ number: 87, unit: '%' })), [I.PV_PLUG, I.PV_PLUG, I.PV_PLUG]);
+  assert.deepEqual(icons(plug, null), [I.PV_PLUG, I.PV_PLUG, I.PV_PLUG], 'one that stays the same, read or not');
 });
 
 test('each place prints the value at its own room: a unit an edge has no room for is left off there', () => {

@@ -1,11 +1,12 @@
 'use strict';
 // The Plugin value slot's rules (plugin-values.js): the source the settings pick, the text the
-// slot prints, how long a value shows, and a value's name. When it is read and what a read
+// slot prints and the icon before it, how long a value shows, and a value's name. When it is read and what a read
 // keeps are plugin-value-reads.test.js'; the dialog's list, plugin-value-list.test.js'; the
 // reading and keeping, plugin-value-source.test.js'.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const pv = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
+const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const { reading } = require('../../helpers/plugin-host.js');
 
 const MIN = 60 * 1000;
@@ -159,6 +160,43 @@ test('the text: cut to the slot\'s bytes at a character\'s edge, as the bake cut
   assert.equal(pv.textFor(reading({ long: 'Next: Design review at 14:00' }), 19), 'Next: Design review');
   assert.equal(pv.textFor(reading({ short: 'Gr\u00fc\u00dfe' }), 4), 'Gr\u00fc', 'two bytes each');
   assert.equal(pv.textFor(reading({ number: 123456789 }), 8), '12345678');
+});
+
+test('the icon: none by default and for a choice it does not know, the id that loads no drawing', () => {
+  const none = catalog.ICONS.PLUGIN_TEXT;
+  assert.equal(pv.iconName(null), 'none');
+  assert.equal(pv.iconName({}), 'none');
+  ['lamp', 'toString', 'constructor', '__proto__', 7].forEach((name) => {
+    assert.equal(pv.iconName({ pluginValueIcon: name }), 'none', String(name));
+    assert.equal(pv.iconId({ pluginValueIcon: name }, reading({ state: true })), none, String(name));
+  });
+  assert.equal(pv.iconId({ pluginValueIcon: 'none' }, reading({ state: true })), none);
+});
+
+test('the icon: one that turns is on only while the value is on; off, too old or not read, it is off', () => {
+  const I = catalog.ICONS;
+  [['switch', I.PV_SWITCH, I.PV_SWITCH_OFF], ['wifi', I.PV_WIFI, I.PV_WIFI_OFF],
+    ['bluetooth', I.PV_BT, I.PV_BT_OFF]].forEach(([name, on, off]) => {
+    const s = { pluginValueIcon: name };
+    assert.equal(pv.iconName(s), name);
+    assert.equal(pv.iconId(s, reading({ state: true })), on, name + ': on');
+    assert.equal(pv.iconId(s, reading({ short: 'Lamp', state: true })), on, name + ': on, whatever the text says');
+    assert.equal(pv.iconId(s, reading({ state: false })), off, name + ': off');
+    assert.equal(pv.iconId(s, reading({ short: 'On' })), off, name + ': no state is no on');
+    assert.equal(pv.iconId(s, null), off, name + ': too old or not read');
+  });
+});
+
+test('the icon: one that stays the same is the same whatever the value', () => {
+  const I = catalog.ICONS;
+  [['plug', I.PV_PLUG], ['phone', I.PV_PHONE], ['calendar', I.PV_CALENDAR]].forEach(([name, id]) => {
+    const s = { pluginValueIcon: name };
+    [reading({ state: true }), reading({ state: false }), reading({ number: 87 }), null].forEach((r) => {
+      assert.equal(pv.iconId(s, r), id, name);
+    });
+  });
+  assert.deepEqual(Object.keys(pv.ICON_FORMS), ['none', 'switch', 'wifi', 'bluetooth', 'plug', 'phone', 'calendar'],
+    'the Icon row\'s choices, in its order');
 });
 
 test('a value shows for three Updates intervals after it was read, three hours at least', () => {

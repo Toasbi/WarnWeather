@@ -318,6 +318,36 @@ test('the same value heard again sends nothing; another is sent', () => {
   assert.equal(sentText(h), '86%');
 });
 
+test('a value that turns off with the same text is sent again, with the icon\'s off form; the same again sends nothing', () => {
+  const WIFI = 'phone/phone_state/wifi';
+  const h = boot({ settings: Object.assign({}, SLOT, { pluginValueId: WIFI, pluginValueIcon: 'wifi' }) });
+  /**
+   * The Phone plugin's Wi-Fi, as a boolean with words of its own.
+   * @param {boolean} on Whether it is on.
+   * @returns {Object} The answer.
+   */
+  const wifi = (on) => answer({ wifi: { boolean: { value: on }, shortText: { text: 'Home' } } });
+  const sentIcon = () => decodeLine(h.sends[h.sends.length - 1].STATUS_LINE_3_UINT8)[0].icon;
+  const I = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js').ICONS;
+  h.pebble.subs[0].push(wifi(true));
+  minute();
+  assert.equal(h.sends.length, 1);
+  assert.equal(sentText(h), 'Home');
+  assert.equal(sentIcon(), I.PV_WIFI);
+  h.clock += HOUR;
+  minute();
+  h.pebble.subs[1].push(wifi(false));
+  minute();
+  assert.equal(h.sends.length, 2, 'the text is the same; the icon is not');
+  assert.equal(sentText(h), 'Home');
+  assert.equal(sentIcon(), I.PV_WIFI_OFF);
+  h.clock += HOUR;
+  minute();
+  h.pebble.subs[2].push(wifi(false));
+  minute();
+  assert.equal(h.sends.length, 2, 'still off: nothing owed');
+});
+
 test('a picked plugin the phone no longer lists is not asked, so no other plugin runs for it: the slot shows --', () => {
   const h = boot();
   h.pebble.subs[0].push(answer());

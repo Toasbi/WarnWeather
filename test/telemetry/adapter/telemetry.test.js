@@ -319,6 +319,22 @@ test('snapshot reports whether the Plugin value slot shows a value, never which'
   assert.ok(handler.indexOf('    pluginValue: z.boolean().optional(),') !== -1, 'pluginValue is in handler.ts');
 });
 
+// The Plugin value's icon (plugin-values.js iconName): one of this app's own choices, none by
+// default and for one it does not know, so nothing typed ever leaves the phone. Absent on aplite.
+test('snapshot reports the Plugin value\'s icon by its choice, none by default', () => {
+  const pv = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
+  assert.strictEqual(buildSettingsSnapshot({}, { platform: 'basalt' }).pluginValueIcon, 'none');
+  Object.keys(pv.ICON_FORMS).forEach((name) => {
+    assert.strictEqual(buildSettingsSnapshot({ pluginValueIcon: name }, { platform: 'emery' }).pluginValueIcon, name);
+  });
+  assert.strictEqual(buildSettingsSnapshot({ pluginValueIcon: 'Grandma\'s lamp' }, { platform: 'basalt' }).pluginValueIcon,
+    'none', 'never a text of the user\'s');
+  assert.strictEqual(buildSettingsSnapshot({ pluginValueIcon: 'wifi' }, { platform: 'aplite' }).pluginValueIcon, undefined,
+    'aplite has no such slot');
+  assert.ok(Object.keys(pv.ICON_FORMS).every((name) => name.length <= 'bluetooth'.length),
+    'the heaviest header holds the longest name');
+});
+
 test('buildSettingsSnapshot includes radarMode (default graph)', () => {
   assert.strictEqual(buildSettingsSnapshot({ radarMode: 'status' }).radarMode, 'status');
   assert.strictEqual(buildSettingsSnapshot({}).radarMode, 'graph');
@@ -549,6 +565,8 @@ const HEAVIEST_SETTINGS = {
   statusTopLeft: 'phone_battery', statusTopMid: 'phone_battery',
   statusTopRight: 'phone_battery', statusHealthLeft: 'phone_battery',
   statusHealthMid: 'phone_battery', statusHealthRight: 'phone_battery',
+  // The Plugin value's icon with the longest name.
+  pluginValueIcon: 'bluetooth',
   colorTime: 0xFFFFFF, colorToday: 0xFF0000, colorSunday: 0xFF0000,
   colorSaturday: 0xFF0000, colorUSFederal: 0xFF0000,
   // The light-polarity colours for the four metrics selected above (precip_prob as
