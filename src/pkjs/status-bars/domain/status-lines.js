@@ -431,12 +431,13 @@ function arrowSector(code, payload, settings, env, dayMax) {
 /**
  * The icon id to pack for one resolved item.
  *
- * Every other item packs the static `icon` off its catalog entry. Four items choose
+ * Every other item packs the static `icon` off its catalog entry. Five items choose
  * theirs PER BAKE, inside a byte the slot already pays for -- no wire field: 'condition'
  * draws the glyph of the weather now, by day or night, 'city' may draw it before its name,
- * 'phoneBattery' packs the id of its Text look, which draws none, and 'battery' in its
+ * 'phoneBattery' packs the id of its Text look, which draws none, 'battery' in its
  * Icon + text look the id of the battery the watch draws before its text (status_line.h
- * status_slot_draws_battery).
+ * status_slot_draws_battery), and 'pluginValue' the icon picked for it, in the form its
+ * value takes (plugin-values.js iconId).
  *
  * Resolved into a local exactly like `kind` is for the imperial distance slot --
  * the catalog entry itself is shared and must never be mutated.

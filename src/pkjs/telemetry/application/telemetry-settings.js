@@ -19,8 +19,9 @@
 // unitEnabled — a Show unit toggle, read like the bake prints the slot.
 var slotText = require('../../status-bars/domain/slot-text.js');
 var batteryDays = require('../../status-bars/domain/battery-days.js');
-// wantsPluginValue: whether the Plugin value slot is shown with a source picked; iconName: its icon.
+// wantsPluginValue: whether the Plugin value slot is shown with a source picked.
 var statusLines = require('../../status-bars/domain/status-lines.js');
+// iconName: the Plugin value slot's icon.
 var pluginValues = require('../../status-bars/domain/plugin-values.js');
 var platforms = require('../../config-ui/lib/platform.js');
 var color = require('../../lib/color.js');
