@@ -75,10 +75,11 @@ test('stripJs drops only what it can prove is a comment or a blank the program d
     // A comment after code goes, with the blanks before it; the line break stays (ASI).
     ['  var x = 1;   // why\nreturn\n', 'var x=1;\nreturn\n'],
     ["f('http://a', \"b'//c\", 'd\\'//'); // e\n", "f('http://a',\"b'//c\",'d\\'//');\n"],
-    // The blanks beside punctuation go, outside the strings and between names, keywords and
-    // numbers; a blank stays where two tokens would run on into another, or a comment or '?.'
-    // would start.
+    // The blanks beside punctuation and quotes go, outside the strings and between names,
+    // keywords and numbers; a blank stays where two tokens would run on into another, or a
+    // comment or '?.' would start.
     ["s = 'a  b' + \"c  d\";  \n", "s='a  b'+\"c  d\";\n"],
+    ["return 'x'; case 'a': y = \"b\" in o;\n", "return'x';case'a':y=\"b\"in o;\n"],
     ['for (var k in o) { if (typeof o[k] === x) { return -1; } else { n++; } }\n',
       'for(var k in o){if(typeof o[k]===x){return-1;}else{n++;}}\n'],
     ['a + +b; c - -d; e++ + f; g = h - --i;\n', 'a+ +b;c- -d;e++ +f;g=h- --i;\n'],

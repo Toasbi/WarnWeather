@@ -33,7 +33,7 @@ var LIB_PAGE_FILES = ['schema-walk.js', '../../lib/color.js', 'show-when.js', 'h
  * line breaks included, before and after.
  *
  * @param {string} src JavaScript source.
- * @returns {string} The same program without whole-line comments, blank lines or indentation.
+ * @returns {string} The same program without those comments, blank lines and blanks.
  */
 function stripJs(src) {
   var lines = src.split('\n');
@@ -67,19 +67,19 @@ function stripJs(src) {
   return out.join('\n');
 }
 
-// What a blank may go beside: no token runs on into a punctuator, but for the pairs blankKept
-// keeps apart.
-var PUNCTUATORS = '=,:;{}()[]+-*%<>!&|^~?';
+// What a blank may go beside: no token runs on into a punctuator or a quote that starts or ends a
+// string, but for the pairs blankKept keeps apart.
+var PUNCTUATORS = '=,:;{}()[]+-*%<>!&|^~?\'"';
 
 /**
- * @param {string} a The character before a run of blanks ('' at none).
+ * @param {string} a The character before a run of blanks.
  * @param {string} b The character after it.
  * @returns {boolean} Whether the blanks between them stay (as one): between two characters of
  *   names, keywords or numbers, between two of a token that would run on into another ('+ +',
  *   '- -'), and where a comment ('<!' + '--', '--' + '>') or '?.' would start.
  */
 function blankKept(a, b) {
-  if (!a || (PUNCTUATORS.indexOf(a) === -1 && PUNCTUATORS.indexOf(b) === -1)) { return true; }
+  if (PUNCTUATORS.indexOf(a) === -1 && PUNCTUATORS.indexOf(b) === -1) { return true; }
   return (a === b && (a === '+' || a === '-')) || a + b === '<!' || a + b === '->' || a + b === '?.';
 }
 
