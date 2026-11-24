@@ -41,7 +41,9 @@ function stripJs(src) {
   var continued = false;
   for (var i = 0; i < lines.length; i += 1) {
     var line = lines[i];
-    if (continued) {
+    // A line after a backslash, and one that holds another line terminator (U+2028, U+2029, a CR
+    // before its end: a '//' comment ends there, where this split sees none), stay as written.
+    if (continued || /[\u2028\u2029]|\r[^]/.test(line)) {
       out.push(line);
       continued = /\\\r?$/.test(line);
       continue;
@@ -76,11 +78,12 @@ var PUNCTUATORS = '=,:;{}()[]+-*%<>!&|^~?\'"';
  * @param {string} b The character after it.
  * @returns {boolean} Whether the blanks between them stay (as one): between two characters of
  *   names, keywords or numbers, between two of a token that would run on into another ('+ +',
- *   '- -'), and where a comment ('<!' + '--', '--' + '>') or '?.' would start.
+ *   '- -'), and where an HTML comment ('<!' + '--', '--' + '>') or '?.' would start.
  */
 function blankKept(a, b) {
   if (PUNCTUATORS.indexOf(a) === -1 && PUNCTUATORS.indexOf(b) === -1) { return true; }
-  return (a === b && (a === '+' || a === '-')) || a + b === '<!' || a + b === '->' || a + b === '?.';
+  return (a === b && (a === '+' || a === '-')) || a + b === '<!' || a + b === '!-' || a + b === '->'
+    || a + b === '?.';
 }
 
 /**

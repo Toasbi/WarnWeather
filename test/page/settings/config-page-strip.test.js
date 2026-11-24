@@ -84,6 +84,7 @@ test('stripJs drops only what it can prove is a comment or a blank the program d
       'for(var k in o){if(typeof o[k]===x){return-1;}else{n++;}}\n'],
     ['a + +b; c - -d; e++ + f; g = h - --i;\n', 'a+ +b;c- -d;e++ +f;g=h- --i;\n'],
     ['if (a < !b) { x = c-- > d ? .5 : 1; }\n', 'if(a< !b){x=c-- >d? .5:1;}\n'],
+    ['if (a<! --b) {}\n', 'if(a<! --b){}\n'],
     // Where a '/' comes first, it may start a regex literal the '//' is in, or one with blanks
     // that are its own: the line stays.
     ['s.replace(/\\/\\//, \'\'); // a\n', 's.replace(/\\/\\//, \'\'); // a\n'],
@@ -93,6 +94,11 @@ test('stripJs drops only what it can prove is a comment or a blank the program d
     // A line that could close a block comment, or hold a backtick, stays.
     ['var a; /* open\nsee http://x */ var b;\n', 'var a; /* open\nsee http://x */ var b;\n'],
     ['var t = `a = b`; // b\n', 'var t = `a = b`; // b\n'],
+    // A '//' comment ends at another line terminator too, where the code after it goes on: the
+    // line stays.
+    ['x(); // a\u2028y();\n', 'x(); // a\u2028y();\n'],
+    ['  // a\u2029y();\n', '  // a\u2029y();\n'],
+    ['x(); // a\ry();\r\nz = 1;\r\n', 'x(); // a\ry();\r\nz=1;\r\n'],
   ];
   cases.forEach(([input, expected]) => {
     assert.equal(build.stripJs(input), expected, JSON.stringify(input));
