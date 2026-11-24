@@ -72,6 +72,14 @@ function boot(t, store, pebbleExtras, platform) {
 
 /** A Pebble app with plugins: subscriptions that never answer. */
 const PLUGINS = { subscribeToSource: () => ({ unsubscribe: () => {} }) };
+/**
+ * Every tip in the order the card hands them over (feature-tips.test.js pins it), and the rounds
+ * it hands them over in, MAX_SHOWN at a time, to a watch and phone that can use every feature.
+ */
+const featureTips = require('../../src/pkjs/notices/domain/feature-tips.js');
+const ALL = featureTips.allIds();
+const ROUNDS = [];
+for (let i = 0; i < ALL.length; i += featureTips.MAX_SHOWN) { ROUNDS.push(ALL.slice(i, i + featureTips.MAX_SHOWN)); }
 /** The stored settings of an install from before the tips. */
 const EXISTING = { 'clay-settings': JSON.stringify({ provider: 'openmeteo', onboardingDone: true }) };
 
@@ -91,33 +99,29 @@ test('an install from before the tips is handed them on settings open, until Got
   h.listeners.showConfiguration({});
   const tips = userDataOf(h.opened[0]).featureTips;
   assert.ok(Array.isArray(tips) && tips.length > 0, 'the card has tips to draw');
-  assert.deepEqual(tips.map((tip) => tip.id), ['pluginValueIcon', 'complications', 'pluginValue'], 'three at a time');
+  assert.ok(ROUNDS.length > 1, 'more tips than one card holds');
+  assert.deepEqual(tips.map((tip) => tip.id), ROUNDS[0], featureTips.MAX_SHOWN + ' at a time');
   tips.forEach((tip) => assert.deepEqual(Object.keys(tip), ['id', 'title', 'html', 'sheet', 'tab']));
 
   // Saved without Got it: still unseen, and handed over again.
   save(h, { vibe: false });
   h.listeners.showConfiguration({});
-  assert.deepEqual(userDataOf(h.opened[1]).featureTips.map((tip) => tip.id), ['pluginValueIcon', 'complications', 'pluginValue']);
+  assert.deepEqual(userDataOf(h.opened[1]).featureTips.map((tip) => tip.id), ROUNDS[0]);
 
-  // Got it, then Save: seen, and the next open shows the ones left.
-  save(h, { featureTipsAck: true });
-  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['pluginValueIcon', 'complications', 'pluginValue']);
-  h.listeners.showConfiguration({});
-  assert.deepEqual(userDataOf(h.opened[2]).featureTips.map((tip) => tip.id), ['weatherFrom', 'batteryIconText', 'batteryDays']);
-
-  // Got it again, then the last one, and its Got it: every tip seen, and the next open has no card.
-  save(h, { featureTipsAck: true });
-  h.listeners.showConfiguration({});
-  assert.deepEqual(userDataOf(h.opened[3]).featureTips.map((tip) => tip.id), ['blackTheme']);
-  save(h, { featureTipsAck: true });
-  h.listeners.showConfiguration({});
-  assert.equal(userDataOf(h.opened[4]).featureTips, null);
+  // Got it, then Save: seen, and the next open shows the ones left, until every tip is seen and
+  // the next open has no card.
+  ROUNDS.forEach((round, r) => {
+    save(h, { featureTipsAck: true });
+    assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ALL.slice(0, (r + 1) * featureTips.MAX_SHOWN));
+    h.listeners.showConfiguration({});
+    const next = userDataOf(h.opened[2 + r]).featureTips;
+    assert.deepEqual(next && next.map((tip) => tip.id), r + 1 < ROUNDS.length ? ROUNDS[r + 1] : null, 'round ' + r);
+  });
 });
 
 test('a fresh install is handed none: nothing is new to it', (t) => {
   const h = boot(t, {}, PLUGINS);
-  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]),
-    ['pluginValueIcon', 'complications', 'pluginValue', 'weatherFrom', 'batteryIconText', 'batteryDays', 'blackTheme']);
+  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ALL);
   h.listeners.showConfiguration({});
   assert.equal(userDataOf(h.opened[0]).featureTips, null);
 });
@@ -130,8 +134,7 @@ test('Reset watchface leaves a fresh install: it has seen every tip, whatever is
 
   save(h, { reset: true });
   assert.equal(store['clay-settings'], undefined, 'the reset wiped the settings');
-  assert.deepEqual(JSON.parse(store[h.KEYS.FEATURE_TIPS_SEEN_KEY]),
-    ['pluginValueIcon', 'complications', 'pluginValue', 'weatherFrom', 'batteryIconText', 'batteryDays', 'blackTheme']);
+  assert.deepEqual(JSON.parse(store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ALL);
   h.listeners.showConfiguration({});
   assert.equal(userDataOf(h.opened[1]).featureTips, null, 'no card in the same PKJS life');
 
