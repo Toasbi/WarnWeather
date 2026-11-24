@@ -437,6 +437,10 @@ const SECOND_KEY = PREFERENCES + '/preferences/complications/1';
 /** The user's complications: the temperature of their second weather location, and the phone's charge. */
 const TEMPERATURE = { position: 1, category: 'weather', item: 'location', index: 1, property: 'temperature' };
 const CHARGE = { position: 1, category: 'phone', item: 'phone_state', index: 0, property: 'battery_level' };
+/** Muninn's last update as the user's second complication, a moment in epoch milliseconds. */
+const UPDATED = { position: 1, category: 'muninn', item: 'stats', index: 0, property: 'updatedAt' };
+/** The plugin list with Muninn, which serves it. */
+const MUNINN = [{ uuid: 'm', name: 'Muninn', sources: [{ category: 'muninn', items: ['stats'] }] }];
 
 /**
  * The weather plugin's answer: a temperature for each of the user's weather locations.
@@ -446,6 +450,15 @@ const CHARGE = { position: 1, category: 'phone', item: 'phone_state', index: 0, 
 function weather(temperatures) {
   return { pluginUuid: 'w', instances: temperatures.map((t, i) => ({ instanceId: 'loc' + i,
     properties: { temperature: { shortText: { text: t } } } })) };
+}
+
+/**
+ * Boot with Muninn's last update as the slot's complication.
+ * @param {number} [clock] The time (default NOON).
+ * @returns {Object} The boot's handle.
+ */
+function bootUpdated(clock) {
+  return boot({ clock: clock, settings: SECOND, complications: [UPDATED], permissions: PERMS, pebble: fakePebble(MUNINN) });
 }
 
 test('a complication: the reading it names, from whichever plugin serves its source, of the instance it names', () => {
@@ -579,22 +592,16 @@ test('the complications not known yet: nothing is read until they are, then at o
 
 test('a complication\'s moment prints as a clock time: its property\'s name is last in the value\'s key', () => {
   const at = new Date(2026, 10, 21, 11, 7, 0).getTime();
-  const muninn = { position: 1, category: 'muninn', item: 'stats', index: 0, property: 'updatedAt' };
-  const h = boot({ settings: SECOND, complications: [muninn], permissions: PERMS,
-    pebble: fakePebble([{ uuid: 'm', name: 'Muninn', sources: [{ category: 'muninn', items: ['stats'] }] }]) });
-  h.pebble.subs[0].push({ pluginUuid: 'm', instances: [{ instanceId: '0',
-    properties: { updatedAt: { numericValue: { value: at } } } }] });
+  const h = bootUpdated();
+  h.pebble.subs[0].push(answer({ updatedAt: { numericValue: { value: at } } }, { pluginUuid: 'm' }));
   minute();
   assert.equal(sentText(h), '11:07');
 });
 
 test('a moment of the day the slot showed it on gets its date at the midnight after it', () => {
   const at = new Date(2026, 10, 21, 23, 10, 0).getTime();
-  const muninn = { position: 1, category: 'muninn', item: 'stats', index: 0, property: 'updatedAt' };
-  const h = boot({ clock: new Date(2026, 10, 21, 23, 30, 0).getTime(), settings: SECOND, complications: [muninn],
-    permissions: PERMS, pebble: fakePebble([{ uuid: 'm', name: 'Muninn', sources: [{ category: 'muninn', items: ['stats'] }] }]) });
-  h.pebble.subs[0].push({ pluginUuid: 'm', instances: [{ instanceId: '0',
-    properties: { updatedAt: { numericValue: { value: at } } } }] });
+  const h = bootUpdated(new Date(2026, 10, 21, 23, 30, 0).getTime());
+  h.pebble.subs[0].push(answer({ updatedAt: { numericValue: { value: at } } }, { pluginUuid: 'm' }));
   minute();
   assert.equal(sentText(h), '23:10');
   h.clock = new Date(2026, 10, 21, 23, 59, 0).getTime();
@@ -604,6 +611,19 @@ test('a moment of the day the slot showed it on gets its date at the midnight af
   h.clock = new Date(2026, 10, 22, 0, 0, 0).getTime();
   minute();
   assert.equal(sentText(h), '21 Nov', 'yesterday\'s: a side slot has no room for the time as well');
+});
+
+test('a moment the slot prints none of owes the watch nothing at the midnight after it', () => {
+  const at = new Date(2026, 10, 21, 23, 10, 0).getTime();
+  const h = bootUpdated(new Date(2026, 10, 21, 23, 30, 0).getTime());
+  h.pebble.subs[0].push(answer({ updatedAt: { shortText: { text: 'Synced' }, numericValue: { value: at } } },
+    { pluginUuid: 'm' }));
+  minute();
+  assert.equal(sentText(h), 'Synced', 'its short text prints, not its moment');
+  const sends = h.sends.length;
+  h.clock = new Date(2026, 10, 22, 0, 0, 0).getTime();
+  minute();
+  assert.equal(h.sends.length, sends, 'the same text on either day');
 });
 
 test('a pick of the Preferences plugin\'s own reading, which 3.4.0 listed, is never read: the value kept is dropped at once', () => {
