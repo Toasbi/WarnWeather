@@ -156,3 +156,9 @@ test('sameReading: the same six fields, in whatever order they come', () => {
   assert.equal(reads.sameReading(r, null), false);
   assert.equal(reads.sameReading(null, r), false);
 });
+
+test('the shapes the slot prints, each once, from the fields a reading is read by', () => {
+  assert.deepEqual(reads.SHAPES, ['shortText', 'timestamp', 'numericValue', 'boolean', 'longText']);
+  assert.deepEqual(reads.FIELDS.map((f) => f.name), ['short', 'time', 'number', 'unit', 'state', 'long'],
+    'in the order the slot prints them');
+});

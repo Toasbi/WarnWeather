@@ -24,6 +24,7 @@
 var utf8 = require('../../lib/utf8.js');
 var complications = require('./complications.js');
 var pluginReads = require('./plugin-reads.js');
+var pluginValueReads = require('./plugin-value-reads.js');
 var pluginValues = require('./plugin-values.js');
 
 /**
@@ -43,12 +44,6 @@ var MAX_ID = 64;
 var LIST_COST = 4000;
 
 /**
- * The shapes the slot prints (plugin-values.js textFor). A property needs one of them to be
- * listed.
- */
-var TEXT_SHAPES = ['shortText', 'timestamp', 'numericValue', 'boolean', 'longText'];
-
-/**
  * @param {string} text A name.
  * @returns {string} It, cut to MAX_NAME characters, a character outside the BMP (two UTF-16
  *   units) whole.
@@ -60,14 +55,13 @@ function capped(text) {
 
 /**
  * @param {*} shapes A property's declared shapes.
- * @returns {boolean} Whether the slot can print it.
+ * @returns {boolean} Whether the slot can print it: one of them is a shape the slot prints
+ *   (plugin-value-reads.js SHAPES).
  */
 function printable(shapes) {
-    if (!Array.isArray(shapes)) { return false; }
-    for (var i = 0; i < TEXT_SHAPES.length; i++) {
-        if (shapes.indexOf(TEXT_SHAPES[i]) !== -1) { return true; }
-    }
-    return false;
+    return Array.isArray(shapes) && pluginValueReads.SHAPES.some(function (shape) {
+        return shapes.indexOf(shape) !== -1;
+    });
 }
 
 /**

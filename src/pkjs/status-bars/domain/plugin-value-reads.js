@@ -3,7 +3,10 @@
 // The Plugin value slot's reads: when the value is read from its plugin again, and the value a
 // read keeps. The reading, the record of the last read this works from and the keeping are
 // plugin-value-source.js'; the record's shape and the waits after a failure are every plugin
-// read's (plugin-reads.js).
+// read's (plugin-reads.js). A reading's fields, and the shapes of a property they are read
+// from, are one table here (FIELDS): the reader reads by it (plugin-reader.js readingOf), a
+// value keeps by it (valueOf, sameReading) and the dialog lists a property by its shapes
+// (SHAPES, plugin-value-list.js).
 //
 // A read costs the user something (plugin-reader.js), and only the user knows how fast their
 // value changes, so the slot's Updates setting says how often (plugin-values.js everyMs). From
@@ -42,6 +45,27 @@ function nextReadAt(record, everyMs) {
  * (userData.pluginValue).
  */
 var MAX_TEXT = 64;
+
+/**
+ * A reading's fields (plugin-reader.js PluginReading), in the order the slot prints them
+ * (plugin-values.js textFor): each with the shape of the property it is read from, the part of
+ * that shape (its text, its value, or the number's unit), and what a value keeps of it
+ * (valueOf: a text, a moment, a number or a state). The unit is the number's (`of`): it brings
+ * nothing by itself.
+ */
+var FIELDS = [
+    { name: 'short', shape: 'shortText', part: 'text', kept: 'text' },
+    { name: 'time', shape: 'timestamp', part: 'value', kept: 'moment' },
+    { name: 'number', shape: 'numericValue', part: 'value', kept: 'number' },
+    { name: 'unit', shape: 'numericValue', part: 'unit', kept: 'text', of: 'number' },
+    { name: 'state', shape: 'boolean', part: 'value', kept: 'state' },
+    { name: 'long', shape: 'longText', part: 'text', kept: 'text' }
+];
+
+/** The shapes the slot prints, each once (FIELDS): a property needs one of them to be listed. */
+var SHAPES = FIELDS.map(function (f) { return f.shape; }).filter(function (shape, i, all) {
+    return all.indexOf(shape) === i;
+});
 
 /**
  * The numbers a moment can be, in epoch seconds and in epoch milliseconds: 10 digits of
@@ -111,10 +135,25 @@ function keptText(v) {
 }
 
 /**
+ * What a value keeps of one of its reading's fields (FIELDS).
+ * @param {Object} f The field.
+ * @param {Object} r The reading as a plugin sent it or as it was stored.
+ * @param {string} property The property it is of.
+ * @returns {*} The text trimmed and cut to MAX_TEXT bytes (keptText), the moment in epoch
+ *   milliseconds (momentOf), the number a finite one, the state a boolean; null for none.
+ */
+function keptField(f, r, property) {
+    var v = r[f.name];
+    if (f.kept === 'moment') { return momentOf(r, property); }
+    if (f.kept === 'number') { return typeof v === 'number' && isFinite(v) ? v : null; }
+    if (f.kept === 'state') { return typeof v === 'boolean' ? v : null; }
+    return keptText(v);
+}
+
+/**
  * A value as kept, checked: where a plugin's answer and storage come in, once. The source it
- * was read from (plugin-values.js sourceOf's key); its reading (plugin-reader.js readingOf):
- * its texts trimmed and cut to MAX_TEXT bytes, its moment in epoch milliseconds (momentOf),
- * its number a finite one, its state a boolean, null for each it lacks; when it was read; and
+ * was read from (plugin-values.js sourceOf's key); its reading (plugin-reader.js readingOf),
+ * each field as a value keeps it (keptField), null for each it lacks; when it was read; and
  * until when the plugin said it holds (plugin-reads.js timeOf). A value kept before a number
  * named as a moment was read as one gets its moment here too.
  * @param {*} value What was stored (parsed JSON), or a value just read.
@@ -124,15 +163,12 @@ function keptText(v) {
 function valueOf(value) {
     var r = value && value.reading;
     var at = pluginReads.timeOf(value && value.at);
-    var reading;
+    var reading = {};
     if (!value || typeof value.source !== 'string' || !r || typeof r !== 'object' || at === null) {
         return null;
     }
-    reading = { short: keptText(r.short), time: momentOf(r, propertyOf(value.source)),
-        number: typeof r.number === 'number' && isFinite(r.number) ? r.number : null, unit: keptText(r.unit),
-        state: typeof r.state === 'boolean' ? r.state : null, long: keptText(r.long) };
-    if (reading.short === null && reading.time === null && reading.number === null && reading.state === null
-            && reading.long === null) {
+    FIELDS.forEach(function (f) { reading[f.name] = keptField(f, r, propertyOf(value.source)); });
+    if (!FIELDS.some(function (f) { return !f.of && reading[f.name] !== null; })) {
         return null;
     }
     return { source: value.source, reading: reading, at: at, validUntil: pluginReads.timeOf(value.validUntil) };
@@ -141,17 +177,18 @@ function valueOf(value) {
 /**
  * @param {?Object} a A reading (valueOf's), or null.
  * @param {?Object} b Another, or null.
- * @returns {boolean} Whether the two say the same, field by field: a reading's fields come in
- *   another order once it has been through storage.
+ * @returns {boolean} Whether the two say the same, field by field (FIELDS): a reading's fields
+ *   come in another order once it has been through storage.
  */
 function sameReading(a, b) {
     if (!a || !b) { return !a && !b; }
-    return a.short === b.short && a.time === b.time && a.number === b.number && a.unit === b.unit
-        && a.state === b.state && a.long === b.long;
+    return FIELDS.every(function (f) { return a[f.name] === b[f.name]; });
 }
 
 module.exports = {
     MAX_TEXT: MAX_TEXT,
+    FIELDS: FIELDS,
+    SHAPES: SHAPES,
     epochMs: epochMs,
     namesMoment: namesMoment,
     nextReadAt: nextReadAt,

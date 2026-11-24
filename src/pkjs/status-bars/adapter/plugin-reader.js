@@ -29,6 +29,7 @@
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
 var pluginReads = require('../domain/plugin-reads.js');
+var pluginValueReads = require('../domain/plugin-value-reads.js');
 
 /**
  * How long readOnce waits for a plugin's answer before it gives up. Longer than the Pebble app
@@ -322,18 +323,11 @@ function numberOf(envelope, property) {
  */
 
 /**
- * @param {?Object} shape A shape as the plugin sent it, e.g. {value: 84}.
- * @returns {*} Its value, or null where there is no shape.
- */
-function shapeValue(shape) {
-    return shape ? shape.value : null;
-}
-
-/**
  * A property's reading in one of the envelope's instances, the first by default: the value of
  * each shape the slot prints (each text shape's text, the timestamp, the number with its unit,
- * the boolean), as the plugin sent them, unchecked. What of it is kept, and what the slot
- * shows, are the status bars' rules, checked once (plugin-value-reads.js valueOf).
+ * the boolean: plugin-value-reads.js FIELDS), as the plugin sent them, unchecked. What of it
+ * is kept, and what the slot shows, are the status bars' rules, checked once
+ * (plugin-value-reads.js valueOf).
  *
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
@@ -342,15 +336,13 @@ function shapeValue(shape) {
  */
 function readingOf(envelope, property, index) {
     var shapes = shapesOf(envelope, property, index);
-    var numeric = shapes && shapes.numericValue;
-    return shapes ? {
-        short: shapes.shortText ? shapes.shortText.text : null,
-        time: shapeValue(shapes.timestamp),
-        number: shapeValue(numeric),
-        unit: numeric ? numeric.unit : null,
-        state: shapeValue(shapes.boolean),
-        long: shapes.longText ? shapes.longText.text : null
-    } : null;
+    var reading = {};
+    if (!shapes) { return null; }
+    pluginValueReads.FIELDS.forEach(function (f) {
+        var shape = shapes[f.shape];
+        reading[f.name] = shape ? shape[f.part] : null;
+    });
+    return reading;
 }
 
 /**
