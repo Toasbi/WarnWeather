@@ -23,14 +23,19 @@
     {"key": "GUST", "ids": ["STATUS_ICON_GUST"]},
     {"key": "AQI", "ids": ["STATUS_ICON_AQI"]},
     {"key": "POLLEN", "ids": ["STATUS_ICON_POLLEN"]},
-    {"key": "COUNTDOWN", "ids": ["STATUS_ICON_COUNTDOWN"]},
-    {"key": "PHONE_BATTERY", "ids": ["STATUS_ICON_PHONE_BATTERY"]},
+    {"key": "COUNTDOWN", "ids": ["STATUS_ICON_COUNTDOWN", "STATUS_ICON_PV_CALENDAR"]},
+    {"key": "PHONE_BATTERY", "ids": ["STATUS_ICON_PHONE_BATTERY", "STATUS_ICON_PV_PHONE"]},
     {"key": "STEPS", "ids": ["STATUS_ICON_STEPS"]},
     {"key": "DISTANCE", "ids": ["STATUS_ICON_DISTANCE"]},
     {"key": "SLEEP", "ids": ["STATUS_ICON_SLEEP"]},
     {"key": "HEART", "ids": ["STATUS_ICON_HR"]},
     {"key": "QUIET", "ids": ["STATUS_ROW_ICON_QUIET"]},
-    {"key": "BT", "ids": ["STATUS_ROW_ICON_BT"]},
-    {"key": "BT_OFF", "ids": ["STATUS_ROW_ICON_BT_OFF"]}
+    {"key": "BT", "ids": ["STATUS_ROW_ICON_BT", "STATUS_ICON_PV_BT"]},
+    {"key": "BT_OFF", "ids": ["STATUS_ROW_ICON_BT_OFF", "STATUS_ICON_PV_BT_OFF"]},
+    {"key": "SWITCH", "ids": ["STATUS_ICON_PV_SWITCH"]},
+    {"key": "SWITCH_OFF", "ids": ["STATUS_ICON_PV_SWITCH_OFF"]},
+    {"key": "WIFI", "ids": ["STATUS_ICON_PV_WIFI"]},
+    {"key": "WIFI_OFF", "ids": ["STATUS_ICON_PV_WIFI_OFF"]},
+    {"key": "PLUG", "ids": ["STATUS_ICON_PV_PLUG"]}
   ]
 }

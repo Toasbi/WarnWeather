@@ -41,7 +41,12 @@
         HEART: '~9!1w.4q.4q.7l.75.75.3m.1w.1w.14.g~d!eg.104.1pe.37l.35t.35t.35t.1ky.sk.eg.7k.4g.1s~d!eg.104.1pe.37l.35t.35t.35t.1ky.sk.eg.7k.4g.1s.0.0~d!eg.104.wi.1pe.37l.35t.35t.35t.1ky.sk.eg.eg.7k.4g.1s.0.0~h!368.7xk.dhg.ps2.1erl.1ekh.1ekh.1ekh.1ekh.paa.cn8.6bs.368.1ls.u8.hs.74.0.0',
         QUIET: '~b!1t.2q.2c.27.29.2p.1t.5r.9c.gw.u8~d!3l.5e.4k.48.4f.4h.5d.3l.b3.i8.ww.1q8.39c~2~f!75.aq.90.94.8g.8v.8x.ap.75.m7.10g.1ts.3eo.6m8.cu8~h!e9.le.hw.g8.fk.fz.g1.ht.ld.e9.16p.1zz.3kw.6rk.d4w.pvk.1eyo',
         BT: '~7!8.o.14.23.1o.8.1o.23.14.o.8~9!g.1c.5s.7l.5u.1o.g.1k.5y.7l.5s.1c.g~2~8!g.1c.28.40.41.2e.1k.g.1k.2e.41.40.28.1c.g~b!w.2o.bk.f4.td.f6.bw.34.w.34.bw.f6.td.f4.bk.2o.w',
-        BT_OFF: '~9!g.1d.2a.46.3g.g.3c.5y.5s.8g.g~b!w.2p.bm.fa.bw.3c.w.34.4s.82.io.v4.w~2~d!1s.5d.8y.g4.uk.go.dc.1s.68.9k.g4.18g.1ts.3b4.1s~f!3k.ap.1aa.1ok.39o.1p4.1bk.cg.3k.cg.1bk.w8.1ok.4u8.7ls.cxs.3k'
+        BT_OFF: '~9!g.1d.2a.46.3g.g.3c.5y.5s.8g.g~b!w.2p.bm.fa.bw.3c.w.34.4s.82.io.v4.w~2~d!1s.5d.8y.g4.uk.go.dc.1s.68.9k.g4.18g.1ts.3b4.1s~f!3k.ap.1aa.1ok.39o.1p4.1bk.cg.3k.cg.1bk.w8.1ok.4u8.7ls.cxs.3k',
+        SWITCH: '~d!0.0.1ks.1ky.3up.3nl.3up.1ky.1ks.0.0~h!0.0.cmw.11xi.ute.1la9.1la9.1la9.ute.11xi.cmw.0.0~2~k!0.0.1ek0.47po.5m9u.6uiq.cq9t.cq9t.cq9t.6uiq.5m9u.47po.1ek0.0.0~n!0.0.b8j4.xpn0.18y6a.1dv5u.2nv9d.2tb7l.2tb7l.2tb7l.2nv9d.1dv5u.18y6a.xpn0.b8j4.0.0',
+        SWITCH_OFF: '~d!0.0.1ks.1ky.37d.36x.37d.1ky.1ks.0.0~h!0.0.cmw.11xi.pde.1eo9.1eo9.1eo9.pde.11xi.cmw.0.0~2~k!0.0.1ek0.47po.5m9u.5mcy.b8nd.b8nd.b8nd.5mcy.5m9u.47po.1ek0.0.0~n!0.0.b8j4.xpn0.18y6a.18yci.2hwk1.2hwqx.2hwqx.2hwqx.2hwk1.18yci.18y6a.xpn0.b8j4.0.0',
+        WIFI: '~d!0.s8.sk.1ky.3jl.eg.sk.68.7k.0.1s~f!0.rk.5jw.6bm.cn5.1kg.1l4.35w.cg.f4.0.3k.0~2~h!0.6b4.6bs.cn8.paa.1hpd.368.6bs.0.ow.u8.1ls.0.74.0~l!0.cjk.2gkw.2t54.guti.mh35.64g.j40.23w0.0.64g.6f4.0.0.0.sg.0',
+        WIFI_OFF: '~d!2.ro.ss.1le.3e9.g8.w4.dc.ls.sg.1mo~f!2.ro.5jg.6c2.co1.19s.1oo.3d0.qo.17k.1kw.39c.6bk~2~h!2.6as.6bs.cno.pb6.1hep.39s.6iw.e8.1hc.2f4.4rk.6bk.cu8.pa8~l!4.cjs.2gi8.2t60.guva.mh6p.4xs.ji8.24og.1kw.64g.6f4.cn4.pa8.1ekg.2txc.5m9s',
+        PLUG: '~9!1w.1w.1w.e7.3m.3m.1w.1k.g.g.g~9!1w.1w.1w.1w.e7.3m.3m.3m.1w.1k.g.g.g~2~b!3s.3s.3s.3s.1kv.ea.ea.ea.78.b0.34.w.w.w.w~d!7k.7k.7k.7k.7k.6bj.1ky.1ky.1ky.sk.sk.m0.68.1s.1s.1s.1s'
     };
     var ICONS = {};
     Object.keys(PACKED).forEach(function (key) {
@@ -77,14 +82,23 @@
         STATUS_ICON_AQI: 'AQI',
         STATUS_ICON_POLLEN: 'POLLEN',
         STATUS_ICON_COUNTDOWN: 'COUNTDOWN',
+        STATUS_ICON_PV_CALENDAR: 'COUNTDOWN',
         STATUS_ICON_PHONE_BATTERY: 'PHONE_BATTERY',
+        STATUS_ICON_PV_PHONE: 'PHONE_BATTERY',
         STATUS_ICON_STEPS: 'STEPS',
         STATUS_ICON_DISTANCE: 'DISTANCE',
         STATUS_ICON_SLEEP: 'SLEEP',
         STATUS_ICON_HR: 'HEART',
         STATUS_ROW_ICON_QUIET: 'QUIET',
         STATUS_ROW_ICON_BT: 'BT',
-        STATUS_ROW_ICON_BT_OFF: 'BT_OFF'
+        STATUS_ICON_PV_BT: 'BT',
+        STATUS_ROW_ICON_BT_OFF: 'BT_OFF',
+        STATUS_ICON_PV_BT_OFF: 'BT_OFF',
+        STATUS_ICON_PV_SWITCH: 'SWITCH',
+        STATUS_ICON_PV_SWITCH_OFF: 'SWITCH_OFF',
+        STATUS_ICON_PV_WIFI: 'WIFI',
+        STATUS_ICON_PV_WIFI_OFF: 'WIFI_OFF',
+        STATUS_ICON_PV_PLUG: 'PLUG'
     };
     var api = {icons: ICONS, ids: IDS};
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

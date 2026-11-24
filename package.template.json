@@ -1979,6 +1979,296 @@
           "targetPlatforms": [
             "emery"
           ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_BASALT_11",
+          "file": "data/PX_SWITCH_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_BASALT_11_BW",
+          "file": "data/PX_SWITCH_BASALT_11_BW.pdc",
+          "targetPlatforms": [
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_BASALT_13",
+          "file": "data/PX_SWITCH_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_BASALT_13_BW",
+          "file": "data/PX_SWITCH_BASALT_13_BW.pdc",
+          "targetPlatforms": [
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_EMERY_13",
+          "file": "data/PX_SWITCH_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_EMERY_15",
+          "file": "data/PX_SWITCH_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_EMERY_17",
+          "file": "data/PX_SWITCH_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_OFF_BASALT_11",
+          "file": "data/PX_SWITCH_OFF_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_OFF_BASALT_11_BW",
+          "file": "data/PX_SWITCH_OFF_BASALT_11_BW.pdc",
+          "targetPlatforms": [
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_OFF_BASALT_13",
+          "file": "data/PX_SWITCH_OFF_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_OFF_BASALT_13_BW",
+          "file": "data/PX_SWITCH_OFF_BASALT_13_BW.pdc",
+          "targetPlatforms": [
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_OFF_EMERY_13",
+          "file": "data/PX_SWITCH_OFF_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_OFF_EMERY_15",
+          "file": "data/PX_SWITCH_OFF_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_SWITCH_OFF_EMERY_17",
+          "file": "data/PX_SWITCH_OFF_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_BASALT_11",
+          "file": "data/PX_WIFI_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_BASALT_11_BW",
+          "file": "data/PX_WIFI_BASALT_11_BW.pdc",
+          "targetPlatforms": [
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_BASALT_13",
+          "file": "data/PX_WIFI_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_BASALT_13_BW",
+          "file": "data/PX_WIFI_BASALT_13_BW.pdc",
+          "targetPlatforms": [
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_EMERY_13",
+          "file": "data/PX_WIFI_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_EMERY_15",
+          "file": "data/PX_WIFI_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_EMERY_17",
+          "file": "data/PX_WIFI_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_OFF_BASALT_11",
+          "file": "data/PX_WIFI_OFF_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_OFF_BASALT_11_BW",
+          "file": "data/PX_WIFI_OFF_BASALT_11_BW.pdc",
+          "targetPlatforms": [
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_OFF_BASALT_13",
+          "file": "data/PX_WIFI_OFF_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_OFF_BASALT_13_BW",
+          "file": "data/PX_WIFI_OFF_BASALT_13_BW.pdc",
+          "targetPlatforms": [
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_OFF_EMERY_13",
+          "file": "data/PX_WIFI_OFF_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_OFF_EMERY_15",
+          "file": "data/PX_WIFI_OFF_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_WIFI_OFF_EMERY_17",
+          "file": "data/PX_WIFI_OFF_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PLUG_BASALT_11",
+          "file": "data/PX_PLUG_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PLUG_BASALT_11_BW",
+          "file": "data/PX_PLUG_BASALT_11_BW.pdc",
+          "targetPlatforms": [
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PLUG_BASALT_13",
+          "file": "data/PX_PLUG_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PLUG_BASALT_13_BW",
+          "file": "data/PX_PLUG_BASALT_13_BW.pdc",
+          "targetPlatforms": [
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PLUG_EMERY_13",
+          "file": "data/PX_PLUG_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PLUG_EMERY_15",
+          "file": "data/PX_PLUG_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_PLUG_EMERY_17",
+          "file": "data/PX_PLUG_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
         }
       ]
     },

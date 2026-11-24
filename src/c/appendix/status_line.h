@@ -185,13 +185,29 @@ typedef enum {
     // arriving as TEXT + NONE and taking City's bold mode; it has no bold kind of its own
     // (status_threshold.c TEXT_KIND leaves it out) and no short form (status_short_text.h).
     STATUS_ICON_PLUGIN_TEXT = 35,
+    // The Plugin value slot's icons (its dialog's Icon row), drawn before the value's text. The
+    // phone sends a pair's off form while the value is off, too old or not read: Switch, Wi-Fi
+    // and Bluetooth turn with a value that is on or off. Plug, Phone and Calendar stay the same.
+    // Bluetooth, Phone and Calendar draw the watch's Bluetooth, phone and countdown drawings
+    // under ids of their own (scripts/pixel-icons/icons.json), so the slot takes none of those
+    // slots' bold kinds (status_threshold.c TEXT_KIND leaves them out) or short forms
+    // (status_short_text.h), as PLUGIN_TEXT takes none.
+    STATUS_ICON_PV_SWITCH = 36,
+    STATUS_ICON_PV_SWITCH_OFF = 37,
+    STATUS_ICON_PV_WIFI = 38,
+    STATUS_ICON_PV_WIFI_OFF = 39,
+    STATUS_ICON_PV_BT = 40,
+    STATUS_ICON_PV_BT_OFF = 41,
+    STATUS_ICON_PV_PLUG = 42,
+    STATUS_ICON_PV_PHONE = 43,
+    STATUS_ICON_PV_CALENDAR = 44,
 } StatusIconId;
 // Id 6 (STATUS_ICON_PRECIP, removed in 3dae9f4) is a retired hole: never reuse it —
 // a pre-3dae9f4 install can still hold a persisted blob referencing it. So is id 17
 // (STATUS_ICON_PHONE_BATTERY_CHG, the glyph of a phone that charges: the phone packed it
 // in place of id 16 while it charged, until the slot came to show the charge alone). A
 // line stored with it draws its text without a glyph until the phone's next bake.
-#define STATUS_ICON_MAX STATUS_ICON_PLUGIN_TEXT
+#define STATUS_ICON_MAX STATUS_ICON_PV_CALENDAR
 
 // Whether a slot draws the Watch battery's glyph: alone (SLOT_LIVE_BATTERY, the Icon look), or
 // before its charge as text (SLOT_LIVE_BATTERY_PCT with STATUS_ICON_DRAWN_BATTERY, the Icon +

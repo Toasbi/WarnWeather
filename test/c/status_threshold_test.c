@@ -101,6 +101,11 @@ static void kind_tests(void) {
     // The Plugin value slot has no bold kind (the bold area is full) and never takes the
     // city's: its id is what keeps it off TEXT + NONE.
     expect("kind.plugin_text", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT), -1);
+    // Nor have its icons: Bluetooth, Phone and Calendar draw the Bluetooth, phone battery and
+    // countdown drawings without those slots' bold kinds.
+    for (int id = STATUS_ICON_PV_SWITCH; id <= STATUS_ICON_PV_CALENDAR; id++) {
+        expect("kind.plugin_icon", status_threshold_kind_for_slot(SLOT_TEXT, (uint8_t)id), -1);
+    }
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
     expect("kind.empty", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_NONE), -1);
     // The whole map, holes included: every (slot kind, icon) byte pair, folded into one

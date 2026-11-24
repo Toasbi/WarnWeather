@@ -171,6 +171,10 @@ static void other_readings(void) {
     no_family("phone battery no icon", SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_PLAIN, "31%");
     // A plugin's value: nothing says what its text is, so it hides at its turn.
     no_family("plugin value", SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT, "21.5 kWh");
+    // Nor with an icon: Phone and Calendar take none of the phone battery's or countdown's forms.
+    no_family("plugin value phone", SLOT_TEXT, STATUS_ICON_PV_PHONE, "31%");
+    no_family("plugin value calendar", SLOT_TEXT, STATUS_ICON_PV_CALENDAR, "12d");
+    no_family("plugin value wifi", SLOT_TEXT, STATUS_ICON_PV_WIFI, "12 / 30kph");
 }
 
 static void live_kinds(void) {

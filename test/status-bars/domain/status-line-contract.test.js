@@ -97,8 +97,22 @@ test('icon ids are in lockstep with status_line.h', () => {
     assert.ok(cIds.indexOf(catalog.ICONS[name]) !== -1, name + ' has a C enumerator');
   });
   assert.equal(Math.max.apply(null, Object.keys(catalog.ICONS).map((k) => catalog.ICONS[k])),
-    cEnum('STATUS_ICON_PLUGIN_TEXT'), 'the highest id is the last appended');
-  assert.match(header, /#define\s+STATUS_ICON_MAX\s+STATUS_ICON_PLUGIN_TEXT\b/, 'STATUS_ICON_MAX is the last id');
+    cEnum('STATUS_ICON_PV_CALENDAR'), 'the highest id is the last appended');
+  assert.match(header, /#define\s+STATUS_ICON_MAX\s+STATUS_ICON_PV_CALENDAR\b/, 'STATUS_ICON_MAX is the last id');
+});
+
+// Appended after the Plugin value's text-only id: the icons its dialog offers, each the same
+// number on both sides, each loading a drawing (Bluetooth, Phone and Calendar the watch's own).
+test('the Plugin value icons are ids 36 to 44 on both sides of the wire, each with a drawing', () => {
+  const gen = require('../../../scripts/pixel-icons/gen_watch_icons.js');
+  const names = ['SWITCH', 'SWITCH_OFF', 'WIFI', 'WIFI_OFF', 'BT', 'BT_OFF', 'PLUG', 'PHONE', 'CALENDAR'];
+  const drawn = { BT: 'BT', BT_OFF: 'BT_OFF', PHONE: 'PHONE_BATTERY', CALENDAR: 'COUNTDOWN' };
+  names.forEach((name, i) => {
+    assert.equal(cEnum('STATUS_ICON_PV_' + name), 36 + i, name + ' in the C enum');
+    assert.equal(catalog.ICONS['PV_' + name], 36 + i, name + ' on the phone');
+    const key = drawn[name] || name;
+    assert.ok((gen.ICON_IDS[key] || []).indexOf('STATUS_ICON_PV_' + name) !== -1, name + ' draws ' + key);
+  });
 });
 
 // Appended after the drawn battery: a text-only id, so no drawing exists for it.

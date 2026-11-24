@@ -58,7 +58,12 @@
     DRAWN_BATTERY: 34,
     // Text-only, like PRESSURE: the Plugin value slot, a value another app's plugin serves.
     // It loads no glyph, has no bold kind and keeps the slot off TEXT + NONE.
-    PLUGIN_TEXT: 35
+    PLUGIN_TEXT: 35,
+    // The Plugin value slot's icons, drawn before its text (status_line.h STATUS_ICON_PV_*).
+    // Each pair's off form while the value is off: Switch, Wi-Fi and Bluetooth. Plug, Phone
+    // and Calendar stay the same. Like PLUGIN_TEXT, none has a bold kind or a short form.
+    PV_SWITCH: 36, PV_SWITCH_OFF: 37, PV_WIFI: 38, PV_WIFI_OFF: 39, PV_BT: 40, PV_BT_OFF: 41,
+    PV_PLUG: 42, PV_PHONE: 43, PV_CALENDAR: 44
   };
   // A TEXT slot's short form rides after this byte (status_line.h STATUS_TEXT_ALT_SEP).
   var ALT_SEP = '\u001f';
