@@ -56,7 +56,7 @@ Icons at the edge of a status bar that appear only when something needs your att
 - Steps, sleep, distance, heart rate*
 - Watch battery as an icon, as text or both, with the days it has left from the Muninn app*
 - Phone battery as text, with or without its icon*
-- Plugin values, such as your phone's network type or one of the complications you set in the Pebble app, with an optional icon, such as Wi-Fi, that turns off while the value is off*
+- Plugin values, such as your phone's network type or one of the complications you set in the Pebble app, each slot with a value of its own and as many slots as you like, with an optional icon, such as Wi-Fi, that turns off while the value is off*
 - Short forms when a bar runs out of room (Partly cloudy becomes PCLDY, Nov 2026 becomes Nov)
 - Name your own bars and place them on any screen*
 

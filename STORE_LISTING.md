@@ -30,7 +30,7 @@ STATUS BARS
 - Steps, sleep, distance, heart rate*
 - Watch battery as icon, text or both, with days left from the Muninn app*
 - Phone battery as text, with or without its icon*
-- Plugin values, like your phone's network type or a complication you set in the Pebble app, with an optional icon*
+- Plugin values, like your phone's network type or a complication you set in the Pebble app, in as many slots as you like, with an optional icon*
 - Name your own bars and place them on any screen*
 
 HEALTH*

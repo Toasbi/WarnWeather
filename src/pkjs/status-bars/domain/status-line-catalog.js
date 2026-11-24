@@ -113,8 +113,12 @@
     // switched on or off (citySlotIcon; slot-text.js cityIcon).
     { code: 'city', label: 'City', iconLabel: 'City with weather icon',
       kind: KINDS.TEXT, icon: ICONS.NONE, category: 'datelocation' },
+    // repeatsInBar: what it shows is set in each slot of its own (the countdown's date,
+    // countdownKey; the Plugin value's source, pluginValueKeys), so a bar may hold it in several
+    // slots: picking it leaves a sibling's alone (page/status-bars/reset-status-defaults.js
+    // dedupeStatusSlot), and the lists offer it beside one (slotOptions).
     { code: 'countdown', label: 'Date countdown', kind: KINDS.TEXT,
-      icon: ICONS.COUNTDOWN, category: 'datelocation' },
+      icon: ICONS.COUNTDOWN, category: 'datelocation', repeatsInBar: true },
     { code: 'steps', label: 'Steps', kind: KINDS.LIVE_STEPS, icon: ICONS.STEPS, needsHealth: true, category: 'health' },
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
     { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, needsHr: true, category: 'health' },
@@ -146,7 +150,7 @@
     // no plugin's picture, and the bold area is full. Only where the Pebble app reads plugins
     // (needsPlugins), and never on aplite, whose feature set is frozen.
     { code: 'pluginValue', label: 'Plugin value', kind: KINDS.TEXT, icon: ICONS.PLUGIN_TEXT,
-      needsPlugins: true, notAplite: true, category: 'plugin' }
+      needsPlugins: true, notAplite: true, category: 'plugin', repeatsInBar: true }
   ];
 
   // Dropdown grouping order + header labels (Part F). A category with no
@@ -300,7 +304,8 @@
 
   /**
    * Option list for one slot dropdown: 'Empty' first, then available items per
-   * category, minus args.excludeCodes. An item gated ONLY by the weather
+   * category, minus args.excludeCodes but an item a bar may repeat (repeatsInBar). An
+   * item gated ONLY by the weather
    * provider stays in the list as a non-selectable row with {disabled: true}.
    * Multi-item categories emit a non-selectable header with
    * {disabled: true, groupHeader: true}; each child has
@@ -324,7 +329,7 @@
       for (i = 0; i < ITEMS.length; i++) {
         var item = ITEMS[i];
         if (item.category !== CATEGORIES[c][0]
-            || (taken[item.code] && item.code !== 'countdown')) { continue; }
+            || (taken[item.code] && !item.repeatsInBar)) { continue; }
         if (!itemAvailable(item, settings, env, slotCtx)) {
           if (!itemAvailableExceptProvider(item, settings, env, slotCtx)) { continue; }
           children.push([optionLabel(item, env), item.code, { disabled: true }]);

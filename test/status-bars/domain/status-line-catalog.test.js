@@ -366,6 +366,16 @@ test('countdown is a TEXT calendar item available in every slot and exempt from 
   });
 });
 
+test('the Plugin value stays in a slot\'s list while a sibling holds it, as the countdown does', () => {
+  const env = Object.assign({}, ENV_BASALT, { plugins: true });
+  ['statusTopLeft', 'statusTopMid', 'statusBar4Right'].forEach((slotKey) => {
+    const codes = catalog.slotOptions({}, env, { slotKey: slotKey, position: 'left',
+      excludeCodes: ['pluginValue', 'countdown', 'city'] }).map((o) => o[1]);
+    assert.ok(codes.indexOf('pluginValue') !== -1 && codes.indexOf('countdown') !== -1, slotKey);
+    assert.equal(codes.indexOf('city'), -1, slotKey + ': another item a sibling holds is not offered');
+  });
+});
+
 test('walked distance is one catalog entry; the mi kind is pack-time only', () => {
   assert.ok(catalog.byCode('distance'), 'distance entry exists');
   assert.equal(catalog.byCode('distance').kind, catalog.KINDS.LIVE_DISTANCE);

@@ -6,6 +6,7 @@ const {
   resetCountdownDate,
   onDemandTick
 } = require('../../../src/pkjs/page/status-bars/reset-status-defaults.js');
+const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 
 function todayValue() {
   const d = new Date();
@@ -96,6 +97,31 @@ test('dedupeStatusSlot: countdown may appear more than once on the same bar', ()
   assert.equal(S.statusForecastLeft, 'countdown');
   assert.equal(S.statusForecastMid, 'countdown');
   assert.equal(S.statusForecastRight, 'countdown');
+});
+
+test('dedupeStatusSlot: the Plugin value may appear more than once on the same bar, each slot with its own', () => {
+  const S = blob({ statusTopLeft: 'pluginValue', statusTopMid: 'date', statusTopRight: 'pluginValue',
+    statusTopLeftPluginValuePlugin: 'a', statusTopRightPluginValuePlugin: 'b' });
+  S.statusTopMid = 'pluginValue';
+  dedupeStatusSlot(S, 'statusTopMid');
+  assert.deepEqual([S.statusTopLeft, S.statusTopMid, S.statusTopRight], ['pluginValue', 'pluginValue', 'pluginValue']);
+  assert.deepEqual([S.statusTopLeftPluginValuePlugin, S.statusTopRightPluginValuePlugin], ['a', 'b'],
+    'each keeps its own pick');
+});
+
+test('dedupeStatusSlot: only the countdown and the Plugin value repeat in a bar', () => {
+  // Every item a slot's list offers, on a watch and phone that have them all.
+  const env = { color: true, platform: 'basalt', health: true, radar: true, hr: true, plugins: true, phoneBattery: true };
+  const codes = catalog.slotOptions({ provider: 'dwd' }, env, { slotKey: 'statusTopLeft', position: 'left' })
+    .filter((o) => !(o[2] && o[2].groupHeader) && o[1] !== 'empty').map((o) => o[1]);
+  assert.ok(codes.length > 20, codes.length + ' items');
+  assert.deepEqual(codes.filter((code) => catalog.byCode(code).repeatsInBar).sort(), ['countdown', 'pluginValue'],
+    'the items whose settings are each slot\'s own');
+  codes.filter((code) => !catalog.byCode(code).repeatsInBar).forEach((code) => {
+    const S = blob({ statusTopLeft: code, statusTopMid: code });
+    dedupeStatusSlot(S, 'statusTopMid');
+    assert.equal(S.statusTopLeft, 'empty', code + ' moves to the slot picked');
+  });
 });
 
 test('dedupeStatusSlot: no sibling holds the code -> no change', () => {

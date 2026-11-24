@@ -1,7 +1,7 @@
 // src/pkjs/page/status-bars/reset-status-defaults.js — ES5, WebView. Registers the
 // config-ui engine's status-slot onChange hooks (see engine.js's PConf.onChange):
-// pollen cleared off DWD (clearPollenForProvider), one item per line
-// (dedupeStatusSlot) and a fresh target date for a slot that turns Date countdown
+// pollen cleared off DWD (clearPollenForProvider), one item per line but the ones a bar
+// may repeat (dedupeStatusSlot) and a fresh target date for a slot that turns Date countdown
 // (resetCountdownDate). It also registers the Shows on grids' writer
 // (PConf.checkWriters 'onDemandTick'), which stores each tick through on-demand.js.
 // Pack-time resolveSelection still maps stale/imported invalid codes to empty
@@ -42,15 +42,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * When a slot is set to a code a same-line sibling already holds, clear that
      * sibling to 'empty' (the picked value moves to the changed slot). Per-line
-     * only — cross-bar duplicates are allowed. No-op for 'empty'/unset/countdown.
-     * Mutates S.
+     * only — cross-bar duplicates are allowed. No-op for 'empty'/unset and for an
+     * item a bar may hold in several slots (catalog repeatsInBar: the countdown, the
+     * Plugin value). Mutates S.
      * @param {Object} S live settings state (changedKey already set to its new value)
      * @param {string} changedKey the slot messageKey the user just changed
      * @returns {void}
      */
     function dedupeStatusSlot(S, changedKey) {
         var code = S[changedKey];
-        if (!code || code === 'empty' || code === 'countdown') { return; }
+        var item = code ? catalog.byCode(code) : null;
+        if (!code || code === 'empty' || (item && item.repeatsInBar)) { return; }
         var line = catalog.lineOf(changedKey);
         if (!line) { return; }
         for (var s = 0; s < line.slots.length; s++) {

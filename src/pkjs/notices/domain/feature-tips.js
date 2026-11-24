@@ -45,6 +45,18 @@ function pluginValueOffered(env) {
 /** @type {FeatureTip[]} */
 var TIPS = [
     {
+        id: 'pluginValues',
+        since: '3.5.0',
+        title: 'More than one plugin value',
+        // Each slot's Plugin value is its own, set in the slot's own dialog
+        // (page/status-bars/plugin-value-schema.js), and a bar may hold the item in several slots
+        // (status-line-catalog.js repeatsInBar).
+        html: 'Each Plugin value slot now shows a value of its own, and one bar can hold several. Set ' +
+            'another slot to Plugin value and tap its Edit button to pick what it shows.',
+        open: { tab: 'watch' },
+        when: pluginValueOffered
+    },
+    {
         id: 'pluginValueIcon',
         since: '3.5.0',
         title: 'An icon for a plugin value',

@@ -97,6 +97,7 @@ test('a tip shows only where its feature can be used', () => {
     { platform: 'basalt' }, { platform: 'aplite', plugins: true }, null].forEach((env) => {
     assert.equal(shows('complications', env), pluginValue(env), JSON.stringify(env));
     assert.equal(shows('pluginValueIcon', env), pluginValue(env), JSON.stringify(env));
+    assert.equal(shows('pluginValues', env), pluginValue(env), JSON.stringify(env));
   });
   // A tip without a rule is for every watch.
   [{ platform: 'aplite', plugins: false }, null, {}].forEach((env) =>
@@ -138,6 +139,7 @@ test('the page gets plain data, and nothing when there is nothing to show', () =
   assert.equal(forPage.find((tip) => tip.id === 'pluginValue').tab, 'watch', 'the Status bars tab: any bar');
   assert.equal(forPage.find((tip) => tip.id === 'complications').tab, 'watch', 'the same tab');
   assert.equal(forPage.find((tip) => tip.id === 'pluginValueIcon').tab, 'watch', 'the same tab');
+  assert.equal(forPage.find((tip) => tip.id === 'pluginValues').tab, 'watch', 'the same tab');
 });
 
 test('the complications tip names the page\'s own words: the slot\'s item, and the Plugin row\'s entry', (t) => {
@@ -173,7 +175,17 @@ test('the icon tip names the page\'s own words: the Edit button, the Icon row, i
   assert.ok(fifteen, 'Updates offers 15 minutes');
   assert.ok(tip.html.indexOf('Under ' + every.label + ', you can now pick ' + fifteen[0] + '.') !== -1, tip.html);
   assert.equal(tip.since, '3.5.0');
-  assert.deepEqual(featureTips.allIds().slice(0, 2), ['pluginValueIcon', 'complications'], 'the newest release\'s, on top');
+  assert.deepEqual(featureTips.allIds().slice(0, 3), ['pluginValues', 'pluginValueIcon', 'complications'],
+    'the newest release\'s, on top');
+});
+
+test('the several values tip names the page\'s own words: the item, and the Edit button that opens a slot\'s own dialog', () => {
+  const tip = featureTips.TIPS.find((x) => x.id === 'pluginValues');
+  const label = catalog.byCode('pluginValue').label;
+  assert.ok(tip.html.indexOf('Each ' + label + ' slot now shows a value of its own') === 0, tip.html);
+  assert.ok(tip.html.indexOf('Set another slot to ' + label + ' and tap its Edit button') !== -1, tip.html);
+  assert.equal(catalog.byCode('pluginValue').repeatsInBar, true, 'one bar can hold several, as the tip says');
+  assert.equal(tip.since, '3.5.0');
 });
 
 /**
