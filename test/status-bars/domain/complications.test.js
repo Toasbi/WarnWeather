@@ -65,8 +65,8 @@ test('listOf: a place that names no reading this app can read by its name is non
       place('0', 'preferences', 'weather_location', 0, 'latitude')]]
     .forEach(([why, inst]) => assert.deepEqual(one(inst), [], why));
   assert.equal(one(place('0', 'weather', 'location', 99, 'p'.repeat(64))).length, 1, 'the longest kept');
-  assert.deepEqual(complications.listOf({ instances: [good, place('0', 'phone', 'phone_state', 0, 'cell')] }).length, 1,
-    'a place once: the first');
+  assert.deepEqual(complications.listOf({ instances: [good, place('0', 'phone', 'phone_state', 0, 'cell')] })
+    .map((c) => c.category), ['weather'], 'a place once: the first');
 });
 
 test('storedListOf: a list as stored, checked as an answer is; none for anything else', () => {
