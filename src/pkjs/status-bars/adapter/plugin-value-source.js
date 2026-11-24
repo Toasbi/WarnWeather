@@ -30,7 +30,7 @@ var pluginReadSchedule = require('./plugin-read-schedule.js');
 var pluginReader = require('./plugin-reader.js');
 
 // What this app declares, as the Pebble app keys it (plugin-reads.js declaredKeys): a read never
-// starts where it would ask the user for another permission (plugin-reader.js permitted).
+// starts where it would ask the user for another permission (plugin-reads.js refusal).
 var permissions = [];
 // The user's complications as last heard (complication-list.js current), or null while none
 // are known.

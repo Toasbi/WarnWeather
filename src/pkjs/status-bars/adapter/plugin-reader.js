@@ -54,7 +54,7 @@ var FULLER_ANSWER_MS = 3000;
  *   it as a preference and lets another plugin that serves the source answer when that one
  *   is gone, so an answer from any other plugin reads as PLUGIN_UNAVAILABLE here, and a read
  *   that the phone's list of plugins says the named one cannot answer does not start at all:
- *   the other plugin's script would run for nothing (namedCanAnswer).
+ *   the other plugin's script would run for nothing (refused).
  * @property {number} [limit] The most instances wanted (a Pebble app from 2.0.0 sends no
  *   more; an older one ignores it).
  * @property {number} [instance] Which instance's properties the read is for, 0 (the first) by
@@ -63,7 +63,7 @@ var FULLER_ANSWER_MS = 3000;
  * @property {string[]} [permissions] What this app declares, as the Pebble app keys it
  *   (plugin-reads.js declaredKeys), for a read that must never ask the user for a permission
  *   it did not: it starts only where the phone's list of plugins says no plugin that may answer
- *   it asks for another (permitted). Never sent.
+ *   it asks for another (refused). Never sent.
  */
 
 /**
@@ -109,52 +109,13 @@ function fromNamedPlugin(envelope, plugin) {
 /**
  * @param {?Object} pebble The Pebble object.
  * @param {PluginRequest} request The source to read.
- * @returns {boolean} Whether the plugin the request names can answer it, as far as the phone's
- *   list of plugins says (plugins): one listed under its uuid declares a source of the
- *   request's category that serves its item. True where the request names no plugin, and
- *   where the list is empty (a Pebble app that cannot list them).
+ * @returns {boolean} Whether the read may not start (plugin-reads.js refusal), as far as the
+ *   phone's list of plugins says. The plugins are listed once, and only for a request that
+ *   names a plugin or carries this app's permissions: one with neither lists nothing.
  */
-function namedCanAnswer(pebble, request) {
-    var list;
-    var named;
-    if (!request.plugin) { return true; }
-    list = plugins(pebble);
-    named = String(request.plugin).toLowerCase();
-    return !list.length || list.some(function (p) {
-        return Boolean(p) && typeof p.uuid === 'string' && p.uuid.toLowerCase() === named
-            && Array.isArray(p.sources) && p.sources.some(function (src) {
-                return Boolean(src) && src.category === request.category && Array.isArray(src.items)
-                    && src.items.indexOf(request.item) !== -1;
-            });
-    });
-}
-
-/**
- * @param {?Object} pebble The Pebble object.
- * @param {PluginRequest} request The source to read.
- * @returns {boolean} Whether the read may start as far as the permissions go. A request that
- *   carries this app's permissions starts only where the phone's list of plugins says that
- *   every plugin that may answer it asks for none this app never declared (plugin-reads.js
- *   undeclaredFor), since the Pebble app would ask the user for it: the named plugin alone, and
- *   where none is named, every one that serves the source, as the Pebble app picks among them.
- *   One that names none does not start without the list either. A request without them starts.
- */
-function permitted(pebble, request) {
-    var list;
-    var named;
-    var needs;
-    if (!Array.isArray(request.permissions)) { return true; }
-    list = plugins(pebble);
-    if (request.plugin) {
-        // A Pebble app that cannot list them: as namedCanAnswer, which let the read start.
-        if (!list.length) { return true; }
-        named = String(request.plugin).toLowerCase();
-        list = list.filter(function (p) {
-            return Boolean(p) && typeof p.uuid === 'string' && p.uuid.toLowerCase() === named;
-        });
-    }
-    needs = pluginReads.undeclaredFor(list, request.category, request.item, request.permissions);
-    return needs !== null && needs.length === 0;
+function refused(pebble, request) {
+    var list = request.plugin || Array.isArray(request.permissions) ? plugins(pebble) : [];
+    return pluginReads.refusal(list, request) !== null;
 }
 
 /**
@@ -170,10 +131,10 @@ function permitted(pebble, request) {
  * Subscribe to a source for as long as PKJS lives (or until unsubscribe()). An error does
  * not end a subscription: a later update may succeed, so onFailure can be called more than
  * once, and onData after it. A subscription that could not start (no plugins in this
- * Pebble app, a named plugin that cannot answer it, a source that acts when it is read,
- * plugin-reads.js actsWhenRead, one this app never reads, neverRead, one that may ask the user
- * for a permission this app never declared, permitted, or subscribeToSource threw) reports one
- * failure and is handed back ended. An update from a plugin other than the one the request names is a
+ * Pebble app, one plugin-reads.js refusal refuses: a source that acts when it is read or that
+ * this app never reads, a named plugin that cannot answer it, one that may ask the user for a
+ * permission this app never declared; or subscribeToSource threw) reports one failure and is
+ * handed back ended. An update from a plugin other than the one the request names is a
  * PLUGIN_UNAVAILABLE failure.
  *
  * @param {?Object} pebble The Pebble object.
@@ -199,9 +160,7 @@ function watch(pebble, request, onData, onFailure) {
         },
         live: function () { return !ended; }
     };
-    if (!available(pebble) || pluginReads.actsWhenRead(request.category, request.item)
-            || pluginReads.neverRead(request.category, request.item)
-            || !namedCanAnswer(pebble, request) || !permitted(pebble, request)) {
+    if (!available(pebble) || refused(pebble, request)) {
         ended = true;
         onFailure(failure('PLUGIN_UNAVAILABLE'), handle);
         return handle;

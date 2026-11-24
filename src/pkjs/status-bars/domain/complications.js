@@ -135,7 +135,8 @@ function atPlace(list, position) {
 }
 
 /**
- * Why this app may not read a complication's reading, from the phone's list of plugins.
+ * Why this app may not read a complication's reading, from the phone's list of plugins, by the
+ * rule of its read (requestOf, which names no plugin: plugin-reads.js refusal).
  * @param {Complication} c The complication.
  * @param {*} plugins What Pebble.enumeratePlugins() returned.
  * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
@@ -144,10 +145,8 @@ function atPlace(list, position) {
  *   all: no plugin on the phone serves the source, or reading it does something.
  */
 function whyNot(c, plugins, permissions) {
-    var needs = pluginReads.actsWhenRead(c.category, c.item) ? null
-        : pluginReads.undeclaredFor(plugins, c.category, c.item, permissions);
-    if (needs && !needs.length) { return null; }
-    return needs ? needs[0] : '';
+    var why = pluginReads.refusal(plugins, { category: c.category, item: c.item, permissions: permissions });
+    return Array.isArray(why) ? why[0] : why;
 }
 
 /**

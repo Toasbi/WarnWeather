@@ -112,33 +112,51 @@ function plugin(uuid, sources) {
   return { uuid: uuid, name: uuid, sources: sources, actions: [] };
 }
 
-test('readableBy: every caller permission a source names is one this app declares, by its keys', () => {
-  const source = (asks) => ({ category: 'c', items: ['i'], callerPermissions: asks });
+test('refusal: a source\'s caller permissions are judged by their keys, against what this app declares', () => {
+  const asking = (asks) => [plugin('a', [{ category: 'c', items: ['i'], callerPermissions: asks }])];
+  const why = (asks, perms) => reads.refusal(asking(asks), { category: 'c', item: 'i', permissions: perms || PERMS });
   [undefined, [], ['Location'], [{ name: 'Location' }], ['Health', internet('api.met.no')], [internet('API.met.no.')],
-    [internet('maps.api.met.no')]].forEach((asks) =>
-    assert.equal(reads.readableBy(source(asks), PERMS), true, JSON.stringify(asks)));
+    [internet('maps.api.met.no')]].forEach((asks) => assert.equal(why(asks), null, JSON.stringify(asks)));
   [['Calendar'], [{ name: 'Location' }, 'Calendar'], [internet('example.com')], [internet('api.met.no', 'example.com')],
     [internet('met.no')], ['Internet'], [{ name: 'Internet' }], [{ name: LIGHTS }], [{ name: 'Location', plugin: 'someone' }],
-    [42], [null], [{}]].forEach((asks) => assert.equal(reads.readableBy(source(asks), PERMS), false, JSON.stringify(asks)));
-  assert.equal(reads.readableBy(source(['Internet']), ['Internet']), false,
+    [42], [null], [{}]].forEach((asks) => assert.ok(Array.isArray(why(asks)) && why(asks).length > 0, JSON.stringify(asks)));
+  assert.deepEqual(why(['Internet'], ['Internet']), ['Internet'],
     'Internet with no domain never: the Pebble app asks this app for each of its own domains then');
-  assert.equal(reads.readableBy(source([{ name: LIGHTS }]), [LIGHTS]), false, 'nor another app\'s permission');
+  assert.deepEqual(why([{ name: LIGHTS }], [LIGHTS]), [reads.ANOTHER_APPS], 'nor another app\'s permission');
 });
 
-test('undeclaredFor: what each plugin that serves a source asks for that this app never declared, each once', () => {
+test('refusal: what each plugin that may answer asks for that this app never declared, each once; \'\' where none serves it', () => {
   const weather = (uuid, asks) => plugin(uuid, [{ category: 'weather', items: ['hour'] },
     { category: 'weather', items: ['location'], callerPermissions: asks }, { category: 'weather', items: ['location'],
       callerPermissions: ['Contacts'] }]);
-  assert.deepEqual(reads.undeclaredFor([weather('a', ['Location'])], 'weather', 'location', PERMS), [],
-    'readable: the first of a plugin\'s sources that serves it counts');
-  assert.deepEqual(reads.undeclaredFor([weather('a', ['Location']), weather('b', ['Calendar', { name: 'Location' }]),
-    weather('c', ['Calendar', 'ReadMusic'])], 'weather', 'location', PERMS), ['Calendar', 'ReadMusic'],
-  'whichever of them the Pebble app picks');
-  assert.deepEqual(reads.undeclaredFor([weather('a', [{ name: LIGHTS }, {}, internet('example.com', 'x.org')])], 'weather',
-    'location', PERMS), [reads.ANOTHER_APPS, '', 'Internet'],
+  const why = (list, item, extra) => reads.refusal(list, Object.assign({ category: 'weather', item: item || 'location',
+    permissions: PERMS }, extra));
+  assert.equal(why([weather('a', ['Location'])]), null, 'readable: the first of a plugin\'s sources that serves it counts');
+  assert.deepEqual(why([weather('a', ['Location']), weather('b', ['Calendar', { name: 'Location' }]),
+    weather('c', ['Calendar', 'ReadMusic'])]), ['Calendar', 'ReadMusic'], 'whichever of them the Pebble app picks');
+  assert.deepEqual(why([weather('a', [{ name: LIGHTS }, {}, internet('example.com', 'x.org')])]),
+    [reads.ANOTHER_APPS, '', 'Internet'],
   'another app\'s permission as ANOTHER_APPS; one without a name as \'\'; Internet for a domain this app never declared, by its name');
-  assert.equal(reads.undeclaredFor([weather('a', [])], 'weather', 'day', PERMS), null, 'none serves it');
-  assert.equal(reads.undeclaredFor([weather('a', [])], 'calendar', 'location', PERMS), null);
-  [null, undefined, 'x', {}, [null, { sources: 'x' }, { sources: [null, { category: 'weather', items: 'location' }] }]]
-    .forEach((list) => assert.equal(reads.undeclaredFor(list, 'weather', 'location', PERMS), null, JSON.stringify(list)));
+  assert.equal(why([weather('a', [])], 'day'), '', 'none serves it');
+  assert.equal(reads.refusal([weather('a', [])], { category: 'calendar', item: 'location', permissions: PERMS }), '');
+  [null, undefined, 'x', {}, [], [null, { sources: 'x' }, { sources: [null, { category: 'weather', items: 'location' }] }]]
+    .forEach((list) => assert.equal(why(list), '', JSON.stringify(list)));
+  // A read that names its plugin: that one's word alone, where it serves the source.
+  assert.equal(why([weather('a', ['Location']), weather('b', ['Calendar'])], 'location', { plugin: 'A' }), null);
+  assert.deepEqual(why([weather('a', ['Calendar'])], 'location', { plugin: 'a' }), ['Calendar']);
+  assert.equal(why([weather('b', [])], 'location', { plugin: 'a' }), '', 'not listed: another plugin would answer');
+  assert.equal(why([], 'location', { plugin: 'a' }), null, 'a Pebble app that cannot list them: it answers itself');
+  assert.equal(why([weather('a', ['Calendar'])], 'location', { plugin: 'a', permissions: undefined }), null,
+    'a read without the permissions: only that the plugin serves it');
+  assert.equal(why([], 'location', { permissions: undefined }), null, 'nor plugin nor permissions: nothing to judge');
+  assert.equal(reads.refusal([plugin('p', [{ category: 'phone', items: ['find_my_phone'] }])],
+    { category: 'phone', item: 'find_my_phone' }), '', 'one that acts when it is read');
+  assert.equal(reads.refusal([], { category: 'preferences', item: 'units', plugin: 'x' }), '', 'one this app never reads');
+});
+
+test('serves: a source\'s declaration serves an item of its category', () => {
+  assert.equal(reads.serves({ category: 'weather', items: ['hour', 'location'] }, 'weather', 'location'), true);
+  [null, {}, { category: 'weather', items: 'location' }, { category: 'weather', items: ['hour'] },
+    { category: 'calendar', items: ['location'] }].forEach((src) =>
+    assert.equal(reads.serves(src, 'weather', 'location'), false, JSON.stringify(src)));
 });

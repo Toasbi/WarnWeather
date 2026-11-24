@@ -86,6 +86,18 @@ test('a source that asks for a permission this app never declares is left out, a
   assert.deepEqual(list.listOf([calendar, theirs, odd, own, PHONE], PERMS, 'own').map((p) => p.name), ['Phone']);
 });
 
+test('an item is judged by the first of the plugin\'s sources that serves it, as the Pebble app judges its read', () => {
+  const twice = (first, second) => plugin('w', 'Weather', [
+    { category: 'weather', items: ['location'], properties: { temperature: ['shortText'] }, callerPermissions: first },
+    { category: 'weather', items: ['location', 'hour'], properties: { pressure: ['shortText'] },
+      callerPermissions: second }]);
+  const items = (p) => list.listOf([p], PERMS, 'own')[0].items.map((i) => i.item + ':' + i.properties.join());
+  assert.deepEqual(items(twice(['Calendar'], [])), ['hour:pressure'],
+    'the first asks for Calendar: neither lists the location; the hour is the second\'s own');
+  assert.deepEqual(items(twice([], ['Calendar'])), ['location:temperature', 'location:pressure'],
+    'the first asks for none: the second lists the location too, but not its own hour');
+});
+
 test('the Preferences plugin offers the user\'s complications, and nothing else of what it serves', () => {
   const UNITS = { category: 'preferences', items: ['units'], properties: { clock: ['shortText'], locale: ['shortText'] } };
   const LOCATIONS = { category: 'preferences', items: ['weather_location'], supportsMultiple: true,

@@ -10,11 +10,12 @@
 // a row it ends with, and for Muninn when it made the estimate the read heard
 // (plugin-read-schedule.js keeps it).
 //
-// And which sources this app may read at all: none that does something when it is read
-// (actsWhenRead), none it never reads (neverRead), and none that would ask the user for a
-// permission this app never declared (readableBy, undeclaredFor). The Pebble app asks for a
-// permission by its key (permissionKeys): Internet for each domain on its own, so what this
-// app declares is judged by key too (declaredKeys, declares).
+// And which sources this app may read at all, by one rule for the reads, the dialog's list and
+// the user's complications (refusal): none that does something when it is read (actsWhenRead),
+// none it never reads (neverRead), none that no plugin on the phone serves, and none that would
+// ask the user for a permission this app never declared. The Pebble app asks for a permission
+// by its key (permissionKeys): Internet for each domain on its own, so what this app declares
+// is judged by key too (declaredKeys, declares).
 //
 // ES5 only (aplite's JavaScriptCore): var + function.
 
@@ -147,60 +148,79 @@ function undeclared(source, permissions) {
 }
 
 /**
- * @param {Object} source A source's declaration.
- * @param {string[]} permissions What this app declares (declaredKeys).
- * @returns {boolean} Whether this app may read it without being asked for a permission it
- *   never declared (undeclared).
+ * @param {*} src A source's declaration (Pebble.enumeratePlugins' sources).
+ * @param {string} category A source's category. @param {string} item One of its items.
+ * @returns {boolean} Whether it serves the item of the category.
  */
-function readableBy(source, permissions) {
-    return undeclared(source, permissions).length === 0;
+function serves(src, category, item) {
+    return Boolean(src) && src.category === category && Array.isArray(src.items) && src.items.indexOf(item) !== -1;
 }
 
 /**
  * The declarations of a source among the phone's plugins: for each plugin that serves the item
- * of the category, the first of its sources that does.
- * @param {*} plugins What Pebble.enumeratePlugins() returned.
+ * of the category, the first of its sources that does, which is the one the Pebble app goes by.
+ * @param {Array<*>} plugins What Pebble.enumeratePlugins() returned.
  * @param {string} category The source's category. @param {string} item Its item.
  * @returns {Object[]} The declarations, one for each plugin that serves it.
  */
 function servingSources(plugins, category, item) {
-    var list = Array.isArray(plugins) ? plugins : [];
     var out = [];
-    for (var p = 0; p < list.length; p++) {
-        var sources = list[p] && Array.isArray(list[p].sources) ? list[p].sources : [];
-        for (var s = 0; s < sources.length; s++) {
-            var src = sources[s];
-            if (src && src.category === category && Array.isArray(src.items)
-                    && src.items.indexOf(item) !== -1) {
-                out.push(src);
-                break;
-            }
-        }
-    }
+    plugins.forEach(function (p) {
+        var first = (p && Array.isArray(p.sources) ? p.sources : []).filter(function (src) {
+            return serves(src, category, item);
+        })[0];
+        if (first) { out.push(first); }
+    });
     return out;
 }
 
 /**
- * What stands between this app and a source whichever of the plugins that serve it answers. A
- * read that names no plugin goes to the one the user prefers for the source in the Pebble app,
- * else to a built-in one, else to the first by name, so each of them must ask for no permission
- * this app never declared.
- * @param {*} plugins What Pebble.enumeratePlugins() returned (or the named plugin alone).
- * @param {string} category The source's category. @param {string} item Its item.
- * @param {string[]} permissions What this app declares (declaredKeys).
- * @returns {?string[]} The permissions they ask for that this app never declared, each once
- *   ([] when it may read the source), or null when no plugin serves the source.
+ * @typedef {Object} ReadRequest
+ * @property {string} category The source's category. @property {string} item Its item.
+ * @property {string} [plugin] The uuid of the plugin that must answer, if any.
+ * @property {string[]} [permissions] What this app declares (declaredKeys), for a read that
+ *   must never ask the user for a permission it did not.
  */
-function undeclaredFor(plugins, category, item, permissions) {
-    var sources = servingSources(plugins, category, item);
-    var out = [];
-    if (!sources.length) { return null; }
+
+/**
+ * What keeps this app from reading a source, from the phone's list of plugins: the one rule of
+ * the reads (plugin-reader.js), the dialog's list (plugin-value-list.js) and the user's
+ * complications (complications.js whyNot). Never a source that does something when it is read
+ * (actsWhenRead), nor one this app never reads (neverRead). A read that names a plugin goes to
+ * that one: it must serve the source, unless the Pebble app cannot list its plugins, and
+ * answers alone. One that names none goes to the plugin the user prefers for the source in the
+ * Pebble app, else to a built-in one, else to the first by name, so where it carries this app's
+ * permissions, every plugin that serves the source must ask for none this app never declared,
+ * each by the first of its sources that serves it, as the Pebble app judges it.
+ * @param {Array<*>} plugins What Pebble.enumeratePlugins() returned ([] where the Pebble app
+ *   cannot list them).
+ * @param {ReadRequest} request The source to read.
+ * @returns {?(string[]|string)} Null where this app may read it. Else the permissions a plugin
+ *   that may answer it asks for that this app never declared, each once (undeclared's names),
+ *   or '' where it cannot be read here at all: it acts when it is read, this app never reads
+ *   it, or no plugin that may answer it serves it.
+ */
+function refusal(plugins, request) {
+    var list = Array.isArray(plugins) ? plugins : [];
+    var named = request.plugin ? String(request.plugin).toLowerCase() : null;
+    var needs = [];
+    var sources;
+    if (actsWhenRead(request.category, request.item) || neverRead(request.category, request.item)) { return ''; }
+    if (named ? !list.length : !Array.isArray(request.permissions)) { return null; }
+    if (named) {
+        list = list.filter(function (p) {
+            return Boolean(p) && typeof p.uuid === 'string' && p.uuid.toLowerCase() === named;
+        });
+    }
+    sources = servingSources(list, request.category, request.item);
+    if (!sources.length) { return ''; }
+    if (!Array.isArray(request.permissions)) { return null; }
     sources.forEach(function (src) {
-        undeclared(src, permissions).forEach(function (name) {
-            if (out.indexOf(name) === -1) { out.push(name); }
+        undeclared(src, request.permissions).forEach(function (name) {
+            if (needs.indexOf(name) === -1) { needs.push(name); }
         });
     });
-    return out;
+    return needs.length ? needs : null;
 }
 
 /**
@@ -273,8 +293,8 @@ module.exports = {
     declaredKeys: declaredKeys,
     actsWhenRead: actsWhenRead,
     neverRead: neverRead,
-    readableBy: readableBy,
-    undeclaredFor: undeclaredFor,
+    serves: serves,
+    refusal: refusal,
     timeOf: timeOf,
     recordOf: recordOf,
     clockWentBack: clockWentBack,

@@ -5,9 +5,10 @@
 // Pebble.enumeratePlugins() hands over (plugin-reader.js plugins). Listing runs no plugin.
 //
 // A value is a property of an item of a source the plugin declares: a property declared in a
-// shape the slot prints (a text, a timestamp, a number or a boolean), of a source this app may
-// read (plugin-reads.js readableBy) that does nothing when it is read (actsWhenRead), of any
-// plugin but this app's own. The Pebble app's Preferences plugin offers the user's
+// shape the slot prints (a text, a timestamp, a number or a boolean), of an item this app may
+// read from the plugin as the slot reads it (plugin-reads.js refusal: never one that does
+// something when it is read, and never one that would ask the user for a permission this app
+// never declared), of any plugin but this app's own. The Pebble app's Preferences plugin offers the user's
 // complications instead (complications.js), which its entry carries (complicationsFor): the
 // rest of what it serves is the Pebble app's own plumbing (the user's units, and the weather
 // locations' coordinates, which are the user's own position), never a value to show, nor read
@@ -147,8 +148,7 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
     }
     for (var s = 0; s < sources.length && count < MAX_VALUES; s++) {
         var src = sources[s];
-        if (!src || !idPart(src.category) || !Array.isArray(src.items)
-                || !pluginReads.readableBy(src, permissions)) {
+        if (!src || !idPart(src.category) || !Array.isArray(src.items)) {
             continue;
         }
         var props = src.properties && typeof src.properties === 'object' ? src.properties : {};
@@ -157,9 +157,10 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
             var item = src.items[i];
             var kept = [];
             // An item no id can hold offers nothing, and takes none of the values' room; nor one
-            // that acts when it is read, or that this app never reads.
-            if (!idPart(item) || pluginReads.actsWhenRead(src.category, item)
-                    || pluginReads.neverRead(src.category, item)) {
+            // this app may not read from the plugin, as the Pebble app judges it: by the first of
+            // the plugin's sources that serves it.
+            if (!idPart(item) || pluginReads.refusal([plugin], { category: src.category, item: item,
+                plugin: plugin.uuid, permissions: permissions }) !== null) {
                 continue;
             }
             for (var n = 0; n < names.length && count < MAX_VALUES; n++) {

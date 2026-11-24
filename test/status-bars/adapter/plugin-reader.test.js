@@ -564,6 +564,18 @@ test('watch: a read that carries this app\'s permissions starts only where no pl
   assert.equal(asked([weather('a', ['Calendar'])], { category: 'weather', item: 'location' }).subscribed, true,
     'a read without the permissions is not checked');
   assert.equal(fakePebble().pebble.enumeratePlugins, undefined);
+  // The list is a blocking call into the Pebble app: once for a read, none for one with nothing to judge.
+  const listings = (request) => {
+    const fake = fakePebble();
+    let count = 0;
+    fake.pebble.enumeratePlugins = () => { count += 1; return [weather('a', ['Location'])]; };
+    pluginReader.watch(fake.pebble, request, () => {}, () => {});
+    return count;
+  };
+  assert.equal(listings(named), 1, 'named, with the permissions');
+  assert.equal(listings(ANY), 1);
+  assert.equal(listings({ plugin: 'a', category: 'weather', item: 'location' }), 1);
+  assert.equal(listings({ category: 'weather', item: 'location' }), 0, 'neither: nothing listed');
 });
 
 test('readingOf: null where the plugin did not send the property; anything else as it came, unchecked', () => {
