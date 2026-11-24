@@ -75,3 +75,17 @@ test('a glyph is the family\'s largest drawing in currentColor, centred in a squ
     'the Pebble Time 2\'s largest');
   assert.equal(PixelIcon.glyph('NO_SUCH_ICON', { platform: 'basalt' }), '', 'no drawing, no glyph');
 });
+
+test('an icon id loads the drawings listed under its status_line.h name; a text-only id or one drawn in code loads none', () => {
+  const C = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js').ICONS;
+  assert.equal(PixelIcon.keyOfIcon(C.TEMP), 'TEMP');
+  assert.equal(PixelIcon.keyOfIcon(C.PV_WIFI_OFF), 'WIFI_OFF');
+  assert.equal(PixelIcon.keyOfIcon(C.PV_PHONE), 'PHONE_BATTERY', 'the Phone battery slot\'s');
+  assert.equal(PixelIcon.keyOfIcon(C.PV_CALENDAR), 'COUNTDOWN', 'the Countdown slot\'s');
+  [C.NONE, C.PLUGIN_TEXT, C.PRESSURE, C.DRAWN_SUN, C.DRAWN_BATTERY, undefined].forEach((id) =>
+    assert.equal(PixelIcon.keyOfIcon(id), null, String(id)));
+  Object.keys(C).forEach((name) => {
+    const key = STATUS.ids['STATUS_ICON_' + name];
+    assert.equal(PixelIcon.keyOfIcon(C[name]), key || null, name);
+  });
+});

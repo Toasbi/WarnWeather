@@ -490,16 +490,16 @@ test('the Icon row\'s hint says how an icon that turns follows the value; none f
 test('a value that is neither on nor off leaves an icon that turns for None, picked as the value or with a plugin', (t) => {
   userData(t, { plugins: WITH_WIFI });
   const S = Object.assign({ pluginValueIcon: 'wifi' }, WIFI);
-  page.valuePicked(S);
+  page.fitIcon(S);
   assert.equal(S.pluginValueIcon, 'wifi', 'Wi-Fi is on or off');
   S.pluginValueId = 'phone/phone_state/battery_level';
-  page.valuePicked(S);
+  page.fitIcon(S);
   assert.equal(S.pluginValueIcon, 'none');
   S.pluginValueIcon = 'plug';
-  page.valuePicked(S);
+  page.fitIcon(S);
   assert.equal(S.pluginValueIcon, 'plug', 'an icon that stays the same fits any value');
   const gone = Object.assign({ pluginValueIcon: 'switch' }, WIFI, { pluginValueId: 'phone/phone_state/gone' });
-  page.valuePicked(gone);
+  page.fitIcon(gone);
   assert.equal(gone.pluginValueIcon, 'switch', 'a value the phone no longer lists: kept');
   // The engine stores the new plugin, then runs the row's change.
   const other = Object.assign({ pluginValueIcon: 'bluetooth' }, WIFI, { pluginValuePlugin: MUNINN });

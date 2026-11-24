@@ -39,7 +39,8 @@
     var utf8 = NODE ? require('../../lib/utf8.js') : window.Utf8;
     var dateFormat = NODE ? require('../../calendar/domain/date-format.js') : window.DateFormat;
     var VC = NODE ? require('../../layout/domain/view-cycle.js') : VIEW_CYCLE;
-    // The Plugin value slot's text: the value read last (plugin-value-page.js barText).
+    // The Plugin value slot's text and icon: the value read last (plugin-value-page.js barText,
+    // barGlyph, barDrawing).
     var pluginValuePage = NODE ? require('./plugin-value-page.js') : window.PluginValuePage;
 
     // The bars in the page's order, each with the view-cycle status source a screen's row
@@ -294,7 +295,7 @@
         }
         // The Plugin value's icon is the one picked for it, in the form the value takes; the page
         // has no outline of it, so it is the watch's drawing (plugin-value-page.js barGlyph).
-        if (code === 'pluginValue') { return pluginValuePage.barGlyph(S || {}, env); }
+        if (code === 'pluginValue') { return pluginValuePage.barGlyph(S, env); }
         return (PConf && PConf.icons && PConf.icons.get && PConf.icons.get(code)) || null;
     }
 
@@ -310,19 +311,15 @@
     };
 
     /**
-     * The drawing a slot's text follows on this watch, by its key (status-pixels.generated.js),
-     * where the watch draws the slot's glyph from one: the watch pictures (preview-watch.js) draw
-     * it at the bar's box and seat. None for a glyph the watch draws in code (the battery, the
-     * sun arrow) or where slotIcon draws none.
+     * The drawing of a slot's glyph on the watch, by its key (status-pixels.generated.js), for a
+     * slot slotIcon draws one in: the watch pictures (preview-watch.js) draw it at the bar's box
+     * and seat. None for a glyph the watch draws in code (the battery, the sun arrow).
      * @param {string} code The slot's item.
-     * @param {Object} [env] Platform env.
-     * @param {Object} [S] Settings.
-     * @param {string} [slotKey] The slot's settings key (slotIcon).
+     * @param {Object} S Settings.
      * @returns {?string} The drawing's key, or null for none.
      */
-    function slotDrawing(code, env, S, slotKey) {
-        if (!slotIcon(code, env, S, slotKey)) { return null; }
-        if (code === 'pluginValue') { return pluginValuePage.barDrawing(S || {}); }
+    function slotDrawing(code, S) {
+        if (code === 'pluginValue') { return pluginValuePage.barDrawing(S); }
         return SLOT_DRAWINGS[code === 'city' ? 'condition' : code] || null;
     }
 
@@ -387,10 +384,11 @@
         return codes.map(function (c, p) {
             var forms = texts[p].split(catalog.ALT_SEP);
             var date = c.code === 'date';
+            var icon = slotIcon(c.code, env, st, c.key);
             return {pos: c.pos, key: c.key, code: c.code, text: forms[0],
                 alt: date ? dateShortText(st, env, when, fullDate) : forms[1] || '', own: date,
-                arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: slotIcon(c.code, env, st, c.key),
-                drawing: slotDrawing(c.code, env, st, c.key), batteryGlyph: drawsBatteryGlyph(c.code, env, st)};
+                arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: icon,
+                drawing: icon ? slotDrawing(c.code, st) : null, batteryGlyph: drawsBatteryGlyph(c.code, env, st)};
         });
     }
 

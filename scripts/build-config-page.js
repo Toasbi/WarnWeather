@@ -188,8 +188,15 @@ var APP_FILES = [
   // condition at render, so it precedes both — test/page/settings/config-page-bundle.test.js
   // pins the order.
   path.join(ROOT, 'src/pkjs/weather/domain/condition.js'),
+  // The status icons as the watch draws them (window.StatusPixels, from
+  // scripts/pixel-icons/gen_watch_icons.js), and the SVG they draw as and each icon id's drawing
+  // (window.PixelIcon, which binds StatusPixels and StatusLineCatalog while its body runs):
+  // plugin-value-page.js and preview-watch.js read PixelIcon while theirs run.
+  path.join(ROOT, 'src/pkjs/settings/status-pixels.generated.js'),
+  path.join(ROOT, 'src/pkjs/page/weather/pixel-icon.js'),
   // The Plugin value slot's dialog (window.PluginValuePage): its rows' lists and texts. It binds
-  // PluginValues and StatusLineCatalog while its body runs, and preview-status-bars.js binds it.
+  // PluginValues, StatusLineCatalog and PixelIcon while its body runs, and preview-status-bars.js
+  // binds it.
   path.join(ROOT, 'src/pkjs/page/status-bars/plugin-value-page.js'),
   // The Status bars tab's pinned preview (reads StatusLineCatalog, OnDemand, VIEW_CYCLE,
   // PreviewSvg and the slot-text chain above at render).
@@ -206,11 +213,6 @@ var APP_FILES = [
   // its body runs; blocks.js's conditionList and the rain alert's preview draw with them at
   // render time.
   path.join(ROOT, 'src/pkjs/page/weather/condition-icons.js'),
-  // The status icons as the watch draws them (window.StatusPixels, from
-  // scripts/pixel-icons/gen_watch_icons.js), and the SVG they draw as (window.PixelIcon):
-  // preview-watch.js reads PixelIcon while its body runs, for the pictures of the watch.
-  path.join(ROOT, 'src/pkjs/settings/status-pixels.generated.js'),
-  path.join(ROOT, 'src/pkjs/page/weather/pixel-icon.js'),
   path.join(ROOT, 'src/pkjs/page/status-bars/status-slot-icons.js'),
   // The tab bar's glyphs (tab.icon), into the same registry.
   path.join(ROOT, 'src/pkjs/page/settings/tab-icons.js'),

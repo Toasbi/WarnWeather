@@ -878,7 +878,8 @@ test('where the weather comes from: each module is bundled ahead of the ones tha
   });
 });
 
-// plugin-value-page.js binds PluginValues and StatusLineCatalog while its body runs, and
+// plugin-value-page.js binds PluginValues, StatusLineCatalog and PixelIcon while its body runs
+// (PixelIcon binds StatusPixels and StatusLineCatalog while its own does), and
 // preview-status-bars.js binds window.PluginValuePage while its own does: out of order, or
 // missing, the Status bars tab throws on a real phone while every Node test passes through
 // require(). The phone's own parts stay off the page, whose URL every byte rides.
@@ -886,8 +887,8 @@ test('the Plugin value slot\'s rules and dialog reach the page ahead of the Stat
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => appFiles.findIndex((f) => f.endsWith('/' + suffix));
   const order = ['status-bars/domain/status-line-catalog.js', 'status-bars/domain/slot-text.js',
-    'status-bars/domain/plugin-values.js', 'page/status-bars/plugin-value-page.js',
-    'page/status-bars/preview-status-bars.js'];
+    'status-bars/domain/plugin-values.js', 'settings/status-pixels.generated.js', 'page/weather/pixel-icon.js',
+    'page/status-bars/plugin-value-page.js', 'page/status-bars/preview-status-bars.js'];
   order.forEach((file) => assert.notEqual(idx(file), -1, file + ' is not in APP_FILES at all'));
   order.slice(1).forEach((file, i) => assert.ok(idx(order[i]) < idx(file), order[i] + ' must precede ' + file));
   ['window.PluginValues=api', 'window.PluginValuePage=api', "register('pluginValuePlugins'",

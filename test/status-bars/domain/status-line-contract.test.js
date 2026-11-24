@@ -89,12 +89,11 @@ test('icon ids are in lockstep with status_line.h', () => {
   assert.equal(catalog.ICONS.DRAWN_BATTERY, cEnum('STATUS_ICON_DRAWN_BATTERY'));
   // The Plugin value slot: text-only like PRESSURE.
   assert.equal(catalog.ICONS.PLUGIN_TEXT, cEnum('STATUS_ICON_PLUGIN_TEXT'));
-  // Every id the phone names, the C enum names: the watch drops a line with an id past its
-  // STATUS_ICON_MAX, so an id added on one side only would blank the whole bar.
-  const cIds = [];
-  header.replace(/STATUS_ICON_[A-Z_]+\s*=\s*(\d+)/g, (m, id) => { cIds.push(Number(id)); return m; });
+  // Every id the phone names, under the C enum's name for it: the watch drops a line with an id
+  // past its STATUS_ICON_MAX, so an id added on one side only would blank the whole bar, and the
+  // settings page finds an id's drawings by that name (pixel-icon.js keyOfIcon).
   Object.keys(catalog.ICONS).forEach((name) => {
-    assert.ok(cIds.indexOf(catalog.ICONS[name]) !== -1, name + ' has a C enumerator');
+    assert.equal(catalog.ICONS[name], cEnum('STATUS_ICON_' + name), name + ' is STATUS_ICON_' + name);
   });
   assert.equal(Math.max.apply(null, Object.keys(catalog.ICONS).map((k) => catalog.ICONS[k])),
     cEnum('STATUS_ICON_PV_CALENDAR'), 'the highest id is the last appended');

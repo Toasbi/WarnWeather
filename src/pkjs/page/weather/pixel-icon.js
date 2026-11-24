@@ -6,12 +6,23 @@
 // labels draw outlines instead (status-slot-icons.js, condition-icons.js), but for an icon it has
 // no outline of: the Plugin value's (glyph, plugin-value-page.js).
 // Dual-context: required under Node, window.PixelIcon on the page (after
-// status-pixels.generated.js, ahead of preview-watch.js).
+// status-line-catalog.js and status-pixels.generated.js, which it binds while its body runs,
+// ahead of plugin-value-page.js and preview-watch.js).
 (function () {
     'use strict';
 
-    var PIXELS = (typeof require !== 'undefined') ? require('../../settings/status-pixels.generated.js')
+    var node = typeof require !== 'undefined';
+    var PIXELS = node ? require('../../settings/status-pixels.generated.js')
         : (typeof window !== 'undefined' && window.StatusPixels) || {icons: {}, ids: {}};
+    var ICONS = node ? require('../../status-bars/domain/status-line-catalog.js').ICONS
+        : (typeof window !== 'undefined' && window.StatusLineCatalog && window.StatusLineCatalog.ICONS) || {};
+    // The key of each status icon id's drawings (status-line-catalog.js ICONS), which the drawings
+    // list under the id's status_line.h name.
+    var KEY_OF_ICON = {};
+    Object.keys(ICONS).forEach(function (name) {
+        var key = PIXELS.ids['STATUS_ICON_' + name];
+        if (key) { KEY_OF_ICON[ICONS[name]] = key; }
+    });
 
     /**
      * A pixel drawing's lit pixels as one SVG path, in pixel units: a rectangle per run.
@@ -81,7 +92,16 @@
             + '" fill="currentColor" shape-rendering="crispEdges"><path d="' + path(p) + '"></path></svg>';
     }
 
-    var api = { path: path, forBox: forBox, family: family, glyph: glyph, pixels: PIXELS };
+    /**
+     * @param {number} id A status icon id, as a bake packs it (status-line-catalog.js ICONS).
+     * @returns {?string} The key of the watch's drawings of it (status-pixels ids); null for an id
+     *   that loads none: a text-only one, or a glyph the watch draws in code.
+     */
+    function keyOfIcon(id) {
+        return KEY_OF_ICON[id] || null;
+    }
+
+    var api = { path: path, forBox: forBox, family: family, glyph: glyph, keyOfIcon: keyOfIcon, pixels: PIXELS };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PixelIcon = api; }
 })();

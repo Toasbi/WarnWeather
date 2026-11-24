@@ -22,11 +22,11 @@
 // Pebble app gives them, and is never picked for the user (pluginPicked, valueOptions).
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
-// page (scripts/build-config-page.js APP_FILES, after plugin-values.js, which it binds while its
-// body runs; window.PluginValuePage). userData is the page global INJECTED_USERDATA, read at
-// call time (Node tests set global.INJECTED_USERDATA). The time since the read is the Weather
-// tab's (weather-tab-readouts.js agoText), and the icons are the watch's own drawings
-// (pixel-icon.js glyph), both read at call time too: those files load later.
+// page (scripts/build-config-page.js APP_FILES, after plugin-values.js and pixel-icon.js, which it
+// binds while its body runs; window.PluginValuePage). userData is the page global
+// INJECTED_USERDATA, read at call time (Node tests set global.INJECTED_USERDATA). The time since
+// the read is the Weather tab's (weather-tab-readouts.js agoText), read at call time too: that
+// file loads later. The icons are the watch's own drawings (pixel-icon.js).
 //
 // The Icon row offers the icons that turn on and off with the value only for a value the phone
 // lists as on or off (plugin-value-list.js onOff), and a change to a value that is neither leaves
@@ -41,6 +41,7 @@
     var catalog = node ? require('../../status-bars/domain/status-line-catalog.js') : window.StatusLineCatalog;
     var batteryDays = node ? require('../../status-bars/domain/battery-days.js') : window.BatteryDays;
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
+    var pixelIcon = node ? require('../weather/pixel-icon.js') : window.PixelIcon;
     // What the slot shows while it has no value to show (status-lines.js formatValue).
     var NONE_SHOWN = pluginValues.textFor(null, catalog.CAPS.MID_TEXT_MAX);
     // The Value row's hint while the Preferences plugin is picked: where the complications are
@@ -53,9 +54,9 @@
     // Why a complication is greyed out, for a permission another app's plugin defines
     // (plugin-reads.js ANOTHER_APPS), which WarnWeather can never declare.
     var ANOTHER_APPS = ':';
-    // The Icon row's choices after None (plugin-values.js ICON_FORMS), in its order.
-    var ICON_LABELS = [['switch', 'Switch'], ['wifi', 'Wi-Fi'], ['bluetooth', 'Bluetooth'], ['plug', 'Plug'],
-        ['phone', 'Phone'], ['calendar', 'Calendar']];
+    // The Icon row's choices after None (plugin-values.js ICON_FORMS, in its order), by name.
+    var ICON_LABELS = {'switch': 'Switch', wifi: 'Wi-Fi', bluetooth: 'Bluetooth', plug: 'Plug', phone: 'Phone',
+        calendar: 'Calendar'};
 
     /**
      * @returns {Object} The page's userData (INJECTED_USERDATA), read at call time.
@@ -322,12 +323,12 @@
 
     /**
      * @param {Object} S Settings.
-     * @returns {?boolean} Whether the value the settings pick is on or off, as the phone listed
-     *   it (valuesOf); null where it lists no such value.
+     * @returns {boolean} Whether the phone lists the value the settings pick as neither on nor off
+     *   (valuesOf): an icon that turns would stay off for it.
      */
-    function valueOnOff(S) {
+    function listedNeither(S) {
         var value = valueIn(pluginOf(S.pluginValuePlugin), S.pluginValueId);
-        return value ? value.onOff : null;
+        return Boolean(value) && !value.onOff;
     }
 
     /**
@@ -339,13 +340,13 @@
     }
 
     /**
-     * Leaves an icon that turns for None where the value the settings pick is neither on nor
-     * off: that icon would stay off.
+     * onChange of the Value row (and of the Plugin row, through pluginPicked): leaves an icon that
+     * turns for None where the value the settings pick is neither on nor off, as it would stay off.
      * @param {Object} S Settings (mutated).
      * @returns {void}
      */
     function fitIcon(S) {
-        if (turns(pluginValues.iconName(S)) && valueOnOff(S) === false) {
+        if (turns(pluginValues.iconName(S)) && listedNeither(S)) {
             S.pluginValueIcon = pluginValues.ICON_DEFAULT;
         }
     }
@@ -367,15 +368,6 @@
     }
 
     /**
-     * onChange of the Value row: an icon that fits the new value (fitIcon).
-     * @param {Object} S Settings (mutated).
-     * @returns {void}
-     */
-    function valuePicked(S) {
-        fitIcon(S);
-    }
-
-    /**
      * The Icon row's list: None, then the icons that turn, offered only for a value that is on or
      * off (greyed out for one the phone lists as neither, but the one the settings hold), then
      * the icons that stay the same.
@@ -383,16 +375,19 @@
      * @returns {Array<Array>} [label, value, meta?] options.
      */
     function iconOptions(S) {
-        var neither = valueOnOff(S) === false;
+        var neither = listedNeither(S);
+        var names = Object.keys(pluginValues.ICON_FORMS).filter(function (name) {
+            return name !== pluginValues.ICON_DEFAULT;
+        });
         var out = [['None', pluginValues.ICON_DEFAULT, {desc: 'The value alone'}]];
         [['Turns with a value that is on or off', true, '__hdr_turns'], ['Always the same', false, '__hdr_same']]
                 .forEach(function (group) {
-            var names = ICON_LABELS.filter(function (l) { return turns(l[0]) === group[1]; });
+            var inGroup = names.filter(function (name) { return turns(name) === group[1]; });
             out.push([group[0], group[2], {disabled: true, groupHeader: true}]);
-            names.forEach(function (l, i) {
-                var meta = {groupChild: true, groupEnd: i === names.length - 1};
-                if (group[1] && neither && S.pluginValueIcon !== l[0]) { meta.disabled = true; }
-                out.push([l[1], l[0], meta]);
+            inGroup.forEach(function (name, i) {
+                var meta = {groupChild: true, groupEnd: i === inGroup.length - 1};
+                if (group[1] && neither && S.pluginValueIcon !== name) { meta.disabled = true; }
+                out.push([ICON_LABELS[name], name, meta]);
             });
         });
         return out;
@@ -406,25 +401,8 @@
      */
     function iconHint(S) {
         if (!turns(pluginValues.iconName(S))) { return null; }
-        return valueOnOff(S) === false ? 'This value is neither on nor off, so the icon stays off.'
+        return listedNeither(S) ? 'This value is neither on nor off, so the icon stays off.'
             : 'On while the value is on, off while it is off.';
-    }
-
-    /**
-     * @returns {Object} pixel-icon.js, bound at call time: in the page it loads after this file.
-     */
-    function pixelIcon() {
-        return node ? require('../weather/pixel-icon.js') : window.PixelIcon;
-    }
-
-    /**
-     * @param {number} id An icon id (plugin-values.js iconId).
-     * @returns {?string} The key of the watch's drawing of it (status-pixels.generated.js ids, by
-     *   its status_line.h name); null for the value alone.
-     */
-    function drawingOf(id) {
-        var name = Object.keys(catalog.ICONS).filter(function (k) { return catalog.ICONS[k] === id; })[0];
-        return pixelIcon().pixels.ids['STATUS_ICON_' + name] || null;
     }
 
     /**
@@ -436,9 +414,19 @@
      * @returns {string} HTML.
      */
     function iconPicture(S, env, args) {
-        var forms = Object.prototype.hasOwnProperty.call(pluginValues.ICON_FORMS, args.value)
-            ? pluginValues.ICON_FORMS[args.value] : [];
-        return forms.map(function (id) { return pixelIcon().glyph(drawingOf(id), env); }).join('');
+        return pluginValues.ICON_FORMS[pluginValues.iconName({pluginValueIcon: args.value})].map(function (id) {
+            return pixelIcon.glyph(pixelIcon.keyOfIcon(id), env);
+        }).join('');
+    }
+
+    /**
+     * @param {Object} S Settings.
+     * @param {number} now Now, in epoch milliseconds.
+     * @returns {?Object} The reading of the value read last that the watch shows now
+     *   (plugin-values.js shownReading), or null.
+     */
+    function shownNow(S, now) {
+        return pluginValues.shownReading(lastValue(S), S, now);
     }
 
     /**
@@ -451,7 +439,7 @@
      */
     function barText(S, cap) {
         var now = Date.now();
-        return pluginValues.textFor(pluginValues.shownReading(lastValue(S), S, now), cap, S, now);
+        return pluginValues.textFor(shownNow(S, now), cap, S, now);
     }
 
     /**
@@ -462,7 +450,7 @@
      *   value alone.
      */
     function barDrawing(S) {
-        return drawingOf(pluginValues.iconId(S, pluginValues.shownReading(lastValue(S), S, Date.now())));
+        return pixelIcon.keyOfIcon(pluginValues.iconId(S, shownNow(S, Date.now())));
     }
 
     /**
@@ -472,8 +460,7 @@
      * @returns {?string} An <svg>, or null for none.
      */
     function barGlyph(S, env) {
-        var key = barDrawing(S);
-        return key ? pixelIcon().glyph(key, env) || null : null;
+        return pixelIcon.glyph(barDrawing(S), env) || null;
     }
 
     if (PConf && PConf.optionsResolvers) {
@@ -486,13 +473,13 @@
         PConf.optionsResolvers.register('pluginValueIcons', iconOptions);
         PConf.pictureResolvers.register('pluginValueIconPicture', iconPicture);
         PConf.onChange.register('pluginValuePluginPicked', pluginPicked);
-        PConf.onChange.register('pluginValueIdPicked', valuePicked);
+        PConf.onChange.register('pluginValueIdPicked', fitIcon);
         PConf.whenResolvers.register('pluginValueFromMuninn', fromMuninn);
     }
 
     var api = { labelOf: labelOf, pluginOptions: pluginOptions, valueOptions: valueOptions, pluginHint: pluginHint,
         valueHint: valueHint, lastLine: lastLine, fromMuninn: fromMuninn, pluginPicked: pluginPicked,
-        valuePicked: valuePicked, iconOptions: iconOptions, iconHint: iconHint, iconPicture: iconPicture,
+        fitIcon: fitIcon, iconOptions: iconOptions, iconHint: iconHint, iconPicture: iconPicture,
         barText: barText, barDrawing: barDrawing, barGlyph: barGlyph };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PluginValuePage = api; }
