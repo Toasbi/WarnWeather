@@ -698,7 +698,7 @@ if (typeof require !== 'undefined') {
             // wind, gusts, AQI), from the catalog's one table...
             .concat(statusLineCatalog.dayMaxSettingKeys())
             // ...and the watch battery's Look and text rows, each of these slots' phone
-            // battery Look, and the Plugin value's source and Updates.
+            // battery Look, and the Plugin value's source, icon and Updates.
             .concat(statusLineCatalog.batterySettingKeys())
             .concat(slotKeys.map(statusLineCatalog.phoneBatteryLookKey))
             .concat(statusLineCatalog.pluginValueSettingKeys());

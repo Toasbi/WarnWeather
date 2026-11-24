@@ -627,7 +627,7 @@ static void plugin_icon_tests(void) {
         expect(name, status_line_slots(b, n, v) == STATUS_SLOT_COUNT && v[0].icon == id, 1);
         snprintf(name, sizeof(name), "pv.plain.id%d", id);
         expect(name, status_icon_is_city((uint8_t)id) + status_icon_is_condition((uint8_t)id)
-                         + status_slot_draws_battery(SLOT_TEXT, (uint8_t)id), 0);
+                         + status_slot_draws_battery(SLOT_LIVE_BATTERY_PCT, (uint8_t)id), 0);
     }
 }
 

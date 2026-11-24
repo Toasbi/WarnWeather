@@ -206,9 +206,8 @@
     /**
      * A moment as a slot prints it (the Plugin value's, plugin-values.js textFor): its clock
      * time in the user's format (clockText) while it is on the day the slot is baked for, else
-     * with its date after it ('23:10 24 Nov'), as Shapeshifter prints a plugin's times; the
-     * date alone ('24 Nov') where the slot has no room for both, since a bare clock time would
-     * read as today's. Never a cut text.
+     * with its date after it ('23:10 24 Nov'); the date alone ('24 Nov') where the slot has no
+     * room for both, since a bare clock time would read as today's. Never a cut text.
      * @param {number} epochMs The moment, in epoch milliseconds.
      * @param {number} nowMs The instant the slot is baked for, in epoch milliseconds: its local
      *   date is today's.

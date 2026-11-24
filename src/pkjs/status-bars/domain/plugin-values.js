@@ -148,7 +148,7 @@
 
     /**
      * A state (a boolean the plugin sent without words of its own for it), as the slot prints
-     * it: lowercase, as Shapeshifter prints a plugin's state.
+     * it: lowercase.
      */
     var ON = 'on';
     var OFF = 'off';
@@ -162,8 +162,9 @@
      *      sunrise, with its date after it on another day than the one the slot is baked for
      *      (slot-text.js momentText): a timestamp, which the plugin API leaves to the watch to
      *      show in the user's format, or a number its name says is a moment
-     *      (plugin-value-reads.js momentOf). Before the number: the slot is read every half
-     *      hour at most, and a moment stays true between reads where a count towards it does not.
+     *      (plugin-value-reads.js momentOf). Before the number: the slot is read every 15
+     *      minutes at most, and a moment stays true between reads where a count towards it does
+     *      not.
      *   3. Its number, with its unit where the slot has the room ('%' and a unit that starts
      *      with the degree sign attach, any other follows a space).
      *   4. Its state, on or off.
