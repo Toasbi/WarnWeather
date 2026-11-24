@@ -30,6 +30,7 @@ var pluginValueReads = require('../domain/plugin-value-reads.js');
 var catalog = require('../domain/status-line-catalog.js');
 var complications = require('../domain/complications.js');
 var pluginReadSchedule = require('./plugin-read-schedule.js');
+var storedJson = require('./stored-json.js');
 var pluginReader = require('./plugin-reader.js');
 
 /**
@@ -82,8 +83,8 @@ function sameSlot(a, b) {
 
 var schedule = pluginReadSchedule.create({
     name: 'plugin-value',
-    recordKey: KEYS.PLUGIN_VALUE_READ,
-    valueKey: KEYS.PLUGIN_VALUE,
+    recordAt: storedJson.place(KEYS.PLUGIN_VALUE_READ),
+    valueAt: storedJson.place(KEYS.PLUGIN_VALUE),
     // Until when the plugin said its last answer holds: its own word on when it has something new.
     timeField: 'validUntil',
     // init's options carry what this app declares (permissions; none: a source that names a

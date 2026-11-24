@@ -1,8 +1,9 @@
 // src/pkjs/status-bars/adapter/stored-json.js
 //
 // A value the status bars' plugin reads keep in storage as JSON (plugin-read-schedule.js, for
-// each reader's record and value; complication-list.js, for the user's complications): read
-// back parsed, and written only when it changed (a value heard again writes nothing).
+// each reader's record and value, in the places its reader names; complication-list.js, for the
+// user's complications): read back parsed, and written only when it changed (a value heard
+// again writes nothing).
 //
 // ES5 only (aplite's JavaScriptCore): var + function.
 
@@ -43,7 +44,28 @@ function write(key, next, held, what) {
     return true;
 }
 
+/**
+ * A place in storage for one value: what plugin-read-schedule.js keeps a reader's record and
+ * its value in.
+ * @typedef {Object} StoredPlace
+ * @property {function(): *} read What is kept there, parsed (read's), or null for none.
+ * @property {function(*, *, string): boolean} write Keep a value there, or none (write's
+ *   next, held and what), unless it is the value held: whether it is another.
+ */
+
+/**
+ * @param {string} key A storage key.
+ * @returns {StoredPlace} The place the key is: the value kept under it.
+ */
+function place(key) {
+    return {
+        read: function () { return read(key); },
+        write: function (next, held, what) { return write(key, next, held, what); }
+    };
+}
+
 module.exports = {
     read: read,
-    write: write
+    write: write,
+    place: place
 };

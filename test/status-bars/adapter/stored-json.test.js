@@ -41,3 +41,15 @@ test('write: a storage that refuses is logged by what the value is, and the valu
   assert.equal(storedJson.write('k', { secret: 'reading' }, null, 'test: the value'), true);
   assert.deepEqual(logged, ['test: the value was not stored.']);
 });
+
+test('place: the place a key is, read and written as read and write do', () => {
+  writes.length = 0;
+  const place = storedJson.place('p');
+  assert.equal(place.read(), null);
+  assert.equal(place.write({ v: 2 }, null, 'test: the value'), true);
+  assert.deepEqual(place.read(), { v: 2 });
+  assert.equal(place.write({ v: 2 }, { v: 2 }, 'test: the value'), false, 'the one held writes nothing');
+  assert.equal(place.write(null, { v: 2 }, 'test: the value'), true);
+  assert.equal(store.p, undefined);
+  assert.deepEqual(writes, ['p', '-p']);
+});

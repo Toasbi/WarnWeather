@@ -58,13 +58,13 @@ var statusRebake = require('../application/status-rebake.js');
 var pluginReads = require('../domain/plugin-reads.js');
 var batterySaver = require('../../wire/domain/battery-saver.js');
 var pluginReader = require('./plugin-reader.js');
-var storedJson = require('./stored-json.js');
 
 /**
  * @typedef {Object} PluginReadSpec
  * @property {string} name The reader's name in the log, e.g. 'battery-estimate'.
- * @property {string} recordKey The storage key of the record of the last read.
- * @property {string} valueKey The storage key of the value last heard.
+ * @property {StoredPlace} recordAt Where the record of the last read is kept (stored-json.js:
+ *   a storage key of its own, at).
+ * @property {StoredPlace} valueAt Where the value last heard is kept.
  * @property {string} timeField The time the record keeps beside `at` and `failures`
  *   (plugin-reads.js recordOf), which the reader's nextReadAt works from.
  * @property {function(?Object, ?Object, Object): ?{key: ?string, request: ?Object}} wanted What
@@ -96,10 +96,11 @@ var INERT = {
 /**
  * A reader's schedule.
  * @param {PluginReadSpec} spec The reader's rules.
- * @returns {{init: function(Object): void, onTick: function(): void, refresh: function(): void,
- *   value: function(): ?Object, available: function(): boolean}} init wires it up, onTick and
- *   refresh read when a read is due, value is the value last heard, and available whether this
- *   Pebble app reads plugins.
+ * @returns {{init: function(Object): void, load: function(Object): void, onTick: function(): void,
+ *   refresh: function(): void, drop: function(): void, value: function(): ?Object,
+ *   available: function(): boolean}} init wires it up and takes the first look, load wires it up
+ *   without one, onTick and refresh read when a read is due, drop forgets the read and the value,
+ *   value is the value last heard, and available whether this Pebble app reads plugins.
  */
 function create(spec) {
     var deps = INERT;
@@ -118,6 +119,8 @@ function create(spec) {
     var value = null;
     // What the slot showed of it at the last look (spec.shown): at init, a keep and each consider.
     var shown = null;
+    // Dropped (drop): it reads nothing more, and an answer still under way goes nowhere.
+    var dropped = false;
 
     /**
      * @returns {number} Now, in epoch milliseconds (the injected clock).
@@ -149,18 +152,14 @@ function create(spec) {
      * @returns {void}
      */
     function stamp(key, at, failures, time) {
+        var held = record;
         if (record && record.source === key && record.at === at && record.failures === failures
                 && record[spec.timeField] === time) {
             return;
         }
         record = { source: key, at: at, failures: failures };
         record[spec.timeField] = time;
-        try {
-            localStorage.setItem(spec.recordKey, JSON.stringify(record));
-        }
-        catch (ex) {
-            console.log(spec.name + ': the time of the read was not stored.');
-        }
+        spec.recordAt.write(record, held, spec.name + ': the time of the read');
     }
 
     /**
@@ -169,10 +168,11 @@ function create(spec) {
      * @returns {void}
      */
     function forget() {
+        var held = record;
         againAtTick = false;
         if (record === null) { return; }
         record = null;
-        localStorage.removeItem(spec.recordKey);
+        spec.recordAt.write(null, held, spec.name + ': the time of the read');
     }
 
     /**
@@ -189,7 +189,7 @@ function create(spec) {
         var after = spec.shown(next, settings, at);
         shown = after;
         // The value kept, heard again (Muninn's estimate until its next wakeup): nothing to write.
-        if (storedJson.write(spec.valueKey, next, value, spec.name + ': the value')) { value = next; }
+        if (spec.valueAt.write(next, value, spec.name + ': the value')) { value = next; }
         if (spec.sameShown(before, after)) { return; }
         console.log(spec.name + ': ' + (after === null ? 'nothing to show' : 'a new value to show') + '.');
         // Never sent from here. The plugin answers at any moment, right after a settings save or a
@@ -267,11 +267,14 @@ function create(spec) {
      * @returns {void}
      */
     function consider(fromSave) {
-        var settings = deps.getSettings();
-        var want = available() ? spec.wanted(settings, deps.getWatchInfo(), deps) : null;
+        var settings;
+        var want;
         var at;
         var now;
         var asked;
+        if (dropped) { return; }
+        settings = deps.getSettings();
+        want = available() ? spec.wanted(settings, deps.getWatchInfo(), deps) : null;
         if (!want) {
             forget();
             return;
@@ -311,9 +314,9 @@ function create(spec) {
     }
 
     /**
-     * Wire the schedule up. Call once, from the 'ready' handler, after statusRebake.init().
-     * Re-calling resets all its state, which is what the tests rely on. Reads at once only
-     * when a read is due: a PKJS start by itself is no reason to.
+     * Wire the schedule up with the read and the value kept, and take no look yet: the caller's
+     * first, a tick's or a save's, decides how the read it may start goes (init takes a tick's).
+     * Re-calling resets all its state.
      *
      * @param {Object} options Injected environment. Any option besides these is the reader's
      *   own, which its spec's wanted is handed with the rest.
@@ -326,7 +329,7 @@ function create(spec) {
      *   (plugin-reader.js readOnce; tests).
      * @returns {void}
      */
-    function init(options) {
+    function load(options) {
         if (!options || typeof options.getSettings !== 'function'
                 || typeof options.getWatchInfo !== 'function' || typeof options.now !== 'function') {
             throw new Error(spec.name + ': init needs getSettings, getWatchInfo and now');
@@ -336,18 +339,47 @@ function create(spec) {
         againAtTick = false;
         renewed = false;
         heldUp = false;
-        record = pluginReads.recordOf(storedJson.read(spec.recordKey), spec.timeField);
-        value = spec.valueOf(storedJson.read(spec.valueKey));
+        dropped = false;
+        record = pluginReads.recordOf(spec.recordAt.read(), spec.timeField);
+        value = spec.valueOf(spec.valueAt.read());
         // Not known: what the last PKJS owed the watch died with it. The first look owes a send
         // while the slot shows the value kept.
         shown = null;
+    }
+
+    /**
+     * Wire the schedule up (load) and take the first look. Call once, from the 'ready' handler,
+     * after statusRebake.init(). Re-calling resets all its state, which is what the tests rely
+     * on. Reads at once only when a read is due: a PKJS start by itself is no reason to.
+     * @param {Object} options load's.
+     * @returns {void}
+     */
+    function init(options) {
+        load(options);
         consider(false);
+    }
+
+    /**
+     * Forget the read and the value kept, here and in storage, for a reader that wants nothing
+     * of this schedule any more (plugin-value-source.js: no slot shows the value it reads), and
+     * read nothing more. Owes the watch nothing: what stopped wanting it sends its own. An answer
+     * still under way goes nowhere.
+     * @returns {void}
+     */
+    function drop() {
+        forget();
+        spec.valueAt.write(null, value, spec.name + ': the value');
+        value = null;
+        shown = null;
+        dropped = true;
     }
 
     return {
         init: init,
+        load: load,
         onTick: function () { consider(false); },
         refresh: function () { consider(true); },
+        drop: drop,
         value: lastValue,
         available: available
     };

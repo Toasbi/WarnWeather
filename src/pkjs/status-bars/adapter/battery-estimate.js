@@ -25,6 +25,7 @@ var batteryDays = require('../domain/battery-days.js');
 var estimateReads = require('../domain/estimate-reads.js');
 var pluginReads = require('../domain/plugin-reads.js');
 var pluginReadSchedule = require('./plugin-read-schedule.js');
+var storedJson = require('./stored-json.js');
 var pluginReader = require('./plugin-reader.js');
 
 /**
@@ -36,8 +37,8 @@ var MUNINN = { key: null,
 
 var schedule = pluginReadSchedule.create({
     name: 'battery-estimate',
-    recordKey: KEYS.BATTERY_ESTIMATE_READ,
-    valueKey: KEYS.BATTERY_ESTIMATE,
+    recordAt: storedJson.place(KEYS.BATTERY_ESTIMATE_READ),
+    valueAt: storedJson.place(KEYS.BATTERY_ESTIMATE),
     // When Muninn made the estimate the read heard. It is kept even where the days cannot be
     // shown (Muninn with no estimate yet, or less than a day left, as just before a charge), so
     // the read after the next wakeup still comes.

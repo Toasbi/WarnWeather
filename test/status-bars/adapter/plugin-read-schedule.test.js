@@ -25,6 +25,7 @@ global.localStorage = {
 };
 
 const pluginReadSchedule = require('../../../src/pkjs/status-bars/adapter/plugin-read-schedule.js');
+const storedJson = require('../../../src/pkjs/status-bars/adapter/stored-json.js');
 const statusRebake = require('../../../src/pkjs/status-bars/application/status-rebake.js');
 
 const realLog = console.log;
@@ -73,8 +74,8 @@ const WANT_A = { want: 'a' };
  */
 const SPEC = {
   name: 'test-reader',
-  recordKey: READ,
-  valueKey: VALUE,
+  recordAt: storedJson.place(READ),
+  valueAt: storedJson.place(VALUE),
   timeField: 'until',
   wanted: (settings) => (settings && settings.want
     ? { key: settings.want, request: { category: 'test', item: settings.want } } : null),
@@ -717,4 +718,69 @@ test('a reader of one thing only: its record names no key, and a restart reads n
   h.clock += MIN;
   ONE_THING.onTick();
   assert.equal(h.pebble.subs.length, 1);
+});
+
+/**
+ * Wire the schedule up without its first look (load), every dependency injected.
+ * @param {Object} h A handle as boot hands back: its clock, settings, pebble and timers.
+ * @returns {Object} h.
+ */
+function loadInto(h) {
+  schedule.load({
+    pebble: h.pebble,
+    getSettings: () => h.settings,
+    getWatchInfo: () => ({ platform: 'basalt' }),
+    now: () => h.clock,
+    timers: heldTimers(h.timers)
+  });
+  return h;
+}
+
+test('load wires it up with what storage keeps and takes no look: the caller\'s first look decides the read', () => {
+  let h = boot();
+  h.pebble.subs[0].push({ text: '87%' });
+  owed = 0;
+  h = loadInto({ clock: NOON + MIN, settings: WANT_A, pebble: fakePebble(), timers: [] });
+  assert.deepEqual(schedule.value(), { source: 'a', text: '87%', at: NOON }, 'the value kept');
+  assert.equal(owed, 0, 'no look: nothing owed yet');
+  schedule.onTick();
+  assert.equal(owed, 1, 'the first look owes the send a start owes');
+  assert.equal(h.pebble.subs.length, 0, 'and reads nothing before it is due');
+
+  // Nothing kept: a save's look reads at once, as the save's (the Night battery saver's window
+  // does not hold it).
+  Object.keys(storage).forEach((k) => { delete storage[k]; });
+  h = loadInto({ clock: NIGHT, settings: Object.assign({}, WANT_A, SAVER_ON), pebble: fakePebble(), timers: [] });
+  assert.equal(h.pebble.subs.length, 0);
+  schedule.refresh();
+  assert.equal(h.pebble.subs.length, 1);
+  waited = 0;
+  h.pebble.subs[0].push({ text: '90%' });
+  assert.equal(waited, 1, 'the user waits for it');
+});
+
+test('drop forgets the read and the value here and in storage, owes nothing, and reads nothing more', () => {
+  const h = boot();
+  h.pebble.subs[0].push({ text: '87%' });
+  owed = 0;
+  schedule.drop();
+  assert.equal(schedule.value(), null);
+  assert.equal(stored(READ), null);
+  assert.equal(stored(VALUE), null);
+  assert.equal(owed, 0);
+  h.clock += 2 * EVERY;
+  schedule.onTick();
+  schedule.refresh();
+  assert.equal(h.pebble.subs.length, 1, 'no read after it');
+});
+
+test('drop while a read is under way: its answer goes nowhere', () => {
+  const h = boot();
+  schedule.drop();
+  writes.length = 0;
+  h.pebble.subs[0].push({ text: '87%' });
+  assert.equal(schedule.value(), null);
+  assert.deepEqual(writes, [], 'neither the record nor the value comes back');
+  assert.equal(h.pebble.subs.length, 1, 'and nothing reads again');
+  assert.equal(owed, 0);
 });
