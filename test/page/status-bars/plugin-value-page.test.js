@@ -505,6 +505,13 @@ test('a value that is neither on nor off leaves an icon that turns for None, pic
   const other = Object.assign({ pluginValueIcon: 'bluetooth' }, WIFI, { pluginValuePlugin: MUNINN });
   page.pluginPicked(other, PHONE, MUNINN);
   assert.deepEqual([other.pluginValueId, other.pluginValueIcon], ['muninn/stats/daysRemaining', 'none'], 'a new plugin');
+  // Plugin None hides the Icon row, so the icon goes with the plugin, one that stays the same too.
+  const off = Object.assign({ pluginValueIcon: 'plug' }, WIFI, { pluginValuePlugin: '' });
+  page.pluginPicked(off, PHONE, '');
+  assert.deepEqual([off.pluginValueId, off.pluginValueIcon], ['', 'none'], 'Plugin None');
+  const same = Object.assign({ pluginValueIcon: 'plug' }, WIFI);
+  page.pluginPicked(same, PHONE, PHONE);
+  assert.equal(same.pluginValueIcon, 'plug', 'the same plugin again: kept');
 });
 
 test('an Icon option\'s picture: the watch\'s drawing of each form it takes, on before off', () => {

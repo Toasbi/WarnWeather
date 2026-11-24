@@ -353,7 +353,8 @@
 
     /**
      * onChange of the Plugin row: a new plugin starts on its first value WarnWeather can read,
-     * None on none, with an icon that fits it (fitIcon).
+     * None on none, with an icon that fits it (fitIcon). Plugin None leaves the icon None too:
+     * it hides the Icon row, where the icon could be taken off.
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The plugin before.
      * @param {string} newV The plugin now.
@@ -363,6 +364,7 @@
         var first = valuesOf(pluginOf(newV)).filter(function (v) { return !v.unreadable; })[0];
         if (oldV !== newV) {
             S.pluginValueId = first ? first.id : '';
+            if (!newV) { S.pluginValueIcon = pluginValues.ICON_DEFAULT; }
             fitIcon(S);
         }
     }
