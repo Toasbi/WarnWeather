@@ -71,6 +71,16 @@ test('stripJs drops only what it can prove is a comment or indentation', () => {
     // A blank line goes; one line break stays between the code on either side (ASI).
     ['var a;\n\n  \nvar b;\n', 'var a;\nvar b;\n'],
     ['return\n\nx;', 'return\nx;'],
+    // A comment after code goes, with the blanks before it; the line break stays (ASI).
+    ['  var x = 1;   // why\nreturn\n', 'var x = 1;\nreturn\n'],
+    ["f('http://a', \"b'//c\", 'd\\'//'); // e\n", "f('http://a', \"b'//c\", 'd\\'//');\n"],
+    // Where a '/' comes first, it may start a regex literal the '//' is in: the line stays.
+    ['s.replace(/\\/\\//, \'\'); // a\n', 's.replace(/\\/\\//, \'\'); // a\n'],
+    ['x = a / b; // c\n', 'x = a / b; // c\n'],
+    ['x(); /* a */ // b\n', 'x(); /* a */ // b\n'],
+    // A line that could close a block comment, or hold a backtick, stays.
+    ['var a; /* open\nsee http://x */ var b;\n', 'var a; /* open\nsee http://x */ var b;\n'],
+    ['var t = `a`; // b\n', 'var t = `a`; // b\n'],
   ];
   cases.forEach(([input, expected]) => {
     assert.equal(build.stripJs(input), expected, JSON.stringify(input));
