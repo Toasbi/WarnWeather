@@ -40,7 +40,7 @@ var pluginReader = require('./plugin-reader.js');
  * @param {string[]} permissions What this app declares, as the Pebble app keys it
  *   (plugin-reads.js declaredKeys): a read never starts where it would ask the user for another
  *   permission (plugin-reads.js refusal).
- * @returns {?{key: string, request: ?Object}} What is wanted (complications.js wantOf's for a
+ * @returns {{key: string, request: ?Object}} What is wanted (complications.js wantOf's for a
  *   complication); no request for one of the Preferences plugin's own readings.
  */
 function readOf(source, list, permissions) {

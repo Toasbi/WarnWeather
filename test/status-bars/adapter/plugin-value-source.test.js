@@ -539,6 +539,24 @@ test('a complication changed in the Pebble app is read as the list says so, and 
   assert.equal(sentText(h), '--', 'and the temperature is not the phone\'s charge');
 });
 
+test('the complications no longer known: the value kept is dropped, as the settings page has it', () => {
+  const h = boot({ settings: SECOND, complications: [TEMPERATURE], permissions: PERMS, pebble: fakePebble(PLUGINS) });
+  h.pebble.subs[0].push(weather(['21\u00b0', '4\u00b0']));
+  minute();
+  assert.equal(sentText(h), '4\u00b0');
+  // The Pebble app stopped serving the complications (complication-list.js holds none).
+  h.complications = null;
+  pluginValueSource.complicationsChanged();
+  assert.equal(stored(KEYS.PLUGIN_VALUE), null, 'no reading is the place\'s now');
+  assert.equal(pluginValueSource.forPage(SECOND, null), null);
+  h.clock += MIN;
+  minute();
+  assert.equal(sentText(h), '--', 'on the watch at the next tick');
+  h.complications = [TEMPERATURE];
+  pluginValueSource.complicationsChanged();
+  assert.equal(h.pebble.subs.length, 2, 'known again: read at once');
+});
+
 test('a place left empty: nothing is read, and the value kept is dropped', () => {
   const h = boot({ settings: SECOND, complications: [TEMPERATURE], permissions: PERMS, pebble: fakePebble(PLUGINS) });
   h.pebble.subs[0].push(weather(['21\u00b0', '4\u00b0']));

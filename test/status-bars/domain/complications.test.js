@@ -93,5 +93,6 @@ test('wantOf: the reading the complication at the slot\'s place names, under a k
   assert.deepEqual(complications.wantOf({ key: 'prefs/preferences/complications/0', complication: 0 }, LIST, PERMS),
     { key: 'prefs/preferences/complications/0', request: null }, 'an empty place: nothing to read, which shows nothing');
   assert.deepEqual(complications.wantOf(source, [], PERMS), { key: source.key, request: null }, 'none set up');
-  assert.equal(complications.wantOf(source, null, PERMS), null, 'not known yet: nothing wanted');
+  assert.deepEqual(complications.wantOf(source, null, PERMS), { key: source.key, request: null },
+    'not known: nothing to read, which shows nothing');
 });

@@ -208,13 +208,12 @@ function keyOf(c) {
  * @param {?Complication[]} list The user's complications as last heard, or null while none
  *   are known.
  * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
- * @returns {?{key: string, request: ?Object}} What is wanted (plugin-read-schedule.js
- *   PluginReadSpec wanted): no request for a place left empty, which shows nothing; null while
- *   the complications are not known.
+ * @returns {{key: string, request: ?Object}} What is wanted (plugin-read-schedule.js
+ *   PluginReadSpec wanted): no request for a place left empty, nor while the complications are
+ *   not known, which shows nothing: no value kept is then the place's reading.
  */
 function wantOf(source, list, permissions) {
     var c = atPlace(list, source.complication);
-    if (!list) { return null; }
     return c ? { key: source.key + '/' + keyOf(c), request: requestOf(c, permissions) }
         : { key: source.key, request: null };
 }
