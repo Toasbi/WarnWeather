@@ -45,6 +45,17 @@ function pluginValueOffered(env) {
 /** @type {FeatureTip[]} */
 var TIPS = [
     {
+        id: 'pluginValueIcon',
+        since: '3.5.0',
+        title: 'An icon for a plugin value',
+        // The Plugin value slot's dialog, its Icon row (page/status-bars/plugin-value-page.js),
+        // whose icons that turn are offered for a value that is on or off.
+        html: 'A Plugin value slot can show an icon before its value. Tap the slot\'s Edit button and ' +
+            'pick one under Icon. Switch, Wi-Fi and Bluetooth turn off while the value is off.',
+        open: { tab: 'watch' },
+        when: pluginValueOffered
+    },
+    {
         id: 'complications',
         since: '3.5.0',
         title: 'Your complications in a status bar',

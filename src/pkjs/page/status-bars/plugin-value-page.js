@@ -1,7 +1,7 @@
 // src/pkjs/page/status-bars/plugin-value-page.js — ES5. The Plugin value slot's dialog on the
-// settings page (plugin-value-schema.js): the Plugin and Value rows' lists and hints, the line
-// with the value read last, and the Plugin row's change, which starts a new plugin on its first
-// value. The lists are the plugins the phone listed as the page opened (userData.plugins,
+// settings page (plugin-value-schema.js): the Plugin, Value and Icon rows' lists and hints, the
+// Icon row's pictures, the line with the value read last, and the Plugin row's change, which
+// starts a new plugin on its first value. The lists are the plugins the phone listed as the page opened (userData.plugins,
 // plugin-value-list.js listOf): the page reads no plugin itself, since a read costs the user
 // (plugin-reader.js). The phone sends each plugin's items with their properties' names, and the
 // page makes each value's id (plugin-values.js valueId) and label (labelOf) of them. The value
@@ -25,7 +25,12 @@
 // page (scripts/build-config-page.js APP_FILES, after plugin-values.js, which it binds while its
 // body runs; window.PluginValuePage). userData is the page global INJECTED_USERDATA, read at
 // call time (Node tests set global.INJECTED_USERDATA). The time since the read is the Weather
-// tab's (weather-tab-readouts.js agoText), read at call time too: that file loads later.
+// tab's (weather-tab-readouts.js agoText), and the icons are the watch's own drawings
+// (pixel-icon.js glyph), both read at call time too: those files load later.
+//
+// The Icon row offers the icons that turn on and off with the value only for a value the phone
+// lists as on or off (plugin-value-list.js onOff), and a change to a value that is neither leaves
+// such an icon for None (fitIcon): it would stay off.
 /* global INJECTED_USERDATA */
 (function () {
     var node = typeof require !== 'undefined';
@@ -48,6 +53,9 @@
     // Why a complication is greyed out, for a permission another app's plugin defines
     // (plugin-reads.js ANOTHER_APPS), which WarnWeather can never declare.
     var ANOTHER_APPS = ':';
+    // The Icon row's choices after None (plugin-values.js ICON_FORMS), in its order.
+    var ICON_LABELS = [['switch', 'Switch'], ['wifi', 'Wi-Fi'], ['bluetooth', 'Bluetooth'], ['plug', 'Plug'],
+        ['phone', 'Phone'], ['calendar', 'Calendar']];
 
     /**
      * @returns {Object} The page's userData (INJECTED_USERDATA), read at call time.
@@ -118,14 +126,14 @@
      * The user's complications as the Value row lists them, as the phone listed them under the
      * Preferences plugin: each by its place, as the Pebble app numbers it, with what it shows and
      * its source's category ('1 · Temperature (weather)'), and why for one WarnWeather may not
-     * read (whyText).
+     * read (whyText), and whether it is on or off.
      * @param {Array<Object>} list The complications (plugin-value-list.js complicationsFor).
-     * @returns {Array<{id: string, label: string, unreadable: ?string}>}
+     * @returns {Array<{id: string, label: string, unreadable: ?string, onOff: boolean}>}
      */
     function complicationValues(list) {
         return list.map(function (c) {
             var why = typeof c.why === 'string' ? whyText(c.why) : null;
-            return { id: pluginValues.complicationId(c.position), unreadable: why,
+            return { id: pluginValues.complicationId(c.position), unreadable: why, onOff: c.onOff === true,
                 label: (c.position + 1) + ' \u00b7 ' + labelOf(c.property)
                     + ' (' + labelOf(c.category).toLowerCase() + ')' };
         });
@@ -133,18 +141,21 @@
 
     /**
      * The values a listed plugin offers, in its order: each property of each of its items,
-     * named after the property, and after the item first where the plugin serves more than one.
-     * The Preferences plugin's are the user's complications (complicationValues).
+     * named after the property, and after the item first where the plugin serves more than one,
+     * and whether it is on or off (the item's onOff bit for it). The Preferences plugin's are the
+     * user's complications (complicationValues).
      * @param {?Object} plugin A listed plugin, or null.
-     * @returns {Array<{id: string, label: string, multiple: boolean, unreadable: ?string}>}
+     * @returns {Array<{id: string, label: string, multiple: boolean, unreadable: ?string,
+     *   onOff: boolean}>}
      */
     function valuesOf(plugin) {
         var items = plugin ? plugin.items : [];
         var out = [];
         if (offersComplications(plugin)) { return complicationValues(plugin.complications); }
         items.forEach(function (it) {
-            it.properties.forEach(function (property) {
+            it.properties.forEach(function (property, i) {
                 out.push({ id: pluginValues.valueId(it.category, it.item, property), multiple: it.multiple,
+                    onOff: Boolean(it.onOff & (1 << i)),
                     label: labelOf(items.length > 1 ? it.item + ': ' + property : property) });
             });
         });
@@ -154,8 +165,7 @@
     /**
      * @param {?Object} plugin A listed plugin, or null.
      * @param {*} id A value's id ('category/item/property').
-     * @returns {?{id: string, label: string, multiple: boolean}} The value it offers under the
-     *   id, or null.
+     * @returns {?Object} The value it offers under the id (valuesOf), or null.
      */
     function valueIn(plugin, id) {
         return valuesOf(plugin).filter(function (v) { return v.id === id; })[0] || null;
@@ -311,8 +321,38 @@
     }
 
     /**
+     * @param {Object} S Settings.
+     * @returns {?boolean} Whether the value the settings pick is on or off, as the phone listed
+     *   it (valuesOf); null where it lists no such value.
+     */
+    function valueOnOff(S) {
+        var value = valueIn(pluginOf(S.pluginValuePlugin), S.pluginValueId);
+        return value ? value.onOff : null;
+    }
+
+    /**
+     * @param {string} name An icon's name (plugin-values.js ICON_FORMS).
+     * @returns {boolean} Whether it turns on and off with the value: it has an off form.
+     */
+    function turns(name) {
+        return pluginValues.ICON_FORMS[name].length > 1;
+    }
+
+    /**
+     * Leaves an icon that turns for None where the value the settings pick is neither on nor
+     * off: that icon would stay off.
+     * @param {Object} S Settings (mutated).
+     * @returns {void}
+     */
+    function fitIcon(S) {
+        if (turns(pluginValues.iconName(S)) && valueOnOff(S) === false) {
+            S.pluginValueIcon = pluginValues.ICON_DEFAULT;
+        }
+    }
+
+    /**
      * onChange of the Plugin row: a new plugin starts on its first value WarnWeather can read,
-     * None on none.
+     * None on none, with an icon that fits it (fitIcon).
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The plugin before.
      * @param {string} newV The plugin now.
@@ -320,7 +360,85 @@
      */
     function pluginPicked(S, oldV, newV) {
         var first = valuesOf(pluginOf(newV)).filter(function (v) { return !v.unreadable; })[0];
-        if (oldV !== newV) { S.pluginValueId = first ? first.id : ''; }
+        if (oldV !== newV) {
+            S.pluginValueId = first ? first.id : '';
+            fitIcon(S);
+        }
+    }
+
+    /**
+     * onChange of the Value row: an icon that fits the new value (fitIcon).
+     * @param {Object} S Settings (mutated).
+     * @returns {void}
+     */
+    function valuePicked(S) {
+        fitIcon(S);
+    }
+
+    /**
+     * The Icon row's list: None, then the icons that turn, offered only for a value that is on or
+     * off (greyed out for one the phone lists as neither, but the one the settings hold), then
+     * the icons that stay the same.
+     * @param {Object} S Settings.
+     * @returns {Array<Array>} [label, value, meta?] options.
+     */
+    function iconOptions(S) {
+        var neither = valueOnOff(S) === false;
+        var out = [['None', pluginValues.ICON_DEFAULT, {desc: 'The value alone'}]];
+        [['Turns with a value that is on or off', true, '__hdr_turns'], ['Always the same', false, '__hdr_same']]
+                .forEach(function (group) {
+            var names = ICON_LABELS.filter(function (l) { return turns(l[0]) === group[1]; });
+            out.push([group[0], group[2], {disabled: true, groupHeader: true}]);
+            names.forEach(function (l, i) {
+                var meta = {groupChild: true, groupEnd: i === names.length - 1};
+                if (group[1] && neither && S.pluginValueIcon !== l[0]) { meta.disabled = true; }
+                out.push([l[1], l[0], meta]);
+            });
+        });
+        return out;
+    }
+
+    /**
+     * The Icon row's hint, for an icon that turns: how it follows the value, or that it stays off
+     * for a value that is neither on nor off. Else none.
+     * @param {Object} S Settings.
+     * @returns {?string} HTML (plain text), or null for none.
+     */
+    function iconHint(S) {
+        if (!turns(pluginValues.iconName(S))) { return null; }
+        return valueOnOff(S) === false ? 'This value is neither on nor off, so the icon stays off.'
+            : 'On while the value is on, off while it is off.';
+    }
+
+    /**
+     * @returns {Object} pixel-icon.js, bound at call time: in the page it loads after this file.
+     */
+    function pixelIcon() {
+        return node ? require('../weather/pixel-icon.js') : window.PixelIcon;
+    }
+
+    /**
+     * @param {number} id An icon id (plugin-values.js iconId).
+     * @returns {?string} The key of the watch's drawing of it (status-pixels.generated.js ids, by
+     *   its status_line.h name); null for the value alone.
+     */
+    function drawingOf(id) {
+        var name = Object.keys(catalog.ICONS).filter(function (k) { return catalog.ICONS[k] === id; })[0];
+        return pixelIcon().pixels.ids['STATUS_ICON_' + name] || null;
+    }
+
+    /**
+     * An Icon option's picture (picture resolver 'pluginValueIconPicture'): the watch's drawing
+     * of each form the icon takes, on before off; none for None.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{value: string}} args The option.
+     * @returns {string} HTML.
+     */
+    function iconPicture(S, env, args) {
+        var forms = Object.prototype.hasOwnProperty.call(pluginValues.ICON_FORMS, args.value)
+            ? pluginValues.ICON_FORMS[args.value] : [];
+        return forms.map(function (id) { return pixelIcon().glyph(drawingOf(id), env); }).join('');
     }
 
     /**
@@ -336,18 +454,46 @@
         return pluginValues.textFor(pluginValues.shownReading(lastValue(S), S, now), cap, S, now);
     }
 
+    /**
+     * A Plugin value slot's icon in the bars' pictures: the form its icon takes for the value
+     * barText prints, as the bake picks it (plugin-values.js iconId).
+     * @param {Object} S Settings.
+     * @returns {?string} The key of the watch's drawing of it (status-pixels ids); null for the
+     *   value alone.
+     */
+    function barDrawing(S) {
+        return drawingOf(pluginValues.iconId(S, pluginValues.shownReading(lastValue(S), S, Date.now())));
+    }
+
+    /**
+     * barDrawing as a glyph for the Status bars tab's rows.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @returns {?string} An <svg>, or null for none.
+     */
+    function barGlyph(S, env) {
+        var key = barDrawing(S);
+        return key ? pixelIcon().glyph(key, env) || null : null;
+    }
+
     if (PConf && PConf.optionsResolvers) {
         PConf.optionsResolvers.register('pluginValuePlugins', pluginOptions);
         PConf.optionsResolvers.register('pluginValueIds', valueOptions);
         PConf.hintResolvers.register('pluginValuePluginHint', pluginHint);
         PConf.hintResolvers.register('pluginValueIdHint', valueHint);
         PConf.hintResolvers.register('pluginValueLast', lastLine);
+        PConf.hintResolvers.register('pluginValueIconHint', iconHint);
+        PConf.optionsResolvers.register('pluginValueIcons', iconOptions);
+        PConf.pictureResolvers.register('pluginValueIconPicture', iconPicture);
         PConf.onChange.register('pluginValuePluginPicked', pluginPicked);
+        PConf.onChange.register('pluginValueIdPicked', valuePicked);
         PConf.whenResolvers.register('pluginValueFromMuninn', fromMuninn);
     }
 
     var api = { labelOf: labelOf, pluginOptions: pluginOptions, valueOptions: valueOptions, pluginHint: pluginHint,
-        valueHint: valueHint, lastLine: lastLine, fromMuninn: fromMuninn, pluginPicked: pluginPicked, barText: barText };
+        valueHint: valueHint, lastLine: lastLine, fromMuninn: fromMuninn, pluginPicked: pluginPicked,
+        valuePicked: valuePicked, iconOptions: iconOptions, iconHint: iconHint, iconPicture: iconPicture,
+        barText: barText, barDrawing: barDrawing, barGlyph: barGlyph };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PluginValuePage = api; }
 })();

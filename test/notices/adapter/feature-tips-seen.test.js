@@ -84,5 +84,11 @@ test('a tip this watch could not use stays unseen, and shows once it can be used
   assert.equal(ids(seen.pending(noPlugins)).indexOf('batteryDays'), -1);
   seen.acknowledge(noPlugins);
   assert.equal(JSON.parse(store[KEY]).indexOf('batteryDays'), -1, 'not shown, so not seen');
-  assert.ok(ids(seen.pending(BASALT)).indexOf('batteryDays') !== -1, 'the Pebble app got plugins: now it shows');
+  // The card shows a few at a time, the newest first: seen round by round, it comes up.
+  const shown = [];
+  while (seen.pending(BASALT).length) {
+    shown.push(...ids(seen.pending(BASALT)));
+    seen.acknowledge(BASALT);
+  }
+  assert.ok(shown.indexOf('batteryDays') !== -1, 'the Pebble app got plugins: now it shows');
 });

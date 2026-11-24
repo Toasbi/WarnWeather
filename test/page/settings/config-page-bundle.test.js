@@ -892,7 +892,9 @@ test('the Plugin value slot\'s rules and dialog reach the page ahead of the Stat
   order.slice(1).forEach((file, i) => assert.ok(idx(order[i]) < idx(file), order[i] + ' must precede ' + file));
   ['window.PluginValues=api', 'window.PluginValuePage=api', "register('pluginValuePlugins'",
     "register('pluginValueIds'", "register('pluginValuePluginHint'", "register('pluginValueIdHint'",
-    "register('pluginValueLast'", "register('pluginValuePluginPicked'"].forEach((s) => {
+    "register('pluginValueLast'", "register('pluginValuePluginPicked'", "register('pluginValueIcons'",
+    "register('pluginValueIconHint'", "register('pluginValueIconPicture'", "register('pluginValueIdPicked'"
+  ].forEach((s) => {
     assert.ok(page().indexOf(s) !== -1, s + ' is not in the generated page');
   });
   ['status-bars/domain/plugin-value-list.js', 'status-bars/domain/plugin-value-reads.js',

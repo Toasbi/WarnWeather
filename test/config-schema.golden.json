@@ -9707,6 +9707,27 @@
                 "hintFrom": {
                   "resolver": "pluginValueIdHint"
                 },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "pluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "pluginValueIcon",
+                "label": "Icon",
+                "defaultValue": "none",
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint"
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
                 "showWhen": {
                   "key": "pluginValuePlugin",
                   "ne": ""

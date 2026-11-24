@@ -1,8 +1,8 @@
 // test/page/status-bars/plugin-value-page.test.js — the Plugin value slot's dialog on the
-// settings page: the Plugin and Value rows' lists (the plugins the phone listed as the page
-// opened, userData.plugins), their hints, the line with the value read last
-// (userData.pluginValue), the Plugin row's change, the Edit button that opens the dialog, the
-// slot reset and the bars' pictures.
+// settings page: the Plugin, Value and Icon rows' lists (the plugins the phone listed as the page
+// opened, userData.plugins), their hints, the Icon row's pictures, the line with the value read
+// last (userData.pluginValue), the rows' changes, the Edit button that opens the dialog, the slot
+// reset and the bars' pictures.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -15,7 +15,8 @@ const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
-const { sample } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
+const { sample, barSlots } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
+const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
 const pluginReads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
 const { PREFERENCES } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { reading } = require('../../helpers/plugin-host.js');
@@ -377,19 +378,24 @@ function dialogHtml(state) {
     evalCtx: Object.assign({}, state, { env: BASALT }) });
 }
 
-test('the dialog: Plugin with its list, then Value, Updates and the last line once one is picked', (t) => {
+test('the dialog: Plugin with its list, then Value, Icon, Updates and the last line once one is picked', (t) => {
   clock(t, NOW);
   userData(t, { plugins: PLUGINS, pluginValue: kept({ short: '87%' }) });
   const S = slotSettings(LEVEL);
   assert.equal(S.pluginValueEvery, '60', 'every hour by default');
+  assert.equal(S.pluginValueIcon, 'none', 'the value alone by default');
   const html = dialogHtml(S);
-  ['Plugin value slot', 'Plugin', 'Phone', 'Value', 'Battery level', 'Updates', 'Every hour']
-    .forEach((text) => assert.ok(html.indexOf(text) !== -1, 'the dialog shows ' + text));
+  let at = 0;
+  ['Plugin value slot', 'Plugin', 'Phone', 'Value', 'Battery level', 'Icon', 'None', 'Updates', 'Every hour']
+    .forEach((text) => {
+      assert.ok(html.indexOf(text, at) !== -1, 'the dialog shows ' + text + ', in its place');
+      at = html.indexOf(text, at);
+    });
   assert.ok(html.indexOf('<div class="lbl">Last value</div><div class="hint">87% (5 min ago).</div>') !== -1,
     'the last value is a row like the others: its label, the value in the hint\'s grey under it');
   assert.ok(html.indexOf('BoldMode') === -1, 'no Bold: the item has no bold kind');
   const empty = dialogHtml(slotSettings());
-  ['Value', 'Updates', 'Last value'].forEach((text) =>
+  ['Value', 'Icon', 'Updates', 'Last value'].forEach((text) =>
     assert.equal(empty.indexOf('>' + text + '<'), -1, 'no ' + text + ' while no plugin is picked'));
 });
 
@@ -420,9 +426,116 @@ test('a plugin the phone no longer lists is not swapped for another as the dialo
   assert.deepEqual([S.pluginValuePlugin, S.pluginValueId], ['gone', 'gone/item/value']);
 });
 
-test('Reset status bars puts the Plugin value\'s source and Updates back', () => {
-  const S = Object.assign({ pluginValueEvery: '360' }, LEVEL);
-  const defaults = { pluginValuePlugin: '', pluginValueId: '', pluginValueEvery: '60' };
+test('Reset status bars puts the Plugin value\'s source, icon and Updates back', () => {
+  const S = Object.assign({ pluginValueEvery: '360', pluginValueIcon: 'wifi' }, LEVEL);
+  const defaults = { pluginValuePlugin: '', pluginValueId: '', pluginValueIcon: 'none', pluginValueEvery: '60' };
   PConf.actions.resetStatusSlots(null, S, BASALT, (key) => (key in defaults ? defaults[key] : undefined));
-  assert.deepEqual([S.pluginValuePlugin, S.pluginValueId, S.pluginValueEvery], ['', '', '60']);
+  assert.deepEqual([S.pluginValuePlugin, S.pluginValueId, S.pluginValueIcon, S.pluginValueEvery], ['', '', 'none', '60']);
+});
+
+// --- the icon --------------------------------------------------------------------
+
+/** The Phone plugin as the phone lists it with Wi-Fi, which is on or off (plugin-value-list.js onOff). */
+const WITH_WIFI = [{ uuid: PHONE, name: 'Phone', items: [{ category: 'phone', item: 'phone_state', multiple: false,
+  properties: ['battery_level', 'wifi'], onOff: 2 }] }].concat(PLUGINS.slice(1));
+const WIFI = { pluginValuePlugin: PHONE, pluginValueId: 'phone/phone_state/wifi' };
+const WIFI_KEY = PHONE + '/phone/phone_state/wifi';
+const TURNS = ['switch', 'wifi', 'bluetooth'];
+
+/**
+ * @param {Array<Array>} options An Icon row's list.
+ * @returns {string[]} The icons greyed out in it.
+ */
+const greyed = (options) => options.filter((o) => o[2] && o[2].disabled && !o[2].groupHeader).map((o) => o[1]);
+
+test('the Icon row lists None, the icons that turn, then those that stay the same', (t) => {
+  userData(t, { plugins: WITH_WIFI });
+  assert.deepEqual(page.iconOptions(Object.assign({ pluginValueIcon: 'none' }, WIFI)), [
+    ['None', 'none', { desc: 'The value alone' }],
+    ['Turns with a value that is on or off', '__hdr_turns', { disabled: true, groupHeader: true }],
+    ['Switch', 'switch', { groupChild: true, groupEnd: false }],
+    ['Wi-Fi', 'wifi', { groupChild: true, groupEnd: false }],
+    ['Bluetooth', 'bluetooth', { groupChild: true, groupEnd: true }],
+    ['Always the same', '__hdr_same', { disabled: true, groupHeader: true }],
+    ['Plug', 'plug', { groupChild: true, groupEnd: false }],
+    ['Phone', 'phone', { groupChild: true, groupEnd: false }],
+    ['Calendar', 'calendar', { groupChild: true, groupEnd: true }]]);
+});
+
+test('the icons that turn are greyed out for a value that is neither on nor off, but the one the settings hold', (t) => {
+  userData(t, { plugins: WITH_WIFI.concat([{ uuid: PREFERENCES, name: 'Preferences', items: [], complications: [
+    { position: 0, property: 'wifi', category: 'phone', onOff: true },
+    { position: 1, property: 'battery_level', category: 'phone' }] }]) });
+  const level = Object.assign({ pluginValueIcon: 'none' }, LEVEL);
+  assert.deepEqual(greyed(page.iconOptions(level)), TURNS, 'a number: such an icon would stay off');
+  assert.deepEqual(greyed(page.iconOptions(Object.assign({}, level, { pluginValueIcon: 'wifi' }))), ['switch', 'bluetooth'],
+    'the one the settings hold stays pickable');
+  assert.deepEqual(greyed(page.iconOptions(Object.assign({ pluginValueIcon: 'none' }, WIFI))), [], 'Wi-Fi is on or off');
+  assert.deepEqual(greyed(page.iconOptions({ pluginValuePlugin: PHONE, pluginValueId: 'phone/phone_state/gone' })), [],
+    'a value the phone no longer lists: not known, so nothing is held back');
+  assert.deepEqual(greyed(page.iconOptions(PLACE(0))), [], 'a complication that is on or off');
+  assert.deepEqual(greyed(page.iconOptions(PLACE(1))), TURNS, 'one that is neither');
+});
+
+test('the Icon row\'s hint says how an icon that turns follows the value; none for the rest', (t) => {
+  userData(t, { plugins: WITH_WIFI });
+  assert.equal(page.iconHint(Object.assign({ pluginValueIcon: 'wifi' }, WIFI)), 'On while the value is on, off while it is off.');
+  assert.equal(page.iconHint(Object.assign({ pluginValueIcon: 'switch' }, LEVEL)),
+    'This value is neither on nor off, so the icon stays off.');
+  ['none', 'plug', 'phone', 'calendar'].forEach((icon) =>
+    assert.equal(page.iconHint(Object.assign({ pluginValueIcon: icon }, WIFI)), null, icon));
+  assert.equal(page.iconHint(WIFI), null, 'None, as the settings start');
+});
+
+test('a value that is neither on nor off leaves an icon that turns for None, picked as the value or with a plugin', (t) => {
+  userData(t, { plugins: WITH_WIFI });
+  const S = Object.assign({ pluginValueIcon: 'wifi' }, WIFI);
+  page.valuePicked(S);
+  assert.equal(S.pluginValueIcon, 'wifi', 'Wi-Fi is on or off');
+  S.pluginValueId = 'phone/phone_state/battery_level';
+  page.valuePicked(S);
+  assert.equal(S.pluginValueIcon, 'none');
+  S.pluginValueIcon = 'plug';
+  page.valuePicked(S);
+  assert.equal(S.pluginValueIcon, 'plug', 'an icon that stays the same fits any value');
+  const gone = Object.assign({ pluginValueIcon: 'switch' }, WIFI, { pluginValueId: 'phone/phone_state/gone' });
+  page.valuePicked(gone);
+  assert.equal(gone.pluginValueIcon, 'switch', 'a value the phone no longer lists: kept');
+  // The engine stores the new plugin, then runs the row's change.
+  const other = Object.assign({ pluginValueIcon: 'bluetooth' }, WIFI, { pluginValuePlugin: MUNINN });
+  page.pluginPicked(other, PHONE, MUNINN);
+  assert.deepEqual([other.pluginValueId, other.pluginValueIcon], ['muninn/stats/daysRemaining', 'none'], 'a new plugin');
+});
+
+test('an Icon option\'s picture: the watch\'s drawing of each form it takes, on before off', () => {
+  const glyph = (key) => PixelIcon.glyph(key, BASALT);
+  assert.ok(glyph('WIFI').indexOf('<svg ') === 0, 'drawn');
+  assert.equal(page.iconPicture({}, BASALT, { value: 'switch' }), glyph('SWITCH') + glyph('SWITCH_OFF'));
+  assert.equal(page.iconPicture({}, BASALT, { value: 'wifi' }), glyph('WIFI') + glyph('WIFI_OFF'));
+  assert.equal(page.iconPicture({}, BASALT, { value: 'bluetooth' }), glyph('BT') + glyph('BT_OFF'));
+  assert.equal(page.iconPicture({}, BASALT, { value: 'plug' }), glyph('PLUG'));
+  assert.equal(page.iconPicture({}, BASALT, { value: 'phone' }), glyph('PHONE_BATTERY'), 'the Phone battery slot\'s');
+  assert.equal(page.iconPicture({}, BASALT, { value: 'calendar' }), glyph('COUNTDOWN'), 'the Countdown slot\'s');
+  ['none', '__hdr_turns', 'toString'].forEach((v) => assert.equal(page.iconPicture({}, BASALT, { value: v }), '', v));
+});
+
+test('the bars\' pictures draw the icon picked, in the form the value read last takes', (t) => {
+  clock(t, NOW);
+  userData(t, { plugins: WITH_WIFI, pluginValue: kept({ state: true, short: 'Home' }, { source: WIFI_KEY }) });
+  const S = Object.assign({ statusTopMid: 'pluginValue', pluginValueIcon: 'wifi' }, WIFI);
+  assert.equal(page.barDrawing(S), 'WIFI', 'on');
+  const slot = barSlots(S, BASALT, 'top', true, new Date(NOW))[1];
+  assert.deepEqual([slot.code, slot.text, slot.drawing], ['pluginValue', 'Home', 'WIFI'], 'the watch pictures\' drawing');
+  assert.equal(slot.icon, PixelIcon.glyph('WIFI', BASALT), 'the Status bars tab\'s glyph');
+  global.INJECTED_USERDATA.pluginValue = kept({ state: false, short: 'Home' }, { source: WIFI_KEY });
+  assert.equal(page.barDrawing(S), 'WIFI_OFF', 'off');
+  global.INJECTED_USERDATA.pluginValue = kept({ state: true }, { source: WIFI_KEY, at: NOW - 3 * HOUR });
+  assert.equal(page.barDrawing(S), 'WIFI_OFF', 'too old to show: off, as the watch shows it');
+  global.INJECTED_USERDATA = { plugins: WITH_WIFI };
+  assert.equal(page.barDrawing(S), 'WIFI_OFF', 'none read');
+  assert.equal(page.barDrawing(Object.assign({}, S, { pluginValueIcon: 'plug' })), 'PLUG');
+  const none = Object.assign({}, S, { pluginValueIcon: 'none' });
+  assert.equal(page.barDrawing(none), null);
+  const bare = barSlots(none, BASALT, 'top', true, new Date(NOW))[1];
+  assert.deepEqual([bare.icon, bare.drawing], [null, null], 'the value alone');
 });

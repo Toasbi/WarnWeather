@@ -493,7 +493,7 @@ Item fields:
 | `sheetTitle` | string | `select`/`searchSelect` only: the picker sheet's title, where the row's label alone would not name it (a row whose picker also opens from a preview). Default: the label. |
 | `sheetTitleBy` | `{resolver, args?}` | `select` only: a `PConf.displayResolvers` id whose answer titles the picker sheet instead of `sheetTitle` (a slot picker named by its bar's name); `''` keeps `sheetTitle`. |
 | `sheetLead` | string | `select`/`searchSelect` only: one plain line under the picker sheet's title that says what the picker does (escaped). |
-| `pictureFrom` | `{ resolver, args }` | `radio`: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry-pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). `select`/`searchSelect`: each option's picture at the start of its row in the picker sheet. |
+| `pictureFrom` | `{ resolver, args, glyph? }` | `radio`: each option drawn as a card of its picture (from a named [picture resolver](#picture-resolver-registry-pconfpictureresolvers)) over its name, three to a line, the picked option's hint under them (the setup's pickers in pictures). `select`/`searchSelect`: each option's picture at the start of its row in the picker sheet; with `glyph: true` small and unframed (an icon or two). |
 | `initFrom` | `{resolver, args?}` | `uiOnly` only: a display resolver `fn(S, env, args)` giving the value the page opens on (else `defaultValue`). |
 | `groupLabel` | string | On the first member of an `inline` group: renders the group as one labelled row, the members side by side joined by a dash (a From/To row). |
 | `gotoTab` | string | `button` only: the row brings that tab to the front. |
@@ -860,7 +860,9 @@ PConf.pictureResolvers.register('layoutPresetPicture', function (state, env, arg
 A `select` with `pictureFrom` keeps its trigger and its sheet; the sheet draws each option's
 picture at the start of its row, with its name and `desc` beside it (WarnWeather's graph
 pickers: each graph and template as it draws). An option whose picture is `''` keeps the plain
-row.
+row. With `glyph: true` the pictures are icons, small and unframed, and an option without one
+keeps their room, so the names line up (WarnWeather's Plugin value Icon row: each icon's forms
+as the watch draws them).
 
 The resolver runs once per option the row offers (an `optionsFrom` list is resolved first), at
 render time, like the hint resolver. Its markup is printed unescaped inside the card, so only

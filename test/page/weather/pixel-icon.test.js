@@ -1,6 +1,7 @@
 // test/page/weather/pixel-icon.test.js — the watch's pixel drawings as the settings page's pictures
 // of the watch draw them (src/pkjs/page/weather/pixel-icon.js): each lit pixel, and nothing else,
-// filled; the drawing the watch picks for a box.
+// filled; the drawing the watch picks for a box; the drawings a platform draws; a drawing as a
+// glyph.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
@@ -54,4 +55,23 @@ test('the page draws the very drawings the watch is built with', () => {
   Object.keys(gen.ICON_IDS).forEach((key) => gen.ICON_IDS[key].forEach((id) => {
     assert.equal(STATUS.ids[id], key, id + ' takes ' + key + '\'s drawings');
   }));
+});
+
+test('a platform draws its family\'s drawings: the Pebble Time 2\'s, the Classic\'s masks, else the 144 px watches\'', () => {
+  assert.equal(PixelIcon.family({ platform: 'emery' }), 'emery');
+  assert.equal(PixelIcon.family({ platform: 'aplite' }), 'aplite');
+  ['basalt', 'chalk', 'diorite', 'flint'].forEach((p) => assert.equal(PixelIcon.family({ platform: p }), 'basalt', p));
+  assert.equal(PixelIcon.family(null), 'basalt', 'no platform known');
+});
+
+test('a glyph is the family\'s largest drawing in currentColor, centred in a square a pixel wider than it', () => {
+  // The Switch's basalt drawing is 17 wide and 13 tall: a 19 px square around it.
+  const p = STATUS.icons.SWITCH['basalt-13'];
+  assert.deepEqual([p.w, p.rows.length], [17, 13]);
+  assert.equal(PixelIcon.glyph('SWITCH', { platform: 'basalt' }), '<svg viewBox="-1 -3 19 19" fill="currentColor" '
+    + 'shape-rendering="crispEdges"><path d="' + PixelIcon.path(p) + '"></path></svg>');
+  const emery = STATUS.icons.SWITCH['emery-17'];
+  assert.ok(PixelIcon.glyph('SWITCH', { platform: 'emery' }).indexOf('<path d="' + PixelIcon.path(emery) + '">') !== -1,
+    'the Pebble Time 2\'s largest');
+  assert.equal(PixelIcon.glyph('NO_SUCH_ICON', { platform: 'basalt' }), '', 'no drawing, no glyph');
 });

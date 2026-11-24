@@ -944,6 +944,22 @@ test('renderSelectModal: pictureFrom draws a picture at the start of each option
   assert.equal(plain.indexOf('ssel-lead'), -1);
 });
 
+test('renderSelectModal: a glyph picture is small and unframed, and an option without one keeps its room', () => {
+  E.pictureResolvers.register('testGlyphs', (S, env, args) => (args.value === 'none' ? '' : '<svg data-g="' + args.value + '"></svg>'));
+  const schema = { appName: 'X', versionLabel: '', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
+    { type: 'select', messageKey: 'i', label: 'Icon', defaultValue: 'none',
+      options: [['None', 'none'], ['Group', '__hdr', { disabled: true, groupHeader: true }], ['On', 'on', { groupChild: true }]],
+      pictureFrom: { resolver: 'testGlyphs', glyph: true } }
+  ] } ] } ] };
+  const html = E.renderSelectModal(schema, { S: { i: 'none' }, ENV: {}, USERDATA: {}, openColor: null, openSelect: 'i',
+    selectQuery: '', collapsed: {}, evalCtx: { i: 'none', env: {} } });
+  assert.ok(/data-select-pick="on"[^>]*><span class="ssel-pic glyph" aria-hidden="true"><svg data-g="on"><\/svg><\/span>/.test(html),
+    'the glyph, in the glyph look');
+  assert.ok(/data-select-pick="none"[^>]*><span class="ssel-pic glyph" aria-hidden="true"><\/span><span>None<\/span>/.test(html),
+    'an option without one keeps the room, so the names line up');
+  assert.equal(html.split('ssel-pic').length - 1, 2, 'none on the group\'s header');
+});
+
 test('select trigger uses meta.short for the collapsed label; the sheet keeps the full name', () => {
   const item = { type: 'select', messageKey: 'p', label: 'Provider',
     options: [['Deutscher Wetterdienst', 'dwd', { short: 'DWD' }], ['Met.no', 'metno']] };

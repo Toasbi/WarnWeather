@@ -91,10 +91,13 @@ test('a tip shows only where its feature can be used', () => {
   assert.equal(pluginValue({ platform: 'basalt' }), false, 'plugins unknown: fail closed');
   assert.equal(pluginValue({ platform: 'aplite', plugins: true }), false, 'aplite has no such slot');
   assert.equal(pluginValue(null), false);
-  // The user's complications: wherever the Plugin value slot is, whose dialog lists them.
+  // The user's complications and the slot's icon: wherever the Plugin value slot is, whose
+  // dialog lists them.
   [{ platform: 'basalt', plugins: true }, { platform: 'emery', plugins: true }, { platform: 'basalt', plugins: false },
-    { platform: 'basalt' }, { platform: 'aplite', plugins: true }, null].forEach((env) =>
-    assert.equal(shows('complications', env), pluginValue(env), JSON.stringify(env)));
+    { platform: 'basalt' }, { platform: 'aplite', plugins: true }, null].forEach((env) => {
+    assert.equal(shows('complications', env), pluginValue(env), JSON.stringify(env));
+    assert.equal(shows('pluginValueIcon', env), pluginValue(env), JSON.stringify(env));
+  });
   // A tip without a rule is for every watch.
   [{ platform: 'aplite', plugins: false }, null, {}].forEach((env) =>
     assert.ok(shows('blackTheme', env), JSON.stringify(env)));
@@ -134,6 +137,7 @@ test('the page gets plain data, and nothing when there is nothing to show', () =
   assert.equal(forPage.find((tip) => tip.id === 'weatherFrom').sheet, 'weatherSources', 'the Weather dialog');
   assert.equal(forPage.find((tip) => tip.id === 'pluginValue').tab, 'watch', 'the Status bars tab: any bar');
   assert.equal(forPage.find((tip) => tip.id === 'complications').tab, 'watch', 'the same tab');
+  assert.equal(forPage.find((tip) => tip.id === 'pluginValueIcon').tab, 'watch', 'the same tab');
 });
 
 test('the complications tip names the page\'s own words: the slot\'s item, and the Plugin row\'s entry', (t) => {
@@ -148,7 +152,22 @@ test('the complications tip names the page\'s own words: the slot\'s item, and t
   assert.ok(tip.html.indexOf('Set a slot to ' + catalog.byCode('pluginValue').label + ', tap Edit') !== -1, tip.html);
   assert.ok(tip.html.indexOf('then pick ' + entry + ' and') !== -1, entry + ': ' + tip.html);
   assert.equal(tip.since, '3.5.0');
-  assert.equal(featureTips.allIds()[0], 'complications', 'the newest release\'s, on top');
+});
+
+test('the icon tip names the page\'s own words: the Edit button, the Icon row and its icons that turn', (t) => {
+  const tip = featureTips.TIPS.find((x) => x.id === 'pluginValueIcon');
+  const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
+  global.INJECTED_USERDATA = { plugins: [] };
+  t.after(() => { delete global.INJECTED_USERDATA; });
+  const options = page.iconOptions({ pluginValuePlugin: '' });
+  const turns = options.slice(options.findIndex((o) => o[1] === '__hdr_turns') + 1,
+    options.findIndex((o) => o[1] === '__hdr_same')).map((o) => o[0]);
+  assert.deepEqual(turns, ['Switch', 'Wi-Fi', 'Bluetooth']);
+  assert.ok(tip.html.indexOf('A ' + catalog.byCode('pluginValue').label + ' slot') === 0, tip.html);
+  assert.ok(tip.html.indexOf('Edit button and pick one under ' + row('pluginValueIcon').label + '.') !== -1, tip.html);
+  assert.ok(tip.html.indexOf(turns.slice(0, 2).join(', ') + ' and ' + turns[2] + ' turn off') !== -1, tip.html);
+  assert.equal(tip.since, '3.5.0');
+  assert.deepEqual(featureTips.allIds().slice(0, 2), ['pluginValueIcon', 'complications'], 'the newest release\'s, on top');
 });
 
 /**
@@ -199,6 +218,8 @@ test('the Weather from tip names the page\'s own section and row, on every watch
     !== -1, tip.html);
   assert.ok(tip.html.indexOf('tap ' + require('../../../src/pkjs/page/weather/weather-sources-page.js').USE_ANOTHER)
     !== -1, 'the Other sources list\'s last row');
+  // Every watch gets it, once the newer tips above it are seen.
+  const others = featureTips.allIds().filter((id) => id !== 'weatherFrom');
   [{ platform: 'aplite', plugins: false }, { platform: 'emery', plugins: true }, null].forEach((env) =>
-    assert.ok(ids(featureTips.pending([], env)).indexOf('weatherFrom') !== -1, JSON.stringify(env)));
+    assert.ok(ids(featureTips.pending(others, env)).indexOf('weatherFrom') !== -1, JSON.stringify(env)));
 });

@@ -144,8 +144,9 @@ const EXPECTED_KEYS = [
   // percentage, the days left or both, and the pair's look: battery-days.js).
   'batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
   'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced',
-  // The Plugin value slot's source and how often it is read (its dialog; phone-side only).
-  'pluginValuePlugin', 'pluginValueId', 'pluginValueEvery'
+  // The Plugin value slot's source, its icon and how often it is read (its dialog; phone-side
+  // only: the icon rides the bars as the slot's icon id).
+  'pluginValuePlugin', 'pluginValueId', 'pluginValueIcon', 'pluginValueEvery'
 ].concat(THRESH_KEYS).concat(UNIT_KEYS).concat(GRAPH_COLOR_KEYS).concat(ALERT_KEYS);
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {

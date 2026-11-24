@@ -558,9 +558,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // `pictures` — option value -> picture markup (resolvePictures, item.pictureFrom), or
   // null: an option with a picture draws it at its start, so a sheet of graphs shows each
   // one as it draws (the graph styles' pickers). The picture is decoration; the name says it.
+  // A glyph picture (pictureFrom.glyph: an icon or two, the Plugin value's Icon row) is small
+  // and unframed, and an option without one keeps its room, so the names line up.
   function renderSelectOptions(item, value, query, recommended, off, pictures) {
     var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, meta, gated, classes, labelCell, rec, recLead, shown = 0;
-    var offVals = off || [], pic;
+    var offVals = off || [], pic, glyph = Boolean(pictures && item.pictureFrom && item.pictureFrom.glyph);
     for (i = 0; i < item.options.length; i++) {
       o = item.options[i];
       lo = o[0].toLowerCase(); vo = o[1].toLowerCase();
@@ -599,7 +601,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // meta.next names a select to pick next: in a dialog the option stores nothing and opens
       // that select's list instead (a value, then its provider: the dialog's pick handler).
       gated = meta.disabled || offVals.indexOf(o[1]) !== -1;
-      pic = pictures && pictures[o[1]] ? '<span class="ssel-pic" aria-hidden="true">' + pictures[o[1]] + '</span>' : '';
+      pic = pictures && (pictures[o[1]] || glyph) ? '<span class="ssel-pic' + (glyph ? ' glyph' : '')
+        + '" aria-hidden="true">' + pictures[o[1]] + '</span>' : '';
       if (pic) { classes += ' has-pic'; }
       h += '<button type="button" class="' + classes + '" role="option" aria-selected="'
         + (value === o[1] ? 'true' : 'false') + '"'

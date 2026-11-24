@@ -1,14 +1,15 @@
 // src/pkjs/page/status-bars/plugin-value-schema.js — ES5, PKJS-parsed. The Plugin value slot's
 // dialog (status-line-catalog.js 'pluginValue'), split out of schema.js like
-// weather-sources-schema.js: the plugin, which of its values the slot shows and how often it is
-// read, then the line with the value read last. The rows' lists, their hints and that line are
-// plugin-value-page.js'. Plain CommonJS: the schema is built in PKJS and reaches the page as data.
+// weather-sources-schema.js: the plugin, which of its values the slot shows, the icon before it
+// and how often it is read, then the line with the value read last. The rows' lists, their hints,
+// the icons' pictures and that line are plugin-value-page.js'. Plain CommonJS: the schema is built
+// in PKJS and reaches the page as data.
 //
-// One dialog for every slot that holds the item: its source is the item's settings
-// (pluginValuePlugin, pluginValueId and pluginValueEvery, which resetStatusSlots clears with
-// the slots: status-line-catalog.js pluginValueSettingKeys), so every such slot shows the same
-// value. The slot prints text alone, so the dialog has no Look, and no Bold either: the item has
-// no bold kind (status_threshold_kind_for_slot answers -1 for its icon id).
+// One dialog for every slot that holds the item: its source and icon are the item's settings
+// (pluginValuePlugin, pluginValueId, pluginValueIcon and pluginValueEvery, which resetStatusSlots
+// clears with the slots: status-line-catalog.js pluginValueSettingKeys), so every such slot shows
+// the same value. The icon is its Look, so the dialog has no other, and no Bold: the item has no
+// bold kind (status_threshold_kind_for_slot answers -1 for its icon ids).
 
 var batteryDays = require('../../status-bars/domain/battery-days.js');
 var pluginValues = require('../../status-bars/domain/plugin-values.js');
@@ -35,7 +36,7 @@ var MUNINN_NOTE = 'The Watch battery slot can show Muninn\'s estimate by itself:
 
 /**
  * The Plugin value slot's dialog: the note while Muninn is picked, then the Plugin, the Value
- * of it and Updates, then the value read last. Each row opens its list over the dialog (engine
+ * of it, its Icon and Updates, then the value read last. Each row opens its list over the dialog (engine
  * renderPickSheet): a phone can list a dozen plugins and each up to 24 values
  * (plugin-value-list.js).
  * @param {function(string, string, Object[]): Object} sheetOf schema.js sheetOf: a slot
@@ -61,6 +62,19 @@ function dialogSection(sheetOf) {
         defaultValue: '',
         optionsFrom: {resolver: 'pluginValueIds'},
         hintFrom: {resolver: 'pluginValueIdHint'},
+        // A value that is neither on nor off leaves an icon that turns for None.
+        onChange: 'pluginValueIdPicked',
+        showWhen: PICKED_WHEN
+    }, {
+        // The icon before the value (plugin-values.js ICON_FORMS), each choice drawn as the watch
+        // draws it; one that turns is for a value that is on or off.
+        type: 'select',
+        messageKey: 'pluginValueIcon',
+        label: 'Icon',
+        defaultValue: pluginValues.ICON_DEFAULT,
+        optionsFrom: {resolver: 'pluginValueIcons'},
+        hintFrom: {resolver: 'pluginValueIconHint'},
+        pictureFrom: {resolver: 'pluginValueIconPicture', glyph: true},
         showWhen: PICKED_WHEN
     }, {
         type: 'select',

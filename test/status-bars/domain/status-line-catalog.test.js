@@ -520,7 +520,7 @@ test('the Plugin value is offered only where the Pebble app reads plugins, never
   const s = {};
   const item = catalog.byCode('pluginValue');
   assert.equal(item.kind, catalog.KINDS.TEXT);
-  assert.equal(item.icon, catalog.ICONS.PLUGIN_TEXT, 'text alone: no drawing');
+  assert.equal(item.icon, catalog.ICONS.PLUGIN_TEXT, 'the value alone until an icon is picked for it');
   [ENV_BASALT, ENV_EMERY, ENV_DIORITE].forEach((env) => {
     const withPlugins = Object.assign({ plugins: true }, env);
     ALL_SLOT_CTXS.forEach((ctx) => {
@@ -538,7 +538,8 @@ test('the Plugin value is offered only where the Pebble app reads plugins, never
     assert.ok(!catalog.itemAvailable(item, s, Object.assign({ plugins: true }, ENV_APLITE), ctx), ctx.slotKey);
   });
   assert.equal(catalog.resolveSelection('pluginValue', s, ENV_BASALT, ALL_SLOT_CTXS[0]), 'empty');
-  assert.deepEqual(catalog.pluginValueSettingKeys(), ['pluginValuePlugin', 'pluginValueId', 'pluginValueEvery']);
+  assert.deepEqual(catalog.pluginValueSettingKeys(),
+    ['pluginValuePlugin', 'pluginValueId', 'pluginValueIcon', 'pluginValueEvery']);
 });
 
 test('the phone battery is selectable in all 12 slots when the phone supports it', () => {

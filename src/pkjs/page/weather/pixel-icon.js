@@ -3,7 +3,8 @@
 // icon and size, the box as wide as the ink, a row per number, bit x lighting column x, the blank
 // rows that seat it kept) as SVG, every run of lit pixels a filled rectangle, so a picture shows
 // the very pixels the watch lights, at the size and seat set in the icon creator. The page's
-// labels draw outlines instead (status-slot-icons.js, condition-icons.js).
+// labels draw outlines instead (status-slot-icons.js, condition-icons.js), but for an icon it has
+// no outline of: the Plugin value's (glyph, plugin-value-page.js).
 // Dual-context: required under Node, window.PixelIcon on the page (after
 // status-pixels.generated.js, ahead of preview-watch.js).
 (function () {
@@ -53,7 +54,34 @@
         return best;
     }
 
-    var api = { path: path, forBox: forBox, pixels: PIXELS };
+    /**
+     * Which of the watch's drawings a platform draws: the Pebble Time 2's, the Pebble Classic and
+     * Steel's bit masks, or the 144 px watches' (status_pixel_icons.generated.h).
+     * @param {Object} env Platform env.
+     * @returns {string} 'emery', 'aplite' or 'basalt'.
+     */
+    function family(env) {
+        var p = env && env.platform;
+        return p === 'emery' ? 'emery' : p === 'aplite' ? 'aplite' : 'basalt';
+    }
+
+    /**
+     * An icon as a glyph of the page's (a list's picture, a bar row's icon): the largest drawing
+     * the platform's watches draw it with, its lit pixels in currentColor, in a square a pixel
+     * wider than its box on each side, as the outlines sit in theirs (status-slot-icons.js).
+     * @param {string} key The icon's key (status-pixels ids).
+     * @param {Object} env Platform env.
+     * @returns {string} An <svg>; '' where those watches have no drawing of it.
+     */
+    function glyph(key, env) {
+        var p = forBox(key, family(env), Infinity);
+        if (!p) { return ''; }
+        var side = Math.max(p.w, p.rows.length) + 2;
+        return '<svg viewBox="' + (p.w - side) / 2 + ' ' + (p.rows.length - side) / 2 + ' ' + side + ' ' + side
+            + '" fill="currentColor" shape-rendering="crispEdges"><path d="' + path(p) + '"></path></svg>';
+    }
+
+    var api = { path: path, forBox: forBox, family: family, glyph: glyph, pixels: PIXELS };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PixelIcon = api; }
 })();

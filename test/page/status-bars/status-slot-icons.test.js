@@ -80,7 +80,8 @@ test('every Alerts item names a registered glyph (an unknown id would print noth
 test('every slot item the watch draws a glyph for has the page copy, and no other item has one', () => {
   // status-line-catalog.js names each item's watch glyph. NONE, PRESSURE and PLUGIN_TEXT
   // are text on the watch; everything else, the drawn sun arrow included, is a picture the
-  // previews must show too. The phone battery's Text look (icon 18) is a setting, checked below.
+  // previews must show too. The phone battery's Text look (icon 18) is a setting, checked below,
+  // and so is the Plugin value's icon (plugin-value-page.test.js): none until one is picked.
   const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
   const { slotIcon } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
   const C = catalog.ICONS, basalt = { platform: 'basalt' };

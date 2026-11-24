@@ -362,17 +362,6 @@
     }
 
     /**
-     * Which of the watch's drawings a platform draws: the Pebble Time 2's, the Pebble Classic and
-     * Steel's bit masks, or the 144 px watches' (status_pixel_icons.generated.h).
-     * @param {Object} env Platform env.
-     * @returns {string} 'emery', 'aplite' or 'basalt'.
-     */
-    function watchFamily(env) {
-        var p = env && env.platform;
-        return p === 'emery' ? 'emery' : p === 'aplite' ? 'aplite' : 'basalt';
-    }
-
-    /**
      * The drawing the watch draws a slot's icon with in a row whose icon height is `iconH`: the
      * family's drawing for the box that height paints (or the next smaller box's), the Pebble
      * Classic and Steel's bit mask on aplite.
@@ -550,7 +539,7 @@
      * @param {Array<Object>} bars The bar's slots (preview-status-bars.js barSlots).
      * @param {number} cw The row's content width. @param {number} ch Its Gothic size.
      * @param {number} iconH Its icon height. @param {number} f Screen family.
-     * @param {string} fam The watch's drawings: 'basalt', 'emery' or 'aplite' (watchFamily).
+     * @param {string} fam The watch's drawings: 'basalt', 'emery' or 'aplite' (pixel-icon.js family).
      * @returns {{slots: Array<?Object>, placed: Array<?Object>}} Left, middle and right: each
      *     slot's measures and final label, and where it goes (placeSlots).
      */
@@ -615,7 +604,7 @@
             ch = f ? (rowFull ? 18 : 24) : (rowFull ? 14 : 18);
         }
         var slots = rowLayout(bars, barRowBox(bar, f, 0, 0).w - 2 * ROW_MARGIN, ch, rowIconH(bar === 'top', ch, Infinity), f,
-            watchFamily(env)).slots;
+            PixelIcon.family(env)).slots;
         var out = { left: '', mid: '', right: '' };
         ['left', 'mid', 'right'].forEach(function (pos, i) { if (slots[i]) { out[pos] = slots[i].label; } });
         return out;
@@ -639,7 +628,7 @@
         var lineTop = box.y + seatY(box.h, ch) - (top ? 2 : 0);
         var mid = lineTop + ch - glyphBelow(ch);
         var iconH = rowIconH(top, ch, box.h);
-        var fam = watchFamily(env);
+        var fam = PixelIcon.family(env);
         var row = rowLayout(statusBars.barSlots(S, env, bar, cx.fullDate, cx.now), box.w - 2 * ROW_MARGIN,
             ch, iconH, cx.f, fam);
         var slots = row.slots, placed = row.placed, x0 = box.x + ROW_MARGIN;

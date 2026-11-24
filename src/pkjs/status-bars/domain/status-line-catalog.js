@@ -140,10 +140,11 @@
     // item of its own, 'phoneBatteryPlain'.
     { code: 'phoneBattery', label: 'Phone battery', kind: KINDS.TEXT,
       icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' },
-    // A value another app's plugin serves (plugin-values.js), its source the item's own
-    // (pluginValueSettingKeys), so every slot that holds it shows the same value. Text alone:
-    // the watch draws no plugin's picture, and the bold area is full. Only where the Pebble app
-    // reads plugins (needsPlugins), and never on aplite, whose feature set is frozen.
+    // A value another app's plugin serves (plugin-values.js), its source and icon the item's own
+    // (pluginValueSettingKeys), so every slot that holds it shows the same value. Its icon is
+    // one of the watch's own, picked for it, or none (plugin-values.js iconId): the watch draws
+    // no plugin's picture, and the bold area is full. Only where the Pebble app reads plugins
+    // (needsPlugins), and never on aplite, whose feature set is frozen.
     { code: 'pluginValue', label: 'Plugin value', kind: KINDS.TEXT, icon: ICONS.PLUGIN_TEXT,
       needsPlugins: true, notAplite: true, category: 'plugin' }
   ];
@@ -609,16 +610,17 @@
   }
 
   /**
-   * The settings the Plugin value slot owns: the plugin, the value of it and how often it is
-   * read (plugin-values.js sourceOf, everyMs), which its dialog's rows store
+   * The settings the Plugin value slot owns: the plugin, the value of it, its icon and how often
+   * it is read (plugin-values.js sourceOf, iconName, everyMs), which its dialog's rows store
    * (plugin-value-schema.js). The item's own, so every slot that holds it shows the same value.
    * The keys resetStatusSlots clears with the slots. None of them is signed (renderSignature):
    * a new source needs a read, which the save starts (plugin-value-source.js refresh), and no
-   * weather fetch.
+   * weather fetch; every close of the settings sends the bars again (channel-scheduler.js
+   * onConfigClosed), the icon with them.
    * @returns {string[]}
    */
   function pluginValueSettingKeys() {
-    return ['pluginValuePlugin', 'pluginValueId', 'pluginValueEvery'];
+    return ['pluginValuePlugin', 'pluginValueId', 'pluginValueIcon', 'pluginValueEvery'];
   }
 
   /**
