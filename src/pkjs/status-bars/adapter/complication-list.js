@@ -18,6 +18,7 @@
 var KEYS = require('../../settings/domain/storage-keys.js');
 var complications = require('../domain/complications.js');
 var pluginReader = require('./plugin-reader.js');
+var storedJson = require('./stored-json.js');
 
 // The complications last heard (complications.js listOf), or null while none are known.
 var list = null;
@@ -27,35 +28,14 @@ var subscription = null;
 var onChange = null;
 
 /**
- * @returns {?Array<Object>} The list as stored, checked, or null for none.
- */
-function stored() {
-    var raw = localStorage.getItem(KEYS.COMPLICATIONS);
-    if (raw === null) { return null; }
-    try {
-        return complications.storedListOf(JSON.parse(raw));
-    }
-    catch (ex) {
-        return null;
-    }
-}
-
-/**
  * Keep a list (or none), here and in storage, and say so to onChange when that changes it.
  * Writes nothing when it is the one held.
  * @param {?Array<Object>} next The complications, or null for none known.
  * @returns {void}
  */
 function hold(next) {
-    if (JSON.stringify(next) === JSON.stringify(list)) { return; }
+    if (!storedJson.write(KEYS.COMPLICATIONS, next, list, 'complications: the list')) { return; }
     list = next;
-    try {
-        if (next) { localStorage.setItem(KEYS.COMPLICATIONS, JSON.stringify(next)); }
-        else { localStorage.removeItem(KEYS.COMPLICATIONS); }
-    }
-    catch (ex) {
-        console.log('complications: the list was not stored.');
-    }
     console.log('complications: ' + (next ? next.length + ' now.' : 'none known.'));
     if (onChange) { onChange(); }
 }
@@ -100,7 +80,8 @@ function init(options) {
     subscription = null;
     if (held) { held.unsubscribe(); }
     onChange = typeof deps.onChange === 'function' ? deps.onChange : null;
-    list = stored();
+    // The list as stored, checked, or null for none.
+    list = complications.storedListOf(storedJson.read(KEYS.COMPLICATIONS));
     pebble = pluginReader.pebbleOf(deps);
     if (!deps.offered || !pluginReader.available(pebble)) { return; }
     // The Preferences plugin's source, named, so no other plugin answers in its place.

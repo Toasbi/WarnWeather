@@ -56,6 +56,7 @@ var statusRebake = require('../application/status-rebake.js');
 var pluginReads = require('../domain/plugin-reads.js');
 var batterySaver = require('../../wire/domain/battery-saver.js');
 var pluginReader = require('./plugin-reader.js');
+var storedJson = require('./stored-json.js');
 
 /**
  * @typedef {Object} PluginReadSpec
@@ -89,21 +90,6 @@ var INERT = {
     getWatchInfo: function () { return null; },
     now: function () { return Date.now(); }
 };
-
-/**
- * @param {string} key A storage key.
- * @returns {*} What is stored under it, parsed, or null for none or what does not parse.
- */
-function stored(key) {
-    var raw = localStorage.getItem(key);
-    if (raw === null) { return null; }
-    try {
-        return JSON.parse(raw);
-    }
-    catch (ex) {
-        return null;
-    }
-}
 
 /**
  * A reader's schedule.
@@ -198,16 +184,7 @@ function create(spec) {
         var after = spec.shown(next, settings, at);
         shown = after;
         // The value kept, heard again (Muninn's estimate until its next wakeup): nothing to write.
-        if (JSON.stringify(next) !== JSON.stringify(value)) {
-            value = next;
-            try {
-                if (next) { localStorage.setItem(spec.valueKey, JSON.stringify(next)); }
-                else { localStorage.removeItem(spec.valueKey); }
-            }
-            catch (ex) {
-                console.log(spec.name + ': the value was not stored.');
-            }
-        }
+        if (storedJson.write(spec.valueKey, next, value, spec.name + ': the value')) { value = next; }
         if (spec.sameShown(before, after)) { return; }
         console.log(spec.name + ': ' + (after === null ? 'nothing to show' : 'a new value to show') + '.');
         // Never sent from here. The plugin answers at any moment, right after a settings save or a
@@ -348,8 +325,8 @@ function create(spec) {
         inFlight = false;
         againAtTick = false;
         heldUp = false;
-        record = pluginReads.recordOf(stored(spec.recordKey), spec.timeField);
-        value = spec.valueOf(stored(spec.valueKey));
+        record = pluginReads.recordOf(storedJson.read(spec.recordKey), spec.timeField);
+        value = spec.valueOf(storedJson.read(spec.valueKey));
         // Not known: what the last PKJS owed the watch died with it. The first look owes a send
         // while the slot shows the value kept.
         shown = null;
