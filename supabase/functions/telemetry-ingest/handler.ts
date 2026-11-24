@@ -173,14 +173,15 @@ const settingsSchema = z
     // DEPLOY-ORDERING: ship this function before the app release that sends them.
     batterySlotLook: z.string().optional(),
     batterySlotDisplay: z.string().optional(),
-    // Whether a bar the watch is sent shows the Plugin value slot with a source picked. Never
-    // which plugin or what it serves: those are another app's. Absent on aplite.
-    // DEPLOY-ORDERING: ship this function before the app release that sends it.
+    // Whether a bar the watch is sent shows a Plugin value slot with a source picked, how many
+    // slots do, and the icons they draw ('none', 'switch', 'wifi', ..., each once, comma
+    // separated: the app's own choices). Never which plugin or what it serves: those are
+    // another app's. Absent on aplite. z.string() per threshPhoneBatteryBoldMode's rule above,
+    // so an icon added later passes. 21 slots: seven bars of three.
+    // DEPLOY-ORDERING: ship this function before the app release that sends them.
     pluginValue: z.boolean().optional(),
-    // Its icon ('none', 'switch', 'wifi', ...), one of the app's own choices. Absent on aplite.
-    // z.string() per threshPhoneBatteryBoldMode's rule above, so an icon added later passes.
-    // DEPLOY-ORDERING: ship this function before the app release that sends it.
-    pluginValueIcon: z.string().optional(),
+    pluginValueSlots: z.number().int().min(0).max(21).optional(),
+    pluginValueIcons: z.string().optional(),
     // The Battery item's warn level as stored (a percentage) and its look ('icon' /
     // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
     batteryLowLevel: z.number().int().min(0).max(100).optional(),

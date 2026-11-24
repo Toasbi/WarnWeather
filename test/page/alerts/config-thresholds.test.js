@@ -1619,13 +1619,16 @@ const BOLD_SHEET_EXTRA_ROWS = {
 // ones, where it follows the kind's extras, the alert kinds', where it sits right above
 // the Alert highlighting card, the goal ones, where it sits right above the Goals
 // card, and the weather condition's, where it sits above its Every condition card. Asserted across all of them at once rather than per kind, so a sheet added later
-// cannot quietly become an exception. The one exception is named: the Plugin value's dialog,
-// whose item has no bold kind (its icon id takes none, and the alerts byte has no room for one).
+// cannot quietly become an exception. The one exception is named: the Plugin value's dialogs,
+// one per slot, whose item has no bold kind (its icon id takes none, and the alerts byte has no
+// room for one).
 test('Bold is the last row before any Goals or Alert highlighting group on every slot sheet', () => {
-  const sheets = sheetSections().filter((s) => s.sheetId !== 'threshPluginValue');
-  const plugin = sheetSections().find((s) => s.sheetId === 'threshPluginValue');
-  assert.ok(plugin, 'the Plugin value\'s dialog is a slot sheet');
-  assert.ok(!plugin.items.some((it) => /BoldMode$/.test(String(it.messageKey))), 'with no Bold row');
+  const isPlugin = (s) => /^threshPluginValue/.test(s.sheetId);
+  const sheets = sheetSections().filter((s) => !isPlugin(s));
+  const plugins = sheetSections().filter(isPlugin);
+  assert.equal(plugins.length, 21, 'the Plugin value\'s dialogs are slot sheets, one per slot');
+  plugins.forEach((plugin) => assert.ok(!plugin.items.some((it) => /BoldMode$/.test(String(it.messageKey))),
+    plugin.sheetId + ' with no Bold row'));
   assert.ok(sheets.length >= 17, 'found ' + sheets.length + ' slot sheets');
   sheets.forEach((s) => {
     const rows = rowsOf(s);

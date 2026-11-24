@@ -154,14 +154,17 @@ function linkRow(action, label, more) {
  * while `when` holds, then the start of the rows' card, plain and untitled (the dialog's
  * title says it). The Watch battery and Plugin value dialogs open with their Muninn note so.
  * @param {string} title The note's title.
- * @param {string} text The note's text.
+ * @param {(string|{resolver: string})} text The note's text, or the hint resolver that writes
+ *   it (a staticText's textFrom): the Plugin value's 21 dialogs write theirs once, on the page.
  * @param {Object} when showWhen predicate: while the note shows.
  * @returns {Object[]} Schema items: the note's card, then the rows' card header.
  */
 function noteCards(title, text, when) {
+    var note = typeof text === 'string' ? {type: 'staticText', text: text, showWhen: when}
+        : {type: 'staticText', textFrom: text, showWhen: when};
     return [
         {type: 'subheader', text: title, style: 'info', showWhen: when},
-        {type: 'staticText', text: text, showWhen: when},
+        note,
         {type: 'subheader', text: ''}
     ];
 }

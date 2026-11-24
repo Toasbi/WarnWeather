@@ -1,5 +1,5 @@
 'use strict';
-// The Plugin value slot in a bake: the text of the value another app's plugin serves
+// The Plugin value slots in a bake: each slot's own value another app's plugin serves, its text
 // (plugin-values.js textFor) on the text kind, after the icon its dialog picks (iconId), or with
 // its own icon id, which loads no drawing. Offered only where the Pebble app reads plugins, and
 // never on aplite.
@@ -15,11 +15,31 @@ const HOUR = 60 * 60 * 1000;
 const BASALT = { platform: 'basalt' };
 const APLITE = { platform: 'aplite' };
 const PHONE = '00000000-0000-0000-0001-000000000001';
-const SOURCE = { pluginValuePlugin: PHONE, pluginValueId: 'phone/phone_state/battery_level' };
-const KEY = PHONE + '/phone/phone_state/battery_level';
-/** The slot in all three of the Watch bar's places. */
-const EVERYWHERE = Object.assign({ statusTopLeft: 'pluginValue', statusTopMid: 'pluginValue',
-  statusTopRight: 'pluginValue' }, SOURCE);
+const ID = 'phone/phone_state/battery_level';
+const KEY = PHONE + '/' + ID;
+const TOP = ['statusTopLeft', 'statusTopMid', 'statusTopRight'];
+
+/**
+ * The settings of a slot that holds the Plugin value and picks a value of it.
+ * @param {string} slotKey The slot. @param {Object} [more] Its pick's other parts ({icon, every}),
+ *   or another id.
+ * @returns {Object} Settings.
+ */
+function slot(slotKey, more) {
+  const keys = catalog.pluginValueKeys(slotKey);
+  const out = { [slotKey]: 'pluginValue', [keys.plugin]: PHONE, [keys.id]: ID };
+  Object.keys(more || {}).forEach((name) => { out[keys[name]] = more[name]; });
+  return out;
+}
+
+/**
+ * @param {Object} [more] Each slot's pick's other parts (slot's more).
+ * @returns {Object} The slot in all three of the Watch bar's places, each picking the same value.
+ */
+function everywhere(more) {
+  return Object.assign({}, ...TOP.map((key) => slot(key, more)));
+}
+const EVERYWHERE = everywhere();
 const TEXT = catalog.KINDS.TEXT;
 const ICON = catalog.ICONS.PLUGIN_TEXT;
 
@@ -40,14 +60,18 @@ function value(fields, extra) {
 }
 
 /**
- * Facts that hand out one value and count how often they are asked.
- * @param {?Object} kept The value (or null).
+ * Facts that hand out values by their source and note each source they are asked for.
+ * @param {?Object} kept The value of every source (or null), or the values by source key.
  * @param {boolean} [available] Whether the Pebble app reads plugins (default true).
- * @returns {Object} The facts, with .reads.
+ * @returns {Object} The facts, with .asked (the sources' keys, in order).
  */
 function facts(kept, available) {
-  const f = { available: available !== false, reads: 0 };
-  f.value = () => { f.reads += 1; return kept; };
+  const f = { available: available !== false, asked: [] };
+  const byKey = kept && !kept.reading ? kept : null;
+  f.valueOf = (source) => {
+    f.asked.push(source.key);
+    return byKey ? byKey[source.key] || null : kept;
+  };
   return f;
 }
 
@@ -72,7 +96,7 @@ test('the value on the text kind, with the icon id that loads no drawing, in eve
 
 test('the icon the Icon row picks, before the text in every place: one that turns in the form the value has', () => {
   const I = catalog.ICONS;
-  const wifi = Object.assign({ pluginValueIcon: 'wifi' }, EVERYWHERE);
+  const wifi = everywhere({ icon: 'wifi' });
   const icons = (settings, kept, now) => bakeTop(settings, facts(kept), BASALT, now).slots.map((s) => s.icon);
   assert.deepEqual(icons(wifi, value({ short: 'Home', state: true })), [I.PV_WIFI, I.PV_WIFI, I.PV_WIFI]);
   assert.deepEqual(icons(wifi, value({ short: 'Home', state: false })), [I.PV_WIFI_OFF, I.PV_WIFI_OFF, I.PV_WIFI_OFF]);
@@ -82,7 +106,7 @@ test('the icon the Icon row picks, before the text in every place: one that turn
   assert.deepEqual(icons(wifi, value({ short: 'Home', state: true }), later), [I.PV_WIFI_OFF, I.PV_WIFI_OFF, I.PV_WIFI_OFF],
     'a value grown too old: off, beside --');
   assert.deepEqual(icons(wifi, null), [I.PV_WIFI_OFF, I.PV_WIFI_OFF, I.PV_WIFI_OFF], 'not read: off');
-  const plug = Object.assign({ pluginValueIcon: 'plug' }, EVERYWHERE);
+  const plug = everywhere({ icon: 'plug' });
   assert.deepEqual(icons(plug, value({ number: 87, unit: '%' })), [I.PV_PLUG, I.PV_PLUG, I.PV_PLUG]);
   assert.deepEqual(icons(plug, null), [I.PV_PLUG, I.PV_PLUG, I.PV_PLUG], 'one that stays the same, read or not');
 });
@@ -141,31 +165,68 @@ test('where the Pebble app reads no plugins, and on aplite, the slot is empty an
     [facts(value({ short: '87%' })), APLITE, 'aplite']].forEach(([plugin, watch, why]) => {
     const { slots } = bakeTop(EVERYWHERE, plugin, watch);
     assert.deepEqual(slots[0], empty, why);
-    if (plugin) { assert.equal(plugin.reads, 0, why); }
+    if (plugin) { assert.deepEqual(plugin.asked, [], why); }
   });
 });
 
-test('the value is read once per bake, and only when a bar it sends shows the slot', () => {
-  const both = facts(value({ short: '87%' }));
-  bakeTop(EVERYWHERE, both);
-  assert.equal(both.reads, 1, 'three places, one read');
-  const none = facts(value({ short: '87%' }));
-  bakeTop(SOURCE, none);
-  assert.equal(none.reads, 0, 'no slot holds it');
-  const hidden = facts(value({ short: '87%' }));
-  bakeTop(Object.assign({ statusHealthLeft: 'pluginValue' }, SOURCE), hidden);
-  assert.equal(hidden.reads, 0, 'a bar no screen shows is not baked');
+test('each slot shows its own value, and the icon its own dialog picks', () => {
+  const I = catalog.ICONS;
+  const CELL = PHONE + '/phone/phone_state/cell';
+  const settings = Object.assign(slot('statusTopLeft', { icon: 'wifi' }), slot('statusTopRight', { id: 'phone/phone_state/cell' }),
+    { statusTopMid: 'date' });
+  const { slots } = bakeTop(settings, facts({ [KEY]: value({ short: 'Home', state: true }),
+    [CELL]: value({ short: 'LTE' }, { source: CELL }) }));
+  assert.deepEqual([slots[0], slots[2]], [{ kind: TEXT, icon: I.PV_WIFI, text: 'Home' }, { kind: TEXT, icon: ICON, text: 'LTE' }]);
 });
 
-test('wantsPluginValue: a source is picked, and a slot of a bar the watch is sent holds it', () => {
-  assert.equal(statusLines.wantsPluginValue(Object.assign({ statusTopLeft: 'pluginValue' }, SOURCE), BASALT), true);
-  assert.equal(statusLines.wantsPluginValue(Object.assign({ statusForecastMid: 'pluginValue' }, SOURCE), BASALT), true);
-  assert.equal(statusLines.wantsPluginValue(SOURCE, BASALT), false, 'no slot');
-  assert.equal(statusLines.wantsPluginValue(Object.assign({ statusHealthLeft: 'pluginValue' }, SOURCE), BASALT), false,
-    'a bar no screen shows');
-  assert.equal(statusLines.wantsPluginValue(Object.assign({ statusTopLeft: 'pluginValue' }, SOURCE), APLITE), false);
-  assert.equal(statusLines.wantsPluginValue(Object.assign({ statusTopLeft: 'pluginValue' }, SOURCE), null), true,
-    'an unknown watch may be one that shows it');
-  assert.equal(statusLines.wantsPluginValue({ statusTopLeft: 'pluginValue' }, BASALT), false,
+test('a slot\'s value shows for that slot\'s own Updates: one value too old in one slot shows in another', () => {
+  // Read 100 minutes ago: past three 30-minute Updates, within three hourly ones (three hours at least).
+  const kept = value({ short: '87%' }, { at: NOW.getTime() - 100 * 60 * 1000 });
+  const settings = Object.assign(slot('statusTopLeft', { every: '30' }), slot('statusTopRight', { every: '360' }),
+    { statusTopMid: 'empty' });
+  assert.deepEqual(bakeTop(settings, facts(kept)).slots.map((s) => s.text), ['87%', '', '87%'],
+    'three hours at least, whatever the Updates');
+  const older = value({ short: '87%' }, { at: NOW.getTime() - 4 * HOUR });
+  assert.deepEqual(bakeTop(settings, facts(older)).slots.map((s) => s.text), ['--', '', '87%'],
+    'past three hours: only the slot that updates every 6 hours shows it');
+});
+
+test('a slot without a source of its own shows --, beside one with', () => {
+  const settings = Object.assign(slot('statusTopLeft'), { statusTopMid: 'empty', statusTopRight: 'pluginValue' });
+  const f = facts(value({ short: '87%' }));
+  assert.deepEqual(bakeTop(settings, f).slots.map((s) => s.text), ['87%', '', '--']);
+  assert.deepEqual(f.asked, [KEY], 'nothing is asked for the slot without one');
+});
+
+test('the facts are asked for each slot it bakes, that slot\'s source, only when a bar it sends shows it', () => {
+  const three = facts(value({ short: '87%' }));
+  bakeTop(EVERYWHERE, three);
+  assert.deepEqual(three.asked, [KEY, KEY, KEY], 'three places, each its own');
+  const none = facts(value({ short: '87%' }));
+  const unheld = slot('statusTopLeft');
+  delete unheld.statusTopLeft;
+  bakeTop(unheld, none);
+  assert.deepEqual(none.asked, [], 'no slot holds it');
+  const hidden = facts(value({ short: '87%' }));
+  bakeTop(slot('statusHealthLeft'), hidden);
+  assert.deepEqual(hidden.asked, [], 'a bar no screen shows is not baked');
+});
+
+test('wantedPluginValues: the slots of the bars the watch is sent that hold it with a source picked', () => {
+  const wanted = (settings, watch) => statusLines.wantedPluginValues(settings, watch).map((s) => s.slotKey);
+  assert.deepEqual(wanted(slot('statusTopLeft'), BASALT), ['statusTopLeft']);
+  assert.deepEqual(wanted(slot('statusForecastMid'), BASALT), ['statusForecastMid']);
+  const unheld = slot('statusTopLeft');
+  delete unheld.statusTopLeft;
+  assert.deepEqual(wanted(unheld, BASALT), [], 'no slot');
+  assert.deepEqual(wanted(slot('statusHealthLeft'), BASALT), [], 'a bar no screen shows');
+  assert.deepEqual(wanted(slot('statusTopLeft'), APLITE), []);
+  assert.deepEqual(wanted(slot('statusTopLeft'), null), ['statusTopLeft'], 'an unknown watch may be one that shows it');
+  assert.deepEqual(wanted({ statusTopLeft: 'pluginValue' }, BASALT), [],
     'no source picked: the slot shows --, and nothing is read for it');
+  const two = statusLines.wantedPluginValues(Object.assign(slot('statusForecastLeft', { icon: 'plug' }),
+    slot('statusTopRight', { id: 'phone/phone_state/cell' })), BASALT);
+  assert.deepEqual(two.map((s) => [s.slotKey, s.source.key, s.pick.icon]),
+    [['statusForecastLeft', KEY, 'plug'], ['statusTopRight', PHONE + '/phone/phone_state/cell', undefined]],
+    'each with what it picks and its source, in the lines\' order');
 });

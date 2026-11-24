@@ -134,11 +134,51 @@ function mergeBatterySlots(blob) {
     return { changed: changed, send: false };
 }
 
+/**
+ * The Plugin value's settings before 3.5.0, one set for every slot that held the item, by the
+ * names they have in a slot's (catalog pluginValueKeys).
+ */
+var SHARED_PLUGIN_VALUE_KEYS = { plugin: 'pluginValuePlugin', id: 'pluginValueId',
+    icon: 'pluginValueIcon', every: 'pluginValueEvery' };
+
+/**
+ * 3.5.0 gave each Plugin value slot a value of its own: its plugin, value, icon and Updates are
+ * the slot's (catalog pluginValueKeys), where the item had one set that every slot holding it
+ * showed. Each slot holding the item takes that set, so it shows what it showed, and the set
+ * goes. Where no slot holds the item it goes too: a slot that takes the item later starts on
+ * None, as a new one does.
+ *
+ * No send: the lines bake to the bytes they had, and the Clay message carries none of them.
+ *
+ * @param {Object} blob Stored settings, mutated in place.
+ * @returns {{changed: boolean, send: boolean}}
+ */
+function movePluginValueIntoSlots(blob) {
+    var names = Object.keys(SHARED_PLUGIN_VALUE_KEYS).filter(function (name) {
+        return blob[SHARED_PLUGIN_VALUE_KEYS[name]] !== undefined;
+    });
+    if (!names.length) { return { changed: false, send: false }; }
+    catalog.ALL_LINES.forEach(function (line) {
+        line.slots.forEach(function (key) {
+            var keys = catalog.pluginValueKeys(key);
+            if (blob[key] !== 'pluginValue') { return; }
+            names.forEach(function (name) {
+                // A slot's own pick (a blob the 3.5.0 page saved before this boot) stays.
+                if (blob[keys[name]] === undefined) { blob[keys[name]] = blob[SHARED_PLUGIN_VALUE_KEYS[name]]; }
+            });
+        });
+    });
+    names.forEach(function (name) { delete blob[SHARED_PLUGIN_VALUE_KEYS[name]]; });
+    console.log('Migrated the Plugin value into its slots');
+    return { changed: true, send: false };
+}
+
 module.exports = {
     migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults,
     migrateStatusTopRightBattery: migrateStatusTopRightBattery,
     keepSlotDefaults27: keepSlotDefaults27,
     migrateCitySlotIconOn: migrateCitySlotIconOn,
     mergeBatterySlots: mergeBatterySlots,
+    movePluginValueIntoSlots: movePluginValueIntoSlots,
     SLOT_DEFAULTS_BEFORE_2_7: SLOT_DEFAULTS_BEFORE_2_7
 };

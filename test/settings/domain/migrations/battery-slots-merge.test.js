@@ -95,9 +95,8 @@ test('a migrated install bakes the bytes it baked: kind 10 for the percentage, i
   assert.deepEqual(slots[2], { kind: catalog.KINDS.LIVE_BATTERY_PCT, icon: catalog.ICONS.NONE, text: '' });
 });
 
-test('the ledger runs it last, marks it at once and counts it reset-safe', () => {
-  const entry = registry[registry.length - 1];
-  assert.equal(entry.key, KEYS.BATTERY_SLOTS_MERGE_MIGRATION_KEY);
+test('the ledger marks it at once and counts it reset-safe', () => {
+  const entry = registry.find((candidate) => candidate.key === KEYS.BATTERY_SLOTS_MERGE_MIGRATION_KEY);
   assert.equal(entry.key, 'v3.3.0_battery_slots_merge_migration');
   assert.equal(entry.run, statusSlots.mergeBatterySlots);
   assert.equal(entry.markOn, 'now');

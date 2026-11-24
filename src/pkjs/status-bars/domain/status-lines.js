@@ -136,24 +136,25 @@ var isoWeek = slotText.isoWeek;
  */
 
 /**
- * The Plugin value slot's facts (plugin-value-source.js bakeFacts).
+ * The Plugin value slots' facts (plugin-value-source.js bakeFacts).
  * @typedef {Object} PluginValueFacts
  * @property {boolean} available Whether this Pebble app can read plugins at all: the
  *   catalog offers the slot only there (needsPlugins).
- * @property {?function(): ?Object} value Reads the value last heard (plugin-values.js
- *   valueOf), called once per bake, only when a bar it bakes shows the slot.
+ * @property {?function(Object): ?Object} valueOf Reads the value last heard of a source
+ *   (plugin-values.js sourceOf; the value plugin-value-reads.js valueOf keeps), called once per
+ *   Plugin value slot of the bars a bake bakes.
  */
 
 /**
  * What a bake reads that neither the payload nor the settings hold: the two batteries'
- * facts and the Plugin value slot's. The app composes them once (index.js bakeFacts) for
+ * facts and the Plugin value slots'. The app composes them once (index.js bakeFacts) for
  * every bake: a fetch's, the fixture's and a re-bake's.
  * @typedef {Object} BakeFacts
  * @property {?PhoneBattery} [phone] The phone's battery facts; absent = a host that cannot
  *   read the phone's battery.
  * @property {?WatchBattery} [watch] The watch battery's facts; absent = no estimate of the
  *   days it has left.
- * @property {?PluginValueFacts} [plugin] The Plugin value slot's facts; absent = a host that
+ * @property {?PluginValueFacts} [plugin] The Plugin value slots' facts; absent = a host that
  *   cannot read plugins.
  */
 
@@ -169,8 +170,8 @@ var isoWeek = slotText.isoWeek;
  * @property {?number} batteryDays The whole days the watch battery's text shows (its Text
  *   and Icon + text looks), in place of the percentage or beside it (battery-days.js
  *   daysLeft); null when it shows the percentage alone.
- * @property {?Object} pluginReading The reading the Plugin value slot shows
- *   (plugin-values.js shownReading); null for none.
+ * @property {Object<string, ?Object>} pluginReadings The reading each Plugin value slot shows
+ *   (plugin-values.js shownReading), by its settings key; a slot without one shows none.
  */
 
 /**
@@ -178,12 +179,22 @@ var isoWeek = slotText.isoWeek;
  * @param {Date} now The current time.
  * @param {?Object} phone The phone's battery reading, or null.
  * @param {?number} [days] The watch battery's days left to show, or null.
- * @param {?Object} [pluginReading] The Plugin value slot's reading, or null.
+ * @param {?Object<string, ?Object>} [pluginReadings] Each Plugin value slot's reading, by its
+ *   settings key, or none.
  * @returns {BakeEnv}
  */
-function bakeEnv(now, phone, days, pluginReading) {
+function bakeEnv(now, phone, days, pluginReadings) {
   return { now: now, nowSec: now.getTime() / 1000, phone: phone || null,
-    batteryDays: typeof days === 'number' ? days : null, pluginReading: pluginReading || null };
+    batteryDays: typeof days === 'number' ? days : null, pluginReadings: pluginReadings || {} };
+}
+
+/**
+ * @param {BakeEnv} bake The bake's environment.
+ * @param {string} slotKey A Plugin value slot's settings key.
+ * @returns {?Object} The reading the slot shows, or null for none.
+ */
+function pluginReadingOf(bake, slotKey) {
+  return Object.prototype.hasOwnProperty.call(bake.pluginReadings, slotKey) ? bake.pluginReadings[slotKey] : null;
 }
 
 /**
@@ -334,11 +345,11 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
   }
   // The ISO week, where the phone bakes it (slot-text.js wireKind: aplite).
   if (code === 'week') { return 'W' + isoWeek(bake.now); }
-  // A value another app's plugin serves, as the slot prints it (plugin-values.js textFor): a
-  // moment in the user's clock format, as the sun slot, with its date on another day than the
-  // bake's; '--' until it is read, and once it is too old.
+  // A value another app's plugin serves, the slot's own, as the slot prints it
+  // (plugin-values.js textFor): a moment in the user's clock format, as the sun slot, with its
+  // date on another day than the bake's; '--' until it is read, and once it is too old.
   if (code === 'pluginValue') {
-    return pluginValues.textFor(bake.pluginReading, cap, settings, bake.now.getTime());
+    return pluginValues.textFor(pluginReadingOf(bake, slotKey), cap, settings, bake.now.getTime());
   }
   return '--';
 }
@@ -476,10 +487,10 @@ function iconFor(code, item, payload, settings, env, bake, slotKey) {
   if (code === 'battery' && slotText.batteryLook(settings, env) === 'both') {
     return catalog.ICONS.DRAWN_BATTERY;
   }
-  // The Plugin value's icon (its dialog's Icon row), in the form the value shows: none loads
-  // no drawing.
+  // The Plugin value's icon (the slot's dialog's Icon row), in the form the value shows: none
+  // loads no drawing.
   if (code === 'pluginValue') {
-    return pluginValues.iconId(settings, bake.pluginReading);
+    return pluginValues.iconId(pluginValues.pickOf(settings, slotKey), pluginReadingOf(bake, slotKey));
   }
   return item.icon;
 }
@@ -588,32 +599,40 @@ function wantsBatteryDays(settings, watchInfo) {
 }
 
 /**
- * Whether any slot of the given lines shows the Plugin value with a source picked
- * (plugin-values.js sourceOf). The source first: it alone rules out most settings, without
- * working out the bars.
+ * The slots of the given lines that show the Plugin value with a source picked, each with
+ * what it picks (plugin-values.js pickOf) and its source (sourceOf).
  * @param {Array<Object>} lines catalog line definitions
  * @param {Object} settings Clay settings blob
  * @param {Object} env platform environment
- * @returns {boolean}
+ * @returns {Array<{slotKey: string, pick: Object, source: Object}>} In the lines' order.
  */
-function showsPluginValue(lines, settings, env) {
-  return pluginValues.sourceOf(settings) !== null && showsItem(lines, settings, env, 'pluginValue');
+function pluginValueSlots(lines, settings, env) {
+  var out = [];
+  for (var l = 0; l < lines.length; l++) {
+    for (var s = 0; s < 3; s++) {
+      if (slotCode(lines[l], s, settings, env) !== 'pluginValue') { continue; }
+      var pick = pluginValues.pickOf(settings, lines[l].slots[s]);
+      var source = pluginValues.sourceOf(pick);
+      if (source) { out.push({ slotKey: lines[l].slots[s], pick: pick, source: source }); }
+    }
+  }
+  return out;
 }
 
 /**
- * Whether the Plugin value is wanted on this watch at all: a source is picked, and a bar the
- * bake sends shows the slot. What decides whether its value is worth reading
+ * The Plugin value slots wanted on this watch: those of the bars the bake sends that show it
+ * with a source picked (pluginValueSlots). What decides which values are worth reading
  * (plugin-value-source.js) and what telemetry reports. Whether this Pebble app reads plugins
  * is a fact of the phone, its callers' to add: the catalog's needsPlugins gate is taken as
  * passed.
  * @param {Object} settings Clay settings blob
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
- * @returns {boolean}
+ * @returns {Array<{slotKey: string, pick: Object, source: Object}>}
  */
-function wantsPluginValue(settings, watchInfo) {
+function wantedPluginValues(settings, watchInfo) {
   var env = platformLib.computeEnv(watchInfo);
   env.plugins = true;
-  return showsPluginValue(catalog.bakedLines(settings, env), settings, env);
+  return pluginValueSlots(catalog.bakedLines(settings, env), settings, env);
 }
 
 /**
@@ -724,7 +743,7 @@ function widenEdgeConditions(bytes, starts, wide) {
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
  * @param {Date} now The current time: the countdown, aplite's ISO week and whether it is
  *   night now read it, one instant for the whole bake.
- * @param {?BakeFacts} [facts] The two batteries' facts and the Plugin value slot's; absent =
+ * @param {?BakeFacts} [facts] The two batteries' facts and the Plugin value slots'; absent =
  *   none.
  * @returns {Object} the same payload
  */
@@ -759,12 +778,15 @@ function buildStatusLines(payload, settings, watchInfo, now, facts) {
   // Likewise the estimate of the days the watch has left: none once it is too old at this instant.
   var estimate = watch && watch.estimate && showsBatteryDays(lines, settings, env)
     ? watch.estimate() : null;
-  // And the Plugin value slot's value: none once it is too old at this instant, or another
-  // source's.
-  var value = env.plugins && plugin.value && showsPluginValue(lines, settings, env)
-    ? plugin.value() : null;
-  var bake = bakeEnv(now, reading, batteryDays.daysLeft(estimate, now.getTime()),
-    pluginValues.shownReading(value, settings, now.getTime()));
+  // And each Plugin value slot's value: none once it is too old at this instant for the slot,
+  // or another source's.
+  var readings = {};
+  if (env.plugins && plugin.valueOf) {
+    pluginValueSlots(lines, settings, env).forEach(function (slot) {
+      readings[slot.slotKey] = pluginValues.shownReading(plugin.valueOf(slot.source), slot.pick, now.getTime());
+    });
+  }
+  var bake = bakeEnv(now, reading, batteryDays.daysLeft(estimate, now.getTime()), readings);
   for (var l = 0; l < lines.length; l++) {
     var line = lines[l];
     payload[line.wireKey] = packLine(line, payload, settings, env, alerts, bake);
@@ -827,7 +849,7 @@ var SOURCE_KEYS = [
 module.exports = {
   buildStatusLines: buildStatusLines,
   wantsBatteryDays: wantsBatteryDays,
-  wantsPluginValue: wantsPluginValue,
+  wantedPluginValues: wantedPluginValues,
   isNightNow: isNightNow,
   SOURCE_KEYS: SOURCE_KEYS,
   packLine: packLine,

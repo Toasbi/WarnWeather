@@ -92,15 +92,18 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
     meta: { provider: 'openmeteo', fetchedAt: now, lat: 52.52, lon: 13.405 } } });
   store.gpsCache = JSON.stringify({ lat: 52.52, lon: 13.405, time: now });
 
-  // The Plugin value slot's list as long as it may be (plugin-value-list.js listOf: as many
+  // The Plugin value slots' list as long as it may be (plugin-value-list.js listOf: as many
   // plugins as cost the URL LIST_COST characters), from more plugins than it lists, each with
-  // more values than it takes, and a value kept with texts longer than a value keeps. The
-  // Preferences plugin comes first, with every place of the user's complications held, each
-  // name longer than the list takes, and each read by a plugin that asks for a permission this
-  // app never declares, named as long: its entry takes the list's room as any other does.
+  // more values than it takes, and a value kept for each of the 21 slots, every slot of the
+  // seven bars the three screens show (a slot's own pick of a source of its own), each with texts
+  // longer than a value keeps. The Preferences plugin comes first, with every place of the
+  // user's complications held, each name longer than the list takes, and each read by a plugin
+  // that asks for a permission this app never declares, named as long: its entry takes the
+  // list's room as any other does.
   const pluginValueList = require('../../../src/pkjs/status-bars/domain/plugin-value-list.js');
   const complications = require('../../../src/pkjs/status-bars/domain/complications.js');
   const pluginReads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
+  const slotCatalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
   const props = {};
   for (let v = 0; v < 30; v += 1) {
     props['a_property_with_a_long_name_' + v] = ['shortText', 'numericValue'];
@@ -120,10 +123,28 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
       name: 'A plugin with a very long name that the list cuts ' + p, sources: [{ category: 'cat',
         items: ['item'], properties: props, supportsMultiple: true }], actions: [] });
   }
-  store[KEYS.PLUGIN_VALUE] = JSON.stringify({ source: 'x/cat/item/v', at: now, validUntil: null,
-    reading: { short: 's'.repeat(5000), long: 'l'.repeat(5000), unit: 'u'.repeat(5000), number: 1 } });
-  // The settings pick its source: the page gets the value only then (plugin-value-source.js forPage).
-  store['clay-settings'] = JSON.stringify({ pluginValuePlugin: 'x', pluginValueId: 'cat/item/v' });
+  // The three screens show all seven bars (bars 4 to 6 made), and each slot picks a source of
+  // its own: the page gets a value only while a slot shows its source (plugin-value-source.js
+  // forPage).
+  const settings = { layoutPreset: 'custom', radarMode: 'graph', viewCount: '3',
+    viewTop0: 'cal', viewBody0: 'forecast', viewTop1: 'none', viewBody1: 'forecast', viewTop2: 'none',
+    viewBody2: 'forecast', viewUpper0: 'weather', viewLower0: 'radar', viewUpper1: 'health', viewLower1: 'bar4',
+    viewUpper2: 'bar5', viewLower2: 'bar6', statusBar4Made: true, statusBar5Made: true, statusBar6Made: true };
+  const values = {};
+  const reads = {};
+  const slotKeys = slotCatalog.ALL_LINES.reduce((keys, line) => keys.concat(line.slots), []);
+  slotKeys.forEach((slotKey, i) => {
+    const keys = slotCatalog.pluginValueKeys(slotKey);
+    settings[slotKey] = 'pluginValue';
+    settings[keys.plugin] = 'x';
+    settings[keys.id] = 'cat/item/v' + i;
+    values['x/cat/item/v' + i] = { source: 'x/cat/item/v' + i, at: now, validUntil: null,
+      reading: { short: 's'.repeat(5000), long: 'l'.repeat(5000), unit: 'u'.repeat(5000), number: 1 } };
+    reads['x/cat/item/v' + i] = { source: 'x/cat/item/v' + i, at: now, failures: 0, validUntil: null };
+  });
+  store[KEYS.PLUGIN_VALUES] = JSON.stringify(values);
+  store[KEYS.PLUGIN_VALUE_READS] = JSON.stringify(reads);
+  store['clay-settings'] = JSON.stringify(settings);
 
   const listeners = {};
   const opened = [];
@@ -176,7 +197,9 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
   places.forEach((c) => assert.ok(decoded.indexOf('{position:' + c.position + ",property:'a_property_with_a_long_name_"
     + c.position) !== -1 && decoded.indexOf("why:'A_permission_with_a_long_name_" + c.position) !== -1,
   'complication ' + c.position + ' really rode along, with why'));
-  assert.ok(decoded.indexOf('pluginValue:{source:') !== -1, 'the value kept really rode along');
+  assert.equal(slotKeys.length, 21);
+  slotKeys.forEach((slotKey, i) => assert.ok(decoded.indexOf("'x/cat/item/v" + i + "':{source:'x/cat/item/v" + i + "'") !== -1,
+    'the value ' + slotKey + ' shows really rode along'));
   assert.ok(url.length <= URL_CAP - HEADROOM,
     'settings URL is ' + url.length + ' chars; Android WebView refuses more than ' + URL_CAP
     + ' (keep ' + HEADROOM + ' spare)');

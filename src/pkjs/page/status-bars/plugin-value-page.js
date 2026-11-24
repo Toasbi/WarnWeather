@@ -1,16 +1,18 @@
-// src/pkjs/page/status-bars/plugin-value-page.js — ES5. The Plugin value slot's dialog on the
-// settings page (plugin-value-schema.js): the Plugin, Value and Icon rows' lists and hints, the
-// Icon row's pictures, the line with the value read last, and the Plugin row's change, which
-// starts a new plugin on its first value. The lists are the plugins the phone listed as the page opened (userData.plugins,
-// plugin-value-list.js listOf): the page reads no plugin itself, since a read costs the user
-// (plugin-reader.js). The phone sends each plugin's items with their properties' names, and the
-// page makes each value's id (plugin-values.js valueId) and label (labelOf) of them. The value
-// read last (userData.pluginValue, checked on the phone, which hands it only while it is of what
-// the settings pick: plugin-value-source.js forPage) is judged against the source the rows pick
-// right then, as a bake judges it (plugin-values.js shownReading); the bars' pictures print it
-// through barText.
+// src/pkjs/page/status-bars/plugin-value-page.js — ES5. The Plugin value slots' dialogs on the
+// settings page (plugin-value-schema.js), one per slot, each naming its slot to these resolvers
+// (args.slotKey; a row's change, its key: status-line-catalog.js pluginValueSlot): the Plugin,
+// Value, Icon and Updates rows' lists and hints, the Icon row's pictures, the line with the value
+// read last, the Muninn note, the rows' defaults, and the Plugin row's change, which starts a new
+// plugin on its first value. The lists are the plugins the phone listed as the page opened
+// (userData.plugins, plugin-value-list.js listOf): the page reads no plugin itself, since a read
+// costs the user (plugin-reader.js). The phone sends each plugin's items with their properties'
+// names, and the page makes each value's id (plugin-values.js valueId) and label (labelOf) of
+// them. The values read last (userData.pluginValues, by their source's key, checked on the
+// phone, which hands each only while a slot shows its source: plugin-value-source.js forPage)
+// are judged against the source a slot's rows pick right then, as a bake judges them
+// (plugin-values.js shownReading); the bars' pictures print them through barText.
 //
-// A plugin or a value the settings hold that the phone no longer lists stays in its row's list,
+// A plugin or a value a slot holds that the phone no longer lists stays in its row's list,
 // said as such: the engine would otherwise move the row onto another option as soon as it is
 // drawn (engine.js resolveRowItem), and the slot would change without the user picking it.
 //
@@ -49,11 +51,23 @@
     // place, or one WarnWeather may not read, shows NONE_SHOWN.
     var COMPLICATIONS_HINT = 'Your complications in the Pebble app (Settings \u203a Plugins \u203a Complications). '
         + 'The slot follows the one you pick when you change it there.';
-    // The Value row's hint while the settings hold a value the picked plugin no longer offers.
+    // The Value row's hint while the slot holds a value the picked plugin no longer offers.
     var NOT_OFFERED = 'The plugin no longer offers this value. Until it does, the slot shows ' + NONE_SHOWN + '.';
     // Why a complication is greyed out, for a permission another app's plugin defines
     // (plugin-reads.js ANOTHER_APPS), which WarnWeather can never declare.
     var ANOTHER_APPS = ':';
+    // The Updates row's choices (plugin-values.js EVERY_CHOICES, in minutes).
+    var EVERY_LABELS = {'15': 'Every 15 minutes', '30': 'Every 30 minutes', '60': 'Every hour', '180': 'Every 3 hours',
+        '360': 'Every 6 hours'};
+    // The Updates row's hint: what a read costs (plugin-reader.js). The Pebble app runs the other
+    // app's plugin, and asks again for each permission that app is still waiting for.
+    var EVERY_HINT = 'Each read runs the other app\'s plugin on your phone. If that app asked for a permission '
+        + 'you haven\'t answered yet, your phone asks you again.';
+    // The note while the plugin picked is Muninn (fromMuninn): the Watch battery slot shows its
+    // estimate by itself, ending on the steps every how-to for it ends on (battery-days.js
+    // DAYS_STEPS).
+    var MUNINN_NOTE = 'The Watch battery slot can show Muninn\'s estimate by itself: the days your watch has left, '
+        + 'alone or beside its charge. Put the Watch battery in any slot, tap its Edit button, ' + batteryDays.DAYS_STEPS;
     // The Icon row's choices after None (plugin-values.js ICON_FORMS, in its order), by name.
     var ICON_LABELS = {'switch': 'Switch', wifi: 'Wi-Fi', bluetooth: 'Bluetooth', plug: 'Plug', phone: 'Phone',
         calendar: 'Calendar'};
@@ -175,12 +189,14 @@
     /**
      * The Plugin row's list: None, then the user's complications (the Preferences plugin, named
      * after what it offers), then each other plugin the phone listed, in its order, then the one
-     * the settings hold where the phone lists it no more.
+     * the slot holds where the phone lists it no more.
      * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
      * @returns {Array<Array>} [label, value, meta?] options.
      */
-    function pluginOptions(S) {
-        var stored = S.pluginValuePlugin;
+    function pluginOptions(S, env, args) {
+        var stored = pluginValues.pickOf(S, args.slotKey).plugin;
         var out = [['None', '']];
         listed().forEach(function (p) {
             if (offersComplications(p)) {
@@ -195,17 +211,20 @@
 
     /**
      * The Value row's list: the values the picked plugin offers (the header says how one
-     * WarnWeather may not read is listed), then the one the settings hold where it offers it no
+     * WarnWeather may not read is listed), then the one the slot holds where it offers it no
      * more, named after its property, or for a complication after its place. None first while
-     * the settings hold no value of a listed plugin, as pluginPicked leaves them where it offers
-     * none WarnWeather can read: the engine would otherwise move the row onto the first option
+     * the slot holds no value of a listed plugin, as pluginPicked leaves it where it offers none
+     * WarnWeather can read: the engine would otherwise move the row onto the first option
      * (engine.js resolveRowItem), which may be one greyed out, and Save would store it.
      * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
      * @returns {Array<Array>} [label, value, meta?] options.
      */
-    function valueOptions(S) {
-        var plugin = pluginOf(S.pluginValuePlugin);
-        var source = pluginValues.sourceOf(S);
+    function valueOptions(S, env, args) {
+        var pick = pluginValues.pickOf(S, args.slotKey);
+        var plugin = pluginOf(pick.plugin);
+        var source = pluginValues.sourceOf(pick);
         var out = valuesOf(plugin).map(function (v) {
             return v.unreadable ? [v.label, v.id, {disabled: true, desc: v.unreadable}] : [v.label, v.id];
         });
@@ -218,13 +237,16 @@
     }
 
     /**
-     * The Plugin row's hint: the plugin the settings hold is not on this phone, or no plugin
-     * on it offers a value the slot can show. Else none.
+     * The Plugin row's hint: the plugin the slot holds is not on this phone, or no plugin on it
+     * offers a value the slot can show. Else none.
      * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
      * @returns {?string} HTML (plain text), or null for none.
      */
-    function pluginHint(S) {
-        if (S.pluginValuePlugin && !pluginOf(S.pluginValuePlugin)) {
+    function pluginHint(S, env, args) {
+        var plugin = pluginValues.pickOf(S, args.slotKey).plugin;
+        if (plugin && !pluginOf(plugin)) {
             return 'This plugin is not on this phone. Until it is, the slot shows ' + NONE_SHOWN + '.';
         }
         return listed().length ? null : 'No app on this phone offers a value this slot can show.';
@@ -232,19 +254,18 @@
 
     /**
      * The Value row's hint while the Preferences plugin is picked (COMPLICATIONS_HINT), with why
-     * the slot shows NONE_SHOWN where the complication the settings hold cannot be shown: its
-     * place is empty, or WarnWeather may not read it. A value the settings hold that is no
-     * complication (one of the plugin's own readings, which the dialog listed before the
-     * complications) is one the plugin no longer offers (NOT_OFFERED).
-     * @param {Object} S Settings.
-     * @param {?Object} value The complication the settings hold, as the Value row lists it, or
-     *   null.
+     * the slot shows NONE_SHOWN where the complication it holds cannot be shown: its place is
+     * empty, or WarnWeather may not read it. A value it holds that is no complication (one of the
+     * plugin's own readings, which the dialog listed before the complications) is one the plugin
+     * no longer offers (NOT_OFFERED).
+     * @param {Object} pick What the slot picks (plugin-values.js pickOf).
+     * @param {?Object} value The complication the slot holds, as the Value row lists it, or null.
      * @returns {string} HTML.
      */
-    function complicationHint(S, value) {
-        var source = pluginValues.sourceOf(S);
+    function complicationHint(pick, value) {
+        var source = pluginValues.sourceOf(pick);
         var why;
-        if (S.pluginValueId && (!source || source.complication === null)) { return NOT_OFFERED; }
+        if (pick.id && (!source || source.complication === null)) { return NOT_OFFERED; }
         why = !source ? null : value ? value.unreadable : 'This place is empty there';
         return why ? COMPLICATIONS_HINT + ' ' + html.esc(why) + ', so the slot shows ' + NONE_SHOWN + '.'
             : COMPLICATIONS_HINT;
@@ -255,25 +276,31 @@
      * one thing (its source serves several instances, and the slot reads the first). Else none.
      * The Preferences plugin's is complicationHint.
      * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
      * @returns {?string} HTML (plain text), or null for none.
      */
-    function valueHint(S) {
-        var plugin = pluginOf(S.pluginValuePlugin);
-        var value = valueIn(plugin, S.pluginValueId);
-        if (offersComplications(plugin)) { return complicationHint(S, value); }
-        if (!plugin || !S.pluginValueId) { return null; }
+    function valueHint(S, env, args) {
+        var pick = pluginValues.pickOf(S, args.slotKey);
+        var plugin = pluginOf(pick.plugin);
+        var value = valueIn(plugin, pick.id);
+        if (offersComplications(plugin)) { return complicationHint(pick, value); }
+        if (!plugin || !pick.id) { return null; }
         if (!value) { return NOT_OFFERED; }
         return value.multiple ? 'The plugin offers this for more than one thing. The slot shows the first.' : null;
     }
 
     /**
-     * The value the phone read last, when it was read from the source the settings pick.
-     * @param {Object} S Settings.
+     * The value the phone read last of the source a slot picks, when it was read from it.
+     * @param {Object} pick What the slot picks (plugin-values.js pickOf).
      * @returns {?Object} The value (plugin-value-reads.js valueOf), or null.
      */
-    function lastValue(S) {
-        var value = userData().pluginValue;
-        return pluginValues.readFrom(value, pluginValues.sourceOf(S)) ? value : null;
+    function lastValue(pick) {
+        var source = pluginValues.sourceOf(pick);
+        var values = userData().pluginValues;
+        var value = source && values && Object.prototype.hasOwnProperty.call(values, source.key)
+            ? values[source.key] : null;
+        return pluginValues.readFrom(value, source) ? value : null;
     }
 
     /**
@@ -293,41 +320,46 @@
      * and how long ago, with what the watch shows once that is too old; or that none is read
      * yet.
      * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
      * @returns {string} HTML ('' while no source is picked).
      */
-    function lastLine(S) {
-        var value = lastValue(S);
+    function lastLine(S, env, args) {
+        var pick = pluginValues.pickOf(S, args.slotKey);
+        var value = lastValue(pick);
         var now = Date.now();
         var text;
-        if (!pluginValues.sourceOf(S)) { return ''; }
+        if (!pluginValues.sourceOf(pick)) { return ''; }
         if (!value) {
             return 'None yet. When you pick a value and save, the watch shows it within about a minute.';
         }
         text = pluginValues.textFor(value.reading, catalog.CAPS.MID_TEXT_MAX, S, now)
             + ' (' + agoText(value.at, now) + ').';
-        if (!pluginValues.shownReading(value, S, now)) {
+        if (!pluginValues.shownReading(value, pick, now)) {
             text += ' It is too old to show, so the watch shows ' + NONE_SHOWN + ' until a new one comes in.';
         }
         return html.esc(text);
     }
 
     /**
-     * Whether the plugin picked is Muninn (battery-days.js isMuninn), whose estimate the Watch
-     * battery slot shows by itself. The dialog then says so in a note.
+     * Whether the plugin a slot picks is Muninn (battery-days.js isMuninn), whose estimate the
+     * Watch battery slot shows by itself. The dialog then says so in a note (MUNINN_NOTE).
      * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
      * @returns {boolean}
      */
-    function fromMuninn(S) {
-        return batteryDays.isMuninn(pluginOf(S.pluginValuePlugin));
+    function fromMuninn(S, env, args) {
+        return batteryDays.isMuninn(pluginOf(pluginValues.pickOf(S, args.slotKey).plugin));
     }
 
     /**
-     * @param {Object} S Settings.
-     * @returns {boolean} Whether the phone lists the value the settings pick as neither on nor off
+     * @param {Object} pick What a slot picks (plugin-values.js pickOf).
+     * @returns {boolean} Whether the phone lists the value it picks as neither on nor off
      *   (valuesOf): an icon that turns would stay off for it.
      */
-    function listedNeither(S) {
-        var value = valueIn(pluginOf(S.pluginValuePlugin), S.pluginValueId);
+    function listedNeither(pick) {
+        var value = valueIn(pluginOf(pick.plugin), pick.id);
         return Boolean(value) && !value.onOff;
     }
 
@@ -340,44 +372,65 @@
     }
 
     /**
-     * onChange of the Value row (and of the Plugin row, through pluginPicked): leaves an icon that
-     * turns for None where the value the settings pick is neither on nor off, as it would stay off.
+     * Leave a slot's icon that turns for None where the value it picks is neither on nor off, as
+     * it would stay off.
      * @param {Object} S Settings (mutated).
+     * @param {string} slotKey The slot's settings key.
      * @returns {void}
      */
-    function fitIcon(S) {
-        if (turns(pluginValues.iconName(S)) && listedNeither(S)) {
-            S.pluginValueIcon = pluginValues.ICON_DEFAULT;
+    function fitSlotIcon(S, slotKey) {
+        var pick = pluginValues.pickOf(S, slotKey);
+        if (turns(pluginValues.iconName(pick)) && listedNeither(pick)) {
+            S[catalog.pluginValueKeys(slotKey).icon] = pluginValues.ICON_DEFAULT;
         }
     }
 
     /**
+     * onChange of the Value row: fitSlotIcon for the slot whose row changed.
+     * @param {Object} S Settings (mutated).
+     * @param {string} oldV The value before. @param {string} newV The value now.
+     * @param {Object} env Platform env.
+     * @param {string} key The row's key: the slot's (catalog pluginValueSlot).
+     * @returns {void}
+     */
+    function fitIcon(S, oldV, newV, env, key) {
+        fitSlotIcon(S, catalog.pluginValueSlot(key));
+    }
+
+    /**
      * onChange of the Plugin row: a new plugin starts on its first value WarnWeather can read,
-     * None on none, with an icon that fits it (fitIcon). Plugin None leaves the icon None too:
-     * it hides the Icon row, where the icon could be taken off.
+     * None on none, with an icon that fits it (fitSlotIcon). Plugin None leaves the icon None
+     * too: it hides the Icon row, where the icon could be taken off.
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The plugin before.
      * @param {string} newV The plugin now.
+     * @param {Object} env Platform env.
+     * @param {string} key The row's key: the slot's (catalog pluginValueSlot).
      * @returns {void}
      */
-    function pluginPicked(S, oldV, newV) {
+    function pluginPicked(S, oldV, newV, env, key) {
+        var slotKey = catalog.pluginValueSlot(key);
+        var keys = catalog.pluginValueKeys(slotKey);
         var first = valuesOf(pluginOf(newV)).filter(function (v) { return !v.unreadable; })[0];
         if (oldV !== newV) {
-            S.pluginValueId = first ? first.id : '';
-            if (!newV) { S.pluginValueIcon = pluginValues.ICON_DEFAULT; }
-            fitIcon(S);
+            S[keys.id] = first ? first.id : '';
+            if (!newV) { S[keys.icon] = pluginValues.ICON_DEFAULT; }
+            fitSlotIcon(S, slotKey);
         }
     }
 
     /**
      * The Icon row's list: None, then the icons that turn, offered only for a value that is on or
-     * off (greyed out for one the phone lists as neither, but the one the settings hold), then
+     * off (greyed out for one the phone lists as neither, but the one the slot holds), then
      * the icons that stay the same.
      * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
      * @returns {Array<Array>} [label, value, meta?] options.
      */
-    function iconOptions(S) {
-        var neither = listedNeither(S);
+    function iconOptions(S, env, args) {
+        var pick = pluginValues.pickOf(S, args.slotKey);
+        var neither = listedNeither(pick);
         var names = Object.keys(pluginValues.ICON_FORMS).filter(function (name) {
             return name !== pluginValues.ICON_DEFAULT;
         });
@@ -388,7 +441,7 @@
             out.push([group[0], group[2], {disabled: true, groupHeader: true}]);
             inGroup.forEach(function (name, i) {
                 var meta = {groupChild: true, groupEnd: i === inGroup.length - 1};
-                if (group[1] && neither && S.pluginValueIcon !== name) { meta.disabled = true; }
+                if (group[1] && neither && pick.icon !== name) { meta.disabled = true; }
                 out.push([ICON_LABELS[name], name, meta]);
             });
         });
@@ -399,11 +452,14 @@
      * The Icon row's hint, for an icon that turns: how it follows the value, or that it stays off
      * for a value that is neither on nor off. Else none.
      * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
      * @returns {?string} HTML (plain text), or null for none.
      */
-    function iconHint(S) {
-        if (!turns(pluginValues.iconName(S))) { return null; }
-        return listedNeither(S) ? 'This value is neither on nor off, so the icon stays off.'
+    function iconHint(S, env, args) {
+        var pick = pluginValues.pickOf(S, args.slotKey);
+        if (!turns(pluginValues.iconName(pick))) { return null; }
+        return listedNeither(pick) ? 'This value is neither on nor off, so the icon stays off.'
             : 'On while the value is on, off while it is off.';
     }
 
@@ -416,53 +472,76 @@
      * @returns {string} HTML.
      */
     function iconPicture(S, env, args) {
-        return pluginValues.ICON_FORMS[pluginValues.iconName({pluginValueIcon: args.value})].map(function (id) {
+        return pluginValues.ICON_FORMS[pluginValues.iconName({icon: args.value})].map(function (id) {
             return pixelIcon.glyph(pixelIcon.keyOfIcon(id), env);
         }).join('');
     }
 
     /**
-     * @param {Object} S Settings.
+     * @param {Object} pick What a slot picks (plugin-values.js pickOf).
      * @param {number} now Now, in epoch milliseconds.
-     * @returns {?Object} The reading of the value read last that the watch shows now
+     * @returns {?Object} The reading of the value read last that the slot shows now
      *   (plugin-values.js shownReading), or null.
      */
-    function shownNow(S, now) {
-        return pluginValues.shownReading(lastValue(S), S, now);
+    function shownNow(pick, now) {
+        return pluginValues.shownReading(lastValue(pick), pick, now);
     }
 
     /**
      * A Plugin value slot's text in the bars' pictures (preview-status-bars.js): the value read
-     * last at the slot's bytes, as the bake prints it while the watch shows it; else what the
-     * slot shows without one.
+     * last of its source at the slot's bytes, as the bake prints it while the watch shows it;
+     * else what the slot shows without one.
      * @param {Object} S Settings.
      * @param {number} cap The slot's byte cap.
+     * @param {string} slotKey The slot's settings key.
      * @returns {string} The text.
      */
-    function barText(S, cap) {
+    function barText(S, cap, slotKey) {
         var now = Date.now();
-        return pluginValues.textFor(shownNow(S, now), cap, S, now);
+        return pluginValues.textFor(shownNow(pluginValues.pickOf(S, slotKey), now), cap, S, now);
     }
 
     /**
      * A Plugin value slot's icon in the bars' pictures: the form its icon takes for the value
      * barText prints, as the bake picks it (plugin-values.js iconId).
      * @param {Object} S Settings.
+     * @param {string} slotKey The slot's settings key.
      * @returns {?string} The key of the watch's drawing of it (status-pixels ids); null for the
      *   value alone.
      */
-    function barDrawing(S) {
-        return pixelIcon.keyOfIcon(pluginValues.iconId(S, shownNow(S, Date.now())));
+    function barDrawing(S, slotKey) {
+        var pick = pluginValues.pickOf(S, slotKey);
+        return pixelIcon.keyOfIcon(pluginValues.iconId(pick, shownNow(pick, Date.now())));
     }
 
     /**
      * barDrawing as a glyph for the Status bars tab's rows.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
+     * @param {string} slotKey The slot's settings key.
      * @returns {?string} An <svg>, or null for none.
      */
-    function barGlyph(S, env) {
-        return pixelIcon.glyph(barDrawing(S), env) || null;
+    function barGlyph(S, env, slotKey) {
+        return pixelIcon.glyph(barDrawing(S, slotKey), env) || null;
+    }
+
+    /**
+     * The Updates row's list (plugin-values.js EVERY_CHOICES).
+     * @returns {Array<Array>} [label, value] options.
+     */
+    function everyOptions() {
+        return pluginValues.EVERY_CHOICES.map(function (every) { return [EVERY_LABELS[every], every]; });
+    }
+
+    /**
+     * A row's default (defaultsResolver 'pluginValueDefault', which the rows mark sticky: false,
+     * so a save never stores it): what plugin-values.js reads where a slot keeps none.
+     * @param {Object} env Platform env.
+     * @param {{name: string}} args The pick's part (plugin-values.js PICK_DEFAULTS).
+     * @returns {string}
+     */
+    function rowDefault(env, args) {
+        return pluginValues.PICK_DEFAULTS[args.name];
     }
 
     if (PConf && PConf.optionsResolvers) {
@@ -474,14 +553,19 @@
         PConf.hintResolvers.register('pluginValueIconHint', iconHint);
         PConf.optionsResolvers.register('pluginValueIcons', iconOptions);
         PConf.pictureResolvers.register('pluginValueIconPicture', iconPicture);
+        PConf.optionsResolvers.register('pluginValueEveries', everyOptions);
+        PConf.hintResolvers.register('pluginValueEveryHint', function () { return EVERY_HINT; });
+        PConf.hintResolvers.register('pluginValueMuninnNote', function () { return MUNINN_NOTE; });
+        PConf.defaultsResolvers.register('pluginValueDefault', rowDefault);
         PConf.onChange.register('pluginValuePluginPicked', pluginPicked);
         PConf.onChange.register('pluginValueIdPicked', fitIcon);
         PConf.whenResolvers.register('pluginValueFromMuninn', fromMuninn);
     }
 
-    var api = { labelOf: labelOf, pluginOptions: pluginOptions, valueOptions: valueOptions, pluginHint: pluginHint,
-        valueHint: valueHint, lastLine: lastLine, fromMuninn: fromMuninn, pluginPicked: pluginPicked,
-        fitIcon: fitIcon, iconOptions: iconOptions, iconHint: iconHint, iconPicture: iconPicture,
+    var api = { EVERY_HINT: EVERY_HINT, MUNINN_NOTE: MUNINN_NOTE, labelOf: labelOf, pluginOptions: pluginOptions,
+        valueOptions: valueOptions, pluginHint: pluginHint, valueHint: valueHint, lastLine: lastLine,
+        fromMuninn: fromMuninn, pluginPicked: pluginPicked, fitIcon: fitIcon, iconOptions: iconOptions,
+        iconHint: iconHint, iconPicture: iconPicture, everyOptions: everyOptions, rowDefault: rowDefault,
         barText: barText, barDrawing: barDrawing, barGlyph: barGlyph };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PluginValuePage = api; }

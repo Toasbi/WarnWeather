@@ -148,5 +148,12 @@ module.exports = [
     // battery's per slot. Asks for no send: the line bakes as it did. Reset-safe: no blob
     // saved after a reset can hold an old item, since the page no longer offers one.
     { key: KEYS.BATTERY_SLOTS_MERGE_MIGRATION_KEY, markOn: 'now', markOnReset: true,
-      run: statusSlots.mergeBatterySlots }
+      run: statusSlots.mergeBatterySlots },
+    // 3.5.0: the Plugin value's settings are each slot's own. Each slot holding the item takes
+    // the one set every such slot showed. Asks for no send: the lines bake as they did.
+    // Reset-safe: the blob a reset seeds holds no shared set, and the page no longer saves
+    // one. Before plugin-value-source.js init, which moves the value read for that set into
+    // the slots' own reads.
+    { key: KEYS.PLUGIN_VALUE_SLOTS_MIGRATION_KEY, markOn: 'now', markOnReset: true,
+      run: statusSlots.movePluginValueIntoSlots }
 ];

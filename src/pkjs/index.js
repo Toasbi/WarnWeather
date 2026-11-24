@@ -245,14 +245,14 @@ Pebble.addEventListener('showConfiguration', function(e) {
     // The new features this install has not seen and can use: the card the page opens on
     // (page/notices/feature-tips-panel.js). null for none.
     userData.featureTips = featureTipsSeen.forPage(offer);
-    // The Plugin value slot's dialog (page/status-bars/plugin-value-page.js), where the status
+    // The Plugin value slots' dialogs (page/status-bars/plugin-value-page.js), where the status
     // lists offer the slot: the plugins on the phone with a value it can show (listing them runs
     // no plugin), the Pebble app's Preferences plugin with the user's complications, and the
-    // value read last, while it is of what the settings pick.
+    // values read last, by their source, while a slot shows it.
     if (pluginValueOffered(offer)) {
         userData.plugins = pluginValueList.listOf(pluginReader.plugins(Pebble), declaredPermissions(),
             pkg.pebble.uuid, complicationList.current());
-        userData.pluginValue = pluginValueSource.forPage(values, complicationList.current());
+        userData.pluginValues = pluginValueSource.forPage(complicationList.current());
     }
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see page/settings/index.js options).
@@ -504,7 +504,8 @@ Pebble.addEventListener('ready',
         // which reads it again at once when they change.
         complicationList.init({ offered: pluginValueOffered(offerEnv()),
             onChange: pluginValueSource.complicationsChanged });
-        // The Plugin value slot's value (another app's plugin), read only while a bar shows it.
+        // The Plugin value slots' values (other apps' plugins), each read only while a bar shows
+        // a slot of it.
         pluginValueSource.init({
             getSettings: function () { return app.settings; },
             getWatchInfo: function () { return app.watchInfo; },

@@ -144,9 +144,11 @@ const EXPECTED_KEYS = [
   // percentage, the days left or both, and the pair's look: battery-days.js).
   'batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
   'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced',
-  // The Plugin value slot's source, its icon and how often it is read (its dialog; phone-side
-  // only: the icon rides the bars as the slot's icon id).
-  'pluginValuePlugin', 'pluginValueId', 'pluginValueIcon', 'pluginValueEvery'
+  // Each slot's Plugin value: its source, its icon and how often it is read, the slot's own like
+  // its countdown date (its dialog; phone-side only: the icon rides the bars as the slot's icon
+  // id).
+  ...slotCatalog.ALL_LINES.reduce((all, line) => all.concat(line.slots), []).reduce((all, slot) =>
+    all.concat(['PluginValuePlugin', 'PluginValueId', 'PluginValueIcon', 'PluginValueEvery'].map((part) => slot + part)), [])
 ].concat(THRESH_KEYS).concat(UNIT_KEYS).concat(GRAPH_COLOR_KEYS).concat(ALERT_KEYS);
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
@@ -2108,15 +2110,17 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
   // slot', kind 16) serves both of its looks. The phone battery has one 'Phone battery
   // slot' per slot instead of one per kind, since its Look is each slot's own; each serves
   // BOTH phone-battery kinds (18 and 19, the Icon + text and the Text look), which share
-  // key 'PhoneBattery'. The weather condition slot's dialog closes the tab.
-  const PHONE_DIALOGS = slotCatalog.ALL_LINES.reduce((n, line) => n + line.slots.length, 0);
-  assert.equal(PHONE_DIALOGS, 21, 'the four bars\' slots and bars 4 to 6\'s');
+  // key 'PhoneBattery'. The weather condition slot's dialog follows, and the Plugin value's,
+  // one per slot as its source is each slot's own, close the tab.
+  const SLOT_DIALOGS = slotCatalog.ALL_LINES.reduce((n, line) => n + line.slots.length, 0);
+  assert.equal(SLOT_DIALOGS, 21, 'the four bars\' slots and bars 4 to 6\'s');
   assert.deepEqual(titles.slice(17),
     ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
       'Heart rate slot', 'Watch battery slot', 'Dew point slot']
-      .concat(Array(PHONE_DIALOGS).fill('Phone battery slot'), ['Weather condition slot', 'Plugin value slot']),
-    'bold-only slot sheets follow, in wire-id order, then the condition slot\'s and the Plugin value\'s, which has no kind');
+      .concat(Array(SLOT_DIALOGS).fill('Phone battery slot'), ['Weather condition slot'],
+        Array(SLOT_DIALOGS).fill('Plugin value slot')),
+    'bold-only slot sheets follow, in wire-id order, then the condition slot\'s and each slot\'s Plugin value dialog, which has no kind');
   // Every slot sheet previews the bars while it is open (the bar it came from, when it came
   // from a bar's dialog: preview-status-bars.js statusBarsPreview).
   watch.sections.filter((s) => /^thresh/.test(s.sheetId || '')).forEach((s) =>
@@ -2515,14 +2519,14 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // The phone battery has one dialog per slot (its Look is each slot's own), the others one per
   // kind.
   const SLOT_KEYS = slotCatalog.ALL_LINES.reduce((keys, line) => keys.concat(line.slots), []);
-  assert.equal(sheets.length, 20 + SLOT_KEYS.length,
-    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only), the phone battery\'s one per slot, and the Plugin value\'s');
+  assert.equal(sheets.length, 19 + 2 * SLOT_KEYS.length,
+    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only), and the phone battery\'s and the Plugin value\'s one per slot');
   assert.deepEqual(sheets.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct', 'threshDew']
-      .concat(SLOT_KEYS.map(slotCatalog.phoneBatterySheet), ['threshCondition', 'threshPluginValue']),
+      .concat(SLOT_KEYS.map(slotCatalog.phoneBatterySheet), ['threshCondition'], SLOT_KEYS.map(slotCatalog.pluginValueSheet)),
     'sheet ids follow the thresh<Stem> convention the slot resolver derives, a slot\'s own after it');
   // The On demand sheets (the side lists' section + 10 item sheets) moved with the alerts
   // to the Alerts tab, and carry the On demand gate (aplite has no On demand).

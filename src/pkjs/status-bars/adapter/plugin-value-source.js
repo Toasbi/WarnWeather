@@ -1,25 +1,30 @@
 // src/pkjs/status-bars/adapter/plugin-value-source.js
 //
-// The value the Plugin value slot shows: one property of one plugin the user picks in the
-// slot's dialog (plugin-values.js sourceOf), read from that plugin of the Pebble app. Or one of
-// the user's complications in the Pebble app, by its place (complications.js): the reading the
-// complication at that place names, read from whichever plugin the Pebble app picks for its
-// source. The value's key names that reading after the complication's own, so a change of the
-// complication in the Pebble app is another key: the old reading's value is dropped and the new
-// one is read at once (complication-list.js calls complicationsChanged when the list changes).
+// The values the Plugin value slots show: each one property of one plugin the user picks in the
+// slot's own dialog (plugin-values.js pickOf, sourceOf), read from that plugin of the Pebble app.
+// Or one of the user's complications in the Pebble app, by its place (complications.js): the
+// reading the complication at that place names, read from whichever plugin the Pebble app picks
+// for its source. The value's key names that reading after the complication's own, so a change
+// of the complication in the Pebble app is another key: the old reading's value is dropped and
+// the new one is read at once (complication-list.js calls complicationsChanged when the list
+// changes).
 //
-// Read once at a time, when the slot's Updates setting and the plugin's own word say
-// (domain/plugin-value-reads.js); picking a source reads at once. How a read goes, and what is
-// kept of it, is every plugin read's (plugin-read-schedule.js). The source is the schedule's
-// key: a source picked in place of another forgets the old one's read and value.
+// Each value is read in a lane of its own (a read schedule, plugin-read-schedule.js), once
+// however many slots show it: its source is the lane's key, and the lane keeps its read and its
+// value under that key (storage-keys.js PLUGIN_VALUE_READS, PLUGIN_VALUES). A value is read once
+// at a time, when its Updates setting and the plugin's own word say
+// (domain/plugin-value-reads.js), the shortest Updates where the slots that show it differ;
+// picking a source reads at once. How a read goes, and what is kept of it, is every plugin
+// read's (plugin-read-schedule.js).
 //
-// Only while it is wanted: a source is picked and a bar the watch is sent shows the slot
-// (status-lines.js wantsPluginValue). A bake shows the value only for the source it was read
-// from, and drops it once it is too old (plugin-values.js shownReading); when what the slot shows
-// changes, with a read or with the time (that, or a moment's date at the midnight after it, or
-// its icon turning: shownSlot), the watch is owed the status that shows it. The settings page
-// gets it only while it is of what the settings pick, and of the reading a complication's place
-// names now (forPage).
+// Only while it is wanted: a slot of a bar the watch is sent shows it (status-lines.js
+// wantedPluginValues). A lane no slot shows any more is dropped with its read and its value, so
+// a value picked again is read at once. A bake shows a value only in a slot whose source it was
+// read from, and drops it once it is too old for that slot (plugin-values.js shownReading); when
+// what the slots show changes, with a read or with the time (that, or a moment's date at the
+// midnight after it, or an icon turning: shownSlots), the watch is owed the status that shows
+// it. The settings page gets each value only while a slot shows its source, and for a
+// complication only while its place names the reading it was read from (forPage).
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
@@ -30,14 +35,17 @@ var pluginValueReads = require('../domain/plugin-value-reads.js');
 var catalog = require('../domain/status-line-catalog.js');
 var complications = require('../domain/complications.js');
 var pluginReadSchedule = require('./plugin-read-schedule.js');
-var storedJson = require('./stored-json.js');
 var pluginReader = require('./plugin-reader.js');
+var storedJson = require('./stored-json.js');
+
+/** What the log calls the reads and their storage (never a value: it is another app's data). */
+var NAME = 'plugin-value';
 
 /**
- * What the slot reads for the source the settings pick, whether a bar shows it or not. Nothing
- * of the Preferences plugin's but a complication: its own readings are the user's position and
- * plumbing, which this app never reads (plugin-reads.js neverRead), and a pick of one from
- * before the complications (3.4.0 listed them) shows nothing.
+ * What a lane reads for its source, whether a bar shows it or not. Nothing of the Preferences
+ * plugin's but a complication: its own readings are the user's position and plumbing, which
+ * this app never reads (plugin-reads.js neverRead), and a pick of one from before the
+ * complications (3.4.0 listed them) shows nothing.
  * @param {Object} source The source (plugin-values.js sourceOf).
  * @param {?Array<Object>} list The user's complications as last heard, or null while none are
  *   known.
@@ -55,107 +63,263 @@ function readOf(source, list, permissions) {
 }
 
 /**
- * What the slot shows of the value at an instant: the text it prints at the widest a Plugin
- * value slot is (status-lines.js textCap) and the icon before it, which turns with a value that
- * is on or off (plugin-values.js iconId). A value grown too old shows nothing (plugin-values.js
- * shownReading), and a moment prints its date once it is on another day (slot-text.js
- * momentText). Never logged: it is another app's data.
+ * What the slots that show a source show of its value at an instant, each the text it prints
+ * at the widest a Plugin value slot is (status-lines.js textCap) and the icon before it, which
+ * turns with a value that is on or off (plugin-values.js iconId). A value grown too old for a
+ * slot shows nothing there (plugin-values.js shownReading), and a moment prints its date once it
+ * is on another day (slot-text.js momentText). Never logged: it is another app's data.
  * @param {?Object} value The value kept, or null.
- * @param {?Object} settings Settings.
+ * @param {Array<{pick: Object}>} slots The slots that show its source (status-lines.js
+ *   wantedPluginValues), in their order.
+ * @param {?Object} settings Settings: the clock's format.
  * @param {number} nowMs The instant, in epoch milliseconds.
- * @returns {?{text: string, icon: number}} What it shows, or null for nothing (a start with an
- *   empty slot owes nothing).
+ * @returns {?Array<?{text: string, icon: number}>} What each slot shows, or null for nothing
+ *   in any (a start with empty slots owes nothing).
  */
-function shownSlot(value, settings, nowMs) {
-    var reading = pluginValues.shownReading(value, settings, nowMs);
-    return reading ? { text: pluginValues.textFor(reading, catalog.CAPS.MID_TEXT_MAX, settings, nowMs),
-        icon: pluginValues.iconId(settings, reading) } : null;
+function shownSlots(value, slots, settings, nowMs) {
+    var shown = slots.map(function (slot) {
+        var reading = pluginValues.shownReading(value, slot.pick, nowMs);
+        return reading ? { text: pluginValues.textFor(reading, catalog.CAPS.MID_TEXT_MAX, settings, nowMs),
+            icon: pluginValues.iconId(slot.pick, reading) } : null;
+    });
+    return shown.some(Boolean) ? shown : null;
 }
 
 /**
- * @param {?{text: string, icon: number}} a What the slot showed (shownSlot).
- * @param {?{text: string, icon: number}} b What it shows now.
+ * @param {*} a What the slots showed (shownSlots). @param {*} b What they show now.
  * @returns {boolean} Whether the two are the same.
  */
-function sameSlot(a, b) {
-    return a === b || (a !== null && b !== null && a.text === b.text && a.icon === b.icon);
+function sameShown(a, b) {
+    return JSON.stringify(a) === JSON.stringify(b);
 }
 
-var schedule = pluginReadSchedule.create({
-    name: 'plugin-value',
-    recordAt: storedJson.place(KEYS.PLUGIN_VALUE_READ),
-    valueAt: storedJson.place(KEYS.PLUGIN_VALUE),
-    // Until when the plugin said its last answer holds: its own word on when it has something new.
-    timeField: 'validUntil',
-    // init's options carry what this app declares (permissions; none: a source that names a
-    // permission is then never read) and the user's complications (getComplications,
-    // complication-list.js current; none: not known).
-    wanted: function (settings, watchInfo, deps) {
-        // The source first: it alone rules out most settings, without working out the bars.
-        var source = pluginValues.sourceOf(settings);
-        if (!source || !statusLines.wantsPluginValue(settings, watchInfo)) { return null; }
-        return readOf(source, typeof deps.getComplications === 'function' ? deps.getComplications() : null,
-            Array.isArray(deps.permissions) ? deps.permissions : []);
-    },
-    nextReadAt: function (record, settings) {
-        return pluginValueReads.nextReadAt(record, pluginValues.everyMs(settings));
-    },
-    heard: function (envelope, want, nowMs) {
-        var until = pluginReader.validUntilOf(envelope);
-        // Checked as a stored value is, once: valueOf.
-        return { time: until, value: pluginValueReads.valueOf({ source: want.key,
-            reading: pluginReader.readingOf(envelope, want.request.properties[0], want.request.instance),
-            at: nowMs, validUntil: until }) };
-    },
-    valueOf: pluginValueReads.valueOf,
-    shown: shownSlot,
-    sameShown: sameSlot
-});
+// The lanes, by their source's key: {source, schedule}.
+var lanes = {};
+// init's options: the environment every lane's schedule is handed.
+var deps = null;
+// The Plugin value slots wanted as of the last look (status-lines.js wantedPluginValues): what
+// each lane reads, how often, and what it shows. Every look starts by taking them (sync), and
+// every change of the settings or the complications is a look.
+var wantedNow = [];
 
 /**
- * The Plugin value slot's facts a status-line bake reads (status-lines.js PluginValueFacts):
- * whether this Pebble app reads plugins, and the function that reads the value last heard.
- * The bake asks for the value only when a bar it bakes shows the slot.
+ * @returns {boolean} Whether this Pebble app can read plugins at all (none before init).
+ */
+function available() {
+    return Boolean(deps) && pluginReader.available(pluginReader.pebbleOf(deps));
+}
+
+/**
+ * @returns {Array<{slotKey: string, pick: Object, source: Object}>} The Plugin value slots
+ *   wanted now (status-lines.js wantedPluginValues): none where this Pebble app reads no plugins.
+ */
+function wanted() {
+    return available() ? statusLines.wantedPluginValues(deps.getSettings(), deps.getWatchInfo()) : [];
+}
+
+/**
+ * @param {string} key A source's key.
+ * @returns {Array<{pick: Object, source: Object}>} The slots wanted as of the last look that
+ *   show it (wantedNow).
+ */
+function slotsShowing(key) {
+    return wantedNow.filter(function (slot) { return slot.source.key === key; });
+}
+
+/**
+ * @param {Array<{source: Object}>} slots Plugin value slots (wanted).
+ * @returns {string[]} Their sources' keys, each once, in their order.
+ */
+function keysOf(slots) {
+    var keys = [];
+    slots.forEach(function (slot) {
+        if (keys.indexOf(slot.source.key) === -1) { keys.push(slot.source.key); }
+    });
+    return keys;
+}
+
+/**
+ * A lane's rules (plugin-read-schedule.js PluginReadSpec): what it reads while a slot shows its
+ * source, how often (the shortest Updates of those slots), and what those slots show of it, all
+ * of the slots as of the last look (wantedNow), which the settings handed to the rules are of.
+ * @param {string} key The source's key.
+ * @returns {Object} The spec.
+ */
+function laneSpec(key) {
+    return {
+        name: NAME,
+        recordAt: storedJson.entryOf(KEYS.PLUGIN_VALUE_READS, key),
+        valueAt: storedJson.entryOf(KEYS.PLUGIN_VALUES, key),
+        // Until when the plugin said its last answer holds: its own word on when it has something new.
+        timeField: 'validUntil',
+        // init's options carry what this app declares (permissions; none: a source that names a
+        // permission is then never read) and the user's complications (getComplications,
+        // complication-list.js current; none: not known).
+        wanted: function (settings, watchInfo, d) {
+            var slots = slotsShowing(key);
+            if (!slots.length) { return null; }
+            return readOf(slots[0].source, typeof d.getComplications === 'function' ? d.getComplications() : null,
+                Array.isArray(d.permissions) ? d.permissions : []);
+        },
+        nextReadAt: function (record) {
+            var everies = slotsShowing(key).map(function (slot) { return pluginValues.everyMs(slot.pick); });
+            return pluginValueReads.nextReadAt(record,
+                everies.length ? Math.min.apply(Math, everies) : pluginValues.everyMs(null));
+        },
+        heard: function (envelope, want, nowMs) {
+            var until = pluginReader.validUntilOf(envelope);
+            // Checked as a stored value is, once: valueOf.
+            return { time: until, value: pluginValueReads.valueOf({ source: want.key,
+                reading: pluginReader.readingOf(envelope, want.request.properties[0], want.request.instance),
+                at: nowMs, validUntil: until }) };
+        },
+        valueOf: pluginValueReads.valueOf,
+        shown: function (value, settings, nowMs) {
+            return shownSlots(value, slotsShowing(key), settings, nowMs);
+        },
+        sameShown: sameShown
+    };
+}
+
+/**
+ * @param {string} key A source a slot shows now (wantedNow).
+ * @returns {{source: Object, schedule: Object}} A lane for it, not wired up yet.
+ */
+function laneOf(key) {
+    return { source: slotsShowing(key)[0].source, schedule: pluginReadSchedule.create(laneSpec(key)) };
+}
+
+/**
+ * A look: bring the lanes in line with the slots wanted now. A lane no slot shows any more is
+ * dropped with its read and its value, a lane is made for a source a slot shows now, and each
+ * lane left reads when a read is due.
+ * @param {boolean} fromSave Whether the settings were just saved (plugin-read-schedule.js
+ *   refresh), else a tick's look.
+ * @returns {void}
+ */
+function sync(fromSave) {
+    var keys;
+    if (!deps) { return; }
+    wantedNow = wanted();
+    keys = keysOf(wantedNow);
+    Object.keys(lanes).forEach(function (key) {
+        if (keys.indexOf(key) !== -1) { return; }
+        lanes[key].schedule.drop();
+        delete lanes[key];
+    });
+    keys.forEach(function (key) {
+        if (!lanes[key]) {
+            lanes[key] = laneOf(key);
+            lanes[key].schedule.load(deps);
+        }
+        if (fromSave) { lanes[key].schedule.refresh(); }
+        else { lanes[key].schedule.onTick(); }
+    });
+}
+
+/**
+ * Move what the app kept before 3.5.0, when the item had one source for every slot (one value,
+ * one read), into the lane of the source it was read from, and remove it. The settings moved
+ * that source into each slot that showed it (settings/domain/migrations/status-slots.js
+ * movePluginValueIntoSlots), so those slots show the value kept from the start. A value of no
+ * source a slot shows goes, and so does a read without a value.
+ * @param {Array<{source: Object}>} slots The Plugin value slots wanted now.
+ * @returns {void}
+ */
+function moveSingleValue(slots) {
+    var stored = storedJson.read(KEYS.PLUGIN_VALUE);
+    var record = storedJson.read(KEYS.PLUGIN_VALUE_READ);
+    var value = pluginValueReads.valueOf(stored);
+    var owner = value ? slots.filter(function (slot) { return pluginValues.readFrom(value, slot.source); })[0] : null;
+    if (owner) {
+        storedJson.entryOf(KEYS.PLUGIN_VALUES, owner.source.key).write(value, null, NAME + ': the value');
+        if (record && record.source === value.source) {
+            storedJson.entryOf(KEYS.PLUGIN_VALUE_READS, owner.source.key).write(record, null,
+                NAME + ': the time of the read');
+        }
+    }
+    storedJson.write(KEYS.PLUGIN_VALUE, null, stored, NAME + ': the value');
+    storedJson.write(KEYS.PLUGIN_VALUE_READ, null, record, NAME + ': the time of the read');
+}
+
+/**
+ * Wire the source up: a lane for each source a slot shows now, with what storage keeps of it,
+ * each taking its first look (plugin-read-schedule.js init); what storage keeps of a source no
+ * slot shows goes. Call once, from the 'ready' handler, after statusRebake.init() and
+ * complication-list.js' init. Re-calling starts afresh from storage, which is what the tests
+ * rely on.
+ * @param {Object} options plugin-read-schedule.js init's options, with what this app declares
+ *   (permissions: plugin-reads.js declaredKeys) and the user's complications as last heard
+ *   (getComplications: complication-list.js current).
+ * @returns {void}
+ */
+function init(options) {
+    var keys;
+    if (!options || typeof options.getSettings !== 'function'
+            || typeof options.getWatchInfo !== 'function' || typeof options.now !== 'function') {
+        throw new Error(NAME + ': init needs getSettings, getWatchInfo and now');
+    }
+    deps = options;
+    lanes = {};
+    wantedNow = wanted();
+    keys = keysOf(wantedNow);
+    moveSingleValue(wantedNow);
+    storedJson.keepOnly(KEYS.PLUGIN_VALUES, keys, NAME + ': the values');
+    storedJson.keepOnly(KEYS.PLUGIN_VALUE_READS, keys, NAME + ': the times of the reads');
+    keys.forEach(function (key) {
+        lanes[key] = laneOf(key);
+        lanes[key].schedule.init(deps);
+    });
+}
+
+/**
+ * The Plugin value slots' facts a status-line bake reads (status-lines.js PluginValueFacts):
+ * whether this Pebble app reads plugins, and the function that reads the value last heard of a
+ * source. The bake asks only for the sources of the slots it bakes.
  *
- * @returns {{available: boolean, value: function(): ?Object}}
+ * @returns {{available: boolean, valueOf: function(Object): ?Object}}
  */
 function bakeFacts() {
-    return { available: schedule.available(), value: schedule.value };
+    return {
+        available: available(),
+        valueOf: function (source) {
+            return Object.prototype.hasOwnProperty.call(lanes, source.key) ? lanes[source.key].schedule.value() : null;
+        }
+    };
 }
 
 /**
- * The value last heard, for the settings page (userData.pluginValue): only while it was read
- * from what the settings pick, and for a complication from the reading its place names now, so
- * the page never prints another's as the slot's value, nor one the slot no longer reads. The
- * page judges it against the source its rows pick right then (plugin-values.js shownReading).
- * @param {?Object} settings The settings the page opens on.
+ * The values last heard, for the settings page (userData.pluginValues), by their source's key:
+ * each only while a slot shows its source, and for a complication only while its place names
+ * the reading it was read from, so the page never prints another's as a slot's value, nor one
+ * the slot no longer reads. The page judges each against the source a slot's rows pick right
+ * then (plugin-values.js shownReading).
  * @param {?Array<Object>} list The user's complications as last heard (complication-list.js
  *   current), or null while none are known.
- * @returns {?Object} The value ({source, reading, at, validUntil}; plugin-value-reads.js
- *   valueOf), or null.
+ * @returns {Object<string, Object>} The values ({source, reading, at, validUntil};
+ *   plugin-value-reads.js valueOf), by their source's key; {} for none.
  */
-function forPage(settings, list) {
-    var source = pluginValues.sourceOf(settings);
-    // What this app declares changes neither the key nor whether anything is read.
-    var want = source ? readOf(source, list, []) : null;
-    var value = schedule.value();
-    return value && want && want.request && value.source === want.key ? value : null;
+function forPage(list) {
+    var out = {};
+    Object.keys(lanes).forEach(function (key) {
+        var value = lanes[key].schedule.value();
+        // What this app declares changes neither the key nor whether anything is read.
+        var want = readOf(lanes[key].source, list, []);
+        if (value && want.request && value.source === want.key) { out[key] = value; }
+    });
+    return out;
 }
 
 module.exports = {
-    // Wire the source up (plugin-read-schedule.js init): the schedule's options, with what this
-    // app declares (permissions: plugin-reads.js declaredKeys) and the user's complications as
-    // last heard (getComplications: complication-list.js current). Call once, from the 'ready'
-    // handler, after statusRebake.init() and complication-list.js' init.
-    init: schedule.init,
-    // Per-minute hook, driven by the channel scheduler's 60 s tick: reads the value again once
-    // the next read is due.
-    onTick: schedule.onTick,
+    init: init,
+    // Per-minute hook, driven by the channel scheduler's 60 s tick: reads a value again once its
+    // next read is due.
+    onTick: function () { sync(false); },
     // The settings were saved: a source just picked is read at once.
-    refresh: schedule.refresh,
-    // The user's complications changed (complication-list.js): the reading the slot's place
-    // names now is read at once, as a tick reads (outside the Night battery saver's window).
-    complicationsChanged: schedule.onTick,
+    refresh: function () { sync(true); },
+    // The user's complications changed (complication-list.js): the reading a slot's place names
+    // now is read at once, as a tick reads (outside the Night battery saver's window).
+    complicationsChanged: function () { sync(false); },
     bakeFacts: bakeFacts,
     forPage: forPage
 };

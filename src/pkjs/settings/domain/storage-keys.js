@@ -55,6 +55,9 @@ module.exports = {
     // 3.3.0: the two watch battery items and the two phone battery items became one each,
     // with a Look (settings/domain/migrations/status-slots.js mergeBatterySlots).
     BATTERY_SLOTS_MERGE_MIGRATION_KEY: 'v3.3.0_battery_slots_merge_migration',
+    // 3.5.0: the Plugin value's one set of settings into each slot that holds it
+    // (settings/domain/migrations/status-slots.js movePluginValueIntoSlots).
+    PLUGIN_VALUE_SLOTS_MIGRATION_KEY: 'v3.5.0_plugin_value_slots_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',
@@ -145,15 +148,23 @@ module.exports = {
     // before estimate-reads.js says. Absent while the days are not wanted, so switching them on
     // reads at once.
     BATTERY_ESTIMATE_READ: 'batteryEstimateRead',
-    // The Plugin value slot's value as it was last heard ({source, reading: {short, time,
-    // number, unit, state, long}, at, validUntil}; plugin-value-source.js, plugin-value-reads.js
-    // valueOf), kept across PKJS restarts so a bake shows it at once. `source` names the plugin
-    // and the value it was read from; a value of another source is never shown.
+    // Each value a Plugin value slot shows, as it was last heard, by its source (the key of
+    // plugin-values.js sourceOf): {<source>: {source, reading: {short, time, number, unit, state,
+    // long}, at, validUntil}} (plugin-value-source.js, plugin-value-reads.js valueOf), kept
+    // across PKJS restarts so a bake shows it at once. A value's own `source` names the plugin
+    // and the value it was read from; a value of another source is never shown. An entry goes
+    // when no slot of the bars the watch is sent shows its source.
+    PLUGIN_VALUES: 'pluginValues',
+    // When each of those values was last read, by its source: {<source>: {source, at, failures,
+    // validUntil}} (plugin-reads.js recordOf, plugin-read-schedule.js), so neither a PKJS restart
+    // nor a settings save reads it again before plugin-value-reads.js says. An entry goes with
+    // its value, and is forgotten with a new reading at a complication's place, so either reads
+    // at once.
+    PLUGIN_VALUE_READS: 'pluginValueReads',
+    // Until 3.5.0, when the item had one source for every slot: its value as last heard, and
+    // when it was last read. plugin-value-source.js moves them into the maps above at its start
+    // and removes them.
     PLUGIN_VALUE: 'pluginValue',
-    // When that value was last read ({source, at, failures, validUntil}; plugin-reads.js
-    // recordOf, plugin-read-schedule.js), so neither a PKJS restart nor a settings save reads it
-    // again before plugin-value-reads.js says. Absent while the slot is not wanted, and
-    // forgotten with a new source, so either reads at once.
     PLUGIN_VALUE_READ: 'pluginValueRead',
     // The user's complications in the Pebble app as last heard ([{position, category, item,
     // index, property}]; complication-list.js, complications.js), so the settings page lists

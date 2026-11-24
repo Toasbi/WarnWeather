@@ -148,7 +148,7 @@ test('the complications tip names the page\'s own words: the slot\'s item, and t
   // complications (plugin-value-list.js listOf).
   global.INJECTED_USERDATA = { plugins: [{ uuid: PREFERENCES, name: 'Preferences', items: [], complications: [] }] };
   t.after(() => { delete global.INJECTED_USERDATA; });
-  const entry = page.pluginOptions({ pluginValuePlugin: '' })[1][0];
+  const entry = page.pluginOptions({}, {}, { slotKey: 'statusTopLeft' })[1][0];
   assert.ok(tip.html.indexOf('Set a slot to ' + catalog.byCode('pluginValue').label + ', tap Edit') !== -1, tip.html);
   assert.ok(tip.html.indexOf('then pick ' + entry + ' and') !== -1, entry + ': ' + tip.html);
   assert.equal(tip.since, '3.5.0');
@@ -159,15 +159,17 @@ test('the icon tip names the page\'s own words: the Edit button, the Icon row, i
   const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
   global.INJECTED_USERDATA = { plugins: [] };
   t.after(() => { delete global.INJECTED_USERDATA; });
-  const options = page.iconOptions({ pluginValuePlugin: '' });
+  const options = page.iconOptions({}, {}, { slotKey: 'statusTopLeft' });
   const turns = options.slice(options.findIndex((o) => o[1] === '__hdr_turns') + 1,
     options.findIndex((o) => o[1] === '__hdr_same')).map((o) => o[0]);
   assert.deepEqual(turns, ['Switch', 'Wi-Fi', 'Bluetooth']);
   assert.ok(tip.html.indexOf('A ' + catalog.byCode('pluginValue').label + ' slot') === 0, tip.html);
-  assert.ok(tip.html.indexOf('Edit button and pick one under ' + row('pluginValueIcon').label + '.') !== -1, tip.html);
+  assert.ok(tip.html.indexOf('Edit button and pick one under ' + row('statusTopLeftPluginValueIcon').label + '.') !== -1,
+    tip.html);
   assert.ok(tip.html.indexOf(turns.slice(0, 2).join(', ') + ' and ' + turns[2] + ' turn off') !== -1, tip.html);
-  const every = row('pluginValueEvery');
-  const fifteen = every.options.find((o) => o[1] === '15');
+  const every = row('statusTopLeftPluginValueEvery');
+  assert.equal(every.optionsFrom.resolver, 'pluginValueEveries');
+  const fifteen = page.everyOptions().find((o) => o[1] === '15');
   assert.ok(fifteen, 'Updates offers 15 minutes');
   assert.ok(tip.html.indexOf('Under ' + every.label + ', you can now pick ' + fifteen[0] + '.') !== -1, tip.html);
   assert.equal(tip.since, '3.5.0');

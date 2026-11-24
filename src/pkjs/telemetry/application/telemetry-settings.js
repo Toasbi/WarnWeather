@@ -19,9 +19,9 @@
 // unitEnabled — a Show unit toggle, read like the bake prints the slot.
 var slotText = require('../../status-bars/domain/slot-text.js');
 var batteryDays = require('../../status-bars/domain/battery-days.js');
-// wantsPluginValue: whether the Plugin value slot is shown with a source picked.
+// wantedPluginValues: the Plugin value slots shown with a source picked.
 var statusLines = require('../../status-bars/domain/status-lines.js');
-// iconName: the Plugin value slot's icon.
+// ICON_FORMS, iconName: the icons those slots draw.
 var pluginValues = require('../../status-bars/domain/plugin-values.js');
 var platforms = require('../../config-ui/lib/platform.js');
 var color = require('../../lib/color.js');
@@ -228,6 +228,21 @@ function weatherSourcesOf(settings) {
 }
 
 /**
+ * The icons Plugin value slots draw before their values (each slot's Icon row: plugin-values.js
+ * iconName), each once, in the Icon row's order: this app's own choices, never a text of the
+ * user's.
+ * @param {Array<{pick: Object}>} slots The slots (status-lines.js wantedPluginValues).
+ * @returns {string} Their names joined by commas ('none' for a slot without one), or '' for no
+ *   slot.
+ */
+function pluginValueIcons(slots) {
+    var names = slots.map(function (slot) { return pluginValues.iconName(slot.pick); });
+    return Object.keys(pluginValues.ICON_FORMS).filter(function (name) {
+        return names.indexOf(name) !== -1;
+    }).join(',');
+}
+
+/**
  * Build a compact, allowlisted settings snapshot for telemetry.
  *
  * @param {Object} settings Clay settings object.
@@ -250,6 +265,9 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
     // radio (every other watch keeps its screens as a custom layout, the customView fields
     // below). Elsewhere these three are leftovers, or a constant 'custom'.
     var isAplite = env.platform === 'aplite';
+    // The Plugin value slots a bar the watch is sent shows with a source picked
+    // (status-lines.js wantedPluginValues), on every watch but aplite, which has no such slot.
+    var pluginSlots = isAplite ? null : statusLines.wantedPluginValues(safe, watchInfo);
     // The On demand items' code (undefined on a watch without On demand), which the
     // settings that only On demand reads follow.
     var onDemandCode = onDemand.telemetryCode(safe, env);
@@ -402,16 +420,15 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // is each slot's own and not reported.) Lockstep with handler.ts -- deploy it first.
         batterySlotLook: isAplite ? undefined : slotText.batteryLook(safe),
         batterySlotDisplay: isAplite ? undefined : batteryDays.display(safe),
-        // The Plugin value slot: whether a bar the watch is sent shows it with a source picked
-        // (status-lines.js wantsPluginValue). The settings alone, as with the days left: true too
-        // on a Pebble app that cannot read plugins, which draws no such slot. A yes or no alone:
-        // the plugin and what it serves are another app's and never leave the phone. Absent on
-        // aplite, which has no such slot. Lockstep with handler.ts -- deploy it first.
-        pluginValue: isAplite ? undefined : statusLines.wantsPluginValue(safe, watchInfo),
-        // Its icon, the dialog's Icon row ('none', 'switch', 'wifi', ...: plugin-values.js
-        // ICON_FORMS), one of this app's own choices. Absent on aplite. Lockstep with
-        // handler.ts -- deploy it first.
-        pluginValueIcon: isAplite ? undefined : pluginValues.iconName(safe),
+        // The Plugin value slots: whether a bar the watch is sent shows one with a source picked
+        // (pluginSlots), how many do, and the icons they draw. The settings alone, as with the
+        // days left: counted too on a Pebble app that cannot read plugins, which draws no such
+        // slot. Never a plugin or what it serves: those are another app's and never leave the
+        // phone. Absent on aplite, which has no such slot. Lockstep with handler.ts -- deploy
+        // it first.
+        pluginValue: pluginSlots ? pluginSlots.length > 0 : undefined,
+        pluginValueSlots: pluginSlots ? pluginSlots.length : undefined,
+        pluginValueIcons: pluginSlots ? pluginValueIcons(pluginSlots) : undefined,
         // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),

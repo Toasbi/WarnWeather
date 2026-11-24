@@ -175,9 +175,9 @@ test('the keys the rows write are the catalog\'s: the watch battery\'s list and 
   const lookRows = nodes((node) => /PhoneBatteryLook$/.test(String(node.messageKey || ''))).map((i) => i.messageKey);
   assert.deepEqual(lookRows.slice().sort(), SLOT_KEYS.map(catalog.phoneBatteryLookKey).sort());
   SLOT_KEYS.forEach((slotKey) => {
-    assert.deepEqual(catalog.slotCompanions(slotKey), [
-      { code: 'countdown', key: slotKey + 'Countdown', defaultValue: undefined },
-      { code: 'phoneBattery', key: slotKey + 'PhoneBatteryLook', defaultValue: 'both' }]);
+    assert.deepEqual(catalog.slotCompanions(slotKey).slice(0, 2), [
+      { code: 'countdown', key: slotKey + 'Countdown', defaultValue: undefined, signed: true },
+      { code: 'phoneBattery', key: slotKey + 'PhoneBatteryLook', defaultValue: 'both', signed: true }]);
     // The value a new bar's slot starts on is the one its Look row has.
     assert.equal(row(catalog.phoneBatteryLookKey(slotKey)).defaultValue, catalog.slotCompanions(slotKey)[1].defaultValue);
   });
@@ -204,10 +204,14 @@ test('the steps every how-to for the days ends on name this dialog\'s rows and t
   assert.equal(batteryDays.DAYS_STEPS, 'set ' + look.label + ' to ' + choice(look, 'both') + ' or ' + choice(look, 'text')
     + ', then set ' + display.label + ' to ' + choice(display, 'days') + ' or ' + choice(display, 'both') + '.');
   const tip = require('../../../src/pkjs/notices/domain/feature-tips.js').TIPS.find((t) => t.id === 'batteryDays');
-  const note = nodes((node) => node.type === 'staticText' && Boolean(node.showWhen)
+  // The Plugin value dialogs' note, one per slot, takes its words from the page, once
+  // (plugin-value-page.js MUNINN_NOTE).
+  const notes = nodes((node) => node.type === 'staticText' && Boolean(node.showWhen)
     && node.showWhen.when === 'pluginValueFromMuninn');
-  assert.equal(note.length, 1, 'one Muninn note');
-  [tip.html, note[0].text, MUNINN_NOTE[1].text].forEach((howTo) =>
+  assert.equal(notes.length, SLOT_KEYS.length, 'one Muninn note per Plugin value dialog');
+  notes.forEach((note) => assert.deepEqual(note.textFrom, { resolver: 'pluginValueMuninnNote' }));
+  const pluginValuePage = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
+  [tip.html, pluginValuePage.MUNINN_NOTE, MUNINN_NOTE[1].text].forEach((howTo) =>
     assert.ok(howTo.endsWith(', ' + batteryDays.DAYS_STEPS), howTo.slice(0, 40) + '…: ends on the steps'));
 });
 

@@ -1,9 +1,9 @@
 // src/pkjs/status-bars/domain/plugin-values.js
 //
 // The Plugin value status slot ('pluginValue', status-line-catalog.js): a value another app's
-// plugin serves, which the user picks in the slot's dialog. The source is the item's, so every
-// slot that holds it shows the same value. Here: the source the settings pick, how often it is
-// read, how long a value read from it shows, the text the slot prints and the icon before it.
+// plugin serves, which the user picks in the slot's dialog. Each slot that holds it picks its own
+// (pickOf). Here: the source a slot picks, how often it is read, how long a value read from it
+// shows, the text the slot prints and the icon before it.
 //
 // The settings page loads this file too (window.PluginValues): the dialog's last value and the
 // bars' pictures print the text the bake prints, and the dialog's rows store the ids valueId
@@ -27,7 +27,7 @@
     var EVERY_DEFAULT = '60';
 
     /**
-     * The Icon row's choices (pluginValueIcon) and the icon each draws before the value's text:
+     * The Icon row's choices (a pick's icon) and the icon each draws before the value's text:
      * one that turns with a value that is on or off has its on form and its off form, one that
      * stays the same its one form. None draws nothing, and is where a slot starts.
      */
@@ -42,6 +42,13 @@
         calendar: [ICONS.PV_CALENDAR]
     };
     var ICON_DEFAULT = 'none';
+
+    /**
+     * What a slot picks where it keeps no setting of its own (PluginValuePick): no plugin, no
+     * icon and the Updates a slot starts on. Its dialog's rows show these and never store them
+     * (page/status-bars/plugin-value-schema.js).
+     */
+    var PICK_DEFAULTS = { plugin: '', id: '', icon: ICON_DEFAULT, every: EVERY_DEFAULT };
 
     /** A value shows for three Updates intervals after it was read, and at least this long. */
     var SHOWN_AT_LEAST_MS = 3 * HOUR_MS;
@@ -60,7 +67,7 @@
     var PREFERENCES = '00000000-0000-0000-0001-000000000009';
 
     /**
-     * A value's id, as the settings keep it (pluginValueId) and sourceOf takes it apart.
+     * A value's id, as a slot's settings keep it (a pick's id) and sourceOf takes it apart.
      * @param {string} category Its source's category. @param {string} item Its item.
      * @param {string} property Its property.
      * @returns {string} 'category/item/property'.
@@ -70,7 +77,7 @@
     }
 
     /**
-     * A complication's id, as the settings keep it (pluginValueId, beside the Preferences plugin):
+     * A complication's id, as a slot's settings keep it (a pick's id, beside the Preferences plugin):
      * a value's id of the complications source (complications.js SOURCE), with its place in the
      * user's list in the property's place. One digit: ten places, more than the Pebble app has
      * (five).
@@ -82,16 +89,37 @@
     }
 
     /**
-     * The source the settings pick (pluginValuePlugin, pluginValueId: valueId's).
+     * What a slot picks for the Plugin value: its settings (status-line-catalog.js
+     * pluginValueKeys), each as stored, which the rest of this file reads.
+     * @typedef {Object} PluginValuePick
+     * @property {*} plugin The plugin's uuid ('' or absent for none).
+     * @property {*} id The value of it (valueId's, or complicationId's).
+     * @property {*} icon The Icon row's choice (an ICON_FORMS name).
+     * @property {*} every The Updates row's choice (an EVERY_CHOICES entry).
+     */
+
+    /**
      * @param {?Object} settings Settings.
+     * @param {string} slotKey A slot's settings key, e.g. 'statusTopMid'.
+     * @returns {PluginValuePick} What the slot picks for the Plugin value.
+     */
+    function pickOf(settings, slotKey) {
+        var keys = catalog.pluginValueKeys(slotKey);
+        var s = settings || {};
+        return { plugin: s[keys.plugin], id: s[keys.id], icon: s[keys.icon], every: s[keys.every] };
+    }
+
+    /**
+     * The source a slot picks (its plugin, and the value of it: valueId's).
+     * @param {?PluginValuePick} pick What the slot picks (pickOf).
      * @returns {?{plugin: string, id: string, category: string, item: string, property: string,
      *   key: string, complication: ?number}} The source, or null while none is picked. `key`
      *   names it whole, plugin and value, for the records kept of it. `complication` is the place
      *   of the complication it picks (complicationId), or null for a value of a plugin's own.
      */
-    function sourceOf(settings) {
-        var plugin = settings && settings.pluginValuePlugin;
-        var id = settings && settings.pluginValueId;
+    function sourceOf(pick) {
+        var plugin = pick && pick.plugin;
+        var id = pick && pick.id;
         var parts = typeof id === 'string' ? id.split('/') : [];
         if (typeof plugin !== 'string' || !plugin || parts.length !== 3
                 || !parts[0] || !parts[1] || !parts[2]) {
@@ -117,11 +145,11 @@
     }
 
     /**
-     * @param {?Object} settings Settings.
-     * @returns {number} How often the value is read (the Updates row, pluginValueEvery), in ms.
+     * @param {?PluginValuePick} pick What a slot picks (pickOf).
+     * @returns {number} How often its value is read (the Updates row), in ms.
      */
-    function everyMs(settings) {
-        var every = settings && settings.pluginValueEvery;
+    function everyMs(pick) {
+        var every = pick && pick.every;
         return Number(EVERY_CHOICES.indexOf(every) !== -1 ? every : EVERY_DEFAULT) * MINUTE_MS;
     }
 
@@ -203,12 +231,12 @@
     }
 
     /**
-     * @param {?Object} settings Settings.
-     * @returns {string} The Icon row's choice (pluginValueIcon): an ICON_FORMS name, none by
-     *   default and for one it does not know.
+     * @param {?PluginValuePick} pick What a slot picks (pickOf).
+     * @returns {string} Its Icon row's choice: an ICON_FORMS name, none by default and for one it
+     *   does not know.
      */
-    function iconName(settings) {
-        var name = settings && settings.pluginValueIcon;
+    function iconName(pick) {
+        var name = pick && pick.icon;
         return typeof name === 'string' && Object.prototype.hasOwnProperty.call(ICON_FORMS, name)
             ? name : ICON_DEFAULT;
     }
@@ -217,13 +245,13 @@
      * The icon the slot draws before the value's text (iconName): one that turns in its on form
      * while the value is on, and in its off form while it is off, too old or not read; one that
      * stays the same as it is.
-     * @param {?Object} settings Settings.
+     * @param {?PluginValuePick} pick What the slot picks (pickOf).
      * @param {?{state: ?boolean}} reading The reading the slot shows (shownReading), or null.
      * @returns {number} The STATUS_ICON_* id the bake packs: the one that loads no drawing for
      *   none.
      */
-    function iconId(settings, reading) {
-        var forms = ICON_FORMS[iconName(settings)];
+    function iconId(pick, reading) {
+        var forms = ICON_FORMS[iconName(pick)];
         if (!forms.length) { return ICONS.PLUGIN_TEXT; }
         return forms[reading && reading.state === true ? 0 : forms.length - 1];
     }
@@ -243,18 +271,18 @@
     }
 
     /**
-     * The reading the slot shows of a value at an instant: the value of the source the settings
-     * pick (readFrom), until three Updates intervals (at least SHOWN_AT_LEAST_MS) after it was
+     * The reading a slot shows of a value at an instant: the value of the source it picks
+     * (readFrom), until three of its Updates intervals (at least SHOWN_AT_LEAST_MS) after it was
      * read, or until the plugin said it holds, whichever is later, but no more than
      * LONGEST_WAIT_MS on.
      * @param {?Object} value The value kept (plugin-value-reads.js valueOf), or null.
-     * @param {?Object} settings Settings.
+     * @param {?PluginValuePick} pick What the slot picks (pickOf).
      * @param {number} nowMs The instant, in epoch milliseconds.
      * @returns {?Object} The reading, or null: none kept, another source's, or too old.
      */
-    function shownReading(value, settings, nowMs) {
-        if (!readFrom(value, sourceOf(settings))) { return null; }
-        return nowMs < heldUntil(value.at, Math.max(3 * everyMs(settings), SHOWN_AT_LEAST_MS),
+    function shownReading(value, pick, nowMs) {
+        if (!readFrom(value, sourceOf(pick))) { return null; }
+        return nowMs < heldUntil(value.at, Math.max(3 * everyMs(pick), SHOWN_AT_LEAST_MS),
             value.validUntil) ? value.reading : null;
     }
 
@@ -263,9 +291,11 @@
         EVERY_DEFAULT: EVERY_DEFAULT,
         ICON_FORMS: ICON_FORMS,
         ICON_DEFAULT: ICON_DEFAULT,
+        PICK_DEFAULTS: PICK_DEFAULTS,
         PREFERENCES: PREFERENCES,
         valueId: valueId,
         complicationId: complicationId,
+        pickOf: pickOf,
         sourceOf: sourceOf,
         readFrom: readFrom,
         everyMs: everyMs,

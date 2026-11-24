@@ -9658,7 +9658,7 @@
           },
           {
             "sheetOnly": true,
-            "sheetId": "threshPluginValue",
+            "sheetId": "threshPluginValueForecastLeft",
             "showWhen": {
               "env": "thresholds"
             },
@@ -9669,14 +9669,22 @@
                 "text": "Days left from Muninn",
                 "style": "info",
                 "showWhen": {
-                  "when": "pluginValueFromMuninn"
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
                 }
               },
               {
                 "type": "staticText",
-                "text": "The Watch battery slot can show Muninn's estimate by itself: the days your watch has left, alone or beside its charge. Put the Watch battery in any slot, tap its Edit button, set Look to Icon + text or Text, then set Value selection to Days left or Both.",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
                 "showWhen": {
-                  "when": "pluginValueFromMuninn"
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
                 }
               },
               {
@@ -9685,84 +9693,109 @@
               },
               {
                 "type": "select",
-                "messageKey": "pluginValuePlugin",
+                "messageKey": "statusForecastLeftPluginValuePlugin",
                 "label": "Plugin",
-                "defaultValue": "",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
                 "optionsFrom": {
-                  "resolver": "pluginValuePlugins"
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
                 },
                 "hintFrom": {
-                  "resolver": "pluginValuePluginHint"
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
                 },
                 "onChange": "pluginValuePluginPicked"
               },
               {
                 "type": "select",
-                "messageKey": "pluginValueId",
+                "messageKey": "statusForecastLeftPluginValueId",
                 "label": "Value",
-                "defaultValue": "",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
                 "optionsFrom": {
-                  "resolver": "pluginValueIds"
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
                 },
                 "hintFrom": {
-                  "resolver": "pluginValueIdHint"
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
                 },
                 "onChange": "pluginValueIdPicked",
                 "showWhen": {
-                  "key": "pluginValuePlugin",
+                  "key": "statusForecastLeftPluginValuePlugin",
                   "ne": ""
                 }
               },
               {
                 "type": "select",
-                "messageKey": "pluginValueIcon",
+                "messageKey": "statusForecastLeftPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
                 "optionsFrom": {
-                  "resolver": "pluginValueIcons"
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
                 },
                 "hintFrom": {
-                  "resolver": "pluginValueIconHint"
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
                 },
                 "pictureFrom": {
                   "resolver": "pluginValueIconPicture",
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "pluginValuePlugin",
+                  "key": "statusForecastLeftPluginValuePlugin",
                   "ne": ""
                 }
               },
               {
                 "type": "select",
-                "messageKey": "pluginValueEvery",
+                "messageKey": "statusForecastLeftPluginValueEvery",
                 "label": "Updates",
-                "hint": "Each read runs the other app's plugin on your phone. If that app asked for a permission you haven't answered yet, your phone asks you again.",
-                "defaultValue": "60",
-                "options": [
-                  [
-                    "Every 15 minutes",
-                    "15"
-                  ],
-                  [
-                    "Every 30 minutes",
-                    "30"
-                  ],
-                  [
-                    "Every hour",
-                    "60"
-                  ],
-                  [
-                    "Every 3 hours",
-                    "180"
-                  ],
-                  [
-                    "Every 6 hours",
-                    "360"
-                  ]
-                ],
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
                 "showWhen": {
-                  "key": "pluginValuePlugin",
+                  "key": "statusForecastLeftPluginValuePlugin",
                   "ne": ""
                 }
               },
@@ -9770,10 +9803,3213 @@
                 "type": "readout",
                 "label": "Last value",
                 "hintFrom": {
-                  "resolver": "pluginValueLast"
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
                 },
                 "showWhen": {
-                  "key": "pluginValuePlugin",
+                  "key": "statusForecastLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueForecastMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusForecastMidPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusForecastMidPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusForecastMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusForecastMidPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusForecastMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusForecastMidPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusForecastMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusForecastMidPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueForecastRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusForecastRightPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusForecastRightPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusForecastRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusForecastRightPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusForecastRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusForecastRightPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusForecastRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusForecastRightPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueRadarLeft",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarLeftPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarLeftPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusRadarLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarLeftPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusRadarLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarLeftPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusRadarLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusRadarLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueRadarMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarMidPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarMidPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusRadarMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarMidPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusRadarMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarMidPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusRadarMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusRadarMidPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueRadarRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarRightPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarRightPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusRadarRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarRightPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusRadarRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarRightPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusRadarRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusRadarRightPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueTopLeft",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopLeftPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopLeftPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusTopLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopLeftPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusTopLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopLeftPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusTopLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusTopLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueTopMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopMidPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopMidPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusTopMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopMidPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusTopMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopMidPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusTopMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusTopMidPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueTopRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopRightPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopRightPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusTopRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopRightPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusTopRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopRightPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusTopRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusTopRightPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueHealthLeft",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthLeftPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthLeftPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusHealthLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthLeftPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusHealthLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthLeftPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusHealthLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusHealthLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueHealthMid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthMidPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthMidPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusHealthMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthMidPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusHealthMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthMidPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusHealthMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusHealthMidPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueHealthRight",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthRightPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthRightPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusHealthRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthRightPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusHealthRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthRightPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusHealthRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusHealthRightPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueBar4Left",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4LeftPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4LeftPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusBar4LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4LeftPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusBar4LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4LeftPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusBar4LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusBar4LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueBar4Mid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4MidPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4MidPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusBar4MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4MidPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusBar4MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4MidPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusBar4MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusBar4MidPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueBar4Right",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4RightPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4RightPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusBar4RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4RightPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusBar4RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4RightPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusBar4RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusBar4RightPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueBar5Left",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5LeftPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5LeftPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusBar5LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5LeftPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusBar5LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5LeftPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusBar5LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusBar5LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueBar5Mid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5MidPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5MidPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusBar5MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5MidPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusBar5MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5MidPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusBar5MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusBar5MidPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueBar5Right",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5RightPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5RightPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusBar5RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5RightPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusBar5RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5RightPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusBar5RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusBar5RightPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueBar6Left",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6LeftPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6LeftPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusBar6LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6LeftPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusBar6LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6LeftPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusBar6LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusBar6LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueBar6Mid",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6MidPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6MidPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusBar6MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6MidPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusBar6MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6MidPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusBar6MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusBar6MidPluginValuePlugin",
+                  "ne": ""
+                }
+              }
+            ],
+            "pinBlock": "statusBarsPreview"
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPluginValueBar6Right",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Plugin value slot",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Days left from Muninn",
+                "style": "info",
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "textFrom": {
+                  "resolver": "pluginValueMuninnNote"
+                },
+                "showWhen": {
+                  "when": "pluginValueFromMuninn",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                }
+              },
+              {
+                "type": "subheader",
+                "text": ""
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6RightPluginValuePlugin",
+                "label": "Plugin",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "plugin"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValuePlugins",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValuePluginHint",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                },
+                "onChange": "pluginValuePluginPicked"
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6RightPluginValueId",
+                "label": "Value",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "id"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIds",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIdHint",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                },
+                "onChange": "pluginValueIdPicked",
+                "showWhen": {
+                  "key": "statusBar6RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6RightPluginValueIcon",
+                "label": "Icon",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "icon"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueIcons",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueIconHint",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                },
+                "pictureFrom": {
+                  "resolver": "pluginValueIconPicture",
+                  "glyph": true
+                },
+                "showWhen": {
+                  "key": "statusBar6RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6RightPluginValueEvery",
+                "label": "Updates",
+                "defaultFrom": {
+                  "resolver": "pluginValueDefault",
+                  "args": {
+                    "name": "every"
+                  },
+                  "sticky": false
+                },
+                "optionsFrom": {
+                  "resolver": "pluginValueEveries"
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueEveryHint"
+                },
+                "showWhen": {
+                  "key": "statusBar6RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Last value",
+                "hintFrom": {
+                  "resolver": "pluginValueLast",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                },
+                "showWhen": {
+                  "key": "statusBar6RightPluginValuePlugin",
                   "ne": ""
                 }
               }

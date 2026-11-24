@@ -34,6 +34,17 @@ function read(key) {
  */
 function write(key, next, held, what) {
     if (JSON.stringify(next) === JSON.stringify(held)) { return false; }
+    put(key, next, what);
+    return true;
+}
+
+/**
+ * Store a value under a key, or remove the key for none, as write does, whatever is held.
+ * @param {string} key The storage key. @param {*} next The value, or null for none.
+ * @param {string} what What it is, for the log.
+ * @returns {void}
+ */
+function put(key, next, what) {
     try {
         if (next) { localStorage.setItem(key, JSON.stringify(next)); }
         else { localStorage.removeItem(key); }
@@ -41,7 +52,6 @@ function write(key, next, held, what) {
     catch (ex) {
         console.log(what + ' was not stored.');
     }
-    return true;
 }
 
 /**
@@ -64,8 +74,62 @@ function place(key) {
     };
 }
 
+/**
+ * @param {string} key A storage key.
+ * @returns {Object} The map kept under it ({name: value}), or an empty one for none, for
+ *   what does not parse and for what is no map.
+ */
+function mapAt(key) {
+    var map = read(key);
+    return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+}
+
+
+/**
+ * One entry of a map kept under a key, a place of its own beside the map's other entries
+ * (plugin-value-source.js: the read and the value of each Plugin value a slot shows, by its
+ * source).
+ * @param {string} key The storage key of the map.
+ * @param {string} name The entry's name in it.
+ * @returns {StoredPlace}
+ */
+function entryOf(key, name) {
+    return {
+        read: function () {
+            var map = mapAt(key);
+            return Object.prototype.hasOwnProperty.call(map, name) ? map[name] : null;
+        },
+        write: function (next, held, what) {
+            var map;
+            if (JSON.stringify(next) === JSON.stringify(held)) { return false; }
+            map = mapAt(key);
+            if (next) { map[name] = next; } else { delete map[name]; }
+            put(key, Object.keys(map).length ? map : null, what);
+            return true;
+        }
+    };
+}
+
+/**
+ * Take every entry out of a map kept under a key but the ones named. Writes nothing when none
+ * goes.
+ * @param {string} key The storage key of the map.
+ * @param {string[]} names The entries to keep.
+ * @param {string} what What the map holds, for the log.
+ * @returns {void}
+ */
+function keepOnly(key, names, what) {
+    var map = mapAt(key);
+    var gone = Object.keys(map).filter(function (name) { return names.indexOf(name) === -1; });
+    if (!gone.length) { return; }
+    gone.forEach(function (name) { delete map[name]; });
+    put(key, Object.keys(map).length ? map : null, what);
+}
+
 module.exports = {
     read: read,
     write: write,
-    place: place
+    place: place,
+    entryOf: entryOf,
+    keepOnly: keepOnly
 };

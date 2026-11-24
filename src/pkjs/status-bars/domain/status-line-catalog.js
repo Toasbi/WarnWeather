@@ -140,8 +140,8 @@
     // item of its own, 'phoneBatteryPlain'.
     { code: 'phoneBattery', label: 'Phone battery', kind: KINDS.TEXT,
       icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' },
-    // A value another app's plugin serves (plugin-values.js), its source and icon the item's own
-    // (pluginValueSettingKeys), so every slot that holds it shows the same value. Its icon is
+    // A value another app's plugin serves (plugin-values.js), its source and icon each slot's
+    // own (pluginValueKeys), so each slot that holds it shows a value of its own. Its icon is
     // one of the watch's own, picked for it, or none (plugin-values.js iconId): the watch draws
     // no plugin's picture, and the bold area is full. Only where the Pebble app reads plugins
     // (needsPlugins), and never on aplite, whose feature set is frozen.
@@ -610,17 +610,49 @@
   }
 
   /**
-   * The settings the Plugin value slot owns: the plugin, the value of it, its icon and how often
-   * it is read (plugin-values.js sourceOf, iconName, everyMs), which its dialog's rows store
-   * (plugin-value-schema.js). The item's own, so every slot that holds it shows the same value.
-   * The keys resetStatusSlots clears with the slots. None of them is signed (renderSignature):
-   * a new source needs a read, which the save starts (plugin-value-source.js refresh), and no
-   * weather fetch; every close of the settings sends the bars again (channel-scheduler.js
+   * The settings a slot keeps for the Plugin value: the plugin, the value of it, its icon and
+   * how often it is read (plugin-values.js pickOf), which the slot's own dialog stores
+   * (plugin-value-schema.js). Each slot's own, like its countdown's date, so each slot that holds
+   * the item shows a value of its own. Never signed (renderSignature, slotCompanions): a new
+   * source needs a read, which the save starts (plugin-value-source.js refresh), and no weather
+   * fetch; every close of the settings sends the bars again (channel-scheduler.js
    * onConfigClosed), the icon with them.
-   * @returns {string[]}
+   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
+   * @returns {{plugin: string, id: string, icon: string, every: string}} Each one's key, e.g.
+   *   'statusForecastLeftPluginValuePlugin'.
    */
-  function pluginValueSettingKeys() {
-    return ['pluginValuePlugin', 'pluginValueId', 'pluginValueIcon', 'pluginValueEvery'];
+  function pluginValueKeys(slotKey) {
+    return { plugin: slotKey + 'PluginValuePlugin', id: slotKey + 'PluginValueId',
+      icon: slotKey + 'PluginValueIcon', every: slotKey + 'PluginValueEvery' };
+  }
+
+  /**
+   * The settings page's dialog a slot's Edit button opens while the slot holds the Plugin value:
+   * the slot's own, since its settings are (pluginValueKeys), as the phone battery's is
+   * (phoneBatterySheet).
+   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
+   * @returns {string} The dialog's sheet id, e.g. 'threshPluginValueForecastLeft'.
+   */
+  function pluginValueSheet(slotKey) {
+    return 'threshPluginValue' + slotKey.replace(/^status/, '');
+  }
+
+  /**
+   * The slot a Plugin value setting is of: what a row of its dialog tells the hook its change
+   * runs (plugin-value-page.js), which is handed the row's key alone.
+   * @param {string} key A settings key.
+   * @returns {?string} The slot's settings key, or null for a key that is no slot's Plugin
+   *   value setting.
+   */
+  function pluginValueSlot(key) {
+    for (var l = 0; l < ALL_LINES.length; l++) {
+      for (var s = 0; s < ALL_LINES[l].slots.length; s++) {
+        var slotKey = ALL_LINES[l].slots[s];
+        var keys = pluginValueKeys(slotKey);
+        if (key === keys.plugin || key === keys.id || key === keys.icon || key === keys.every) { return slotKey; }
+      }
+    }
+    return null;
   }
 
   /**
@@ -663,20 +695,27 @@
 
   /**
    * What a slot keeps beside its item: a setting of the slot's own that one item reads, its
-   * countdown's date (status-lines.js) and its phone battery's Look. ONE list for what a
-   * bar that is made or deleted puts back on its default with the slot (screens.js makeBar,
-   * unmakeBar) and what renderSignature watches while the slot holds the item (signSlots).
+   * countdown's date (status-lines.js), its phone battery's Look and its Plugin value's
+   * settings (pluginValueKeys). ONE list for what a bar that is made or deleted puts back on its
+   * default with the slot (screens.js makeBar, unmakeBar) and what renderSignature watches while
+   * the slot holds the item (signSlots), the Plugin value's settings but (pluginValueKeys says
+   * why).
    * @param {string} slotKey A slot's settings key.
-   * @returns {Array<{code: string, key: string, defaultValue: (string|undefined)}>} Each
-   *   companion's item, settings key and the value it starts on: the Look's default, which
-   *   its row marks as picked; none for the countdown's date, which its row and the bake read
-   *   as today.
+   * @returns {Array<{code: string, key: string, defaultValue: (string|undefined), signed: boolean}>}
+   *   Each companion's item, settings key and the value it starts on: the Look's default, which
+   *   its row marks as picked; none for the countdown's date, which its row and the bake read as
+   *   today, nor for the Plugin value's, which read as no plugin, no icon and the Updates
+   *   default. signed: whether renderSignature watches it.
    */
   function slotCompanions(slotKey) {
+    var plugin = pluginValueKeys(slotKey);
     return [
-      { code: 'countdown', key: countdownKey(slotKey), defaultValue: undefined },
-      { code: 'phoneBattery', key: phoneBatteryLookKey(slotKey), defaultValue: PHONE_BATTERY_LOOK_DEFAULT }
-    ];
+      { code: 'countdown', key: countdownKey(slotKey), defaultValue: undefined, signed: true },
+      { code: 'phoneBattery', key: phoneBatteryLookKey(slotKey), defaultValue: PHONE_BATTERY_LOOK_DEFAULT,
+        signed: true }
+    ].concat([plugin.plugin, plugin.id, plugin.icon, plugin.every].map(function (key) {
+      return { code: 'pluginValue', key: key, defaultValue: undefined, signed: false };
+    }));
   }
 
   /**
@@ -732,7 +771,8 @@
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
-    batterySettingKeys: batterySettingKeys, pluginValueSettingKeys: pluginValueSettingKeys,
+    batterySettingKeys: batterySettingKeys, pluginValueKeys: pluginValueKeys,
+    pluginValueSheet: pluginValueSheet, pluginValueSlot: pluginValueSlot,
     countdownKey: countdownKey,
     phoneBatteryLookKey: phoneBatteryLookKey, phoneBatterySheet: phoneBatterySheet,
     PHONE_BATTERY_LOOK_DEFAULT: PHONE_BATTERY_LOOK_DEFAULT, slotCompanions: slotCompanions

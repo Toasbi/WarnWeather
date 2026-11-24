@@ -1,6 +1,6 @@
 'use strict';
-// The Plugin value slot's rules (plugin-values.js): the source the settings pick, the text the
-// slot prints and the icon before it, how long a value shows, and a value's name. When it is read and what a read
+// The Plugin value slot's rules (plugin-values.js): what a slot picks and the source it names, the
+// text the slot prints and the icon before it, how long a value shows, and a value's name. When it is read and what a read
 // keeps are plugin-value-reads.test.js'; the dialog's list, plugin-value-list.test.js'; the
 // reading and keeping, plugin-value-source.test.js'.
 const test = require('node:test');
@@ -13,21 +13,44 @@ const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
 const T0 = Date.UTC(2026, 10, 23, 12, 0, 0);
 const UUID = '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5f6';
-const SETTINGS = { pluginValuePlugin: UUID, pluginValueId: 'muninn/stats/daysRemaining' };
+// What a slot picks (pv.pickOf): Muninn's days left.
+const PICK = { plugin: UUID, id: 'muninn/stats/daysRemaining' };
 
-test('sourceOf: the plugin and the value the settings pick, null while either is missing', () => {
-  assert.deepEqual(pv.sourceOf(SETTINGS), { plugin: UUID, id: 'muninn/stats/daysRemaining', category: 'muninn',
+test('pickOf: a slot\'s own plugin, value, icon and Updates, each as stored', () => {
+  const settings = { statusTopRightPluginValuePlugin: UUID, statusTopRightPluginValueId: 'a/b/c',
+    statusTopRightPluginValueIcon: 'wifi', statusTopRightPluginValueEvery: '15', statusTopLeftPluginValuePlugin: 'x' };
+  assert.deepEqual(pv.pickOf(settings, 'statusTopRight'), { plugin: UUID, id: 'a/b/c', icon: 'wifi', every: '15' });
+  assert.deepEqual(pv.pickOf(settings, 'statusTopMid'), { plugin: undefined, id: undefined, icon: undefined,
+    every: undefined }, 'a slot that keeps none');
+  assert.deepEqual(pv.pickOf(null, 'statusTopRight').plugin, undefined);
+  const keys = catalog.pluginValueKeys('statusBar5Mid');
+  assert.deepEqual(pv.pickOf({ [keys.plugin]: UUID, [keys.id]: 'a/b/c' }, 'statusBar5Mid'),
+    { plugin: UUID, id: 'a/b/c', icon: undefined, every: undefined }, 'bars 4 to 6 too');
+  assert.equal(pv.sourceOf(pv.pickOf(settings, 'statusTopMid')), null);
+  assert.equal(pv.everyMs(pv.pickOf(settings, 'statusTopMid')), HOUR);
+  assert.equal(pv.iconName(pv.pickOf(settings, 'statusTopMid')), 'none');
+});
+
+test('PICK_DEFAULTS: what a slot that keeps none picks, as the rest of the rules read it', () => {
+  assert.deepEqual(pv.PICK_DEFAULTS, { plugin: '', id: '', icon: 'none', every: '60' });
+  assert.equal(pv.sourceOf(pv.PICK_DEFAULTS), null);
+  assert.equal(pv.iconName(pv.PICK_DEFAULTS), pv.iconName({}));
+  assert.equal(pv.everyMs(pv.PICK_DEFAULTS), pv.everyMs({}));
+});
+
+test('sourceOf: the plugin and the value a slot picks, null while either is missing', () => {
+  assert.deepEqual(pv.sourceOf(PICK), { plugin: UUID, id: 'muninn/stats/daysRemaining', category: 'muninn',
     item: 'stats', property: 'daysRemaining', key: UUID + '/muninn/stats/daysRemaining', complication: null });
-  [null, {}, { pluginValuePlugin: UUID }, { pluginValueId: 'a/b/c' },
-    { pluginValuePlugin: '', pluginValueId: 'a/b/c' }, { pluginValuePlugin: UUID, pluginValueId: '' },
-    { pluginValuePlugin: UUID, pluginValueId: 'a/b' }, { pluginValuePlugin: UUID, pluginValueId: 'a/b/c/d' },
-    { pluginValuePlugin: UUID, pluginValueId: 'a//c' }, { pluginValuePlugin: 5, pluginValueId: 'a/b/c' }]
+  [null, {}, { plugin: UUID }, { id: 'a/b/c' },
+    { plugin: '', id: 'a/b/c' }, { plugin: UUID, id: '' },
+    { plugin: UUID, id: 'a/b' }, { plugin: UUID, id: 'a/b/c/d' },
+    { plugin: UUID, id: 'a//c' }, { plugin: 5, id: 'a/b/c' }]
     .forEach((s) => assert.equal(pv.sourceOf(s), null, JSON.stringify(s)));
 });
 
-test('valueId: the id the settings keep a value under, which sourceOf takes apart', () => {
+test('valueId: the id a slot keeps a value under, which sourceOf takes apart', () => {
   assert.equal(pv.valueId('muninn', 'stats', 'daysRemaining'), 'muninn/stats/daysRemaining');
-  assert.deepEqual(pv.sourceOf({ pluginValuePlugin: UUID, pluginValueId: pv.valueId('c', 'i', 'p') }),
+  assert.deepEqual(pv.sourceOf({ plugin: UUID, id: pv.valueId('c', 'i', 'p') }),
     { plugin: UUID, id: 'c/i/p', category: 'c', item: 'i', property: 'p', key: UUID + '/c/i/p', complication: null });
 });
 
@@ -35,22 +58,22 @@ test('a complication: the Preferences plugin\'s, by its place in the user\'s lis
   const PREFS = '00000000-0000-0000-0001-000000000009';
   assert.equal(pv.PREFERENCES, PREFS);
   assert.equal(pv.complicationId(0), 'preferences/complications/0');
-  assert.deepEqual(pv.sourceOf({ pluginValuePlugin: PREFS, pluginValueId: pv.complicationId(2) }),
+  assert.deepEqual(pv.sourceOf({ plugin: PREFS, id: pv.complicationId(2) }),
     { plugin: PREFS, id: 'preferences/complications/2', category: 'preferences', item: 'complications',
       property: '2', key: PREFS + '/preferences/complications/2', complication: 2 });
-  assert.equal(pv.sourceOf({ pluginValuePlugin: PREFS.toUpperCase(), pluginValueId: pv.complicationId(9) }).complication,
+  assert.equal(pv.sourceOf({ plugin: PREFS.toUpperCase(), id: pv.complicationId(9) }).complication,
     9, 'the uuid in either case; the tenth place');
   [['another plugin', UUID, 'preferences/complications/0'], ['not a place', PREFS, 'preferences/complications/x'],
     ['written otherwise', PREFS, 'preferences/complications/01'], ['past the places', PREFS, 'preferences/complications/10'],
     ['another of its sources', PREFS, 'preferences/units/clock'], ['a part', PREFS, 'preferences/complications/1.5']]
-    .forEach(([why, plugin, id]) => assert.equal(pv.sourceOf({ pluginValuePlugin: plugin, pluginValueId: id }).complication,
+    .forEach(([why, plugin, id]) => assert.equal(pv.sourceOf({ plugin: plugin, id: id }).complication,
       null, why));
 });
 
 test('readFrom: a value is the source\'s when it was read from it; a complication\'s, from any reading it names', () => {
   const PREFS = pv.PREFERENCES;
-  const first = pv.sourceOf({ pluginValuePlugin: PREFS, pluginValueId: pv.complicationId(0) });
-  const own = pv.sourceOf(SETTINGS);
+  const first = pv.sourceOf({ plugin: PREFS, id: pv.complicationId(0) });
+  const own = pv.sourceOf(PICK);
   assert.equal(pv.readFrom({ source: own.key }, own), true);
   assert.equal(pv.readFrom({ source: own.key + '/x' }, own), false, 'a value of a plugin\'s own is only its source\'s');
   assert.equal(pv.readFrom({ source: first.key + '/weather/location/0/temperature' }, first), true);
@@ -61,12 +84,12 @@ test('readFrom: a value is the source\'s when it was read from it; a complicatio
 });
 
 test('everyMs: the Updates row, every hour by default', () => {
-  assert.equal(pv.everyMs({ pluginValueEvery: '15' }), 15 * MIN);
-  assert.equal(pv.everyMs({ pluginValueEvery: '30' }), 30 * MIN);
-  assert.equal(pv.everyMs({ pluginValueEvery: '180' }), 3 * HOUR);
-  assert.equal(pv.everyMs({ pluginValueEvery: '360' }), 6 * HOUR);
+  assert.equal(pv.everyMs({ every: '15' }), 15 * MIN);
+  assert.equal(pv.everyMs({ every: '30' }), 30 * MIN);
+  assert.equal(pv.everyMs({ every: '180' }), 3 * HOUR);
+  assert.equal(pv.everyMs({ every: '360' }), 6 * HOUR);
   [undefined, null, '', '45', 60, '60'].forEach((v) =>
-    assert.equal(pv.everyMs({ pluginValueEvery: v }), HOUR, String(v)));
+    assert.equal(pv.everyMs({ every: v }), HOUR, String(v)));
   assert.equal(pv.everyMs(null), HOUR);
   assert.deepEqual(pv.EVERY_CHOICES, ['15', '30', '60', '180', '360']);
   assert.equal(pv.EVERY_DEFAULT, '60');
@@ -168,17 +191,17 @@ test('the icon: none by default and for a choice it does not know, the id that l
   assert.equal(pv.iconName(null), 'none');
   assert.equal(pv.iconName({}), 'none');
   ['lamp', 'toString', 'constructor', '__proto__', 7].forEach((name) => {
-    assert.equal(pv.iconName({ pluginValueIcon: name }), 'none', String(name));
-    assert.equal(pv.iconId({ pluginValueIcon: name }, reading({ state: true })), none, String(name));
+    assert.equal(pv.iconName({ icon: name }), 'none', String(name));
+    assert.equal(pv.iconId({ icon: name }, reading({ state: true })), none, String(name));
   });
-  assert.equal(pv.iconId({ pluginValueIcon: 'none' }, reading({ state: true })), none);
+  assert.equal(pv.iconId({ icon: 'none' }, reading({ state: true })), none);
 });
 
 test('the icon: one that turns is on only while the value is on; off, too old or not read, it is off', () => {
   const I = catalog.ICONS;
   [['switch', I.PV_SWITCH, I.PV_SWITCH_OFF], ['wifi', I.PV_WIFI, I.PV_WIFI_OFF],
     ['bluetooth', I.PV_BT, I.PV_BT_OFF]].forEach(([name, on, off]) => {
-    const s = { pluginValueIcon: name };
+    const s = { icon: name };
     assert.equal(pv.iconName(s), name);
     assert.equal(pv.iconId(s, reading({ state: true })), on, name + ': on');
     assert.equal(pv.iconId(s, reading({ short: 'Lamp', state: true })), on, name + ': on, whatever the text says');
@@ -191,7 +214,7 @@ test('the icon: one that turns is on only while the value is on; off, too old or
 test('the icon: one that stays the same is the same whatever the value', () => {
   const I = catalog.ICONS;
   [['plug', I.PV_PLUG], ['phone', I.PV_PHONE], ['calendar', I.PV_CALENDAR]].forEach(([name, id]) => {
-    const s = { pluginValueIcon: name };
+    const s = { icon: name };
     [reading({ state: true }), reading({ state: false }), reading({ number: 87 }), null].forEach((r) => {
       assert.equal(pv.iconId(s, r), id, name);
     });
@@ -202,38 +225,38 @@ test('the icon: one that stays the same is the same whatever the value', () => {
 
 test('a value shows for three Updates intervals after it was read, three hours at least', () => {
   const r = reading({ number: 5 });
-  const value = { source: pv.sourceOf(SETTINGS).key, reading: r, at: T0, validUntil: null };
-  assert.equal(pv.shownReading(value, SETTINGS, T0), r);
-  assert.equal(pv.shownReading(value, SETTINGS, T0 + 3 * HOUR - 1), r, 'every hour: three hours');
-  assert.equal(pv.shownReading(value, SETTINGS, T0 + 3 * HOUR), null);
-  const half = Object.assign({ pluginValueEvery: '30' }, SETTINGS);
+  const value = { source: pv.sourceOf(PICK).key, reading: r, at: T0, validUntil: null };
+  assert.equal(pv.shownReading(value, PICK, T0), r);
+  assert.equal(pv.shownReading(value, PICK, T0 + 3 * HOUR - 1), r, 'every hour: three hours');
+  assert.equal(pv.shownReading(value, PICK, T0 + 3 * HOUR), null);
+  const half = Object.assign({ every: '30' }, PICK);
   assert.equal(pv.shownReading(value, half, T0 + 3 * HOUR - 1), r, 'every 30 minutes: still three hours');
   assert.equal(pv.shownReading(value, half, T0 + 3 * HOUR), null);
-  const six = Object.assign({ pluginValueEvery: '360' }, SETTINGS);
+  const six = Object.assign({ every: '360' }, PICK);
   assert.equal(pv.shownReading(value, six, T0 + 18 * HOUR - 1), r, 'every 6 hours: 18 hours');
   assert.equal(pv.shownReading(value, six, T0 + 18 * HOUR), null);
-  assert.equal(pv.shownReading(value, SETTINGS, T0 - HOUR), r, 'a clock that went back');
+  assert.equal(pv.shownReading(value, PICK, T0 - HOUR), r, 'a clock that went back');
 });
 
 test('a value the plugin said holds longer shows until then, but no more than 12 hours on', () => {
   const r = reading({ number: 5 });
-  const key = pv.sourceOf(SETTINGS).key;
+  const key = pv.sourceOf(PICK).key;
   const longer = { source: key, reading: r, at: T0, validUntil: T0 + 8 * HOUR };
-  assert.equal(pv.shownReading(longer, SETTINGS, T0 + 8 * HOUR - 1), r);
-  assert.equal(pv.shownReading(longer, SETTINGS, T0 + 8 * HOUR), null);
+  assert.equal(pv.shownReading(longer, PICK, T0 + 8 * HOUR - 1), r);
+  assert.equal(pv.shownReading(longer, PICK, T0 + 8 * HOUR), null);
   const far = { source: key, reading: r, at: T0, validUntil: T0 + 100 * HOUR };
-  assert.equal(pv.shownReading(far, SETTINGS, T0 + 12 * HOUR - 1), r);
-  assert.equal(pv.shownReading(far, SETTINGS, T0 + 12 * HOUR), null);
+  assert.equal(pv.shownReading(far, PICK, T0 + 12 * HOUR - 1), r);
+  assert.equal(pv.shownReading(far, PICK, T0 + 12 * HOUR), null);
   const shorter = { source: key, reading: r, at: T0, validUntil: T0 + MIN };
-  assert.equal(pv.shownReading(shorter, SETTINGS, T0 + 3 * HOUR - 1), r, 'never shorter than the Updates rule');
+  assert.equal(pv.shownReading(shorter, PICK, T0 + 3 * HOUR - 1), r, 'never shorter than the Updates rule');
 });
 
 test('a value shows only for the source it was read from', () => {
-  const value = { source: pv.sourceOf(SETTINGS).key, reading: reading({ number: 5 }), at: T0, validUntil: null };
-  assert.equal(pv.shownReading(value, Object.assign({}, SETTINGS, { pluginValueId: 'muninn/stats/batteryLife' }),
+  const value = { source: pv.sourceOf(PICK).key, reading: reading({ number: 5 }), at: T0, validUntil: null };
+  assert.equal(pv.shownReading(value, Object.assign({}, PICK, { id: 'muninn/stats/batteryLife' }),
     T0), null, 'another value');
-  assert.equal(pv.shownReading(value, Object.assign({}, SETTINGS, { pluginValuePlugin: 'other' }), T0), null,
+  assert.equal(pv.shownReading(value, Object.assign({}, PICK, { plugin: 'other' }), T0), null,
     'another plugin');
   assert.equal(pv.shownReading(value, {}, T0), null, 'none picked');
-  assert.equal(pv.shownReading(null, SETTINGS, T0), null, 'none kept');
+  assert.equal(pv.shownReading(null, PICK, T0), null, 'none kept');
 });

@@ -249,7 +249,7 @@
         case 'phoneBattery': return '72%';
         // Another app's value: no sample would fit every plugin, so the value read last
         // where the watch still shows it, else what the watch shows without one ('--').
-        case 'pluginValue': return pluginValuePage.barText(S, cap);
+        case 'pluginValue': return pluginValuePage.barText(S, cap, c.slotKey);
         // The watch battery: in its Icon look the glyph alone, except on aplite, whose lean
         // twin prints the charge (status_row_aplite.c format_live_value); in its Text and
         // Icon + text looks the percentage, the days the watch has left or both, as the
@@ -277,7 +277,8 @@
      * @param {Object} [env] Platform env.
      * @param {Object} [S] Settings: the weather condition and the two batteries in their
      *     Text look draw none.
-     * @param {string} [slotKey] The slot's settings key: the phone battery's Look is the slot's.
+     * @param {string} [slotKey] The slot's settings key: the phone battery's Look and the Plugin
+     *     value are the slot's.
      * @returns {?string} The glyph's <svg>, or null for none.
      */
     function slotIcon(code, env, S, slotKey) {
@@ -295,7 +296,7 @@
         }
         // The Plugin value's icon is the one picked for it, in the form the value takes; the page
         // has no outline of it, so it is the watch's drawing (plugin-value-page.js barGlyph).
-        if (code === 'pluginValue') { return pluginValuePage.barGlyph(S, env); }
+        if (code === 'pluginValue') { return pluginValuePage.barGlyph(S, env, slotKey); }
         return (PConf && PConf.icons && PConf.icons.get && PConf.icons.get(code)) || null;
     }
 
@@ -316,10 +317,11 @@
      * and seat. None for a glyph the watch draws in code (the battery, the sun arrow).
      * @param {string} code The slot's item.
      * @param {Object} S Settings.
+     * @param {string} slotKey The slot's settings key: the Plugin value's icon is the slot's.
      * @returns {?string} The drawing's key, or null for none.
      */
-    function slotDrawing(code, S) {
-        if (code === 'pluginValue') { return pluginValuePage.barDrawing(S); }
+    function slotDrawing(code, S, slotKey) {
+        if (code === 'pluginValue') { return pluginValuePage.barDrawing(S, slotKey); }
         return SLOT_DRAWINGS[code === 'city' ? 'condition' : code] || null;
     }
 
@@ -388,7 +390,7 @@
             return {pos: c.pos, key: c.key, code: c.code, text: forms[0],
                 alt: date ? dateShortText(st, env, when, fullDate) : forms[1] || '', own: date,
                 arrow: arrowShown(c.code, forms[0], st, env, SLOT_CAPS[p]), icon: icon,
-                drawing: icon ? slotDrawing(c.code, st) : null, batteryGlyph: drawsBatteryGlyph(c.code, env, st)};
+                drawing: icon ? slotDrawing(c.code, st, c.key) : null, batteryGlyph: drawsBatteryGlyph(c.code, env, st)};
         });
     }
 

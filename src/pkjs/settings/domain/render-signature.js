@@ -104,7 +104,7 @@ function mergedSlots(settings, env) {
 }
 
 /**
- * Sign slot selections: each slot's code, then each of its companions (the catalog's
+ * Sign slot selections: each slot's code, then each of its signed companions (the catalog's
  * slotCompanions: its countdown date, its phone battery's Look) while the slot holds the
  * companion's item, '' otherwise (renderSignature says why).
  * @param {Array} parts The signature's parts; pushed to.
@@ -116,6 +116,7 @@ function signSlots(parts, settings, keys) {
     keys.forEach(function (slotKey) {
         parts.push(settings[slotKey]);
         statusCatalog.slotCompanions(slotKey).forEach(function (companion) {
+            if (!companion.signed) { return; }
             parts.push(settings[slotKey] === companion.code ? settings[companion.key] : '');
         });
     });

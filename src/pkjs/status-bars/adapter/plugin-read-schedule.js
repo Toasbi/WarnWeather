@@ -1,9 +1,9 @@
 // src/pkjs/status-bars/adapter/plugin-read-schedule.js
 //
 // When a value is read from another app's plugin, for each slot that shows one: the watch
-// battery's days left, Muninn's estimate (battery-estimate.js), and the Plugin value slot's
-// value (plugin-value-source.js). Each makes a schedule from its own rules (a PluginReadSpec);
-// what they share is here, once.
+// battery's days left, Muninn's estimate (battery-estimate.js), and each value the Plugin value
+// slots show (plugin-value-source.js, a schedule for each source). Each makes a schedule from its
+// own rules (a PluginReadSpec); what they share is here, once.
 //
 // Nothing stays subscribed: the Pebble app would run the plugin's script again at every
 // refresh interval for as long as anything were, and each run brings back the permissions that

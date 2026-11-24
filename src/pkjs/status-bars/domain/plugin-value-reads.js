@@ -1,6 +1,6 @@
 // src/pkjs/status-bars/domain/plugin-value-reads.js
 //
-// The Plugin value slot's reads: when the value is read from its plugin again, and the value a
+// The Plugin value slots' reads: when a value is read from its plugin again, and the value a
 // read keeps. The reading, the record of the last read this works from and the keeping are
 // plugin-value-source.js'; the record's shape and the waits after a failure are every plugin
 // read's (plugin-reads.js). A reading's fields, and the shapes of a property they are read
@@ -9,7 +9,8 @@
 // (SHAPES, plugin-value-list.js).
 //
 // A read costs the user something (plugin-reader.js), and only the user knows how fast their
-// value changes, so the slot's Updates setting says how often (plugin-values.js everyMs). From
+// value changes, so each slot's Updates setting says how often (plugin-values.js everyMs; a
+// source that several slots show, the most often any of them asks: plugin-value-source.js). From
 // the record of the last read ({at, failures, validUntil}: when it started, the failed reads in
 // a row it ends with, and until when the plugin said its answer holds):
 //   - No record: the source was just picked, or has not been read yet. Read now.
@@ -41,8 +42,8 @@ function nextReadAt(record, everyMs) {
 
 /**
  * The most bytes of a text a value keeps (a reading's short text, long text and unit): more
- * than the widest slot prints, and the value kept rides the settings page's URL
- * (userData.pluginValue).
+ * than the widest slot prints, and each value kept rides the settings page's URL
+ * (userData.pluginValues).
  */
 var MAX_TEXT = 64;
 

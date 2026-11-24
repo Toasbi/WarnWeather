@@ -198,12 +198,12 @@ function keyOf(c) {
 }
 
 /**
- * What the Plugin value slot reads for a complication the settings pick: the reading the
+ * What a Plugin value slot reads for a complication it picks: the reading the
  * complication at its place names (requestOf), under a key that names that reading (keyOf)
  * after the complication's own, so a value is the place's only while the place names the
  * reading it was read from (plugin-values.js readFrom). The key is made here, beside keyOf,
  * since plugin-values.js rides the settings page's URL and the page never makes one.
- * @param {{key: string, complication: number}} source The source the settings pick
+ * @param {{key: string, complication: number}} source The source a slot picks
  *   (plugin-values.js sourceOf), a complication's.
  * @param {?Complication[]} list The user's complications as last heard, or null while none
  *   are known.
