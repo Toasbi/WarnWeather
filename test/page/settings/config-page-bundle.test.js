@@ -4,7 +4,9 @@
 // instead of throwing, which makes an omission invisible: every Node test still passes,
 // because Node takes the require() branch. That is exactly how the wizard's defaults policy
 // shipped as a production no-op once. These tests read the GENERATED page and assert the
-// behaviour-carrying strings are actually in it.
+// behaviour-carrying strings are actually in it, written as the page carries them: without the
+// blanks beside punctuation, which the build drops (build-page.js compactLine), so
+// 'window.X = api' is 'window.X=api' there.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -55,7 +57,7 @@ test('the On demand contract is bundled after view-cycle and before status-thres
     'view-cycle.js must precede on-demand.js');
   assert.ok(idx('status-bars/domain/on-demand.js') < idx('alerts/domain/status-thresholds.js'),
     'on-demand.js must precede status-thresholds.js');
-  assert.ok(page().indexOf('window.OnDemand = api') !== -1,
+  assert.ok(page().indexOf('window.OnDemand=api') !== -1,
     'nothing assigns window.OnDemand in the generated page');
 });
 
@@ -87,7 +89,7 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
     'page/settings/wizard/wizard-upsell.js': 'WizardUpsell', 'page/layout/screens-page.js': 'ScreensPage' };
   Object.keys(parts).forEach((file) => {
     assert.ok(idx(file) < wizard, file + ' must precede wizard.js');
-    assert.ok(page().indexOf('window.' + parts[file] + ' = api') !== -1, 'nothing assigns window.' + parts[file]);
+    assert.ok(page().indexOf('window.' + parts[file] + '=api') !== -1, 'nothing assigns window.' + parts[file]);
   });
   ['forecast-graphs/domain/line-style.js', 'forecast-graphs/domain/draw-from.js', 'forecast-graphs/domain/forecast-axis.js', 'theme/domain/resolve-ink.js', 'theme/domain/theme-flip.js',
     'forecast-graphs/domain/graph-styles.js', 'weather/domain/forecast-span-hours.js', 'page/forecast-graphs/forecast-sample.js',
@@ -98,7 +100,7 @@ test('the setup wizard\'s parts reach the page ahead of wizard.js, each after wh
   assert.ok(idx('status-bars/domain/status-line-catalog.js') < idx('page/settings/wizard/wizard-finish.js'));
   assert.ok(idx('settings/domain/country-defaults.js') < idx('page/settings/wizard/wizard-upsell.js'));
   ['ForecastSample', 'PreviewForecast'].forEach((name) => {
-    assert.ok(page().indexOf('window.' + name + ' = api') !== -1,
+    assert.ok(page().indexOf('window.' + name + '=api') !== -1,
       'nothing assigns window.' + name + ': the forecast step would draw an empty card');
   });
 });
@@ -116,7 +118,7 @@ test('the weather condition vocabulary reaches the page ahead of the Status bars
   assert.ok(idx('weather/domain/condition.js') < idx('page/status-bars/preview-status-bars.js'),
     'condition.js must precede preview-status-bars.js');
   assert.ok(idx('weather/domain/condition.js') < idx('page/settings/blocks.js'), 'condition.js must precede blocks.js');
-  assert.ok(page().indexOf('window.Condition = api') !== -1, 'nothing assigns window.Condition');
+  assert.ok(page().indexOf('window.Condition=api') !== -1, 'nothing assigns window.Condition');
 });
 
 // watch-layout.js binds VIEW_CYCLE while its body runs and preview-watch.js binds window.WatchLayout
@@ -132,7 +134,7 @@ test('the watch\'s band placement reaches the page after view-cycle and ahead of
   assert.ok(idx('layout/domain/view-cycle.js') < idx('page/layout/watch-layout.js'), 'view-cycle.js must precede watch-layout.js');
   assert.ok(idx('page/layout/watch-layout.js') < idx('page/layout/preview-watch.js'),
     'watch-layout.js must precede preview-watch.js');
-  assert.ok(page().indexOf('window.WatchLayout = api') !== -1, 'nothing assigns window.WatchLayout');
+  assert.ok(page().indexOf('window.WatchLayout=api') !== -1, 'nothing assigns window.WatchLayout');
 });
 
 // preview-watch.js and wizard.js bind window.ScreenFrame while their bodies run: out of order, or
@@ -148,7 +150,7 @@ test('the screen pictures\' frame reaches the page ahead of the watch preview an
     'screen-frame.js must precede preview-watch.js');
   assert.ok(idx('page/layout/screen-frame.js') < idx('page/settings/wizard/wizard.js'),
     'screen-frame.js must precede wizard.js');
-  assert.ok(page().indexOf('window.ScreenFrame = api') !== -1, 'nothing assigns window.ScreenFrame');
+  assert.ok(page().indexOf('window.ScreenFrame=api') !== -1, 'nothing assigns window.ScreenFrame');
 });
 
 // The metrics' names (forecast-metrics.js) are bound while graph-styles-page.js, forecast-hints.js,
@@ -164,7 +166,7 @@ test('the metrics\' names reach the page ahead of the modules that bind them', (
   ['page/forecast-graphs/graph-styles-page.js', 'page/forecast-graphs/forecast-hints.js', 'page/settings/blocks.js', 'page/settings/wizard/wizard-forecast.js']
     .forEach((reader) =>
     assert.ok(idx('page/forecast-graphs/forecast-metrics.js') < idx(reader), 'forecast-metrics.js must precede ' + reader));
-  assert.ok(page().indexOf('window.ForecastMetrics = api') !== -1, 'nothing assigns window.ForecastMetrics');
+  assert.ok(page().indexOf('window.ForecastMetrics=api') !== -1, 'nothing assigns window.ForecastMetrics');
 });
 
 // The screens page is the same silent-no-op shape as the defaults policy: its consumers,
@@ -174,10 +176,10 @@ test('the metrics\' names reach the page ahead of the modules that bind them', (
 // window.Screens and window.PreviewWatch while its IIFE runs.
 test('the screens page reaches the generated page, after the screens model and the watch picture', () => {
   const src = page();
-  assert.ok(src.indexOf('PConf.actions.openScreen =') !== -1,
+  assert.ok(src.indexOf('PConf.actions.openScreen=') !== -1,
     'nothing assigns PConf.actions.openScreen: a tap on a screen would do nothing');
   assert.ok(src.indexOf("PConf.blocks.register('screensCard'") !== -1, 'the Screens card is missing from the page');
-  assert.ok(src.indexOf('window.Screens = api') !== -1, 'nothing assigns window.Screens');
+  assert.ok(src.indexOf('window.Screens=api') !== -1, 'nothing assigns window.Screens');
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => appFiles.findIndex((f) => f.endsWith('/' + suffix));
   const at = idx('page/layout/screens-page.js');
@@ -192,7 +194,7 @@ test('the screens page reaches the generated page, after the screens model and t
 // bind while their bodies run: out of order (or dropped), Add screen's presets and setup's Health
 // screen throw on a real phone while every Node test passes through require().
 test('the screen presets are bundled ahead of the screens page and setup\'s screens', () => {
-  assert.ok(page().indexOf('window.ScreenPresets = api') !== -1, 'nothing assigns window.ScreenPresets');
+  assert.ok(page().indexOf('window.ScreenPresets=api') !== -1, 'nothing assigns window.ScreenPresets');
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => appFiles.findIndex((f) => f.endsWith('/' + suffix));
   const at = idx('page/layout/screen-presets.js');
@@ -209,7 +211,7 @@ test('the screen presets are bundled ahead of the screens page and setup\'s scre
 test('Add a screen\'s legend is bundled after the pictures it reads and ahead of the screens page', () => {
   const src = page();
   ['ScreenLegend', 'PreviewHealth', 'PreviewRadar', 'PreviewForecast', 'PreviewWatch'].forEach((name) =>
-    assert.ok(src.indexOf('window.' + name + ' = api') !== -1, 'nothing assigns window.' + name));
+    assert.ok(src.indexOf('window.' + name + '=api') !== -1, 'nothing assigns window.' + name));
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
     const at = appFiles.findIndex((f) => f.endsWith('/' + suffix));
@@ -243,7 +245,7 @@ test('the Show [All | Alert] module is bundled after its deps and before its rea
   assert.ok(idx('alerts/domain/line-alert.js') < idx('page/forecast-graphs/forecast-hints.js'),
     'line-alert.js must precede forecast-hints.js');
   const src = page();
-  assert.ok(src.indexOf('window.LineAlert = api') !== -1,
+  assert.ok(src.indexOf('window.LineAlert=api') !== -1,
     'nothing assigns window.LineAlert in the generated page');
   assert.ok(src.indexOf("PConf.hintResolvers.register('lineShowHint'") !== -1,
     'nothing registers the Show row\'s hint in the generated page');
@@ -266,7 +268,7 @@ test('the Draw from module is bundled after line-style.js and before its readers
       assert.ok(idx('forecast-graphs/domain/draw-from.js') < idx(reader), 'draw-from.js must precede ' + reader);
     });
   const src = page();
-  assert.ok(src.indexOf('window.DrawFrom = api') !== -1, 'nothing assigns window.DrawFrom in the generated page');
+  assert.ok(src.indexOf('window.DrawFrom=api') !== -1, 'nothing assigns window.DrawFrom in the generated page');
   assert.ok(src.indexOf("PConf.hintResolvers.register('lineFromHint'") !== -1,
     'nothing registers the Draw from row\'s hint in the generated page');
 });
@@ -288,7 +290,7 @@ test('the left axis module is bundled after line-style.js and before its readers
     assert.ok(idx('forecast-graphs/domain/forecast-axis.js') < idx(reader), 'forecast-axis.js must precede ' + reader);
   });
   const src = page();
-  assert.ok(src.indexOf('window.ForecastAxis = api') !== -1,
+  assert.ok(src.indexOf('window.ForecastAxis=api') !== -1,
     'nothing assigns window.ForecastAxis in the generated page');
 });
 
@@ -309,7 +311,7 @@ test('the span hours module is bundled after forecast-axis.js, before forecast-h
   assert.ok(idx('weather/domain/forecast-span-hours.js') < idx('page/forecast-graphs/forecast-hints.js'),
     'forecast-span-hours.js must precede forecast-hints.js');
   const src = page();
-  assert.ok(src.indexOf('window.ForecastSpanHours = api') !== -1,
+  assert.ok(src.indexOf('window.ForecastSpanHours=api') !== -1,
     'nothing assigns window.ForecastSpanHours in the generated page');
   const from = src.indexOf('/* app: forecast-hints.js */');
   const part = src.slice(from, src.indexOf('/* app: ', from + 1));
@@ -338,7 +340,7 @@ test('the forecast preview and its axis mirrors are bundled after every global t
     const at = src.indexOf('/* app: ' + file + ' */');
     assert.notEqual(at, -1, file + ' is not in the generated page');
     BINDS_AT_LOAD[file].forEach((global) => {
-      const set = src.indexOf(global + ' = ');
+      const set = src.indexOf(global + '=');
       assert.notEqual(set, -1, 'nothing assigns ' + global + ' in the generated page');
       assert.ok(set < at, global + ' must be assigned before ' + file + ' runs');
     });
@@ -438,7 +440,7 @@ test('the Alerts tab\'s resolvers are bundled after blocks.js, which they read',
   ['alertLevelBadge', 'alertLevelsHint', 'rainAlertHint', 'onDemandBars', 'onDemandBarIcons',
     'onDemandSleepText'].forEach((id) => assert.ok(ids.has(id), 'the Alerts schema names ' + id));
   const src = page();
-  const published = src.indexOf('PConf.thresholdLevels = ');
+  const published = src.indexOf('PConf.thresholdLevels=');
   assert.notEqual(published, -1, 'nothing publishes PConf.thresholdLevels in the generated page');
   ids.forEach((id) => {
     const at = src.indexOf(".register('" + id + "'");
@@ -464,7 +466,7 @@ test('the stripe scales are bundled before the previews and the forecast hints t
   ['page/forecast-graphs/preview-forecast.js', 'page/weather/preview-radar.js', 'page/forecast-graphs/forecast-hints.js'].forEach((reader) => {
     assert.ok(idx('forecast-graphs/domain/stripe-levels.js') < idx(reader), 'stripe-levels.js must precede ' + reader);
   });
-  assert.ok(page().indexOf('window.StripeLevels = api') !== -1,
+  assert.ok(page().indexOf('window.StripeLevels=api') !== -1,
     'nothing assigns window.StripeLevels in the generated page');
 });
 
@@ -493,7 +495,7 @@ test('the key status, its tables, its fingerprint and the key results are bundle
   assert.ok(idx('page/weather/keys/key-status.js') < idx('page/weather/keys/key-test.js'),
     'key-status.js must precede key-test.js');
   const src = page();
-  ['window.KeySources = api', 'window.KeyFingerprint = api', 'window.KeyResult = api',
+  ['window.KeySources=api', 'window.KeyFingerprint=api', 'window.KeyResult=api',
     "PConf.attentionResolvers.register('keyAttention'", "PConf.hintResolvers.register('keyRowSummary'",
     "PConf.hintResolvers.register('keyMissingNote'",
     "keyStatus.registerUsage('tomorrowio'"].forEach((s) =>
@@ -624,8 +626,8 @@ test('the Status bars preview and the Night hours reach the page, in dependency 
   assert.ok(idx('status-bars/domain/battery-days.js') < idx('page/status-bars/preview-status-bars.js'),
     'preview-status-bars.js reads window.BatteryDays');
   assert.ok(idx('status-bars/domain/slot-text.js') < idx('page/settings/blocks.js'), 'blocks.js reads window.SlotText');
-  assert.ok(page().indexOf('window.BatteryDays = api') !== -1, 'nothing assigns window.BatteryDays');
-  assert.ok(page().indexOf('window.SlotText = api') !== -1, 'nothing assigns window.SlotText');
+  assert.ok(page().indexOf('window.BatteryDays=api') !== -1, 'nothing assigns window.BatteryDays');
+  assert.ok(page().indexOf('window.SlotText=api') !== -1, 'nothing assigns window.SlotText');
   assert.ok(idx('calendar/domain/date-format.js') < idx('page/status-bars/preview-status-bars.js'));
   idx('page/theme/night-hours.js');
   const src = page();
@@ -673,10 +675,10 @@ test('the support mug reaches the generated page, after news.js', () => {
 // dropped from APP_FILES.
 test('the Weather tab kit reaches the generated page in dependency order', () => {
   const src = page();
-  ['window.SunCalc', 'window.WeatherTabModel =', 'window.WeatherTabData =',
-    'window.WeatherTabIcons =', 'window.WeatherTabReadouts =',
-    'window.WeatherTabCharts =', 'window.WeatherTabCss =',
-    'window.WeatherTabInteract ='].forEach((g) => {
+  ['window.SunCalc', 'window.WeatherTabModel=', 'window.WeatherTabData=',
+    'window.WeatherTabIcons=', 'window.WeatherTabReadouts=',
+    'window.WeatherTabCharts=', 'window.WeatherTabCss=',
+    'window.WeatherTabInteract='].forEach((g) => {
     assert.ok(src.indexOf(g) !== -1,
       'nothing assigns ' + g + ' — probably missing from APP_FILES in scripts/build-config-page.js');
   });
@@ -738,7 +740,7 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
   const dep = 'page/weather/condition-icons.js';
   const i = appFiles.findIndex((f) => f.endsWith(dep));
   assert.ok(i !== -1 && i < at, dep + ' must precede status-slot-icons.js');
-  const global = 'window.ConditionIcons = api';
+  const global = 'window.ConditionIcons=api';
   assert.ok(src.indexOf(global) !== -1 && src.indexOf(global) < src.indexOf("icons.register('condition'"),
     'the page carries ' + global + ' ahead of the weather icons\' registration');
   // The pictures of the watch read window.PixelIcon while preview-watch.js's IIFE runs, and
@@ -748,7 +750,7 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
   const pixelIcon = appFiles.findIndex((f) => f.endsWith('page/weather/pixel-icon.js'));
   assert.ok(pixels !== -1 && pixels < pixelIcon && pixelIcon < pw,
     'status-pixels.generated.js, then pixel-icon.js, ahead of preview-watch.js');
-  assert.ok(src.indexOf('window.StatusPixels = api') !== -1 && src.indexOf('window.PixelIcon = api') !== -1,
+  assert.ok(src.indexOf('window.StatusPixels=api') !== -1 && src.indexOf('window.PixelIcon=api') !== -1,
     'the page carries the watch\'s drawings');
 });
 
@@ -778,9 +780,9 @@ test('the budget modules reach the generated page in dependency order, ahead of 
     assert.notEqual(i, -1, needle + ' is not in page.generated.js');
     return i;
   };
-  const tioAt = at('PConf.tomorrowioBudget = api');
-  const rbAt = at('PConf.rainbowBudget = api');
-  const ibAt = at('PConf.intervalBudget = api');
+  const tioAt = at('PConf.tomorrowioBudget=api');
+  const rbAt = at('PConf.rainbowBudget=api');
+  const ibAt = at('PConf.intervalBudget=api');
   const blockAt = at('register(\'rainbowBudget\'');
   assert.ok(tioAt < rbAt && rbAt < ibAt && ibAt < blockAt,
     'the page must define tomorrowio-budget, then rainbow-budget, then interval-budget, then blocks.js');
@@ -801,9 +803,9 @@ test('the Rainbow key Test reaches the generated page after key-test.js', () => 
   assert.ok(idx('page/weather/keys/key-test.js') < idx('page/weather/keys/rainbow-key-test.js'),
     'key-test.js must precede rainbow-key-test.js, which reads window.KeyTest at IIFE time');
   const src = page();
-  assert.ok(src.indexOf("action: 'testRainbowKey'") !== -1,
+  assert.ok(src.indexOf("action:'testRainbowKey'") !== -1,
     'rainbow-key-test.js does not register testRainbowKey in the page');
-  assert.ok(src.indexOf('window.KeyTest = api') < src.indexOf("action: 'testRainbowKey'"),
+  assert.ok(src.indexOf('window.KeyTest=api') < src.indexOf("action:'testRainbowKey'"),
     'the page must define window.KeyTest before rainbow-key-test.js runs');
 });
 
@@ -827,7 +829,7 @@ test('the threshold contract reaches the generated page between resolve-ink and 
       'status-thresholds.js must precede ' + file + ', which reads window.StatusThresholds at IIFE time');
   });
   const src = page();
-  const defined = src.indexOf('window.StatusThresholds = api');
+  const defined = src.indexOf('window.StatusThresholds=api');
   assert.notEqual(defined, -1, 'nothing assigns window.StatusThresholds in the page');
   assert.ok(defined < src.indexOf("register('thresholdRange'"),
     'the page must define window.StatusThresholds before blocks.js runs');
@@ -845,7 +847,7 @@ test('the new-features card reaches the generated page and registers its block',
   assert.ok(src.indexOf("PConf.blocks.register('featureTips'") !== -1, 'the page registers no featureTips block');
   // The generated file holds the page as one JSON string: a '"' of the page reads '\\"' there.
   assert.ok(src.indexOf('data-k=\\"featureTipsAck\\"') !== -1, 'its Got it flips the flag the phone reads');
-  assert.ok(src.indexOf("ctx.set('featureTipsAck', false)") !== -1, 'the flag is cleared on every open (onbuild.js onLoad)');
+  assert.ok(src.indexOf("ctx.set('featureTipsAck',false)") !== -1, 'the flag is cleared on every open (onbuild.js onLoad)');
 });
 
 // The note under the Provider (page/weather/weather-sources-page.js) binds the provider
@@ -870,8 +872,8 @@ test('where the weather comes from: each module is bundled ahead of the ones tha
   ['weather/domain/source-plan.js', 'weather/domain/drawn-readings.js'].forEach((file) => {
     assert.ok(idx(file) < idx('page/weather/weather-sources-page.js'), file + ' must precede weather-sources-page.js');
   });
-  ['window.ProviderReadings = api', 'window.SourcePlan = api', 'window.DrawnReadings = api',
-    'window.WeatherSourcesPage = api', "register('weatherFillNote'"].forEach((s) => {
+  ['window.ProviderReadings=api', 'window.SourcePlan=api', 'window.DrawnReadings=api',
+    'window.WeatherSourcesPage=api', "register('weatherFillNote'"].forEach((s) => {
     assert.ok(page().indexOf(s) !== -1, s + ' is not in the generated page');
   });
 });
@@ -888,7 +890,7 @@ test('the Plugin value slot\'s rules and dialog reach the page ahead of the Stat
     'page/status-bars/preview-status-bars.js'];
   order.forEach((file) => assert.notEqual(idx(file), -1, file + ' is not in APP_FILES at all'));
   order.slice(1).forEach((file, i) => assert.ok(idx(order[i]) < idx(file), order[i] + ' must precede ' + file));
-  ['window.PluginValues = api', 'window.PluginValuePage = api', "register('pluginValuePlugins'",
+  ['window.PluginValues=api', 'window.PluginValuePage=api', "register('pluginValuePlugins'",
     "register('pluginValueIds'", "register('pluginValuePluginHint'", "register('pluginValueIdHint'",
     "register('pluginValueLast'", "register('pluginValuePluginPicked'"].forEach((s) => {
     assert.ok(page().indexOf(s) !== -1, s + ' is not in the generated page');

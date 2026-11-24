@@ -1,6 +1,7 @@
 // test/page/settings/config-page-strip.test.js
-// build-page.js drops whole-line comments, blank lines and indentation from every JS file it
-// concatenates into the settings page (the page travels as one data: URL that
+// build-page.js drops whole-line comments, blank lines, indentation and the blanks beside
+// punctuation from every JS file it concatenates into the settings page (the page travels as one
+// data: URL that
 // Android's WebView refuses past 2 MiB). That is only safe if the program is
 // untouched, so this proves it for every file that ships: the stripped source must
 // tokenize to the same tokens, with a line break between the same pairs of tokens
@@ -50,18 +51,18 @@ test('every page file tokenizes identically, line breaks included, after strippi
   assert.ok(after < before * 0.8, 'stripping saves real space (' + before + ' -> ' + after + ')');
 });
 
-test('stripJs drops only what it can prove is a comment or indentation', () => {
+test('stripJs drops only what it can prove is a comment or a blank the program does without', () => {
   const cases = [
     // [input, expected]
-    ['  // a\n  var x = 1;\n', 'var x = 1;\n'],
-    ['/**\n * doc\n */\nfunction f() {}\n', 'function f() {}\n'],
+    ['  // a\n  var x = 1;\n', 'var x=1;\n'],
+    ['/**\n * doc\n */\nfunction f() {}\n', 'function f(){}\n'],
     ['  /* one line */\nvar y;', 'var y;'],
     // Code after the close: the comment stays, only its indentation goes.
     ['  /* a\n  b */ var z;', '/* a\nb */ var z;'],
     // A '//' line that could be closing a block comment opened mid-line stays.
     ['var a; /* open\n// still */\nvar b;', 'var a; /* open\n// still */\nvar b;'],
     // A string continued across lines keeps its next line verbatim.
-    ["var s = 'a\\\n    // b';\n", "var s = 'a\\\n    // b';\n"],
+    ["var s = 'a\\\n    // b';\n", "var s='a\\\n    // b';\n"],
     // The page-host markers are never comments to drop.
     ['  /*__PCONF_INJECT__*/\n', '/*__PCONF_INJECT__*/\n'],
     // An unterminated block comment is left alone.
@@ -72,15 +73,25 @@ test('stripJs drops only what it can prove is a comment or indentation', () => {
     ['var a;\n\n  \nvar b;\n', 'var a;\nvar b;\n'],
     ['return\n\nx;', 'return\nx;'],
     // A comment after code goes, with the blanks before it; the line break stays (ASI).
-    ['  var x = 1;   // why\nreturn\n', 'var x = 1;\nreturn\n'],
-    ["f('http://a', \"b'//c\", 'd\\'//'); // e\n", "f('http://a', \"b'//c\", 'd\\'//');\n"],
-    // Where a '/' comes first, it may start a regex literal the '//' is in: the line stays.
+    ['  var x = 1;   // why\nreturn\n', 'var x=1;\nreturn\n'],
+    ["f('http://a', \"b'//c\", 'd\\'//'); // e\n", "f('http://a',\"b'//c\",'d\\'//');\n"],
+    // The blanks beside punctuation go, outside the strings and between names, keywords and
+    // numbers; a blank stays where two tokens would run on into another, or a comment or '?.'
+    // would start.
+    ["s = 'a  b' + \"c  d\";  \n", "s='a  b'+\"c  d\";\n"],
+    ['for (var k in o) { if (typeof o[k] === x) { return -1; } else { n++; } }\n',
+      'for(var k in o){if(typeof o[k]===x){return-1;}else{n++;}}\n'],
+    ['a + +b; c - -d; e++ + f; g = h - --i;\n', 'a+ +b;c- -d;e++ +f;g=h- --i;\n'],
+    ['if (a < !b) { x = c-- > d ? .5 : 1; }\n', 'if(a< !b){x=c-- >d? .5:1;}\n'],
+    // Where a '/' comes first, it may start a regex literal the '//' is in, or one with blanks
+    // that are its own: the line stays.
     ['s.replace(/\\/\\//, \'\'); // a\n', 's.replace(/\\/\\//, \'\'); // a\n'],
+    ['s.replace(/ = /g, x);\n', 's.replace(/ = /g, x);\n'],
     ['x = a / b; // c\n', 'x = a / b; // c\n'],
     ['x(); /* a */ // b\n', 'x(); /* a */ // b\n'],
     // A line that could close a block comment, or hold a backtick, stays.
     ['var a; /* open\nsee http://x */ var b;\n', 'var a; /* open\nsee http://x */ var b;\n'],
-    ['var t = `a`; // b\n', 'var t = `a`; // b\n'],
+    ['var t = `a = b`; // b\n', 'var t = `a = b`; // b\n'],
   ];
   cases.forEach(([input, expected]) => {
     assert.equal(build.stripJs(input), expected, JSON.stringify(input));
