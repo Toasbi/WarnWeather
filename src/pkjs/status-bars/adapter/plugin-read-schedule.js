@@ -27,31 +27,30 @@
 //     what changed it, which that read held up, reads then: as from a save where a save did.
 //   - A clock that went back starts the wait again from now (plugin-reads.js clockWentBack).
 //   - Inside the Night battery saver's window only a read that a settings save asks for, with
-//     none before it or after the first that failed, goes ahead: the user is at the phone, waiting to
-//     see the value. Any other waits for the first tick after the window. The window keeps the
-//     watch's link quiet, and a read is not quiet: a permission the plugin's app asked for comes
-//     back to the watch with it.
+//     none before it or after the first that failed, goes ahead, and the read again a read the
+//     user waits for earned: the user is at the phone, waiting to see the value. Any other waits
+//     for the first tick after the window. The window keeps the watch's link quiet, and a read
+//     is not quiet: a permission the plugin's app asked for comes back to the watch with it.
 //   - A plugin that is not there is an answer of nothing, and the value kept is dropped; a key
 //     with nothing to read under it (the spec's wanted: a request of null) drops it at once,
 //     before its next read is due. Any other failure keeps it, and the reader's nextReadAt
 //     tries again sooner (plugin-reads.js retryWait). A read a save asked for that failed for a
 //     reason that can pass by the next minute (the plugin did not answer in time, or failed
 //     without saying why: plugin-reads.js passing) is read again at the next tick, once: the
-//     user waits at the phone. So is the first read after a record was forgotten (another key
-//     wanted, or the value wanted again): a complication changed in the Pebble app, whose
-//     plugin's permission the phone may be asking the user for right then. A start's first read
-//     is no change of the user's, and waits the reader's wait.
+//     user waits at the phone. So does the first read of another key (renewed): a complication
+//     changed in the Pebble app, whose plugin's permission the phone may be asking the user for
+//     right then. A start's first read is no change of the user's, and waits the reader's wait.
 //
 // The value last heard is kept in storage, so a bake after a PKJS restart shows it at once,
 // and here, which is what a bake reads. When what the slot shows of it changes, with a new
 // value or with the time (a value grown too old, which only a bake drops), the watch is owed a
 // status send, which the re-bake's next tick makes: within a minute, after the Night battery
 // saver's window, and not beside a fetch in flight (status-rebake.js oweStatus). The answer to
-// a read a save asked for is paid two seconds after it comes, inside the window too: the user
-// waits for it at the phone (status-rebake.js paySoon). A start owes one as well while the
-// slot shows a value kept, since a debt dies with its PKJS: whether the watch got the value is
-// not known then, and the outbox sends nothing when it has. The value is never logged: it is
-// another app's data.
+// a read the user waits for (a save's, another key's first, or the read again of either) is
+// paid two seconds after it comes, inside the window too (status-rebake.js paySoon). A start
+// owes one as well while the slot shows a value kept, since a debt dies with its PKJS: whether
+// the watch got the value is not known then, and the outbox sends nothing when it has. The
+// value is never logged: it is another app's data.
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
@@ -105,12 +104,11 @@ var INERT = {
 function create(spec) {
     var deps = INERT;
     var inFlight = false;
-    // A read a save asked for, or the first after a record was forgotten (renewed), failed for a
-    // reason that can pass by the next minute (plugin-reads.js passing): the next tick reads
-    // again, once, as the save would have.
+    // A read the user waits for failed for a reason that can pass by the next minute
+    // (plugin-reads.js passing): the next tick reads again, once.
     var againAtTick = false;
-    // A record was forgotten since the last read started (forget): the next read is the one
-    // that change asks for.
+    // Another key is wanted since the last read started (consider): the next read is the one
+    // that change asks for, and the user waits for it as for a save's.
     var renewed = false;
     // A save came while a read was under way (consider): the read it held up is the save's.
     var heldUp = false;
@@ -174,15 +172,14 @@ function create(spec) {
         againAtTick = false;
         if (record === null) { return; }
         record = null;
-        renewed = true;
         localStorage.removeItem(spec.recordKey);
     }
 
     /**
      * Keep a value (or none), and tell the watch when that changes what its slot shows.
      * @param {?Object} next The value heard (as spec.valueOf hands it back), or null for none.
-     * @param {boolean} waitedFor Whether a settings save asked for the read it came from
-     *   (status-rebake.js oweStatus).
+     * @param {boolean} waitedFor Whether the user waits for the read it came from (read), so
+     *   the status it owes is paid soon (status-rebake.js oweStatus).
      * @returns {void}
      */
     function keep(next, waitedFor) {
@@ -206,23 +203,21 @@ function create(spec) {
      * Ask the plugin, once (a request of null asks nothing: an answer of nothing, at once).
      * @param {{key: ?string, request: ?Object}} want What is wanted (spec.wanted).
      * @param {number} at Now, in epoch milliseconds.
-     * @param {boolean} fromSave Whether a settings save asked for it, or for the read before
-     *   it that this one reads again (againAtTick).
+     * @param {boolean} waitedFor Whether the user waits for it at the phone: a settings save
+     *   asked for it, it is another key's first (renewed), or it reads such a read again
+     *   (againAtTick).
      * @returns {void}
      */
-    function read(want, at, fromSave) {
+    function read(want, at, waitedFor) {
         var failures = record ? record.failures : 0;
         var time = record ? record[spec.timeField] : null;
-        // The first read after a record was forgotten (the header says why it earns a read
-        // again as a save's does).
-        var first = renewed;
         // The read again a failed read earned (againAtTick) earns none of its own: when it fails
         // as well, the reader's wait after a failure stands.
         var again = againAtTick;
         /** An answer of nothing: the read counts, and the value kept goes. */
         function nothingThere() {
             stamp(want.key, at, 0, null);
-            keep(null, fromSave);
+            keep(null, waitedFor);
         }
         againAtTick = false;
         renewed = false;
@@ -249,7 +244,7 @@ function create(spec) {
             if (fail && fail.code !== 'PLUGIN_UNAVAILABLE') {
                 console.log(spec.name + ': the plugin did not answer (' + fail.code + ').');
                 stamp(want.key, at, failures + 1, time);
-                againAtTick = (fromSave || first) && !again && pluginReads.passing(fail.code);
+                againAtTick = waitedFor && !again && pluginReads.passing(fail.code);
                 return;
             }
             if (fail) {
@@ -259,7 +254,7 @@ function create(spec) {
             }
             heard = spec.heard(envelope, want, nowMs());
             stamp(want.key, at, 0, heard.time);
-            keep(heard.value, fromSave);
+            keep(heard.value, waitedFor);
         }, deps.timers);
     }
 
@@ -281,8 +276,11 @@ function create(spec) {
             forget();
             return;
         }
-        // Another key: the new one is read at once.
-        if (record && record.source !== want.key) { forget(); }
+        // Another key: the new one is read at once, as the user's change.
+        if (record && record.source !== want.key) {
+            forget();
+            renewed = true;
+        }
         // A value heard of another key is no longer the slot's, whether its record is the old
         // key's or gone (nothing was wanted for a while): a bake would show it as the new one's.
         // Nor is one under a key with nothing to read under it now (a source no longer read).
@@ -309,7 +307,7 @@ function create(spec) {
         asked = againAtTick || (fromSave && (!record || record.failures === 1));
         if (record && !asked && at < spec.nextReadAt(record, settings)) { return; }
         if (!asked && batterySaver.isWithinSleepWindow(new Date(at), settings)) { return; }
-        read(want, at, fromSave || againAtTick);
+        read(want, at, fromSave || againAtTick || renewed);
     }
 
     /**

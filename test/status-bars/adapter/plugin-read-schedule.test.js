@@ -499,6 +499,33 @@ test('the first read of another key no save asked for (a complication changed in
   assert.equal(h.pebble.subs.length, 3, 'once: then the wait after a failure');
 });
 
+test('the slot back on a bar with no save is no change of the user\'s: its first read that times out waits the reader\'s wait', () => {
+  const h = boot();
+  h.pebble.subs[0].push({ text: '87%' });
+  h.settings = {};
+  h.clock += MIN;
+  schedule.onTick();
+  h.settings = WANT_A;
+  h.clock += 3 * HOUR;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 2, 'wanted again: read at once');
+  h.pebble.subs[1].fail('TIMEOUT');
+  h.clock += MIN;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 2, 'only a save\'s read or another key\'s first is read again at the next tick');
+});
+
+test('the answer to another key\'s first read no save asked for is owed as waited for: the user changed it at the phone', () => {
+  const h = boot();
+  h.pebble.subs[0].push({ text: '87%' });
+  assert.deepEqual([owed, waited], [1, 0], 'a start\'s read: the next tick pays it');
+  h.settings = { want: 'b' };
+  h.clock += MIN;
+  schedule.onTick();
+  h.pebble.subs[1].push({ text: '90%' });
+  assert.deepEqual([owed, waited], [2, 1], 'paid a moment after it comes, as a save\'s is');
+});
+
 test('a save after a read that failed reads again at once, in the Night battery saver\'s window too; after one answered, it does not', () => {
   let h = boot();
   h.pebble.subs[0].fail('PERMISSION_DENIED');

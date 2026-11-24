@@ -448,8 +448,8 @@ function resendStatusAwake(reason, prepare) {
  * News the user waits for at the phone is paid OWED_SOON_MS later instead (paySoon).
  *
  * @param {boolean} waitedFor Whether the user waits for the news at the phone: the answer to
- *   a read that a settings save asked for. It is paid a moment later, inside the Night
- *   battery saver's window too, as the save's own send went then.
+ *   a read that a settings save or a change of the user's asked for. It is paid a moment
+ *   later, inside the Night battery saver's window too, as the save's own send went then.
  * @returns {void}
  */
 function oweStatus(waitedFor) {
