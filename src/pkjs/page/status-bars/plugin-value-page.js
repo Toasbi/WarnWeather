@@ -37,9 +37,6 @@
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
     // What the slot shows while it has no value to show (status-lines.js formatValue).
     var NONE_SHOWN = pluginValues.textFor(null, catalog.CAPS.MID_TEXT_MAX);
-    // The Plugin row's name for the Preferences plugin, after what it offers, and its line.
-    var COMPLICATIONS = 'Complications';
-    var COMPLICATIONS_DESC = 'Your picks in the Pebble app';
     // The Value row's hint while the Preferences plugin is picked: where the complications are
     // set, and that the slot shows the one at its place, whatever it is set to there. An empty
     // place, or one WarnWeather may not read, shows NONE_SHOWN.
@@ -163,19 +160,22 @@
     }
 
     /**
-     * The Plugin row's list: None, then the user's complications (the Preferences plugin, as
-     * COMPLICATIONS), then each other plugin the phone listed, in its order, then the one the
-     * settings hold where the phone lists it no more.
+     * The Plugin row's list: None, then the user's complications (the Preferences plugin, named
+     * after what it offers), then each other plugin the phone listed, in its order, then the one
+     * the settings hold where the phone lists it no more.
      * @param {Object} S Settings.
      * @returns {Array<Array>} [label, value, meta?] options.
      */
     function pluginOptions(S) {
         var stored = S.pluginValuePlugin;
-        var out = [['None', '']].concat(listed().filter(offersComplications).map(function (p) {
-            return [COMPLICATIONS, p.uuid, {desc: COMPLICATIONS_DESC}];
-        }), listed().filter(function (p) { return !offersComplications(p); }).map(function (p) {
-            return [p.name, p.uuid];
-        }));
+        var out = [['None', '']];
+        listed().forEach(function (p) {
+            if (offersComplications(p)) {
+                out.splice(1, 0, ['Complications', p.uuid, {desc: 'Your picks in the Pebble app'}]);
+            } else {
+                out.push([p.name, p.uuid]);
+            }
+        });
         if (stored && !pluginOf(stored)) { out.push(['Not on this phone', stored]); }
         return out;
     }

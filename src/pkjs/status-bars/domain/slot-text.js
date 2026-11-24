@@ -200,8 +200,8 @@
         return hourText + ':' + pad2(m) + marker;
     }
 
-    /** The months as a moment's date names them ('24 Nov'). */
-    var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    /** The months as a moment's date names them, three letters each ('24 Nov'). */
+    var MONTHS = 'JanFebMarAprMayJunJulAugSepOctNovDec';
 
     /**
      * A moment as a slot prints it (the Plugin value's, plugin-values.js textFor): its clock
@@ -218,13 +218,10 @@
      */
     function momentText(epochMs, nowMs, settings, cap) {
         var at = new Date(epochMs);
-        var now = new Date(nowMs);
         var clock = clockText(at.getHours(), at.getMinutes(), settings);
-        var date = at.getDate() + ' ' + MONTHS[at.getMonth()];
-        if (at.getFullYear() === now.getFullYear() && at.getMonth() === now.getMonth()
-                && at.getDate() === now.getDate()) {
-            return clock;
-        }
+        var date = at.getDate() + ' ' + MONTHS.substr(at.getMonth() * 3, 3);
+        // The local date as a text, which is the same text for the same day.
+        if (at.toDateString() === new Date(nowMs).toDateString()) { return clock; }
         return utf8.byteLength(clock + ' ' + date) <= cap ? clock + ' ' + date : date;
     }
 

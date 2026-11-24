@@ -91,3 +91,9 @@ test('a moment on another day prints its date alone where both do not fit: never
   assert.equal(slotText.momentText(new Date(2026, 11, 1, 1, 5).getTime(), BAKED, {}, catalog.CAPS.EDGE_TEXT_MAX),
     '1 Dec', 'the shortest of both is 10 bytes');
 });
+
+test('a moment\'s date names its month in three letters, every month of the year', () => {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  months.forEach((name, m) => assert.equal(slotText.momentText(new Date(2027, m, 5, 10, 0).getTime(), BAKED, {}, 8),
+    '5 ' + name));
+});
