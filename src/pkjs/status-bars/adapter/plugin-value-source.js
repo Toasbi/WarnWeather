@@ -15,9 +15,10 @@
 //
 // Only while it is wanted: a source is picked and a bar the watch is sent shows the slot
 // (status-lines.js wantsPluginValue). A bake shows the value only for the source it was read
-// from, and drops it once it is too old (plugin-values.js shownReading). The settings page gets
-// it only while it is of what the settings pick, and of the reading a complication's place
-// names now (forPage).
+// from, and drops it once it is too old (plugin-values.js shownReading); the watch is owed
+// the status that shows the change, and the one that prints a moment's date at the midnight
+// after it (shownView). The settings page gets it only while it is of what the settings pick,
+// and of the reading a complication's place names now (forPage).
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
@@ -25,6 +26,7 @@ var KEYS = require('../../settings/domain/storage-keys.js');
 var statusLines = require('../domain/status-lines.js');
 var pluginValues = require('../domain/plugin-values.js');
 var pluginValueReads = require('../domain/plugin-value-reads.js');
+var slotText = require('../domain/slot-text.js');
 var complications = require('../domain/complications.js');
 var pluginReadSchedule = require('./plugin-read-schedule.js');
 var pluginReader = require('./plugin-reader.js');
@@ -48,6 +50,33 @@ function readOf(source, list, permissions) {
     if (source.plugin.toLowerCase() === pluginValues.PREFERENCES) { return { key: source.key, request: null }; }
     return { key: source.key, request: { category: source.category, item: source.item,
         properties: [source.property], plugin: source.plugin, limit: 1, permissions: permissions } };
+}
+
+/**
+ * What the slot shows of the value at an instant, as far as the instant changes it: the reading
+ * (plugin-values.js shownReading) and, for one with a moment, whether the moment is on the
+ * instant's day, which decides whether its date prints (slot-text.js momentText). So the
+ * midnight after a moment owes the watch the status that prints its date (plugin-read-schedule.js
+ * consider), as an expiry does.
+ * @param {?Object} value The value kept, or null.
+ * @param {?Object} settings Settings.
+ * @param {number} nowMs The instant, in epoch milliseconds.
+ * @returns {?{reading: Object, today: boolean}} What it shows, or null for nothing.
+ */
+function shownView(value, settings, nowMs) {
+    var reading = pluginValues.shownReading(value, settings, nowMs);
+    return reading ? { reading: reading,
+        today: typeof reading.time === 'number' && slotText.sameDay(reading.time, nowMs) } : null;
+}
+
+/**
+ * @param {?{reading: Object, today: boolean}} a What the slot showed (shownView).
+ * @param {?{reading: Object, today: boolean}} b What it shows now.
+ * @returns {boolean} Whether the two print the same.
+ */
+function sameView(a, b) {
+    if (!a || !b) { return !a && !b; }
+    return a.today === b.today && pluginValueReads.sameReading(a.reading, b.reading);
 }
 
 var schedule = pluginReadSchedule.create({
@@ -77,8 +106,8 @@ var schedule = pluginReadSchedule.create({
             at: nowMs, validUntil: until }) };
     },
     valueOf: pluginValueReads.valueOf,
-    shown: pluginValues.shownReading,
-    sameShown: pluginValueReads.sameReading
+    shown: shownView,
+    sameShown: sameView
 });
 
 /**

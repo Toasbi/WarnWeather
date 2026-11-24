@@ -588,6 +588,24 @@ test('a complication\'s moment prints as a clock time: its property\'s name is l
   assert.equal(sentText(h), '11:07');
 });
 
+test('a moment of the day the slot showed it on gets its date at the midnight after it', () => {
+  const at = new Date(2026, 10, 21, 23, 10, 0).getTime();
+  const muninn = { position: 1, category: 'muninn', item: 'stats', index: 0, property: 'updatedAt' };
+  const h = boot({ clock: new Date(2026, 10, 21, 23, 30, 0).getTime(), settings: SECOND, complications: [muninn],
+    permissions: PERMS, pebble: fakePebble([{ uuid: 'm', name: 'Muninn', sources: [{ category: 'muninn', items: ['stats'] }] }]) });
+  h.pebble.subs[0].push({ pluginUuid: 'm', instances: [{ instanceId: '0',
+    properties: { updatedAt: { numericValue: { value: at } } } }] });
+  minute();
+  assert.equal(sentText(h), '23:10');
+  h.clock = new Date(2026, 10, 21, 23, 59, 0).getTime();
+  const sends = h.sends.length;
+  minute();
+  assert.equal(h.sends.length, sends, 'nothing owed while it is still that day');
+  h.clock = new Date(2026, 10, 22, 0, 0, 0).getTime();
+  minute();
+  assert.equal(sentText(h), '21 Nov', 'yesterday\'s: a side slot has no room for the time as well');
+});
+
 test('a pick of the Preferences plugin\'s own reading, which 3.4.0 listed, is never read: the value kept is dropped at once', () => {
   const pick = { statusTopLeft: 'pluginValue', pluginValuePlugin: PREFERENCES,
     pluginValueId: 'preferences/weather_location/latitude' };

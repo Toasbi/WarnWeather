@@ -204,6 +204,17 @@
     var MONTHS = 'JanFebMarAprMayJunJulAugSepOctNovDec';
 
     /**
+     * @param {number} aMs An instant, in epoch milliseconds.
+     * @param {number} bMs Another.
+     * @returns {boolean} Whether the two fall on the same local date: whether a moment
+     *   (momentText) prints without its date when baked for the other.
+     */
+    function sameDay(aMs, bMs) {
+        // The local date as a text, which is the same text for the same day.
+        return new Date(aMs).toDateString() === new Date(bMs).toDateString();
+    }
+
+    /**
      * A moment as a slot prints it (the Plugin value's, plugin-values.js textFor): its clock
      * time in the user's format (clockText) while it is on the day the slot is baked for, else
      * with its date after it ('23:10 24 Nov'), as Shapeshifter prints a plugin's times; the
@@ -220,8 +231,7 @@
         var at = new Date(epochMs);
         var clock = clockText(at.getHours(), at.getMinutes(), settings);
         var date = at.getDate() + ' ' + MONTHS.substr(at.getMonth() * 3, 3);
-        // The local date as a text, which is the same text for the same day.
-        if (at.toDateString() === new Date(nowMs).toDateString()) { return clock; }
+        if (sameDay(epochMs, nowMs)) { return clock; }
         return utf8.byteLength(clock + ' ' + date) <= cap ? clock + ' ' + date : date;
     }
 
@@ -416,6 +426,7 @@
         dayMaxText: dayMaxText,
         pad2: pad2,
         clockText: clockText,
+        sameDay: sameDay,
         momentText: momentText,
         formatCountdown: formatCountdown,
         isoWeek: isoWeek,
