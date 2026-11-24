@@ -139,8 +139,10 @@ function undeclared(source, permissions) {
     var out = [];
     asks.forEach(function (p) {
         permissionKeys(p).forEach(function (key) {
+            var name = key.split('/')[0];
+            // Another app's plugin's own is '<uuid>:<Name>'; a domain may hold a ':' as well.
             if (!declares(key, permissions)) {
-                out.push(key.indexOf(':') !== -1 ? ANOTHER_APPS : key.split('/')[0]);
+                out.push(name !== INTERNET && key.indexOf(':') !== -1 ? ANOTHER_APPS : name);
             }
         });
     });

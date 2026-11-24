@@ -136,6 +136,7 @@ test('refusal: what each plugin that may answer asks for that this app never dec
   assert.deepEqual(why([weather('a', [{ name: LIGHTS }, {}, internet('example.com', 'x.org')])]),
     [reads.ANOTHER_APPS, '', 'Internet'],
   'another app\'s permission as ANOTHER_APPS; one without a name as \'\'; Internet for a domain this app never declared, by its name');
+  assert.deepEqual(why([weather('a', [internet('example.com:8443')])]), ['Internet'], 'a domain with a port is still Internet');
   assert.equal(why([weather('a', [])], 'day'), '', 'none serves it');
   assert.equal(reads.refusal([weather('a', [])], { category: 'calendar', item: 'location', permissions: PERMS }), '');
   [null, undefined, 'x', {}, [], [null, { sources: 'x' }, { sources: [null, { category: 'weather', items: 'location' }] }]]
