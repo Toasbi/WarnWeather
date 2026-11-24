@@ -18,14 +18,17 @@ var notices = require(path.join(ROOT, 'src/pkjs/notices/adapter/notices.js'));
 var featureTips = require(path.join(ROOT, 'src/pkjs/notices/domain/feature-tips.js'));
 var gpsFailure = require(path.join(ROOT, 'src/pkjs/weather/adapter/location.js')).gpsFailure;
 var pluginValueList = require(path.join(ROOT, 'src/pkjs/status-bars/domain/plugin-value-list.js'));
+var pluginReads = require(path.join(ROOT, 'src/pkjs/status-bars/domain/plugin-reads.js'));
+var pluginValues = require(path.join(ROOT, 'src/pkjs/status-bars/domain/plugin-values.js'));
 var statusLineCatalog = require(path.join(ROOT, 'src/pkjs/status-bars/domain/status-line-catalog.js'));
 // The bundle IS the build's bundle: same files, same order. It used to be a
 // second copy of the list, which is exactly how the preview came to load the
 // Weather tab's stylesheet before the module whose settle curve it bakes in.
 var APP_FILES = require('./build-config-page.js').APP_FILES;
 var DEFAULT_OUT = path.join(ROOT, 'build/config-ui-preview.html');
+var PACKAGE = require(path.join(ROOT, 'package.template.json'));
 // The watches the app builds for: a bare name among them picks the platform.
-var PLATFORMS = require(path.join(ROOT, 'package.template.json')).pebble.targetPlatforms;
+var PLATFORMS = PACKAGE.pebble.targetPlatforms;
 
 // Parse CLI positionals into { out, platform } order-independently. A bare platform
 // name (e.g. `mise preview-config aplite`) selects the platform and keeps the default
@@ -97,7 +100,8 @@ function previewFailureData() {
 /**
  * The Plugin value slot's dialog (plugin-value-page.js): what a phone with the Phone plugin,
  * Muninn and the Pebble app's Weather, Calendar and Preferences plugins lists
- * (plugin-value-list.js listOf, from what Pebble.enumeratePlugins() would hand over), with the
+ * (plugin-value-list.js listOf, from what Pebble.enumeratePlugins() would hand over and what
+ * package.template.json declares, keyed as index.js declaredPermissions keys it), with the
  * Pebble app's own four complications and the time of Muninn's last estimate in the fifth
  * place. The value read last, five minutes ago, is that time, which the dialog's last line and
  * the bars' pictures show once the slot picks the fifth complication. Left out where the status
@@ -109,7 +113,7 @@ function previewFailureData() {
  */
 function previewPlugins(env) {
   if (!statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, env)) { return {}; }
-  var prefs = '00000000-0000-0000-0001-000000000009';
+  var prefs = pluginValues.PREFERENCES;
   var plugins = [
     { uuid: '00000000-0000-0000-0001-000000000001', name: 'Phone', sources: [{ category: 'phone',
       items: ['phone_state'], properties: { battery_level: ['numericValue', 'shortText'], cell: ['shortText'],
@@ -131,7 +135,9 @@ function previewPlugins(env) {
     .map(function (c, i) { return { position: i, category: c[0], item: c[1], index: 0, property: c[2] }; });
   var estimated = Date.now() - 2 * 60 * 60 * 1000;
   return {
-    plugins: pluginValueList.listOf(plugins, ['Location', 'Internet', 'ShowNotifications', 'Health'], '', known),
+    // The build adds to what the template declares only its own endpoints' hosts
+    // (scripts/lib/uses-permissions.js), which no plugin here asks for.
+    plugins: pluginValueList.listOf(plugins, pluginReads.declaredKeys(PACKAGE.pebble.usesPermissions), '', known),
     pluginValue: { source: prefs + '/preferences/complications/4/muninn/stats/0/updatedAt',
       at: Date.now() - 5 * 60 * 1000, validUntil: null,
       reading: { short: null, time: estimated, number: estimated, unit: null, state: null, long: null } }
