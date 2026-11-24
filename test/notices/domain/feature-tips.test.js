@@ -154,7 +154,7 @@ test('the complications tip names the page\'s own words: the slot\'s item, and t
   assert.equal(tip.since, '3.5.0');
 });
 
-test('the icon tip names the page\'s own words: the Edit button, the Icon row and its icons that turn', (t) => {
+test('the icon tip names the page\'s own words: the Edit button, the Icon row, its icons that turn and Updates\' new choice', (t) => {
   const tip = featureTips.TIPS.find((x) => x.id === 'pluginValueIcon');
   const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
   global.INJECTED_USERDATA = { plugins: [] };
@@ -166,6 +166,10 @@ test('the icon tip names the page\'s own words: the Edit button, the Icon row an
   assert.ok(tip.html.indexOf('A ' + catalog.byCode('pluginValue').label + ' slot') === 0, tip.html);
   assert.ok(tip.html.indexOf('Edit button and pick one under ' + row('pluginValueIcon').label + '.') !== -1, tip.html);
   assert.ok(tip.html.indexOf(turns.slice(0, 2).join(', ') + ' and ' + turns[2] + ' turn off') !== -1, tip.html);
+  const every = row('pluginValueEvery');
+  const fifteen = every.options.find((o) => o[1] === '15');
+  assert.ok(fifteen, 'Updates offers 15 minutes');
+  assert.ok(tip.html.indexOf('Under ' + every.label + ', you can now pick ' + fifteen[0] + '.') !== -1, tip.html);
   assert.equal(tip.since, '3.5.0');
   assert.deepEqual(featureTips.allIds().slice(0, 2), ['pluginValueIcon', 'complications'], 'the newest release\'s, on top');
 });
