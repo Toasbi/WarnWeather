@@ -65,6 +65,12 @@ function neverRead(category, item) {
 var INTERNET = 'Internet';
 
 /**
+ * A domain the Pebble app keys (PermissionRegistry.kt isHostname): a plain hostname. It keys no
+ * other (one with a port, a path, a wildcard), so it asks no caller for one.
+ */
+var HOSTNAME = /^[a-z0-9-]+(\.[a-z0-9-]+)*$/;
+
+/**
  * How undeclared names a permission another app's plugin defines (the Pebble app keys it
  * '<uuid>:<Name>'): one this app can never declare.
  */
@@ -73,12 +79,12 @@ var ANOTHER_APPS = ':';
 /**
  * A permission's keys, as the Pebble app makes them of a declaration (PermissionRegistry.kt
  * keys) and asks the user for them: Internet's one for each of its domains
- * ('Internet/api.met.no'), a permission that names another app's plugin '<uuid>:<Name>', any
- * other its name.
+ * that is a plain hostname ('Internet/api.met.no'), a permission that names another app's plugin
+ * '<uuid>:<Name>', any other its name.
  * @param {*} p A permission as a manifest or Pebble.enumeratePlugins() writes it: its name,
  *   or {name, parameters, plugin}.
  * @returns {string[]} Its keys: [''] for one without a name, ['Internet'] for Internet with no
- *   domain.
+ *   domain, [] for Internet whose domains are none a hostname.
  */
 function permissionKeys(p) {
     var named = Boolean(p) && typeof p === 'object';
@@ -87,8 +93,8 @@ function permissionKeys(p) {
     if (named && typeof p.plugin === 'string' && p.plugin) { return [p.plugin.toLowerCase() + ':' + name]; }
     if (name !== INTERNET || !domains.length) { return [name]; }
     return domains.map(function (d) {
-        return INTERNET + '/' + String(d).toLowerCase().replace(/^\./, '').replace(/\.+$/, '');
-    });
+        return String(d).toLowerCase().replace(/^\./, '').replace(/\.+$/, '');
+    }).filter(function (d) { return HOSTNAME.test(d); }).map(function (d) { return INTERNET + '/' + d; });
 }
 
 /**
@@ -139,10 +145,8 @@ function undeclared(source, permissions) {
     var out = [];
     asks.forEach(function (p) {
         permissionKeys(p).forEach(function (key) {
-            var name = key.split('/')[0];
-            // Another app's plugin's own is '<uuid>:<Name>'; a domain may hold a ':' as well.
             if (!declares(key, permissions)) {
-                out.push(name !== INTERNET && key.indexOf(':') !== -1 ? ANOTHER_APPS : name);
+                out.push(key.indexOf(':') !== -1 ? ANOTHER_APPS : key.split('/')[0]);
             }
         });
     });

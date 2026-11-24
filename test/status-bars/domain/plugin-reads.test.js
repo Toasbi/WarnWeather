@@ -94,6 +94,9 @@ test('a permission\'s keys, as the Pebble app makes them: Internet\'s one for ea
   assert.deepEqual(reads.permissionKeys(internet('API.met.no.', '.date.nager.at')),
     ['Internet/api.met.no', 'Internet/date.nager.at'], 'lower case, without a dot at either end');
   assert.deepEqual(reads.permissionKeys({ name: 'Internet' }), ['Internet'], 'no domain: Internet itself');
+  assert.deepEqual(reads.permissionKeys(internet('example.com:8443', '*.example.com', 'a.b/c', 'ok.example')),
+    ['Internet/ok.example'], 'only a plain hostname is keyed, as the Pebble app keys it');
+  assert.deepEqual(reads.permissionKeys(internet('example.com:8443')), [], 'no hostname among its domains: no key');
   assert.deepEqual(reads.permissionKeys({ name: 'HomeControl', plugin: 'ABC' }), ['abc:HomeControl'],
     'one that names the plugin defining it');
   [{}, null, 42, { name: 7 }].forEach((p) => assert.deepEqual(reads.permissionKeys(p), [''], JSON.stringify(p)));
@@ -136,7 +139,8 @@ test('refusal: what each plugin that may answer asks for that this app never dec
   assert.deepEqual(why([weather('a', [{ name: LIGHTS }, {}, internet('example.com', 'x.org')])]),
     [reads.ANOTHER_APPS, '', 'Internet'],
   'another app\'s permission as ANOTHER_APPS; one without a name as \'\'; Internet for a domain this app never declared, by its name');
-  assert.deepEqual(why([weather('a', [internet('example.com:8443')])]), ['Internet'], 'a domain with a port is still Internet');
+  assert.equal(why([weather('a', [internet('example.com:8443')])]), null,
+    'a domain with a port is none the Pebble app keys, so it asks this app for nothing');
   assert.equal(why([weather('a', [])], 'day'), '', 'none serves it');
   assert.equal(reads.refusal([weather('a', [])], { category: 'calendar', item: 'location', permissions: PERMS }), '');
   [null, undefined, 'x', {}, [], [null, { sources: 'x' }, { sources: [null, { category: 'weather', items: 'location' }] }]]
