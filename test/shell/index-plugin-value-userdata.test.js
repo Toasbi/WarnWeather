@@ -181,8 +181,11 @@ test('a complication\'s value rides the page while its place names the reading i
 
 test('an answer of the Preferences plugin that changes the slot\'s place drops its value and reads the new one at once', (t) => {
   const value = firstPlaceValue('weather/now/0/level');
-  const h = boot(t, 'basalt', true, { settings: Object.assign({ statusTopLeft: 'pluginValue' }, FIRST_PLACE),
-    value: value, read: { source: value.source, at: Date.now() - 60 * 1000, failures: 0, validUntil: null } });
+  // The Night battery saver off: in its hours the new reading waits for the morning, and the boot
+  // runs by the real clock.
+  const h = boot(t, 'basalt', true, { settings: Object.assign({ statusTopLeft: 'pluginValue', sleepNightEnabled: false },
+    FIRST_PLACE), value: value, read: { source: value.source, at: Date.now() - 60 * 1000, failures: 0,
+    validUntil: null } });
   const KEYS = require('../../src/pkjs/settings/domain/storage-keys.js');
   /** @returns {Array<string>} What is read of plugins but the phone's own state, by category. */
   const reads = () => h.subs.map((c) => c.category).filter((c) => c !== 'phone');
