@@ -107,6 +107,18 @@ function boxPixels(lines) {
 }
 
 /**
+ * A drawing's rows as numbers, bit x lighting column x.
+ * @param {!Array<!Array<number>>} px Its lit pixels, [x, y] (boxPixels).
+ * @param {number} h Its rows.
+ * @returns {!Array<number>}
+ */
+function rowBits(px, h) {
+    const rows = new Array(h).fill(0);
+    px.forEach(([x, y]) => { rows[y] |= 1 << x; });
+    return rows;
+}
+
+/**
  * A size's kept lines (an old or drawing version's), a dot as a line of one point twice.
  * @param {string} version 'old' or 'drawing'.
  * @param {?{lines: !Array<!Array<!Array<number>>>, w: number, h: number}} kept The lines the file keeps.
@@ -231,13 +243,7 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
                     throw new Error(key + ': the Pebble Classic/Steel mask\'s ink is taller than ' + MASK_INK_ROWS + ' rows');
                 }
                 if (h > MASK_BOX_ROWS) throw new Error(key + ': the Pebble Classic/Steel mask\'s box is taller than ' + MASK_BOX_ROWS + ' rows');
-                const rows = [];
-                for (let y = 0; y < h; y++) {
-                    let bits = 0;
-                    px.forEach(([x, py]) => { if (py === y) bits |= 1 << x; });
-                    rows.push(bits);
-                }
-                masks[key] = { rows, w };
+                masks[key] = { rows: rowBits(px, h), w };
                 continue;
             }
             // The box the watch looks it up by: the rows a bar's icon height paints, on one family.
@@ -316,11 +322,11 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
  */
 function pagePixels(doc) {
     const keys = Object.keys(doc.icons).filter((key) => ICON_IDS[key]);
-    const slots = [...new Set(keys.flatMap((key) => Object.keys(doc.icons[key].sizes)))].sort();
+    const sizeIds = [...new Set(keys.flatMap((key) => Object.keys(doc.icons[key].sizes)))].sort();
     const packed = (w, rows) => w.toString(36) + '!' + rows.map(r => r.toString(36)).join('.');
     const icons = keys.map((key) => {
         const first = {};
-        const fields = slots.map((id, slot) => {
+        const fields = sizeIds.map((id, n) => {
             const s = doc.icons[key].sizes[id];
             if (!s) return '';
             // A size the Classic keeps as 3.1.1 drew it: its mask, blank columns and all.
@@ -331,10 +337,10 @@ function pagePixels(doc) {
                 const px = boxPixels(s.pixels);
                 if (!px.length) return '';
                 const w = Math.max(...px.map(p => p[0])) + 1;
-                text = packed(w, s.pixels.map((_, y) => px.filter(p => p[1] === y).reduce((m, p) => m | (1 << p[0]), 0)));
+                text = packed(w, rowBits(px, s.pixels.length));
             }
             if (first[text] !== undefined) return first[text].toString(36);
-            first[text] = slot;
+            first[text] = n;
             return text;
         });
         while (fields.length && !fields[fields.length - 1]) fields.pop();
@@ -354,17 +360,17 @@ function pagePixels(doc) {
         '// each its width, \'!\' and its rows split by \'.\', or the field number of an earlier size with',
         '// the same drawing; in base 36.',
         '(function () {',
-        '    var SIZES = [' + slots.map((id) => "'" + id + "'").join(', ') + '];',
+        '    var SIZES = [' + sizeIds.map((id) => "'" + id + "'").join(', ') + '];',
         '    var PACKED = {',
         icons.join(',\n'),
         '    };',
         '    var ICONS = {};',
         '    Object.keys(PACKED).forEach(function (key) {',
         '        var sizes = ICONS[key] = {};',
-        "        PACKED[key].split('~').forEach(function (field, slot) {",
+        "        PACKED[key].split('~').forEach(function (field, n) {",
         '            if (!field) { return; }',
         "            var f = field.split('!');",
-        '            sizes[SIZES[slot]] = f.length < 2 ? sizes[SIZES[parseInt(f[0], 36)]]',
+        '            sizes[SIZES[n]] = f.length < 2 ? sizes[SIZES[parseInt(f[0], 36)]]',
         "                : {w: parseInt(f[0], 36), rows: f[1].split('.').map(function (r) { return parseInt(r, 36); })};",
         '        });',
         '    });',

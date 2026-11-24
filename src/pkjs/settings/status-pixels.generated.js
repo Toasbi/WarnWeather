@@ -51,10 +51,10 @@
     var ICONS = {};
     Object.keys(PACKED).forEach(function (key) {
         var sizes = ICONS[key] = {};
-        PACKED[key].split('~').forEach(function (field, slot) {
+        PACKED[key].split('~').forEach(function (field, n) {
             if (!field) { return; }
             var f = field.split('!');
-            sizes[SIZES[slot]] = f.length < 2 ? sizes[SIZES[parseInt(f[0], 36)]]
+            sizes[SIZES[n]] = f.length < 2 ? sizes[SIZES[parseInt(f[0], 36)]]
                 : {w: parseInt(f[0], 36), rows: f[1].split('.').map(function (r) { return parseInt(r, 36); })};
         });
     });
