@@ -19,6 +19,8 @@ var LIB_PAGE_FILES = ['schema-walk.js', '../../lib/color.js', 'show-when.js', 'h
  *  - a blank line goes (the file's last line break stays);
  *  - a line whose first non-blank text is '//' goes, unless it also holds a '*' + '/'
  *    (it could be closing a block comment opened mid-line above);
+ *  - a comment after code goes too, with the blanks before it, where nothing before it can
+ *    be a regex literal (dropTrailingComment);
  *  - a block comment goes when it starts a line and nothing but blanks follows its
  *    close; one with code after the close stays as written;
  *  - a line after one ending in a backslash (a string continued across lines) is
@@ -57,10 +59,35 @@ function stripJs(src) {
         continue;
       }
     }
-    out.push(line.replace(/^[ \t]+/, ''));
+    out.push(dropTrailingComment(line.replace(/^[ \t]+/, '')));
     continued = /\\\r?$/.test(line);
   }
   return out.join('\n');
+}
+
+/**
+ * A line of code without the comment after it: the '//' and the rest of the line, with the
+ * blanks before it, where the '//' is sure to start a comment. That is where it is the first
+ * '/' outside a quoted string, so it starts no regex literal and is in none, and the line holds
+ * no backtick and no '*' + '/' (it could be closing a block comment opened above, or be inside
+ * one). Any other line stays as it is.
+ * @param {string} line A line of code, its indentation gone.
+ * @returns {string} The line without its comment.
+ */
+function dropTrailingComment(line) {
+  var quote = null;
+  if (line.indexOf('*/') !== -1 || line.indexOf('`') !== -1) { return line; }
+  for (var k = 0; k < line.length; k += 1) {
+    var c = line.charAt(k);
+    if (quote) {
+      if (c === '\\') { k += 1; } else if (c === quote) { quote = null; }
+    } else if (c === '"' || c === '\'') {
+      quote = c;
+    } else if (c === '/') {
+      return line.charAt(k + 1) === '/' ? line.slice(0, k).replace(/[ \t]+$/, '') : line;
+    }
+  }
+  return line;
 }
 
 /**
