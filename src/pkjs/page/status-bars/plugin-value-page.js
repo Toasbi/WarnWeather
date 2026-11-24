@@ -103,13 +103,13 @@
     /**
      * @param {string} why Why WarnWeather may not read a complication, as the phone lists it
      *   (plugin-value-list.js complicationsFor): the permission it needs, which WarnWeather
-     *   never asks for (Internet: for a site it never connects to); ANOTHER_APPS for one another
-     *   app's plugin defines; '' where nothing on the phone lets it read it.
+     *   never asks for (Internet: for a site, or for all, it has no access to); ANOTHER_APPS
+     *   for one another app's plugin defines; '' where nothing on the phone lets it read it.
      * @returns {string} The reason the Value row greys it out with.
      */
     function whyText(why) {
         if (why === ANOTHER_APPS) { return 'Needs a permission of another app'; }
-        if (why === 'Internet') { return 'Needs to connect to a site WarnWeather never connects to'; }
+        if (why === 'Internet') { return 'Needs internet access WarnWeather doesn\'t have'; }
         return why ? 'Needs the ' + labelOf(why) + ' permission, which WarnWeather never asks for'
             : 'WarnWeather cannot read it here';
     }

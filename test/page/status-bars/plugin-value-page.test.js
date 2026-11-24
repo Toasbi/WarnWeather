@@ -269,7 +269,7 @@ test('its values are the complications by their places, each by what it shows, n
   assert.equal(page.valueOptions(PLACE(0))[0][2].desc, 'Needs a permission of another app',
     'one another app\'s plugin defines: WarnWeather can never declare it');
   global.INJECTED_USERDATA.plugins = withPrefs([{ position: 0, property: 'level', category: 'tides', why: 'Internet' }]);
-  assert.equal(page.valueOptions(PLACE(0))[0][2].desc, 'Needs to connect to a site WarnWeather never connects to',
+  assert.equal(page.valueOptions(PLACE(0))[0][2].desc, 'Needs internet access WarnWeather doesn\'t have',
     'WarnWeather asks for Internet, for its own sites only');
   [[], null, undefined, 'x'].forEach((list) => {
     global.INJECTED_USERDATA.plugins = withPrefs(list);
