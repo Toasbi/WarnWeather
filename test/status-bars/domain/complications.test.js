@@ -105,3 +105,13 @@ test('requestOf: the reading\'s source, for its property, in the instance it nam
 test('keyOf: the reading, its property last', () => {
   assert.equal(complications.keyOf(LIST[3]), 'weather/location/1/condition');
 });
+
+test('wantOf: the reading the complication at the slot\'s place names, under a key that names it after the place\'s', () => {
+  const source = { key: 'prefs/preferences/complications/4', complication: 4 };
+  assert.deepEqual(complications.wantOf(source, LIST, PERMS), { key: 'prefs/preferences/complications/4/weather/location/1/'
+    + 'condition', request: complications.requestOf(LIST[3], PERMS) });
+  assert.deepEqual(complications.wantOf({ key: 'prefs/preferences/complications/0', complication: 0 }, LIST, PERMS),
+    { key: 'prefs/preferences/complications/0', request: null }, 'an empty place: nothing to read, which shows nothing');
+  assert.deepEqual(complications.wantOf(source, [], PERMS), { key: source.key, request: null }, 'none set up');
+  assert.equal(complications.wantOf(source, null, PERMS), null, 'not known yet: nothing wanted');
+});

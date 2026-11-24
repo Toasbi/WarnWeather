@@ -64,11 +64,13 @@ var pluginReader = require('./plugin-reader.js');
  * @property {string} valueKey The storage key of the value last heard.
  * @property {string} timeField The time the record keeps beside `at` and `failures`
  *   (plugin-reads.js recordOf), which the reader's nextReadAt works from.
- * @property {function(?Object, ?Object): ?{key: ?string, request: ?Object}} wanted What to read
- *   under the settings and the watch info: the request (plugin-reader.js PluginRequest) and
- *   its key, which the record keeps (null for a reader that reads one thing only). Null while
- *   nothing is wanted. A request of null wants a key with nothing to read under it (a
- *   complication's place left empty): each read of it is an answer of nothing, at once.
+ * @property {function(?Object, ?Object, Object): ?{key: ?string, request: ?Object}} wanted What
+ *   to read under the settings and the watch info, with the environment the schedule was handed
+ *   (init's options, which a reader may carry its own in): the request (plugin-reader.js
+ *   PluginRequest) and its key, which the record keeps (null for a reader that reads one thing
+ *   only). Null while nothing is wanted. A request of null wants a key with nothing to read
+ *   under it (a complication's place left empty): each read of it is an answer of nothing, at
+ *   once.
  * @property {function(Object, ?Object): number} nextReadAt When the read after a record is
  *   due under the settings, in epoch milliseconds.
  * @property {function(Object, {key: ?string, request: Object}, number): {time: ?number,
@@ -229,10 +231,14 @@ function create(spec) {
         // The read again a save's failed read earned (againAtTick) earns none of its own: when it
         // fails as well, the reader's wait after a failure stands.
         var again = againAtTick;
-        againAtTick = false;
-        if (!want.request) {
+        /** An answer of nothing: the read counts, and the value kept goes. */
+        function nothingThere() {
             stamp(want.key, at, 0, null);
             keep(null, fromSave);
+        }
+        againAtTick = false;
+        if (!want.request) {
+            nothingThere();
             return;
         }
         inFlight = true;
@@ -259,8 +265,7 @@ function create(spec) {
             }
             if (fail) {
                 console.log(spec.name + ': the plugin is not there.');
-                stamp(want.key, at, 0, null);
-                keep(null, fromSave);
+                nothingThere();
                 return;
             }
             heard = spec.heard(envelope, want, nowMs());
@@ -279,7 +284,7 @@ function create(spec) {
      */
     function consider(fromSave) {
         var settings = deps.getSettings();
-        var want = available() ? spec.wanted(settings, deps.getWatchInfo()) : null;
+        var want = available() ? spec.wanted(settings, deps.getWatchInfo(), deps) : null;
         var at;
         var now;
         var asked;
@@ -323,7 +328,8 @@ function create(spec) {
      * Re-calling resets all its state, which is what the tests rely on. Reads at once only
      * when a read is due: a PKJS start by itself is no reason to.
      *
-     * @param {Object} options Injected environment.
+     * @param {Object} options Injected environment. Any option besides these is the reader's
+     *   own, which its spec's wanted is handed with the rest.
      * @param {function():Object} options.getSettings Current Clay settings supplier.
      * @param {function():?Object} options.getWatchInfo Pebble.getActiveWatchInfo() result supplier.
      * @param {function():(Date|number)} options.now Clock.

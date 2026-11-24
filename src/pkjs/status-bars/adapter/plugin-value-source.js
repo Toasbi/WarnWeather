@@ -29,30 +29,6 @@ var complications = require('../domain/complications.js');
 var pluginReadSchedule = require('./plugin-read-schedule.js');
 var pluginReader = require('./plugin-reader.js');
 
-// What this app declares, as the Pebble app keys it (plugin-reads.js declaredKeys): a read never
-// starts where it would ask the user for another permission (plugin-reads.js refusal).
-var permissions = [];
-// The user's complications as last heard (complication-list.js current), or null while none
-// are known.
-var getComplications = function () { return null; };
-
-/**
- * What the slot reads for a complication: the reading the complication at its place names, under
- * a key that names that reading after the complication's own (plugin-values.js readFrom).
- * @param {Object} source The source the settings pick (plugin-values.js sourceOf), a
- *   complication's.
- * @param {?Array<Object>} list The user's complications as last heard, or null while none are
- *   known.
- * @returns {?{key: string, request: ?Object}} What is wanted: no request for a place left
- *   empty, which shows nothing; null while the complications are not known.
- */
-function complicationWant(source, list) {
-    var c = complications.atPlace(list, source.complication);
-    if (!list) { return null; }
-    return c ? { key: source.key + '/' + complications.keyOf(c), request: complications.requestOf(c, permissions) }
-        : { key: source.key, request: null };
-}
-
 /**
  * What the slot reads for the source the settings pick, whether a bar shows it or not. Nothing
  * of the Preferences plugin's but a complication: its own readings are the user's position and
@@ -61,11 +37,14 @@ function complicationWant(source, list) {
  * @param {Object} source The source (plugin-values.js sourceOf).
  * @param {?Array<Object>} list The user's complications as last heard, or null while none are
  *   known.
- * @returns {?{key: string, request: ?Object}} What is wanted (complicationWant's for a
+ * @param {string[]} permissions What this app declares, as the Pebble app keys it
+ *   (plugin-reads.js declaredKeys): a read never starts where it would ask the user for another
+ *   permission (plugin-reads.js refusal).
+ * @returns {?{key: string, request: ?Object}} What is wanted (complications.js wantOf's for a
  *   complication); no request for one of the Preferences plugin's own readings.
  */
-function readOf(source, list) {
-    if (source.complication !== null) { return complicationWant(source, list); }
+function readOf(source, list, permissions) {
+    if (source.complication !== null) { return complications.wantOf(source, list, permissions); }
     if (source.plugin.toLowerCase() === pluginValues.PREFERENCES) { return { key: source.key, request: null }; }
     return { key: source.key, request: { category: source.category, item: source.item,
         properties: [source.property], plugin: source.plugin, limit: 1, permissions: permissions } };
@@ -77,11 +56,15 @@ var schedule = pluginReadSchedule.create({
     valueKey: KEYS.PLUGIN_VALUE,
     // Until when the plugin said its last answer holds: its own word on when it has something new.
     timeField: 'validUntil',
-    wanted: function (settings, watchInfo) {
+    // init's options carry what this app declares (permissions; none: a source that names a
+    // permission is then never read) and the user's complications (getComplications,
+    // complication-list.js current; none: not known).
+    wanted: function (settings, watchInfo, deps) {
         // The source first: it alone rules out most settings, without working out the bars.
         var source = pluginValues.sourceOf(settings);
         if (!source || !statusLines.wantsPluginValue(settings, watchInfo)) { return null; }
-        return readOf(source, getComplications());
+        return readOf(source, typeof deps.getComplications === 'function' ? deps.getComplications() : null,
+            Array.isArray(deps.permissions) ? deps.permissions : []);
     },
     nextReadAt: function (record, settings) {
         return pluginValueReads.nextReadAt(record, pluginValues.everyMs(settings));
@@ -122,30 +105,18 @@ function bakeFacts() {
  */
 function forPage(settings, list) {
     var source = pluginValues.sourceOf(settings);
-    var want = source ? readOf(source, list) : null;
+    // What this app declares changes neither the key nor whether anything is read.
+    var want = source ? readOf(source, list, []) : null;
     var value = schedule.value();
     return value && want && want.request && value.source === want.key ? value : null;
 }
 
-/**
- * Wire the source up (plugin-read-schedule.js init, which takes the same options). Call once,
- * from the 'ready' handler, after statusRebake.init() and complication-list.js' init.
- * @param {Object} options Injected environment: the schedule's, and these.
- * @param {string[]} [options.permissions] What this app declares (plugin-reads.js
- *   declaredKeys; default none: a source that names a permission is then never read).
- * @param {function(): ?Array<Object>} [options.getComplications] The user's complications as
- *   last heard (complication-list.js current; default: none known).
- * @returns {void}
- */
-function init(options) {
-    permissions = options && Array.isArray(options.permissions) ? options.permissions : [];
-    getComplications = options && typeof options.getComplications === 'function' ? options.getComplications
-        : function () { return null; };
-    schedule.init(options);
-}
-
 module.exports = {
-    init: init,
+    // Wire the source up (plugin-read-schedule.js init): the schedule's options, with what this
+    // app declares (permissions: plugin-reads.js declaredKeys) and the user's complications as
+    // last heard (getComplications: complication-list.js current). Call once, from the 'ready'
+    // handler, after statusRebake.init() and complication-list.js' init.
+    init: schedule.init,
     // Per-minute hook, driven by the channel scheduler's 60 s tick: reads the value again once
     // the next read is due.
     onTick: schedule.onTick,

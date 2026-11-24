@@ -197,6 +197,28 @@ function keyOf(c) {
     return c.category + '/' + c.item + '/' + c.index + '/' + c.property;
 }
 
+/**
+ * What the Plugin value slot reads for a complication the settings pick: the reading the
+ * complication at its place names (requestOf), under a key that names that reading (keyOf)
+ * after the complication's own, so a value is the place's only while the place names the
+ * reading it was read from (plugin-values.js readFrom). The key is made here, beside keyOf,
+ * since plugin-values.js rides the settings page's URL and the page never makes one.
+ * @param {{key: string, complication: number}} source The source the settings pick
+ *   (plugin-values.js sourceOf), a complication's.
+ * @param {?Complication[]} list The user's complications as last heard, or null while none
+ *   are known.
+ * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
+ * @returns {?{key: string, request: ?Object}} What is wanted (plugin-read-schedule.js
+ *   PluginReadSpec wanted): no request for a place left empty, which shows nothing; null while
+ *   the complications are not known.
+ */
+function wantOf(source, list, permissions) {
+    var c = atPlace(list, source.complication);
+    if (!list) { return null; }
+    return c ? { key: source.key + '/' + keyOf(c), request: requestOf(c, permissions) }
+        : { key: source.key, request: null };
+}
+
 module.exports = {
     SOURCE: SOURCE,
     MAX_COMPLICATIONS: MAX_COMPLICATIONS,
@@ -207,5 +229,6 @@ module.exports = {
     atPlace: atPlace,
     whyNot: whyNot,
     requestOf: requestOf,
-    keyOf: keyOf
+    keyOf: keyOf,
+    wantOf: wantOf
 };
