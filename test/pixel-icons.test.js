@@ -616,6 +616,11 @@ test('the settings page has every drawing the watch is built with, its whole box
     const box = size === 'A' ? manifest.icons[key].sizes[size].pixels.length : Number(size.split('-')[1]);
     assert.ok(p && p.rows.length >= box && (p.rows.length - box) % 2 === 0, key + ' ' + size + ': its whole box');
     assert.ok(p.rows.some((r) => r & 1) && p.rows.every((r) => r < (1 << p.w)), key + ' ' + size + ': as wide as its ink');
+    // Its very pixels: the file writes a size that repeats an earlier one as a reference to it.
+    const lit = [];
+    p.rows.forEach((bits, y) => { for (let x = 0; x < p.w; x++) { if (bits & (1 << x)) { lit.push(x + ',' + y); } } });
+    assert.deepEqual(lit.sort(), gen.boxPixels(manifest.icons[key].sizes[size].pixels).map((q) => q.join(',')).sort(),
+      key + ' ' + size + ': its pixels');
   }));
   assert.ok(sizes >= 100, 'premise: every size');
 });

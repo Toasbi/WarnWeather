@@ -308,25 +308,37 @@ function outputs(doc = JSON.parse(fs.readFileSync(PIXELS, 'utf8'))) {
  * The page opens as one data: URL that Android caps at 2 MiB (settings-url-budget.test.js), and
  * encodeURIComponent turns every space, comma, colon and bracket into three characters. So each
  * icon's drawings are one string of characters it leaves as they are, which the file unpacks:
- * sizes split by '~', each its id, '!', its width, '!' and its rows split by '.', the numbers in
- * base 36.
+ * a field per size id of the file's SIZES list, in its order, split by '~' and empty for a size
+ * the icon has no drawing at; each its width, '!' and its rows split by '.', or the field number
+ * of an earlier size with the same drawing; the numbers in base 36.
  * @param {!Object} doc resources/pixel-icons.json's content.
  * @returns {string} The file.
  */
 function pagePixels(doc) {
-    const packed = (id, w, rows) => id + '!' + w.toString(36) + '!' + rows.map(r => r.toString(36)).join('.');
-    const icons = Object.keys(doc.icons).filter((key) => ICON_IDS[key]).map((key) => {
-        const sizes = Object.keys(doc.icons[key].sizes).sort().map((id) => {
+    const keys = Object.keys(doc.icons).filter((key) => ICON_IDS[key]);
+    const slots = [...new Set(keys.flatMap((key) => Object.keys(doc.icons[key].sizes)))].sort();
+    const packed = (w, rows) => w.toString(36) + '!' + rows.map(r => r.toString(36)).join('.');
+    const icons = keys.map((key) => {
+        const first = {};
+        const fields = slots.map((id, slot) => {
             const s = doc.icons[key].sizes[id];
+            if (!s) return '';
             // A size the Classic keeps as 3.1.1 drew it: its mask, blank columns and all.
-            if (id === 'A' && s.mask) return packed(id, s.mask.w, s.mask.rows);
-            const px = boxPixels(s.pixels);
-            if (!px.length) return null;
-            const w = Math.max(...px.map(p => p[0])) + 1;
-            const rows = s.pixels.map((_, y) => px.filter(p => p[1] === y).reduce((m, p) => m | (1 << p[0]), 0));
-            return packed(id, w, rows);
-        }).filter(Boolean);
-        return '        ' + key + ": '" + sizes.join('~') + "'";
+            let text;
+            if (id === 'A' && s.mask) {
+                text = packed(s.mask.w, s.mask.rows);
+            } else {
+                const px = boxPixels(s.pixels);
+                if (!px.length) return '';
+                const w = Math.max(...px.map(p => p[0])) + 1;
+                text = packed(w, s.pixels.map((_, y) => px.filter(p => p[1] === y).reduce((m, p) => m | (1 << p[0]), 0)));
+            }
+            if (first[text] !== undefined) return first[text].toString(36);
+            first[text] = slot;
+            return text;
+        });
+        while (fields.length && !fields[fields.length - 1]) fields.pop();
+        return '        ' + key + ": '" + fields.join('~') + "'";
     });
     const ids = [];
     Object.keys(ICON_IDS).forEach((key) => ICON_IDS[key].forEach((id) => ids.push('        ' + id + ": '" + key + "'")));
@@ -337,18 +349,23 @@ function pagePixels(doc) {
         '// per icon and size (<family>-<box>, or A for the Classic\'s mask), its box as wide as its ink,',
         '// a row per number (bit x lights column x), the blank rows above and below its ink kept, as',
         '// they seat it; and the icon whose drawings each watch icon id takes.',
-        '// Packed into characters a URL carries as they are (the page opens as one data: URL):',
-        '// sizes split by \'~\', each its id, \'!\', its width, \'!\' and its rows split by \'.\', in base 36.',
+        '// Packed into characters a URL carries as they are (the page opens as one data: URL): a',
+        '// field per size of SIZES, in its order, split by \'~\' and empty where the icon has no drawing;',
+        '// each its width, \'!\' and its rows split by \'.\', or the field number of an earlier size with',
+        '// the same drawing; in base 36.',
         '(function () {',
+        '    var SIZES = [' + slots.map((id) => "'" + id + "'").join(', ') + '];',
         '    var PACKED = {',
         icons.join(',\n'),
         '    };',
         '    var ICONS = {};',
         '    Object.keys(PACKED).forEach(function (key) {',
         '        var sizes = ICONS[key] = {};',
-        "        PACKED[key].split('~').forEach(function (size) {",
-        "            var f = size.split('!');",
-        "            sizes[f[0]] = {w: parseInt(f[1], 36), rows: f[2].split('.').map(function (r) { return parseInt(r, 36); })};",
+        "        PACKED[key].split('~').forEach(function (field, slot) {",
+        '            if (!field) { return; }',
+        "            var f = field.split('!');",
+        '            sizes[SIZES[slot]] = f.length < 2 ? sizes[SIZES[parseInt(f[0], 36)]]',
+        "                : {w: parseInt(f[0], 36), rows: f[1].split('.').map(function (r) { return parseInt(r, 36); })};",
         '        });',
         '    });',
         '    var IDS = {',
