@@ -80,17 +80,6 @@ function printable(shapes) {
 }
 
 /**
- * @param {Array<*>} sources A plugin's sources' declarations.
- * @returns {boolean} Whether one of them is the complications source (preferences/complications).
- */
-function servesComplications(sources) {
-    return sources.some(function (src) {
-        return Boolean(src) && src.category === 'preferences' && Array.isArray(src.items)
-            && src.items.indexOf('complications') !== -1;
-    });
-}
-
-/**
  * @param {*} plugin A plugin as Pebble.enumeratePlugins() lists it, whose uuid is a value id's part.
  * @returns {string} Its name as the dialog lists it.
  */
@@ -143,7 +132,7 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
         return null;
     }
     if (plugin.uuid.toLowerCase() === pluginValues.PREFERENCES) {
-        return servesComplications(sources)
+        return complications.servedBy(plugin)
             ? { uuid: plugin.uuid, name: nameOf(plugin), items: [], complications: theirs } : null;
     }
     for (var s = 0; s < sources.length && count < MAX_VALUES; s++) {

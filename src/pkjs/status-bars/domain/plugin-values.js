@@ -53,13 +53,14 @@
 
     /**
      * A complication's id, as the settings keep it (pluginValueId, beside the Preferences plugin):
-     * its place in the user's list, in the property's place of a value's id. One digit: ten
-     * places, more than the Pebble app has (five).
-     * @param {number} position Its place, 0 for the first.
+     * a value's id of the complications source (complications.js SOURCE), with its place in the
+     * user's list in the property's place. One digit: ten places, more than the Pebble app has
+     * (five).
+     * @param {number|string} position Its place, 0 for the first.
      * @returns {string} 'preferences/complications/<place>'.
      */
     function complicationId(position) {
-        return 'preferences/complications/' + position;
+        return valueId('preferences', 'complications', position);
     }
 
     /**
@@ -80,7 +81,7 @@
         }
         return { plugin: plugin, id: id, category: parts[0], item: parts[1], property: parts[2],
             key: plugin + '/' + id, complication: plugin.toLowerCase() === PREFERENCES
-                && /^preferences\/complications\/[0-9]$/.test(id) ? Number(parts[2]) : null };
+                && id === complicationId(parts[2]) && /^[0-9]$/.test(parts[2]) ? Number(parts[2]) : null };
     }
 
     /**

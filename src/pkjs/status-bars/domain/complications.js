@@ -2,7 +2,7 @@
 //
 // The user's complications: the readings they picked in the Pebble app for every watchface to
 // show (its Settings › Plugins › Complications), as the Pebble app's Preferences plugin serves
-// them (preferences/complications, plugin-values.js PREFERENCES). One instance for each place
+// them (SOURCE: preferences/complications, plugin-values.js PREFERENCES). One instance for each place
 // that holds one, its instanceId the place ('0' for the first; an empty place sends none), with
 // the reading it names: the property of the index-th instance of a source, of whichever plugin
 // the Pebble app picks for that source.
@@ -16,6 +16,13 @@
 // Pure. ES5 only (aplite PKJS).
 
 var pluginReads = require('./plugin-reads.js');
+var pluginValues = require('./plugin-values.js');
+
+/**
+ * The source of the user's complications: the Preferences plugin's, named, so no other plugin
+ * answers in its place (complication-list.js reads it).
+ */
+var SOURCE = { category: 'preferences', item: 'complications', plugin: pluginValues.PREFERENCES };
 
 /** The places kept: the five the Pebble app has. */
 var MAX_COMPLICATIONS = 5;
@@ -63,10 +70,22 @@ function wholeUpTo(n, most) {
 function checked(c) {
     if (!c || typeof c !== 'object' || !wholeUpTo(c.position, MAX_COMPLICATIONS - 1)
             || !namePart(c.category) || !namePart(c.item) || !wholeUpTo(c.index, MAX_INDEX)
-            || !namePart(c.property) || c.category === 'preferences') {
+            || !namePart(c.property) || c.category === SOURCE.category) {
         return null;
     }
     return { position: c.position, category: c.category, item: c.item, index: c.index, property: c.property };
+}
+
+/**
+ * @param {*} plugin A plugin as Pebble.enumeratePlugins() lists it.
+ * @returns {boolean} Whether it is the Preferences plugin, serving the user's complications
+ *   (SOURCE).
+ */
+function servedBy(plugin) {
+    return Boolean(plugin) && typeof plugin.uuid === 'string' && plugin.uuid.toLowerCase() === SOURCE.plugin
+        && Array.isArray(plugin.sources) && plugin.sources.some(function (src) {
+            return pluginReads.serves(src, SOURCE.category, SOURCE.item);
+        });
 }
 
 /**
@@ -174,7 +193,9 @@ function keyOf(c) {
 }
 
 module.exports = {
+    SOURCE: SOURCE,
     MAX_COMPLICATIONS: MAX_COMPLICATIONS,
+    servedBy: servedBy,
     listOf: listOf,
     storedListOf: storedListOf,
     atPlace: atPlace,

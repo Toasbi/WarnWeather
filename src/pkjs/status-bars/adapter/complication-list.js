@@ -17,11 +17,7 @@
 
 var KEYS = require('../../settings/domain/storage-keys.js');
 var complications = require('../domain/complications.js');
-var pluginValues = require('../domain/plugin-values.js');
 var pluginReader = require('./plugin-reader.js');
-
-/** The source: the Preferences plugin's, named, so no other plugin answers in its place. */
-var REQUEST = { category: 'preferences', item: 'complications', plugin: pluginValues.PREFERENCES };
 
 // The complications last heard (complications.js listOf), or null while none are known.
 var list = null;
@@ -107,7 +103,8 @@ function init(options) {
     list = stored();
     pebble = pluginReader.pebbleOf(deps);
     if (!deps.offered || !pluginReader.available(pebble)) { return; }
-    subscription = pluginReader.watch(pebble, REQUEST, onData, onFailure);
+    // The Preferences plugin's source, named, so no other plugin answers in its place.
+    subscription = pluginReader.watch(pebble, complications.SOURCE, onData, onFailure);
 }
 
 /**
