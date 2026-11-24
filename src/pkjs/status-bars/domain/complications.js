@@ -43,12 +43,22 @@ var MAX_INDEX = 99;
  */
 
 /**
+ * @param {*} name A category's, item's or property's name, or a plugin's uuid.
+ * @returns {boolean} Whether it can be a part of a value's id or key (plugin-values.js valueId,
+ *   keyOf): a text without a '/', which would split the id wrongly (plugin-values.js sourceOf).
+ *   The dialog's list holds its names to it too (plugin-value-list.js).
+ */
+function idPart(name) {
+    return typeof name === 'string' && name !== '' && name.indexOf('/') === -1;
+}
+
+/**
  * @param {*} name A name as the plugin sent it, or as it was stored.
- * @returns {boolean} Whether it can name a category, an item or a property: a text of up to
- *   MAX_NAME characters without a '/', which would split a value's key wrongly.
+ * @returns {boolean} Whether it can name a category, an item or a property: a part of a key
+ *   (idPart) of up to MAX_NAME characters.
  */
 function namePart(name) {
-    return typeof name === 'string' && name !== '' && name.length <= MAX_NAME && name.indexOf('/') === -1;
+    return idPart(name) && name.length <= MAX_NAME;
 }
 
 /**
@@ -196,6 +206,7 @@ module.exports = {
     SOURCE: SOURCE,
     MAX_COMPLICATIONS: MAX_COMPLICATIONS,
     servedBy: servedBy,
+    idPart: idPart,
     listOf: listOf,
     storedListOf: storedListOf,
     atPlace: atPlace,

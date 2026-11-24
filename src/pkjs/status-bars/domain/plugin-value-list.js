@@ -49,15 +49,6 @@ var LIST_COST = 4000;
 var TEXT_SHAPES = ['shortText', 'timestamp', 'numericValue', 'boolean', 'longText'];
 
 /**
- * @param {*} name A category's, item's or property's name.
- * @returns {boolean} Whether it can be a part of a value's id (plugin-values.js valueId): a
- *   text without a '/', which would split the id wrongly (plugin-values.js sourceOf).
- */
-function idPart(name) {
-    return typeof name === 'string' && name !== '' && name.indexOf('/') === -1;
-}
-
-/**
  * @param {string} text A name.
  * @returns {string} It, cut to MAX_NAME characters, a character outside the BMP (two UTF-16
  *   units) whole.
@@ -127,7 +118,7 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
     var items = [];
     var seen = {};
     var count = 0;
-    if (!plugin || !idPart(plugin.uuid) || plugin.uuid.length > MAX_ID
+    if (!plugin || !complications.idPart(plugin.uuid) || plugin.uuid.length > MAX_ID
             || plugin.uuid.toLowerCase() === String(ownUuid).toLowerCase()) {
         return null;
     }
@@ -137,7 +128,7 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
     }
     for (var s = 0; s < sources.length && count < MAX_VALUES; s++) {
         var src = sources[s];
-        if (!src || !idPart(src.category) || !Array.isArray(src.items)) {
+        if (!src || !complications.idPart(src.category) || !Array.isArray(src.items)) {
             continue;
         }
         var props = src.properties && typeof src.properties === 'object' ? src.properties : {};
@@ -148,13 +139,14 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
             // An item no id can hold offers nothing, and takes none of the values' room; nor one
             // this app may not read from the plugin, as the Pebble app judges it: by the first of
             // the plugin's sources that serves it.
-            if (!idPart(item) || pluginReads.refusal([plugin], { category: src.category, item: item,
+            if (!complications.idPart(item) || pluginReads.refusal([plugin], { category: src.category, item: item,
                 plugin: plugin.uuid, permissions: permissions }) !== null) {
                 continue;
             }
             for (var n = 0; n < names.length && count < MAX_VALUES; n++) {
                 var id = pluginValues.valueId(src.category, item, names[n]);
-                if (idPart(names[n]) && id.length <= MAX_ID && seen[id] !== true && printable(props[names[n]])) {
+                if (complications.idPart(names[n]) && id.length <= MAX_ID && seen[id] !== true
+                        && printable(props[names[n]])) {
                     seen[id] = true;
                     count += 1;
                     kept.push(names[n]);
