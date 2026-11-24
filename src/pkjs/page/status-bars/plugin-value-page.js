@@ -15,10 +15,10 @@
 // drawn (engine.js resolveRowItem), and the slot would change without the user picking it.
 //
 // The Pebble app's Preferences plugin offers the user's complications in the Pebble app in
-// place of values of its own (its entry's complications, plugin-value-list.js complicationsFor):
-// each by its place and what it shows ('1 · Temperature (weather)'), and one that WarnWeather
-// may not read greyed out with the reason, so the places keep the numbers the Pebble app gives
-// them.
+// place of values of its own (its entry's complications, plugin-value-list.js complicationsFor).
+// The Plugin row lists it as Complications, right after None, and the Value row lists each by
+// its place and what it shows ('1 · Temperature (weather)'), one that WarnWeather may not read
+// greyed out with the reason, so the places keep the numbers the Pebble app gives them.
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
 // page (scripts/build-config-page.js APP_FILES, after plugin-values.js, which it binds while its
@@ -37,6 +37,9 @@
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
     // What the slot shows while it has no value to show (status-lines.js formatValue).
     var NONE_SHOWN = pluginValues.textFor(null, catalog.CAPS.MID_TEXT_MAX);
+    // The Plugin row's name for the Preferences plugin, after what it offers, and its line.
+    var COMPLICATIONS = 'Complications';
+    var COMPLICATIONS_DESC = 'Your picks in the Pebble app';
     // The Value row's hint while the Preferences plugin is picked: where the complications are
     // set, and that the slot shows the one at its place, whatever it is set to there. An empty
     // place, or one WarnWeather may not read, shows NONE_SHOWN.
@@ -160,16 +163,18 @@
     }
 
     /**
-     * The Plugin row's list: None, then each plugin the phone listed, then the one the settings
-     * hold where the phone lists it no more.
+     * The Plugin row's list: None, then the user's complications (the Preferences plugin, as
+     * COMPLICATIONS), then each other plugin the phone listed, in its order, then the one the
+     * settings hold where the phone lists it no more.
      * @param {Object} S Settings.
-     * @returns {Array<Array>} [label, value] options.
+     * @returns {Array<Array>} [label, value, meta?] options.
      */
     function pluginOptions(S) {
         var stored = S.pluginValuePlugin;
-        var out = [['None', '']].concat(listed().map(function (p) {
-            return offersComplications(p) ? [p.name, p.uuid, {desc: 'Your complications in the Pebble app'}]
-                : [p.name, p.uuid];
+        var out = [['None', '']].concat(listed().filter(offersComplications).map(function (p) {
+            return [COMPLICATIONS, p.uuid, {desc: COMPLICATIONS_DESC}];
+        }), listed().filter(function (p) { return !offersComplications(p); }).map(function (p) {
+            return [p.name, p.uuid];
         }));
         if (stored && !pluginOf(stored)) { out.push(['Not on this phone', stored]); }
         return out;

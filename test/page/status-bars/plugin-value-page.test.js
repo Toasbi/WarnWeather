@@ -228,10 +228,16 @@ const COMPLICATIONS = [
   { position: 4, property: 'ringing', category: 'phone', why: '' }];
 const PLACE = (n) => ({ pluginValuePlugin: PREFS, pluginValueId: 'preferences/complications/' + n });
 
-test('the Preferences plugin is listed as the user\'s complications in the Pebble app', (t) => {
+test('the Preferences plugin is listed as Complications, right after None, wherever the phone lists it', (t) => {
   userData(t, { plugins: withPrefs(COMPLICATIONS) });
-  assert.deepEqual(page.pluginOptions({ pluginValuePlugin: '' }).slice(-1),
-    [['Preferences', PREFS, { desc: 'Your complications in the Pebble app' }]]);
+  const COMPLICATIONS_ENTRY = ['Complications', PREFS, { desc: 'Your picks in the Pebble app' }];
+  assert.deepEqual(page.pluginOptions({ pluginValuePlugin: '' }),
+    [['None', ''], COMPLICATIONS_ENTRY, ['Phone', PHONE], ['Muninn', MUNINN]]);
+  assert.deepEqual(page.pluginOptions(PLACE(0)), [['None', ''], COMPLICATIONS_ENTRY, ['Phone', PHONE],
+    ['Muninn', MUNINN]], 'picked');
+  global.INJECTED_USERDATA.plugins = withPrefs(COMPLICATIONS).reverse();
+  assert.deepEqual(page.pluginOptions({ pluginValuePlugin: '' }),
+    [['None', ''], COMPLICATIONS_ENTRY, ['Muninn', MUNINN], ['Phone', PHONE]], 'the others in the phone\'s order');
 });
 
 test('its values are the complications by their places, each by what it shows, none of the plumbing', (t) => {
