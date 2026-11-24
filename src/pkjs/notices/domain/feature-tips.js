@@ -31,9 +31,30 @@ var statusLineCatalog = require('../../status-bars/domain/status-line-catalog.js
  *   feature, from the page's env; absent for one every watch can.
  */
 
+/**
+ * Where the status lists offer the Plugin value slot (status-line-catalog.js 'pluginValue'): a
+ * Pebble app that reads plugins, and not on aplite, whose feature set is frozen.
+ * @param {?Object} env The page's env.
+ * @returns {boolean}
+ */
+function pluginValueOffered(env) {
+    return statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, env);
+}
+
 // In the card's order: a new release's tips go on top.
 /** @type {FeatureTip[]} */
 var TIPS = [
+    {
+        id: 'complications',
+        since: '3.5.0',
+        title: 'Your complications in a status bar',
+        // The Plugin value slot's dialog lists the complications the user picked in the Pebble
+        // app under Complications, right after None (page/status-bars/plugin-value-page.js).
+        html: 'Status bar slots can show the complications you picked in the Pebble app. Set a slot ' +
+            'to Plugin value, tap Edit, then pick Complications and the one to show.',
+        open: { tab: 'watch' },
+        when: pluginValueOffered
+    },
     {
         id: 'pluginValue',
         since: '3.4.0',
@@ -43,11 +64,7 @@ var TIPS = [
         html: 'Status bar slots can show plugin values, such as your phone\'s network type. Set a slot ' +
             'to Plugin value, tap Edit, then pick the plugin and its value.',
         open: { tab: 'watch' },
-        // Where the status lists offer the slot: a Pebble app that reads plugins, and not on
-        // aplite, whose feature set is frozen.
-        when: function (env) {
-            return statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, env);
-        }
+        when: pluginValueOffered
     },
     {
         id: 'weatherFrom',

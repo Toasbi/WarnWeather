@@ -91,6 +91,10 @@ test('a tip shows only where its feature can be used', () => {
   assert.equal(pluginValue({ platform: 'basalt' }), false, 'plugins unknown: fail closed');
   assert.equal(pluginValue({ platform: 'aplite', plugins: true }), false, 'aplite has no such slot');
   assert.equal(pluginValue(null), false);
+  // The user's complications: wherever the Plugin value slot is, whose dialog lists them.
+  [{ platform: 'basalt', plugins: true }, { platform: 'emery', plugins: true }, { platform: 'basalt', plugins: false },
+    { platform: 'basalt' }, { platform: 'aplite', plugins: true }, null].forEach((env) =>
+    assert.equal(shows('complications', env), pluginValue(env), JSON.stringify(env)));
   // A tip without a rule is for every watch.
   [{ platform: 'aplite', plugins: false }, null, {}].forEach((env) =>
     assert.ok(shows('blackTheme', env), JSON.stringify(env)));
@@ -129,6 +133,22 @@ test('the page gets plain data, and nothing when there is nothing to show', () =
   assert.equal(forPage.find((tip) => tip.id === 'blackTheme').tab, 'setup');
   assert.equal(forPage.find((tip) => tip.id === 'weatherFrom').sheet, 'weatherSources', 'the Weather dialog');
   assert.equal(forPage.find((tip) => tip.id === 'pluginValue').tab, 'watch', 'the Status bars tab: any bar');
+  assert.equal(forPage.find((tip) => tip.id === 'complications').tab, 'watch', 'the same tab');
+});
+
+test('the complications tip names the page\'s own words: the slot\'s item, and the Plugin row\'s entry', (t) => {
+  const tip = featureTips.TIPS.find((x) => x.id === 'complications');
+  const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
+  // The Plugin row's entry for the Preferences plugin, as the phone lists it with the user's
+  // complications (plugin-value-list.js listOf).
+  global.INJECTED_USERDATA = { plugins: [{ uuid: '00000000-0000-0000-0001-000000000009', name: 'Preferences',
+    items: [], complications: [] }] };
+  t.after(() => { delete global.INJECTED_USERDATA; });
+  const entry = page.pluginOptions({ pluginValuePlugin: '' })[1][0];
+  assert.ok(tip.html.indexOf('Set a slot to ' + catalog.byCode('pluginValue').label + ', tap Edit') !== -1, tip.html);
+  assert.ok(tip.html.indexOf('then pick ' + entry + ' and') !== -1, entry + ': ' + tip.html);
+  assert.equal(tip.since, '3.5.0');
+  assert.equal(featureTips.allIds()[0], 'complications', 'the newest release\'s, on top');
 });
 
 /**

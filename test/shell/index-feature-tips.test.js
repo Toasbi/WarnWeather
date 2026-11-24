@@ -91,19 +91,19 @@ test('an install from before the tips is handed them on settings open, until Got
   h.listeners.showConfiguration({});
   const tips = userDataOf(h.opened[0]).featureTips;
   assert.ok(Array.isArray(tips) && tips.length > 0, 'the card has tips to draw');
-  assert.deepEqual(tips.map((tip) => tip.id), ['pluginValue', 'weatherFrom', 'batteryIconText'], 'three at a time');
+  assert.deepEqual(tips.map((tip) => tip.id), ['complications', 'pluginValue', 'weatherFrom'], 'three at a time');
   tips.forEach((tip) => assert.deepEqual(Object.keys(tip), ['id', 'title', 'html', 'sheet', 'tab']));
 
   // Saved without Got it: still unseen, and handed over again.
   save(h, { vibe: false });
   h.listeners.showConfiguration({});
-  assert.deepEqual(userDataOf(h.opened[1]).featureTips.map((tip) => tip.id), ['pluginValue', 'weatherFrom', 'batteryIconText']);
+  assert.deepEqual(userDataOf(h.opened[1]).featureTips.map((tip) => tip.id), ['complications', 'pluginValue', 'weatherFrom']);
 
   // Got it, then Save: seen, and the next open shows the ones left.
   save(h, { featureTipsAck: true });
-  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['pluginValue', 'weatherFrom', 'batteryIconText']);
+  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['complications', 'pluginValue', 'weatherFrom']);
   h.listeners.showConfiguration({});
-  assert.deepEqual(userDataOf(h.opened[2]).featureTips.map((tip) => tip.id), ['batteryDays', 'blackTheme']);
+  assert.deepEqual(userDataOf(h.opened[2]).featureTips.map((tip) => tip.id), ['batteryIconText', 'batteryDays', 'blackTheme']);
 
   // Its Got it, then Save: every tip seen, and the next open has no card.
   save(h, { featureTipsAck: true });
@@ -114,7 +114,7 @@ test('an install from before the tips is handed them on settings open, until Got
 test('a fresh install is handed none: nothing is new to it', (t) => {
   const h = boot(t, {}, PLUGINS);
   assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]),
-    ['pluginValue', 'weatherFrom', 'batteryIconText', 'batteryDays', 'blackTheme']);
+    ['complications', 'pluginValue', 'weatherFrom', 'batteryIconText', 'batteryDays', 'blackTheme']);
   h.listeners.showConfiguration({});
   assert.equal(userDataOf(h.opened[0]).featureTips, null);
 });
@@ -128,7 +128,7 @@ test('Reset watchface leaves a fresh install: it has seen every tip, whatever is
   save(h, { reset: true });
   assert.equal(store['clay-settings'], undefined, 'the reset wiped the settings');
   assert.deepEqual(JSON.parse(store[h.KEYS.FEATURE_TIPS_SEEN_KEY]),
-    ['pluginValue', 'weatherFrom', 'batteryIconText', 'batteryDays', 'blackTheme']);
+    ['complications', 'pluginValue', 'weatherFrom', 'batteryIconText', 'batteryDays', 'blackTheme']);
   h.listeners.showConfiguration({});
   assert.equal(userDataOf(h.opened[1]).featureTips, null, 'no card in the same PKJS life');
 
