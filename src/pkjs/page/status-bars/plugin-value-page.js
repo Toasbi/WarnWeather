@@ -17,8 +17,9 @@
 // The Pebble app's Preferences plugin offers the user's complications in the Pebble app in
 // place of values of its own (its entry's complications, plugin-value-list.js complicationsFor).
 // The Plugin row lists it as Complications, right after None, and the Value row lists each by
-// its place and what it shows ('1 · Temperature (weather)'), one that WarnWeather may not read
-// greyed out with the reason, so the places keep the numbers the Pebble app gives them.
+// its place and what it shows ('1 · Temperature (weather)'). One that WarnWeather may not read
+// stays in the list, greyed out with the reason (whyText), so the places keep the numbers the
+// Pebble app gives them, and is never picked for the user (pluginPicked, valueOptions).
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
 // page (scripts/build-config-page.js APP_FILES, after plugin-values.js, which it binds while its
@@ -115,15 +116,15 @@
     /**
      * The user's complications as the Value row lists them, as the phone listed them under the
      * Preferences plugin: each by its place, as the Pebble app numbers it, with what it shows and
-     * its source's category ('1 · Temperature (weather)'), and one WarnWeather may not read with
-     * why (whyText).
+     * its source's category ('1 · Temperature (weather)'), and why for one WarnWeather may not
+     * read (whyText).
      * @param {Array<Object>} list The complications (plugin-value-list.js complicationsFor).
-     * @returns {Array<{id: string, label: string, multiple: boolean, unreadable: ?string}>}
+     * @returns {Array<{id: string, label: string, unreadable: ?string}>}
      */
     function complicationValues(list) {
         return list.map(function (c) {
             var why = typeof c.why === 'string' ? whyText(c.why) : null;
-            return { id: pluginValues.complicationId(c.position), multiple: false, unreadable: why,
+            return { id: pluginValues.complicationId(c.position), unreadable: why,
                 label: (c.position + 1) + ' \u00b7 ' + labelOf(c.property)
                     + ' (' + labelOf(c.category).toLowerCase() + ')' };
         });
@@ -181,11 +182,11 @@
     }
 
     /**
-     * The Value row's list: the values the picked plugin offers, one WarnWeather may not read
-     * greyed out with why, then the one the settings hold where it offers it no more, named
-     * after its property, or for a complication after its place. None first while the settings
-     * hold no value of a listed plugin, as pluginPicked leaves them where it offers none
-     * WarnWeather can read: the engine would otherwise move the row onto the first option
+     * The Value row's list: the values the picked plugin offers (the header says how one
+     * WarnWeather may not read is listed), then the one the settings hold where it offers it no
+     * more, named after its property, or for a complication after its place. None first while
+     * the settings hold no value of a listed plugin, as pluginPicked leaves them where it offers
+     * none WarnWeather can read: the engine would otherwise move the row onto the first option
      * (engine.js resolveRowItem), which may be one greyed out, and Save would store it.
      * @param {Object} S Settings.
      * @returns {Array<Array>} [label, value, meta?] options.
