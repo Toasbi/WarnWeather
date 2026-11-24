@@ -107,22 +107,18 @@ function shortOf(shapes) {
 }
 
 /**
- * A list checked: each complication once, at most MAX_COMPLICATIONS, in the order of their
- * places.
+ * A list checked: one complication for each place (the first given for it), at most
+ * MAX_COMPLICATIONS since checked keeps no other place, in the order of their places.
  * @param {Array<*>} items Complications as an answer or storage gave them.
  * @returns {Complication[]}
  */
 function listFrom(items) {
-    var out = [];
-    var taken = {};
-    for (var i = 0; i < items.length && out.length < MAX_COMPLICATIONS; i++) {
-        var c = checked(items[i]);
-        if (c && taken[c.position] !== true) {
-            taken[c.position] = true;
-            out.push(c);
-        }
-    }
-    return out.sort(function (a, b) { return a.position - b.position; });
+    var byPlace = [];
+    items.forEach(function (item) {
+        var c = checked(item);
+        if (c && !byPlace[c.position]) { byPlace[c.position] = c; }
+    });
+    return byPlace.filter(Boolean);
 }
 
 /**
@@ -159,8 +155,7 @@ function storedListOf(value) {
  * @returns {?Complication} The complication at the place, or null for an empty place.
  */
 function atPlace(list, position) {
-    var found = (list || []).filter(function (c) { return c.position === position; });
-    return found.length ? found[0] : null;
+    return (list || []).filter(function (c) { return c.position === position; })[0] || null;
 }
 
 /**
