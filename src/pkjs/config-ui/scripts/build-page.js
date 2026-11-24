@@ -10,17 +10,19 @@ var LIB_PAGE_FILES = ['schema-walk.js', '../../lib/color.js', 'show-when.js', 'h
   'rgb-control.js', 'checklist.js', 'links.js', 'back-steps.js', 'engine.js'];
 
 /**
- * Drop the whole-line comments, the blank lines and the leading indentation of one JS file.
+ * Drop the whole-line comments, the blank lines, the leading indentation and the blanks
+ * beside punctuation of one JS file.
  *
  * The page reaches a real phone as ONE data: URL, which Android's WebView refuses past
  * 2 MiB, and every comment character, indentation space and line break costs URL budget
  * (a space encodes as '%20', a line break as '%0A'). Line-based and conservative, so the
- * code itself is untouched:
+ * program is untouched:
  *  - a blank line goes (the file's last line break stays);
  *  - a line whose first non-blank text is '//' goes, unless it also holds a '*' + '/'
  *    (it could be closing a block comment opened mid-line above);
- *  - a comment after code goes too, with the blanks before it, where nothing before it can
- *    be a regex literal (dropTrailingComment);
+ *  - a comment after code goes too, with the blanks before it, and so do the blanks beside
+ *    punctuation outside the strings, where nothing in the line can be a regex literal
+ *    (compactLine);
  *  - a block comment goes when it starts a line and nothing but blanks follows its
  *    close; one with code after the close stays as written;
  *  - a line after one ending in a backslash (a string continued across lines) is
@@ -59,35 +61,59 @@ function stripJs(src) {
         continue;
       }
     }
-    out.push(dropTrailingComment(line.replace(/^[ \t]+/, '')));
+    out.push(compactLine(line.replace(/^[ \t]+/, '')));
     continued = /\\\r?$/.test(line);
   }
   return out.join('\n');
 }
 
+// What a blank may go beside: no token runs on into a punctuator, but for the pairs blankKept
+// keeps apart.
+var PUNCTUATORS = '=,:;{}()[]+-*%<>!&|^~?';
+
 /**
- * A line of code without the comment after it: the '//' and the rest of the line, with the
- * blanks before it, where the '//' is sure to start a comment. That is where it is the first
- * '/' outside a quoted string, so it starts no regex literal and is in none, and the line holds
- * no backtick and no '*' + '/' (it could be closing a block comment opened above, or be inside
- * one). Any other line stays as it is.
- * @param {string} line A line of code, its indentation gone.
- * @returns {string} The line without its comment.
+ * @param {string} a The character before a run of blanks ('' at none).
+ * @param {string} b The character after it.
+ * @returns {boolean} Whether the blanks between them stay (as one): between two characters of
+ *   names, keywords or numbers, between two of a token that would run on into another ('+ +',
+ *   '- -'), and where a comment ('<!' + '--', '--' + '>') or '?.' would start.
  */
-function dropTrailingComment(line) {
+function blankKept(a, b) {
+  if (!a || (PUNCTUATORS.indexOf(a) === -1 && PUNCTUATORS.indexOf(b) === -1)) { return true; }
+  return (a === b && (a === '+' || a === '-')) || a + b === '<!' || a + b === '->' || a + b === '?.';
+}
+
+/**
+ * A line of code without the comment after it, the blanks before it, and the blanks beside
+ * punctuation (blankKept), outside the quoted strings. Only where every '/' outside them starts
+ * that comment, so none can start or be in a regex literal, and the line holds no backtick and
+ * no '*' + '/' (it could be closing a block comment opened above, or be inside one). Any other
+ * line stays as it is.
+ * @param {string} line A line of code, its indentation gone.
+ * @returns {string} The line without its comment and those blanks.
+ */
+function compactLine(line) {
+  var out = '';
   var quote = null;
+  var blank = false;
   if (line.indexOf('*/') !== -1 || line.indexOf('`') !== -1) { return line; }
   for (var k = 0; k < line.length; k += 1) {
     var c = line.charAt(k);
     if (quote) {
-      if (c === '\\') { k += 1; } else if (c === quote) { quote = null; }
-    } else if (c === '"' || c === '\'') {
-      quote = c;
+      out += c;
+      if (c === '\\') { k += 1; out += line.charAt(k); } else if (c === quote) { quote = null; }
+    } else if (c === ' ' || c === '\t') {
+      blank = true;
     } else if (c === '/') {
-      return line.charAt(k + 1) === '/' ? line.slice(0, k).replace(/[ \t]+$/, '') : line;
+      return line.charAt(k + 1) === '/' ? out : line;
+    } else {
+      if (blank && blankKept(out.charAt(out.length - 1), c)) { out += ' '; }
+      blank = false;
+      if (c === '"' || c === '\'') { quote = c; }
+      out += c;
     }
   }
-  return line;
+  return out;
 }
 
 /**
