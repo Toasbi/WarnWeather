@@ -300,6 +300,7 @@ module.exports = {
     actsWhenRead: actsWhenRead,
     neverRead: neverRead,
     serves: serves,
+    servingSources: servingSources,
     refusal: refusal,
     timeOf: timeOf,
     recordOf: recordOf,

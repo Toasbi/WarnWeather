@@ -16,7 +16,8 @@
 // The list rides the settings page's URL (userData.plugins), which
 // Android's WebView refuses past 2 MiB (test/settings/adapter/settings-url-budget.test.js), so
 // it is written short and capped: each plugin's items with their properties' names, from which
-// the page makes each value's id and label, at most MAX_PLUGINS plugins of MAX_VALUES values
+// the page makes each value's id and label, and which of them are on or off (onOff: the Icon
+// row offers the icons that turn only for one), at most MAX_PLUGINS plugins of MAX_VALUES values
 // each, and LIST_COST characters of the URL in all.
 //
 // Pure. ES5 only (aplite PKJS).
@@ -64,6 +65,18 @@ function printable(shapes) {
     });
 }
 
+/** The shape of a reading's state (plugin-value-reads.js FIELDS): a boolean. */
+var STATE_SHAPE = pluginValueReads.FIELDS.filter(function (f) { return f.name === 'state'; })[0].shape;
+
+/**
+ * @param {*} shapes A property's declared shapes.
+ * @returns {boolean} Whether it is on or off: one of them is a state's, which the slot's icons
+ *   that turn follow (plugin-values.js iconId).
+ */
+function onOff(shapes) {
+    return Array.isArray(shapes) && shapes.indexOf(STATE_SHAPE) !== -1;
+}
+
 /**
  * @param {*} plugin A plugin as Pebble.enumeratePlugins() lists it, whose uuid is a value id's part.
  * @returns {string} Its name as the dialog lists it.
@@ -74,7 +87,8 @@ function nameOf(plugin) {
 
 /**
  * The user's complications as the dialog lists them, under the Preferences plugin: each one's
- * place, what it shows (its property and its source's category, for its label), and, where
+ * place, what it shows (its property and its source's category, for its label), whether it is
+ * on or off (onOff: as every plugin that serves its source declares its property), and, where
  * this app may not read it, why (complications.js whyNot: the permission it needs, or '').
  * Not the source's item, nor which of its instances: the label needs neither. Each name capped
  * as a plugin's is.
@@ -82,13 +96,19 @@ function nameOf(plugin) {
  *   null while they are not known.
  * @param {Array<*>} plugins What Pebble.enumeratePlugins() returned.
  * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
- * @returns {Array<{position: number, property: string, category: string, why: (string|undefined)}>}
- *   [] for none, or none known.
+ * @returns {Array<{position: number, property: string, category: string, onOff: (boolean|undefined),
+ *   why: (string|undefined)}>} [] for none, or none known.
  */
 function complicationsFor(known, plugins, permissions) {
     return (known || []).map(function (c) {
         var why = complications.whyNot(c, plugins, permissions);
+        var sources = pluginReads.servingSources(plugins, c.category, c.item);
         var entry = { position: c.position, property: capped(c.property), category: capped(c.category) };
+        if (sources.length && sources.every(function (src) {
+            return Boolean(src.properties) && onOff(src.properties[c.property]);
+        })) {
+            entry.onOff = true;
+        }
         if (why !== null) { entry.why = capped(why); }
         return entry;
     });
@@ -97,15 +117,17 @@ function complicationsFor(known, plugins, permissions) {
 /**
  * One plugin as the dialog lists it: its uuid, its name, and each item of a source this app
  * may read, with the names of its properties the slot can print, in the order the plugin
- * declares them. The first MAX_VALUES values, each once. The Preferences plugin lists no item:
+ * declares them, and which of them are on or off (`onOff`, bit i for the i-th name; left out
+ * for none). The first MAX_VALUES values, each once. The Preferences plugin lists no item:
  * it offers the user's complications (`complications`), where it serves them.
  * @param {*} plugin A plugin as Pebble.enumeratePlugins() lists it.
  * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
  * @param {string} ownUuid This app's uuid.
  * @param {Array<Object>} theirs The user's complications as the dialog lists them (complicationsFor).
  * @returns {?{uuid: string, name: string, items: Array<{category: string, item: string,
- *   multiple: boolean, properties: string[]}>, complications: (Array<Object>|undefined)}} The
- *   plugin, or null when it offers nothing the slot can show.
+ *   multiple: boolean, properties: string[], onOff: (number|undefined)}>,
+ *   complications: (Array<Object>|undefined)}} The plugin, or null when it offers nothing the
+ *   slot can show.
  */
 function entryOf(plugin, permissions, ownUuid, theirs) {
     var sources = plugin && Array.isArray(plugin.sources) ? plugin.sources : [];
@@ -130,6 +152,7 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
         for (var i = 0; i < src.items.length && count < MAX_VALUES; i++) {
             var item = src.items[i];
             var kept = [];
+            var bits = 0;
             // An item no id can hold offers nothing, and takes none of the values' room; nor one
             // this app may not read from the plugin, as the Pebble app judges it: by the first of
             // the plugin's sources that serves it.
@@ -143,12 +166,15 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
                         && printable(props[names[n]])) {
                     seen[id] = true;
                     count += 1;
+                    if (onOff(props[names[n]])) { bits |= 1 << kept.length; }
                     kept.push(names[n]);
                 }
             }
             if (kept.length) {
-                items.push({ category: src.category, item: item, multiple: Boolean(src.supportsMultiple),
-                    properties: kept });
+                var entry = { category: src.category, item: item, multiple: Boolean(src.supportsMultiple),
+                    properties: kept };
+                if (bits) { entry.onOff = bits; }
+                items.push(entry);
             }
         }
     }

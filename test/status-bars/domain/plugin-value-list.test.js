@@ -28,7 +28,17 @@ const PHONE = plugin('00000000-0000-0000-0001-000000000001', 'Phone', [{ categor
 test('each plugin with its items and the properties of them the slot can print', () => {
   assert.deepEqual(list.listOf([PHONE], PERMS, 'own'), [{ uuid: PHONE.uuid, name: 'Phone', items: [
     { category: 'phone', item: 'phone_state', multiple: false,
-      properties: ['battery_level', 'cell', 'wifi', 'charging'] }] }], 'a boolean alone is printed too: on or off');
+      properties: ['battery_level', 'cell', 'wifi', 'charging'], onOff: 12 }] }],
+  'a boolean alone is printed too: on or off');
+});
+
+test('the values that are on or off, a bit each by their place among the names: the Icon row\'s icons that turn', () => {
+  const lamp = plugin('l', 'Lamp', [{ category: 'home', items: ['lamp', 'door'],
+    properties: { level: ['numericValue'], on: ['boolean'], label: ['shortText'], open: ['shortText', 'boolean'] } }]);
+  assert.deepEqual(list.listOf([lamp], PERMS, 'own')[0].items.map((it) => it.onOff), [10, 10],
+    'on and open, the second and the fourth name, on each item');
+  const none = plugin('n', 'Numbers', [{ category: 'n', items: ['i'], properties: { level: ['numericValue'] } }]);
+  assert.equal('onOff' in list.listOf([none], PERMS, 'own')[0].items[0], false, 'none: left out, as it costs the URL');
 });
 
 test('a timestamp alone is printed, as a clock time; a shape the slot cannot print is left out', () => {
@@ -123,11 +133,14 @@ test('each complication by its place, what it shows, and why this app may not re
     .complications, [
     { position: 0, property: 'daysRemaining', category: 'muninn', why: '' },
     { position: 1, property: 'temperature', category: 'weather' },
-    { position: 2, property: 'state', category: 'lights', why: reads.ANOTHER_APPS },
+    { position: 2, property: 'state', category: 'lights', onOff: true, why: reads.ANOTHER_APPS },
     { position: 3, property: 'starts_at', category: 'calendar', why: 'Calendar' },
-    { position: 4, property: 'ringing', category: 'phone', why: '' }],
+    { position: 4, property: 'ringing', category: 'phone', onOff: true, why: '' }],
   'no plugin on the phone serves the first; the lights need a permission of another app, which no uuid stands for; '
-    + 'reading the last rings the phone; neither the item nor the index rides');
+    + 'reading the last rings the phone; neither the item nor the index rides; the lights and the ringing are on or off');
+  const other = plugin('o', 'Other lights', [{ category: 'lights', items: ['room'], properties: { state: ['shortText'] } }]);
+  assert.equal(list.listOf([preferencesPlugin(), lights, other], PERMS, 'own', known)[0].complications[2].onOff, undefined,
+    'on or off only as every plugin serving its source declares it');
   const long = { position: 0, category: 'c'.repeat(64), item: 'i', index: 0, property: 'p'.repeat(64) };
   const asks = plugin('a', 'Asks', [{ category: long.category, items: ['i'], callerPermissions: ['A'.repeat(64)] }]);
   assert.deepEqual(list.listOf([preferencesPlugin(), asks], PERMS, 'own', [long])[0].complications, [{ position: 0,
