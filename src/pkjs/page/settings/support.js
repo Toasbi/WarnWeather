@@ -131,6 +131,7 @@
 
         var closeSupportPopup = function () {
             if (supportOverlay) { supportOverlay.style.display = 'none'; }
+            if (PConf.backSteps) { PConf.backSteps.sync(); }
         };
 
         var injectOverlay = function () {
@@ -148,7 +149,16 @@
         var openSupportPopup = function () {
             if (!supportOverlay) { injectOverlay(); }
             supportOverlay.style.display = 'flex';
+            if (PConf.backSteps) { PConf.backSteps.sync(); }
         };
+
+        // The phone's Back closes the popup (back-steps.js), as its × does.
+        if (PConf.backSteps) {
+            PConf.backSteps.add({
+                depth: function () { return supportOverlay && supportOverlay.style.display === 'flex' ? 1 : 0; },
+                close: closeSupportPopup
+            });
+        }
 
         var injectSupportPill = function () {
             var hdr = document.querySelector('.hdr');
