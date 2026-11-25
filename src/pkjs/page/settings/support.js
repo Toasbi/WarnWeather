@@ -13,6 +13,8 @@
     // in shell.html (.ui-pop*), the same as News'. window's: this file's own PConf (below) is
     // hoisted over the page's.
     var kit = (typeof require !== 'undefined') ? require('../../config-ui/lib/ui.js') : window.PConf.ui;
+    // The page's history entries, one per layer open: the phone's Back closes the popup.
+    var backSteps = (typeof require !== 'undefined') ? require('../../config-ui/lib/back-steps.js') : window.PConf.backSteps;
 
     // A CSS transform on an SVG child is expressed in that element's USER
     // coordinate system, so the keyframes' translateY moves the wisps this many
@@ -130,7 +132,8 @@
         };
 
         var closeSupportPopup = function () {
-            if (supportOverlay) { supportOverlay.style.display = 'none'; }
+            supportOverlay.style.display = 'none';
+            backSteps.sync();
         };
 
         var injectOverlay = function () {
@@ -143,11 +146,18 @@
                 }
             });
             document.body.appendChild(supportOverlay);
+            // Back closes it as its × does.
+            backSteps.add({
+                /** @returns {number} 1 while the popup shows, else 0. */
+                depth: function () { return supportOverlay.style.display === 'flex' ? 1 : 0; },
+                close: closeSupportPopup
+            });
         };
 
         var openSupportPopup = function () {
             if (!supportOverlay) { injectOverlay(); }
             supportOverlay.style.display = 'flex';
+            backSteps.sync();
         };
 
         var injectSupportPill = function () {

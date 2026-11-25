@@ -1098,6 +1098,11 @@ file.
      codes it reads (`PConf.checklist`); a tap stays with the engine
    - `lib/links.js`: the page's links to other sites, opened through the Pebble app's
      `Pebble.openUrl` where the page has it (`PConf.links`); `engine.js`'s boot wires it
+   - `lib/back-steps.js`: one history entry for each layer the page has open, so the phone's Back
+     (Android's Back, the iPhone's edge swipe) closes the top layer instead of leaving the page
+     (`PConf.backSteps`); the engine's dialogs and the app's overlays add their layers to it,
+     and the engine adds the page itself below them: Back with nothing open goes back to the tab
+     the page opened on, and there asks before leaving changes not saved
    - `lib/engine.js`: render engine, registries, hooks, modal shell, event wiring
    - each file in `appFiles`: the app's blocks and hooks
    - `PConf.engine.boot();`, which runs last, after all registrations

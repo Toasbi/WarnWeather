@@ -47,6 +47,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // discipline.
   var checklist = (typeof require !== 'undefined') ? require('./checklist.js') : PConf.checklist;
   var renderChecklist = checklist.renderChecklist;
+  // The page's history entries, one per layer open (lib/back-steps.js): the phone's Back closes
+  // the top layer. Inert under Node and in a WebView without history.pushState.
+  var backSteps = (typeof require !== 'undefined') ? require('./back-steps.js') : PConf.backSteps;
   var formatDateValue = datePicker.formatDateValue;
   var parseDateParts = datePicker.parseDateParts;
   var dateValueFromParts = datePicker.dateValueFromParts;
@@ -205,7 +208,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   PConf.checkWriters = makeRegistry();
 
   // --- hook registry ---
-  var loadFns = [], submitFns = [], readyFns = [], renderFns = [], normalizeFns = [], revertFns = [];
+  var loadFns = [], submitFns = [], readyFns = [], renderFns = [], normalizeFns = [], revertFns = [], backFns = [];
   PConf.hooks = {
     onLoad: function (fn) { loadFns.push(fn); },
     onSubmit: function (fn) { submitFns.push(fn); },
@@ -229,11 +232,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // a page module drops what it holds beside the settings that a later tap would write back
     // (the Undo after a delete restores the settings as they were before the delete).
     onRevert: function (fn) { revertFns.push(fn); },
+    // onBack: fn() runs on the phone's Back with nothing open on the page (back-steps.js' base),
+    // before the page answers it. A page module whose overlay stands for the page answers it
+    // itself and returns true (setup opened by itself: its first step leaves the page).
+    onBack: function (fn) { backFns.push(fn); },
     runLoad: function (ctx) { loadFns.forEach(function (fn) { fn(ctx); }); },
     runSubmit: function (ctx) { submitFns.forEach(function (fn) { fn(ctx); }); },
     runReady: function (ctx) { readyFns.forEach(function (fn) { fn(ctx); }); },
     runRender: function (ctx) { renderFns.forEach(function (fn) { fn(ctx); }); },
     runRevert: function (ctx) { revertFns.forEach(function (fn) { fn(ctx); }); },
+    runBack: function () { return backFns.some(function (fn) { return fn() === true; }); },
     runNormalize: function (state, env) {
       return normalizeFns.reduce(function (s, fn) { return fn(s, env) || s; }, state);
     }
@@ -2798,6 +2806,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // What More options measures "customised" against (moreDiffers), once per page.
     var MORE_BASE = moreBaseline(SCHEMA, INITIAL, ENV);
     var activeTab = initialTab(SCHEMA, S);
+    // The tab the page opened on: the phone's Back on another goes back to it (baseBack).
+    var startTab = activeTab;
     // The one sheet open in the shared <dialog id="modal">, or null. An opener sets it
     // whole, so two sheets can never be open at once:
     // - {kind: 'select', key, close}: a select/searchSelect's options (key: its messageKey).
@@ -2810,7 +2820,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     //   selector, the page's own trigger (a graph's row, New graph). ctx.openSheet and
     //   ctx.openDialog set it.
     // - {kind: 'confirm', confirm}: the Save button's dialog while a row needs attention
-    //   (requestSave; confirm: {title, body, actionLabel, confirmLabel, tab, sheet}).
+    //   (requestSave; confirm: {title, body, actionLabel, confirmLabel, tab, sheet}), Revert's,
+    //   and the phone's Back's with changes not saved (askFirst).
     var sheet = null;
     // The messageKey of the one control opened in a dialog, or null: a colour's palette
     // (in place, in the tab body or in the open dialog) or a `select`'s option list (in the
@@ -3080,7 +3091,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var close = closing.close || {};
       var selector = (noFocus || close.focusTo === null) ? null
         : close.focusTo ? close.focusTo
-        : closing.kind === 'confirm' ? (closing.confirm && closing.confirm.revert ? '#revert' : '#save')
+        : closing.kind === 'confirm' ? ((closing.confirm && closing.confirm.trigger) || '#save')
         : '[' + TRIGGER_ATTR[closing.kind] + '="' + (rootKey || closing.key) + '"]';
       var trigger = !selector ? null
         : (document.querySelectorAll && pickTrigger(document.querySelectorAll(selector), Boolean(closing.fromPin)))
@@ -3345,6 +3356,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       document.getElementById('scroll').className = 'scroll' + (sheet ? ' locked' : '');
       applyTheme();
       paintSave();
+      // Every layer the dialog opens or closes ends in a render: the history follows it.
+      backSteps.sync();
     }
 
     // Save and Revert follow whether a Save would send anything new: the blob Save would
@@ -3391,19 +3404,42 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @returns {void}
      */
     function requestRevert() {
-      var dlg = document.getElementById('modal');
       if (!hasChanges()) { return; }
-      if (!dlg || typeof dlg.showModal !== 'function') { revertAll(); return; }
-      expanded = null;
-      sheet = { kind: 'confirm', confirm: {
-        revert: true,
+      askFirst({
         title: 'Undo your changes?',
         body: 'Every setting goes back to how it was when you opened this page.',
         actionLabel: 'Undo changes',
-        confirmLabel: 'Keep editing'
-      } };
+        confirmLabel: 'Keep editing',
+        trigger: '#revert',
+        /**
+         * Its action undoes every change; its second button keeps editing.
+         * @param {string} which 'action' | 'save'.
+         * @returns {void}
+         */
+        choose: function (which) {
+          closeModal(which === 'action');
+          if (which === 'action') { revertAll(); }
+        }
+      }, ['[data-confirm="save"]'], revertAll);
+    }
+    /**
+     * Open the shared confirm dialog, or, on a page that cannot open a <dialog> (no showModal), do
+     * at once what it would ask about.
+     * @param {Object} confirm The dialog: title, body, actionLabel, confirmLabel; choose(which) for
+     *   one that says itself what its buttons do (confirmChoice); trigger, where focus goes back
+     *   once it closes ('#save' when left out).
+     * @param {Array<string>} focus Where focus goes in it: the first of these found.
+     * @param {function(): void} fallback What happens at once without a <dialog>.
+     * @returns {void}
+     */
+    function askFirst(confirm, focus, fallback) {
+      var dlg = document.getElementById('modal');
+      if (!dlg || typeof dlg.showModal !== 'function') { fallback(); return; }
+      // A palette left open in the tab body closes under the dialog.
+      expanded = null;
+      sheet = { kind: 'confirm', confirm: confirm };
       render();
-      focusInModal(['[data-confirm="save"]']);
+      focusInModal(focus);
     }
     /**
      * Put every setting back as the page held it once ready (restoreState keeps S the same
@@ -3927,6 +3963,46 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       return true;
     }
 
+    /**
+     * How many layers the shared dialog has open, for the phone's Back (back-steps.js): its sheet,
+     * or each full-screen dialog of the stack, then a list, date or palette open in the dialog and
+     * a title being renamed.
+     * @returns {number}
+     */
+    function openLayers() {
+      if (!sheet) { return 0; }
+      if (sheet.kind !== 'edit') { return 1; }
+      return Math.max(1, editStack.length) + (expanded ? 1 : 0) + (renaming ? 1 : 0);
+    }
+
+    /**
+     * Close the shared dialog's top layer, the step Escape and the phone's Back take: a title being
+     * renamed, then a list, date or palette open in the dialog, then the full-screen dialog on top
+     * (popDialog, which keeps its changes as Done does), else the sheet.
+     * @param {boolean} keepName A title being renamed keeps the name typed (Back, as leaving the
+     *   field does), not the old one (Escape).
+     * @returns {void}
+     */
+    function stepBack(keepName) {
+      if (renaming && sheetIs('edit')) {
+        if (keepName) { commitRename(); return; }
+        renaming = null;
+        render();
+        focusInModal(['[data-dlg-rename]', '.dlg-x']);
+        return;
+      }
+      // A field being typed in commits first, as when a tap on Done takes the focus from it: the
+      // close removes the field, and a WebView fires no focusout or change for a field it removes
+      // (the slider's scale maximum commits on focusout alone).
+      var typing = document.activeElement;
+      if (typing && typing.blur && typing.closest && typing.closest('#modal') && typing.id !== 'modal') { typing.blur(); }
+      if (collapseSheetExpander()) { return; }
+      // In a full-screen dialog a step back keeps every change, like Done: the old sheets kept every
+      // change however they closed, and a key press is no place to lose them.
+      if (sheetIs('edit')) { popDialog(); return; }
+      closeModal();
+    }
+
     // The #modal overlay lives outside #scroll, so it needs its own delegated handlers:
     // pick an option (set value + fire onChange + close), close (backdrop / X), and the
     // searchSelect live filter (rebuild only the list so the input keeps focus + cursor).
@@ -4033,24 +4109,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           closeModal(); return;
         }
       });
-      // Escape fires the dialog's native `cancel`; route it through closeModal (the single
-      // close path via render → syncDialog) instead of letting the dialog self-close.
-      // Inside an edit sheet the first press collapses an expanded option list or palette;
-      // the next one closes the sheet.
+      // Escape fires the dialog's native `cancel`: the page closes one layer itself (stepBack,
+      // a name being typed keeping its old name) instead of letting the dialog self-close.
       modal.addEventListener('cancel', function (e) {
         e.preventDefault();
-        // Escape in a name field keeps the old name: the title is back, the dialog stays.
-        if (renaming && sheetIs('edit')) {
-          renaming = null;
-          render();
-          focusInModal(['[data-dlg-rename]', '.dlg-x']);
-          return;
-        }
-        if (collapseSheetExpander()) { return; }
-        // In a full-screen dialog Escape steps back like Done: the old sheets kept every
-        // change however they closed, and a key press is no place to lose them.
-        if (sheetIs('edit')) { popDialog(); return; }
-        closeModal();
+        stepBack(false);
       });
       // Edit-sheet text fields (warn/danger thresholds …) get the same live-input /
       // pre-edit / commit path as #scroll's text rows; liveTextInput's data-k guard
@@ -4072,6 +4135,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (!inp || !renaming || (to && to.closest && to.closest('[data-dlg-rename-ok]'))) { return; }
         storeRename(inp.value);
         renaming = null;
+        backSteps.sync();
       });
       modal.addEventListener('input', liveTextInput);
       modal.addEventListener('focusin', captureTextPreEdit);
@@ -4170,7 +4234,45 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var el = document.getElementById('toast');
       el.textContent = 'Settings saved ✓';
       el.classList.add('show');
+      // The page is leaving: the phone's Back takes no step that could cancel the save.
+      backSteps.stop();
       setTimeout(function () { location.href = RETURN_TO + encodeURIComponent(JSON.stringify(blob)); }, 300);
+    }
+    /**
+     * Close the settings page without saving, as the phone's Back always did: RETURN_TO with nothing
+     * after it, which the Pebble app takes as a close that hands PKJS no settings.
+     * @returns {void}
+     */
+    function leave() {
+      backSteps.stop();
+      location.href = RETURN_TO;
+    }
+    /**
+     * The phone's Back with nothing open on the page (its base layer, back-steps.js): on another tab
+     * the tab the page opened on comes back; there, changes not saved yet ask first (Save or Discard,
+     * confirmChoice), and with none the page closes. A page that cannot open a <dialog> closes, as
+     * Back always did.
+     * @returns {void}
+     */
+    function baseBack() {
+      if (PConf.hooks.runBack()) { return; }
+      if (activeTab !== startTab) { gotoTab(startTab); return; }
+      if (!hasChanges()) { leave(); return; }
+      askFirst({
+        title: 'Save your changes?',
+        body: 'Your changes are not saved yet.',
+        actionLabel: 'Save',
+        confirmLabel: 'Discard',
+        /**
+         * Its action saves as the Save button does; its second button leaves without the changes.
+         * @param {string} which 'action' | 'save'.
+         * @returns {void}
+         */
+        choose: function (which) {
+          closeModal(true);
+          if (which === 'action') { requestSave(); } else { leave(); }
+        }
+      }, ['[data-confirm="action"]'], leave);
     }
     /**
      * The Save button: saves at once, unless a row needs attention
@@ -4182,15 +4284,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @returns {void}
      */
     function requestSave() {
-      var dlg = document.getElementById('modal');
       var found = null;
       try { found = findAttention(SCHEMA, { S: S, ENV: ENV, evalCtx: evalCtx() }); } catch (err) { found = null; }
-      if (!found || !found.attention.title || !dlg || typeof dlg.showModal !== 'function') { save(); return; }
+      if (!found || !found.attention.title) { save(); return; }
       var att = found.attention;
-      // Save sits outside the dialog, inert while a sheet is open, so no sheet is open
-      // here. A palette left open in the tab body closes under the dialog.
-      expanded = null;
-      sheet = { kind: 'confirm', confirm: {
+      // Save sits outside the dialog, inert while a sheet is open, so no sheet is open here.
+      askFirst({
         title: att.title,
         body: att.body,
         actionLabel: att.actionLabel,
@@ -4201,14 +4300,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         pane: found.section.pane || null,
         sheet: att.sheet || resolveEditSheet(found.item, S, ENV)
           || (found.section.sheetOnly ? found.section.sheetId : null)
-      } };
-      render();
-      focusInModal(['[data-confirm="action"]', '[data-confirm="save"]']);
+      }, ['[data-confirm="action"]', '[data-confirm="save"]'], save);
     }
 
     /**
-     * A tap on one of the Save dialog's buttons. "save" closes it and saves exactly as
-     * Save does; focus goes nowhere, the page is leaving. "action" closes it WITHOUT
+     * A tap on one of the confirm dialog's buttons. A dialog with choose (Revert's, the phone's
+     * Back's) says itself what they do. On the Save dialog, "save" closes it and saves exactly
+     * as Save does; focus goes nowhere, the page is leaving. "action" closes it WITHOUT
      * saving and opens the fix on the row's tab (switchTab): that tab comes to the front
      * and the row's sheet opens over it, so closing the sheet lands on the row it
      * belongs to.
@@ -4217,12 +4315,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      */
     function confirmChoice(which) {
       var cf = sheet.confirm;
-      // Revert's dialog: its action undoes every change, its second button keeps editing.
-      if (cf.revert) {
-        closeModal(which === 'action');
-        if (which === 'action') { revertAll(); }
-        return;
-      }
+      if (cf.choose) { cf.choose(which); return; }
       if (which === 'save') {
         closeModal(true);
         save();
@@ -4267,6 +4360,22 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     wireInputs();
     wireModal();
     wireSave();
+    // The phone's Back closes the dialog's top layer as Escape does, but keeps a name being typed;
+    // the dialog shows above every overlay of the page's own.
+    backSteps.add({
+      rank: 1,
+      depth: openLayers,
+      /** @returns {void} */
+      close: function () { stepBack(true); }
+    });
+    // The page itself, below every layer: once a tap gave it an entry, the phone's Back with nothing
+    // open stays on the page (baseBack).
+    backSteps.add({
+      base: true,
+      /** @returns {number} */
+      depth: function () { return 1; },
+      close: baseBack
+    });
     // Links to other sites through Pebble.openUrl where the app gives the page one (links.js).
     if (PConf.links && document.addEventListener) {
       PConf.links.wireLinks(document, typeof window !== 'undefined' ? window : null);
@@ -4282,6 +4391,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     PConf.hooks.runReady({
       S: S, ENV: ENV, USERDATA: USERDATA, schema: SCHEMA, cfg: INJECTED_CFG || {},
       get: hookCtx.get, set: hookCtx.set, render: render, save: save,
+      // Close the page without saving, as the phone's Back always did.
+      leave: leave,
       // Write a value the way the page's own controls do: S, then the item's onChange hooks
       // (with optOldV, as if it had moved from there). No render: the caller repaints.
       setValue: setValue,

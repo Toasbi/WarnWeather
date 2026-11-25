@@ -61,6 +61,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var SF = (typeof require !== 'undefined') ? require('./screen-frame.js') : window.ScreenFrame;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
     var html = (typeof require !== 'undefined') ? require('../../config-ui/lib/html.js') : PConf.html;
+    // The page's history entries, one per layer open: the phone's Back closes the editor's top one.
+    var backSteps = (typeof require !== 'undefined') ? require('../../config-ui/lib/back-steps.js') : PConf.backSteps;
     var esc = html.esc;
     // The page's shared parts (config-ui/lib/ui.js): the lists' rows, red arrows, New rows and
     // Undo (with the timer that takes a message away: flash), the editor's header, its rows'
@@ -1993,6 +1995,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         });
         input.focus();
         input.select();
+        backSteps.sync();
     }
 
     /**
@@ -2033,6 +2036,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var t = ED.overlay.querySelector('[data-se-toast]');
         t.textContent = ED.toast.v || '';
         t.className = ED.toast.v ? 'toast show' : 'toast';
+        backSteps.sync();
     }
 
     /**
@@ -2075,6 +2079,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ED.nameEl = null;
         document.removeEventListener('keydown', onKeydown);
         if (UI.ctx && changed) { UI.ctx.render(); }
+        backSteps.sync();
+    }
+
+    /**
+     * How many layers the editor has open, for the phone's Back (back-steps.js): the overlay, then
+     * Change layout's cards over the screen's editor, a screen picked in Add a screen, the name
+     * being typed.
+     * @returns {number}
+     */
+    function editorLayers() {
+        if (!ED.overlay) { return 0; }
+        var add = ED.mode === 'add';
+        return 1 + (add && ED.into >= 0 ? 1 : 0) + (add && ED.pick ? 1 : 0) + (ED.nameEl ? 1 : 0);
+    }
+
+    /**
+     * Close the editor's top layer, as its ‹ does (the phone's Back, Escape): the name being typed
+     * (kept, as leaving the field keeps it), a picked screen back to Add a screen's cards, Change
+     * layout's cards back to the screen's editor, else the editor.
+     * @returns {void}
+     */
+    function editorBack() {
+        if (ED.nameEl) { endRename(ED.nameEl.value); return; }
+        if (ED.mode === 'add' && ED.pick) { backToCards(); return; }
+        if (ED.mode === 'add' && ED.into >= 0) { relayoutBack(); return; }
+        closeEditor();
     }
 
     /**
@@ -2093,9 +2123,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The editor's keys (not under a dialog, nor while the name is renamed): Escape closes it;
-     * ArrowUp / ArrowDown on a focused ≡ move its row a place (editorMove), the ≡ keeping the
-     * focus.
+     * The editor's keys (not under a dialog, nor while the name is renamed): Escape closes its top
+     * layer (editorBack); ArrowUp / ArrowDown on a focused ≡ move its row a place (editorMove), the
+     * ≡ keeping the focus.
      * @param {KeyboardEvent} e The key.
      * @returns {void}
      */
@@ -2103,14 +2133,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (ED.nameEl || !UI.ctx) { return; }
         var modal = document.getElementById('modal');
         if (modal && modal.open) { return; }
-        if (e.key === 'Escape') {
-            // Escape on a picked screen goes back to Add a screen's cards, as its ‹ does.
-            if (ED.mode === 'add' && ED.pick) { backToCards(); return; }
-            // Escape on Change layout's cards goes back to the screen's editor, as their ‹ does.
-            if (ED.mode === 'add' && ED.into >= 0) { relayoutBack(); return; }
-            closeEditor();
-            return;
-        }
+        if (e.key === 'Escape') { editorBack(); return; }
         // ArrowLeft / ArrowRight on a graph in Add a screen's roll pick the one beside it, rolled
         // to the middle, the focus going along.
         var r = e.target && e.target.closest ? e.target.closest('[data-sa-g]') : null;
@@ -2622,6 +2645,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 ctx.set('healthMode', m.healthMode);
             });
         }
+        backSteps.add({ depth: editorLayers, close: editorBack });
         PConf.actions = PConf.actions || {};
         PConf.actions.openScreen = function (arg) { openEditor(parseInt(arg, 10) || 0); };
         PConf.actions.addScreen = function () {

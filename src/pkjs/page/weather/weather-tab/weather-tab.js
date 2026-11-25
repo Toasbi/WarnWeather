@@ -35,6 +35,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ? require('../../../weather/adapter/weather-tab-data.js') : window.WeatherTabData;
     var charts = (typeof require !== 'undefined')
         ? require('./weather-tab-charts.js') : window.WeatherTabCharts;
+    // The page's history entries, one per layer open: the phone's Back closes the city search.
+    var backSteps = (typeof require !== 'undefined')
+        ? require('../../../config-ui/lib/back-steps.js') : PConf.backSteps;
 
     // Module state: the engine re-renders blocks wholesale, so everything
     // async or cross-render lives here.
@@ -44,7 +47,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var forceNext = false;          // the next fetch is a manual refresh: skip the cache
     var scrubIndex = null;          // crosshair index shared by all panels
     var panDay = 0;                 // day currently in the viewport (0-based)
-    var editingSlot = null;         // overlay target: 1..3
+    var closeSearch = null;         // the open city search's close (openOverlay), for the phone's Back; null while none is open
     var gpsSeed = null;             // {lat, lon, name}: a page-acquired fix fresher than the injected seed
     var stripPending = false;       // an applyStripPan is scheduled for the render being built
     var tileTimer = null;           // clears the tiles' inline highlight once a settle has finished
@@ -560,13 +563,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Open the city-search overlay targeting a slot (1..3).
+     * Open the city-search overlay targeting a slot (1..3); one at a time.
      * @param {number} slotIndex Slot to write.
      * @returns {void}
      */
     function openOverlay(slotIndex) {
-        if (typeof document === 'undefined') { return; }
-        editingSlot = slotIndex;
+        if (typeof document === 'undefined' || closeSearch) { return; }
         var el = document.createElement('div');
         el.id = 'wxloc';
         el.innerHTML = '<div class="hd"><b>Add location</b><button type="button" id="wxloc-cancel">Cancel</button></div>'
@@ -577,9 +579,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var res = document.getElementById('wxloc-res');
         var timer = null;
         var closeOverlay = function () {
-            editingSlot = null;
+            closeSearch = null;
+            // A search typed just before it closed goes out no more.
+            if (timer) { clearTimeout(timer); timer = null; }
             if (el.parentNode) { el.parentNode.removeChild(el); }
+            backSteps.sync();
         };
+        closeSearch = closeOverlay;
+        backSteps.sync();
         document.getElementById('wxloc-cancel').onclick = closeOverlay;
         var renderResults = function (list, err) {
             if (err) {
@@ -1290,6 +1297,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return graphsProviderHeader(S);
         });
     }
+
+    // The phone's Back closes the city search, as its Cancel does.
+    backSteps.add({
+        /** @returns {number} 1 while the city search is up, else 0. */
+        depth: function () { return closeSearch ? 1 : 0; },
+        /** @returns {void} */
+        close: function () { closeSearch(); }
+    });
 
     if (PConf.actions) {
         PConf.actions.wxSelectLocation = function (arg, S) {

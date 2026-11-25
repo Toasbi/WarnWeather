@@ -38,6 +38,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var GS = node ? require('../../../forecast-graphs/domain/graph-styles.js') : window.GraphStyles;
     var FINISH = node ? require('./wizard-finish.js') : window.WizardFinish;
     var UPSELL = node ? require('./wizard-upsell.js') : window.WizardUpsell;
+    // The page's history entries, one per layer open: the phone's Back steps back through setup.
+    var BACK = node ? require('../../../config-ui/lib/back-steps.js') : PConf.backSteps;
 
     /**
      * The steps. `when` names the env fact a step needs: the Screens step where the watch has a
@@ -171,6 +173,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             reachedDone: false, tioTyped: false,
             // Where focus goes when setup closes onto the page: the row that re-ran it.
             returnFocus: fresh ? null : '[data-action="startWizard"]',
+            // The overlay's own layer for the phone's Back (back-steps.js): Run setup again opens it
+            // with a tap, which gives it a history entry; opened by itself it has none, and Back on
+            // its first step leaves the page.
+            overlayLayer: fresh ? 0 : 1,
             // The forecast step's looks, and "Your own" (its values and length: refreshLooks). The
             // look picked in this run, which the picker marks while the graph still draws it: two
             // looks can draw alike on a watch (Clean and Classic on a light theme, where the theme
@@ -1001,6 +1007,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         body.innerHTML = '<div class="wiz-step' + (dir === 'back' ? ' back' : '') + (stay ? ' still' : '')
             + (id === 'done' ? ' last' : '') + '">' + STEP[id].body() + '</div>';
         run.overlay.querySelector('[data-wiz-foot]').innerHTML = footer(id);
+        // An entry per step past the first, and one for the overlay Run setup again opened.
+        BACK.sync();
         if (stay) { return; }
         body.scrollTop = 0;
         // A screen reader starts each step at its title.
@@ -1290,6 +1298,37 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     PConf.actions = PConf.actions || {};
     PConf.actions.startWizard = function () { if (page.ctx) { openWizard(page.ctx, false); } };
+    // The phone's Back (back-steps.js) steps back a step, as the top bar's Back does, keeping every
+    // pick. On the first step it closes setup: as Skip does, or once the summary was shown (its
+    // Change leads there, and Skip is offered no more) as Keep customizing does, so setup opened by
+    // itself counts that step a layer from then on.
+    BACK.add({
+        /**
+         * Setup's layers: its overlay where a tap opened it, a step past the first each, and the
+         * first step of setup opened by itself once the summary was shown.
+         * @returns {number}
+         */
+        depth: function () {
+            if (!run || !run.overlay) { return 0; }
+            return run.overlayLayer + run.idx + (run.reachedDone && !run.idx && !run.overlayLayer ? 1 : 0);
+        },
+        /**
+         * Back a step; on the first, close setup (Skip, or Keep customizing once the summary was shown).
+         * @returns {void}
+         */
+        close: function () { onNav(run.idx > 0 ? 'back' : run.reachedDone ? 'tweak' : 'skip'); }
+    });
+
+    // Setup opened by itself stands for the page until it is done: Back with nothing else open (its
+    // first step, before its summary was shown) leaves the page as before, saving nothing. Setup is
+    // not finished, so it opens again next time.
+    if (PConf.hooks && PConf.hooks.onBack) {
+        PConf.hooks.onBack(function () {
+            if (!run || !run.overlay) { return false; }
+            run.ctx.leave();
+            return true;
+        });
+    }
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = { buildSteps: buildSteps, shouldShow: shouldShow, applyDerived: applyDerived };

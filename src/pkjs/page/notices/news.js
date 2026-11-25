@@ -26,6 +26,8 @@
     // in shell.html (.ui-pop*), the same as Support's. window's: this file's own PConf (below)
     // is hoisted over the page's.
     var kit = (typeof require !== 'undefined') ? require('../../config-ui/lib/ui.js') : window.PConf.ui;
+    // The page's history entries, one per layer open: the phone's Back closes the popup.
+    var backSteps = (typeof require !== 'undefined') ? require('../../config-ui/lib/back-steps.js') : window.PConf.backSteps;
 
     /**
      * Escape the HTML metacharacters. Runs BEFORE any markdown transform so
@@ -328,11 +330,20 @@
             });
         };
 
+        /**
+         * Close the popup (its ×, a tap on the dimmed page, the phone's Back).
+         * @returns {void}
+         */
+        var closeNewsPopup = function () {
+            newsOverlay.style.display = 'none';
+            backSteps.sync();
+        };
         var openNewsPopup = function () {
             if (!newsOverlay) {
                 injectOverlay();
             }
             newsOverlay.style.display = 'flex';
+            backSteps.sync();
             // Advance the server-side watermark once per page load; failure is
             // silent — the badge just reappears next open and heals then.
             if (USERDATA.accountToken && !newsSeenSent && maxId(newsItems) > (newsLastSeenId || 0)) {
@@ -351,7 +362,7 @@
             newsOverlay.addEventListener('click', function (e) {
                 var t;
                 if (e.target === newsOverlay || e.target.closest('[data-news-close]')) {
-                    newsOverlay.style.display = 'none';
+                    closeNewsPopup();
                     return;
                 }
                 if ((t = e.target.closest('[data-news-vote]'))) {
@@ -359,6 +370,12 @@
                 }
             });
             document.body.appendChild(newsOverlay);
+            // Back closes it as its × does.
+            backSteps.add({
+                /** @returns {number} 1 while the popup shows, else 0. */
+                depth: function () { return newsOverlay.style.display === 'flex' ? 1 : 0; },
+                close: closeNewsPopup
+            });
         };
 
         var injectNewsPill = function () {
