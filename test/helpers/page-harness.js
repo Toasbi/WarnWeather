@@ -21,6 +21,7 @@ const assert = require('node:assert/strict');
 const vm = require('vm');
 const schema = require('../../src/pkjs/page/settings/schema.js');
 const platformLib = require('../../src/pkjs/config-ui/lib/platform.js');
+const { installHistory } = require('./fake-history.js');
 
 // A select trigger as engine.js renderSelectTrigger writes it; the groups the fake below
 // reads and rewrites are 2 (the data-select key), 4 (the aria-label) and 6 (the label).
@@ -223,11 +224,13 @@ function makeNode(tag) {
 /** Boot the real generated page in a vm sandbox with a fake DOM.
  * @param {Object} [cfg] stored settings to hydrate from (onboardingDone defaults to true)
  * @param {string} [platformName] Pebble platform for the injected env (default basalt)
- * @param {{userData: (Object|undefined), dialog: (boolean|undefined)}} [opts] `userData`:
- *   what the phone injects (default {}); `dialog`: give #modal a native <dialog>'s
+ * @param {{userData: (Object|undefined), dialog: (boolean|undefined), history: (boolean|undefined)}} [opts]
+ *   `userData`: what the phone injects (default {}); `dialog`: give #modal a native <dialog>'s
  *   showModal()/close()/open, so the Save button's confirm dialog can open (without it
- *   the page behaves like a webview with no <dialog>, and Save saves at once).
- * @returns {{S: Object, scroll: Object, modal: Object, tabs: Object, window: Object,
+ *   the page behaves like a webview with no <dialog>, and Save saves at once); `history`: give
+ *   the page a history as the Pebble app's WebView keeps it, and the phone's Back over it
+ *   (fake-history.js: the handle's `phone`; without it the page keeps no history entries).
+ * @returns {{S: Object, scroll: Object, modal: Object, tabs: Object, window: Object, phone: ?Object,
  *   clickTab: function, openEditSheet: function, clickModalToggle: function,
  *   clickToggle: function, tapSegment: function, typeText: function, openSelect: function, openModalSelect: function,
  *   pickOption: function,
@@ -277,6 +280,7 @@ function bootGeneratedPage(cfg, platformName, opts) {
   };
   sandbox.navigator = {};
   sandbox.location = { href: '' };   // save() navigates to RETURN_TO + the saved blob
+  const phone = opts.history ? installHistory(sandbox) : null;
   if (opts.dialog) {
     const modal = sandbox.document.getElementById('modal');
     modal.open = false;
@@ -300,6 +304,7 @@ function bootGeneratedPage(cfg, platformName, opts) {
     modal: els.modal,
     tabs: els.tabs,
     window: sandbox,
+    phone,
     asked,
     clickTab(tabId) {
       const t = { getAttribute: n => (n === 'data-tab' ? tabId : null), closest: sel => (sel === '[data-tab]' ? t : null) };

@@ -2862,6 +2862,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // back there when the list closes without a pick, the list's own trigger being a row the
     // pick may not have made yet; it counts only while that list is the one expanded.
     var handedFrom = null;
+    // The page's history entries, one per layer open (back-steps.js): the phone's Back closes the
+    // top layer. A page built without it keeps no entries.
+    var back = PConf.backSteps || { add: function () {}, sync: function () {} };
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
     /**
@@ -3363,6 +3366,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       document.getElementById('scroll').className = 'scroll' + (sheet ? ' locked' : '');
       applyTheme();
       paintSave();
+      // Every layer the dialog opens or closes ends in a render: the history follows it.
+      back.sync();
     }
 
     // Save and Revert follow whether a Save would send anything new: the blob Save would
@@ -3945,6 +3950,41 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       return true;
     }
 
+    /**
+     * How many layers the shared dialog has open, for the phone's Back (back-steps.js): its sheet,
+     * or each full-screen dialog of the stack, then a list, date or palette open in the dialog and
+     * a title being renamed.
+     * @returns {number}
+     */
+    function openLayers() {
+      if (!sheet) { return 0; }
+      if (sheet.kind !== 'edit') { return 1; }
+      return Math.max(1, editStack.length) + (expanded ? 1 : 0) + (renaming ? 1 : 0);
+    }
+
+    /**
+     * Close the shared dialog's top layer, the step Escape and the phone's Back take: a title being
+     * renamed, then a list, date or palette open in the dialog, then the full-screen dialog on top
+     * (popDialog, which keeps its changes as Done does), else the sheet.
+     * @param {boolean} keepName A title being renamed keeps the name typed (Back, as leaving the
+     *   field does), not the old one (Escape).
+     * @returns {void}
+     */
+    function stepBack(keepName) {
+      if (renaming && sheetIs('edit')) {
+        if (keepName) { commitRename(); return; }
+        renaming = null;
+        render();
+        focusInModal(['[data-dlg-rename]', '.dlg-x']);
+        return;
+      }
+      if (collapseSheetExpander()) { return; }
+      // In a full-screen dialog a step back keeps every change, like Done: the old sheets kept every
+      // change however they closed, and a key press is no place to lose them.
+      if (sheetIs('edit')) { popDialog(); return; }
+      closeModal();
+    }
+
     // The #modal overlay lives outside #scroll, so it needs its own delegated handlers:
     // pick an option (set value + fire onChange + close), close (backdrop / X), and the
     // searchSelect live filter (rebuild only the list so the input keeps focus + cursor).
@@ -4053,22 +4093,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       });
       // Escape fires the dialog's native `cancel`; route it through closeModal (the single
       // close path via render → syncDialog) instead of letting the dialog self-close.
-      // Inside an edit sheet the first press collapses an expanded option list or palette;
-      // the next one closes the sheet.
+      // It closes one layer (stepBack): in a name field the old name stays, the dialog too; inside
+      // an edit sheet the first press collapses an expanded option list or palette; the next one
+      // steps back from the sheet.
       modal.addEventListener('cancel', function (e) {
         e.preventDefault();
-        // Escape in a name field keeps the old name: the title is back, the dialog stays.
-        if (renaming && sheetIs('edit')) {
-          renaming = null;
-          render();
-          focusInModal(['[data-dlg-rename]', '.dlg-x']);
-          return;
-        }
-        if (collapseSheetExpander()) { return; }
-        // In a full-screen dialog Escape steps back like Done: the old sheets kept every
-        // change however they closed, and a key press is no place to lose them.
-        if (sheetIs('edit')) { popDialog(); return; }
-        closeModal();
+        stepBack(false);
       });
       // Edit-sheet text fields (warn/danger thresholds …) get the same live-input /
       // pre-edit / commit path as #scroll's text rows; liveTextInput's data-k guard
@@ -4090,6 +4120,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (!inp || !renaming || (to && to.closest && to.closest('[data-dlg-rename-ok]'))) { return; }
         storeRename(inp.value);
         renaming = null;
+        back.sync();
       });
       modal.addEventListener('input', liveTextInput);
       modal.addEventListener('focusin', captureTextPreEdit);
@@ -4285,6 +4316,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     wireInputs();
     wireModal();
     wireSave();
+    // The phone's Back closes the dialog's top layer as Escape does, but keeps a name being typed;
+    // the dialog shows above every overlay of the page's own.
+    back.add({ rank: 1, depth: openLayers, close: function () { stepBack(true); } });
     // Links to other sites through Pebble.openUrl where the app gives the page one (links.js).
     if (PConf.links && document.addEventListener) {
       PConf.links.wireLinks(document, typeof window !== 'undefined' ? window : null);

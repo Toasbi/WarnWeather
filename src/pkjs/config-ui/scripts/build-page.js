@@ -7,7 +7,7 @@ var LIB = path.join(__dirname, '..', 'lib');
 // while its own runs, so it sits between them. color.js is the phone app's shared library
 // (src/pkjs/lib), which the engine uses as PConf.color.
 var LIB_PAGE_FILES = ['schema-walk.js', '../../lib/color.js', 'show-when.js', 'html.js', 'ui.js', 'date-picker.js', 'range-control.js',
-  'rgb-control.js', 'checklist.js', 'links.js', 'engine.js'];
+  'rgb-control.js', 'checklist.js', 'links.js', 'back-steps.js', 'engine.js'];
 
 /**
  * Drop the whole-line comments, the blank lines, the leading indentation and the blanks
