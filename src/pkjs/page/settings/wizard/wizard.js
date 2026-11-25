@@ -1319,6 +1319,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         close: function () { onNav(run.idx > 0 ? 'back' : run.reachedDone ? 'tweak' : 'skip'); }
     });
 
+    // Setup opened by itself stands for the page until it is done: Back with nothing else open (its
+    // first step, before its summary was shown) leaves the page as before, saving nothing. Setup is
+    // not finished, so it opens again next time.
+    if (PConf.hooks && PConf.hooks.onBack) {
+        PConf.hooks.onBack(function () {
+            if (!run || !run.overlay) { return false; }
+            run.ctx.leave();
+            return true;
+        });
+    }
+
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = { buildSteps: buildSteps, shouldShow: shouldShow, applyDerived: applyDerived };
     }

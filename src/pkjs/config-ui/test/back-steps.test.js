@@ -39,6 +39,18 @@ function layered(steps, rank) {
   return p;
 }
 
+/**
+ * The page itself as a part, its base: Back with nothing else open reaches it.
+ * @param {Object} steps The back-steps instance.
+ * @param {function(): void} [onBack] What else the base does on its Back.
+ * @returns {{backs: number, open: boolean}} backs: the Backs it answered; open: whether it is open.
+ */
+function based(steps, onBack) {
+  const b = { backs: 0, open: true };
+  steps.add({ base: true, depth: () => (b.open ? 1 : 0), close: () => { b.backs += 1; if (onBack) { onBack(); } } });
+  return b;
+}
+
 test('a tap that opens a layer adds one entry; Back closes it and the page stays', async () => {
   const { phone, steps } = setup();
   const part = layered(steps);
@@ -175,6 +187,22 @@ test('a step of the page\'s own that never lands holds the history back no more 
   assert.equal(phone.layers, 2, 'after 3 s the page stops waiting: the nested dialog has its entry');
 });
 
+test('a step of the page\'s own that never lands: after 3 s the next Back is taken as Back', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'] });
+  const { phone, steps } = setup();
+  const part = layered(steps);
+  part.open('dialog A');
+  await nextTap();
+  part.open('nested');
+  await nextTap();
+  part.shutAll();   // the step back to the first entry, which this WebView drops
+  await nextTap();
+  part.open('dialog B');   // no entry while the step is under way
+  t.mock.timers.tick(3001);
+  phone.back();
+  assert.deepEqual(part.stack, [], 'Back closes dialog B');
+});
+
 test('one entry per tap: Back closes all the layers one tap opened', async () => {
   const { phone, steps } = setup({ activation: true });
   const part = layered(steps);
@@ -242,6 +270,123 @@ test('a part that closes nothing leaves the history where Back put it', () => {
   phone.back();
   assert.equal(asked, 1, 'asked once');
   assert.equal(phone.layers, 0);
+  assert.deepEqual(phone.calls.go, [], 'no step forward that would hold the page');
+  phone.back();
+  assert.equal(phone.left, true, 'the next Back leaves the page');
+});
+
+test('a base: the first tap gives the page an entry; Back with nothing open reaches it, and the page goes forward again', () => {
+  const { phone, steps } = setup({ activation: false });
+  const base = based(steps);
+  steps.sync();   // the page's first render, before a tap
+  assert.equal(phone.calls.push, 0, 'no entry before a tap');
+  phone.ua.isActive = true;
+  steps.sync();   // a tap that opens nothing
+  assert.equal(phone.layers, 1, 'the tap gave the page its entry');
+  phone.back();
+  assert.equal(base.backs, 1, 'Back reached the base');
+  assert.equal(phone.left, false);
+  assert.deepEqual(phone.calls.go, [1], 'and the page goes forward to its entry again');
+  phone.land();
+  phone.back();
+  assert.equal(base.backs, 2, 'so the next Back reaches it too');
+});
+
+test('a base: the page listens for taps itself, so one that opens nothing gives it its entry', () => {
+  const win = {};
+  const phone = installHistory(win);
+  const listening = {};
+  win.document = { addEventListener(type, fn, capture) { listening[type] = { fn, capture }; } };
+  const steps = backSteps.create(win);
+  layered(steps);
+  assert.deepEqual(listening, {}, 'a page without a base listens for nothing');
+  based(steps);
+  assert.ok(listening.click && listening.keyup && listening.pointerup, 'a page with one listens for taps and keys');
+  assert.ok(Object.keys(listening).every((type) => listening[type].capture), 'ahead of the page\'s own handlers');
+  assert.equal(phone.calls.push, 0);
+  listening.click.fn({ type: 'click' });
+  assert.equal(phone.layers, 1, 'the tap gave the page its entry');
+});
+
+test('a base: Back closes the layers above it first, and reaches it only with none open', async () => {
+  const { phone, steps } = setup();
+  const part = layered(steps);
+  const base = based(steps);   // added last, as the page adds it
+  part.open('dialog');   // the tap's one entry serves the dialog and the base
+  assert.equal(phone.layers, 1);
+  await nextTap();
+  part.open('list');
+  assert.equal(phone.layers, 2);
+  phone.back();
+  assert.deepEqual(part.stack, ['dialog']);
+  phone.back();
+  assert.deepEqual(part.stack, [], 'Back on the first entry closed the dialog');
+  assert.equal(base.backs, 0, 'and did nothing else');
+  assert.deepEqual(phone.calls.go, [1], 'the page goes forward to its entry again');
+  phone.land();
+  phone.back();
+  assert.equal(base.backs, 1, 'the next Back reaches the base');
+});
+
+test('a base keeps the page off its first entry: its own closes take no step, and every Back does one thing', async () => {
+  const { phone, steps } = setup();
+  const part = layered(steps);
+  const base = based(steps);
+  part.open('dialog');
+  await nextTap();
+  part.open('list');
+  part.shutAll();   // Done
+  assert.deepEqual(phone.calls.go, [], 'no step back: the entries stay for the next layers');
+  phone.back();
+  assert.equal(base.backs, 1, 'Back with nothing open reaches the base on any entry');
+  assert.deepEqual(phone.calls.go, [], 'an entry below is left: no step');
+  phone.back();
+  assert.equal(base.backs, 2);
+  assert.deepEqual(phone.calls.go, [1], 'on the first entry the page goes forward again');
+});
+
+test('a base that closes on its Back takes no step forward', () => {
+  const { phone, steps } = setup();
+  const base = based(steps, () => { base.open = false; });
+  steps.sync();
+  phone.back();
+  assert.equal(base.backs, 1);
+  assert.deepEqual(phone.calls.go, []);
+  phone.back();
+  assert.equal(phone.left, true, 'the next Back closes the settings screen');
+});
+
+test('once the page is leaving (stop), it takes no step of its own and Back closes nothing', async () => {
+  const { phone, steps } = setup();
+  const part = layered(steps);
+  part.open('dialog');
+  await nextTap();
+  part.open('list');
+  steps.stop();
+  phone.back();
+  assert.deepEqual(part.stack, ['dialog', 'list'], 'Back closed nothing');
+  part.shutAll();   // the page closes both itself
+  assert.deepEqual(phone.calls.go, [], 'and the page took no step');
+});
+
+test('a base whose Back leaves the page takes no step after it: one would cancel the page\'s close', () => {
+  const { phone, steps } = setup();
+  const base = based(steps, () => { steps.stop(); });
+  steps.sync();
+  phone.back();
+  assert.equal(base.backs, 1);
+  assert.deepEqual(phone.calls.go, []);
+});
+
+test('with a base, a part that closes nothing still leaves the history where Back put it', () => {
+  const { phone, steps } = setup();
+  let asked = 0;
+  steps.add({ depth: () => 1, close: () => { asked += 1; } });
+  const base = based(steps);
+  steps.sync();
+  phone.back();
+  assert.equal(asked, 1);
+  assert.equal(base.backs, 0, 'the base is not asked in its place');
   assert.deepEqual(phone.calls.go, [], 'no step forward that would hold the page');
   phone.back();
   assert.equal(phone.left, true, 'the next Back leaves the page');
