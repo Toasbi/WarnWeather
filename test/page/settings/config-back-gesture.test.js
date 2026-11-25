@@ -228,8 +228,11 @@ test('Done, ‹, × and Escape: no step back while a layer stays open, back to t
 test('a tab switch closes the dialog and steps the history back', async () => {
   const page = boot({ provider: 'dwd' });
   page.openTabSheet('setup', 'weatherSources');
+  assert.equal(page.phone.layers, 1);
   await nextTap();
   page.clickTab('graphs');
+  assert.equal(page.modal.innerHTML, '', 'the switch closed the dialog');
+  assert.deepEqual(page.phone.calls.go, [-1], 'and stepped back over its entry');
   page.phone.land();
   assert.equal(page.phone.layers, 0);
 });

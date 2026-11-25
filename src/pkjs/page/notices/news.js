@@ -330,6 +330,10 @@
             });
         };
 
+        /**
+         * Close the popup (its ×, a tap on the dimmed page, the phone's Back).
+         * @returns {void}
+         */
         var closeNewsPopup = function () {
             newsOverlay.style.display = 'none';
             backSteps.sync();
