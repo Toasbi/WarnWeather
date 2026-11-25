@@ -522,4 +522,11 @@ test('the Weather tab\'s city search: Back closes it, as its Cancel does', async
   page.phone.land();
   assert.equal(search(), null);
   assert.equal(page.phone.layers, 0, 'Cancel stepped the history back');
+  // One search at a time: a second tap on the row while one is up opens none.
+  await nextTap();
+  page.tapAction('wxEditLocation', 'new');
+  page.tapAction('wxEditLocation', 'new');
+  assert.equal(page.window.document.body.children.filter((c) => c.id === 'wxloc').length, 1, 'one search');
+  page.phone.back();
+  assert.equal(search(), null, 'so Back closes the only one');
 });

@@ -563,12 +563,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Open the city-search overlay targeting a slot (1..3).
+     * Open the city-search overlay targeting a slot (1..3); one at a time.
      * @param {number} slotIndex Slot to write.
      * @returns {void}
      */
     function openOverlay(slotIndex) {
-        if (typeof document === 'undefined') { return; }
+        if (typeof document === 'undefined' || closeSearch) { return; }
         var el = document.createElement('div');
         el.id = 'wxloc';
         el.innerHTML = '<div class="hd"><b>Add location</b><button type="button" id="wxloc-cancel">Cancel</button></div>'
@@ -1297,7 +1297,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     // The phone's Back closes the city search, as its Cancel does.
-    backSteps.add({ depth: function () { return closeSearch ? 1 : 0; }, close: function () { closeSearch(); } });
+    backSteps.add({
+        /** @returns {number} 1 while the city search is up, else 0. */
+        depth: function () { return closeSearch ? 1 : 0; },
+        /** @returns {void} */
+        close: function () { closeSearch(); }
+    });
 
     if (PConf.actions) {
         PConf.actions.wxSelectLocation = function (arg, S) {
