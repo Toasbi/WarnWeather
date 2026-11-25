@@ -26,6 +26,8 @@
     // in shell.html (.ui-pop*), the same as Support's. window's: this file's own PConf (below)
     // is hoisted over the page's.
     var kit = (typeof require !== 'undefined') ? require('../../config-ui/lib/ui.js') : window.PConf.ui;
+    // The page's history entries, one per layer open: the phone's Back closes the popup.
+    var backSteps = (typeof require !== 'undefined') ? require('../../config-ui/lib/back-steps.js') : window.PConf.backSteps;
 
     /**
      * Escape the HTML metacharacters. Runs BEFORE any markdown transform so
@@ -330,21 +332,14 @@
 
         var closeNewsPopup = function () {
             newsOverlay.style.display = 'none';
-            if (PConf.backSteps) { PConf.backSteps.sync(); }
+            backSteps.sync();
         };
-        // The phone's Back closes the popup (back-steps.js), as its × does.
-        if (PConf.backSteps) {
-            PConf.backSteps.add({
-                depth: function () { return newsOverlay && newsOverlay.style.display === 'flex' ? 1 : 0; },
-                close: closeNewsPopup
-            });
-        }
         var openNewsPopup = function () {
             if (!newsOverlay) {
                 injectOverlay();
             }
             newsOverlay.style.display = 'flex';
-            if (PConf.backSteps) { PConf.backSteps.sync(); }
+            backSteps.sync();
             // Advance the server-side watermark once per page load; failure is
             // silent — the badge just reappears next open and heals then.
             if (USERDATA.accountToken && !newsSeenSent && maxId(newsItems) > (newsLastSeenId || 0)) {
@@ -371,6 +366,9 @@
                 }
             });
             document.body.appendChild(newsOverlay);
+            // Back closes it as its × does.
+            backSteps.add({ depth: function () { return newsOverlay.style.display === 'flex' ? 1 : 0; },
+                close: closeNewsPopup });
         };
 
         var injectNewsPill = function () {

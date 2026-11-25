@@ -27,28 +27,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   : (typeof global !== 'undefined') ? (global.PConf = global.PConf || {}) : {};
 
 (function () {
-  // The field of history.state that holds how many layers an entry stands for.
-  var KEY = 'pconfLayers';
-
   /**
-   * How many layers a history state stands for: 0 for a state that is not ours.
+   * How many layers a history state stands for (its pconfLayers): 0 for a state that is not ours.
    * @param {*} state A history.state.
    * @returns {number}
    */
   function layersOf(state) {
-    var n = state ? state[KEY] : 0;
-    return typeof n === 'number' && n > 0 && n === Math.floor(n) ? n : 0;
-  }
-
-  /**
-   * The history state of an entry that stands for `n` layers.
-   * @param {number} n Layers.
-   * @returns {Object}
-   */
-  function stateFor(n) {
-    var s = {};
-    s[KEY] = n;
-    return s;
+    var n = state ? state.pconfLayers : 0;
+    return typeof n === 'number' && n > 0 ? n : 0;
   }
 
   /**
@@ -76,7 +62,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     /** @returns {number} The layers open now, every part's together. */
     function open() {
       var n = 0;
-      for (var i = 0; i < parts.length; i++) { n += Math.max(0, parts[i].depth() || 0); }
+      for (var i = 0; i < parts.length; i++) { n += parts[i].depth(); }
       return n;
     }
 
@@ -121,7 +107,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      */
     function addEntry(at) {
       try {
-        hist.pushState(stateFor(base + at + 1), '');
+        hist.pushState({ pconfLayers: base + at + 1 }, '');
       } catch (err) {
         on = false;   // a WebView that refuses it: Back leaves the page, as before
         return;
@@ -146,22 +132,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     /**
-     * A popstate: the page's own history.go() landing, which brings the history in step with what
-     * opened or closed meanwhile; or Back, which closes layers, the top one first, until no more
-     * are open than the entry stands for. Back from an entry above the layers open (a forward
-     * swipe) goes back to them; a part that closes nothing leaves the history where Back put it.
+     * A popstate: the page's own history.go() landing (align); or Back, which closes layers, the
+     * top one first, until no more are open than the entry stands for. A forward swipe past the
+     * layers open goes back to them; a part that closes nothing leaves the history where Back put it.
      * @returns {void}
      */
     function onPopstate() {
-      var ours = travelling;
-      travelling = false;
-      if (ours) { align(false); return; }
+      if (travelling) { travelling = false; align(false); return; }
       closing = true;
       try {
-        for (var guard = open(); guard > 0 && open() > shown(); guard--) {
-          var part = topPart(), before = open();
-          if (!part) { break; }
-          part.close();
+        while (open() > shown()) {
+          var before = open();
+          topPart().close();
           if (open() >= before) { break; }
         }
       } finally {

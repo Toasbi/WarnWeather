@@ -7,77 +7,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const backSteps = require('../lib/back-steps.js');
+const { installHistory, nextTap } = require('./fake-history.js');
 const { LIB_PAGE_FILES } = require('../scripts/build-page.js');
 
 /**
- * A window with a history as Chromium keeps one for a data: page.
- * @param {{activation: (boolean|undefined), pushThrows: (boolean|undefined)}} [opts] activation:
- *   navigator.userActivation.isActive (left out: a WebView without userActivation); pushThrows:
- *   a WebView that refuses pushState.
- * @returns {Object} The window (win) and the phone's side of it.
+ * Back steps over a fake window's history.
+ * @param {Object} [opts] installHistory's options.
+ * @returns {{phone: Object, steps: Object, win: Object}}
  */
-function fakeWindow(opts) {
-  const o = opts || {};
-  const listeners = [];
-  const entries = [{ state: null }];
-  const steps = [];
-  const calls = { go: [], push: 0 };
-  let index = 0;
-  let left = false;
-  const ua = { isActive: o.activation !== undefined ? o.activation : true };
-  const fire = () => listeners.slice().forEach((fn) => fn({ state: entries[index].state }));
-  const win = {
-    navigator: o.activation === undefined ? {} : { userActivation: ua },
-    addEventListener(type, fn) { if (type === 'popstate') { listeners.push(fn); } },
-    history: {
-      scrollRestoration: 'auto',
-      get state() { return entries[index].state; },
-      get length() { return entries.length; },
-      pushState(state, title, url) {
-        assert.equal(url, undefined, 'no URL: a data: document may change no more than its fragment');
-        if (o.pushThrows) { throw new Error('SecurityError'); }
-        calls.push += 1;
-        entries.splice(index + 1);
-        entries.push({ state });
-        index += 1;
-      },
-      // Each step lands from where the step before it left the page, as Chromium's do.
-      go(delta) {
-        calls.go.push(delta);
-        if (delta === 0) { left = 'reloaded'; return; }
-        steps.push((steps.length ? steps[steps.length - 1] : index) + delta);
-      }
-    }
-  };
-  const phone = {
-    win,
-    ua,
-    calls,
-    entries,
-    get index() { return index; },
-    get left() { return left; },
-    get travelling() { return steps.length > 0; },
-    /** The page's history.go() steps land, in order. */
-    land() {
-      while (steps.length) {
-        const to = steps.shift();
-        if (to >= 0 && to < entries.length && to !== index) { index = to; fire(); }
-      }
-    },
-    /** The phone's Back: an entry back, or on the first one the settings screen closes. */
-    back() {
-      if (index === 0) { left = true; return; }
-      index -= 1;
-      fire();
-    },
-    /** The iPhone's forward swipe. */
-    forward() {
-      if (index < entries.length - 1) { index += 1; fire(); }
-    },
-    /** How many layers the entry shown stands for. */
-    get layers() { return (entries[index].state && entries[index].state.pconfLayers) || 0; }
-  };
-  return phone;
+function setup(opts) {
+  const win = {};
+  const phone = installHistory(win, opts);
+  return { phone, steps: backSteps.create(win), win };
 }
 
 /**
@@ -98,12 +39,8 @@ function layered(steps, rank) {
   return p;
 }
 
-/** Wait for the next task: each tap is a task of its own. */
-const nextTap = () => new Promise((resolve) => setTimeout(resolve, 0));
-
 test('a tap that opens a layer adds one entry; Back closes it and the page stays', async () => {
-  const phone = fakeWindow();
-  const steps = backSteps.create(phone.win);
+  const { phone, steps } = setup();
   const part = layered(steps);
   part.open('dialog');
   assert.equal(phone.layers, 1);
@@ -123,8 +60,7 @@ test('a tap that opens a layer adds one entry; Back closes it and the page stays
 });
 
 test('the page closing a layer itself steps back over its entry, and that popstate closes nothing', async () => {
-  const phone = fakeWindow();
-  const steps = backSteps.create(phone.win);
+  const { phone, steps } = setup();
   const part = layered(steps);
   part.open('dialog');
   await nextTap();
@@ -140,8 +76,7 @@ test('the page closing a layer itself steps back over its entry, and that popsta
 });
 
 test('a tap during the page\'s own step back adds no entry; once the step lands the page goes forward', async () => {
-  const phone = fakeWindow();
-  const steps = backSteps.create(phone.win);
+  const { phone, steps } = setup();
   const part = layered(steps);
   part.open('dialog A');
   await nextTap();
@@ -165,8 +100,7 @@ test('a tap during the page\'s own step back adds no entry; once the step lands 
 });
 
 test('an entry needs a tap: none without a user activation', () => {
-  const phone = fakeWindow({ activation: false });
-  const steps = backSteps.create(phone.win);
+  const { phone, steps } = setup({ activation: false });
   const part = layered(steps);
   part.open('opened by a timer');
   assert.equal(phone.calls.push, 0, 'nothing is added without a tap');
@@ -175,8 +109,7 @@ test('an entry needs a tap: none without a user activation', () => {
 });
 
 test('one entry per tap: Back closes all the layers one tap opened', async () => {
-  const phone = fakeWindow({ activation: true });
-  const steps = backSteps.create(phone.win);
+  const { phone, steps } = setup({ activation: true });
   const part = layered(steps);
   part.open('dialog');
   await nextTap();
@@ -191,8 +124,7 @@ test('one entry per tap: Back closes all the layers one tap opened', async () =>
 });
 
 test('Back closes the top part\'s layer first: the shared dialog over an overlay', async () => {
-  const phone = fakeWindow();
-  const steps = backSteps.create(phone.win);
+  const { phone, steps } = setup();
   const dialog = layered(steps, 1);
   const overlay = layered(steps);
   overlay.open('screen editor');
@@ -206,8 +138,7 @@ test('Back closes the top part\'s layer first: the shared dialog over an overlay
 });
 
 test('a forward swipe to an entry above the layers open goes back to them', async () => {
-  const phone = fakeWindow();
-  const steps = backSteps.create(phone.win);
+  const { phone, steps } = setup();
   const part = layered(steps);
   part.open('dialog');
   part.shut();
@@ -220,13 +151,14 @@ test('a forward swipe to an entry above the layers open goes back to them', asyn
 });
 
 test('a part that closes nothing leaves the history where Back put it', () => {
-  const phone = fakeWindow();
-  const steps = backSteps.create(phone.win);
-  let n = 0;
-  steps.add({ depth: () => n, close: () => {} });
+  const { phone, steps } = setup();
+  let n = 0, asked = 0;
+  // A Back that asked again and again would never end: fail instead.
+  steps.add({ depth: () => n, close: () => { asked += 1; if (asked > 5) { throw new Error('asked to close ' + asked + ' times'); } } });
   n = 1;
   steps.sync();
   phone.back();
+  assert.equal(asked, 1, 'asked once');
   assert.equal(phone.layers, 0);
   assert.deepEqual(phone.calls.go, [], 'no step forward that would hold the page');
   phone.back();
@@ -242,8 +174,7 @@ test('a page without history.pushState, or one that refuses it, works as before'
     n = 0;
     steps.sync();
   });
-  const phone = fakeWindow({ pushThrows: true });
-  const steps = backSteps.create(phone.win);
+  const { phone, steps } = setup({ pushThrows: true });
   const part = layered(steps);
   part.open('dialog');
   part.shut();
@@ -252,9 +183,8 @@ test('a page without history.pushState, or one that refuses it, works as before'
 });
 
 test('the history keeps its scroll: traversals between this page\'s entries move nothing', () => {
-  const phone = fakeWindow();
-  backSteps.create(phone.win);
-  assert.equal(phone.win.history.scrollRestoration, 'manual');
+  const { win } = setup();
+  assert.equal(win.history.scrollRestoration, 'manual');
 });
 
 test('the page loads back-steps.js before engine.js, whose boot adds its layers', () => {

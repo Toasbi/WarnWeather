@@ -8,9 +8,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { bootGeneratedPage } = require('../../helpers/page-harness.js');
-
-/** The next tap: a task of its own. */
-const nextTap = () => new Promise((resolve) => setTimeout(resolve, 0));
+const { editorTitle } = require('../../helpers/page-rows.js');
+const { elementsOf, matches } = require('../../helpers/wizard-dom.js');
+const { nextTap } = require('../../../src/pkjs/config-ui/test/fake-history.js');
 
 /**
  * Boot the page with a history and a native <dialog>.
@@ -20,32 +20,6 @@ const nextTap = () => new Promise((resolve) => setTimeout(resolve, 0));
  */
 function boot(cfg, platform) {
   return bootGeneratedPage(cfg, platform || 'basalt', { dialog: true, history: true });
-}
-
-/**
- * Tap an element in the open dialog that carries `attr` = `value` and matches `sel`.
- * @param {Object} page The page handle.
- * @param {string} sel The selector the page's handler asks closest() for.
- * @param {string} attr The attribute.
- * @param {string} value Its value.
- * @returns {void}
- */
-function tapInModal(page, sel, attr, value) {
-  const t = { getAttribute: (n) => (n === attr ? value : null), closest: (s) => (s === sel ? t : null) };
-  page.modal.dispatch('click', { target: t });
-}
-
-/**
- * Type into a text field in the open dialog and leave it, as a browser reports it.
- * @param {Object} page The page handle.
- * @param {string} key The field's data-k.
- * @param {string} value The text.
- * @returns {void}
- */
-function typeInModal(page, key, value) {
-  assert.ok(page.modal.innerHTML.indexOf('data-k="' + key + '"') !== -1, key + ' is in the open dialog');
-  const inp = { value, getAttribute: (n) => (n === 'data-k' ? key : null), closest: (s) => (s === 'input[type=text]' ? inp : null) };
-  ['focusin', 'input', 'change'].forEach((type) => page.modal.dispatch(type, { target: inp }));
 }
 
 /**
@@ -85,7 +59,7 @@ test('Back in a nested dialog steps back to its parent, keeping its changes', as
   await nextTap();
   page.openNestedSheet('providerKeyOwm');
   assert.equal(page.phone.layers, 2);
-  typeInModal(page, 'owmApiKey', '0123456789abcdef0123456789abcdef');
+  page.typeText('owmApiKey', '0123456789abcdef0123456789abcdef', 'modal');
   page.phone.back();
   assert.equal(dialogShown(page), 'weatherSources', 'back on the Weather dialog');
   assert.equal(page.S.owmApiKey, '0123456789abcdef0123456789abcdef', 'the key typed stays');
@@ -112,7 +86,7 @@ test('Back closes a date\'s wheels over a dialog, and the dialog stays', async (
   const page = boot({ provider: 'dwd', statusForecastLeft: 'countdown', statusForecastLeftCountdown: '2026-12-24' });
   page.openEditSheet('bar-forecast');
   await nextTap();
-  tapInModal(page, '[data-date]', 'data-date', 'statusForecastLeftCountdown');
+  page.tapModal('[data-date]', 'data-date', 'statusForecastLeftCountdown');
   assert.equal(page.phone.layers, 2, 'the wheels have an entry');
   page.phone.back();
   assert.equal(dialogShown(page), 'bar-forecast', 'the dialog stayed');
@@ -277,15 +251,6 @@ test('a page without history works as before: no entries, every layer still open
 // --- the setup wizard ------------------------------------------------------------------------
 
 /**
- * The setup wizard's overlay while it is up, else null.
- * @param {Object} page The page handle.
- * @returns {?Object}
- */
-function wizard(page) {
-  return page.window.document.body.children.find((c) => c.id === 'wizard') || null;
-}
-
-/**
  * Tap a control in the setup wizard by the attribute its handler looks for.
  * @param {Object} page The page handle.
  * @param {string} attr The attribute (data-wiz-nav, data-wiz-goto, data-select).
@@ -294,7 +259,7 @@ function wizard(page) {
  */
 function wizTap(page, attr, value) {
   const t = { getAttribute: (n) => (n === attr ? value : null), closest: (s) => (s === '[' + attr + ']' ? t : null) };
-  wizard(page).dispatch('click', { target: t });
+  page.overlay('wizard').dispatch('click', { target: t });
 }
 
 /**
@@ -303,15 +268,17 @@ function wizTap(page, attr, value) {
  * @returns {string}
  */
 function wizStep(page) {
-  const m = /data-wiz-title tabindex="-1">([^<]*)</.exec(wizard(page).querySelector('[data-wiz-body]').innerHTML);
-  return m ? m[1] : '';
+  const html = page.overlay('wizard').querySelector('[data-wiz-body]').innerHTML;
+  const title = elementsOf(html).find((el) => matches(el, '[data-wiz-title]'));
+  assert.ok(title && title.inner, 'the step has its title');
+  return title.inner;
 }
 
 test('Run setup again: Back steps back a step, then closes setup, then leaves the page', async () => {
   const page = boot({ provider: 'dwd' });
   page.clickTab('setup');
   page.tapAction('startWizard');
-  assert.ok(wizard(page), 'setup is up');
+  assert.ok(page.overlay('wizard'), 'setup is up');
   assert.equal(page.phone.layers, 1, 'with an entry of its own: a tap opened it');
   const first = wizStep(page);
   await nextTap();
@@ -326,7 +293,7 @@ test('Run setup again: Back steps back a step, then closes setup, then leaves th
   assert.equal(wizStep(page), first);
   assert.equal(page.phone.layers, 1);
   page.phone.back();
-  assert.equal(wizard(page), null, 'Back on the first step closed setup, as Skip does');
+  assert.equal(page.overlay('wizard'), null, 'Back on the first step closed setup, as Skip does');
   assert.equal(page.S.onboardingDone, true);
   assert.equal(page.phone.left, false, 'onto the settings page');
   page.phone.back();
@@ -335,7 +302,7 @@ test('Run setup again: Back steps back a step, then closes setup, then leaves th
 
 test('setup opened by itself on a new install: no entry for it, so Back on its first step leaves', async () => {
   const page = boot({ provider: 'dwd', onboardingDone: false });
-  assert.ok(wizard(page), 'setup opened by itself');
+  assert.ok(page.overlay('wizard'), 'setup opened by itself');
   assert.equal(page.phone.layers, 0, 'no entry: no tap opened it');
   const first = wizStep(page);
   await nextTap();
@@ -343,7 +310,7 @@ test('setup opened by itself on a new install: no entry for it, so Back on its f
   assert.equal(page.phone.layers, 1);
   page.phone.back();
   assert.equal(wizStep(page), first, 'Back went back to the first step');
-  assert.ok(wizard(page));
+  assert.ok(page.overlay('wizard'));
   page.phone.back();
   assert.equal(page.phone.left, true, 'and from there leaves the page, as before');
 });
@@ -352,7 +319,7 @@ test('setup\'s own Back, Change and Back to summary move the history with the st
   const page = boot({ provider: 'dwd' });
   page.clickTab('setup');
   page.tapAction('startWizard');
-  for (let i = 0; i < 10 && wizard(page).querySelector('[data-wiz-foot]').innerHTML.indexOf('data-wiz-nav="save"') === -1; i++) {
+  for (let i = 0; i < 10 && page.overlay('wizard').querySelector('[data-wiz-foot]').innerHTML.indexOf('data-wiz-nav="save"') === -1; i++) {
     await nextTap();
     wizTap(page, 'data-wiz-nav', 'next');
   }
@@ -372,7 +339,7 @@ test('setup\'s own Back, Change and Back to summary move the history with the st
   assert.equal(page.phone.layers, summary - 1, 'setup\'s own Back: one entry back');
   page.phone.back();
   assert.equal(page.phone.layers, summary - 2);
-  assert.ok(wizard(page));
+  assert.ok(page.overlay('wizard'));
 });
 
 test('the country list over setup: Back closes the list, and setup stays on its step', async () => {
@@ -386,7 +353,7 @@ test('the country list over setup: Back closes the list, and setup stays on its 
   assert.equal(page.phone.layers, 2);
   page.phone.back();
   assert.equal(page.modal.innerHTML, '', 'Back closed the list');
-  assert.ok(wizard(page), 'setup stayed');
+  assert.ok(page.overlay('wizard'), 'setup stayed');
   assert.equal(wizStep(page), first);
   assert.equal(page.phone.layers, 1);
 });
@@ -395,17 +362,6 @@ test('the country list over setup: Back closes the list, and setup stays on its 
 
 // Three screens: the Default, Health and Rain radar (config-screen-presets.test.js THREE).
 const THREE = { provider: 'dwd', radarMode: 'graph', healthMode: 'all' };
-
-/**
- * The screen editor's title while it is up, else null.
- * @param {Object} page The page handle.
- * @returns {?string}
- */
-function editorTitle(page) {
-  const ed = page.editor();
-  const m = ed ? /id="seTitle">([^<]*)<\/span>/.exec(ed.querySelector('[data-se-head]').innerHTML) : null;
-  return ed ? (m ? m[1] : '') : null;
-}
 
 test('the screen editor: Back closes a bar\'s dialog over it first, then the editor', async () => {
   const page = boot(THREE);
@@ -513,7 +469,7 @@ test('the editor\'s own ‹ and Escape step the history back too', async () => {
 
 test('the Weather tab\'s city search: Back closes it, as its Cancel does', async () => {
   const page = boot({ provider: 'dwd' });
-  const search = () => page.window.document.body.children.find((c) => c.id === 'wxloc') || null;
+  const search = () => page.overlay('wxloc');
   page.clickTab('weather');
   page.tapAction('wxEditLocation', 'new');
   assert.ok(search(), 'the search is up');

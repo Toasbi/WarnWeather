@@ -5,7 +5,7 @@
 // themselves into the page's header as they load, so this suite gives them a small one.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { installHistory } = require('../../helpers/fake-history.js');
+const { installHistory, nextTap } = require('../../../src/pkjs/config-ui/test/fake-history.js');
 
 /**
  * An element as the two modules use one: style, children, listeners and the tree calls.
@@ -42,9 +42,10 @@ global.document = {
   createTextNode: (text) => ({ text })
 };
 global.INJECTED_USERDATA = { newsEndpoint: 'https://news.invalid/' };
-const win = {};
-const phone = installHistory(win);
-global.PConf = { backSteps: require('../../../src/pkjs/config-ui/lib/back-steps.js').create(win) };
+// The page's window, with a history: back-steps.js keeps its entries there from its first require
+// on (the two modules' own).
+const phone = installHistory(global.window = {});
+global.PConf = {};
 require('../../../src/pkjs/page/notices/news.js');
 require('../../../src/pkjs/page/settings/support.js');
 
@@ -52,7 +53,6 @@ const pill = (id) => made.find((el) => el.id === id);
 const popups = () => document.body.children;
 /** A tap on a popup's × (the attribute its click handler looks for). */
 const tapX = (popup, attr) => popup.dispatch('click', { target: { closest: (sel) => (sel === '[' + attr + ']' ? {} : null) } });
-const nextTap = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 [['Support', 'bmcHint', 'data-bmc-close'], ['News', 'newsHint', 'data-news-close']].forEach(([name, id, x]) => {
   test(name + ': Back closes the popup, and its × steps the history back', async () => {

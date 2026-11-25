@@ -21,7 +21,7 @@ const assert = require('node:assert/strict');
 const vm = require('vm');
 const schema = require('../../src/pkjs/page/settings/schema.js');
 const platformLib = require('../../src/pkjs/config-ui/lib/platform.js');
-const { installHistory } = require('./fake-history.js');
+const { installHistory } = require('../../src/pkjs/config-ui/test/fake-history.js');
 
 // A select trigger as engine.js renderSelectTrigger writes it; the groups the fake below
 // reads and rewrites are 2 (the data-select key), 4 (the aria-label) and 6 (the label).
@@ -229,7 +229,8 @@ function makeNode(tag) {
  *   showModal()/close()/open, so the Save button's confirm dialog can open (without it
  *   the page behaves like a webview with no <dialog>, and Save saves at once); `history`: give
  *   the page a history as the Pebble app's WebView keeps it, and the phone's Back over it
- *   (fake-history.js: the handle's `phone`; without it the page keeps no history entries).
+ *   (config-ui/test/fake-history.js: the handle's `phone`; without it the page keeps no history
+ *   entries).
  * @returns {{S: Object, scroll: Object, modal: Object, tabs: Object, window: Object, phone: ?Object,
  *   clickTab: function, openEditSheet: function, clickModalToggle: function,
  *   clickToggle: function, tapSegment: function, typeText: function, openSelect: function, openModalSelect: function,
@@ -290,9 +291,18 @@ function bootGeneratedPage(cfg, platformName, opts) {
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
   let ready = null;
-  // A tap on one of the open dialog's header buttons, by its selector.
-  function tapModal(selector) {
-    const t = { getAttribute: () => null, closest: sel => (sel === selector ? t : null) };
+  /**
+   * An overlay the page built on the body, by its id, while it is up.
+   * @param {string} id Its id.
+   * @returns {?Object} The node, or null.
+   */
+  function overlay(id) {
+    return sandbox.document.body.children.find((c) => c.id === id) || null;
+  }
+  // A tap in the open dialog on an element its handler finds by `selector` (closest), carrying
+  // `attr` = `value` where given: one of the header's buttons, a [data-confirm] button.
+  function tapModal(selector, attr, value) {
+    const t = { getAttribute: (n) => (attr && n === attr ? value : null), closest: sel => (sel === selector ? t : null) };
     els.modal.dispatch('click', { target: t });
   }
   sandbox.PConf.hooks.onReady(ctx => { ready = ctx; });   // the only handle on the live S
@@ -355,6 +365,9 @@ function bootGeneratedPage(cfg, platformName, opts) {
     },
     // Escape in the open dialog (its native cancel).
     escapeDialog() { els.modal.dispatch('cancel', { preventDefault() {} }); },
+    // Tap an element in the open dialog that its handler finds by `selector`, carrying `attr` =
+    // `value` (a [data-date] row, a [data-confirm] button).
+    tapModal,
     // Type into a name field the page reads back by its selector when OK is tapped (a dialog
     // title's '[data-dlg-rename-in]', the Your graphs card's '[data-gl-rename-in]').
     typeName(selector, text) { fields[selector] = text; },
@@ -417,17 +430,19 @@ function bootGeneratedPage(cfg, platformName, opts) {
       };
       host.dispatch('click', { target: t });
     },
-    // Type into a text field rendered in the page and commit it, the way a browser
-    // reports it: focusin, one input (S follows per keystroke), then change (blur/Enter).
-    typeText(key, value) {
-      assert.ok(els.scroll.innerHTML.indexOf('data-k="' + key + '"') !== -1,
-        key + ' text field is rendered in the page');
+    // Type into a text field rendered in the page, or ('modal') the open dialog, and commit it,
+    // the way a browser reports it: focusin, one input (S follows per keystroke), then change
+    // (blur/Enter).
+    typeText(key, value, where) {
+      const host = where === 'modal' ? els.modal : els.scroll;
+      assert.ok(host.innerHTML.indexOf('data-k="' + key + '"') !== -1,
+        key + ' text field is rendered in the ' + (where === 'modal' ? 'open dialog' : 'page'));
       const inp = {
         value,
         getAttribute: n => (n === 'data-k' ? key : null),
         closest: sel => (sel === 'input[type=text]' ? inp : null)
       };
-      ['focusin', 'input', 'change'].forEach(type => els.scroll.dispatch(type, { target: inp }));
+      ['focusin', 'input', 'change'].forEach(type => host.dispatch(type, { target: inp }));
     },
     // Tap a select trigger in the page: opens its option sheet in #modal.
     openSelect(key) {
@@ -477,9 +492,12 @@ function bootGeneratedPage(cfg, platformName, opts) {
     docDispatch(type, ev) {
       (docHandlers[type] || []).slice().forEach((fn) => fn(ev));
     },
+    // An overlay the page built on the body (the screen editor, setup, the city search) by its
+    // id, while it is up; else null.
+    overlay,
     // The screen editor's overlay (screens-page.js), while it is open; else null.
     editor() {
-      return sandbox.document.body.children.find((c) => c.id === 'screenEditor') || null;
+      return overlay('screenEditor');
     },
     // Tap a [data-se] control in the open screen editor, by its attributes (data-se, data-j,
     // data-k, data-key, data-v; `disabled` for a disabled button).

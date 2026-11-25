@@ -61,6 +61,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var SF = (typeof require !== 'undefined') ? require('./screen-frame.js') : window.ScreenFrame;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app file).
     var html = (typeof require !== 'undefined') ? require('../../config-ui/lib/html.js') : PConf.html;
+    // The page's history entries, one per layer open: the phone's Back closes the editor's top one.
+    var backSteps = (typeof require !== 'undefined') ? require('../../config-ui/lib/back-steps.js') : PConf.backSteps;
     var esc = html.esc;
     // The page's shared parts (config-ui/lib/ui.js): the lists' rows, red arrows, New rows and
     // Undo (with the timer that takes a message away: flash), the editor's header, its rows'
@@ -1993,7 +1995,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         });
         input.focus();
         input.select();
-        syncBack();
+        backSteps.sync();
     }
 
     /**
@@ -2034,7 +2036,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var t = ED.overlay.querySelector('[data-se-toast]');
         t.textContent = ED.toast.v || '';
         t.className = ED.toast.v ? 'toast show' : 'toast';
-        syncBack();
+        backSteps.sync();
     }
 
     /**
@@ -2077,7 +2079,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ED.nameEl = null;
         document.removeEventListener('keydown', onKeydown);
         if (UI.ctx && changed) { UI.ctx.render(); }
-        syncBack();
+        backSteps.sync();
     }
 
     /**
@@ -2106,15 +2108,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * After the editor opened, closed or changed what it shows: the page's history follows
-     * (back-steps.js), an entry per layer open.
-     * @returns {void}
-     */
-    function syncBack() {
-        if (PConf.backSteps) { PConf.backSteps.sync(); }
-    }
-
-    /**
      * Move a row (its drag, its arrow keys): stored, or put back with the rule the move would
      * break, said for three seconds.
      * @param {Array<Object>} list The screen.
@@ -2140,12 +2133,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (ED.nameEl || !UI.ctx) { return; }
         var modal = document.getElementById('modal');
         if (modal && modal.open) { return; }
-        if (e.key === 'Escape') {
-            // Escape on a picked screen goes back to Add a screen's cards, on Change layout's cards
-            // back to the screen's editor, as their ‹ does; else the editor closes.
-            editorBack();
-            return;
-        }
+        if (e.key === 'Escape') { editorBack(); return; }
         // ArrowLeft / ArrowRight on a graph in Add a screen's roll pick the one beside it, rolled
         // to the middle, the focus going along.
         var r = e.target && e.target.closest ? e.target.closest('[data-sa-g]') : null;
@@ -2657,8 +2645,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 ctx.set('healthMode', m.healthMode);
             });
         }
-        // The phone's Back closes the editor's top layer, as its ‹ does (editorBack).
-        if (PConf.backSteps) { PConf.backSteps.add({ depth: editorLayers, close: editorBack }); }
+        backSteps.add({ depth: editorLayers, close: editorBack });
         PConf.actions = PConf.actions || {};
         PConf.actions.openScreen = function (arg) { openEditor(parseInt(arg, 10) || 0); };
         PConf.actions.addScreen = function () {
