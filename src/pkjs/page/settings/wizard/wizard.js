@@ -1299,10 +1299,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.actions = PConf.actions || {};
     PConf.actions.startWizard = function () { if (page.ctx) { openWizard(page.ctx, false); } };
     // The phone's Back (back-steps.js) steps back a step, as the top bar's Back does, keeping every
-    // pick; on the first step of Run setup again it closes setup, as Skip does.
+    // pick. On the first step it closes setup: as Skip does, or once the summary was shown (its
+    // Change leads there, and Skip is offered no more) as Keep customizing does, so setup opened by
+    // itself counts that step a layer from then on.
     BACK.add({
-        depth: function () { return run && run.overlay ? run.overlayLayer + run.idx : 0; },
-        close: function () { onNav(run.idx > 0 ? 'back' : 'skip'); }
+        depth: function () {
+            if (!run || !run.overlay) { return 0; }
+            return run.overlayLayer + run.idx + (run.reachedDone && !run.idx && !run.overlayLayer ? 1 : 0);
+        },
+        close: function () { onNav(run.idx > 0 ? 'back' : run.reachedDone ? 'tweak' : 'skip'); }
     });
 
     if (typeof module !== 'undefined' && module.exports) {

@@ -355,6 +355,26 @@ test('setup\'s own Back, Change and Back to summary leave the entries; Back stil
   assert.deepEqual(page.phone.calls.go, [], 'and no step of the page\'s own on the way');
 });
 
+test('after the summary, Change on the first step and Back: setup finishes as Keep customizing does', async () => {
+  for (const fresh of [true, false]) {
+    const page = boot({ provider: 'dwd', onboardingDone: !fresh });
+    if (!fresh) { page.clickTab('setup'); page.tapAction('startWizard'); }
+    for (let i = 0; i < 10 && page.overlay('wizard').querySelector('[data-wiz-foot]').innerHTML.indexOf('data-wiz-nav="save"') === -1; i++) {
+      await nextTap();
+      wizTap(page, 'data-wiz-nav', 'next');
+    }
+    await nextTap();
+    wizTap(page, 'data-wiz-goto', 'welcome');
+    page.phone.land();
+    assert.ok(page.phone.layers > 0, (fresh ? 'setup opened by itself' : 'Run setup again') + ': the first step keeps an entry');
+    page.phone.back();
+    assert.equal(page.overlay('wizard'), null, 'Back closed setup');
+    assert.equal(page.phone.left, false, 'onto the settings page, which stays');
+    assert.equal(page.S.onboardingDone, true, 'setup finished');
+    assert.equal(page.S.threshAqiOn, true, 'with the defaults a finished setup earns (Skip earns none)');
+  }
+});
+
 test('the country list over setup: Back closes the list, and setup stays on its step', async () => {
   const page = boot({ provider: 'dwd' });
   page.clickTab('setup');
