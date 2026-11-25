@@ -4,10 +4,10 @@
 // there, with changes not saved, it asks first (Save your changes?: Save, Discard, or Back to keep
 // editing), and with none the page closes itself, as Back always closed it. Driven on the real
 // generated page (page-harness.js) over a history that behaves as the WebView's (fake-history.js).
-// The harness's RETURN_TO is '#', so a page that closed itself without saving shows '#' alone.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { bootGeneratedPage } = require('../../helpers/page-harness.js');
+const { activeTab } = require('../../helpers/page-rows.js');
 
 /**
  * Boot the page with a history and a native <dialog>.
@@ -16,26 +16,7 @@ const { bootGeneratedPage } = require('../../helpers/page-harness.js');
  * @returns {Object} The page harness's handle.
  */
 function boot(cfg, history) {
-  return bootGeneratedPage(cfg || { provider: 'dwd' }, 'basalt', { dialog: true, history: history || true });
-}
-
-/**
- * The tab on screen, by the tab bar's highlighted button.
- * @param {Object} page The page handle.
- * @returns {?string} Its id.
- */
-function activeTab(page) {
-  const m = /class="tab on" data-tab="([^"]+)"/.exec(page.tabs.innerHTML);
-  return m ? m[1] : null;
-}
-
-/**
- * Whether the page closed itself without saving: RETURN_TO with nothing after it.
- * @param {Object} page The page handle.
- * @returns {boolean}
- */
-function closedUnsaved(page) {
-  return page.window.location.href === '#';
+  return bootGeneratedPage(cfg, 'basalt', { dialog: true, history: history || true });
 }
 
 /**
@@ -55,8 +36,7 @@ function asks(page) {
  */
 function tapConfirm(page, which) {
   assert.ok(page.modal.innerHTML.indexOf('data-confirm="' + which + '"') !== -1, which + ' is in the dialog');
-  const btn = { getAttribute: (n) => (n === 'data-confirm' ? which : null) };
-  page.modal.dispatch('click', { target: { closest: (sel) => (sel === '[data-confirm]' ? btn : null) } });
+  page.tapModal('[data-confirm]', 'data-confirm', which);
 }
 
 test('Back with nothing open on another tab brings back the Watchface tab, and the page stays', () => {
@@ -77,7 +57,7 @@ test('Back on the Watchface tab with nothing changed closes the page and saves n
   page.clickTab('watchface');
   page.phone.back();
   assert.equal(page.modal.innerHTML, '', 'nothing asked');
-  assert.ok(closedUnsaved(page));
+  assert.ok(page.closed());
   assert.deepEqual(page.phone.calls.go, [], 'and the page takes no step: one would cancel its close');
 });
 
@@ -116,7 +96,7 @@ test('Discard on the question closes the page and saves nothing', () => {
   page.clickToggle('themeAuto');
   page.phone.back();
   tapConfirm(page, 'save');
-  assert.ok(closedUnsaved(page));
+  assert.ok(page.closed());
 });
 
 test('Save on the question still asks about a row that needs attention, as the Save button does', async () => {
@@ -149,7 +129,7 @@ test('a page that opens on the Weather tab: Back brings the Weather tab back', (
   assert.equal(activeTab(page), 'weather');
   page.phone.land();
   page.phone.back();
-  assert.ok(closedUnsaved(page), 'there, with nothing changed, Back closes the page');
+  assert.ok(page.closed(), 'there, with nothing changed, Back closes the page');
 });
 
 test('Back while a save is under way does nothing: the save lands', async () => {
@@ -174,7 +154,7 @@ test('the page gets its entry at the first tap, also one that opens nothing', ()
   assert.equal(page.phone.layers, 1, 'the tap gave the page its entry');
   page.phone.back();
   assert.equal(page.phone.left, false, 'so Back lands on the page');
-  assert.ok(closedUnsaved(page), 'which, with nothing changed, closes itself');
+  assert.ok(page.closed(), 'which, with nothing changed, closes itself');
 });
 
 test('Back on Revert\'s dialog keeps the changes, and the focus goes back to Revert', () => {

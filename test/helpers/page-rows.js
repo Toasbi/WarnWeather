@@ -154,4 +154,14 @@ function sheetOptions(page) {
   return out;
 }
 
-module.exports = { rowOf, hintOf, editorBody, editorTitle, editorRows, editorAddChips, editorAddGroups, editorRow, sheetTitle, sheetOptions };
+/**
+ * The tab on screen, by the tab bar's highlighted button.
+ * @param {Object} page A bootGeneratedPage handle (test/helpers/page-harness.js).
+ * @returns {?string} Its id.
+ */
+function activeTab(page) {
+  const m = /class="tab on" data-tab="([^"]+)"/.exec(page.tabs.innerHTML);
+  return m ? m[1] : null;
+}
+
+module.exports = { rowOf, hintOf, editorBody, editorTitle, editorRows, editorAddChips, editorAddGroups, editorRow, sheetTitle, sheetOptions, activeTab };

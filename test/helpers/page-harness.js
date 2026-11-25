@@ -236,7 +236,7 @@ function makeNode(tag) {
  *   clickTab: function, openEditSheet: function, clickModalToggle: function,
  *   clickToggle: function, tapSegment: function, typeText: function, openSelect: function, openModalSelect: function,
  *   pickOption: function,
- *   save: function, tapSave: function, saved: function, asked: string[]}}
+ *   save: function, tapSave: function, saved: function, closed: function, asked: string[]}}
  *   `window` is the sandbox's global, for a test that stubs a browser API the page
  *   reads at call time (navigator.clipboard). `asked` lists every selector the page asked the
  *   document for (a closing dialog's focus target among them).
@@ -551,6 +551,11 @@ function bootGeneratedPage(cfg, platformName, opts) {
         const href = sandbox.location.href;
         resolve(href ? JSON.parse(decodeURIComponent(href.slice(1))) : null);
       }, 350));
+    },
+    // Whether the page closed itself without saving (the phone's Back with nothing to save,
+    // Discard): RETURN_TO ('#') with nothing after it.
+    closed() {
+      return sandbox.location.href === '#';
     }
   };
 }

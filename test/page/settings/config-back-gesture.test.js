@@ -11,7 +11,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { bootGeneratedPage } = require('../../helpers/page-harness.js');
-const { editorTitle } = require('../../helpers/page-rows.js');
+const { editorTitle, activeTab } = require('../../helpers/page-rows.js');
 const { elementsOf, matches } = require('../../helpers/wizard-dom.js');
 const { nextTap } = require('../../../src/pkjs/config-ui/test/fake-history.js');
 
@@ -23,16 +23,6 @@ const { nextTap } = require('../../../src/pkjs/config-ui/test/fake-history.js');
  */
 function boot(cfg, platform) {
   return bootGeneratedPage(cfg, platform || 'basalt', { dialog: true, history: true });
-}
-
-/**
- * The tab on screen, by the tab bar's highlighted button.
- * @param {Object} page The page handle.
- * @returns {?string} Its id.
- */
-function activeTab(page) {
-  const m = /class="tab on" data-tab="([^"]+)"/.exec(page.tabs.innerHTML);
-  return m ? m[1] : null;
 }
 
 /**
@@ -240,9 +230,6 @@ test('a tab switch closes the dialog and keeps its entry for the page', async ()
   page.clickTab('graphs');
   assert.equal(page.modal.innerHTML, '', 'the switch closed the dialog');
   assert.deepEqual(page.phone.calls.go, [], 'and the page kept the entry: no step back');
-  page.phone.back();
-  assert.equal(activeTab(page), 'watchface', 'so Back on the Graphs tab brings the Watchface tab back');
-  assert.equal(page.phone.left, false);
 });
 
 test('a tap before the page\'s own step lands still ends with an entry per layer', async () => {
@@ -296,7 +283,7 @@ function wizStep(page) {
   return title.inner;
 }
 
-test('Run setup again: Back steps back a step, then closes setup, then leaves the page', async () => {
+test('Run setup again: Back steps back a step, then closes setup, then brings the Watchface tab back', async () => {
   const page = boot({ provider: 'dwd' });
   page.clickTab('setup');
   page.tapAction('startWizard');
@@ -318,8 +305,12 @@ test('Run setup again: Back steps back a step, then closes setup, then leaves th
   assert.equal(page.overlay('wizard'), null, 'Back on the first step closed setup, as Skip does');
   assert.equal(page.S.onboardingDone, true);
   assert.equal(page.phone.left, false, 'onto the settings page');
+  page.phone.land();
   page.phone.back();
-  assert.equal(page.phone.left, true);
+  assert.equal(activeTab(page), 'watchface', 'then the Watchface tab');
+  page.phone.land();
+  page.phone.back();
+  assert.ok(page.closed(), 'and then, with nothing changed, Back closes the page');
 });
 
 test('Back while setup\'s Save to watch is under way changes nothing, and the save lands', async () => {
@@ -358,7 +349,7 @@ test('setup opened by itself on a new install: no entry before the first tap; Ba
   assert.equal(page.phone.layers, 1, 'and the page stepped forward to its own entry');
   page.phone.back();
   assert.equal(page.modal.innerHTML, '', 'nothing asked: setup is not finished, so nothing is saved');
-  assert.equal(page.window.location.href, '#', 'Back on the first step closes the page, saving nothing, as before');
+  assert.ok(page.closed(), 'Back on the first step closes the page, saving nothing, as before');
 });
 
 test('setup\'s own Back, Change and Back to summary leave the entries; Back still steps back a step', async () => {
@@ -524,7 +515,7 @@ test('the editor\'s own ‹ and Escape take no step; Back with nothing open then
   assert.equal(page.editor(), null);
   assert.deepEqual(page.phone.calls.go, [], 'the entries stay for the next layers: no step');
   page.phone.back();
-  assert.equal(page.window.location.href, '#', 'nothing open and nothing changed: Back closes the page');
+  assert.ok(page.closed(), 'nothing open and nothing changed: Back closes the page');
 });
 
 // --- the Weather tab's city search -----------------------------------------------------------
