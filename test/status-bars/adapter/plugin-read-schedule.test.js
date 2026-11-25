@@ -169,7 +169,6 @@ test('not wanted: nothing is read and nothing stored, at a start, a tick or a sa
 test('a Pebble app without plugins: nothing is read, nothing thrown', () => {
   [null, {}, { subscribeToSource: 'no' }].forEach((pebble) => {
     boot({ pebble: pebble });
-    assert.equal(schedule.available(), false);
     assert.doesNotThrow(() => { schedule.onTick(); schedule.refresh(); });
     assert.deepEqual(writes, [], JSON.stringify(pebble));
   });

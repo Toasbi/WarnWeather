@@ -74,8 +74,8 @@ var pluginReader = require('./plugin-reader.js');
  *   only). Null while nothing is wanted. A request of null wants a key with nothing to read
  *   under it (a complication's place left empty): each read of it is an answer of nothing, at
  *   once.
- * @property {function(Object, ?Object): number} nextReadAt When the read after a record is
- *   due under the settings, in epoch milliseconds.
+ * @property {function(Object): number} nextReadAt When the read after a record is due, in
+ *   epoch milliseconds.
  * @property {function(Object, {key: ?string, request: Object}, number): {time: ?number,
  *   value: ?Object}} heard What an answer to the wanted read says, heard at an instant: the time
  *   the record keeps, and the value to keep (as valueOf hands it back), or null for none.
@@ -94,13 +94,26 @@ var INERT = {
 };
 
 /**
+ * Check a schedule's environment (init's options, load's): what every reader is handed.
+ * @param {*} options The options.
+ * @param {string} name The reader's name, for the error.
+ * @returns {void}
+ * @throws {Error} When one it needs is missing.
+ */
+function checkOptions(options, name) {
+    if (!options || typeof options.getSettings !== 'function'
+            || typeof options.getWatchInfo !== 'function' || typeof options.now !== 'function') {
+        throw new Error(name + ': init needs getSettings, getWatchInfo and now');
+    }
+}
+
+/**
  * A reader's schedule.
  * @param {PluginReadSpec} spec The reader's rules.
  * @returns {{init: function(Object): void, load: function(Object): void, onTick: function(): void,
- *   refresh: function(): void, drop: function(): void, value: function(): ?Object,
- *   available: function(): boolean}} init wires it up and takes the first look, load wires it up
- *   without one, onTick and refresh read when a read is due, drop forgets the read and the value,
- *   value is the value last heard, and available whether this Pebble app reads plugins.
+ *   refresh: function(): void, drop: function(): void, value: function(): ?Object}} init wires it
+ *   up and takes the first look, load wires it up without one, onTick and refresh read when a
+ *   read is due, drop forgets the read and the value, and value is the value last heard.
  */
 function create(spec) {
     var deps = INERT;
@@ -308,7 +321,7 @@ function create(spec) {
         // earned (againAtTick; another key forgot it above). Neither the wait after a
         // failure nor the Night battery saver's window holds it.
         asked = againAtTick || (fromSave && (!record || record.failures === 1));
-        if (record && !asked && at < spec.nextReadAt(record, settings)) { return; }
+        if (record && !asked && at < spec.nextReadAt(record)) { return; }
         if (!asked && batterySaver.isWithinSleepWindow(new Date(at), settings)) { return; }
         read(want, at, fromSave || againAtTick || renewed);
     }
@@ -330,10 +343,7 @@ function create(spec) {
      * @returns {void}
      */
     function load(options) {
-        if (!options || typeof options.getSettings !== 'function'
-                || typeof options.getWatchInfo !== 'function' || typeof options.now !== 'function') {
-            throw new Error(spec.name + ': init needs getSettings, getWatchInfo and now');
-        }
+        checkOptions(options, spec.name);
         deps = options;
         inFlight = false;
         againAtTick = false;
@@ -380,9 +390,8 @@ function create(spec) {
         onTick: function () { consider(false); },
         refresh: function () { consider(true); },
         drop: drop,
-        value: lastValue,
-        available: available
+        value: lastValue
     };
 }
 
-module.exports = { create: create };
+module.exports = { create: create, checkOptions: checkOptions };

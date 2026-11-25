@@ -526,6 +526,32 @@ test('one value in two slots is read once, as often as the slot that wants it mo
   assert.equal(h.pebble.subs.length, 2, 'the right slot\'s 15 minutes');
 });
 
+test('a slot\'s Updates changed for the value it shows: the next read keeps the new Updates', () => {
+  const h = boot({ settings: slot('statusTopLeft', { every: '60' }) });
+  h.pebble.subs[0].push(answer());
+  // The user saves 15 minutes for the same value: no read now, the value is read 15 minutes on.
+  h.settings = slot('statusTopLeft', { every: '15' });
+  pluginValueSource.refresh();
+  assert.equal(h.pebble.subs.length, 1, 'a value already read is not read again at the save');
+  h.clock = NOON + 15 * MIN;
+  minute();
+  assert.equal(h.pebble.subs.length, 2, 'the new 15 minutes');
+});
+
+test('a second slot that shows a value already shown: the watch is owed what both show', () => {
+  const h = boot({ settings: slot('statusTopLeft') });
+  h.pebble.subs[0].push(answer());
+  minute();
+  const sent = h.sends.length;
+  h.settings = Object.assign(slot('statusTopLeft'), slot('statusTopMid', { icon: 'phone' }));
+  h.clock += MIN;
+  minute();
+  assert.equal(h.pebble.subs.length, 1, 'read once for both');
+  assert.equal(h.sends.length, sent + 1, 'the tick sends the line with the second slot');
+  assert.deepEqual(decodeLine(h.sends[h.sends.length - 1].STATUS_LINE_3_UINT8).map((cell) => cell.text),
+    ['87%', '87%', decodeLine(h.sends[sent - 1].STATUS_LINE_3_UINT8)[2].text]);
+});
+
 test('a value one slot stops showing is dropped; the other slot\'s stays and is not read again', () => {
   const h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' })) });
   h.pebble.subs[0].push(answer());

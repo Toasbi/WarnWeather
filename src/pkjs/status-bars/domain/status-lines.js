@@ -630,7 +630,13 @@ function pluginValueSlots(lines, settings, env) {
  * @returns {Array<{slotKey: string, pick: Object, source: Object}>}
  */
 function wantedPluginValues(settings, watchInfo) {
-  var env = platformLib.computeEnv(watchInfo);
+  var env;
+  // Asked each minute (plugin-value-source.js): where no slot holds the item, no bake's walk. No
+  // slot's default is the item.
+  if (!settings || !catalog.everySlotKey().some(function (key) { return settings[key] === 'pluginValue'; })) {
+    return [];
+  }
+  env = platformLib.computeEnv(watchInfo);
   env.plugins = true;
   return pluginValueSlots(catalog.bakedLines(settings, env), settings, env);
 }

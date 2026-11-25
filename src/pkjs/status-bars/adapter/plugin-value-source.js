@@ -93,14 +93,13 @@ function sameShown(a, b) {
     return JSON.stringify(a) === JSON.stringify(b);
 }
 
-// The lanes, by their source's key: {source, schedule}.
+// The lanes, by their source's key: {slots, schedule}. A lane's slots are the Plugin value slots
+// that show its source as of the last look (status-lines.js wantedPluginValues): what it reads,
+// how often, and what it shows (laneSpec). Every change of the settings or the complications is
+// a look, and so is every tick (look).
 var lanes = {};
 // init's options: the environment every lane's schedule is handed.
 var deps = null;
-// The Plugin value slots wanted as of the last look (status-lines.js wantedPluginValues): what
-// each lane reads, how often, and what it shows. Every look starts by taking them (sync), and
-// every change of the settings or the complications is a look.
-var wantedNow = [];
 
 /**
  * @returns {boolean} Whether this Pebble app can read plugins at all (none before init).
@@ -118,34 +117,28 @@ function wanted() {
 }
 
 /**
- * @param {string} key A source's key.
- * @returns {Array<{pick: Object, source: Object}>} The slots wanted as of the last look that
- *   show it (wantedNow).
- */
-function slotsShowing(key) {
-    return wantedNow.filter(function (slot) { return slot.source.key === key; });
-}
-
-/**
  * @param {Array<{source: Object}>} slots Plugin value slots (wanted).
- * @returns {string[]} Their sources' keys, each once, in their order.
+ * @returns {Object<string, Array<Object>>} Them by their source's key, each source in the order
+ *   its first slot comes.
  */
-function keysOf(slots) {
-    var keys = [];
+function bySource(slots) {
+    var out = {};
     slots.forEach(function (slot) {
-        if (keys.indexOf(slot.source.key) === -1) { keys.push(slot.source.key); }
+        if (!out[slot.source.key]) { out[slot.source.key] = []; }
+        out[slot.source.key].push(slot);
     });
-    return keys;
+    return out;
 }
 
 /**
- * A lane's rules (plugin-read-schedule.js PluginReadSpec): what it reads while a slot shows its
- * source, how often (the shortest Updates of those slots), and what those slots show of it, all
- * of the slots as of the last look (wantedNow), which the settings handed to the rules are of.
- * @param {string} key The source's key.
+ * A lane's rules (plugin-read-schedule.js PluginReadSpec): what it reads, how often (the shortest
+ * Updates of its slots), and what its slots show of it, all of its slots as of the last look,
+ * which the settings handed to the rules are of.
+ * @param {{slots: Array<Object>}} lane The lane: its slots, which every look sets.
  * @returns {Object} The spec.
  */
-function laneSpec(key) {
+function laneSpec(lane) {
+    var key = lane.slots[0].source.key;
     return {
         name: NAME,
         recordAt: storedJson.entryOf(KEYS.PLUGIN_VALUE_READS, key),
@@ -156,15 +149,13 @@ function laneSpec(key) {
         // permission is then never read) and the user's complications (getComplications,
         // complication-list.js current; none: not known).
         wanted: function (settings, watchInfo, d) {
-            var slots = slotsShowing(key);
-            if (!slots.length) { return null; }
-            return readOf(slots[0].source, typeof d.getComplications === 'function' ? d.getComplications() : null,
+            return readOf(lane.slots[0].source, typeof d.getComplications === 'function' ? d.getComplications() : null,
                 Array.isArray(d.permissions) ? d.permissions : []);
         },
         nextReadAt: function (record) {
-            var everies = slotsShowing(key).map(function (slot) { return pluginValues.everyMs(slot.pick); });
-            return pluginValueReads.nextReadAt(record,
-                everies.length ? Math.min.apply(Math, everies) : pluginValues.everyMs(null));
+            return pluginValueReads.nextReadAt(record, Math.min.apply(Math, lane.slots.map(function (slot) {
+                return pluginValues.everyMs(slot.pick);
+            })));
         },
         heard: function (envelope, want, nowMs) {
             var until = pluginReader.validUntilOf(envelope);
@@ -175,46 +166,48 @@ function laneSpec(key) {
         },
         valueOf: pluginValueReads.valueOf,
         shown: function (value, settings, nowMs) {
-            return shownSlots(value, slotsShowing(key), settings, nowMs);
+            return shownSlots(value, lane.slots, settings, nowMs);
         },
         sameShown: sameShown
     };
 }
 
 /**
- * @param {string} key A source a slot shows now (wantedNow).
- * @returns {{source: Object, schedule: Object}} A lane for it, not wired up yet.
- */
-function laneOf(key) {
-    return { source: slotsShowing(key)[0].source, schedule: pluginReadSchedule.create(laneSpec(key)) };
-}
-
-/**
  * A look: bring the lanes in line with the slots wanted now. A lane no slot shows any more is
  * dropped with its read and its value, a lane is made for a source a slot shows now, and each
- * lane left reads when a read is due.
+ * lane left takes its slots and reads when a read is due.
+ * @param {Array<{source: Object}>} slots The Plugin value slots wanted now (wanted).
  * @param {boolean} fromSave Whether the settings were just saved (plugin-read-schedule.js
  *   refresh), else a tick's look.
  * @returns {void}
  */
-function sync(fromSave) {
-    var keys;
-    if (!deps) { return; }
-    wantedNow = wanted();
-    keys = keysOf(wantedNow);
+function look(slots, fromSave) {
+    var groups = bySource(slots);
     Object.keys(lanes).forEach(function (key) {
-        if (keys.indexOf(key) !== -1) { return; }
+        if (groups[key]) { return; }
         lanes[key].schedule.drop();
         delete lanes[key];
     });
-    keys.forEach(function (key) {
-        if (!lanes[key]) {
-            lanes[key] = laneOf(key);
-            lanes[key].schedule.load(deps);
+    Object.keys(groups).forEach(function (key) {
+        var lane = lanes[key];
+        if (lane) {
+            lane.slots = groups[key];
+        } else {
+            lane = lanes[key] = { slots: groups[key], schedule: null };
+            lane.schedule = pluginReadSchedule.create(laneSpec(lane));
+            lane.schedule.load(deps);
         }
-        if (fromSave) { lanes[key].schedule.refresh(); }
-        else { lanes[key].schedule.onTick(); }
+        if (fromSave) { lane.schedule.refresh(); } else { lane.schedule.onTick(); }
     });
+}
+
+/**
+ * A look at the slots wanted now (look); none before init.
+ * @param {boolean} fromSave look's.
+ * @returns {void}
+ */
+function sync(fromSave) {
+    if (deps) { look(wanted(), fromSave); }
 }
 
 /**
@@ -254,22 +247,17 @@ function moveSingleValue(slots) {
  * @returns {void}
  */
 function init(options) {
+    var slots;
     var keys;
-    if (!options || typeof options.getSettings !== 'function'
-            || typeof options.getWatchInfo !== 'function' || typeof options.now !== 'function') {
-        throw new Error(NAME + ': init needs getSettings, getWatchInfo and now');
-    }
+    pluginReadSchedule.checkOptions(options, NAME);
     deps = options;
     lanes = {};
-    wantedNow = wanted();
-    keys = keysOf(wantedNow);
-    moveSingleValue(wantedNow);
+    slots = wanted();
+    keys = Object.keys(bySource(slots));
+    moveSingleValue(slots);
     storedJson.keepOnly(KEYS.PLUGIN_VALUES, keys, NAME + ': the values');
     storedJson.keepOnly(KEYS.PLUGIN_VALUE_READS, keys, NAME + ': the times of the reads');
-    keys.forEach(function (key) {
-        lanes[key] = laneOf(key);
-        lanes[key].schedule.init(deps);
-    });
+    look(slots, false);
 }
 
 /**
@@ -304,7 +292,7 @@ function forPage(list) {
     Object.keys(lanes).forEach(function (key) {
         var value = lanes[key].schedule.value();
         // What this app declares changes neither the key nor whether anything is read.
-        var want = readOf(lanes[key].source, list, []);
+        var want = readOf(lanes[key].slots[0].source, list, []);
         if (value && want.request && value.source === want.key) { out[key] = value; }
     });
     return out;

@@ -84,6 +84,15 @@ function mapAt(key) {
     return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
 }
 
+/**
+ * Store a map under a key, as put does, or remove the key once the map holds nothing.
+ * @param {string} key The storage key. @param {Object} map The map.
+ * @param {string} what What it holds, for the log.
+ * @returns {void}
+ */
+function putMap(key, map, what) {
+    put(key, Object.keys(map).length ? map : null, what);
+}
 
 /**
  * One entry of a map kept under a key, a place of its own beside the map's other entries
@@ -104,7 +113,7 @@ function entryOf(key, name) {
             if (JSON.stringify(next) === JSON.stringify(held)) { return false; }
             map = mapAt(key);
             if (next) { map[name] = next; } else { delete map[name]; }
-            put(key, Object.keys(map).length ? map : null, what);
+            putMap(key, map, what);
             return true;
         }
     };
@@ -123,7 +132,7 @@ function keepOnly(key, names, what) {
     var gone = Object.keys(map).filter(function (name) { return names.indexOf(name) === -1; });
     if (!gone.length) { return; }
     gone.forEach(function (name) { delete map[name]; });
-    put(key, Object.keys(map).length ? map : null, what);
+    putMap(key, map, what);
 }
 
 module.exports = {
