@@ -690,6 +690,15 @@ test('the value kept before 3.5.0 of a source no slot picks goes, and so does a 
   });
 });
 
+test('the value kept before 3.5.0 goes even where it does not parse', () => {
+  Object.keys(storage).forEach((k) => { delete storage[k]; });
+  storage[KEYS.PLUGIN_VALUE] = '{"source": ';
+  storage[KEYS.PLUGIN_VALUE_READ] = 'nope';
+  boot({ keepStorage: true });
+  assert.equal(storage[KEYS.PLUGIN_VALUE], undefined);
+  assert.equal(storage[KEYS.PLUGIN_VALUE_READ], undefined);
+});
+
 test('before init a bake asks the global Pebble whether plugins are read, and has no value yet', () => {
   const path = require.resolve('../../../src/pkjs/status-bars/adapter/plugin-value-source.js');
   const cached = require.cache[path];

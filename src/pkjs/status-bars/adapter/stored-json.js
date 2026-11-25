@@ -64,6 +64,15 @@ function put(key, next, what) {
  */
 
 /**
+ * Remove a key whatever it holds, a value that does not parse too; nothing when it is absent.
+ * @param {string} key The storage key. @param {string} what What it is, for the log.
+ * @returns {void}
+ */
+function remove(key, what) {
+    if (localStorage.getItem(key) !== null) { put(key, null, what); }
+}
+
+/**
  * @param {string} key A storage key.
  * @returns {StoredPlace} The place the key is: the value kept under it.
  */
@@ -138,6 +147,7 @@ function keepOnly(key, names, what) {
 module.exports = {
     read: read,
     write: write,
+    remove: remove,
     place: place,
     entryOf: entryOf,
     keepOnly: keepOnly

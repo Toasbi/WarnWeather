@@ -251,8 +251,9 @@ function moveSingleValue(slots) {
                 NAME + ': the time of the read');
         }
     }
-    storedJson.write(KEYS.PLUGIN_VALUE, null, stored, NAME + ': the value');
-    storedJson.write(KEYS.PLUGIN_VALUE_READ, null, record, NAME + ': the time of the read');
+    // Whatever they hold, a value that does not parse too.
+    storedJson.remove(KEYS.PLUGIN_VALUE, NAME + ': the value');
+    storedJson.remove(KEYS.PLUGIN_VALUE_READ, NAME + ': the time of the read');
 }
 
 /**

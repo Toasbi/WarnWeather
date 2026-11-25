@@ -42,6 +42,15 @@ test('write: a storage that refuses is logged by what the value is, and the valu
   assert.deepEqual(logged, ['test: the value was not stored.']);
 });
 
+test('remove: the key goes whatever it holds, one that does not parse too; an absent key writes nothing', () => {
+  writes.length = 0;
+  store.r = '{not json';
+  storedJson.remove('r', 'test: the value');
+  assert.equal(store.r, undefined);
+  storedJson.remove('r', 'test: the value');
+  assert.deepEqual(writes, ['-r']);
+});
+
 test('place: the place a key is, read and written as read and write do', () => {
   writes.length = 0;
   const place = storedJson.place('p');
