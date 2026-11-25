@@ -52,6 +52,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var panDay = 0;
     // Overlay target: 1..3.
     var editingSlot = null;
+    // The open city search's close (openOverlay), for the phone's Back; null while none is open.
+    var closeSearch = null;
     // {lat, lon, name}: a page-acquired fix fresher than the injected seed.
     var gpsSeed = null;
     // An applyStripPan is scheduled for the render being built.
@@ -595,8 +597,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var timer = null;
         var closeOverlay = function () {
             editingSlot = null;
+            closeSearch = null;
             if (el.parentNode) { el.parentNode.removeChild(el); }
+            if (PConf.backSteps) { PConf.backSteps.sync(); }
         };
+        closeSearch = closeOverlay;
+        if (PConf.backSteps) { PConf.backSteps.sync(); }
         document.getElementById('wxloc-cancel').onclick = closeOverlay;
         var renderResults = function (list, err) {
             if (err) {
@@ -1306,6 +1312,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         PConf.displayResolvers.register('graphsProviderHeader', function (S) {
             return graphsProviderHeader(S);
         });
+    }
+
+    // The phone's Back closes the city search (back-steps.js), as its Cancel does.
+    if (PConf.backSteps) {
+        PConf.backSteps.add({ depth: function () { return closeSearch ? 1 : 0; }, close: function () { closeSearch(); } });
     }
 
     if (PConf.actions) {

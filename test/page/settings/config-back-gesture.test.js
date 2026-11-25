@@ -508,3 +508,25 @@ test('the editor\'s own ‹ and Escape step the history back too', async () => {
   page.phone.back();
   assert.equal(page.phone.left, true, 'no entry left behind');
 });
+
+// --- the Weather tab's city search -----------------------------------------------------------
+
+test('the Weather tab\'s city search: Back closes it, as its Cancel does', async () => {
+  const page = boot({ provider: 'dwd' });
+  const search = () => page.window.document.body.children.find((c) => c.id === 'wxloc') || null;
+  page.clickTab('weather');
+  page.tapAction('wxEditLocation', 'new');
+  assert.ok(search(), 'the search is up');
+  assert.equal(page.phone.layers, 1, 'with an entry');
+  page.phone.back();
+  assert.equal(search(), null, 'Back closed it');
+  assert.equal(page.phone.left, false);
+  await nextTap();
+  page.tapAction('wxEditLocation', 'new');
+  page.phone.land();
+  assert.equal(page.phone.layers, 1);
+  page.window.document.getElementById('wxloc-cancel').onclick();
+  page.phone.land();
+  assert.equal(search(), null);
+  assert.equal(page.phone.layers, 0, 'Cancel stepped the history back');
+});
