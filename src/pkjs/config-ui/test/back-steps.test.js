@@ -130,6 +130,51 @@ test('an entry needs a tap: none without a user activation', () => {
   assert.equal(phone.left, true, 'Back leaves the page, as before');
 });
 
+test('an entry needs the tap\'s own event: none from a timer while the activation still lasts', async () => {
+  const { phone, steps, win } = setup({ activation: true });
+  win.event = undefined;   // a WebView that has window.event: none outside a handler
+  const part = layered(steps);
+  part.open('opened by a timer, seconds after a tap');
+  assert.equal(phone.calls.push, 0, 'no entry: no tap is being handled');
+  await nextTap();
+  win.event = { type: 'click' };
+  part.open('a tap\'s');
+  win.event = undefined;
+  assert.equal(phone.calls.push, 1, 'the tap\'s own layer gets one');
+});
+
+test('a tap that opens two layers adds one entry, also over entries left above', async () => {
+  const { phone, steps } = setup({ activation: true });
+  const part = layered(steps);
+  part.open('dialog');
+  await nextTap();
+  part.open('list');
+  part.shutAll();   // Done: back to the first entry, the two entries left above
+  phone.land();
+  await nextTap();
+  part.stack.push('new bar\'s dialog', 'its name field');   // opened together, one repaint
+  steps.sync();
+  assert.equal(phone.calls.push, 3, 'one new entry for the tap');
+  assert.deepEqual(phone.calls.go, [-2], 'not a step forward over the old ones');
+  phone.back();
+  assert.deepEqual(part.stack, [], 'Back closes both, as on a page that had none above');
+});
+
+test('a step of the page\'s own that never lands holds the history back no more than 3 s', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'] });
+  const { phone, steps } = setup();
+  const part = layered(steps);
+  part.open('dialog');
+  part.shut();   // the step back to the first entry, which this WebView drops
+  assert.deepEqual(phone.calls.go, [-1]);
+  t.mock.timers.tick(3001);
+  await nextTap();
+  part.open('another dialog');   // the entry the step left stands for it
+  await nextTap();
+  part.open('nested');
+  assert.equal(phone.layers, 2, 'after 3 s the page stops waiting: the nested dialog has its entry');
+});
+
 test('one entry per tap: Back closes all the layers one tap opened', async () => {
   const { phone, steps } = setup({ activation: true });
   const part = layered(steps);

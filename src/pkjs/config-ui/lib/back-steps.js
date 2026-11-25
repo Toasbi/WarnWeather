@@ -11,9 +11,10 @@
 //
 // Every part of the page with layers says how many it has open and how to close the top one
 // (add), and calls sync() after it opened or closed one itself. The rules:
-//  - An entry is added only while a tap is handled, one per tap: Chromium marks the entry before
-//    one added without a user activation, and Back skips a marked entry. pushState gets no URL:
-//    a data: document may change no more than its fragment.
+//  - An entry is added only while a tap or key press is handled, one per tap: Chromium marks the
+//    entry before one added without a user activation, and Back skips a marked entry. A tap that
+//    opens two layers at once (a new bar's dialog with its name field) gets one, and Back closes
+//    both. pushState gets no URL: a data: document may change no more than its fragment.
 //  - Every entry carries the page's whole data: URL, so adding one, or moving between two, costs
 //    the WebView tens of milliseconds and holds megabytes. The page's own closes (Done, ‹, ×, a
 //    pick, Escape) leave the entries where they are while a layer stays open: the next layer opened
@@ -31,6 +32,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   : (typeof global !== 'undefined') ? (global.PConf = global.PConf || {}) : {};
 
 (function () {
+  // The events a tap or a key press arrives as: an entry may be added while one is handled.
+  var INPUT = { click: true, keydown: true, keyup: true, mousedown: true, mouseup: true,
+    pointerdown: true, pointerup: true, touchend: true };
+  // How long a history.go() the page asked for may take to land before the page stops waiting for
+  // it (a WebView that dropped it would hold every entry back for the rest of the session).
+  var LANDS_WITHIN_MS = 3000;
+
   /**
    * How many layers a history state stands for (its pconfLayers): 0 for a state that is not ours.
    * @param {*} state A history.state.
@@ -57,9 +65,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // The layers the entry the page is on stands for (as of its last entry added or popstate), and
     // those the last entry stands for: the entries above the one shown run up to it.
     var here = 0, top = 0;
-    // A history.go() the page asked for has not landed; a Back's closes are running; an entry was
-    // added in this task.
-    var travelling = false, closing = false, added = false;
+    // A history.go() the page asked for has not landed (since travelledAt); a Back's closes are
+    // running; an entry was added in this task.
+    var travelling = false, travelledAt = 0, closing = false, added = false;
 
     /** @returns {number} The layers the entry shown stands for. */
     function shown() { return Math.max(0, layersOf(hist.state) - base); }
@@ -92,17 +100,21 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      */
     function travel(delta) {
       travelling = true;
+      travelledAt = Date.now();
       hist.go(delta);
     }
 
     /**
-     * Whether an entry may be added now: in a task that added none, while a tap is handled (where
-     * the WebView says: navigator.userActivation).
+     * Whether an entry may be added now: while a tap or key press is handled (window.event, where
+     * the WebView has it; a timer or a promise callback runs without one, though
+     * navigator.userActivation stays active for seconds after a tap), in a task that added none,
+     * with a user activation where the WebView tells.
      * @returns {boolean}
      */
     function mayAdd() {
       var ua = win.navigator && win.navigator.userActivation;
-      return !added && (!ua || Boolean(ua.isActive));
+      var tapping = !('event' in win) || Boolean(win.event && INPUT[win.event.type]);
+      return tapping && !added && (!ua || Boolean(ua.isActive));
     }
 
     /**
@@ -124,7 +136,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
     /**
      * Bring the history in step with the layers open: with none open, back to the first entry;
-     * with more open than the entry shown stands for, one new entry for a tap's one layer more, else
+     * with more open than the entry shown stands for, one new entry while a tap is handled, else
      * forward over entries left above. Entries above the layers open stay for the next layers.
      * @param {boolean} mayPush Whether an entry may be added.
      * @returns {void}
@@ -136,9 +148,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         return;
       }
       if (want <= at) { return; }
-      if (want === at + 1 && mayPush && mayAdd()) { addEntry(at); return; }
-      if (top > at) { travel(Math.min(want, top) - at); return; }
-      if (mayPush && mayAdd()) { addEntry(at); }
+      if (mayPush && mayAdd()) { addEntry(at); return; }
+      if (top > at) { travel(Math.min(want, top) - at); }
     }
 
     /**
@@ -188,6 +199,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
        * @returns {void}
        */
       sync: function () {
+        if (travelling && Date.now() - travelledAt > LANDS_WITHIN_MS) { travelling = false; }
         if (on && !travelling && !closing) { align(true); }
       }
     };
