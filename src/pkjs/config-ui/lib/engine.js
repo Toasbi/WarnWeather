@@ -3960,6 +3960,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         focusInModal(['[data-dlg-rename]', '.dlg-x']);
         return;
       }
+      // A field being typed in commits first, as when a tap on Done takes the focus from it: the
+      // close removes the field, and a WebView fires no focusout or change for a field it removes
+      // (the slider's scale maximum commits on focusout alone).
+      var typing = document.activeElement;
+      if (typing && typing.blur && typing.closest && typing.closest('#modal') && typing.id !== 'modal') { typing.blur(); }
       if (collapseSheetExpander()) { return; }
       // In a full-screen dialog a step back keeps every change, like Done: the old sheets kept every
       // change however they closed, and a key press is no place to lose them.

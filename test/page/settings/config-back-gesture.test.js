@@ -95,6 +95,24 @@ test('Back closes a date\'s wheels over a dialog, and the dialog stays', async (
   assert.equal(page.S.statusForecastLeftCountdown, '2026-12-24');
 });
 
+test('Back and Escape keep a scale maximum being typed: the field commits before the dialog closes', async () => {
+  for (const close of ['back', 'escape']) {
+    const page = boot({ provider: 'dwd' });
+    page.openEditSheet('alertWind');
+    assert.ok(page.modal.innerHTML.indexOf('data-max-edit="threshWindMax" data-max-current="120"') !== -1,
+      'the wind alert\'s slider, its scale maximum 120');
+    // The scale maximum's field, focused with 150 typed (range-control.js openMaxEdit); it commits on
+    // focusout alone.
+    const field = { id: '', value: '150', getAttribute: (n) => (n === 'data-max-input' ? 'threshWindMax' : n === 'data-max-seed' ? '120' : null),
+      closest: (sel) => (sel === '[data-max-input]' ? field : sel === '#modal' ? page.modal : null),
+      blur() { page.modal.dispatch('focusout', { target: field }); } };
+    page.window.document.activeElement = field;
+    if (close === 'back') { page.phone.back(); } else { page.escapeDialog(); }
+    assert.equal(page.modal.innerHTML, '', close + ' closed the dialog');
+    assert.equal(page.S.threshWindMax, '150', close + ' kept the maximum typed');
+  }
+});
+
 test('Back closes the Save dialog and saves nothing', async () => {
   const page = boot({ provider: 'openweathermap', owmApiKey: '' });
   page.tapSave();
