@@ -390,3 +390,121 @@ test('the country list over setup: Back closes the list, and setup stays on its 
   assert.equal(wizStep(page), first);
   assert.equal(page.phone.layers, 1);
 });
+
+// --- the screen editor -----------------------------------------------------------------------
+
+// Three screens: the Default, Health and Rain radar (config-screen-presets.test.js THREE).
+const THREE = { provider: 'dwd', radarMode: 'graph', healthMode: 'all' };
+
+/**
+ * The screen editor's title while it is up, else null.
+ * @param {Object} page The page handle.
+ * @returns {?string}
+ */
+function editorTitle(page) {
+  const ed = page.editor();
+  const m = ed ? /id="seTitle">([^<]*)<\/span>/.exec(ed.querySelector('[data-se-head]').innerHTML) : null;
+  return ed ? (m ? m[1] : '') : null;
+}
+
+test('the screen editor: Back closes a bar\'s dialog over it first, then the editor', async () => {
+  const page = boot(THREE);
+  page.tapAction('openScreen', 1);
+  assert.equal(editorTitle(page), 'Flick 1');
+  assert.equal(page.phone.layers, 1, 'the editor has an entry');
+  await nextTap();
+  page.tapEditor({ se: 'editbar', j: 0 });
+  assert.ok(/^bar-/.test(dialogShown(page)), 'the bar\'s dialog over the editor');
+  assert.equal(page.phone.layers, 2);
+  page.phone.back();
+  assert.equal(page.modal.innerHTML, '', 'Back closed the dialog');
+  assert.equal(editorTitle(page), 'Flick 1', 'the editor stayed');
+  page.phone.back();
+  assert.equal(page.editor(), null, 'then the editor');
+  assert.equal(page.phone.left, false);
+});
+
+test('Add a screen: Back from a picked screen goes back to the cards, then closes, adding nothing', async () => {
+  const page = boot({ provider: 'dwd' });
+  page.tapAction('addScreen');
+  assert.equal(editorTitle(page), 'Add a screen');
+  await nextTap();
+  page.tapEditor({ se: 'pick', id: 'health' });
+  assert.notEqual(editorTitle(page), 'Add a screen', 'the picked screen shows big');
+  assert.equal(page.phone.layers, 2);
+  page.phone.back();
+  assert.equal(editorTitle(page), 'Add a screen', 'Back: the cards again');
+  page.phone.back();
+  assert.equal(page.editor(), null);
+  assert.equal(page.S.viewCount, '1', 'nothing added');
+  assert.equal(page.phone.layers, 0);
+});
+
+test('Add a screen\'s Add screen: the new screen\'s editor replaces the cards, one Back closes it', async () => {
+  const page = boot({ provider: 'dwd' });
+  page.tapAction('addScreen');
+  await nextTap();
+  page.tapEditor({ se: 'pick', id: 'health' });
+  await nextTap();
+  page.tapEditor({ se: 'acal', v: '' });
+  await nextTap();
+  page.tapEditor({ se: 'addnow' });
+  page.phone.land();
+  assert.equal(page.S.viewCount, '2', 'the screen went in');
+  assert.equal(page.phone.layers, 1, 'its editor in Add a screen\'s place');
+  page.phone.back();
+  assert.equal(page.editor(), null);
+  assert.equal(page.S.viewCount, '2', 'and stays');
+});
+
+test('Change layout: Back goes back to the screen\'s editor, changing nothing', async () => {
+  const page = boot(THREE);
+  page.tapAction('openScreen', 1);
+  await nextTap();
+  page.tapEditor({ se: 'relayout' });
+  assert.equal(page.phone.layers, 2);
+  await nextTap();
+  page.tapEditor({ se: 'pick', id: 'radar' });
+  assert.equal(page.phone.layers, 3, 'a card picked for it');
+  page.phone.back();
+  assert.equal(editorTitle(page), 'Change layout', 'Back: Change layout\'s cards');
+  page.phone.back();
+  assert.equal(editorTitle(page), 'Flick 1', 'Back: the screen\'s editor');
+  assert.equal(page.phone.layers, 1);
+});
+
+test('the screen\'s name being typed: Back keeps it and the editor', async () => {
+  const page = boot(THREE);
+  page.tapAction('openScreen', 1);
+  await nextTap();
+  page.tapEditor({ se: 'rename' });
+  assert.equal(page.phone.layers, 2, 'the name field has an entry');
+  page.editor().querySelector('[data-se-name]').value = 'Steps';
+  page.phone.back();
+  assert.equal(page.S.viewName1, 'Steps', 'Back kept the name typed');
+  assert.equal(editorTitle(page), 'Steps', 'in the editor');
+  assert.equal(page.phone.layers, 1);
+});
+
+test('the editor\'s own ‹ and Escape step the history back too', async () => {
+  const page = boot(THREE);
+  page.tapAction('openScreen', 1);
+  await nextTap();
+  page.tapEditor({ se: 'relayout' });
+  page.docDispatch('keydown', { key: 'Escape', target: {}, preventDefault() {} });
+  page.phone.land();
+  assert.equal(page.phone.layers, 1);
+  page.tapEditor({ se: 'close' });
+  page.phone.land();
+  assert.equal(page.phone.layers, 0);
+  // Add a screen closed by its ‹ with nothing added repaints nothing on the page.
+  await nextTap();
+  page.tapAction('addScreen');
+  page.phone.land();
+  assert.equal(page.phone.layers, 1);
+  page.tapEditor({ se: 'close' });
+  page.phone.land();
+  assert.equal(page.phone.layers, 0);
+  page.phone.back();
+  assert.equal(page.phone.left, true, 'no entry left behind');
+});
