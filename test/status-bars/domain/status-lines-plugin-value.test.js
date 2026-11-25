@@ -15,6 +15,7 @@ const NOW = new Date(2026, 10, 21, 12, 0, 0);
 const HOUR = 60 * 60 * 1000;
 const BASALT = { platform: 'basalt' };
 const APLITE = { platform: 'aplite' };
+const EMERY = { platform: 'emery' };
 const PHONE = '00000000-0000-0000-0001-000000000001';
 const ID = 'phone/phone_state/battery_level';
 const KEY = PHONE + '/' + ID;
@@ -125,6 +126,25 @@ test('the Look: the text alone by default, the icon alone in the Icon look (-- b
     { kind: TEXT, icon: I.PV_WIFI_OFF, text: '--' }, 'grown too old: the same');
   assert.deepEqual(bakeTop(everywhere({ look: 'icon' }), facts(on)).slots[0], { kind: TEXT, icon: I.PV_SWITCH, text: '' },
     'no icon picked: the Switch');
+});
+
+test('each slot draws its value in its own Look; one with a plugin and no value of it shows -- in its Look', () => {
+  const I = catalog.ICONS;
+  const WIFI = 'phone/phone_state/wifi';
+  const S = Object.assign(slot('statusTopLeft', { look: 'text' }), slot('statusTopMid', { look: 'both', icon: 'plug' }),
+    slot('statusTopRight', { id: WIFI, look: 'icon', icon: 'wifi' }));
+  const kept = { [KEY]: value({ short: '87%' }), [PHONE + '/' + WIFI]: value({ short: 'Home', state: true },
+    { source: PHONE + '/' + WIFI }) };
+  assert.deepEqual(bakeTop(S, facts(kept)).slots, [{ kind: TEXT, icon: ICON, text: '87%' },
+    { kind: TEXT, icon: I.PV_PLUG, text: '87%' }, { kind: TEXT, icon: I.PV_WIFI, text: '' }]);
+  // A plugin none of whose values can be read leaves the Value on None: nothing is read for it.
+  const none = Object.assign(pluginValueSlot('statusTopLeft', { plugin: PHONE, id: '', look: 'icon', icon: 'wifi' }),
+    pluginValueSlot('statusTopMid', { plugin: PHONE, id: '', look: 'both', icon: 'plug' }),
+    pluginValueSlot('statusTopRight', { plugin: PHONE, id: '' }));
+  const asked = facts(null);
+  assert.deepEqual(bakeTop(none, asked).slots, [{ kind: TEXT, icon: I.PV_WIFI_OFF, text: '--' },
+    { kind: TEXT, icon: I.PV_PLUG, text: '--' }, { kind: TEXT, icon: ICON, text: '--' }]);
+  assert.deepEqual(asked.asked, [], 'no source to ask for');
 });
 
 test('each place prints the value at its own room: a unit an edge has no room for is left off there', () => {
@@ -240,6 +260,10 @@ test('wantedPluginValues: the slots of the bars the watch is sent that hold it w
   assert.deepEqual(wanted(slot('statusTopLeft'), null), ['statusTopLeft'], 'an unknown watch may be one that shows it');
   assert.deepEqual(wanted({ statusTopLeft: 'pluginValue' }, BASALT), [],
     'no source picked: the slot shows --, and nothing is read for it');
+  const bar4 = Object.assign({ layoutPreset: 'custom', viewCount: '1', viewTop0: 'none', viewBody0: 'forecast',
+    viewUpper0: 'bar4', viewLower0: 'weather', statusBar4Made: true }, slot('statusBar4Left'));
+  assert.deepEqual(wanted(bar4, EMERY), ['statusBar4Left'], 'a slot of bars 4 to 6 alone, on the watch that has them');
+  assert.deepEqual(wanted(bar4, BASALT), [], 'none on another');
   const two = statusLines.wantedPluginValues(Object.assign(slot('statusForecastLeft', { icon: 'plug' }),
     slot('statusTopRight', { id: 'phone/phone_state/cell' })), BASALT);
   assert.deepEqual(two.map((s) => [s.slotKey, s.source.key, s.pick.icon]),
