@@ -41,14 +41,15 @@ test('Back in a dialog closes it and keeps what was changed there; with nothing 
   assert.equal(page.phone.layers, 2, 'and so has the list over it');
   await nextTap();
   page.pickOption('provider', 'openmeteo');
-  page.phone.land();
-  assert.equal(page.phone.layers, 1, 'the pick closed the list: the page stepped back over its entry');
-  assert.equal(dialogShown(page), 'weatherSources', 'the dialog stayed');
+  assert.equal(dialogShown(page), 'weatherSources', 'the pick closed the list, the dialog stayed');
+  assert.deepEqual(page.phone.calls.go, [], 'the list\'s entry stays for the next list: no step back');
   page.phone.back();
   assert.equal(page.modal.innerHTML, '', 'Back closed the dialog');
   assert.equal(page.modal.open, false);
   assert.equal(page.S.provider, 'openmeteo', 'and kept the pick made in it');
   assert.equal(page.phone.left, false, 'the settings page is still up');
+  page.phone.land();
+  assert.equal(page.phone.layers, 0, 'with none left open, the page went back to its first entry');
   page.phone.back();
   assert.equal(page.phone.left, true, 'with nothing open, Back leaves the page as before');
 });
@@ -134,7 +135,7 @@ test('a title being renamed: Back keeps the name typed and the dialog, then clos
   assert.equal(page.S.statusForecastName, 'Commute');
 });
 
-test('leaving a name field for another control stores the name and steps the history back', async () => {
+test('leaving a name field for another control stores the name; the next Back closes the dialog', async () => {
   const page = boot({ provider: 'dwd' });
   page.openEditSheet('bar-forecast');
   await nextTap();
@@ -142,10 +143,9 @@ test('leaving a name field for another control stores the name and steps the his
   assert.equal(page.phone.layers, 2);
   page.leaveRename('Commute');
   assert.equal(page.S.statusForecastName, 'Commute');
-  page.phone.land();
-  assert.equal(page.phone.layers, 1, 'the field\'s entry went with it');
   page.phone.back();
-  assert.equal(page.modal.innerHTML, '', 'so the next Back closes the dialog');
+  assert.equal(page.modal.innerHTML, '', 'Back closed the dialog, the field being gone');
+  assert.equal(page.S.statusForecastName, 'Commute');
 });
 
 test('Escape in a name field still keeps the old name', async () => {
@@ -157,8 +157,8 @@ test('Escape in a name field still keeps the old name', async () => {
   page.escapeDialog();
   assert.notEqual(page.S.statusForecastName, 'Commute');
   assert.equal(dialogShown(page), 'bar-forecast');
-  page.phone.land();
-  assert.equal(page.phone.layers, 1, 'Escape stepped the history back over the field\'s entry');
+  page.phone.back();
+  assert.equal(page.modal.innerHTML, '', 'Back then closes the dialog');
 });
 
 test('New status bar opens its dialog with the name field in one tap: Back closes both, keeping the name', () => {
@@ -175,38 +175,33 @@ test('New status bar opens its dialog with the name field in one tap: Back close
   assert.equal(page.phone.left, false);
 });
 
-test('Done, ‹, × and Escape step the history back themselves; the popstate that brings closes nothing', async () => {
+test('Done, ‹, × and Escape: no step back while a layer stays open, back to the first entry once none is', async () => {
   const page = boot({ provider: 'openweathermap', owmApiKey: '' });
   page.openTabSheet('setup', 'weatherSources');
   await nextTap();
   page.openNestedSheet('providerKeyOwm');
   page.backDialog();
-  assert.deepEqual(page.phone.calls.go, [-1], '‹ steps back over the nested dialog\'s entry');
-  page.phone.land();
-  assert.equal(dialogShown(page), 'weatherSources', 'and its popstate closed nothing more');
-  assert.equal(page.phone.layers, 1);
+  assert.equal(dialogShown(page), 'weatherSources');
+  assert.deepEqual(page.phone.calls.go, [], '‹ leaves the nested dialog\'s entry for the next layer');
   page.doneDialog();
+  assert.deepEqual(page.phone.calls.go, [-2], 'Done on the last dialog: back to the first entry');
   page.phone.land();
+  assert.equal(page.modal.innerHTML, '', 'and its popstate closed nothing');
   assert.equal(page.phone.layers, 0);
-  assert.equal(page.modal.innerHTML, '');
   await nextTap();
   page.openEditSheet('weatherSources');
-  page.phone.land();
-  assert.equal(page.phone.layers, 1, 'the dialog opened again: forward over the entry left above');
+  assert.equal(page.phone.layers, 1, 'the dialog opened again: an entry of its own');
   await nextTap();
   page.openNestedSheet('providerKeyOwm');
-  page.phone.land();
-  assert.equal(page.phone.layers, 2);
+  page.backDialog();
   page.cancelDialog();
-  assert.deepEqual(page.phone.calls.go.slice(-1), [-2], '× steps back over both');
   page.phone.land();
-  assert.equal(page.phone.layers, 0);
+  assert.equal(page.phone.layers, 0, '× on the dialog: back to the first entry');
   await nextTap();
   page.openEditSheet('weatherSources');
-  page.phone.land();
   page.escapeDialog();
   page.phone.land();
-  assert.equal(page.phone.layers, 0);
+  assert.equal(page.phone.layers, 0, 'Escape on the dialog: the same');
   assert.equal(page.modal.innerHTML, '');
   page.phone.back();
   assert.equal(page.phone.left, true, 'no entry left behind: Back leaves');
@@ -315,31 +310,31 @@ test('setup opened by itself on a new install: no entry for it, so Back on its f
   assert.equal(page.phone.left, true, 'and from there leaves the page, as before');
 });
 
-test('setup\'s own Back, Change and Back to summary move the history with the steps', async () => {
+test('setup\'s own Back, Change and Back to summary leave the entries; Back still steps back a step', async () => {
   const page = boot({ provider: 'dwd' });
   page.clickTab('setup');
   page.tapAction('startWizard');
+  const steps = [wizStep(page)];
   for (let i = 0; i < 10 && page.overlay('wizard').querySelector('[data-wiz-foot]').innerHTML.indexOf('data-wiz-nav="save"') === -1; i++) {
     await nextTap();
     wizTap(page, 'data-wiz-nav', 'next');
+    steps.push(wizStep(page));
   }
   const summary = page.phone.layers;
-  assert.ok(summary > 2, 'the summary, a few steps in');
+  assert.equal(summary, steps.length, 'an entry per step past the first, and one for setup');
   await nextTap();
   wizTap(page, 'data-wiz-goto', 'welcome');
-  page.phone.land();
-  assert.equal(page.phone.layers, 1, 'Change: back to the first step\'s entry');
+  assert.equal(wizStep(page), steps[0], 'Change: the first step');
   await nextTap();
   wizTap(page, 'data-wiz-nav', 'summary');
-  page.phone.land();
-  assert.equal(page.phone.layers, summary, 'Back to summary: forward over the steps\' entries');
+  assert.equal(wizStep(page), steps[steps.length - 1], 'Back to summary');
+  assert.equal(page.phone.layers, summary, 'the steps\' entries stayed where they were');
   await nextTap();
   wizTap(page, 'data-wiz-nav', 'back');
-  page.phone.land();
-  assert.equal(page.phone.layers, summary - 1, 'setup\'s own Back: one entry back');
+  assert.equal(wizStep(page), steps[steps.length - 2], 'setup\'s own Back: a step back');
   page.phone.back();
-  assert.equal(page.phone.layers, summary - 2);
-  assert.ok(page.overlay('wizard'));
+  assert.equal(wizStep(page), steps[steps.length - 3], 'the phone\'s Back: one more');
+  assert.deepEqual(page.phone.calls.go, [], 'and no step of the page\'s own on the way');
 });
 
 test('the country list over setup: Back closes the list, and setup stays on its step', async () => {
@@ -405,12 +400,13 @@ test('Add a screen\'s Add screen: the new screen\'s editor replaces the cards, o
   page.tapEditor({ se: 'acal', v: '' });
   await nextTap();
   page.tapEditor({ se: 'addnow' });
-  page.phone.land();
   assert.equal(page.S.viewCount, '2', 'the screen went in');
-  assert.equal(page.phone.layers, 1, 'its editor in Add a screen\'s place');
+  assert.equal(editorTitle(page), 'Health', 'its editor in Add a screen\'s place');
   page.phone.back();
   assert.equal(page.editor(), null);
   assert.equal(page.S.viewCount, '2', 'and stays');
+  page.phone.land();
+  assert.equal(page.phone.layers, 0);
 });
 
 test('Change layout: Back goes back to the screen\'s editor, changing nothing', async () => {
@@ -442,14 +438,14 @@ test('the screen\'s name being typed: Back keeps it and the editor', async () =>
   assert.equal(page.phone.layers, 1);
 });
 
-test('the editor\'s own ‹ and Escape step the history back too', async () => {
+test('the editor\'s own ‹ and Escape: back to the first entry once the editor closes', async () => {
   const page = boot(THREE);
   page.tapAction('openScreen', 1);
   await nextTap();
   page.tapEditor({ se: 'relayout' });
   page.docDispatch('keydown', { key: 'Escape', target: {}, preventDefault() {} });
-  page.phone.land();
-  assert.equal(page.phone.layers, 1);
+  assert.equal(editorTitle(page), 'Flick 1', 'Escape: the screen\'s editor again');
+  assert.deepEqual(page.phone.calls.go, [], 'its entry left for the next layer');
   page.tapEditor({ se: 'close' });
   page.phone.land();
   assert.equal(page.phone.layers, 0);
