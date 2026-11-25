@@ -555,3 +555,18 @@ test('the Weather tab\'s city search: Back closes it, as its Cancel does', async
   page.phone.back();
   assert.equal(search(), null, 'so Back closes the only one');
 });
+
+test('the city search closed by Back sends no search still waiting to go out', async () => {
+  const page = boot({ provider: 'dwd' });
+  const sent = [];
+  page.window.WeatherTabData.geocodeSearch = (q) => { sent.push(q); };
+  page.clickTab('weather');
+  page.tapAction('wxEditLocation', 'new');
+  const field = page.window.document.getElementById('wxloc-q');
+  field.value = 'Ber';
+  field.oninput();
+  page.phone.back();
+  assert.equal(page.overlay('wxloc'), null, 'Back closed the search');
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.deepEqual(sent, [], 'what was typed before it closed never went out');
+});

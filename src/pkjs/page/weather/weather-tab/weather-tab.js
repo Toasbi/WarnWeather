@@ -580,6 +580,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var timer = null;
         var closeOverlay = function () {
             closeSearch = null;
+            // A search typed just before it closed goes out no more.
+            if (timer) { clearTimeout(timer); timer = null; }
             if (el.parentNode) { el.parentNode.removeChild(el); }
             backSteps.sync();
         };
