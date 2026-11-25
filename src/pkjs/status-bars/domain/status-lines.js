@@ -345,11 +345,13 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
   }
   // The ISO week, where the phone bakes it (slot-text.js wireKind: aplite).
   if (code === 'week') { return 'W' + isoWeek(bake.now); }
-  // A value another app's plugin serves, the slot's own, as the slot prints it
-  // (plugin-values.js textFor): a moment in the user's clock format, as the sun slot, with its
-  // date on another day than the bake's; '--' until it is read, and once it is too old.
+  // A value another app's plugin serves, the slot's own, as the slot prints it in its Look
+  // (plugin-values.js slotTextOf, textFor): a moment in the user's clock format, as the sun slot,
+  // with its date on another day than the bake's; '--' until it is read, and once it is too old;
+  // none in the Icon look, whose icon alone shows it.
   if (code === 'pluginValue') {
-    return pluginValues.textFor(pluginReadingOf(bake, slotKey), cap, settings, bake.now.getTime());
+    return pluginValues.slotTextOf(pluginValues.pickOf(settings, slotKey), pluginReadingOf(bake, slotKey), cap,
+      settings, bake.now.getTime());
   }
   return '--';
 }
@@ -487,8 +489,8 @@ function iconFor(code, item, payload, settings, env, bake, slotKey) {
   if (code === 'battery' && slotText.batteryLook(settings, env) === 'both') {
     return catalog.ICONS.DRAWN_BATTERY;
   }
-  // The Plugin value's icon (the slot's dialog's Icon row), in the form the value shows: none
-  // loads no drawing.
+  // The Plugin value's icon (the slot's dialog's Icon row), in the form the value shows: the
+  // Text look loads no drawing.
   if (code === 'pluginValue') {
     return pluginValues.iconId(pluginValues.pickOf(settings, slotKey), pluginReadingOf(bake, slotKey));
   }

@@ -156,7 +156,7 @@ test('the complications tip names the page\'s own words: the slot\'s item, and t
   assert.equal(tip.since, '3.5.0');
 });
 
-test('the icon tip names the page\'s own words: the Edit button, the Icon row, its icons that turn and Updates\' new choice', (t) => {
+test('the icon tip names the page\'s own words: the Edit button, the Looks with an icon, the icons that turn and Updates\' new choice', (t) => {
   const tip = featureTips.TIPS.find((x) => x.id === 'pluginValueIcon');
   const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
   global.INJECTED_USERDATA = { plugins: [] };
@@ -166,7 +166,10 @@ test('the icon tip names the page\'s own words: the Edit button, the Icon row, i
     options.findIndex((o) => o[1] === '__hdr_same')).map((o) => o[0]);
   assert.deepEqual(turns, ['Switch', 'Wi-Fi', 'Bluetooth']);
   assert.ok(tip.html.indexOf('A ' + catalog.byCode('pluginValue').label + ' slot') === 0, tip.html);
-  assert.ok(tip.html.indexOf('Edit button and pick one under ' + row('statusTopLeftPluginValueIcon').label + '.') !== -1,
+  const look = row('statusTopLeftPluginValueLook');
+  const withIcon = look.options.filter((o) => o[1] !== 'text').map((o) => o[0]);
+  assert.deepEqual(withIcon, ['Icon + text', 'Icon']);
+  assert.ok(tip.html.indexOf('Edit button and pick ' + withIcon.join(' or ') + ' under ' + look.label + '.') !== -1,
     tip.html);
   assert.ok(tip.html.indexOf(turns.slice(0, 2).join(', ') + ' and ' + turns[2] + ' turn off') !== -1, tip.html);
   const every = row('statusTopLeftPluginValueEvery');

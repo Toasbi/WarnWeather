@@ -140,11 +140,13 @@ var SHARED_PLUGIN_VALUE_KEYS = { plugin: 'pluginValuePlugin', id: 'pluginValueId
     icon: 'pluginValueIcon', every: 'pluginValueEvery' };
 
 /**
- * 3.5.0 gave each Plugin value slot a value of its own: its plugin, value, icon and Updates are
- * the slot's (catalog pluginValueKeys), where the item had one set that every slot holding it
+ * 3.5.0 gave each Plugin value slot a value of its own: its plugin, value, Look, icon and Updates
+ * are the slot's (catalog pluginValueKeys), where the item had one set that every slot holding it
  * showed. Each slot holding the item takes that set, so it shows what it showed, and the set
- * goes. Where no slot holds the item it goes too: a slot that takes the item later starts on
- * None, as a new one does.
+ * goes. The set's icon None was the value alone, which the Look's Text is, where a slot starts;
+ * any other icon showed before the value, so the slot taking it takes the Look Icon + text. Where
+ * no slot holds the item the set goes too: a slot that takes the item later starts on None, as a
+ * new one does.
  *
  * No send: the lines bake to the bytes they had, and the Clay message carries none of them.
  *
@@ -160,8 +162,11 @@ function movePluginValueIntoSlots(blob) {
         var keys = catalog.pluginValueKeys(key);
         if (blob[key] !== 'pluginValue') { return; }
         names.forEach(function (name) {
+            var shared = blob[SHARED_PLUGIN_VALUE_KEYS[name]];
             // A slot's own pick (a blob the 3.5.0 page saved before this boot) stays.
-            if (blob[keys[name]] === undefined) { blob[keys[name]] = blob[SHARED_PLUGIN_VALUE_KEYS[name]]; }
+            if (blob[keys[name]] !== undefined || (name === 'icon' && shared === 'none')) { return; }
+            blob[keys[name]] = shared;
+            if (name === 'icon' && blob[keys.look] === undefined) { blob[keys.look] = 'both'; }
         });
     });
     names.forEach(function (name) { delete blob[SHARED_PLUGIN_VALUE_KEYS[name]]; });

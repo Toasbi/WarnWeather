@@ -1,8 +1,9 @@
 // src/pkjs/page/status-bars/plugin-value-page.js — ES5. The Plugin value slots' dialogs on the
 // settings page (plugin-value-schema.js), one per slot, each naming its slot to these resolvers
-// and hooks (args.slotKey): the Plugin, Value, Icon and Updates rows' lists and hints, the Icon
-// row's pictures, the line with the value read last, the Muninn note, and the Plugin row's change,
-// which starts a new plugin on its first value. The lists are the plugins the phone listed as the page opened
+// and hooks (args.slotKey): the Plugin, Value, Look, Icon and Updates rows' lists and hints, the
+// Icon row's pictures, the line with the value read last, the Muninn note, and the rows' changes:
+// the Plugin row's starts a new plugin on its first value, and each fits the Look and the icon to
+// the value (fitSlot). The lists are the plugins the phone listed as the page opened
 // (userData.plugins, plugin-value-list.js listOf): the page reads no plugin itself, since a read
 // costs the user (plugin-reader.js). The phone sends each plugin's items with their properties'
 // names, and the page makes each value's id (plugin-values.js valueId) and label (labelOf) of
@@ -67,9 +68,11 @@
     // DAYS_STEPS).
     var MUNINN_NOTE = 'The Watch battery slot can show Muninn\'s estimate by itself: the days your watch has left, '
         + 'alone or beside its charge. Put the Watch battery in any slot, tap its Edit button, ' + batteryDays.DAYS_STEPS;
-    // The Icon row's choices after None (plugin-values.js ICON_FORMS, in its order), by name.
+    // The Icon row's choices (plugin-values.js ICON_FORMS, in its order), by name.
     var ICON_LABELS = {'switch': 'Switch', wifi: 'Wi-Fi', bluetooth: 'Bluetooth', plug: 'Plug', phone: 'Phone',
         calendar: 'Calendar'};
+    // The Look row's hint while the value picked is neither on nor off, which greys out its Icon.
+    var LOOK_NEITHER_HINT = 'The Icon look is for a value that is on or off.';
 
     /**
      * @returns {Object} The page's userData (INJECTED_USERDATA), read at call time.
@@ -371,36 +374,54 @@
     }
 
     /**
-     * Leave a slot's icon that turns for None where the value it picks is neither on nor off, as
-     * it would stay off.
+     * @returns {string} The first icon that stays the same (plugin-values.js ICON_FORMS' order).
+     */
+    function firstSteady() {
+        return Object.keys(pluginValues.ICON_FORMS).filter(function (name) { return !turns(name); })[0];
+    }
+
+    /**
+     * Fit a slot's Look and icon to each other and to the value it picks, in a Look that shows an
+     * icon. Only an icon that turns shows the value alone, so the Icon look takes one that turns
+     * (plugin-values.js ICON_DEFAULT, the first) for one that stays the same, and goes back to
+     * Text for a value the phone lists as neither on nor off. In Icon + text, such a value
+     * swaps an icon that turns, which would stay off, for the first that stays the same.
      * @param {Object} S Settings (mutated).
      * @param {string} slotKey The slot's settings key.
      * @returns {void}
      */
-    function fitSlotIcon(S, slotKey) {
+    function fitSlot(S, slotKey) {
         var pick = pluginValues.pickOf(S, slotKey);
-        if (turns(pluginValues.iconName(pick)) && listedNeither(pick)) {
-            S[catalog.pluginValueKeys(slotKey).icon] = pluginValues.ICON_DEFAULT;
+        var keys = catalog.pluginValueKeys(slotKey);
+        var look = pluginValues.lookOf(pick);
+        var turning = turns(pluginValues.iconName(pick));
+        if (look === 'text') { return; }
+        if (!listedNeither(pick)) {
+            if (look === 'icon' && !turning) { S[keys.icon] = pluginValues.ICON_DEFAULT; }
+        } else if (look === 'icon') {
+            S[keys.look] = pluginValues.LOOK_DEFAULT;
+        } else if (turning) {
+            S[keys.icon] = firstSteady();
         }
     }
 
     /**
-     * onChange of the Value row: fitSlotIcon for the slot whose row changed.
+     * onChange of the Value and Look rows: fitSlot for the slot whose row changed.
      * @param {Object} S Settings (mutated).
-     * @param {string} oldV The value before. @param {string} newV The value now.
+     * @param {string} oldV The choice before. @param {string} newV The choice now.
      * @param {Object} env Platform env.
      * @param {string} key The row's key.
      * @param {{slotKey: string}} args The row's slot (its onChangeArgs).
      * @returns {void}
      */
-    function fitIcon(S, oldV, newV, env, key, args) {
-        fitSlotIcon(S, args.slotKey);
+    function fitPicked(S, oldV, newV, env, key, args) {
+        fitSlot(S, args.slotKey);
     }
 
     /**
      * onChange of the Plugin row: a new plugin starts on its first value WarnWeather can read,
-     * None on none, with an icon that fits it (fitSlotIcon). Plugin None leaves the icon None
-     * too: it hides the Icon row, where the icon could be taken off.
+     * None on none, with a Look and an icon that fit it (fitSlot). Plugin None puts the Look and
+     * the icon back on where a slot starts too: it hides their rows, where they could be changed.
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The plugin before.
      * @param {string} newV The plugin now.
@@ -415,15 +436,43 @@
         var first = valuesOf(pluginOf(newV)).filter(function (v) { return !v.unreadable; })[0];
         if (oldV !== newV) {
             S[keys.id] = first ? first.id : '';
-            if (!newV) { S[keys.icon] = pluginValues.ICON_DEFAULT; }
-            fitSlotIcon(S, slotKey);
+            if (!newV) {
+                S[keys.look] = pluginValues.LOOK_DEFAULT;
+                S[keys.icon] = pluginValues.ICON_DEFAULT;
+            }
+            fitSlot(S, slotKey);
         }
     }
 
     /**
-     * The Icon row's list: None, then the icons that turn, offered only for a value that is on or
-     * off (greyed out for one the phone lists as neither, but the one the slot holds), then
-     * the icons that stay the same.
+     * Whether the value a slot's dialog picks is one the phone lists as neither on nor off
+     * (when resolver 'pluginValueNeither': the Look row greys out its Icon for it).
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
+     * @returns {boolean}
+     */
+    function neitherPicked(S, env, args) {
+        return listedNeither(pluginValues.pickOf(S, args.slotKey));
+    }
+
+    /**
+     * The Look row's hint: why its Icon is greyed out, for a value that is neither on nor off.
+     * Else none.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
+     * @returns {?string} HTML (plain text), or null for none.
+     */
+    function lookHint(S, env, args) {
+        return neitherPicked(S, env, args) ? LOOK_NEITHER_HINT : null;
+    }
+
+    /**
+     * The Icon row's list: the icons that turn, offered only for a value that is on or off
+     * (greyed out for one the phone lists as neither, but the one the slot holds), then the icons
+     * that stay the same, which the Icon look leaves out: alone, they would show nothing of the
+     * value.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @param {{slotKey: string}} args The dialog's slot.
@@ -432,17 +481,17 @@
     function iconOptions(S, env, args) {
         var pick = pluginValues.pickOf(S, args.slotKey);
         var neither = listedNeither(pick);
-        var names = Object.keys(pluginValues.ICON_FORMS).filter(function (name) {
-            return name !== pluginValues.ICON_DEFAULT;
-        });
-        var out = [['None', pluginValues.ICON_DEFAULT, {desc: 'The value alone'}]];
+        var alone = pluginValues.lookOf(pick) === 'icon';
+        var names = Object.keys(pluginValues.ICON_FORMS);
+        var out = [];
         [['Turns with a value that is on or off', true, '__hdr_turns'], ['Always the same', false, '__hdr_same']]
                 .forEach(function (group) {
+            if (alone && !group[1]) { return; }
             var inGroup = names.filter(function (name) { return turns(name) === group[1]; });
             out.push([group[0], group[2], {disabled: true, groupHeader: true}]);
             inGroup.forEach(function (name, i) {
                 var meta = {groupChild: true, groupEnd: i === inGroup.length - 1};
-                if (group[1] && neither && pick.icon !== name) { meta.disabled = true; }
+                if (group[1] && neither && pluginValues.iconName(pick) !== name) { meta.disabled = true; }
                 out.push([ICON_LABELS[name], name, meta]);
             });
         });
@@ -466,16 +515,16 @@
 
     /**
      * An Icon option's picture (picture resolver 'pluginValueIconPicture'): the watch's drawing
-     * of each form the icon takes, on before off; none for None.
+     * of each form the icon takes, on before off; none for a group's header.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @param {{value: string}} args The option.
      * @returns {string} HTML.
      */
     function iconPicture(S, env, args) {
-        return pluginValues.ICON_FORMS[pluginValues.iconName({icon: args.value})].map(function (id) {
-            return pixelIcon.glyph(pixelIcon.keyOfIcon(id), env);
-        }).join('');
+        var forms = Object.prototype.hasOwnProperty.call(pluginValues.ICON_FORMS, args.value)
+            ? pluginValues.ICON_FORMS[args.value] : [];
+        return forms.map(function (id) { return pixelIcon.glyph(pixelIcon.keyOfIcon(id), env); }).join('');
     }
 
     /**
@@ -490,16 +539,17 @@
 
     /**
      * A Plugin value slot's text in the bars' pictures (preview-status-bars.js): the value read
-     * last of its source at the slot's bytes, as the bake prints it while the watch shows it;
-     * else what the slot shows without one.
+     * last of its source at the slot's bytes, as the bake prints it in the slot's Look while the
+     * watch shows it (plugin-values.js slotTextOf); else what the slot shows without one.
      * @param {Object} S Settings.
      * @param {number} cap The slot's byte cap.
      * @param {string} slotKey The slot's settings key.
-     * @returns {string} The text.
+     * @returns {string} The text: none in the Icon look.
      */
     function barText(S, cap, slotKey) {
         var now = Date.now();
-        return pluginValues.textFor(shownNow(pluginValues.pickOf(S, slotKey), now), cap, S, now);
+        var pick = pluginValues.pickOf(S, slotKey);
+        return pluginValues.slotTextOf(pick, shownNow(pick, now), cap, S, now);
     }
 
     /**
@@ -507,8 +557,8 @@
      * barText prints, as the bake picks it (plugin-values.js iconId).
      * @param {Object} S Settings.
      * @param {string} slotKey The slot's settings key.
-     * @returns {?string} The key of the watch's drawing of it (status-pixels ids); null for the
-     *   value alone.
+     * @returns {?string} The key of the watch's drawing of it (status-pixels ids); null in the
+     *   Text look.
      */
     function barDrawing(S, slotKey) {
         var pick = pluginValues.pickOf(S, slotKey);
@@ -547,13 +597,15 @@
         PConf.hintResolvers.register('pluginValueEveryHint', function () { return EVERY_HINT; });
         PConf.hintResolvers.register('pluginValueMuninnNote', function () { return MUNINN_NOTE; });
         PConf.onChange.register('pluginValuePluginPicked', pluginPicked);
-        PConf.onChange.register('pluginValueIdPicked', fitIcon);
+        PConf.onChange.register('pluginValueFit', fitPicked);
         PConf.whenResolvers.register('pluginValueFromMuninn', fromMuninn);
+        PConf.whenResolvers.register('pluginValueNeither', neitherPicked);
+        PConf.hintResolvers.register('pluginValueLookHint', lookHint);
     }
 
     var api = { MUNINN_NOTE: MUNINN_NOTE, labelOf: labelOf, pluginOptions: pluginOptions,
         valueOptions: valueOptions, pluginHint: pluginHint, valueHint: valueHint, lastLine: lastLine,
-        fromMuninn: fromMuninn, pluginPicked: pluginPicked, fitIcon: fitIcon, iconOptions: iconOptions,
+        fromMuninn: fromMuninn, pluginPicked: pluginPicked, iconOptions: iconOptions,
         iconHint: iconHint, iconPicture: iconPicture, everyOptions: everyOptions,
         barText: barText, barDrawing: barDrawing, barGlyph: barGlyph };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

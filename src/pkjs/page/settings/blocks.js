@@ -56,6 +56,8 @@ if (typeof require !== 'undefined') {
     // the watch battery's, whose Icon look badges no bold.
     var slotText = (typeof require !== 'undefined')
         ? require('../../status-bars/domain/slot-text.js') : window.SlotText;
+    var pluginValues = (typeof require !== 'undefined')
+        ? require('../../status-bars/domain/plugin-values.js') : window.PluginValues;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
     // the same module the watch's wire is packed from, so the row badges below preview
     // exactly what the graph draws. Same dual-context rule as the preview blocks:
@@ -701,7 +703,7 @@ if (typeof require !== 'undefined') {
             // wind, gusts, AQI), from the catalog's one table...
             .concat(statusLineCatalog.dayMaxSettingKeys())
             // ...and the watch battery's Look and text rows, and each of these slots' phone
-            // battery Look and Plugin value source, icon and Updates.
+            // battery Look and Plugin value source, Look, icon and Updates.
             .concat(statusLineCatalog.batterySettingKeys())
             .concat(slotKeys.map(statusLineCatalog.phoneBatteryLookKey))
             .concat(slotKeys.reduce(function (keys, slotKey) {
@@ -863,12 +865,17 @@ if (typeof require !== 'undefined') {
     // ENABLED threshold kind, the row shows a warn-color ring + danger-color dot before
     // its Edit button, and a 'B' when the slot prints always-bold. Same env gate +
     // code→kind mapping as the sheet resolver above. The watch battery in its Icon look
-    // draws a battery alone, which has no text to print bold, so its Edit button carries no
-    // badge; in Text and Icon + text its text prints, and bold.
+    // draws a battery alone, and the Plugin value in its Icon look its icon alone, which have no
+    // text to print bold, so their Edit buttons carry no badge; in the other looks their text
+    // prints, and bold.
     PConf.badgeResolvers.register('thresholdPenState', function (S, env, args) {
         var code = S[args.messageKey];
         var kind = slotKindIndex(env, code);
-        if (kind === -1 || (code === 'battery' && slotText.batteryLook(S, env) === 'icon')) { return null; }
+        if (kind === -1 || (code === 'battery' && slotText.batteryLook(S, env) === 'icon')
+                || (code === 'pluginValue'
+                    && pluginValues.lookOf(pluginValues.pickOf(S, args.messageKey)) === 'icon')) {
+            return null;
+        }
         return penStateForKind(S, env, kind);
     });
 

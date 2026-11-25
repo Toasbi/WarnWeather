@@ -1,12 +1,13 @@
 // src/pkjs/page/status-bars/plugin-value-schema.js — ES5, PKJS-parsed. The Plugin value slots'
 // dialogs (status-line-catalog.js 'pluginValue'), split out of schema.js like
-// weather-sources-schema.js: the plugin, which of its values the slot shows, the icon before it
-// and how often it is read, then the line with the value read last. The rows' lists, their hints,
+// weather-sources-schema.js: the plugin, which of its values the slot shows, its Look (the text,
+// an icon before it or the icon alone), the icon and how often it is read, then the line with the
+// value read last. The rows' lists, their hints,
 // the icons' pictures and that line are plugin-value-page.js'. Plain CommonJS: the schema is built
 // in PKJS and reaches the page as data.
 //
 // A dialog for each slot, as the phone battery's (schema.js phoneBatterySlotSheet): a slot's
-// plugin, value, icon and Updates are its own (status-line-catalog.js pluginValueKeys), so each
+// plugin, value, Look, icon and Updates are its own (status-line-catalog.js pluginValueKeys), so each
 // slot that holds the item shows a value of its own. The engine hands a dialog's rows no word of
 // the slot that opened it, so each names its slot to its resolvers and its change's hooks
 // (args.slotKey, onChangeArgs), and the slot's Edit button opens its own (status-line-catalog.js
@@ -29,7 +30,7 @@ var BOLD_HINTS = {
 
 /**
  * One slot's Plugin value dialog: the note while Muninn is picked, then the Plugin, the Value of
- * it, its Icon and Updates, the value read last, and Bold. Each row opens its list over the
+ * it, its Look, Icon and Updates, the value read last, and Bold. Each row opens its list over the
  * dialog (engine renderPickSheet): a phone can list a dozen plugins and each up to 24 values
  * (plugin-value-list.js).
  * @param {function(string, string, Object[], string): Object} sheetOf schema.js sheetOf: a slot
@@ -43,6 +44,9 @@ function slotDialog(sheetOf, boldRow, slotKey) {
     var slot = {slotKey: slotKey};
     // The rows after Plugin, while one is picked.
     var picked = {key: keys.plugin, ne: ''};
+    // The Icon row, in a Look with an icon; Bold, in one with text.
+    var withIcon = {all: [picked, {key: keys.look, ne: 'text'}]};
+    var withText = {all: [picked, {key: keys.look, ne: 'icon'}]};
     // While the plugin picked is Muninn: a note that the Watch battery slot shows its estimate by
     // itself (plugin-value-page.js muninnNote). A card of its own in the info look, above the
     // Plugin row (the owner's, 2026-11-23).
@@ -50,7 +54,7 @@ function slotDialog(sheetOf, boldRow, slotKey) {
         {when: 'pluginValueFromMuninn', args: slot});
     var bold = boldRow('PluginValue');
     bold.hintByValue = BOLD_HINTS;
-    bold.showWhen = picked;
+    bold.showWhen = withText;
     return sheetOf('PluginValue', 'Plugin value', note.concat([{
         type: 'select',
         messageKey: keys.plugin,
@@ -71,13 +75,27 @@ function slotDialog(sheetOf, boldRow, slotKey) {
         sticky: false,
         optionsFrom: {resolver: 'pluginValueIds', args: slot},
         hintFrom: {resolver: 'pluginValueIdHint', args: slot},
-        // A value that is neither on nor off leaves an icon that turns for None.
-        onChange: 'pluginValueIdPicked',
+        // A value that is neither on nor off takes no Look or icon that would stay off.
+        onChange: 'pluginValueFit',
         onChangeArgs: slot,
         showWhen: picked
     }, {
-        // The icon before the value (plugin-values.js ICON_FORMS), each choice drawn as the watch
-        // draws it; one that turns is for a value that is on or off.
+        // As the other slots' Look rows offer it (plugin-values.js LOOKS). The icon alone is for
+        // a value that is on or off, which an icon that turns shows by itself.
+        type: 'segmented',
+        messageKey: keys.look,
+        label: 'Look',
+        defaultValue: DEFAULTS.look,
+        sticky: false,
+        options: [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']],
+        optionDisabledWhen: {icon: {when: 'pluginValueNeither', args: slot}},
+        hintFrom: {resolver: 'pluginValueLookHint', args: slot},
+        onChange: 'pluginValueFit',
+        onChangeArgs: slot,
+        showWhen: picked
+    }, {
+        // The icon (plugin-values.js ICON_FORMS), each choice drawn as the watch draws it; one
+        // that turns is for a value that is on or off, and the only kind the Icon look offers.
         type: 'select',
         messageKey: keys.icon,
         label: 'Icon',
@@ -86,7 +104,7 @@ function slotDialog(sheetOf, boldRow, slotKey) {
         optionsFrom: {resolver: 'pluginValueIcons', args: slot},
         hintFrom: {resolver: 'pluginValueIconHint', args: slot},
         pictureFrom: {resolver: 'pluginValueIconPicture', glyph: true},
-        showWhen: picked
+        showWhen: withIcon
     }, {
         type: 'select',
         messageKey: keys.every,

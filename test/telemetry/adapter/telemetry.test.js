@@ -297,57 +297,62 @@ test('snapshot reports the watch battery\'s Look and what its text shows', () =>
   assert.equal(handler.indexOf('batteryPctSlotShow'), -1);
 });
 
-// The Plugin value slots: whether one shows a value, how many do and the icons they draw
-// (status-lines.js wantedPluginValues, plugin-values.js iconName). The plugin and its value never
-// leave the phone. Absent on aplite. Lockstep with the Deno .strip() schema.
+// The Plugin value slots: whether one shows a value, how many do, their Looks and the icons they
+// draw (status-lines.js wantedPluginValues, plugin-values.js lookOf and iconName). The plugin and
+// its value never leave the phone. Absent on aplite. Lockstep with the Deno .strip() schema.
 const MUNINN = 'd008a08a-6e34-4cc4-98dc-bae02ce5e087';
 const { pluginValueSlot } = require('../../helpers/status-slots.js');
 /**
- * @param {string} slot A slot's settings key. @param {string} [icon] Its Icon row's choice.
+ * @param {string} slot A slot's settings key. @param {string} [icon] Its Icon row's choice, which
+ *   it draws in the Look Icon + text; none: the Text look a slot starts on.
+ * @param {string} [look] Its Look row's choice, over the one the icon gives it.
  * @returns {Object} The settings that put the Plugin value in the slot, with Muninn's days left.
  */
-function pluginSlot(slot, icon) {
-  return pluginValueSlot(slot, { plugin: MUNINN, id: 'muninn/stats/daysRemaining', ...(icon ? { icon } : {}) });
+function pluginSlot(slot, icon, look) {
+  const drawn = icon ? { look: 'both', icon } : {};
+  return pluginValueSlot(slot, Object.assign({ plugin: MUNINN, id: 'muninn/stats/daysRemaining' }, drawn,
+    look ? { look } : {}));
 }
 
-test('snapshot reports how many Plugin value slots show a value and their icons, never which value', () => {
+test('snapshot reports how many Plugin value slots show a value, their Looks and icons, never which value', () => {
   const report = (settings, platform) => {
     const snap = buildSettingsSnapshot(settings, { platform: platform || 'basalt' });
-    return [snap.pluginValue, snap.pluginValueSlots, snap.pluginValueIcons];
+    return [snap.pluginValue, snap.pluginValueSlots, snap.pluginValueLooks, snap.pluginValueIcons];
   };
   const shown = Object.assign(pluginSlot('statusTopRight', 'wifi'), pluginSlot('statusTopLeft'),
     { statusTopMid: 'pluginValue' });
-  assert.deepEqual(report(shown), [true, 2, 'none,wifi'], 'the slot without a source is not counted');
-  assert.deepEqual(report(Object.assign(pluginSlot('statusTopRight', 'wifi'), pluginSlot('statusTopLeft', 'wifi'))),
-    [true, 2, 'wifi'], 'an icon once');
-  assert.deepEqual(report({ statusTopRight: 'pluginValue' }), [false, 0, ''], 'no source picked');
+  assert.deepEqual(report(shown), [true, 2, 'both,text', 'wifi'], 'the slot without a source is not counted');
+  assert.deepEqual(report(Object.assign(pluginSlot('statusTopRight', 'wifi'), pluginSlot('statusTopLeft', 'wifi', 'icon'))),
+    [true, 2, 'both,icon', 'wifi'], 'an icon once, in each Look with one');
+  assert.deepEqual(report(Object.assign(pluginSlot('statusTopRight', 'wifi', 'text'), pluginSlot('statusTopLeft'))),
+    [true, 2, 'text', ''], 'the Text look draws no icon: the one kept for another Look is not counted');
+  assert.deepEqual(report({ statusTopRight: 'pluginValue' }), [false, 0, '', ''], 'no source picked');
   const unheld = pluginSlot('statusTopRight');
   delete unheld.statusTopRight;
-  assert.deepEqual(report(unheld), [false, 0, ''], 'no slot holds it');
-  assert.deepEqual(report(pluginSlot('statusHealthLeft')), [false, 0, ''], 'a bar no screen shows');
-  assert.deepEqual(report(shown, 'aplite'), [undefined, undefined, undefined], 'aplite has no such slot');
+  assert.deepEqual(report(unheld), [false, 0, '', ''], 'no slot holds it');
+  assert.deepEqual(report(pluginSlot('statusHealthLeft')), [false, 0, '', ''], 'a bar no screen shows');
+  assert.deepEqual(report(shown, 'aplite'), [undefined, undefined, undefined, undefined], 'aplite has no such slot');
   const sent = JSON.stringify(buildSettingsSnapshot(shown, { platform: 'basalt' }));
   ['d008a08a', 'muninn', 'daysRemaining'].forEach((part) => assert.equal(sent.indexOf(part), -1, part + ' stays on the phone'));
   const handler = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', '..',
     'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
   ['    pluginValue: z.boolean().optional(),', '    pluginValueSlots: z.number().int().min(0).max(21).optional(),',
-    '    pluginValueIcons: z.string().optional(),'].forEach((line) => {
+    '    pluginValueLooks: z.string().optional(),', '    pluginValueIcons: z.string().optional(),'].forEach((line) => {
     assert.ok(handler.indexOf(line) !== -1, line.trim() + ' is in handler.ts');
   });
 });
 
-// Each slot's icon (plugin-values.js iconName): one of this app's own choices, none by default and
-// for one it does not know, so nothing typed ever leaves the phone.
-test('snapshot reports the Plugin value slots\' icons by their choice, none by default', () => {
+// Each slot's Look and icon (plugin-values.js lookOf, iconName): this app's own choices, the
+// defaults for one it does not know, so nothing typed ever leaves the phone.
+test('snapshot reports the Plugin value slots\' Looks and icons by their choice, the defaults for others', () => {
   const pv = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
-  Object.keys(pv.ICON_FORMS).forEach((name) => {
-    assert.strictEqual(buildSettingsSnapshot(pluginSlot('statusTopRight', name), { platform: 'emery' }).pluginValueIcons,
-      name);
-  });
-  assert.strictEqual(buildSettingsSnapshot(pluginSlot('statusTopRight', 'Grandma\'s lamp'), { platform: 'basalt' })
-    .pluginValueIcons, 'none', 'never a text of the user\'s');
-  assert.strictEqual(HEAVIEST_PLUGIN_SLOTS.length, Object.keys(pv.ICON_FORMS).length,
-    'the heaviest header has a slot for each icon');
+  const snap = (icon, look) => buildSettingsSnapshot(pluginSlot('statusTopRight', icon, look), { platform: 'emery' });
+  Object.keys(pv.ICON_FORMS).forEach((name) => assert.strictEqual(snap(name).pluginValueIcons, name));
+  pv.LOOKS.forEach((look) => assert.strictEqual(snap('plug', look).pluginValueLooks, look));
+  assert.deepEqual([snap('Grandma\'s lamp').pluginValueIcons, snap('plug', 'Grandma\'s lamp').pluginValueLooks],
+    ['switch', 'text'], 'never a text of the user\'s');
+  assert.strictEqual(HEAVIEST_PLUGIN_SLOTS.length, Object.keys(pv.ICON_FORMS).length + 1,
+    'the heaviest header has a slot for each icon, and one in the Text look');
 });
 
 test('buildSettingsSnapshot includes radarMode (default graph)', () => {
@@ -600,9 +605,10 @@ const HEAVIEST_SETTINGS = {
 // seven names outweigh that.
 const HEAVIEST_PLUGIN_SLOTS = ['statusForecastLeft', 'statusForecastMid', 'statusForecastRight',
   'statusTopLeft', 'statusTopMid', 'statusTopRight', 'statusHealthLeft'];
+// Each icon in a Look with one, the first alone; the last slot in the Text look.
 HEAVIEST_PLUGIN_SLOTS.forEach((slot, i) => {
   Object.assign(HEAVIEST_SETTINGS, pluginSlot(slot,
-    Object.keys(require('../../../src/pkjs/status-bars/domain/plugin-values.js').ICON_FORMS)[i]));
+    Object.keys(require('../../../src/pkjs/status-bars/domain/plugin-values.js').ICON_FORMS)[i], i ? null : 'icon'));
 });
 // The same watch on a custom layout: the six custom fields report too, each on its
 // widest realistic number (three views, every one with a stacked order and a non-zero
@@ -1072,7 +1078,7 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // The rain alert's Replaces the slot and the weather condition's Look and Bold made it
 // 2896 of 4096, headroom 1200. Later fields made it 3394. The Plugin value slots' count and
 // icons (seven slots, one with each icon, in place of one icon) made it 3438 of 4096,
-// headroom 658.
+// headroom 658. Their Looks made it 3469 of 4096, headroom 627.
 test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYTES', () => {
   const cap = Number(/const MAX_SETTINGS_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');
@@ -1091,9 +1097,9 @@ test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYT
     'a snapshot field the fixture never sets understates the ledger — set it on its longest option');
   assert.deepEqual([settings.graphStyleCount, settings.graphStyle2Hours, settings.graphStyle3Hours],
     [3, 48, 48], 'the graph styles report');
-  assert.deepEqual([settings.pluginValueSlots, settings.pluginValueIcons],
-    [HEAVIEST_PLUGIN_SLOTS.length, 'none,switch,wifi,bluetooth,plug,phone,calendar'],
-    'every Plugin value slot of the fixture reports, with every icon');
+  assert.deepEqual([settings.pluginValueSlots, settings.pluginValueLooks, settings.pluginValueIcons],
+    [HEAVIEST_PLUGIN_SLOTS.length, 'both,text,icon', 'switch,wifi,bluetooth,plug,phone,calendar'],
+    'every Plugin value slot of the fixture reports, with every Look and every icon');
 
   // Measured as the ingest measures it: JSON.stringify(batch.settings).length.
   const header = JSON.stringify(settings).length;

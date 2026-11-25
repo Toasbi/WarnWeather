@@ -1,5 +1,5 @@
 // test/page/status-bars/plugin-value-page.test.js — the Plugin value slots' dialogs on the
-// settings page, one per slot: the Plugin, Value and Icon rows' lists (the plugins the phone
+// settings page, one per slot: the Plugin, Value, Look and Icon rows' lists (the plugins the phone
 // listed as the page opened, userData.plugins), their hints, the Icon row's pictures, the line
 // with the value read last (userData.pluginValues), the rows' changes, the Edit button that opens
 // a slot's dialog, what a save stores, the slot reset and the bars' pictures.
@@ -42,7 +42,7 @@ const KEYS = catalog.pluginValueKeys(SLOT);
 
 /**
  * Settings that pick for a slot.
- * @param {Object} pick {plugin, id, icon, every}, any of them (plugin-values.js pickOf).
+ * @param {Object} pick {plugin, id, look, icon, every}, any of them (plugin-values.js pickOf).
  * @param {string} [slotKey] The slot (SLOT).
  * @returns {Object} The slot's Plugin value settings holding that pick.
  */
@@ -104,6 +104,19 @@ const picked = (S, oldV, newV, slotKey = SLOT) => changed(S, catalog.pluginValue
  */
 const valuePicked = (S, slotKey = SLOT) =>
   changed(S, catalog.pluginValueKeys(slotKey).id, null, S[catalog.pluginValueKeys(slotKey).id]);
+
+/**
+ * The Look row's change to a Look, as the engine runs it: it stores the Look, then runs the hooks.
+ * @param {Object} S Settings (mutated). @param {string} look The Look picked.
+ * @param {string} [slotKey] The slot (SLOT).
+ * @returns {void}
+ */
+const lookPicked = (S, look, slotKey = SLOT) => {
+  const key = catalog.pluginValueKeys(slotKey).look;
+  const before = S[key];
+  S[key] = look;
+  changed(S, key, before, look);
+};
 
 /**
  * The phone's userData for one test, the way the page reads it (INJECTED_USERDATA).
@@ -448,17 +461,24 @@ test('the Edit button opens each slot\'s own dialog, in every bar, not on aplite
   assert.equal(catalog.pluginValueSheet('statusTopRight'), 'threshPluginValueTopRight');
 });
 
-test('the Edit button\'s B lights on every Plugin value slot while the item prints bold', () => {
+test('the Edit button\'s B lights on every Plugin value slot while the item prints bold, but in the Icon look', () => {
   const badge = PConf.badgeResolvers.get('thresholdPenState');
   const env = { thresholds: true };
   const state = (S, slotKey) => badge(Object.assign({ [slotKey]: 'pluginValue' }, S), env, { messageKey: slotKey });
   ['statusTopLeft', 'statusBar6Right'].forEach((slotKey) => {
+    const look = catalog.pluginValueKeys(slotKey).look;
     assert.equal(state({}, slotKey).bold, false, slotKey + ': Off by default');
     assert.equal(state({ threshPluginValueBoldMode: 'always' }, slotKey).bold, true, slotKey + ': Always');
     assert.equal(state({ statusBoldAll: 'all' }, slotKey).bold, true, slotKey + ': the master All');
     assert.equal(state({ statusBoldAll: 'off', threshPluginValueBoldMode: 'always' }, slotKey).bold, false,
       slotKey + ': the master Off');
+    assert.equal(state({ threshPluginValueBoldMode: 'always', [look]: 'both' }, slotKey).bold, true,
+      slotKey + ': Icon + text prints its text');
+    assert.equal(state({ threshPluginValueBoldMode: 'always', [look]: 'icon' }, slotKey), null,
+      slotKey + ': the icon alone has no text to print bold');
   });
+  assert.equal(state({ threshPluginValueBoldMode: 'always', statusTopRightPluginValueLook: 'icon' }, 'statusTopLeft').bold,
+    true, 'another slot\'s Look');
   assert.equal(badge({ statusTopLeft: 'pluginValue' }, { thresholds: false }, { messageKey: 'statusTopLeft' }), null,
     'aplite badges nothing');
 });
@@ -484,25 +504,40 @@ function dialogHtml(state, slotKey = SLOT) {
     evalCtx: Object.assign({}, state, { env: BASALT }) });
 }
 
-test('the dialog: Plugin with its list, then Value, Icon, Updates, the last line and Bold once one is picked', (t) => {
+/**
+ * @param {string} html A dialog's HTML. @param {string[]} texts What it shows, in its order.
+ * @returns {void}
+ */
+function inOrder(html, texts) {
+  let at = 0;
+  texts.forEach((text) => {
+    assert.ok(html.indexOf(text, at) !== -1, 'the dialog shows ' + text + ', in its place');
+    at = html.indexOf(text, at);
+  });
+}
+
+test('the dialog: Plugin with its list, then Value, Look, Updates, the last line and Bold once one is picked', (t) => {
   clock(t, NOW);
   userData(t, { plugins: PLUGINS, pluginValues: handed(kept({ short: '87%' })) });
   const S = slotSettings(LEVEL);
   assert.equal(S[KEYS.every], '60', 'every hour by default');
-  assert.equal(S[KEYS.icon], 'none', 'the value alone by default');
+  assert.equal(S[KEYS.look], 'text', 'the text alone by default');
+  assert.equal(S[KEYS.icon], 'switch', 'the Switch for a Look with an icon');
   const html = dialogHtml(S);
-  let at = 0;
-  ['Plugin value slot', 'Plugin', 'Phone', 'Value', 'Battery level', 'Icon', 'None', 'Updates', 'Every hour',
-    'Last value', 'Bold', 'For every Plugin value slot.']
-    .forEach((text) => {
-      assert.ok(html.indexOf(text, at) !== -1, 'the dialog shows ' + text + ', in its place');
-      at = html.indexOf(text, at);
-    });
+  inOrder(html, ['Plugin value slot', 'Plugin', 'Phone', 'Value', 'Battery level', 'Look', 'Icon + text',
+    '>Text<', '>Icon<', 'Updates', 'Every hour', 'Last value', 'Bold', 'For every Plugin value slot.']);
+  assert.ok(html.indexOf('data-k="' + KEYS.look + '" data-v="text"') !== -1, 'the Look picks the slot\'s own');
+  assert.equal(html.indexOf('data-select="' + KEYS.icon + '"'), -1, 'no Icon row in the Text look');
   assert.ok(html.indexOf('<div class="lbl">Last value</div><div class="hint">87% (5 min ago).</div>') !== -1,
     'the last value is a row like the others: its label, the value in the hint\'s grey under it');
   assert.ok(html.indexOf('data-k="threshPluginValueBoldMode"') !== -1, 'Bold sets the item\'s one mode');
+  const both = dialogHtml(slotSettings(Object.assign(pickIn({ look: 'both', icon: 'plug' }), LEVEL)));
+  inOrder(both, ['Look', 'Icon + text', 'data-select="' + KEYS.icon + '"', 'Plug', 'Updates', 'Last value', 'Bold']);
+  const alone = dialogHtml(slotSettings(Object.assign(pickIn({ look: 'icon', icon: 'switch' }), LEVEL)));
+  inOrder(alone, ['Look', 'data-select="' + KEYS.icon + '"', 'Switch', 'Updates', 'Last value']);
+  assert.equal(alone.indexOf('data-k="threshPluginValueBoldMode"'), -1, 'no Bold in the Icon look: it prints no text');
   const empty = dialogHtml(slotSettings());
-  ['Value', 'Icon', 'Updates', 'Last value', 'Bold'].forEach((text) =>
+  ['Value', 'Look', 'Icon', 'Updates', 'Last value', 'Bold'].forEach((text) =>
     assert.equal(empty.indexOf('>' + text + '<'), -1, 'no ' + text + ' while no plugin is picked'));
 });
 
@@ -544,34 +579,35 @@ function defaultOf(key) {
   return found ? PConf.engine.storedDefault(found, BASALT) : undefined;
 }
 
-test('Reset status bars puts each slot\'s Plugin value source, icon and Updates back', () => {
-  const S = Object.assign(pickIn({ every: '360', icon: 'wifi' }), LEVEL,
-    pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', icon: 'plug', every: '15' }, 'statusHealthRight'));
+test('Reset status bars puts each slot\'s Plugin value source, Look, icon and Updates back', () => {
+  const PARTS = ['plugin', 'id', 'look', 'icon', 'every'];
+  const S = Object.assign(pickIn({ every: '360', look: 'both', icon: 'wifi' }), LEVEL,
+    pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', look: 'icon', icon: 'plug', every: '15' },
+      'statusHealthRight'));
   PConf.actions.resetStatusSlots(null, S, BASALT, defaultOf);
   ['statusTopLeft', 'statusHealthRight'].forEach((slotKey) => {
     const keys = catalog.pluginValueKeys(slotKey);
-    assert.deepEqual([S[keys.plugin], S[keys.id], S[keys.icon], S[keys.every]], ['', '', 'none', '60'], slotKey);
+    assert.deepEqual(PARTS.map((name) => S[keys[name]]), ['', '', 'text', 'switch', '60'], slotKey);
   });
-  assert.deepEqual(['plugin', 'id', 'icon', 'every'].map((name) => defaultOf(KEYS[name])),
-    ['plugin', 'id', 'icon', 'every'].map((name) => PICK_DEFAULTS[name]), 'what plugin-values.js reads for none');
+  assert.deepEqual(PARTS.map((name) => defaultOf(KEYS[name])), PARTS.map((name) => PICK_DEFAULTS[name]),
+    'what plugin-values.js reads for none');
 });
 
 test('a save stores a slot\'s picks alone: never a row\'s default, and nothing of a slot without one', () => {
   const S = slotSettings(LEVEL);
   const stored = (state) => PConf.engine.serialize(schema, state, BASALT);
-  const keys = catalog.everySlotKey().reduce((all, slotKey) => {
-    const own = catalog.pluginValueKeys(slotKey);
-    return all.concat([own.plugin, own.id, own.icon, own.every]);
-  }, []);
-  assert.equal(keys.length, 84, 'four for each of the 21 slots');
+  const keys = catalog.everySlotKey().reduce((all, slotKey) => all.concat(catalog.pluginValueKeyList(slotKey)), []);
+  assert.equal(keys.length, 105, 'five for each of the 21 slots');
   keys.forEach((key) => assert.ok(key in S, key + ': the page holds every row\'s value'));
   const blob = stored(S);
   assert.deepEqual(keys.filter((key) => key in blob), [KEYS.plugin, KEYS.id], 'the slot\'s plugin and value');
+  S[KEYS.look] = 'both';
   S[KEYS.icon] = 'wifi';
   S[KEYS.every] = '15';
-  assert.deepEqual(keys.filter((key) => key in stored(S)), [KEYS.plugin, KEYS.id, KEYS.icon, KEYS.every],
-    'an icon and Updates picked are stored');
-  S[KEYS.icon] = 'none';
+  assert.deepEqual(keys.filter((key) => key in stored(S)), [KEYS.plugin, KEYS.id, KEYS.look, KEYS.icon, KEYS.every],
+    'a Look, an icon and Updates picked are stored');
+  S[KEYS.look] = 'text';
+  S[KEYS.icon] = 'switch';
   S[KEYS.every] = '60';
   assert.deepEqual(keys.filter((key) => key in stored(S)), [KEYS.plugin, KEYS.id], 'and go once they are the defaults again');
 });
@@ -591,33 +627,39 @@ const TURNS = ['switch', 'wifi', 'bluetooth'];
  */
 const greyed = (options) => options.filter((o) => o[2] && o[2].disabled && !o[2].groupHeader).map((o) => o[1]);
 
-test('the Icon row lists None, the icons that turn, then those that stay the same', (t) => {
+const TURNING_OPTIONS = [
+  ['Turns with a value that is on or off', '__hdr_turns', { disabled: true, groupHeader: true }],
+  ['Switch', 'switch', { groupChild: true, groupEnd: false }],
+  ['Wi-Fi', 'wifi', { groupChild: true, groupEnd: false }],
+  ['Bluetooth', 'bluetooth', { groupChild: true, groupEnd: true }]];
+
+test('the Icon row lists the icons that turn, then those that stay the same; the Icon look, those that turn', (t) => {
   userData(t, { plugins: WITH_WIFI });
-  assert.deepEqual(iconOptions(Object.assign(pickIn({ icon: 'none' }), WIFI)), [
-    ['None', 'none', { desc: 'The value alone' }],
-    ['Turns with a value that is on or off', '__hdr_turns', { disabled: true, groupHeader: true }],
-    ['Switch', 'switch', { groupChild: true, groupEnd: false }],
-    ['Wi-Fi', 'wifi', { groupChild: true, groupEnd: false }],
-    ['Bluetooth', 'bluetooth', { groupChild: true, groupEnd: true }],
+  assert.deepEqual(iconOptions(Object.assign(pickIn({ look: 'both' }), WIFI)), TURNING_OPTIONS.concat([
     ['Always the same', '__hdr_same', { disabled: true, groupHeader: true }],
     ['Plug', 'plug', { groupChild: true, groupEnd: false }],
     ['Phone', 'phone', { groupChild: true, groupEnd: false }],
-    ['Calendar', 'calendar', { groupChild: true, groupEnd: true }]]);
+    ['Calendar', 'calendar', { groupChild: true, groupEnd: true }]]));
+  assert.deepEqual(iconOptions(Object.assign(pickIn({ look: 'icon' }), WIFI)), TURNING_OPTIONS,
+    'alone, an icon that stays the same would show nothing of the value');
 });
 
 test('the icons that turn are greyed out for a value that is neither on nor off, but the one the settings hold', (t) => {
   userData(t, { plugins: WITH_WIFI.concat([{ uuid: PREFERENCES, name: 'Preferences', items: [], complications: [
     { position: 0, property: 'wifi', category: 'phone', onOff: true },
     { position: 1, property: 'battery_level', category: 'phone' }] }]) });
-  const level = Object.assign(pickIn({ icon: 'none' }), LEVEL);
+  const plug = pickIn({ look: 'both', icon: 'plug' });
+  const level = Object.assign({}, plug, LEVEL);
   assert.deepEqual(greyed(iconOptions(level)), TURNS, 'a number: such an icon would stay off');
   assert.deepEqual(greyed(iconOptions(Object.assign({}, level, { [KEYS.icon]: 'wifi' }))), ['switch', 'bluetooth'],
     'the one the settings hold stays pickable');
-  assert.deepEqual(greyed(iconOptions(Object.assign(pickIn({ icon: 'none' }), WIFI))), [], 'Wi-Fi is on or off');
-  assert.deepEqual(greyed(iconOptions(pickIn({ plugin: PHONE, id: 'phone/phone_state/gone' }))), [],
-    'a value the phone no longer lists: not known, so nothing is held back');
-  assert.deepEqual(greyed(iconOptions(PLACE(0))), [], 'a complication that is on or off');
-  assert.deepEqual(greyed(iconOptions(PLACE(1))), TURNS, 'one that is neither');
+  assert.deepEqual(greyed(iconOptions(Object.assign({}, level, { [KEYS.icon]: undefined }))), ['wifi', 'bluetooth'],
+    'the Switch a slot starts on is the one it holds');
+  assert.deepEqual(greyed(iconOptions(Object.assign({}, plug, WIFI))), [], 'Wi-Fi is on or off');
+  assert.deepEqual(greyed(iconOptions(Object.assign({}, plug, pickIn({ plugin: PHONE, id: 'phone/phone_state/gone' })))),
+    [], 'a value the phone no longer lists: not known, so nothing is held back');
+  assert.deepEqual(greyed(iconOptions(Object.assign({}, plug, PLACE(0)))), [], 'a complication that is on or off');
+  assert.deepEqual(greyed(iconOptions(Object.assign({}, plug, PLACE(1)))), TURNS, 'one that is neither');
 });
 
 test('the Icon row\'s hint says how an icon that turns follows the value; none for the rest', (t) => {
@@ -625,36 +667,86 @@ test('the Icon row\'s hint says how an icon that turns follows the value; none f
   assert.equal(iconHint(Object.assign(pickIn({ icon: 'wifi' }), WIFI)), 'On while the value is on, off while it is off.');
   assert.equal(iconHint(Object.assign(pickIn({ icon: 'switch' }), LEVEL)),
     'This value is neither on nor off, so the icon stays off.');
-  ['none', 'plug', 'phone', 'calendar'].forEach((icon) =>
+  ['plug', 'phone', 'calendar'].forEach((icon) =>
     assert.equal(iconHint(Object.assign(pickIn({ icon: icon }), WIFI)), null, icon));
-  assert.equal(iconHint(WIFI), null, 'None, as the settings start');
+  assert.equal(iconHint(WIFI), 'On while the value is on, off while it is off.', 'the Switch, as a slot starts');
 });
 
-test('a value that is neither on nor off leaves an icon that turns for None, picked as the value or with a plugin', (t) => {
+test('the Look row greys out Icon for a value that is neither on nor off, and its hint says why', (t) => {
+  userData(t, { plugins: WITH_WIFI.concat([{ uuid: PREFERENCES, name: 'Preferences', items: [], complications: [
+    { position: 0, property: 'wifi', category: 'phone', onOff: true },
+    { position: 1, property: 'battery_level', category: 'phone' }] }]) });
+  const neither = (S) => PConf.whenResolvers.get('pluginValueNeither')(S, BASALT, { slotKey: SLOT });
+  const hint = (S) => PConf.hintResolvers.get('pluginValueLookHint')(S, BASALT, { slotKey: SLOT });
+  [[LEVEL, true], [WIFI, false], [PLACE(0), false], [PLACE(1), true],
+    [pickIn({ plugin: PHONE, id: 'phone/phone_state/gone' }), false], [{}, false]].forEach(([S, is], i) => {
+    assert.equal(neither(S), is, 'case ' + i);
+    assert.equal(hint(S), is ? 'The Icon look is for a value that is on or off.' : null, 'case ' + i);
+  });
+  const html = dialogHtml(slotSettings(LEVEL));
+  assert.ok(html.indexOf('data-k="' + KEYS.look + '" data-v="icon" disabled') !== -1, 'Icon greyed out');
+  assert.ok(html.indexOf('data-k="' + KEYS.look + '" data-v="both">') !== -1, 'Icon + text stays');
+  assert.ok(html.indexOf('The Icon look is for a value that is on or off.') !== -1, 'under the row');
+  assert.ok(dialogHtml(slotSettings(WIFI)).indexOf('data-k="' + KEYS.look + '" data-v="icon">') !== -1,
+    'pickable for a value that is on or off');
+});
+
+const LEVEL_ID = 'phone/phone_state/battery_level';
+
+test('a value that is neither on nor off takes the first icon that stays the same in Icon + text', (t) => {
   userData(t, { plugins: WITH_WIFI });
-  const S = Object.assign(pickIn({ icon: 'wifi' }), WIFI);
+  const S = Object.assign(pickIn({ look: 'both', icon: 'wifi' }), WIFI);
   valuePicked(S);
   assert.equal(S[KEYS.icon], 'wifi', 'Wi-Fi is on or off');
-  S[KEYS.id] = 'phone/phone_state/battery_level';
+  S[KEYS.id] = LEVEL_ID;
   valuePicked(S);
-  assert.equal(S[KEYS.icon], 'none');
-  S[KEYS.icon] = 'plug';
+  assert.equal(S[KEYS.icon], 'plug', 'an icon that turns would stay off');
+  S[KEYS.icon] = 'phone';
   valuePicked(S);
-  assert.equal(S[KEYS.icon], 'plug', 'an icon that stays the same fits any value');
-  const gone = Object.assign(pickIn({ icon: 'switch' }), WIFI, { [KEYS.id]: 'phone/phone_state/gone' });
+  assert.equal(S[KEYS.icon], 'phone', 'an icon that stays the same fits any value');
+  const gone = Object.assign(pickIn({ look: 'both', icon: 'switch' }), WIFI, { [KEYS.id]: 'phone/phone_state/gone' });
   valuePicked(gone);
   assert.equal(gone[KEYS.icon], 'switch', 'a value the phone no longer lists: kept');
+  const text = Object.assign(pickIn({ icon: 'wifi' }), WIFI, { [KEYS.id]: LEVEL_ID });
+  valuePicked(text);
+  assert.deepEqual([text[KEYS.look], text[KEYS.icon]], [undefined, 'wifi'], 'the Text look draws no icon: kept');
+  lookPicked(text, 'both');
+  assert.deepEqual([text[KEYS.look], text[KEYS.icon]], ['both', 'plug'], 'until a Look draws it');
+});
+
+test('the Icon look takes an icon that turns, and goes back to Text for a value that is neither on nor off', (t) => {
+  userData(t, { plugins: WITH_WIFI });
+  const S = Object.assign(pickIn({ look: 'both', icon: 'calendar' }), WIFI);
+  lookPicked(S, 'icon');
+  assert.deepEqual([S[KEYS.look], S[KEYS.icon]], ['icon', 'switch'], 'the first that turns');
+  S[KEYS.icon] = 'bluetooth';
+  lookPicked(S, 'icon');
+  assert.equal(S[KEYS.icon], 'bluetooth', 'one that turns: kept');
+  S[KEYS.id] = LEVEL_ID;
+  valuePicked(S);
+  assert.deepEqual([S[KEYS.look], S[KEYS.icon]], ['text', 'bluetooth'], 'alone, the icon would show nothing');
+  const gone = Object.assign(pickIn({ look: 'both', icon: 'plug' }), WIFI, { [KEYS.id]: 'phone/phone_state/gone' });
+  lookPicked(gone, 'icon');
+  assert.deepEqual([gone[KEYS.look], gone[KEYS.icon]], ['icon', 'switch'], 'a value the phone no longer lists');
+});
+
+test('a new plugin starts on its first value, with a Look and an icon that fit it; Plugin None on the defaults', (t) => {
+  userData(t, { plugins: WITH_WIFI });
   // The engine stores the new plugin, then runs the row's change.
-  const other = Object.assign(pickIn({ icon: 'bluetooth' }), WIFI, { [KEYS.plugin]: MUNINN });
+  const other = Object.assign(pickIn({ look: 'both', icon: 'bluetooth' }), WIFI, { [KEYS.plugin]: MUNINN });
   picked(other, PHONE, MUNINN);
-  assert.deepEqual([other[KEYS.id], other[KEYS.icon]], ['muninn/stats/daysRemaining', 'none'], 'a new plugin');
-  // Plugin None hides the Icon row, so the icon goes with the plugin, one that stays the same too.
-  const off = Object.assign(pickIn({ icon: 'plug' }), WIFI, { [KEYS.plugin]: '' });
+  assert.deepEqual([other[KEYS.id], other[KEYS.look], other[KEYS.icon]], ['muninn/stats/daysRemaining', 'both', 'plug'],
+    'a number: Icon + text with an icon that stays the same');
+  const alone = Object.assign(pickIn({ look: 'icon', icon: 'wifi' }), WIFI, { [KEYS.plugin]: MUNINN });
+  picked(alone, PHONE, MUNINN);
+  assert.deepEqual([alone[KEYS.look], alone[KEYS.icon]], ['text', 'wifi'], 'the Icon look goes back to Text');
+  // Plugin None hides the Look and Icon rows, so they go back to where a slot starts.
+  const off = Object.assign(pickIn({ look: 'icon', icon: 'wifi' }), WIFI, { [KEYS.plugin]: '' });
   picked(off, PHONE, '');
-  assert.deepEqual([off[KEYS.id], off[KEYS.icon]], ['', 'none'], 'Plugin None');
-  const same = Object.assign(pickIn({ icon: 'plug' }), WIFI);
+  assert.deepEqual([off[KEYS.id], off[KEYS.look], off[KEYS.icon]], ['', 'text', 'switch'], 'Plugin None');
+  const same = Object.assign(pickIn({ look: 'both', icon: 'plug' }), WIFI);
   picked(same, PHONE, PHONE);
-  assert.equal(same[KEYS.icon], 'plug', 'the same plugin again: kept');
+  assert.deepEqual([same[KEYS.look], same[KEYS.icon]], ['both', 'plug'], 'the same plugin again: kept');
 });
 
 test('an Icon option\'s picture: the watch\'s drawing of each form it takes, on before off', () => {
@@ -666,15 +758,16 @@ test('an Icon option\'s picture: the watch\'s drawing of each form it takes, on 
   assert.equal(page.iconPicture({}, BASALT, { value: 'plug' }), glyph('PLUG'));
   assert.equal(page.iconPicture({}, BASALT, { value: 'phone' }), glyph('PHONE_BATTERY'), 'the Phone battery slot\'s');
   assert.equal(page.iconPicture({}, BASALT, { value: 'calendar' }), glyph('COUNTDOWN'), 'the Countdown slot\'s');
-  ['none', '__hdr_turns', 'toString'].forEach((v) => assert.equal(page.iconPicture({}, BASALT, { value: v }), '', v));
+  ['__hdr_turns', '__hdr_same', 'none', 'toString'].forEach((v) =>
+    assert.equal(page.iconPicture({}, BASALT, { value: v }), '', v));
 });
 
 test('the bars\' pictures draw the icon picked, in the form the value read last takes', (t) => {
   clock(t, NOW);
   userData(t, { plugins: WITH_WIFI, pluginValues: handed(kept({ state: true, short: 'Home' }, { source: WIFI_KEY })) });
   const MID = catalog.pluginValueKeys('statusTopMid');
-  const S = Object.assign({ statusTopMid: 'pluginValue' }, pickIn({ plugin: PHONE, id: 'phone/phone_state/wifi', icon: 'wifi' },
-    'statusTopMid'));
+  const S = Object.assign({ statusTopMid: 'pluginValue' },
+    pickIn({ plugin: PHONE, id: 'phone/phone_state/wifi', look: 'both', icon: 'wifi' }, 'statusTopMid'));
   assert.equal(page.barDrawing(S, 'statusTopMid'), 'WIFI', 'on');
   const slot = barSlots(S, BASALT, 'top', true, new Date(NOW))[1];
   assert.deepEqual([slot.code, slot.text, slot.drawing], ['pluginValue', 'Home', 'WIFI'], 'the watch pictures\' drawing');
@@ -686,10 +779,13 @@ test('the bars\' pictures draw the icon picked, in the form the value read last 
   global.INJECTED_USERDATA = { plugins: WITH_WIFI };
   assert.equal(page.barDrawing(S, 'statusTopMid'), 'WIFI_OFF', 'none read');
   assert.equal(page.barDrawing(Object.assign({}, S, { [MID.icon]: 'plug' }), 'statusTopMid'), 'PLUG');
-  const none = Object.assign({}, S, { [MID.icon]: 'none' });
-  assert.equal(page.barDrawing(none, 'statusTopMid'), null);
-  const bare = barSlots(none, BASALT, 'top', true, new Date(NOW))[1];
-  assert.deepEqual([bare.icon, bare.drawing], [null, null], 'the value alone');
+  const text = Object.assign({}, S, { [MID.look]: 'text' });
+  assert.equal(page.barDrawing(text, 'statusTopMid'), null);
+  global.INJECTED_USERDATA.pluginValues = handed(kept({ state: true, short: 'Home' }, { source: WIFI_KEY }));
+  const bare = barSlots(text, BASALT, 'top', true, new Date(NOW))[1];
+  assert.deepEqual([bare.text, bare.icon, bare.drawing], ['Home', null, null], 'the Text look: the value alone');
+  const alone = barSlots(Object.assign({}, S, { [MID.look]: 'icon' }), BASALT, 'top', true, new Date(NOW))[1];
+  assert.deepEqual([alone.text, alone.drawing], ['', 'WIFI'], 'the Icon look: the icon alone');
 });
 
 // --- two slots, two values -------------------------------------------------------
@@ -699,7 +795,7 @@ test('two slots, two dialogs: each lists, says and shows what its own pick does'
   const days = kept({ short: '5 d', number: 5, unit: 'd' }, { source: MUNINN + '/muninn/stats/daysRemaining' });
   userData(t, { plugins: WITH_WIFI, pluginValues: Object.assign(handed(kept({ short: '87%' })), handed(days)) });
   const S = Object.assign({ statusTopLeft: 'pluginValue', statusTopRight: 'pluginValue' }, LEVEL,
-    pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', icon: 'calendar' }, 'statusTopRight'));
+    pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', look: 'both', icon: 'calendar' }, 'statusTopRight'));
   assert.deepEqual(valueOptions(S).map((o) => o[1]), ['phone/phone_state/battery_level', 'phone/phone_state/wifi']);
   assert.deepEqual(valueOptions(S, 'statusTopRight').map((o) => o[1]), ['muninn/stats/daysRemaining',
     'muninn/estimate/batteryLife']);
@@ -721,19 +817,21 @@ test('two slots, two dialogs: each lists, says and shows what its own pick does'
 test('a row\'s change touches its own slot alone', (t) => {
   userData(t, { plugins: WITH_WIFI });
   const RIGHT = catalog.pluginValueKeys('statusTopRight');
-  const S = Object.assign(pickIn({ icon: 'wifi' }), WIFI,
-    pickIn({ plugin: PHONE, id: 'phone/phone_state/wifi', icon: 'wifi' }, 'statusTopRight'));
+  const S = Object.assign(pickIn({ look: 'icon', icon: 'wifi' }), WIFI,
+    pickIn({ plugin: PHONE, id: 'phone/phone_state/wifi', look: 'icon', icon: 'wifi' }, 'statusTopRight'));
   S[RIGHT.plugin] = MUNINN;
   picked(S, PHONE, MUNINN, 'statusTopRight');
-  assert.deepEqual([S[RIGHT.id], S[RIGHT.icon]], ['muninn/stats/daysRemaining', 'none'], 'the right slot starts anew');
-  assert.deepEqual([S[KEYS.plugin], S[KEYS.id], S[KEYS.icon]], [PHONE, 'phone/phone_state/wifi', 'wifi'],
-    'the left slot keeps its pick');
-  S[KEYS.id] = 'phone/phone_state/battery_level';
+  assert.deepEqual([S[RIGHT.id], S[RIGHT.look]], ['muninn/stats/daysRemaining', 'text'], 'the right slot starts anew');
+  assert.deepEqual([S[KEYS.plugin], S[KEYS.id], S[KEYS.look], S[KEYS.icon]], [PHONE, 'phone/phone_state/wifi', 'icon',
+    'wifi'], 'the left slot keeps its pick');
+  lookPicked(S, 'both', 'statusTopRight');
+  assert.deepEqual([S[RIGHT.icon], S[KEYS.icon]], ['plug', 'wifi'], 'the right slot\'s Look fits its icon alone');
+  S[KEYS.id] = LEVEL_ID;
   valuePicked(S);
-  assert.equal(S[KEYS.icon], 'none', 'the left slot\'s icon fits its new value');
-  Object.assign(S, pickIn({ plugin: PHONE, id: 'phone/phone_state/battery_level', icon: 'switch' }, 'statusTopRight'),
-    pickIn({ id: 'phone/phone_state/wifi', icon: 'switch' }));
+  assert.equal(S[KEYS.look], 'text', 'the left slot\'s Look fits its new value');
+  Object.assign(S, pickIn({ plugin: PHONE, id: LEVEL_ID, look: 'both', icon: 'switch' }, 'statusTopRight'),
+    pickIn({ id: 'phone/phone_state/wifi', look: 'both', icon: 'switch' }));
   valuePicked(S, 'statusTopRight');
-  assert.deepEqual([S[RIGHT.icon], S[KEYS.icon]], ['none', 'switch'],
+  assert.deepEqual([S[RIGHT.icon], S[KEYS.icon]], ['plug', 'switch'],
     'the right slot\'s icon fits its value; the left slot\'s, on Wi-Fi, stays');
 });

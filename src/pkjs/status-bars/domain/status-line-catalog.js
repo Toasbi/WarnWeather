@@ -626,10 +626,11 @@
   }
 
   // The settings a slot keeps for the Plugin value, by part, each the slot's key with this after
-  // it: the plugin, the value of it, its icon and how often it is read (plugin-values.js pickOf).
-  // ONE table for each slot's keys (pluginValueKeys) and the list of them (pluginValueKeyList).
-  var PLUGIN_VALUE_PARTS = { plugin: 'PluginValuePlugin', id: 'PluginValueId', icon: 'PluginValueIcon',
-    every: 'PluginValueEvery' };
+  // it: the plugin, the value of it, its Look, its icon and how often it is read (plugin-values.js
+  // pickOf). ONE table for each slot's keys (pluginValueKeys) and the list of them
+  // (pluginValueKeyList).
+  var PLUGIN_VALUE_PARTS = { plugin: 'PluginValuePlugin', id: 'PluginValueId', look: 'PluginValueLook',
+    icon: 'PluginValueIcon', every: 'PluginValueEvery' };
 
   /**
    * The settings a slot keeps for the Plugin value (PLUGIN_VALUE_PARTS), which the slot's own
@@ -639,8 +640,8 @@
    * refresh), and no weather fetch; every close of the settings sends the bars again
    * (channel-scheduler.js onConfigClosed), the icon with them.
    * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
-   * @returns {{plugin: string, id: string, icon: string, every: string}} Each one's key, e.g.
-   *   'statusForecastLeftPluginValuePlugin'.
+   * @returns {{plugin: string, id: string, look: string, icon: string, every: string}} Each one's
+   *   key, e.g. 'statusForecastLeftPluginValuePlugin'.
    */
   function pluginValueKeys(slotKey) {
     var keys = {};

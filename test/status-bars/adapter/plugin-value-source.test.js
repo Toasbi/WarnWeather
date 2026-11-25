@@ -357,7 +357,7 @@ test('the same value heard again sends nothing; another is sent', () => {
 
 test('a value that turns off with the same text is sent again, with the icon\'s off form; the same again sends nothing', () => {
   const WIFI = 'phone/phone_state/wifi';
-  const h = boot({ settings: slot('statusTopLeft', { id: WIFI, icon: 'wifi' }) });
+  const h = boot({ settings: slot('statusTopLeft', { id: WIFI, look: 'both', icon: 'wifi' }) });
   /**
    * The Phone plugin's Wi-Fi, as a boolean with words of its own.
    * @param {boolean} on Whether it is on.
@@ -383,6 +383,30 @@ test('a value that turns off with the same text is sent again, with the icon\'s 
   h.pebble.subs[2].push(wifi(false));
   minute();
   assert.equal(h.sends.length, 2, 'still off: nothing owed');
+});
+
+test('in the Icon look a new text with the same state owes the watch nothing; another state does', () => {
+  const WIFI = 'phone/phone_state/wifi';
+  const h = boot({ settings: slot('statusTopLeft', { id: WIFI, look: 'icon', icon: 'wifi' }) });
+  /**
+   * @param {boolean} on Whether the Wi-Fi is on. @param {string} name Its network's name.
+   * @returns {Object} The Phone plugin's answer.
+   */
+  const wifi = (on, name) => answer({ wifi: { boolean: { value: on }, shortText: { text: name } } });
+  h.pebble.subs[0].push(wifi(true, 'Home'));
+  minute();
+  assert.equal(h.sends.length, 1);
+  assert.deepEqual(decodeLine(h.sends[0].STATUS_LINE_3_UINT8)[0].text, '', 'the icon alone');
+  h.clock += HOUR;
+  minute();
+  h.pebble.subs[1].push(wifi(true, 'Work'));
+  minute();
+  assert.equal(h.sends.length, 1, 'the watch shows no text: nothing owed');
+  h.clock += HOUR;
+  minute();
+  h.pebble.subs[2].push(wifi(false, 'Work'));
+  minute();
+  assert.equal(h.sends.length, 2, 'off: the icon\'s off form is owed');
 });
 
 test('a picked plugin the phone no longer lists is not asked, so no other plugin runs for it: the slot shows --', () => {

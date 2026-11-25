@@ -3,7 +3,8 @@
 // The Plugin value status slot ('pluginValue', status-line-catalog.js): a value another app's
 // plugin serves, which the user picks in the slot's dialog. Each slot that holds it picks its own
 // (pickOf). Here: the source a slot picks, how often it is read, how long a value read from it
-// shows, the text the slot prints and the icon before it.
+// shows, and what the slot draws of it in its Look: the text it prints, the icon before it, or
+// either alone.
 //
 // The settings page loads this file too (window.PluginValues): the dialog's last value and the
 // bars' pictures print the text the bake prints, and the dialog's rows store the ids valueId
@@ -27,13 +28,20 @@
     var EVERY_DEFAULT = '60';
 
     /**
-     * The Icon row's choices (a pick's icon) and the icon each draws before the value's text:
-     * one that turns with a value that is on or off has its on form and its off form, one that
-     * stays the same its one form. None draws nothing, and is where a slot starts.
+     * The Look row's choices (a pick's look), as the other slots' Look rows name them: the icon
+     * before the value's text, the text alone, where a slot starts, or the icon alone, which only
+     * an icon that turns with a value that is on or off can show.
+     */
+    var LOOKS = ['both', 'text', 'icon'];
+    var LOOK_DEFAULT = 'text';
+
+    /**
+     * The Icon row's choices (a pick's icon), in its order, and the icon each draws: one that
+     * turns with a value that is on or off has its on form and its off form, one that stays the
+     * same its one form. The Switch is where a slot starts: it turns, so it shows in every Look.
      */
     var ICONS = catalog.ICONS;
     var ICON_FORMS = {
-        none: [],
         'switch': [ICONS.PV_SWITCH, ICONS.PV_SWITCH_OFF],
         wifi: [ICONS.PV_WIFI, ICONS.PV_WIFI_OFF],
         bluetooth: [ICONS.PV_BT, ICONS.PV_BT_OFF],
@@ -41,14 +49,14 @@
         phone: [ICONS.PV_PHONE],
         calendar: [ICONS.PV_CALENDAR]
     };
-    var ICON_DEFAULT = 'none';
+    var ICON_DEFAULT = 'switch';
 
     /**
-     * What a slot picks where it keeps no setting of its own (PluginValuePick): no plugin, no
-     * icon and the Updates a slot starts on. Its dialog's rows show these and never store them
-     * (page/status-bars/plugin-value-schema.js).
+     * What a slot picks where it keeps no setting of its own (PluginValuePick): no plugin, the
+     * text alone, the Switch for the Looks with an icon and the Updates a slot starts on. Its
+     * dialog's rows show these and never store them (page/status-bars/plugin-value-schema.js).
      */
-    var PICK_DEFAULTS = { plugin: '', id: '', icon: ICON_DEFAULT, every: EVERY_DEFAULT };
+    var PICK_DEFAULTS = { plugin: '', id: '', look: LOOK_DEFAULT, icon: ICON_DEFAULT, every: EVERY_DEFAULT };
 
     /** A value shows for three Updates intervals after it was read, and at least this long. */
     var SHOWN_AT_LEAST_MS = 3 * HOUR_MS;
@@ -94,6 +102,7 @@
      * @typedef {Object} PluginValuePick
      * @property {*} plugin The plugin's uuid ('' or absent for none).
      * @property {*} id The value of it (valueId's, or complicationId's).
+     * @property {*} look The Look row's choice (a LOOKS entry).
      * @property {*} icon The Icon row's choice (an ICON_FORMS name).
      * @property {*} every The Updates row's choice (an EVERY_CHOICES entry).
      */
@@ -234,8 +243,18 @@
 
     /**
      * @param {?PluginValuePick} pick What a slot picks (pickOf).
-     * @returns {string} Its Icon row's choice: an ICON_FORMS name, none by default and for one it
-     *   does not know.
+     * @returns {string} Its Look row's choice: a LOOKS entry, the text alone by default and for
+     *   one it does not know.
+     */
+    function lookOf(pick) {
+        var look = pick && pick.look;
+        return LOOKS.indexOf(look) !== -1 ? look : LOOK_DEFAULT;
+    }
+
+    /**
+     * @param {?PluginValuePick} pick What a slot picks (pickOf).
+     * @returns {string} Its Icon row's choice: an ICON_FORMS name, the Switch by default and for
+     *   one it does not know (the None of a page from before the Look).
      */
     function iconName(pick) {
         var name = pick && pick.icon;
@@ -244,18 +263,31 @@
     }
 
     /**
-     * The icon the slot draws before the value's text (iconName): one that turns in its on form
+     * The icon the slot draws (iconName), in the Looks with one: one that turns in its on form
      * while the value is on, and in its off form while it is off, too old or not read; one that
      * stays the same as it is.
      * @param {?PluginValuePick} pick What the slot picks (pickOf).
      * @param {?{state: ?boolean}} reading The reading the slot shows (shownReading), or null.
-     * @returns {number} The STATUS_ICON_* id the bake packs: the one that loads no drawing for
-     *   none.
+     * @returns {number} The STATUS_ICON_* id the bake packs: the one that loads no drawing in the
+     *   Text look.
      */
     function iconId(pick, reading) {
         var forms = ICON_FORMS[iconName(pick)];
-        if (!forms.length) { return ICONS.PLUGIN_TEXT; }
+        if (lookOf(pick) === 'text') { return ICONS.PLUGIN_TEXT; }
         return forms[reading && reading.state === true ? 0 : forms.length - 1];
+    }
+
+    /**
+     * The text the slot prints of the reading it shows (textFor): none in the Icon look, where
+     * the icon alone shows the value (the watch draws a glyph with no text by itself).
+     * @param {?PluginValuePick} pick What the slot picks (pickOf).
+     * @param {?Object} reading The reading the slot shows (shownReading), or null.
+     * @param {number} cap The slot's bytes. @param {?Object} settings Settings: the clock's format.
+     * @param {number} nowMs Now, in epoch milliseconds.
+     * @returns {string}
+     */
+    function slotTextOf(pick, reading, cap, settings, nowMs) {
+        return lookOf(pick) === 'icon' ? '' : textFor(reading, cap, settings, nowMs);
     }
 
     /**
@@ -290,6 +322,8 @@
 
     var api = {
         EVERY_CHOICES: EVERY_CHOICES,
+        LOOKS: LOOKS,
+        LOOK_DEFAULT: LOOK_DEFAULT,
         ICON_FORMS: ICON_FORMS,
         ICON_DEFAULT: ICON_DEFAULT,
         PICK_DEFAULTS: PICK_DEFAULTS,
@@ -302,8 +336,10 @@
         everyMs: everyMs,
         oneLine: oneLine,
         textFor: textFor,
+        lookOf: lookOf,
         iconName: iconName,
         iconId: iconId,
+        slotTextOf: slotTextOf,
         heldUntil: heldUntil,
         shownReading: shownReading
     };

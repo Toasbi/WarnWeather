@@ -63,9 +63,9 @@ function readOf(source, list, permissions) {
 }
 
 /**
- * What the slots that show a source show of its value at an instant, each the text it prints
- * at the widest a Plugin value slot is (status-lines.js textCap) and the icon before it, which
- * turns with a value that is on or off (plugin-values.js iconId). A value grown too old for a
+ * What the slots that show a source show of its value at an instant, each in its Look: the text
+ * it prints at the widest a Plugin value slot is (status-lines.js textCap; slotTextOf) and the
+ * icon, which turns with a value that is on or off (plugin-values.js iconId). A value grown too old for a
  * slot shows nothing there (plugin-values.js shownReading), and a moment prints its date once it
  * is on another day (slot-text.js momentText). Never logged: it is another app's data.
  * @param {?Object} value The value kept, or null.
@@ -79,8 +79,8 @@ function readOf(source, list, permissions) {
 function shownSlots(value, slots, settings, nowMs) {
     var shown = slots.map(function (slot) {
         var reading = pluginValues.shownReading(value, slot.pick, nowMs);
-        return reading ? { text: pluginValues.textFor(reading, catalog.CAPS.MID_TEXT_MAX, settings, nowMs),
-            icon: pluginValues.iconId(slot.pick, reading) } : null;
+        return reading ? { text: pluginValues.slotTextOf(slot.pick, reading, catalog.CAPS.MID_TEXT_MAX, settings,
+            nowMs), icon: pluginValues.iconId(slot.pick, reading) } : null;
     });
     return shown.some(Boolean) ? shown : null;
 }

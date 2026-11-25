@@ -2,7 +2,7 @@
 // 3.5.0 gave each Plugin value slot a value of its own (migrations/status-slots.js
 // movePluginValueIntoSlots): the one set of plugin, value, icon and Updates that every slot
 // holding the item showed becomes each such slot's own, so each shows what it showed, and the
-// set goes.
+// set goes. An icon came before the value, which a slot's Look Icon + text draws.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const statusSlots = require('../../../../src/pkjs/settings/domain/migrations/status-slots.js');
@@ -10,13 +10,14 @@ const registry = require('../../../../src/pkjs/settings/domain/migrations/regist
 const KEYS = require('../../../../src/pkjs/settings/domain/storage-keys.js');
 const catalog = require('../../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const statusLines = require('../../../../src/pkjs/status-bars/domain/status-lines.js');
+const pluginValues = require('../../../../src/pkjs/status-bars/domain/plugin-values.js');
 
 const move = statusSlots.movePluginValueIntoSlots;
 const SHARED = { pluginValuePlugin: 'aaaaaaaa-0000-0000-0000-000000000001', pluginValueId: 'weather/now/level',
   pluginValueIcon: 'plug', pluginValueEvery: '30' };
 
 /**
- * @param {string} slotKey A slot. @param {Object} set {plugin, id, icon, every}, any of them.
+ * @param {string} slotKey A slot. @param {Object} set {plugin, id, look, icon, every}, any of them.
  * @returns {Object} The slot's own Plugin value settings holding that set.
  */
 function own(slotKey, set) {
@@ -26,7 +27,7 @@ function own(slotKey, set) {
     return out;
   }, {});
 }
-const SET = { plugin: SHARED.pluginValuePlugin, id: SHARED.pluginValueId, icon: 'plug', every: '30' };
+const SET = { plugin: SHARED.pluginValuePlugin, id: SHARED.pluginValueId, look: 'both', icon: 'plug', every: '30' };
 
 test.beforeEach((t) => { t.mock.method(console, 'log', () => {}); });
 
@@ -45,7 +46,26 @@ test('a slot\'s own pick stays: a blob the new page saved before this boot', () 
     own('statusTopLeft', mine), SHARED);
   move(blob);
   assert.deepEqual(blob, Object.assign({ statusTopLeft: 'pluginValue', statusTopRight: 'pluginValue' },
-    own('statusTopLeft', Object.assign({}, mine, { icon: 'plug', every: '30' })), own('statusTopRight', SET)));
+    own('statusTopLeft', Object.assign({}, mine, { look: 'both', icon: 'plug', every: '30' })), own('statusTopRight', SET)));
+  const looks = Object.assign({ statusTopLeft: 'pluginValue', statusTopRight: 'pluginValue' },
+    own('statusTopLeft', { look: 'icon', icon: 'wifi' }), own('statusTopRight', { look: 'text' }), SHARED);
+  move(looks);
+  assert.deepEqual([looks.statusTopLeftPluginValueLook, looks.statusTopLeftPluginValueIcon], ['icon', 'wifi'],
+    'its own Look and icon');
+  assert.deepEqual([looks.statusTopRightPluginValueLook, looks.statusTopRightPluginValueIcon], ['text', 'plug'],
+    'its own Look, with the set\'s icon');
+});
+
+test('the set\'s icon None, the value alone, is the Text look a slot starts on; another icon comes before the text', () => {
+  const blob = Object.assign({ statusTopLeft: 'pluginValue' }, SHARED, { pluginValueIcon: 'none' });
+  move(blob);
+  assert.deepEqual(blob, Object.assign({ statusTopLeft: 'pluginValue' }, own('statusTopLeft', { plugin: SET.plugin,
+    id: SET.id, every: '30' })));
+  const level = statusLines.wantedPluginValues(blob, { platform: 'basalt' })[0];
+  assert.equal(pluginValues.iconId(level.pick, null), catalog.ICONS.PLUGIN_TEXT, 'the Text look: no icon drawn');
+  const wifi = Object.assign({ statusTopLeft: 'pluginValue' }, SHARED, { pluginValueIcon: 'wifi' });
+  move(wifi);
+  assert.deepEqual([wifi.statusTopLeftPluginValueLook, wifi.statusTopLeftPluginValueIcon], ['both', 'wifi']);
 });
 
 test('only what the set holds is copied: a slot takes the defaults of the rest', () => {
@@ -79,9 +99,9 @@ test('a migrated install reads what it read: each slot asks for the set\'s sourc
   const blob = Object.assign({ statusTopLeft: 'pluginValue', statusTopRight: 'pluginValue' }, SHARED);
   move(blob);
   const wanted = statusLines.wantedPluginValues(blob, { platform: 'basalt' });
-  assert.deepEqual(wanted.map((slot) => [slot.slotKey, slot.source.key, slot.pick.icon, slot.pick.every]), [
-    ['statusTopLeft', SET.plugin + '/' + SET.id, 'plug', '30'],
-    ['statusTopRight', SET.plugin + '/' + SET.id, 'plug', '30']]);
+  assert.deepEqual(wanted.map((slot) => [slot.slotKey, slot.source.key, slot.pick.look, slot.pick.icon, slot.pick.every]), [
+    ['statusTopLeft', SET.plugin + '/' + SET.id, 'both', 'plug', '30'],
+    ['statusTopRight', SET.plugin + '/' + SET.id, 'both', 'plug', '30']]);
 });
 
 test('the ledger runs it last, marks it at once and counts it reset-safe', () => {

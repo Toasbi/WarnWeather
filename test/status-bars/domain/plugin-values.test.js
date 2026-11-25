@@ -16,24 +16,28 @@ const UUID = '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5f6';
 // What a slot picks (pv.pickOf): Muninn's days left.
 const PICK = { plugin: UUID, id: 'muninn/stats/daysRemaining' };
 
-test('pickOf: a slot\'s own plugin, value, icon and Updates, each as stored', () => {
+test('pickOf: a slot\'s own plugin, value, Look, icon and Updates, each as stored', () => {
   const settings = { statusTopRightPluginValuePlugin: UUID, statusTopRightPluginValueId: 'a/b/c',
-    statusTopRightPluginValueIcon: 'wifi', statusTopRightPluginValueEvery: '15', statusTopLeftPluginValuePlugin: 'x' };
-  assert.deepEqual(pv.pickOf(settings, 'statusTopRight'), { plugin: UUID, id: 'a/b/c', icon: 'wifi', every: '15' });
-  assert.deepEqual(pv.pickOf(settings, 'statusTopMid'), { plugin: undefined, id: undefined, icon: undefined,
-    every: undefined }, 'a slot that keeps none');
+    statusTopRightPluginValueLook: 'both', statusTopRightPluginValueIcon: 'wifi',
+    statusTopRightPluginValueEvery: '15', statusTopLeftPluginValuePlugin: 'x' };
+  assert.deepEqual(pv.pickOf(settings, 'statusTopRight'),
+    { plugin: UUID, id: 'a/b/c', look: 'both', icon: 'wifi', every: '15' });
+  assert.deepEqual(pv.pickOf(settings, 'statusTopMid'), { plugin: undefined, id: undefined, look: undefined,
+    icon: undefined, every: undefined }, 'a slot that keeps none');
   assert.deepEqual(pv.pickOf(null, 'statusTopRight').plugin, undefined);
   const keys = catalog.pluginValueKeys('statusBar5Mid');
   assert.deepEqual(pv.pickOf({ [keys.plugin]: UUID, [keys.id]: 'a/b/c' }, 'statusBar5Mid'),
-    { plugin: UUID, id: 'a/b/c', icon: undefined, every: undefined }, 'bars 4 to 6 too');
+    { plugin: UUID, id: 'a/b/c', look: undefined, icon: undefined, every: undefined }, 'bars 4 to 6 too');
   assert.equal(pv.sourceOf(pv.pickOf(settings, 'statusTopMid')), null);
   assert.equal(pv.everyMs(pv.pickOf(settings, 'statusTopMid')), HOUR);
-  assert.equal(pv.iconName(pv.pickOf(settings, 'statusTopMid')), 'none');
+  assert.equal(pv.lookOf(pv.pickOf(settings, 'statusTopMid')), 'text');
+  assert.equal(pv.iconName(pv.pickOf(settings, 'statusTopMid')), 'switch');
 });
 
 test('PICK_DEFAULTS: what a slot that keeps none picks, as the rest of the rules read it', () => {
-  assert.deepEqual(pv.PICK_DEFAULTS, { plugin: '', id: '', icon: 'none', every: '60' });
+  assert.deepEqual(pv.PICK_DEFAULTS, { plugin: '', id: '', look: 'text', icon: 'switch', every: '60' });
   assert.equal(pv.sourceOf(pv.PICK_DEFAULTS), null);
+  assert.equal(pv.lookOf(pv.PICK_DEFAULTS), pv.lookOf({}));
   assert.equal(pv.iconName(pv.PICK_DEFAULTS), pv.iconName({}));
   assert.equal(pv.everyMs(pv.PICK_DEFAULTS), pv.everyMs({}));
 });
@@ -185,22 +189,43 @@ test('the text: cut to the slot\'s bytes at a character\'s edge, as the bake cut
   assert.equal(pv.textFor(reading({ number: 123456789 }), 8), '12345678');
 });
 
-test('the icon: none by default and for a choice it does not know, the id that loads no drawing', () => {
-  const none = catalog.ICONS.PLUGIN_TEXT;
-  assert.equal(pv.iconName(null), 'none');
-  assert.equal(pv.iconName({}), 'none');
-  ['lamp', 'toString', 'constructor', '__proto__', 7].forEach((name) => {
-    assert.equal(pv.iconName({ icon: name }), 'none', String(name));
-    assert.equal(pv.iconId({ icon: name }, reading({ state: true })), none, String(name));
+test('the Look: the text alone by default and for a choice it does not know, the id that loads no drawing', () => {
+  const textOnly = catalog.ICONS.PLUGIN_TEXT;
+  assert.deepEqual(pv.LOOKS, ['both', 'text', 'icon'], 'the Look row\'s choices, as the other slots\' rows name them');
+  assert.equal(pv.lookOf(null), 'text');
+  assert.equal(pv.lookOf({}), 'text');
+  ['none', 'toString', '__proto__', 7].forEach((look) => assert.equal(pv.lookOf({ look: look }), 'text', String(look)));
+  ['both', 'icon'].forEach((look) => assert.equal(pv.lookOf({ look: look }), look));
+  ['switch', 'plug', 'calendar', undefined].forEach((icon) => {
+    assert.equal(pv.iconId({ icon: icon }, reading({ state: true })), textOnly, 'no icon in the Text look: ' + icon);
+    assert.equal(pv.iconId({ look: 'text', icon: icon }, null), textOnly, String(icon));
   });
-  assert.equal(pv.iconId({ icon: 'none' }, reading({ state: true })), none);
+});
+
+test('the icon: the Switch by default and for a choice it does not know, the None of before the Look too', () => {
+  assert.equal(pv.iconName(null), 'switch');
+  assert.equal(pv.iconName({}), 'switch');
+  ['none', 'lamp', 'toString', 'constructor', '__proto__', 7].forEach((name) => {
+    assert.equal(pv.iconName({ icon: name }), 'switch', String(name));
+    assert.equal(pv.iconId({ look: 'both', icon: name }, reading({ state: true })), catalog.ICONS.PV_SWITCH, String(name));
+  });
+});
+
+test('the text: none in the Icon look, the value\'s in the others', () => {
+  const r = reading({ short: '87%' });
+  assert.equal(pv.slotTextOf({ look: 'icon' }, r, 8, {}, T0), '');
+  assert.equal(pv.slotTextOf({ look: 'both' }, r, 8, {}, T0), '87%');
+  assert.equal(pv.slotTextOf({}, r, 8, {}, T0), '87%');
+  assert.equal(pv.slotTextOf({ look: 'text' }, null, 8, {}, T0), '--', 'not read: --');
+  assert.equal(pv.slotTextOf({ look: 'icon' }, null, 8, {}, T0), '', 'the icon alone, off');
 });
 
 test('the icon: one that turns is on only while the value is on; off, too old or not read, it is off', () => {
   const I = catalog.ICONS;
   [['switch', I.PV_SWITCH, I.PV_SWITCH_OFF], ['wifi', I.PV_WIFI, I.PV_WIFI_OFF],
     ['bluetooth', I.PV_BT, I.PV_BT_OFF]].forEach(([name, on, off]) => {
-    const s = { icon: name };
+    const s = { look: 'both', icon: name };
+    assert.equal(pv.iconId({ look: 'icon', icon: name }, reading({ state: true })), on, name + ': the Icon look too');
     assert.equal(pv.iconName(s), name);
     assert.equal(pv.iconId(s, reading({ state: true })), on, name + ': on');
     assert.equal(pv.iconId(s, reading({ short: 'Lamp', state: true })), on, name + ': on, whatever the text says');
@@ -213,12 +238,12 @@ test('the icon: one that turns is on only while the value is on; off, too old or
 test('the icon: one that stays the same is the same whatever the value', () => {
   const I = catalog.ICONS;
   [['plug', I.PV_PLUG], ['phone', I.PV_PHONE], ['calendar', I.PV_CALENDAR]].forEach(([name, id]) => {
-    const s = { icon: name };
+    const s = { look: 'both', icon: name };
     [reading({ state: true }), reading({ state: false }), reading({ number: 87 }), null].forEach((r) => {
       assert.equal(pv.iconId(s, r), id, name);
     });
   });
-  assert.deepEqual(Object.keys(pv.ICON_FORMS), ['none', 'switch', 'wifi', 'bluetooth', 'plug', 'phone', 'calendar'],
+  assert.deepEqual(Object.keys(pv.ICON_FORMS), ['switch', 'wifi', 'bluetooth', 'plug', 'phone', 'calendar'],
     'the Icon row\'s choices, in its order');
 });
 

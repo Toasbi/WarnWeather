@@ -21,7 +21,7 @@ var slotText = require('../../status-bars/domain/slot-text.js');
 var batteryDays = require('../../status-bars/domain/battery-days.js');
 // wantedPluginValues: the Plugin value slots shown with a source picked.
 var statusLines = require('../../status-bars/domain/status-lines.js');
-// ICON_FORMS, iconName: the icons those slots draw.
+// LOOKS, lookOf, ICON_FORMS, iconName: the Looks those slots take and the icons they draw.
 var pluginValues = require('../../status-bars/domain/plugin-values.js');
 var platforms = require('../../config-ui/lib/platform.js');
 var color = require('../../lib/color.js');
@@ -228,18 +228,34 @@ function weatherSourcesOf(settings) {
 }
 
 /**
- * The icons Plugin value slots draw before their values (each slot's Icon row: plugin-values.js
- * iconName), each once, in the Icon row's order: this app's own choices, never a text of the
- * user's.
+ * @param {string[]} choices A row's choices, in its order.
+ * @param {string[]} taken The choices slots take.
+ * @returns {string} Those taken, each once, in the row's order, joined by commas ('' for none):
+ *   this app's own choices, never a text of the user's.
+ */
+function takenInOrder(choices, taken) {
+    return choices.filter(function (name) { return taken.indexOf(name) !== -1; }).join(',');
+}
+
+/**
+ * The Looks Plugin value slots take (each slot's Look row: plugin-values.js lookOf).
  * @param {Array<{pick: Object}>} slots The slots (status-lines.js wantedPluginValues).
- * @returns {string} Their names joined by commas ('none' for a slot without one), or '' for no
- *   slot.
+ * @returns {string} takenInOrder's.
+ */
+function pluginValueLooks(slots) {
+    return takenInOrder(pluginValues.LOOKS, slots.map(function (slot) { return pluginValues.lookOf(slot.pick); }));
+}
+
+/**
+ * The icons Plugin value slots draw (each slot's Icon row: plugin-values.js iconName), in the
+ * Looks with one: a slot in the Text look draws none.
+ * @param {Array<{pick: Object}>} slots The slots (status-lines.js wantedPluginValues).
+ * @returns {string} takenInOrder's.
  */
 function pluginValueIcons(slots) {
-    var names = slots.map(function (slot) { return pluginValues.iconName(slot.pick); });
-    return Object.keys(pluginValues.ICON_FORMS).filter(function (name) {
-        return names.indexOf(name) !== -1;
-    }).join(',');
+    var drawn = slots.filter(function (slot) { return pluginValues.lookOf(slot.pick) !== 'text'; });
+    return takenInOrder(Object.keys(pluginValues.ICON_FORMS),
+        drawn.map(function (slot) { return pluginValues.iconName(slot.pick); }));
 }
 
 /**
@@ -421,13 +437,14 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         batterySlotLook: isAplite ? undefined : slotText.batteryLook(safe),
         batterySlotDisplay: isAplite ? undefined : batteryDays.display(safe),
         // The Plugin value slots: whether a bar the watch is sent shows one with a source picked
-        // (pluginSlots), how many do, and the icons they draw. The settings alone, as with the
+        // (pluginSlots), how many do, their Looks and the icons they draw. The settings alone, as with the
         // days left: counted too on a Pebble app that cannot read plugins, which draws no such
         // slot. Never a plugin or what it serves: those are another app's and never leave the
         // phone. Absent on aplite, which has no such slot. Lockstep with handler.ts -- deploy
         // it first.
         pluginValue: pluginSlots ? pluginSlots.length > 0 : undefined,
         pluginValueSlots: pluginSlots ? pluginSlots.length : undefined,
+        pluginValueLooks: pluginSlots ? pluginValueLooks(pluginSlots) : undefined,
         pluginValueIcons: pluginSlots ? pluginValueIcons(pluginSlots) : undefined,
         // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.

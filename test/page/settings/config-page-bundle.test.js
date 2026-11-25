@@ -909,10 +909,14 @@ test('the Plugin value slot\'s rules and dialog reach the page ahead of the Stat
     'page/status-bars/plugin-value-page.js', 'page/status-bars/preview-status-bars.js'];
   order.forEach((file) => assert.notEqual(idx(file), -1, file + ' is not in APP_FILES at all'));
   order.slice(1).forEach((file, i) => assert.ok(idx(order[i]) < idx(file), order[i] + ' must precede ' + file));
+  // blocks.js binds window.PluginValues as it loads too: the Edit button's badge reads the Look.
+  assert.ok(idx('status-bars/domain/plugin-values.js') < idx('page/settings/blocks.js'),
+    'plugin-values.js must precede blocks.js');
   [code('window.PluginValues = api'), code('window.PluginValuePage = api'), "register('pluginValuePlugins'",
     "register('pluginValueIds'", "register('pluginValuePluginHint'", "register('pluginValueIdHint'",
     "register('pluginValueLast'", "register('pluginValuePluginPicked'", "register('pluginValueIcons'",
-    "register('pluginValueIconHint'", "register('pluginValueIconPicture'", "register('pluginValueIdPicked'"
+    "register('pluginValueIconHint'", "register('pluginValueIconPicture'", "register('pluginValueFit'",
+    "register('pluginValueNeither'", "register('pluginValueLookHint'"
   ].forEach((s) => {
     assert.ok(page().indexOf(s) !== -1, s + ' is not in the generated page');
   });

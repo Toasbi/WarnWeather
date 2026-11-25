@@ -226,8 +226,9 @@ test('an install from before 3.5.0: its one Plugin value moves into each slot th
   const KEYS = require('../../src/pkjs/settings/domain/storage-keys.js');
   const settings = JSON.parse(h.store['clay-settings']);
   ['statusTopLeft', 'statusTopRight'].forEach((key) => {
-    assert.deepEqual([settings[key + 'PluginValuePlugin'], settings[key + 'PluginValueId'], settings[key + 'PluginValueIcon'],
-      settings[key + 'PluginValueEvery']], [WEATHER, 'weather/now/level', 'plug', '30'], key);
+    assert.deepEqual([settings[key + 'PluginValuePlugin'], settings[key + 'PluginValueId'], settings[key + 'PluginValueLook'],
+      settings[key + 'PluginValueIcon'], settings[key + 'PluginValueEvery']], [WEATHER, 'weather/now/level', 'both', 'plug',
+      '30'], key);
   });
   ['pluginValuePlugin', 'pluginValueId', 'pluginValueIcon', 'pluginValueEvery'].forEach((key) => {
     assert.equal(Object.prototype.hasOwnProperty.call(settings, key), false, key + ' is gone');

@@ -94,7 +94,7 @@ test('the value on the text kind, with the icon id that loads no drawing, in eve
 
 test('the icon the Icon row picks, before the text in every place: one that turns in the form the value has', () => {
   const I = catalog.ICONS;
-  const wifi = everywhere({ icon: 'wifi' });
+  const wifi = everywhere({ look: 'both', icon: 'wifi' });
   const icons = (settings, kept, now) => bakeTop(settings, facts(kept), BASALT, now).slots.map((s) => s.icon);
   assert.deepEqual(icons(wifi, value({ short: 'Home', state: true })), [I.PV_WIFI, I.PV_WIFI, I.PV_WIFI]);
   assert.deepEqual(icons(wifi, value({ short: 'Home', state: false })), [I.PV_WIFI_OFF, I.PV_WIFI_OFF, I.PV_WIFI_OFF]);
@@ -104,9 +104,24 @@ test('the icon the Icon row picks, before the text in every place: one that turn
   assert.deepEqual(icons(wifi, value({ short: 'Home', state: true }), later), [I.PV_WIFI_OFF, I.PV_WIFI_OFF, I.PV_WIFI_OFF],
     'a value grown too old: off, beside --');
   assert.deepEqual(icons(wifi, null), [I.PV_WIFI_OFF, I.PV_WIFI_OFF, I.PV_WIFI_OFF], 'not read: off');
-  const plug = everywhere({ icon: 'plug' });
+  const plug = everywhere({ look: 'both', icon: 'plug' });
   assert.deepEqual(icons(plug, value({ number: 87, unit: '%' })), [I.PV_PLUG, I.PV_PLUG, I.PV_PLUG]);
   assert.deepEqual(icons(plug, null), [I.PV_PLUG, I.PV_PLUG, I.PV_PLUG], 'one that stays the same, read or not');
+});
+
+test('the Look: the text alone by default, the icon alone in the Icon look, on the text kind either way', () => {
+  const I = catalog.ICONS;
+  const on = value({ short: 'Home', state: true });
+  assert.deepEqual(bakeTop(everywhere({ icon: 'wifi' }), facts(on)).slots[0], { kind: TEXT, icon: ICON, text: 'Home' },
+    'an icon picked shows in no other Look than its own');
+  assert.deepEqual(bakeTop(everywhere({ look: 'text', icon: 'wifi' }), facts(on)).slots[1],
+    { kind: TEXT, icon: ICON, text: 'Home' });
+  const alone = everywhere({ look: 'icon', icon: 'wifi' });
+  assert.deepEqual(bakeTop(alone, facts(on)).slots, [0, 1, 2].map(() => ({ kind: TEXT, icon: I.PV_WIFI, text: '' })),
+    'the icon alone: no text, in every place');
+  assert.deepEqual(bakeTop(alone, facts(null)).slots[0], { kind: TEXT, icon: I.PV_WIFI_OFF, text: '' }, 'not read: off');
+  assert.deepEqual(bakeTop(everywhere({ look: 'icon' }), facts(on)).slots[0], { kind: TEXT, icon: I.PV_SWITCH, text: '' },
+    'no icon picked: the Switch');
 });
 
 test('each place prints the value at its own room: a unit an edge has no room for is left off there', () => {
@@ -170,8 +185,8 @@ test('where the Pebble app reads no plugins, and on aplite, the slot is empty an
 test('each slot shows its own value, and the icon its own dialog picks', () => {
   const I = catalog.ICONS;
   const CELL = PHONE + '/phone/phone_state/cell';
-  const settings = Object.assign(slot('statusTopLeft', { icon: 'wifi' }), slot('statusTopRight', { id: 'phone/phone_state/cell' }),
-    { statusTopMid: 'date' });
+  const settings = Object.assign(slot('statusTopLeft', { look: 'both', icon: 'wifi' }),
+    slot('statusTopRight', { id: 'phone/phone_state/cell' }), { statusTopMid: 'date' });
   const { slots } = bakeTop(settings, facts({ [KEY]: value({ short: 'Home', state: true }),
     [CELL]: value({ short: 'LTE' }, { source: CELL }) }));
   assert.deepEqual([slots[0], slots[2]], [{ kind: TEXT, icon: I.PV_WIFI, text: 'Home' }, { kind: TEXT, icon: ICON, text: 'LTE' }]);

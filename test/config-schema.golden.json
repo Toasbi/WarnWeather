@@ -9732,7 +9732,50 @@
                     "slotKey": "statusForecastLeft"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusForecastLeft"
+                },
+                "showWhen": {
+                  "key": "statusForecastLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusForecastLeftPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusForecastLeft"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusForecastLeft"
                 },
@@ -9745,7 +9788,7 @@
                 "type": "select",
                 "messageKey": "statusForecastLeftPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -9764,8 +9807,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusForecastLeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusForecastLeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusForecastLeftPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -9826,8 +9877,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusForecastLeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusForecastLeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusForecastLeftPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -9909,7 +9968,50 @@
                     "slotKey": "statusForecastMid"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusForecastMid"
+                },
+                "showWhen": {
+                  "key": "statusForecastMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusForecastMidPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusForecastMid"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusForecastMid"
                 },
@@ -9922,7 +10024,7 @@
                 "type": "select",
                 "messageKey": "statusForecastMidPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -9941,8 +10043,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusForecastMidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusForecastMidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusForecastMidPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -10003,8 +10113,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusForecastMidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusForecastMidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusForecastMidPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -10086,7 +10204,50 @@
                     "slotKey": "statusForecastRight"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusForecastRight"
+                },
+                "showWhen": {
+                  "key": "statusForecastRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusForecastRightPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusForecastRight"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusForecastRight"
                 },
@@ -10099,7 +10260,7 @@
                 "type": "select",
                 "messageKey": "statusForecastRightPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -10118,8 +10279,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusForecastRightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusForecastRightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusForecastRightPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -10180,8 +10349,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusForecastRightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusForecastRightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusForecastRightPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -10263,7 +10440,50 @@
                     "slotKey": "statusRadarLeft"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusRadarLeft"
+                },
+                "showWhen": {
+                  "key": "statusRadarLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusRadarLeftPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusRadarLeft"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusRadarLeft"
                 },
@@ -10276,7 +10496,7 @@
                 "type": "select",
                 "messageKey": "statusRadarLeftPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -10295,8 +10515,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusRadarLeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusRadarLeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusRadarLeftPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -10357,8 +10585,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusRadarLeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusRadarLeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusRadarLeftPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -10440,7 +10676,50 @@
                     "slotKey": "statusRadarMid"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusRadarMid"
+                },
+                "showWhen": {
+                  "key": "statusRadarMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusRadarMidPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusRadarMid"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusRadarMid"
                 },
@@ -10453,7 +10732,7 @@
                 "type": "select",
                 "messageKey": "statusRadarMidPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -10472,8 +10751,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusRadarMidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusRadarMidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusRadarMidPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -10534,8 +10821,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusRadarMidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusRadarMidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusRadarMidPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -10617,7 +10912,50 @@
                     "slotKey": "statusRadarRight"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusRadarRight"
+                },
+                "showWhen": {
+                  "key": "statusRadarRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusRadarRightPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusRadarRight"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusRadarRight"
                 },
@@ -10630,7 +10968,7 @@
                 "type": "select",
                 "messageKey": "statusRadarRightPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -10649,8 +10987,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusRadarRightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusRadarRightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusRadarRightPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -10711,8 +11057,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusRadarRightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusRadarRightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusRadarRightPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -10794,7 +11148,50 @@
                     "slotKey": "statusTopLeft"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusTopLeft"
+                },
+                "showWhen": {
+                  "key": "statusTopLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusTopLeftPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusTopLeft"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusTopLeft"
                 },
@@ -10807,7 +11204,7 @@
                 "type": "select",
                 "messageKey": "statusTopLeftPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -10826,8 +11223,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusTopLeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusTopLeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusTopLeftPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -10888,8 +11293,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusTopLeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusTopLeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusTopLeftPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -10971,7 +11384,50 @@
                     "slotKey": "statusTopMid"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusTopMid"
+                },
+                "showWhen": {
+                  "key": "statusTopMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusTopMidPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusTopMid"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusTopMid"
                 },
@@ -10984,7 +11440,7 @@
                 "type": "select",
                 "messageKey": "statusTopMidPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -11003,8 +11459,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusTopMidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusTopMidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusTopMidPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -11065,8 +11529,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusTopMidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusTopMidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusTopMidPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -11148,7 +11620,50 @@
                     "slotKey": "statusTopRight"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusTopRight"
+                },
+                "showWhen": {
+                  "key": "statusTopRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusTopRightPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusTopRight"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusTopRight"
                 },
@@ -11161,7 +11676,7 @@
                 "type": "select",
                 "messageKey": "statusTopRightPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -11180,8 +11695,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusTopRightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusTopRightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusTopRightPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -11242,8 +11765,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusTopRightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusTopRightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusTopRightPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -11325,7 +11856,50 @@
                     "slotKey": "statusHealthLeft"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusHealthLeft"
+                },
+                "showWhen": {
+                  "key": "statusHealthLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusHealthLeftPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusHealthLeft"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusHealthLeft"
                 },
@@ -11338,7 +11912,7 @@
                 "type": "select",
                 "messageKey": "statusHealthLeftPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -11357,8 +11931,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusHealthLeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusHealthLeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusHealthLeftPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -11419,8 +12001,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusHealthLeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusHealthLeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusHealthLeftPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -11502,7 +12092,50 @@
                     "slotKey": "statusHealthMid"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusHealthMid"
+                },
+                "showWhen": {
+                  "key": "statusHealthMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusHealthMidPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusHealthMid"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusHealthMid"
                 },
@@ -11515,7 +12148,7 @@
                 "type": "select",
                 "messageKey": "statusHealthMidPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -11534,8 +12167,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusHealthMidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusHealthMidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusHealthMidPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -11596,8 +12237,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusHealthMidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusHealthMidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusHealthMidPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -11679,7 +12328,50 @@
                     "slotKey": "statusHealthRight"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusHealthRight"
+                },
+                "showWhen": {
+                  "key": "statusHealthRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusHealthRightPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusHealthRight"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusHealthRight"
                 },
@@ -11692,7 +12384,7 @@
                 "type": "select",
                 "messageKey": "statusHealthRightPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -11711,8 +12403,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusHealthRightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusHealthRightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusHealthRightPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -11773,8 +12473,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusHealthRightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusHealthRightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusHealthRightPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -11856,7 +12564,50 @@
                     "slotKey": "statusBar4Left"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusBar4Left"
+                },
+                "showWhen": {
+                  "key": "statusBar4LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusBar4LeftPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusBar4Left"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusBar4Left"
                 },
@@ -11869,7 +12620,7 @@
                 "type": "select",
                 "messageKey": "statusBar4LeftPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -11888,8 +12639,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusBar4LeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar4LeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar4LeftPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -11950,8 +12709,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusBar4LeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar4LeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar4LeftPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -12033,7 +12800,50 @@
                     "slotKey": "statusBar4Mid"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusBar4Mid"
+                },
+                "showWhen": {
+                  "key": "statusBar4MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusBar4MidPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusBar4Mid"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusBar4Mid"
                 },
@@ -12046,7 +12856,7 @@
                 "type": "select",
                 "messageKey": "statusBar4MidPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -12065,8 +12875,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusBar4MidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar4MidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar4MidPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -12127,8 +12945,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusBar4MidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar4MidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar4MidPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -12210,7 +13036,50 @@
                     "slotKey": "statusBar4Right"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusBar4Right"
+                },
+                "showWhen": {
+                  "key": "statusBar4RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusBar4RightPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusBar4Right"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusBar4Right"
                 },
@@ -12223,7 +13092,7 @@
                 "type": "select",
                 "messageKey": "statusBar4RightPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -12242,8 +13111,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusBar4RightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar4RightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar4RightPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -12304,8 +13181,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusBar4RightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar4RightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar4RightPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -12387,7 +13272,50 @@
                     "slotKey": "statusBar5Left"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusBar5Left"
+                },
+                "showWhen": {
+                  "key": "statusBar5LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusBar5LeftPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusBar5Left"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusBar5Left"
                 },
@@ -12400,7 +13328,7 @@
                 "type": "select",
                 "messageKey": "statusBar5LeftPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -12419,8 +13347,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusBar5LeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar5LeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar5LeftPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -12481,8 +13417,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusBar5LeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar5LeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar5LeftPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -12564,7 +13508,50 @@
                     "slotKey": "statusBar5Mid"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusBar5Mid"
+                },
+                "showWhen": {
+                  "key": "statusBar5MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusBar5MidPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusBar5Mid"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusBar5Mid"
                 },
@@ -12577,7 +13564,7 @@
                 "type": "select",
                 "messageKey": "statusBar5MidPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -12596,8 +13583,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusBar5MidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar5MidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar5MidPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -12658,8 +13653,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusBar5MidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar5MidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar5MidPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -12741,7 +13744,50 @@
                     "slotKey": "statusBar5Right"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusBar5Right"
+                },
+                "showWhen": {
+                  "key": "statusBar5RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusBar5RightPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusBar5Right"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusBar5Right"
                 },
@@ -12754,7 +13800,7 @@
                 "type": "select",
                 "messageKey": "statusBar5RightPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -12773,8 +13819,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusBar5RightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar5RightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar5RightPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -12835,8 +13889,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusBar5RightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar5RightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar5RightPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -12918,7 +13980,50 @@
                     "slotKey": "statusBar6Left"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusBar6Left"
+                },
+                "showWhen": {
+                  "key": "statusBar6LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusBar6LeftPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusBar6Left"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusBar6Left"
                 },
@@ -12931,7 +14036,7 @@
                 "type": "select",
                 "messageKey": "statusBar6LeftPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -12950,8 +14055,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusBar6LeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar6LeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar6LeftPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -13012,8 +14125,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusBar6LeftPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar6LeftPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar6LeftPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -13095,7 +14216,50 @@
                     "slotKey": "statusBar6Mid"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusBar6Mid"
+                },
+                "showWhen": {
+                  "key": "statusBar6MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusBar6MidPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusBar6Mid"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusBar6Mid"
                 },
@@ -13108,7 +14272,7 @@
                 "type": "select",
                 "messageKey": "statusBar6MidPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -13127,8 +14291,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusBar6MidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar6MidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar6MidPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -13189,8 +14361,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusBar6MidPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar6MidPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar6MidPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],
@@ -13272,7 +14452,50 @@
                     "slotKey": "statusBar6Right"
                   }
                 },
-                "onChange": "pluginValueIdPicked",
+                "onChange": "pluginValueFit",
+                "onChangeArgs": {
+                  "slotKey": "statusBar6Right"
+                },
+                "showWhen": {
+                  "key": "statusBar6RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "statusBar6RightPluginValueLook",
+                "label": "Look",
+                "defaultValue": "text",
+                "sticky": false,
+                "options": [
+                  [
+                    "Icon + text",
+                    "both"
+                  ],
+                  [
+                    "Text",
+                    "text"
+                  ],
+                  [
+                    "Icon",
+                    "icon"
+                  ]
+                ],
+                "optionDisabledWhen": {
+                  "icon": {
+                    "when": "pluginValueNeither",
+                    "args": {
+                      "slotKey": "statusBar6Right"
+                    }
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLookHint",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                },
+                "onChange": "pluginValueFit",
                 "onChangeArgs": {
                   "slotKey": "statusBar6Right"
                 },
@@ -13285,7 +14508,7 @@
                 "type": "select",
                 "messageKey": "statusBar6RightPluginValueIcon",
                 "label": "Icon",
-                "defaultValue": "none",
+                "defaultValue": "switch",
                 "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
@@ -13304,8 +14527,16 @@
                   "glyph": true
                 },
                 "showWhen": {
-                  "key": "statusBar6RightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar6RightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar6RightPluginValueLook",
+                      "ne": "text"
+                    }
+                  ]
                 }
               },
               {
@@ -13366,8 +14597,16 @@
                   ]
                 },
                 "showWhen": {
-                  "key": "statusBar6RightPluginValuePlugin",
-                  "ne": ""
+                  "all": [
+                    {
+                      "key": "statusBar6RightPluginValuePlugin",
+                      "ne": ""
+                    },
+                    {
+                      "key": "statusBar6RightPluginValueLook",
+                      "ne": "icon"
+                    }
+                  ]
                 }
               }
             ],

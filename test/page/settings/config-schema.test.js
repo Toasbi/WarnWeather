@@ -144,11 +144,12 @@ const EXPECTED_KEYS = [
   // percentage, the days left or both, and the pair's look: battery-days.js).
   'batterySlotLook', 'batterySlotDisplay', 'batterySlotOrder', 'batterySlotSeparator',
   'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced',
-  // Each slot's Plugin value: its source, its icon and how often it is read, the slot's own like
-  // its countdown date (its dialog; phone-side only: the icon rides the bars as the slot's icon
-  // id).
+  // Each slot's Plugin value: its source, its Look, its icon and how often it is read, the slot's
+  // own like its countdown date (its dialog; phone-side only: the icon rides the bars as the
+  // slot's icon id).
   ...slotCatalog.everySlotKey().reduce((all, slot) =>
-    all.concat(['PluginValuePlugin', 'PluginValueId', 'PluginValueIcon', 'PluginValueEvery'].map((part) => slot + part)), [])
+    all.concat(['PluginValuePlugin', 'PluginValueId', 'PluginValueLook', 'PluginValueIcon', 'PluginValueEvery']
+      .map((part) => slot + part)), [])
 ].concat(THRESH_KEYS).concat(UNIT_KEYS).concat(GRAPH_COLOR_KEYS).concat(ALERT_KEYS);
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
