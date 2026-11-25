@@ -166,7 +166,7 @@ function makeEl(id, fields) {
     },
     classList: { add() {}, remove() {}, contains() { return false; } },
     style: {},
-    focus() { el.focuses += 1; }, getAttribute() { return null; }, setAttribute() {}
+    focus() { el.focuses += 1; }, getAttribute() { return null; }, setAttribute() {}, removeAttribute() {}
   };
   Object.defineProperty(el, 'innerHTML', {
     get() { return raw; },

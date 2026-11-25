@@ -171,6 +171,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             reachedDone: false, tioTyped: false,
             // Where focus goes when setup closes onto the page: the row that re-ran it.
             returnFocus: fresh ? null : '[data-action="startWizard"]',
+            // The overlay's own layer for the phone's Back (back-steps.js): Run setup again opens it
+            // with a tap, which gives it a history entry; opened by itself it has none, and Back on
+            // its first step leaves the page.
+            overlayLayer: fresh ? 0 : 1,
             // The forecast step's looks, and "Your own" (its values and length: refreshLooks). The
             // look picked in this run, which the picker marks while the graph still draws it: two
             // looks can draw alike on a watch (Clean and Classic on a light theme, where the theme
@@ -1001,6 +1005,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         body.innerHTML = '<div class="wiz-step' + (dir === 'back' ? ' back' : '') + (stay ? ' still' : '')
             + (id === 'done' ? ' last' : '') + '">' + STEP[id].body() + '</div>';
         run.overlay.querySelector('[data-wiz-foot]').innerHTML = footer(id);
+        syncBack();
         if (stay) { return; }
         body.scrollTop = 0;
         // A screen reader starts each step at its title.
@@ -1033,6 +1038,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         hidePageBehind(false);
         if (run.overlay.parentNode) { run.overlay.parentNode.removeChild(run.overlay); }
         run.overlay = null;
+    }
+    /**
+     * After setup opened or moved to another step: the page's history follows (back-steps.js), one
+     * entry per step past the first, and one for the overlay Run setup again opened. Closing it
+     * repaints the page (finishTweak), whose render does the same.
+     * @returns {void}
+     */
+    function syncBack() {
+        if (PConf.backSteps) { PConf.backSteps.sync(); }
     }
     /**
      * After the wizard closes onto the page, put focus back where it came from: the "Run setup again"
@@ -1290,6 +1304,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     PConf.actions = PConf.actions || {};
     PConf.actions.startWizard = function () { if (page.ctx) { openWizard(page.ctx, false); } };
+    // The phone's Back (back-steps.js) steps back a step, as the top bar's Back does, keeping every
+    // pick; on the first step of Run setup again it closes setup, as Skip does.
+    if (PConf.backSteps) {
+        PConf.backSteps.add({
+            depth: function () { return run && run.overlay ? run.overlayLayer + run.idx : 0; },
+            close: function () { onNav(run.idx > 0 ? 'back' : 'skip'); }
+        });
+    }
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = { buildSteps: buildSteps, shouldShow: shouldShow, applyDerived: applyDerived };

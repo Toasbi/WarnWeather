@@ -273,3 +273,120 @@ test('a page without history works as before: no entries, every layer still open
   assert.equal(page.modal.innerHTML, '');
   assert.equal(page.phone, null);
 });
+
+// --- the setup wizard ------------------------------------------------------------------------
+
+/**
+ * The setup wizard's overlay while it is up, else null.
+ * @param {Object} page The page handle.
+ * @returns {?Object}
+ */
+function wizard(page) {
+  return page.window.document.body.children.find((c) => c.id === 'wizard') || null;
+}
+
+/**
+ * Tap a control in the setup wizard by the attribute its handler looks for.
+ * @param {Object} page The page handle.
+ * @param {string} attr The attribute (data-wiz-nav, data-wiz-goto, data-select).
+ * @param {string} value Its value.
+ * @returns {void}
+ */
+function wizTap(page, attr, value) {
+  const t = { getAttribute: (n) => (n === attr ? value : null), closest: (s) => (s === '[' + attr + ']' ? t : null) };
+  wizard(page).dispatch('click', { target: t });
+}
+
+/**
+ * The title of the step the wizard shows.
+ * @param {Object} page The page handle.
+ * @returns {string}
+ */
+function wizStep(page) {
+  const m = /data-wiz-title tabindex="-1">([^<]*)</.exec(wizard(page).querySelector('[data-wiz-body]').innerHTML);
+  return m ? m[1] : '';
+}
+
+test('Run setup again: Back steps back a step, then closes setup, then leaves the page', async () => {
+  const page = boot({ provider: 'dwd' });
+  page.clickTab('setup');
+  page.tapAction('startWizard');
+  assert.ok(wizard(page), 'setup is up');
+  assert.equal(page.phone.layers, 1, 'with an entry of its own: a tap opened it');
+  const first = wizStep(page);
+  await nextTap();
+  wizTap(page, 'data-wiz-nav', 'next');
+  const second = wizStep(page);
+  await nextTap();
+  wizTap(page, 'data-wiz-nav', 'next');
+  assert.equal(page.phone.layers, 3, 'an entry per step past the first');
+  page.phone.back();
+  assert.equal(wizStep(page), second, 'Back went back a step');
+  page.phone.back();
+  assert.equal(wizStep(page), first);
+  assert.equal(page.phone.layers, 1);
+  page.phone.back();
+  assert.equal(wizard(page), null, 'Back on the first step closed setup, as Skip does');
+  assert.equal(page.S.onboardingDone, true);
+  assert.equal(page.phone.left, false, 'onto the settings page');
+  page.phone.back();
+  assert.equal(page.phone.left, true);
+});
+
+test('setup opened by itself on a new install: no entry for it, so Back on its first step leaves', async () => {
+  const page = boot({ provider: 'dwd', onboardingDone: false });
+  assert.ok(wizard(page), 'setup opened by itself');
+  assert.equal(page.phone.layers, 0, 'no entry: no tap opened it');
+  const first = wizStep(page);
+  await nextTap();
+  wizTap(page, 'data-wiz-nav', 'next');
+  assert.equal(page.phone.layers, 1);
+  page.phone.back();
+  assert.equal(wizStep(page), first, 'Back went back to the first step');
+  assert.ok(wizard(page));
+  page.phone.back();
+  assert.equal(page.phone.left, true, 'and from there leaves the page, as before');
+});
+
+test('setup\'s own Back, Change and Back to summary move the history with the steps', async () => {
+  const page = boot({ provider: 'dwd' });
+  page.clickTab('setup');
+  page.tapAction('startWizard');
+  for (let i = 0; i < 10 && wizard(page).querySelector('[data-wiz-foot]').innerHTML.indexOf('data-wiz-nav="save"') === -1; i++) {
+    await nextTap();
+    wizTap(page, 'data-wiz-nav', 'next');
+  }
+  const summary = page.phone.layers;
+  assert.ok(summary > 2, 'the summary, a few steps in');
+  await nextTap();
+  wizTap(page, 'data-wiz-goto', 'welcome');
+  page.phone.land();
+  assert.equal(page.phone.layers, 1, 'Change: back to the first step\'s entry');
+  await nextTap();
+  wizTap(page, 'data-wiz-nav', 'summary');
+  page.phone.land();
+  assert.equal(page.phone.layers, summary, 'Back to summary: forward over the steps\' entries');
+  await nextTap();
+  wizTap(page, 'data-wiz-nav', 'back');
+  page.phone.land();
+  assert.equal(page.phone.layers, summary - 1, 'setup\'s own Back: one entry back');
+  page.phone.back();
+  assert.equal(page.phone.layers, summary - 2);
+  assert.ok(wizard(page));
+});
+
+test('the country list over setup: Back closes the list, and setup stays on its step', async () => {
+  const page = boot({ provider: 'dwd' });
+  page.clickTab('setup');
+  page.tapAction('startWizard');
+  const first = wizStep(page);
+  await nextTap();
+  wizTap(page, 'data-select', 'holidayCountry');
+  assert.ok(page.modal.innerHTML.length > 0, 'the list rose over setup');
+  assert.equal(page.phone.layers, 2);
+  page.phone.back();
+  assert.equal(page.modal.innerHTML, '', 'Back closed the list');
+  assert.ok(wizard(page), 'setup stayed');
+  assert.equal(wizStep(page), first);
+  assert.equal(page.phone.layers, 1);
+});
