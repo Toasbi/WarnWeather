@@ -176,3 +176,17 @@ test('the page gets its entry at the first tap, also one that opens nothing', ()
   assert.equal(page.phone.left, false, 'so Back lands on the page');
   assert.ok(closedUnsaved(page), 'which, with nothing changed, closes itself');
 });
+
+test('Back on Revert\'s dialog keeps the changes, and the focus goes back to Revert', () => {
+  const page = boot();
+  page.clickToggle('themeAuto');
+  const changed = page.S.themeAuto;
+  page.window.document.getElementById('revert').dispatch('click', {});
+  assert.ok(page.modal.innerHTML.indexOf('Undo your changes?') !== -1, 'Revert asks first');
+  page.asked.length = 0;
+  page.phone.back();
+  assert.equal(page.modal.innerHTML, '', 'Back closed it');
+  assert.equal(page.S.themeAuto, changed, 'and undid nothing');
+  assert.ok(page.asked.indexOf('#revert') !== -1, 'the focus goes back to Revert');
+  assert.equal(page.asked.indexOf('#save'), -1);
+});
