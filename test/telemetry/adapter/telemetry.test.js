@@ -301,15 +301,13 @@ test('snapshot reports the watch battery\'s Look and what its text shows', () =>
 // (status-lines.js wantedPluginValues, plugin-values.js iconName). The plugin and its value never
 // leave the phone. Absent on aplite. Lockstep with the Deno .strip() schema.
 const MUNINN = 'd008a08a-6e34-4cc4-98dc-bae02ce5e087';
+const { pluginValueSlot } = require('../../helpers/status-slots.js');
 /**
  * @param {string} slot A slot's settings key. @param {string} [icon] Its Icon row's choice.
  * @returns {Object} The settings that put the Plugin value in the slot, with Muninn's days left.
  */
 function pluginSlot(slot, icon) {
-  const out = { [slot]: 'pluginValue', [slot + 'PluginValuePlugin']: MUNINN,
-    [slot + 'PluginValueId']: 'muninn/stats/daysRemaining' };
-  if (icon) { out[slot + 'PluginValueIcon'] = icon; }
-  return out;
+  return pluginValueSlot(slot, { plugin: MUNINN, id: 'muninn/stats/daysRemaining', ...(icon ? { icon } : {}) });
 }
 
 test('snapshot reports how many Plugin value slots show a value and their icons, never which value', () => {

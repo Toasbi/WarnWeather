@@ -25,6 +25,7 @@ const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
 const { PREFERENCES } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const { decodeLine } = require('../../helpers/status-line-bytes.js');
+const { pluginValueSlot } = require('../../helpers/status-slots.js');
 
 // Every line logged, kept for the test that the value never is.
 const logged = [];
@@ -46,10 +47,7 @@ const ID = 'phone/phone_state/battery_level';
  * @returns {Object} Settings.
  */
 function slot(slotKey, more) {
-  const keys = catalog.pluginValueKeys(slotKey);
-  const out = { [slotKey]: 'pluginValue', [keys.plugin]: PHONE, [keys.id]: ID };
-  Object.keys(more || {}).forEach((name) => { out[keys[name]] = more[name]; });
-  return out;
+  return pluginValueSlot(slotKey, { plugin: PHONE, id: ID, ...more });
 }
 
 /** The Watch bar's left slot showing the Phone plugin's battery level, read every hour. */

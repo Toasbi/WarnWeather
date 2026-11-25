@@ -117,18 +117,16 @@ function migrateCitySlotIconOn(blob) {
  */
 function mergeBatterySlots(blob) {
     var changed = false;
-    catalog.ALL_LINES.forEach(function (line) {
-        line.slots.forEach(function (key) {
-            if (blob[key] === 'batteryPct') {
-                blob[key] = 'battery';
-                blob.batterySlotLook = 'text';
-                changed = true;
-            } else if (blob[key] === 'phoneBatteryPlain') {
-                blob[key] = 'phoneBattery';
-                blob[catalog.phoneBatteryLookKey(key)] = 'text';
-                changed = true;
-            }
-        });
+    catalog.everySlotKey().forEach(function (key) {
+        if (blob[key] === 'batteryPct') {
+            blob[key] = 'battery';
+            blob.batterySlotLook = 'text';
+            changed = true;
+        } else if (blob[key] === 'phoneBatteryPlain') {
+            blob[key] = 'phoneBattery';
+            blob[catalog.phoneBatteryLookKey(key)] = 'text';
+            changed = true;
+        }
     });
     if (changed) { console.log('Migrated the battery slots onto their merged items'); }
     return { changed: changed, send: false };
@@ -158,14 +156,12 @@ function movePluginValueIntoSlots(blob) {
         return blob[SHARED_PLUGIN_VALUE_KEYS[name]] !== undefined;
     });
     if (!names.length) { return { changed: false, send: false }; }
-    catalog.ALL_LINES.forEach(function (line) {
-        line.slots.forEach(function (key) {
-            var keys = catalog.pluginValueKeys(key);
-            if (blob[key] !== 'pluginValue') { return; }
-            names.forEach(function (name) {
-                // A slot's own pick (a blob the 3.5.0 page saved before this boot) stays.
-                if (blob[keys[name]] === undefined) { blob[keys[name]] = blob[SHARED_PLUGIN_VALUE_KEYS[name]]; }
-            });
+    catalog.everySlotKey().forEach(function (key) {
+        var keys = catalog.pluginValueKeys(key);
+        if (blob[key] !== 'pluginValue') { return; }
+        names.forEach(function (name) {
+            // A slot's own pick (a blob the 3.5.0 page saved before this boot) stays.
+            if (blob[keys[name]] === undefined) { blob[keys[name]] = blob[SHARED_PLUGIN_VALUE_KEYS[name]]; }
         });
     });
     names.forEach(function (name) { delete blob[SHARED_PLUGIN_VALUE_KEYS[name]]; });

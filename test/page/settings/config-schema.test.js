@@ -147,7 +147,7 @@ const EXPECTED_KEYS = [
   // Each slot's Plugin value: its source, its icon and how often it is read, the slot's own like
   // its countdown date (its dialog; phone-side only: the icon rides the bars as the slot's icon
   // id).
-  ...slotCatalog.ALL_LINES.reduce((all, line) => all.concat(line.slots), []).reduce((all, slot) =>
+  ...slotCatalog.everySlotKey().reduce((all, slot) =>
     all.concat(['PluginValuePlugin', 'PluginValueId', 'PluginValueIcon', 'PluginValueEvery'].map((part) => slot + part)), [])
 ].concat(THRESH_KEYS).concat(UNIT_KEYS).concat(GRAPH_COLOR_KEYS).concat(ALERT_KEYS);
 
@@ -2523,7 +2523,7 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // The weather condition slot's dialog comes last: its Look, then Bold like every text slot.
   // The phone battery has one dialog per slot (its Look is each slot's own), the others one per
   // kind.
-  const SLOT_KEYS = slotCatalog.ALL_LINES.reduce((keys, line) => keys.concat(line.slots), []);
+  const SLOT_KEYS = slotCatalog.everySlotKey();
   assert.equal(sheets.length, 19 + 2 * SLOT_KEYS.length,
     'one edit sheet per boldable slot kind (8 threshold + 11 bold-only), and the phone battery\'s and the Plugin value\'s one per slot');
   assert.deepEqual(sheets.map((s) => s.sheetId),

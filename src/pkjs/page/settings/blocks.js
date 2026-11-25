@@ -705,8 +705,7 @@ if (typeof require !== 'undefined') {
             .concat(statusLineCatalog.batterySettingKeys())
             .concat(slotKeys.map(statusLineCatalog.phoneBatteryLookKey))
             .concat(slotKeys.reduce(function (keys, slotKey) {
-                var plugin = statusLineCatalog.pluginValueKeys(slotKey);
-                return keys.concat([plugin.plugin, plugin.id, plugin.icon, plugin.every]);
+                return keys.concat(statusLineCatalog.pluginValueKeyList(slotKey));
             }, []));
         // The Watch Status Bar's own toggles exist only where On demand does not.
         if (env && env.onDemand === false) {

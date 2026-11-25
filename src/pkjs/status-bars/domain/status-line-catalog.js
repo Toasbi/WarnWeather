@@ -432,15 +432,26 @@
     return null;
   }
 
+  /**
+   * @param {Object[]} lines LINES entries, or EXTRA_LINES ones.
+   * @returns {string[]} Their slots' settings keys, in line order.
+   */
+  function slotKeysOf(lines) {
+    return lines.reduce(function (keys, line) { return keys.concat(line.slots); }, []);
+  }
+
   /** @returns {string[]} the 12 configurable slot settings keys, line order */
   function allSlotKeys() {
-    var out = [];
-    for (var l = 0; l < LINES.length; l++) {
-      for (var s = 0; s < LINES[l].slots.length; s++) {
-        out.push(LINES[l].slots[s]);
-      }
-    }
-    return out;
+    return slotKeysOf(LINES);
+  }
+
+  /**
+   * @returns {string[]} Every bar's slot settings keys, the four bars' and bars 4 to 6's (21), in
+   *   line order: the slots whose own settings and dialogs (pluginValueKeys, phoneBatterySheet)
+   *   the page and the migrations go through.
+   */
+  function everySlotKey() {
+    return slotKeysOf(ALL_LINES);
   }
 
   /**
@@ -614,32 +625,59 @@
       'batterySlotSeparatorCustom', 'batterySlotSeparatorSpaced'];
   }
 
+  // The settings a slot keeps for the Plugin value, by part, each the slot's key with this after
+  // it: the plugin, the value of it, its icon and how often it is read (plugin-values.js pickOf).
+  // ONE table for each slot's keys (pluginValueKeys) and the list of them (pluginValueKeyList).
+  var PLUGIN_VALUE_PARTS = { plugin: 'PluginValuePlugin', id: 'PluginValueId', icon: 'PluginValueIcon',
+    every: 'PluginValueEvery' };
+
   /**
-   * The settings a slot keeps for the Plugin value: the plugin, the value of it, its icon and
-   * how often it is read (plugin-values.js pickOf), which the slot's own dialog stores
-   * (plugin-value-schema.js). Each slot's own, like its countdown's date, so each slot that holds
-   * the item shows a value of its own. Never signed (renderSignature, slotCompanions): a new
-   * source needs a read, which the save starts (plugin-value-source.js refresh), and no weather
-   * fetch; every close of the settings sends the bars again (channel-scheduler.js
-   * onConfigClosed), the icon with them.
+   * The settings a slot keeps for the Plugin value (PLUGIN_VALUE_PARTS), which the slot's own
+   * dialog stores (plugin-value-schema.js). Each slot's own, like its countdown's date, so each
+   * slot that holds the item shows a value of its own. Never signed (renderSignature,
+   * slotCompanions): a new source needs a read, which the save starts (plugin-value-source.js
+   * refresh), and no weather fetch; every close of the settings sends the bars again
+   * (channel-scheduler.js onConfigClosed), the icon with them.
    * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
    * @returns {{plugin: string, id: string, icon: string, every: string}} Each one's key, e.g.
    *   'statusForecastLeftPluginValuePlugin'.
    */
   function pluginValueKeys(slotKey) {
-    return { plugin: slotKey + 'PluginValuePlugin', id: slotKey + 'PluginValueId',
-      icon: slotKey + 'PluginValueIcon', every: slotKey + 'PluginValueEvery' };
+    var keys = {};
+    Object.keys(PLUGIN_VALUE_PARTS).forEach(function (part) { keys[part] = slotKey + PLUGIN_VALUE_PARTS[part]; });
+    return keys;
   }
 
   /**
-   * The settings page's dialog a slot's Edit button opens while the slot holds the Plugin value:
-   * the slot's own, since its settings are (pluginValueKeys), as the phone battery's is
-   * (phoneBatterySheet).
+   * @param {string} slotKey A slot's settings key.
+   * @returns {string[]} The slot's Plugin value settings keys (pluginValueKeys), each once: what
+   *   Reset and a bar that is made or deleted put back (slotCompanions).
+   */
+  function pluginValueKeyList(slotKey) {
+    var keys = pluginValueKeys(slotKey);
+    return Object.keys(keys).map(function (part) { return keys[part]; });
+  }
+
+  /**
+   * The settings page's dialog of an item a slot's Edit button opens: the slot's own where the
+   * item's settings in it are (pluginValueKeys, phoneBatteryLookKey), since a dialog cannot tell
+   * which slot opened it.
+   * @param {string} item The item's part of the id, e.g. 'PluginValue'.
+   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
+   * @returns {string} The dialog's sheet id, e.g. 'threshPluginValueForecastLeft'.
+   */
+  function slotSheet(item, slotKey) {
+    return 'thresh' + item + slotKey.replace(/^status/, '');
+  }
+
+  /**
+   * The settings page's dialog a slot's Edit button opens while the slot holds the Plugin value
+   * (slotSheet): the slot's own, since its settings are (pluginValueKeys).
    * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
    * @returns {string} The dialog's sheet id, e.g. 'threshPluginValueForecastLeft'.
    */
   function pluginValueSheet(slotKey) {
-    return 'threshPluginValue' + slotKey.replace(/^status/, '');
+    return slotSheet('PluginValue', slotKey);
   }
 
   /**
@@ -650,12 +688,9 @@
    *   value setting.
    */
   function pluginValueSlot(key) {
-    for (var l = 0; l < ALL_LINES.length; l++) {
-      for (var s = 0; s < ALL_LINES[l].slots.length; s++) {
-        var slotKey = ALL_LINES[l].slots[s];
-        var keys = pluginValueKeys(slotKey);
-        if (key === keys.plugin || key === keys.id || key === keys.icon || key === keys.every) { return slotKey; }
-      }
+    var slots = everySlotKey();
+    for (var s = 0; s < slots.length; s++) {
+      if (pluginValueKeyList(slots[s]).indexOf(key) !== -1) { return slots[s]; }
     }
     return null;
   }
@@ -683,14 +718,14 @@
 
   /**
    * The settings page's dialog a slot's Edit button opens while the slot holds the phone
-   * battery: the slot's own, since the Look in it is (phoneBatteryLookKey), and a dialog
-   * cannot tell which slot opened it. The page builds one per slot (schema.js
-   * phoneBatterySlotSheet) and the Edit button names it (blocks.js statusSlotEditSheet).
+   * battery (slotSheet): the slot's own, since the Look in it is (phoneBatteryLookKey). The page
+   * builds one per slot (schema.js phoneBatterySlotSheet) and the Edit button names it (blocks.js
+   * statusSlotEditSheet).
    * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
    * @returns {string} The dialog's sheet id, e.g. 'threshPhoneBatteryForecastLeft'.
    */
   function phoneBatterySheet(slotKey) {
-    return 'threshPhoneBattery' + slotKey.replace(/^status/, '');
+    return slotSheet('PhoneBattery', slotKey);
   }
 
   // The phone battery's Look in a slot that has none set: the phone's icon before its charge
@@ -713,12 +748,11 @@
    *   default. signed: whether renderSignature watches it.
    */
   function slotCompanions(slotKey) {
-    var plugin = pluginValueKeys(slotKey);
     return [
       { code: 'countdown', key: countdownKey(slotKey), defaultValue: undefined, signed: true },
       { code: 'phoneBattery', key: phoneBatteryLookKey(slotKey), defaultValue: PHONE_BATTERY_LOOK_DEFAULT,
         signed: true }
-    ].concat([plugin.plugin, plugin.id, plugin.icon, plugin.every].map(function (key) {
+    ].concat(pluginValueKeyList(slotKey).map(function (key) {
       return { code: 'pluginValue', key: key, defaultValue: undefined, signed: false };
     }));
   }
@@ -771,12 +805,13 @@
     EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
-    allSlotKeys: allSlotKeys, slotDefault: slotDefault,
+    allSlotKeys: allSlotKeys, everySlotKey: everySlotKey, slotDefault: slotDefault,
     lineOf: lineOf, siblingHolds: siblingHolds, healthSlots: healthSlots,
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
     batterySettingKeys: batterySettingKeys, pluginValueKeys: pluginValueKeys,
+    pluginValueKeyList: pluginValueKeyList,
     pluginValueSheet: pluginValueSheet, pluginValueSlot: pluginValueSlot,
     countdownKey: countdownKey,
     phoneBatteryLookKey: phoneBatteryLookKey, phoneBatterySheet: phoneBatterySheet,

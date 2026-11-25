@@ -118,11 +118,7 @@ function slotDialog(sheetOf, boldRow, slotKey) {
  * @returns {Object[]} Schema sections (sheetOnly).
  */
 function dialogSections(sheetOf, boldRow) {
-    var sheets = [];
-    catalog.ALL_LINES.forEach(function (line) {
-        line.slots.forEach(function (slotKey) { sheets.push(slotDialog(sheetOf, boldRow, slotKey)); });
-    });
-    return sheets;
+    return catalog.everySlotKey().map(function (slotKey) { return slotDialog(sheetOf, boldRow, slotKey); });
 }
 
 module.exports = {

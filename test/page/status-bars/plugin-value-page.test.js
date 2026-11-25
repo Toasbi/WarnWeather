@@ -18,6 +18,7 @@ const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const { sample, barSlots } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
 const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
 const pluginReads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
+const { pluginValuePick } = require('../../helpers/status-slots.js');
 const { PREFERENCES, PICK_DEFAULTS } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { reading } = require('../../helpers/plugin-host.js');
 
@@ -46,8 +47,7 @@ const KEYS = catalog.pluginValueKeys(SLOT);
  * @returns {Object} The slot's Plugin value settings holding that pick.
  */
 function pickIn(pick, slotKey = SLOT) {
-  const keys = catalog.pluginValueKeys(slotKey);
-  return Object.keys(pick).reduce((out, name) => Object.assign(out, { [keys[name]]: pick[name] }), {});
+  return pluginValuePick(slotKey, pick);
 }
 const LEVEL = pickIn({ plugin: PHONE, id: 'phone/phone_state/battery_level' });
 const LEVEL_KEY = PHONE + '/phone/phone_state/battery_level';
@@ -412,7 +412,7 @@ test('the last line and the bars\' pictures show the value the phone hands for a
 test('the Edit button opens each slot\'s own dialog, in every bar, not on aplite', () => {
   const resolve = PConf.sheetResolvers.get('statusSlotEditSheet');
   const sheets = new Set();
-  catalog.ALL_LINES.forEach((line) => line.slots.forEach((slotKey) => {
+  catalog.everySlotKey().forEach((slotKey) => {
     const S = { [slotKey]: 'pluginValue' };
     const sheet = resolve(S, { thresholds: true }, { messageKey: slotKey });
     assert.equal(sheet, catalog.pluginValueSheet(slotKey), slotKey);
@@ -422,7 +422,7 @@ test('the Edit button opens each slot\'s own dialog, in every bar, not on aplite
       slotKey + ': its Plugin row is the slot\'s');
     sheets.add(sheet);
     assert.equal(resolve(S, { thresholds: false }, { messageKey: slotKey }), null, slotKey + ' on aplite');
-  }));
+  });
   assert.equal(sheets.size, 21, 'a dialog of its own for each slot');
   assert.equal(catalog.pluginValueSheet('statusTopRight'), 'threshPluginValueTopRight');
 });
@@ -539,7 +539,7 @@ test('Reset status bars puts each slot\'s Plugin value source, icon and Updates 
 test('a save stores a slot\'s picks alone: never a row\'s default, and nothing of a slot without one', () => {
   const S = slotSettings(LEVEL);
   const stored = (state) => PConf.engine.serialize(schema, state, BASALT);
-  const keys = catalog.ALL_LINES.reduce((all, line) => all.concat(line.slots), []).reduce((all, slotKey) => {
+  const keys = catalog.everySlotKey().reduce((all, slotKey) => {
     const own = catalog.pluginValueKeys(slotKey);
     return all.concat([own.plugin, own.id, own.icon, own.every]);
   }, []);

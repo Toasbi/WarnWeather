@@ -106,7 +106,9 @@
     function pickOf(settings, slotKey) {
         var keys = catalog.pluginValueKeys(slotKey);
         var s = settings || {};
-        return { plugin: s[keys.plugin], id: s[keys.id], icon: s[keys.icon], every: s[keys.every] };
+        var pick = {};
+        Object.keys(keys).forEach(function (part) { pick[part] = s[keys[part]]; });
+        return pick;
     }
 
     /**

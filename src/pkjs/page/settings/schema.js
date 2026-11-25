@@ -821,11 +821,7 @@ function phoneBatterySlotSheet(slotKey) {
  * @returns {Object[]} Schema sections (sheetOnly).
  */
 function phoneBatterySheets() {
-    var sheets = [];
-    STATUS_LINE_CATALOG.ALL_LINES.forEach(function (line) {
-        line.slots.forEach(function (slotKey) { sheets.push(phoneBatterySlotSheet(slotKey)); });
-    });
-    return sheets;
+    return STATUS_LINE_CATALOG.everySlotKey().map(phoneBatterySlotSheet);
 }
 
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.

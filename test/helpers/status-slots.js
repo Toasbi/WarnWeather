@@ -32,4 +32,29 @@ function slotsOf(S, bar) {
   return slotKeys(bar).map((key) => S[key]);
 }
 
-module.exports = { blankBar, slotsOf };
+/**
+ * A slot's Plugin value pick as stored: each part under the slot's own key for it.
+ * @param {string} slotKey A slot's settings key.
+ * @param {Object} pick Its parts by name (catalog.pluginValueKeys): plugin, id, icon, every, any
+ *   of them.
+ * @returns {Object<string, *>} Settings.
+ */
+function pluginValuePick(slotKey, pick) {
+  const keys = catalog.pluginValueKeys(slotKey);
+  return Object.fromEntries(Object.keys(pick).map((part) => {
+    if (!keys[part]) { throw new Error('no Plugin value part ' + part); }
+    return [keys[part], pick[part]];
+  }));
+}
+
+/**
+ * A slot that holds the Plugin value with a pick (pluginValuePick).
+ * @param {string} slotKey A slot's settings key.
+ * @param {Object} pick Its parts by name.
+ * @returns {Object<string, *>} Settings.
+ */
+function pluginValueSlot(slotKey, pick) {
+  return { [slotKey]: 'pluginValue', ...pluginValuePick(slotKey, pick) };
+}
+
+module.exports = { blankBar, slotsOf, pluginValuePick, pluginValueSlot };

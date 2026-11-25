@@ -17,6 +17,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { preferencesPlugin } = require('../../helpers/plugin-host.js');
+const { pluginValueSlot } = require('../../helpers/status-slots.js');
 
 const URL_CAP = 2 * 1024 * 1024;  // Chromium url::kMaxURLChars
 // Margin for what the worst case below can't foresee (longer news bodies, a host
@@ -132,12 +133,9 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
     viewUpper2: 'bar5', viewLower2: 'bar6', statusBar4Made: true, statusBar5Made: true, statusBar6Made: true };
   const values = {};
   const reads = {};
-  const slotKeys = slotCatalog.ALL_LINES.reduce((keys, line) => keys.concat(line.slots), []);
+  const slotKeys = slotCatalog.everySlotKey();
   slotKeys.forEach((slotKey, i) => {
-    const keys = slotCatalog.pluginValueKeys(slotKey);
-    settings[slotKey] = 'pluginValue';
-    settings[keys.plugin] = 'x';
-    settings[keys.id] = 'cat/item/v' + i;
+    Object.assign(settings, pluginValueSlot(slotKey, { plugin: 'x', id: 'cat/item/v' + i }));
     values['x/cat/item/v' + i] = { source: 'x/cat/item/v' + i, at: now, validUntil: null,
       reading: { short: 's'.repeat(5000), long: 'l'.repeat(5000), unit: 'u'.repeat(5000), number: 1 } };
     reads['x/cat/item/v' + i] = { source: 'x/cat/item/v' + i, at: now, failures: 0, validUntil: null };

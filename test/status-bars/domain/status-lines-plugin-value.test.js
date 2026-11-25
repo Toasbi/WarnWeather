@@ -9,6 +9,7 @@ const statusLines = require('../../../src/pkjs/status-bars/domain/status-lines.j
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const { decodeLine } = require('../../helpers/status-line-bytes.js');
 const { reading } = require('../../helpers/plugin-host.js');
+const { pluginValueSlot } = require('../../helpers/status-slots.js');
 
 const NOW = new Date(2026, 10, 21, 12, 0, 0);
 const HOUR = 60 * 60 * 1000;
@@ -26,10 +27,7 @@ const TOP = ['statusTopLeft', 'statusTopMid', 'statusTopRight'];
  * @returns {Object} Settings.
  */
 function slot(slotKey, more) {
-  const keys = catalog.pluginValueKeys(slotKey);
-  const out = { [slotKey]: 'pluginValue', [keys.plugin]: PHONE, [keys.id]: ID };
-  Object.keys(more || {}).forEach((name) => { out[keys[name]] = more[name]; });
-  return out;
+  return pluginValueSlot(slotKey, { plugin: PHONE, id: ID, ...more });
 }
 
 /**

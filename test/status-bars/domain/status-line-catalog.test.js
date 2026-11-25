@@ -211,6 +211,14 @@ test('allSlotKeys lists the 12 configurable slot settings', () => {
   ]);
 });
 
+test('everySlotKey lists every bar\'s slots, bars 4 to 6 after the four, line order', () => {
+  assert.deepEqual(catalog.everySlotKey(), catalog.allSlotKeys().concat([
+    'statusBar4Left', 'statusBar4Mid', 'statusBar4Right',
+    'statusBar5Left', 'statusBar5Mid', 'statusBar5Right',
+    'statusBar6Left', 'statusBar6Mid', 'statusBar6Right'
+  ]));
+});
+
 test('aqi is a TEXT item (leaf icon) available on every platform and in slot options', () => {
   const item = catalog.byCode('aqi');
   assert.ok(item, 'aqi item exists');
@@ -551,7 +559,7 @@ test('the Plugin value is offered only where the Pebble app reads plugins, never
 });
 
 test('each slot keeps its own Plugin value settings and dialog, which a bar made or deleted clears', () => {
-  const slots = catalog.ALL_LINES.reduce((keys, line) => keys.concat(line.slots), []);
+  const slots = catalog.everySlotKey();
   assert.equal(slots.length, 21);
   const keys = [];
   const sheets = [];
@@ -563,6 +571,7 @@ test('each slot keeps its own Plugin value settings and dialog, which a bar made
       assert.equal(catalog.pluginValueSlot(own[name]), slotKey, own[name]);
       keys.push(own[name]);
     });
+    assert.deepEqual(catalog.pluginValueKeyList(slotKey), Object.values(own), 'the list of them');
     sheets.push(catalog.pluginValueSheet(slotKey));
     // The companions a bar made or deleted puts back with the slot (screens.js makeBar,
     // unmakeBar), never signed: a new source needs a read, not a weather fetch.

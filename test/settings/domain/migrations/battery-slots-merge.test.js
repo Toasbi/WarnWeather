@@ -13,7 +13,7 @@ const statusLines = require('../../../../src/pkjs/status-bars/domain/status-line
 const { decodeLine } = require('../../../helpers/status-line-bytes.js');
 
 const merge = statusSlots.mergeBatterySlots;
-const SLOT_KEYS = catalog.ALL_LINES.reduce((keys, line) => keys.concat(line.slots), []);
+const SLOT_KEYS = catalog.everySlotKey();
 
 test.beforeEach((t) => { t.mock.method(console, 'log', () => {}); });
 

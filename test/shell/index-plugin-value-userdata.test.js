@@ -15,6 +15,7 @@ const path = require('node:path');
 const { userDataOf } = require('../helpers/settings-url.js');
 const { reading, preferencesPlugin, complicationsAnswer } = require('../helpers/plugin-host.js');
 const { PREFERENCES } = require('../../src/pkjs/status-bars/domain/plugin-values.js');
+const { pluginValueSlot } = require('../helpers/status-slots.js');
 
 const PKJS_DIR = path.resolve(__dirname, '..', '..', 'src', 'pkjs') + path.sep;
 const WEATHER = 'aaaaaaaa-0000-0000-0000-000000000001';
@@ -26,7 +27,7 @@ const VALUE = { source: KEY, at: 1700000000000, validUntil: null, reading: readi
  * @returns {Object} The settings that put the Plugin value in the slot with that pick.
  */
 function slot(slotKey, plugin, id) {
-  return { [slotKey]: 'pluginValue', [slotKey + 'PluginValuePlugin']: plugin, [slotKey + 'PluginValueId']: id };
+  return pluginValueSlot(slotKey, { plugin, id });
 }
 /** The Watch bar's left slot picking the source VALUE was read from. */
 const PICKED = slot('statusTopLeft', WEATHER, 'weather/now/level');

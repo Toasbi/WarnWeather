@@ -31,7 +31,7 @@ const BASALT = Object.assign(platform.computeEnv({ platform: 'basalt' }), { plug
 const NO_PLUGINS = Object.assign({}, BASALT, { plugins: false });
 const APLITE = platform.computeEnv({ platform: 'aplite' });
 const EDGE = catalog.CAPS.EDGE_TEXT_MAX;
-const SLOT_KEYS = catalog.ALL_LINES.reduce((keys, line) => keys.concat(line.slots), []);
+const SLOT_KEYS = catalog.everySlotKey();
 
 /**
  * Every schema node that passes a test, in schema order.
