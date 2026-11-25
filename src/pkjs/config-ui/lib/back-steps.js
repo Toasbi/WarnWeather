@@ -28,6 +28,7 @@
 //    has no more open than the entry stands for, and at least one.
 //  - The page itself can be a part too, its base (add with base: true, a depth of 1 while open). It
 //    counts as no layer, but while it is open the page keeps at least one entry above its first,
+//    added at the first tap, also one that opens nothing (the page listens for taps itself then),
 //    so that Back with nothing else open still lands in the page (the engine's base: another tab
 //    goes back to the one the page opened on, changes not saved ask first). Back reaches the base
 //    only with nothing else open; while it stays open after a Back that landed on the first entry,
@@ -66,12 +67,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var hist = win ? win.history : null;
     var on = Boolean(hist && typeof hist.pushState === 'function' && typeof hist.go === 'function'
       && typeof win.addEventListener === 'function');
-    // The parts with layers: {depth(): number, close(): void, rank?: number}.
-    var parts = [];
+    // The parts with layers: {depth(): number, close(): void, rank?: number}; and the page's base
+    // (add), or null.
+    var parts = [], base = null;
     // The layers the entry the page is on stands for (as of its last entry added or popstate), and
     // those the last entry stands for: the entries above the one shown run up to it. A page the
     // WebView reloaded on one of its entries opens with nothing open, so its first sync goes back
-    // to the first entry.
+    // to the first entry; a page with a base stays where it is.
     var here = on ? layersOf(hist.state) : 0, top = here;
     // A history.go() the page asked for has not landed (since travelledAt); a Back's closes are
     // running; an entry was added in this task; the page is leaving (stop).
@@ -80,21 +82,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     /** @returns {number} The layers the entry shown stands for. */
     function shown() { return layersOf(hist.state); }
 
-    /** @returns {number} The layers open now, every part's together but the base's. */
+    /** @returns {number} The layers open now, every part's together. */
     function open() {
       var n = 0;
-      for (var i = 0; i < parts.length; i++) {
-        if (!parts[i].base) { n += parts[i].depth(); }
-      }
+      for (var i = 0; i < parts.length; i++) { n += parts[i].depth(); }
       return n;
     }
 
     /** @returns {boolean} Whether the page's base is open (see the header). */
     function baseOpen() {
-      for (var i = 0; i < parts.length; i++) {
-        if (parts[i].base && parts[i].depth() > 0) { return true; }
-      }
-      return false;
+      return Boolean(base && base.depth() > 0);
     }
 
     /**
@@ -108,17 +105,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
     /**
      * The part whose layer is on top: of those with one open, the highest rank (the shared dialog
-     * shows above every overlay), the last added among equals; the base only with no other open.
+     * shows above every overlay), the last added among equals.
      * @returns {?Object} The part, or null with nothing open.
      */
     function topPart() {
-      var best = null, base = null;
+      var best = null;
       for (var i = 0; i < parts.length; i++) {
-        if (parts[i].depth() <= 0) { continue; }
-        if (parts[i].base) { base = parts[i]; continue; }
-        if (!best || (parts[i].rank || 0) >= (best.rank || 0)) { best = parts[i]; }
+        if (parts[i].depth() > 0 && (!best || (parts[i].rank || 0) >= (best.rank || 0))) { best = parts[i]; }
       }
-      return best || base;
+      return best;
     }
 
     /**
@@ -194,10 +189,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     /**
      * A popstate: the page's own history.go() landing (align); or Back, which closes layers, the top
      * one first, until no more are open than the entry it lands on stands for, and at least one (an
-     * entry the page left above stands for a layer it closed itself). The base closes on a Back of
-     * its own only, and while it stays open after one the page goes forward to its entry again.
-     * With none left open, back to the first entry, after a forward swipe too; a part that closes
-     * nothing leaves the history where Back put it.
+     * entry the page left above stands for a layer it closed itself). With nothing else open, the
+     * base answers it, and while it stays open after a Back that landed on the first entry the page
+     * goes forward to its entry again. With nothing wanted, back to the first entry, after a forward
+     * swipe too; a part that closes nothing leaves the history where Back put it.
      * @returns {void}
      */
     function onPopstate() {
@@ -208,13 +203,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (here < from) {
         closing = true;
         try {
-          for (var closed = false; open() > here || !closed; closed = true) {
-            var part = topPart(), before = open();
-            if (!part) { break; }
-            part.close();
-            // The base answers a Back with nothing else open, and that is all the Back does.
-            if (part.base) { acted = true; break; }
-            if (open() >= before) { break; }
+          if (open()) {
+            for (var closed = false; open() && (open() > here || !closed); closed = true) {
+              var before = open();
+              topPart().close();
+              if (open() >= before) { break; }
+              acted = true;
+            }
+          } else if (baseOpen()) {
+            base.close();
             acted = true;
           }
         } finally {
@@ -223,11 +220,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       // A close that left the page takes no step after it.
       if (stopped) { return; }
-      if (acted && !here && baseOpen()) {
-        align(false);
-      } else if (!wanted() && here) {
-        travel(-here);
-      }
+      if (!wanted() || (acted && !here && baseOpen())) { align(false); }
+    }
+
+    /**
+     * After the page opened or closed a layer itself, or a tap on a page with a base: bring the
+     * history in step.
+     * @returns {void}
+     */
+    function sync() {
+      if (on && !stopped && !underWay() && !closing) { align(true); }
     }
 
     if (on) {
@@ -245,14 +247,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
        *   dialog: 1); base: the page itself, one layer below every other part's (see the header).
        * @returns {void}
        */
-      add: function (part) { parts.push(part); },
-      /**
-       * After the page opened or closed a layer itself: bring the history in step.
-       * @returns {void}
-       */
-      sync: function () {
-        if (on && !stopped && !underWay() && !closing) { align(true); }
+      add: function (part) {
+        if (!part.base) { parts.push(part); return; }
+        base = part;
+        // Every tap syncs, so that one that opens nothing gives the page the base's entry too. On
+        // the document while it captures, ahead of the page's own handlers.
+        var doc = on ? win.document : null;
+        if (doc && typeof doc.addEventListener === 'function') {
+          Object.keys(INPUT).forEach(function (type) { doc.addEventListener(type, sync, true); });
+        }
       },
+      sync: sync,
       /**
        * The page is leaving (a save, or the page closing itself): no more steps of its own, and Back
        * closes nothing, so no history.go() comes between the page and the navigation that closes it.

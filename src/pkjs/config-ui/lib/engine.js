@@ -4338,14 +4338,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (paintTimer) { return; }
         paintTimer = setTimeout(function () { paintTimer = null; paintSave(); }, PAINT_SOON_MS);
       };
-      // The same events give the page its base entry for the phone's Back (back-steps.js adds one
-      // only while a tap or key press is handled), so a change made in place is kept from Back too.
-      var onInput = function () {
-        paintSoon();
-        backSteps.sync();
-      };
       ['click', 'input', 'change', 'keyup', 'pointerup'].forEach(function (type) {
-        document.addEventListener(type, onInput, true);
+        document.addEventListener(type, paintSoon, true);
       });
     }
 

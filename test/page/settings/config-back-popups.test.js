@@ -1,8 +1,9 @@
 'use strict';
 // The header's popups, Support (support.js) and News (news.js), and the phone's Back
 // (src/pkjs/config-ui/lib/back-steps.js): each popup open has a history entry, so Back closes it
-// instead of leaving the settings page, and its × steps the history back. Both modules wire
-// themselves into the page's header as they load, so this suite gives them a small one.
+// instead of leaving the settings page, and its × leaves the entry, which the page keeps for itself
+// (the engine's base). Both modules wire themselves into the page's header as they load, so this
+// suite gives them a small one, and the page's base.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { installHistory, nextTap } = require('../../../src/pkjs/config-ui/test/fake-history.js');
@@ -48,6 +49,8 @@ const phone = installHistory(global.window = {});
 global.PConf = {};
 require('../../../src/pkjs/page/notices/news.js');
 require('../../../src/pkjs/page/settings/support.js');
+// The page itself, as engine.js adds it: Back with nothing open lands on the page.
+require('../../../src/pkjs/config-ui/lib/back-steps.js').add({ base: true, depth: () => 1, close() {} });
 
 const pill = (id) => made.find((el) => el.id === id);
 const popups = () => document.body.children;
@@ -55,7 +58,7 @@ const popups = () => document.body.children;
 const tapX = (popup, attr) => popup.dispatch('click', { target: { closest: (sel) => (sel === '[' + attr + ']' ? {} : null) } });
 
 [['Support', 'bmcHint', 'data-bmc-close'], ['News', 'newsHint', 'data-news-close']].forEach(([name, id, x]) => {
-  test(name + ': Back closes the popup, and its × steps the history back', async () => {
+  test(name + ': Back closes the popup, and its × leaves the entry for the page', async () => {
     await nextTap();
     pill(id).onclick();
     const popup = popups()[popups().length - 1];
@@ -72,6 +75,6 @@ const tapX = (popup, attr) => popup.dispatch('click', { target: { closest: (sel)
     tapX(popup, x);
     phone.land();
     assert.equal(popup.style.display, 'none');
-    assert.equal(phone.layers, 0, 'the × stepped the history back');
+    assert.equal(phone.layers, 1, 'the × left the entry: no step');
   });
 });

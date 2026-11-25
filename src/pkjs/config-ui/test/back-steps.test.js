@@ -292,6 +292,22 @@ test('a base: the first tap gives the page an entry; Back with nothing open reac
   assert.equal(base.backs, 2, 'so the next Back reaches it too');
 });
 
+test('a base: the page listens for taps itself, so one that opens nothing gives it its entry', () => {
+  const win = {};
+  const phone = installHistory(win);
+  const listening = {};
+  win.document = { addEventListener(type, fn, capture) { listening[type] = { fn, capture }; } };
+  const steps = backSteps.create(win);
+  layered(steps);
+  assert.deepEqual(listening, {}, 'a page without a base listens for nothing');
+  based(steps);
+  assert.ok(listening.click && listening.keyup && listening.pointerup, 'a page with one listens for taps and keys');
+  assert.ok(Object.keys(listening).every((type) => listening[type].capture), 'ahead of the page\'s own handlers');
+  assert.equal(phone.calls.push, 0);
+  listening.click.fn({ type: 'click' });
+  assert.equal(phone.layers, 1, 'the tap gave the page its entry');
+});
+
 test('a base: Back closes the layers above it first, and reaches it only with none open', async () => {
   const { phone, steps } = setup();
   const part = layered(steps);
