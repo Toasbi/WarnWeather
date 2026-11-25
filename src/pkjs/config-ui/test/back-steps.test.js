@@ -264,6 +264,20 @@ test('a page without history.pushState, or one that refuses it, works as before'
   assert.notEqual(phone.left, 'reloaded');
 });
 
+test('a page the WebView reloaded on one of its entries goes back to its first one, so Back leaves', () => {
+  const win = {};
+  const phone = installHistory(win);
+  win.history.pushState({ pconfLayers: 1 }, '');
+  win.history.pushState({ pconfLayers: 2 }, '');   // the page reloads here, nothing open
+  const steps = backSteps.create(win);
+  steps.add({ depth: () => 0, close: () => {} });
+  steps.sync();   // the page's first render
+  assert.deepEqual(phone.calls.go, [-2]);
+  phone.land();
+  phone.back();
+  assert.equal(phone.left, true, 'one Back leaves, as on any page with nothing open');
+});
+
 test('the history keeps its scroll: traversals between this page\'s entries move nothing', () => {
   const { win } = setup();
   assert.equal(win.history.scrollRestoration, 'manual');

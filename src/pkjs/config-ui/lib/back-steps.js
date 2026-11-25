@@ -60,17 +60,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       && typeof win.addEventListener === 'function');
     // The parts with layers: {depth(): number, close(): void, rank?: number}.
     var parts = [];
-    // The layers the entry the page loaded on stands for: 0, unless a reload kept one of ours.
-    var base = on ? layersOf(hist.state) : 0;
     // The layers the entry the page is on stands for (as of its last entry added or popstate), and
-    // those the last entry stands for: the entries above the one shown run up to it.
-    var here = 0, top = 0;
+    // those the last entry stands for: the entries above the one shown run up to it. A page the
+    // WebView reloaded on one of its entries opens with nothing open, so its first sync goes back
+    // to the first entry.
+    var here = on ? layersOf(hist.state) : 0, top = here;
     // A history.go() the page asked for has not landed (since travelledAt); a Back's closes are
     // running; an entry was added in this task.
     var travelling = false, travelledAt = 0, closing = false, added = false;
 
     /** @returns {number} The layers the entry shown stands for. */
-    function shown() { return Math.max(0, layersOf(hist.state) - base); }
+    function shown() { return layersOf(hist.state); }
 
     /** @returns {number} The layers open now, every part's together. */
     function open() {
@@ -124,7 +124,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      */
     function addEntry(at) {
       try {
-        hist.pushState({ pconfLayers: base + at + 1 }, '');
+        hist.pushState({ pconfLayers: at + 1 }, '');
       } catch (err) {
         on = false;   // a WebView that refuses it: Back leaves the page, as before
         return;
