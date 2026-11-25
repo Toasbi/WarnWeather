@@ -371,8 +371,11 @@
             });
             document.body.appendChild(newsOverlay);
             // Back closes it as its × does.
-            backSteps.add({ depth: function () { return newsOverlay.style.display === 'flex' ? 1 : 0; },
-                close: closeNewsPopup });
+            backSteps.add({
+                /** @returns {number} 1 while the popup shows, else 0. */
+                depth: function () { return newsOverlay.style.display === 'flex' ? 1 : 0; },
+                close: closeNewsPopup
+            });
         };
 
         var injectNewsPill = function () {

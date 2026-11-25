@@ -147,8 +147,11 @@
             });
             document.body.appendChild(supportOverlay);
             // Back closes it as its × does.
-            backSteps.add({ depth: function () { return supportOverlay.style.display === 'flex' ? 1 : 0; },
-                close: closeSupportPopup });
+            backSteps.add({
+                /** @returns {number} 1 while the popup shows, else 0. */
+                depth: function () { return supportOverlay.style.display === 'flex' ? 1 : 0; },
+                close: closeSupportPopup
+            });
         };
 
         var openSupportPopup = function () {
