@@ -690,6 +690,25 @@ test('the value kept before 3.5.0 of a source no slot picks goes, and so does a 
   });
 });
 
+test('before init a bake asks the global Pebble whether plugins are read, and has no value yet', () => {
+  const path = require.resolve('../../../src/pkjs/status-bars/adapter/plugin-value-source.js');
+  const cached = require.cache[path];
+  const had = Object.prototype.hasOwnProperty.call(global, 'Pebble');
+  const realPebble = global.Pebble;
+  delete require.cache[path];
+  const fresh = require(path);
+  require.cache[path] = cached;
+  try {
+    global.Pebble = fakePebble();
+    assert.equal(fresh.bakeFacts().available, true, 'so its slots show --, not nothing');
+    assert.equal(fresh.bakeFacts().valueOf({ key: KEY }), null);
+    global.Pebble = {};
+    assert.equal(fresh.bakeFacts().available, false);
+  } finally {
+    if (had) { global.Pebble = realPebble; } else { delete global.Pebble; }
+  }
+});
+
 // --- a complication ------------------------------------------------------------
 
 /** The slot showing the user's second complication. */

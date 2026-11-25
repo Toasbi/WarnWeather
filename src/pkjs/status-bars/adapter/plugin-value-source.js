@@ -105,10 +105,11 @@ var lanes = {};
 var deps = null;
 
 /**
- * @returns {boolean} Whether this Pebble app can read plugins at all (none before init).
+ * @returns {boolean} Whether this Pebble app can read plugins at all: before init, as the global
+ *   Pebble says (plugin-reader.js pebbleOf), so a bake then shows -- where it has no value yet.
  */
 function available() {
-    return Boolean(deps) && pluginReader.available(pluginReader.pebbleOf(deps));
+    return pluginReader.available(pluginReader.pebbleOf(deps));
 }
 
 /**
