@@ -2801,6 +2801,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // What More options measures "customised" against (moreDiffers), once per page.
     var MORE_BASE = moreBaseline(SCHEMA, INITIAL, ENV);
     var activeTab = initialTab(SCHEMA, S);
+    // The tab the page opened on: the phone's Back on another goes back to it (baseBack).
+    var startTab = activeTab;
+    // The page is leaving (Save, or the page closing itself): Back on the page waits for it.
+    var leaving = false;
     // The one sheet open in the shared <dialog id="modal">, or null. An opener sets it
     // whole, so two sheets can never be open at once:
     // - {kind: 'select', key, close}: a select/searchSelect's options (key: its messageKey).
@@ -4203,7 +4207,41 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var el = document.getElementById('toast');
       el.textContent = 'Settings saved ✓';
       el.classList.add('show');
+      leaving = true;
       setTimeout(function () { location.href = RETURN_TO + encodeURIComponent(JSON.stringify(blob)); }, 300);
+    }
+    /**
+     * Close the settings page without saving, as the phone's Back always did: RETURN_TO with nothing
+     * after it, which the Pebble app takes as a close that hands PKJS no settings.
+     * @returns {void}
+     */
+    function leave() {
+      leaving = true;
+      location.href = RETURN_TO;
+    }
+    /**
+     * The phone's Back with nothing open on the page (its base layer, back-steps.js): on another tab
+     * the tab the page opened on comes back; there, changes not saved yet ask first (Save or Discard,
+     * confirmChoice), and with none the page closes. A page that cannot open a <dialog> closes, as
+     * Back always did. While the page is leaving it does nothing, so a save under way still lands.
+     * @returns {void}
+     */
+    function baseBack() {
+      if (leaving) { return; }
+      if (activeTab !== startTab) { switchTab(startTab); return; }
+      var dlg = document.getElementById('modal');
+      if (!hasChanges() || !dlg || typeof dlg.showModal !== 'function') { leave(); return; }
+      // A palette left open in the tab body closes under the dialog.
+      expanded = null;
+      sheet = { kind: 'confirm', confirm: {
+        leave: true,
+        title: 'Save your changes?',
+        body: 'Your changes are not saved yet.',
+        actionLabel: 'Save',
+        confirmLabel: 'Discard'
+      } };
+      render();
+      focusInModal(['[data-confirm="action"]']);
     }
     /**
      * The Save button: saves at once, unless a row needs attention
@@ -4256,6 +4294,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (which === 'action') { revertAll(); }
         return;
       }
+      // The dialog the phone's Back opens with changes not saved (baseBack): its action saves as the
+      // Save button does, its second button leaves without them.
+      if (cf.leave) {
+        closeModal(true);
+        if (which === 'action') { requestSave(); } else { leave(); }
+        return;
+      }
       if (which === 'save') {
         closeModal(true);
         save();
@@ -4289,8 +4334,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (paintTimer) { return; }
         paintTimer = setTimeout(function () { paintTimer = null; paintSave(); }, PAINT_SOON_MS);
       };
+      // The same events give the page its base entry for the phone's Back (back-steps.js adds one
+      // only while a tap or key press is handled), so a change made in place is kept from Back too.
+      var onInput = function () {
+        paintSoon();
+        backSteps.sync();
+      };
       ['click', 'input', 'change', 'keyup', 'pointerup'].forEach(function (type) {
-        document.addEventListener(type, paintSoon, true);
+        document.addEventListener(type, onInput, true);
       });
     }
 
@@ -4307,6 +4358,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       depth: openLayers,
       /** @returns {void} */
       close: function () { stepBack(true); }
+    });
+    // The page itself, below every layer: once a tap gave it an entry, the phone's Back with nothing
+    // open stays on the page (baseBack).
+    backSteps.add({
+      base: true,
+      /** @returns {number} */
+      depth: function () { return 1; },
+      close: baseBack
     });
     // Links to other sites through Pebble.openUrl where the app gives the page one (links.js).
     if (PConf.links && document.addEventListener) {

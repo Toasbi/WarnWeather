@@ -224,12 +224,13 @@ function makeNode(tag) {
 /** Boot the real generated page in a vm sandbox with a fake DOM.
  * @param {Object} [cfg] stored settings to hydrate from (onboardingDone defaults to true)
  * @param {string} [platformName] Pebble platform for the injected env (default basalt)
- * @param {{userData: (Object|undefined), dialog: (boolean|undefined), history: (boolean|undefined)}} [opts]
+ * @param {{userData: (Object|undefined), dialog: (boolean|undefined), history: (boolean|Object|undefined)}} [opts]
  *   `userData`: what the phone injects (default {}); `dialog`: give #modal a native <dialog>'s
  *   showModal()/close()/open, so the Save button's confirm dialog can open (without it
  *   the page behaves like a webview with no <dialog>, and Save saves at once); `history`: give
  *   the page a history as the Pebble app's WebView keeps it, and the phone's Back over it
- *   (config-ui/test/fake-history.js: the handle's `phone`; without it the page keeps no history
+ *   (config-ui/test/fake-history.js: the handle's `phone`; an object is installHistory's options,
+ *   {activation: false} for a page no tap has reached yet; without it the page keeps no history
  *   entries).
  * @returns {{S: Object, scroll: Object, modal: Object, tabs: Object, window: Object, phone: ?Object,
  *   clickTab: function, openEditSheet: function, clickModalToggle: function,
@@ -281,7 +282,7 @@ function bootGeneratedPage(cfg, platformName, opts) {
   };
   sandbox.navigator = {};
   sandbox.location = { href: '' };   // save() navigates to RETURN_TO + the saved blob
-  const phone = opts.history ? installHistory(sandbox) : null;
+  const phone = opts.history ? installHistory(sandbox, opts.history === true ? undefined : opts.history) : null;
   if (opts.dialog) {
     const modal = sandbox.document.getElementById('modal');
     modal.open = false;

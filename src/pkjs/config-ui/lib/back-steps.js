@@ -7,7 +7,7 @@
 // entry for each layer it has open (an option list, a date's wheels, the Save dialog, a full-screen
 // dialog, a page module's overlay and its steps): Back lands on an entry below, and the page closes
 // its top layer, keeping what was changed there. With nothing open the page is on its first entry,
-// and Back leaves the page as it always did.
+// and Back leaves the page as it always did, unless the page has a base (below).
 //
 // Every part of the page with layers says how many it has open and how to close the top one
 // (add), and calls sync() after it opened or closed one itself. The rules:
@@ -20,12 +20,18 @@
 //    pick, Escape) leave the entries where they are while a layer stays open: the next layer opened
 //    takes the entry above, and Back closes the top layer whichever entry it lands on. Once no
 //    layer is open (Done on the last dialog, a tab switch, the Save dialog's buttons), the page
-//    goes back to its first entry, so that Back leaves the page.
+//    goes back to its first entry, so that Back leaves the page; a page with a base stays put.
 //  - history.go() lands later. Chromium puts an entry added before it lands above the entry the
 //    page was on, then lands below both, so no entry is added while one is under way: once it
 //    lands, the page goes forward over the entries it left, as far as it has layers open then.
 //  - A popstate the page did not ask for (Back) closes layers, the top one first, until the page
 //    has no more open than the entry stands for, and at least one.
+//  - The page itself can be a part too, its base (add with base: true, a depth of 1 while open). It
+//    counts as no layer, but while it is open the page keeps at least one entry above its first,
+//    so that Back with nothing else open still lands in the page (the engine's base: another tab
+//    goes back to the one the page opened on, changes not saved ask first). Back reaches the base
+//    only with nothing else open; while it stays open after a Back that landed on the first entry,
+//    the page goes forward again.
 // A page without history.pushState works as before. Loaded before engine.js in the page concat
 // (build-page.js LIB_PAGE_FILES), whose boot adds its own layers; required under Node.
 var PConf = (typeof PConf !== 'undefined') ? PConf
@@ -72,24 +78,45 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     /** @returns {number} The layers the entry shown stands for. */
     function shown() { return layersOf(hist.state); }
 
-    /** @returns {number} The layers open now, every part's together. */
+    /** @returns {number} The layers open now, every part's together but the base's. */
     function open() {
       var n = 0;
-      for (var i = 0; i < parts.length; i++) { n += parts[i].depth(); }
+      for (var i = 0; i < parts.length; i++) {
+        if (!parts[i].base) { n += parts[i].depth(); }
+      }
       return n;
+    }
+
+    /** @returns {boolean} Whether the page's base is open (see the header). */
+    function baseOpen() {
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i].base && parts[i].depth() > 0) { return true; }
+      }
+      return false;
+    }
+
+    /**
+     * How many entries above its first the page wants: one per layer open, and one at least while
+     * its base is open.
+     * @returns {number}
+     */
+    function wanted() {
+      return Math.max(open(), baseOpen() ? 1 : 0);
     }
 
     /**
      * The part whose layer is on top: of those with one open, the highest rank (the shared dialog
-     * shows above every overlay), the last added among equals.
+     * shows above every overlay), the last added among equals; the base only with no other open.
      * @returns {?Object} The part, or null with nothing open.
      */
     function topPart() {
-      var best = null;
+      var best = null, base = null;
       for (var i = 0; i < parts.length; i++) {
-        if (parts[i].depth() > 0 && (!best || (parts[i].rank || 0) >= (best.rank || 0))) { best = parts[i]; }
+        if (parts[i].depth() <= 0) { continue; }
+        if (parts[i].base) { base = parts[i]; continue; }
+        if (!best || (parts[i].rank || 0) >= (best.rank || 0)) { best = parts[i]; }
       }
-      return best;
+      return best || base;
     }
 
     /**
@@ -142,7 +169,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @returns {void}
      */
     function align(mayPush) {
-      var want = open(), at = shown();
+      var want = wanted(), at = shown();
       if (!want) {
         if (at) { travel(-at); }
         return;
@@ -155,28 +182,37 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     /**
      * A popstate: the page's own history.go() landing (align); or Back, which closes layers, the top
      * one first, until no more are open than the entry it lands on stands for, and at least one (an
-     * entry the page left above stands for a layer it closed itself). With none left open, back to
-     * the first entry, after a forward swipe too; a part that closes nothing leaves the history
-     * where Back put it.
+     * entry the page left above stands for a layer it closed itself). The base closes on a Back of
+     * its own only, and while it stays open after one the page goes forward to its entry again.
+     * With none left open, back to the first entry, after a forward swipe too; a part that closes
+     * nothing leaves the history where Back put it.
      * @returns {void}
      */
     function onPopstate() {
-      var from = here;
+      var from = here, acted = false;
       here = shown();
       if (travelling) { travelling = false; align(false); return; }
       if (here < from) {
         closing = true;
         try {
-          for (var closed = false; open() && (open() > here || !closed); closed = true) {
-            var before = open();
-            topPart().close();
+          for (var closed = false; open() > here || !closed; closed = true) {
+            var part = topPart(), before = open();
+            if (!part) { break; }
+            part.close();
+            // The base answers a Back with nothing else open, and that is all the Back does.
+            if (part.base) { acted = true; break; }
             if (open() >= before) { break; }
+            acted = true;
           }
         } finally {
           closing = false;
         }
       }
-      if (!open() && here) { travel(-here); }
+      if (acted && !here && baseOpen()) {
+        align(false);
+      } else if (!wanted() && here) {
+        travel(-here);
+      }
     }
 
     if (on) {
@@ -188,9 +224,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return {
       /**
        * A part of the page with layers of its own.
-       * @param {{depth: function(): number, close: function(): void, rank: (number|undefined)}} part
-       *   depth: how many of its layers are open; close: close the top one, keeping what was
-       *   changed there; rank: higher shows above lower (the shared dialog: 1).
+       * @param {{depth: function(): number, close: function(): void, rank: (number|undefined),
+       *   base: (boolean|undefined)}} part depth: how many of its layers are open; close: close the
+       *   top one, keeping what was changed there; rank: higher shows above lower (the shared
+       *   dialog: 1); base: the page itself, one layer below every other part's (see the header).
        * @returns {void}
        */
       add: function (part) { parts.push(part); },
