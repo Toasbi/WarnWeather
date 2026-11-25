@@ -40,20 +40,19 @@ test('each slot holding the item takes the set, in any bar, and the set goes', (
   own('statusForecastRight', SET), own('statusBar6Mid', SET)));
 });
 
-test('a slot\'s own pick stays: a blob the new page saved before this boot', () => {
+test('a slot with a pick of its own keeps it whole: a blob the 3.5.0 page saved before this boot', () => {
   const mine = { plugin: 'bbbbbbbb-0000-0000-0000-000000000002', id: 'muninn/stats/daysRemaining' };
   const blob = Object.assign({ statusTopLeft: 'pluginValue', statusTopRight: 'pluginValue' },
     own('statusTopLeft', mine), SHARED);
   move(blob);
   assert.deepEqual(blob, Object.assign({ statusTopLeft: 'pluginValue', statusTopRight: 'pluginValue' },
-    own('statusTopLeft', Object.assign({}, mine, { look: 'both', icon: 'plug', every: '30' })), own('statusTopRight', SET)));
-  const looks = Object.assign({ statusTopLeft: 'pluginValue', statusTopRight: 'pluginValue' },
-    own('statusTopLeft', { look: 'icon', icon: 'wifi' }), own('statusTopRight', { look: 'text' }), SHARED);
+    own('statusTopLeft', mine), own('statusTopRight', SET)),
+  'none of the set\'s Look, icon or Updates: the page left them on their defaults');
+  const looks = Object.assign({ statusTopLeft: 'pluginValue' }, own('statusTopLeft', { look: 'icon', icon: 'wifi' }),
+    SHARED);
   move(looks);
-  assert.deepEqual([looks.statusTopLeftPluginValueLook, looks.statusTopLeftPluginValueIcon], ['icon', 'wifi'],
-    'its own Look and icon');
-  assert.deepEqual([looks.statusTopRightPluginValueLook, looks.statusTopRightPluginValueIcon], ['text', 'plug'],
-    'its own Look, with the set\'s icon');
+  assert.deepEqual(looks, Object.assign({ statusTopLeft: 'pluginValue' }, own('statusTopLeft', { look: 'icon',
+    icon: 'wifi' })), 'its own Look and icon, and nothing of the set');
 });
 
 test('the set\'s icon None, the value alone, is the Text look a slot starts on; another icon comes before the text', () => {

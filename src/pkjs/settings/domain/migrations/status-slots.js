@@ -144,9 +144,10 @@ var SHARED_PLUGIN_VALUE_KEYS = { plugin: 'pluginValuePlugin', id: 'pluginValueId
  * are the slot's (catalog pluginValueKeys), where the item had one set that every slot holding it
  * showed. Each slot holding the item takes that set, so it shows what it showed, and the set
  * goes. The set's icon None was the value alone, which the Look's Text is, where a slot starts;
- * any other icon showed before the value, so the slot taking it takes the Look Icon + text. Where
- * no slot holds the item the set goes too: a slot that takes the item later starts on None, as a
- * new one does.
+ * any other icon showed before the value, so the slot taking it takes the Look Icon + text. A slot
+ * with a pick of its own, which only a blob the 3.5.0 page saved can hold, keeps it whole: what
+ * it does not hold, the page left on its default. Where no slot holds the item the set goes too:
+ * a slot that takes the item later starts on None, as a new one does.
  *
  * No send: the lines bake to the bytes they had, and the Clay message carries none of them.
  *
@@ -160,13 +161,13 @@ function movePluginValueIntoSlots(blob) {
     if (!names.length) { return { changed: false, send: false }; }
     catalog.everySlotKey().forEach(function (key) {
         var keys = catalog.pluginValueKeys(key);
-        if (blob[key] !== 'pluginValue') { return; }
+        var ownPick = Object.keys(keys).some(function (name) { return blob[keys[name]] !== undefined; });
+        if (blob[key] !== 'pluginValue' || ownPick) { return; }
         names.forEach(function (name) {
             var shared = blob[SHARED_PLUGIN_VALUE_KEYS[name]];
-            // A slot's own pick (a blob the 3.5.0 page saved before this boot) stays.
-            if (blob[keys[name]] !== undefined || (name === 'icon' && shared === 'none')) { return; }
+            if (name === 'icon' && shared === 'none') { return; }
             blob[keys[name]] = shared;
-            if (name === 'icon' && blob[keys.look] === undefined) { blob[keys.look] = 'both'; }
+            if (name === 'icon') { blob[keys.look] = 'both'; }
         });
     });
     names.forEach(function (name) { delete blob[SHARED_PLUGIN_VALUE_KEYS[name]]; });
