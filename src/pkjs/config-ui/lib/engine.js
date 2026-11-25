@@ -4302,7 +4302,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     wireSave();
     // The phone's Back closes the dialog's top layer as Escape does, but keeps a name being typed;
     // the dialog shows above every overlay of the page's own.
-    backSteps.add({ rank: 1, depth: openLayers, close: function () { stepBack(true); } });
+    backSteps.add({
+      rank: 1,
+      depth: openLayers,
+      /** @returns {void} */
+      close: function () { stepBack(true); }
+    });
     // Links to other sites through Pebble.openUrl where the app gives the page one (links.js).
     if (PConf.links && document.addEventListener) {
       PConf.links.wireLinks(document, typeof window !== 'undefined' ? window : null);

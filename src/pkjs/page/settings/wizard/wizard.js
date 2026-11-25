@@ -1303,10 +1303,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Change leads there, and Skip is offered no more) as Keep customizing does, so setup opened by
     // itself counts that step a layer from then on.
     BACK.add({
+        /**
+         * Setup's layers: its overlay where a tap opened it, a step past the first each, and the
+         * first step of setup opened by itself once the summary was shown.
+         * @returns {number}
+         */
         depth: function () {
             if (!run || !run.overlay) { return 0; }
             return run.overlayLayer + run.idx + (run.reachedDone && !run.idx && !run.overlayLayer ? 1 : 0);
         },
+        /**
+         * Back a step; on the first, close setup (Skip, or Keep customizing once the summary was shown).
+         * @returns {void}
+         */
         close: function () { onNav(run.idx > 0 ? 'back' : run.reachedDone ? 'tweak' : 'skip'); }
     });
 
