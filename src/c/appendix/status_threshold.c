@@ -175,15 +175,14 @@ static uint16_t health_u16(const uint8_t blob[THRESH_SETTINGS_BYTES], int kind, 
 }
 
 // The kind's bold mode (ThreshBold); THRESH_BOLD_WARN, the shipped behaviour, for an
-// out-of-range kind and the reserved wire value 3. The weather condition's and the
-// Plugin value's cells sit past the full bold area, at bits 3-4 and 5-6 of the alerts
-// byte.
+// out-of-range kind and the reserved wire value 3. The kinds past the full bold area keep
+// their cells side by side in the alerts byte, the first at THRESH_CONDITION_BOLD_SHIFT.
 static int status_threshold_bold_mode(const uint8_t blob[THRESH_SETTINGS_BYTES], int kind) {
     if (kind < 0 || kind >= THRESH_KIND_COUNT) { return THRESH_BOLD_WARN; }
     int mode = kind < THRESH_BOLD_AREA_KINDS
         ? cell2(blob, THRESH_BOLD_OFFSET, kind)
-        : (blob[THRESH_ALERTS_OFFSET] >> (kind == THRESH_CONDITION
-            ? THRESH_CONDITION_BOLD_SHIFT : THRESH_PLUGIN_VALUE_BOLD_SHIFT)) & 3;
+        : (blob[THRESH_ALERTS_OFFSET]
+            >> (THRESH_CONDITION_BOLD_SHIFT + 2 * (kind - THRESH_BOLD_AREA_KINDS))) & 3;
     return mode == 3 ? THRESH_BOLD_WARN : mode;   // 3 is reserved
 }
 

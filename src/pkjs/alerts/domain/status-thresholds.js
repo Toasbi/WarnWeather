@@ -135,9 +135,9 @@
     { code: 'condition', key: 'Condition', boldOnly: true },
     // The Plugin value (kind 21, appended): bold-only, one mode for every slot that holds
     // it, whatever value each slot shows, as the phone battery's is for its slots. Its cell
-    // sits at bits 5-6 of the alerts byte (status_threshold.h THRESH_PLUGIN_VALUE). Its
-    // slot's Edit button opens the slot's own dialog all the same (blocks.js
-    // statusSlotEditSheet), where the Bold row is.
+    // sits right above the condition's (status-wire.js boldCell). Its slot's Edit button
+    // opens the slot's own dialog all the same (blocks.js statusSlotEditSheet), where the
+    // Bold row is.
     { code: 'pluginValue', key: 'PluginValue', boldOnly: true }
   ];
 

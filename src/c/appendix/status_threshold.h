@@ -37,8 +37,7 @@
 //                       2 * (k & 3) — 20 kinds x 2 bits = bytes 29..33 (byte 33
 //                       carries kinds 16..19, ALL FOUR now assigned: the bold
 //                       area is full). Kinds 20 and 21, the weather condition and
-//                       the Plugin value, keep their cells in the alerts byte below
-//                       (bits 3-4 and 5-6).
+//                       the Plugin value, keep their cells in the alerts byte below.
 //                       INDEPENDENT of the enabled bitmask: THRESH_BOLD_ALWAYS
 //                       bolds a slot whose kind has no thresholds configured.
 //      [34]             alerts options (THRESH_ALERTS_OFFSET). Bits 0-1: the
@@ -104,8 +103,8 @@
 
 #define THRESH_KIND_COUNT 22
 // The kinds whose bold cells fill the bold area (bytes 29..33); the two kinds past it
-// keep their cells in the alerts byte: THRESH_CONDITION at bits 3-4, THRESH_PLUGIN_VALUE
-// at bits 5-6.
+// keep their cells side by side in the alerts byte, from THRESH_CONDITION_BOLD_SHIFT (see
+// the layout above).
 #define THRESH_BOLD_AREA_KINDS 20
 #define THRESH_CONDITION_BOLD_SHIFT 3
 #define THRESH_PLUGIN_VALUE_BOLD_SHIFT 5
@@ -187,7 +186,7 @@ typedef enum {
     // The Plugin value (kind 21, appended): bold-only, one mode for every slot that holds
     // it, whatever value each shows. Its text-only id and every icon of its own map here
     // (status_line.h status_icon_is_plugin_value), the icon alone too, which has no
-    // text to print bold. Its cell sits at bits 5-6 of the alerts byte.
+    // text to print bold. Its cell sits right above the condition's.
     THRESH_PLUGIN_VALUE = 21,
 } ThreshKind;
 #define THRESH_WEATHER_KIND_MAX THRESH_GUST

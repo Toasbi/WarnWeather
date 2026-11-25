@@ -88,17 +88,17 @@ var WARN_LOOK_OFFSET = 36;
 var ON_DEMAND_OFFSET = 38;
 
 /**
- * Where kind k's 2-bit bold cell sits: the bold area for kinds 0..19 (4 per byte), bits
- * 3-4 of the alerts byte for kind 20, the weather condition, and bits 5-6 for kind 21, the
- * Plugin value (status_threshold.h THRESH_CONDITION_BOLD_SHIFT,
- * THRESH_PLUGIN_VALUE_BOLD_SHIFT). A kind past 21 has no cell until the layout changes.
+ * Where kind k's 2-bit bold cell sits: the bold area for kinds 0..19 (4 per byte), then the
+ * alerts byte, side by side from the weather condition's cell to the Plugin value's
+ * (status_threshold.c status_threshold_bold_mode). A kind past those has no cell until the
+ * layout changes.
  * @param {number} k Kind index (KINDS).
  * @returns {{byte: number, shift: number}} The cell's byte and bit offset.
  */
 function boldCell(k) {
+  var shift = CONDITION_BOLD_SHIFT + 2 * (k - BOLD_AREA_KINDS);
   if (k < BOLD_AREA_KINDS) { return { byte: BOLD_OFFSET + (k >> 2), shift: 2 * (k & 3) }; }
-  if (k === BOLD_AREA_KINDS) { return { byte: ALERTS_OFFSET, shift: CONDITION_BOLD_SHIFT }; }
-  if (k === BOLD_AREA_KINDS + 1) { return { byte: ALERTS_OFFSET, shift: PLUGIN_VALUE_BOLD_SHIFT }; }
+  if (shift <= PLUGIN_VALUE_BOLD_SHIFT) { return { byte: ALERTS_OFFSET, shift: shift }; }
   throw new Error('kind ' + k + ' has no bold cell: the settings blob layout must change first');
 }
 

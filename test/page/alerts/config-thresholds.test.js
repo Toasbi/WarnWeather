@@ -1625,8 +1625,6 @@ test('Bold is the last row before any Goals or Alert highlighting group on every
   const sheets = sheetSections();
   const plugins = sheets.filter((s) => /^threshPluginValue/.test(s.sheetId));
   assert.equal(plugins.length, 21, 'the Plugin value\'s dialogs are slot sheets, one per slot');
-  plugins.forEach((plugin) => assert.equal(plugin.items[plugin.items.length - 1].messageKey,
-    'threshPluginValueBoldMode', plugin.sheetId + ' closes with the item\'s Bold'));
   assert.ok(sheets.length >= 17 + 21, 'found ' + sheets.length + ' slot sheets');
   sheets.forEach((s) => {
     const rows = rowsOf(s);

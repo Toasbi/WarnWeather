@@ -42,6 +42,9 @@ const OD = require('../../../src/pkjs/status-bars/domain/on-demand.js');
 
 const COMBOS = 4000;
 const GOLDEN_SHA256 = '73de400d15a198a91b3d70d0759c76b702123dacae55b15887e06553b868729a';
+// The kinds there were at the recording: the generator draws the bold modes of these only, so
+// a kind appended since keeps the PRNG sequence (and the digest) as it was.
+const RECORDED_KINDS = 20;
 
 /**
  * mulberry32: a small deterministic PRNG, so the generated set never varies.
@@ -109,11 +112,11 @@ function combo(rnd) {
   put(s, 'healthMode', pick(rnd, [ABSENT, 'off', 'status', 'all', 'slot']));
   put(s, 'batteryLowLevel', pick(rnd, [ABSENT, '5', '10', '15', '20', '25', '30', '0', '31', 'x', 15]));
   put(s, 'batteryLowDisplay', pick(rnd, [ABSENT, 'icon', 'value', 'bogus']));
-  th.KINDS.forEach((k) => {
-    // The weather condition (kind 20) and the Plugin value (kind 21) came after the
-    // recording: drawing their bold modes here would shift every later draw. Their cells
-    // have tests of their own below.
-    if (k.code === 'condition' || k.code === 'pluginValue') { return; }
+  th.KINDS.forEach((k, kind) => {
+    // The kinds from RECORDED_KINDS on (the weather condition, the Plugin value) came after
+    // the recording: drawing their bold modes here would shift every later draw. Their cells
+    // have a test of their own below.
+    if (kind >= RECORDED_KINDS) { return; }
     const stem = 'thresh' + k.key;
     put(s, stem + 'BoldMode', pick(rnd, [ABSENT, 'warn', 'off', 'always', 'bogus']));
     if (k.boldOnly) { return; }
@@ -141,47 +144,33 @@ test('CLAY_THRESHOLDS_UINT8 is byte-identical to the recorded packer over 4000 g
   assert.equal(digest, GOLDEN_SHA256);
 });
 
-// The weather condition's bold cell (kind 20) rides bits 3-4 of the alerts byte, beside
-// the rain look and Replaces the slot, and moves nothing else.
-test('the weather condition\'s bold mode packs into bits 3-4 of the alerts byte alone', () => {
-  const base = { rainAlertDisplay: 'minutes' };
-  const plain = wire.buildSettingsBlob(base);
-  [['warn', 0], ['off', 1], ['always', 2], ['bogus', 0]].forEach(([mode, bits]) => {
-    const blob = wire.buildSettingsBlob(Object.assign({ threshConditionBoldMode: mode }, base));
-    assert.equal((blob[wire.ALERTS_OFFSET] >> wire.CONDITION_BOLD_SHIFT) & 3, bits, mode);
-    blob.forEach((b, i) => {
-      const want = i === wire.ALERTS_OFFSET ? plain[i] | (bits << wire.CONDITION_BOLD_SHIFT) : plain[i];
-      assert.equal(b, want, mode + ': byte ' + i);
+// The kinds past the full bold area keep their cells in the alerts byte, beside the rain look
+// and Replaces the slot: the weather condition's (kind 20) and right above it the Plugin
+// value's (kind 21, one mode for every Plugin value slot). Each moves nothing else, the other
+// kind's cell included, which its base sets to Always.
+[{ code: 'condition', shift: wire.CONDITION_BOLD_SHIFT, other: 'threshPluginValueBoldMode' },
+  { code: 'pluginValue', shift: wire.PLUGIN_VALUE_BOLD_SHIFT, other: 'threshConditionBoldMode' }]
+  .forEach((cell, i) => {
+    const kind = RECORDED_KINDS + i;
+    test('the ' + cell.code + ' bold mode packs into its cell of the alerts byte alone', () => {
+      assert.equal(th.KINDS[kind].code, cell.code, cell.code + ' is kind ' + kind);
+      assert.deepEqual(wire.boldCell(kind), { byte: wire.ALERTS_OFFSET, shift: cell.shift });
+      const base = { rainAlertDisplay: 'minutes', [cell.other]: 'always' };
+      const plain = wire.buildSettingsBlob(base);
+      [['warn', 0], ['off', 1], ['always', 2], ['bogus', 0]].forEach(([mode, bits]) => {
+        const blob = wire.buildSettingsBlob(Object.assign({ ['thresh' + th.KINDS[kind].key + 'BoldMode']: mode }, base));
+        blob.forEach((b, at) => {
+          const want = at === wire.ALERTS_OFFSET ? plain[at] | (bits << cell.shift) : plain[at];
+          assert.equal(b, want, mode + ': byte ' + at);
+        });
+      });
+      assert.equal(plain[wire.ALERTS_OFFSET] & 3, 2, 'the rain look keeps bits 0-1');
+      assert.ok(plain[wire.ALERTS_OFFSET] & wire.RAIN_REPLACE_BIT, 'Replaces the slot keeps bit 2');
+      assert.equal(plain[wire.ALERTS_OFFSET] & 0x80, 0, 'bit 7 stays reserved');
     });
   });
-  assert.equal((plain[wire.ALERTS_OFFSET] & 3), 2, 'the rain look keeps bits 0-1');
-  assert.ok(plain[wire.ALERTS_OFFSET] & wire.RAIN_REPLACE_BIT, 'Replaces the slot keeps bit 2');
-  const all = wire.buildSettingsBlob(Object.assign({ statusBoldAll: 'all' }, base));
-  assert.equal((all[wire.ALERTS_OFFSET] >> wire.CONDITION_BOLD_SHIFT) & 3, 2, 'Bold all reaches it too');
-  assert.deepEqual(wire.boldCell(20), { byte: wire.ALERTS_OFFSET, shift: wire.CONDITION_BOLD_SHIFT });
-  assert.deepEqual(wire.boldCell(19), { byte: 33, shift: 6 });
-  assert.equal(th.KINDS[20].code, 'condition', 'the condition is kind 20');
-});
 
-// The Plugin value's bold cell (kind 21) rides bits 5-6 of the alerts byte, right above the
-// condition's, and moves nothing else: one mode for every Plugin value slot.
-test('the Plugin value\'s bold mode packs into bits 5-6 of the alerts byte alone', () => {
-  const base = { rainAlertDisplay: 'icon', threshConditionBoldMode: 'always' };
-  const plain = wire.buildSettingsBlob(base);
-  [['warn', 0], ['off', 1], ['always', 2], ['bogus', 0]].forEach(([mode, bits]) => {
-    const blob = wire.buildSettingsBlob(Object.assign({ threshPluginValueBoldMode: mode }, base));
-    assert.equal((blob[wire.ALERTS_OFFSET] >> wire.PLUGIN_VALUE_BOLD_SHIFT) & 3, bits, mode);
-    blob.forEach((b, i) => {
-      const want = i === wire.ALERTS_OFFSET ? plain[i] | (bits << wire.PLUGIN_VALUE_BOLD_SHIFT) : plain[i];
-      assert.equal(b, want, mode + ': byte ' + i);
-    });
-  });
-  assert.equal((plain[wire.ALERTS_OFFSET] >> wire.CONDITION_BOLD_SHIFT) & 3, 2, 'the condition keeps bits 3-4');
-  assert.equal(plain[wire.ALERTS_OFFSET] & 0x80, 0, 'bit 7 stays reserved');
-  const all = wire.buildSettingsBlob({ statusBoldAll: 'all' });
-  assert.equal((all[wire.ALERTS_OFFSET] >> wire.PLUGIN_VALUE_BOLD_SHIFT) & 3, 2, 'Bold all reaches it too');
-  assert.deepEqual(wire.boldCell(21), { byte: wire.ALERTS_OFFSET, shift: wire.PLUGIN_VALUE_BOLD_SHIFT });
-  assert.throws(() => wire.boldCell(22), /layout must change/, 'a 23rd kind has no cell');
-  assert.equal(th.KINDS[21].code, 'pluginValue', 'the Plugin value is kind 21');
-  assert.equal(th.KINDS[21].key, 'PluginValue', 'its mode is threshPluginValueBoldMode');
+test('boldCell: the bold area ends at kind 19, and a kind past the alerts byte\'s cells has none', () => {
+  assert.deepEqual(wire.boldCell(RECORDED_KINDS - 1), { byte: 33, shift: 6 });
+  assert.throws(() => wire.boldCell(RECORDED_KINDS + 2), /layout must change/, 'a 23rd kind has no cell');
 });
