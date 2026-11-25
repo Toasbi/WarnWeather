@@ -9747,20 +9747,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -9854,9 +9843,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -9983,20 +9971,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -10090,9 +10067,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -10219,20 +10195,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -10326,9 +10291,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -10455,20 +10419,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -10562,9 +10515,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -10691,20 +10643,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -10798,9 +10739,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -10927,20 +10867,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -11034,9 +10963,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -11163,20 +11091,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -11270,9 +11187,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -11399,20 +11315,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -11506,9 +11411,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -11635,20 +11539,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -11742,9 +11635,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -11871,20 +11763,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -11978,9 +11859,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -12107,20 +11987,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -12214,9 +12083,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -12343,20 +12211,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -12450,9 +12307,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -12579,20 +12435,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -12686,9 +12531,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -12815,20 +12659,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -12922,9 +12755,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -13051,20 +12883,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -13158,9 +12979,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -13287,20 +13107,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -13394,9 +13203,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -13523,20 +13331,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -13630,9 +13427,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -13759,20 +13555,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -13866,9 +13651,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -13995,20 +13779,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -14102,9 +13875,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -14231,20 +14003,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -14338,9 +14099,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [
@@ -14467,20 +14227,9 @@
                 "label": "Look",
                 "defaultValue": "text",
                 "sticky": false,
-                "options": [
-                  [
-                    "Icon + text",
-                    "both"
-                  ],
-                  [
-                    "Text",
-                    "text"
-                  ],
-                  [
-                    "Icon",
-                    "icon"
-                  ]
-                ],
+                "optionsFrom": {
+                  "resolver": "pluginValueLooks"
+                },
                 "optionDisabledWhen": {
                   "icon": {
                     "when": "pluginValueNeither",
@@ -14574,9 +14323,8 @@
                 "type": "segmented",
                 "messageKey": "threshPluginValueBoldMode",
                 "label": "Bold",
-                "hintByValue": {
-                  "off": "For every Plugin value slot.",
-                  "always": "Every Plugin value slot prints its value in bold."
+                "hintFrom": {
+                  "resolver": "pluginValueBoldHint"
                 },
                 "defaultValue": "off",
                 "options": [

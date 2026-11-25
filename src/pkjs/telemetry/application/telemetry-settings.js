@@ -21,7 +21,8 @@ var slotText = require('../../status-bars/domain/slot-text.js');
 var batteryDays = require('../../status-bars/domain/battery-days.js');
 // wantedPluginValues: the Plugin value slots shown with a source picked.
 var statusLines = require('../../status-bars/domain/status-lines.js');
-// LOOKS, lookOf, ICON_FORMS, iconName: the Looks those slots take and the icons they draw.
+// LOOKS, lookOf, drawsIcon, ICON_FORMS, iconName: the Looks those slots take and the icons they
+// draw.
 var pluginValues = require('../../status-bars/domain/plugin-values.js');
 var platforms = require('../../config-ui/lib/platform.js');
 var color = require('../../lib/color.js');
@@ -253,7 +254,7 @@ function pluginValueLooks(slots) {
  * @returns {string} takenInOrder's.
  */
 function pluginValueIcons(slots) {
-    var drawn = slots.filter(function (slot) { return pluginValues.lookOf(slot.pick) !== 'text'; });
+    var drawn = slots.filter(function (slot) { return pluginValues.drawsIcon(slot.pick); });
     return takenInOrder(Object.keys(pluginValues.ICON_FORMS),
         drawn.map(function (slot) { return pluginValues.iconName(slot.pick); }));
 }

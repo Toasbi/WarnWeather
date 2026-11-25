@@ -55,10 +55,11 @@ var bothWhen = gates.bothWhen;
 var tabLink = gates.tabLink;
 var linkRow = gates.linkRow;
 // A kind's level group (its Alert levels or Goals: the header, the slider, the warn look
-// and the colours), the group's two voices and the next-day mark options
-// (page/alerts/level-rows-schema.js), shared with the Alerts tab's alert sheets.
+// and the colours), the group's two voices, the next-day mark options and a level-less
+// kind's Bold row (page/alerts/level-rows-schema.js), shared with the Alerts tab's alert
+// sheets and the Plugin value's dialogs.
 var levelRowsSchema = require('../alerts/level-rows-schema.js');
-var BOLD_ALWAYS_HINT = levelRowsSchema.BOLD_ALWAYS_HINT;
+var boldOnlyRow = levelRowsSchema.boldOnlyRow;
 var ALERT_VOICE = levelRowsSchema.ALERT_VOICE;
 var GOAL_VOICE = levelRowsSchema.GOAL_VOICE;
 var nextDayMarkOptions = levelRowsSchema.nextDayMarkOptions;
@@ -692,23 +693,6 @@ function boldSection(title, keyStem, gate, extraItems, afterItems) {
     // shape what the slot shows come first, then how boldly it prints.
     var items = (extraItems || []).concat([boldOnlyRow(keyStem)], afterItems || []);
     return sheetOf(keyStem, title, gateAll(items, gate));
-}
-/**
- * A level-less kind's Bold row: Off or Always.
- * @param {string} keyStem Kind key stem, e.g. 'City' (thresh<Stem>BoldMode).
- * @returns {Object} The row.
- */
-function boldOnlyRow(keyStem) {
-    return {
-        type: 'segmented',
-        messageKey: 'thresh' + keyStem + 'BoldMode',
-        label: 'Bold',
-        // Off is the default and needs no words; Always says how far it reaches.
-        hintByValue: {always: BOLD_ALWAYS_HINT},
-        defaultValue: 'off',
-        options: [['Off', 'off'], ['Always', 'always']],
-        disabledWhen: BOLD_MASTER_WHEN
-    };
 }
 
 // The watch battery's dialog (its slot's Edit button opens it in every look: blocks.js
@@ -2301,9 +2285,9 @@ module.exports = {
             textFrom: {resolver: 'conditionList'}
         }])
         // The Plugin value's dialogs, one per slot like the phone battery's: the plugin, its
-        // value, its icon and how often it is read. Last, as it has no wire kind and no Bold
-        // (plugin-value-schema.js).
-        ].concat(pluginValueSchema.dialogSections(sheetOf, boldOnlyRow))).map(function (sec) {
+        // value, its Look, its icon, how often it is read and Bold (plugin-value-schema.js).
+        // Last, as its kind is (status-thresholds.js KINDS).
+        ].concat(pluginValueSchema.dialogSections(sheetOf))).map(function (sec) {
             // Every slot dialog keeps the bars pinned above its rows: the bar it was opened
             // from, a bar's dialog (preview-status-bars.js statusBarsPreview). The bars' own
             // dialogs pin their bar (barDialog).

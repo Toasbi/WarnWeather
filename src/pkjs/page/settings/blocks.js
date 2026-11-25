@@ -56,6 +56,8 @@ if (typeof require !== 'undefined') {
     // the watch battery's, whose Icon look badges no bold.
     var slotText = (typeof require !== 'undefined')
         ? require('../../status-bars/domain/slot-text.js') : window.SlotText;
+    // The Plugin value's Look, its slot's own (plugin-values.js, concatenated ahead of this
+    // file), whose Icon look badges no bold either.
     var pluginValues = (typeof require !== 'undefined')
         ? require('../../status-bars/domain/plugin-values.js') : window.PluginValues;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
@@ -161,20 +163,17 @@ if (typeof require !== 'undefined') {
     // for the slot's CURRENT value, when that value is a threshold kind, whatever its Look
     // (the Look is the dialog's first row). The catalog's slot codes and the threshold
     // contract's KINDS codes are the same vocabulary ('wind', 'aqi', 'steps', ...), so the
-    // contract IS the mapping — no hand-copied list to drift. The phone battery's dialog is
-    // its slot's own, since its Look is (status-line-catalog.js phoneBatterySheet): a dialog
-    // is told nothing of the slot that opened it, but this resolver is. The Plugin value has
-    // no threshold kind and a dialog all the same, its slot's own too, as its source is
-    // (status-line-catalog.js pluginValueSheet, plugin-value-schema.js). env gate mirrors the
-    // sheets' own showWhen (aplite compiles the highlight out).
+    // contract IS the mapping — no hand-copied list to drift. The phone battery's and the
+    // Plugin value's dialogs are their slot's own, since their Look and source are
+    // (status-line-catalog.js phoneBatterySheet, pluginValueSheet): a dialog is told nothing
+    // of the slot that opened it, but this resolver is. env gate mirrors the sheets' own
+    // showWhen (aplite compiles the highlight out).
     PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
         var code = S[args.messageKey];
-        if (code === 'pluginValue') {
-            return env && env.thresholds ? statusLineCatalog.pluginValueSheet(args.messageKey) : null;
-        }
         var kind = slotKindIndex(env, code);
         if (kind === -1) { return null; }
         if (code === 'phoneBattery') { return statusLineCatalog.phoneBatterySheet(args.messageKey); }
+        if (code === 'pluginValue') { return statusLineCatalog.pluginValueSheet(args.messageKey); }
         return 'thresh' + thresholds.KINDS[kind].key;
     });
 
@@ -861,21 +860,30 @@ if (typeof require !== 'undefined') {
         };
     }
 
+    /**
+     * Whether a slot's item draws its icon alone, with no text to print bold: the watch
+     * battery in its Icon look (a battery), and the Plugin value in its slot's (its icon).
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {string} code The slot's item.
+     * @param {string} slotKey The slot's settings key.
+     * @returns {boolean}
+     */
+    function iconAlone(S, env, code, slotKey) {
+        if (code === 'battery') { return slotText.batteryLook(S, env) === 'icon'; }
+        return code === 'pluginValue' && !pluginValues.printsText(pluginValues.pickOf(S, slotKey));
+    }
+
     // Edit-button badge (engine item.editBadgeFrom): when the slot's current value is an
     // ENABLED threshold kind, the row shows a warn-color ring + danger-color dot before
     // its Edit button, and a 'B' when the slot prints always-bold. Same env gate +
-    // code→kind mapping as the sheet resolver above. The watch battery in its Icon look
-    // draws a battery alone, and the Plugin value in its Icon look its icon alone, which have no
-    // text to print bold, so their Edit buttons carry no badge; in the other looks their text
-    // prints, and bold.
+    // code→kind mapping as the sheet resolver above. A slot whose item draws its icon alone
+    // (iconAlone) has no text to print bold, so its Edit button carries no badge; in the
+    // other looks the text prints, and bold.
     PConf.badgeResolvers.register('thresholdPenState', function (S, env, args) {
         var code = S[args.messageKey];
         var kind = slotKindIndex(env, code);
-        if (kind === -1 || (code === 'battery' && slotText.batteryLook(S, env) === 'icon')
-                || (code === 'pluginValue'
-                    && pluginValues.lookOf(pluginValues.pickOf(S, args.messageKey)) === 'icon')) {
-            return null;
-        }
+        if (kind === -1 || iconAlone(S, env, code, args.messageKey)) { return null; }
         return penStateForKind(S, env, kind);
     });
 

@@ -186,7 +186,8 @@ typedef enum {
     // value's own (status_icon_is_plugin_value), and it has no short form
     // (status_short_text.h).
     STATUS_ICON_PLUGIN_TEXT = 35,
-    // The Plugin value slot's icons (its dialog's Icon row), drawn before the value's text. The
+    // The Plugin value slot's icons (its dialog's Icon row), drawn before the value's text, or
+    // alone in the Icon look, which the phone sends with no text. The
     // phone sends a pair's off form while the value is off, too old or not read: Switch, Wi-Fi
     // and Bluetooth turn with a value that is on or off. Plug, Phone and Calendar stay the same.
     // Bluetooth, Phone and Calendar draw the watch's Bluetooth, phone and countdown drawings

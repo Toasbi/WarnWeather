@@ -1,7 +1,7 @@
 // src/pkjs/page/status-bars/plugin-value-page.js — ES5. The Plugin value slots' dialogs on the
 // settings page (plugin-value-schema.js), one per slot, each naming its slot to these resolvers
-// and hooks (args.slotKey): the Plugin, Value, Look, Icon and Updates rows' lists and hints, the
-// Icon row's pictures, the line with the value read last, the Muninn note, and the rows' changes:
+// and hooks (args.slotKey): the Plugin, Value, Look, Icon and Updates rows' lists and hints, Bold's
+// hints, the Icon row's pictures, the line with the value read last, the Muninn note, and the rows' changes:
 // the Plugin row's starts a new plugin on its first value, and each fits the Look and the icon to
 // the value (fitSlot). The lists are the plugins the phone listed as the page opened
 // (userData.plugins, plugin-value-list.js listOf): the page reads no plugin itself, since a read
@@ -30,9 +30,10 @@
 // the read is the Weather tab's (weather-tab-readouts.js agoText), read at call time too: that
 // file loads later. The icons are the watch's own drawings (pixel-icon.js).
 //
-// The Icon row offers the icons that turn on and off with the value only for a value the phone
-// lists as on or off (plugin-value-list.js onOff), and a change to a value that is neither leaves
-// such an icon for None (fitIcon): it would stay off.
+// The icons that turn on and off with the value, and the Icon look that shows one alone, are
+// offered only for a value the phone lists as on or off (plugin-value-list.js onOff). A change
+// to a value that is neither takes the Text look for the Icon look, and an icon that stays the
+// same for one that turns, which would stay off (fitSlot).
 /* global INJECTED_USERDATA */
 (function () {
     var node = typeof require !== 'undefined';
@@ -71,8 +72,18 @@
     // The Icon row's choices (plugin-values.js ICON_FORMS, in its order), by name.
     var ICON_LABELS = {'switch': 'Switch', wifi: 'Wi-Fi', bluetooth: 'Bluetooth', plug: 'Plug', phone: 'Phone',
         calendar: 'Calendar'};
+    // The Icon row's groups, by whether their icons turn (plugin-values.js iconsThat), with their
+    // headers' values; the Icon look offers only the first.
+    var ICON_GROUPS = [{label: 'Turns with a value that is on or off', value: '__hdr_turns', turns: true},
+        {label: 'Always the same', value: '__hdr_same', turns: false}];
+    // The Look row's choices (plugin-values.js LOOKS, in its order), by name, as the other slots
+    // name theirs.
+    var LOOK_LABELS = {both: 'Icon + text', text: 'Text', icon: 'Icon'};
     // The Look row's hint while the value picked is neither on nor off, which greys out its Icon.
     var LOOK_NEITHER_HINT = 'The Icon look is for a value that is on or off.';
+    // The Bold row's hints, by its mode: the row sits in each slot's dialog and sets every slot's
+    // (status-thresholds.js KINDS 'pluginValue').
+    var BOLD_HINTS = {off: 'For every Plugin value slot.', always: 'Every Plugin value slot prints its value in bold.'};
 
     /**
      * @returns {Object} The page's userData (INJECTED_USERDATA), read at call time.
@@ -161,12 +172,12 @@
      * named after the property, and after the item first where the plugin serves more than one,
      * and whether it is on or off (the item's onOff bit for it). The Preferences plugin's are the
      * user's complications (complicationValues).
-     * @param {?Object} plugin A listed plugin, or null.
+     * @param {Object} plugin A listed plugin.
      * @returns {Array<{id: string, label: string, multiple: boolean, unreadable: ?string,
      *   onOff: boolean}>}
      */
-    function valuesOf(plugin) {
-        var items = plugin ? plugin.items : [];
+    function readValues(plugin) {
+        var items = plugin.items;
         var out = [];
         if (offersComplications(plugin)) { return complicationValues(plugin.complications); }
         items.forEach(function (it) {
@@ -177,6 +188,29 @@
             });
         });
         return out;
+    }
+
+    // The values of each plugin the phone listed (readValues), made the first time the page asks
+    // for them: the list is the same while the page is open, and a render asks for the values of
+    // the plugin each slot picks several times. A new list (the tests' userData) starts anew.
+    var valuesMade = {list: null, plugins: [], values: []};
+
+    /**
+     * @param {?Object} plugin A listed plugin, or null.
+     * @returns {Array<Object>} The values it offers (readValues); [] for none. Never changed by
+     *   its readers: each a render hands it.
+     */
+    function valuesOf(plugin) {
+        var list = listed();
+        var at;
+        if (!plugin) { return []; }
+        if (valuesMade.list !== list) { valuesMade = {list: list, plugins: [], values: []}; }
+        at = valuesMade.plugins.indexOf(plugin);
+        if (at === -1) {
+            at = valuesMade.plugins.push(plugin) - 1;
+            valuesMade.values.push(readValues(plugin));
+        }
+        return valuesMade.values[at];
     }
 
     /**
@@ -366,26 +400,11 @@
     }
 
     /**
-     * @param {string} name An icon's name (plugin-values.js ICON_FORMS).
-     * @returns {boolean} Whether it turns on and off with the value: it has an off form.
-     */
-    function turns(name) {
-        return pluginValues.ICON_FORMS[name].length > 1;
-    }
-
-    /**
-     * @returns {string} The first icon that stays the same (plugin-values.js ICON_FORMS' order).
-     */
-    function firstSteady() {
-        return Object.keys(pluginValues.ICON_FORMS).filter(function (name) { return !turns(name); })[0];
-    }
-
-    /**
-     * Fit a slot's Look and icon to each other and to the value it picks, in a Look that shows an
-     * icon. Only an icon that turns shows the value alone, so the Icon look takes one that turns
-     * (plugin-values.js ICON_DEFAULT, the first) for one that stays the same, and goes back to
-     * Text for a value the phone lists as neither on nor off. In Icon + text, such a value
-     * swaps an icon that turns, which would stay off, for the first that stays the same.
+     * Fit a slot's Look and icon to a value the phone lists as neither on nor off, which an icon
+     * that turns would show as off: the Icon look goes back to Text, and Icon + text takes the
+     * first icon that stays the same for one that turns. The Icon look's other rule, an icon that
+     * turns, needs no move here: its Icon row offers no other (iconOptions), so the engine moves
+     * the row onto its default, the Switch (engine.js snapShownOptions).
      * @param {Object} S Settings (mutated).
      * @param {string} slotKey The slot's settings key.
      * @returns {void}
@@ -393,15 +412,11 @@
     function fitSlot(S, slotKey) {
         var pick = pluginValues.pickOf(S, slotKey);
         var keys = catalog.pluginValueKeys(slotKey);
-        var look = pluginValues.lookOf(pick);
-        var turning = turns(pluginValues.iconName(pick));
-        if (look === 'text') { return; }
-        if (!listedNeither(pick)) {
-            if (look === 'icon' && !turning) { S[keys.icon] = pluginValues.ICON_DEFAULT; }
-        } else if (look === 'icon') {
+        if (!pluginValues.drawsIcon(pick) || !listedNeither(pick)) { return; }
+        if (!pluginValues.printsText(pick)) {
             S[keys.look] = pluginValues.LOOK_DEFAULT;
-        } else if (turning) {
-            S[keys.icon] = firstSteady();
+        } else if (pluginValues.turns(pluginValues.iconName(pick))) {
+            S[keys.icon] = pluginValues.iconsThat(false)[0];
         }
     }
 
@@ -457,6 +472,14 @@
     }
 
     /**
+     * The Look row's list (plugin-values.js LOOKS).
+     * @returns {Array<Array>} [label, value] options.
+     */
+    function lookOptions() {
+        return pluginValues.LOOKS.map(function (look) { return [LOOK_LABELS[look], look]; });
+    }
+
+    /**
      * The Look row's hint: why its Icon is greyed out, for a value that is neither on nor off.
      * Else none.
      * @param {Object} S Settings.
@@ -481,17 +504,14 @@
     function iconOptions(S, env, args) {
         var pick = pluginValues.pickOf(S, args.slotKey);
         var neither = listedNeither(pick);
-        var alone = pluginValues.lookOf(pick) === 'icon';
-        var names = Object.keys(pluginValues.ICON_FORMS);
+        var held = pluginValues.iconName(pick);
         var out = [];
-        [['Turns with a value that is on or off', true, '__hdr_turns'], ['Always the same', false, '__hdr_same']]
-                .forEach(function (group) {
-            if (alone && !group[1]) { return; }
-            var inGroup = names.filter(function (name) { return turns(name) === group[1]; });
-            out.push([group[0], group[2], {disabled: true, groupHeader: true}]);
-            inGroup.forEach(function (name, i) {
-                var meta = {groupChild: true, groupEnd: i === inGroup.length - 1};
-                if (group[1] && neither && pluginValues.iconName(pick) !== name) { meta.disabled = true; }
+        (pluginValues.printsText(pick) ? ICON_GROUPS : ICON_GROUPS.slice(0, 1)).forEach(function (group) {
+            var names = pluginValues.iconsThat(group.turns);
+            out.push([group.label, group.value, {disabled: true, groupHeader: true}]);
+            names.forEach(function (name, i) {
+                var meta = {groupChild: true, groupEnd: i === names.length - 1};
+                if (group.turns && neither && name !== held) { meta.disabled = true; }
                 out.push([ICON_LABELS[name], name, meta]);
             });
         });
@@ -508,7 +528,7 @@
      */
     function iconHint(S, env, args) {
         var pick = pluginValues.pickOf(S, args.slotKey);
-        if (!turns(pluginValues.iconName(pick))) { return null; }
+        if (!pluginValues.turns(pluginValues.iconName(pick))) { return null; }
         return listedNeither(pick) ? 'This value is neither on nor off, so the icon stays off.'
             : 'On while the value is on, off while it is off.';
     }
@@ -522,9 +542,9 @@
      * @returns {string} HTML.
      */
     function iconPicture(S, env, args) {
-        var forms = Object.prototype.hasOwnProperty.call(pluginValues.ICON_FORMS, args.value)
-            ? pluginValues.ICON_FORMS[args.value] : [];
-        return forms.map(function (id) { return pixelIcon.glyph(pixelIcon.keyOfIcon(id), env); }).join('');
+        return pluginValues.formsOf(args.value).map(function (id) {
+            return pixelIcon.glyph(pixelIcon.keyOfIcon(id), env);
+        }).join('');
     }
 
     /**
@@ -577,6 +597,17 @@
     }
 
     /**
+     * The Bold row's hint for the mode it shows (BOLD_HINTS).
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{value: string}} args The mode the row shows (engine.js resolveHint).
+     * @returns {?string} Plain text, or null for none.
+     */
+    function boldHint(S, env, args) {
+        return Object.prototype.hasOwnProperty.call(BOLD_HINTS, args.value) ? BOLD_HINTS[args.value] : null;
+    }
+
+    /**
      * The Updates row's list (plugin-values.js EVERY_CHOICES).
      * @returns {Array<Array>} [label, value] options.
      */
@@ -600,13 +631,16 @@
         PConf.onChange.register('pluginValueFit', fitPicked);
         PConf.whenResolvers.register('pluginValueFromMuninn', fromMuninn);
         PConf.whenResolvers.register('pluginValueNeither', neitherPicked);
+        PConf.optionsResolvers.register('pluginValueLooks', lookOptions);
         PConf.hintResolvers.register('pluginValueLookHint', lookHint);
+        PConf.hintResolvers.register('pluginValueBoldHint', boldHint);
     }
 
     var api = { MUNINN_NOTE: MUNINN_NOTE, labelOf: labelOf, pluginOptions: pluginOptions,
         valueOptions: valueOptions, pluginHint: pluginHint, valueHint: valueHint, lastLine: lastLine,
         fromMuninn: fromMuninn, pluginPicked: pluginPicked, iconOptions: iconOptions,
-        iconHint: iconHint, iconPicture: iconPicture, everyOptions: everyOptions,
+        lookOptions: lookOptions, iconHint: iconHint, iconPicture: iconPicture, boldHint: boldHint,
+        everyOptions: everyOptions,
         barText: barText, barDrawing: barDrawing, barGlyph: barGlyph };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PluginValuePage = api; }

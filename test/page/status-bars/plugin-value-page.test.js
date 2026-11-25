@@ -693,6 +693,23 @@ test('the Look row greys out Icon for a value that is neither on nor off, and it
 
 const LEVEL_ID = 'phone/phone_state/battery_level';
 
+test('the page makes a plugin\'s values once while the phone\'s list stays, and anew for a new list', (t) => {
+  let reads = 0;
+  const item = Object.assign({}, WITH_WIFI[0].items[0]);
+  const properties = item.properties;
+  Object.defineProperty(item, 'properties', { get: () => { reads += 1; return properties; } });
+  const phone = Object.assign({}, WITH_WIFI[0], { items: [item] });
+  userData(t, { plugins: [phone] });
+  const S = slotSettings(Object.assign(pickIn({ look: 'both', icon: 'wifi' }), WIFI));
+  dialogHtml(S);
+  PConf.engine.snapShownOptions(schema, S, BASALT);
+  dialogHtml(S);
+  assert.equal(reads, 1, 'every row and render after the first reads the values made then');
+  global.INJECTED_USERDATA = { plugins: [phone] };
+  dialogHtml(S);
+  assert.equal(reads, 2, 'a new list from the phone: made anew');
+});
+
 test('a value that is neither on nor off takes the first icon that stays the same in Icon + text', (t) => {
   userData(t, { plugins: WITH_WIFI });
   const S = Object.assign(pickIn({ look: 'both', icon: 'wifi' }), WIFI);
@@ -717,16 +734,20 @@ test('a value that is neither on nor off takes the first icon that stays the sam
 test('the Icon look takes an icon that turns, and goes back to Text for a value that is neither on nor off', (t) => {
   userData(t, { plugins: WITH_WIFI });
   const S = Object.assign(pickIn({ look: 'both', icon: 'calendar' }), WIFI);
+  // Each render snaps the rows shown onto their lists, and so does Save (engine.js).
   lookPicked(S, 'icon');
+  PConf.engine.snapShownOptions(schema, S, BASALT);
   assert.deepEqual([S[KEYS.look], S[KEYS.icon]], ['icon', 'switch'], 'the first that turns');
   S[KEYS.icon] = 'bluetooth';
   lookPicked(S, 'icon');
+  PConf.engine.snapShownOptions(schema, S, BASALT);
   assert.equal(S[KEYS.icon], 'bluetooth', 'one that turns: kept');
   S[KEYS.id] = LEVEL_ID;
   valuePicked(S);
   assert.deepEqual([S[KEYS.look], S[KEYS.icon]], ['text', 'bluetooth'], 'alone, the icon would show nothing');
   const gone = Object.assign(pickIn({ look: 'both', icon: 'plug' }), WIFI, { [KEYS.id]: 'phone/phone_state/gone' });
   lookPicked(gone, 'icon');
+  PConf.engine.snapShownOptions(schema, gone, BASALT);
   assert.deepEqual([gone[KEYS.look], gone[KEYS.icon]], ['icon', 'switch'], 'a value the phone no longer lists');
 });
 

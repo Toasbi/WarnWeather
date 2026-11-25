@@ -56,12 +56,13 @@
     // draws in code before the charge, as it draws it alone for LIVE_BATTERY. A sentinel like
     // DRAWN_SUN: no drawing loads.
     DRAWN_BATTERY: 34,
-    // Text-only, like PRESSURE: the Plugin value slot, a value another app's plugin serves.
-    // It loads no glyph, has no bold kind and keeps the slot off TEXT + NONE.
+    // Text-only, like PRESSURE: the Plugin value slot in its Text look, a value another app's
+    // plugin serves. It loads no glyph and keeps the slot off TEXT + NONE, City's.
     PLUGIN_TEXT: 35,
-    // The Plugin value slot's icons, drawn before its text (status_line.h STATUS_ICON_PV_*).
-    // Each pair's off form while the value is off: Switch, Wi-Fi and Bluetooth. Plug, Phone
-    // and Calendar stay the same. Like PLUGIN_TEXT, none has a bold kind or a short form.
+    // The Plugin value slot's icons, before its text or alone (its Look; status_line.h
+    // STATUS_ICON_PV_*). Each pair's off form while the value is off: Switch, Wi-Fi and
+    // Bluetooth. Plug, Phone and Calendar stay the same. Like PLUGIN_TEXT, each takes the
+    // Plugin value's bold kind and no other slot's short form.
     PV_SWITCH: 36, PV_SWITCH_OFF: 37, PV_WIFI: 38, PV_WIFI_OFF: 39, PV_BT: 40, PV_BT_OFF: 41,
     PV_PLUG: 42, PV_PHONE: 43, PV_CALENDAR: 44
   };
@@ -144,11 +145,11 @@
     // item of its own, 'phoneBatteryPlain'.
     { code: 'phoneBattery', label: 'Phone battery', kind: KINDS.TEXT,
       icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' },
-    // A value another app's plugin serves (plugin-values.js), its source and icon each slot's
-    // own (pluginValueKeys), so each slot that holds it shows a value of its own. Its icon is
-    // one of the watch's own, picked for it, or none (plugin-values.js iconId): the watch draws
-    // no plugin's picture, and the bold area is full. Only where the Pebble app reads plugins
-    // (needsPlugins), and never on aplite, whose feature set is frozen.
+    // A value another app's plugin serves (plugin-values.js), its source, Look and icon each
+    // slot's own (pluginValueKeys), so each slot that holds it shows a value of its own. Its
+    // icon is one of the watch's own, picked for it (plugin-values.js iconId): the watch draws
+    // no plugin's picture. Only where the Pebble app reads plugins (needsPlugins), and never
+    // on aplite, whose feature set is frozen.
     { code: 'pluginValue', label: 'Plugin value', kind: KINDS.TEXT, icon: ICONS.PLUGIN_TEXT,
       needsPlugins: true, notAplite: true, category: 'plugin', repeatsInBar: true }
   ];

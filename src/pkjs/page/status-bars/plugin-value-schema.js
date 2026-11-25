@@ -12,21 +12,16 @@
 // the slot that opened it, so each names its slot to its resolvers and its change's hooks
 // (args.slotKey, onChangeArgs), and the slot's Edit button opens its own (status-line-catalog.js
 // pluginValueSheet). No row stores its default (sticky: false): a slot without a pick keeps no
-// setting of it, which plugin-values.js reads as none (PICK_DEFAULTS). Bold closes the dialog as in every slot's: the item's, one
-// setting for every slot that holds it (status-thresholds.js KINDS 'pluginValue', kind 21), as
-// the phone battery's is, so its hint says so. The dialogs' words are the page's too, written
-// there once for all of them: they ride the page's URL
-// (test/settings/adapter/settings-url-budget.test.js).
+// setting of it, which plugin-values.js reads as none (PICK_DEFAULTS). Bold closes the dialog as
+// in every slot's: the item's, one setting for every slot that holds it (status-thresholds.js
+// KINDS 'pluginValue', kind 21), as the phone battery's is, so its hint says so. The dialogs'
+// words are the page's, written there once for all of them, the Look's and Bold's too: they ride
+// the page's URL (test/settings/adapter/settings-url-budget.test.js).
 
 var catalog = require('../../status-bars/domain/status-line-catalog.js');
 var DEFAULTS = require('../../status-bars/domain/plugin-values.js').PICK_DEFAULTS;
 var gates = require('../settings/schema-gates.js');
-
-// The Bold row's hints: the row sits in each slot's dialog and sets every slot's.
-var BOLD_HINTS = {
-    off: 'For every Plugin value slot.',
-    always: 'Every Plugin value slot prints its value in bold.'
-};
+var boldOnlyRow = require('../alerts/level-rows-schema.js').boldOnlyRow;
 
 /**
  * One slot's Plugin value dialog: the note while Muninn is picked, then the Plugin, the Value of
@@ -35,11 +30,10 @@ var BOLD_HINTS = {
  * (plugin-value-list.js).
  * @param {function(string, string, Object[], string): Object} sheetOf schema.js sheetOf: a slot
  *   dialog's envelope (gated where the watch has slot dialogs).
- * @param {function(string): Object} boldRow schema.js boldOnlyRow: a level-less kind's Bold row.
  * @param {string} slotKey The slot's settings key, e.g. 'statusTopRight'.
  * @returns {Object} Schema section (sheetOnly), the slot's (catalog pluginValueSheet).
  */
-function slotDialog(sheetOf, boldRow, slotKey) {
+function slotDialog(sheetOf, slotKey) {
     var keys = catalog.pluginValueKeys(slotKey);
     var slot = {slotKey: slotKey};
     // The rows after Plugin, while one is picked.
@@ -52,9 +46,9 @@ function slotDialog(sheetOf, boldRow, slotKey) {
     // Plugin row (the owner's, 2026-11-23).
     var note = gates.noteCards('Days left from Muninn', {resolver: 'pluginValueMuninnNote'},
         {when: 'pluginValueFromMuninn', args: slot});
-    var bold = boldRow('PluginValue');
-    bold.hintByValue = BOLD_HINTS;
-    bold.showWhen = withText;
+    // Bold, in a Look with text: its hints say that it sets every slot's (plugin-value-page.js
+    // boldHint).
+    var bold = gates.alsoWhen([boldOnlyRow('PluginValue', {resolver: 'pluginValueBoldHint'})], withText);
     return sheetOf('PluginValue', 'Plugin value', note.concat([{
         type: 'select',
         messageKey: keys.plugin,
@@ -87,7 +81,7 @@ function slotDialog(sheetOf, boldRow, slotKey) {
         label: 'Look',
         defaultValue: DEFAULTS.look,
         sticky: false,
-        options: [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']],
+        optionsFrom: {resolver: 'pluginValueLooks'},
         optionDisabledWhen: {icon: {when: 'pluginValueNeither', args: slot}},
         hintFrom: {resolver: 'pluginValueLookHint', args: slot},
         onChange: 'pluginValueFit',
@@ -121,18 +115,17 @@ function slotDialog(sheetOf, boldRow, slotKey) {
         label: 'Last value',
         hintFrom: {resolver: 'pluginValueLast', args: slot},
         showWhen: picked
-    }, bold]), catalog.pluginValueSheet(slotKey));
+    }].concat(bold)), catalog.pluginValueSheet(slotKey));
 }
 
 /**
  * Every slot's Plugin value dialog (slotDialog), the four bars' and bars 4 to 6's, in the
  * catalog's line order.
  * @param {function(string, string, Object[], string): Object} sheetOf schema.js sheetOf.
- * @param {function(string): Object} boldRow schema.js boldOnlyRow.
  * @returns {Object[]} Schema sections (sheetOnly).
  */
-function dialogSections(sheetOf, boldRow) {
-    return catalog.everySlotKey().map(function (slotKey) { return slotDialog(sheetOf, boldRow, slotKey); });
+function dialogSections(sheetOf) {
+    return catalog.everySlotKey().map(function (slotKey) { return slotDialog(sheetOf, slotKey); });
 }
 
 module.exports = {

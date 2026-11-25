@@ -270,12 +270,13 @@ brings is the value's reading: the shapes the plugin answers in that the slot pr
 text, a moment, a number with its unit, a state and a long text, each of them or none
 (`plugin-reader.js` readingOf). The moment is a timestamp's, or a number's whose name says it
 is one (ends in At, Time, _at or _time) and that counts epoch seconds or milliseconds, as
-Muninn's updatedAt does (`plugin-value-reads.js` momentOf). The slot prints its text after the
-icon its dialog's Icon row picks: none by default, an icon id that loads no drawing
-(`status_line.h` STATUS_ICON_PLUGIN_TEXT); Switch, Wi-Fi and Bluetooth, which turn with a value
-that is on or off and show their off form while it is off, too old or not read (the Icon row
-offers them for a value the phone lists as on or off, `plugin-value-list.js` onOff); or Plug,
-Phone and Calendar, which stay the same (`plugin-values.js` iconId). The text is the reading's short
+Muninn's updatedAt does (`plugin-value-reads.js` momentOf). The slot's Look (its dialog's Look
+row) prints the text alone, where a slot starts, with an icon id that loads no drawing
+(`status_line.h` STATUS_ICON_PLUGIN_TEXT); the text after the icon its Icon row picks (Icon +
+text); or that icon alone (Icon), which only a value the phone lists as on or off can take
+(`plugin-value-list.js` onOff). Switch, Wi-Fi and Bluetooth turn with such a value and show
+their off form while it is off, too old or not read; Plug, Phone and Calendar stay the same
+(`plugin-values.js` iconId, slotTextOf). The text is the reading's short
 text, else its moment as a clock time in the user's 12/24 h setting, as the sun slot prints
 sunrise, with its date after it on another day than the one the slot is baked for ("23:10 24
 Nov"; the date alone where the slot has no room for both, `slot-text.js` momentText), else its

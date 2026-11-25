@@ -253,13 +253,55 @@
 
     /**
      * @param {?PluginValuePick} pick What a slot picks (pickOf).
+     * @returns {boolean} Whether its Look draws an icon: Icon + text and Icon.
+     */
+    function drawsIcon(pick) {
+        return lookOf(pick) !== 'text';
+    }
+
+    /**
+     * @param {?PluginValuePick} pick What a slot picks (pickOf).
+     * @returns {boolean} Whether its Look prints the value's text: Icon + text and Text.
+     */
+    function printsText(pick) {
+        return lookOf(pick) !== 'icon';
+    }
+
+    /**
+     * @param {string} name An ICON_FORMS name.
+     * @returns {boolean} Whether the icon turns with a value that is on or off: it has an on form
+     *   and an off form.
+     */
+    function turns(name) {
+        return ICON_FORMS[name].length > 1;
+    }
+
+    /**
+     * @param {boolean} turning The icons that turn (turns), or those that stay the same.
+     * @returns {string[]} Their names, in the Icon row's order (ICON_FORMS).
+     */
+    function iconsThat(turning) {
+        return Object.keys(ICON_FORMS).filter(function (name) { return turns(name) === turning; });
+    }
+
+    /**
+     * @param {*} name An Icon row's choice.
+     * @returns {string[]} The icon's forms (ICON_FORMS), on before off; none for a name that is
+     *   no icon (a group's header, the None of a page from before the Look).
+     */
+    function formsOf(name) {
+        return typeof name === 'string' && Object.prototype.hasOwnProperty.call(ICON_FORMS, name)
+            ? ICON_FORMS[name] : [];
+    }
+
+    /**
+     * @param {?PluginValuePick} pick What a slot picks (pickOf).
      * @returns {string} Its Icon row's choice: an ICON_FORMS name, the Switch by default and for
-     *   one it does not know (the None of a page from before the Look).
+     *   one it does not know (formsOf).
      */
     function iconName(pick) {
         var name = pick && pick.icon;
-        return typeof name === 'string' && Object.prototype.hasOwnProperty.call(ICON_FORMS, name)
-            ? name : ICON_DEFAULT;
+        return formsOf(name).length ? name : ICON_DEFAULT;
     }
 
     /**
@@ -272,8 +314,8 @@
      *   Text look.
      */
     function iconId(pick, reading) {
+        if (!drawsIcon(pick)) { return ICONS.PLUGIN_TEXT; }
         var forms = ICON_FORMS[iconName(pick)];
-        if (lookOf(pick) === 'text') { return ICONS.PLUGIN_TEXT; }
         return forms[reading && reading.state === true ? 0 : forms.length - 1];
     }
 
@@ -287,7 +329,7 @@
      * @returns {string}
      */
     function slotTextOf(pick, reading, cap, settings, nowMs) {
-        return lookOf(pick) === 'icon' ? '' : textFor(reading, cap, settings, nowMs);
+        return printsText(pick) ? textFor(reading, cap, settings, nowMs) : '';
     }
 
     /**
@@ -337,6 +379,11 @@
         oneLine: oneLine,
         textFor: textFor,
         lookOf: lookOf,
+        drawsIcon: drawsIcon,
+        printsText: printsText,
+        turns: turns,
+        iconsThat: iconsThat,
+        formsOf: formsOf,
         iconName: iconName,
         iconId: iconId,
         slotTextOf: slotTextOf,

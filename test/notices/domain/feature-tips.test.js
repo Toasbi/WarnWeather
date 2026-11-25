@@ -167,7 +167,8 @@ test('the icon tip names the page\'s own words: the Edit button, the Looks with 
   assert.deepEqual(turns, ['Switch', 'Wi-Fi', 'Bluetooth']);
   assert.ok(tip.html.indexOf('A ' + catalog.byCode('pluginValue').label + ' slot') === 0, tip.html);
   const look = row('statusTopLeftPluginValueLook');
-  const withIcon = look.options.filter((o) => o[1] !== 'text').map((o) => o[0]);
+  assert.equal(look.optionsFrom.resolver, 'pluginValueLooks');
+  const withIcon = page.lookOptions().filter((o) => o[1] !== 'text').map((o) => o[0]);
   assert.deepEqual(withIcon, ['Icon + text', 'Icon']);
   assert.ok(tip.html.indexOf('Edit button and pick ' + withIcon.join(' or ') + ' under ' + look.label + '.') !== -1,
     tip.html);

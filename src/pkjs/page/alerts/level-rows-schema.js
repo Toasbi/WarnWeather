@@ -2,7 +2,8 @@
 // group in the settings schema, split out of schema.js: the group's two halves (levelLead:
 // the header, the slider and its cards; levelLook: the warn look and the two colours),
 // levelRows (both back to back, a goal kind's whole group), the two voices every word of
-// the group comes from, and the next-day mark options. Shared by schema.js (the goal
+// the group comes from, the next-day mark options and a level-less kind's Bold row
+// (boldOnlyRow, the Plugin value's dialogs' too). Shared by schema.js (the goal
 // kinds' slot sheets, the day-max slots' Tomorrow's peak mark, the slot sheets' Bold row,
 // which speaks in the same voices) and the Alerts tab's alert sheets, so neither has to
 // require the other. Plain CommonJS with an unguarded require(), like schema.js itself:
@@ -359,6 +360,23 @@ function levelLook(keyStem, voice, gate, offWhen, joinsAbove, moreLook) {
 function levelRows(keyStem, voice, hint, gate, offWhen) {
     return levelLead(keyStem, voice, hint, gate).concat(levelLook(keyStem, voice, gate, offWhen, true));
 }
+/**
+ * A level-less kind's Bold row: Off or Always (schema.js boldSection, the slots' own dialogs).
+ * Off is the default and needs no words; Always says how far it reaches (BOLD_ALWAYS_HINT), or
+ * a hint resolver says it for every mode where the row reaches further: the Plugin value's
+ * sets every slot's that holds it.
+ * @param {string} keyStem Kind key stem, e.g. 'City' (thresh<Stem>BoldMode).
+ * @param {Object} [hintFrom] The row's hint resolver ({resolver}), in place of the Always hint.
+ * @returns {Object} The row.
+ */
+function boldOnlyRow(keyStem, hintFrom) {
+    var row = {type: 'segmented', messageKey: 'thresh' + keyStem + 'BoldMode', label: 'Bold'};
+    if (hintFrom) { row.hintFrom = hintFrom; } else { row.hintByValue = {always: BOLD_ALWAYS_HINT}; }
+    row.defaultValue = 'off';
+    row.options = [['Off', 'off'], ['Always', 'always']];
+    row.disabledWhen = gates.BOLD_MASTER_WHEN;
+    return row;
+}
 
 module.exports = {
     BOLD_ALWAYS_HINT: BOLD_ALWAYS_HINT,
@@ -367,5 +385,6 @@ module.exports = {
     nextDayMarkOptions: nextDayMarkOptions,
     levelLead: levelLead,
     levelLook: levelLook,
-    levelRows: levelRows
+    levelRows: levelRows,
+    boldOnlyRow: boldOnlyRow
 };
