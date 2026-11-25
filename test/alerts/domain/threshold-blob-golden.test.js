@@ -28,7 +28,10 @@
 // Re-recorded when the weather condition got its Bold (kind 20, bits 3-4 of byte 34): the
 // generator skips its bold mode, so the sequence holds, and only the 1322 blobs with
 // statusBoldAll 'all' moved, each by Always in those two bits; with them masked, every
-// blob equals the previous digest.
+// blob equals the previous digest. Re-recorded when the Plugin value got its Bold (kind 21,
+// bits 5-6 of byte 34) the same way: the generator skips its bold mode too, the same 1322
+// blobs moved by Always in those two bits, and with them masked every blob equals the
+// previous digest.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -38,7 +41,7 @@ const wire = require('../../../src/pkjs/alerts/domain/status-wire.js');
 const OD = require('../../../src/pkjs/status-bars/domain/on-demand.js');
 
 const COMBOS = 4000;
-const GOLDEN_SHA256 = '61f9eb09057a535c3ec7c4782e578feca7f317461f58830c2029ee9e166a4d2d';
+const GOLDEN_SHA256 = '73de400d15a198a91b3d70d0759c76b702123dacae55b15887e06553b868729a';
 
 /**
  * mulberry32: a small deterministic PRNG, so the generated set never varies.
@@ -107,9 +110,10 @@ function combo(rnd) {
   put(s, 'batteryLowLevel', pick(rnd, [ABSENT, '5', '10', '15', '20', '25', '30', '0', '31', 'x', 15]));
   put(s, 'batteryLowDisplay', pick(rnd, [ABSENT, 'icon', 'value', 'bogus']));
   th.KINDS.forEach((k) => {
-    // The weather condition (kind 20) came after the recording: drawing its bold mode here
-    // would shift every later draw. Its cell has a test of its own below.
-    if (k.code === 'condition') { return; }
+    // The weather condition (kind 20) and the Plugin value (kind 21) came after the
+    // recording: drawing their bold modes here would shift every later draw. Their cells
+    // have tests of their own below.
+    if (k.code === 'condition' || k.code === 'pluginValue') { return; }
     const stem = 'thresh' + k.key;
     put(s, stem + 'BoldMode', pick(rnd, [ABSENT, 'warn', 'off', 'always', 'bogus']));
     if (k.boldOnly) { return; }
@@ -156,6 +160,28 @@ test('the weather condition\'s bold mode packs into bits 3-4 of the alerts byte 
   assert.equal((all[wire.ALERTS_OFFSET] >> wire.CONDITION_BOLD_SHIFT) & 3, 2, 'Bold all reaches it too');
   assert.deepEqual(wire.boldCell(20), { byte: wire.ALERTS_OFFSET, shift: wire.CONDITION_BOLD_SHIFT });
   assert.deepEqual(wire.boldCell(19), { byte: 33, shift: 6 });
-  assert.throws(() => wire.boldCell(21), /layout must change/, 'a 22nd kind has no cell');
   assert.equal(th.KINDS[20].code, 'condition', 'the condition is kind 20');
+});
+
+// The Plugin value's bold cell (kind 21) rides bits 5-6 of the alerts byte, right above the
+// condition's, and moves nothing else: one mode for every Plugin value slot.
+test('the Plugin value\'s bold mode packs into bits 5-6 of the alerts byte alone', () => {
+  const base = { rainAlertDisplay: 'icon', threshConditionBoldMode: 'always' };
+  const plain = wire.buildSettingsBlob(base);
+  [['warn', 0], ['off', 1], ['always', 2], ['bogus', 0]].forEach(([mode, bits]) => {
+    const blob = wire.buildSettingsBlob(Object.assign({ threshPluginValueBoldMode: mode }, base));
+    assert.equal((blob[wire.ALERTS_OFFSET] >> wire.PLUGIN_VALUE_BOLD_SHIFT) & 3, bits, mode);
+    blob.forEach((b, i) => {
+      const want = i === wire.ALERTS_OFFSET ? plain[i] | (bits << wire.PLUGIN_VALUE_BOLD_SHIFT) : plain[i];
+      assert.equal(b, want, mode + ': byte ' + i);
+    });
+  });
+  assert.equal((plain[wire.ALERTS_OFFSET] >> wire.CONDITION_BOLD_SHIFT) & 3, 2, 'the condition keeps bits 3-4');
+  assert.equal(plain[wire.ALERTS_OFFSET] & 0x80, 0, 'bit 7 stays reserved');
+  const all = wire.buildSettingsBlob({ statusBoldAll: 'all' });
+  assert.equal((all[wire.ALERTS_OFFSET] >> wire.PLUGIN_VALUE_BOLD_SHIFT) & 3, 2, 'Bold all reaches it too');
+  assert.deepEqual(wire.boldCell(21), { byte: wire.ALERTS_OFFSET, shift: wire.PLUGIN_VALUE_BOLD_SHIFT });
+  assert.throws(() => wire.boldCell(22), /layout must change/, 'a 23rd kind has no cell');
+  assert.equal(th.KINDS[21].code, 'pluginValue', 'the Plugin value is kind 21');
+  assert.equal(th.KINDS[21].key, 'PluginValue', 'its mode is threshPluginValueBoldMode');
 });

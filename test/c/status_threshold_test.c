@@ -2,8 +2,10 @@
 #include <string.h>
 #include "status_threshold_fixtures.h"
 
-// The FNV-1a hash of status_threshold_kind_for_slot over every byte pair (kind_tests).
-#define KIND_MAP_PIN 1676948356u
+// The FNV-1a hash of status_threshold_kind_for_slot over every byte pair (kind_tests). The
+// Plugin value's kind changed only its own ids' pairs: with them read as before (-1), the
+// map hashes to the pin before it, 1676948356.
+#define KIND_MAP_PIN 4211972008u
 
 static void kind_tests(void) {
     expect("kind.aqi", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_AQI), THRESH_AQI);
@@ -98,14 +100,24 @@ static void kind_tests(void) {
            STATUS_ICON_PHONE_BATTERY == 16 && STATUS_ICON_PHONE_BATTERY_PLAIN == 18, 1);
     expect("kind.phone_battery_kind_ids",
            THRESH_PHONE_BATTERY == 18 && THRESH_PHONE_BATTERY_PLAIN == 19, 1);
-    // The Plugin value slot has no bold kind (the bold area is full) and never takes the
-    // city's: its id is what keeps it off TEXT + NONE.
-    expect("kind.plugin_text", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT), -1);
-    // Nor have its icons: Bluetooth, Phone and Calendar draw the Bluetooth, phone battery and
-    // countdown drawings without those slots' bold kinds.
-    for (int id = STATUS_ICON_PV_SWITCH; id <= STATUS_ICON_PV_CALENDAR; id++) {
-        expect("kind.plugin_icon", status_threshold_kind_for_slot(SLOT_TEXT, (uint8_t)id), -1);
+    // The Plugin value (kind 21): its text-only id and every icon of its own share one Bold
+    // row, and its id is what keeps it off TEXT + NONE, the city's. Bluetooth, Phone and
+    // Calendar draw the Bluetooth, phone battery and countdown drawings without those slots'
+    // bold kinds.
+    for (int id = STATUS_ICON_PLUGIN_TEXT; id <= STATUS_ICON_PV_CALENDAR; id++) {
+        expect("kind.plugin_value", status_threshold_kind_for_slot(SLOT_TEXT, (uint8_t)id),
+               THRESH_PLUGIN_VALUE);
     }
+    expect("kind.plugin_value_not_city",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PLUGIN_TEXT) == THRESH_CITY, 0);
+    expect("kind.plugin_value_phone_not_phone_battery",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PV_PHONE), THRESH_PLUGIN_VALUE);
+    // The range ends at the last icon: the id after it is no slot's, and only a text slot
+    // carries the value.
+    expect("kind.plugin_value_range_ends",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PV_CALENDAR + 1), -1);
+    expect("kind.plugin_value_needs_text",
+           status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_PV_WIFI), -1);
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
     expect("kind.empty", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_NONE), -1);
     // The whole map, holes included: every (slot kind, icon) byte pair, folded into one
@@ -323,7 +335,8 @@ static void bold_tests(void) {
     // reads the wrong one. Kinds 0..7 own bytes 29/30, the bold-only kinds 8..15 bytes
     // 31/32, and 16..19 (battery %, dew point, the iconed and the no-icon phone
     // battery) byte 33's four cells, which is why the last three cost the wire nothing.
-    // Kind 20, the weather condition, has its own test (condition_bold_tests).
+    // Kinds 20 and 21, the weather condition and the Plugin value, have tests of their own
+    // (condition_bold_tests, plugin_value_bold_tests).
     enum { W = THRESH_BOLD_WARN, O = THRESH_BOLD_OFF, A = THRESH_BOLD_ALWAYS };
     static const uint8_t MODE[THRESH_BOLD_AREA_KINDS] = {
         A, W, O, A,   O, W, A, O,   A, W, A, O,   O, A, W, A,   A, O, A, O,
@@ -338,6 +351,8 @@ static void bold_tests(void) {
         expect("bold.own_cell", mode_of(blob, n, k), MODE[k]);
     }
     expect("bold.area_leaves_condition", mode_of(blob, n, THRESH_CONDITION), THRESH_BOLD_WARN);
+    expect("bold.area_leaves_plugin_value", mode_of(blob, n, THRESH_PLUGIN_VALUE),
+           THRESH_BOLD_WARN);
     // A level-less kind only ever resolves THRESH_LEVEL_NORMAL, so its unset
     // default ('warn') renders NON-bold and ALWAYS is the only mode that bolds.
     expect("bold.levelless_default", bold_of(blob, n, THRESH_PRESSURE, THRESH_LEVEL_NORMAL), 0);
@@ -362,12 +377,12 @@ static void bold_tests(void) {
     // extra byte rides the Clay message on every settings send (see
     // test/repo/inbox-size.test.js).
     expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 48);
-    expect("bold.kind_count_pinned", THRESH_KIND_COUNT, 21);
+    expect("bold.kind_count_pinned", THRESH_KIND_COUNT, 22);
     // Byte 33 is FULL — kinds 16..19 claim all four cells — and the alert bytes
-    // sit right after it, so kind 20 (the weather condition) took bits 3-4 of the
-    // alerts byte, and a kind 21 is a layout change (a sixth bold byte AND everything
-    // behind it relocated), not an append. status_threshold.h's _Static_asserts are
-    // the compile-time half of this pin.
+    // sit right after it, so kinds 20 and 21 (the weather condition, the Plugin value)
+    // took bits 3-4 and 5-6 of the alerts byte, and a kind 22 is a layout change (a
+    // sixth bold byte AND everything behind it relocated), not an append.
+    // status_threshold.h's _Static_asserts are the compile-time half of this pin.
     expect("bold.area_kinds_pinned", THRESH_BOLD_AREA_KINDS, 20);
     expect("bold.byte33_is_the_last_bold_byte",
            THRESH_BOLD_OFFSET + ((THRESH_BOLD_AREA_KINDS - 1) >> 2), THRESH_ALERTS_OFFSET - 1);
@@ -470,6 +485,51 @@ static void condition_bold_tests(void) {
            mode_of(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_CONDITION), THRESH_BOLD_WARN);
 }
 
+// The Plugin value (kind 21) keeps its bold cell at bits 5-6 of the alerts byte, beside
+// the weather condition's. Each of the two reads its own bits alone, the rain look and
+// Replaces the slot keep theirs, and bit 7 above them stays out of both.
+static void plugin_value_bold_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    int n = sizeof(blob);
+    expect("pv_bold.shift_pinned", THRESH_PLUGIN_VALUE_BOLD_SHIFT, 5);
+    expect("pv_bold.kind_pinned", THRESH_PLUGIN_VALUE, 21);
+    expect("pv_bold.default", mode_of(blob, n, THRESH_PLUGIN_VALUE), THRESH_BOLD_WARN);
+    expect("pv_bold.default_not_bold",
+           bold_of(blob, n, THRESH_PLUGIN_VALUE, THRESH_LEVEL_NORMAL), 0);
+    blob[THRESH_ALERTS_OFFSET] = (uint8_t)((THRESH_BOLD_ALWAYS << THRESH_PLUGIN_VALUE_BOLD_SHIFT)
+                                           | THRESH_RAIN_REPLACE_BIT | THRESH_RAIN_DISPLAY_ICON);
+    expect("pv_bold.always", mode_of(blob, n, THRESH_PLUGIN_VALUE), THRESH_BOLD_ALWAYS);
+    // Level-less, so Always is the mode that bolds it.
+    expect("pv_bold.always_bolds", bold_of(blob, n, THRESH_PLUGIN_VALUE, THRESH_LEVEL_NORMAL), 1);
+    expect("pv_bold.condition_apart", mode_of(blob, n, THRESH_CONDITION), THRESH_BOLD_WARN);
+    expect("pv_bold.rain_look_kept", rain_of(blob, n), THRESH_RAIN_DISPLAY_ICON);
+    blob[THRESH_ALERTS_OFFSET] = (uint8_t)(THRESH_BOLD_OFF << THRESH_PLUGIN_VALUE_BOLD_SHIFT);
+    expect("pv_bold.off", mode_of(blob, n, THRESH_PLUGIN_VALUE), THRESH_BOLD_OFF);
+    expect("pv_bold.off_not_bold", bold_of(blob, n, THRESH_PLUGIN_VALUE, THRESH_LEVEL_NORMAL), 0);
+    // The reserved value 3 reads as the default, like every cell.
+    blob[THRESH_ALERTS_OFFSET] = (uint8_t)(3 << THRESH_PLUGIN_VALUE_BOLD_SHIFT);
+    expect("pv_bold.reserved", mode_of(blob, n, THRESH_PLUGIN_VALUE), THRESH_BOLD_WARN);
+    // The condition Always and every bit below it set: the Plugin value keeps its default.
+    blob[THRESH_ALERTS_OFFSET] = (uint8_t)((THRESH_BOLD_ALWAYS << THRESH_CONDITION_BOLD_SHIFT)
+                                           | THRESH_RAIN_REPLACE_BIT | 3);
+    expect("pv_bold.condition_no_alias", mode_of(blob, n, THRESH_PLUGIN_VALUE), THRESH_BOLD_WARN);
+    expect("pv_bold.condition_own", mode_of(blob, n, THRESH_CONDITION), THRESH_BOLD_ALWAYS);
+    // Bit 7, reserved, reaches neither.
+    blob[THRESH_ALERTS_OFFSET] = 0x80;
+    expect("pv_bold.bit7_no_alias", mode_of(blob, n, THRESH_PLUGIN_VALUE), THRESH_BOLD_WARN);
+    expect("pv_bold.bit7_not_condition", mode_of(blob, n, THRESH_CONDITION), THRESH_BOLD_WARN);
+    // The bold area all Always and the Battery byte all set: the Plugin value is untouched.
+    memset(blob, 0, sizeof(blob));
+    memset(blob + THRESH_BOLD_OFFSET, 0xAA, THRESH_ALERTS_OFFSET - THRESH_BOLD_OFFSET);
+    blob[THRESH_BATTERY_OFFSET] = 0xFF;
+    expect("pv_bold.area_no_alias", mode_of(blob, n, THRESH_PLUGIN_VALUE), THRESH_BOLD_WARN);
+    // A pre-alerts blob (every install at upgrade time) has no byte 34: the default.
+    memset(blob, 0xFF, sizeof(blob));
+    expect("pv_bold.pre_alerts_default",
+           mode_of(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_PLUGIN_VALUE), THRESH_BOLD_WARN);
+}
+
 // The alerts byte [34]: bits 0-1 carry the Rain item's look. A pre-alerts
 // blob (34/33/29 B — every install at upgrade time) has no such byte and must
 // read "text", today's countdown look, so an untouched upgrade looks the same.
@@ -487,7 +547,8 @@ static void rain_display_tests(void) {
     // The reserved value 3 reads as the legacy look.
     blob[THRESH_ALERTS_OFFSET] = 3;
     expect("rain.reserved", rain_of(blob, n), THRESH_RAIN_DISPLAY_TEXT);
-    // Bits 2-7 are reserved (DWD warnings later): they never leak into the look.
+    // Bits 2-7 (Replaces the slot, the two bold cells, the reserved bit 7) never leak into
+    // the look.
     blob[THRESH_ALERTS_OFFSET] = (uint8_t)(0xFC | 2);
     expect("rain.reserved_bits_ignored", rain_of(blob, n), THRESH_RAIN_DISPLAY_MINUTES);
     // The byte lives past every bold cell: writing it moves no kind's bold mode.
@@ -821,6 +882,7 @@ int main(void) {
     legacy_blob_tests();
     rain_display_tests();
     condition_bold_tests();
+    plugin_value_bold_tests();
     bar_of_line_tests();
     warn_look_tests();
     health_value_tests();

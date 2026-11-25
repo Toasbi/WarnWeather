@@ -69,11 +69,11 @@ test('the bold-only kinds sharing byte 33 never widen the blob', () => {
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_ALERTS'), 34);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
   // Capacity, stated once: the bold area runs to the end of byte 33, and kinds
-  // 18/19 (the phone battery) took the last two cells; kind 20 (the weather condition)
-  // took two spare bits of the alerts byte, and a kind 21 would need a sixth bold byte
-  // AND relocate the alert bytes behind it.
-  assert.ok(th.KINDS.length <= wire.BOLD_AREA_KINDS + 1,
-    'kind 21 would need a sixth bold byte — that is a layout change, not an append');
+  // 18/19 (the phone battery) took the last two cells; kinds 20 and 21 (the weather
+  // condition, the Plugin value) took two spare bits each of the alerts byte, and a kind
+  // 22 would need a sixth bold byte AND relocate the alert bytes behind it.
+  assert.ok(th.KINDS.length <= wire.BOLD_AREA_KINDS + 2,
+    'kind 22 would need a sixth bold byte — that is a layout change, not an append');
   assert.equal(wire.BOLD_OFFSET + ((wire.BOLD_AREA_KINDS - 1) >> 2), wire.ALERTS_OFFSET - 1,
     'the last bold byte sits right before the alert bytes');
   assert.equal(cEnum('THRESH_PHONE_BATTERY_PLAIN'), 19,
@@ -91,13 +91,17 @@ test('bold modes are in lockstep with the ThreshBold enum', () => {
 
 test('the bold bytes cover every kind at 2 bits each', () => {
   // The alert bytes follow the bold area, so the bold area is BOLD..ALERTS: 20 kinds, and
-  // the one past it (the weather condition) at bits 3-4 of the alerts byte.
+  // the two past it (the weather condition, the Plugin value) at bits 3-4 and 5-6 of the
+  // alerts byte.
   const boldBytes = wire.ALERTS_OFFSET - wire.BOLD_OFFSET;
   assert.equal(boldBytes, wire.BOLD_AREA_KINDS / 4);
   assert.equal(wire.BOLD_AREA_KINDS, cDefine('THRESH_BOLD_AREA_KINDS'));
   assert.equal(wire.CONDITION_BOLD_SHIFT, cDefine('THRESH_CONDITION_BOLD_SHIFT'));
-  assert.equal(th.KINDS.length, wire.BOLD_AREA_KINDS + 1);
-  assert.equal(cEnum('THRESH_CONDITION'), wire.BOLD_AREA_KINDS, 'the condition is the kind past the area');
+  assert.equal(wire.PLUGIN_VALUE_BOLD_SHIFT, cDefine('THRESH_PLUGIN_VALUE_BOLD_SHIFT'));
+  assert.equal(th.KINDS.length, wire.BOLD_AREA_KINDS + 2);
+  assert.equal(cEnum('THRESH_CONDITION'), wire.BOLD_AREA_KINDS, 'the condition is the first kind past the area');
+  assert.equal(cEnum('THRESH_PLUGIN_VALUE'), wire.BOLD_AREA_KINDS + 1,
+    'the Plugin value is the second kind past the area');
   // Every kind's cell is its own: no two share a byte and a bit.
   const seen = {};
   th.KINDS.forEach((k, i) => {
@@ -110,7 +114,7 @@ test('the bold bytes cover every kind at 2 bits each', () => {
   assert.match(header,
     /_Static_assert\(THRESH_BOLD_OFFSET \+ THRESH_BOLD_AREA_KINDS \/ 4 == THRESH_ALERTS_OFFSET/);
   assert.match(header,
-    /THRESH_KIND_COUNT == THRESH_BOLD_AREA_KINDS \+ 1/);
+    /THRESH_KIND_COUNT == THRESH_BOLD_AREA_KINDS \+ 2/);
 });
 
 // Byte 34: bits 0-1 the rain alert's look, bits 2-7 reserved. 'text' is 0 so
@@ -192,7 +196,8 @@ test('kind indices are in lockstep with the ThreshKind enum', () => {
     date: 'THRESH_DATE', week: 'THRESH_WEEK', city: 'THRESH_CITY',
     countdown: 'THRESH_COUNTDOWN', hr: 'THRESH_HR', battery: 'THRESH_BATTERY_PCT',
     dew: 'THRESH_DEW', phoneBattery: 'THRESH_PHONE_BATTERY',
-    phoneBatteryPlain: 'THRESH_PHONE_BATTERY_PLAIN', condition: 'THRESH_CONDITION' };
+    phoneBatteryPlain: 'THRESH_PHONE_BATTERY_PLAIN', condition: 'THRESH_CONDITION',
+    pluginValue: 'THRESH_PLUGIN_VALUE' };
   th.KINDS.forEach((k, i) => {
     assert.ok(names[k.code], k.code + ' has no ThreshKind enumerator in the map');
     assert.equal(i, cEnum(names[k.code]), k.code + ' wire index');
@@ -210,8 +215,8 @@ test('kind indices are in lockstep with the ThreshKind enum', () => {
 test('the phone-battery kinds are 18/19 and share one settings key', () => {
   assert.equal(cEnum('THRESH_PHONE_BATTERY'), 18);
   assert.equal(cEnum('THRESH_PHONE_BATTERY_PLAIN'), 19);
-  assert.equal(cDefine('THRESH_KIND_COUNT'), 21);
-  assert.equal(th.KINDS.length, 21);
+  assert.equal(cDefine('THRESH_KIND_COUNT'), 22);
+  assert.equal(th.KINDS.length, 22);
   const iconed = th.KINDS[18];
   const plain = th.KINDS[19];
   assert.equal(iconed.code, 'phoneBattery');
@@ -261,11 +266,12 @@ test('kinds 18/19 fill byte 33; 1.24.0 adds exactly one accepted length', () => 
     ['THRESH_SETTINGS_BYTES', 'THRESH_SETTINGS_BYTES_PRE_ALERTS',
       'THRESH_SETTINGS_BYTES_PRE_KIND16', 'THRESH_SETTINGS_BYTES_PRE_BOLD'],
     'exactly the four known lengths');
-  // Byte 33 is FULL, and the alert bytes sit right behind it: kind 20 (the weather
-  // condition) rides two spare bits of the alerts byte, and a kind 21 needs a sixth bold
-  // byte AND both alert bytes relocated — a layout change. Stated as an equality so the
-  // next append trips this test.
-  assert.equal(th.KINDS.length, 21, 'byte 33 holds four cells (kinds 16..19), the alerts byte kind 20');
+  // Byte 33 is FULL, and the alert bytes sit right behind it: kinds 20 and 21 (the
+  // weather condition, the Plugin value) ride two spare bits each of the alerts byte, and a
+  // kind 22 needs a sixth bold byte AND both alert bytes relocated — a layout change.
+  // Stated as an equality so the next append trips this test.
+  assert.equal(th.KINDS.length, 22,
+    'byte 33 holds four cells (kinds 16..19), the alerts byte kinds 20 and 21');
   assert.equal(wire.ALERTS_OFFSET - wire.BOLD_OFFSET, 5, 'five bold bytes, 20 cells');
 });
 

@@ -11,10 +11,11 @@
 // the slot that opened it, so each names its slot to its resolvers (args.slotKey), and the slot's
 // Edit button opens its own (status-line-catalog.js pluginValueSheet). No row stores its default
 // (plugin-value-page.js pluginValueDefault): a slot without a pick keeps no setting of it, which
-// plugin-values.js reads as none. The icon is its Look, so the dialog has no other, and no Bold:
-// the item has no bold kind (status_threshold_kind_for_slot answers -1 for its icon ids). The
-// dialogs' words are the page's too, written there once for all of them: they ride the page's
-// URL (test/settings/adapter/settings-url-budget.test.js).
+// plugin-values.js reads as none. Bold closes the dialog as in every slot's: the item's, one
+// setting for every slot that holds it (status-thresholds.js KINDS 'pluginValue', kind 21), as
+// the phone battery's is, so its hint says so. The dialogs' words are the page's too, written
+// there once for all of them: they ride the page's URL
+// (test/settings/adapter/settings-url-budget.test.js).
 
 var catalog = require('../../status-bars/domain/status-line-catalog.js');
 var gates = require('../settings/schema-gates.js');
@@ -30,17 +31,24 @@ function unstored(name) {
     return {resolver: 'pluginValueDefault', args: {name: name}, sticky: false};
 }
 
+// The Bold row's hints: the row sits in each slot's dialog and sets every slot's.
+var BOLD_HINTS = {
+    off: 'For every Plugin value slot.',
+    always: 'Every Plugin value slot prints its value in bold.'
+};
+
 /**
  * One slot's Plugin value dialog: the note while Muninn is picked, then the Plugin, the Value of
- * it, its Icon and Updates, then the value read last. Each row opens its list over the dialog
- * (engine renderPickSheet): a phone can list a dozen plugins and each up to 24 values
+ * it, its Icon and Updates, the value read last, and Bold. Each row opens its list over the
+ * dialog (engine renderPickSheet): a phone can list a dozen plugins and each up to 24 values
  * (plugin-value-list.js).
  * @param {function(string, string, Object[], string): Object} sheetOf schema.js sheetOf: a slot
  *   dialog's envelope (gated where the watch has slot dialogs).
+ * @param {function(string): Object} boldRow schema.js boldOnlyRow: a level-less kind's Bold row.
  * @param {string} slotKey The slot's settings key, e.g. 'statusTopRight'.
  * @returns {Object} Schema section (sheetOnly), the slot's (catalog pluginValueSheet).
  */
-function slotDialog(sheetOf, slotKey) {
+function slotDialog(sheetOf, boldRow, slotKey) {
     var keys = catalog.pluginValueKeys(slotKey);
     var slot = {slotKey: slotKey};
     // The rows after Plugin, while one is picked.
@@ -50,6 +58,9 @@ function slotDialog(sheetOf, slotKey) {
     // Plugin row (the owner's, 2026-11-23).
     var note = gates.noteCards('Days left from Muninn', {resolver: 'pluginValueMuninnNote'},
         {when: 'pluginValueFromMuninn', args: slot});
+    var bold = boldRow('PluginValue');
+    bold.hintByValue = BOLD_HINTS;
+    bold.showWhen = picked;
     return sheetOf('PluginValue', 'Plugin value', note.concat([{
         type: 'select',
         messageKey: keys.plugin,
@@ -96,19 +107,20 @@ function slotDialog(sheetOf, slotKey) {
         label: 'Last value',
         hintFrom: {resolver: 'pluginValueLast', args: slot},
         showWhen: picked
-    }]), catalog.pluginValueSheet(slotKey));
+    }, bold]), catalog.pluginValueSheet(slotKey));
 }
 
 /**
  * Every slot's Plugin value dialog (slotDialog), the four bars' and bars 4 to 6's, in the
  * catalog's line order.
  * @param {function(string, string, Object[], string): Object} sheetOf schema.js sheetOf.
+ * @param {function(string): Object} boldRow schema.js boldOnlyRow.
  * @returns {Object[]} Schema sections (sheetOnly).
  */
-function dialogSections(sheetOf) {
+function dialogSections(sheetOf, boldRow) {
     var sheets = [];
     catalog.ALL_LINES.forEach(function (line) {
-        line.slots.forEach(function (slotKey) { sheets.push(slotDialog(sheetOf, slotKey)); });
+        line.slots.forEach(function (slotKey) { sheets.push(slotDialog(sheetOf, boldRow, slotKey)); });
     });
     return sheets;
 }

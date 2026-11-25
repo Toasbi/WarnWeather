@@ -48,23 +48,25 @@ var weatherKindOf = thresholds.weatherKindOf;
 // they validate as garbage, not as legacy (see status_threshold.h). Byte 33
 // holds FOUR 2-bit cells (kinds 16..19): dew point (17) and the two
 // phone-battery kinds (18, 19) all appended into it for free — and it is FULL,
-// with the alert bytes right behind it. The twenty-first kind (index 20, the
-// weather condition) therefore keeps its cell in two spare bits of the alerts
-// byte (boldCell). A kind past it is no plain append any more: it needs a sixth
-// bold byte AND everything behind it relocated, a layout change on both ends (the
-// C header's _Static_assert trips).
+// with the alert bytes right behind it. The twenty-first and twenty-second kinds
+// (index 20, the weather condition, and 21, the Plugin value) therefore keep their
+// cells in two spare bits each of the alerts byte (boldCell). A kind past them is no
+// plain append any more: it needs a sixth bold byte AND everything behind it
+// relocated, a layout change on both ends (the C header's _Static_assert trips).
 var SETTINGS_BYTES = 48;
 var COLORS_OFFSET = 1;
 var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
 var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3) — bytes 29..33
-// The kinds whose cells fill the bold area; kind BOLD_AREA_KINDS (the weather condition)
-// is the one past it.
+// The kinds whose cells fill the bold area; kinds BOLD_AREA_KINDS (the weather condition)
+// and BOLD_AREA_KINDS + 1 (the Plugin value) are the two past it.
 var BOLD_AREA_KINDS = 20;
 // The alerts options byte: bits 0-1 the rain alert's look (RAIN_DISPLAY), bit 2
 // RAIN_REPLACE_BIT, bits 3-4 the weather condition's bold cell (CONDITION_BOLD_SHIFT),
-// bits 5-7 reserved (DWD official warnings later) and written 0.
+// bits 5-6 the Plugin value's (PLUGIN_VALUE_BOLD_SHIFT), bit 7 reserved (DWD official
+// warnings later) and written 0.
 var ALERTS_OFFSET = 34;
 var CONDITION_BOLD_SHIFT = 3;
+var PLUGIN_VALUE_BOLD_SHIFT = 5;
 // Bit 2 of the alerts byte: the rain alert takes the place of the slot on its side while
 // it shows (the Rain alert dialog's "Replaces the slot", rainAlert().replacesSlot, on by
 // default; status_threshold.h THRESH_RAIN_REPLACE_BIT). Clear leaves the slot to the
@@ -86,15 +88,17 @@ var WARN_LOOK_OFFSET = 36;
 var ON_DEMAND_OFFSET = 38;
 
 /**
- * Where kind k's 2-bit bold cell sits: the bold area for kinds 0..19 (4 per byte), and
- * bits 3-4 of the alerts byte for kind 20, the weather condition (status_threshold.h
- * THRESH_CONDITION_BOLD_SHIFT). A kind past 20 has no cell until the layout changes.
+ * Where kind k's 2-bit bold cell sits: the bold area for kinds 0..19 (4 per byte), bits
+ * 3-4 of the alerts byte for kind 20, the weather condition, and bits 5-6 for kind 21, the
+ * Plugin value (status_threshold.h THRESH_CONDITION_BOLD_SHIFT,
+ * THRESH_PLUGIN_VALUE_BOLD_SHIFT). A kind past 21 has no cell until the layout changes.
  * @param {number} k Kind index (KINDS).
  * @returns {{byte: number, shift: number}} The cell's byte and bit offset.
  */
 function boldCell(k) {
   if (k < BOLD_AREA_KINDS) { return { byte: BOLD_OFFSET + (k >> 2), shift: 2 * (k & 3) }; }
   if (k === BOLD_AREA_KINDS) { return { byte: ALERTS_OFFSET, shift: CONDITION_BOLD_SHIFT }; }
+  if (k === BOLD_AREA_KINDS + 1) { return { byte: ALERTS_OFFSET, shift: PLUGIN_VALUE_BOLD_SHIFT }; }
   throw new Error('kind ' + k + ' has no bold cell: the settings blob layout must change first');
 }
 
@@ -176,7 +180,8 @@ function buildSettingsBlob(settings, env) {
     }
   }
   var rain = rainAlert(settings);
-  // OR, not assign: the weather condition's bold cell already sits in this byte.
+  // OR, not assign: the weather condition's and the Plugin value's bold cells already sit
+  // in this byte.
   blob[ALERTS_OFFSET] |= RAIN_DISPLAY[rain.look] | (rain.replacesSlot ? RAIN_REPLACE_BIT : 0);
   blob[BATTERY_OFFSET] = onDemand.batteryLevel(settings, env)
     | (onDemand.batteryShowsValue(settings) ? BATTERY_VALUE_BIT : 0);
@@ -549,6 +554,7 @@ module.exports = {
   boldCell: boldCell,
   ALERTS_OFFSET: ALERTS_OFFSET,
   CONDITION_BOLD_SHIFT: CONDITION_BOLD_SHIFT,
+  PLUGIN_VALUE_BOLD_SHIFT: PLUGIN_VALUE_BOLD_SHIFT,
   RAIN_REPLACE_BIT: RAIN_REPLACE_BIT,
   BATTERY_OFFSET: BATTERY_OFFSET,
   BATTERY_VALUE_BIT: BATTERY_VALUE_BIT,

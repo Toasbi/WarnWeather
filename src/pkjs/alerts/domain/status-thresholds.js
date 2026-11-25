@@ -132,7 +132,13 @@
     // The weather condition (kind 20, appended): bold-only, for its Text look and every
     // glyph alike. The bold area (bytes 29..33) is full, so its cell sits at bits 3-4
     // of the alerts byte (status-wire.js boldCell, status_threshold.h THRESH_CONDITION).
-    { code: 'condition', key: 'Condition', boldOnly: true }
+    { code: 'condition', key: 'Condition', boldOnly: true },
+    // The Plugin value (kind 21, appended): bold-only, one mode for every slot that holds
+    // it, whatever value each slot shows, as the phone battery's is for its slots. Its cell
+    // sits at bits 5-6 of the alerts byte (status_threshold.h THRESH_PLUGIN_VALUE). Its
+    // slot's Edit button opens the slot's own dialog all the same (blocks.js
+    // statusSlotEditSheet), where the Bold row is.
+    { code: 'pluginValue', key: 'PluginValue', boldOnly: true }
   ];
 
   /**

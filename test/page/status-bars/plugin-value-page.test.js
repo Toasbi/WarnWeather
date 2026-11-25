@@ -427,6 +427,21 @@ test('the Edit button opens each slot\'s own dialog, in every bar, not on aplite
   assert.equal(catalog.pluginValueSheet('statusTopRight'), 'threshPluginValueTopRight');
 });
 
+test('the Edit button\'s B lights on every Plugin value slot while the item prints bold', () => {
+  const badge = PConf.badgeResolvers.get('thresholdPenState');
+  const env = { thresholds: true };
+  const state = (S, slotKey) => badge(Object.assign({ [slotKey]: 'pluginValue' }, S), env, { messageKey: slotKey });
+  ['statusTopLeft', 'statusBar6Right'].forEach((slotKey) => {
+    assert.equal(state({}, slotKey).bold, false, slotKey + ': Off by default');
+    assert.equal(state({ threshPluginValueBoldMode: 'always' }, slotKey).bold, true, slotKey + ': Always');
+    assert.equal(state({ statusBoldAll: 'all' }, slotKey).bold, true, slotKey + ': the master All');
+    assert.equal(state({ statusBoldAll: 'off', threshPluginValueBoldMode: 'always' }, slotKey).bold, false,
+      slotKey + ': the master Off');
+  });
+  assert.equal(badge({ statusTopLeft: 'pluginValue' }, { thresholds: false }, { messageKey: 'statusTopLeft' }), null,
+    'aplite badges nothing');
+});
+
 /**
  * Settings with a Plugin value in the Watch bar's left slot, hydrated as the page holds them.
  * @param {Object} [over] Settings over the slot's.
@@ -448,7 +463,7 @@ function dialogHtml(state, slotKey = SLOT) {
     evalCtx: Object.assign({}, state, { env: BASALT }) });
 }
 
-test('the dialog: Plugin with its list, then Value, Icon, Updates and the last line once one is picked', (t) => {
+test('the dialog: Plugin with its list, then Value, Icon, Updates, the last line and Bold once one is picked', (t) => {
   clock(t, NOW);
   userData(t, { plugins: PLUGINS, pluginValues: handed(kept({ short: '87%' })) });
   const S = slotSettings(LEVEL);
@@ -456,16 +471,17 @@ test('the dialog: Plugin with its list, then Value, Icon, Updates and the last l
   assert.equal(S[KEYS.icon], 'none', 'the value alone by default');
   const html = dialogHtml(S);
   let at = 0;
-  ['Plugin value slot', 'Plugin', 'Phone', 'Value', 'Battery level', 'Icon', 'None', 'Updates', 'Every hour']
+  ['Plugin value slot', 'Plugin', 'Phone', 'Value', 'Battery level', 'Icon', 'None', 'Updates', 'Every hour',
+    'Last value', 'Bold', 'For every Plugin value slot.']
     .forEach((text) => {
       assert.ok(html.indexOf(text, at) !== -1, 'the dialog shows ' + text + ', in its place');
       at = html.indexOf(text, at);
     });
   assert.ok(html.indexOf('<div class="lbl">Last value</div><div class="hint">87% (5 min ago).</div>') !== -1,
     'the last value is a row like the others: its label, the value in the hint\'s grey under it');
-  assert.ok(html.indexOf('BoldMode') === -1, 'no Bold: the item has no bold kind');
+  assert.ok(html.indexOf('data-k="threshPluginValueBoldMode"') !== -1, 'Bold sets the item\'s one mode');
   const empty = dialogHtml(slotSettings());
-  ['Value', 'Icon', 'Updates', 'Last value'].forEach((text) =>
+  ['Value', 'Icon', 'Updates', 'Last value', 'Bold'].forEach((text) =>
     assert.equal(empty.indexOf('>' + text + '<'), -1, 'no ' + text + ' while no plugin is picked'));
 });
 

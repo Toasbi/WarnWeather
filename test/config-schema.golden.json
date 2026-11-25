@@ -9812,6 +9812,37 @@
                   "key": "statusForecastLeftPluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "statusForecastLeftPluginValuePlugin",
+                  "ne": ""
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -9967,6 +9998,37 @@
                   "args": {
                     "slotKey": "statusForecastMid"
                   }
+                },
+                "showWhen": {
+                  "key": "statusForecastMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "showWhen": {
                   "key": "statusForecastMidPluginValuePlugin",
@@ -10132,6 +10194,37 @@
                   "key": "statusForecastRightPluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "statusForecastRightPluginValuePlugin",
+                  "ne": ""
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -10287,6 +10380,37 @@
                   "args": {
                     "slotKey": "statusRadarLeft"
                   }
+                },
+                "showWhen": {
+                  "key": "statusRadarLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "showWhen": {
                   "key": "statusRadarLeftPluginValuePlugin",
@@ -10452,6 +10576,37 @@
                   "key": "statusRadarMidPluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "statusRadarMidPluginValuePlugin",
+                  "ne": ""
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -10607,6 +10762,37 @@
                   "args": {
                     "slotKey": "statusRadarRight"
                   }
+                },
+                "showWhen": {
+                  "key": "statusRadarRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "showWhen": {
                   "key": "statusRadarRightPluginValuePlugin",
@@ -10772,6 +10958,37 @@
                   "key": "statusTopLeftPluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "statusTopLeftPluginValuePlugin",
+                  "ne": ""
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -10927,6 +11144,37 @@
                   "args": {
                     "slotKey": "statusTopMid"
                   }
+                },
+                "showWhen": {
+                  "key": "statusTopMidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "showWhen": {
                   "key": "statusTopMidPluginValuePlugin",
@@ -11092,6 +11340,37 @@
                   "key": "statusTopRightPluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "statusTopRightPluginValuePlugin",
+                  "ne": ""
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -11247,6 +11526,37 @@
                   "args": {
                     "slotKey": "statusHealthLeft"
                   }
+                },
+                "showWhen": {
+                  "key": "statusHealthLeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "showWhen": {
                   "key": "statusHealthLeftPluginValuePlugin",
@@ -11412,6 +11722,37 @@
                   "key": "statusHealthMidPluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "statusHealthMidPluginValuePlugin",
+                  "ne": ""
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -11567,6 +11908,37 @@
                   "args": {
                     "slotKey": "statusHealthRight"
                   }
+                },
+                "showWhen": {
+                  "key": "statusHealthRightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "showWhen": {
                   "key": "statusHealthRightPluginValuePlugin",
@@ -11732,6 +12104,37 @@
                   "key": "statusBar4LeftPluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "statusBar4LeftPluginValuePlugin",
+                  "ne": ""
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -11887,6 +12290,37 @@
                   "args": {
                     "slotKey": "statusBar4Mid"
                   }
+                },
+                "showWhen": {
+                  "key": "statusBar4MidPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "showWhen": {
                   "key": "statusBar4MidPluginValuePlugin",
@@ -12052,6 +12486,37 @@
                   "key": "statusBar4RightPluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "statusBar4RightPluginValuePlugin",
+                  "ne": ""
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -12207,6 +12672,37 @@
                   "args": {
                     "slotKey": "statusBar5Left"
                   }
+                },
+                "showWhen": {
+                  "key": "statusBar5LeftPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "showWhen": {
                   "key": "statusBar5LeftPluginValuePlugin",
@@ -12372,6 +12868,37 @@
                   "key": "statusBar5MidPluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "statusBar5MidPluginValuePlugin",
+                  "ne": ""
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -12527,6 +13054,37 @@
                   "args": {
                     "slotKey": "statusBar5Right"
                   }
+                },
+                "showWhen": {
+                  "key": "statusBar5RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "showWhen": {
                   "key": "statusBar5RightPluginValuePlugin",
@@ -12692,6 +13250,37 @@
                   "key": "statusBar6LeftPluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "statusBar6LeftPluginValuePlugin",
+                  "ne": ""
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -12852,6 +13441,37 @@
                   "key": "statusBar6MidPluginValuePlugin",
                   "ne": ""
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
+                },
+                "showWhen": {
+                  "key": "statusBar6MidPluginValuePlugin",
+                  "ne": ""
+                }
               }
             ],
             "pinBlock": "statusBarsPreview"
@@ -13007,6 +13627,37 @@
                   "args": {
                     "slotKey": "statusBar6Right"
                   }
+                },
+                "showWhen": {
+                  "key": "statusBar6RightPluginValuePlugin",
+                  "ne": ""
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPluginValueBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "For every Plugin value slot.",
+                  "always": "Every Plugin value slot prints its value in bold."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "in": [
+                    "off",
+                    "all"
+                  ]
                 },
                 "showWhen": {
                   "key": "statusBar6RightPluginValuePlugin",

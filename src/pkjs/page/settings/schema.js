@@ -2307,7 +2307,7 @@ module.exports = {
         // The Plugin value's dialogs, one per slot like the phone battery's: the plugin, its
         // value, its icon and how often it is read. Last, as it has no wire kind and no Bold
         // (plugin-value-schema.js).
-        ].concat(pluginValueSchema.dialogSections(sheetOf))).map(function (sec) {
+        ].concat(pluginValueSchema.dialogSections(sheetOf, boldOnlyRow))).map(function (sec) {
             // Every slot dialog keeps the bars pinned above its rows: the bar it was opened
             // from, a bar's dialog (preview-status-bars.js statusBarsPreview). The bars' own
             // dialogs pin their bar (barDialog).

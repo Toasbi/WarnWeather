@@ -14,7 +14,7 @@ test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.code),
     ['aqi', 'pollen', 'wind', 'gust', 'steps', 'sleep', 'distance', 'uv',
      'temp', 'pressure', 'sun', 'date', 'week', 'city', 'countdown', 'hr',
-     'battery', 'dew', 'phoneBattery', 'phoneBatteryPlain', 'condition']);
+     'battery', 'dew', 'phoneBattery', 'phoneBatteryPlain', 'condition', 'pluginValue']);
   // Two kinds, ONE settings key. The sheet resolver maps a catalog code to
   // 'thresh' + KINDS[i].key, so the phone battery's code lands on the single
   // threshPhoneBattery* sheet — one Bold row covering its Icon + text and its
@@ -23,14 +23,15 @@ test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.key),
     ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv',
      'Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr',
-     'BatteryPct', 'Dew', 'PhoneBattery', 'PhoneBattery', 'Condition']);
-  // The bold-only flag covers exactly the appended kinds 8..20 (the GLYPH
+     'BatteryPct', 'Dew', 'PhoneBattery', 'PhoneBattery', 'Condition', 'PluginValue']);
+  // The bold-only flag covers exactly the appended kinds 8..21 (the GLYPH
   // battery is deliberately absent: a drawn glyph with no text run has nothing
   // to bold; the battery-% TEXT slot is kind 16, dew point kind 17, the two
-  // phone-battery TEXT slots are kinds 18/19 and the weather condition kind 20).
+  // phone-battery TEXT slots are kinds 18/19, the weather condition kind 20 and the
+  // Plugin value kind 21).
   assert.deepEqual(th.KINDS.map(k => Boolean(k.boldOnly)),
     [false, false, false, false, false, false, false, false,
-     true, true, true, true, true, true, true, true, true, true, true, true, true]);
+     true, true, true, true, true, true, true, true, true, true, true, true, true, true]);
 });
 
 // 'PhoneBattery' is the ONLY duplicated settings key in the table. buildSettingsBlob
@@ -738,10 +739,11 @@ test('buildSettingsBlob: statusBoldAll "all" packs always into every bold cell',
   assert.deepEqual(blob.slice(wire.BOLD_OFFSET, wire.ALERTS_OFFSET), expected);
   // The bold area itself must not shrink, or the assertion above goes vacuous.
   assert.equal(wire.ALERTS_OFFSET - wire.BOLD_OFFSET, 5, 'bold area is bytes 29..33');
-  // ...and in the alerts byte it reaches the weather condition's cell (kind 20) alone:
-  // the rain look is not a bold cell.
+  // ...and in the alerts byte it reaches the weather condition's and the Plugin value's
+  // cells (kinds 20 and 21) alone: the rain look is not a bold cell.
   assert.equal(blob[wire.ALERTS_OFFSET],
-    wire.RAIN_REPLACE_BIT | (th.BOLD_MODES.always << wire.CONDITION_BOLD_SHIFT));
+    wire.RAIN_REPLACE_BIT | (th.BOLD_MODES.always << wire.CONDITION_BOLD_SHIFT)
+      | (th.BOLD_MODES.always << wire.PLUGIN_VALUE_BOLD_SHIFT));
 });
 
 // The master's Off is a slot's own Off in every cell: bold at danger or a reached goal only.
@@ -761,8 +763,9 @@ test('buildSettingsBlob: statusBoldAll "off" packs off into every bold cell', ()
   }
   assert.deepEqual(blob.slice(wire.BOLD_OFFSET, wire.ALERTS_OFFSET), expected);
   assert.equal(blob[wire.ALERTS_OFFSET],
-    wire.RAIN_REPLACE_BIT | (th.BOLD_MODES.off << wire.CONDITION_BOLD_SHIFT),
-    'the condition\'s cell takes the Off too; the rain look is not a bold cell');
+    wire.RAIN_REPLACE_BIT | (th.BOLD_MODES.off << wire.CONDITION_BOLD_SHIFT)
+      | (th.BOLD_MODES.off << wire.PLUGIN_VALUE_BOLD_SHIFT),
+    'the condition\'s and the Plugin value\'s cells take the Off too; the rain look is not a bold cell');
 });
 
 test('statusBoldAll "off" leaves everything below the bold area byte-identical, and the stored modes', () => {

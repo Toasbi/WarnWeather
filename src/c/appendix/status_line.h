@@ -182,16 +182,18 @@ typedef enum {
     STATUS_ICON_DRAWN_BATTERY = 34,
     // TEXT-ONLY, like PRESSURE: the Plugin value slot, a value another app's plugin serves,
     // baked as text by the phone. No drawing exists or loads, and the id keeps the slot from
-    // arriving as TEXT + NONE and taking City's bold mode; it has no bold kind of its own
-    // (status_threshold.c TEXT_KIND leaves it out) and no short form (status_short_text.h).
+    // arriving as TEXT + NONE and taking City's bold mode; its bold kind is the Plugin
+    // value's own (status_icon_is_plugin_value), and it has no short form
+    // (status_short_text.h).
     STATUS_ICON_PLUGIN_TEXT = 35,
     // The Plugin value slot's icons (its dialog's Icon row), drawn before the value's text. The
     // phone sends a pair's off form while the value is off, too old or not read: Switch, Wi-Fi
     // and Bluetooth turn with a value that is on or off. Plug, Phone and Calendar stay the same.
     // Bluetooth, Phone and Calendar draw the watch's Bluetooth, phone and countdown drawings
     // under ids of their own (scripts/pixel-icons/icons.json), so the slot takes none of those
-    // slots' bold kinds (status_threshold.c TEXT_KIND leaves them out) or short forms
-    // (status_short_text.h), as PLUGIN_TEXT takes none.
+    // slots' bold kinds or short forms (status_short_text.h): every id here is the Plugin
+    // value's, as PLUGIN_TEXT is (status_icon_is_plugin_value). An icon added later goes
+    // right after PV_CALENDAR, where that range ends.
     STATUS_ICON_PV_SWITCH = 36,
     STATUS_ICON_PV_SWITCH_OFF = 37,
     STATUS_ICON_PV_WIFI = 38,
@@ -240,6 +242,12 @@ static inline bool status_icon_is_city(uint8_t icon) {
 // of its glyphs (never the city's, whose bit sits above every id).
 static inline bool status_icon_is_condition(uint8_t icon) {
     return icon == STATUS_ICON_COND_TEXT || status_icon_is_weather_glyph(icon);
+}
+
+// Whether a SLOT_TEXT slot's icon byte is the Plugin value slot's: its text-only id or one of
+// its icons, which run on from it.
+static inline bool status_icon_is_plugin_value(uint8_t icon) {
+    return icon >= STATUS_ICON_PLUGIN_TEXT && icon <= STATUS_ICON_PV_CALENDAR;
 }
 
 // The glyph an icon byte draws: the id without the city's bit.

@@ -25,11 +25,13 @@ test('buildSettingsBlob: byte 34 carries the rain alert look in bits 0-1', () =>
   assert.equal(look({ rainAlertDisplay: 'minutes' }), 2);
   assert.equal(look({ rainAlertDisplay: 'bogus' }), 0, 'unknown = text');
   // Bit 2 is the rain alert's Replaces the slot (on by default), bits 3-4 the weather
-  // condition's bold cell (Bold all reaches it too), bits 5-7 reserved: whatever else is
-  // configured, they stay 0.
+  // condition's bold cell and bits 5-6 the Plugin value's (Bold all reaches both), bit 7
+  // reserved: whatever else is configured, it stays 0.
   const busy = wire.buildSettingsBlob(placedOnly(['uv'], { rainAlertDisplay: 'minutes', statusBoldAll: 'all',
     alertUvDisplay: 'value', threshUvOn: true }));
-  assert.equal(busy[34], 2 | wire.RAIN_REPLACE_BIT | (2 << wire.CONDITION_BOLD_SHIFT));
+  assert.equal(busy[34], 2 | wire.RAIN_REPLACE_BIT | (2 << wire.CONDITION_BOLD_SHIFT)
+    | (2 << wire.PLUGIN_VALUE_BOLD_SHIFT));
+  assert.equal(busy[34] & 0x80, 0, 'bit 7 stays reserved');
   // Which metric alerts are ACTIVE never rides the Clay blob: their entries do.
   assert.deepEqual(wire.buildSettingsBlob({ alertUvDisplay: 'value', alertWindDays: 'today' }),
     wire.buildSettingsBlob({}));

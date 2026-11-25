@@ -46,7 +46,7 @@ const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
 // PhoneBattery is ONE stem for TWO wire kinds (18 phoneBattery, 19 phoneBatteryPlain):
 // both KINDS entries share key 'PhoneBattery', so they share one sheet and one key.
 const BOLD_ONLY_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct', 'Dew',
-  'PhoneBattery', 'Condition'];
+  'PhoneBattery', 'Condition', 'PluginValue'];
 const BOLD_ONLY_KEYS = BOLD_ONLY_STEMS.map((stem) => 'thresh' + stem + 'BoldMode');
 const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnLook', 'Warn', 'Danger', 'Max'])
   .concat(THRESH_COLOR_KEYS)
@@ -180,15 +180,20 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // Draw from keys the same way (rainBarFrom/radarBarFrom are one row each).
   // threshPhoneBatteryBoldMode: the phone battery's Bold, the item's one setting, in each
   // slot's Phone battery dialog (one per slot, as its Look is the slot's own).
+  // threshPluginValueBoldMode: the Plugin value's Bold the same way, in each slot's Plugin
+  // value dialog.
   assert.deepEqual(dups.sort(),
     ['batteryLowLevel', 'btIcons', 'cloudLineFrom', 'colorUSFederal', 'gustLineShow',
       'precipLineFrom', 'pressureScale', 'theme', 'themeAutoMode', 'themeNight',
-      'threshPhoneBatteryBoldMode',
+      'threshPhoneBatteryBoldMode', 'threshPluginValueBoldMode',
       'tomorrowioApiKey', 'tomorrowioFitBudget', 'uvLineFrom', 'uvLineShow', 'vibe',
       'windLineFrom', 'windLineShow', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
-  assert.equal(counts.threshPhoneBatteryBoldMode, slotCatalog.ALL_LINES.reduce((n, line) => n + line.slots.length, 0),
+  const slotCount = slotCatalog.ALL_LINES.reduce((n, line) => n + line.slots.length, 0);
+  assert.equal(counts.threshPhoneBatteryBoldMode, slotCount,
     'the phone battery\'s Bold, in each slot\'s dialog (bars 4 to 6\'s too)');
+  assert.equal(counts.threshPluginValueBoldMode, slotCount,
+    'the Plugin value\'s Bold, in each slot\'s dialog (bars 4 to 6\'s too)');
   ['windLineShow', 'gustLineShow', 'uvLineShow',
     'precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom'].forEach((k) =>
     assert.equal(counts[k], 4, k + ' appears in four slots (one per metric picker)'));
