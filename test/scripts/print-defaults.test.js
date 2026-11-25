@@ -65,7 +65,9 @@ test('a fresh install (no wizard) gets no situational overrides at all', () => {
 
 test('the unseeded section lists exactly the schema keys deriveDefaults skips', () => {
   const fromSchema = [];
-  eachItem(schema, (it) => { if (it.messageKey && it.defaultFrom) { fromSchema.push(it.messageKey); } });
+  eachItem(schema, (it) => {
+    if (it.messageKey && (it.defaultFrom || it.sticky === false)) { fromSchema.push(it.messageKey); }
+  });
   const listed = report.unseededItems().map((row) => row.key);
   assert.deepEqual(listed.slice().sort(), fromSchema.slice().sort());
   const seeded = deriveDefaults(schema);

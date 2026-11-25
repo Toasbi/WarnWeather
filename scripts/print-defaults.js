@@ -76,16 +76,22 @@ const WIDTH = 92;
  */
 function envFor(platform) { return platformLib.computeEnv({ platform: platform }); }
 
+// The group of the unseeded keys whose default is no resolver's: a `sticky: false` item's
+// plain default, which no save stores.
+const NEVER_STORED = 'never stored';
+
 /**
  * Every schema item whose default is resolved per watch (`defaultFrom`) instead of stored
- * flat — exactly the items deriveDefaults() skips, which is why they are worth a section.
- * @returns {Array.<{key: string, resolver: string, item: Object}>} One row per such item.
+ * flat, or never stored at all (`sticky: false`) — exactly the items deriveDefaults() skips,
+ * which is why they are worth a section.
+ * @returns {Array.<{key: string, resolver: string, item: Object}>} One row per such item:
+ *   its resolver, or NEVER_STORED.
  */
 function unseededItems() {
   const out = [];
   eachItem(schema, (it) => {
-    if (it.messageKey && it.defaultFrom) {
-      out.push({ key: it.messageKey, resolver: it.defaultFrom.resolver, item: it });
+    if (it.messageKey && (it.defaultFrom || it.sticky === false)) {
+      out.push({ key: it.messageKey, resolver: it.defaultFrom ? it.defaultFrom.resolver : NEVER_STORED, item: it });
     }
   });
   return out;
@@ -372,8 +378,8 @@ function renderUnseeded() {
   const out = heading('3 · NOT SEEDED INTO THE SETTINGS BLOB — resolved per watch instead');
   out.push(...wrap('deriveDefaults() deliberately skips every `defaultFrom` item, so these '
     + rows.length + ' keys DO NOT EXIST in stored settings until the user saves the settings '
-    + 'page (a `sticky: false` one, the warn looks, not even then unless picked off that '
-    + 'watch\'s default). The trap: reading one straight off the blob gives undefined on a watch '
+    + 'page (a `sticky: false` one, the warn looks and the Plugin value\'s, not even then '
+    + 'unless picked off its default). The trap: reading one straight off the blob gives undefined on a watch '
     + 'nobody has configured. Resolve it instead (status-line-catalog.slotDefault / '
     + 'engine.resolveDefaultFrom), which is what the values below are.', WIDTH, '  '));
   const byResolver = {};
@@ -383,7 +389,8 @@ function renderUnseeded() {
   });
   Object.keys(byResolver).forEach((resolver) => {
     out.push('');
-    out.push('  via the ' + resolver + ' resolver:');
+    out.push(resolver === NEVER_STORED ? '  never stored while they hold their default:'
+      : '  via the ' + resolver + ' resolver:');
     if (RESOLVER_PROSE[resolver]) { out.push(...wrap(RESOLVER_PROSE[resolver], WIDTH, '    ')); }
     const head = [['setting'].concat(PLATFORMS)];
     const body = byResolver[resolver].map((row) => [row.key].concat(

@@ -48,9 +48,9 @@ test('serialize: every messageKey incl. showWhen-hidden; staticText skipped; col
   assert.equal(out.tint, '#FF0055');
 });
 
-// defaultFrom.sticky: false — a key whose default is resolved per watch stays OUT of the
-// save blob while it holds that default, so the host keeps resolving it per watch instead
-// of storing the saving watch's default as a pick.
+// sticky: false — a key whose default is resolved per watch stays OUT of the save blob while it
+// holds that default, so the host keeps resolving it per watch instead of storing the saving
+// watch's default as a pick.
 test('serialize: a sticky:false defaultFrom key is omitted while it equals its env default', () => {
   global.PConf.defaultsResolvers.register('fakeLook', function (env) {
     return (env && env.color === false) ? 'outline' : 'fill';
@@ -60,8 +60,8 @@ test('serialize: a sticky:false defaultFrom key is omitted while it equals its e
   });
   const SCH = { tabs: [{ sections: [{ items: [
     { type: 'segmented', messageKey: 'look', options: [['None', 'none'], ['Outline', 'outline'], ['Fill', 'fill']],
-      defaultFrom: { resolver: 'fakeLook', sticky: false } },
-    { type: 'color', messageKey: 'tint', defaultFrom: { resolver: 'fakeTint', sticky: false } },
+      defaultFrom: { resolver: 'fakeLook' }, sticky: false },
+    { type: 'color', messageKey: 'tint', defaultFrom: { resolver: 'fakeTint' }, sticky: false },
     { type: 'segmented', messageKey: 'stuck', options: [['Outline', 'outline'], ['Fill', 'fill']],
       defaultFrom: { resolver: 'fakeLook' } }
   ] }] }] };
@@ -2617,6 +2617,40 @@ test('boot(): a color swatch goes through setValue, so it fires the item\'s onCh
     [{ oldV: '#FF0000', newV: '#00AAFF', key: 'tint', sValue: '#00AAFF' }],
     'the hook sees the old and new values, and S is already written');
   assert.equal(r.getValue('tint'), '#00AAFF', 'the pick is stored');
+});
+
+test('serialize: a sticky:false key with a plain default is omitted while it holds it', () => {
+  const SCH = { tabs: [{ sections: [{ items: [
+    { type: 'select', messageKey: 'icon', options: [['None', 'none'], ['Plug', 'plug']], defaultValue: 'none',
+      sticky: false },
+    { type: 'select', messageKey: 'kept', options: [['None', 'none'], ['Plug', 'plug']], defaultValue: 'none' }
+  ] }] }] };
+  const S = E.hydrate(SCH, {});
+  assert.equal(S.icon, 'none', 'the page shows the default');
+  assert.deepEqual(E.serialize(SCH, S), { kept: 'none' }, 'the sticky key is saved, the other is not');
+  S.icon = 'plug';
+  assert.equal(E.serialize(SCH, S).icon, 'plug', 'a pick is saved');
+});
+
+test('boot(): a hook gets its item\'s key and onChangeArgs, {} for an item without', () => {
+  const ARGS_SCHEMA = {
+    appName: 'X', versionLabel: 'v0',
+    tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [
+      { type: 'select', messageKey: 'own', label: 'Own', defaultValue: 'a', onChange: 'argsSpy',
+        onChangeArgs: { slotKey: 'statusTopLeft' }, options: [['A', 'a'], ['B', 'b']] },
+      { type: 'select', messageKey: 'bare', label: 'Bare', defaultValue: 'a', onChange: 'argsSpy',
+        options: [['A', 'a'], ['B', 'b']] }
+    ] }] }]
+  };
+  const r = bootWithCapturedListeners(ARGS_SCHEMA, {});
+  const calls = [];
+  r.onChange.register('argsSpy', (S, oldV, newV, env, key, args) => { calls.push({ key, args }); });
+  ['own', 'bare'].forEach((key) => {
+    const pick = { getAttribute: (a) => (a === 'data-k' ? key : a === 'data-select-pick' ? 'b' : null),
+      closest: (sel) => (sel === '[data-select-pick]' ? pick : null) };
+    r.modalListeners.click({ target: { closest: (sel) => (sel === '[data-select-pick]' ? pick : null) } });
+  });
+  assert.deepEqual(calls, [{ key: 'own', args: { slotKey: 'statusTopLeft' } }, { key: 'bare', args: {} }]);
 });
 
 test('boot(): onLoad hook context exposes the injected platform environment', () => {

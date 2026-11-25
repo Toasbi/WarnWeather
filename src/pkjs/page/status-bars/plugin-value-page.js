@@ -1,9 +1,8 @@
 // src/pkjs/page/status-bars/plugin-value-page.js — ES5. The Plugin value slots' dialogs on the
 // settings page (plugin-value-schema.js), one per slot, each naming its slot to these resolvers
-// (args.slotKey; a row's change, its key: status-line-catalog.js pluginValueSlot): the Plugin,
-// Value, Icon and Updates rows' lists and hints, the Icon row's pictures, the line with the value
-// read last, the Muninn note, the rows' defaults, and the Plugin row's change, which starts a new
-// plugin on its first value. The lists are the plugins the phone listed as the page opened
+// and hooks (args.slotKey): the Plugin, Value, Icon and Updates rows' lists and hints, the Icon
+// row's pictures, the line with the value read last, the Muninn note, and the Plugin row's change,
+// which starts a new plugin on its first value. The lists are the plugins the phone listed as the page opened
 // (userData.plugins, plugin-value-list.js listOf): the page reads no plugin itself, since a read
 // costs the user (plugin-reader.js). The phone sends each plugin's items with their properties'
 // names, and the page makes each value's id (plugin-values.js valueId) and label (labelOf) of
@@ -390,11 +389,12 @@
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The value before. @param {string} newV The value now.
      * @param {Object} env Platform env.
-     * @param {string} key The row's key: the slot's (catalog pluginValueSlot).
+     * @param {string} key The row's key.
+     * @param {{slotKey: string}} args The row's slot (its onChangeArgs).
      * @returns {void}
      */
-    function fitIcon(S, oldV, newV, env, key) {
-        fitSlotIcon(S, catalog.pluginValueSlot(key));
+    function fitIcon(S, oldV, newV, env, key, args) {
+        fitSlotIcon(S, args.slotKey);
     }
 
     /**
@@ -405,11 +405,12 @@
      * @param {string} oldV The plugin before.
      * @param {string} newV The plugin now.
      * @param {Object} env Platform env.
-     * @param {string} key The row's key: the slot's (catalog pluginValueSlot).
+     * @param {string} key The row's key.
+     * @param {{slotKey: string}} args The row's slot (its onChangeArgs).
      * @returns {void}
      */
-    function pluginPicked(S, oldV, newV, env, key) {
-        var slotKey = catalog.pluginValueSlot(key);
+    function pluginPicked(S, oldV, newV, env, key, args) {
+        var slotKey = args.slotKey;
         var keys = catalog.pluginValueKeys(slotKey);
         var first = valuesOf(pluginOf(newV)).filter(function (v) { return !v.unreadable; })[0];
         if (oldV !== newV) {
@@ -533,17 +534,6 @@
         return pluginValues.EVERY_CHOICES.map(function (every) { return [EVERY_LABELS[every], every]; });
     }
 
-    /**
-     * A row's default (defaultsResolver 'pluginValueDefault', which the rows mark sticky: false,
-     * so a save never stores it): what plugin-values.js reads where a slot keeps none.
-     * @param {Object} env Platform env.
-     * @param {{name: string}} args The pick's part (plugin-values.js PICK_DEFAULTS).
-     * @returns {string}
-     */
-    function rowDefault(env, args) {
-        return pluginValues.PICK_DEFAULTS[args.name];
-    }
-
     if (PConf && PConf.optionsResolvers) {
         PConf.optionsResolvers.register('pluginValuePlugins', pluginOptions);
         PConf.optionsResolvers.register('pluginValueIds', valueOptions);
@@ -556,7 +546,6 @@
         PConf.optionsResolvers.register('pluginValueEveries', everyOptions);
         PConf.hintResolvers.register('pluginValueEveryHint', function () { return EVERY_HINT; });
         PConf.hintResolvers.register('pluginValueMuninnNote', function () { return MUNINN_NOTE; });
-        PConf.defaultsResolvers.register('pluginValueDefault', rowDefault);
         PConf.onChange.register('pluginValuePluginPicked', pluginPicked);
         PConf.onChange.register('pluginValueIdPicked', fitIcon);
         PConf.whenResolvers.register('pluginValueFromMuninn', fromMuninn);
@@ -565,7 +554,7 @@
     var api = { EVERY_HINT: EVERY_HINT, MUNINN_NOTE: MUNINN_NOTE, labelOf: labelOf, pluginOptions: pluginOptions,
         valueOptions: valueOptions, pluginHint: pluginHint, valueHint: valueHint, lastLine: lastLine,
         fromMuninn: fromMuninn, pluginPicked: pluginPicked, fitIcon: fitIcon, iconOptions: iconOptions,
-        iconHint: iconHint, iconPicture: iconPicture, everyOptions: everyOptions, rowDefault: rowDefault,
+        iconHint: iconHint, iconPicture: iconPicture, everyOptions: everyOptions,
         barText: barText, barDrawing: barDrawing, barGlyph: barGlyph };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PluginValuePage = api; }

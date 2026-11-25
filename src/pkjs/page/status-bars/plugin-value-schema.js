@@ -8,28 +8,18 @@
 // A dialog for each slot, as the phone battery's (schema.js phoneBatterySlotSheet): a slot's
 // plugin, value, icon and Updates are its own (status-line-catalog.js pluginValueKeys), so each
 // slot that holds the item shows a value of its own. The engine hands a dialog's rows no word of
-// the slot that opened it, so each names its slot to its resolvers (args.slotKey), and the slot's
-// Edit button opens its own (status-line-catalog.js pluginValueSheet). No row stores its default
-// (plugin-value-page.js pluginValueDefault): a slot without a pick keeps no setting of it, which
-// plugin-values.js reads as none. Bold closes the dialog as in every slot's: the item's, one
+// the slot that opened it, so each names its slot to its resolvers and its change's hooks
+// (args.slotKey, onChangeArgs), and the slot's Edit button opens its own (status-line-catalog.js
+// pluginValueSheet). No row stores its default (sticky: false): a slot without a pick keeps no
+// setting of it, which plugin-values.js reads as none (PICK_DEFAULTS). Bold closes the dialog as in every slot's: the item's, one
 // setting for every slot that holds it (status-thresholds.js KINDS 'pluginValue', kind 21), as
 // the phone battery's is, so its hint says so. The dialogs' words are the page's too, written
 // there once for all of them: they ride the page's URL
 // (test/settings/adapter/settings-url-budget.test.js).
 
 var catalog = require('../../status-bars/domain/status-line-catalog.js');
+var DEFAULTS = require('../../status-bars/domain/plugin-values.js').PICK_DEFAULTS;
 var gates = require('../settings/schema-gates.js');
-
-/**
- * A row's default, which a save never stores (plugin-value-page.js pluginValueDefault): the one
- * plugin-values.js reads where the slot keeps none.
- * @param {string} name The pick's part ('plugin', 'id', 'icon' or 'every': plugin-values.js
- *   PICK_DEFAULTS).
- * @returns {Object} The row's defaultFrom.
- */
-function unstored(name) {
-    return {resolver: 'pluginValueDefault', args: {name: name}, sticky: false};
-}
 
 // The Bold row's hints: the row sits in each slot's dialog and sets every slot's.
 var BOLD_HINTS = {
@@ -65,21 +55,25 @@ function slotDialog(sheetOf, boldRow, slotKey) {
         type: 'select',
         messageKey: keys.plugin,
         label: 'Plugin',
-        defaultFrom: unstored('plugin'),
+        defaultValue: DEFAULTS.plugin,
+        sticky: false,
         // The plugins the phone listed as the page opened, after None.
         optionsFrom: {resolver: 'pluginValuePlugins', args: slot},
         hintFrom: {resolver: 'pluginValuePluginHint', args: slot},
         // A new plugin starts on its first value.
-        onChange: 'pluginValuePluginPicked'
+        onChange: 'pluginValuePluginPicked',
+        onChangeArgs: slot
     }, {
         type: 'select',
         messageKey: keys.id,
         label: 'Value',
-        defaultFrom: unstored('id'),
+        defaultValue: DEFAULTS.id,
+        sticky: false,
         optionsFrom: {resolver: 'pluginValueIds', args: slot},
         hintFrom: {resolver: 'pluginValueIdHint', args: slot},
         // A value that is neither on nor off leaves an icon that turns for None.
         onChange: 'pluginValueIdPicked',
+        onChangeArgs: slot,
         showWhen: picked
     }, {
         // The icon before the value (plugin-values.js ICON_FORMS), each choice drawn as the watch
@@ -87,7 +81,8 @@ function slotDialog(sheetOf, boldRow, slotKey) {
         type: 'select',
         messageKey: keys.icon,
         label: 'Icon',
-        defaultFrom: unstored('icon'),
+        defaultValue: DEFAULTS.icon,
+        sticky: false,
         optionsFrom: {resolver: 'pluginValueIcons', args: slot},
         hintFrom: {resolver: 'pluginValueIconHint', args: slot},
         pictureFrom: {resolver: 'pluginValueIconPicture', glyph: true},
@@ -96,7 +91,8 @@ function slotDialog(sheetOf, boldRow, slotKey) {
         type: 'select',
         messageKey: keys.every,
         label: 'Updates',
-        defaultFrom: unstored('every'),
+        defaultValue: DEFAULTS.every,
+        sticky: false,
         optionsFrom: {resolver: 'pluginValueEveries'},
         hintFrom: {resolver: 'pluginValueEveryHint'},
         showWhen: picked

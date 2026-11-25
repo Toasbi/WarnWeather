@@ -93,11 +93,19 @@ test('deriveDefaults/deriveColorKeys are schema-driven (colors as ints)', () => 
 
 test('deriveDefaults never seeds a defaultFrom item, even one that also has a defaultValue', () => {
   // The seed backfill would otherwise pin a key the page leaves absent on purpose
-  // (defaultFrom.sticky: false), freezing one watch's default for every watch.
+  // (sticky: false), freezing one watch's default for every watch.
   const SCH = { tabs: [{ sections: [{ items: [
     { type: 'select', messageKey: 'plain', defaultValue: 'a' },
     { type: 'select', messageKey: 'slot', defaultFrom: { resolver: 'x' } },
-    { type: 'segmented', messageKey: 'look', defaultValue: 'fill', defaultFrom: { resolver: 'x', sticky: false } }
+    { type: 'segmented', messageKey: 'look', defaultValue: 'fill', defaultFrom: { resolver: 'x' }, sticky: false }
+  ] }] }] };
+  assert.deepEqual(defaults.deriveDefaults(SCH), { plain: 'a' });
+});
+
+test('deriveDefaults never seeds a sticky:false item, which a save never stores either', () => {
+  const SCH = { tabs: [{ sections: [{ items: [
+    { type: 'select', messageKey: 'plain', defaultValue: 'a' },
+    { type: 'select', messageKey: 'icon', defaultValue: 'none', sticky: false }
   ] }] }] };
   assert.deepEqual(defaults.deriveDefaults(SCH), { plain: 'a' });
 });

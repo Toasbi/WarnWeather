@@ -90,9 +90,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // --- defaults-resolver registry --- a keyed item opts into a platform-aware default
   // by name (item.defaultFrom.resolver: id), resolved at hydrate + snap time. Separate
   // from optionsResolvers because a defaults resolver returns a single value, not a list.
-  // fn(env, args) -> defaultValue; see resolveDefaultFrom below. defaultFrom.sticky:
-  // false keeps a value equal to that default OUT of the save blob (serialize), so the
-  // key stays absent and resolves per watch again instead of freezing the saving one's.
+  // fn(env, args) -> defaultValue; see resolveDefaultFrom below. An item's `sticky: false`
+  // keeps a value equal to its default OUT of the save blob (serialize), so the key stays
+  // absent and resolves per watch again instead of freezing the saving one's.
   PConf.defaultsResolvers = makeRegistry();
 
   // --- recommend-resolver registry --- a select item flags its "best for you" option by name
@@ -193,8 +193,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // --- onChange registry --- a schema item opts into a post-change side effect by
   // name (item.onChange: id, or a list of ids run in order) without the engine knowing
   // what that side effect is.
-  // fn(S, oldValue, newValue, env) runs synchronously, right after the click handler
-  // sets the new value and before the next render(). env is the platform env (INJECTED_ENV).
+  // fn(S, oldValue, newValue, env, key, args) runs synchronously, right after the click
+  // handler sets the new value and before the next render(). env is the platform env
+  // (INJECTED_ENV), key the item's messageKey and args its onChangeArgs ({} for none), which
+  // tell a hook shared by many rows which one changed (a slot's dialog names its slot).
   PConf.onChange = makeRegistry();
 
   // --- check-writer registry --- a `checklist` grid names the writer of its lists
@@ -260,7 +262,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   /**
    * A schema item's default in the shape the page holds it in S: resolveDefaultFrom
    * (env-aware), with a number color default as '#RRGGBB'. hydrate seeds S with it,
-   * serialize compares a non-sticky defaultFrom value against it, and boot hands it to
+   * serialize compares a non-sticky item's value against it, and boot hands it to
    * reset-style actions (defaultAsStored) — one shape, so the three always agree.
    * @param {Object} item Schema item.
    * @param {Object} [env] Platform env, passed to any defaultFrom resolver.
@@ -346,6 +348,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * Run an item's onChange hooks (onChangeHooks) for a change of its value.
+   * @param {Object} item Schema item.
+   * @param {Object} S Settings state the value changed in.
+   * @param {*} oldV The value before. @param {*} newV The value now.
+   * @param {Object} env Platform env.
+   * @returns {void}
+   */
+  function runOnChange(item, S, oldV, newV, env) {
+    var args = (item && item.onChangeArgs) || {};
+    onChangeHooks(item).forEach(function (fn) { fn(S, oldV, newV, env, item.messageKey, args); });
+  }
+
+  /**
    * Whether the page puts its info texts (row hints, card and dialog intros) behind small
    * '?' buttons instead of in view. The schema names the setting that picks it
    * (schema.infoIconsKey, a page-only toggle); without one, or with it off, every info
@@ -360,12 +375,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * Flatten settings state into the messageKey->value blob sent back to the
-   * watch. staticText items (no real value) are skipped, and so is a
-   * `defaultFrom: {sticky: false}` item whose value equals its default resolved
-   * for THIS env: hydrate put that default into S, so writing it back would store
+   * watch. staticText items (no real value) are skipped, and so is a `sticky: false`
+   * item whose value equals its default (resolved for THIS env, where it has a
+   * defaultFrom): hydrate put that default into S, so writing it back would store
    * the saving watch's default as though it were a pick, and the host that saves
-   * the blob wholesale would then serve it to every watch. Left absent, the key
-   * resolves per watch again; a value that differs is a pick and is kept.
+   * the blob wholesale would then serve it to every watch (or a default as a key per
+   * slot no slot needs). Left absent, the key resolves per watch again; a value that
+   * differs is a pick and is kept.
    *
    * @param {Object} schema Config schema.
    * @param {Object} S Settings state.
@@ -376,8 +392,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var out = {};
     eachItem(schema, function (it) {
       if (!it.messageKey || it.type === 'staticText' || it.uiOnly) { return; }
-      if (it.defaultFrom && it.defaultFrom.sticky === false
-          && S[it.messageKey] === storedDefault(it, env)) { return; }
+      if (it.sticky === false && S[it.messageKey] === storedDefault(it, env)) { return; }
       out[it.messageKey] = S[it.messageKey];
     });
     return out;
@@ -2309,7 +2324,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var k = it.messageKey, oldV = D[k], newV = initial[k];
       if (typeof newV === 'undefined' || newV === oldV) { return; }
       D[k] = newV;
-      onChangeHooks(it).forEach(function (fn) { fn(D, oldV, newV, env, k); });
+      runOnChange(it, D, oldV, newV, env);
     });
     return D;
   }
@@ -3559,14 +3574,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
     }
     // THE value-mutation ritual every control shares: write S, then dispatch the
-    // item's onChange as (S, old, new, ENV, key). This used to be copy-pasted at
-    // six sites across the #scroll and #modal handlers — a changed onChange
-    // contract needed six synchronized edits.
+    // item's onChange as (S, old, new, ENV, key, args: runOnChange). This used to be
+    // copy-pasted at six sites across the #scroll and #modal handlers — a changed
+    // onChange contract needed six synchronized edits.
     function setValue(key, newV, optOldV) {
       var oldV = arguments.length > 2 ? optOldV : S[key];
       S[key] = newV;
       var item = findItem(key);
-      onChangeHooks(item).forEach(function (fn) { fn(S, oldV, newV, ENV, key); });
+      if (item) { runOnChange(item, S, oldV, newV, ENV); }
     }
 
     /**

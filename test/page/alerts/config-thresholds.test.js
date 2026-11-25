@@ -116,8 +116,8 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
     // and never saved while it holds that default (sticky: false).
     const look = map['thresh' + stem + 'WarnLook'][0];
     assert.deepEqual(look.options.map(o => o[1]), ['none', 'outline', 'fill']);
-    assert.deepEqual(look.defaultFrom,
-      { resolver: 'warnLookDefault', args: { keyStem: stem }, sticky: false });
+    assert.deepEqual(look.defaultFrom, { resolver: 'warnLookDefault', args: { keyStem: stem } });
+    assert.equal(look.sticky, false);
     assert.equal(look.defaultValue, undefined, 'defaultFrom only');
     assert.equal(PC.engine.resolveDefaultFrom(look, { color: true }), alert ? 'fill' : 'outline',
       stem + ' colour default');

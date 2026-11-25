@@ -567,10 +567,7 @@ test('each slot keeps its own Plugin value settings and dialog, which a bar made
     const own = catalog.pluginValueKeys(slotKey);
     assert.deepEqual(own, { plugin: slotKey + 'PluginValuePlugin', id: slotKey + 'PluginValueId',
       icon: slotKey + 'PluginValueIcon', every: slotKey + 'PluginValueEvery' });
-    Object.keys(own).forEach((name) => {
-      assert.equal(catalog.pluginValueSlot(own[name]), slotKey, own[name]);
-      keys.push(own[name]);
-    });
+    Object.keys(own).forEach((name) => keys.push(own[name]));
     assert.deepEqual(catalog.pluginValueKeyList(slotKey), Object.values(own), 'the list of them');
     sheets.push(catalog.pluginValueSheet(slotKey));
     // The companions a bar made or deleted puts back with the slot (screens.js makeBar,
@@ -582,8 +579,6 @@ test('each slot keeps its own Plugin value settings and dialog, which a bar made
   assert.equal(new Set(sheets).size, 21, 'nor a dialog');
   assert.equal(catalog.pluginValueSheet('statusTopRight'), 'threshPluginValueTopRight');
   assert.equal(catalog.pluginValueSheet('statusBar4Left'), 'threshPluginValueBar4Left');
-  ['statusTopRight', 'statusTopRightCountdown', 'pluginValuePlugin', 'statusTopRightPluginValue', '']
-    .forEach((key) => assert.equal(catalog.pluginValueSlot(key), null, key));
 });
 
 test('the phone battery is selectable in all 12 slots when the phone supports it', () => {

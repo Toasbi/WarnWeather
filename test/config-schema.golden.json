@@ -6758,9 +6758,9 @@
                   "resolver": "warnLookDefault",
                   "args": {
                     "keyStem": "Steps"
-                  },
-                  "sticky": false
+                  }
                 },
+                "sticky": false,
                 "hintByValue": {
                   "none": "Draws no box when you get close. The Bold row above still decides when the text is bold.",
                   "outline": "Draws a thin frame in the close color.",
@@ -7067,9 +7067,9 @@
                   "resolver": "warnLookDefault",
                   "args": {
                     "keyStem": "Sleep"
-                  },
-                  "sticky": false
+                  }
                 },
+                "sticky": false,
                 "hintByValue": {
                   "none": "Draws no box when you get close. The Bold row above still decides when the text is bold.",
                   "outline": "Draws a thin frame in the close color.",
@@ -7376,9 +7376,9 @@
                   "resolver": "warnLookDefault",
                   "args": {
                     "keyStem": "Distance"
-                  },
-                  "sticky": false
+                  }
                 },
+                "sticky": false,
                 "hintByValue": {
                   "none": "Draws no box when you get close. The Bold row above still decides when the text is bold.",
                   "outline": "Draws a thin frame in the close color.",
@@ -9695,13 +9695,8 @@
                 "type": "select",
                 "messageKey": "statusForecastLeftPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -9714,19 +9709,17 @@
                     "slotKey": "statusForecastLeft"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusForecastLeft"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusForecastLeftPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -9740,6 +9733,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusForecastLeft"
+                },
                 "showWhen": {
                   "key": "statusForecastLeftPluginValuePlugin",
                   "ne": ""
@@ -9749,13 +9745,8 @@
                 "type": "select",
                 "messageKey": "statusForecastLeftPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -9781,13 +9772,8 @@
                 "type": "select",
                 "messageKey": "statusForecastLeftPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -9886,13 +9872,8 @@
                 "type": "select",
                 "messageKey": "statusForecastMidPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -9905,19 +9886,17 @@
                     "slotKey": "statusForecastMid"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusForecastMid"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusForecastMidPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -9931,6 +9910,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusForecastMid"
+                },
                 "showWhen": {
                   "key": "statusForecastMidPluginValuePlugin",
                   "ne": ""
@@ -9940,13 +9922,8 @@
                 "type": "select",
                 "messageKey": "statusForecastMidPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -9972,13 +9949,8 @@
                 "type": "select",
                 "messageKey": "statusForecastMidPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -10077,13 +10049,8 @@
                 "type": "select",
                 "messageKey": "statusForecastRightPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -10096,19 +10063,17 @@
                     "slotKey": "statusForecastRight"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusForecastRight"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusForecastRightPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -10122,6 +10087,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusForecastRight"
+                },
                 "showWhen": {
                   "key": "statusForecastRightPluginValuePlugin",
                   "ne": ""
@@ -10131,13 +10099,8 @@
                 "type": "select",
                 "messageKey": "statusForecastRightPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -10163,13 +10126,8 @@
                 "type": "select",
                 "messageKey": "statusForecastRightPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -10268,13 +10226,8 @@
                 "type": "select",
                 "messageKey": "statusRadarLeftPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -10287,19 +10240,17 @@
                     "slotKey": "statusRadarLeft"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusRadarLeft"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusRadarLeftPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -10313,6 +10264,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusRadarLeft"
+                },
                 "showWhen": {
                   "key": "statusRadarLeftPluginValuePlugin",
                   "ne": ""
@@ -10322,13 +10276,8 @@
                 "type": "select",
                 "messageKey": "statusRadarLeftPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -10354,13 +10303,8 @@
                 "type": "select",
                 "messageKey": "statusRadarLeftPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -10459,13 +10403,8 @@
                 "type": "select",
                 "messageKey": "statusRadarMidPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -10478,19 +10417,17 @@
                     "slotKey": "statusRadarMid"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusRadarMid"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusRadarMidPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -10504,6 +10441,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusRadarMid"
+                },
                 "showWhen": {
                   "key": "statusRadarMidPluginValuePlugin",
                   "ne": ""
@@ -10513,13 +10453,8 @@
                 "type": "select",
                 "messageKey": "statusRadarMidPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -10545,13 +10480,8 @@
                 "type": "select",
                 "messageKey": "statusRadarMidPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -10650,13 +10580,8 @@
                 "type": "select",
                 "messageKey": "statusRadarRightPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -10669,19 +10594,17 @@
                     "slotKey": "statusRadarRight"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusRadarRight"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusRadarRightPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -10695,6 +10618,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusRadarRight"
+                },
                 "showWhen": {
                   "key": "statusRadarRightPluginValuePlugin",
                   "ne": ""
@@ -10704,13 +10630,8 @@
                 "type": "select",
                 "messageKey": "statusRadarRightPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -10736,13 +10657,8 @@
                 "type": "select",
                 "messageKey": "statusRadarRightPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -10841,13 +10757,8 @@
                 "type": "select",
                 "messageKey": "statusTopLeftPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -10860,19 +10771,17 @@
                     "slotKey": "statusTopLeft"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusTopLeft"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusTopLeftPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -10886,6 +10795,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusTopLeft"
+                },
                 "showWhen": {
                   "key": "statusTopLeftPluginValuePlugin",
                   "ne": ""
@@ -10895,13 +10807,8 @@
                 "type": "select",
                 "messageKey": "statusTopLeftPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -10927,13 +10834,8 @@
                 "type": "select",
                 "messageKey": "statusTopLeftPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -11032,13 +10934,8 @@
                 "type": "select",
                 "messageKey": "statusTopMidPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -11051,19 +10948,17 @@
                     "slotKey": "statusTopMid"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusTopMid"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusTopMidPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -11077,6 +10972,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusTopMid"
+                },
                 "showWhen": {
                   "key": "statusTopMidPluginValuePlugin",
                   "ne": ""
@@ -11086,13 +10984,8 @@
                 "type": "select",
                 "messageKey": "statusTopMidPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -11118,13 +11011,8 @@
                 "type": "select",
                 "messageKey": "statusTopMidPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -11223,13 +11111,8 @@
                 "type": "select",
                 "messageKey": "statusTopRightPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -11242,19 +11125,17 @@
                     "slotKey": "statusTopRight"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusTopRight"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusTopRightPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -11268,6 +11149,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusTopRight"
+                },
                 "showWhen": {
                   "key": "statusTopRightPluginValuePlugin",
                   "ne": ""
@@ -11277,13 +11161,8 @@
                 "type": "select",
                 "messageKey": "statusTopRightPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -11309,13 +11188,8 @@
                 "type": "select",
                 "messageKey": "statusTopRightPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -11414,13 +11288,8 @@
                 "type": "select",
                 "messageKey": "statusHealthLeftPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -11433,19 +11302,17 @@
                     "slotKey": "statusHealthLeft"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusHealthLeft"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusHealthLeftPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -11459,6 +11326,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusHealthLeft"
+                },
                 "showWhen": {
                   "key": "statusHealthLeftPluginValuePlugin",
                   "ne": ""
@@ -11468,13 +11338,8 @@
                 "type": "select",
                 "messageKey": "statusHealthLeftPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -11500,13 +11365,8 @@
                 "type": "select",
                 "messageKey": "statusHealthLeftPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -11605,13 +11465,8 @@
                 "type": "select",
                 "messageKey": "statusHealthMidPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -11624,19 +11479,17 @@
                     "slotKey": "statusHealthMid"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusHealthMid"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusHealthMidPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -11650,6 +11503,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusHealthMid"
+                },
                 "showWhen": {
                   "key": "statusHealthMidPluginValuePlugin",
                   "ne": ""
@@ -11659,13 +11515,8 @@
                 "type": "select",
                 "messageKey": "statusHealthMidPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -11691,13 +11542,8 @@
                 "type": "select",
                 "messageKey": "statusHealthMidPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -11796,13 +11642,8 @@
                 "type": "select",
                 "messageKey": "statusHealthRightPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -11815,19 +11656,17 @@
                     "slotKey": "statusHealthRight"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusHealthRight"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusHealthRightPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -11841,6 +11680,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusHealthRight"
+                },
                 "showWhen": {
                   "key": "statusHealthRightPluginValuePlugin",
                   "ne": ""
@@ -11850,13 +11692,8 @@
                 "type": "select",
                 "messageKey": "statusHealthRightPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -11882,13 +11719,8 @@
                 "type": "select",
                 "messageKey": "statusHealthRightPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -11987,13 +11819,8 @@
                 "type": "select",
                 "messageKey": "statusBar4LeftPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -12006,19 +11833,17 @@
                     "slotKey": "statusBar4Left"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar4Left"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusBar4LeftPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -12032,6 +11857,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar4Left"
+                },
                 "showWhen": {
                   "key": "statusBar4LeftPluginValuePlugin",
                   "ne": ""
@@ -12041,13 +11869,8 @@
                 "type": "select",
                 "messageKey": "statusBar4LeftPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -12073,13 +11896,8 @@
                 "type": "select",
                 "messageKey": "statusBar4LeftPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -12178,13 +11996,8 @@
                 "type": "select",
                 "messageKey": "statusBar4MidPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -12197,19 +12010,17 @@
                     "slotKey": "statusBar4Mid"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar4Mid"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusBar4MidPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -12223,6 +12034,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar4Mid"
+                },
                 "showWhen": {
                   "key": "statusBar4MidPluginValuePlugin",
                   "ne": ""
@@ -12232,13 +12046,8 @@
                 "type": "select",
                 "messageKey": "statusBar4MidPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -12264,13 +12073,8 @@
                 "type": "select",
                 "messageKey": "statusBar4MidPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -12369,13 +12173,8 @@
                 "type": "select",
                 "messageKey": "statusBar4RightPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -12388,19 +12187,17 @@
                     "slotKey": "statusBar4Right"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar4Right"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusBar4RightPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -12414,6 +12211,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar4Right"
+                },
                 "showWhen": {
                   "key": "statusBar4RightPluginValuePlugin",
                   "ne": ""
@@ -12423,13 +12223,8 @@
                 "type": "select",
                 "messageKey": "statusBar4RightPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -12455,13 +12250,8 @@
                 "type": "select",
                 "messageKey": "statusBar4RightPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -12560,13 +12350,8 @@
                 "type": "select",
                 "messageKey": "statusBar5LeftPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -12579,19 +12364,17 @@
                     "slotKey": "statusBar5Left"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar5Left"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusBar5LeftPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -12605,6 +12388,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar5Left"
+                },
                 "showWhen": {
                   "key": "statusBar5LeftPluginValuePlugin",
                   "ne": ""
@@ -12614,13 +12400,8 @@
                 "type": "select",
                 "messageKey": "statusBar5LeftPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -12646,13 +12427,8 @@
                 "type": "select",
                 "messageKey": "statusBar5LeftPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -12751,13 +12527,8 @@
                 "type": "select",
                 "messageKey": "statusBar5MidPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -12770,19 +12541,17 @@
                     "slotKey": "statusBar5Mid"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar5Mid"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusBar5MidPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -12796,6 +12565,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar5Mid"
+                },
                 "showWhen": {
                   "key": "statusBar5MidPluginValuePlugin",
                   "ne": ""
@@ -12805,13 +12577,8 @@
                 "type": "select",
                 "messageKey": "statusBar5MidPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -12837,13 +12604,8 @@
                 "type": "select",
                 "messageKey": "statusBar5MidPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -12942,13 +12704,8 @@
                 "type": "select",
                 "messageKey": "statusBar5RightPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -12961,19 +12718,17 @@
                     "slotKey": "statusBar5Right"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar5Right"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusBar5RightPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -12987,6 +12742,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar5Right"
+                },
                 "showWhen": {
                   "key": "statusBar5RightPluginValuePlugin",
                   "ne": ""
@@ -12996,13 +12754,8 @@
                 "type": "select",
                 "messageKey": "statusBar5RightPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -13028,13 +12781,8 @@
                 "type": "select",
                 "messageKey": "statusBar5RightPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -13133,13 +12881,8 @@
                 "type": "select",
                 "messageKey": "statusBar6LeftPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -13152,19 +12895,17 @@
                     "slotKey": "statusBar6Left"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar6Left"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusBar6LeftPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -13178,6 +12919,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar6Left"
+                },
                 "showWhen": {
                   "key": "statusBar6LeftPluginValuePlugin",
                   "ne": ""
@@ -13187,13 +12931,8 @@
                 "type": "select",
                 "messageKey": "statusBar6LeftPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -13219,13 +12958,8 @@
                 "type": "select",
                 "messageKey": "statusBar6LeftPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -13324,13 +13058,8 @@
                 "type": "select",
                 "messageKey": "statusBar6MidPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -13343,19 +13072,17 @@
                     "slotKey": "statusBar6Mid"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar6Mid"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusBar6MidPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -13369,6 +13096,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar6Mid"
+                },
                 "showWhen": {
                   "key": "statusBar6MidPluginValuePlugin",
                   "ne": ""
@@ -13378,13 +13108,8 @@
                 "type": "select",
                 "messageKey": "statusBar6MidPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -13410,13 +13135,8 @@
                 "type": "select",
                 "messageKey": "statusBar6MidPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -13515,13 +13235,8 @@
                 "type": "select",
                 "messageKey": "statusBar6RightPluginValuePlugin",
                 "label": "Plugin",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "plugin"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValuePlugins",
                   "args": {
@@ -13534,19 +13249,17 @@
                     "slotKey": "statusBar6Right"
                   }
                 },
-                "onChange": "pluginValuePluginPicked"
+                "onChange": "pluginValuePluginPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar6Right"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "statusBar6RightPluginValueId",
                 "label": "Value",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "id"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIds",
                   "args": {
@@ -13560,6 +13273,9 @@
                   }
                 },
                 "onChange": "pluginValueIdPicked",
+                "onChangeArgs": {
+                  "slotKey": "statusBar6Right"
+                },
                 "showWhen": {
                   "key": "statusBar6RightPluginValuePlugin",
                   "ne": ""
@@ -13569,13 +13285,8 @@
                 "type": "select",
                 "messageKey": "statusBar6RightPluginValueIcon",
                 "label": "Icon",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "icon"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "none",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueIcons",
                   "args": {
@@ -13601,13 +13312,8 @@
                 "type": "select",
                 "messageKey": "statusBar6RightPluginValueEvery",
                 "label": "Updates",
-                "defaultFrom": {
-                  "resolver": "pluginValueDefault",
-                  "args": {
-                    "name": "every"
-                  },
-                  "sticky": false
-                },
+                "defaultValue": "60",
+                "sticky": false,
                 "optionsFrom": {
                   "resolver": "pluginValueEveries"
                 },
@@ -14725,9 +14431,9 @@
                   "resolver": "warnLookDefault",
                   "args": {
                     "keyStem": "Gust"
-                  },
-                  "sticky": false
+                  }
                 },
+                "sticky": false,
                 "hintByValue": {
                   "none": "Draws no box at the warn level. The Bold row in the slot’s dialog still decides when the text is bold.",
                   "outline": "Draws a thin frame in the warn color.",
@@ -15003,9 +14709,9 @@
                   "resolver": "warnLookDefault",
                   "args": {
                     "keyStem": "Uv"
-                  },
-                  "sticky": false
+                  }
                 },
+                "sticky": false,
                 "hintByValue": {
                   "none": "Draws no box at the warn level. The Bold row in the slot’s dialog still decides when the text is bold.",
                   "outline": "Draws a thin frame in the warn color.",
@@ -15310,9 +15016,9 @@
                   "resolver": "warnLookDefault",
                   "args": {
                     "keyStem": "Aqi"
-                  },
-                  "sticky": false
+                  }
                 },
+                "sticky": false,
                 "hintByValue": {
                   "none": "Draws no box at the warn level. The Bold row in the slot’s dialog still decides when the text is bold.",
                   "outline": "Draws a thin frame in the warn color.",
@@ -15588,9 +15294,9 @@
                   "resolver": "warnLookDefault",
                   "args": {
                     "keyStem": "Pollen"
-                  },
-                  "sticky": false
+                  }
                 },
+                "sticky": false,
                 "hintByValue": {
                   "none": "Draws no box at the warn level. The Bold row in the slot’s dialog still decides when the text is bold.",
                   "outline": "Draws a thin frame in the warn color.",
@@ -15892,9 +15598,9 @@
                   "resolver": "warnLookDefault",
                   "args": {
                     "keyStem": "Wind"
-                  },
-                  "sticky": false
+                  }
                 },
+                "sticky": false,
                 "hintByValue": {
                   "none": "Draws no box at the warn level. The Bold row in the slot’s dialog still decides when the text is bold.",
                   "outline": "Draws a thin frame in the warn color.",

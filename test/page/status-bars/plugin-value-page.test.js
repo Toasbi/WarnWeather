@@ -68,13 +68,34 @@ const iconOptions = inSlot(page.iconOptions);
 const iconHint = inSlot(page.iconHint);
 
 /**
- * The Plugin row's change, as the engine runs it: the row's key names its slot.
+ * @param {string} key A settings key.
+ * @returns {?Object} The one row of the schema that writes it.
+ */
+function rowOf(key) {
+  let found = null;
+  PConf.schemaWalk.eachItem(schema, (it) => { if (it.messageKey === key) { found = it; } });
+  return found;
+}
+
+/**
+ * A row's change, as the engine runs it (engine.js runOnChange): its hooks with the row's key
+ * and its onChangeArgs, which name its slot.
+ * @param {Object} S Settings (mutated). @param {string} key The row's key.
+ * @param {*} oldV The value before. @param {*} newV The value now.
+ * @returns {void}
+ */
+function changed(S, key, oldV, newV) {
+  const row = rowOf(key);
+  [].concat(row.onChange).forEach((id) => PConf.onChange.get(id)(S, oldV, newV, BASALT, key, row.onChangeArgs || {}));
+}
+
+/**
+ * The Plugin row's change, as the engine runs it.
  * @param {Object} S Settings (mutated). @param {string} oldV The plugin before.
  * @param {string} newV The plugin now. @param {string} [slotKey] The slot (SLOT).
  * @returns {void}
  */
-const picked = (S, oldV, newV, slotKey = SLOT) =>
-  page.pluginPicked(S, oldV, newV, BASALT, catalog.pluginValueKeys(slotKey).plugin);
+const picked = (S, oldV, newV, slotKey = SLOT) => changed(S, catalog.pluginValueKeys(slotKey).plugin, oldV, newV);
 
 /**
  * The Value row's change, as the engine runs it.
@@ -82,7 +103,7 @@ const picked = (S, oldV, newV, slotKey = SLOT) =>
  * @returns {void}
  */
 const valuePicked = (S, slotKey = SLOT) =>
-  page.fitIcon(S, null, S[catalog.pluginValueKeys(slotKey).id], BASALT, catalog.pluginValueKeys(slotKey).id);
+  changed(S, catalog.pluginValueKeys(slotKey).id, null, S[catalog.pluginValueKeys(slotKey).id]);
 
 /**
  * The phone's userData for one test, the way the page reads it (INJECTED_USERDATA).
@@ -519,8 +540,7 @@ test('a plugin the phone no longer lists is not swapped for another as the dialo
  *   that writes it, its default for basalt.
  */
 function defaultOf(key) {
-  let found;
-  PConf.schemaWalk.eachItem(schema, (it) => { if (it.messageKey === key) { found = it; } });
+  const found = rowOf(key);
   return found ? PConf.engine.storedDefault(found, BASALT) : undefined;
 }
 

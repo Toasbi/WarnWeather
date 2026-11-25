@@ -681,21 +681,6 @@
   }
 
   /**
-   * The slot a Plugin value setting is of: what a row of its dialog tells the hook its change
-   * runs (plugin-value-page.js), which is handed the row's key alone.
-   * @param {string} key A settings key.
-   * @returns {?string} The slot's settings key, or null for a key that is no slot's Plugin
-   *   value setting.
-   */
-  function pluginValueSlot(key) {
-    var slots = everySlotKey();
-    for (var s = 0; s < slots.length; s++) {
-      if (pluginValueKeyList(slots[s]).indexOf(key) !== -1) { return slots[s]; }
-    }
-    return null;
-  }
-
-  /**
    * The setting a slot keeps its countdown's target date in (status-lines.js): the slot's
    * own, so each countdown slot counts down to its own day.
    * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
@@ -812,7 +797,7 @@
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
     batterySettingKeys: batterySettingKeys, pluginValueKeys: pluginValueKeys,
     pluginValueKeyList: pluginValueKeyList,
-    pluginValueSheet: pluginValueSheet, pluginValueSlot: pluginValueSlot,
+    pluginValueSheet: pluginValueSheet,
     countdownKey: countdownKey,
     phoneBatteryLookKey: phoneBatteryLookKey, phoneBatterySheet: phoneBatterySheet,
     PHONE_BATTERY_LOOK_DEFAULT: PHONE_BATTERY_LOOK_DEFAULT, slotCompanions: slotCompanions
