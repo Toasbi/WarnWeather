@@ -3,24 +3,28 @@
 //
 // The Pebble app shows the settings page in a WebView whose Back (Android's Back button or gesture,
 // the iPhone's edge swipe) goes back in the page's history while it has any, and closes the
-// settings screen otherwise, dropping every change not saved yet. So the page keeps one history
+// settings screen otherwise, dropping every change not saved yet. So the page keeps a history
 // entry for each layer it has open (an option list, a date's wheels, the Save dialog, a full-screen
-// dialog, a page module's overlay and its steps): Back lands on the entry below, and the page
-// closes its top layer, keeping what was changed there. With nothing open there is no entry, and
-// Back leaves the page as it always did.
+// dialog, a page module's overlay and its steps): Back lands on an entry below, and the page closes
+// its top layer, keeping what was changed there. With nothing open the page is on its first entry,
+// and Back leaves the page as it always did.
 //
 // Every part of the page with layers says how many it has open and how to close the top one
 // (add), and calls sync() after it opened or closed one itself. The rules:
 //  - An entry is added only while a tap is handled, one per tap: Chromium marks the entry before
 //    one added without a user activation, and Back skips a marked entry. pushState gets no URL:
 //    a data: document may change no more than its fragment.
-//  - The page's own closes (Done, ‹, ×, a pick, a tab switch, the Save dialog's buttons) go back
-//    over their entries, and the popstate that brings changes nothing more.
+//  - Every entry carries the page's whole data: URL, so adding one, or moving between two, costs
+//    the WebView tens of milliseconds and holds megabytes. The page's own closes (Done, ‹, ×, a
+//    pick, Escape) leave the entries where they are while a layer stays open: the next layer opened
+//    takes the entry above, and Back closes the top layer whichever entry it lands on. Once no
+//    layer is open (Done on the last dialog, a tab switch, the Save dialog's buttons), the page
+//    goes back to its first entry, so that Back leaves the page.
 //  - history.go() lands later. Chromium puts an entry added before it lands above the entry the
 //    page was on, then lands below both, so no entry is added while one is under way: once it
 //    lands, the page goes forward over the entries it left, as far as it has layers open then.
 //  - A popstate the page did not ask for (Back) closes layers, the top one first, until the page
-//    has no more open than the entry stands for.
+//    has no more open than the entry stands for, and at least one.
 // A page without history.pushState works as before. Loaded before engine.js in the page concat
 // (build-page.js LIB_PAGE_FILES), whose boot adds its own layers; required under Node.
 var PConf = (typeof PConf !== 'undefined') ? PConf
@@ -50,8 +54,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var parts = [];
     // The layers the entry the page loaded on stands for: 0, unless a reload kept one of ours.
     var base = on ? layersOf(hist.state) : 0;
-    // The layers the last entry stands for: the entries above the one shown run up to it.
-    var top = 0;
+    // The layers the entry the page is on stands for (as of its last entry added or popstate), and
+    // those the last entry stands for: the entries above the one shown run up to it.
+    var here = 0, top = 0;
     // A history.go() the page asked for has not landed; a Back's closes are running; an entry was
     // added in this task.
     var travelling = false, closing = false, added = false;
@@ -112,44 +117,55 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         on = false;   // a WebView that refuses it: Back leaves the page, as before
         return;
       }
-      top = at + 1;
+      here = top = at + 1;
       added = true;
       setTimeout(function () { added = false; }, 0);
     }
 
     /**
-     * Bring the history in step with the layers open: back over the entries of layers closed,
-     * forward over entries left above for layers opened, else one new entry (a tap's).
+     * Bring the history in step with the layers open: with none open, back to the first entry;
+     * with more open than the entry shown stands for, one new entry for a tap's one layer more, else
+     * forward over entries left above. Entries above the layers open stay for the next layers.
      * @param {boolean} mayPush Whether an entry may be added.
      * @returns {void}
      */
     function align(mayPush) {
       var want = open(), at = shown();
-      if (want < at) { travel(want - at); return; }
-      if (want === at) { return; }
+      if (!want) {
+        if (at) { travel(-at); }
+        return;
+      }
+      if (want <= at) { return; }
+      if (want === at + 1 && mayPush && mayAdd()) { addEntry(at); return; }
       if (top > at) { travel(Math.min(want, top) - at); return; }
       if (mayPush && mayAdd()) { addEntry(at); }
     }
 
     /**
-     * A popstate: the page's own history.go() landing (align); or Back, which closes layers, the
-     * top one first, until no more are open than the entry stands for. A forward swipe past the
-     * layers open goes back to them; a part that closes nothing leaves the history where Back put it.
+     * A popstate: the page's own history.go() landing (align); or Back, which closes layers, the top
+     * one first, until no more are open than the entry it lands on stands for, and at least one (an
+     * entry the page left above stands for a layer it closed itself). With none left open, back to
+     * the first entry, after a forward swipe too; a part that closes nothing leaves the history
+     * where Back put it.
      * @returns {void}
      */
     function onPopstate() {
+      var from = here;
+      here = shown();
       if (travelling) { travelling = false; align(false); return; }
-      closing = true;
-      try {
-        while (open() > shown()) {
-          var before = open();
-          topPart().close();
-          if (open() >= before) { break; }
+      if (here < from) {
+        closing = true;
+        try {
+          for (var closed = false; open() && (open() > here || !closed); closed = true) {
+            var before = open();
+            topPart().close();
+            if (open() >= before) { break; }
+          }
+        } finally {
+          closing = false;
         }
-      } finally {
-        closing = false;
       }
-      if (open() < shown()) { travel(open() - shown()); }
+      if (!open() && here) { travel(-here); }
     }
 
     if (on) {

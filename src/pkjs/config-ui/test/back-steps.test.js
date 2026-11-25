@@ -59,20 +59,42 @@ test('a tap that opens a layer adds one entry; Back closes it and the page stays
   assert.deepEqual(phone.calls.go, [], 'Back alone moved the history: the page asked for no step');
 });
 
-test('the page closing a layer itself steps back over its entry, and that popstate closes nothing', async () => {
+test('the page closing a layer itself leaves its entry for the next one, and Back still closes one', async () => {
+  const { phone, steps } = setup();
+  const part = layered(steps);
+  part.open('dialog');
+  await nextTap();
+  part.open('list');
+  part.shut();   // a pick closes the list
+  assert.deepEqual(phone.calls.go, [], 'no step back while a layer stays open');
+  assert.equal(phone.layers, 2);
+  await nextTap();
+  part.open('another list');
+  assert.equal(phone.calls.push, 2, 'the next list takes the entry left above');
+  part.shut();
+  phone.back();
+  assert.deepEqual(part.stack, [], 'Back closed the dialog: one layer, though its entry stood for two');
+  assert.deepEqual(phone.calls.go, [-1], 'and with none left open, back to the first entry');
+  phone.land();
+  assert.equal(phone.layers, 0);
+  phone.back();
+  assert.equal(phone.left, true, 'so the next Back leaves the page');
+});
+
+test('with no layer left open the page goes back to its first entry, and that popstate closes nothing', async () => {
   const { phone, steps } = setup();
   const part = layered(steps);
   part.open('dialog');
   await nextTap();
   part.open('nested');
-  part.shut();   // ‹ on the nested dialog
-  assert.deepEqual(phone.calls.go, [-1]);
+  part.shut();
+  part.shut();   // Done on the dialog
+  assert.deepEqual(phone.calls.go, [-2]);
   phone.land();
-  assert.equal(phone.layers, 1);
-  assert.deepEqual(part.stack, ['dialog'], 'the page\'s own step closed nothing more');
-  assert.deepEqual(part.closed, []);
+  assert.equal(phone.layers, 0);
+  assert.deepEqual(part.closed, [], 'the page\'s own step closed nothing');
   phone.back();
-  assert.deepEqual(part.stack, [], 'the next Back closes the dialog');
+  assert.equal(phone.left, true);
 });
 
 test('a tap during the page\'s own step back adds no entry; once the step lands the page goes forward', async () => {
@@ -148,6 +170,21 @@ test('a forward swipe to an entry above the layers open goes back to them', asyn
   assert.deepEqual(part.stack, [], 'nothing reopens');
   phone.land();
   assert.equal(phone.layers, 0);
+});
+
+test('a forward swipe over an entry left above closes nothing', async () => {
+  const { phone, steps } = setup();
+  const part = layered(steps);
+  part.open('dialog');
+  await nextTap();
+  part.open('list');
+  phone.back();
+  assert.deepEqual(part.stack, ['dialog'], 'Back closed the list');
+  phone.forward();
+  assert.deepEqual(part.stack, ['dialog'], 'forward again: the dialog stays, nothing reopens');
+  assert.deepEqual(phone.calls.go, []);
+  phone.back();
+  assert.deepEqual(part.stack, [], 'and Back closes the dialog');
 });
 
 test('a part that closes nothing leaves the history where Back put it', () => {
