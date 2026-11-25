@@ -78,6 +78,7 @@ test('Back on the Watchface tab with nothing changed closes the page and saves n
   page.phone.back();
   assert.equal(page.modal.innerHTML, '', 'nothing asked');
   assert.ok(closedUnsaved(page));
+  assert.deepEqual(page.phone.calls.go, [], 'and the page takes no step: one would cancel its close');
 });
 
 test('changes not saved: Back asks first, and Back on the question keeps editing', () => {
@@ -158,6 +159,7 @@ test('Back while a save is under way does nothing: the save lands', async () => 
   page.tapSave();
   page.phone.back();
   assert.equal(page.modal.innerHTML, '', 'nothing asked');
+  assert.deepEqual(page.phone.calls.go, [], 'and no step that could cancel the save');
   const blob = await page.saved();
   assert.ok(blob, 'saved');
   assert.equal(blob.themeAuto, changed);

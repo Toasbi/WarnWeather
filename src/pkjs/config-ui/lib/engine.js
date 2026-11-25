@@ -2803,8 +2803,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var activeTab = initialTab(SCHEMA, S);
     // The tab the page opened on: the phone's Back on another goes back to it (baseBack).
     var startTab = activeTab;
-    // The page is leaving (Save, or the page closing itself): Back on the page waits for it.
-    var leaving = false;
     // The one sheet open in the shared <dialog id="modal">, or null. An opener sets it
     // whole, so two sheets can never be open at once:
     // - {kind: 'select', key, close}: a select/searchSelect's options (key: its messageKey).
@@ -4207,7 +4205,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var el = document.getElementById('toast');
       el.textContent = 'Settings saved ✓';
       el.classList.add('show');
-      leaving = true;
+      // The page is leaving: the phone's Back takes no step that could cancel the save.
+      backSteps.stop();
       setTimeout(function () { location.href = RETURN_TO + encodeURIComponent(JSON.stringify(blob)); }, 300);
     }
     /**
@@ -4216,18 +4215,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @returns {void}
      */
     function leave() {
-      leaving = true;
+      backSteps.stop();
       location.href = RETURN_TO;
     }
     /**
      * The phone's Back with nothing open on the page (its base layer, back-steps.js): on another tab
      * the tab the page opened on comes back; there, changes not saved yet ask first (Save or Discard,
      * confirmChoice), and with none the page closes. A page that cannot open a <dialog> closes, as
-     * Back always did. While the page is leaving it does nothing, so a save under way still lands.
+     * Back always did.
      * @returns {void}
      */
     function baseBack() {
-      if (leaving) { return; }
       if (activeTab !== startTab) { switchTab(startTab); return; }
       var dlg = document.getElementById('modal');
       if (!hasChanges() || !dlg || typeof dlg.showModal !== 'function') { leave(); return; }

@@ -322,6 +322,24 @@ test('Run setup again: Back steps back a step, then closes setup, then leaves th
   assert.equal(page.phone.left, true);
 });
 
+test('Back while setup\'s Save to watch is under way changes nothing, and the save lands', async () => {
+  const page = boot({ provider: 'dwd' });
+  page.clickTab('setup');
+  page.tapAction('startWizard');
+  for (let i = 0; i < 10 && page.overlay('wizard').querySelector('[data-wiz-foot]').innerHTML.indexOf('data-wiz-nav="save"') === -1; i++) {
+    await nextTap();
+    wizTap(page, 'data-wiz-nav', 'next');
+  }
+  const summary = wizStep(page);
+  await nextTap();
+  wizTap(page, 'data-wiz-nav', 'save');
+  page.phone.back();
+  assert.equal(wizStep(page), summary, 'setup stays on its summary');
+  const blob = await page.saved();
+  assert.ok(blob, 'saved');
+  assert.equal(blob.onboardingDone, true);
+});
+
 test('setup opened by itself on a new install: no entry before the first tap; Back on its first step leaves', async () => {
   const page = bootGeneratedPage({ provider: 'dwd', onboardingDone: false }, 'basalt',
     { dialog: true, history: { activation: false } });

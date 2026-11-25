@@ -324,6 +324,28 @@ test('a base that closes on its Back takes no step forward', () => {
   assert.equal(phone.left, true, 'the next Back closes the settings screen');
 });
 
+test('once the page is leaving (stop), it takes no step of its own and Back closes nothing', async () => {
+  const { phone, steps } = setup();
+  const part = layered(steps);
+  part.open('dialog');
+  await nextTap();
+  part.open('list');
+  steps.stop();
+  phone.back();
+  assert.deepEqual(part.stack, ['dialog', 'list'], 'Back closed nothing');
+  part.shutAll();   // the page closes both itself
+  assert.deepEqual(phone.calls.go, [], 'and the page took no step');
+});
+
+test('a base whose Back leaves the page takes no step after it: one would cancel the page\'s close', () => {
+  const { phone, steps } = setup();
+  const base = based(steps, () => { steps.stop(); });
+  steps.sync();
+  phone.back();
+  assert.equal(base.backs, 1);
+  assert.deepEqual(phone.calls.go, []);
+});
+
 test('with a base, a part that closes nothing still leaves the history where Back put it', () => {
   const { phone, steps } = setup();
   let asked = 0;

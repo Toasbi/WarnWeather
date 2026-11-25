@@ -32,6 +32,8 @@
 //    goes back to the one the page opened on, changes not saved ask first). Back reaches the base
 //    only with nothing else open; while it stays open after a Back that landed on the first entry,
 //    the page goes forward again.
+//  - Once the page is leaving (stop: a save, or the page closing itself), it takes no step of its
+//    own and Back closes nothing: a history.go() would cancel the navigation that closes the page.
 // A page without history.pushState works as before. Loaded before engine.js in the page concat
 // (build-page.js LIB_PAGE_FILES), whose boot adds its own layers; required under Node.
 var PConf = (typeof PConf !== 'undefined') ? PConf
@@ -58,7 +60,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   /**
    * Back steps over a window's history.
    * @param {?Object} win The window: its history, navigator and popstate. Null under Node.
-   * @returns {{add: function(Object): void, sync: function(): void}}
+   * @returns {{add: function(Object): void, sync: function(): void, stop: function(): void}}
    */
   function create(win) {
     var hist = win ? win.history : null;
@@ -72,8 +74,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // to the first entry.
     var here = on ? layersOf(hist.state) : 0, top = here;
     // A history.go() the page asked for has not landed (since travelledAt); a Back's closes are
-    // running; an entry was added in this task.
-    var travelling = false, travelledAt = 0, closing = false, added = false;
+    // running; an entry was added in this task; the page is leaving (stop).
+    var travelling = false, travelledAt = 0, closing = false, added = false, stopped = false;
 
     /** @returns {number} The layers the entry shown stands for. */
     function shown() { return layersOf(hist.state); }
@@ -189,6 +191,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @returns {void}
      */
     function onPopstate() {
+      if (stopped) { return; }
       var from = here, acted = false;
       here = shown();
       if (travelling) { travelling = false; align(false); return; }
@@ -208,6 +211,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           closing = false;
         }
       }
+      // A close that left the page takes no step after it.
+      if (stopped) { return; }
       if (acted && !here && baseOpen()) {
         align(false);
       } else if (!wanted() && here) {
@@ -237,8 +242,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
        */
       sync: function () {
         if (travelling && Date.now() - travelledAt > LANDS_WITHIN_MS) { travelling = false; }
-        if (on && !travelling && !closing) { align(true); }
-      }
+        if (on && !stopped && !travelling && !closing) { align(true); }
+      },
+      /**
+       * The page is leaving (a save, or the page closing itself): no more steps of its own, and Back
+       * closes nothing, so no history.go() comes between the page and the navigation that closes it.
+       * @returns {void}
+       */
+      stop: function () { stopped = true; }
     };
   }
 
