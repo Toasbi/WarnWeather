@@ -613,11 +613,39 @@ function pluginValueSlots(lines, settings, env) {
   for (var l = 0; l < lines.length; l++) {
     for (var s = 0; s < 3; s++) {
       if (slotCode(lines[l], s, settings, env) !== 'pluginValue') { continue; }
-      var pick = pluginValues.pickOf(settings, lines[l].slots[s]);
-      var source = pluginValues.sourceOf(pick);
-      if (source) { out.push({ slotKey: lines[l].slots[s], pick: pick, source: source }); }
+      var picked = pickedSlot(settings, lines[l].slots[s]);
+      if (picked) { out.push(picked); }
     }
   }
+  return out;
+}
+
+/**
+ * @param {Object} settings Clay settings blob
+ * @param {string} slotKey A slot that holds the Plugin value.
+ * @returns {?{slotKey: string, pick: Object, source: Object}} What it picks (plugin-values.js
+ *   pickOf) and its source (sourceOf), or null while it picks none.
+ */
+function pickedSlot(settings, slotKey) {
+  var pick = pluginValues.pickOf(settings, slotKey);
+  var source = pluginValues.sourceOf(pick);
+  return source ? { slotKey: slotKey, pick: pick, source: source } : null;
+}
+
+/**
+ * Every slot that holds the Plugin value with a source picked, in every bar, whether the watch
+ * is sent it or not (wantedPluginValues: those it is sent). What plugin-value-source.js keeps
+ * the values and the reads of, so a value whose bar comes back shows at once.
+ * @param {?Object} settings Clay settings blob
+ * @returns {Array<{slotKey: string, pick: Object, source: Object}>} In the bars' order.
+ */
+function pickedPluginValues(settings) {
+  var out = [];
+  if (!settings) { return out; }
+  catalog.everySlotKey().forEach(function (slotKey) {
+    var picked = settings[slotKey] === 'pluginValue' ? pickedSlot(settings, slotKey) : null;
+    if (picked) { out.push(picked); }
+  });
   return out;
 }
 
@@ -858,6 +886,7 @@ module.exports = {
   buildStatusLines: buildStatusLines,
   wantsBatteryDays: wantsBatteryDays,
   wantedPluginValues: wantedPluginValues,
+  pickedPluginValues: pickedPluginValues,
   isNightNow: isNightNow,
   SOURCE_KEYS: SOURCE_KEYS,
   packLine: packLine,

@@ -77,7 +77,7 @@ function answer(properties, extra) {
  * @param {Object} [opts] {settings, pebble, clock, keepStorage, watchInfo, complications,
  *   permissions}: the user's complications as last heard (default none known), and the
  *   permissions this app declares (default none).
- * @returns {Object} Handle: mutable .clock/.settings, .pebble, collected .sends, .timers.
+ * @returns {Object} Handle: mutable .clock/.settings/.watchInfo, .pebble, collected .sends, .timers.
  */
 function boot(opts) {
   opts = opts || {};
@@ -88,9 +88,9 @@ function boot(opts) {
     pebble: Object.prototype.hasOwnProperty.call(opts, 'pebble') ? opts.pebble : fakePebble(),
     sends: [],
     timers: [],
-    complications: Object.prototype.hasOwnProperty.call(opts, 'complications') ? opts.complications : null
+    complications: Object.prototype.hasOwnProperty.call(opts, 'complications') ? opts.complications : null,
+    watchInfo: opts.watchInfo || { platform: 'basalt' }
   };
-  const watchInfo = opts.watchInfo || { platform: 'basalt' };
   statusRebake.init(withHost({
     getSettings: () => h.settings,
     getBakeFacts: () => ({ plugin: pluginValueSource.bakeFacts() }),
@@ -99,11 +99,11 @@ function boot(opts) {
   }));
   // The inputs of a bake the re-bake can re-bake: the real baker runs.
   statusRebake.rememberBakeInputs({ CITY: 'Bonn', CURRENT_TEMP: 68, SUN_EVENTS: [1, 0, 0, 0, 0] },
-    watchInfo, new Date(h.clock));
+    h.watchInfo, new Date(h.clock));
   pluginValueSource.init({
     pebble: h.pebble,
     getSettings: () => h.settings,
-    getWatchInfo: () => watchInfo,
+    getWatchInfo: () => h.watchInfo,
     now: () => h.clock,
     timers: heldTimers(h.timers),
     permissions: opts.permissions,
@@ -576,7 +576,7 @@ test('a second slot that shows a value already shown: the watch is owed what bot
     ['87%', '87%', decodeLine(h.sends[sent - 1].STATUS_LINE_3_UINT8)[2].text]);
 });
 
-test('a value one slot stops showing is dropped; the other slot\'s stays and is not read again', () => {
+test('a value no slot picks any more goes at the save; the other slot\'s stays and is not read again', () => {
   const h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' })) });
   h.pebble.subs[0].push(answer());
   h.pebble.subs[1].push(answer({ cell: { shortText: { text: 'LTE' } } }));
@@ -592,7 +592,7 @@ test('a value one slot stops showing is dropped; the other slot\'s stays and is 
   assert.equal(h.pebble.subs.length, 3, 'picked again: read at once');
 });
 
-test('a slot that stops showing a value while it is read: the answer goes nowhere, the other read lands', () => {
+test('a value no slot picks any more while it is read: the answer goes nowhere, the other read lands', () => {
   const h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' })) });
   h.settings = SLOT;
   pluginValueSource.refresh();
@@ -602,7 +602,7 @@ test('a slot that stops showing a value while it is read: the answer goes nowher
   assert.equal(storedRead(CELL_KEY), null);
 });
 
-test('a start keeps only the values of the sources a slot shows', () => {
+test('a start keeps only the values of the sources a slot picks', () => {
   Object.keys(storage).forEach((k) => { delete storage[k]; });
   const kept = { source: KEY, reading: reading({ short: '87%' }), at: NOON - 10 * MIN, validUntil: null };
   const gone = { source: CELL_KEY, reading: reading({ short: 'LTE' }), at: NOON - 10 * MIN, validUntil: null };
@@ -615,6 +615,47 @@ test('a start keeps only the values of the sources a slot shows', () => {
   assert.equal(h.pebble.subs.length, 0, 'not due');
   statusRebake.resendStatus('fetch');
   assert.equal(sentText(h), '87%', 'shown at once');
+});
+
+test('a value whose bar the watch is not sent for a while keeps its read and its value: shown again, it shows at once and is read when due', () => {
+  const h = boot();
+  h.pebble.subs[0].push(answer());
+  minute();
+  // The user's other watch, which shows no Plugin value slot (aplite), for ten minutes.
+  h.watchInfo = { platform: 'aplite' };
+  h.clock += 10 * MIN;
+  minute();
+  assert.equal(storedValue(KEY).reading.short, '87%', 'the value is kept');
+  assert.equal(storedRead(KEY).at, NOON, 'and its read');
+  h.watchInfo = { platform: 'basalt' };
+  h.clock += 10 * MIN;
+  minute();
+  assert.equal(h.pebble.subs.length, 1, 'not read again before it is due');
+  statusRebake.resendStatus('fetch');
+  assert.equal(sentText(h), '87%', 'shown at once');
+  h.clock = NOON + HOUR;
+  minute();
+  assert.equal(h.pebble.subs.length, 2, 'read when due');
+});
+
+test('a start on a watch that shows none of the slots keeps the values of the sources they pick', () => {
+  Object.keys(storage).forEach((k) => { delete storage[k]; });
+  const cell = { source: CELL_KEY, reading: reading({ short: 'LTE' }), at: NOON - 10 * MIN, validUntil: null };
+  const cellRead = { source: CELL_KEY, at: NOON - 10 * MIN, failures: 0, validUntil: null };
+  const value = { source: KEY, reading: reading({ short: '87%' }), at: NOON - 10 * MIN, validUntil: null };
+  const record = { source: KEY, at: NOON - 10 * MIN, failures: 0, validUntil: null };
+  storage[KEYS.PLUGIN_VALUES] = JSON.stringify({ [CELL_KEY]: cell });
+  storage[KEYS.PLUGIN_VALUE_READS] = JSON.stringify({ [CELL_KEY]: cellRead });
+  // As 3.4.0 kept it.
+  storage[KEYS.PLUGIN_VALUE] = JSON.stringify(value);
+  storage[KEYS.PLUGIN_VALUE_READ] = JSON.stringify(record);
+  const h = boot({ keepStorage: true, watchInfo: { platform: 'aplite' },
+    settings: Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' })) });
+  assert.equal(h.pebble.subs.length, 0, 'nothing is read for them');
+  assert.deepEqual(stored(KEYS.PLUGIN_VALUES), { [CELL_KEY]: cell, [KEY]: value });
+  assert.deepEqual(stored(KEYS.PLUGIN_VALUE_READS), { [CELL_KEY]: cellRead, [KEY]: record });
+  assert.equal(storage[KEYS.PLUGIN_VALUE], undefined);
+  assert.equal(storage[KEYS.PLUGIN_VALUE_READ], undefined);
 });
 
 test('the value kept before 3.5.0 moves to the slots that show its source, and shows at once', () => {
@@ -634,7 +675,7 @@ test('the value kept before 3.5.0 moves to the slots that show its source, and s
   assert.deepEqual([slots[0].text, slots[1].text], ['87%', '87%']);
 });
 
-test('the value kept before 3.5.0 of a source no slot shows goes, and so does a read without a value', () => {
+test('the value kept before 3.5.0 of a source no slot picks goes, and so does a read without a value', () => {
   [[{ source: CELL_KEY, reading: reading({ short: 'LTE' }), at: NOON, validUntil: null },
     { source: CELL_KEY, at: NOON, failures: 0, validUntil: null }, 'another source'],
   [null, { source: KEY, at: NOON - 10 * MIN, failures: 2, validUntil: null }, 'a read alone']].forEach(([value, record, why]) => {

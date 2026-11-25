@@ -18,8 +18,11 @@
 // read's (plugin-read-schedule.js).
 //
 // Only while it is wanted: a slot of a bar the watch is sent shows it (status-lines.js
-// wantedPluginValues). A lane no slot shows any more is dropped with its read and its value, so
-// a value picked again is read at once. A bake shows a value only in a slot whose source it was
+// wantedPluginValues). A lane no slot shows any more stops. Its read and its value stay in
+// storage while a slot still picks its source, in a bar the watch is not sent now (another
+// watch's, or one no screen shows), so shown again the value shows at once and is read when due;
+// at a start and at a save, what storage keeps of a source no slot picks goes, so a value picked
+// again is read at once (keepPicked). A bake shows a value only in a slot whose source it was
 // read from, and drops it once it is too old for that slot (plugin-values.js shownReading); when
 // what the slots show changes, with a read or with the time (that, or a moment's date at the
 // midnight after it, or an icon turning: shownSlots), the watch is owed the status that shows
@@ -173,9 +176,22 @@ function laneSpec(lane) {
 }
 
 /**
- * A look: bring the lanes in line with the slots wanted now. A lane no slot shows any more is
- * dropped with its read and its value, a lane is made for a source a slot shows now, and each
- * lane left takes its slots and reads when a read is due.
+ * Keep in storage only the values and the reads of the sources a slot picks (status-lines.js
+ * pickedPluginValues), shown or not.
+ * @param {Array<{source: Object}>} picked The slots that pick a source.
+ * @returns {void}
+ */
+function keepPicked(picked) {
+    var keys = Object.keys(bySource(picked));
+    storedJson.keepOnly(KEYS.PLUGIN_VALUES, keys, NAME + ': the values');
+    storedJson.keepOnly(KEYS.PLUGIN_VALUE_READS, keys, NAME + ': the times of the reads');
+}
+
+/**
+ * A look: bring the lanes in line with the slots wanted now. A lane no slot shows any more
+ * stops, with its read and its value left in storage, a lane is made for a source a slot shows
+ * now, with what storage keeps of it, and each lane left takes its slots and reads when a read
+ * is due. A save also takes out of storage what no slot picks any more (keepPicked).
  * @param {Array<{source: Object}>} slots The Plugin value slots wanted now (wanted).
  * @param {boolean} fromSave Whether the settings were just saved (plugin-read-schedule.js
  *   refresh), else a tick's look.
@@ -185,9 +201,11 @@ function look(slots, fromSave) {
     var groups = bySource(slots);
     Object.keys(lanes).forEach(function (key) {
         if (groups[key]) { return; }
-        lanes[key].schedule.drop();
+        lanes[key].schedule.stop();
         delete lanes[key];
     });
+    // Only a save changes what the slots pick: a tick or another complication changes what is shown.
+    if (fromSave) { keepPicked(statusLines.pickedPluginValues(deps.getSettings())); }
     Object.keys(groups).forEach(function (key) {
         var lane = lanes[key];
         if (lane) {
@@ -215,8 +233,9 @@ function sync(fromSave) {
  * one read), into the lane of the source it was read from, and remove it. The settings moved
  * that source into each slot that showed it (settings/domain/migrations/status-slots.js
  * movePluginValueIntoSlots), so those slots show the value kept from the start. A value of no
- * source a slot shows goes, and so does a read without a value.
- * @param {Array<{source: Object}>} slots The Plugin value slots wanted now.
+ * source a slot picks goes, and so does a read without a value.
+ * @param {Array<{source: Object}>} slots The slots that pick a source (status-lines.js
+ *   pickedPluginValues).
  * @returns {void}
  */
 function moveSingleValue(slots) {
@@ -238,7 +257,7 @@ function moveSingleValue(slots) {
 /**
  * Wire the source up: a lane for each source a slot shows now, with what storage keeps of it,
  * each taking its first look (plugin-read-schedule.js init); what storage keeps of a source no
- * slot shows goes. Call once, from the 'ready' handler, after statusRebake.init() and
+ * slot picks goes (keepPicked). Call once, from the 'ready' handler, after statusRebake.init() and
  * complication-list.js' init. Re-calling starts afresh from storage, which is what the tests
  * rely on.
  * @param {Object} options plugin-read-schedule.js init's options, with what this app declares
@@ -247,17 +266,14 @@ function moveSingleValue(slots) {
  * @returns {void}
  */
 function init(options) {
-    var slots;
-    var keys;
+    var picked;
     pluginReadSchedule.checkOptions(options, NAME);
     deps = options;
     lanes = {};
-    slots = wanted();
-    keys = Object.keys(bySource(slots));
-    moveSingleValue(slots);
-    storedJson.keepOnly(KEYS.PLUGIN_VALUES, keys, NAME + ': the values');
-    storedJson.keepOnly(KEYS.PLUGIN_VALUE_READS, keys, NAME + ': the times of the reads');
-    look(slots, false);
+    picked = statusLines.pickedPluginValues(deps.getSettings());
+    moveSingleValue(picked);
+    keepPicked(picked);
+    look(wanted(), false);
 }
 
 /**

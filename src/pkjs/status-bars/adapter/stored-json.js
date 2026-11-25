@@ -96,7 +96,7 @@ function putMap(key, map, what) {
 
 /**
  * One entry of a map kept under a key, a place of its own beside the map's other entries
- * (plugin-value-source.js: the read and the value of each Plugin value a slot shows, by its
+ * (plugin-value-source.js: the read and the value of each Plugin value a slot picks, by its
  * source).
  * @param {string} key The storage key of the map.
  * @param {string} name The entry's name in it.

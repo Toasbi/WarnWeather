@@ -215,8 +215,9 @@ brings back the permissions that app asked for and the user has not answered. Ea
 reader says when the next read is due; the rest is one schedule (`plugin-read-schedule.js`):
 the record of the last read, stamped as the read starts and kept in storage, so neither a
 restart nor a settings save reads again before the next is due, though a save after the first
-read that failed does; a read at once when the value is wanted again or another source is
-picked; one read at a time; inside the Night battery saver's window only the read a save asks
+read that failed does; a read at once when another source is picked or a value no slot wanted
+is wanted again, though a Plugin value whose bar the watch is not sent keeps its read and its
+value while a slot picks it; one read at a time; inside the Night battery saver's window only the read a save asks
 for, with none before it or after the first that failed; sooner after a failure, and at the
 next tick, once, after a save's read that timed out or failed without a reason; and the value
 last heard, kept, with the watch owed a status send when what the slot shows of it changes and
@@ -253,9 +254,10 @@ estimate is owed to the watch, not sent at once: the re-bake's next tick sends i
 
 **Plugin value (status slot)**:
 A slot item that shows one value another app's plugin serves, such as the Phone plugin's
-network type. Its dialog picks the plugin, which of its values and how often it is read
-(`plugin-values.js` sourceOf, everyMs); the source is the item's setting, so every slot that
-holds the item shows the same value. The dialog lists what the phone's plugins serve, from
+network type. Each slot that holds it has a dialog of its own, which picks the plugin, which of
+its values and how often it is read (`plugin-values.js` pickOf, sourceOf, everyMs), so each slot
+can show another value; the slots that pick one source share its read
+(`plugin-value-source.js`). The dialog lists what the phone's plugins serve, from
 `Pebble.enumeratePlugins()`, which runs no plugin (`plugin-value-list.js` listOf): each
 property a source declares as a text, a timestamp, a number or a boolean, of a source this app
 may read without being asked for a permission it never declared (judged by the Pebble app's

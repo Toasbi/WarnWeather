@@ -758,28 +758,40 @@ test('load wires it up with what storage keeps and takes no look: the caller\'s 
   assert.equal(waited, 1, 'the user waits for it');
 });
 
-test('drop forgets the read and the value here and in storage, owes nothing, and reads nothing more', () => {
-  const h = boot();
+test('stop keeps the read and the value in storage, owes nothing, and reads nothing more', () => {
+  let h = boot();
   h.pebble.subs[0].push({ text: '87%' });
   owed = 0;
-  schedule.drop();
-  assert.equal(schedule.value(), null);
-  assert.equal(stored(READ), null);
-  assert.equal(stored(VALUE), null);
-  assert.equal(owed, 0);
+  writes.length = 0;
+  schedule.stop();
+  assert.deepEqual(writes, [], 'storage keeps both');
   h.clock += 2 * EVERY;
   schedule.onTick();
   schedule.refresh();
   assert.equal(h.pebble.subs.length, 1, 'no read after it');
+  assert.equal(owed, 0);
+
+  // Made again (load: plugin-value-source.js makes a lane again): the value at once, and read
+  // only when its next read is due.
+  h = loadInto({ clock: NOON + MIN, settings: WANT_A, pebble: fakePebble(), timers: [] });
+  assert.deepEqual(schedule.value(), { source: 'a', text: '87%', at: NOON });
+  schedule.refresh();
+  assert.equal(h.pebble.subs.length, 0, 'not due yet');
 });
 
-test('drop while a read is under way: its answer goes nowhere', () => {
-  const h = boot();
-  schedule.drop();
+test('stop while a read is under way: the read is forgotten and its answer goes nowhere', () => {
+  let h = boot();
+  writes.length = 0;
+  schedule.stop();
+  assert.equal(stored(READ), null, 'the read under way is forgotten');
   writes.length = 0;
   h.pebble.subs[0].push({ text: '87%' });
-  assert.equal(schedule.value(), null);
   assert.deepEqual(writes, [], 'neither the record nor the value comes back');
   assert.equal(h.pebble.subs.length, 1, 'and nothing reads again');
   assert.equal(owed, 0);
+
+  // Made again: read at once, as it never was.
+  h = loadInto({ clock: NOON + MIN, settings: WANT_A, pebble: fakePebble(), timers: [] });
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 1);
 });

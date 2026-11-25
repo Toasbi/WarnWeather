@@ -111,9 +111,10 @@ function checkOptions(options, name) {
  * A reader's schedule.
  * @param {PluginReadSpec} spec The reader's rules.
  * @returns {{init: function(Object): void, load: function(Object): void, onTick: function(): void,
- *   refresh: function(): void, drop: function(): void, value: function(): ?Object}} init wires it
+ *   refresh: function(): void, stop: function(): void, value: function(): ?Object}} init wires it
  *   up and takes the first look, load wires it up without one, onTick and refresh read when a
- *   read is due, drop forgets the read and the value, and value is the value last heard.
+ *   read is due, stop ends its reads and keeps what storage holds, and value is the value last
+ *   heard.
  */
 function create(spec) {
     var deps = INERT;
@@ -132,8 +133,8 @@ function create(spec) {
     var value = null;
     // What the slot showed of it at the last look (spec.shown): at init, a keep and each consider.
     var shown = null;
-    // Dropped (drop): it reads nothing more, and an answer still under way goes nowhere.
-    var dropped = false;
+    // Stopped (stop): it reads nothing more, and an answer still under way goes nowhere.
+    var stopped = false;
 
     /**
      * @returns {number} Now, in epoch milliseconds (the injected clock).
@@ -285,7 +286,7 @@ function create(spec) {
         var at;
         var now;
         var asked;
-        if (dropped) { return; }
+        if (stopped) { return; }
         settings = deps.getSettings();
         want = available() ? spec.wanted(settings, deps.getWatchInfo(), deps) : null;
         if (!want) {
@@ -349,7 +350,7 @@ function create(spec) {
         againAtTick = false;
         renewed = false;
         heldUp = false;
-        dropped = false;
+        stopped = false;
         record = pluginReads.recordOf(spec.recordAt.read(), spec.timeField);
         value = spec.valueOf(spec.valueAt.read());
         // Not known: what the last PKJS owed the watch died with it. The first look owes a send
@@ -370,18 +371,17 @@ function create(spec) {
     }
 
     /**
-     * Forget the read and the value kept, here and in storage, for a reader that wants nothing
-     * of this schedule any more (plugin-value-source.js: no slot shows the value it reads), and
-     * read nothing more. Owes the watch nothing: what stopped wanting it sends its own. An answer
-     * still under way goes nowhere.
+     * Read nothing more, for a reader that wants nothing of this schedule now (plugin-value-
+     * source.js: no slot shows the value it reads), and keep what storage holds of the last read
+     * and the value, which a schedule made again for it loads, so it is not read again before
+     * its next read is due. Its reader takes out of storage what it no longer wants at all. A
+     * read under way is forgotten: its answer goes nowhere, and the value wanted again is read at
+     * once. Owes the watch nothing: what stopped wanting it sends its own.
      * @returns {void}
      */
-    function drop() {
-        forget();
-        spec.valueAt.write(null, value, spec.name + ': the value');
-        value = null;
-        shown = null;
-        dropped = true;
+    function stop() {
+        if (inFlight) { forget(); }
+        stopped = true;
     }
 
     return {
@@ -389,7 +389,7 @@ function create(spec) {
         load: load,
         onTick: function () { consider(false); },
         refresh: function () { consider(true); },
-        drop: drop,
+        stop: stop,
         value: lastValue
     };
 }
