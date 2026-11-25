@@ -19,9 +19,9 @@
 //     so a plugin that fails again waits for its reader's wait, however often the settings are
 //     saved. A record that storage refuses still counts for the rest of this PKJS life.
 //   - Not wanted: nothing is read, and the record is forgotten, so the value wanted again is
-//     read at once. Another key wanted (another source picked, or another reading named at the
-//     complication's place the slot shows): the old key's record is forgotten, and the new key
-//     is read at once. A value heard of another key than the one wanted is dropped, its record
+//     read at once. Another key wanted (another reading named at the place of the complication
+//     the slots show; another source picked is another schedule's: plugin-value-source.js): the
+//     old key's record is forgotten, and the new key is read at once. A value heard of another key than the one wanted is dropped, its record
 //     forgotten or not: a bake would show it as the new key's.
 //   - One read at a time. An answer that comes after what is wanted changed is dropped, and
 //     what changed it, which that read held up, reads then: as from a save where a save did.

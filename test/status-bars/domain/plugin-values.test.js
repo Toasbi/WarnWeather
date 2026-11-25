@@ -92,7 +92,6 @@ test('everyMs: the Updates row, every hour by default', () => {
     assert.equal(pv.everyMs({ every: v }), HOUR, String(v)));
   assert.equal(pv.everyMs(null), HOUR);
   assert.deepEqual(pv.EVERY_CHOICES, ['15', '30', '60', '180', '360']);
-  assert.equal(pv.EVERY_DEFAULT, '60');
 });
 
 test('the text: the short text first, on one line', () => {

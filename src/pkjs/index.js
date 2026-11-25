@@ -499,9 +499,9 @@ Pebble.addEventListener('ready',
             getWatchInfo: function () { return app.watchInfo; },
             now: function () { return Date.now(); }
         });
-        // The user's complications in the Pebble app, which the Plugin value slot can show one
-        // of: watched where the slot is offered, before the slot's value reads the one it picks,
-        // which reads it again at once when they change.
+        // The user's complications in the Pebble app, which each Plugin value slot can show one
+        // of: watched where the slot is offered, before the slots' values read the ones they
+        // pick, which read them again at once when they change.
         complicationList.init({ offered: pluginValueOffered(offerEnv()),
             onChange: pluginValueSource.complicationsChanged });
         // The Plugin value slots' values (other apps' plugins), each read only while a bar shows

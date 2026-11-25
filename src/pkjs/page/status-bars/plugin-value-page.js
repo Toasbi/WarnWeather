@@ -551,7 +551,7 @@
         PConf.whenResolvers.register('pluginValueFromMuninn', fromMuninn);
     }
 
-    var api = { EVERY_HINT: EVERY_HINT, MUNINN_NOTE: MUNINN_NOTE, labelOf: labelOf, pluginOptions: pluginOptions,
+    var api = { MUNINN_NOTE: MUNINN_NOTE, labelOf: labelOf, pluginOptions: pluginOptions,
         valueOptions: valueOptions, pluginHint: pluginHint, valueHint: valueHint, lastLine: lastLine,
         fromMuninn: fromMuninn, pluginPicked: pluginPicked, fitIcon: fitIcon, iconOptions: iconOptions,
         iconHint: iconHint, iconPicture: iconPicture, everyOptions: everyOptions,

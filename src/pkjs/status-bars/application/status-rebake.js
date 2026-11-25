@@ -378,7 +378,7 @@ function nowSec() {
 }
 
 /**
- * The bake's facts for a re-bake (the two batteries' and the Plugin value slot's): the
+ * The bake's facts for a re-bake (the two batteries' and the Plugin value slots'): the
  * injected supplier's (index.js bakeFacts in the app), with the phone's replaced where the
  * caller brings its own.
  * @param {?Object} [phone] The phone's battery facts to bake instead (bakeStatus).
