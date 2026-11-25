@@ -1993,6 +1993,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         });
         input.focus();
         input.select();
+        syncBack();
     }
 
     /**
@@ -2033,6 +2034,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var t = ED.overlay.querySelector('[data-se-toast]');
         t.textContent = ED.toast.v || '';
         t.className = ED.toast.v ? 'toast show' : 'toast';
+        syncBack();
     }
 
     /**
@@ -2075,6 +2077,41 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ED.nameEl = null;
         document.removeEventListener('keydown', onKeydown);
         if (UI.ctx && changed) { UI.ctx.render(); }
+        syncBack();
+    }
+
+    /**
+     * How many layers the editor has open, for the phone's Back (back-steps.js): the overlay, then
+     * Change layout's cards over the screen's editor, a screen picked in Add a screen, the name
+     * being typed.
+     * @returns {number}
+     */
+    function editorLayers() {
+        if (!ED.overlay) { return 0; }
+        var add = ED.mode === 'add';
+        return 1 + (add && ED.into >= 0 ? 1 : 0) + (add && ED.pick ? 1 : 0) + (ED.nameEl ? 1 : 0);
+    }
+
+    /**
+     * Close the editor's top layer, as its ‹ does (the phone's Back, Escape): the name being typed
+     * (kept, as leaving the field keeps it), a picked screen back to Add a screen's cards, Change
+     * layout's cards back to the screen's editor, else the editor.
+     * @returns {void}
+     */
+    function editorBack() {
+        if (ED.nameEl) { endRename(ED.nameEl.value); return; }
+        if (ED.mode === 'add' && ED.pick) { backToCards(); return; }
+        if (ED.mode === 'add' && ED.into >= 0) { relayoutBack(); return; }
+        closeEditor();
+    }
+
+    /**
+     * After the editor opened, closed or changed what it shows: the page's history follows
+     * (back-steps.js), an entry per layer open.
+     * @returns {void}
+     */
+    function syncBack() {
+        if (PConf.backSteps) { PConf.backSteps.sync(); }
     }
 
     /**
@@ -2093,9 +2130,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The editor's keys (not under a dialog, nor while the name is renamed): Escape closes it;
-     * ArrowUp / ArrowDown on a focused ≡ move its row a place (editorMove), the ≡ keeping the
-     * focus.
+     * The editor's keys (not under a dialog, nor while the name is renamed): Escape closes its top
+     * layer (editorBack); ArrowUp / ArrowDown on a focused ≡ move its row a place (editorMove), the
+     * ≡ keeping the focus.
      * @param {KeyboardEvent} e The key.
      * @returns {void}
      */
@@ -2104,11 +2141,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var modal = document.getElementById('modal');
         if (modal && modal.open) { return; }
         if (e.key === 'Escape') {
-            // Escape on a picked screen goes back to Add a screen's cards, as its ‹ does.
-            if (ED.mode === 'add' && ED.pick) { backToCards(); return; }
-            // Escape on Change layout's cards goes back to the screen's editor, as their ‹ does.
-            if (ED.mode === 'add' && ED.into >= 0) { relayoutBack(); return; }
-            closeEditor();
+            // Escape on a picked screen goes back to Add a screen's cards, on Change layout's cards
+            // back to the screen's editor, as their ‹ does; else the editor closes.
+            editorBack();
             return;
         }
         // ArrowLeft / ArrowRight on a graph in Add a screen's roll pick the one beside it, rolled
@@ -2622,6 +2657,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 ctx.set('healthMode', m.healthMode);
             });
         }
+        // The phone's Back closes the editor's top layer, as its ‹ does (editorBack).
+        if (PConf.backSteps) { PConf.backSteps.add({ depth: editorLayers, close: editorBack }); }
         PConf.actions = PConf.actions || {};
         PConf.actions.openScreen = function (arg) { openEditor(parseInt(arg, 10) || 0); };
         PConf.actions.addScreen = function () {
