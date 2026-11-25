@@ -73,3 +73,16 @@ test('preview-config-page.js bundles the build\'s own app-file list, not a copy 
     'the preview re-exports the build\'s array itself — a second list cannot drift '
     + 'because there is no second list');
 });
+
+test('the preview\'s Plugin value dialog shows the value read last for a slot on the fifth complication', (t) => {
+  const page = require('../../src/pkjs/page/status-bars/plugin-value-page.js');
+  const { PREFERENCES } = require('../../src/pkjs/status-bars/domain/plugin-values.js');
+  const env = preview.envFor('basalt');
+  global.INJECTED_USERDATA = preview.previewPlugins(env);
+  t.after(() => { delete global.INJECTED_USERDATA; });
+  const S = { statusTopLeft: 'pluginValue', statusTopLeftPluginValuePlugin: PREFERENCES,
+    statusTopLeftPluginValueId: 'preferences/complications/4' };
+  assert.match(page.lastLine(S, env, { slotKey: 'statusTopLeft' }), /\(5 min ago\)\.$/, 'handed as the phone hands it');
+  assert.notEqual(page.barText(S, 19, 'statusTopLeft'), '--', 'and in the bars\' pictures');
+  assert.deepEqual(preview.previewPlugins(preview.envFor('aplite')), {}, 'none on aplite');
+});

@@ -104,12 +104,13 @@ function previewFailureData() {
  * package.template.json declares, keyed as index.js declaredPermissions keys it), with the
  * Pebble app's own four complications and the time of Muninn's last estimate in the fifth
  * place. The value read last, five minutes ago, is that time, which the dialog's last line and
- * the bars' pictures show once the slot picks the fifth complication. Left out where the status
- * lists leave the item out, as the phone leaves them out (index.js): on aplite, and with
- * PREVIEW_PLUGINS=0.
+ * the bars' pictures show once a slot picks the fifth complication: handed under that place's
+ * key, as the phone hands a complication's value (plugin-value-source.js forPage). Left out
+ * where the status lists leave the item out, as the phone leaves them out (index.js): on
+ * aplite, and with PREVIEW_PLUGINS=0.
  * @param {Object} env The preview's env (envFor).
- * @returns {{plugins: (Array<Object>|undefined), pluginValue: (Object|undefined)}} userData's
- *   plugins and pluginValue, or neither.
+ * @returns {{plugins: (Array<Object>|undefined), pluginValues: (Object|undefined)}} userData's
+ *   plugins and pluginValues, or neither.
  */
 function previewPlugins(env) {
   if (!statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, env)) { return {}; }
@@ -134,13 +135,15 @@ function previewPlugins(env) {
     ['calendar', 'event', 'starts_at'], ['weather', 'location', 'condition'], ['muninn', 'stats', 'updatedAt']]
     .map(function (c, i) { return { position: i, category: c[0], item: c[1], index: 0, property: c[2] }; });
   var estimated = Date.now() - 2 * 60 * 60 * 1000;
+  var place = prefs + '/preferences/complications/4';
+  var values = {};
+  values[place] = { source: place + '/muninn/stats/0/updatedAt', at: Date.now() - 5 * 60 * 1000, validUntil: null,
+    reading: { short: null, time: estimated, number: estimated, unit: null, state: null, long: null } };
   return {
     // The build adds to what the template declares only its own endpoints' hosts
     // (scripts/lib/uses-permissions.js), which no plugin here asks for.
     plugins: pluginValueList.listOf(plugins, pluginReads.declaredKeys(PACKAGE.pebble.usesPermissions), '', known),
-    pluginValue: { source: prefs + '/preferences/complications/4/muninn/stats/0/updatedAt',
-      at: Date.now() - 5 * 60 * 1000, validUntil: null,
-      reading: { short: null, time: estimated, number: estimated, unit: null, state: null, long: null } }
+    pluginValues: values
   };
 }
 
@@ -193,4 +196,5 @@ if (require.main === module) {
   console.log('wrote ' + parsed.out + ' (' + parsed.platform + ')');
 }
 
-module.exports = { run: run, parseArgs: parseArgs, DEFAULT_OUT: DEFAULT_OUT, PLATFORMS: PLATFORMS, APP_FILES: APP_FILES };
+module.exports = { run: run, parseArgs: parseArgs, envFor: envFor, previewPlugins: previewPlugins,
+  DEFAULT_OUT: DEFAULT_OUT, PLATFORMS: PLATFORMS, APP_FILES: APP_FILES };
