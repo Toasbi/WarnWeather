@@ -47,6 +47,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // discipline.
   var checklist = (typeof require !== 'undefined') ? require('./checklist.js') : PConf.checklist;
   var renderChecklist = checklist.renderChecklist;
+  // The page's history entries, one per layer open (lib/back-steps.js): the phone's Back closes
+  // the top layer. Inert under Node and in a WebView without history.pushState.
+  var backSteps = (typeof require !== 'undefined') ? require('./back-steps.js') : PConf.backSteps;
   var formatDateValue = datePicker.formatDateValue;
   var parseDateParts = datePicker.parseDateParts;
   var dateValueFromParts = datePicker.dateValueFromParts;
@@ -2844,9 +2847,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // back there when the list closes without a pick, the list's own trigger being a row the
     // pick may not have made yet; it counts only while that list is the one expanded.
     var handedFrom = null;
-    // The page's history entries, one per layer open (back-steps.js): the phone's Back closes the
-    // top layer. A page built without it keeps no entries.
-    var back = PConf.backSteps || { add: function () {}, sync: function () {} };
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
     /**
@@ -3349,7 +3349,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       applyTheme();
       paintSave();
       // Every layer the dialog opens or closes ends in a render: the history follows it.
-      back.sync();
+      backSteps.sync();
     }
 
     // Save and Revert follow whether a Save would send anything new: the blob Save would
@@ -4073,11 +4073,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           closeModal(); return;
         }
       });
-      // Escape fires the dialog's native `cancel`; route it through closeModal (the single
-      // close path via render → syncDialog) instead of letting the dialog self-close.
-      // It closes one layer (stepBack): in a name field the old name stays, the dialog too; inside
-      // an edit sheet the first press collapses an expanded option list or palette; the next one
-      // steps back from the sheet.
+      // Escape fires the dialog's native `cancel`: the page closes one layer itself (stepBack,
+      // a name being typed keeping its old name) instead of letting the dialog self-close.
       modal.addEventListener('cancel', function (e) {
         e.preventDefault();
         stepBack(false);
@@ -4102,7 +4099,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (!inp || !renaming || (to && to.closest && to.closest('[data-dlg-rename-ok]'))) { return; }
         storeRename(inp.value);
         renaming = null;
-        back.sync();
+        backSteps.sync();
       });
       modal.addEventListener('input', liveTextInput);
       modal.addEventListener('focusin', captureTextPreEdit);
@@ -4300,7 +4297,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     wireSave();
     // The phone's Back closes the dialog's top layer as Escape does, but keeps a name being typed;
     // the dialog shows above every overlay of the page's own.
-    back.add({ rank: 1, depth: openLayers, close: function () { stepBack(true); } });
+    backSteps.add({ rank: 1, depth: openLayers, close: function () { stepBack(true); } });
     // Links to other sites through Pebble.openUrl where the app gives the page one (links.js).
     if (PConf.links && document.addEventListener) {
       PConf.links.wireLinks(document, typeof window !== 'undefined' ? window : null);

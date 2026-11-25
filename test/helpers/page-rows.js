@@ -42,6 +42,19 @@ function editorBody(page) {
 }
 
 /**
+ * The screen editor's title (its screen's name, "Add a screen", "Change layout"), while it is open.
+ * @param {Object} page A bootGeneratedPage handle (test/helpers/page-harness.js).
+ * @returns {?string} The title, null with the editor closed.
+ */
+function editorTitle(page) {
+  const ed = page.editor();
+  if (!ed) { return null; }
+  const m = /id="seTitle">([^<]*)<\/span>/.exec(ed.querySelector('[data-se-head]').innerHTML);
+  assert.ok(m, 'the editor\'s header has its title');
+  return m[1];
+}
+
+/**
  * The open screen editor's rows, top to bottom: each row's name, then what its dropdown shows
  * (screens-page.js rowHtml: the calendar's rows, a graph's size), joined by ' · ':
  * "Calendar · 2 rows".
@@ -141,4 +154,4 @@ function sheetOptions(page) {
   return out;
 }
 
-module.exports = { rowOf, hintOf, editorBody, editorRows, editorAddChips, editorAddGroups, editorRow, sheetTitle, sheetOptions };
+module.exports = { rowOf, hintOf, editorBody, editorTitle, editorRows, editorAddChips, editorAddGroups, editorRow, sheetTitle, sheetOptions };
