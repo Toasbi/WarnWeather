@@ -211,13 +211,13 @@ test('the icon: the Switch by default and for a choice it does not know, the Non
   });
 });
 
-test('the text: none in the Icon look, the value\'s in the others', () => {
+test('the text: none in the Icon look, the value\'s in the others, -- in every Look while there is none', () => {
   const r = reading({ short: '87%' });
   assert.equal(pv.slotTextOf({ look: 'icon' }, r, 8, {}, T0), '');
   assert.equal(pv.slotTextOf({ look: 'both' }, r, 8, {}, T0), '87%');
   assert.equal(pv.slotTextOf({}, r, 8, {}, T0), '87%');
   assert.equal(pv.slotTextOf({ look: 'text' }, null, 8, {}, T0), '--', 'not read: --');
-  assert.equal(pv.slotTextOf({ look: 'icon' }, null, 8, {}, T0), '', 'the icon alone, off');
+  assert.equal(pv.slotTextOf({ look: 'icon' }, null, 8, {}, T0), '--', 'not read: -- beside the icon, off');
 });
 
 test('the icon: one that turns is on only while the value is on; off, too old or not read, it is off', () => {

@@ -799,6 +799,8 @@ test('the bars\' pictures draw the icon picked, in the form the value read last 
   assert.equal(page.barDrawing(S, 'statusTopMid'), 'WIFI_OFF', 'too old to show: off, as the watch shows it');
   global.INJECTED_USERDATA = { plugins: WITH_WIFI };
   assert.equal(page.barDrawing(S, 'statusTopMid'), 'WIFI_OFF', 'none read');
+  const none = barSlots(Object.assign({}, S, { [MID.look]: 'icon' }), BASALT, 'top', true, new Date(NOW))[1];
+  assert.deepEqual([none.text, none.drawing], ['--', 'WIFI_OFF'], 'the Icon look with none read: -- beside it');
   assert.equal(page.barDrawing(Object.assign({}, S, { [MID.icon]: 'plug' }), 'statusTopMid'), 'PLUG');
   const text = Object.assign({}, S, { [MID.look]: 'text' });
   assert.equal(page.barDrawing(text, 'statusTopMid'), null);

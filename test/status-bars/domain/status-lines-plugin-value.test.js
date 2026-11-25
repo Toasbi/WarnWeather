@@ -109,7 +109,7 @@ test('the icon the Icon row picks, before the text in every place: one that turn
   assert.deepEqual(icons(plug, null), [I.PV_PLUG, I.PV_PLUG, I.PV_PLUG], 'one that stays the same, read or not');
 });
 
-test('the Look: the text alone by default, the icon alone in the Icon look, on the text kind either way', () => {
+test('the Look: the text alone by default, the icon alone in the Icon look (-- beside it while there is no value), on the text kind either way', () => {
   const I = catalog.ICONS;
   const on = value({ short: 'Home', state: true });
   assert.deepEqual(bakeTop(everywhere({ icon: 'wifi' }), facts(on)).slots[0], { kind: TEXT, icon: ICON, text: 'Home' },
@@ -119,7 +119,10 @@ test('the Look: the text alone by default, the icon alone in the Icon look, on t
   const alone = everywhere({ look: 'icon', icon: 'wifi' });
   assert.deepEqual(bakeTop(alone, facts(on)).slots, [0, 1, 2].map(() => ({ kind: TEXT, icon: I.PV_WIFI, text: '' })),
     'the icon alone: no text, in every place');
-  assert.deepEqual(bakeTop(alone, facts(null)).slots[0], { kind: TEXT, icon: I.PV_WIFI_OFF, text: '' }, 'not read: off');
+  assert.deepEqual(bakeTop(alone, facts(null)).slots[0], { kind: TEXT, icon: I.PV_WIFI_OFF, text: '--' },
+    'not read: --, so the icon off is not a value that is off');
+  assert.deepEqual(bakeTop(alone, facts(on), BASALT, new Date(NOW.getTime() + 13 * HOUR)).slots[0],
+    { kind: TEXT, icon: I.PV_WIFI_OFF, text: '--' }, 'grown too old: the same');
   assert.deepEqual(bakeTop(everywhere({ look: 'icon' }), facts(on)).slots[0], { kind: TEXT, icon: I.PV_SWITCH, text: '' },
     'no icon picked: the Switch');
 });

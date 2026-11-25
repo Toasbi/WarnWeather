@@ -278,7 +278,7 @@ row) prints the text alone, where a slot starts, with an icon id that loads no d
 text); or that icon alone (Icon), which only a value the phone lists as on or off can take
 (`plugin-value-list.js` onOff). Switch, Wi-Fi and Bluetooth turn with such a value and show
 their off form while it is off, too old or not read; Plug, Phone and Calendar stay the same
-(`plugin-values.js` iconId, slotTextOf). The text is the reading's short
+(`plugin-values.js` iconId). With no value to show, every Look prints -- (`slotTextOf`). The text is the reading's short
 text, else its moment as a clock time in the user's 12/24 h setting, as the sun slot prints
 sunrise, with its date after it on another day than the one the slot is baked for ("23:10 24
 Nov"; the date alone where the slot has no room for both, `slot-text.js` momentText), else its

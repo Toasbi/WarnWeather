@@ -321,7 +321,9 @@
 
     /**
      * The text the slot prints of the reading it shows (textFor): none in the Icon look, where
-     * the icon alone shows the value (the watch draws a glyph with no text by itself).
+     * the icon alone shows the value (the watch draws a glyph with no text by itself). While it
+     * shows none, '--' in every Look, so an icon in its off form never passes for a value that
+     * is off.
      * @param {?PluginValuePick} pick What the slot picks (pickOf).
      * @param {?Object} reading The reading the slot shows (shownReading), or null.
      * @param {number} cap The slot's bytes. @param {?Object} settings Settings: the clock's format.
@@ -329,7 +331,7 @@
      * @returns {string}
      */
     function slotTextOf(pick, reading, cap, settings, nowMs) {
-        return printsText(pick) ? textFor(reading, cap, settings, nowMs) : '';
+        return printsText(pick) || !reading ? textFor(reading, cap, settings, nowMs) : '';
     }
 
     /**
