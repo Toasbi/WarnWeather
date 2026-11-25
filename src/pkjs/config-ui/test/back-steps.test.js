@@ -187,6 +187,22 @@ test('a step of the page\'s own that never lands holds the history back no more 
   assert.equal(phone.layers, 2, 'after 3 s the page stops waiting: the nested dialog has its entry');
 });
 
+test('a step of the page\'s own that never lands: after 3 s the next Back is taken as Back', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'] });
+  const { phone, steps } = setup();
+  const part = layered(steps);
+  part.open('dialog A');
+  await nextTap();
+  part.open('nested');
+  await nextTap();
+  part.shutAll();   // the step back to the first entry, which this WebView drops
+  await nextTap();
+  part.open('dialog B');   // no entry while the step is under way
+  t.mock.timers.tick(3001);
+  phone.back();
+  assert.deepEqual(part.stack, [], 'Back closes dialog B');
+});
+
 test('one entry per tap: Back closes all the layers one tap opened', async () => {
   const { phone, steps } = setup({ activation: true });
   const part = layered(steps);

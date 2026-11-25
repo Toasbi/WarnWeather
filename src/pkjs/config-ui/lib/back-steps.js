@@ -122,6 +122,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     /**
+     * Whether a step of the page's own is under way: asked for under LANDS_WITHIN_MS ago and not
+     * landed. One older than that never will (a WebView that dropped it): the page stops waiting.
+     * @returns {boolean}
+     */
+    function underWay() {
+      if (travelling && Date.now() - travelledAt > LANDS_WITHIN_MS) { travelling = false; }
+      return travelling;
+    }
+
+    /**
      * Move over `delta` entries (back below 0, forward above it); the popstate it brings is the
      * page's own.
      * @param {number} delta Entries to move, never 0 (history.go(0) reloads the page).
@@ -194,7 +204,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (stopped) { return; }
       var from = here, acted = false;
       here = shown();
-      if (travelling) { travelling = false; align(false); return; }
+      if (underWay()) { travelling = false; align(false); return; }
       if (here < from) {
         closing = true;
         try {
@@ -241,8 +251,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
        * @returns {void}
        */
       sync: function () {
-        if (travelling && Date.now() - travelledAt > LANDS_WITHIN_MS) { travelling = false; }
-        if (on && !stopped && !travelling && !closing) { align(true); }
+        if (on && !stopped && !underWay() && !closing) { align(true); }
       },
       /**
        * The page is leaving (a save, or the page closing itself): no more steps of its own, and Back
