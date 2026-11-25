@@ -352,11 +352,12 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         windUnits: safe.windUnits,
         distanceUnits: safe.distanceUnits,
         gustSlotDirection: Boolean(safe.gustSlotDirection),
-        // The one per-kind Bold mode in the snapshot. The phone-battery slot is
-        // Android-only (its reading comes from a host API that exists nowhere else),
-        // so how the handful of phones that can have it configure it is worth seeing;
-        // the other bold modes stay out. Passed through raw like tempSlotDisplay --
-        // an unseeded install reports undefined, which the column reads as "default".
+        // Two per-kind Bold modes are in the snapshot: the phone-battery slot's, which is
+        // Android-only (its reading comes from a host API that exists nowhere else), so
+        // how the handful of phones that can have it configure it is worth seeing, and
+        // the weather condition slot's (kind 20). The other bold modes stay out. Passed
+        // through raw like tempSlotDisplay: an unseeded install reports undefined, which
+        // the column reads as "default".
         threshPhoneBatteryBoldMode: safe.threshPhoneBatteryBoldMode,
         threshConditionBoldMode: safe.threshConditionBoldMode,
         dayNightShading: !!safe.dayNightShading,
