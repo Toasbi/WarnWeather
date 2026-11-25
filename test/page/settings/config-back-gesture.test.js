@@ -340,7 +340,7 @@ test('Back while setup\'s Save to watch is under way changes nothing, and the sa
   assert.equal(blob.onboardingDone, true);
 });
 
-test('setup opened by itself on a new install: no entry before the first tap; Back on its first step leaves', async () => {
+test('setup opened by itself on a new install: no entry before the first tap; Back on its first step leaves, asking nothing', async () => {
   const page = bootGeneratedPage({ provider: 'dwd', onboardingDone: false }, 'basalt',
     { dialog: true, history: { activation: false } });
   assert.ok(page.overlay('wizard'), 'setup opened by itself');
@@ -350,12 +350,14 @@ test('setup opened by itself on a new install: no entry before the first tap; Ba
   await nextTap();
   wizTap(page, 'data-wiz-nav', 'next');
   assert.equal(page.phone.layers, 1);
+  page.S.themeAuto = !page.S.themeAuto;   // a pick made in setup
   page.phone.back();
   assert.equal(wizStep(page), first, 'Back went back to the first step');
   assert.ok(page.overlay('wizard'));
   page.phone.land();
   assert.equal(page.phone.layers, 1, 'and the page stepped forward to its own entry');
   page.phone.back();
+  assert.equal(page.modal.innerHTML, '', 'nothing asked: setup is not finished, so nothing is saved');
   assert.equal(page.window.location.href, '#', 'Back on the first step closes the page, saving nothing, as before');
 });
 

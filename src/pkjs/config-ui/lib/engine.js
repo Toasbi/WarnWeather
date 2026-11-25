@@ -208,7 +208,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   PConf.checkWriters = makeRegistry();
 
   // --- hook registry ---
-  var loadFns = [], submitFns = [], readyFns = [], renderFns = [], normalizeFns = [], revertFns = [];
+  var loadFns = [], submitFns = [], readyFns = [], renderFns = [], normalizeFns = [], revertFns = [], backFns = [];
   PConf.hooks = {
     onLoad: function (fn) { loadFns.push(fn); },
     onSubmit: function (fn) { submitFns.push(fn); },
@@ -232,11 +232,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // a page module drops what it holds beside the settings that a later tap would write back
     // (the Undo after a delete restores the settings as they were before the delete).
     onRevert: function (fn) { revertFns.push(fn); },
+    // onBack: fn() runs on the phone's Back with nothing open on the page (back-steps.js' base),
+    // before the page answers it. A page module whose overlay stands for the page answers it
+    // itself and returns true (setup opened by itself: its first step leaves the page).
+    onBack: function (fn) { backFns.push(fn); },
     runLoad: function (ctx) { loadFns.forEach(function (fn) { fn(ctx); }); },
     runSubmit: function (ctx) { submitFns.forEach(function (fn) { fn(ctx); }); },
     runReady: function (ctx) { readyFns.forEach(function (fn) { fn(ctx); }); },
     runRender: function (ctx) { renderFns.forEach(function (fn) { fn(ctx); }); },
     runRevert: function (ctx) { revertFns.forEach(function (fn) { fn(ctx); }); },
+    runBack: function () { return backFns.some(function (fn) { return fn() === true; }); },
     runNormalize: function (state, env) {
       return normalizeFns.reduce(function (s, fn) { return fn(s, env) || s; }, state);
     }
@@ -4226,6 +4231,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @returns {void}
      */
     function baseBack() {
+      if (PConf.hooks.runBack()) { return; }
       if (activeTab !== startTab) { switchTab(startTab); return; }
       var dlg = document.getElementById('modal');
       if (!hasChanges() || !dlg || typeof dlg.showModal !== 'function') { leave(); return; }
@@ -4380,6 +4386,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     PConf.hooks.runReady({
       S: S, ENV: ENV, USERDATA: USERDATA, schema: SCHEMA, cfg: INJECTED_CFG || {},
       get: hookCtx.get, set: hookCtx.set, render: render, save: save,
+      // Close the page without saving, as the phone's Back always did.
+      leave: leave,
       // Write a value the way the page's own controls do: S, then the item's onChange hooks
       // (with optOldV, as if it had moved from there). No render: the caller repaints.
       setValue: setValue,
