@@ -42,7 +42,7 @@ function staleSuccess() {
 function noUvNoAqi(over) {
   const s = Object.assign({ secondaryLine: 'off', thirdLine: 'off', fourthLine: 'off' },
     require('../helpers/on-demand.js').NOTHING_PLACED);
-  statusCatalog.allSlotKeys().forEach((k) => { s[k] = 'empty'; });
+  statusCatalog.fourBarSlotKeys().forEach((k) => { s[k] = 'empty'; });
   return Object.assign(s, over || {});
 }
 

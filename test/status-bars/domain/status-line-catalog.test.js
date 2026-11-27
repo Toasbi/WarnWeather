@@ -202,8 +202,8 @@ test('resolveSelection maps invalid/unavailable to empty without touching storag
   assert.equal(catalog.resolveSelection('empty', s, ENV_EMERY), 'empty');
 });
 
-test('allSlotKeys lists the 12 configurable slot settings', () => {
-  assert.deepEqual(catalog.allSlotKeys(), [
+test('fourBarSlotKeys lists the 12 configurable slot settings', () => {
+  assert.deepEqual(catalog.fourBarSlotKeys(), [
     'statusForecastLeft', 'statusForecastMid', 'statusForecastRight',
     'statusRadarLeft', 'statusRadarMid', 'statusRadarRight',
     'statusTopLeft', 'statusTopMid', 'statusTopRight',
@@ -212,7 +212,7 @@ test('allSlotKeys lists the 12 configurable slot settings', () => {
 });
 
 test('everySlotKey lists every bar\'s slots, bars 4 to 6 after the four, line order', () => {
-  assert.deepEqual(catalog.everySlotKey(), catalog.allSlotKeys().concat([
+  assert.deepEqual(catalog.everySlotKey(), catalog.fourBarSlotKeys().concat([
     'statusBar4Left', 'statusBar4Mid', 'statusBar4Right',
     'statusBar5Left', 'statusBar5Mid', 'statusBar5Right',
     'statusBar6Left', 'statusBar6Mid', 'statusBar6Right'
@@ -345,7 +345,7 @@ test('forecast line has a configurable middle defaulting to city', () => {
     ['statusForecastLeft', 'statusForecastMid', 'statusForecastRight']);
   assert.equal(forecast.fixedMid, undefined);
   assert.equal(forecast.defaults.statusForecastMid, 'city');
-  assert.ok(catalog.allSlotKeys().indexOf('statusForecastMid') !== -1);
+  assert.ok(catalog.fourBarSlotKeys().indexOf('statusForecastMid') !== -1);
 });
 
 test('city is offered in the forecast slot dropdowns', () => {
@@ -584,7 +584,7 @@ test('each slot keeps its own Plugin value settings and dialog, which a bar made
 
 test('the phone battery is selectable in all 12 slots when the phone supports it', () => {
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
-  assert.equal(ALL_SLOT_CTXS.length, catalog.allSlotKeys().length, 'all 12 slots covered');
+  assert.equal(ALL_SLOT_CTXS.length, catalog.fourBarSlotKeys().length, 'all 12 slots covered');
   ALL_SLOT_CTXS.forEach((ctx) => {
     const codes = catalog.slotOptions(s, ENV_BASALT_PHONE, ctx).map(o => o[1]);
     assert.ok(catalog.itemAvailable(catalog.byCode('phoneBattery'), s, ENV_BASALT_PHONE, ctx),

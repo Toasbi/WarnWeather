@@ -441,8 +441,12 @@
     return lines.reduce(function (keys, line) { return keys.concat(line.slots); }, []);
   }
 
-  /** @returns {string[]} the 12 configurable slot settings keys, line order */
-  function allSlotKeys() {
+  /**
+   * @returns {string[]} The four bars' slot settings keys (12), in line order: the slots
+   *   telemetry's fixed fields and the 2.6 migration count. Every bar's slots, bars 4 to 6's
+   *   too, are everySlotKey's.
+   */
+  function fourBarSlotKeys() {
     return slotKeysOf(LINES);
   }
 
@@ -792,7 +796,7 @@
     EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
-    allSlotKeys: allSlotKeys, everySlotKey: everySlotKey, slotDefault: slotDefault,
+    fourBarSlotKeys: fourBarSlotKeys, everySlotKey: everySlotKey, slotDefault: slotDefault,
     lineOf: lineOf, siblingHolds: siblingHolds, healthSlots: healthSlots,
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,

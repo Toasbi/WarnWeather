@@ -2286,8 +2286,8 @@ test('the generated page renders the Temp display pills and the watch battery sh
 /** @returns {Object} A settings state with nothing at its default. */
 function scrambledSlotState() {
   const S = { statusBoldAll: 'all', tempSlotDisplay: 'both', uvSlotDisplay: 'both' };
-  // 'uv' is not the default of any of the 12 slots.
-  catalog.allSlotKeys().forEach(k => { S[k] = 'uv'; });
+  // 'uv' is not the default of any slot.
+  catalog.everySlotKey().forEach(k => { S[k] = 'uv'; });
   thresholds.KINDS.forEach((kind, i) => {
     S['thresh' + kind.key + 'BoldMode'] = (i % 2 === 0) ? 'always' : 'off';
   });
@@ -2311,7 +2311,7 @@ test('resetStatusSlots restores every slot default (hr and non-hr) and the bold 
     const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], env);
     assert.equal(PC.actions.resetStatusSlots(null, S, env, defaultOf), true,
       name + ': returns true so the engine re-renders');
-    catalog.allSlotKeys().forEach(k => {
+    catalog.everySlotKey().forEach(k => {
       assert.equal(S[k], catalog.slotDefault(k, env),
         name + ': ' + k + ' back to its platform-aware default');
     });

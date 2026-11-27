@@ -506,7 +506,7 @@ test('Reset status bars puts the batteries back: the drawn battery, the percenta
     assert.deepEqual([S.batterySlotLook, S.batterySlotDisplay, S.batterySlotOrder, S.batterySlotSeparator,
       S.batterySlotSeparatorCustom, S.batterySlotSeparatorSpaced],
     ['icon', 'percent', 'percent', 'bar', '', false], look);
-    catalog.allSlotKeys().forEach((slotKey) => {
+    catalog.everySlotKey().forEach((slotKey) => {
       assert.equal(S[catalog.phoneBatteryLookKey(slotKey)], 'both', slotKey);
     });
   });
