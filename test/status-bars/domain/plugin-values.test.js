@@ -224,22 +224,20 @@ test('the text: none in the Icon look, the value\'s in the others, -- in every L
 
 test('the label: in place of a value that is on or off, beside an icon that turns, and nowhere else', () => {
   const lamp = { look: 'both', icon: 'switch', label: 'Lamp' };
-  [reading({ state: true }), reading({ state: false }), reading({ state: true, short: 'Charging' })].forEach((r) => {
-    assert.equal(pv.slotTextOf(lamp, r, 19, {}, T0), 'Lamp', JSON.stringify(r));
+  const ON = reading({ state: true });
+  // What a slot that picks the lamp, or the lamp with `more`, prints of a reading.
+  const text = (more, r, cap = 19) => pv.slotTextOf(Object.assign({}, lamp, more), r, cap, {}, T0);
+  [ON, reading({ state: false }), reading({ state: true, short: 'Charging' })].forEach((r) => {
+    assert.equal(text({}, r), 'Lamp', JSON.stringify(r));
   });
-  assert.equal(pv.slotTextOf(lamp, null, 19, {}, T0), '--', 'not read: --, so the icon off never passes for a value that is off');
-  assert.equal(pv.slotTextOf(lamp, reading({ short: 'Home' }), 19, {}, T0), 'Home', 'a value with no state: its own text');
-  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { look: 'text' }), reading({ state: true }), 19, {}, T0), 'on',
-    'the Text look: the text is all that shows the value');
-  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { look: 'icon' }), reading({ state: true }), 19, {}, T0), '');
-  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { icon: 'plug' }), reading({ state: true }), 19, {}, T0), 'on',
-    'an icon that stays the same shows no state');
-  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { label: ' \t ' }), reading({ state: false }), 19, {}, T0), 'off',
-    'a label of blanks is none');
-  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { label: 'Wohnzimmerlampe' }), reading({ state: true }), 8, {}, T0),
-    'Wohnzimm', 'cut to the slot, as any text');
-  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { label: 'K\u00fcche\u00fc' }), reading({ state: true }), 6, {}, T0),
-    'K\u00fcche', 'at a character\'s edge');
+  assert.equal(text({}, null), '--', 'not read: --, so the icon off never passes for a value that is off');
+  assert.equal(text({}, reading({ short: 'Home' })), 'Home', 'a value with no state: its own text');
+  assert.equal(text({ look: 'text' }, ON), 'on', 'the Text look: the text is all that shows the value');
+  assert.equal(text({ look: 'icon' }, ON), '');
+  assert.equal(text({ icon: 'plug' }, ON), 'on', 'an icon that stays the same shows no state');
+  assert.equal(text({ label: ' \t ' }, reading({ state: false })), 'off', 'a label of blanks is none');
+  assert.equal(text({ label: 'Wohnzimmerlampe' }, ON, 8), 'Wohnzimm', 'cut to the slot, as any text');
+  assert.equal(text({ label: 'K\u00fcche\u00fc' }, ON, 6), 'K\u00fcche', 'at a character\'s edge');
   assert.equal(pv.labelText(Object.assign({}, lamp, { label: ' Garden\n lamp ' })), 'Garden lamp', 'on one line');
   [null, {}, { look: 'both', icon: 'switch', label: 7 }].forEach((pick) => assert.equal(pv.labelText(pick), '', JSON.stringify(pick)));
   assert.deepEqual([pv.showsLabel(lamp), pv.showsLabel({ look: 'both', icon: 'wifi' }), pv.showsLabel({ look: 'both' }),

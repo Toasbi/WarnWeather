@@ -39,10 +39,15 @@ const PLUGINS = [
 /** The slot whose dialog the tests open, unless one names another: the Watch bar's left. */
 const SLOT = 'statusTopLeft';
 const KEYS = catalog.pluginValueKeys(SLOT);
+/** A pick's parts, in the catalog's order, and what each is on where the slot starts. */
+const PARTS = Object.keys(KEYS);
+const PARTS_AT_START = ['', '', 'text', 'switch', '', '60'];
+/** The Phone plugin's Wi-Fi, a value that is on or off, with the Switch beside its text. */
+const WIFI_BOTH = { plugin: PHONE, id: 'phone/phone_state/wifi', look: 'both', icon: 'switch' };
 
 /**
  * Settings that pick for a slot.
- * @param {Object} pick {plugin, id, look, icon, every}, any of them (plugin-values.js pickOf).
+ * @param {Object} pick {plugin, id, look, icon, label, every}, any of them (plugin-values.js pickOf).
  * @param {string} [slotKey] The slot (SLOT).
  * @returns {Object} The slot's Plugin value settings holding that pick.
  */
@@ -66,6 +71,7 @@ const lastLine = inSlot(page.lastLine);
 const fromMuninn = inSlot(page.fromMuninn);
 const iconOptions = inSlot(page.iconOptions);
 const iconHint = inSlot(page.iconHint);
+const labelShown = inSlot(page.labelShown);
 
 /**
  * @param {string} key A settings key.
@@ -580,21 +586,19 @@ function defaultOf(key) {
 }
 
 test('Reset status bars puts each slot\'s Plugin value source, Look, icon, label and Updates back', () => {
-  const PARTS = ['plugin', 'id', 'look', 'icon', 'label', 'every'];
   const S = Object.assign(pickIn({ every: '360', look: 'both', icon: 'wifi', label: 'Lamp' }), LEVEL,
     pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', look: 'icon', icon: 'plug', every: '15' },
       'statusHealthRight'));
   PConf.actions.resetStatusSlots(null, S, BASALT, defaultOf);
   ['statusTopLeft', 'statusHealthRight'].forEach((slotKey) => {
     const keys = catalog.pluginValueKeys(slotKey);
-    assert.deepEqual(PARTS.map((name) => S[keys[name]]), ['', '', 'text', 'switch', '', '60'], slotKey);
+    assert.deepEqual(PARTS.map((name) => S[keys[name]]), PARTS_AT_START, slotKey);
   });
   assert.deepEqual(PARTS.map((name) => defaultOf(KEYS[name])), PARTS.map((name) => PICK_DEFAULTS[name]),
     'what plugin-values.js reads for none');
 });
 
-test('Reset status bars puts bars 4 to 6 back too: their slots empty and each slot\'s own settings', () => {
-  const PARTS = ['plugin', 'id', 'look', 'icon', 'label', 'every'];
+test('Reset status bars puts bars 4 to 6 back too, the bars staying with their names', () => {
   const EMERY = Object.assign(platform.computeEnv({ platform: 'emery' }), { plugins: true, phoneBattery: true });
   const S = Object.assign({ statusBar4Made: true, statusBar4Name: 'Garden', statusBar4Left: 'phoneBattery',
     statusBar4LeftPhoneBatteryLook: 'text', statusBar4Mid: 'pluginValue', statusBar6Right: 'countdown',
@@ -602,11 +606,9 @@ test('Reset status bars puts bars 4 to 6 back too: their slots empty and each sl
   pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', look: 'icon', icon: 'plug', label: 'Lamp', every: '15' },
     'statusBar4Mid'));
   PConf.actions.resetStatusSlots(null, S, EMERY, defaultOf);
-  assert.deepEqual(['statusBar4Left', 'statusBar4Mid', 'statusBar6Right'].map((key) => S[key]),
-    ['empty', 'empty', 'empty'], 'empty, as New status bar makes a bar');
+  // Every slot's item and phone battery Look: config-thresholds.test.js, battery-slots.test.js.
   const keys = catalog.pluginValueKeys('statusBar4Mid');
-  assert.deepEqual(PARTS.map((name) => S[keys[name]]), ['', '', 'text', 'switch', '', '60'], 'the Plugin value\'s');
-  assert.equal(S.statusBar4LeftPhoneBatteryLook, 'both', 'the phone battery\'s Look');
+  assert.deepEqual(PARTS.map((name) => S[keys[name]]), PARTS_AT_START, 'the Plugin value\'s');
   assert.equal(S.statusBar4Made, true, 'the bar stays on its screens');
   assert.equal(S.statusBar4Name, 'Garden', 'with its name');
   assert.equal(S.statusBar6RightCountdown, '2026-12-24', 'a countdown date stays, as in the other bars');
@@ -836,16 +838,14 @@ test('the bars\' pictures draw the icon picked, in the form the value read last 
 
 test('the Label row shows where the slot prints it: Icon + text with an icon that turns, for a value that is on or off', (t) => {
   userData(t, { plugins: WITH_WIFI });
-  const shown = (pick) => page.labelShown(pickIn(pick), BASALT, { slotKey: SLOT });
-  const WIFI_BOTH = { plugin: PHONE, id: 'phone/phone_state/wifi', look: 'both', icon: 'switch' };
-  assert.equal(shown(WIFI_BOTH), true);
-  assert.equal(shown(Object.assign({}, WIFI_BOTH, { icon: 'bluetooth' })), true, 'any icon that turns');
-  assert.equal(shown(Object.assign({}, WIFI_BOTH, { look: 'text' })), false, 'the Text look: the text shows the value');
-  assert.equal(shown(Object.assign({}, WIFI_BOTH, { look: 'icon' })), false, 'the Icon look prints no text');
-  assert.equal(shown(Object.assign({}, WIFI_BOTH, { icon: 'plug' })), false, 'an icon that stays the same shows no state');
-  assert.equal(shown(Object.assign({}, WIFI_BOTH, { id: 'phone/phone_state/battery_level' })), false,
-    'a value that is neither on nor off');
-  assert.equal(shown(Object.assign({}, WIFI_BOTH, { plugin: '' })), false, 'no plugin');
+  const shown = (more) => labelShown(pickIn(Object.assign({}, WIFI_BOTH, more)));
+  assert.equal(shown({}), true);
+  assert.equal(shown({ icon: 'bluetooth' }), true, 'any icon that turns');
+  assert.equal(shown({ look: 'text' }), false, 'the Text look: the text shows the value');
+  assert.equal(shown({ look: 'icon' }), false, 'the Icon look prints no text');
+  assert.equal(shown({ icon: 'plug' }), false, 'an icon that stays the same shows no state');
+  assert.equal(shown({ id: 'phone/phone_state/battery_level' }), false, 'a value that is neither on nor off');
+  assert.equal(shown({ plugin: '' }), false, 'no plugin');
   const S = slotSettings(pickIn(WIFI_BOTH));
   assert.ok(dialogHtml(S).indexOf('>Label<') !== -1, 'in the dialog');
   assert.equal(dialogHtml(slotSettings(pickIn(Object.assign({}, WIFI_BOTH, { look: 'text' })))).indexOf('>Label<'), -1);
@@ -854,7 +854,7 @@ test('the Label row shows where the slot prints it: Icon + text with an icon tha
 
 test('another value or plugin takes no label typed for the one before; another Look keeps it', (t) => {
   userData(t, { plugins: WITH_WIFI });
-  const S = pickIn({ plugin: PHONE, id: 'phone/phone_state/wifi', look: 'both', icon: 'switch', label: 'Lamp' });
+  const S = pickIn(Object.assign({}, WIFI_BOTH, { label: 'Lamp' }));
   lookPicked(S, 'text');
   assert.equal(S[KEYS.label], 'Lamp', 'another Look');
   changed(S, KEYS.id, 'phone/phone_state/wifi', 'phone/phone_state/wifi');

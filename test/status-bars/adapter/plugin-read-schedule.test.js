@@ -108,6 +108,16 @@ const ONE_THING = pluginReadSchedule.create(Object.assign({}, SPEC, {
 }));
 
 /**
+ * The test's reader with one key that names nothing to read, 'empty', as a complication's place
+ * left empty does (plugin-value-source.js).
+ */
+const WITH_EMPTY = pluginReadSchedule.create(Object.assign({}, SPEC, {
+  wanted: (settings) => (settings && settings.want
+    ? { key: settings.want, request: settings.want === 'empty' ? null : { category: 'test', item: settings.want } }
+    : null)
+}));
+
+/**
  * Boot the schedule, every dependency injected: a PKJS start.
  * @param {Object} [opts] {settings, pebble, clock, keepStorage, schedule}.
  * @returns {Object} Handle: mutable .clock/.settings, .pebble, .timers.
@@ -374,13 +384,7 @@ test('the plugin not there: the value kept is dropped, and the record keeps no f
 });
 
 test('a key with nothing to read under it: no plugin is asked, the value kept is dropped, and the record stamped', () => {
-  // The test's reader with one key that names nothing to read, as a complication's place left
-  // empty does (plugin-value-source.js).
-  const empty = pluginReadSchedule.create(Object.assign({}, SPEC, {
-    wanted: (settings) => (settings && settings.want
-      ? { key: settings.want, request: settings.want === 'empty' ? null : { category: 'test', item: settings.want } }
-      : null)
-  }));
+  const empty = WITH_EMPTY;
   const h = boot({ schedule: empty });
   h.pebble.subs[0].push({ text: '87%' });
   h.clock += 10 * MIN;
@@ -854,12 +858,9 @@ test('join reads nothing while a read is under way, once stopped, or with nothin
   schedule.join();
   assert.equal(h.pebble.subs.length, 0, 'nothing wanted');
   assert.deepEqual(writes, []);
-  const empty = pluginReadSchedule.create(Object.assign({}, SPEC, {
-    wanted: (settings) => (settings && settings.want ? { key: settings.want, request: null } : null)
-  }));
-  h = boot({ schedule: empty });
+  h = boot({ schedule: WITH_EMPTY, settings: { want: 'empty' } });
   writes.length = 0;
   h.clock += 10 * MIN;
-  empty.join();
+  WITH_EMPTY.join();
   assert.deepEqual(writes, [], 'a key with nothing to read under it: its look stamps it, not join');
 });
