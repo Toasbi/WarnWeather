@@ -137,6 +137,20 @@ test('the weather condition vocabulary reaches the page ahead of the Status bars
   assert.ok(page().indexOf(code('window.Condition = api')) !== -1, 'nothing assigns window.Condition');
 });
 
+// plugin-value-page.js binds window.KnownValues while its body runs: out of order, or missing, the
+// Status bars tab throws on a real phone while Node (require()) passes.
+test('the plugin values WarnWeather knows reach the page ahead of the Plugin value dialog', () => {
+  const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('page/status-bars/known-values.js') < idx('page/status-bars/plugin-value-page.js'),
+    'known-values.js must precede plugin-value-page.js');
+  assert.ok(page().indexOf(code('window.KnownValues = api')) !== -1, 'nothing assigns window.KnownValues');
+});
+
 // watch-layout.js binds VIEW_CYCLE while its body runs and preview-watch.js binds window.WatchLayout
 // while its own does: out of order, or missing, every picture of the watch throws on a real phone
 // while Node (require()) passes.

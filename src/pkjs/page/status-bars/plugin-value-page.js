@@ -7,9 +7,10 @@
 // (dropLabel). The lists are the plugins the phone listed as the page opened (userData.plugins,
 // plugin-value-list.js listOf): the page reads no plugin itself, since a read
 // costs the user (plugin-reader.js). The phone sends each plugin's items with their properties'
-// names, and the page makes each value's id (plugin-values.js valueId) and label (labelOf) of
-// them. The values read last (userData.pluginValues, by their source's key, checked on the
-// phone, which hands each only while a slot shows its source: plugin-value-source.js forPage)
+// names, and the page makes each value's id (plugin-values.js valueId) and label (valueName: the
+// name WarnWeather knows it by, known-values.js, else its property's, labelOf) of them. The
+// values read last (userData.pluginValues, by their source's key, checked on the phone, which
+// hands each only while a slot shows its source: plugin-value-source.js forPage)
 // are judged against the source a slot's rows pick right then, as a bake judges them
 // (plugin-values.js shownReading); the bars' pictures print them through barText.
 //
@@ -47,6 +48,7 @@
     var batteryDays = node ? require('../../status-bars/domain/battery-days.js') : window.BatteryDays;
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
     var pixelIcon = node ? require('../weather/pixel-icon.js') : window.PixelIcon;
+    var knownValues = node ? require('./known-values.js') : window.KnownValues;
     // What the slot shows while it has no value to show (status-lines.js formatValue).
     var NONE_SHOWN = pluginValues.textFor(null, catalog.CAPS.MID_TEXT_MAX);
     // The Value row's hint while the Preferences plugin is picked: where the complications are
@@ -114,11 +116,15 @@
         return listed().filter(function (p) { return p.uuid === uuid; })[0] || null;
     }
 
+    // The words labelOf writes in capitals, as their own names have them ('uv_index' reads
+    // 'UV index').
+    var ACRONYMS = ['uv', 'aqi', 'co2'];
+
     /**
      * A property's name as the dialog lists it: 'battery_level' reads 'Battery level',
-     * 'daysRemaining' 'Days remaining'; a word in capitals stays as it is ('UV index'). The
-     * dialog names a value of a plugin that serves more than one item after both
-     * ('location: uv_index' reads 'Location: uv index').
+     * 'daysRemaining' 'Days remaining'; a word in capitals stays as it is, and so does an acronym
+     * (ACRONYMS: 'UV index'). The dialog names a value of a plugin that serves more than one item
+     * after both ('location: humidity' reads 'Location: humidity').
      * @param {string} name The name.
      * @returns {string}
      */
@@ -127,9 +133,23 @@
             .replace(/([A-Z0-9]+)([A-Z][a-z])/g, '$1 $2').replace(/[_\-\s]+/g, ' ')
             .replace(/^ | $/g, '').split(' ');
         var text = words.map(function (w) {
-            return w.length > 1 && w === w.toUpperCase() ? w : w.toLowerCase();
+            return (w.length > 1 && w === w.toUpperCase()) || ACRONYMS.indexOf(w.toLowerCase()) !== -1
+                ? w.toUpperCase() : w.toLowerCase();
         }).join(' ');
         return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+
+    /**
+     * A value's name as the dialog lists it: the one WarnWeather knows it by (known-values.js),
+     * else its property's (labelOf), after its item where the plugin serves more than one.
+     * @param {string} category The value's source's category.
+     * @param {string} item Its item.
+     * @param {string} property Its property.
+     * @param {boolean} [byItem] Whether a name of the property's own goes after the item.
+     * @returns {string}
+     */
+    function valueName(category, item, property, byItem) {
+        return knownValues.nameOf(category, item, property) || labelOf(byItem ? item + ': ' + property : property);
     }
 
     /**
@@ -169,7 +189,7 @@
         return list.map(function (c) {
             var why = typeof c.why === 'string' ? whyText(c.why) : null;
             return { id: pluginValues.complicationId(c.position), unreadable: why, onOff: c.onOff === true,
-                label: (c.position + 1) + ' \u00b7 ' + labelOf(c.property)
+                label: (c.position + 1) + ' \u00b7 ' + valueName(c.category, c.item, c.property)
                     + ' (' + labelOf(c.category).toLowerCase() + ')' };
         });
     }
@@ -191,7 +211,7 @@
             it.properties.forEach(function (property, i) {
                 out.push({ id: pluginValues.valueId(it.category, it.item, property), multiple: it.multiple,
                     onOff: Boolean(it.onOff & (1 << i)),
-                    label: labelOf(items.length > 1 ? it.item + ': ' + property : property) });
+                    label: valueName(it.category, it.item, property, items.length > 1) });
             });
         });
         return out;
@@ -274,7 +294,7 @@
         if (plugin && !source) { out.unshift(['None', '']); }
         if (source && !valueIn(plugin, source.id)) {
             out.push(source.complication !== null ? [(source.complication + 1) + ' \u00b7 Empty', source.id]
-                : [labelOf(source.property), source.id, {desc: 'Not offered now'}]);
+                : [valueName(source.category, source.item, source.property), source.id, {desc: 'Not offered now'}]);
         }
         return out;
     }

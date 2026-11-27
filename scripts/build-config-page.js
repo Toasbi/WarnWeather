@@ -194,9 +194,11 @@ var APP_FILES = [
   // plugin-value-page.js and preview-watch.js read PixelIcon while theirs run.
   path.join(ROOT, 'src/pkjs/settings/status-pixels.generated.js'),
   path.join(ROOT, 'src/pkjs/page/weather/pixel-icon.js'),
-  // The Plugin value slot's dialog (window.PluginValuePage): its rows' lists and texts. It binds
-  // PluginValues, StatusLineCatalog and PixelIcon while its body runs, and preview-status-bars.js
-  // binds it.
+  // The plugin values WarnWeather knows (window.KnownValues, a leaf): their names. The Plugin
+  // value slot's dialog (window.PluginValuePage), its rows' lists and texts, binds it, and
+  // PluginValues, StatusLineCatalog and PixelIcon, while its body runs, and preview-status-bars.js
+  // binds that.
+  path.join(ROOT, 'src/pkjs/page/status-bars/known-values.js'),
   path.join(ROOT, 'src/pkjs/page/status-bars/plugin-value-page.js'),
   // The Status bars tab's pinned preview (reads StatusLineCatalog, OnDemand, VIEW_CYCLE,
   // PreviewSvg and the slot-text chain above at render).

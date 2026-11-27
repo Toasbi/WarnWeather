@@ -106,7 +106,7 @@ test('the Preferences plugin offers the user\'s complications, and nothing else 
   const KNOWN = [{ position: 1, category: 'phone', item: 'phone_state', index: 0, property: 'battery_level' }];
   assert.deepEqual(list.listOf([preferencesPlugin([UNITS, COMPLICATIONS_SOURCE, LOCATIONS]), PHONE], PERMS, 'own', KNOWN)
     .map((p) => [p.name, p.items, p.complications]), [['Preferences', [], [{ position: 1, property: 'battery_level',
-    category: 'phone' }]], ['Phone', list.listOf([PHONE], PERMS, 'own')[0].items, undefined]],
+    category: 'phone', item: 'phone_state' }]], ['Phone', list.listOf([PHONE], PERMS, 'own')[0].items, undefined]],
   'its units are plumbing, and its weather locations\' coordinates are the user\'s position');
   assert.deepEqual(list.listOf([preferencesPlugin()], PERMS, 'own', null)[0].complications, [], 'none known yet');
   assert.deepEqual(list.listOf([preferencesPlugin([UNITS, LOCATIONS])], PERMS, 'own', KNOWN), [],
@@ -152,20 +152,21 @@ test('each complication by its place, what it shows, and why this app may not re
     { position: 4, category: 'phone', item: 'find_my_phone', index: 0, property: 'ringing' }];
   assert.deepEqual(list.listOf([preferencesPlugin(), weather, lights, calendar, find], PERMS, 'own', known)[0]
     .complications, [
-    { position: 0, property: 'daysRemaining', category: 'muninn', why: '' },
-    { position: 1, property: 'temperature', category: 'weather' },
-    { position: 2, property: 'state', category: 'lights', onOff: true, why: reads.ANOTHER_APPS },
-    { position: 3, property: 'starts_at', category: 'calendar', why: 'Calendar' },
-    { position: 4, property: 'ringing', category: 'phone', onOff: true, why: '' }],
+    { position: 0, property: 'daysRemaining', category: 'muninn', item: 'stats', why: '' },
+    { position: 1, property: 'temperature', category: 'weather', item: 'location' },
+    { position: 2, property: 'state', category: 'lights', item: 'room', onOff: true, why: reads.ANOTHER_APPS },
+    { position: 3, property: 'starts_at', category: 'calendar', item: 'event', why: 'Calendar' },
+    { position: 4, property: 'ringing', category: 'phone', item: 'find_my_phone', onOff: true, why: '' }],
   'no plugin on the phone serves the first; the lights need a permission of another app, which no uuid stands for; '
-    + 'reading the last rings the phone; neither the item nor the index rides; the lights and the ringing are on or off');
+    + 'reading the last rings the phone; the index does not ride; the lights and the ringing are on or off');
   const other = plugin('o', 'Other lights', [{ category: 'lights', items: ['room'], properties: { state: ['shortText'] } }]);
   assert.equal(list.listOf([preferencesPlugin(), lights, other], PERMS, 'own', known)[0].complications[2].onOff, undefined,
     'on or off only as every plugin serving its source declares it');
-  const long = { position: 0, category: 'c'.repeat(64), item: 'i', index: 0, property: 'p'.repeat(64) };
-  const asks = plugin('a', 'Asks', [{ category: long.category, items: ['i'], callerPermissions: ['A'.repeat(64)] }]);
+  const long = { position: 0, category: 'c'.repeat(64), item: 'i'.repeat(64), index: 0, property: 'p'.repeat(64) };
+  const asks = plugin('a', 'Asks', [{ category: long.category, items: [long.item], callerPermissions: ['A'.repeat(64)] }]);
   assert.deepEqual(list.listOf([preferencesPlugin(), asks], PERMS, 'own', [long])[0].complications, [{ position: 0,
-    property: 'p'.repeat(31) + '\u2026', category: 'c'.repeat(31) + '\u2026', why: 'A'.repeat(31) + '\u2026' }],
+    property: 'p'.repeat(31) + '\u2026', category: 'c'.repeat(31) + '\u2026', item: 'i'.repeat(31) + '\u2026',
+    why: 'A'.repeat(31) + '\u2026' }],
   'each name capped as a plugin\'s is: the list rides the page\'s URL');
 });
 

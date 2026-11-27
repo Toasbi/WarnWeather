@@ -175,10 +175,10 @@ test('settings open hands the page the plugins the slots can read, the user\'s c
   { uuid: 'aaaaaaaa-0000-0000-0000-000000000005', name: 'Forecast',
     items: [{ category: 'forecast', item: 'now', multiple: false, properties: ['level'] }] },
   { uuid: PREFERENCES, name: 'Preferences', items: [], complications: [
-    { position: 0, property: 'level', category: 'weather' },
-    { position: 1, property: 'level', category: 'calendar' },
-    { position: 2, property: 'level', category: 'music', why: 'ReadMusic' },
-    { position: 3, property: 'level', category: 'stocks', why: 'Internet' }] }],
+    { position: 0, property: 'level', category: 'weather', item: 'now' },
+    { position: 1, property: 'level', category: 'calendar', item: 'now' },
+    { position: 2, property: 'level', category: 'music', item: 'now', why: 'ReadMusic' },
+    { position: 3, property: 'level', category: 'stocks', item: 'now', why: 'Internet' }] }],
   'one whose source asks for a permission this app declares (Calendar among them, optional; Internet for a domain '
     + 'it declares); neither this app\'s own nor one asking for another (Internet for a domain it never declares, '
     + 'for which the Pebble app would ask the user); the Preferences plugin with the complications kept, each with '

@@ -108,25 +108,25 @@ function nameOf(plugin) {
 
 /**
  * The user's complications as the dialog lists them, under the Preferences plugin: each one's
- * place, what it shows (its property and its source's category, for its label), whether it is
- * on or off (onOff: as every plugin that serves its source declares its property), and, where
- * this app may not read it, why (complications.js whyNot: the permission it needs, or ''), or
- * where the slot cannot print it, pluginValues.UNPRINTABLE: every plugin that serves its source
- * declares its property, none in a shape the slot prints.
- * Not the source's item, nor which of its instances: the label needs neither. Each name capped
- * as a plugin's is.
+ * place, what it shows (its property, and its source's category and item, for its label),
+ * whether it is on or off (onOff: as every plugin that serves its source declares its property),
+ * and, where this app may not read it, why (complications.js whyNot: the permission it needs, or
+ * ''), or where the slot cannot print it, pluginValues.UNPRINTABLE: every plugin that serves its
+ * source declares its property, none in a shape the slot prints. Not which of the source's
+ * instances: the label needs none. Each name capped as a plugin's is.
  * @param {?Array<Object>} known The user's complications (complication-list.js current), or
  *   null while they are not known.
  * @param {Array<*>} plugins What Pebble.enumeratePlugins() returned.
  * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
- * @returns {Array<{position: number, property: string, category: string, onOff: (boolean|undefined),
- *   why: (string|undefined)}>} [] for none, or none known.
+ * @returns {Array<{position: number, property: string, category: string, item: string,
+ *   onOff: (boolean|undefined), why: (string|undefined)}>} [] for none, or none known.
  */
 function complicationsFor(known, plugins, permissions) {
     return (known || []).map(function (c) {
         var why = complications.whyNot(c, plugins, permissions);
         var sources = pluginReads.servingSources(plugins, c.category, c.item);
-        var entry = { position: c.position, property: capped(c.property), category: capped(c.category) };
+        var entry = { position: c.position, property: capped(c.property), category: capped(c.category),
+            item: capped(c.item) };
         if (everyDeclares(sources, c.property, onOff)) { entry.onOff = true; }
         if (why === null && everyDeclares(sources, c.property, unprintable)) { why = pluginValues.UNPRINTABLE; }
         if (why !== null) { entry.why = capped(why); }

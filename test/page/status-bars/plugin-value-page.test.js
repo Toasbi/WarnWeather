@@ -191,24 +191,37 @@ test('a phone that lists no plugin: None alone, and the hint says why', (t) => {
 
 test('a property\'s name made readable, after its item\'s where the plugin serves more than one', () => {
   [['battery_level', 'Battery level'], ['daysRemaining', 'Days remaining'], ['UVIndex', 'UV index'],
-    ['uv_index', 'Uv index'], ['5G', '5G'], ['mobile_data', 'Mobile data'], ['HTTPStatus', 'HTTP status'],
-    ['wifi', 'Wifi'], ['a-b c', 'A b c'], ['location: uv_index', 'Location: uv index'], ['a: UVIndex', 'A: UV index'],
-    ['stats: daysRemaining', 'Stats: days remaining']].forEach(([name, label]) => assert.equal(page.labelOf(name), label, name));
+    ['uv_index', 'UV index'], ['5G', '5G'], ['mobile_data', 'Mobile data'], ['HTTPStatus', 'HTTP status'],
+    ['wifi', 'Wifi'], ['a-b c', 'A b c'], ['location: uv_index', 'Location: UV index'], ['a: UVIndex', 'A: UV index'],
+    ['stats: daysRemaining', 'Stats: days remaining'], ['aqi', 'AQI'], ['co2Level', 'CO2 level'], ['uvula', 'Uvula']]
+    .forEach(([name, label]) => assert.equal(page.labelOf(name), label, name));
+});
+
+test('a value WarnWeather knows goes by its name for it, by its source\'s category and item', (t) => {
+  const weather = { uuid: 'w', name: 'Weather', items: [{ category: 'weather', item: 'location', multiple: true,
+    properties: ['precipitation', 'high', 'temperature'] }] };
+  const other = { uuid: 'o', name: 'Garden', items: [{ category: 'garden', item: 'bed', multiple: false,
+    properties: ['precipitation'] }, { category: 'garden', item: 'pond', multiple: false, properties: ['level'] }] };
+  userData(t, { plugins: [weather, other] });
+  assert.deepEqual(valueOptions(pickIn({ plugin: 'w', id: 'weather/location/high' })).map((o) => o[0]),
+    ['Chance of precipitation', 'Today\'s high', 'Temperature'], 'one it does not know by its property\'s');
+  assert.deepEqual(valueOptions(pickIn({ plugin: 'o', id: 'garden/bed/precipitation' })).map((o) => o[0]),
+    ['Bed: precipitation', 'Pond: level'], 'the same property of another source: not the value WarnWeather knows');
 });
 
 test('the Value row lists the picked plugin\'s values, and keeps one it no longer offers under its name', (t) => {
   userData(t, { plugins: PLUGINS });
   assert.deepEqual(valueOptions(LEVEL), [['Battery level', 'phone/phone_state/battery_level'],
-    ['Cell', 'phone/phone_state/cell']]);
+    ['Mobile network', 'phone/phone_state/cell']]);
   assert.deepEqual(valueOptions(pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining' })),
-    [['Stats: days remaining', 'muninn/stats/daysRemaining'], ['Estimate: battery life', 'muninn/estimate/batteryLife']],
-    'a plugin that serves more than one item: each value after its item');
+    [['Days left', 'muninn/stats/daysRemaining'], ['Estimate: battery life', 'muninn/estimate/batteryLife']],
+    'a plugin that serves more than one item: each value after its item, but one WarnWeather knows by its name');
   const old = pickIn({ plugin: PHONE, id: 'phone/phone_state/wifi_name' });
   assert.deepEqual(valueOptions(old).slice(-1),
     [['Wifi name', 'phone/phone_state/wifi_name', { desc: 'Not offered now' }]]);
   assert.equal(valueHint(old), 'The plugin no longer offers this value. Until it does, the slot shows --.');
   const gone = pickIn({ plugin: 'gone', id: 'muninn/stats/daysRemaining' });
-  assert.deepEqual(valueOptions(gone), [['Days remaining', 'muninn/stats/daysRemaining', { desc: 'Not offered now' }]],
+  assert.deepEqual(valueOptions(gone), [['Days left', 'muninn/stats/daysRemaining', { desc: 'Not offered now' }]],
     'a plugin not on this phone: its value, under its name');
   assert.equal(valueHint(gone), null, 'the Plugin row says it');
   assert.deepEqual(valueOptions({}), [], 'None: no values');
@@ -323,11 +336,11 @@ test('the bars\' pictures print the value read last at each slot\'s room, else -
  */
 const withPrefs = (list) => PLUGINS.concat([{ uuid: PREFERENCES, name: 'Preferences', items: [], complications: list }]);
 const COMPLICATIONS = [
-  { position: 0, property: 'temperature', category: 'weather' },
-  { position: 1, property: 'battery_level', category: 'phone' },
-  { position: 2, property: 'starts_at', category: 'calendar', why: 'Calendar' },
-  { position: 3, property: 'daysRemaining', category: 'muninn' },
-  { position: 4, property: 'ringing', category: 'phone', why: '' }];
+  { position: 0, property: 'temperature', category: 'weather', item: 'location' },
+  { position: 1, property: 'battery_level', category: 'phone', item: 'phone_state' },
+  { position: 2, property: 'starts_at', category: 'calendar', item: 'event', why: 'Calendar' },
+  { position: 3, property: 'daysRemaining', category: 'muninn', item: 'stats' },
+  { position: 4, property: 'ringing', category: 'phone', item: 'find_my_phone', why: '' }];
 const PLACE = (n) => pickIn({ plugin: PREFERENCES, id: 'preferences/complications/' + n });
 
 test('the Preferences plugin is listed as Complications, right after None, wherever the phone lists it', (t) => {
@@ -347,9 +360,9 @@ test('its values are the complications by their places, each by what it shows, n
   assert.deepEqual(valueOptions(PLACE(0)), [
     ['1 · Temperature (weather)', 'preferences/complications/0'],
     ['2 · Battery level (phone)', 'preferences/complications/1'],
-    ['3 · Starts at (calendar)', 'preferences/complications/2', { disabled: true,
+    ['3 · Next event\'s start (calendar)', 'preferences/complications/2', { disabled: true,
       desc: 'Needs the Calendar permission, which WarnWeather never asks for' }],
-    ['4 · Days remaining (muninn)', 'preferences/complications/3'],
+    ['4 · Days left (muninn)', 'preferences/complications/3'],
     ['5 · Ringing (phone)', 'preferences/complications/4', { disabled: true,
       desc: 'WarnWeather cannot read it here' }]]);
   assert.deepEqual(valueOptions(PLACE(1)).map((o) => o[1]), valueOptions(PLACE(0)).map((o) => o[1]),
