@@ -412,6 +412,28 @@ test('in the Icon look a new text with the same state owes the watch nothing; an
   assert.equal(h.sends.length, 2, 'off: the icon\'s off form is owed');
 });
 
+test('a label reaches the watch in place of the value\'s text, the icon turning with it; a new text with the same state owes nothing', () => {
+  const h = boot({ settings: slot('statusTopLeft', { id: 'phone/phone_state/wifi', look: 'both', icon: 'wifi',
+    label: 'Lamp' }) });
+  const wifi = (on, name) => answer({ wifi: { boolean: { value: on }, shortText: { text: name } } });
+  h.pebble.subs[0].push(wifi(true, 'Home'));
+  minute();
+  const on = decodeLine(h.sends[0].STATUS_LINE_3_UINT8)[0];
+  assert.equal(on.text, 'Lamp');
+  h.clock += HOUR;
+  minute();
+  h.pebble.subs[1].push(wifi(true, 'Work'));
+  minute();
+  assert.equal(h.sends.length, 1, 'the watch shows the label: nothing owed');
+  h.clock += HOUR;
+  minute();
+  h.pebble.subs[2].push(wifi(false, 'Work'));
+  minute();
+  const off = decodeLine(h.sends[1].STATUS_LINE_3_UINT8)[0];
+  assert.equal(off.text, 'Lamp', 'off: the label still');
+  assert.notEqual(off.icon, on.icon, 'and the icon\'s off form');
+});
+
 test('a picked plugin the phone no longer lists is not asked, so no other plugin runs for it: the slot shows --', () => {
   const h = boot();
   h.pebble.subs[0].push(answer());

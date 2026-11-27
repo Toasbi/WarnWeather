@@ -1,9 +1,9 @@
 // src/pkjs/page/status-bars/plugin-value-page.js — ES5. The Plugin value slots' dialogs on the
 // settings page (plugin-value-schema.js), one per slot, each naming its slot to these resolvers
-// and hooks (args.slotKey): the Plugin, Value, Look, Icon and Updates rows' lists and hints, Bold's
-// hints, the Icon row's pictures, the line with the value read last, the Muninn note, and the rows' changes:
-// the Plugin row's starts a new plugin on its first value, and each fits the Look and the icon to
-// the value (fitSlot). The lists are the plugins the phone listed as the page opened
+// and hooks (args.slotKey): the Plugin, Value, Look, Icon, Label and Updates rows' lists and hints,
+// Bold's hints, the Icon row's pictures, the line with the value read last, the Muninn note, and
+// the rows' changes: the Plugin row's starts a new plugin on its first value, each fits the Look
+// and the icon to the value (fitSlot), and another value takes no label typed for the one before. The lists are the plugins the phone listed as the page opened
 // (userData.plugins, plugin-value-list.js listOf): the page reads no plugin itself, since a read
 // costs the user (plugin-reader.js). The phone sends each plugin's items with their properties'
 // names, and the page makes each value's id (plugin-values.js valueId) and label (labelOf) of
@@ -81,6 +81,9 @@
     var LOOK_LABELS = {both: 'Icon + text', text: 'Text', icon: 'Icon'};
     // The Look row's hint while the value picked is neither on nor off, which greys out its Icon.
     var LOOK_NEITHER_HINT = 'The Icon look is for a value that is on or off.';
+    // The Label row's hint (labelShown): the slot prints the label beside an icon that turns.
+    var LABEL_HINT = 'Shown beside the icon instead of the value. The icon still shows whether it is on. '
+        + 'Leave it empty to show the value.';
     // The Bold row's hints, by its mode: the row sits in each slot's dialog and sets every slot's
     // (status-thresholds.js KINDS 'pluginValue').
     var BOLD_HINTS = {off: 'For every Plugin value slot.', always: 'Every Plugin value slot prints its value in bold.'};
@@ -421,7 +424,8 @@
     }
 
     /**
-     * onChange of the Value and Look rows: fitSlot for the slot whose row changed.
+     * onChange of the Value and Look rows: fitSlot for the slot whose row changed. Another value
+     * takes no label typed for the one before: it named that value (labelShown).
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The choice before. @param {string} newV The choice now.
      * @param {Object} env Platform env.
@@ -430,13 +434,16 @@
      * @returns {void}
      */
     function fitPicked(S, oldV, newV, env, key, args) {
+        var keys = catalog.pluginValueKeys(args.slotKey);
+        if (key === keys.id && oldV !== newV) { S[keys.label] = pluginValues.PICK_DEFAULTS.label; }
         fitSlot(S, args.slotKey);
     }
 
     /**
      * onChange of the Plugin row: a new plugin starts on its first value WarnWeather can read,
-     * None on none, with a Look and an icon that fit it (fitSlot). Plugin None puts the Look and
-     * the icon back on where a slot starts too: it hides their rows, where they could be changed.
+     * None on none, with no label and a Look and an icon that fit it (fitSlot). Plugin None puts
+     * the Look and the icon back on where a slot starts too: it hides their rows, where they could
+     * be changed.
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The plugin before.
      * @param {string} newV The plugin now.
@@ -451,6 +458,7 @@
         var first = valuesOf(pluginOf(newV)).filter(function (v) { return !v.unreadable; })[0];
         if (oldV !== newV) {
             S[keys.id] = first ? first.id : '';
+            S[keys.label] = pluginValues.PICK_DEFAULTS.label;
             if (!newV) {
                 S[keys.look] = pluginValues.LOOK_DEFAULT;
                 S[keys.icon] = pluginValues.ICON_DEFAULT;
@@ -469,6 +477,20 @@
      */
     function neitherPicked(S, env, args) {
         return listedNeither(pluginValues.pickOf(S, args.slotKey));
+    }
+
+    /**
+     * Whether a slot's dialog shows the Label row (when resolver 'pluginValueLabelShown'): where
+     * the slot prints the label (plugin-values.js showsLabel), for a value the phone does not
+     * list as neither on nor off.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
+     * @returns {boolean}
+     */
+    function labelShown(S, env, args) {
+        var pick = pluginValues.pickOf(S, args.slotKey);
+        return Boolean(pluginValues.sourceOf(pick)) && pluginValues.showsLabel(pick) && !listedNeither(pick);
     }
 
     /**
@@ -634,11 +656,14 @@
         PConf.optionsResolvers.register('pluginValueLooks', lookOptions);
         PConf.hintResolvers.register('pluginValueLookHint', lookHint);
         PConf.hintResolvers.register('pluginValueBoldHint', boldHint);
+        PConf.whenResolvers.register('pluginValueLabelShown', labelShown);
+        PConf.hintResolvers.register('pluginValueLabelHint', function () { return LABEL_HINT; });
     }
 
     var api = { MUNINN_NOTE: MUNINN_NOTE, labelOf: labelOf, pluginOptions: pluginOptions,
         valueOptions: valueOptions, pluginHint: pluginHint, valueHint: valueHint, lastLine: lastLine,
-        fromMuninn: fromMuninn, pluginPicked: pluginPicked, iconOptions: iconOptions,
+        fromMuninn: fromMuninn, pluginPicked: pluginPicked, fitPicked: fitPicked, labelShown: labelShown,
+        iconOptions: iconOptions,
         lookOptions: lookOptions, iconHint: iconHint, iconPicture: iconPicture, boldHint: boldHint,
         everyOptions: everyOptions,
         barText: barText, barDrawing: barDrawing, barGlyph: barGlyph };

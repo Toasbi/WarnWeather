@@ -4,7 +4,7 @@
 // plugin serves, which the user picks in the slot's dialog. Each slot that holds it picks its own
 // (pickOf). Here: the source a slot picks, how often it is read, how long a value read from it
 // shows, and what the slot draws of it in its Look: the text it prints, the icon before it, or
-// either alone.
+// either alone, and the user's label beside an icon that shows a value on or off.
 //
 // The settings page loads this file too (window.PluginValues): the dialog's last value and the
 // bars' pictures print the text the bake prints, and the dialog's rows store the ids valueId
@@ -53,10 +53,12 @@
 
     /**
      * What a slot picks where it keeps no setting of its own (PluginValuePick): no plugin, the
-     * text alone, the Switch for the Looks with an icon and the Updates a slot starts on. Its
-     * dialog's rows show these and never store them (page/status-bars/plugin-value-schema.js).
+     * text alone, the Switch for the Looks with an icon, no label and the Updates a slot starts
+     * on. Its dialog's rows show these and never store them
+     * (page/status-bars/plugin-value-schema.js).
      */
-    var PICK_DEFAULTS = { plugin: '', id: '', look: LOOK_DEFAULT, icon: ICON_DEFAULT, every: EVERY_DEFAULT };
+    var PICK_DEFAULTS = { plugin: '', id: '', look: LOOK_DEFAULT, icon: ICON_DEFAULT, label: '',
+        every: EVERY_DEFAULT };
 
     /** A value shows for three Updates intervals after it was read, and at least this long. */
     var SHOWN_AT_LEAST_MS = 3 * HOUR_MS;
@@ -104,6 +106,7 @@
      * @property {*} id The value of it (valueId's, or complicationId's).
      * @property {*} look The Look row's choice (a LOOKS entry).
      * @property {*} icon The Icon row's choice (an ICON_FORMS name).
+     * @property {*} label The Label row's text, as the user typed it.
      * @property {*} every The Updates row's choice (an EVERY_CHOICES entry).
      */
 
@@ -320,10 +323,30 @@
     }
 
     /**
+     * @param {?PluginValuePick} pick What a slot picks (pickOf).
+     * @returns {boolean} Whether its Look prints its label (the Label row) in place of a value
+     *   that is on or off: Icon + text with an icon that turns, which shows whether the value is
+     *   on. Anywhere else the text is all that shows it.
+     */
+    function showsLabel(pick) {
+        return lookOf(pick) === 'both' && turns(iconName(pick));
+    }
+
+    /**
+     * @param {?PluginValuePick} pick What a slot picks (pickOf).
+     * @returns {string} The label it prints in place of a value that is on or off (showsLabel),
+     *   on one line (oneLine); '' for none, or where it does not show.
+     */
+    function labelText(pick) {
+        return showsLabel(pick) ? oneLine(pick.label) : '';
+    }
+
+    /**
      * The text the slot prints of the reading it shows (textFor): none in the Icon look, where
-     * the icon alone shows the value (the watch draws a glyph with no text by itself). While it
-     * shows none, '--' in every Look, so an icon in its off form never passes for a value that
-     * is off.
+     * the icon alone shows the value (the watch draws a glyph with no text by itself), and its
+     * label in place of a value that is on or off (labelText), cut as the bake cuts any text.
+     * While it shows none, '--' in every Look, so an icon in its off form never passes for a
+     * value that is off.
      * @param {?PluginValuePick} pick What the slot picks (pickOf).
      * @param {?Object} reading The reading the slot shows (shownReading), or null.
      * @param {number} cap The slot's bytes. @param {?Object} settings Settings: the clock's format.
@@ -331,6 +354,8 @@
      * @returns {string}
      */
     function slotTextOf(pick, reading, cap, settings, nowMs) {
+        var label = labelText(pick);
+        if (label && reading && typeof reading.state === 'boolean') { return utf8.truncateToByteCap(label, cap).str; }
         return printsText(pick) || !reading ? textFor(reading, cap, settings, nowMs) : '';
     }
 
@@ -388,6 +413,8 @@
         formsOf: formsOf,
         iconName: iconName,
         iconId: iconId,
+        showsLabel: showsLabel,
+        labelText: labelText,
         slotTextOf: slotTextOf,
         heldUntil: heldUntil,
         shownReading: shownReading

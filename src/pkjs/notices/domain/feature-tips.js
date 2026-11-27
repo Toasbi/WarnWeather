@@ -61,11 +61,11 @@ var TIPS = [
         since: '3.5.0',
         title: 'An icon for a plugin value',
         // The Plugin value slot's dialog: its Look and Icon rows (page/status-bars/plugin-value-page.js),
-        // whose icons that turn are offered for a value that is on or off, and its Updates row's
-        // new choice (plugin-values.js EVERY_CHOICES).
-        html: 'A Plugin value slot can show an icon, before its value or alone. Tap the slot\'s Edit ' +
-            'button and pick Icon + text or Icon under Look. Switch, Wi-Fi and Bluetooth turn off while ' +
-            'the value is off. Under Updates, you can now pick Every 15 minutes.',
+        // whose icons that turn are offered for a value that is on or off, its Label row beside one
+        // (plugin-values.js labelText), and its Updates row's new choice (EVERY_CHOICES).
+        html: 'A Plugin value slot can show an icon. Tap its Edit button and pick Icon + text or Icon ' +
+            'under Look. Switch, Wi-Fi and Bluetooth turn off while the value is off, and can have a Label ' +
+            'such as Lamp beside them. Under Updates, you can now pick Every 15 minutes.',
         open: { tab: 'watch' },
         when: pluginValueOffered
     },

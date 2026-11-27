@@ -566,7 +566,8 @@ test('each slot keeps its own Plugin value settings and dialog, which a bar made
   slots.forEach((slotKey) => {
     const own = catalog.pluginValueKeys(slotKey);
     assert.deepEqual(own, { plugin: slotKey + 'PluginValuePlugin', id: slotKey + 'PluginValueId',
-      look: slotKey + 'PluginValueLook', icon: slotKey + 'PluginValueIcon', every: slotKey + 'PluginValueEvery' });
+      look: slotKey + 'PluginValueLook', icon: slotKey + 'PluginValueIcon', label: slotKey + 'PluginValueLabel',
+      every: slotKey + 'PluginValueEvery' });
     Object.keys(own).forEach((name) => keys.push(own[name]));
     assert.deepEqual(catalog.pluginValueKeyList(slotKey), Object.values(own), 'the list of them');
     sheets.push(catalog.pluginValueSheet(slotKey));
@@ -575,7 +576,7 @@ test('each slot keeps its own Plugin value settings and dialog, which a bar made
     assert.deepEqual(catalog.slotCompanions(slotKey).filter((c) => c.code === 'pluginValue'),
       Object.keys(own).map((name) => ({ code: 'pluginValue', key: own[name], defaultValue: undefined, signed: false })));
   });
-  assert.equal(new Set(keys).size, 105, 'no slot shares a key with another');
+  assert.equal(new Set(keys).size, 126, 'no slot shares a key with another');
   assert.equal(new Set(sheets).size, 21, 'nor a dialog');
   assert.equal(catalog.pluginValueSheet('statusTopRight'), 'threshPluginValueTopRight');
   assert.equal(catalog.pluginValueSheet('statusBar4Left'), 'threshPluginValueBar4Left');

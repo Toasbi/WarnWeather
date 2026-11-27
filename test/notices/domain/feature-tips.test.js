@@ -156,7 +156,7 @@ test('the complications tip names the page\'s own words: the slot\'s item, and t
   assert.equal(tip.since, '3.5.0');
 });
 
-test('the icon tip names the page\'s own words: the Edit button, the Looks with an icon, the icons that turn and Updates\' new choice', (t) => {
+test('the icon tip names the page\'s own words: the Edit button, the Looks with an icon, the icons that turn, the Label and Updates\' new choice', (t) => {
   const tip = featureTips.TIPS.find((x) => x.id === 'pluginValueIcon');
   const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
   global.INJECTED_USERDATA = { plugins: [] };
@@ -173,6 +173,7 @@ test('the icon tip names the page\'s own words: the Edit button, the Looks with 
   assert.ok(tip.html.indexOf('Edit button and pick ' + withIcon.join(' or ') + ' under ' + look.label + '.') !== -1,
     tip.html);
   assert.ok(tip.html.indexOf(turns.slice(0, 2).join(', ') + ' and ' + turns[2] + ' turn off') !== -1, tip.html);
+  assert.ok(tip.html.indexOf('a ' + row('statusTopLeftPluginValueLabel').label + ' such as') !== -1, tip.html);
   const every = row('statusTopLeftPluginValueEvery');
   assert.equal(every.optionsFrom.resolver, 'pluginValueEveries');
   const fifteen = page.everyOptions().find((o) => o[1] === '15');

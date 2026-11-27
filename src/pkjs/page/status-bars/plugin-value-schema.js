@@ -1,22 +1,22 @@
 // src/pkjs/page/status-bars/plugin-value-schema.js — ES5, PKJS-parsed. The Plugin value slots'
 // dialogs (status-line-catalog.js 'pluginValue'), split out of schema.js like
 // weather-sources-schema.js: the plugin, which of its values the slot shows, its Look (the text,
-// an icon before it or the icon alone), the icon and how often it is read, then the line with the
-// value read last. The rows' lists, their hints,
+// an icon before it or the icon alone), the icon, the label for a value that is on or off and how
+// often it is read, then the line with the value read last. The rows' lists, their hints,
 // the icons' pictures and that line are plugin-value-page.js'. Plain CommonJS: the schema is built
 // in PKJS and reaches the page as data.
 //
 // A dialog for each slot, as the phone battery's (schema.js phoneBatterySlotSheet): a slot's
-// plugin, value, Look, icon and Updates are its own (status-line-catalog.js pluginValueKeys), so each
-// slot that holds the item shows a value of its own. The engine hands a dialog's rows no word of
-// the slot that opened it, so each names its slot to its resolvers and its change's hooks
-// (args.slotKey, onChangeArgs), and the slot's Edit button opens its own (status-line-catalog.js
-// pluginValueSheet). No row stores its default (sticky: false): a slot without a pick keeps no
-// setting of it, which plugin-values.js reads as none (PICK_DEFAULTS). Bold closes the dialog as
-// in every slot's: the item's, one setting for every slot that holds it (status-thresholds.js
-// KINDS 'pluginValue', kind 21), as the phone battery's is, so its hint says so. The dialogs'
-// words are the page's, written there once for all of them, the Look's and Bold's too: they ride
-// the page's URL (test/settings/adapter/settings-url-budget.test.js).
+// plugin, value, Look, icon, label and Updates are its own (status-line-catalog.js
+// pluginValueKeys), so each slot that holds the item shows a value of its own. The engine hands a
+// dialog's rows no word of the slot that opened it, so each names its slot to its resolvers and
+// its change's hooks (args.slotKey, onChangeArgs), and the slot's Edit button opens its own
+// (status-line-catalog.js pluginValueSheet). No row stores its default (sticky: false): a slot
+// without a pick keeps no setting of it, which plugin-values.js reads as none (PICK_DEFAULTS).
+// Bold closes the dialog as in every slot's: the item's, one setting for every slot that holds it
+// (status-thresholds.js KINDS 'pluginValue', kind 21), as the phone battery's is, so its hint says
+// so. The dialogs' words are the page's, written there once for all of them, the Look's and Bold's
+// too: they ride the page's URL (test/settings/adapter/settings-url-budget.test.js).
 
 var catalog = require('../../status-bars/domain/status-line-catalog.js');
 var DEFAULTS = require('../../status-bars/domain/plugin-values.js').PICK_DEFAULTS;
@@ -25,7 +25,7 @@ var boldOnlyRow = require('../alerts/level-rows-schema.js').boldOnlyRow;
 
 /**
  * One slot's Plugin value dialog: the note while Muninn is picked, then the Plugin, the Value of
- * it, its Look, Icon and Updates, the value read last, and Bold. Each row opens its list over the
+ * it, its Look, Icon, Label and Updates, the value read last, and Bold. Each list opens over the
  * dialog (engine renderPickSheet): a phone can list a dozen plugins and each up to 24 values
  * (plugin-value-list.js).
  * @param {function(string, string, Object[], string): Object} sheetOf schema.js sheetOf: a slot
@@ -99,6 +99,18 @@ function slotDialog(sheetOf, slotKey) {
         hintFrom: {resolver: 'pluginValueIconHint', args: slot},
         pictureFrom: {resolver: 'pluginValueIconPicture', glyph: true},
         showWhen: withIcon
+    }, {
+        // The user's word for a value that is on or off, which the slot prints beside an icon
+        // that turns in place of the value's text (plugin-values.js labelText): the row shows
+        // only there (plugin-value-page.js labelShown).
+        type: 'text',
+        messageKey: keys.label,
+        label: 'Label',
+        defaultValue: DEFAULTS.label,
+        sticky: false,
+        attributes: {maxlength: catalog.CAPS.MID_TEXT_MAX},
+        hintFrom: {resolver: 'pluginValueLabelHint'},
+        showWhen: {when: 'pluginValueLabelShown', args: slot}
     }, {
         type: 'select',
         messageKey: keys.every,

@@ -9809,6 +9809,25 @@
                 }
               },
               {
+                "type": "text",
+                "messageKey": "statusForecastLeftPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "statusForecastLeftPluginValueEvery",
                 "label": "Updates",
@@ -10030,6 +10049,25 @@
                       "ne": "text"
                     }
                   ]
+                }
+              },
+              {
+                "type": "text",
+                "messageKey": "statusForecastMidPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
                 }
               },
               {
@@ -10257,6 +10295,25 @@
                 }
               },
               {
+                "type": "text",
+                "messageKey": "statusForecastRightPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "statusForecastRightPluginValueEvery",
                 "label": "Updates",
@@ -10478,6 +10535,25 @@
                       "ne": "text"
                     }
                   ]
+                }
+              },
+              {
+                "type": "text",
+                "messageKey": "statusRadarLeftPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
                 }
               },
               {
@@ -10705,6 +10781,25 @@
                 }
               },
               {
+                "type": "text",
+                "messageKey": "statusRadarMidPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "statusRadarMidPluginValueEvery",
                 "label": "Updates",
@@ -10926,6 +11021,25 @@
                       "ne": "text"
                     }
                   ]
+                }
+              },
+              {
+                "type": "text",
+                "messageKey": "statusRadarRightPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
                 }
               },
               {
@@ -11153,6 +11267,25 @@
                 }
               },
               {
+                "type": "text",
+                "messageKey": "statusTopLeftPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "statusTopLeftPluginValueEvery",
                 "label": "Updates",
@@ -11374,6 +11507,25 @@
                       "ne": "text"
                     }
                   ]
+                }
+              },
+              {
+                "type": "text",
+                "messageKey": "statusTopMidPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
                 }
               },
               {
@@ -11601,6 +11753,25 @@
                 }
               },
               {
+                "type": "text",
+                "messageKey": "statusTopRightPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "statusTopRightPluginValueEvery",
                 "label": "Updates",
@@ -11822,6 +11993,25 @@
                       "ne": "text"
                     }
                   ]
+                }
+              },
+              {
+                "type": "text",
+                "messageKey": "statusHealthLeftPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
                 }
               },
               {
@@ -12049,6 +12239,25 @@
                 }
               },
               {
+                "type": "text",
+                "messageKey": "statusHealthMidPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "statusHealthMidPluginValueEvery",
                 "label": "Updates",
@@ -12270,6 +12479,25 @@
                       "ne": "text"
                     }
                   ]
+                }
+              },
+              {
+                "type": "text",
+                "messageKey": "statusHealthRightPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
                 }
               },
               {
@@ -12497,6 +12725,25 @@
                 }
               },
               {
+                "type": "text",
+                "messageKey": "statusBar4LeftPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "statusBar4LeftPluginValueEvery",
                 "label": "Updates",
@@ -12718,6 +12965,25 @@
                       "ne": "text"
                     }
                   ]
+                }
+              },
+              {
+                "type": "text",
+                "messageKey": "statusBar4MidPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
                 }
               },
               {
@@ -12945,6 +13211,25 @@
                 }
               },
               {
+                "type": "text",
+                "messageKey": "statusBar4RightPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "statusBar4RightPluginValueEvery",
                 "label": "Updates",
@@ -13166,6 +13451,25 @@
                       "ne": "text"
                     }
                   ]
+                }
+              },
+              {
+                "type": "text",
+                "messageKey": "statusBar5LeftPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
                 }
               },
               {
@@ -13393,6 +13697,25 @@
                 }
               },
               {
+                "type": "text",
+                "messageKey": "statusBar5MidPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "statusBar5MidPluginValueEvery",
                 "label": "Updates",
@@ -13614,6 +13937,25 @@
                       "ne": "text"
                     }
                   ]
+                }
+              },
+              {
+                "type": "text",
+                "messageKey": "statusBar5RightPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
                 }
               },
               {
@@ -13841,6 +14183,25 @@
                 }
               },
               {
+                "type": "text",
+                "messageKey": "statusBar6LeftPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "statusBar6LeftPluginValueEvery",
                 "label": "Updates",
@@ -14065,6 +14426,25 @@
                 }
               },
               {
+                "type": "text",
+                "messageKey": "statusBar6MidPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "statusBar6MidPluginValueEvery",
                 "label": "Updates",
@@ -14286,6 +14666,25 @@
                       "ne": "text"
                     }
                   ]
+                }
+              },
+              {
+                "type": "text",
+                "messageKey": "statusBar6RightPluginValueLabel",
+                "label": "Label",
+                "defaultValue": "",
+                "sticky": false,
+                "attributes": {
+                  "maxlength": 19
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueLabelHint"
+                },
+                "showWhen": {
+                  "when": "pluginValueLabelShown",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
                 }
               },
               {

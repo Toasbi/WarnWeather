@@ -627,11 +627,11 @@
   }
 
   // The settings a slot keeps for the Plugin value, by part, each the slot's key with this after
-  // it: the plugin, the value of it, its Look, its icon and how often it is read (plugin-values.js
-  // pickOf). ONE table for each slot's keys (pluginValueKeys) and the list of them
-  // (pluginValueKeyList).
+  // it: the plugin, the value of it, its Look, its icon, the label it prints for a value that is
+  // on or off, and how often it is read (plugin-values.js pickOf). ONE table for each slot's keys
+  // (pluginValueKeys) and the list of them (pluginValueKeyList).
   var PLUGIN_VALUE_PARTS = { plugin: 'PluginValuePlugin', id: 'PluginValueId', look: 'PluginValueLook',
-    icon: 'PluginValueIcon', every: 'PluginValueEvery' };
+    icon: 'PluginValueIcon', label: 'PluginValueLabel', every: 'PluginValueEvery' };
 
   /**
    * The settings a slot keeps for the Plugin value (PLUGIN_VALUE_PARTS), which the slot's own
@@ -641,8 +641,8 @@
    * refresh), and no weather fetch; every close of the settings sends the bars again
    * (channel-scheduler.js onConfigClosed), the icon with them.
    * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
-   * @returns {{plugin: string, id: string, look: string, icon: string, every: string}} Each one's
-   *   key, e.g. 'statusForecastLeftPluginValuePlugin'.
+   * @returns {{plugin: string, id: string, look: string, icon: string, label: string,
+   *   every: string}} Each one's key, e.g. 'statusForecastLeftPluginValuePlugin'.
    */
   function pluginValueKeys(slotKey) {
     var keys = {};
@@ -731,8 +731,8 @@
    * @returns {Array<{code: string, key: string, defaultValue: (string|undefined), signed: boolean}>}
    *   Each companion's item, settings key and the value it starts on: the Look's default, which
    *   its row marks as picked; none for the countdown's date, which its row and the bake read as
-   *   today, nor for the Plugin value's, which read as no plugin, no icon and the Updates
-   *   default. signed: whether renderSignature watches it.
+   *   today, nor for the Plugin value's, which read as no plugin, no icon, no label and the
+   *   Updates default. signed: whether renderSignature watches it.
    */
   function slotCompanions(slotKey) {
     return [

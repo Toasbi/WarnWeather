@@ -16,18 +16,19 @@ const UUID = '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5f6';
 // What a slot picks (pv.pickOf): Muninn's days left.
 const PICK = { plugin: UUID, id: 'muninn/stats/daysRemaining' };
 
-test('pickOf: a slot\'s own plugin, value, Look, icon and Updates, each as stored', () => {
+test('pickOf: a slot\'s own plugin, value, Look, icon, label and Updates, each as stored', () => {
   const settings = { statusTopRightPluginValuePlugin: UUID, statusTopRightPluginValueId: 'a/b/c',
     statusTopRightPluginValueLook: 'both', statusTopRightPluginValueIcon: 'wifi',
-    statusTopRightPluginValueEvery: '15', statusTopLeftPluginValuePlugin: 'x' };
+    statusTopRightPluginValueLabel: 'Lamp', statusTopRightPluginValueEvery: '15', statusTopLeftPluginValuePlugin: 'x' };
   assert.deepEqual(pv.pickOf(settings, 'statusTopRight'),
-    { plugin: UUID, id: 'a/b/c', look: 'both', icon: 'wifi', every: '15' });
+    { plugin: UUID, id: 'a/b/c', look: 'both', icon: 'wifi', label: 'Lamp', every: '15' });
   assert.deepEqual(pv.pickOf(settings, 'statusTopMid'), { plugin: undefined, id: undefined, look: undefined,
-    icon: undefined, every: undefined }, 'a slot that keeps none');
+    icon: undefined, label: undefined, every: undefined }, 'a slot that keeps none');
   assert.deepEqual(pv.pickOf(null, 'statusTopRight').plugin, undefined);
   const keys = catalog.pluginValueKeys('statusBar5Mid');
   assert.deepEqual(pv.pickOf({ [keys.plugin]: UUID, [keys.id]: 'a/b/c' }, 'statusBar5Mid'),
-    { plugin: UUID, id: 'a/b/c', look: undefined, icon: undefined, every: undefined }, 'bars 4 to 6 too');
+    { plugin: UUID, id: 'a/b/c', look: undefined, icon: undefined, label: undefined, every: undefined },
+    'bars 4 to 6 too');
   assert.equal(pv.sourceOf(pv.pickOf(settings, 'statusTopMid')), null);
   assert.equal(pv.everyMs(pv.pickOf(settings, 'statusTopMid')), HOUR);
   assert.equal(pv.lookOf(pv.pickOf(settings, 'statusTopMid')), 'text');
@@ -35,7 +36,8 @@ test('pickOf: a slot\'s own plugin, value, Look, icon and Updates, each as store
 });
 
 test('PICK_DEFAULTS: what a slot that keeps none picks, as the rest of the rules read it', () => {
-  assert.deepEqual(pv.PICK_DEFAULTS, { plugin: '', id: '', look: 'text', icon: 'switch', every: '60' });
+  assert.deepEqual(pv.PICK_DEFAULTS, { plugin: '', id: '', look: 'text', icon: 'switch', label: '', every: '60' });
+  assert.equal(pv.labelText(pv.PICK_DEFAULTS), pv.labelText({}));
   assert.equal(pv.sourceOf(pv.PICK_DEFAULTS), null);
   assert.equal(pv.lookOf(pv.PICK_DEFAULTS), pv.lookOf({}));
   assert.equal(pv.iconName(pv.PICK_DEFAULTS), pv.iconName({}));
@@ -218,6 +220,31 @@ test('the text: none in the Icon look, the value\'s in the others, -- in every L
   assert.equal(pv.slotTextOf({}, r, 8, {}, T0), '87%');
   assert.equal(pv.slotTextOf({ look: 'text' }, null, 8, {}, T0), '--', 'not read: --');
   assert.equal(pv.slotTextOf({ look: 'icon' }, null, 8, {}, T0), '--', 'not read: -- beside the icon, off');
+});
+
+test('the label: in place of a value that is on or off, beside an icon that turns, and nowhere else', () => {
+  const lamp = { look: 'both', icon: 'switch', label: 'Lamp' };
+  [reading({ state: true }), reading({ state: false }), reading({ state: true, short: 'Charging' })].forEach((r) => {
+    assert.equal(pv.slotTextOf(lamp, r, 19, {}, T0), 'Lamp', JSON.stringify(r));
+  });
+  assert.equal(pv.slotTextOf(lamp, null, 19, {}, T0), '--', 'not read: --, so the icon off never passes for a value that is off');
+  assert.equal(pv.slotTextOf(lamp, reading({ short: 'Home' }), 19, {}, T0), 'Home', 'a value with no state: its own text');
+  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { look: 'text' }), reading({ state: true }), 19, {}, T0), 'on',
+    'the Text look: the text is all that shows the value');
+  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { look: 'icon' }), reading({ state: true }), 19, {}, T0), '');
+  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { icon: 'plug' }), reading({ state: true }), 19, {}, T0), 'on',
+    'an icon that stays the same shows no state');
+  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { label: ' \t ' }), reading({ state: false }), 19, {}, T0), 'off',
+    'a label of blanks is none');
+  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { label: 'Wohnzimmerlampe' }), reading({ state: true }), 8, {}, T0),
+    'Wohnzimm', 'cut to the slot, as any text');
+  assert.equal(pv.slotTextOf(Object.assign({}, lamp, { label: 'K\u00fcche\u00fc' }), reading({ state: true }), 6, {}, T0),
+    'K\u00fcche', 'at a character\'s edge');
+  assert.equal(pv.labelText(Object.assign({}, lamp, { label: ' Garden\n lamp ' })), 'Garden lamp', 'on one line');
+  [null, {}, { look: 'both', icon: 'switch', label: 7 }].forEach((pick) => assert.equal(pv.labelText(pick), '', JSON.stringify(pick)));
+  assert.deepEqual([pv.showsLabel(lamp), pv.showsLabel({ look: 'both', icon: 'wifi' }), pv.showsLabel({ look: 'both' }),
+    pv.showsLabel({ look: 'both', icon: 'calendar' }), pv.showsLabel({ look: 'text', icon: 'switch' })],
+  [true, true, true, false, false], 'the Switch by default turns');
 });
 
 test('the icon: one that turns is on only while the value is on; off, too old or not read, it is off', () => {

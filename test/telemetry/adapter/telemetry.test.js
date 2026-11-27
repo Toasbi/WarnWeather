@@ -337,9 +337,23 @@ test('snapshot reports how many Plugin value slots show a value, their Looks and
   const handler = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', '..',
     'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
   ['    pluginValue: z.boolean().optional(),', '    pluginValueSlots: z.number().int().min(0).max(21).optional(),',
-    '    pluginValueLooks: z.string().optional(),', '    pluginValueIcons: z.string().optional(),'].forEach((line) => {
+    '    pluginValueLooks: z.string().optional(),', '    pluginValueIcons: z.string().optional(),',
+    '    pluginValueLabel: z.boolean().optional(),'].forEach((line) => {
     assert.ok(handler.indexOf(line) !== -1, line.trim() + ' is in handler.ts');
   });
+});
+
+test('snapshot reports whether a Plugin value slot prints a label of the user\'s, never the label', () => {
+  const label = (settings) => buildSettingsSnapshot(settings, { platform: 'basalt' }).pluginValueLabel;
+  const lamp = (more) => pluginValueSlot('statusTopRight', Object.assign({ plugin: MUNINN, id: 'muninn/stats/daysRemaining',
+    look: 'both', icon: 'switch', label: 'Grandma\'s lamp' }, more));
+  assert.equal(label(lamp()), true);
+  assert.equal(label(lamp({ look: 'text' })), false, 'a label the Look does not print');
+  assert.equal(label(lamp({ label: '' })), false);
+  assert.equal(label(lamp({ plugin: '' })), false, 'no source picked');
+  assert.equal(buildSettingsSnapshot(lamp(), { platform: 'aplite' }).pluginValueLabel, undefined, 'aplite');
+  assert.equal(JSON.stringify(buildSettingsSnapshot(lamp(), { platform: 'basalt' })).indexOf('Grandma'), -1,
+    'nothing typed leaves the phone');
 });
 
 // Each slot's Look and icon (plugin-values.js lookOf, iconName): this app's own choices, the
@@ -1097,9 +1111,10 @@ test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYT
     'a snapshot field the fixture never sets understates the ledger — set it on its longest option');
   assert.deepEqual([settings.graphStyleCount, settings.graphStyle2Hours, settings.graphStyle3Hours],
     [3, 48, 48], 'the graph styles report');
-  assert.deepEqual([settings.pluginValueSlots, settings.pluginValueLooks, settings.pluginValueIcons],
-    [HEAVIEST_PLUGIN_SLOTS.length, 'both,text,icon', 'switch,wifi,bluetooth,plug,phone,calendar'],
-    'every Plugin value slot of the fixture reports, with every Look and every icon');
+  assert.deepEqual([settings.pluginValueSlots, settings.pluginValueLooks, settings.pluginValueIcons,
+    settings.pluginValueLabel],
+  [HEAVIEST_PLUGIN_SLOTS.length, 'both,text,icon', 'switch,wifi,bluetooth,plug,phone,calendar', false],
+  'every Plugin value slot of the fixture reports, with every Look and every icon, and no label: false is longer');
 
   // Measured as the ingest measures it: JSON.stringify(batch.settings).length.
   const header = JSON.stringify(settings).length;

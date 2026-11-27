@@ -439,15 +439,19 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         batterySlotLook: isAplite ? undefined : slotText.batteryLook(safe),
         batterySlotDisplay: isAplite ? undefined : batteryDays.display(safe),
         // The Plugin value slots: whether a bar the watch is sent shows one with a source picked
-        // (pluginSlots), how many do, their Looks and the icons they draw. The settings alone, as with the
+        // (pluginSlots), how many do, their Looks, the icons they draw and whether one prints a
+        // label of the user's (plugin-values.js labelText). The settings alone, as with the
         // days left: counted too on a Pebble app that cannot read plugins, which draws no such
         // slot. Never a plugin or what it serves: those are another app's and never leave the
-        // phone. Absent on aplite, which has no such slot. Lockstep with handler.ts -- deploy
-        // it first.
+        // phone. Never a label either: it is free text. Absent on aplite, which has no such slot.
+        // Lockstep with handler.ts -- deploy it first.
         pluginValue: pluginSlots ? pluginSlots.length > 0 : undefined,
         pluginValueSlots: pluginSlots ? pluginSlots.length : undefined,
         pluginValueLooks: pluginSlots ? pluginValueLooks(pluginSlots) : undefined,
         pluginValueIcons: pluginSlots ? pluginValueIcons(pluginSlots) : undefined,
+        pluginValueLabel: pluginSlots ? pluginSlots.some(function (slot) {
+            return pluginValues.labelText(slot.pick) !== '';
+        }) : undefined,
         // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
         // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
         batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),

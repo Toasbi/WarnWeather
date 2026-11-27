@@ -579,33 +579,33 @@ function defaultOf(key) {
   return found ? PConf.engine.storedDefault(found, BASALT) : undefined;
 }
 
-test('Reset status bars puts each slot\'s Plugin value source, Look, icon and Updates back', () => {
-  const PARTS = ['plugin', 'id', 'look', 'icon', 'every'];
-  const S = Object.assign(pickIn({ every: '360', look: 'both', icon: 'wifi' }), LEVEL,
+test('Reset status bars puts each slot\'s Plugin value source, Look, icon, label and Updates back', () => {
+  const PARTS = ['plugin', 'id', 'look', 'icon', 'label', 'every'];
+  const S = Object.assign(pickIn({ every: '360', look: 'both', icon: 'wifi', label: 'Lamp' }), LEVEL,
     pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', look: 'icon', icon: 'plug', every: '15' },
       'statusHealthRight'));
   PConf.actions.resetStatusSlots(null, S, BASALT, defaultOf);
   ['statusTopLeft', 'statusHealthRight'].forEach((slotKey) => {
     const keys = catalog.pluginValueKeys(slotKey);
-    assert.deepEqual(PARTS.map((name) => S[keys[name]]), ['', '', 'text', 'switch', '60'], slotKey);
+    assert.deepEqual(PARTS.map((name) => S[keys[name]]), ['', '', 'text', 'switch', '', '60'], slotKey);
   });
   assert.deepEqual(PARTS.map((name) => defaultOf(KEYS[name])), PARTS.map((name) => PICK_DEFAULTS[name]),
     'what plugin-values.js reads for none');
 });
 
 test('Reset status bars puts bars 4 to 6 back too: their slots empty and each slot\'s own settings', () => {
-  const PARTS = ['plugin', 'id', 'look', 'icon', 'every'];
+  const PARTS = ['plugin', 'id', 'look', 'icon', 'label', 'every'];
   const EMERY = Object.assign(platform.computeEnv({ platform: 'emery' }), { plugins: true, phoneBattery: true });
   const S = Object.assign({ statusBar4Made: true, statusBar4Name: 'Garden', statusBar4Left: 'phoneBattery',
     statusBar4LeftPhoneBatteryLook: 'text', statusBar4Mid: 'pluginValue', statusBar6Right: 'countdown',
     statusBar6RightCountdown: '2026-12-24' },
-  pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', look: 'icon', icon: 'plug', every: '15' },
+  pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', look: 'icon', icon: 'plug', label: 'Lamp', every: '15' },
     'statusBar4Mid'));
   PConf.actions.resetStatusSlots(null, S, EMERY, defaultOf);
   assert.deepEqual(['statusBar4Left', 'statusBar4Mid', 'statusBar6Right'].map((key) => S[key]),
     ['empty', 'empty', 'empty'], 'empty, as New status bar makes a bar');
   const keys = catalog.pluginValueKeys('statusBar4Mid');
-  assert.deepEqual(PARTS.map((name) => S[keys[name]]), ['', '', 'text', 'switch', '60'], 'the Plugin value\'s');
+  assert.deepEqual(PARTS.map((name) => S[keys[name]]), ['', '', 'text', 'switch', '', '60'], 'the Plugin value\'s');
   assert.equal(S.statusBar4LeftPhoneBatteryLook, 'both', 'the phone battery\'s Look');
   assert.equal(S.statusBar4Made, true, 'the bar stays on its screens');
   assert.equal(S.statusBar4Name, 'Garden', 'with its name');
@@ -616,17 +616,19 @@ test('a save stores a slot\'s picks alone: never a row\'s default, and nothing o
   const S = slotSettings(LEVEL);
   const stored = (state) => PConf.engine.serialize(schema, state, BASALT);
   const keys = catalog.everySlotKey().reduce((all, slotKey) => all.concat(catalog.pluginValueKeyList(slotKey)), []);
-  assert.equal(keys.length, 105, 'five for each of the 21 slots');
+  assert.equal(keys.length, 126, 'six for each of the 21 slots');
   keys.forEach((key) => assert.ok(key in S, key + ': the page holds every row\'s value'));
   const blob = stored(S);
   assert.deepEqual(keys.filter((key) => key in blob), [KEYS.plugin, KEYS.id], 'the slot\'s plugin and value');
   S[KEYS.look] = 'both';
   S[KEYS.icon] = 'wifi';
+  S[KEYS.label] = 'Lamp';
   S[KEYS.every] = '15';
-  assert.deepEqual(keys.filter((key) => key in stored(S)), [KEYS.plugin, KEYS.id, KEYS.look, KEYS.icon, KEYS.every],
-    'a Look, an icon and Updates picked are stored');
+  assert.deepEqual(keys.filter((key) => key in stored(S)),
+    [KEYS.plugin, KEYS.id, KEYS.look, KEYS.icon, KEYS.label, KEYS.every], 'a Look, an icon, a label and Updates picked are stored');
   S[KEYS.look] = 'text';
   S[KEYS.icon] = 'switch';
+  S[KEYS.label] = '';
   S[KEYS.every] = '60';
   assert.deepEqual(keys.filter((key) => key in stored(S)), [KEYS.plugin, KEYS.id], 'and go once they are the defaults again');
 });
@@ -828,6 +830,54 @@ test('the bars\' pictures draw the icon picked, in the form the value read last 
   assert.deepEqual([bare.text, bare.icon, bare.drawing], ['Home', null, null], 'the Text look: the value alone');
   const alone = barSlots(Object.assign({}, S, { [MID.look]: 'icon' }), BASALT, 'top', true, new Date(NOW))[1];
   assert.deepEqual([alone.text, alone.drawing], ['', 'WIFI'], 'the Icon look: the icon alone');
+});
+
+// --- the label ---------------------------------------------------------------------
+
+test('the Label row shows where the slot prints it: Icon + text with an icon that turns, for a value that is on or off', (t) => {
+  userData(t, { plugins: WITH_WIFI });
+  const shown = (pick) => page.labelShown(pickIn(pick), BASALT, { slotKey: SLOT });
+  const WIFI_BOTH = { plugin: PHONE, id: 'phone/phone_state/wifi', look: 'both', icon: 'switch' };
+  assert.equal(shown(WIFI_BOTH), true);
+  assert.equal(shown(Object.assign({}, WIFI_BOTH, { icon: 'bluetooth' })), true, 'any icon that turns');
+  assert.equal(shown(Object.assign({}, WIFI_BOTH, { look: 'text' })), false, 'the Text look: the text shows the value');
+  assert.equal(shown(Object.assign({}, WIFI_BOTH, { look: 'icon' })), false, 'the Icon look prints no text');
+  assert.equal(shown(Object.assign({}, WIFI_BOTH, { icon: 'plug' })), false, 'an icon that stays the same shows no state');
+  assert.equal(shown(Object.assign({}, WIFI_BOTH, { id: 'phone/phone_state/battery_level' })), false,
+    'a value that is neither on nor off');
+  assert.equal(shown(Object.assign({}, WIFI_BOTH, { plugin: '' })), false, 'no plugin');
+  const S = slotSettings(pickIn(WIFI_BOTH));
+  assert.ok(dialogHtml(S).indexOf('>Label<') !== -1, 'in the dialog');
+  assert.equal(dialogHtml(slotSettings(pickIn(Object.assign({}, WIFI_BOTH, { look: 'text' })))).indexOf('>Label<'), -1);
+  assert.equal(rowOf(KEYS.label).attributes.maxlength, catalog.CAPS.MID_TEXT_MAX, 'no longer than the widest slot prints');
+});
+
+test('another value or plugin takes no label typed for the one before; another Look keeps it', (t) => {
+  userData(t, { plugins: WITH_WIFI });
+  const S = pickIn({ plugin: PHONE, id: 'phone/phone_state/wifi', look: 'both', icon: 'switch', label: 'Lamp' });
+  lookPicked(S, 'text');
+  assert.equal(S[KEYS.label], 'Lamp', 'another Look');
+  changed(S, KEYS.id, 'phone/phone_state/wifi', 'phone/phone_state/wifi');
+  assert.equal(S[KEYS.label], 'Lamp', 'the same value');
+  S[KEYS.id] = 'phone/phone_state/battery_level';
+  changed(S, KEYS.id, 'phone/phone_state/wifi', S[KEYS.id]);
+  assert.equal(S[KEYS.label], '', 'another value');
+  S[KEYS.label] = 'Lamp';
+  picked(S, PHONE, MUNINN);
+  assert.equal(S[KEYS.label], '', 'another plugin');
+});
+
+test('the bars\' pictures print the label beside the icon, whichever way the value is', (t) => {
+  clock(t, NOW);
+  userData(t, { plugins: WITH_WIFI, pluginValues: handed(kept({ state: true, short: 'Home' }, { source: WIFI_KEY })) });
+  const S = Object.assign({ statusTopMid: 'pluginValue' }, pickIn({ plugin: PHONE, id: 'phone/phone_state/wifi',
+    look: 'both', icon: 'wifi', label: ' Garden\tlamp ' }, 'statusTopMid'));
+  const slot = () => barSlots(S, BASALT, 'top', true, new Date(NOW))[1];
+  assert.deepEqual([slot().text, slot().drawing], ['Garden lamp', 'WIFI'], 'on, on one line');
+  global.INJECTED_USERDATA.pluginValues = handed(kept({ state: false, short: 'Home' }, { source: WIFI_KEY }));
+  assert.deepEqual([slot().text, slot().drawing], ['Garden lamp', 'WIFI_OFF'], 'off');
+  global.INJECTED_USERDATA = { plugins: WITH_WIFI };
+  assert.deepEqual([slot().text, slot().drawing], ['--', 'WIFI_OFF'], 'none read: --, as without a label');
 });
 
 // --- two slots, two values -------------------------------------------------------
