@@ -110,7 +110,7 @@ function boot(opts) {
     getSettings: () => h.settings,
     getWatchInfo: () => h.watchInfo,
     now: () => h.clock,
-    timers: heldTimers(h.timers),
+    timers: opts.timers || heldTimers(h.timers),
     permissions: opts.permissions,
     getComplications: () => h.complications
   });
@@ -722,6 +722,33 @@ test('the reads an answer makes again are one read too: both places changed whil
   assert.equal(h.pebble.subs.length, 2, 'then one read for both new readings');
   assert.deepEqual(h.pebble.subs[1].request, { category: 'phone', item: 'phone_state',
     properties: ['cell', 'battery_level'], limit: 1 });
+});
+
+test('a read that throws holds up no read of another item: it is made, and the throw goes on after it', () => {
+  const OTHER = 'ffffffff-0000-0000-0000-000000000001';
+  const pebble = fakePebble();
+  let fails = 1;
+  const timers = {
+    setTimeout: () => { if (fails) { fails -= 1; throw new Error('no timer'); } return 1; },
+    clearTimeout: () => {}
+  };
+  assert.throws(() => boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { plugin: OTHER, id: 'phone/phone_state/cell' })),
+    pebble: pebble, timers: timers }), /no timer/);
+  assert.deepEqual(pebble.subs.map((sub) => sub.request.plugin), [PHONE, OTHER], 'the other plugin is read all the same');
+});
+
+test('an answer that throws for one value reaches the other values of its read all the same', () => {
+  const h = boot({ settings: LEVEL_AND_CELL });
+  let fails = 1;
+  Object.defineProperty(h, 'settings', {
+    get: () => { if (fails) { fails -= 1; throw new Error('a mishap'); } return LEVEL_AND_CELL; }
+  });
+  assert.throws(() => h.pebble.subs[0].push(answer(BOTH)), /a mishap/);
+  assert.equal(storedValue(CELL_KEY).reading.short, 'LTE', 'the network type is kept');
+  h.clock = NOON + HOUR;
+  minute();
+  assert.equal(h.pebble.subs.length, 2);
+  assert.deepEqual(h.pebble.subs[1].request.properties, ['battery_level', 'cell'], 'neither waits for an answer any more');
 });
 
 test('a start keeps only the values of the sources a slot picks', () => {

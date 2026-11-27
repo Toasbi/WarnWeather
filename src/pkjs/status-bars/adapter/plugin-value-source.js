@@ -196,8 +196,27 @@ function joinIdle() {
 }
 
 /**
+ * Call fn on each thing of a list, on the ones after a thing it throws on too: the throw goes on
+ * once it ran on them all. A read held for one slot's value is made, and an answer handed on,
+ * whatever another slot's value does (flush, readTogether): one left out would wait for its
+ * answer, and its slots read nothing more, until PKJS starts again.
+ * @param {Array} list The things.
+ * @param {function(*): void} fn The call.
+ * @returns {void}
+ */
+function callEach(list, fn) {
+    if (!list.length) { return; }
+    try {
+        fn(list[0]);
+    }
+    finally {
+        callEach(list.slice(1), fn);
+    }
+}
+
+/**
  * Make the reads of one plugin's item as one read (plugin-reader.js together), and hand its answer
- * to each; the reads the answer makes go at the flush after it.
+ * to each (callEach); the reads the answer makes go at the flush after it.
  * @param {Array<{request: Object, done: function(?Object, ?Object): void}>} reads Reads held
  *   (pending), of one item.
  * @returns {void}
@@ -205,30 +224,28 @@ function joinIdle() {
 function readTogether(reads) {
     var request = pluginReader.together(reads.map(function (read) { return read.request; }));
     pluginReader.readOnce(pluginReader.pebbleOf(deps), request, function (envelope, fail) {
-        reads.forEach(function (read) { read.done(envelope, fail); });
+        callEach(reads, function (read) { read.done(envelope, fail); });
         flush();
     }, deps.timers);
 }
 
 /**
  * Make the reads held: with the other values of each plugin's item read with them (joinIdle), one
- * read for each item (readTogether). An answer that comes at once (a read that may not start)
- * makes reads anew, which go in turn: a flush that runs takes the reads of every flush asked for
- * inside it.
+ * read for each item (readTogether, callEach). An answer that comes at once (a read that may not
+ * start) makes reads anew, which go in turn: a flush that runs takes the reads of every flush
+ * asked for inside it.
  * @returns {void}
  */
 function flush() {
-    var reads;
     var items;
     if (flushing) { return; }
     flushing = true;
     try {
         while (pending.length) {
             joinIdle();
-            reads = pending;
+            items = groupBy(pending, itemOfRead);
             pending = [];
-            items = groupBy(reads, itemOfRead);
-            Object.keys(items).forEach(function (item) { readTogether(items[item]); });
+            callEach(Object.keys(items), function (item) { readTogether(items[item]); });
         }
     }
     finally {
