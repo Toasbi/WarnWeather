@@ -593,6 +593,25 @@ test('Reset status bars puts each slot\'s Plugin value source, Look, icon and Up
     'what plugin-values.js reads for none');
 });
 
+test('Reset status bars puts bars 4 to 6 back too: their slots empty and each slot\'s own settings', () => {
+  const PARTS = ['plugin', 'id', 'look', 'icon', 'every'];
+  const EMERY = Object.assign(platform.computeEnv({ platform: 'emery' }), { plugins: true, phoneBattery: true });
+  const S = Object.assign({ statusBar4Made: true, statusBar4Name: 'Garden', statusBar4Left: 'phoneBattery',
+    statusBar4LeftPhoneBatteryLook: 'text', statusBar4Mid: 'pluginValue', statusBar6Right: 'countdown',
+    statusBar6RightCountdown: '2026-12-24' },
+  pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', look: 'icon', icon: 'plug', every: '15' },
+    'statusBar4Mid'));
+  PConf.actions.resetStatusSlots(null, S, EMERY, defaultOf);
+  assert.deepEqual(['statusBar4Left', 'statusBar4Mid', 'statusBar6Right'].map((key) => S[key]),
+    ['empty', 'empty', 'empty'], 'empty, as New status bar makes a bar');
+  const keys = catalog.pluginValueKeys('statusBar4Mid');
+  assert.deepEqual(PARTS.map((name) => S[keys[name]]), ['', '', 'text', 'switch', '60'], 'the Plugin value\'s');
+  assert.equal(S.statusBar4LeftPhoneBatteryLook, 'both', 'the phone battery\'s Look');
+  assert.equal(S.statusBar4Made, true, 'the bar stays on its screens');
+  assert.equal(S.statusBar4Name, 'Garden', 'with its name');
+  assert.equal(S.statusBar6RightCountdown, '2026-12-24', 'a countdown date stays, as in the other bars');
+});
+
 test('a save stores a slot\'s picks alone: never a row\'s default, and nothing of a slot without one', () => {
   const S = slotSettings(LEVEL);
   const stored = (state) => PConf.engine.serialize(schema, state, BASALT);

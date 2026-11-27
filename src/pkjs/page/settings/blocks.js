@@ -648,9 +648,10 @@ if (typeof require !== 'undefined') {
 
     // Reset-to-defaults for every status bar (the "Reset status bars to defaults" link
     // row in the Status bars tab's All status bars card — schema-gates.js linkRow): every slot
-    // of the Watch, Forecast, Health and Radar bars back to its platform-aware default (the
-    // same statusSlotDefault seed a fresh install gets, hrDefaults flavor included; catalog
-    // allSlotKeys, so bars 4 to 6 keep theirs), and every other covered key back
+    // of every bar back to its platform-aware default (the same statusSlotDefault seed a fresh
+    // install gets, hrDefaults flavor included; catalog everySlotKey: bars 4 to 6's slots go
+    // back to empty, as New status bar makes them, and the bars themselves stay, with their
+    // names, on their screens), and every other covered key back
     // to ITS SCHEMA DEFAULT, resolved through the engine — no value is mirrored here, because
     // mirrored literals drift when the schema changes: the wind arrow's hardcoded
     // false outlived the schema flipping it to true, and the non-uniform "Show
@@ -666,7 +667,7 @@ if (typeof require !== 'undefined') {
     // date, but how the slot draws rather than what it counts to, so it goes back too),
     // each weather kind's slot Highlight switch (a slot-sheet row, like Bold — a
     // goal kind's rides its Goals header and that group's reset), each bar's two Alerts
-    // sides (on-demand.js DEFAULTS' eight side lists — each bar's Alerts nav row on
+    // sides (on-demand.js DEFAULTS' side lists, bars 4 to 6's too — each bar's Alerts nav row on
     // that tab shows them; the Alerts tab's reset restores them too), and, on aplite
     // only (a watch without On demand), the Watch Status Bar's other rows: 'Show battery
     // below 10%' (batteryLowOnly), the quiet-time icon (showQt), the bluetooth vibration
@@ -686,7 +687,7 @@ if (typeof require !== 'undefined') {
      */
     PConf.actions.resetStatusSlots = function (arg, S, env, defaultOf) {
         if (!S || !defaultOf) { return false; }
-        var slotKeys = statusLineCatalog.allSlotKeys();
+        var slotKeys = statusLineCatalog.everySlotKey();
         for (var i = 0; i < slotKeys.length; i++) {
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
@@ -739,7 +740,7 @@ if (typeof require !== 'undefined') {
     };
 
     /**
-     * The eight side lists (on-demand.js itemsKey), in BARS × SIDES order: where each item
+     * Every bar's two side lists, bars 4 to 6's too (on-demand.js itemsKey), in BARS × SIDES order: where each item
      * shows, which both resets restore.
      * @returns {string[]} The keys.
      */
