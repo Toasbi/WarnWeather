@@ -25,15 +25,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ? require('../../status-bars/domain/on-demand.js') : window.OnDemand;
 
     /**
-     * Clear DWD-only pollen selections after switching to another provider.
-     * Mutates S in place.
+     * Clear DWD-only pollen selections after switching to another provider, in every bar's
+     * slots, bars 4 to 6's too (catalog everySlotKey). Mutates S in place.
      * @param {Object} S live settings state
      * @param {string} newProvider newly selected weather provider
      * @returns {void}
      */
     function clearPollenForProvider(S, newProvider) {
         if (newProvider === 'dwd') { return; }
-        var keys = catalog.allSlotKeys();
+        var keys = catalog.everySlotKey();
         for (var i = 0; i < keys.length; i++) {
             if (S[keys[i]] === 'pollen') { S[keys[i]] = 'empty'; }
         }

@@ -24,13 +24,9 @@ function blob(extra) {
   }, extra || {});
 }
 
-test('switching to any non-DWD provider clears pollen from all 12 status slots', () => {
-  const slotKeys = [
-    'statusForecastLeft', 'statusForecastMid', 'statusForecastRight',
-    'statusRadarLeft', 'statusRadarMid', 'statusRadarRight',
-    'statusTopLeft', 'statusTopMid', 'statusTopRight',
-    'statusHealthLeft', 'statusHealthMid', 'statusHealthRight'
-  ];
+test('switching to any non-DWD provider clears pollen from every bar\'s slots, bars 4 to 6\'s too', () => {
+  const slotKeys = catalog.everySlotKey();
+  assert.equal(slotKeys.length, 21, 'the four bars and bars 4 to 6');
   ['wunderground', 'openweathermap', 'openmeteo', 'metno'].forEach(provider => {
     const S = { provider: provider, healthMode: 'all', radarProvider: 'disabled' };
     slotKeys.forEach(key => { S[key] = 'pollen'; });
