@@ -7,6 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const slotText = require('../../../src/pkjs/status-bars/domain/slot-text.js');
+const { inZone } = require('../../helpers/in-zone.js');
 
 const K = catalog.KINDS;
 const BASALT = { platform: 'basalt' };
@@ -104,21 +105,23 @@ test('a moment on another day prints its day alone where both do not fit: never 
     '1 Dec', 'the shortest of both is 10 bytes');
 });
 
-test('a day counts by the calendar across a clock change: a 47 hour gap is two days', () => {
-  const zone = process.env.TZ;
-  process.env.TZ = 'Europe/Berlin';
-  try {
-    const sat = new Date(2027, 2, 27, 12, 0).getTime();
-    assert.equal(new Date(2027, 2, 29).getTime() - new Date(2027, 2, 27).getTime(), 47 * 3600000,
-      'the zone took: the clocks go forward on 28 Mar 2027');
-    assert.equal(slotText.momentText(new Date(2027, 2, 29, 9, 0).getTime(), sat, {}, 19), 'Mon 9:00');
-    assert.equal(slotText.momentText(new Date(2027, 3, 2, 9, 0).getTime(), sat, {}, 19), 'Fri 9:00', 'six days on');
-    assert.equal(slotText.momentText(new Date(2027, 3, 3, 9, 0).getTime(), sat, {}, 19), '9:00 3 Apr', 'a week on');
-    assert.equal(slotText.dayText(2026, 9, 26, new Date(2026, 9, 24, 23, 30).getTime()), 'Mon',
-      'the clocks go back on 25 Oct 2026: 49 hours');
-  } finally {
-    if (zone === undefined) { delete process.env.TZ; } else { process.env.TZ = zone; }
-  }
+test('a day counts by the calendar across a clock change: a 47 hour gap is two days, a 145 hour gap six', () => {
+  const got = inZone('Europe/Berlin', { slotText: require.resolve('../../../src/pkjs/status-bars/domain/slot-text.js') },
+    ({ slotText: text }) => {
+      const sat = new Date(2027, 2, 27, 12, 0).getTime();
+      return { gap: new Date(2027, 2, 29).getTime() - new Date(2027, 2, 27).getTime(),
+        mon: text.momentText(new Date(2027, 2, 29, 9, 0).getTime(), sat, {}, 19),
+        fri: text.momentText(new Date(2027, 3, 2, 9, 0).getTime(), sat, {}, 19),
+        weekOn: text.momentText(new Date(2027, 3, 3, 9, 0).getTime(), sat, {}, 19),
+        back: text.dayText(2026, 9, 26, new Date(2026, 9, 24, 23, 30).getTime()),
+        backLong: text.dayText(2026, 9, 30, new Date(2026, 9, 24, 12).getTime()) };
+    });
+  assert.equal(got.gap, 47 * 3600000, 'the clocks go forward on 28 Mar 2027');
+  assert.equal(got.mon, 'Mon 9:00');
+  assert.equal(got.fri, 'Fri 9:00', 'six days on');
+  assert.equal(got.weekOn, '9:00 3 Apr', 'a week on');
+  assert.equal(got.back, 'Mon', 'the clocks go back on 25 Oct 2026: 49 hours');
+  assert.equal(got.backLong, 'Fri', 'six days on across it: 145 hours');
 });
 
 test('a day other than today: its weekday in the coming week, else its date', () => {

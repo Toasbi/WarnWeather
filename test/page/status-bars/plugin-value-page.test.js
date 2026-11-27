@@ -18,9 +18,8 @@ const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const { sample, barSlots } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
 const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
 const pluginReads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
-const { UNPRINTABLE } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { pluginValuePick } = require('../../helpers/status-slots.js');
-const { PREFERENCES, PICK_DEFAULTS } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
+const { PREFERENCES, PICK_DEFAULTS, UNPRINTABLE } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { reading } = require('../../helpers/plugin-host.js');
 
 const PConf = global.PConf;
@@ -125,16 +124,18 @@ const valuePicked = (S, slotKey = SLOT) =>
   changed(S, catalog.pluginValueKeys(slotKey).id, null, S[catalog.pluginValueKeys(slotKey).id]);
 
 /**
- * The Look row's change to a Look, as the engine runs it: it stores the Look, then runs the hooks.
- * @param {Object} S Settings (mutated). @param {string} look The Look picked.
- * @param {string} [slotKey] The slot (SLOT).
+ * A row's change to a choice, as the engine runs it: it stores the choice, then runs the hooks
+ * with the one the slot held.
+ * @param {Object} S Settings (mutated).
+ * @param {string} part The row's part of the pick (catalog.pluginValueKeys: 'id', 'look', ...).
+ * @param {string} value The choice picked. @param {string} [slotKey] The slot (SLOT).
  * @returns {void}
  */
-const lookPicked = (S, look, slotKey = SLOT) => {
-  const key = catalog.pluginValueKeys(slotKey).look;
+const rowPicked = (S, part, value, slotKey = SLOT) => {
+  const key = catalog.pluginValueKeys(slotKey)[part];
   const before = S[key];
-  S[key] = look;
-  changed(S, key, before, look);
+  S[key] = value;
+  changed(S, key, before, value);
 };
 
 /**
@@ -272,7 +273,7 @@ test('a value WarnWeather supports starts the slot on its Look and icon, where t
   picked(S, '', PHONE);
   assert.deepEqual(shown(S), ['phone/phone_state/cell', 'text', 'switch'],
     'a new plugin starts on the first value WarnWeather supports, the text alone for a network\'s name');
-  const pick = (id) => { const before = S[KEYS.id]; S[KEYS.id] = id; changed(S, KEYS.id, before, id); };
+  const pick = (id) => rowPicked(S, 'id', id);
   pick('phone/phone_state/wifi');
   assert.deepEqual(shown(S), ['phone/phone_state/wifi', 'icon', 'wifi'], 'Wi-Fi: its icon alone');
   pick('phone/phone_state/mobile_data');
@@ -321,6 +322,8 @@ const MUNINN_NAMED = PLUGINS.map((p) => (p.uuid !== MUNINN ? p : Object.assign({
 const ESTIMATES = MUNINN + '/muninn/estimate';
 const NAMED = { [ESTIMATES]: [{ id: 'w-1', name: 'Time 2' }, { id: 'w-2', name: 'Pebble 2 Duo' }] };
 const DAYS = { plugin: MUNINN, id: 'muninn/estimate/batteryLife' };
+/** @param {string} instance An estimate's id. @returns {Object} Settings: the slot picks its days per charge. */
+const daysPick = (instance) => pickIn(Object.assign({ instance }, DAYS));
 const whichShown = inSlot(page.whichShown);
 const instanceOptions = inSlot(page.instanceOptions);
 const instanceHint = inSlot(page.instanceHint);
@@ -344,15 +347,15 @@ test('the Which row lists the first, then each instance the last read brought, b
   userData(t, { plugins: PLUGINS, pluginInstances: NAMED });
   assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: 'Time 2 at the last read' }],
     ['Time 2', 'w-1'], ['Pebble 2 Duo', 'w-2']]);
-  assert.deepEqual(instanceOptions(pickIn(Object.assign({ instance: 'w-2' }, DAYS))), instanceOptions(pickIn(DAYS)),
+  assert.deepEqual(instanceOptions(daysPick('w-2')), instanceOptions(pickIn(DAYS)),
     'one it lists');
-  assert.deepEqual(instanceOptions(pickIn(Object.assign({ instance: 'w-9' }, DAYS))).slice(-1), [['Your pick', 'w-9']],
+  assert.deepEqual(instanceOptions(daysPick('w-9')).slice(-1), [['Your pick', 'w-9']],
     'one the last read did not bring');
-  assert.equal(instanceHint(pickIn(Object.assign({ instance: 'w-9' }, DAYS))),
+  assert.equal(instanceHint(daysPick('w-9')),
     'The plugin no longer sends this one. Until it does, the slot shows --.');
   assert.equal(instanceHint(pickIn(DAYS)), null);
-  assert.equal(instanceHint(pickIn(Object.assign({ instance: 'w-2' }, DAYS))), null);
-  const upper = { [ESTIMATES.toUpperCase().replace('/MUNINN/ESTIMATE', '/muninn/estimate')]: NAMED[ESTIMATES] };
+  assert.equal(instanceHint(daysPick('w-2')), null);
+  const upper = { [MUNINN.toUpperCase() + '/muninn/estimate']: NAMED[ESTIMATES] };
   userData(t, { plugins: PLUGINS, pluginInstances: upper });
   assert.equal(instanceOptions(pickIn(DAYS)).length, 1, 'the item\'s names are kept by its uuid in lower case');
 });
@@ -369,8 +372,8 @@ test('the Which row before a read brought any names, or where the plugin sends n
   const NONE_YET = 'The names come with the slot\'s next read. Open the settings again after it to pick one.';
   assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: 'Whichever the plugin lists first' }]]);
   assert.equal(instanceHint(pickIn(DAYS)), NONE_YET);
-  assert.deepEqual(instanceOptions(pickIn(Object.assign({ instance: 'w-1' }, DAYS))).slice(-1), [['Your pick', 'w-1']]);
-  assert.equal(instanceHint(pickIn(Object.assign({ instance: 'w-1' }, DAYS))), NONE_YET, 'not gone: not read yet');
+  assert.deepEqual(instanceOptions(daysPick('w-1')).slice(-1), [['Your pick', 'w-1']]);
+  assert.equal(instanceHint(daysPick('w-1')), NONE_YET, 'not gone: not read yet');
   userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [] } });
   assert.equal(instanceHint(pickIn(DAYS)), 'The plugin sends no names to pick from, so the slot shows the first.');
   userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [null, { id: '', name: 'x' }, { id: 5, name: 'x' },
@@ -383,20 +386,18 @@ test('the Which row before a read brought any names, or where the plugin sends n
 
 test('another plugin, or a value of another item, starts on the first; another value of the item keeps its instance', (t) => {
   userData(t, { plugins: MUNINN_NAMED, pluginInstances: NAMED });
-  const S = pickIn(Object.assign({ instance: 'w-2' }, DAYS));
-  S[KEYS.id] = 'muninn/estimate/lastWeekRate';
-  changed(S, KEYS.id, DAYS.id, S[KEYS.id]);
+  const S = daysPick('w-2');
+  rowPicked(S, 'id', 'muninn/estimate/lastWeekRate');
   assert.equal(S[KEYS.instance], 'w-2', 'the same item\'s');
-  S[KEYS.id] = 'muninn/estimate/name';
-  changed(S, KEYS.id, 'muninn/estimate/lastWeekRate', S[KEYS.id]);
+  rowPicked(S, 'id', 'muninn/estimate/name');
   assert.equal(S[KEYS.instance], '', 'its name, which offers no Which row');
+  rowPicked(S, 'id', 'muninn/estimate/batteryLife');
   S[KEYS.instance] = 'w-2';
-  S[KEYS.id] = 'muninn/phones/drain';
-  changed(S, KEYS.id, 'muninn/estimate/batteryLife', S[KEYS.id]);
+  rowPicked(S, 'id', 'muninn/phones/drain');
   assert.equal(S[KEYS.instance], '', 'another item\'s, though it offers Which too');
+  rowPicked(S, 'id', 'muninn/estimate/batteryLife');
   S[KEYS.instance] = 'w-2';
-  S[KEYS.id] = 'muninn/stats/daysRemaining';
-  changed(S, KEYS.id, 'muninn/estimate/batteryLife', S[KEYS.id]);
+  rowPicked(S, 'id', 'muninn/stats/daysRemaining');
   assert.equal(S[KEYS.instance], '', 'one that offers no Which');
   S[KEYS.id] = DAYS.id;
   S[KEYS.instance] = 'w-2';
@@ -952,7 +953,7 @@ test('a value that is neither on nor off takes the first icon that stays the sam
   const text = Object.assign(pickIn({ icon: 'wifi' }), WIFI, { [KEYS.id]: LEVEL_ID });
   valuePicked(text);
   assert.deepEqual([text[KEYS.look], text[KEYS.icon]], [undefined, 'wifi'], 'the Text look draws no icon: kept');
-  lookPicked(text, 'both');
+  rowPicked(text, 'look', 'both');
   assert.deepEqual([text[KEYS.look], text[KEYS.icon]], ['both', 'plug'], 'until a Look draws it');
 });
 
@@ -960,18 +961,18 @@ test('the Icon look takes an icon that turns, and goes back to Text for a value 
   userData(t, { plugins: WITH_WIFI });
   const S = Object.assign(pickIn({ look: 'both', icon: 'calendar' }), WIFI);
   // Each render snaps the rows shown onto their lists, and so does Save (engine.js).
-  lookPicked(S, 'icon');
+  rowPicked(S, 'look', 'icon');
   PConf.engine.snapShownOptions(schema, S, BASALT);
   assert.deepEqual([S[KEYS.look], S[KEYS.icon]], ['icon', 'switch'], 'the first that turns');
   S[KEYS.icon] = 'bluetooth';
-  lookPicked(S, 'icon');
+  rowPicked(S, 'look', 'icon');
   PConf.engine.snapShownOptions(schema, S, BASALT);
   assert.equal(S[KEYS.icon], 'bluetooth', 'one that turns: kept');
   S[KEYS.id] = LEVEL_ID;
   valuePicked(S);
   assert.deepEqual([S[KEYS.look], S[KEYS.icon]], ['text', 'bluetooth'], 'alone, the icon would show nothing');
   const gone = Object.assign(pickIn({ look: 'both', icon: 'plug' }), WIFI, { [KEYS.id]: 'phone/phone_state/gone' });
-  lookPicked(gone, 'icon');
+  rowPicked(gone, 'look', 'icon');
   PConf.engine.snapShownOptions(schema, gone, BASALT);
   assert.deepEqual([gone[KEYS.look], gone[KEYS.icon]], ['icon', 'switch'], 'a value the phone no longer lists');
 });
@@ -1060,12 +1061,11 @@ test('the Label row shows where the slot prints it: Icon + text with an icon tha
 test('another value or plugin takes no label typed for the one before; another Look keeps it', (t) => {
   userData(t, { plugins: WITH_WIFI });
   const S = pickIn(Object.assign({}, WIFI_BOTH, { label: 'Lamp' }));
-  lookPicked(S, 'text');
+  rowPicked(S, 'look', 'text');
   assert.equal(S[KEYS.label], 'Lamp', 'another Look');
-  changed(S, KEYS.id, 'phone/phone_state/wifi', 'phone/phone_state/wifi');
+  rowPicked(S, 'id', 'phone/phone_state/wifi');
   assert.equal(S[KEYS.label], 'Lamp', 'the same value');
-  S[KEYS.id] = 'phone/phone_state/battery_level';
-  changed(S, KEYS.id, 'phone/phone_state/wifi', S[KEYS.id]);
+  rowPicked(S, 'id', 'phone/phone_state/battery_level');
   assert.equal(S[KEYS.label], '', 'another value');
   S[KEYS.label] = 'Lamp';
   picked(S, PHONE, MUNINN);
@@ -1122,7 +1122,7 @@ test('a row\'s change touches its own slot alone', (t) => {
   assert.deepEqual([S[RIGHT.id], S[RIGHT.look]], ['muninn/stats/daysRemaining', 'text'], 'the right slot starts anew');
   assert.deepEqual([S[KEYS.plugin], S[KEYS.id], S[KEYS.look], S[KEYS.icon]], [PHONE, 'phone/phone_state/wifi', 'icon',
     'wifi'], 'the left slot keeps its pick');
-  lookPicked(S, 'both', 'statusTopRight');
+  rowPicked(S, 'look', 'both', 'statusTopRight');
   assert.deepEqual([S[RIGHT.icon], S[KEYS.icon]], ['plug', 'wifi'], 'the right slot\'s Look fits its icon alone');
   S[KEYS.id] = LEVEL_ID;
   valuePicked(S);

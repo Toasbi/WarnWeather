@@ -5,11 +5,20 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const reads = require('../../../src/pkjs/status-bars/domain/plugin-value-reads.js');
+const pv = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { reading } = require('../../helpers/plugin-host.js');
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
 const T0 = Date.UTC(2026, 10, 23, 12, 0, 0);
+
+/**
+ * A plugin's answer, as valueOf checks it: a reading read at T0.
+ * @param {Object} fields The reading's fields, as the reader lifts them.
+ * @param {string} [source] The source's key ('s' by default): what the value is of.
+ * @returns {?Object} The value (valueOf), or null for none.
+ */
+const answer = (fields, source = 's') => reads.valueOf({ source, reading: fields, at: T0, validUntil: null });
 
 /**
  * @param {number} failures Failed reads in a row.
@@ -45,21 +54,19 @@ test('valueOf: a stored value, checked', () => {
   const value = { source: 's', reading: reading({ number: 5, unit: 'days' }), at: T0, validUntil: T0 + HOUR };
   assert.deepEqual(reads.valueOf(value), value);
   assert.deepEqual(reads.valueOf(Object.assign({}, value, { validUntil: 'x' })).validUntil, null);
-  assert.deepEqual(reads.valueOf({ source: 's', reading: { short: 'a', number: '5', unit: 7, long: '', time: '1795453201',
-    state: 'true', extra: 1 }, at: T0 }),
-  { source: 's', reading: reading({ short: 'a' }), at: T0, validUntil: null }, 'its fields, each of its type');
+  assert.deepEqual(answer({ short: 'a', number: '5', unit: 7, long: '', time: '1795453201', state: 'true', extra: 1 }),
+    { source: 's', reading: reading({ short: 'a' }), at: T0, validUntil: null }, 'its fields, each of its type');
   [null, 5, {}, Object.assign({}, value, { source: 7 }), Object.assign({}, value, { reading: null }),
     Object.assign({}, value, { reading: reading({}) }), Object.assign({}, value, { at: 0 }),
     Object.assign({}, value, { at: 'x' })].forEach((v) => assert.equal(reads.valueOf(v), null, JSON.stringify(v)));
 });
 
 test('valueOf: a value kept from before moments and states were read: theirs are none', () => {
-  assert.deepEqual(reads.valueOf({ source: 's', reading: { short: '87%', number: 87, unit: '%', long: null }, at: T0,
-    validUntil: null }).reading, reading({ short: '87%', number: 87, unit: '%' }));
+  assert.deepEqual(answer({ short: '87%', number: 87, unit: '%', long: null }).reading,
+    reading({ short: '87%', number: 87, unit: '%' }));
 });
 
 test('valueOf: a plugin\'s answer, checked as it comes in: texts trimmed, a finite number, none without either', () => {
-  const answer = (r) => reads.valueOf({ source: 's', reading: r, at: T0, validUntil: null });
   assert.deepEqual(answer({ short: '  5G \n', number: 0, unit: ' kWh ', long: undefined }).reading,
     reading({ short: '5G', number: 0, unit: 'kWh' }), 'trimmed; zero is a number');
   assert.deepEqual(answer({ short: 87, number: '87', unit: 3, long: 'ok' }).reading, reading({ long: 'ok' }),
@@ -70,7 +77,6 @@ test('valueOf: a plugin\'s answer, checked as it comes in: texts trimmed, a fini
 });
 
 test('valueOf: a boolean\'s state is kept, false as well as true, and is a value by itself', () => {
-  const answer = (r) => reads.valueOf({ source: 's', reading: r, at: T0, validUntil: null });
   assert.deepEqual(answer({ state: false }).reading, reading({ state: false }));
   assert.deepEqual(answer({ state: true, short: 'Wi-Fi' }).reading, reading({ state: true, short: 'Wi-Fi' }));
 });
@@ -80,55 +86,52 @@ const MOMENT_MS = new Date(2026, 10, 23, 9, 5, 0).getTime();
 const MOMENT_S = MOMENT_MS / 1000;
 
 test('valueOf: a timestamp is a moment, kept in epoch milliseconds, and stays one through storage', () => {
-  const answer = (r, source) => reads.valueOf({ source: source || 'u/weather/location/sunrise', reading: r, at: T0 });
-  const kept = answer({ time: MOMENT_S });
+  const sunrise = (r) => answer(r, 'u/weather/location/sunrise');
+  const kept = sunrise({ time: MOMENT_S });
   assert.deepEqual(kept.reading, reading({ time: MOMENT_MS }), 'seconds, as a plugin sends a timestamp');
   assert.deepEqual(reads.valueOf(JSON.parse(JSON.stringify(kept))), kept, 'milliseconds, as a value keeps it');
-  assert.deepEqual(answer({ time: MOMENT_S, short: '14:00', long: '14:00' }).reading,
+  assert.deepEqual(sunrise({ time: MOMENT_S, short: '14:00', long: '14:00' }).reading,
     reading({ time: MOMENT_MS, short: '14:00', long: '14:00' }), 'beside the plugin\'s words');
-  assert.equal(answer({ time: MOMENT_S + 0.4 }).reading.time, MOMENT_MS + 400, 'a part of a second');
+  assert.equal(sunrise({ time: MOMENT_S + 0.4 }).reading.time, MOMENT_MS + 400, 'a part of a second');
   [0, -MOMENT_S, 12345, 1e10, Infinity, NaN, '1795453201'].forEach((bad) =>
-    assert.equal(answer({ time: bad }), null, String(bad) + ': no moment'));
+    assert.equal(sunrise({ time: bad }), null, String(bad) + ': no moment'));
 });
 
 test('valueOf: a number whose name says it is a moment, in epoch seconds or milliseconds, is one', () => {
-  const answer = (name, number) => reads.valueOf({ source: 'u/muninn/stats/' + name, reading: { number: number },
-    at: T0 }).reading;
-  assert.deepEqual(answer('updatedAt', MOMENT_MS), reading({ time: MOMENT_MS, number: MOMENT_MS }),
+  const stat = (name, number) => answer({ number: number }, 'u/muninn/stats/' + name).reading;
+  assert.deepEqual(stat('updatedAt', MOMENT_MS), reading({ time: MOMENT_MS, number: MOMENT_MS }),
     'Muninn\'s updatedAt, in milliseconds');
-  assert.equal(answer('updatedAt', MOMENT_S).time, MOMENT_MS, 'in seconds');
-  assert.deepEqual(answer('daysRemaining', MOMENT_MS), reading({ number: MOMENT_MS }), 'a name that says nothing of it');
-  assert.equal(answer('updatedAt', 5).time, null, 'a number that is no moment');
-  assert.equal(answer('updatedAt', 5).number, 5);
+  assert.equal(stat('updatedAt', MOMENT_S).time, MOMENT_MS, 'in seconds');
+  assert.deepEqual(stat('daysRemaining', MOMENT_MS), reading({ number: MOMENT_MS }), 'a name that says nothing of it');
+  assert.equal(stat('updatedAt', 5).time, null, 'a number that is no moment');
+  assert.equal(stat('updatedAt', 5).number, 5);
   assert.equal(reads.valueOf({ source: 'u/muninn/stats/updatedAt', reading: { number: MOMENT_MS,
     time: MOMENT_S + 60 }, at: T0 }).reading.time, MOMENT_MS + 60000, 'a timestamp beside it is the moment');
 });
 
 test('valueOf: a bearing with no words of the plugin\'s gets its compass point, which the slot prints', () => {
-  const answer = (name, fields) => reads.valueOf({ source: 'u/weather/location/' + name, reading: fields, at: T0 }).reading;
-  assert.equal(answer('wind_direction', { number: 250, unit: '\u00b0' }).short, 'W', 'not 250\u00b0, which reads as a temperature');
-  assert.equal(answer('wind_direction', { number: 4, unit: '\u00b0' }).short, 'N');
-  assert.equal(answer('windBearing', { number: 135 }).short, 'SE', 'no unit, and another name for it');
-  assert.equal(answer('wind_direction', { number: 250, unit: '\u00b0', short: 'WSW' }).short, 'WSW', 'the plugin\'s own words');
-  assert.equal(answer('wind_direction', { number: 250, unit: '\u00b0' }).number, 250, 'the number stays');
-  assert.equal(answer('temperature', { number: 250, unit: '\u00b0' }).short, null, 'a name that says nothing of it');
-  assert.equal(answer('wind_direction', { number: 400, unit: '\u00b0' }).short, null, 'no bearing');
-  assert.equal(answer('wind_direction', { number: 250, unit: '\u00b0C' }).short, null, 'another unit');
-  assert.equal(require('../../../src/pkjs/status-bars/domain/plugin-values.js').textFor(
-    answer('wind_direction', { number: 250, unit: '\u00b0' }), 8), 'W');
+  const bearing = (name, fields) => answer(fields, 'u/weather/location/' + name).reading;
+  assert.equal(bearing('wind_direction', { number: 250, unit: '\u00b0' }).short, 'W', 'not 250\u00b0, which reads as a temperature');
+  assert.equal(bearing('wind_direction', { number: 4, unit: '\u00b0' }).short, 'N');
+  assert.equal(bearing('windBearing', { number: 135 }).short, 'SE', 'no unit, and another name for it');
+  assert.equal(bearing('wind_direction', { number: 250, unit: '\u00b0', short: 'WSW' }).short, 'WSW', 'the plugin\'s own words');
+  assert.equal(bearing('wind_direction', { number: 250, unit: '\u00b0' }).number, 250, 'the number stays');
+  assert.equal(bearing('temperature', { number: 250, unit: '\u00b0' }).short, null, 'a name that says nothing of it');
+  assert.equal(bearing('wind_direction', { number: 400, unit: '\u00b0' }).short, null, 'no bearing');
+  assert.equal(bearing('wind_direction', { number: 250, unit: '\u00b0C' }).short, null, 'another unit');
+  assert.equal(pv.textFor(bearing('wind_direction', { number: 250, unit: '\u00b0' }), 8), 'W');
 });
 
 test('valueOf: Muninn\'s -1 is no reading, and its drain rate is a charge a day', () => {
-  const answer = (name, fields) => reads.valueOf({ source: 'u/muninn/stats/' + name, reading: fields, at: T0 });
-  assert.equal(answer('daysRemaining', { number: -1, unit: 'days' }), null, 'no estimate yet: --');
-  assert.equal(answer('batteryLife', { number: -1, unit: 'days' }), null);
-  assert.equal(answer('updatedAt', { number: -1 }), null, 'never synced');
-  assert.equal(answer('batteryLife', { number: 9, unit: 'days' }).reading.number, 9);
-  assert.equal(answer('lastWeekRate', { number: 0.9, unit: '%' }).reading.unit, '%/d');
-  assert.equal(answer('lastWeekRate', { number: -1, unit: '%' }), null);
-  const pv = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
-  assert.equal(pv.textFor(answer('lastWeekRate', { number: 0.9, unit: '%' }).reading, 8), '0.9%/d');
-  assert.equal(pv.textFor(answer('lastWeekRate', { number: 10.8, unit: '%' }).reading, 8), '11%/d');
+  const muninn = (name, fields) => answer(fields, 'u/muninn/stats/' + name);
+  assert.equal(muninn('daysRemaining', { number: -1, unit: 'days' }), null, 'no estimate yet: --');
+  assert.equal(muninn('batteryLife', { number: -1, unit: 'days' }), null);
+  assert.equal(muninn('updatedAt', { number: -1 }), null, 'never synced');
+  assert.equal(muninn('batteryLife', { number: 9, unit: 'days' }).reading.number, 9);
+  assert.equal(muninn('lastWeekRate', { number: 0.9, unit: '%' }).reading.unit, '%/d');
+  assert.equal(muninn('lastWeekRate', { number: -1, unit: '%' }), null);
+  assert.equal(pv.textFor(muninn('lastWeekRate', { number: 0.9, unit: '%' }).reading, 8), '0.9%/d');
+  assert.equal(pv.textFor(muninn('lastWeekRate', { number: 10.8, unit: '%' }).reading, 8), '11%/d');
   const complication = reads.valueOf({ source: 'p/preferences/complications/2/muninn/stats/0/daysRemaining',
     reading: { number: -1, unit: 'days' }, at: T0 });
   assert.equal(complication, null, 'as a complication too');
@@ -159,22 +162,20 @@ test('namesMoment: a name ending in At or Time after a small letter or a digit, 
 
 test('valueOf: a value keeps 64 bytes of each text, never half a character', () => {
   const long = 'x'.repeat(100);
-  const value = reads.valueOf({ source: 's', reading: { short: long, long: long, unit: long }, at: T0 });
+  const value = answer({ short: long, long: long, unit: long });
   assert.equal(reads.MAX_TEXT, 64);
   assert.deepEqual([value.reading.short, value.reading.long, value.reading.unit], ['x'.repeat(64), 'x'.repeat(64),
     'x'.repeat(64)]);
-  assert.equal(reads.valueOf({ source: 's', reading: { short: '\u00e4'.repeat(40) }, at: T0 }).reading.short,
-    '\u00e4'.repeat(32), 'two bytes each');
+  assert.equal(answer({ short: '\u00e4'.repeat(40) }).reading.short, '\u00e4'.repeat(32), 'two bytes each');
   const emoji = 'x'.repeat(63) + '\ud83d\ude00';
-  assert.equal(reads.valueOf({ source: 's', reading: { short: emoji }, at: T0 }).reading.short, 'x'.repeat(63),
-    'the emoji would be cut in half: it goes whole');
-  assert.equal(reads.valueOf({ source: 's', reading: { short: '\ud83d\ude00' }, at: T0 }).reading.short, '\ud83d\ude00');
+  assert.equal(answer({ short: emoji }).reading.short, 'x'.repeat(63), 'the emoji would be cut in half: it goes whole');
+  assert.equal(answer({ short: '\ud83d\ude00' }).reading.short, '\ud83d\ude00');
 });
 
 test('sameReading: the same six fields, in whatever order they come', () => {
   const r = reading({ short: '87%', number: 87, unit: '%' });
   assert.equal(reads.sameReading(r, { long: null, state: null, unit: '%', number: 87, time: null, short: '87%' }), true);
-  assert.equal(reads.sameReading(r, reads.valueOf({ source: 's', reading: r, at: T0 }).reading), true, 'through storage');
+  assert.equal(reads.sameReading(r, answer(r).reading), true, 'through storage');
   [{ short: '86%' }, { time: MOMENT_MS }, { number: 86 }, { unit: 'pct' }, { state: false }, { long: 'x' }]
     .forEach((change) => assert.equal(reads.sameReading(r, Object.assign({}, r, change)), false, JSON.stringify(change)));
   assert.equal(reads.sameReading(null, null), true);

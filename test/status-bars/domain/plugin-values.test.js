@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const pv = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const { reading } = require('../../helpers/plugin-host.js');
+const { inZone } = require('../../helpers/in-zone.js');
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
@@ -253,17 +254,13 @@ test('the text: words beside a moment only on its day, its day on another; an al
   assert.equal(pv.textFor(reading({ short: 'Soon', time: new Date(2026, 10, 24, 10, 30).getTime() }), 8, {}, TODAY),
     'Tue', 'words beside another day\'s time');
   assert.equal(pv.textFor(reading({ short: 'Soon', time: EVENING }), 8, {}, TODAY), 'Soon', 'its own day');
-  const zone = process.env.TZ;
-  process.env.TZ = 'America/New_York';
-  try {
-    const tuesdays = Date.UTC(2026, 10, 24);
-    assert.equal(pv.textFor(reading({ short: 'All day', time: tuesdays }), 8, {}, new Date(2026, 10, 23, 20).getTime()),
-      'Tue', 'the evening before, west of UTC: not today\'s');
-    assert.equal(pv.textFor(reading({ short: 'All day', time: tuesdays }), 8, {}, new Date(2026, 10, 24, 10).getTime()),
-      'All day', 'on its day');
-  } finally {
-    if (zone === undefined) { delete process.env.TZ; } else { process.env.TZ = zone; }
-  }
+  const west = inZone('America/New_York', { pv: require.resolve('../../../src/pkjs/status-bars/domain/plugin-values.js'),
+    host: require.resolve('../../helpers/plugin-host.js') }, ({ pv: values, host }) => {
+    const tuesdays = host.reading({ short: 'All day', time: Date.UTC(2026, 10, 24) });
+    return [values.textFor(tuesdays, 8, {}, new Date(2026, 10, 23, 20).getTime()),
+      values.textFor(tuesdays, 8, {}, new Date(2026, 10, 24, 10).getTime())];
+  });
+  assert.deepEqual(west, ['Tue', 'All day'], 'the evening before, west of UTC: not today\'s; then on its day');
 });
 
 test('a property\'s words, as the Value row names it, and whether it is no value to show', () => {

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const news = require('../../../src/pkjs/page/notices/news');
+const { inZone } = require('../../helpers/in-zone.js');
 const newsProtocol = require('../../../src/pkjs/notices/domain/news-protocol.js');
 
 // --- renderMarkdown ---
@@ -174,21 +175,16 @@ test('renderNewsListHtml dates each item by the local calendar day, not the UTC 
     const html = news.renderNewsListHtml([{ id: 1, title: 't', created_at: createdAt, body_md: 'b' }], false);
     return /<div class="news-date">([^<]*)<\/div>/.exec(html)[1];
   };
-  const prevTz = process.env.TZ;
-  try {
-    process.env.TZ = 'Europe/Berlin';
-    // PostgREST's microsecond fraction must not make the date unparseable.
-    assert.equal(dateOf('2026-09-22T23:30:00.123456+00:00'), '2026-09-23');
-    assert.equal(dateOf('2026-09-22T02:00:00+00:00'), '2026-09-22');
-    process.env.TZ = 'America/Los_Angeles';
-    assert.equal(dateOf('2026-09-22T02:00:00+00:00'), '2026-09-21');
-    assert.equal(dateOf('2026-09-22T23:30:00Z'), '2026-09-22');
-    // A bare date is already a calendar day, and garbage keeps its old rendering.
-    assert.equal(dateOf('2026-09-22'), '2026-09-22');
-    assert.equal(dateOf('not-a-date'), 'not-a-date');
-  } finally {
-    if (prevTz === undefined) { delete process.env.TZ; } else { process.env.TZ = prevTz; }
-  }
+  const datesIn = (zone) => inZone(zone, { news: require.resolve('../../../src/pkjs/page/notices/news') },
+    ({ news: page }) => ['2026-09-22T23:30:00.123456+00:00', '2026-09-22T02:00:00+00:00', '2026-09-22T23:30:00Z']
+      .map((createdAt) => /<div class="news-date">([^<]*)<\/div>/.exec(page.renderNewsListHtml([{ id: 1, title: 't',
+        created_at: createdAt, body_md: 'b' }], false))[1]));
+  // PostgREST's microsecond fraction must not make the date unparseable.
+  assert.deepEqual(datesIn('Europe/Berlin'), ['2026-09-23', '2026-09-22', '2026-09-23']);
+  assert.deepEqual(datesIn('America/Los_Angeles'), ['2026-09-22', '2026-09-21', '2026-09-22']);
+  // A bare date is already a calendar day, and garbage keeps its old rendering.
+  assert.equal(dateOf('2026-09-22'), '2026-09-22');
+  assert.equal(dateOf('not-a-date'), 'not-a-date');
 });
 
 test('renderNewsListHtml wraps items in a scroll container between the pinned header and composer', () => {
