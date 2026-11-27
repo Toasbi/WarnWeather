@@ -80,6 +80,10 @@
     // headers' values; the Icon look offers only the first.
     var ICON_GROUPS = [{label: 'Turns with a value that is on or off', value: '__hdr_turns', turns: true},
         {label: 'Always the same', value: '__hdr_same', turns: false}];
+    // The Value row's groups (readValues' supported), with their headers' values: the values
+    // WarnWeather supports (known-values.js), then the plugin's others, as it sends them.
+    var VALUE_GROUPS = [{label: 'Supported', value: '__hdr_supported', supported: true},
+        {label: 'Raw values', value: '__hdr_raw', supported: false}];
     // The Look row's choices (plugin-values.js LOOKS, in its order), by name, as the other slots
     // name theirs.
     var LOOK_LABELS = {both: 'Icon + text', text: 'Text', icon: 'Icon'};
@@ -181,27 +185,30 @@
      * The user's complications as the Value row lists them, as the phone listed them under the
      * Preferences plugin: each by its place, as the Pebble app numbers it, with what it shows and
      * its source's category ('1 · Temperature (weather)'), and why for one WarnWeather may not
-     * read (whyText), and whether it is on or off.
+     * read (whyText), whether it is on or off, and the Look and the icon a slot starts on for
+     * what it shows (known-values.js startOf).
      * @param {Array<Object>} list The complications (plugin-value-list.js complicationsFor).
-     * @returns {Array<{id: string, label: string, unreadable: ?string, onOff: boolean}>}
+     * @returns {Array<{id: string, label: string, unreadable: ?string, onOff: boolean, start: ?Object}>}
      */
     function complicationValues(list) {
         return list.map(function (c) {
             var why = typeof c.why === 'string' ? whyText(c.why) : null;
             return { id: pluginValues.complicationId(c.position), unreadable: why, onOff: c.onOff === true,
+                start: knownValues.startOf(c.category, c.item, c.property),
                 label: (c.position + 1) + ' \u00b7 ' + valueName(c.category, c.item, c.property)
                     + ' (' + labelOf(c.category).toLowerCase() + ')' };
         });
     }
 
     /**
-     * The values a listed plugin offers, in its order: each property of each of its items,
-     * named after the property, and after the item first where the plugin serves more than one,
-     * and whether it is on or off (the item's onOff bit for it). The Preferences plugin's are the
-     * user's complications (complicationValues).
+     * The values a listed plugin offers: each property of each of its items, named (valueName),
+     * whether it is on or off (the item's onOff bit for it), whether WarnWeather supports it and
+     * the Look and the icon a slot starts on for it (known-values.js supported, startOf). The
+     * ones WarnWeather supports first, each group in the plugin's order. The Preferences
+     * plugin's are the user's complications (complicationValues), in their places' order.
      * @param {Object} plugin A listed plugin.
      * @returns {Array<{id: string, label: string, multiple: boolean, unreadable: ?string,
-     *   onOff: boolean}>}
+     *   onOff: boolean, supported: boolean, start: ?Object}>}
      */
     function readValues(plugin) {
         var items = plugin.items;
@@ -211,10 +218,14 @@
             it.properties.forEach(function (property, i) {
                 out.push({ id: pluginValues.valueId(it.category, it.item, property), multiple: it.multiple,
                     onOff: Boolean(it.onOff & (1 << i)),
+                    supported: knownValues.supported(it.category, it.item, property),
+                    start: knownValues.startOf(it.category, it.item, property),
                     label: valueName(it.category, it.item, property, items.length > 1) });
             });
         });
-        return out;
+        return out.filter(function (v) { return v.supported; }).concat(out.filter(function (v) {
+            return !v.supported;
+        }));
     }
 
     // The values of each plugin the phone listed (readValues), made the first time the page asks
@@ -273,9 +284,43 @@
     }
 
     /**
-     * The Value row's list: the values the picked plugin offers (the header says how one
-     * WarnWeather may not read is listed), then the one the slot holds where it offers it no
-     * more, named after its property, or for a complication after its place. None first while
+     * @param {Object} value A value as the Value row lists it (valuesOf).
+     * @returns {Array} Its option: [label, value, meta?], greyed out with the reason for one
+     *   WarnWeather may not read.
+     */
+    function valueOption(value) {
+        return value.unreadable ? [value.label, value.id, {disabled: true, desc: value.unreadable}]
+            : [value.label, value.id];
+    }
+
+    /**
+     * The values a plugin offers as the Value row lists them: under a header each (VALUE_GROUPS),
+     * those WarnWeather supports, then the raw ones; a group with none is left out. The
+     * complications are listed by their places alone.
+     * @param {?Object} plugin A listed plugin, or null.
+     * @returns {Array<Array>} [label, value, meta?] options.
+     */
+    function groupedOptions(plugin) {
+        var values = valuesOf(plugin);
+        var out = [];
+        if (offersComplications(plugin)) { return values.map(valueOption); }
+        VALUE_GROUPS.forEach(function (group) {
+            var members = values.filter(function (v) { return v.supported === group.supported; });
+            if (!members.length) { return; }
+            out.push([group.label, group.value, {disabled: true, groupHeader: true}]);
+            members.forEach(function (v, i) {
+                var option = valueOption(v);
+                option[2] = Object.assign({groupChild: true, groupEnd: i === members.length - 1}, option[2]);
+                out.push(option);
+            });
+        });
+        return out;
+    }
+
+    /**
+     * The Value row's list: the values the picked plugin offers (groupedOptions; the header says
+     * how one WarnWeather may not read is listed), then the one the slot holds where it offers it
+     * no more, named after its property, or for a complication after its place. None first while
      * the slot holds no value of a listed plugin, as pluginPicked leaves it where it offers none
      * WarnWeather can read: the engine would otherwise move the row onto the first option
      * (engine.js resolveRowItem), which may be one greyed out, and Save would store it.
@@ -288,9 +333,7 @@
         var pick = pluginValues.pickOf(S, args.slotKey);
         var plugin = pluginOf(pick.plugin);
         var source = pluginValues.sourceOf(pick);
-        var out = valuesOf(plugin).map(function (v) {
-            return v.unreadable ? [v.label, v.id, {disabled: true, desc: v.unreadable}] : [v.label, v.id];
-        });
+        var out = groupedOptions(plugin);
         if (plugin && !source) { out.unshift(['None', '']); }
         if (source && !valueIn(plugin, source.id)) {
             out.push(source.complication !== null ? [(source.complication + 1) + ' \u00b7 Empty', source.id]
@@ -448,6 +491,36 @@
     }
 
     /**
+     * @param {?Object} value A value as the Value row lists it (valuesOf), or null for none.
+     * @returns {{look: string, icon: string}} The Look and the icon a slot starts on for it: the
+     *   ones WarnWeather picks for a value it supports (known-values.js startOf), else where any
+     *   slot starts (plugin-values.js PICK_DEFAULTS).
+     */
+    function startOf(value) {
+        var start = (value && value.start) || {};
+        return { look: start.look || pluginValues.LOOK_DEFAULT, icon: start.icon || pluginValues.ICON_DEFAULT };
+    }
+
+    /**
+     * A slot's new value starts it on its own Look and icon (startOf) where the slot still holds
+     * the ones the value before started it on: the user's own picks stay.
+     * @param {Object} S Settings (mutated).
+     * @param {string} slotKey The slot's settings key.
+     * @param {?Object} before The value before, as the Value row listed it, or null.
+     * @returns {void}
+     */
+    function restartSlot(S, slotKey, before) {
+        var keys = catalog.pluginValueKeys(slotKey);
+        var pick = pluginValues.pickOf(S, slotKey);
+        var was = startOf(before);
+        var now = startOf(valueIn(pluginOf(pick.plugin), pick.id));
+        if (pluginValues.lookOf(pick) === was.look && pluginValues.iconName(pick) === was.icon) {
+            S[keys.look] = now.look;
+            S[keys.icon] = now.icon;
+        }
+    }
+
+    /**
      * A slot's new value takes no label typed for the one before: it named that value
      * (labelShown).
      * @param {Object} S Settings (mutated).
@@ -472,8 +545,9 @@
     }
 
     /**
-     * onChange of the Value row: another value with no label (dropLabel), and the Look and the
-     * icon fit to it (fitSlot).
+     * onChange of the Value row: another value with no label (dropLabel) and on its own Look and
+     * icon where the slot holds the ones the value before started it on (restartSlot), and the
+     * Look and the icon fit to it (fitSlot).
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The value before. @param {string} newV The value now.
      * @param {Object} env Platform env.
@@ -482,15 +556,19 @@
      * @returns {void}
      */
     function valuePicked(S, oldV, newV, env, key, args) {
-        if (oldV !== newV) { dropLabel(S, args.slotKey); }
+        if (oldV !== newV) {
+            dropLabel(S, args.slotKey);
+            restartSlot(S, args.slotKey, valueIn(pluginOf(pluginValues.pickOf(S, args.slotKey).plugin), oldV));
+        }
         fitSlot(S, args.slotKey);
     }
 
     /**
-     * onChange of the Plugin row: a new plugin starts on its first value WarnWeather can read,
-     * None on none, with no label and a Look and an icon that fit it (fitSlot). Plugin None puts
-     * the Look and the icon back on where a slot starts too: it hides their rows, where they could
-     * be changed.
+     * onChange of the Plugin row: a new plugin starts on its first value WarnWeather can read
+     * (one it supports first: readValues), None on none, with no label, on the value's own Look
+     * and icon where the slot holds the ones the value before started it on (restartSlot), and a
+     * Look and an icon that fit it (fitSlot). Plugin None puts the Look and the icon back on where
+     * a slot starts too: it hides their rows, where they could be changed.
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The plugin before.
      * @param {string} newV The plugin now.
@@ -503,9 +581,12 @@
         var slotKey = args.slotKey;
         var keys = catalog.pluginValueKeys(slotKey);
         var first = valuesOf(pluginOf(newV)).filter(function (v) { return !v.unreadable; })[0];
+        var before;
         if (oldV !== newV) {
+            before = valueIn(pluginOf(oldV), S[keys.id]);
             S[keys.id] = first ? first.id : '';
             dropLabel(S, slotKey);
+            restartSlot(S, slotKey, before);
             if (!newV) {
                 S[keys.look] = pluginValues.LOOK_DEFAULT;
                 S[keys.icon] = pluginValues.ICON_DEFAULT;

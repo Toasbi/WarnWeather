@@ -265,7 +265,10 @@ property a source declares as a text, a timestamp, a number or a boolean, of a s
 may read without being asked for a permission it never declared (judged by the Pebble app's
 keys: Internet for each domain on its own, and never a permission another app's plugin defines:
 `plugin-reads.js` declares) and that does nothing when it is read (Find My Phone rings the
-phone: `plugin-reads.js` actsWhenRead), of any plugin but this app's own. The Pebble app's
+phone: `plugin-reads.js` actsWhenRead), of any plugin but this app's own, and never what is no
+value to show: an id, a link, an account, a position, a machine's code, the name of a source's
+one instance, the Index's note, reminder and chat places (`plugin-value-list.js` notAValue). It
+lists the supported values first, then the raw values (Supported value). The Pebble app's
 Preferences plugin is listed as Complications, right after None, with the user's complications
 in place of values of its own (Complication). The value is a plugin read, after each Updates
 interval or once the plugin's own word on when it has something new runs out
@@ -292,6 +295,17 @@ number with its unit where the slot has room, else its state, on or off, else it
 or while the plugin says it holds, twelve hours at most; then the slot shows -- (shownReading).
 Not on aplite, and only where the Pebble app runs plugins.
 _Avoid_: custom slot; complication, which is one of the user's in the Pebble app.
+
+**Supported value**:
+A Plugin value WarnWeather has checked, by the shared vocabulary's category, item and property
+whichever plugin serves it (`page/status-bars/known-values.js` SUPPORTED): it says something
+the watchface shows nowhere else, and changes slowly enough for the slot's Updates, such as
+Wi-Fi, today's high or the next event. Each has WarnWeather's name for it, and the Look and the
+icon a slot starts on for it (Wi-Fi: its icon alone), which a new value takes in place of the
+ones the value before started the slot on, never of the user's own. Every other value the
+dialog lists is a raw value: named after its property, printed as the plugin sends it, under
+Raw values.
+_Avoid_: official value, built-in value.
 
 **Complication**:
 One of the readings the user picks in the Pebble app for every watchface to show (its Settings

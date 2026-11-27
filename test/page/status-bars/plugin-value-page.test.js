@@ -66,6 +66,18 @@ const LEVEL_KEY = PHONE + '/phone/phone_state/battery_level';
 const inSlot = (fn) => (S, slotKey = SLOT) => fn(S, BASALT, { slotKey: slotKey });
 const pluginOptions = inSlot(page.pluginOptions);
 const valueOptions = inSlot(page.valueOptions);
+
+/**
+ * A list's options without its groups: no header, and no child's marks.
+ * @param {Array<Array>} options [label, value, meta?] options.
+ * @returns {Array<Array>} The options themselves, each with what else its meta says, if anything.
+ */
+const ungrouped = (options) => options.filter((o) => !(o[2] && o[2].groupHeader)).map((o) => {
+  const meta = Object.assign({}, o[2]);
+  delete meta.groupChild;
+  delete meta.groupEnd;
+  return Object.keys(meta).length ? [o[0], o[1], meta] : [o[0], o[1]];
+});
 const pluginHint = inSlot(page.pluginHint);
 const valueHint = inSlot(page.valueHint);
 const lastLine = inSlot(page.lastLine);
@@ -203,17 +215,17 @@ test('a value WarnWeather knows goes by its name for it, by its source\'s catego
   const other = { uuid: 'o', name: 'Garden', items: [{ category: 'garden', item: 'bed', multiple: false,
     properties: ['precipitation'] }, { category: 'garden', item: 'pond', multiple: false, properties: ['level'] }] };
   userData(t, { plugins: [weather, other] });
-  assert.deepEqual(valueOptions(pickIn({ plugin: 'w', id: 'weather/location/high' })).map((o) => o[0]),
+  assert.deepEqual(ungrouped(valueOptions(pickIn({ plugin: 'w', id: 'weather/location/high' }))).map((o) => o[0]),
     ['Chance of precipitation', 'Today\'s high', 'Temperature'], 'one it does not know by its property\'s');
-  assert.deepEqual(valueOptions(pickIn({ plugin: 'o', id: 'garden/bed/precipitation' })).map((o) => o[0]),
+  assert.deepEqual(ungrouped(valueOptions(pickIn({ plugin: 'o', id: 'garden/bed/precipitation' }))).map((o) => o[0]),
     ['Bed: precipitation', 'Pond: level'], 'the same property of another source: not the value WarnWeather knows');
 });
 
 test('the Value row lists the picked plugin\'s values, and keeps one it no longer offers under its name', (t) => {
   userData(t, { plugins: PLUGINS });
-  assert.deepEqual(valueOptions(LEVEL), [['Battery level', 'phone/phone_state/battery_level'],
-    ['Mobile network', 'phone/phone_state/cell']]);
-  assert.deepEqual(valueOptions(pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining' })),
+  assert.deepEqual(ungrouped(valueOptions(LEVEL)), [['Mobile network', 'phone/phone_state/cell'],
+    ['Battery level', 'phone/phone_state/battery_level']], 'the one WarnWeather supports first');
+  assert.deepEqual(ungrouped(valueOptions(pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining' }))),
     [['Days left', 'muninn/stats/daysRemaining'], ['Estimate: battery life', 'muninn/estimate/batteryLife']],
     'a plugin that serves more than one item: each value after its item, but one WarnWeather knows by its name');
   const old = pickIn({ plugin: PHONE, id: 'phone/phone_state/wifi_name' });
@@ -225,6 +237,62 @@ test('the Value row lists the picked plugin\'s values, and keeps one it no longe
     'a plugin not on this phone: its value, under its name');
   assert.equal(valueHint(gone), null, 'the Plugin row says it');
   assert.deepEqual(valueOptions({}), [], 'None: no values');
+});
+
+test('the Value row lists the values WarnWeather supports under Supported, then the rest under Raw values', (t) => {
+  const weather = { uuid: 'w', name: 'Weather', items: [{ category: 'weather', item: 'location', multiple: true,
+    properties: ['temperature', 'humidity', 'uv_index', 'high'] }] };
+  const stocks = { uuid: 's', name: 'Stocks', items: [{ category: 'finance', item: 'stock', multiple: true,
+    properties: ['price'] }] };
+  userData(t, { plugins: [weather, stocks] });
+  assert.deepEqual(valueOptions(pickIn({ plugin: 'w', id: 'weather/location/high' })), [
+    ['Supported', '__hdr_supported', { disabled: true, groupHeader: true }],
+    ['Humidity', 'weather/location/humidity', { groupChild: true, groupEnd: false }],
+    ['Today\'s high', 'weather/location/high', { groupChild: true, groupEnd: true }],
+    ['Raw values', '__hdr_raw', { disabled: true, groupHeader: true }],
+    ['Temperature', 'weather/location/temperature', { groupChild: true, groupEnd: false }],
+    ['UV index', 'weather/location/uv_index', { groupChild: true, groupEnd: true }]],
+  'each group in the plugin\'s order; the weather WarnWeather draws itself is raw');
+  assert.deepEqual(valueOptions(pickIn({ plugin: 's', id: 'finance/stock/price' })).map((o) => o[1]),
+    ['__hdr_raw', 'finance/stock/price'], 'a group with none is left out: a price changes by the minute');
+});
+
+test('a value WarnWeather supports starts the slot on its Look and icon, where the slot holds the ones the '
+  + 'value before started it on', (t) => {
+  const phone = { uuid: PHONE, name: 'Phone', items: [{ category: 'phone', item: 'phone_state', multiple: false,
+    properties: ['battery_level', 'cell', 'wifi', 'mobile_data'], onOff: 12 }] };
+  const calendar = { uuid: 'c', name: 'Calendar', items: [{ category: 'calendar', item: 'event', multiple: true,
+    properties: ['name', 'starts_at'] }] };
+  userData(t, { plugins: [phone, calendar] });
+  const shown = (S) => [S[KEYS.id], S[KEYS.look], S[KEYS.icon]];
+  const S = pickIn({});
+  S[KEYS.plugin] = PHONE;
+  picked(S, '', PHONE);
+  assert.deepEqual(shown(S), ['phone/phone_state/cell', 'text', 'switch'],
+    'a new plugin starts on the first value WarnWeather supports, the text alone for a network\'s name');
+  const pick = (id) => { const before = S[KEYS.id]; S[KEYS.id] = id; changed(S, KEYS.id, before, id); };
+  pick('phone/phone_state/wifi');
+  assert.deepEqual(shown(S), ['phone/phone_state/wifi', 'icon', 'wifi'], 'Wi-Fi: its icon alone');
+  pick('phone/phone_state/mobile_data');
+  assert.deepEqual(shown(S), ['phone/phone_state/mobile_data', 'both', 'phone'], 'its words beside the phone');
+  pick('phone/phone_state/battery_level');
+  assert.deepEqual(shown(S), ['phone/phone_state/battery_level', 'text', 'switch'],
+    'a raw value: where any slot starts');
+  S[KEYS.look] = 'both';
+  S[KEYS.icon] = 'plug';
+  pick('phone/phone_state/wifi');
+  assert.deepEqual(shown(S), ['phone/phone_state/wifi', 'both', 'plug'], 'a Look and an icon of the user\'s stay');
+  S[KEYS.plugin] = 'c';
+  picked(S, PHONE, 'c');
+  assert.deepEqual(shown(S), ['calendar/event/name', 'both', 'plug'], 'another plugin too');
+  const fresh = pickIn({ plugin: 'c' });
+  picked(fresh, '', 'c');
+  assert.deepEqual(shown(fresh), ['calendar/event/name', 'both', 'calendar'], 'the next event beside the calendar');
+  S[KEYS.look] = 'text';
+  S[KEYS.icon] = 'switch';
+  pick('calendar/event/starts_at');
+  assert.deepEqual(shown(S), ['calendar/event/starts_at', 'text', 'switch'],
+    'where any slot starts, but not where the value before starts it: the user\'s pick');
 });
 
 test('the Value row says when the plugin offers the value for more than one thing', (t) => {
@@ -799,9 +867,9 @@ test('a new plugin starts on its first value, with a Look and an icon that fit i
   picked(other, PHONE, MUNINN);
   assert.deepEqual([other[KEYS.id], other[KEYS.look], other[KEYS.icon]], ['muninn/stats/daysRemaining', 'both', 'plug'],
     'a number: Icon + text with an icon that stays the same');
-  const alone = Object.assign(pickIn({ look: 'icon', icon: 'wifi' }), WIFI, { [KEYS.plugin]: MUNINN });
+  const alone = Object.assign(pickIn({ look: 'icon', icon: 'bluetooth' }), WIFI, { [KEYS.plugin]: MUNINN });
   picked(alone, PHONE, MUNINN);
-  assert.deepEqual([alone[KEYS.look], alone[KEYS.icon]], ['text', 'wifi'], 'the Icon look goes back to Text');
+  assert.deepEqual([alone[KEYS.look], alone[KEYS.icon]], ['text', 'bluetooth'], 'the Icon look goes back to Text');
   // Plugin None hides the Look and Icon rows, so they go back to where a slot starts.
   const off = Object.assign(pickIn({ look: 'icon', icon: 'wifi' }), WIFI, { [KEYS.plugin]: '' });
   picked(off, PHONE, '');
@@ -909,8 +977,9 @@ test('two slots, two dialogs: each lists, says and shows what its own pick does'
   userData(t, { plugins: WITH_WIFI, pluginValues: Object.assign(handed(kept({ short: '87%' })), handed(days)) });
   const S = Object.assign({ statusTopLeft: 'pluginValue', statusTopRight: 'pluginValue' }, LEVEL,
     pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', look: 'both', icon: 'calendar' }, 'statusTopRight'));
-  assert.deepEqual(valueOptions(S).map((o) => o[1]), ['phone/phone_state/battery_level', 'phone/phone_state/wifi']);
-  assert.deepEqual(valueOptions(S, 'statusTopRight').map((o) => o[1]), ['muninn/stats/daysRemaining',
+  assert.deepEqual(ungrouped(valueOptions(S)).map((o) => o[1]), ['phone/phone_state/wifi',
+    'phone/phone_state/battery_level']);
+  assert.deepEqual(ungrouped(valueOptions(S, 'statusTopRight')).map((o) => o[1]), ['muninn/stats/daysRemaining',
     'muninn/estimate/batteryLife']);
   assert.deepEqual([fromMuninn(S), fromMuninn(S, 'statusTopRight')], [false, true]);
   assert.deepEqual([lastLine(S), lastLine(S, 'statusTopRight')], ['87% (5 min ago).', '5 d (5 min ago).']);
