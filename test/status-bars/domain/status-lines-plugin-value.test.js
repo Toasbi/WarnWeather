@@ -160,28 +160,31 @@ test('a moment prints as a clock time in the user\'s format, as the sun slot pri
     facts(value({ time: at }))).slots.map((s) => s.text), ['1:40p', '1:40p', '1:40p']);
 });
 
-test('a moment on another day than the bake\'s carries its date: after its time in the middle, alone at the edges', () => {
+test('a moment on another day than the bake\'s carries its day: its weekday in the coming week, else its date', () => {
   // Years from the clock the tests run by, so only the bake's own instant can make its day today.
   const baked = new Date(2030, 2, 14, 12, 0, 0);
   const read = { at: baked.getTime() - 10 * 60 * 1000 };
   const today = new Date(2030, 2, 14, 9, 5, 0).getTime();
   const tomorrow = new Date(2030, 2, 15, 9, 5, 0).getTime();
+  const weekOn = new Date(2030, 2, 21, 9, 5, 0).getTime();
   assert.deepEqual(bakeTop(EVERYWHERE, facts(value({ time: today }, read)), BASALT, baked).slots
     .map((s) => s.text), ['9:05', '9:05', '9:05']);
   assert.deepEqual(bakeTop(EVERYWHERE, facts(value({ time: tomorrow }, read)), BASALT, baked).slots
-    .map((s) => s.text), ['15 Mar', '9:05 15 Mar', '15 Mar']);
+    .map((s) => s.text), ['Fri 9:05', 'Fri 9:05', 'Fri 9:05'], 'a Friday: 8 bytes, the edges too');
   assert.deepEqual(bakeTop(Object.assign({ axisTimeFormat: '12h', timeShowAmPm: true }, EVERYWHERE),
     facts(value({ time: tomorrow }, read)), BASALT, baked).slots.map((s) => s.text),
-  ['15 Mar', '9:05a 15 Mar', '15 Mar']);
+  ['Fri', 'Fri 9:05a', 'Fri'], 'its day alone at the edges, where both do not fit');
+  assert.deepEqual(bakeTop(EVERYWHERE, facts(value({ time: weekOn }, read)), BASALT, baked).slots
+    .map((s) => s.text), ['21 Mar', '9:05 21 Mar', '21 Mar'], 'a week on: Thursday would be today');
 });
 
 test('a state prints on or off', () => {
   assert.deepEqual(bakeTop(EVERYWHERE, facts(value({ state: false }))).slots.map((s) => s.text), ['off', 'off', 'off']);
 });
 
-test('a long text is cut to each place\'s bytes', () => {
+test('a long text is cut to each place\'s bytes, with an ellipsis after it', () => {
   const { bytes, slots } = bakeTop(EVERYWHERE, facts(value({ long: 'Next: design review with the whole team' })));
-  assert.deepEqual(slots.map((s) => s.text), ['Next: de', 'Next: design review', 'Next: de']);
+  assert.deepEqual(slots.map((s) => s.text), ['Next\u2026', 'Next: design rev\u2026', 'Next\u2026']);
   assert.ok(bytes.length <= catalog.CAPS.LINE_MAX, bytes.length + ' bytes');
 });
 

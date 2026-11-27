@@ -32,7 +32,7 @@
 // at a start and at a save, what storage keeps of a source no slot picks goes, so a value picked
 // again is read at once (keepPicked). A bake shows a value only in a slot whose source it was
 // read from, and drops it once it is too old for that slot (plugin-values.js shownReading); when
-// what the slots show changes, with a read or with the time (that, or a moment's date at the
+// what the slots show changes, with a read or with the time (that, or a moment's day at a
 // midnight after it, or an icon turning: shownSlots), the watch is owed the status that shows
 // it. The settings page gets each value only while a slot shows its source, and for a
 // complication only while its place names the reading it was read from (forPage).
@@ -83,8 +83,8 @@ function readOf(source, list, permissions) {
  * What the slots that show a source show of its value at an instant, each in its Look: the text
  * it prints at the widest a Plugin value slot is (status-lines.js textCap; slotTextOf) and the
  * icon, which turns with a value that is on or off (plugin-values.js iconId). A value grown too old for a
- * slot shows nothing there (plugin-values.js shownReading), and a moment prints its date once it
- * is on another day (slot-text.js momentText). Never logged: it is another app's data.
+ * slot shows nothing there (plugin-values.js shownReading), and a moment prints its day once it
+ * is on another (slot-text.js momentText). Never logged: it is another app's data.
  * @param {?Object} value The value kept, or null.
  * @param {Array<{pick: Object}>} slots The slots that show its source (status-lines.js
  *   wantedPluginValues), in their order.

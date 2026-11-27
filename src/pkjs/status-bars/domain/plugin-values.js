@@ -193,6 +193,9 @@
             key: plugin + (instance ? INSTANCE_MARK + encodeURIComponent(instance) : '') + '/' + id };
     }
 
+    /** What ends a text cut short (cutName, fitText): the ellipsis, which the watch's fonts draw. */
+    var CUT_MARK = '\u2026';
+
     /**
      * @param {string} text A name.
      * @param {number} max The most characters it keeps.
@@ -201,7 +204,7 @@
      */
     function cutName(text, max) {
         var chars = utf8.codePoints(text);
-        return chars.length > max ? chars.slice(0, max - 1).join('') + '\u2026' : text;
+        return chars.length > max ? chars.slice(0, max - 1).join('') + CUT_MARK : text;
     }
 
     /**
@@ -275,11 +278,12 @@
     /**
      * What the slot prints of a reading's short text beside its moment (textFor): the moment
      * itself where the text is only a clock time (CLOCK_ONLY), so it is in the user's clock
-     * format and carries its date on another day (slot-text.js momentText), where the Calendar's
-     * '09:15' would pass for today's; the words on the moment's own day, and its date on any
-     * other, where they would say the same of every day ('All day'). A moment at 00:00 UTC
-     * beside words is a day's, as the Pebble app sends an all-day event's: its day is the one in
-     * UTC, which in local time would be the evening before, west of it.
+     * format and carries its day on another (slot-text.js momentText), where the Calendar's
+     * '09:15' would pass for today's; the words on the moment's own day, and its day on any
+     * other (slot-text.js dayText: 'Sat', '30 Nov'), where they would say the same of every day
+     * ('All day'). A moment at 00:00 UTC beside words is a day's, as the Pebble app sends an
+     * all-day event's: its day is the one in UTC, which in local time would be the evening
+     * before, west of it.
      * @param {string} short The short text, on one line (oneLine). @param {number} ms The moment,
      *   in epoch milliseconds. @param {number} cap The slot's byte cap.
      * @param {Object} settings Settings: the clock's format. @param {number} nowMs Now, in epoch
@@ -294,7 +298,88 @@
             return at.toDateString() === now.toDateString() ? short : slotText.momentText(ms, nowMs, settings, cap);
         }
         return at.getUTCFullYear() === now.getFullYear() && at.getUTCMonth() === now.getMonth()
-            && at.getUTCDate() === now.getDate() ? short : slotText.dateText(at.getUTCDate(), at.getUTCMonth());
+            && at.getUTCDate() === now.getDate() ? short
+            : slotText.dayText(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate(), nowMs);
+    }
+
+    /** A number in a text, with the separators between its digits: '189.84', '1,234.5', '7'. */
+    var NUMBER = /\d+(?:[.,]\d+)*/g;
+
+    /**
+     * A number rounded half up to fewer decimals, its separators as they were.
+     * @param {string} number A number (NUMBER) whose last separator is its decimal one.
+     * @param {number} dot Where that separator is. @param {number} keep The decimals it keeps,
+     *   fewer than it has.
+     * @returns {?string} e.g. ('189.84', 3, 1) → '189.8', ('189.84', 3, 0) → '190', ('9,999.5', 5,
+     *   0) → '10,000'; null where the carry would make a first group of four digits ('999,999.5'),
+     *   which would group the number wrongly.
+     */
+    function roundedNumber(number, dot, keep) {
+        var chars = number.slice(0, keep ? dot + 1 + keep : dot).split('');
+        var i = chars.length - 1;
+        var group;
+        if (number.charAt(dot + 1 + keep) < '5') { return chars.join(''); }
+        // Every 9 turns 0 and carries one on; a separator passes it on.
+        while (i >= 0 && !/[0-8]/.test(chars[i])) {
+            if (chars[i] === '9') { chars[i] = '0'; }
+            i -= 1;
+        }
+        if (i >= 0) {
+            chars[i] = String(Number(chars[i]) + 1);
+            return chars.join('');
+        }
+        group = number.search(/[.,]/);
+        return group < dot && group === 3 ? null : '1' + chars.join('');
+    }
+
+    /**
+     * A text with its last number rounded to the fewest decimals it must lose to fit the cap
+     * ('€189.84' → '€189.8', '€1189.84' → '€1190'), where a cut would print another number.
+     * @param {string} text The text, on one line. @param {number} cap The slot's byte cap.
+     * @returns {?string} null where no rounding fits, and where the number has no decimals for
+     *   sure: none, a separator used twice ('1,234,567' groups thousands), or a lone one before
+     *   three digits after a whole of one to three that does not start with 0 ('1.234' is 1234 in
+     *   German).
+     */
+    function roundedToFit(text, cap) {
+        var match = null;
+        var found;
+        var number;
+        var dot;
+        var keep;
+        var rounded;
+        NUMBER.lastIndex = 0;
+        while ((found = NUMBER.exec(text)) !== null) { match = found; }
+        number = match ? match[0] : '';
+        dot = Math.max(number.lastIndexOf('.'), number.lastIndexOf(','));
+        if (dot < 0 || number.indexOf(number.charAt(dot)) < dot
+                || (number.length - dot === 4 && /^[1-9]\d{0,2}$/.test(number.slice(0, dot)))) {
+            return null;
+        }
+        for (keep = number.length - dot - 2; keep >= 0; keep -= 1) {
+            rounded = roundedNumber(number, dot, keep);
+            if (rounded === null) { return null; }
+            rounded = text.slice(0, match.index) + rounded + text.slice(match.index + number.length);
+            if (utf8.byteLength(rounded) <= cap) { return rounded; }
+        }
+        return null;
+    }
+
+    /**
+     * A text as a slot prints it within its cap: whole where it fits; else with its number
+     * rounded (roundedToFit); else cut at a character's edge, with no blank or separator left at
+     * its end and an ellipsis after it (CUT_MARK), so that it reads as cut ('Partly cloudy' →
+     * 'Partl…', '+CHF 11189.84' → '+CHF…').
+     * @param {string} text The text, on one line. @param {number} cap The slot's byte cap.
+     * @returns {string}
+     */
+    function fitText(text, cap) {
+        var kept;
+        if (utf8.byteLength(text) <= cap) { return text; }
+        kept = roundedToFit(text, cap);
+        if (kept !== null) { return kept; }
+        kept = utf8.truncateToByteCap(text, cap - utf8.byteLength(CUT_MARK)).str.replace(/[\s,.;:\/-]+$/, '');
+        return kept ? kept + CUT_MARK : utf8.truncateToByteCap(text, cap).str;
     }
 
     /**
@@ -302,10 +387,10 @@
      *   1. Its short text: the plugin's own words for a small space, which say more than the
      *      shape beside them can ('Off' beside a boolean). The Pebble app's own plugin screens
      *      show it first too. Beside a moment, only while it says more (shortBesideMoment): a
-     *      clock time gives way to the moment, words on another day to its date.
+     *      clock time gives way to the moment, words on another day to its day.
      *   2. Its moment, as a clock time in the user's 12/24 h setting, as the sun slot prints
-     *      sunrise, with its date after it on another day than the one the slot is baked for
-     *      (slot-text.js momentText): a timestamp, which the plugin API leaves to the watch to
+     *      sunrise, with its day on another day than the one the slot is baked for (slot-text.js
+     *      momentText: 'Sat 9:15', '23:10 4 Dec'): a timestamp, which the plugin API leaves to the watch to
      *      show in the user's format, or a number its name says is a moment
      *      (plugin-value-reads.js momentOf). Before the number: the slot is read every 15
      *      minutes at most, and a moment stays true between reads where a count towards it does
@@ -314,8 +399,8 @@
      *      or the degree sign attaches, any other follows a space).
      *   4. Its state, on or off.
      *   5. Its long text, last: it is written for a screen with room, and the slot cuts it.
-     * Cut to the slot's cap at a character's edge, as the bake cuts any text, so the settings
-     * page prints what the watch does.
+     * Fit to the slot's cap (fitText): a number rounded, else cut with an ellipsis, the same on
+     * the settings page as on the watch.
      * @param {?{short: ?string, time: ?number, number: ?number, unit: ?string, state: ?boolean,
      *   long: ?string}} reading The reading of a value kept (plugin-value-reads.js valueOf), or
      *   null for none.
@@ -344,7 +429,7 @@
         } else {
             text = oneLine(r.long) || '--';
         }
-        return utf8.truncateToByteCap(text, cap).str;
+        return fitText(text, cap);
     }
 
     /**

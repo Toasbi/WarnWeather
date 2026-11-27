@@ -203,6 +203,12 @@
     /** The months as a moment's date names them, three letters each ('24 Nov'). */
     var MONTHS = 'JanFebMarAprMayJunJulAugSepOctNovDec';
 
+    /** The weekdays as a day in the coming week is named, three letters each ('Sat'), Sunday first. */
+    var WEEKDAYS = 'SunMonTueWedThuFriSat';
+
+    /** The days ahead a weekday names a day: tomorrow up to six days on (weekdayAhead). */
+    var WEEK_AHEAD = 6;
+
     /**
      * @param {number} deg A bearing in degrees, where the wind comes from (meteorological).
      * @returns {string} Its compass point, one of N/NE/E/SE/S/SW/W/NW.
@@ -220,24 +226,64 @@
     }
 
     /**
+     * @param {Date} from A local midnight. @param {Date} to Another.
+     * @returns {number} The whole days from one to the other, by the calendar: a day of 23 or
+     *   25 hours, where the clocks change, counts as one.
+     */
+    function daysBetween(from, to) {
+        return Math.round((to.getTime() - from.getTime()) / 86400000);
+    }
+
+    /**
+     * @param {number} year A day's year. @param {number} month Its month, 0 for January.
+     * @param {number} date Its day of the month.
+     * @param {number} nowMs Now, in epoch milliseconds: its local date is today's.
+     * @returns {?string} Its weekday ('Sat') where it is in the coming week, WEEK_AHEAD days on
+     *   at most by the calendar, whatever the clock changes in between: it reads at a glance and
+     *   names no other day of that week. Null for any other day, one gone by too, which a weekday
+     *   would place in the week to come.
+     */
+    function weekdayAhead(year, month, date, nowMs) {
+        var now = new Date(nowMs);
+        var day = new Date(year, month, date);
+        var ahead = daysBetween(new Date(now.getFullYear(), now.getMonth(), now.getDate()), day);
+        return ahead > 0 && ahead <= WEEK_AHEAD ? WEEKDAYS.substr(day.getDay() * 3, 3) : null;
+    }
+
+    /**
+     * A day other than today as a slot prints it: its weekday in the coming week (weekdayAhead),
+     * else its date.
+     * @param {number} year The day's year. @param {number} month Its month, 0 for January.
+     * @param {number} date Its day of the month.
+     * @param {number} nowMs Now, in epoch milliseconds: its local date is today's.
+     * @returns {string} e.g. 'Sat', '24 Nov'
+     */
+    function dayText(year, month, date, nowMs) {
+        return weekdayAhead(year, month, date, nowMs) || dateText(date, month);
+    }
+
+    /**
      * A moment as a slot prints it (the Plugin value's, plugin-values.js textFor): its clock
-     * time in the user's format (clockText) while it is on the day the slot is baked for, else
-     * with its date after it ('23:10 24 Nov'); the date alone ('24 Nov') where the slot has no
-     * room for both, since a bare clock time would read as today's. Never a cut text.
+     * time in the user's format (clockText) while it is on the day the slot is baked for; in the
+     * coming week after its weekday ('Sat 9:15'), else with its date after it ('23:10 24 Nov',
+     * dayText); the day alone ('Sat', '24 Nov') where the slot has no room for both, since a bare
+     * clock time would read as today's. Never a cut text.
      * @param {number} epochMs The moment, in epoch milliseconds.
      * @param {number} nowMs The instant the slot is baked for, in epoch milliseconds: its local
      *   date is today's.
      * @param {Object} settings Clay settings blob (clockText's).
      * @param {number} cap The slot's byte cap.
-     * @returns {string} e.g. '17:04', '5:04p', '23:10 24 Nov', '24 Nov'
+     * @returns {string} e.g. '17:04', '5:04p', 'Sat 9:15', '23:10 24 Nov', '24 Nov'
      */
     function momentText(epochMs, nowMs, settings, cap) {
         var at = new Date(epochMs);
         var clock = clockText(at.getHours(), at.getMinutes(), settings);
-        var date = dateText(at.getDate(), at.getMonth());
+        var weekday = weekdayAhead(at.getFullYear(), at.getMonth(), at.getDate(), nowMs);
+        var day = weekday || dateText(at.getDate(), at.getMonth());
+        var both = weekday ? weekday + ' ' + clock : clock + ' ' + day;
         // The local date as a text, which is the same text for the same day.
         if (at.toDateString() === new Date(nowMs).toDateString()) { return clock; }
-        return utf8.byteLength(clock + ' ' + date) <= cap ? clock + ' ' + date : date;
+        return utf8.byteLength(both) <= cap ? both : day;
     }
 
     /**
@@ -277,7 +323,7 @@
     function formatCountdown(targetValue, now, showUnit, cap) {
         var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         var target = parseCountdownDate(targetValue, today);
-        var days = Math.round((target.getTime() - today.getTime()) / 86400000);
+        var days = daysBetween(today, target);
         if (days < 0) { return '--'; }
         if (days === 0) { return 'now'; }
         return withUnit(String(days), showUnit === false ? '' : 'd', cap);
@@ -433,6 +479,7 @@
         clockText: clockText,
         compassPoint: compassPoint,
         dateText: dateText,
+        dayText: dayText,
         momentText: momentText,
         formatCountdown: formatCountdown,
         isoWeek: isoWeek,

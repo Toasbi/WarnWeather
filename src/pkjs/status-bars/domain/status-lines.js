@@ -347,7 +347,7 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
   if (code === 'week') { return 'W' + isoWeek(bake.now); }
   // A value another app's plugin serves, the slot's own, as the slot prints it in its Look
   // (plugin-values.js slotTextOf, textFor): a moment in the user's clock format, as the sun slot,
-  // with its date on another day than the bake's; '--' until it is read, and once it is too old,
+  // with its day on another day than the bake's; '--' until it is read, and once it is too old,
   // in every Look; else none in the Icon look, whose icon alone shows it.
   if (code === 'pluginValue') {
     return pluginValues.slotTextOf(pluginValues.pickOf(settings, slotKey), pluginReadingOf(bake, slotKey), cap,

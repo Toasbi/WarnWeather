@@ -1,7 +1,8 @@
 'use strict';
 // slot-text.js wireKind: the kind a slot's item packs as. The bake packs by it
 // (status-lines.js packLine) and the settings page counts a slot's bytes by it, so the two
-// agree on which items carry text. And momentText: a plugin's moment as a slot prints it.
+// agree on which items carry text. And momentText: a plugin's moment as a slot prints it, with
+// dayText, the day of one on another day.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
@@ -74,22 +75,58 @@ test('a moment on the day the slot is baked for prints its clock time alone, fro
   assert.equal(slotText.momentText(at(23, 23, 59), at(23, 0, 0), {}, 8), '23:59', 'baked at midnight');
 });
 
-test('a moment on another day prints its date after its clock time where the slot has room for both', () => {
-  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, {}, 19), '23:10 24 Nov', 'the middle');
-  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, H12, 19), '11:10p 24 Nov');
-  assert.equal(slotText.momentText(at(22, 9, 5), BAKED, {}, 19), '9:05 22 Nov', 'the day before');
-  assert.equal(slotText.momentText(at(24, 0, 0), at(23, 23, 59), {}, 19), '0:00 24 Nov', 'a minute later');
-  assert.equal(slotText.momentText(new Date(2025, 10, 23, 12, 0).getTime(), BAKED, {}, 19), '12:00 23 Nov',
-    'the same date a year before');
-  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, {}, 12), '23:10 24 Nov', '12 bytes in 12');
+test('a moment in the coming week prints its weekday before its clock time, six days on at most', () => {
+  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, {}, 19), 'Tue 23:10', 'tomorrow, in the middle');
+  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, H12, 19), 'Tue 11:10p');
+  assert.equal(slotText.momentText(at(24, 0, 0), at(23, 23, 59), {}, 19), 'Tue 0:00', 'a minute later');
+  assert.equal(slotText.momentText(at(28, 9, 15), BAKED, {}, catalog.CAPS.EDGE_TEXT_MAX), 'Sat 9:15', 'an edge: 8 in 8');
+  [['Tue', 24], ['Wed', 25], ['Thu', 26], ['Fri', 27], ['Sat', 28], ['Sun', 29]].forEach(([day, d]) => {
+    assert.equal(slotText.momentText(at(d, 9, 15), BAKED, {}, 19), day + ' 9:15', day);
+  });
+  assert.equal(slotText.momentText(at(30, 9, 15), BAKED, {}, 19), '9:15 30 Nov', 'a week on: Monday would be today');
 });
 
-test('a moment on another day prints its date alone where both do not fit: never a cut text', () => {
-  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, {}, 11), '24 Nov', '12 bytes in 11');
-  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, {}, catalog.CAPS.EDGE_TEXT_MAX), '24 Nov', 'an edge');
-  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, H12, catalog.CAPS.EDGE_TEXT_MAX), '24 Nov');
+test('a moment on another day prints its date after its clock time, a week on and before today', () => {
+  assert.equal(slotText.momentText(at(30, 23, 10), BAKED, {}, 19), '23:10 30 Nov', 'the middle');
+  assert.equal(slotText.momentText(at(30, 23, 10), BAKED, H12, 19), '11:10p 30 Nov');
+  assert.equal(slotText.momentText(at(22, 9, 5), BAKED, {}, 19), '9:05 22 Nov', 'the day before: a weekday would be next week\'s');
+  assert.equal(slotText.momentText(new Date(2025, 10, 23, 12, 0).getTime(), BAKED, {}, 19), '12:00 23 Nov',
+    'the same date a year before');
+  assert.equal(slotText.momentText(at(30, 23, 10), BAKED, {}, 12), '23:10 30 Nov', '12 bytes in 12');
+});
+
+test('a moment on another day prints its day alone where both do not fit: never a cut text', () => {
+  assert.equal(slotText.momentText(at(30, 23, 10), BAKED, {}, 11), '30 Nov', '12 bytes in 11');
+  assert.equal(slotText.momentText(at(30, 23, 10), BAKED, {}, catalog.CAPS.EDGE_TEXT_MAX), '30 Nov', 'an edge');
+  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, {}, catalog.CAPS.EDGE_TEXT_MAX), 'Tue', '9 bytes in 8');
+  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, H12, catalog.CAPS.EDGE_TEXT_MAX), 'Tue');
   assert.equal(slotText.momentText(new Date(2026, 11, 1, 1, 5).getTime(), BAKED, {}, catalog.CAPS.EDGE_TEXT_MAX),
     '1 Dec', 'the shortest of both is 10 bytes');
+});
+
+test('a day counts by the calendar across a clock change: a 47 hour gap is two days', () => {
+  const zone = process.env.TZ;
+  process.env.TZ = 'Europe/Berlin';
+  try {
+    const sat = new Date(2027, 2, 27, 12, 0).getTime();
+    assert.equal(new Date(2027, 2, 29).getTime() - new Date(2027, 2, 27).getTime(), 47 * 3600000,
+      'the zone took: the clocks go forward on 28 Mar 2027');
+    assert.equal(slotText.momentText(new Date(2027, 2, 29, 9, 0).getTime(), sat, {}, 19), 'Mon 9:00');
+    assert.equal(slotText.momentText(new Date(2027, 3, 2, 9, 0).getTime(), sat, {}, 19), 'Fri 9:00', 'six days on');
+    assert.equal(slotText.momentText(new Date(2027, 3, 3, 9, 0).getTime(), sat, {}, 19), '9:00 3 Apr', 'a week on');
+    assert.equal(slotText.dayText(2026, 9, 26, new Date(2026, 9, 24, 23, 30).getTime()), 'Mon',
+      'the clocks go back on 25 Oct 2026: 49 hours');
+  } finally {
+    if (zone === undefined) { delete process.env.TZ; } else { process.env.TZ = zone; }
+  }
+});
+
+test('a day other than today: its weekday in the coming week, else its date', () => {
+  assert.equal(slotText.dayText(2026, 10, 24, BAKED), 'Tue');
+  assert.equal(slotText.dayText(2026, 10, 29, BAKED), 'Sun');
+  assert.equal(slotText.dayText(2026, 10, 30, BAKED), '30 Nov');
+  assert.equal(slotText.dayText(2026, 10, 22, BAKED), '22 Nov', 'yesterday');
+  assert.equal(slotText.dayText(2027, 0, 1, new Date(2026, 11, 31, 22, 0).getTime()), 'Fri', 'into the new year');
 });
 
 test('a moment\'s date names its month in three letters, every month of the year', () => {

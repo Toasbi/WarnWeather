@@ -178,14 +178,17 @@ test('the text: else its moment, as a clock time in the user\'s format, as the s
   'the longest fits an edge slot');
 });
 
-test('the text: a moment on another day than the slot is baked for carries its date, alone where both do not fit', () => {
+test('the text: a moment on another day than the slot is baked for carries its day, alone where both do not fit', () => {
   const tomorrow = new Date(2026, 10, 24, 23, 10).getTime();
-  assert.equal(pv.textFor(reading({ time: tomorrow }), 19, {}, TODAY), '23:10 24 Nov', 'the middle');
+  const nextWeek = new Date(2026, 10, 30, 23, 10).getTime();
+  assert.equal(pv.textFor(reading({ time: tomorrow }), 19, {}, TODAY), 'Tue 23:10', 'the middle: its weekday');
   assert.equal(pv.textFor(reading({ time: tomorrow }), 19, { axisTimeFormat: '12h', timeShowAmPm: true }, TODAY),
-    '11:10p 24 Nov');
-  assert.equal(pv.textFor(reading({ time: tomorrow }), 8, {}, TODAY), '24 Nov', 'an edge');
-  assert.equal(pv.textFor(reading({ time: tomorrow }), 8, { axisTimeFormat: '12h', timeShowAmPm: true }, TODAY),
-    '24 Nov');
+    'Tue 11:10p');
+  assert.equal(pv.textFor(reading({ time: tomorrow }), 8, {}, TODAY), 'Tue', 'an edge: 9 bytes in 8');
+  assert.equal(pv.textFor(reading({ time: new Date(2026, 10, 28, 9, 15).getTime() }), 8, {}, TODAY), 'Sat 9:15',
+    'an edge: 8 bytes in 8');
+  assert.equal(pv.textFor(reading({ time: nextWeek }), 19, {}, TODAY), '23:10 30 Nov', 'a week on: its date');
+  assert.equal(pv.textFor(reading({ time: nextWeek }), 8, {}, TODAY), '30 Nov');
   assert.equal(pv.textFor(reading({ time: tomorrow }), 19, {}, tomorrow), '23:10', 'baked on its day');
 });
 
@@ -201,8 +204,8 @@ test('the text: the plugin\'s short text over its state: its words say more', ()
 test('the text: a short text that is only a clock time gives way to its moment, in the user\'s format and with its date', () => {
   const tomorrow = new Date(2026, 10, 24, 9, 15).getTime();
   const later = new Date(2026, 10, 23, 14, 30).getTime();
-  assert.equal(pv.textFor(reading({ short: '09:15', time: tomorrow }), 8, {}, TODAY), '24 Nov', 'tomorrow, not today');
-  assert.equal(pv.textFor(reading({ short: '09:15', time: tomorrow }), 19, {}, TODAY), '9:15 24 Nov');
+  assert.equal(pv.textFor(reading({ short: '09:15', time: tomorrow }), 8, {}, TODAY), 'Tue 9:15', 'tomorrow, not today');
+  assert.equal(pv.textFor(reading({ short: '09:15', time: tomorrow }), 19, {}, TODAY), 'Tue 9:15');
   assert.equal(pv.textFor(reading({ short: '14:30', time: later }), 8, { axisTimeFormat: '12h', timeShowAmPm: true },
     TODAY), '2:30p', 'today, on a 12 hour clock');
   assert.equal(pv.textFor(reading({ short: '7:55 AM', time: new Date(2026, 10, 23, 7, 55).getTime() }), 8, {}, TODAY),
@@ -211,20 +214,25 @@ test('the text: a short text that is only a clock time gives way to its moment, 
     { axisTimeFormat: '12h' }, TODAY), '7:30');
 });
 
-test('the text: words beside a moment only on its day, its date on another; an all-day event\'s day is the one in UTC', () => {
+test('the text: words beside a moment only on its day, its day on another; an all-day event\'s day is the one in UTC', () => {
   const todays = Date.UTC(2026, 10, 23);
   const mondays = Date.UTC(2026, 10, 30);
   assert.equal(pv.textFor(reading({ short: 'All day', time: todays }), 8, {}, TODAY), 'All day');
-  assert.equal(pv.textFor(reading({ short: 'All day', time: mondays }), 8, {}, TODAY), '30 Nov', 'Monday\'s');
+  assert.equal(pv.textFor(reading({ short: 'All day', time: mondays }), 8, {}, TODAY), '30 Nov',
+    'next Monday\'s: a week on, its date');
+  assert.equal(pv.textFor(reading({ short: 'All day', time: Date.UTC(2026, 10, 29) }), 8, {}, TODAY), 'Sun',
+    'Sunday\'s: in the coming week, its weekday');
+  assert.equal(pv.textFor(reading({ short: 'All day', time: Date.UTC(2026, 10, 22) }), 8, {}, TODAY), '22 Nov',
+    'yesterday\'s: its date');
   assert.equal(pv.textFor(reading({ short: 'Soon', time: new Date(2026, 10, 24, 10, 30).getTime() }), 8, {}, TODAY),
-    '24 Nov', 'words beside another day\'s time');
+    'Tue', 'words beside another day\'s time');
   assert.equal(pv.textFor(reading({ short: 'Soon', time: EVENING }), 8, {}, TODAY), 'Soon', 'its own day');
   const zone = process.env.TZ;
   process.env.TZ = 'America/New_York';
   try {
     const tuesdays = Date.UTC(2026, 10, 24);
     assert.equal(pv.textFor(reading({ short: 'All day', time: tuesdays }), 8, {}, new Date(2026, 10, 23, 20).getTime()),
-      '24 Nov', 'the evening before, west of UTC: not today\'s');
+      'Tue', 'the evening before, west of UTC: not today\'s');
     assert.equal(pv.textFor(reading({ short: 'All day', time: tuesdays }), 8, {}, new Date(2026, 10, 24, 10).getTime()),
       'All day', 'on its day');
   } finally {
@@ -245,11 +253,36 @@ test('the text: else the long text, else --', () => {
   assert.equal(pv.textFor(null, 19), '--');
 });
 
-test('the text: cut to the slot\'s bytes at a character\'s edge, as the bake cuts it', () => {
-  assert.equal(pv.textFor(reading({ short: 'Days remaining 12' }), 8), 'Days rem');
-  assert.equal(pv.textFor(reading({ long: 'Next: Design review at 14:00' }), 19), 'Next: Design review');
-  assert.equal(pv.textFor(reading({ short: 'Gr\u00fc\u00dfe' }), 4), 'Gr\u00fc', 'two bytes each');
-  assert.equal(pv.textFor(reading({ number: 123456789 }), 8), '12345678');
+test('the text: cut to the slot\'s bytes at a character\'s edge, with an ellipsis after it', () => {
+  assert.equal(pv.textFor(reading({ short: 'Partly cloudy' }), 8), 'Partl\u2026');
+  assert.equal(pv.textFor(reading({ short: 'Light rain, thunder' }), 8), 'Light\u2026', 'no blank or comma before it');
+  assert.equal(pv.textFor(reading({ short: 'Light rain, thunder' }), 19), 'Light rain, thunder', 'a text that fits');
+  assert.equal(pv.textFor(reading({ short: 'Days remaining 12' }), 8), 'Days\u2026', 'a number with no decimals');
+  assert.equal(pv.textFor(reading({ long: 'Next: Design review at 14:00' }), 19), 'Next: Design rev\u2026');
+  assert.equal(pv.textFor(reading({ short: 'Gr\u00fc\u00dfe aus K\u00f6ln' }), 8), 'Gr\u00fc\u2026', 'two bytes each');
+  assert.equal(pv.textFor(reading({ number: 123456789 }), 8), '12345\u2026');
+  assert.equal(pv.textFor(reading({ short: '+CHF 11189.84' }), 8), '+CHF\u2026', 'a number that fits no rounding');
+  assert.equal(pv.textFor(reading({ short: '...........' }), 8), '........', 'nothing but what the cut strips');
+});
+
+test('the text: a number that does not fit loses the decimals it must, rounded, its sign and unit kept', () => {
+  [['\u20ac189.84', 8, '\u20ac189.8'], ['\u20ac1189.84', 8, '\u20ac1190'], ['CHF 92.14', 8, 'CHF 92.1'],
+    ['+CHF 0.09', 8, '+CHF 0.1'], ['189.84 \u20ac', 8, '190 \u20ac'], ['21.46 \u00b0C', 8, '21.5 \u00b0C'],
+    ['99.96%', 5, '100%'], ['99.5', 3, '100'], ['0.94', 3, '0.9'], ['0.96', 3, '1.0'],
+    ['$91,234.56', 8, '$91,235'], ['9,999.5', 6, '10,000'], ['Room 2: 21.46', 12, 'Room 2: 21.5'],
+    ['1.234,56 \u20ac', 10, '1.235 \u20ac'], ['12,5 km', 6, '13 km'],
+    ['0.125 mm/h', 8, '0.1 mm/h']].forEach(([text, cap, shown]) => {
+    assert.equal(pv.textFor(reading({ short: text }), cap), shown, text + ' in ' + cap);
+  });
+  assert.equal(pv.textFor(reading({ short: '\u20ac189.84' }), 19), '\u20ac189.84', 'whole where it fits');
+});
+
+test('the text: a number whose decimals are not sure is cut, not rounded', () => {
+  assert.equal(pv.textFor(reading({ short: '1.234 kWh' }), 8), '1.234\u2026', '1.234 is 1234 in German');
+  assert.equal(pv.textFor(reading({ short: '12,345 ft' }), 8), '12,34\u2026', '12,345 is 12345 in English');
+  assert.equal(pv.textFor(reading({ short: '1,234,567 steps' }), 8), '1,234\u2026', 'thousands grouped twice');
+  assert.equal(pv.textFor(reading({ short: '1,234,567' }), 6), '1,2\u2026', 'never rounded to 1,235');
+  assert.equal(pv.textFor(reading({ short: '999,999.5' }), 8), '999,9\u2026', 'a carry that would group it wrongly');
 });
 
 test('the Look: the text alone by default and for a choice it does not know, the id that loads no drawing', () => {

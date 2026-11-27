@@ -450,15 +450,15 @@ test('the last line and the bars\' pictures print a moment as the watch does: a 
   assert.equal(lastLine(LEVEL), 'on (5 min ago).');
 });
 
-test('the last line and the bars\' pictures print a moment on another day with its date, as the watch does', (t) => {
+test('the last line and the bars\' pictures print a moment on another day with its day, as the watch does', (t) => {
   clock(t, NOW);
   const tomorrow = twentyTo2(1);
-  const date = tomorrow.getDate() + ' Nov';
+  const day = 'SunMonTueWedThuFriSat'.substr(tomorrow.getDay() * 3, 3);
   userData(t, { plugins: PLUGINS, pluginValues: handed(kept({ time: tomorrow.getTime() })) });
   const S = Object.assign({ [SLOT]: 'pluginValue' }, LEVEL);
-  assert.equal(lastLine(S), '13:40 ' + date + ' (5 min ago).');
-  assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.MID_TEXT_MAX, env: BASALT, slotKey: SLOT }), '13:40 ' + date);
-  assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.EDGE_TEXT_MAX, env: BASALT, slotKey: SLOT }), date,
+  assert.equal(lastLine(S), day + ' 13:40 (5 min ago).');
+  assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.MID_TEXT_MAX, env: BASALT, slotKey: SLOT }), day + ' 13:40');
+  assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.EDGE_TEXT_MAX, env: BASALT, slotKey: SLOT }), day,
     'an edge has no room for both');
 });
 
