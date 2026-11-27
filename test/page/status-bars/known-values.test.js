@@ -1,7 +1,7 @@
 'use strict';
-// The plugin values WarnWeather knows (known-values.js): their names, the ones it supports and
-// the Look and the icon a slot starts on for each. How the Value row lists them is
-// plugin-value-page.test.js'.
+// The plugin values WarnWeather knows (known-values.js): their names, the ones it supports (those
+// with a start) and the Look and the icon a slot starts on for each. How the Value row lists them
+// is plugin-value-page.test.js'.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const known = require('../../../src/pkjs/page/status-bars/known-values.js');
@@ -16,17 +16,15 @@ test('a value is known by its source\'s category and item and its property, all 
   assert.equal(known.nameOf('garden', 'bed', 'precipitation'), null, 'another source\'s');
   assert.equal(known.nameOf('weather', 'location', 'hasOwnProperty'), null, 'no name of the table\'s own');
   assert.equal(known.nameOf('muninn', 'stats', 'daysRemaining'), 'Days left', 'a raw value with a name of its own');
-  assert.equal(known.supported('muninn', 'stats', 'daysRemaining'), false, 'which the Watch battery slot shows');
-  SUPPORTED.forEach((v) => assert.equal(known.supported(...v), true, v.join('/')));
+  assert.equal(known.startOf('muninn', 'stats', 'daysRemaining'), null, 'which the Watch battery slot shows');
+  SUPPORTED.forEach((v) => assert.notEqual(known.startOf(...v), null, v.join('/')));
 });
 
 test('none of what changes by the minute, nor what WarnWeather draws itself, is supported', () => {
   [['phone', 'phone_state', 'battery_level'], ['finance', 'stock', 'price'], ['music', 'track', 'title'],
     ['weather', 'location', 'temperature'], ['weather', 'location', 'condition'], ['weather', 'location', 'uv_index'],
-    ['weather', 'location', 'wind_speed'], ['weather', 'location', 'sunrise']].forEach((v) => {
-    assert.equal(known.supported(...v), false, v.join('/'));
-    assert.equal(known.startOf(...v), null, v.join('/'));
-  });
+    ['weather', 'location', 'wind_speed'], ['weather', 'location', 'sunrise']].forEach((v) =>
+    assert.equal(known.startOf(...v), null, v.join('/')));
 });
 
 test('each start is a Look and an icon the slot has, and an icon alone only one that turns', () => {

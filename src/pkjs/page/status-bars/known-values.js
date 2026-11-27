@@ -12,9 +12,12 @@
 // stock's price, the song playing), nor Muninn's days left, which the Watch battery slot shows.
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
-// page (scripts/build-config-page.js APP_FILES, ahead of plugin-value-page.js, which binds it
-// while its body runs; window.KnownValues). A leaf: it binds nothing.
+// page (scripts/build-config-page.js APP_FILES, after plugin-values.js, which it binds while its
+// body runs, and ahead of plugin-value-page.js, which binds it; window.KnownValues).
 (function () {
+    var pluginValues = typeof require !== 'undefined' ? require('../../status-bars/domain/plugin-values.js')
+        : window.PluginValues;
+
     /**
      * The values WarnWeather supports, by 'category/item/property': each one's name, and the Look
      * and the icon a slot starts on for it (plugin-values.js LOOKS and ICON_FORMS) where they are
@@ -24,7 +27,7 @@
     var SUPPORTED = {
         'phone/phone_state/wifi': { name: 'Wi-Fi', look: 'icon', icon: 'wifi' },
         'phone/phone_state/mobile_data': { name: 'Mobile data', look: 'both', icon: 'phone' },
-        'phone/phone_state/cell': { name: 'Mobile network' },
+        'phone/phone_state/cell': { name: 'Network type' },
         'weather/location/high': { name: 'Today\'s high' },
         'weather/location/low': { name: 'Today\'s low' },
         'weather/location/humidity': { name: 'Humidity' },
@@ -54,18 +57,8 @@
 
 
     /**
-     * @param {string} category A value's source's category.
-     * @param {string} item Its item.
-     * @param {string} property Its property.
-     * @returns {string} Its key in the tables: 'category/item/property'.
-     */
-    function keyOf(category, item, property) {
-        return category + '/' + item + '/' + property;
-    }
-
-    /**
      * @param {Object} table A table (SUPPORTED, RAW_NAMES).
-     * @param {string} key A value's key (keyOf).
+     * @param {string} key A value's id (plugin-values.js valueId).
      * @returns {*} The table's entry for it, or null.
      */
     function entryIn(table, key) {
@@ -76,20 +69,10 @@
      * @param {string} category A value's source's category.
      * @param {string} item Its item.
      * @param {string} property Its property.
-     * @returns {boolean} Whether WarnWeather supports it (SUPPORTED).
-     */
-    function supported(category, item, property) {
-        return entryIn(SUPPORTED, keyOf(category, item, property)) !== null;
-    }
-
-    /**
-     * @param {string} category A value's source's category.
-     * @param {string} item Its item.
-     * @param {string} property Its property.
      * @returns {?string} Its name, where WarnWeather knows it (SUPPORTED, RAW_NAMES), or null.
      */
     function nameOf(category, item, property) {
-        var key = keyOf(category, item, property);
+        var key = pluginValues.valueId(category, item, property);
         var value = entryIn(SUPPORTED, key);
         return value ? value.name : entryIn(RAW_NAMES, key);
     }
@@ -103,11 +86,11 @@
      *   starts; null for any other value.
      */
     function startOf(category, item, property) {
-        var value = entryIn(SUPPORTED, keyOf(category, item, property));
+        var value = entryIn(SUPPORTED, pluginValues.valueId(category, item, property));
         return value ? { look: value.look, icon: value.icon } : null;
     }
 
-    var api = { SUPPORTED: SUPPORTED, supported: supported, nameOf: nameOf, startOf: startOf };
+    var api = { SUPPORTED: SUPPORTED, nameOf: nameOf, startOf: startOf };
 
     // Dual-context export, the tail of status-line-catalog.js.
     if (typeof module !== 'undefined' && module.exports) {

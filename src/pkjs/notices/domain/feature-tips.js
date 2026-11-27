@@ -53,8 +53,8 @@ var TIPS = [
         // (status-line-catalog.js repeatsInBar), and its Which row picks one of several things a
         // plugin offers the value for (plugin-value-page.js whichShown).
         html: 'Each Plugin value slot now shows a value of its own, and one bar can hold several. Set ' +
-            'another slot to Plugin value and tap its Edit button to pick what it shows. Where a plugin ' +
-            'offers it for several things, such as rooms, pick one under Which.',
+            'another slot to Plugin value and tap its Edit button to pick what it shows. If a plugin has ' +
+            'the value for several things, such as rooms, pick one under Which.',
         open: { tab: 'watch' },
         when: pluginValueOffered
     },

@@ -102,10 +102,10 @@
     // the item's last read did not bring it.
     var FIRST_LABEL = 'The first';
     var HELD_LABEL = 'Your pick';
-    // The Which row's hints: the names come with a read after the save, the plugin sends none, or
-    // it no longer sends the one the slot picks.
-    var NAMES_LATER = 'The names come with the slot\'s first read, about a minute after you save. '
-        + 'Open the settings again then to pick one.';
+    // The Which row's hints: the names come with the slot's next read (at once after a save
+    // that picks a new value, else after its Updates), the plugin sends none, or it no longer
+    // sends the one the slot picks.
+    var NAMES_LATER = 'The names come with the slot\'s next read. Open the settings again after it to pick one.';
     var NO_NAMES = 'The plugin sends no names to pick from, so the slot shows the first.';
     var INSTANCE_GONE = 'The plugin no longer sends this one. Until it does, the slot shows ' + NONE_SHOWN + '.';
     // The Look row's choices (plugin-values.js LOOKS, in its order), by name, as the other slots
@@ -222,14 +222,24 @@
     }
 
     /**
+     * @param {Object} value A value as the Value row lists it (readValues).
+     * @returns {boolean} Whether WarnWeather supports it: it has a Look and an icon to start on
+     *   (known-values.js startOf).
+     */
+    function supported(value) {
+        return value.start !== null;
+    }
+
+    /**
      * The values a listed plugin offers: each property of each of its items, named (valueName),
-     * whether it is on or off (the item's onOff bit for it), whether WarnWeather supports it and
-     * the Look and the icon a slot starts on for it (known-values.js supported, startOf). The
-     * ones WarnWeather supports first, each group in the plugin's order. The Preferences
-     * plugin's are the user's complications (complicationValues), in their places' order.
+     * whether it is on or off (the item's onOff bit for it), and, for one WarnWeather supports,
+     * the Look and the icon a slot starts on for it (known-values.js startOf; null for any
+     * other). The ones WarnWeather supports first (supported), each group in the plugin's order.
+     * The Preferences plugin's are the user's complications (complicationValues), in their
+     * places' order.
      * @param {Object} plugin A listed plugin.
      * @returns {Array<{id: string, label: string, multiple: boolean, unreadable: ?string,
-     *   onOff: boolean, supported: boolean, start: ?Object}>}
+     *   onOff: boolean, start: ?Object}>}
      */
     function readValues(plugin) {
         var items = plugin.items;
@@ -238,15 +248,11 @@
         items.forEach(function (it) {
             it.properties.forEach(function (property, i) {
                 out.push({ id: pluginValues.valueId(it.category, it.item, property), multiple: it.multiple,
-                    onOff: Boolean(it.onOff & (1 << i)),
-                    supported: knownValues.supported(it.category, it.item, property),
-                    start: knownValues.startOf(it.category, it.item, property),
+                    onOff: Boolean(it.onOff & (1 << i)), start: knownValues.startOf(it.category, it.item, property),
                     label: valueName(it.category, it.item, property, items.length > 1) });
             });
         });
-        return out.filter(function (v) { return v.supported; }).concat(out.filter(function (v) {
-            return !v.supported;
-        }));
+        return out.filter(supported).concat(out.filter(function (v) { return !supported(v); }));
     }
 
     // The values of each plugin the phone listed (readValues), made the first time the page asks
@@ -315,6 +321,19 @@
     }
 
     /**
+     * A group of a row's list: its header, greyed out, then its options, each marked as under it
+     * and the last as its end.
+     * @param {{label: string, value: string}} group The group: its header's label and value.
+     * @param {Array<Array>} options Its options, [label, value, meta?].
+     * @returns {Array<Array>} [label, value, meta?] options.
+     */
+    function underHeader(group, options) {
+        return [[group.label, group.value, {disabled: true, groupHeader: true}]].concat(options.map(function (o, i) {
+            return [o[0], o[1], Object.assign({groupChild: true, groupEnd: i === options.length - 1}, o[2])];
+        }));
+    }
+
+    /**
      * The values a plugin offers as the Value row lists them: under a header each (VALUE_GROUPS),
      * those WarnWeather supports, then the raw ones; a group with none is left out. The
      * complications are listed by their places alone.
@@ -326,14 +345,8 @@
         var out = [];
         if (offersComplications(plugin)) { return values.map(valueOption); }
         VALUE_GROUPS.forEach(function (group) {
-            var members = values.filter(function (v) { return v.supported === group.supported; });
-            if (!members.length) { return; }
-            out.push([group.label, group.value, {disabled: true, groupHeader: true}]);
-            members.forEach(function (v, i) {
-                var option = valueOption(v);
-                option[2] = Object.assign({groupChild: true, groupEnd: i === members.length - 1}, option[2]);
-                out.push(option);
-            });
+            var members = values.filter(function (v) { return supported(v) === group.supported; });
+            if (members.length) { out = out.concat(underHeader(group, members.map(valueOption))); }
         });
         return out;
     }
@@ -474,9 +487,26 @@
     }
 
     /**
+     * @param {Array<{name: string}>} instances Instances (instancesOf).
+     * @returns {string[]} The name the Which row lists each by: its own, numbered in the plugin's
+     *   order where two or more share it ('Lamp (1)', 'Lamp (2)'), so the row tells them apart.
+     */
+    function namesOf(instances) {
+        var counts = {};
+        var seen = {};
+        instances.forEach(function (one) { counts['#' + one.name] = (counts['#' + one.name] || 0) + 1; });
+        return instances.map(function (one) {
+            var key = '#' + one.name;
+            if (counts[key] < 2) { return one.name; }
+            seen[key] = (seen[key] || 0) + 1;
+            return one.name + ' (' + seen[key] + ')';
+        });
+    }
+
+    /**
      * The Which row's list: the first, whichever it is, with the one it was at the item's last
-     * read, then each instance that read brought, by its name, in the plugin's order, then the
-     * one the slot picks where that read did not bring it.
+     * read, then each instance that read brought, by its name (namesOf), in the plugin's order,
+     * then the one the slot picks where that read did not bring it.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @param {{slotKey: string}} args The dialog's slot.
@@ -485,9 +515,10 @@
     function instanceOptions(S, env, args) {
         var source = pluginValues.sourceOf(pluginValues.pickOf(S, args.slotKey));
         var instances = instancesOf(source) || [];
+        var names = namesOf(instances);
         var out = [[FIRST_LABEL, pluginValues.PICK_DEFAULTS.instance,
-            {desc: instances.length ? instances[0].name + ' at the last read' : 'Whichever the plugin lists first'}]];
-        instances.forEach(function (one) { out.push([one.name, one.id]); });
+            {desc: instances.length ? names[0] + ' at the last read' : 'Whichever the plugin lists first'}]];
+        instances.forEach(function (one, i) { out.push([names[i], one.id]); });
         if (source && source.instance && !listsInstance(instances, source.instance)) {
             out.push([HELD_LABEL, source.instance]);
         }
@@ -613,8 +644,8 @@
      *   slot starts (plugin-values.js PICK_DEFAULTS).
      */
     function startOf(value) {
-        var start = (value && value.start) || {};
-        return { look: start.look || pluginValues.LOOK_DEFAULT, icon: start.icon || pluginValues.ICON_DEFAULT };
+        var start = value && value.start;
+        return { look: pluginValues.lookOf(start), icon: pluginValues.iconName(start) };
     }
 
     /**
@@ -648,14 +679,6 @@
     }
 
     /**
-     * @param {*} id A value's id ('category/item/property').
-     * @returns {string} Its item ('category/item'), or '' for none.
-     */
-    function itemOfId(id) {
-        return typeof id === 'string' ? id.split('/').slice(0, 2).join('/') : '';
-    }
-
-    /**
      * A slot's new value keeps the instance the slot picks only where it is a value of the same
      * item that the Which row is offered for (whichOffered): the instance is one of the item's.
      * Else the slot shows the first again.
@@ -666,7 +689,9 @@
      */
     function keepInstance(S, slotKey, before) {
         var pick = pluginValues.pickOf(S, slotKey);
-        if (itemOfId(before) !== itemOfId(pick.id) || !whichOffered(pick)) {
+        var was = pluginValues.sourceOf({ plugin: pick.plugin, id: before });
+        if (!whichOffered(pick) || !was
+                || pluginValues.itemKeyOf(was) !== pluginValues.itemKeyOf(pluginValues.sourceOf(pick))) {
             S[catalog.pluginValueKeys(slotKey).instance] = pluginValues.PICK_DEFAULTS.instance;
         }
     }
@@ -800,13 +825,9 @@
         var held = pluginValues.iconName(pick);
         var out = [];
         (pluginValues.printsText(pick) ? ICON_GROUPS : ICON_GROUPS.slice(0, 1)).forEach(function (group) {
-            var names = pluginValues.iconsThat(group.turns);
-            out.push([group.label, group.value, {disabled: true, groupHeader: true}]);
-            names.forEach(function (name, i) {
-                var meta = {groupChild: true, groupEnd: i === names.length - 1};
-                if (group.turns && neither && name !== held) { meta.disabled = true; }
-                out.push([ICON_LABELS[name], name, meta]);
-            });
+            out = out.concat(underHeader(group, pluginValues.iconsThat(group.turns).map(function (name) {
+                return [ICON_LABELS[name], name, group.turns && neither && name !== held ? {disabled: true} : null];
+            })));
         });
         return out;
     }

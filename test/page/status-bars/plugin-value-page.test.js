@@ -223,7 +223,7 @@ test('a value WarnWeather knows goes by its name for it, by its source\'s catego
 
 test('the Value row lists the picked plugin\'s values, and keeps one it no longer offers under its name', (t) => {
   userData(t, { plugins: PLUGINS });
-  assert.deepEqual(ungrouped(valueOptions(LEVEL)), [['Mobile network', 'phone/phone_state/cell'],
+  assert.deepEqual(ungrouped(valueOptions(LEVEL)), [['Network type', 'phone/phone_state/cell'],
     ['Battery level', 'phone/phone_state/battery_level']], 'the one WarnWeather supports first');
   assert.deepEqual(ungrouped(valueOptions(pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining' }))),
     [['Days left', 'muninn/stats/daysRemaining'], ['Estimate: battery life', 'muninn/estimate/batteryLife']],
@@ -357,10 +357,16 @@ test('the Which row lists the first, then each instance the last read brought, b
   assert.equal(instanceOptions(pickIn(DAYS)).length, 1, 'the item\'s names are kept by its uuid in lower case');
 });
 
+test('the Which row numbers the instances that share a name, in the plugin\'s order, so each can be told apart', (t) => {
+  userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [{ id: 'l-1', name: 'Lamp' }, { id: 'd', name: 'Desk' },
+    { id: 'l-2', name: 'Lamp' }, { id: 'c', name: 'constructor' }] } });
+  assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: 'Lamp (1) at the last read' }],
+    ['Lamp (1)', 'l-1'], ['Desk', 'd'], ['Lamp (2)', 'l-2'], ['constructor', 'c']]);
+});
+
 test('the Which row before a read brought any names, or where the plugin sends none', (t) => {
   userData(t, { plugins: PLUGINS });
-  const NONE_YET = 'The names come with the slot\'s first read, about a minute after you save. '
-    + 'Open the settings again then to pick one.';
+  const NONE_YET = 'The names come with the slot\'s next read. Open the settings again after it to pick one.';
   assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: 'Whichever the plugin lists first' }]]);
   assert.equal(instanceHint(pickIn(DAYS)), NONE_YET);
   assert.deepEqual(instanceOptions(pickIn(Object.assign({ instance: 'w-1' }, DAYS))).slice(-1), [['Your pick', 'w-1']]);
