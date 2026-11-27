@@ -380,7 +380,8 @@ test('the Which row before a read brought any names, or where the plugin sends n
   assert.deepEqual(instanceOptions(daysPick('w-1')).slice(-1), [['Your pick', 'w-1']]);
   assert.equal(instanceHint(daysPick('w-1')), NONE_YET, 'not gone: not read yet');
   userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [] } });
-  assert.equal(instanceHint(pickIn(DAYS)), 'The plugin sends no names to pick from, so the slot shows the first that has it.');
+  assert.equal(instanceHint(pickIn(DAYS)),
+    'The plugin sends no names to pick from, so the slot shows the first it lists with this value.');
   userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [null, { id: '', name: 'x' }, { id: 5, name: 'x' },
     { id: 'w-3' }, { id: 'w-4', name: '' }, { id: 'w'.repeat(65), name: 'Long' }, { id: 'w-1', name: 'Time 2' }] } });
   assert.deepEqual(instanceOptions(pickIn(DAYS)).slice(1), [['Time 2', 'w-1']],

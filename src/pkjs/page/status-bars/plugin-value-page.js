@@ -114,7 +114,7 @@
     // that picks a new value, else after its Updates), the plugin sends none, or it no longer
     // sends the one the slot picks.
     var NAMES_LATER = 'The names come with the slot\'s next read. Open the settings again after it to pick one.';
-    var NO_NAMES = 'The plugin sends no names to pick from, so the slot shows the first that has it.';
+    var NO_NAMES = 'The plugin sends no names to pick from, so the slot shows the first it lists with this value.';
     var INSTANCE_GONE = 'The plugin no longer sends this one. Until it does, the slot shows ' + NONE_SHOWN + '.';
     // The Look row's choices (plugin-values.js LOOKS, in its order), by name, as the other slots
     // name theirs.
