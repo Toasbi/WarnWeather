@@ -10,7 +10,8 @@ const pluginValues = require('../../../src/pkjs/status-bars/domain/plugin-values
 /** Values each read from a plugin known for them, which WarnWeather supports. */
 const SUPPORTED = [['phone', 'phone_state', 'wifi'], ['weather', 'location', 'precipitation'],
   ['calendar', 'event', 'starts_at'], ['muninn', 'stats', 'batteryLife'], ['home', 'room_lights', 'on'],
-  ['weather', 'netatmo', 'pressure'], ['weather', 'netatmo', 'temperature'], ['finance', 'stock', 'price']];
+  ['weather', 'netatmo', 'pressure'], ['weather', 'netatmo', 'temperature'], ['finance', 'stock', 'price'],
+  ['tide', 'spot', 'next_high'], ['tide', 'spot', 'state']];
 
 test('a value is known by its source\'s category and item and its property, all three', () => {
   assert.equal(known.nameOf('weather', 'location', 'precipitation'), 'Chance of precipitation');
@@ -39,6 +40,13 @@ test('a weather station\'s own readings are supported, the forecast\'s are not; 
   assert.equal(known.nameOf('finance', 'stock', 'price'), 'Share price');
   assert.equal(known.nameOf('finance', 'stock', 'day_change_percent'), 'Today\'s change in %');
   assert.equal(known.nameOf('finance', 'stock', 'day_change'), 'Today\'s change', 'raw, in money');
+});
+
+test('Tide\'s times are named as its estimates; its level changes too often', () => {
+  assert.equal(known.nameOf('tide', 'spot', 'next_high'), 'Next high tide (estimate)');
+  assert.equal(known.nameOf('tide', 'spot', 'next_low'), 'Next low tide (estimate)');
+  assert.equal(known.nameOf('tide', 'spot', 'level'), 'Tide level');
+  assert.equal(known.startOf('tide', 'spot', 'level'), null, 'a raw value: a percent or so every four minutes');
 });
 
 test('each start is a Look and an icon the slot has, and an icon alone only one that turns', () => {
