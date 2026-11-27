@@ -241,8 +241,8 @@
      *      (plugin-value-reads.js momentOf). Before the number: the slot is read every 15
      *      minutes at most, and a moment stays true between reads where a count towards it does
      *      not.
-     *   3. Its number, with its unit where the slot has the room ('%' and a unit that starts
-     *      with the degree sign attach, any other follows a space).
+     *   3. Its number, with its unit where the slot has the room (a unit that starts with '%'
+     *      or the degree sign attaches, any other follows a space).
      *   4. Its state, on or off.
      *   5. Its long text, last: it is written for a screen with room, and the slot cuts it.
      * Cut to the slot's cap at a character's edge, as the bake cuts any text, so the settings
@@ -269,7 +269,7 @@
         } else if (typeof r.number === 'number') {
             unit = oneLine(r.unit);
             text = slotText.withUnit(numberText(r.number),
-                unit && unit !== '%' && unit.charAt(0) !== '\u00b0' ? ' ' + unit : unit, cap);
+                unit && unit.charAt(0) !== '%' && unit.charAt(0) !== '\u00b0' ? ' ' + unit : unit, cap);
         } else if (typeof r.state === 'boolean') {
             text = r.state ? ON : OFF;
         } else {

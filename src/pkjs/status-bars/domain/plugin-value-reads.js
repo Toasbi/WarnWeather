@@ -103,6 +103,29 @@ function namesMoment(name) {
 }
 
 /**
+ * Muninn's stats (its plugin, muninn/stats), which send -1 while Muninn has no estimate: before
+ * a week of data, or for an estimate of 0. A negative number of them is no reading, as the
+ * Watch battery slot takes Muninn's days left (battery-days.js estimateOf).
+ */
+var MUNINN_STATS = 'muninn/stats/';
+
+/** Muninn's drain rate, which it sends in '%' though it is the charge used in a day. */
+var MUNINN_RATE = MUNINN_STATS + 'lastWeekRate';
+
+/**
+ * The reading a value's source names, in the plugins' words: 'category/item/property'. The key
+ * names it last, after the plugin's uuid (plugin-values.js sourceOf), and a complication's after
+ * the complication's own key, with the instance before the property (complications.js keyOf).
+ * @param {string} source A value's source.
+ * @returns {string}
+ */
+function pathOf(source) {
+    var parts = source.split('/');
+    var at = parts.length >= 8 ? parts.length - 4 : parts.length - 3;
+    return parts[at] + '/' + parts[at + 1] + '/' + parts[parts.length - 1];
+}
+
+/**
  * @param {string} name A property's name.
  * @returns {boolean} Whether it says the property's number is a bearing: it ends in direction,
  *   bearing or heading, in any case (wind_direction, windBearing).
@@ -180,7 +203,8 @@ function keptField(f, r, property) {
  * each field as a value keeps it (keptField), null for each it lacks; when it was read; and
  * until when the plugin said it holds (plugin-reads.js timeOf). A value kept before a number
  * named as a moment was read as one gets its moment here too, and a bearing with no words of
- * the plugin's its compass point (bearingWords).
+ * the plugin's its compass point (bearingWords). Muninn's -1 is no number (MUNINN_STATS), and
+ * its drain rate a charge a day ('%/d').
  * @param {*} value What was stored (parsed JSON), or a value just read.
  * @returns {?{source: string, reading: Object, at: number, validUntil: ?number}} The value,
  *   or null when it is none: no reading that brings a text, a moment, a number or a state.
@@ -194,6 +218,8 @@ function valueOf(value) {
     }
     FIELDS.forEach(function (f) { reading[f.name] = keptField(f, r, propertyOf(value.source)); });
     reading.short = bearingWords(reading, propertyOf(value.source)) || reading.short;
+    if (pathOf(value.source).indexOf(MUNINN_STATS) === 0 && reading.number < 0) { reading.number = null; }
+    if (pathOf(value.source) === MUNINN_RATE && reading.unit === '%') { reading.unit = '%/d'; }
     if (!FIELDS.some(function (f) { return !f.of && reading[f.name] !== null; })) {
         return null;
     }

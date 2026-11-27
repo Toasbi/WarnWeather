@@ -118,6 +118,24 @@ test('valueOf: a bearing with no words of the plugin\'s gets its compass point, 
     answer('wind_direction', { number: 250, unit: '\u00b0' }), 8), 'W');
 });
 
+test('valueOf: Muninn\'s -1 is no reading, and its drain rate is a charge a day', () => {
+  const answer = (name, fields) => reads.valueOf({ source: 'u/muninn/stats/' + name, reading: fields, at: T0 });
+  assert.equal(answer('daysRemaining', { number: -1, unit: 'days' }), null, 'no estimate yet: --');
+  assert.equal(answer('batteryLife', { number: -1, unit: 'days' }), null);
+  assert.equal(answer('updatedAt', { number: -1 }), null, 'never synced');
+  assert.equal(answer('batteryLife', { number: 9, unit: 'days' }).reading.number, 9);
+  assert.equal(answer('lastWeekRate', { number: 0.9, unit: '%' }).reading.unit, '%/d');
+  assert.equal(answer('lastWeekRate', { number: -1, unit: '%' }), null);
+  const pv = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
+  assert.equal(pv.textFor(answer('lastWeekRate', { number: 0.9, unit: '%' }).reading, 8), '0.9%/d');
+  assert.equal(pv.textFor(answer('lastWeekRate', { number: 10.8, unit: '%' }).reading, 8), '11%/d');
+  const complication = reads.valueOf({ source: 'p/preferences/complications/2/muninn/stats/0/daysRemaining',
+    reading: { number: -1, unit: 'days' }, at: T0 });
+  assert.equal(complication, null, 'as a complication too');
+  assert.equal(reads.valueOf({ source: 'u/weather/location/temperature', reading: { number: -1, unit: '\u00b0C' },
+    at: T0 }).reading.number, -1, 'another plugin\'s -1 is a number');
+});
+
 test('valueOf: a value of such a number kept before it was read as a moment is one now', () => {
   const stored = JSON.parse(JSON.stringify({ source: 'd008a08a-6e34-4cc4-98dc-bae02ce5e087/muninn/stats/updatedAt',
     reading: { short: null, number: 1795453201716, unit: null, long: null }, at: T0, validUntil: null }));
