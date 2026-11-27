@@ -22,6 +22,13 @@ test('a value is known by its source\'s category and item and its property, all 
   SUPPORTED.forEach((v) => assert.notEqual(known.startOf(...v), null, v.join('/')));
 });
 
+test('supports names the values WarnWeather supports, by all three parts', () => {
+  SUPPORTED.forEach((v) => assert.equal(known.supports(...v), true, v.join('/')));
+  assert.equal(known.supports('muninn', 'stats', 'daysRemaining'), false, 'a raw value with a name of its own');
+  assert.equal(known.supports('garden', 'bed', 'precipitation'), false, 'another source\'s');
+  assert.equal(known.supports('weather', 'location', 'hasOwnProperty'), false, 'nothing of the table\'s own');
+});
+
 test('none of what changes by the minute, nor what WarnWeather draws itself, is supported', () => {
   [['phone', 'phone_state', 'battery_level'], ['music', 'track', 'title'],
     ['weather', 'location', 'temperature'], ['weather', 'location', 'condition'], ['weather', 'location', 'uv_index'],

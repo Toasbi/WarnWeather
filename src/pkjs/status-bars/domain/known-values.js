@@ -12,9 +12,10 @@
 // by the minute (the phone's battery, the song playing), nor Muninn's days left, which the Watch
 // battery slot shows. A share price is the owner's call: it shows as of the slot's last read.
 //
-// Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
-// page (scripts/build-config-page.js APP_FILES, after plugin-values.js, which it binds while its
-// body runs, and ahead of plugin-value-page.js, which binds it; window.KnownValues).
+// Dual-context: a CommonJS module on the phone (plugin-value-list.js keeps the values it supports
+// ahead of the dialog's cap) and in the tests, a plain concatenated <script> in the settings page
+// (scripts/build-config-page.js APP_FILES, after plugin-values.js, which it binds while its body
+// runs, and ahead of plugin-value-page.js, which binds it; window.KnownValues).
 (function () {
     var pluginValues = typeof require !== 'undefined' ? require('./plugin-values.js')
         : window.PluginValues;
@@ -102,6 +103,16 @@
      * @param {string} category A value's source's category.
      * @param {string} item Its item.
      * @param {string} property Its property.
+     * @returns {boolean} Whether WarnWeather supports it (SUPPORTED).
+     */
+    function supports(category, item, property) {
+        return entryIn(SUPPORTED, pluginValues.valueId(category, item, property)) !== null;
+    }
+
+    /**
+     * @param {string} category A value's source's category.
+     * @param {string} item Its item.
+     * @param {string} property Its property.
      * @returns {?{look: (string|undefined), icon: (string|undefined)}} The Look and the icon a
      *   slot starts on for a value WarnWeather supports, each where it is not where any slot
      *   starts; null for any other value.
@@ -111,7 +122,7 @@
         return value ? { look: value.look, icon: value.icon } : null;
     }
 
-    var api = { SUPPORTED: SUPPORTED, nameOf: nameOf, startOf: startOf };
+    var api = { SUPPORTED: SUPPORTED, nameOf: nameOf, supports: supports, startOf: startOf };
 
     // Dual-context export, the tail of status-line-catalog.js.
     if (typeof module !== 'undefined' && module.exports) {

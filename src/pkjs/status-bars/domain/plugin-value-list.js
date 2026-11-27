@@ -21,11 +21,13 @@
 // it is written short and capped: each plugin's items with their properties' names, from which
 // the page makes each value's id and label, and which of them are on or off (onOff: the Icon
 // row offers the icons that turn only for one), at most MAX_PLUGINS plugins of MAX_VALUES values
-// each, and LIST_COST characters of the URL in all.
+// each, every value WarnWeather supports among them (keptValues), and LIST_COST characters of the
+// URL in all.
 //
 // Pure. ES5 only (aplite PKJS).
 
 var complications = require('./complications.js');
+var knownValues = require('./known-values.js');
 var pluginReads = require('./plugin-reads.js');
 var utf8 = require('../../lib/utf8.js');
 var pluginValueReads = require('./plugin-value-reads.js');
@@ -157,7 +159,7 @@ function complicationsFor(known, plugins, permissions) {
  * One plugin as the dialog lists it: its uuid, its name, and each item of a source this app
  * may read, with the names of its properties the slot can print, in the order the plugin
  * declares them, and which of them are on or off (`onOff`, bit i for the i-th name; left out
- * for none). The first MAX_VALUES values, each once. The Preferences plugin lists no item:
+ * for none). The values it keeps (keptValues), each once. The Preferences plugin lists no item:
  * it offers the user's complications (`complications`), where it serves them.
  * @param {*} plugin A plugin as Pebble.enumeratePlugins() lists it.
  * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
@@ -170,9 +172,8 @@ function complicationsFor(known, plugins, permissions) {
  */
 function entryOf(plugin, permissions, ownUuid, theirs) {
     var sources = plugin && Array.isArray(plugin.sources) ? plugin.sources : [];
-    var items = [];
+    var found = [];
     var seen = {};
-    var count = 0;
     if (!plugin || !complications.idPart(plugin.uuid) || plugin.uuid.length > MAX_ID
             || plugin.uuid.toLowerCase() === String(ownUuid).toLowerCase()) {
         return null;
@@ -181,17 +182,16 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
         return complications.servedBy(plugin)
             ? { uuid: plugin.uuid, name: nameOf(plugin), items: [], complications: theirs } : null;
     }
-    for (var s = 0; s < sources.length && count < MAX_VALUES; s++) {
+    for (var s = 0; s < sources.length; s++) {
         var src = sources[s];
         if (!src || !complications.idPart(src.category) || !Array.isArray(src.items)) {
             continue;
         }
         var props = src.properties && typeof src.properties === 'object' ? src.properties : {};
         var names = Object.keys(props);
-        for (var i = 0; i < src.items.length && count < MAX_VALUES; i++) {
+        for (var i = 0; i < src.items.length; i++) {
             var item = src.items[i];
-            var kept = [];
-            var bits = 0;
+            var values = [];
             // An item no id can hold offers nothing, and takes none of the values' room; nor the
             // Index's plumbing, nor one this app may not read from the plugin, as the Pebble app
             // judges it: by the first of the plugin's sources that serves it.
@@ -200,26 +200,64 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
                         plugin: plugin.uuid, permissions: permissions }) !== null) {
                 continue;
             }
-            for (var n = 0; n < names.length && count < MAX_VALUES; n++) {
+            for (var n = 0; n < names.length; n++) {
                 var id = pluginValues.valueId(src.category, item, names[n]);
                 if (complications.idPart(names[n]) && id.length <= MAX_ID && seen[id] !== true
                         && printable(props[names[n]])
                         && !pluginValues.notAValue(src.category, item, names[n], Boolean(src.supportsMultiple))) {
                     seen[id] = true;
-                    count += 1;
-                    if (onOff(props[names[n]])) { bits |= 1 << kept.length; }
-                    kept.push(names[n]);
+                    values.push(names[n]);
                 }
             }
-            if (kept.length) {
-                var entry = { category: src.category, item: item, multiple: Boolean(src.supportsMultiple),
-                    properties: kept };
-                if (bits) { entry.onOff = bits; }
-                items.push(entry);
+            if (values.length) {
+                found.push({ category: src.category, item: item, multiple: Boolean(src.supportsMultiple),
+                    props: props, names: values });
             }
         }
     }
+    var kept = keptValues(found);
+    var items = [];
+    found.forEach(function (one) {
+        var listed = one.names.filter(function (name) {
+            return kept[pluginValues.valueId(one.category, one.item, name)] === true;
+        });
+        var bits = 0;
+        listed.forEach(function (name, at) {
+            if (onOff(one.props[name])) { bits |= 1 << at; }
+        });
+        if (listed.length) {
+            var entry = { category: one.category, item: one.item, multiple: one.multiple, properties: listed };
+            if (bits) { entry.onOff = bits; }
+            items.push(entry);
+        }
+    });
     return items.length ? { uuid: plugin.uuid, name: nameOf(plugin), items: items } : null;
+}
+
+/**
+ * Which of a plugin's values the dialog lists (entryOf): MAX_VALUES at most, every one
+ * WarnWeather supports first (known-values.js supports), then the others in the plugin's order,
+ * so the cap never drops a supported value, however late the plugin declares it.
+ * @param {Array<{category: string, item: string, names: string[]}>} found Each item's values the
+ *   slot can show, in the plugin's order.
+ * @returns {Object<string, boolean>} Those kept, by value id (plugin-values.js valueId).
+ */
+function keptValues(found) {
+    var kept = {};
+    var room = MAX_VALUES;
+    [true, false].forEach(function (supported) {
+        found.forEach(function (one) {
+            one.names.forEach(function (name) {
+                var id = pluginValues.valueId(one.category, one.item, name);
+                if (room > 0 && kept[id] !== true
+                        && knownValues.supports(one.category, one.item, name) === supported) {
+                    kept[id] = true;
+                    room -= 1;
+                }
+            });
+        });
+    });
+    return kept;
 }
 
 /**

@@ -235,6 +235,23 @@ test('the caps: 12 plugins, 24 values each, names of 32 characters', () => {
   assert.equal(listed[0].name, 'A plugin with a long name, numb\u2026');
 });
 
+test('the values WarnWeather supports are kept first: the 24-value cap never drops one', () => {
+  const props = {};
+  for (let i = 0; i < 30; i++) { props['v' + String(i).padStart(2, '0')] = ['shortText']; }
+  props.on = ['boolean'];
+  const lamp = plugin('l', 'Lamp', [{ category: 'home', items: ['light'], properties: props }]);
+  const item = list.listOf([lamp], PERMS, 'own')[0].items[0];
+  assert.equal(item.properties.length, 24);
+  assert.equal(item.properties[23], 'on', 'the 31st the plugin declares, listed where it declares it');
+  assert.equal(item.properties[22], 'v22', 'the others fill the rest of the room, in the plugin\'s order');
+  assert.equal(item.onOff, 1 << 23, 'its bit by its place among the names listed');
+  const station = plugin('s', 'Station', [{ category: 'c', items: ['i'], properties: props },
+    { category: 'weather', items: ['netatmo'], properties: { pressure: ['numericValue'], noise: ['numericValue'] } }]);
+  assert.deepEqual(list.listOf([station], PERMS, 'own')[0].items.map((it) => [it.item, it.properties]),
+    [['i', Object.keys(props).slice(0, 23)], ['netatmo', ['pressure']]],
+    'a later source\'s supported value too, while its raw one waits behind the first source\'s');
+});
+
 test('an item no value id can hold takes none of the 24 values\' room', () => {
   const props = {};
   for (let i = 0; i < 20; i++) { props['v' + i] = ['shortText']; }
