@@ -294,9 +294,9 @@
             return slotText.cityIcon(S, env) && PConf && PConf.icons && PConf.icons.get
                 ? PConf.icons.get('condition') || null : null;
         }
-        // The Plugin value's icon is the one picked for it, in the form the value takes; the page
-        // has no outline of it, so it is the watch's drawing (plugin-value-page.js barGlyph).
-        if (code === 'pluginValue') { return pluginValuePage.barGlyph(S, env, slotKey); }
+        // The Plugin value's icon is the one picked for it, in the form the value takes
+        // (plugin-value-page.js barGlyph).
+        if (code === 'pluginValue') { return pluginValuePage.barGlyph(S, slotKey); }
         return (PConf && PConf.icons && PConf.icons.get && PConf.icons.get(code)) || null;
     }
 

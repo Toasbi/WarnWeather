@@ -38,7 +38,9 @@
 // binds while its body runs; window.PluginValuePage). userData is the page global
 // INJECTED_USERDATA, read at call time (Node tests set global.INJECTED_USERDATA). The time since
 // the read is the Weather tab's (weather-tab-readouts.js agoText), read at call time too: that
-// file loads later. The icons are the watch's own drawings (pixel-icon.js).
+// file loads later. So are the icons' outlines, which the Icon row's pictures and the Status bars
+// tab's rows draw (status-slot-icons.js, OUTLINE_NAMES); the bars' pictures of the watch draw the
+// watch's own drawings of them (pixel-icon.js, barDrawing).
 //
 // The icons that turn on and off with the value, and the Icon look that shows one alone, are
 // offered only for a value the phone lists as on or off (plugin-value-list.js onOff). A change
@@ -83,6 +85,14 @@
     // The Icon row's choices (plugin-values.js ICON_FORMS, in its order), by name.
     var ICON_LABELS = {'switch': 'Switch', wifi: 'Wi-Fi', bluetooth: 'Bluetooth', plug: 'Plug', phone: 'Phone',
         calendar: 'Calendar', tide: 'Tide'};
+    // The outline of each form of the icons (plugin-values.js ICON_FORMS), by its status icon's
+    // name (status-line-catalog.js ICONS): its id in PConf.icons (status-slot-icons.js).
+    var OUTLINE_NAMES = {PV_SWITCH: 'switchOn', PV_SWITCH_OFF: 'switchOff', PV_WIFI: 'wifi', PV_WIFI_OFF: 'wifiOff',
+        PV_BT: 'bluetooth', PV_BT_OFF: 'bluetoothOff', PV_PLUG: 'plug', PV_PHONE: 'phoneBattery',
+        PV_CALENDAR: 'countdown', PV_TIDE: 'tide'};
+    // The same by the status icon's id, as a bake packs it.
+    var OUTLINE_OF = {};
+    Object.keys(OUTLINE_NAMES).forEach(function (name) { OUTLINE_OF[catalog.ICONS[name]] = OUTLINE_NAMES[name]; });
     // The Icon row's groups, by whether their icons turn (plugin-values.js iconsThat), with their
     // headers' values; the Icon look offers only the first.
     var ICON_GROUPS = [{label: 'Turns with a value that is on or off', value: '__hdr_turns', turns: true},
@@ -846,17 +856,24 @@
     }
 
     /**
-     * An Icon option's picture (picture resolver 'pluginValueIconPicture'): the watch's drawing
-     * of each form the icon takes, on before off; none for a group's header.
+     * @param {number} id A form of an icon (plugin-values.js ICON_FORMS).
+     * @returns {string} Its outline (OUTLINE_OF), '' for none.
+     */
+    function outlineOf(id) {
+        var name = OUTLINE_OF[id];
+        return (name && PConf && PConf.icons && PConf.icons.get(name)) || '';
+    }
+
+    /**
+     * An Icon option's picture (picture resolver 'pluginValueIconPicture'): the outline of each
+     * form the icon takes, on before off; none for a group's header.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @param {{value: string}} args The option.
      * @returns {string} HTML.
      */
     function iconPicture(S, env, args) {
-        return pluginValues.formsOf(args.value).map(function (id) {
-            return pixelIcon.glyph(pixelIcon.keyOfIcon(id), env);
-        }).join('');
+        return pluginValues.formsOf(args.value).map(outlineOf).join('');
     }
 
     /**
@@ -886,26 +903,36 @@
 
     /**
      * A Plugin value slot's icon in the bars' pictures: the form its icon takes for the value
-     * barText prints, as the bake picks it (plugin-values.js iconId).
+     * barText prints, as the bake picks it.
+     * @param {Object} S Settings.
+     * @param {string} slotKey The slot's settings key.
+     * @returns {number} Its status icon id (plugin-values.js iconId): the one that loads no
+     *   drawing in the Text look.
+     */
+    function barIcon(S, slotKey) {
+        var pick = pluginValues.pickOf(S, slotKey);
+        return pluginValues.iconId(pick, shownNow(pick, Date.now()));
+    }
+
+    /**
+     * barIcon in the pictures of the watch (preview-watch.js).
      * @param {Object} S Settings.
      * @param {string} slotKey The slot's settings key.
      * @returns {?string} The key of the watch's drawing of it (status-pixels ids); null in the
      *   Text look.
      */
     function barDrawing(S, slotKey) {
-        var pick = pluginValues.pickOf(S, slotKey);
-        return pixelIcon.keyOfIcon(pluginValues.iconId(pick, shownNow(pick, Date.now())));
+        return pixelIcon.keyOfIcon(barIcon(S, slotKey));
     }
 
     /**
-     * barDrawing as a glyph for the Status bars tab's rows.
+     * barIcon in the Status bars tab's rows: its outline.
      * @param {Object} S Settings.
-     * @param {Object} env Platform env.
      * @param {string} slotKey The slot's settings key.
      * @returns {?string} An <svg>, or null for none.
      */
-    function barGlyph(S, env, slotKey) {
-        return pixelIcon.glyph(barDrawing(S, slotKey), env) || null;
+    function barGlyph(S, slotKey) {
+        return outlineOf(barIcon(S, slotKey)) || null;
     }
 
     /**

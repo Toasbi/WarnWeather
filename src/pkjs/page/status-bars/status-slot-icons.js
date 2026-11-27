@@ -35,7 +35,18 @@
 //   hr           -> HEALTH_HEART.pdc         (the plain heart)
 //   sun          -> status_row.c ARROW_PATH_INFO (the drawn sunrise/sunset arrow, a stem
 //                   and a filled head, pointing down: the samples read a sunset)
-// The outlines follow Tabler Icons (https://tabler.io/icons), MIT License,
+// and the Plugin value's icons in each form the slot draws them in (plugin-value-page.js reads
+// them here: the Icon row's pictures and the Status bars tab's rows), each from the icon the
+// watch's drawings of it started from (scripts/pixel-icons/THIRD_PARTY.md); its Bluetooth on,
+// Phone and Calendar are bluetooth, phoneBattery and countdown above:
+//   switchOn, switchOff -> Tabler's toggle-right and toggle-left (SWITCH, SWITCH_OFF)
+//   wifi, wifiOff       -> Tabler's wifi and wifi-off (WIFI, WIFI_OFF)
+//   bluetoothOff        -> Tabler's bluetooth-off: the rune above, struck through (BT_OFF)
+//   plug                -> Lucide's plug (PLUG): Lucide (https://lucide.dev), ISC License,
+//                          Copyright (c) 2026 Lucide Icons and Contributors
+//   tide                -> drawn after the watch's own drawing (TIDE): a wave curling over,
+//                          a ripple under it
+// The other outlines follow Tabler Icons (https://tabler.io/icons), MIT License,
 // Copyright (c) 2020-2024 Pawel Kuna — the same family the watch glyphs were
 // converted from. Everything is drawn in
 // currentColor, so the .lbl-ico rule colours the glyph and the theme flip follows.
@@ -159,7 +170,41 @@
             + '<path d="M7 14.5L12 22L17 14.5Z" fill="currentColor"/>'),
         // The weather condition slot's sample, a partly cloudy afternoon (the city's weather
         // icon too).
-        condition: CONDITION.svg('SUN_CLOUD')
+        condition: CONDITION.svg('SUN_CLOUD'),
+        // The Plugin value's icons (see the header), each turning one on before off.
+        switchOn: svg24(OUTLINE,
+            '<path d="M14 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>'
+            + '<path d="M2 12a6 6 0 0 1 6 -6h8a6 6 0 0 1 6 6a6 6 0 0 1 -6 6h-8a6 6 0 0 1 -6 -6"/>'),
+        switchOff: svg24(OUTLINE,
+            '<path d="M6 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>'
+            + '<path d="M2 12a6 6 0 0 1 6 -6h8a6 6 0 0 1 6 6a6 6 0 0 1 -6 6h-8a6 6 0 0 1 -6 -6"/>'),
+        wifi: svg24(OUTLINE,
+            '<path d="M12 18l.01 0"/>'
+            + '<path d="M9.172 15.172a4 4 0 0 1 5.656 0"/>'
+            + '<path d="M6.343 12.343a8 8 0 0 1 11.314 0"/>'
+            + '<path d="M3.515 9.515c4.686 -4.687 12.284 -4.687 17 0"/>'),
+        wifiOff: svg24(OUTLINE,
+            '<path d="M12 18l.01 0"/>'
+            + '<path d="M9.172 15.172a4 4 0 0 1 5.656 0"/>'
+            + '<path d="M6.343 12.343a7.963 7.963 0 0 1 3.864 -2.14m4.163 .155a7.965 7.965 0 0 1 3.287 2"/>'
+            + '<path d="M3.515 9.515a12 12 0 0 1 3.544 -2.455m3.101 -.92a12 12 0 0 1 10.325 3.374"/>'
+            + '<path d="M3 3l18 18"/>'),
+        bluetoothOff: svg24(OUTLINE,
+            '<path d="M3 3l18 18"/>'
+            + '<path d="M16.438 16.45l-4.438 3.55v-8m0 -4v-4l5 4l-2.776 2.22m-2.222 1.779l-5 4"/>'),
+        plug: svg24(OUTLINE,
+            '<path d="M12 22v-5"/>'
+            + '<path d="M15 8V2"/>'
+            + '<path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/>'
+            + '<path d="M9 8V2"/>'),
+        // The watch's drawing (19x17 on the Pebble Time 2) smoothed: the wave rising from the
+        // left, over its crest and down to where it curls in, the curl back up and down to the
+        // water, and the ripple, a little taller than the drawing's so the stroke keeps it a wave.
+        tide: svg24(OUTLINE,
+            '<path d="M2 15.5C2 8.5 6.5 2.5 13.1 2.5C17 2.5 19.8 4.5 19.8 6.8C19.8 8.4 18.8 9.5 17.5 10.1'
+            + 'C17 8.2 15.3 6.8 13.1 6.8C11.7 6.8 10.9 7.9 10.9 9.8L15.9 15.5L20.9 15.5"/>'
+            + '<path d="M2 20.4C2.8 19.4 3.4 18.8 4.2 18.8C5.8 18.8 6.5 21.2 8.1 21.2S10.4 18.8 12 18.8'
+            + 'S14.3 21.2 15.9 21.2S18.2 18.8 19.8 18.8S21.2 19.4 22 20.4"/>')
     };
 
     // Register into the engine's icon registry when it is there: always on the page
@@ -190,6 +235,13 @@
         P.icons.register('hr', ICONS.hr);
         P.icons.register('sun', ICONS.sun);
         P.icons.register('condition', ICONS.condition);
+        P.icons.register('switchOn', ICONS.switchOn);
+        P.icons.register('switchOff', ICONS.switchOff);
+        P.icons.register('wifi', ICONS.wifi);
+        P.icons.register('wifiOff', ICONS.wifiOff);
+        P.icons.register('bluetoothOff', ICONS.bluetoothOff);
+        P.icons.register('plug', ICONS.plug);
+        P.icons.register('tide', ICONS.tide);
     }
 
     if (typeof module !== 'undefined' && module.exports) {

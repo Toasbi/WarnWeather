@@ -11,15 +11,17 @@ require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/show-when.js');
 require('../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../src/pkjs/page/settings/blocks.js');
+// The page's outlines, registered in PConf.icons as the page registers them (the engine is loaded).
+const OUTLINES = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
 const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const { sample, barSlots } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
-const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
 const pluginReads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
 const { pluginValuePick } = require('../../helpers/status-slots.js');
-const { PREFERENCES, PICK_DEFAULTS, UNPRINTABLE, iconsThat } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
+const { PREFERENCES, PICK_DEFAULTS, UNPRINTABLE, ICON_FORMS, iconsThat } =
+  require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { reading } = require('../../helpers/plugin-host.js');
 
 // The Which row's first choice, as it describes itself.
@@ -1000,17 +1002,23 @@ test('a new plugin starts on its first value, with a Look and an icon that fit i
   assert.deepEqual([same[KEYS.look], same[KEYS.icon]], ['both', 'plug'], 'the same plugin again: kept');
 });
 
-test('an Icon option\'s picture: the watch\'s drawing of each form it takes, on before off', () => {
-  const glyph = (key) => PixelIcon.glyph(key, BASALT);
-  assert.ok(glyph('WIFI').indexOf('<svg ') === 0, 'drawn');
-  assert.equal(page.iconPicture({}, BASALT, { value: 'switch' }), glyph('SWITCH') + glyph('SWITCH_OFF'));
-  assert.equal(page.iconPicture({}, BASALT, { value: 'wifi' }), glyph('WIFI') + glyph('WIFI_OFF'));
-  assert.equal(page.iconPicture({}, BASALT, { value: 'bluetooth' }), glyph('BT') + glyph('BT_OFF'));
-  assert.equal(page.iconPicture({}, BASALT, { value: 'plug' }), glyph('PLUG'));
-  assert.equal(page.iconPicture({}, BASALT, { value: 'phone' }), glyph('PHONE_BATTERY'), 'the Phone battery slot\'s');
-  assert.equal(page.iconPicture({}, BASALT, { value: 'calendar' }), glyph('COUNTDOWN'), 'the Countdown slot\'s');
-  ['__hdr_turns', '__hdr_same', 'none', 'toString'].forEach((v) =>
-    assert.equal(page.iconPicture({}, BASALT, { value: v }), '', v));
+test('an Icon option\'s picture: the page\'s outline of each form it takes, on before off', () => {
+  const picture = (value) => page.iconPicture({}, BASALT, { value });
+  assert.equal(picture('switch'), OUTLINES.switchOn + OUTLINES.switchOff);
+  assert.equal(picture('wifi'), OUTLINES.wifi + OUTLINES.wifiOff);
+  assert.equal(picture('bluetooth'), OUTLINES.bluetooth + OUTLINES.bluetoothOff, 'the Alerts rows\' rune, then struck');
+  assert.equal(picture('plug'), OUTLINES.plug);
+  assert.equal(picture('phone'), OUTLINES.phoneBattery, 'the Phone battery slot\'s');
+  assert.equal(picture('calendar'), OUTLINES.countdown, 'the Countdown slot\'s');
+  assert.equal(picture('tide'), OUTLINES.tide);
+  // Every icon the row offers has an outline of each of its forms, so a new one needs its own.
+  Object.keys(ICON_FORMS).forEach((name) => {
+    const svgs = picture(name).split('</svg>').filter(Boolean);
+    assert.equal(svgs.length, ICON_FORMS[name].length, name + ': an outline of each form');
+    svgs.forEach((svg) => assert.ok(svg.indexOf('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"') === 0,
+      name + ': an outline, as the rows\' other icons are'));
+  });
+  ['__hdr_turns', '__hdr_same', 'none', 'toString'].forEach((v) => assert.equal(picture(v), '', v));
 });
 
 test('the bars\' pictures draw the icon picked, in the form the value read last takes', (t) => {
@@ -1022,9 +1030,10 @@ test('the bars\' pictures draw the icon picked, in the form the value read last 
   assert.equal(page.barDrawing(S, 'statusTopMid'), 'WIFI', 'on');
   const slot = barSlots(S, BASALT, 'top', true, new Date(NOW))[1];
   assert.deepEqual([slot.code, slot.text, slot.drawing], ['pluginValue', 'Home', 'WIFI'], 'the watch pictures\' drawing');
-  assert.equal(slot.icon, PixelIcon.glyph('WIFI', BASALT), 'the Status bars tab\'s glyph');
+  assert.equal(slot.icon, OUTLINES.wifi, 'the Status bars tab\'s glyph: its outline');
   global.INJECTED_USERDATA.pluginValues = handed(kept({ state: false, short: 'Home' }, { source: WIFI_KEY }));
   assert.equal(page.barDrawing(S, 'statusTopMid'), 'WIFI_OFF', 'off');
+  assert.equal(barSlots(S, BASALT, 'top', true, new Date(NOW))[1].icon, OUTLINES.wifiOff, 'its outline off');
   global.INJECTED_USERDATA.pluginValues = handed(kept({ state: true }, { source: WIFI_KEY, at: NOW - 3 * HOUR }));
   assert.equal(page.barDrawing(S, 'statusTopMid'), 'WIFI_OFF', 'too old to show: off, as the watch shows it');
   global.INJECTED_USERDATA = { plugins: WITH_WIFI };

@@ -15,12 +15,14 @@ const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js')
 // the slot items the watch draws a glyph for.
 const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze',
   'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun'];
+// The Plugin value's icons the slots above have none of (plugin-value-page.js OUTLINE_NAMES).
+const PLUGIN_VALUE = ['switchOn', 'switchOff', 'wifi', 'wifiOff', 'bluetoothOff', 'plug', 'tide'];
 
 // The weather icons are condition-icons.js'; every glyph is a 24x24 outline.
 const WEATHER = ['rain', 'condition'];
 
 test('every glyph is a 24x24 svg drawn in currentColor', () => {
-  IDS.concat(['condition']).forEach((id) => {
+  IDS.concat(['condition'], PLUGIN_VALUE).forEach((id) => {
     const svg = ICONS[id];
     assert.equal(typeof svg, 'string', id + ' is exported');
     assert.ok(svg.indexOf('<svg viewBox="0 0 24 24"') === 0, id + ' opens a 24x24 svg');
@@ -45,7 +47,7 @@ test('the weather icons are the condition slot\'s: the rain alert\'s rain cloud,
 });
 
 test('every glyph is a Tabler-style outline', () => {
-  IDS.concat(['condition']).forEach((id) => {
+  IDS.concat(['condition'], PLUGIN_VALUE).forEach((id) => {
     assert.ok(ICONS[id].indexOf('fill="none" stroke="currentColor" stroke-width="1.8"') !== -1,
       id + ' is an unfilled 1.8 outline');
     assert.ok(ICONS[id].indexOf('stroke-linecap="round" stroke-linejoin="round"') !== -1,
@@ -56,7 +58,7 @@ test('every glyph is a Tabler-style outline', () => {
 test('requiring the module with the engine loaded registers every glyph', () => {
   // The module registered at require time above: engine.js had already attached
   // PConf.icons to the shared global, which is exactly the page's load order.
-  IDS.forEach((id) => {
+  IDS.concat(PLUGIN_VALUE).forEach((id) => {
     assert.equal(global.PConf.icons.get(id), ICONS[id], id + ' is in PConf.icons');
   });
   const row = E.renderRow({ type: 'toggle', messageKey: 'alertUv', label: 'UV index', icon: 'uv' },

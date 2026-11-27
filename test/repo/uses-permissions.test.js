@@ -39,6 +39,7 @@ const NOT_REQUESTED = {
   'toasbi.github.io': 'the emulator\'s settings page helper, opened with Pebble.openURL under the emulator only',
   'developer.repebble.com': 'a source comment',
   'tabler.io': 'the icons\' attribution comment',
+  'lucide.dev': 'the Plugin value\'s plug icon\'s attribution comment',
   'www.w3.org': 'the XLink namespace',
   'aa.quae.nl': 'a source comment in the vendored SunCalc',
   'idlastro.gsfc.nasa.gov': 'a source comment in the vendored SunCalc',

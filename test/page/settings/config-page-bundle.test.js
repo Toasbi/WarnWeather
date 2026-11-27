@@ -757,7 +757,8 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
   assert.notEqual(at, -1, 'status-slot-icons.js is not in APP_FILES');
   const src = page();
   const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze',
-    'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun', 'condition'];
+    'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun', 'condition',
+    'switchOn', 'switchOff', 'wifi', 'wifiOff', 'bluetoothOff', 'plug', 'tide'];
   IDS.forEach((id) => {
     assert.ok(src.indexOf("icons.register('" + id + "'") !== -1,
       'no register(\'' + id + '\' in page.generated.js — status-slot-icons.js did not reach the page');

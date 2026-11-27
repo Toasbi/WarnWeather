@@ -64,18 +64,6 @@ test('a platform draws its family\'s drawings: the Pebble Time 2\'s, the Classic
   assert.equal(PixelIcon.family(null), 'basalt', 'no platform known');
 });
 
-test('a glyph is the family\'s largest drawing in currentColor, centred in a square a pixel wider than it', () => {
-  // The Switch's basalt drawing is 17 wide and 13 tall: a 19 px square around it.
-  const p = STATUS.icons.SWITCH['basalt-13'];
-  assert.deepEqual([p.w, p.rows.length], [17, 13]);
-  assert.equal(PixelIcon.glyph('SWITCH', { platform: 'basalt' }), '<svg viewBox="-1 -3 19 19" fill="currentColor" '
-    + 'shape-rendering="crispEdges"><path d="' + PixelIcon.path(p) + '"></path></svg>');
-  const emery = STATUS.icons.SWITCH['emery-17'];
-  assert.ok(PixelIcon.glyph('SWITCH', { platform: 'emery' }).indexOf('<path d="' + PixelIcon.path(emery) + '">') !== -1,
-    'the Pebble Time 2\'s largest');
-  assert.equal(PixelIcon.glyph('NO_SUCH_ICON', { platform: 'basalt' }), '', 'no drawing, no glyph');
-});
-
 test('an icon id loads the drawings listed under its status_line.h name; a text-only id or one drawn in code loads none', () => {
   const C = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js').ICONS;
   assert.equal(PixelIcon.keyOfIcon(C.TEMP), 'TEMP');
