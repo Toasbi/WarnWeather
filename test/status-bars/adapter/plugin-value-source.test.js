@@ -1184,6 +1184,18 @@ test('a pick of the Preferences plugin\'s own reading, which 3.4.0 listed, is ne
   assert.equal(h.pebble.subs.length, 0, 'never asked');
 });
 
+test('a pick of what is no value to show, which the Value row no longer lists, is never read and shows --', () => {
+  const h = boot({ settings: slot('statusTopLeft', { plugin: PHONE, id: 'phone/phone_state/network_code' }),
+    permissions: PERMS, pebble: fakePebble([{ uuid: PHONE, name: 'Phone', sources: [{ category: 'phone',
+      items: ['phone_state'], properties: { network_code: ['shortText'] } }] }]) });
+  h.clock += 2 * HOUR;
+  minute();
+  pluginValueSource.refresh();
+  assert.equal(h.pebble.subs.length, 0, 'never asked');
+  statusRebake.resendStatus('fetch');
+  assert.equal(sentText(h), '--');
+});
+
 test('a value of a plugin\'s own that asks for a permission this app never declared is not read either', () => {
   const h = boot({ permissions: PERMS, pebble: fakePebble([{ uuid: PHONE, name: 'Phone', sources: [{ category: 'phone',
     items: ['phone_state'], callerPermissions: ['Contacts'] }] }]) });

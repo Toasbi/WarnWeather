@@ -202,7 +202,8 @@ function keyOf(c) {
  * complication at its place names (requestOf), under a key that names that reading (keyOf)
  * after the complication's own, so a value is the place's only while the place names the
  * reading it was read from (plugin-values.js readFrom). The key is made here, beside keyOf,
- * since plugin-values.js rides the settings page's URL and the page never makes one.
+ * since plugin-values.js rides the settings page's URL and the page never makes one. None that
+ * is no value to show (plugin-values.js notAValue), which the Value row greys out.
  * @param {{key: string, complication: number}} source The source a slot picks
  *   (plugin-values.js sourceOf), a complication's.
  * @param {?Complication[]} list The user's complications as last heard, or null while none
@@ -214,7 +215,8 @@ function keyOf(c) {
  */
 function wantOf(source, list, permissions) {
     var c = atPlace(list, source.complication);
-    return c ? { key: source.key + '/' + keyOf(c), request: requestOf(c, permissions) }
+    var shown = c && !pluginValues.notAValue(c.category, c.item, c.property, true);
+    return c ? { key: source.key + '/' + keyOf(c), request: shown ? requestOf(c, permissions) : null }
         : { key: source.key, request: null };
 }
 

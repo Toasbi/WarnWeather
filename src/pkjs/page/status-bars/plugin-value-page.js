@@ -65,6 +65,9 @@
         + 'The slot follows the one you pick when you change it there.';
     // The Value row's hint while the slot holds a value the picked plugin no longer offers.
     var NOT_OFFERED = 'The plugin no longer offers this value. Until it does, the slot shows ' + NONE_SHOWN + '.';
+    // And while it holds one that is no value to show, which the phone never reads
+    // (plugin-values.js notAValue): an id, a link, a code.
+    var NO_VALUE = 'WarnWeather can\'t show this kind of value, so the slot shows ' + NONE_SHOWN + '.';
     // Why a complication is greyed out, for a permission another app's plugin defines
     // (plugin-reads.js ANOTHER_APPS), which WarnWeather can never declare.
     var ANOTHER_APPS = ':';
@@ -154,10 +157,7 @@
      * @returns {string}
      */
     function labelOf(name) {
-        var words = String(name).replace(/([a-z])([A-Z])/g, '$1 $2')
-            .replace(/([A-Z0-9]+)([A-Z][a-z])/g, '$1 $2').replace(/[_\-\s]+/g, ' ')
-            .replace(/^ | $/g, '').split(' ');
-        var text = words.map(function (w) {
+        var text = pluginValues.wordsOf(name).map(function (w) {
             return (w.length > 1 && w === w.toUpperCase()) || ACRONYMS.indexOf(w.toLowerCase()) !== -1
                 ? w.toUpperCase() : w.toLowerCase();
         }).join(' ');
@@ -412,9 +412,14 @@
         var pick = pluginValues.pickOf(S, args.slotKey);
         var plugin = pluginOf(pick.plugin);
         var value = valueIn(plugin, pick.id);
+        var source;
         if (offersComplications(plugin)) { return complicationHint(pick, value); }
         if (!plugin || !pick.id) { return null; }
-        if (!value) { return NOT_OFFERED; }
+        source = pluginValues.sourceOf(pick);
+        if (!value) {
+            return source && pluginValues.notAValue(source.category, source.item, source.property, true) ? NO_VALUE
+                : NOT_OFFERED;
+        }
         return value.multiple && !whichOffered(pick) ? FIRST_HINT : null;
     }
 

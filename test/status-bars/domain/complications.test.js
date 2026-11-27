@@ -95,4 +95,8 @@ test('wantOf: the reading the complication at the slot\'s place names, under a k
   assert.deepEqual(complications.wantOf(source, [], PERMS), { key: source.key, request: null }, 'none set up');
   assert.deepEqual(complications.wantOf(source, null, PERMS), { key: source.key, request: null },
     'not known: nothing to read, which shows nothing');
+  const code = Object.assign({}, LIST[3], { property: 'condition_code' });
+  assert.deepEqual(complications.wantOf(source, [LIST[0], LIST[1], LIST[2], code], PERMS),
+    { key: 'prefs/preferences/complications/4/weather/location/1/condition_code', request: null },
+    'no value to show, which the Value row greys out: nothing to read, which shows nothing');
 });

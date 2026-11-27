@@ -208,6 +208,64 @@
     }
 
     /**
+     * The categories whose every item is the Index's plumbing: where a plugin offers the Index a
+     * place for notes, reminders or chats (the plugin guide's destinations). So is an item named
+     * PLUMBING_ITEM: whether such a place is set up.
+     */
+    var PLUMBING_CATEGORIES = ['notes', 'reminders', 'agent'];
+    var PLUMBING_ITEM = 'configured';
+
+    /**
+     * The last words (wordsOf) of a property that is no value to show: an identifier, a link, a
+     * file's path, an app's package, an account, a secret, a position, or a machine's code.
+     */
+    var NOT_A_VALUE_ENDS = ['id', 'ids', 'uuid', 'url', 'uri', 'link', 'href', 'path', 'package', 'account', 'email',
+        'token', 'key', 'address', 'coordinates', 'latitude', 'longitude', 'lat', 'lon', 'lng', 'code'];
+
+    /**
+     * The properties, whole (wordsOf), that are no value to show: how sure a position is, a
+     * machine's words for what something is or can do, and a place's offset from UTC.
+     */
+    var NOT_A_VALUE_NAMES = ['accuracy', 'accuracy meters', 'type', 'kind', 'capabilities', 'utc offset'];
+
+    /**
+     * @param {string} name A property's name.
+     * @returns {string[]} Its words as they are written: split at '_', '-', blanks and the
+     *   capital of a camelCase word ('accuracyMeters' is 'accuracy', 'Meters'; 'UVIndex' is
+     *   'UV', 'Index'; '5G' stays whole). The Value row names a value by them
+     *   (plugin-value-page.js labelOf), and tells by them what is no value to show (notAValue).
+     */
+    function wordsOf(name) {
+        return String(name).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z0-9]+)([A-Z][a-z])/g, '$1 $2')
+            .split(/[\s_\-]+/).filter(Boolean);
+    }
+
+    /**
+     * @param {string} category A source's category. @param {string} item One of its items.
+     * @returns {boolean} Whether the item is the Index's plumbing (PLUMBING_CATEGORIES,
+     *   PLUMBING_ITEM), no value to show.
+     */
+    function plumbing(category, item) {
+        return PLUMBING_CATEGORIES.indexOf(category) !== -1 || item === PLUMBING_ITEM;
+    }
+
+    /**
+     * @param {string} category A source's category. @param {string} item One of its items.
+     * @param {string} property One of its properties.
+     * @param {boolean} multiple Whether the source serves more than one instance.
+     * @returns {boolean} Whether the property is no value to show: the Index's plumbing
+     *   (plumbing), one whose name says it is none (NOT_A_VALUE_ENDS, NOT_A_VALUE_NAMES), or the
+     *   name of a source's one instance, which labels it, the same text always (the plugin guide:
+     *   an instance's name is what to show for it in a list of them).
+     */
+    function notAValue(category, item, property, multiple) {
+        var words = wordsOf(property).map(function (w) { return w.toLowerCase(); });
+        var whole = words.join(' ');
+        return plumbing(category, item) || NOT_A_VALUE_ENDS.indexOf(words[words.length - 1]) !== -1
+            || NOT_A_VALUE_NAMES.indexOf(whole) !== -1 || (!multiple && whole === INSTANCE_NAME);
+    }
+
+    /**
      * @param {Object} source A source (sourceOf) of a plugin's own value.
      * @returns {string} The plugin's item it is a value of, as the instances a read brings of it
      *   are kept (plugin-reader.js itemOf): 'plugin/category/item', the plugin's uuid in lower case.
@@ -645,6 +703,9 @@
         everyMs: everyMs,
         oneLine: oneLine,
         cutName: cutName,
+        wordsOf: wordsOf,
+        plumbing: plumbing,
+        notAValue: notAValue,
         textFor: textFor,
         lookOf: lookOf,
         drawsIcon: drawsIcon,

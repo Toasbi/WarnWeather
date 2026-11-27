@@ -232,6 +232,8 @@ test('the Value row lists the picked plugin\'s values, and keeps one it no longe
   assert.deepEqual(valueOptions(old).slice(-1),
     [['Wifi name', 'phone/phone_state/wifi_name', { desc: 'Not offered now' }]]);
   assert.equal(valueHint(old), 'The plugin no longer offers this value. Until it does, the slot shows --.');
+  assert.equal(valueHint(pickIn({ plugin: PHONE, id: 'phone/phone_state/network_code' })),
+    'WarnWeather can\'t show this kind of value, so the slot shows --.', 'one the phone never reads: no value to show');
   const gone = pickIn({ plugin: 'gone', id: 'muninn/stats/daysRemaining' });
   assert.deepEqual(valueOptions(gone), [['Days left', 'muninn/stats/daysRemaining', { desc: 'Not offered now' }]],
     'a plugin not on this phone: its value, under its name');

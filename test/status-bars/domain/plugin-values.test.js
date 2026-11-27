@@ -254,6 +254,21 @@ test('the text: words beside a moment only on its day, its day on another; an al
   }
 });
 
+test('a property\'s words, as the Value row names it, and whether it is no value to show', () => {
+  assert.deepEqual(pv.wordsOf('accuracyMeters'), ['accuracy', 'Meters']);
+  assert.deepEqual(pv.wordsOf('UVIndex'), ['UV', 'Index']);
+  assert.deepEqual(pv.wordsOf('wind_speed-max now'), ['wind', 'speed', 'max', 'now']);
+  assert.deepEqual(pv.wordsOf('5G'), ['5G'], 'a digit before a capital stays in its word');
+  assert.deepEqual(pv.wordsOf('pm25Value'), ['pm25', 'Value']);
+  assert.equal(pv.notAValue('weather', 'current', 'condition_code', true), true, 'a code');
+  assert.equal(pv.notAValue('phone', 'phone_state', 'stationId', true), true, 'an id, camelCase');
+  assert.equal(pv.notAValue('weather', 'current', 'utc_offset', true), true);
+  assert.equal(pv.notAValue('notes', 'inbox', 'title', true), true, 'the Index\'s plumbing');
+  assert.equal(pv.notAValue('weather', 'current', 'temperature', false), false);
+  assert.equal(pv.notAValue('rooms', 'lights', 'name', false), true, 'the name of one instance labels it');
+  assert.equal(pv.notAValue('rooms', 'lights', 'name', true), false, 'of several, it tells them apart');
+});
+
 test('the text: else its state, on or off, lowercase; the number before it, the long text after it', () => {
   assert.equal(pv.textFor(reading({ state: true }), 8), 'on');
   assert.equal(pv.textFor(reading({ state: false }), 8), 'off');

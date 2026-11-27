@@ -58,7 +58,10 @@ var NAME = 'plugin-value';
  * first instances, which its dialog's Which row lists (keepInstances). Nothing of the Preferences
  * plugin's but a complication: its own readings are the user's position and plumbing, which
  * this app never reads (plugin-reads.js neverRead), and a pick of one from before the
- * complications (3.4.0 listed them) shows nothing.
+ * complications (3.4.0 listed them) shows nothing. Nor a value that is no value to show
+ * (plugin-values.js notAValue: an id, a link, a code), which the Value row no longer lists; one
+ * a slot picked before then shows nothing. The name of a source's one instance, which the row
+ * leaves out too, is read where a slot holds it: the phone does not know how many it serves.
  * @param {Object} source The source (plugin-values.js sourceOf).
  * @param {?Array<Object>} list The user's complications as last heard, or null while none are
  *   known.
@@ -66,12 +69,15 @@ var NAME = 'plugin-value';
  *   (plugin-reads.js declaredKeys): a read never starts where it would ask the user for another
  *   permission (plugin-reads.js refusal).
  * @returns {{key: string, request: ?Object}} What is wanted (complications.js wantOf's for a
- *   complication); no request for one of the Preferences plugin's own readings.
+ *   complication); no request for one of the Preferences plugin's own readings, nor for no value.
  */
 function readOf(source, list, permissions) {
     var request;
     if (source.complication !== null) { return complications.wantOf(source, list, permissions); }
-    if (source.plugin.toLowerCase() === pluginValues.PREFERENCES) { return { key: source.key, request: null }; }
+    if (source.plugin.toLowerCase() === pluginValues.PREFERENCES
+            || pluginValues.notAValue(source.category, source.item, source.property, true)) {
+        return { key: source.key, request: null };
+    }
     request = { category: source.category, item: source.item, properties: [source.property], plugin: source.plugin,
         limit: pluginValues.MAX_INSTANCES, permissions: permissions };
     if (source.property !== pluginValues.INSTANCE_NAME) { request.properties.push(pluginValues.INSTANCE_NAME); }
