@@ -320,12 +320,28 @@
             : slotText.dayText(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate(), nowMs);
     }
 
-    /** A number in a text, with the separators between its digits: '189.84', '1,234.5', '7'. */
-    var NUMBER = /\d+(?:[.,]\d+)*/g;
+    /** A text's last number, with the separators between its digits: '189.84', '1,234.5', '7'. */
+    var LAST_NUMBER = /\d+(?:[.,]\d+)*(?=\D*$)/;
+
+    /**
+     * A number written with a dot that may be a clock time or a date: an hour and its minutes
+     * ('19.45', '9.05'), or a day and its month ('27.11').
+     */
+    var TIME_OR_DATE = /^(?:[1-9]|[01]\d|2[0-3])\.[0-5]\d$|^(?:0?[1-9]|[12]\d|3[01])\.(?:0[1-9]|1[0-2])$/;
+
+    /**
+     * A sign of what a number measures, which no clock time or date carries, right before a
+     * number or right after it, a blank between at most: '€', '$', '£', '¥', '%', '°'.
+     */
+    var SIGN_BEFORE = /[\u20ac$\u00a3\u00a5%\u00b0] ?$/;
+    var SIGN_AFTER = /^ ?[\u20ac$\u00a3\u00a5%\u00b0]/;
+
+    /** The end of a group of thousands before a number's last: a digit and a blank or an apostrophe. */
+    var GROUP_BEFORE = /\d[ \u00a0\u202f'\u2019]$/;
 
     /**
      * A number rounded half up to fewer decimals, its separators as they were.
-     * @param {string} number A number (NUMBER) whose last separator is its decimal one.
+     * @param {string} number A number (LAST_NUMBER) whose last separator is its decimal one.
      * @param {number} dot Where that separator is. @param {number} keep The decimals it keeps,
      *   fewer than it has.
      * @returns {?string} e.g. ('189.84', 3, 1) → '189.8', ('189.84', 3, 0) → '190', ('9,999.5', 5,
@@ -351,33 +367,43 @@
     }
 
     /**
+     * @param {string} number A text's last number (LAST_NUMBER).
+     * @param {number} dot Where its last separator is, or -1 for none.
+     * @param {string} before The text before it. @param {string} after The text after it.
+     * @returns {boolean} Whether the separator is sure to set off decimals. Not where the number
+     *   has none; uses it twice ('1,234,567' groups thousands); has it alone before three digits,
+     *   after a whole of one to three that does not start with 0 ('1.234' is 1234 in German);
+     *   follows a group of thousands set off by a blank (GROUP_BEFORE: '19 999,96'); or may be a
+     *   clock time or a date (TIME_OR_DATE: '19.45', '27.11') with no sign of a measure beside
+     *   it (SIGN_BEFORE, SIGN_AFTER: '21.46 °C' is a temperature).
+     */
+    function sureDecimals(number, dot, before, after) {
+        return dot >= 0 && number.indexOf(number.charAt(dot)) === dot
+            && !(number.length - dot === 4 && /^[1-9]\d{0,2}$/.test(number.slice(0, dot)))
+            && !GROUP_BEFORE.test(before)
+            && (SIGN_BEFORE.test(before) || SIGN_AFTER.test(after) || !TIME_OR_DATE.test(number));
+    }
+
+    /**
      * A text with its last number rounded to the fewest decimals it must lose to fit the cap
      * ('€189.84' → '€189.8', '€1189.84' → '€1190'), where a cut would print another number.
      * @param {string} text The text, on one line. @param {number} cap The slot's byte cap.
-     * @returns {?string} null where no rounding fits, and where the number has no decimals for
-     *   sure: none, a separator used twice ('1,234,567' groups thousands), or a lone one before
-     *   three digits after a whole of one to three that does not start with 0 ('1.234' is 1234 in
-     *   German).
+     * @returns {?string} null where no rounding fits, and where the number's decimals are not
+     *   sure (sureDecimals).
      */
     function roundedToFit(text, cap) {
-        var match = null;
-        var found;
-        var number;
-        var dot;
+        var match = LAST_NUMBER.exec(text);
+        var number = match ? match[0] : '';
+        var before = match ? text.slice(0, match.index) : '';
+        var after = match ? text.slice(match.index + number.length) : '';
+        var dot = Math.max(number.lastIndexOf('.'), number.lastIndexOf(','));
         var keep;
         var rounded;
-        NUMBER.lastIndex = 0;
-        while ((found = NUMBER.exec(text)) !== null) { match = found; }
-        number = match ? match[0] : '';
-        dot = Math.max(number.lastIndexOf('.'), number.lastIndexOf(','));
-        if (dot < 0 || number.indexOf(number.charAt(dot)) < dot
-                || (number.length - dot === 4 && /^[1-9]\d{0,2}$/.test(number.slice(0, dot)))) {
-            return null;
-        }
+        if (!sureDecimals(number, dot, before, after)) { return null; }
         for (keep = number.length - dot - 2; keep >= 0; keep -= 1) {
             rounded = roundedNumber(number, dot, keep);
             if (rounded === null) { return null; }
-            rounded = text.slice(0, match.index) + rounded + text.slice(match.index + number.length);
+            rounded = before + rounded + after;
             if (utf8.byteLength(rounded) <= cap) { return rounded; }
         }
         return null;

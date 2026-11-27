@@ -283,7 +283,8 @@ test('the text: a number that does not fit loses the decimals it must, rounded, 
   [['\u20ac189.84', 8, '\u20ac189.8'], ['\u20ac1189.84', 8, '\u20ac1190'], ['CHF 92.14', 8, 'CHF 92.1'],
     ['+CHF 0.09', 8, '+CHF 0.1'], ['189.84 \u20ac', 8, '190 \u20ac'], ['21.46 \u00b0C', 8, '21.5 \u00b0C'],
     ['99.96%', 5, '100%'], ['99.5', 3, '100'], ['0.94', 3, '0.9'], ['0.96', 3, '1.0'],
-    ['$91,234.56', 8, '$91,235'], ['9,999.5', 6, '10,000'], ['Room 2: 21.46', 12, 'Room 2: 21.5'],
+    ['$91,234.56', 8, '$91,235'], ['9,999.5', 6, '10,000'], ['Room 2: 31.46', 12, 'Room 2: 31.5'],
+    ['12.30 \u20ac', 8, '12.3 \u20ac'], ['\u20ac 19.45', 7, '\u20ac 19'], ['9.45%', 4, '9.5%'],
     ['1.234,56 \u20ac', 10, '1.235 \u20ac'], ['12,5 km', 6, '13 km'],
     ['0.125 mm/h', 8, '0.1 mm/h']].forEach(([text, cap, shown]) => {
     assert.equal(pv.textFor(reading({ short: text }), cap), shown, text + ' in ' + cap);
@@ -297,6 +298,13 @@ test('the text: a number whose decimals are not sure is cut, not rounded', () =>
   assert.equal(pv.textFor(reading({ short: '1,234,567 steps' }), 8), '1,234\u2026', 'thousands grouped twice');
   assert.equal(pv.textFor(reading({ short: '1,234,567' }), 6), '1,2\u2026', 'never rounded to 1,235');
   assert.equal(pv.textFor(reading({ short: '999,999.5' }), 8), '999,9\u2026', 'a carry that would group it wrongly');
+  assert.equal(pv.textFor(reading({ short: '19\u00a0999,96' }), 8), '19 99\u2026', 'thousands set off by a blank');
+  assert.equal(pv.textFor(reading({ short: "1'999.96" }), 7), "1'99\u2026", 'or by an apostrophe: never 1\'1000');
+  assert.equal(pv.textFor(reading({ short: 'klo 19.45' }), 8), 'klo 1\u2026', 'a clock time');
+  assert.equal(pv.textFor(reading({ short: 'Bus 9.55' }), 7), 'Bus\u2026', 'a clock time of one-digit hours');
+  assert.equal(pv.textFor(reading({ short: 'Mo 27.11.' }), 8), 'Mo 27\u2026', 'a date');
+  assert.equal(pv.textFor(reading({ short: 'Due 31.12' }), 8), 'Due 3\u2026', 'the last day of the year');
+  assert.equal(pv.textFor(reading({ short: 'Due 32.12' }), 8), 'Due 32.1', 'no day: a number');
 });
 
 test('the Look: the text alone by default and for a choice it does not know, the id that loads no drawing', () => {
