@@ -101,8 +101,9 @@ function slotDialog(sheetOf, slotKey) {
         onChangeArgs: slot,
         showWhen: picked
     }, {
-        // The icon (plugin-values.js ICON_FORMS), each choice drawn as the watch draws it; one
-        // that turns is for a value that is on or off, and the only kind the Icon look offers.
+        // The icon (plugin-values.js ICON_FORMS), each choice drawn as its outlines
+        // (plugin-value-page.js iconPicture); one that turns is for a value that is on or off,
+        // and the only kind the Icon look offers.
         type: 'select',
         messageKey: keys.icon,
         label: 'Icon',

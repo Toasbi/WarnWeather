@@ -105,10 +105,12 @@
     // shows the first all the same (whichOffered).
     var FIRST_HINT = 'The plugin offers this for more than one thing. The slot shows the first.';
     // The Which row's choice while the slot picks none of its source's instances: the first the
-    // plugin sends that has the value (plugin-values.js PICK_DEFAULTS), and the one it picks where
-    // the item's last read did not bring it.
+    // plugin sends that has the value (plugin-values.js PICK_DEFAULTS), then that one while the
+    // plugin lists it (plugin-reader.js firstOf), and the one it picks where the item's last read
+    // did not bring it.
     var FIRST_LABEL = 'The first';
-    var FIRST_DESC = 'The first the plugin lists with this value';
+    var FIRST_DESC = 'The first the plugin lists with this value. If that one stops sending it, the slot shows '
+        + NONE_SHOWN + '.';
     var HELD_LABEL = 'Your pick';
     // The Which row's hints: the names come with the slot's next read (at once after a save
     // that picks a new value, else after its Updates), the plugin sends none, or it no longer

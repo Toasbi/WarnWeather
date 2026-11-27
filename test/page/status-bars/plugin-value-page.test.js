@@ -25,7 +25,7 @@ const { PREFERENCES, PICK_DEFAULTS, UNPRINTABLE, ICON_FORMS, iconsThat } =
 const { reading } = require('../../helpers/plugin-host.js');
 
 // The Which row's first choice, as it describes itself.
-const FIRST_DESC = 'The first the plugin lists with this value';
+const FIRST_DESC = 'The first the plugin lists with this value. If that one stops sending it, the slot shows --.';
 
 const PConf = global.PConf;
 const MIN = 60 * 1000;
