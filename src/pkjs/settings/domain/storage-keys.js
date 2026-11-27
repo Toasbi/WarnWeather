@@ -169,6 +169,12 @@ module.exports = {
     // for them (plugin-value-source.js readOf). Another app's data. An entry goes at a start or a
     // save once no slot picks a value of its item.
     PLUGIN_INSTANCES: 'pluginInstances',
+    // Where a Plugin value slot picks none of its source's instances (The first), the one its
+    // value was read from last, by its source: {<source>: <instance id>} (plugin-value-source.js
+    // heard). The slot reads that one while the plugin lists it, so a module that cannot measure
+    // right now shows --, never the next one's reading (plugin-reader.js firstOf). Another app's
+    // data. An entry goes at a start or a save once no slot picks its source.
+    PLUGIN_FIRSTS: 'pluginFirsts',
     // Until 3.5.0, when the item had one source for every slot: its value as last heard, and
     // when it was last read. plugin-value-source.js moves them into the maps above at its start
     // and removes them.

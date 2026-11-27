@@ -272,11 +272,13 @@ lists the supported values first, then the raw values (Supported value). A value
 offers for more than one thing (its source serves several instances: a room's lights, a stock,
 the modules of a weather station) shows the first the plugin sends that has it (a station's
 pressure from its indoor module, after an outdoor one that measures none: `plugin-reader.js`
-instanceFor), or the one the dialog's Which row picks by its name, from the names the last read
-of the item brought (`plugin-value-list.js` instancesKept); one the plugin no longer sends shows
---, never the first in its place. An item whose first instance is the one
-that matters, such as the next event, has no Which row, and its reads ask for the first instance
-alone (`plugin-values.js` whichMayOffer). The Pebble
+instanceFor), and then that one while the plugin lists it, so a module off the air shows --
+(`plugin-reader.js` firstOf); or the one the dialog's Which row picks by its name, from the
+names the last read of the item brought (`plugin-value-list.js` instancesKept); one the plugin
+no longer sends shows --, never the first in its place. An item whose first instance is the one
+that matters, such as the next event, has no Which row, and neither has an instance's name (its
+`name` property): their reads ask for the first instance alone (`plugin-values.js`
+whichMayOffer). The Pebble
 app's Preferences plugin is listed as Complications, right after None, with the user's
 complications in place of values of its own (Complication). The value is a plugin read, after each Updates
 interval or once the plugin's own word on when it has something new runs out

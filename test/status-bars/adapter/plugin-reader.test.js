@@ -536,6 +536,36 @@ test('readingOf: with no instance asked for, the first that brings the property,
   assert.equal(pluginReader.readingOf(STATION, 'pressure', undefined, 'outdoor'), null, 'and by its id');
 });
 
+test('readingOf: with no instance asked for, the first that brings a value of it a slot can print', () => {
+  const answer = { instances: [{ instanceId: 'a', properties: { pressure: {} } },
+    { instanceId: 'b', properties: { pressure: { icon: { pixels: '' } } } }, null,
+    { instanceId: 'c', properties: { pressure: { shortText: { text: '1013hPa' } } } }] };
+  assert.equal(pluginReader.readingOf(answer, 'pressure').short, '1013hPa');
+  assert.equal(pluginReader.firstOf(answer, 'pressure', null), 'c');
+});
+
+/**
+ * The weather station's answer while its outdoor module is off the air: the plugin lists it with
+ * its name and none of its readings.
+ */
+const OUTDOOR_OFF = { pluginUuid: 'n', instances: [
+  { instanceId: 'outdoor', properties: { name: { shortText: { text: 'Outdoor' } } } },
+  STATION.instances[1], STATION.instances[2]] };
+
+test('firstOf: the one read from last while the update lists it first, so a module that cannot measure now shows --', () => {
+  assert.equal(pluginReader.firstOf(STATION, 'temperature', null), 'outdoor', 'none read yet: the first that brings it');
+  assert.equal(pluginReader.firstOf(OUTDOOR_OFF, 'temperature', 'outdoor'), 'outdoor', 'listed, though it brings none now');
+  assert.equal(pluginReader.readingOf(OUTDOOR_OFF, 'temperature', undefined, 'outdoor'), null, 'so the slot shows --');
+  assert.equal(pluginReader.firstOf(OUTDOOR_OFF, 'temperature', null), 'indoor', 'none read from: the first that brings it');
+  assert.equal(pluginReader.firstOf(STATION, 'temperature', 'indoor'), 'outdoor',
+    'one listed before it that brings it: the plugin\'s order counts');
+  assert.equal(pluginReader.firstOf(STATION, 'pressure', 'indoor'), 'indoor', 'past one that never brought it');
+  assert.equal(pluginReader.firstOf(STATION, 'temperature', 'gone'), 'outdoor', 'one no longer listed: the first that brings it');
+  assert.equal(pluginReader.firstOf(STATION, 'wind_speed', null), null, 'none brings it');
+  assert.equal(pluginReader.firstOf({ instances: [{ properties: { v: { shortText: { text: 'x' } } } }] }, 'v', null), null,
+    'one without an id');
+});
+
 test('readOnce: with no instance asked for, an answer that brings the property in any instance is the one asked for', () => {
   const fake = fakePebble();
   const timers = fakeTimers();
@@ -699,8 +729,10 @@ test('readingOf: null where the plugin did not send the property; anything else 
   assert.equal(pluginReader.readingOf(null, 'v'), null);
   assert.equal(pluginReader.readingOf({ instances: [] }, 'v'), null, 'no instance');
   assert.equal(pluginReader.readingOf(withShapes('87%'), 'v'), null, 'shapes that are not an object');
-  assert.deepEqual(pluginReader.readingOf(withShapes({ icon: { pixels: '' } }), 'v'), reading({}),
-    'a shape the slot does not print');
+  assert.equal(pluginReader.readingOf(withShapes({ icon: { pixels: '' } }), 'v'), null,
+    'a shape the slot does not print: none to read, with no instance asked for');
+  assert.deepEqual(pluginReader.readingOf(withShapes({ icon: { pixels: '' } }), 'v', 0), reading({}),
+    'the instance asked for, as it is');
   assert.deepEqual(pluginReader.readingOf(withShapes({ shortText: { text: 87 }, numericValue: { value: '87', unit: 3 },
     longText: 'ok' }), 'v'), reading({ short: 87, number: '87', unit: 3, long: undefined }), 'fields of the wrong type');
 });

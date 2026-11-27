@@ -58,9 +58,10 @@ var NAME = 'plugin-value';
  * What a lane reads for its source, whether a bar shows it or not: its property of the instance
  * it picks, and, where its dialog may offer the Which row (plugin-values.js whichMayOffer) or it
  * picks an instance, the names of the source's first instances, which the row lists
- * (keepInstances). Where it picks none, the first instance that brings the property, where the
- * Which row may offer others; else the first instance alone, whatever it brings (the next
- * event), even where the plugin sends more. Nothing
+ * (keepInstances). Where it picks none, the first instance that brings the property, or the one
+ * its value was read from last while the plugin lists it (heard, firstAt), where the Which row
+ * may offer others; else the first instance alone, whatever it brings (the next event), even
+ * where the plugin sends more. Nothing
  * of the Preferences plugin's but a complication: its own readings are the user's position and
  * plumbing, which this app never reads (plugin-reads.js neverRead), and a pick of one from before
  * the complications (3.4.0 listed them) shows nothing. Nor a value that is no value to show
@@ -251,6 +252,21 @@ function keepInstances(request, envelope) {
 }
 
 /**
+ * Where a lane's read asks for no instance (readOf: The first), the place in storage of the one
+ * its value was read from last (KEYS.PLUGIN_FIRSTS), which it reads again while the plugin lists
+ * it (plugin-reader.js firstOf): a module that cannot measure right now shows --, never the next
+ * one's reading. Another app's data: never logged.
+ * @param {string} key The lane's key.
+ * @param {Object} request Its read (readOf).
+ * @returns {?StoredPlace} The place; null for a read that names its instance, by its id or by
+ *   its place (the next event, a complication's).
+ */
+function firstAt(key, request) {
+    return typeof request.instance === 'number' || request.instanceId ? null
+        : storedJson.entryOf(KEYS.PLUGIN_FIRSTS, key);
+}
+
+/**
  * Make the reads of one plugin's item as one read (plugin-reader.js together), keep the
  * instances its answer brings (keepInstances), and hand the answer to each (callEach); the reads
  * the answer makes go at the flush after it, whatever another value did with it.
@@ -314,11 +330,16 @@ function laneSpec(lane) {
         },
         heard: function (envelope, want, nowMs) {
             var until = pluginReader.validUntilOf(envelope);
+            var property = want.request.properties[0];
+            var first = firstAt(want.key, want.request);
+            var kept = first ? first.read() : null;
+            var from = first ? pluginReader.firstOf(envelope, property, kept) : null;
+            var reading = pluginReader.readingOf(envelope, property, want.request.instance,
+                from || want.request.instanceId);
+            if (from && reading) { first.write(from, kept, NAME + ': the first'); }
             // Checked as a stored value is, once: valueOf.
-            return { time: until, value: pluginValueReads.valueOf({ source: want.key,
-                reading: pluginReader.readingOf(envelope, want.request.properties[0], want.request.instance,
-                    want.request.instanceId),
-                at: nowMs, validUntil: until }) };
+            return { time: until, value: pluginValueReads.valueOf({ source: want.key, reading: reading, at: nowMs,
+                validUntil: until }) };
         },
         valueOf: pluginValueReads.valueOf,
         shown: function (value, settings, nowMs) {
@@ -329,8 +350,9 @@ function laneSpec(lane) {
 }
 
 /**
- * Keep in storage only the values and the reads of the sources a slot picks (status-lines.js
- * pickedPluginValues), shown or not, and the instances of their plugins' items.
+ * Keep in storage only the values, the reads and the instances read from last (firstAt) of the
+ * sources a slot picks (status-lines.js pickedPluginValues), shown or not, and the instances of
+ * their plugins' items.
  * @param {Array<{source: Object}>} picked The slots that pick a source.
  * @returns {void}
  */
@@ -339,6 +361,7 @@ function keepPicked(picked) {
     var items;
     storedJson.keepOnly(KEYS.PLUGIN_VALUES, keys, NAME + ': the values');
     storedJson.keepOnly(KEYS.PLUGIN_VALUE_READS, keys, NAME + ': the times of the reads');
+    storedJson.keepOnly(KEYS.PLUGIN_FIRSTS, keys, NAME + ': the firsts');
     items = picked.filter(function (slot) { return slot.source.complication === null; })
         .map(function (slot) { return pluginValues.itemKeyOf(slot.source); });
     storedJson.keepOnly(KEYS.PLUGIN_INSTANCES, items, NAME + ': the instances');

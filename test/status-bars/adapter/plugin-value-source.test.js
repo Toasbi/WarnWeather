@@ -565,6 +565,7 @@ test('a slot that picks an instance shows that one\'s value, wherever the plugin
   const key = HOME + '#hall%2F2/home/room_lights/on';
   assert.equal(storedValue(key).reading.short, 'Off', 'the hall\'s');
   assert.equal(storedValue(HOME + '/home/room_lights/on'), null, 'nothing kept for the first');
+  assert.equal(stored(KEYS.PLUGIN_FIRSTS), null, 'nor the instance the first was read from');
   minute();
   assert.equal(sentText(h), 'Off');
 });
@@ -577,10 +578,34 @@ test('an instance the plugin no longer sends shows --, never the first in its pl
   assert.equal(sentText(h), '--');
 });
 
+/** A weather station's plugin, which sends one instance for each of its modules, as Netatmo Weather does. */
+const STATION = 'bbbbbbbb-0000-0000-0000-00000000000b';
+/** Its outdoor module's id and its indoor one's. */
+const OUTDOOR = '02:00:00:aa:bb:01';
+const INDOOR = '70:ee:50:aa:bb:02';
+
+/**
+ * One of the station's modules, as its plugin sends it.
+ * @param {string} id The module's id.
+ * @param {string} name Its name.
+ * @param {Object} props Its readings, by property.
+ * @returns {Object} The instance.
+ */
+function moduleOf(id, name, props) {
+  return { instanceId: id, properties: Object.assign({ name: { shortText: { text: name } } }, props) };
+}
+
+/**
+ * The station's answer: its outdoor module first, with the readings given, then its indoor one.
+ * @param {Object} outdoor The outdoor module's readings, by property ({} while it is off the air).
+ * @returns {Object} The envelope.
+ */
+function stationAnswer(outdoor) {
+  return { pluginUuid: STATION, instances: [moduleOf(OUTDOOR, 'Home - Outdoor', outdoor),
+    moduleOf(INDOOR, 'Home - Indoor', { temperature: { shortText: { text: '21.5°C' } } })] };
+}
+
 test('a slot on the first shows the first instance that has its value: a weather station\'s pressure from its indoor module', () => {
-  const STATION = 'bbbbbbbb-0000-0000-0000-00000000000b';
-  const moduleOf = (id, name, props) => ({ instanceId: id,
-    properties: Object.assign({ name: { shortText: { text: name } } }, props) });
   const h = boot({ settings: slot('statusTopLeft', { plugin: STATION, id: 'weather/netatmo/pressure' }) });
   assert.deepEqual(h.pebble.subs[0].request.properties, ['pressure', 'name']);
   h.pebble.subs[0].push({ pluginUuid: STATION, instances: [moduleOf('02:00:00:aa:bb:01', 'Home - Outdoor', {}),
@@ -588,6 +613,39 @@ test('a slot on the first shows the first instance that has its value: a weather
   assert.equal(storedValue(STATION + '/weather/netatmo/pressure').reading.short, '1013hPa');
   minute();
   assert.equal(sentText(h), '1013hPa');
+});
+
+test('a slot on the first stays on the module it was read from while the plugin lists it: one off the air shows --, never the next one\'s', () => {
+  const key = STATION + '/weather/netatmo/temperature';
+  const settings = slot('statusTopLeft', { plugin: STATION, id: 'weather/netatmo/temperature' });
+  const h = boot({ settings: settings });
+  h.pebble.subs[0].push(stationAnswer({ temperature: { shortText: { text: '3.4°C' } } }));
+  assert.equal(storedValue(key).reading.short, '3.4°C');
+  assert.deepEqual(stored(KEYS.PLUGIN_FIRSTS), { [key]: OUTDOOR });
+  // The outdoor module goes off the air: the plugin lists it with none of its readings.
+  h.clock = NOON + HOUR;
+  minute();
+  h.pebble.subs[1].push(stationAnswer({}));
+  assert.equal(storedValue(key), null, 'not the indoor module\'s 21.5°C');
+  statusRebake.resendStatus('fetch');
+  assert.equal(sentText(h), '--');
+  // A PKJS start keeps the module it was read from.
+  const again = boot({ settings: settings, clock: NOON + 2 * HOUR, keepStorage: true });
+  again.pebble.subs[0].push(stationAnswer({}));
+  assert.equal(storedValue(key), null, 'still none');
+  again.clock = NOON + 3 * HOUR;
+  minute();
+  again.pebble.subs[1].push(stationAnswer({ temperature: { shortText: { text: '2.0°C' } } }));
+  assert.equal(storedValue(key).reading.short, '2.0°C', 'back on the air');
+  // Taken off the station: the first that has it.
+  again.clock = NOON + 4 * HOUR;
+  minute();
+  again.pebble.subs[2].push({ pluginUuid: STATION, instances: [stationAnswer({}).instances[1]] });
+  assert.equal(storedValue(key).reading.short, '21.5°C');
+  assert.deepEqual(stored(KEYS.PLUGIN_FIRSTS), { [key]: INDOOR });
+  again.settings = SLOT;
+  pluginValueSource.refresh();
+  assert.equal(stored(KEYS.PLUGIN_FIRSTS), null, 'it goes with the pick');
 });
 
 test('two slots, the first room and the hall, are one read, each showing its own', () => {
@@ -651,6 +709,7 @@ test('the next event is the first the plugin sends, whatever it brings, even whe
   h.timers.filter((t) => t.ms === pluginReader.FULLER_ANSWER_MS).forEach((t) => t.fn());
   assert.equal(h.pebble.subs[0].unsubscribed, 1, 'the read is over');
   assert.equal(storedValue(CALENDAR + '/calendar/event/location'), null, 'never a later event\'s');
+  assert.equal(stored(KEYS.PLUGIN_FIRSTS), null, 'nor one kept to read again');
   statusRebake.resendStatus('fetch');
   assert.equal(sentText(h), '--');
 });

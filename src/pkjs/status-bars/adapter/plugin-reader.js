@@ -354,23 +354,43 @@ function instancesIn(envelope) {
 }
 
 /**
- * The instance a property is read from: the one asked for, by its id, else by its place, and
- * where neither is asked for, the first that brings the property. A weather station's plugin
+ * The instance a property is read from: the one asked for, by its id, else by its place. Where
+ * neither is asked for, the first that brings a value of it a slot can print (printable), or the
+ * one named kept where the update lists that one first (firstOf). A weather station's plugin
  * lists its outdoor module first, and only its indoor one measures the pressure.
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
  * @param {number} [index] Which instance, in the order the plugin sent them.
  * @param {string} [instanceId] Which instance by its id, in place of the index: the one the
  *   plugin names so, wherever it sent it.
+ * @param {*} [kept] Where neither is asked for, the id of the instance read from last (firstOf).
  * @returns {*} The instance, or undefined where the update brings none so.
  */
-function instanceFor(envelope, property, index, instanceId) {
+function instanceFor(envelope, property, index, instanceId, kept) {
     var instances = instancesIn(envelope);
     if (named(instanceId)) {
         return instances.find(function (one) { return Boolean(one) && one.instanceId === instanceId; });
     }
     if (typeof index === 'number') { return instances[index]; }
-    return instances.find(function (one) { return shapesIn(one, property) !== null; });
+    return instances.find(function (one) {
+        return printable(one, property) || (named(kept) && Boolean(one) && one.instanceId === kept);
+    });
+}
+
+/**
+ * The id of the instance a read that asks for none reads (The first): the first the update lists
+ * that brings a value of the property a slot can print, or the one the value was read from last
+ * where the update lists that one first. An outdoor module that cannot measure right now is
+ * still listed, so its temperature shows --, never the indoor one's; once it is no longer listed,
+ * the first that brings the property is.
+ * @param {?Object} envelope A source update.
+ * @param {string} property The property's name.
+ * @param {*} kept The id of the instance the value was read from last, or null for none.
+ * @returns {?string} The instance's id; null where the update lists none so, or it has no id.
+ */
+function firstOf(envelope, property, kept) {
+    var one = instanceFor(envelope, property, undefined, undefined, kept);
+    return one && named(one.instanceId) ? one.instanceId : null;
 }
 
 /**
@@ -384,6 +404,17 @@ function instanceFor(envelope, property, index, instanceId) {
 function shapesIn(instance, property) {
     var shapes = instance && instance.properties && instance.properties[property];
     return shapes && typeof shapes === 'object' ? shapes : null;
+}
+
+/**
+ * @param {*} instance One of an update's instances, or undefined.
+ * @param {string} property A property's name.
+ * @returns {boolean} Whether it brings the property in a shape a reading reads
+ *   (plugin-value-reads.js SHAPES), not just an empty one or one a slot never prints.
+ */
+function printable(instance, property) {
+    var shapes = shapesIn(instance, property);
+    return Boolean(shapes) && pluginValueReads.SHAPES.some(function (shape) { return Boolean(shapes[shape]); });
 }
 
 /**
@@ -418,8 +449,8 @@ function numberOf(envelope, property) {
  */
 
 /**
- * A property's reading in one of the envelope's instances, the first that brings it by default
- * (instanceFor): the value of each shape the slot prints (each text shape's text, the
+ * A property's reading in one of the envelope's instances, the first that brings a value of it
+ * a slot can print by default (instanceFor): the value of each shape the slot prints (each text shape's text, the
  * timestamp, the number with its unit, the boolean: plugin-value-reads.js FIELDS), as the
  * plugin sent them, unchecked. What of it is kept, and what the slot shows, are the status
  * bars' rules, checked once (plugin-value-reads.js valueOf).
@@ -511,6 +542,7 @@ module.exports = {
     readOnce: readOnce,
     numberOf: numberOf,
     readingOf: readingOf,
+    firstOf: firstOf,
     instancesOf: instancesOf,
     validUntilOf: validUntilOf,
     plugins: plugins
