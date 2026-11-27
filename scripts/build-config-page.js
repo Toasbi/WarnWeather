@@ -198,7 +198,7 @@ var APP_FILES = [
   // value slot's dialog (window.PluginValuePage), its rows' lists and texts, binds it, and
   // PluginValues, StatusLineCatalog and PixelIcon, while its body runs, and preview-status-bars.js
   // binds that.
-  path.join(ROOT, 'src/pkjs/page/status-bars/known-values.js'),
+  path.join(ROOT, 'src/pkjs/status-bars/domain/known-values.js'),
   path.join(ROOT, 'src/pkjs/page/status-bars/plugin-value-page.js'),
   // The Status bars tab's pinned preview (reads StatusLineCatalog, OnDemand, VIEW_CYCLE,
   // PreviewSvg and the slot-text chain above at render).

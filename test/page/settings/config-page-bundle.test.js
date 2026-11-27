@@ -146,7 +146,7 @@ test('the plugin values WarnWeather knows reach the page ahead of the Plugin val
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  assert.ok(idx('page/status-bars/known-values.js') < idx('page/status-bars/plugin-value-page.js'),
+  assert.ok(idx('status-bars/domain/known-values.js') < idx('page/status-bars/plugin-value-page.js'),
     'known-values.js must precede plugin-value-page.js');
   assert.ok(page().indexOf(code('window.KnownValues = api')) !== -1, 'nothing assigns window.KnownValues');
 });

@@ -1,4 +1,4 @@
-// src/pkjs/page/status-bars/known-values.js — ES5. The plugin values WarnWeather knows, by the
+// src/pkjs/status-bars/domain/known-values.js — ES5. The plugin values WarnWeather knows, by the
 // vocabulary's 'category/item/property', which every plugin that serves a source shares (the
 // weather plugins all serve weather/location): each one's name in the Plugin value dialog's Value
 // row, and the ones it supports (SUPPORTED), which the row lists first, with the Look and the icon
@@ -16,7 +16,7 @@
 // page (scripts/build-config-page.js APP_FILES, after plugin-values.js, which it binds while its
 // body runs, and ahead of plugin-value-page.js, which binds it; window.KnownValues).
 (function () {
-    var pluginValues = typeof require !== 'undefined' ? require('../../status-bars/domain/plugin-values.js')
+    var pluginValues = typeof require !== 'undefined' ? require('./plugin-values.js')
         : window.PluginValues;
 
     /**

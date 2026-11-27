@@ -314,7 +314,7 @@ _Avoid_: custom slot; complication, which is one of the user's in the Pebble app
 
 **Supported value**:
 A Plugin value WarnWeather has checked, by the shared vocabulary's category, item and property
-whichever plugin serves it (`page/status-bars/known-values.js` SUPPORTED): it says something the
+whichever plugin serves it (`status-bars/domain/known-values.js` SUPPORTED): it says something the
 watchface shows nowhere else, and changes slowly enough for the slot's Updates, such as Wi-Fi,
 today's high, the next event, a weather station's own readings (Netatmo's) or the next high tide
 (Tide's estimate), and a share price, the owner's call, which shows as of the slot's last read.

@@ -57,7 +57,7 @@
     var batteryDays = node ? require('../../status-bars/domain/battery-days.js') : window.BatteryDays;
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
     var pixelIcon = node ? require('../weather/pixel-icon.js') : window.PixelIcon;
-    var knownValues = node ? require('./known-values.js') : window.KnownValues;
+    var knownValues = node ? require('../../status-bars/domain/known-values.js') : window.KnownValues;
     // What the slot shows while it has no value to show (status-lines.js formatValue).
     var NONE_SHOWN = pluginValues.textFor(null, catalog.CAPS.MID_TEXT_MAX);
     // The Value row's hint while the Preferences plugin is picked: where the complications are

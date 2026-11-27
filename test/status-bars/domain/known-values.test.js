@@ -4,7 +4,7 @@
 // is plugin-value-page.test.js'.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const known = require('../../../src/pkjs/page/status-bars/known-values.js');
+const known = require('../../../src/pkjs/status-bars/domain/known-values.js');
 const pluginValues = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 
 /** Values each read from a plugin known for them, which WarnWeather supports. */
