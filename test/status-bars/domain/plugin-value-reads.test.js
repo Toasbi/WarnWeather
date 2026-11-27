@@ -104,6 +104,20 @@ test('valueOf: a number whose name says it is a moment, in epoch seconds or mill
     time: MOMENT_S + 60 }, at: T0 }).reading.time, MOMENT_MS + 60000, 'a timestamp beside it is the moment');
 });
 
+test('valueOf: a bearing with no words of the plugin\'s gets its compass point, which the slot prints', () => {
+  const answer = (name, fields) => reads.valueOf({ source: 'u/weather/location/' + name, reading: fields, at: T0 }).reading;
+  assert.equal(answer('wind_direction', { number: 250, unit: '\u00b0' }).short, 'W', 'not 250\u00b0, which reads as a temperature');
+  assert.equal(answer('wind_direction', { number: 4, unit: '\u00b0' }).short, 'N');
+  assert.equal(answer('windBearing', { number: 135 }).short, 'SE', 'no unit, and another name for it');
+  assert.equal(answer('wind_direction', { number: 250, unit: '\u00b0', short: 'WSW' }).short, 'WSW', 'the plugin\'s own words');
+  assert.equal(answer('wind_direction', { number: 250, unit: '\u00b0' }).number, 250, 'the number stays');
+  assert.equal(answer('temperature', { number: 250, unit: '\u00b0' }).short, null, 'a name that says nothing of it');
+  assert.equal(answer('wind_direction', { number: 400, unit: '\u00b0' }).short, null, 'no bearing');
+  assert.equal(answer('wind_direction', { number: 250, unit: '\u00b0C' }).short, null, 'another unit');
+  assert.equal(require('../../../src/pkjs/status-bars/domain/plugin-values.js').textFor(
+    answer('wind_direction', { number: 250, unit: '\u00b0' }), 8), 'W');
+});
+
 test('valueOf: a value of such a number kept before it was read as a moment is one now', () => {
   const stored = JSON.parse(JSON.stringify({ source: 'd008a08a-6e34-4cc4-98dc-bae02ce5e087/muninn/stats/updatedAt',
     reading: { short: null, number: 1795453201716, unit: null, long: null }, at: T0, validUntil: null }));

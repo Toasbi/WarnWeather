@@ -27,6 +27,7 @@
 var utf8 = require('../../lib/utf8.js');
 var pluginReads = require('./plugin-reads.js');
 var pluginValues = require('./plugin-values.js');
+var slotText = require('./slot-text.js');
 
 /**
  * When the next read is due.
@@ -102,6 +103,28 @@ function namesMoment(name) {
 }
 
 /**
+ * @param {string} name A property's name.
+ * @returns {boolean} Whether it says the property's number is a bearing: it ends in direction,
+ *   bearing or heading, in any case (wind_direction, windBearing).
+ */
+function namesBearing(name) {
+    return /(?:direction|bearing|heading)$/i.test(name);
+}
+
+/**
+ * @param {Object} r A reading, as a value keeps it (keptField).
+ * @param {string} property The property it is of.
+ * @returns {?string} The words for its number where the property's name says it is a bearing
+ *   (namesBearing) and the plugin sent none: the compass point of a number of degrees, 0 to
+ *   360 ('W' for 250, not '250°', which reads as a temperature), as WarnWeather's own weather
+ *   plugins send it. Null otherwise.
+ */
+function bearingWords(r, property) {
+    return r.short === null && namesBearing(property) && r.number !== null && r.number >= 0 && r.number <= 360
+        && (r.unit === null || r.unit === '\u00b0') ? slotText.compassPoint(r.number) : null;
+}
+
+/**
  * The property a value was read from: the last part of its source, which names it last
  * (plugin-values.js valueId: 'category/item/property', after the plugin's uuid).
  * @param {string} source A value's source (plugin-values.js sourceOf's key).
@@ -156,7 +179,8 @@ function keptField(f, r, property) {
  * was read from (plugin-values.js sourceOf's key); its reading (plugin-reader.js readingOf),
  * each field as a value keeps it (keptField), null for each it lacks; when it was read; and
  * until when the plugin said it holds (plugin-reads.js timeOf). A value kept before a number
- * named as a moment was read as one gets its moment here too.
+ * named as a moment was read as one gets its moment here too, and a bearing with no words of
+ * the plugin's its compass point (bearingWords).
  * @param {*} value What was stored (parsed JSON), or a value just read.
  * @returns {?{source: string, reading: Object, at: number, validUntil: ?number}} The value,
  *   or null when it is none: no reading that brings a text, a moment, a number or a state.
@@ -169,6 +193,7 @@ function valueOf(value) {
         return null;
     }
     FIELDS.forEach(function (f) { reading[f.name] = keptField(f, r, propertyOf(value.source)); });
+    reading.short = bearingWords(reading, propertyOf(value.source)) || reading.short;
     if (!FIELDS.some(function (f) { return !f.of && reading[f.name] !== null; })) {
         return null;
     }

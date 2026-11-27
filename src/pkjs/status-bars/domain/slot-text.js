@@ -204,6 +204,14 @@
     var MONTHS = 'JanFebMarAprMayJunJulAugSepOctNovDec';
 
     /**
+     * @param {number} deg A bearing in degrees, where the wind comes from (meteorological).
+     * @returns {string} Its compass point, one of N/NE/E/SE/S/SW/W/NW.
+     */
+    function compassPoint(deg) {
+        return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(((deg % 360) + 360) % 360 / 45) % 8];
+    }
+
+    /**
      * @param {number} day The day of the month. @param {number} month The month, 0 for January.
      * @returns {string} The date as a moment's date names it: '24 Nov'.
      */
@@ -423,6 +431,7 @@
         dayMaxText: dayMaxText,
         pad2: pad2,
         clockText: clockText,
+        compassPoint: compassPoint,
         dateText: dateText,
         momentText: momentText,
         formatCountdown: formatCountdown,

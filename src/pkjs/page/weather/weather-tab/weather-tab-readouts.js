@@ -9,6 +9,8 @@
 
     var model = (typeof require !== 'undefined')
         ? require('../../../weather/domain/weather-tab-model.js') : window.WeatherTabModel;
+    var slotText = (typeof require !== 'undefined')
+        ? require('../../../status-bars/domain/slot-text.js') : window.SlotText;
 
     /**
      * Format a number with one optional decimal (12, 12.5).
@@ -57,13 +59,12 @@
     }
 
     /**
-     * Compass label for a bearing.
+     * Compass label for a bearing, as a status slot prints one (slot-text.js compassPoint).
      * @param {number} deg Meteorological bearing (comes from).
      * @returns {string} One of N/NE/E/SE/S/SW/W/NW.
      */
     function compass(deg) {
-        var names = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-        return names[Math.round(((deg % 360) + 360) % 360 / 45) % 8];
+        return slotText.compassPoint(deg);
     }
 
     /**
