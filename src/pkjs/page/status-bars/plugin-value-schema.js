@@ -69,8 +69,9 @@ function slotDialog(sheetOf, slotKey) {
         sticky: false,
         optionsFrom: {resolver: 'pluginValueIds', args: slot},
         hintFrom: {resolver: 'pluginValueIdHint', args: slot},
-        // A value that is neither on nor off takes no Look or icon that would stay off.
-        onChange: 'pluginValueFit',
+        // Another value takes no label typed for the one before, and a value that is neither on
+        // nor off takes no Look or icon that would stay off.
+        onChange: 'pluginValueIdPicked',
         onChangeArgs: slot,
         showWhen: picked
     }, {

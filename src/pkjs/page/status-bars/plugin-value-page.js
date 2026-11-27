@@ -3,8 +3,9 @@
 // and hooks (args.slotKey): the Plugin, Value, Look, Icon, Label and Updates rows' lists and hints,
 // Bold's hints, the Icon row's pictures, the line with the value read last, the Muninn note, and
 // the rows' changes: the Plugin row's starts a new plugin on its first value, each fits the Look
-// and the icon to the value (fitSlot), and another value takes no label typed for the one before. The lists are the plugins the phone listed as the page opened
-// (userData.plugins, plugin-value-list.js listOf): the page reads no plugin itself, since a read
+// and the icon to the value (fitSlot), and another value takes no label typed for the one before
+// (dropLabel). The lists are the plugins the phone listed as the page opened (userData.plugins,
+// plugin-value-list.js listOf): the page reads no plugin itself, since a read
 // costs the user (plugin-reader.js). The phone sends each plugin's items with their properties'
 // names, and the page makes each value's id (plugin-values.js valueId) and label (labelOf) of
 // them. The values read last (userData.pluginValues, by their source's key, checked on the
@@ -424,8 +425,18 @@
     }
 
     /**
-     * onChange of the Value and Look rows: fitSlot for the slot whose row changed. Another value
-     * takes no label typed for the one before: it named that value (labelShown).
+     * A slot's new value takes no label typed for the one before: it named that value
+     * (labelShown).
+     * @param {Object} S Settings (mutated).
+     * @param {string} slotKey The slot's settings key.
+     * @returns {void}
+     */
+    function dropLabel(S, slotKey) {
+        S[catalog.pluginValueKeys(slotKey).label] = pluginValues.PICK_DEFAULTS.label;
+    }
+
+    /**
+     * onChange of the Look row: fitSlot for the slot whose row changed.
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The choice before. @param {string} newV The choice now.
      * @param {Object} env Platform env.
@@ -434,8 +445,21 @@
      * @returns {void}
      */
     function fitPicked(S, oldV, newV, env, key, args) {
-        var keys = catalog.pluginValueKeys(args.slotKey);
-        if (key === keys.id && oldV !== newV) { S[keys.label] = pluginValues.PICK_DEFAULTS.label; }
+        fitSlot(S, args.slotKey);
+    }
+
+    /**
+     * onChange of the Value row: another value with no label (dropLabel), and the Look and the
+     * icon fit to it (fitSlot).
+     * @param {Object} S Settings (mutated).
+     * @param {string} oldV The value before. @param {string} newV The value now.
+     * @param {Object} env Platform env.
+     * @param {string} key The row's key.
+     * @param {{slotKey: string}} args The row's slot (its onChangeArgs).
+     * @returns {void}
+     */
+    function valuePicked(S, oldV, newV, env, key, args) {
+        if (oldV !== newV) { dropLabel(S, args.slotKey); }
         fitSlot(S, args.slotKey);
     }
 
@@ -458,7 +482,7 @@
         var first = valuesOf(pluginOf(newV)).filter(function (v) { return !v.unreadable; })[0];
         if (oldV !== newV) {
             S[keys.id] = first ? first.id : '';
-            S[keys.label] = pluginValues.PICK_DEFAULTS.label;
+            dropLabel(S, slotKey);
             if (!newV) {
                 S[keys.look] = pluginValues.LOOK_DEFAULT;
                 S[keys.icon] = pluginValues.ICON_DEFAULT;
@@ -490,7 +514,7 @@
      */
     function labelShown(S, env, args) {
         var pick = pluginValues.pickOf(S, args.slotKey);
-        return Boolean(pluginValues.sourceOf(pick)) && pluginValues.showsLabel(pick) && !listedNeither(pick);
+        return pluginValues.showsLabel(pick) && Boolean(pluginValues.sourceOf(pick)) && !listedNeither(pick);
     }
 
     /**
@@ -651,6 +675,7 @@
         PConf.hintResolvers.register('pluginValueMuninnNote', function () { return MUNINN_NOTE; });
         PConf.onChange.register('pluginValuePluginPicked', pluginPicked);
         PConf.onChange.register('pluginValueFit', fitPicked);
+        PConf.onChange.register('pluginValueIdPicked', valuePicked);
         PConf.whenResolvers.register('pluginValueFromMuninn', fromMuninn);
         PConf.whenResolvers.register('pluginValueNeither', neitherPicked);
         PConf.optionsResolvers.register('pluginValueLooks', lookOptions);
@@ -662,8 +687,7 @@
 
     var api = { MUNINN_NOTE: MUNINN_NOTE, labelOf: labelOf, pluginOptions: pluginOptions,
         valueOptions: valueOptions, pluginHint: pluginHint, valueHint: valueHint, lastLine: lastLine,
-        fromMuninn: fromMuninn, pluginPicked: pluginPicked, fitPicked: fitPicked, labelShown: labelShown,
-        iconOptions: iconOptions,
+        fromMuninn: fromMuninn, pluginPicked: pluginPicked, labelShown: labelShown, iconOptions: iconOptions,
         lookOptions: lookOptions, iconHint: iconHint, iconPicture: iconPicture, boldHint: boldHint,
         everyOptions: everyOptions,
         barText: barText, barDrawing: barDrawing, barGlyph: barGlyph };

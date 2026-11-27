@@ -9732,7 +9732,7 @@
                     "slotKey": "statusForecastLeft"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusForecastLeft"
                 },
@@ -9975,7 +9975,7 @@
                     "slotKey": "statusForecastMid"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusForecastMid"
                 },
@@ -10218,7 +10218,7 @@
                     "slotKey": "statusForecastRight"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusForecastRight"
                 },
@@ -10461,7 +10461,7 @@
                     "slotKey": "statusRadarLeft"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusRadarLeft"
                 },
@@ -10704,7 +10704,7 @@
                     "slotKey": "statusRadarMid"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusRadarMid"
                 },
@@ -10947,7 +10947,7 @@
                     "slotKey": "statusRadarRight"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusRadarRight"
                 },
@@ -11190,7 +11190,7 @@
                     "slotKey": "statusTopLeft"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusTopLeft"
                 },
@@ -11433,7 +11433,7 @@
                     "slotKey": "statusTopMid"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusTopMid"
                 },
@@ -11676,7 +11676,7 @@
                     "slotKey": "statusTopRight"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusTopRight"
                 },
@@ -11919,7 +11919,7 @@
                     "slotKey": "statusHealthLeft"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusHealthLeft"
                 },
@@ -12162,7 +12162,7 @@
                     "slotKey": "statusHealthMid"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusHealthMid"
                 },
@@ -12405,7 +12405,7 @@
                     "slotKey": "statusHealthRight"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusHealthRight"
                 },
@@ -12648,7 +12648,7 @@
                     "slotKey": "statusBar4Left"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusBar4Left"
                 },
@@ -12891,7 +12891,7 @@
                     "slotKey": "statusBar4Mid"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusBar4Mid"
                 },
@@ -13134,7 +13134,7 @@
                     "slotKey": "statusBar4Right"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusBar4Right"
                 },
@@ -13377,7 +13377,7 @@
                     "slotKey": "statusBar5Left"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusBar5Left"
                 },
@@ -13620,7 +13620,7 @@
                     "slotKey": "statusBar5Mid"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusBar5Mid"
                 },
@@ -13863,7 +13863,7 @@
                     "slotKey": "statusBar5Right"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusBar5Right"
                 },
@@ -14106,7 +14106,7 @@
                     "slotKey": "statusBar6Left"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusBar6Left"
                 },
@@ -14349,7 +14349,7 @@
                     "slotKey": "statusBar6Mid"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusBar6Mid"
                 },
@@ -14592,7 +14592,7 @@
                     "slotKey": "statusBar6Right"
                   }
                 },
-                "onChange": "pluginValueFit",
+                "onChange": "pluginValueIdPicked",
                 "onChangeArgs": {
                   "slotKey": "statusBar6Right"
                 },

@@ -916,6 +916,7 @@ test('the Plugin value slot\'s rules and dialog reach the page ahead of the Stat
     "register('pluginValueIds'", "register('pluginValuePluginHint'", "register('pluginValueIdHint'",
     "register('pluginValueLast'", "register('pluginValuePluginPicked'", "register('pluginValueIcons'",
     "register('pluginValueIconHint'", "register('pluginValueIconPicture'", "register('pluginValueFit'",
+    "register('pluginValueIdPicked'",
     "register('pluginValueNeither'", "register('pluginValueLookHint'", "register('pluginValueLabelShown'",
     "register('pluginValueLabelHint'"
   ].forEach((s) => {

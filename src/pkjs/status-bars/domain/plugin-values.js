@@ -354,8 +354,8 @@
      * @returns {string}
      */
     function slotTextOf(pick, reading, cap, settings, nowMs) {
-        var label = labelText(pick);
-        if (label && reading && typeof reading.state === 'boolean') { return utf8.truncateToByteCap(label, cap).str; }
+        var label = reading && typeof reading.state === 'boolean' ? labelText(pick) : '';
+        if (label) { return utf8.truncateToByteCap(label, cap).str; }
         return printsText(pick) || !reading ? textFor(reading, cap, settings, nowMs) : '';
     }
 
