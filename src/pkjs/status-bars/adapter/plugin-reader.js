@@ -61,15 +61,46 @@ var FULLER_ANSWER_MS = 3000;
  * @property {number} [instance] Which instance's properties the read is for, 0 (the first) by
  *   default: what makes an answer the one asked for (readOnce) and what a reading reads
  *   (readingOf). Never sent.
- * @property {Array<{property: string, instance: number}>} [reads] For a read of several
- *   readings at once (plugin-value-source.js reads the values of one plugin's item together),
- *   each reading it is for, in place of `instance`: an answer is the one asked for only when it
- *   brings them all (readOnce). Never sent.
+ * @property {Array<{property: string, instance: number}>} [reads] For a read that stands for
+ *   several (together), each reading it is for, in place of `instance`: an answer is the one
+ *   asked for only when it brings them all (readOnce). Never sent.
  * @property {string[]} [permissions] What this app declares, as the Pebble app keys it
  *   (plugin-reads.js declaredKeys), for a read that must never ask the user for a permission
  *   it did not: it starts only where the phone's list of plugins says no plugin that may answer
  *   it asks for another (refused). Never sent.
  */
+
+/**
+ * @param {PluginRequest} request A read.
+ * @returns {string} The plugin's item it reads, which reads made as one share (together): the
+ *   plugin it names counts, so a read that names none, which the Pebble app gives to the plugin it
+ *   picks, is never one with a read that names one.
+ */
+function itemOf(request) {
+    return (request.plugin ? String(request.plugin).toLowerCase() : '') + '/' + request.category + '/' + request.item;
+}
+
+/**
+ * The one read that stands for several reads of a plugin's item (itemOf), each of one property
+ * of one instance (plugin-value-source.js reads the values of one item at once): every property
+ * they ask for, as many instances as the furthest of theirs, and the readings it is for (reads),
+ * so its answer is the one asked for only when it brings them all (readOnce).
+ * @param {Array<PluginRequest>} requests The reads, of one item, at least one.
+ * @returns {PluginRequest} The read.
+ */
+function together(requests) {
+    var first = requests[0];
+    var request = { category: first.category, item: first.item, properties: [], limit: 1,
+        permissions: first.permissions, reads: [] };
+    if (first.plugin) { request.plugin = first.plugin; }
+    requests.forEach(function (r) {
+        var property = r.properties[0];
+        if (request.properties.indexOf(property) === -1) { request.properties.push(property); }
+        request.limit = Math.max(request.limit, r.limit || 1);
+        request.reads.push({ property: property, instance: r.instance || 0 });
+    });
+    return request;
+}
 
 /**
  * @param {?Object} pebble The Pebble object, or null where there is none.
@@ -392,6 +423,8 @@ module.exports = {
     available: available,
     pebbleOf: pebbleOf,
     failure: failure,
+    itemOf: itemOf,
+    together: together,
     watch: watch,
     readOnce: readOnce,
     numberOf: numberOf,
