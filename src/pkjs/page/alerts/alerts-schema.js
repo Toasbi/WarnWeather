@@ -2,7 +2,7 @@
 // settings schema, split out of schema.js: the About alerts card (its intro, its reset
 // link row and the Default view note) and the item rows under it, the sheet behind every
 // row (Battery, Bluetooth, Quiet time, Sleep, Rain and the five metric alerts, each leading
-// with its Shows on grid), the alert-level cards, the eight side lists' hidden items, and
+// with its Shows on grid), the alert-level cards, every bar's side lists' hidden items, and
 // the pieces the other tabs show: a bar's Alerts row (Status bars tab) and the Bluetooth
 // icon's choices (aplite's Watch Status Bar). schema.js's alert slot sheets
 // read the kinds, their contract codes and the placement leaf from here.
@@ -467,7 +467,7 @@ function onDemandRow(prefix, barWhen) {
     };
 }
 /**
- * The eight side lists (status<Bar>OnDemand<Left|Right>Items), never drawn: the ONE item
+ * Every bar's side lists (status<Bar>OnDemand<Left|Right>Items), never drawn: the ONE item
  * per key, which hydrates and serializes it. The Shows on grids write the lists through
  * on-demand.js (showsOnRows), not through these items. In BARS order, left then right.
  * A section of their own: the engine's join look-ahead counts a hidden item as a row, so
@@ -730,7 +730,7 @@ function cardSections() {
     }];
 }
 /**
- * The sections behind the card's rows, in the card's order: the eight side lists' hidden
+ * The sections behind the card's rows, in the card's order: every bar's side lists' hidden
  * items (onDemandListsSection), then one sheet per item: Battery, Bluetooth, Quiet time,
  * Sleep, Rain, then one per metric alert kind (ALERT_KINDS) holding its Shows on grid,
  * levels, Look and Days (the levels' one home). schema.js ends the Alerts tab's section

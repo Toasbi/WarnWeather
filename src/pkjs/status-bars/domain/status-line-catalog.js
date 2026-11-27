@@ -728,9 +728,9 @@
    * What a slot keeps beside its item: a setting of the slot's own that one item reads, its
    * countdown's date (status-lines.js), its phone battery's Look and its Plugin value's
    * settings (pluginValueKeys). ONE list for what a bar that is made or deleted puts back on its
-   * default with the slot (screens.js makeBar, unmakeBar) and what renderSignature watches while
-   * the slot holds the item (signSlots), the Plugin value's settings but (pluginValueKeys says
-   * why).
+   * default with the slot (screens.js makeBar, unmakeBar), what Reset status bars puts back but
+   * the countdown's date (blocks.js resetStatusSlots) and what renderSignature watches while the
+   * slot holds the item (signSlots), the Plugin value's settings but (pluginValueKeys says why).
    * @param {string} slotKey A slot's settings key.
    * @returns {Array<{code: string, key: string, defaultValue: (string|undefined), signed: boolean}>}
    *   Each companion's item, settings key and the value it starts on: the Look's default, which

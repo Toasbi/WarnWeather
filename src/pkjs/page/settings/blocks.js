@@ -89,7 +89,7 @@ if (typeof require !== 'undefined') {
     var thresholds = (typeof require !== 'undefined')
         ? require('../../alerts/domain/status-thresholds.js') : window.StatusThresholds;
     // The On demand contract (on-demand.js): its bars, sides and side-list keys (BARS,
-    // SIDES, itemsKey), which name the eight lists both resets restore (onDemandListKeys)
+    // SIDES, itemsKey), which name every bar's side lists both resets restore (onDemandListKeys)
     // — the phone's own reading, concatenated ahead of this file.
     var onDemand = (typeof require !== 'undefined')
         ? require('../../status-bars/domain/on-demand.js') : window.OnDemand;
@@ -702,12 +702,14 @@ if (typeof require !== 'undefined') {
             // ...and every day-max kind's mode, pair and tomorrow-mark rows (UV,
             // wind, gusts, AQI), from the catalog's one table...
             .concat(statusLineCatalog.dayMaxSettingKeys())
-            // ...and the watch battery's Look and text rows, and each of these slots' phone
-            // battery Look and Plugin value source, Look, icon and Updates.
+            // ...and the watch battery's Look and text rows, and each slot's own settings, from
+            // the catalog's one list of them (slotCompanions: its phone battery's Look and its
+            // Plugin value's), but the countdown's date (the header says why).
             .concat(statusLineCatalog.batterySettingKeys())
-            .concat(slotKeys.map(statusLineCatalog.phoneBatteryLookKey))
             .concat(slotKeys.reduce(function (keys, slotKey) {
-                return keys.concat(statusLineCatalog.pluginValueKeyList(slotKey));
+                return keys.concat(statusLineCatalog.slotCompanions(slotKey)
+                    .filter(function (c) { return c.code !== 'countdown'; })
+                    .map(function (c) { return c.key; }));
             }, []));
         // The Watch Status Bar's own toggles exist only where On demand does not.
         if (env && env.onDemand === false) {
@@ -759,11 +761,11 @@ if (typeof require !== 'undefined') {
     // schema defaults, via the engine's resolver like resetStatusSlots above — the Battery
     // item's warn level and Look, the Bluetooth item's Show and vibration, the rain alert's
     // window, look and Replaces the slot, each metric alert's Look, Days and tomorrow mark (the contract's
-    // ALERT_KINDS, the five the tab lists) — and where each item shows: the eight side
-    // lists its sheets' Shows on grids write (the Status bars reset restores those too, as
-    // its bars' Alerts rows show them). Deliberately untouched: the levels, warn looks and
-    // colours (each sheet's Alert levels header has its own reset, which also serves the
-    // slots' highlight).
+    // ALERT_KINDS, the five the tab lists) — and where each item shows: every bar's side
+    // lists (on-demand.js BARS × SIDES), which its sheets' Shows on grids write (the Status
+    // bars reset restores those too, as its bars' Alerts rows show them). Deliberately
+    // untouched: the levels, warn looks and colours (each sheet's Alert levels header has its
+    // own reset, which also serves the slots' highlight).
     /**
      * @param {*} arg Unused (the engine passes the button's data-action-arg).
      * @param {Object} S Live settings state (mutated in place).

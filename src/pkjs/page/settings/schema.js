@@ -2300,7 +2300,7 @@ module.exports = {
         // card (per bar, Left or Right). aplite has no Alerts (ON_DEMAND_WHEN), so the
         // whole tab is env-hidden there.
         // The tab's cards and the dialogs behind them (alerts-schema.js): About alerts with
-        // its reset, System info and Weather alerts, then the eight side lists' hidden
+        // its reset, System info and Weather alerts, then every bar's side lists' hidden
         // items and the alert dialogs, in the tab's order — Battery, Bluetooth, Quiet time,
         // Sleep, rain, then one per metric alert kind holding its Shows on grid, levels,
         // Look and Days (the levels' one home). Two of their keys have an earlier copy
