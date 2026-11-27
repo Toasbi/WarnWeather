@@ -278,11 +278,14 @@
     function momentText(epochMs, nowMs, settings, cap) {
         var at = new Date(epochMs);
         var clock = clockText(at.getHours(), at.getMinutes(), settings);
-        var weekday = weekdayAhead(at.getFullYear(), at.getMonth(), at.getDate(), nowMs);
-        var day = weekday || dateText(at.getDate(), at.getMonth());
-        var both = weekday ? weekday + ' ' + clock : clock + ' ' + day;
+        var weekday;
+        var day;
+        var both;
         // The local date as a text, which is the same text for the same day.
         if (at.toDateString() === new Date(nowMs).toDateString()) { return clock; }
+        weekday = weekdayAhead(at.getFullYear(), at.getMonth(), at.getDate(), nowMs);
+        day = weekday || dateText(at.getDate(), at.getMonth());
+        both = weekday ? weekday + ' ' + clock : clock + ' ' + day;
         return utf8.byteLength(both) <= cap ? both : day;
     }
 

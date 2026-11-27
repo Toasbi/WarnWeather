@@ -269,17 +269,32 @@
 
     /**
      * A short text that is only a clock time, as a plugin sends one beside the timestamp it
-     * prints: '09:15', '7:55 AM', '19.30'.
+     * prints: '09:15', '7:55 AM', '19.30'. Its hours, minutes and the a or p of a 12 hour clock.
      */
-    var CLOCK_ONLY = /^\d{1,2}[:.]\d{2}( ?[AaPp]\.?[Mm]\.?)?$/;
+    var CLOCK_ONLY = /^(\d{1,2})[:.](\d{2})(?: ?([AaPp])\.?[Mm]\.?)?$/;
+
+    /**
+     * @param {string} short A short text that is only a clock time (CLOCK_ONLY).
+     * @param {Date} at The moment beside it.
+     * @returns {boolean} Whether it is the moment's time on the phone's clock, as the Calendar
+     *   writes an event's start. A weather plugin writes a place's sunrise on that place's clock,
+     *   which is no time here.
+     */
+    function clockHere(short, at) {
+        var clock = CLOCK_ONLY.exec(short);
+        var hours = Number(clock[1]);
+        if (clock[3]) { hours = hours % 12 + (clock[3].toLowerCase() === 'p' ? 12 : 0); }
+        return hours === at.getHours() && Number(clock[2]) === at.getMinutes();
+    }
 
     var DAY_MS = 24 * HOUR_MS;
 
     /**
      * What the slot prints of a reading's short text beside its moment (textFor): the moment
-     * itself where the text is only a clock time (CLOCK_ONLY), so it is in the user's clock
-     * format and carries its day on another (slot-text.js momentText), where the Calendar's
-     * '09:15' would pass for today's; the words on the moment's own day, and its day on any
+     * itself where the text is only its clock time here (clockHere), so it is in the user's
+     * clock format and carries its day on another (slot-text.js momentText), where the
+     * Calendar's '09:15' would pass for today's; a clock time of another place as the plugin
+     * wrote it ('06:30', Tokyo's sunrise); the words on the moment's own day, and its day on any
      * other (slot-text.js dayText: 'Sat', '30 Nov'), where they would say the same of every day
      * ('All day'). A moment at 00:00 UTC beside words is a day's, as the Pebble app sends an
      * all-day event's: its day is the one in UTC, which in local time would be the evening
@@ -292,8 +307,11 @@
      */
     function shortBesideMoment(short, ms, cap, settings, nowMs) {
         var at = new Date(ms);
-        var now = new Date(nowMs);
-        if (CLOCK_ONLY.test(short)) { return slotText.momentText(ms, nowMs, settings, cap); }
+        var now;
+        if (CLOCK_ONLY.test(short)) {
+            return clockHere(short, at) ? slotText.momentText(ms, nowMs, settings, cap) : short;
+        }
+        now = new Date(nowMs);
         if (ms % DAY_MS !== 0) {
             return at.toDateString() === now.toDateString() ? short : slotText.momentText(ms, nowMs, settings, cap);
         }

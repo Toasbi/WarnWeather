@@ -212,6 +212,20 @@ test('the text: a short text that is only a clock time gives way to its moment, 
     '7:55', 'the Pebble app\'s 12 hours, in the user\'s 24');
   assert.equal(pv.textFor(reading({ short: '19.30', time: new Date(2026, 10, 23, 19, 30).getTime() }), 8,
     { axisTimeFormat: '12h' }, TODAY), '7:30');
+  assert.equal(pv.textFor(reading({ short: '7:55 PM', time: new Date(2026, 10, 23, 19, 55).getTime() }), 8, {}, TODAY),
+    '19:55', 'p is after noon');
+  assert.equal(pv.textFor(reading({ short: '12:10 AM', time: new Date(2026, 10, 23, 0, 10).getTime() }), 8, {}, TODAY),
+    '0:10', '12 a is midnight');
+});
+
+test('the text: a clock time of another place stays as the plugin wrote it, as a weather plugin writes a sunrise', () => {
+  const tonight = new Date(2026, 10, 23, 22, 30).getTime();
+  assert.equal(pv.textFor(reading({ short: '06:30', time: tonight }), 8, {}, TODAY), '06:30',
+    'Tokyo\'s sunrise, which is tonight here');
+  assert.equal(pv.textFor(reading({ short: '06:30', time: new Date(2026, 10, 24, 6, 30).getTime() + 60000 }), 19, {},
+    TODAY), '06:30', 'a minute apart');
+  assert.equal(pv.textFor(reading({ short: '7:00 AM', time: new Date(2026, 10, 23, 19, 0).getTime() }), 8, {}, TODAY),
+    '7:00 AM', 'twelve hours apart');
 });
 
 test('the text: words beside a moment only on its day, its day on another; an all-day event\'s day is the one in UTC', () => {
