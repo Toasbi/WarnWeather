@@ -196,10 +196,44 @@
     var OFF = 'off';
 
     /**
+     * A short text that is only a clock time, as a plugin sends one beside the timestamp it
+     * prints: '09:15', '7:55 AM', '19.30'.
+     */
+    var CLOCK_ONLY = /^\d{1,2}[:.]\d{2}( ?[AaPp]\.?[Mm]\.?)?$/;
+
+    var DAY_MS = 24 * HOUR_MS;
+
+    /**
+     * What the slot prints of a reading's short text beside its moment (textFor): the moment
+     * itself where the text is only a clock time (CLOCK_ONLY), so it is in the user's clock
+     * format and carries its date on another day (slot-text.js momentText), where the Calendar's
+     * '09:15' would pass for today's; the words on the moment's own day, and its date on any
+     * other, where they would say the same of every day ('All day'). A moment at 00:00 UTC
+     * beside words is a day's, as the Pebble app sends an all-day event's: its day is the one in
+     * UTC, which in local time would be the evening before, west of it.
+     * @param {string} short The short text, on one line (oneLine). @param {number} ms The moment,
+     *   in epoch milliseconds. @param {number} cap The slot's byte cap.
+     * @param {Object} settings Settings: the clock's format. @param {number} nowMs Now, in epoch
+     *   milliseconds, whose local date is today's.
+     * @returns {string}
+     */
+    function shortBesideMoment(short, ms, cap, settings, nowMs) {
+        var at = new Date(ms);
+        var now = new Date(nowMs);
+        if (CLOCK_ONLY.test(short)) { return slotText.momentText(ms, nowMs, settings, cap); }
+        if (ms % DAY_MS !== 0) {
+            return at.toDateString() === now.toDateString() ? short : slotText.momentText(ms, nowMs, settings, cap);
+        }
+        return at.getUTCFullYear() === now.getFullYear() && at.getUTCMonth() === now.getMonth()
+            && at.getUTCDate() === now.getDate() ? short : slotText.dateText(at.getUTCDate(), at.getUTCMonth());
+    }
+
+    /**
      * The text the slot prints of a reading, from the first of its shapes in this order:
      *   1. Its short text: the plugin's own words for a small space, which say more than the
-     *      shape beside them can ('All day' beside the midnight timestamp of an all-day event,
-     *      'Off' beside a boolean). The Pebble app's own plugin screens show it first too.
+     *      shape beside them can ('Off' beside a boolean). The Pebble app's own plugin screens
+     *      show it first too. Beside a moment, only while it says more (shortBesideMoment): a
+     *      clock time gives way to the moment, words on another day to its date.
      *   2. Its moment, as a clock time in the user's 12/24 h setting, as the sun slot prints
      *      sunrise, with its date after it on another day than the one the slot is baked for
      *      (slot-text.js momentText): a timestamp, which the plugin API leaves to the watch to
@@ -229,7 +263,7 @@
         var unit;
         var text;
         if (short) {
-            text = short;
+            text = typeof r.time === 'number' ? shortBesideMoment(short, r.time, cap, settings || {}, nowMs) : short;
         } else if (typeof r.time === 'number') {
             text = slotText.momentText(r.time, nowMs, settings || {}, cap);
         } else if (typeof r.number === 'number') {

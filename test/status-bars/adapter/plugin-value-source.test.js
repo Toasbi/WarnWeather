@@ -1084,17 +1084,18 @@ test('a moment of the day the slot showed it on gets its date at the midnight af
   assert.equal(sentText(h), '21 Nov', 'yesterday\'s: a side slot has no room for the time as well');
 });
 
-test('a moment the slot prints none of owes the watch nothing at the midnight after it', () => {
+test('words beside a moment give way to its date at the midnight after it', () => {
   const at = new Date(2026, 10, 21, 23, 10, 0).getTime();
   const h = bootUpdated(new Date(2026, 10, 21, 23, 30, 0).getTime());
   h.pebble.subs[0].push(answer({ updatedAt: { shortText: { text: 'Synced' }, numericValue: { value: at } } },
     { pluginUuid: 'm' }));
   minute();
-  assert.equal(sentText(h), 'Synced', 'its short text prints, not its moment');
+  assert.equal(sentText(h), 'Synced', 'its own day: the words');
   const sends = h.sends.length;
   h.clock = new Date(2026, 10, 22, 0, 0, 0).getTime();
   minute();
-  assert.equal(h.sends.length, sends, 'the same text on either day');
+  assert.equal(h.sends.length, sends + 1, 'the watch is owed the change');
+  assert.equal(sentText(h), '21 Nov', 'the words would say the same of any day');
 });
 
 test('a pick of the Preferences plugin\'s own reading, which 3.4.0 listed, is never read: the value kept is dropped at once', () => {

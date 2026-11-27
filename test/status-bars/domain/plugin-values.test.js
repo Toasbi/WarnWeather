@@ -166,9 +166,42 @@ test('the text: the moment over the number, so Muninn\'s updatedAt prints as the
   assert.equal(pv.textFor(reading({ number: EVENING }), 19), String(EVENING), 'a number alone stays a number');
 });
 
-test('the text: the plugin\'s short text over its moment and its state: its words say more', () => {
-  assert.equal(pv.textFor(reading({ short: 'All day', time: new Date(2026, 10, 23).getTime() }), 8), 'All day');
+test('the text: the plugin\'s short text over its state: its words say more', () => {
   assert.equal(pv.textFor(reading({ short: 'Off', state: false }), 8), 'Off');
+});
+
+test('the text: a short text that is only a clock time gives way to its moment, in the user\'s format and with its date', () => {
+  const tomorrow = new Date(2026, 10, 24, 9, 15).getTime();
+  const later = new Date(2026, 10, 23, 14, 30).getTime();
+  assert.equal(pv.textFor(reading({ short: '09:15', time: tomorrow }), 8, {}, TODAY), '24 Nov', 'tomorrow, not today');
+  assert.equal(pv.textFor(reading({ short: '09:15', time: tomorrow }), 19, {}, TODAY), '9:15 24 Nov');
+  assert.equal(pv.textFor(reading({ short: '14:30', time: later }), 8, { axisTimeFormat: '12h', timeShowAmPm: true },
+    TODAY), '2:30p', 'today, on a 12 hour clock');
+  assert.equal(pv.textFor(reading({ short: '7:55 AM', time: new Date(2026, 10, 23, 7, 55).getTime() }), 8, {}, TODAY),
+    '7:55', 'the Pebble app\'s 12 hours, in the user\'s 24');
+  assert.equal(pv.textFor(reading({ short: '19.30', time: new Date(2026, 10, 23, 19, 30).getTime() }), 8,
+    { axisTimeFormat: '12h' }, TODAY), '7:30');
+});
+
+test('the text: words beside a moment only on its day, its date on another; an all-day event\'s day is the one in UTC', () => {
+  const todays = Date.UTC(2026, 10, 23);
+  const mondays = Date.UTC(2026, 10, 30);
+  assert.equal(pv.textFor(reading({ short: 'All day', time: todays }), 8, {}, TODAY), 'All day');
+  assert.equal(pv.textFor(reading({ short: 'All day', time: mondays }), 8, {}, TODAY), '30 Nov', 'Monday\'s');
+  assert.equal(pv.textFor(reading({ short: 'Soon', time: new Date(2026, 10, 24, 10, 30).getTime() }), 8, {}, TODAY),
+    '24 Nov', 'words beside another day\'s time');
+  assert.equal(pv.textFor(reading({ short: 'Soon', time: EVENING }), 8, {}, TODAY), 'Soon', 'its own day');
+  const zone = process.env.TZ;
+  process.env.TZ = 'America/New_York';
+  try {
+    const tuesdays = Date.UTC(2026, 10, 24);
+    assert.equal(pv.textFor(reading({ short: 'All day', time: tuesdays }), 8, {}, new Date(2026, 10, 23, 20).getTime()),
+      '24 Nov', 'the evening before, west of UTC: not today\'s');
+    assert.equal(pv.textFor(reading({ short: 'All day', time: tuesdays }), 8, {}, new Date(2026, 10, 24, 10).getTime()),
+      'All day', 'on its day');
+  } finally {
+    if (zone === undefined) { delete process.env.TZ; } else { process.env.TZ = zone; }
+  }
 });
 
 test('the text: else its state, on or off, lowercase; the number before it, the long text after it', () => {

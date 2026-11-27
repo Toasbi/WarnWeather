@@ -204,6 +204,14 @@
     var MONTHS = 'JanFebMarAprMayJunJulAugSepOctNovDec';
 
     /**
+     * @param {number} day The day of the month. @param {number} month The month, 0 for January.
+     * @returns {string} The date as a moment's date names it: '24 Nov'.
+     */
+    function dateText(day, month) {
+        return day + ' ' + MONTHS.substr(month * 3, 3);
+    }
+
+    /**
      * A moment as a slot prints it (the Plugin value's, plugin-values.js textFor): its clock
      * time in the user's format (clockText) while it is on the day the slot is baked for, else
      * with its date after it ('23:10 24 Nov'); the date alone ('24 Nov') where the slot has no
@@ -218,7 +226,7 @@
     function momentText(epochMs, nowMs, settings, cap) {
         var at = new Date(epochMs);
         var clock = clockText(at.getHours(), at.getMinutes(), settings);
-        var date = at.getDate() + ' ' + MONTHS.substr(at.getMonth() * 3, 3);
+        var date = dateText(at.getDate(), at.getMonth());
         // The local date as a text, which is the same text for the same day.
         if (at.toDateString() === new Date(nowMs).toDateString()) { return clock; }
         return utf8.byteLength(clock + ' ' + date) <= cap ? clock + ' ' + date : date;
@@ -415,6 +423,7 @@
         dayMaxText: dayMaxText,
         pad2: pad2,
         clockText: clockText,
+        dateText: dateText,
         momentText: momentText,
         formatCountdown: formatCountdown,
         isoWeek: isoWeek,
