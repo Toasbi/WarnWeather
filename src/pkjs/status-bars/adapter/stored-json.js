@@ -148,6 +148,7 @@ module.exports = {
     read: read,
     write: write,
     remove: remove,
+    mapAt: mapAt,
     place: place,
     entryOf: entryOf,
     keepOnly: keepOnly

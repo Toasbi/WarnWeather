@@ -267,13 +267,14 @@ keys: Internet for each domain on its own, and never a permission another app's 
 `plugin-reads.js` declares) and that does nothing when it is read (Find My Phone rings the
 phone: `plugin-reads.js` actsWhenRead), of any plugin but this app's own, and never what is no
 value to show: an id, a link, an account, a position, a machine's code, the name of a source's
-one instance, the Index's note, reminder and chat places (`plugin-value-list.js` notAValue). It
+one instance, the Index's note, reminder and chat places (`plugin-values.js` notAValue). It
 lists the supported values first, then the raw values (Supported value). A value a plugin
 offers for more than one thing (its source serves several instances: a room's lights, a stock)
 shows the first the plugin sends, or the one the dialog's Which row picks by its name, from the
-names the last read of the item brought (`plugin-reader.js` instancesOf); one the plugin no
+names the last read of the item brought (`plugin-value-list.js` instancesKept); one the plugin no
 longer sends shows --, never the first in its place. An item whose first instance is the one
-that matters, such as the next event, has no Which row (`known-values.js` firstOnly). The Pebble
+that matters, such as the next event, has no Which row, and its reads ask for the first instance
+alone (`plugin-values.js` whichMayOffer). The Pebble
 app's Preferences plugin is listed as Complications, right after None, with the user's
 complications in place of values of its own (Complication). The value is a plugin read, after each Updates
 interval or once the plugin's own word on when it has something new runs out

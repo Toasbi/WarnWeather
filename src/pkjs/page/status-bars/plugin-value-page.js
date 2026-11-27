@@ -426,15 +426,13 @@
     /**
      * @param {Object} pick What a slot picks (plugin-values.js pickOf).
      * @returns {boolean} Whether its dialog offers the Which row: for a value of a plugin's own
-     *   that the phone lists for more than one thing, but the instance's name, which labels it,
-     *   and a value of an item whose first instance is the one that matters (known-values.js
-     *   firstOnly).
+     *   that the phone lists for more than one thing, where the row may pick one of them
+     *   (plugin-values.js whichMayOffer).
      */
     function whichOffered(pick) {
         var source = pluginValues.sourceOf(pick);
         var value = source && source.complication === null ? valueIn(pluginOf(source.plugin), source.id) : null;
-        return Boolean(value) && value.multiple && source.property !== pluginValues.INSTANCE_NAME
-            && !knownValues.firstOnly(source.category, source.item);
+        return Boolean(value) && value.multiple && pluginValues.whichMayOffer(source);
     }
 
     /**
@@ -455,16 +453,15 @@
     /**
      * @param {?Object} source A source a slot picks (plugin-values.js sourceOf), or null.
      * @returns {?Array<{id: string, name: string}>} The instances the last read of its item
-     *   brought (userData.pluginInstances, by plugin-values.js itemKeyOf), each with an id and a
-     *   name; null where no read has brought any yet, or for a complication or none.
+     *   brought (userData.pluginInstances, by plugin-values.js itemKeyOf), those the row can list
+     *   (plugin-values.js keptInstance); null where no read has brought any yet, or for a
+     *   complication or none.
      */
     function instancesOf(source) {
         var map = userData().pluginInstances;
         var key = source && source.complication === null ? pluginValues.itemKeyOf(source) : null;
         var list = key && map && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null;
-        return Array.isArray(list) ? list.filter(function (one) {
-            return Boolean(one) && typeof one.id === 'string' && one.id !== '' && typeof one.name === 'string';
-        }) : null;
+        return Array.isArray(list) ? list.filter(pluginValues.keptInstance) : null;
     }
 
     /**

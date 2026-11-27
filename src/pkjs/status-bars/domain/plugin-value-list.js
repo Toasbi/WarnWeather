@@ -27,6 +27,7 @@
 
 var complications = require('./complications.js');
 var pluginReads = require('./plugin-reads.js');
+var utf8 = require('../../lib/utf8.js');
 var pluginValueReads = require('./plugin-value-reads.js');
 var pluginValues = require('./plugin-values.js');
 
@@ -47,12 +48,24 @@ var MAX_ID = 64;
 var LIST_COST = 4000;
 
 /**
+ * The instances kept of a source that serves more than one, whose ids and names a slot's
+ * dialog's Which row lists (instancesKept): the first sixteen, each name as long as a plugin's
+ * at most, while they cost the settings page's URL no more than MAX_INSTANCES_COST characters
+ * (urlCost), each slot's item at most once. More than sixteen rooms with uuids for ids and names
+ * of a dozen letters cost (1,600), and the whole page's share stays bounded, whatever another
+ * app's plugin sends (test/settings/adapter/settings-url-budget.test.js).
+ */
+var MAX_INSTANCES = 16;
+var MAX_INSTANCES_COST = 2000;
+
+/**
  * @param {string} text A name.
- * @returns {string} It, cut to MAX_NAME characters, a character outside the BMP (two UTF-16
- *   units) whole.
+ * @returns {string} It, cut to MAX_NAME characters with an ellipsis the last of them, a
+ *   character outside the BMP (two UTF-16 units) whole.
  */
 function capped(text) {
-    return pluginValues.cutName(text, MAX_NAME);
+    var chars = utf8.codePoints(text);
+    return chars.length > MAX_NAME ? chars.slice(0, MAX_NAME - 1).join('') + '\u2026' : text;
 }
 
 /**
@@ -220,6 +233,31 @@ function urlCost(entry) {
 }
 
 /**
+ * The instances an answer brings, as the phone keeps them for a slot's dialog's Which row
+ * (plugin-value-source.js keepInstances): in the plugin's order, each one the row can list
+ * (plugin-values.js keptInstance) with its name capped, the first MAX_INSTANCES, while they
+ * cost no more than MAX_INSTANCES_COST; one that would cost more is left out. Another app's
+ * data, never logged.
+ * @param {Array<{id: *, name: string}>} instances The instances, as the answer names them
+ *   (plugin-reader.js instancesOf).
+ * @returns {Array<{id: string, name: string}>} Those kept; [] for none.
+ */
+function instancesKept(instances) {
+    var out = [];
+    var cost = 0;
+    instances.forEach(function (one) {
+        var entry = out.length < MAX_INSTANCES && pluginValues.keptInstance(one)
+            ? { id: one.id, name: capped(one.name) } : null;
+        var more = entry ? urlCost(entry) : 0;
+        if (entry && cost + more <= MAX_INSTANCES_COST) {
+            out.push(entry);
+            cost += more;
+        }
+    });
+    return out;
+}
+
+/**
  * The dialog's list: each plugin on the phone with a value the slot can show (entryOf), once,
  * up to MAX_PLUGINS of them, while they cost the settings page's URL no more than LIST_COST
  * characters in all. A plugin that would cost more is left out.
@@ -253,6 +291,9 @@ module.exports = {
     MAX_PLUGINS: MAX_PLUGINS,
     MAX_ID: MAX_ID,
     LIST_COST: LIST_COST,
+    MAX_INSTANCES: MAX_INSTANCES,
+    MAX_INSTANCES_COST: MAX_INSTANCES_COST,
     urlCost: urlCost,
+    instancesKept: instancesKept,
     listOf: listOf
 };

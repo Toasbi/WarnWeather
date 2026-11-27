@@ -71,7 +71,7 @@ test('sourceOf: the instance a slot picks, written into the key where no reader 
   assert.deepEqual(lamp.key.split('/').slice(-3), ['home', 'light', 'on'], 'the value\'s parts, last, where they were');
   assert.notEqual(lamp.key, pv.sourceOf({ plugin: UUID, id: 'home/light/on' }).key, 'the first\'s is another');
   assert.notEqual(lamp.key, pv.sourceOf({ plugin: UUID, id: 'home/light/on', instance: 'hue/light 4' }).key);
-  [undefined, null, 5, '', 'x'.repeat(pv.MAX_INSTANCE_ID + 1)].forEach((instance) =>
+  [undefined, null, 5, '', 'x'.repeat(pv.MAX_INSTANCE_ID + 1), '\ud800'].forEach((instance) =>
     assert.deepEqual(pv.sourceOf({ plugin: UUID, id: 'home/light/on', instance: instance }),
       pv.sourceOf({ plugin: UUID, id: 'home/light/on' }), 'the first: ' + String(instance).slice(0, 8)));
   assert.equal(pv.sourceOf({ plugin: UUID, id: 'home/light/on', instance: 'x'.repeat(pv.MAX_INSTANCE_ID) }).instance
@@ -80,10 +80,22 @@ test('sourceOf: the instance a slot picks, written into the key where no reader 
     UUID + '/home/light', 'the item it is of, by the uuid in lower case');
 });
 
-test('cutName: a name cut to its characters, the ellipsis the last, a character outside the BMP whole', () => {
-  assert.equal(pv.cutName('Kitchen', 7), 'Kitchen');
-  assert.equal(pv.cutName('Kitchens', 7), 'Kitche\u2026');
-  assert.equal(pv.cutName('\ud83d\udca1\ud83d\udca1\ud83d\udca1', 2), '\ud83d\udca1\u2026');
+test('whichMayOffer: the Which row picks one of a source\'s things, but never by its name, nor where the first is the one that matters', () => {
+  const source = (id) => pv.sourceOf({ plugin: UUID, id: id });
+  assert.equal(pv.whichMayOffer(source('home/room_lights/on')), true);
+  assert.equal(pv.whichMayOffer(source('home/room_lights/name')), false, 'the name labels them');
+  ['calendar/event/title', 'notifications/notification/app', 'music/identified/title'].forEach((id) =>
+    assert.equal(pv.whichMayOffer(source(id)), false, id + ': the next event, the newest, the last heard'));
+});
+
+test('instanceIdOk and keptInstance: an id a source\'s key can hold, and a name to list it by', () => {
+  assert.equal(pv.instanceIdOk('hue/light 3'), true);
+  assert.equal(pv.instanceIdOk('x'.repeat(pv.MAX_INSTANCE_ID)), true);
+  [undefined, null, 5, '', 'x'.repeat(pv.MAX_INSTANCE_ID + 1), '\ud800', 'a\udc00'].forEach((id) =>
+    assert.equal(pv.instanceIdOk(id), false, String(id).slice(0, 8)));
+  assert.equal(pv.keptInstance({ id: 'k', name: 'Kitchen' }), true);
+  [null, { id: 'k' }, { id: 'k', name: '' }, { id: '', name: 'x' }, { id: 'k', name: 5 }].forEach((one) =>
+    assert.equal(pv.keptInstance(one), false, JSON.stringify(one)));
 });
 
 test('a complication: the Preferences plugin\'s, by its place in the user\'s list', () => {

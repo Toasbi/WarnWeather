@@ -42,6 +42,7 @@
 var KEYS = require('../../settings/domain/storage-keys.js');
 var statusLines = require('../domain/status-lines.js');
 var pluginValues = require('../domain/plugin-values.js');
+var pluginValueList = require('../domain/plugin-value-list.js');
 var pluginValueReads = require('../domain/plugin-value-reads.js');
 var catalog = require('../domain/status-line-catalog.js');
 var complications = require('../domain/complications.js');
@@ -54,11 +55,12 @@ var NAME = 'plugin-value';
 
 /**
  * What a lane reads for its source, whether a bar shows it or not: its property of the instance
- * it picks (the first, whichever it is, where it picks none), and the names of the source's
- * first instances, which its dialog's Which row lists (keepInstances). Nothing of the Preferences
- * plugin's but a complication: its own readings are the user's position and plumbing, which
- * this app never reads (plugin-reads.js neverRead), and a pick of one from before the
- * complications (3.4.0 listed them) shows nothing. Nor a value that is no value to show
+ * it picks (the first, whichever it is, where it picks none), and, where its dialog may offer the
+ * Which row (plugin-values.js whichMayOffer) or it picks an instance, the names of the source's
+ * first instances, which the row lists (keepInstances); else the first instance alone. Nothing
+ * of the Preferences plugin's but a complication: its own readings are the user's position and
+ * plumbing, which this app never reads (plugin-reads.js neverRead), and a pick of one from before
+ * the complications (3.4.0 listed them) shows nothing. Nor a value that is no value to show
  * (plugin-values.js notAValue: an id, a link, a code), which the Value row no longer lists; one
  * a slot picked before then shows nothing. The name of a source's one instance, which the row
  * leaves out too, is read where a slot holds it: the phone does not know how many it serves.
@@ -79,8 +81,11 @@ function readOf(source, list, permissions) {
         return { key: source.key, request: null };
     }
     request = { category: source.category, item: source.item, properties: [source.property], plugin: source.plugin,
-        limit: pluginValues.MAX_INSTANCES, permissions: permissions };
-    if (source.property !== pluginValues.INSTANCE_NAME) { request.properties.push(pluginValues.INSTANCE_NAME); }
+        limit: 1, permissions: permissions };
+    if (source.instance || pluginValues.whichMayOffer(source)) {
+        request.limit = pluginValueList.MAX_INSTANCES;
+        if (source.property !== pluginValues.INSTANCE_NAME) { request.properties.push(pluginValues.INSTANCE_NAME); }
+    }
     if (source.instance) { request.instanceId = source.instance; }
     return { key: source.key, request: request };
 }
@@ -225,19 +230,20 @@ function callEach(list, fn) {
 }
 
 /**
- * Keep the instances an answer brings of a plugin's item, by their ids and names
- * (plugin-reader.js instancesOf), for its slots' dialogs (instancesForPage), where its read
- * names the plugin: a complication's names none, and its place names its instance. Written only
- * when they changed. Another app's data: never logged.
+ * Keep the instances an answer brings of a plugin's item, those a slot's dialog's Which row can
+ * list (plugin-value-list.js instancesKept), for its slots' dialogs (instancesForPage), where its
+ * read names the plugin and asks for more than one (readOf): a complication's names none, and
+ * its place names its instance. Written only when they changed. Another app's data: never logged.
  * @param {Object} request The read (plugin-reader.js together).
  * @param {Object} envelope Its answer.
  * @returns {void}
  */
 function keepInstances(request, envelope) {
     var entry;
-    if (!request.plugin) { return; }
+    if (!request.plugin || request.limit <= 1) { return; }
     entry = storedJson.entryOf(KEYS.PLUGIN_INSTANCES, pluginReader.itemOf(request));
-    entry.write(pluginReader.instancesOf(envelope), entry.read(), NAME + ': the instances');
+    entry.write(pluginValueList.instancesKept(pluginReader.instancesOf(envelope)), entry.read(),
+        NAME + ': the instances');
 }
 
 /**
@@ -471,8 +477,7 @@ function forPage(list) {
  * @returns {Object<string, Array<{id: string, name: string}>>} The instances; {} for none.
  */
 function instancesForPage() {
-    var map = storedJson.read(KEYS.PLUGIN_INSTANCES);
-    return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+    return storedJson.mapAt(KEYS.PLUGIN_INSTANCES);
 }
 
 module.exports = {

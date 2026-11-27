@@ -61,21 +61,10 @@
         every: EVERY_DEFAULT };
 
     /**
-     * The instances a slot's read brings of a source that serves more than one (a Hue room, a
-     * Google Home device, a weather location), whose ids and names its dialog's Which row lists
-     * (plugin-reader.js instancesOf), and the longest id and name kept: longer than any real one.
+     * The longest id kept of one of a source's instances (a Hue room, a Google Home device, a
+     * weather location), which a slot's dialog's Which row picks: longer than any real one.
      */
-    var MAX_INSTANCES = 16;
     var MAX_INSTANCE_ID = 64;
-    var MAX_INSTANCE_NAME = 32;
-
-    /**
-     * The most characters of the settings page's URL the instances kept of one item may cost
-     * (plugin-value-list.js urlCost), each slot's item at most once: more than sixteen rooms with
-     * uuids for ids and names of a dozen letters cost (1,600), and the whole page's share bounded,
-     * whatever another app's plugin sends (test/settings/adapter/settings-url-budget.test.js).
-     */
-    var MAX_INSTANCES_COST = 2000;
 
     /**
      * The property whose short text names one of a source's instances, as the plugin guide has
@@ -83,6 +72,61 @@
      * (plugin-reader.js instancesOf).
      */
     var INSTANCE_NAME = 'name';
+
+    /**
+     * The items, by 'category/item', whose instances come in the order of time, the first the
+     * one that matters: the next event, the newest notification, the song heard last. A slot
+     * shows the first, and its dialog offers no other (whichMayOffer).
+     */
+    var FIRST_ONLY = ['calendar/event', 'notifications/notification', 'music/identified'];
+
+    /**
+     * @param {string} category A source's category. @param {string} item Its item.
+     * @returns {boolean} Whether its instances come in the order of time, the first the one that
+     *   matters (FIRST_ONLY).
+     */
+    function firstOnly(category, item) {
+        return FIRST_ONLY.indexOf(category + '/' + item) !== -1;
+    }
+
+    /**
+     * @param {{category: string, item: string, property: string}} source A source (sourceOf) of
+     *   a plugin's own value.
+     * @returns {boolean} Whether its dialog may offer the Which row, where the plugin serves its
+     *   source for more than one thing: not for the instances' name, which labels them, nor for
+     *   an item whose first instance is the one that matters (firstOnly). Only then do its reads
+     *   ask for the instances' names, which the row lists (plugin-value-source.js readOf): a
+     *   calendar names each event by its title.
+     */
+    function whichMayOffer(source) {
+        return source.property !== INSTANCE_NAME && !firstOnly(source.category, source.item);
+    }
+
+    /**
+     * @param {*} id An instance's id, as a plugin sent it or a slot picks it.
+     * @returns {boolean} Whether a slot can pick it: a text of 1 to MAX_INSTANCE_ID characters
+     *   that a source's key can hold (sourceOf writes it as a URI component, which a lone
+     *   surrogate is not).
+     */
+    function instanceIdOk(id) {
+        if (typeof id !== 'string' || id === '' || id.length > MAX_INSTANCE_ID) { return false; }
+        try {
+            encodeURIComponent(id);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /**
+     * @param {*} one An instance as the phone keeps it for the Which row (plugin-value-list.js
+     *   instancesKept).
+     * @returns {boolean} Whether the row can list it: an id a slot can pick (instanceIdOk) and a
+     *   name.
+     */
+    function keptInstance(one) {
+        return Boolean(one) && instanceIdOk(one.id) && typeof one.name === 'string' && one.name !== '';
+    }
 
     /**
      * What goes between a source's plugin and the instance it picks in the source's key (sourceOf):
@@ -186,26 +230,14 @@
         }
         complication = plugin.toLowerCase() === PREFERENCES && id === complicationId(parts[2])
             && /^[0-9]$/.test(parts[2]) ? Number(parts[2]) : null;
-        instance = complication === null && typeof pick.instance === 'string'
-            && pick.instance.length <= MAX_INSTANCE_ID ? pick.instance : '';
+        instance = complication === null && instanceIdOk(pick.instance) ? pick.instance : '';
         return { plugin: plugin, id: id, category: parts[0], item: parts[1], property: parts[2],
             instance: instance, complication: complication,
             key: plugin + (instance ? INSTANCE_MARK + encodeURIComponent(instance) : '') + '/' + id };
     }
 
-    /** What ends a text cut short (cutName, fitText): the ellipsis, which the watch's fonts draw. */
+    /** What ends a text cut short (fitText): the ellipsis, which the watch's fonts draw. */
     var CUT_MARK = '\u2026';
-
-    /**
-     * @param {string} text A name.
-     * @param {number} max The most characters it keeps.
-     * @returns {string} It, cut to max characters with an ellipsis the last of them, a character
-     *   outside the BMP (two UTF-16 units) whole.
-     */
-    function cutName(text, max) {
-        var chars = utf8.codePoints(text);
-        return chars.length > max ? chars.slice(0, max - 1).join('') + CUT_MARK : text;
-    }
 
     /**
      * The categories whose every item is the Index's plumbing: where a plugin offers the Index a
@@ -687,10 +719,7 @@
         ICON_FORMS: ICON_FORMS,
         ICON_DEFAULT: ICON_DEFAULT,
         PICK_DEFAULTS: PICK_DEFAULTS,
-        MAX_INSTANCES: MAX_INSTANCES,
         MAX_INSTANCE_ID: MAX_INSTANCE_ID,
-        MAX_INSTANCE_NAME: MAX_INSTANCE_NAME,
-        MAX_INSTANCES_COST: MAX_INSTANCES_COST,
         INSTANCE_NAME: INSTANCE_NAME,
         PREFERENCES: PREFERENCES,
         UNPRINTABLE: UNPRINTABLE,
@@ -698,11 +727,13 @@
         complicationId: complicationId,
         pickOf: pickOf,
         sourceOf: sourceOf,
+        whichMayOffer: whichMayOffer,
+        instanceIdOk: instanceIdOk,
+        keptInstance: keptInstance,
         itemKeyOf: itemKeyOf,
         readFrom: readFrom,
         everyMs: everyMs,
         oneLine: oneLine,
-        cutName: cutName,
         wordsOf: wordsOf,
         plumbing: plumbing,
         notAValue: notAValue,

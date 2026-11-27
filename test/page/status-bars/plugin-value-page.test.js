@@ -309,7 +309,7 @@ test('the Value row says when the plugin offers the value for more than one thin
 
 // --- Which -----------------------------------------------------------------------
 
-/** A calendar, whose events come by their start: the next is the first (known-values.js firstOnly). */
+/** A calendar, whose events come by their start: the next is the first (plugin-values.js whichMayOffer). */
 const CAL = 'ca1e0000-0000-0000-0000-000000000001';
 const CALENDAR = { uuid: CAL, name: 'Calendar', items: [
   { category: 'calendar', item: 'event', multiple: true, properties: ['name', 'starts_at'] }] };
@@ -368,8 +368,9 @@ test('the Which row before a read brought any names, or where the plugin sends n
   userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [] } });
   assert.equal(instanceHint(pickIn(DAYS)), 'The plugin sends no names to pick from, so the slot shows the first.');
   userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [null, { id: '', name: 'x' }, { id: 5, name: 'x' },
-    { id: 'w-3' }, { id: 'w-1', name: 'Time 2' }] } });
-  assert.deepEqual(instanceOptions(pickIn(DAYS)).slice(1), [['Time 2', 'w-1']], 'one without an id or a name is left out');
+    { id: 'w-3' }, { id: 'w-4', name: '' }, { id: 'w'.repeat(65), name: 'Long' }, { id: 'w-1', name: 'Time 2' }] } });
+  assert.deepEqual(instanceOptions(pickIn(DAYS)).slice(1), [['Time 2', 'w-1']],
+    'one without an id a slot can pick or a name is left out');
   userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: 'w-1' } });
   assert.equal(instanceHint(pickIn(DAYS)), NONE_YET, 'a list that is none');
 });

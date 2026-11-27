@@ -613,6 +613,28 @@ test('a complication\'s read keeps no instances: the Pebble app picks its plugin
   assert.equal(stored(KEYS.PLUGIN_INSTANCES), null);
 });
 
+test('a read asks for the names only where the Which row can list them: never for the name itself, nor the next event', () => {
+  const CALENDAR = 'bbbbbbbb-0000-0000-0000-00000000000b';
+  const h = boot({ settings: Object.assign({}, slot('statusTopLeft', { plugin: HOME, id: 'home/room_lights/name' }),
+    slot('statusTopRight', { plugin: CALENDAR, id: 'calendar/event/title' })) });
+  assert.deepEqual(h.pebble.subs.map((sub) => [sub.request.properties, sub.request.limit]),
+    [[['name'], 1], [['title'], 1]], 'the first instance alone');
+  h.pebble.subs[0].push(ROOMS([['kitchen', 'Kitchen', true], ['hall', 'Hall', false]]));
+  h.pebble.subs[1].push({ pluginUuid: CALENDAR, instances: [{ instanceId: 'e1',
+    properties: { title: { shortText: { text: 'Standup' } } } }] });
+  assert.deepEqual([storedValue(HOME + '/home/room_lights/name').reading.short,
+    storedValue(CALENDAR + '/calendar/event/title').reading.short], ['Kitchen', 'Standup']);
+  assert.equal(stored(KEYS.PLUGIN_INSTANCES), null, 'no names kept where no row lists them');
+});
+
+test('the names kept are those the Which row can list: an instance without an id a slot can pick, or a name, is left out', () => {
+  const h = boot({ settings: slot('statusTopLeft', LIGHTS) });
+  h.pebble.subs[0].push(ROOMS([['kitchen', 'Kitchen', true], ['', 'Nowhere', true], ['hall', '', false],
+    ['x'.repeat(65), 'Long', true], ['attic', 'Attic', false]]));
+  assert.deepEqual(stored(KEYS.PLUGIN_INSTANCES), { [ITEM]: [{ id: 'kitchen', name: 'Kitchen' },
+    { id: 'attic', name: 'Attic' }] });
+});
+
 // --- several values -----------------------------------------------------------------------
 
 test('two values of one plugin\'s item are one read for both: each is kept on its own, and each slot shows its own', () => {

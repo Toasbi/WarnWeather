@@ -275,6 +275,28 @@ test('a uuid or a value id longer than any real one is left out', () => {
   assert.deepEqual(listed.map((p) => p.items[0].properties), [[name]]);
 });
 
+test('instancesKept: the Which row\'s instances, in the plugin\'s order, the first 16, each with an id a slot can pick and a name', () => {
+  const one = (id, name) => ({ id: id, name: name });
+  assert.deepEqual(list.instancesKept([one('k', 'Kitchen'), one('h', 'Hall')]), [one('k', 'Kitchen'), one('h', 'Hall')]);
+  assert.deepEqual(list.instancesKept([one('', 'x'), one(5, 'x'), one('a', ''), null, one('i'.repeat(65), 'x'),
+    one('\ud800', 'x'), one('i'.repeat(64), 'Long')]), [one('i'.repeat(64), 'Long')],
+  'no id, no name, an id longer than 64, or one no key can hold');
+  assert.equal(list.instancesKept(Array.from({ length: 20 }, (_, i) => one('r' + i, 'Room ' + i))).length,
+    list.MAX_INSTANCES);
+  assert.equal(list.instancesKept([one('l', 'L'.repeat(40))])[0].name, 'L'.repeat(31) + '\u2026',
+    'a name cut to 32 characters');
+  assert.equal(list.instancesKept([one('b', '\u{1F4A1}'.repeat(40))])[0].name, '\u{1F4A1}'.repeat(31) + '\u2026',
+    'a character outside the BMP whole');
+  const dear = Array.from({ length: 16 }, (_, i) => one(String(i).padStart(4, '0') + '\u{1F4A1}'.repeat(30),
+    '\u{1F4A1}'.repeat(32)));
+  const kept = list.instancesKept(dear);
+  assert.ok(kept.length < 16, 'the cost cuts the list short');
+  assert.ok(kept.reduce((sum, e) => sum + encodeURIComponent(JSON.stringify(e)).length, 0) <= list.MAX_INSTANCES_COST,
+    'no more than MAX_INSTANCES_COST characters of the settings page\'s URL');
+  assert.deepEqual(list.instancesKept(dear.slice(0, 3).concat([one('k', 'Kitchen')])).map((e) => e.id),
+    [dear[0].id, dear[1].id, 'k'], 'one that would cost more is left out, the next cheaper one kept');
+});
+
 test('the list takes what enumeratePlugins hands over, whatever its shape', () => {
   [null, undefined, 5, 'x', {}].forEach((v) => assert.deepEqual(list.listOf(v, PERMS, 'own'), []));
   assert.deepEqual(list.listOf([null, {}, { uuid: '' }, { uuid: 'a/b', sources: PHONE.sources }, { uuid: 'n', sources: 'x' },

@@ -29,7 +29,6 @@
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
 var pluginReads = require('../domain/plugin-reads.js');
-var pluginValueList = require('../domain/plugin-value-list.js');
 var pluginValueReads = require('../domain/plugin-value-reads.js');
 var pluginValues = require('../domain/plugin-values.js');
 
@@ -263,14 +262,9 @@ function bringsAsked(envelope, request) {
  *   its id that the update leaves out, in any (the plugin answered, and has it no more).
  */
 function brings(envelope, property, which) {
-    var instances = envelope && Array.isArray(envelope.instances) ? envelope.instances : [];
-    var sent = named(which.instanceId) && instances.some(function (one) {
-        return Boolean(one) && one.instanceId === which.instanceId;
-    });
-    if (!named(which.instanceId) || sent) {
-        return shapesOf(envelope, property, which.instance, which.instanceId) !== null;
-    }
-    return instances.some(function (one, i) { return shapesOf(envelope, property, i) !== null; });
+    var one = instanceIn(envelope, which.instance, which.instanceId);
+    if (one || !named(which.instanceId)) { return shapesIn(one, property) !== null; }
+    return instancesIn(envelope).some(function (other) { return shapesIn(other, property) !== null; });
 }
 
 /**
@@ -363,10 +357,39 @@ function named(instanceId) {
  *   missing property means the plugin cannot serve it right now), or not that instance.
  */
 function shapesOf(envelope, property, index, instanceId) {
-    var instances = envelope && Array.isArray(envelope.instances) ? envelope.instances : [];
-    var instance = named(instanceId) ? instances.filter(function (one) {
-        return Boolean(one) && one.instanceId === instanceId;
-    })[0] : instances[typeof index === 'number' ? index : 0];
+    return shapesIn(instanceIn(envelope, index, instanceId), property);
+}
+
+/**
+ * @param {?Object} envelope A source update.
+ * @returns {Array<*>} Its instances, as the plugin sent them; [] for none.
+ */
+function instancesIn(envelope) {
+    return envelope && Array.isArray(envelope.instances) ? envelope.instances : [];
+}
+
+/**
+ * @param {?Object} envelope A source update.
+ * @param {number} [index] Which instance, in the order the plugin sent them: 0 by default.
+ * @param {string} [instanceId] Which instance by its id, in place of the index.
+ * @returns {*} The instance, or undefined where the update brings none so.
+ */
+function instanceIn(envelope, index, instanceId) {
+    var instances = instancesIn(envelope);
+    var i;
+    if (!named(instanceId)) { return instances[typeof index === 'number' ? index : 0]; }
+    for (i = 0; i < instances.length; i++) {
+        if (instances[i] && instances[i].instanceId === instanceId) { return instances[i]; }
+    }
+    return undefined;
+}
+
+/**
+ * @param {*} instance One of an update's instances, or undefined.
+ * @param {string} property A property's name.
+ * @returns {?Object} The property's shapes in it (shapesOf), or null.
+ */
+function shapesIn(instance, property) {
     var shapes = instance && instance.properties && instance.properties[property];
     return shapes && typeof shapes === 'object' ? shapes : null;
 }
@@ -426,37 +449,19 @@ function readingOf(envelope, property, index, instanceId) {
 }
 
 /**
- * The instances an update brings, as a slot's Which row names them (plugin-value-source.js
- * keeps them): each one's id, as the plugin names it, and its name (the short text of
- * plugin-values.js INSTANCE_NAME, on one line, cut to MAX_INSTANCE_NAME characters), in the
- * order the plugin sent them, the first MAX_INSTANCES, while they cost the settings page's URL
- * no more than MAX_INSTANCES_COST characters (plugin-value-list.js urlCost). One without an id,
- * or with a longer one than MAX_INSTANCE_ID, or without a name, is left out: the row could not
- * keep it, or name it; so is one that would cost more. They are another app's data, never
- * logged.
+ * The instances an update brings, as it names them: each one's id, as the plugin sent it, and
+ * its name (the short text of plugin-values.js INSTANCE_NAME, on one line; '' for none), in the
+ * plugin's order, unchecked: plugin-value-list.js instancesKept keeps those a slot's Which row
+ * can list. Another app's data, never logged.
  * @param {?Object} envelope A source update.
- * @returns {Array<{id: string, name: string}>} The instances; [] for none.
+ * @returns {Array<{id: *, name: string}>} The instances; [] for none.
  */
 function instancesOf(envelope) {
-    var instances = envelope && Array.isArray(envelope.instances) ? envelope.instances : [];
-    var out = [];
-    var cost = 0;
-    instances.forEach(function (one, i) {
-        var shapes = shapesOf(envelope, pluginValues.INSTANCE_NAME, i);
-        var name = pluginValues.oneLine(shapes && shapes.shortText ? shapes.shortText.text : null);
-        var entry;
-        var more;
-        if (out.length < pluginValues.MAX_INSTANCES && one && typeof one.instanceId === 'string' && one.instanceId
-                && one.instanceId.length <= pluginValues.MAX_INSTANCE_ID && name) {
-            entry = { id: one.instanceId, name: pluginValues.cutName(name, pluginValues.MAX_INSTANCE_NAME) };
-            more = pluginValueList.urlCost(entry);
-            if (cost + more <= pluginValues.MAX_INSTANCES_COST) {
-                out.push(entry);
-                cost += more;
-            }
-        }
+    return instancesIn(envelope).map(function (one) {
+        var shapes = shapesIn(one, pluginValues.INSTANCE_NAME);
+        var name = shapes && shapes.shortText ? shapes.shortText.text : null;
+        return { id: one ? one.instanceId : undefined, name: pluginValues.oneLine(name) };
     });
-    return out;
 }
 
 /**

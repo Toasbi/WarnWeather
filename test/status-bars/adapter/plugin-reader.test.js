@@ -561,25 +561,15 @@ test('readOnce: an answer is the one asked for of an instance by its id when any
   assert.deepEqual(both, [], 'together: the second place is missing');
 });
 
-test('instancesOf: each instance\'s id and name, in the plugin\'s order, the first 16, none without both', () => {
+test('instancesOf: each instance\'s id, as sent, and its name on one line, in the plugin\'s order, every one', () => {
   const one = (id, name) => ({ instanceId: id, properties: name === undefined ? {} : { name: { shortText: { text: name } } } });
   assert.deepEqual(pluginReader.instancesOf({ instances: [one('k', 'Kitchen'), one('h', ' Hall\n')] }),
     [{ id: 'k', name: 'Kitchen' }, { id: 'h', name: 'Hall' }], 'the name on one line');
-  assert.deepEqual(pluginReader.instancesOf({ instances: [one('', 'x'), one(5, 'x'), one('a'), one('b', ''),
-    null, one('i'.repeat(65), 'x'), one('i'.repeat(64), 'Long')] }), [{ id: 'i'.repeat(64), name: 'Long' }],
-  'no id, no name, or an id longer than 64');
+  assert.deepEqual(pluginReader.instancesOf({ instances: [one(5, 'x'), one('a'), null] }),
+    [{ id: 5, name: 'x' }, { id: 'a', name: '' }, { id: undefined, name: '' }],
+  'unchecked: plugin-value-list.js instancesKept keeps those the Which row can list');
   assert.equal(pluginReader.instancesOf({ instances: Array.from({ length: 20 }, (_, i) => one('r' + i, 'Room ' + i)) })
-    .length, 16);
-  assert.equal(pluginReader.instancesOf({ instances: [one('l', 'L'.repeat(40))] })[0].name, 'L'.repeat(31) + '\u2026',
-    'a name cut to 32 characters');
-  const dear = Array.from({ length: 16 }, (_, i) => one(String(i).padStart(4, '0') + '\u{1F4A1}'.repeat(30),
-    '\u{1F4A1}'.repeat(32)));
-  const kept = pluginReader.instancesOf({ instances: dear });
-  assert.ok(kept.length < 16 && kept.reduce((sum, e) => sum + encodeURIComponent(JSON.stringify(e)).length, 0) <= 2000,
-    'no more than 2,000 characters of the settings page\'s URL');
-  assert.deepEqual(pluginReader.instancesOf({ instances: dear.slice(0, 3).concat([one('k', 'Kitchen')]) })
-    .map((e) => e.id), [dear[0].instanceId, dear[1].instanceId, 'k'],
-  'one that would cost more is left out, the next cheaper one kept');
+    .length, 20);
   [null, {}, { instances: 'x' }].forEach((e) => assert.deepEqual(pluginReader.instancesOf(e), []));
 });
 
