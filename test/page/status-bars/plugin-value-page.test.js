@@ -19,7 +19,7 @@ const { sample, barSlots } = require('../../../src/pkjs/page/status-bars/preview
 const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
 const pluginReads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
 const { pluginValuePick } = require('../../helpers/status-slots.js');
-const { PREFERENCES, PICK_DEFAULTS, UNPRINTABLE } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
+const { PREFERENCES, PICK_DEFAULTS, UNPRINTABLE, iconsThat } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { reading } = require('../../helpers/plugin-host.js');
 
 // The Which row's first choice, as it describes itself.
@@ -868,7 +868,8 @@ test('the Icon row lists the icons that turn, then those that stay the same; the
     ['Always the same', '__hdr_same', { disabled: true, groupHeader: true }],
     ['Plug', 'plug', { groupChild: true, groupEnd: false }],
     ['Phone', 'phone', { groupChild: true, groupEnd: false }],
-    ['Calendar', 'calendar', { groupChild: true, groupEnd: true }]]));
+    ['Calendar', 'calendar', { groupChild: true, groupEnd: false }],
+    ['Tide', 'tide', { groupChild: true, groupEnd: true }]]));
   assert.deepEqual(iconOptions(Object.assign(pickIn({ look: 'icon' }), WIFI)), TURNING_OPTIONS,
     'alone, an icon that stays the same would show nothing of the value');
 });
@@ -896,7 +897,7 @@ test('the Icon row\'s hint says how an icon that turns follows the value; none f
   assert.equal(iconHint(Object.assign(pickIn({ icon: 'wifi' }), WIFI)), 'On while the value is on, off while it is off.');
   assert.equal(iconHint(Object.assign(pickIn({ icon: 'switch' }), LEVEL)),
     'This value is neither on nor off, so the icon stays off.');
-  ['plug', 'phone', 'calendar'].forEach((icon) =>
+  iconsThat(false).forEach((icon) =>
     assert.equal(iconHint(Object.assign(pickIn({ icon: icon }), WIFI)), null, icon));
   assert.equal(iconHint(WIFI), 'On while the value is on, off while it is off.', 'the Switch, as a slot starts');
 });

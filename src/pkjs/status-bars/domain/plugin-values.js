@@ -47,7 +47,8 @@
         bluetooth: [ICONS.PV_BT, ICONS.PV_BT_OFF],
         plug: [ICONS.PV_PLUG],
         phone: [ICONS.PV_PHONE],
-        calendar: [ICONS.PV_CALENDAR]
+        calendar: [ICONS.PV_CALENDAR],
+        tide: [ICONS.PV_TIDE]
     };
     var ICON_DEFAULT = 'switch';
 

@@ -290,8 +290,8 @@ row) prints the text alone, where a slot starts, with an icon id that loads no d
 (`status_line.h` STATUS_ICON_PLUGIN_TEXT); the text after the icon its Icon row picks (Icon +
 text); or that icon alone (Icon), which only a value the phone lists as on or off can take
 (`plugin-value-list.js` onOff). Switch, Wi-Fi and Bluetooth turn with such a value and show
-their off form while it is off, too old or not read; Plug, Phone and Calendar stay the same
-(`plugin-values.js` iconId). Beside one that turns, in Icon + text, the slot prints the user's
+their off form while it is off, too old or not read; Plug, Phone, Calendar and Tide stay the
+same (`plugin-values.js` iconId). Beside one that turns, in Icon + text, the slot prints the user's
 label in place of a value that is on or off ("Lamp" where on or off was: its dialog's Label row,
 `labelText`); telemetry records only whether a slot prints one. With no value to show, every
 Look prints -- (`slotTextOf`). The text is the reading's short text, but beside a moment: a
@@ -316,11 +316,11 @@ watchface shows nowhere else, and changes slowly enough for the slot's Updates, 
 today's high, the next event, a weather station's own readings (Netatmo's) or the next high tide
 (Tide's estimate), and a share price, the owner's call, which shows as of the slot's last read.
 Each has WarnWeather's name for it, and the Look and the icon a slot starts on for it (Wi-Fi:
-its icon alone), which a new value takes in place of the ones the value before started the slot
-on, never of the user's own. Every other value the dialog lists is a raw value, under Raw
-values: named after its property, starting on the text alone, and printed by the slot's own
-rules (Plugin value: a number that does not fit rounded, a text cut with an ellipsis, a bearing
-as its compass point, Muninn's -1 as --).
+its icon alone; a tide: the Tide icon beside it), which a new value takes in place of the ones
+the value before started the slot on, never of the user's own. Every other value the dialog
+lists is a raw value, under Raw values: named after its property, starting on the text alone,
+and printed by the slot's own rules (Plugin value: a number that does not fit rounded, a text
+cut with an ellipsis, a bearing as its compass point, Muninn's -1 as --).
 _Avoid_: official value, built-in value.
 
 **Complication**:

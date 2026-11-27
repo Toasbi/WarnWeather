@@ -58,9 +58,9 @@
         'finance/stock/day_change_percent': { name: 'Today\'s change in %' },
         // Tide works its times out itself, from the spot and the date, and its own faces mark them
         // as estimates.
-        'tide/spot/next_high': { name: 'Next high tide (estimate)' },
-        'tide/spot/next_low': { name: 'Next low tide (estimate)' },
-        'tide/spot/state': { name: 'Tide rising or falling' }
+        'tide/spot/next_high': { name: 'Next high tide (estimate)', look: 'both', icon: 'tide' },
+        'tide/spot/next_low': { name: 'Next low tide (estimate)', look: 'both', icon: 'tide' },
+        'tide/spot/state': { name: 'Tide rising or falling', look: 'both', icon: 'tide' }
     };
 
     /**

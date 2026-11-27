@@ -614,15 +614,16 @@ const HEAVIEST_SETTINGS = {
   startOnWeatherTab: false, weatherTabSeenAt: HEAVIEST_NOW - 999.5 * DAY_MS,
   savedLocation1: PLACE('Sydney'), savedLocation2: PLACE('Perth'), savedLocation3: PLACE('Hobart')
 };
-// Seven slots on the Plugin value, each with a source and an icon of its own, so the icons field
-// reports every name: each slot's code is two letters shorter than phone_battery's, and the
-// seven names outweigh that.
+// The Plugin value's icons, in the Icon row's order (plugin-values.js ICON_FORMS).
+const ICON_NAMES = Object.keys(require('../../../src/pkjs/status-bars/domain/plugin-values.js').ICON_FORMS);
+// A slot on the Plugin value for each icon, each with a source and that icon, and one in the
+// Text look, so the icons field reports every name: each slot's code is two letters shorter
+// than phone_battery's, and the names outweigh that.
 const HEAVIEST_PLUGIN_SLOTS = ['statusForecastLeft', 'statusForecastMid', 'statusForecastRight',
-  'statusTopLeft', 'statusTopMid', 'statusTopRight', 'statusHealthLeft'];
+  'statusTopLeft', 'statusTopMid', 'statusTopRight', 'statusHealthLeft', 'statusHealthMid'];
 // Each icon in a Look with one, the first alone; the last slot in the Text look.
 HEAVIEST_PLUGIN_SLOTS.forEach((slot, i) => {
-  Object.assign(HEAVIEST_SETTINGS, pluginSlot(slot,
-    Object.keys(require('../../../src/pkjs/status-bars/domain/plugin-values.js').ICON_FORMS)[i], i ? null : 'icon'));
+  Object.assign(HEAVIEST_SETTINGS, pluginSlot(slot, ICON_NAMES[i], i ? null : 'icon'));
 });
 // The same watch on a custom layout: the six custom fields report too, each on its
 // widest realistic number (three views, every one with a stacked order and a non-zero
@@ -1092,7 +1093,8 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // The rain alert's Replaces the slot and the weather condition's Look and Bold made it
 // 2896 of 4096, headroom 1200. Later fields made it 3394. The Plugin value slots' count and
 // icons (seven slots, one with each icon, in place of one icon) made it 3438 of 4096,
-// headroom 658. Their Looks made it 3469 of 4096, headroom 627.
+// headroom 658. Their Looks made it 3469 of 4096, headroom 627. Their Label's field and the
+// Tide icon made it 3497 of 4096, headroom 599.
 test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYTES', () => {
   const cap = Number(/const MAX_SETTINGS_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');
@@ -1113,7 +1115,7 @@ test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYT
     [3, 48, 48], 'the graph styles report');
   assert.deepEqual([settings.pluginValueSlots, settings.pluginValueLooks, settings.pluginValueIcons,
     settings.pluginValueLabel],
-  [HEAVIEST_PLUGIN_SLOTS.length, 'both,text,icon', 'switch,wifi,bluetooth,plug,phone,calendar', false],
+  [HEAVIEST_PLUGIN_SLOTS.length, 'both,text,icon', ICON_NAMES.join(','), false],
   'every Plugin value slot of the fixture reports, with every Look and every icon, and no label: false is longer');
 
   // Measured as the ingest measures it: JSON.stringify(batch.settings).length.

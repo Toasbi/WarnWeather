@@ -82,7 +82,7 @@
         + 'alone or beside its charge. Put the Watch battery in any slot, tap its Edit button, ' + batteryDays.DAYS_STEPS;
     // The Icon row's choices (plugin-values.js ICON_FORMS, in its order), by name.
     var ICON_LABELS = {'switch': 'Switch', wifi: 'Wi-Fi', bluetooth: 'Bluetooth', plug: 'Plug', phone: 'Phone',
-        calendar: 'Calendar'};
+        calendar: 'Calendar', tide: 'Tide'};
     // The Icon row's groups, by whether their icons turn (plugin-values.js iconsThat), with their
     // headers' values; the Icon look offers only the first.
     var ICON_GROUPS = [{label: 'Turns with a value that is on or off', value: '__hdr_turns', turns: true},

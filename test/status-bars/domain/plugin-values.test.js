@@ -404,13 +404,14 @@ test('the icon: one that turns is on only while the value is on; off, too old or
 
 test('the icon: one that stays the same is the same whatever the value', () => {
   const I = catalog.ICONS;
-  [['plug', I.PV_PLUG], ['phone', I.PV_PHONE], ['calendar', I.PV_CALENDAR]].forEach(([name, id]) => {
+  const same = [['plug', I.PV_PLUG], ['phone', I.PV_PHONE], ['calendar', I.PV_CALENDAR], ['tide', I.PV_TIDE]];
+  same.forEach(([name, id]) => {
     const s = { look: 'both', icon: name };
     [reading({ state: true }), reading({ state: false }), reading({ number: 87 }), null].forEach((r) => {
       assert.equal(pv.iconId(s, r), id, name);
     });
   });
-  assert.deepEqual(Object.keys(pv.ICON_FORMS), ['switch', 'wifi', 'bluetooth', 'plug', 'phone', 'calendar'],
+  assert.deepEqual(Object.keys(pv.ICON_FORMS), ['switch', 'wifi', 'bluetooth', 'plug', 'phone', 'calendar', 'tide'],
     'the Icon row\'s choices, in its order');
 });
 

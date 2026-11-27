@@ -41,9 +41,11 @@ test('a weather station\'s own readings are supported, and a share price, the ow
   assert.equal(known.nameOf('finance', 'stock', 'day_change'), 'Today\'s change', 'raw, in money');
 });
 
-test('Tide\'s times are named as its estimates; its level changes too often', () => {
+test('Tide\'s times are named as its estimates, and start beside the tide; its level changes too often', () => {
   assert.equal(known.nameOf('tide', 'spot', 'next_high'), 'Next high tide (estimate)');
   assert.equal(known.nameOf('tide', 'spot', 'next_low'), 'Next low tide (estimate)');
+  ['next_high', 'next_low', 'state'].forEach((p) =>
+    assert.deepEqual(known.startOf('tide', 'spot', p), { look: 'both', icon: 'tide' }, p));
   assert.equal(known.nameOf('tide', 'spot', 'level'), 'Tide level');
   assert.equal(known.startOf('tide', 'spot', 'level'), null, 'a raw value: a percent or so every four minutes');
 });
