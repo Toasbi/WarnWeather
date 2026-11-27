@@ -751,6 +751,25 @@ test('an answer that throws for one value reaches the other values of its read a
   assert.deepEqual(h.pebble.subs[1].request.properties, ['battery_level', 'cell'], 'neither waits for an answer any more');
 });
 
+test('an answer that throws for one value still makes at once the reads the others ask for', () => {
+  const h = bootTwoPlaces();
+  h.complications = [FIRST_PLACE, Object.assign({}, TEMPERATURE, { property: 'humidity' })];
+  pluginValueSource.complicationsChanged();
+  const pluginValues = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
+  const real = pluginValues.slotTextOf;
+  pluginValues.slotTextOf = function (pick) {
+    if (pick.id === 'preferences/complications/0') { throw new Error('a mishap'); }
+    return real.apply(this, arguments);
+  };
+  try {
+    assert.throws(() => h.pebble.subs[0].push(weather(['21\u00b0', '4\u00b0'])), /a mishap/);
+  } finally {
+    pluginValues.slotTextOf = real;
+  }
+  assert.equal(h.pebble.subs.length, 2, 'not a minute later');
+  assert.ok(h.pebble.subs[1].request.properties.includes('humidity'), 'the second place\'s new reading');
+});
+
 test('a start keeps only the values of the sources a slot picks', () => {
   Object.keys(storage).forEach((k) => { delete storage[k]; });
   const kept = { source: KEY, reading: reading({ short: '87%' }), at: NOON - 10 * MIN, validUntil: null };

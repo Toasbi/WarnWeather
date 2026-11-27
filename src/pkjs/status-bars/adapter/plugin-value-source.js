@@ -115,8 +115,6 @@ var deps = null;
 // came), made at the flush it ends with, so the reads of one plugin's item are one. Every read a
 // lane makes comes at a look, an answer or a flush (laneSpec readOnce).
 var pending = [];
-// A flush runs: the reads that an answer coming at once makes go with it (flush).
-var flushing = false;
 
 /**
  * @returns {boolean} Whether this Pebble app can read plugins at all: before init, as the global
@@ -216,7 +214,8 @@ function callEach(list, fn) {
 
 /**
  * Make the reads of one plugin's item as one read (plugin-reader.js together), and hand its answer
- * to each (callEach); the reads the answer makes go at the flush after it.
+ * to each (callEach); the reads the answer makes go at the flush after it, whatever another
+ * value did with it.
  * @param {Array<{request: Object, done: function(?Object, ?Object): void}>} reads Reads held
  *   (pending), of one item.
  * @returns {void}
@@ -224,33 +223,28 @@ function callEach(list, fn) {
 function readTogether(reads) {
     var request = pluginReader.together(reads.map(function (read) { return read.request; }));
     pluginReader.readOnce(pluginReader.pebbleOf(deps), request, function (envelope, fail) {
-        callEach(reads, function (read) { read.done(envelope, fail); });
-        flush();
+        try {
+            callEach(reads, function (read) { read.done(envelope, fail); });
+        }
+        finally {
+            flush();
+        }
     }, deps.timers);
 }
 
 /**
  * Make the reads held: with the other values of each plugin's item read with them (joinIdle), one
  * read for each item (readTogether, callEach). An answer that comes at once (a read that may not
- * start) makes reads anew, which go in turn: a flush that runs takes the reads of every flush
- * asked for inside it.
+ * start) makes no read: its record is the one its read stamped (plugin-read-schedule.js read).
  * @returns {void}
  */
 function flush() {
     var items;
-    if (flushing) { return; }
-    flushing = true;
-    try {
-        while (pending.length) {
-            joinIdle();
-            items = groupBy(pending, itemOfRead);
-            pending = [];
-            callEach(Object.keys(items), function (item) { readTogether(items[item]); });
-        }
-    }
-    finally {
-        flushing = false;
-    }
+    if (!pending.length) { return; }
+    joinIdle();
+    items = groupBy(pending, itemOfRead);
+    pending = [];
+    callEach(Object.keys(items), function (item) { readTogether(items[item]); });
 }
 
 /**
@@ -392,7 +386,6 @@ function init(options) {
     deps = options;
     lanes = {};
     pending = [];
-    flushing = false;
     picked = statusLines.pickedPluginValues(deps.getSettings());
     moveSingleValue(picked);
     keepPicked(picked);
