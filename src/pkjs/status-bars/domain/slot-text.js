@@ -265,28 +265,30 @@
     /**
      * A moment as a slot prints it (the Plugin value's, plugin-values.js textFor): its clock
      * time in the user's format (clockText) while it is on the day the slot is baked for; in the
-     * coming week after its weekday ('Sat 9:15'), else with its date after it ('23:10 24 Nov',
-     * dayText); the day alone ('Sat', '24 Nov') where the slot has no room for both, since a bare
-     * clock time would read as today's. Never a cut text.
+     * coming week after its weekday ('Sat 9:15'), the weekday's first two letters where the slot
+     * has no room for three ('Sa 23:10', 'Sa11:10p': an edge slot, where tomorrow's tide fits so),
+     * else with its date after it ('23:10 24 Nov', dayText); the day alone ('24 Nov') where the
+     * slot has no room for both, since a bare clock time would read as today's. Never a cut text.
      * @param {number} epochMs The moment, in epoch milliseconds.
      * @param {number} nowMs The instant the slot is baked for, in epoch milliseconds: its local
      *   date is today's.
      * @param {Object} settings Clay settings blob (clockText's).
      * @param {number} cap The slot's byte cap.
-     * @returns {string} e.g. '17:04', '5:04p', 'Sat 9:15', '23:10 24 Nov', '24 Nov'
+     * @returns {string} e.g. '17:04', '5:04p', 'Sat 9:15', 'Sa 23:10', '23:10 24 Nov', '24 Nov'
      */
     function momentText(epochMs, nowMs, settings, cap) {
         var at = new Date(epochMs);
         var clock = clockText(at.getHours(), at.getMinutes(), settings);
         var weekday;
         var day;
-        var both;
+        var texts;
         // The local date as a text, which is the same text for the same day.
         if (at.toDateString() === new Date(nowMs).toDateString()) { return clock; }
         weekday = weekdayAhead(at.getFullYear(), at.getMonth(), at.getDate(), nowMs);
         day = weekday || dateText(at.getDate(), at.getMonth());
-        both = weekday ? weekday + ' ' + clock : clock + ' ' + day;
-        return utf8.byteLength(both) <= cap ? both : day;
+        texts = weekday ? [weekday + ' ' + clock, weekday.slice(0, 2) + ' ' + clock, weekday.slice(0, 2) + clock]
+            : [clock + ' ' + day];
+        return texts.filter(function (text) { return utf8.byteLength(text) <= cap; })[0] || day;
     }
 
     /**

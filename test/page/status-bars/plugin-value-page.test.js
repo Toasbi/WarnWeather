@@ -471,8 +471,8 @@ test('the last line and the bars\' pictures print a moment on another day with i
   const S = Object.assign({ [SLOT]: 'pluginValue' }, LEVEL);
   assert.equal(lastLine(S), day + ' 13:40 (5 min ago).');
   assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.MID_TEXT_MAX, env: BASALT, slotKey: SLOT }), day + ' 13:40');
-  assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.EDGE_TEXT_MAX, env: BASALT, slotKey: SLOT }), day,
-    'an edge has no room for both');
+  assert.equal(sample('pluginValue', S, { cap: catalog.CAPS.EDGE_TEXT_MAX, env: BASALT, slotKey: SLOT }),
+    day.slice(0, 2) + ' 13:40', 'an edge: its weekday in two letters');
 });
 
 test('the last line: a value too old to show says what the watch shows instead', (t) => {

@@ -197,7 +197,7 @@ test('the text: a moment on another day than the slot is baked for carries its d
   assert.equal(pv.textFor(reading({ time: tomorrow }), 19, {}, TODAY), 'Tue 23:10', 'the middle: its weekday');
   assert.equal(pv.textFor(reading({ time: tomorrow }), 19, { axisTimeFormat: '12h', timeShowAmPm: true }, TODAY),
     'Tue 11:10p');
-  assert.equal(pv.textFor(reading({ time: tomorrow }), 8, {}, TODAY), 'Tue', 'an edge: 9 bytes in 8');
+  assert.equal(pv.textFor(reading({ time: tomorrow }), 8, {}, TODAY), 'Tu 23:10', 'an edge: its weekday in two letters');
   assert.equal(pv.textFor(reading({ time: new Date(2026, 10, 28, 9, 15).getTime() }), 8, {}, TODAY), 'Sat 9:15',
     'an edge: 8 bytes in 8');
   assert.equal(pv.textFor(reading({ time: nextWeek }), 19, {}, TODAY), '23:10 30 Nov', 'a week on: its date');
@@ -252,7 +252,7 @@ test('the text: words beside a moment only on its day, its day on another; an al
   assert.equal(pv.textFor(reading({ short: 'All day', time: Date.UTC(2026, 10, 22) }), 8, {}, TODAY), '22 Nov',
     'yesterday\'s: its date');
   assert.equal(pv.textFor(reading({ short: 'Soon', time: new Date(2026, 10, 24, 10, 30).getTime() }), 8, {}, TODAY),
-    'Tue', 'words beside another day\'s time');
+    'Tu 10:30', 'words beside another day\'s time: that time with its day');
   assert.equal(pv.textFor(reading({ short: 'Soon', time: EVENING }), 8, {}, TODAY), 'Soon', 'its own day');
   const west = inZone('America/New_York', { pv: require.resolve('../../../src/pkjs/status-bars/domain/plugin-values.js'),
     host: require.resolve('../../helpers/plugin-host.js') }, ({ pv: values, host }) => {

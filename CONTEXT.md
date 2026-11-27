@@ -302,8 +302,9 @@ words beside a moment of another day print that day ("Sat", "30 Nov"), as they w
 same of every day ("All day"; `shortBesideMoment`). Without a short text, it is the
 moment as a clock time in the user's 12/24 h setting, as the sun slot prints
 sunrise, on another day than the one the slot is baked for after its weekday in the coming six
-days ("Sat 9:15") and else with its date after it ("23:10 4 Dec"; the day alone where the slot
-has no room for both, `slot-text.js` momentText), else its number with its unit where the slot
+days ("Sat 9:15"; in two letters where three leave no room for the time, "Sa 23:10" at a side)
+and else with its date after it ("23:10 4 Dec"; the day alone where the slot has no room for
+both, `slot-text.js` momentText), else its number with its unit where the slot
 has room, else its state, on or off, else its long text (`plugin-values.js` textFor). A text
 too long for its slot loses the decimals of its last number it must, rounded ("€189.84" prints
 "€189.8" at a side), else is cut with an ellipsis ("Partl…"; `fitText`). A value shows for three Updates intervals, three hours at least,

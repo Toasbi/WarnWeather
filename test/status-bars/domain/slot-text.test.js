@@ -96,11 +96,27 @@ test('a moment on another day prints its date after its clock time, a week on an
   assert.equal(slotText.momentText(at(30, 23, 10), BAKED, {}, 12), '23:10 30 Nov', '12 bytes in 12');
 });
 
+test('a moment in the coming week shortens its weekday to two letters where three leave its time no room: an edge', () => {
+  const EDGE = catalog.CAPS.EDGE_TEXT_MAX;
+  // Tomorrow's high tide, baked the evening before.
+  const EVENING = at(23, 20, 0);
+  assert.equal(slotText.momentText(at(24, 3, 5), EVENING, {}, EDGE), 'Tue 3:05', 'three letters where they fit');
+  assert.equal(slotText.momentText(at(24, 3, 5), EVENING, { timeLeadingZero: true }, EDGE), 'Tu 03:05');
+  assert.equal(slotText.momentText(at(24, 14, 32), EVENING, {}, EDGE), 'Tu 14:32');
+  assert.equal(slotText.momentText(at(24, 3, 5), EVENING, H12, EDGE), 'Tu 3:05a');
+  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, H12, EDGE), 'Tu11:10p', 'no room for the space');
+  assert.equal(slotText.momentText(at(24, 9, 5), EVENING, Object.assign({ timeLeadingZero: true }, H12), EDGE),
+    'Tu09:05a');
+  assert.equal(slotText.momentText(at(24, 14, 32), EVENING, {}, catalog.CAPS.MID_TEXT_MAX), 'Tue 14:32', 'the middle');
+  [['Wed', 25], ['Thu', 26], ['Fri', 27], ['Sat', 28], ['Sun', 29]].forEach(([day, d]) => {
+    assert.equal(slotText.momentText(at(d, 14, 32), BAKED, {}, EDGE), day.slice(0, 2) + ' 14:32', day);
+  });
+  assert.equal(slotText.momentText(at(24, 14, 32), EVENING, {}, 6), 'Tue', 'no room for the time at all: the day alone');
+});
+
 test('a moment on another day prints its day alone where both do not fit: never a cut text', () => {
   assert.equal(slotText.momentText(at(30, 23, 10), BAKED, {}, 11), '30 Nov', '12 bytes in 11');
   assert.equal(slotText.momentText(at(30, 23, 10), BAKED, {}, catalog.CAPS.EDGE_TEXT_MAX), '30 Nov', 'an edge');
-  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, {}, catalog.CAPS.EDGE_TEXT_MAX), 'Tue', '9 bytes in 8');
-  assert.equal(slotText.momentText(at(24, 23, 10), BAKED, H12, catalog.CAPS.EDGE_TEXT_MAX), 'Tue');
   assert.equal(slotText.momentText(new Date(2026, 11, 1, 1, 5).getTime(), BAKED, {}, catalog.CAPS.EDGE_TEXT_MAX),
     '1 Dec', 'the shortest of both is 10 bytes');
 });

@@ -173,7 +173,7 @@ test('a moment on another day than the bake\'s carries its day: its weekday in t
     .map((s) => s.text), ['Fri 9:05', 'Fri 9:05', 'Fri 9:05'], 'a Friday: 8 bytes, the edges too');
   assert.deepEqual(bakeTop(Object.assign({ axisTimeFormat: '12h', timeShowAmPm: true }, EVERYWHERE),
     facts(value({ time: tomorrow }, read)), BASALT, baked).slots.map((s) => s.text),
-  ['Fri', 'Fri 9:05a', 'Fri'], 'its day alone at the edges, where both do not fit');
+  ['Fr 9:05a', 'Fri 9:05a', 'Fr 9:05a'], 'its weekday in two letters at the edges, where three leave no room');
   assert.deepEqual(bakeTop(EVERYWHERE, facts(value({ time: weekOn }, read)), BASALT, baked).slots
     .map((s) => s.text), ['21 Mar', '9:05 21 Mar', '21 Mar'], 'a week on: Thursday would be today');
 });
