@@ -53,9 +53,9 @@
 
     /**
      * What a slot picks where it keeps no setting of its own (PluginValuePick): no plugin, the
-     * first of the source's instances, the text alone, the Switch for the Looks with an icon, no
-     * label and the Updates a slot starts on. Its dialog's rows show these and never store them
-     * (page/status-bars/plugin-value-schema.js).
+     * first of the source's instances that has the value, the text alone, the Switch for the
+     * Looks with an icon, no label and the Updates a slot starts on. Its dialog's rows show these
+     * and never store them (page/status-bars/plugin-value-schema.js).
      */
     var PICK_DEFAULTS = { plugin: '', id: '', instance: '', look: LOOK_DEFAULT, icon: ICON_DEFAULT, label: '',
         every: EVERY_DEFAULT };
@@ -193,7 +193,7 @@
      * @property {*} plugin The plugin's uuid ('' or absent for none).
      * @property {*} id The value of it (valueId's, or complicationId's).
      * @property {*} instance The id of the instance of its source it shows ('' or absent for the
-     *   first, whichever it is), as the plugin names it: the Which row's choice.
+     *   first that has the value), as the plugin names it: the Which row's choice.
      * @property {*} look The Look row's choice (a LOOKS entry).
      * @property {*} icon The Icon row's choice (an ICON_FORMS name).
      * @property {*} label The Label row's text, as the user typed it.
@@ -219,7 +219,7 @@
      * @param {?PluginValuePick} pick What the slot picks (pickOf).
      * @returns {?{plugin: string, id: string, category: string, item: string, property: string,
      *   instance: string, key: string, complication: ?number}} The source, or null while none is
-     *   picked. `instance` is the id of the instance it picks, '' for the first, whichever it is,
+     *   picked. `instance` is the id of the instance it picks, '' for the first that has the value,
      *   and for a complication, which names its own. `key` names it whole, plugin, instance and
      *   value, for the records kept of it. `complication` is the place of the complication it
      *   picks (complicationId), or null for a value of a plugin's own.

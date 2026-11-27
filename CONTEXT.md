@@ -269,10 +269,12 @@ phone: `plugin-reads.js` actsWhenRead), of any plugin but this app's own, and ne
 value to show: an id, a link, an account, a position, a machine's code, the name of a source's
 one instance, the Index's note, reminder and chat places (`plugin-values.js` notAValue). It
 lists the supported values first, then the raw values (Supported value). A value a plugin
-offers for more than one thing (its source serves several instances: a room's lights, a stock)
-shows the first the plugin sends, or the one the dialog's Which row picks by its name, from the
-names the last read of the item brought (`plugin-value-list.js` instancesKept); one the plugin no
-longer sends shows --, never the first in its place. An item whose first instance is the one
+offers for more than one thing (its source serves several instances: a room's lights, a stock,
+the modules of a weather station) shows the first the plugin sends that has it (a station's
+pressure from its indoor module, after an outdoor one that measures none: `plugin-reader.js`
+instanceFor), or the one the dialog's Which row picks by its name, from the names the last read
+of the item brought (`plugin-value-list.js` instancesKept); one the plugin no longer sends shows
+--, never the first in its place. An item whose first instance is the one
 that matters, such as the next event, has no Which row, and its reads ask for the first instance
 alone (`plugin-values.js` whichMayOffer). The Pebble
 app's Preferences plugin is listed as Complications, right after None, with the user's

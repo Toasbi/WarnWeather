@@ -22,6 +22,9 @@ const { pluginValuePick } = require('../../helpers/status-slots.js');
 const { PREFERENCES, PICK_DEFAULTS, UNPRINTABLE } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { reading } = require('../../helpers/plugin-host.js');
 
+// The Which row's first choice, as it describes itself.
+const FIRST_DESC = 'The first the plugin lists with this value';
+
 const PConf = global.PConf;
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
@@ -300,7 +303,7 @@ test('a value WarnWeather supports starts the slot on its Look and icon, where t
 
 test('the Value row says when the plugin offers the value for more than one thing and the slot shows the first', (t) => {
   userData(t, { plugins: MUNINN_NAMED.concat([CALENDAR]) });
-  const FIRST = 'The plugin offers this for more than one thing. The slot shows the first.';
+  const FIRST = 'The plugin offers this for more than one thing. The slot shows the first that has it.';
   assert.equal(valueHint(pickIn({ plugin: CAL, id: 'calendar/event/starts_at' })), FIRST, 'the next event: no Which');
   assert.equal(valueHint(pickIn({ plugin: CAL, id: 'calendar/event/name' })), FIRST);
   assert.equal(valueHint(pickIn({ plugin: MUNINN, id: 'muninn/estimate/name' })), FIRST, 'an instance\'s name: no Which');
@@ -345,7 +348,7 @@ test('the Which row: for a value the plugin offers for more than one thing, but 
 
 test('the Which row lists the first, then each instance the last read brought, by its name; then the slot\'s own', (t) => {
   userData(t, { plugins: PLUGINS, pluginInstances: NAMED });
-  assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: 'Time 2 at the last read' }],
+  assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: FIRST_DESC }],
     ['Time 2', 'w-1'], ['Pebble 2 Duo', 'w-2']]);
   assert.deepEqual(instanceOptions(daysPick('w-2')), instanceOptions(pickIn(DAYS)),
     'one it lists');
@@ -363,19 +366,19 @@ test('the Which row lists the first, then each instance the last read brought, b
 test('the Which row numbers the instances that share a name, in the plugin\'s order, so each can be told apart', (t) => {
   userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [{ id: 'l-1', name: 'Lamp' }, { id: 'd', name: 'Desk' },
     { id: 'l-2', name: 'Lamp' }, { id: 'c', name: 'constructor' }] } });
-  assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: 'Lamp (1) at the last read' }],
+  assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: FIRST_DESC }],
     ['Lamp (1)', 'l-1'], ['Desk', 'd'], ['Lamp (2)', 'l-2'], ['constructor', 'c']]);
 });
 
 test('the Which row before a read brought any names, or where the plugin sends none', (t) => {
   userData(t, { plugins: PLUGINS });
   const NONE_YET = 'The names come with the slot\'s next read. Open the settings again after it to pick one.';
-  assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: 'Whichever the plugin lists first' }]]);
+  assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: FIRST_DESC }]]);
   assert.equal(instanceHint(pickIn(DAYS)), NONE_YET);
   assert.deepEqual(instanceOptions(daysPick('w-1')).slice(-1), [['Your pick', 'w-1']]);
   assert.equal(instanceHint(daysPick('w-1')), NONE_YET, 'not gone: not read yet');
   userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [] } });
-  assert.equal(instanceHint(pickIn(DAYS)), 'The plugin sends no names to pick from, so the slot shows the first.');
+  assert.equal(instanceHint(pickIn(DAYS)), 'The plugin sends no names to pick from, so the slot shows the first that has it.');
   userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [null, { id: '', name: 'x' }, { id: 5, name: 'x' },
     { id: 'w-3' }, { id: 'w-4', name: '' }, { id: 'w'.repeat(65), name: 'Long' }, { id: 'w-1', name: 'Time 2' }] } });
   assert.deepEqual(instanceOptions(pickIn(DAYS)).slice(1), [['Time 2', 'w-1']],

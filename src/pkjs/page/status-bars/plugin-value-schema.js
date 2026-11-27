@@ -76,7 +76,7 @@ function slotDialog(sheetOf, slotKey) {
         showWhen: picked
     }, {
         // Which of the source's instances the slot shows, for a value the plugin offers for more
-        // than one thing (a room's lights, a stock): the first, whichever it is, or one by its
+        // than one thing (a room's lights, a stock): the first that has the value, or one by its
         // name, as the slot's last read named them (plugin-value-page.js whichShown).
         type: 'select',
         messageKey: keys.instance,

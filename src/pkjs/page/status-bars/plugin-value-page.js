@@ -16,7 +16,7 @@
 // print them through barText.
 //
 // A value the plugin offers for more than one thing (its source serves several instances: a
-// room's lights, a stock) gets the Which row: the first, whichever it is, or one of the instances
+// room's lights, a stock) gets the Which row: the first that has the value, or one of the instances
 // the item's last read brought, by its name (userData.pluginInstances, plugin-value-source.js
 // instancesForPage). The page reads no plugin for them, so a value picked now has its names after
 // the save's read, the next time the page opens (instanceHint).
@@ -93,17 +93,18 @@
         {label: 'Raw values', value: '__hdr_raw', supported: false}];
     // The Value row's hint for a value the plugin offers for more than one thing where the slot
     // shows the first all the same (whichOffered).
-    var FIRST_HINT = 'The plugin offers this for more than one thing. The slot shows the first.';
+    var FIRST_HINT = 'The plugin offers this for more than one thing. The slot shows the first that has it.';
     // The Which row's choice while the slot picks none of its source's instances: the first the
-    // plugin sends, whichever it is (plugin-values.js PICK_DEFAULTS), and the one it picks where
-    // the item's last read did not bring it.
+    // plugin sends that has the value (plugin-values.js PICK_DEFAULTS), as it says (FIRST_DESC),
+    // and the one it picks where the item's last read did not bring it.
     var FIRST_LABEL = 'The first';
+    var FIRST_DESC = 'The first the plugin lists with this value';
     var HELD_LABEL = 'Your pick';
     // The Which row's hints: the names come with the slot's next read (at once after a save
     // that picks a new value, else after its Updates), the plugin sends none, or it no longer
     // sends the one the slot picks.
     var NAMES_LATER = 'The names come with the slot\'s next read. Open the settings again after it to pick one.';
-    var NO_NAMES = 'The plugin sends no names to pick from, so the slot shows the first.';
+    var NO_NAMES = 'The plugin sends no names to pick from, so the slot shows the first that has it.';
     var INSTANCE_GONE = 'The plugin no longer sends this one. Until it does, the slot shows ' + NONE_SHOWN + '.';
     // The Look row's choices (plugin-values.js LOOKS, in its order), by name, as the other slots
     // name theirs.
@@ -502,9 +503,9 @@
     }
 
     /**
-     * The Which row's list: the first, whichever it is, with the one it was at the item's last
-     * read, then each instance that read brought, by its name (namesOf), in the plugin's order,
-     * then the one the slot picks where that read did not bring it.
+     * The Which row's list: the first that has the value, then each instance the item's last
+     * read brought, by its name (namesOf), in the plugin's order, then the one the slot picks
+     * where that read did not bring it.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @param {{slotKey: string}} args The dialog's slot.
@@ -514,8 +515,7 @@
         var source = pluginValues.sourceOf(pluginValues.pickOf(S, args.slotKey));
         var instances = instancesOf(source) || [];
         var names = namesOf(instances);
-        var out = [[FIRST_LABEL, pluginValues.PICK_DEFAULTS.instance,
-            {desc: instances.length ? names[0] + ' at the last read' : 'Whichever the plugin lists first'}]];
+        var out = [[FIRST_LABEL, pluginValues.PICK_DEFAULTS.instance, {desc: FIRST_DESC}]];
         instances.forEach(function (one, i) { out.push([names[i], one.id]); });
         if (source && source.instance && !listsInstance(instances, source.instance)) {
             out.push([HELD_LABEL, source.instance]);

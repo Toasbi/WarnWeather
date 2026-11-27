@@ -56,7 +56,7 @@ var NAME = 'plugin-value';
 
 /**
  * What a lane reads for its source, whether a bar shows it or not: its property of the instance
- * it picks (the first, whichever it is, where it picks none), and, where its dialog may offer the
+ * it picks (the first that brings it, where it picks none), and, where its dialog may offer the
  * Which row (plugin-values.js whichMayOffer) or it picks an instance, the names of the source's
  * first instances, which the row lists (keepInstances); else the first instance alone. Nothing
  * of the Preferences plugin's but a complication: its own readings are the user's position and

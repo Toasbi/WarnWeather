@@ -59,14 +59,15 @@ var FULLER_ANSWER_MS = 3000;
  *   the other plugin's script would run for nothing (refused).
  * @property {number} [limit] The most instances wanted (a Pebble app from 2.0.0 sends no
  *   more; an older one ignores it).
- * @property {number} [instance] Which instance's properties the read is for, 0 (the first) by
- *   default: what makes an answer the one asked for (readOnce) and what a reading reads
+ * @property {number} [instance] Which instance's properties the read is for, by its place (0
+ *   for the first); with neither it nor `instanceId`, the first that brings the property
+ *   (instanceFor): what makes an answer the one asked for (readOnce) and what a reading reads
  *   (readingOf). Never sent.
  * @property {string} [instanceId] The id of the instance the read is for, in place of
  *   `instance`, as the plugin names it (a slot's Which row picks it). An answer that brings the
  *   property in any instance is the one asked for: one without that instance says the plugin
  *   has it no more. Never sent.
- * @property {Array<{property: string, instance: number, instanceId: (string|undefined)}>} [reads]
+ * @property {Array<{property: string, instance: (number|undefined), instanceId: (string|undefined)}>} [reads]
  *   For a read that stands for several (together), each reading it is for, in place of
  *   `instance` and `instanceId`: an answer is the one asked for only when it brings them all
  *   (readOnce). Never sent.
@@ -105,7 +106,7 @@ function together(requests) {
             if (request.properties.indexOf(property) === -1) { request.properties.push(property); }
         });
         request.limit = Math.max(request.limit, r.limit || 1);
-        request.reads.push({ property: r.properties[0], instance: r.instance || 0, instanceId: r.instanceId });
+        request.reads.push({ property: r.properties[0], instance: r.instance, instanceId: r.instanceId });
     });
     return request;
 }
@@ -258,11 +259,12 @@ function bringsAsked(envelope, request) {
  * @param {string} property A property asked for.
  * @param {{instance: (number|undefined), instanceId: (string|undefined)}} which The instance it
  *   is asked of (PluginRequest).
- * @returns {boolean} Whether the update brings it: in that instance; for an instance named by
- *   its id that the update leaves out, in any (the plugin answered, and has it no more).
+ * @returns {boolean} Whether the update brings it: in that instance (instanceFor: in any, where
+ *   none is asked for); for an instance named by its id that the update leaves out, in any (the
+ *   plugin answered, and has it no more).
  */
 function brings(envelope, property, which) {
-    var one = instanceIn(envelope, which.instance, which.instanceId);
+    var one = instanceFor(envelope, property, which.instance, which.instanceId);
     if (one || !named(which.instanceId)) { return shapesIn(one, property) !== null; }
     return instancesIn(envelope).some(function (other) { return shapesIn(other, property) !== null; });
 }
@@ -385,6 +387,26 @@ function instanceIn(envelope, index, instanceId) {
 }
 
 /**
+ * The instance a property is read from: the one asked for, by its id or its place (instanceIn),
+ * and where none is, the first that brings the property, else the first. A weather station's
+ * plugin lists its outdoor module first, and only its indoor one measures the pressure.
+ * @param {?Object} envelope A source update.
+ * @param {string} property The property's name.
+ * @param {number} [index] Which instance, in the order the plugin sent them.
+ * @param {string} [instanceId] Which instance by its id, in place of the index.
+ * @returns {*} The instance, or undefined where the update brings none so.
+ */
+function instanceFor(envelope, property, index, instanceId) {
+    var instances = instancesIn(envelope);
+    var i;
+    if (named(instanceId) || typeof index === 'number') { return instanceIn(envelope, index, instanceId); }
+    for (i = 0; i < instances.length; i++) {
+        if (shapesIn(instances[i], property) !== null) { return instances[i]; }
+    }
+    return instances[0];
+}
+
+/**
  * @param {*} instance One of an update's instances, or undefined.
  * @param {string} property A property's name.
  * @returns {?Object} The property's shapes in it (shapesOf), or null.
@@ -425,11 +447,11 @@ function numberOf(envelope, property) {
  */
 
 /**
- * A property's reading in one of the envelope's instances, the first by default: the value of
- * each shape the slot prints (each text shape's text, the timestamp, the number with its unit,
- * the boolean: plugin-value-reads.js FIELDS), as the plugin sent them, unchecked. What of it
- * is kept, and what the slot shows, are the status bars' rules, checked once
- * (plugin-value-reads.js valueOf).
+ * A property's reading in one of the envelope's instances, the first that brings it by default
+ * (instanceFor): the value of each shape the slot prints (each text shape's text, the
+ * timestamp, the number with its unit, the boolean: plugin-value-reads.js FIELDS), as the
+ * plugin sent them, unchecked. What of it is kept, and what the slot shows, are the status
+ * bars' rules, checked once (plugin-value-reads.js valueOf).
  *
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
@@ -438,7 +460,7 @@ function numberOf(envelope, property) {
  * @returns {?PluginReading} The reading, or null where the plugin did not send the property.
  */
 function readingOf(envelope, property, index, instanceId) {
-    return readingIn(instanceIn(envelope, index, instanceId), property);
+    return readingIn(instanceFor(envelope, property, index, instanceId), property);
 }
 
 /**

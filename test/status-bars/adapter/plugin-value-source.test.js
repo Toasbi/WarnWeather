@@ -577,6 +577,19 @@ test('an instance the plugin no longer sends shows --, never the first in its pl
   assert.equal(sentText(h), '--');
 });
 
+test('a slot on the first shows the first instance that has its value: a weather station\'s pressure from its indoor module', () => {
+  // Netatmo Weather sends one instance per module, the outdoor one first, which measures no pressure.
+  const STATION = 'bbbbbbbb-0000-0000-0000-00000000000b';
+  const module = (id, name, props) => ({ instanceId: id, properties: Object.assign({ name: { shortText: { text: name } } }, props) });
+  const h = boot({ settings: slot('statusTopLeft', { plugin: STATION, id: 'weather/netatmo/pressure' }) });
+  assert.deepEqual(h.pebble.subs[0].request.properties, ['pressure', 'name']);
+  h.pebble.subs[0].push({ pluginUuid: STATION, instances: [module('02:00:00:aa:bb:01', 'Home - Outdoor', {}),
+    module('70:ee:50:aa:bb:02', 'Home - Indoor', { pressure: { shortText: { text: '1013hPa' } } })] });
+  assert.equal(storedValue(STATION + '/weather/netatmo/pressure').reading.short, '1013hPa');
+  minute();
+  assert.equal(sentText(h), '1013hPa');
+});
+
 test('two slots, the first room and the hall, are one read, each showing its own', () => {
   const h = boot({ settings: Object.assign({}, slot('statusTopLeft', LIGHTS),
     slot('statusTopRight', Object.assign({ instance: 'hall' }, LIGHTS))) });

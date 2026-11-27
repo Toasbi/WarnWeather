@@ -515,6 +515,35 @@ test('readingOf: the first instance, or the one it is asked for, in the order th
   assert.equal(pluginReader.readingOf(two, 'v', 2), null, 'an instance the plugin did not send');
 });
 
+test('readingOf: with no instance asked for, the first that brings the property, as a weather station lists its modules', () => {
+  // Netatmo Weather sends one instance per module, the outdoor one first: only the indoor one
+  // measures the pressure, only the rain gauge the rain.
+  const station = { pluginUuid: 'n', instances: [
+    { instanceId: 'outdoor', properties: { temperature: { shortText: { text: '3.4°C' } }, name: { shortText: { text: 'Outdoor' } } } },
+    { instanceId: 'indoor', properties: { temperature: { shortText: { text: '21.5°C' } }, pressure: { shortText: { text: '1013hPa' } } } },
+    { instanceId: 'rain', properties: { rain_today: { shortText: { text: '3.1mm' } } } }] };
+  assert.equal(pluginReader.readingOf(station, 'temperature').short, '3.4°C', 'the first, where it brings it');
+  assert.equal(pluginReader.readingOf(station, 'pressure').short, '1013hPa');
+  assert.equal(pluginReader.readingOf(station, 'rain_today').short, '3.1mm');
+  assert.equal(pluginReader.readingOf(station, 'wind_speed'), null, 'none brings it');
+  assert.equal(pluginReader.readingOf(station, 'pressure', 0), null, 'an instance asked for by its place, as it is');
+  assert.equal(pluginReader.readingOf(station, 'pressure', undefined, 'outdoor'), null, 'and by its id');
+});
+
+test('readOnce: with no instance asked for, an answer that brings the property in any instance is the one asked for', () => {
+  const fake = fakePebble();
+  const timers = fakeTimers();
+  const calls = [];
+  const station = { pluginUuid: 'n', instances: [{ instanceId: 'outdoor', properties: { name: { shortText: { text: 'Outdoor' } } } },
+    { instanceId: 'indoor', properties: { pressure: { shortText: { text: '1013hPa' } } } }] };
+  const request = pluginReader.together([{ category: 'weather', item: 'netatmo', properties: ['pressure', 'name'],
+    plugin: 'n', limit: 16 }]);
+  pluginReader.readOnce(fake.pebble, request, (e, f) => calls.push([e, f]), timers);
+  fake.push(station);
+  assert.deepEqual(calls, [[station, null]], 'no wait for a fuller answer');
+  assert.equal(timers.set.length, 1);
+});
+
 test('readingOf: the instance by its id, wherever the plugin sent it, and none where it sent it not', () => {
   const two = withShapes({ shortText: { text: 'first' } });
   two.instances.push({ instanceId: 'b', properties: { v: { shortText: { text: 'second' } } } });
@@ -534,7 +563,7 @@ test('readOnce: an answer is the one asked for of an instance by its id when any
   // As plugin-value-source.js reads it: every read of an item through together.
   const request = pluginReader.together([{ category: 'home', item: 'room_lights', properties: ['on', 'name'],
     plugin: 'h', limit: 16, instanceId: 'hall' }]);
-  assert.deepEqual(request.reads, [{ property: 'on', instance: 0, instanceId: 'hall' }]);
+  assert.deepEqual(request.reads, [{ property: 'on', instance: undefined, instanceId: 'hall' }]);
   pluginReader.readOnce(fake.pebble, request, (e, f) => calls.push([e, f]), timers);
   assert.equal(fake.requests[0].instanceId, undefined, 'never sent');
   assert.deepEqual(fake.requests[0].properties, ['on', 'name']);
