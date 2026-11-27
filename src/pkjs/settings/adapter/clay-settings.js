@@ -27,11 +27,13 @@ var STORAGE_KEY = 'clay-settings';
 var PRESERVED_SETTING_KEYS = ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', 'rainbowApiKey'];
 
 /**
- * The settings a log line hides (redactForLog): the credentials, and each place the user typed,
- * the watch's location and the Weather tab's saved places, since a log never says where the
- * user is.
+ * The settings a log line hides (redactForLog): the credentials, each place the user typed, the
+ * watch's location and the Weather tab's saved places, since a log never says where the user is,
+ * and the instance each slot's Plugin value picks (status-line-catalog.js pluginValueKeys): the
+ * id of another app's room, device or place, which is its data.
  */
-var LOG_HIDDEN_KEYS = PRESERVED_SETTING_KEYS.concat(['location'], weatherTabModel.SLOT_KEYS);
+var LOG_HIDDEN_KEYS = PRESERVED_SETTING_KEYS.concat(['location'], weatherTabModel.SLOT_KEYS,
+    statusCatalog.everySlotKey().map(function (slotKey) { return statusCatalog.pluginValueKeys(slotKey).instance; }));
 
 /**
  * Wipe phone-side PKJS localStorage — the settings blob and every cache /
@@ -169,10 +171,10 @@ function restorePreserved(target) {
 
 /**
  * A copy of a settings blob fit for console.log: each key of LOG_HIDDEN_KEYS, the user's
- * API keys (PRESERVED_SETTING_KEYS, the one list of credential keys) and each place the
- * user typed, becomes '<set>' or ''. PKJS logs end up in bug reports
- * and pasted issues, so they must not carry a key someone may have paid for, or
- * where the user is. Logging only -- the copy must never be saved or sent, and the
+ * API keys (PRESERVED_SETTING_KEYS, the one list of credential keys), each place the
+ * user typed and each Plugin value's instance, becomes '<set>' or ''. PKJS logs end up in bug
+ * reports and pasted issues, so they must not carry a key someone may have paid for, where
+ * the user is, or another app's data. Logging only -- the copy must never be saved or sent, and the
  * blob itself is left untouched (the page and providers need the real values).
  *
  * @param {?Object} blob Settings blob (may be null).

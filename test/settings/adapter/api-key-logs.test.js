@@ -38,6 +38,15 @@ test('redactForLog masks each API key on a copy and leaves the blob alone', () =
   assert.equal('owmApiKey' in claySettings.redactForLog({ a: 1 }), false, 'absent keys stay absent');
 });
 
+test('redactForLog masks the instance each slot\'s Plugin value picks: another app\'s data', () => {
+  const claySettings = loadClaySettings();
+  const blob = { statusTopLeftPluginValueInstance: 'hue/room 3', statusTopLeftPluginValueId: 'home/room_lights/on',
+    statusBar6RightPluginValueInstance: '' };
+  assert.deepEqual(claySettings.redactForLog(blob), { statusTopLeftPluginValueInstance: '<set>',
+    statusTopLeftPluginValueId: 'home/room_lights/on', statusBar6RightPluginValueInstance: '' });
+  assert.equal(blob.statusTopLeftPluginValueInstance, 'hue/room 3', 'the real blob keeps the pick');
+});
+
 test('redactForLog hides each place the user typed, as it does the keys', () => {
   const claySettings = loadClaySettings();
   const blob = { location: '52.55,13.40', savedLocation1: 'Some Street 1, Berlin', savedLocation2: '',
