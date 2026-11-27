@@ -17,6 +17,14 @@
 // picking a source reads at once. How a read goes, and what is kept of it, is every plugin
 // read's (plugin-read-schedule.js).
 //
+// The values of one plugin's item are read together, so its script runs once for them, and asks
+// once for any permission of its app's that the user has not answered: the reads that come at
+// one look (or one answer) are one read, and every other value of the item is read with it, due
+// or not (plugin-read-schedule.js join). It asks for each of their properties and ends at the
+// first answer that brings them all (plugin-reader.js readOnce), and each lane takes its own
+// reading from it. A read that names no plugin (a complication's: the Pebble app picks the
+// plugin) is never read with one that names a plugin.
+//
 // Only while it is wanted: a slot of a bar the watch is sent shows it (status-lines.js
 // wantedPluginValues). A lane no slot shows any more stops. Its read and its value stay in
 // storage while a slot still picks its source, in a bar the watch is not sent now (another
@@ -103,6 +111,11 @@ function sameShown(a, b) {
 var lanes = {};
 // init's options: the environment every lane's schedule is handed.
 var deps = null;
+// The reads the lanes made while a look or an answer runs ({lane, request, done}, in the order
+// they came), held until it ends (batch), so the reads of one plugin's item are one (flush).
+var pending = [];
+// How many looks and answers run, one inside another: the reads held go when the last ends.
+var depth = 0;
 
 /**
  * @returns {boolean} Whether this Pebble app can read plugins at all: before init, as the global
@@ -135,9 +148,158 @@ function bySource(slots) {
 }
 
 /**
+ * What a lane reads now (readOf), by init's options: what this app declares (permissions; none:
+ * a source that names a permission is then never read) and the user's complications
+ * (getComplications, complication-list.js current; none: not known).
+ * @param {{slots: Array<Object>}} lane The lane.
+ * @returns {{key: string, request: ?Object}} What is wanted.
+ */
+function wantOf(lane) {
+    return readOf(lane.slots[0].source, typeof deps.getComplications === 'function' ? deps.getComplications() : null,
+        Array.isArray(deps.permissions) ? deps.permissions : []);
+}
+
+/**
+ * @param {Object} request A read (readOf's request).
+ * @returns {string} The plugin's item it reads, which the reads made as one share: the plugin it
+ *   names counts, so a read that names none, which the Pebble app gives to the plugin it picks,
+ *   is never one with a read that names one.
+ */
+function itemOf(request) {
+    return (request.plugin ? String(request.plugin).toLowerCase() : '') + '/' + request.category + '/' + request.item;
+}
+
+/**
+ * The one read that stands for several reads of a plugin's item: every property they ask for,
+ * as many instances as the furthest of theirs, and the readings it is for, so its answer is the
+ * one asked for only when it brings them all (plugin-reader.js readOnce).
+ * @param {Array<Object>} requests The reads (readOf's requests), of one item (itemOf).
+ * @returns {Object} The read (plugin-reader.js PluginRequest).
+ */
+function together(requests) {
+    var first = requests[0];
+    var request = { category: first.category, item: first.item, properties: [], limit: 1,
+        permissions: first.permissions, reads: [] };
+    if (first.plugin) { request.plugin = first.plugin; }
+    requests.forEach(function (r) {
+        var property = r.properties[0];
+        if (request.properties.indexOf(property) === -1) { request.properties.push(property); }
+        request.limit = Math.max(request.limit, r.limit || 1);
+        request.reads.push({ property: property, instance: r.instance || 0 });
+    });
+    return request;
+}
+
+/**
+ * @param {Array<Object>} reads Reads held (hold), in the order they came.
+ * @returns {Array<Array<Object>>} Them by the plugin's item they read (itemOf), each item in the
+ *   order its first read came.
+ */
+function byItem(reads) {
+    var items = [];
+    var groups = [];
+    reads.forEach(function (read) {
+        var item = itemOf(read.request);
+        var at = items.indexOf(item);
+        if (at === -1) {
+            at = items.length;
+            items.push(item);
+            groups.push([]);
+        }
+        groups[at].push(read);
+    });
+    return groups;
+}
+
+/**
+ * Run a look or an answer with the reads it makes held, and make them once the last that runs
+ * ends (flush).
+ * @param {function(): void} fn The look or the answer.
+ * @returns {void}
+ */
+function batch(fn) {
+    depth += 1;
+    try {
+        fn();
+    }
+    finally {
+        depth -= 1;
+    }
+    if (depth === 0) { flush(); }
+}
+
+/**
+ * A lane's read (its spec's readOnce): held while a look or an answer runs (batch), else made at
+ * once.
+ * @param {Object} lane The lane.
+ * @param {Object} request Its read (readOf's request).
+ * @param {function(?Object, ?Object): void} done Its answer's callback (plugin-reader.js readOnce).
+ * @returns {void}
+ */
+function hold(lane, request, done) {
+    pending.push({ lane: lane, request: request, done: done });
+    if (depth === 0) { flush(); }
+}
+
+/**
+ * Have every lane that makes no read now read with the reads held of its plugin's item
+ * (plugin-read-schedule.js join, which reads only a lane left idle by the look just taken).
+ * @returns {void}
+ */
+function joinIdle() {
+    var items = pending.map(function (read) { return itemOf(read.request); });
+    Object.keys(lanes).forEach(function (key) {
+        var lane = lanes[key];
+        var want;
+        if (pending.some(function (read) { return read.lane === lane; })) { return; }
+        want = wantOf(lane);
+        if (want.request && items.indexOf(itemOf(want.request)) !== -1) { lane.schedule.join(); }
+    });
+}
+
+/**
+ * Make the reads of one plugin's item as one read (together; a read alone as it is), and hand
+ * its answer to each, with the reads the answer makes held until each has it (batch).
+ * @param {Array<Object>} reads The reads held (hold), of one item.
+ * @returns {void}
+ */
+function readTogether(reads) {
+    var request = reads.length === 1 ? reads[0].request
+        : together(reads.map(function (read) { return read.request; }));
+    pluginReader.readOnce(pluginReader.pebbleOf(deps), request, function (envelope, fail) {
+        batch(function () {
+            reads.forEach(function (read) { read.done(envelope, fail); });
+        });
+    }, deps.timers);
+}
+
+/**
+ * Make the reads held: with the other values of each plugin's item read with them (joinIdle),
+ * one read for each item (readTogether). An answer that comes at once (a read that may not
+ * start) can hold reads anew, which go in turn.
+ * @returns {void}
+ */
+function flush() {
+    var reads;
+    depth += 1;
+    try {
+        while (pending.length) {
+            joinIdle();
+            reads = pending;
+            pending = [];
+            byItem(reads).forEach(readTogether);
+        }
+    }
+    finally {
+        depth -= 1;
+    }
+}
+
+/**
  * A lane's rules (plugin-read-schedule.js PluginReadSpec): what it reads, how often (the shortest
  * Updates of its slots), and what its slots show of it, all of its slots as of the last look,
- * which the settings handed to the rules are of.
+ * which the settings handed to the rules are of. Its reads are made with the others of its
+ * plugin's item (hold).
  * @param {{slots: Array<Object>}} lane The lane: its slots, which every look sets.
  * @returns {Object} The spec.
  */
@@ -149,13 +311,8 @@ function laneSpec(lane) {
         valueAt: storedJson.entryOf(KEYS.PLUGIN_VALUES, key),
         // Until when the plugin said its last answer holds: its own word on when it has something new.
         timeField: 'validUntil',
-        // init's options carry what this app declares (permissions; none: a source that names a
-        // permission is then never read) and the user's complications (getComplications,
-        // complication-list.js current; none: not known).
-        wanted: function (settings, watchInfo, d) {
-            return readOf(lane.slots[0].source, typeof d.getComplications === 'function' ? d.getComplications() : null,
-                Array.isArray(d.permissions) ? d.permissions : []);
-        },
+        wanted: function () { return wantOf(lane); },
+        readOnce: function (request, done) { hold(lane, request, done); },
         nextReadAt: function (record) {
             return pluginValueReads.nextReadAt(record, Math.min.apply(Math, lane.slots.map(function (slot) {
                 return pluginValues.everyMs(slot.pick);
@@ -200,23 +357,25 @@ function keepPicked(picked) {
  */
 function look(slots, fromSave) {
     var groups = bySource(slots);
-    Object.keys(lanes).forEach(function (key) {
-        if (groups[key]) { return; }
-        lanes[key].schedule.stop();
-        delete lanes[key];
-    });
-    // Only a save changes what the slots pick: a tick or another complication changes what is shown.
-    if (fromSave) { keepPicked(statusLines.pickedPluginValues(deps.getSettings())); }
-    Object.keys(groups).forEach(function (key) {
-        var lane = lanes[key];
-        if (lane) {
-            lane.slots = groups[key];
-        } else {
-            lane = lanes[key] = { slots: groups[key], schedule: null };
-            lane.schedule = pluginReadSchedule.create(laneSpec(lane));
-            lane.schedule.load(deps);
-        }
-        if (fromSave) { lane.schedule.refresh(); } else { lane.schedule.onTick(); }
+    batch(function () {
+        Object.keys(lanes).forEach(function (key) {
+            if (groups[key]) { return; }
+            lanes[key].schedule.stop();
+            delete lanes[key];
+        });
+        // Only a save changes what the slots pick: a tick or another complication changes what is shown.
+        if (fromSave) { keepPicked(statusLines.pickedPluginValues(deps.getSettings())); }
+        Object.keys(groups).forEach(function (key) {
+            var lane = lanes[key];
+            if (lane) {
+                lane.slots = groups[key];
+            } else {
+                lane = lanes[key] = { slots: groups[key], schedule: null };
+                lane.schedule = pluginReadSchedule.create(laneSpec(lane));
+                lane.schedule.load(deps);
+            }
+            if (fromSave) { lane.schedule.refresh(); } else { lane.schedule.onTick(); }
+        });
     });
 }
 
@@ -272,6 +431,8 @@ function init(options) {
     pluginReadSchedule.checkOptions(options, NAME);
     deps = options;
     lanes = {};
+    pending = [];
+    depth = 0;
     picked = statusLines.pickedPluginValues(deps.getSettings());
     moveSingleValue(picked);
     keepPicked(picked);

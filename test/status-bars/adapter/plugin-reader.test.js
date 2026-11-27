@@ -532,6 +532,38 @@ test('readOnce: an answer is the one asked for when the instance asked for bring
   assert.deepEqual(calls, [[both, null]]);
 });
 
+test('readOnce: a read of several readings ends at the first answer that brings them all, and sends none of them', () => {
+  const fake = fakePebble();
+  const timers = fakeTimers();
+  const calls = [];
+  pluginReader.readOnce(fake.pebble, { category: 'phone', item: 'phone_state', properties: ['battery_level', 'cell'],
+    reads: [{ property: 'battery_level', instance: 0 }, { property: 'cell', instance: 0 }] }, (e, f) => calls.push([e, f]), timers);
+  assert.deepEqual(fake.requests[0].properties, ['battery_level', 'cell']);
+  assert.equal(fake.requests[0].reads, undefined, 'never sent');
+  fake.push(envelope(70));            // the battery level, the network type not known yet
+  assert.deepEqual(calls, [], 'held: a reading is missing');
+  assert.equal(timers.set[1].ms, pluginReader.FULLER_ANSWER_MS);
+  const fuller = phoneAnswer(Object.assign({}, envelope(70).instances[0].properties, LTE));
+  fake.push(fuller);
+  assert.deepEqual(calls, [[fuller, null]]);
+  assert.equal(fake.unsubscribed, 1);
+});
+
+test('readOnce: a read of several readings waits for each in its own instance, and takes the last answer when none brings them all', () => {
+  const fake = fakePebble();
+  const timers = fakeTimers();
+  const calls = [];
+  const place = (id, t) => ({ instanceId: id, properties: { temperature: { shortText: { text: t } } } });
+  pluginReader.readOnce(fake.pebble, { category: 'weather', item: 'location', properties: ['temperature'], limit: 2,
+    reads: [{ property: 'temperature', instance: 0 }, { property: 'temperature', instance: 1 }] },
+  (e, f) => calls.push([e, f]), timers);
+  const first = { pluginUuid: 'w', instances: [place('bonn', '4\u00b0')] };
+  fake.push(first);
+  assert.deepEqual(calls, [], 'the second place is missing');
+  timers.set[1].fn();
+  assert.deepEqual(calls, [[first, null]], 'what came, for each reading to take its part of');
+});
+
 test('watch: a read that carries this app\'s permissions starts only where no plugin that may answer asks for another', () => {
   const weather = (uuid, asks) => ({ uuid: uuid, name: uuid, sources: [{ category: 'weather', items: ['location'],
     properties: { temperature: ['shortText'] }, callerPermissions: asks }] });

@@ -795,3 +795,71 @@ test('stop while a read is under way: the read is forgotten and its answer goes 
   schedule.onTick();
   assert.equal(h.pebble.subs.length, 1);
 });
+
+// --- a reader's own reads, and join -----------------------------------------------------------
+
+test('a reader that makes its reads itself is handed each request, and its answer lands as any other', () => {
+  const made = [];
+  const own = pluginReadSchedule.create(Object.assign({}, SPEC, {
+    readOnce: (request, done) => { made.push({ request: request, done: done }); }
+  }));
+  const h = boot({ schedule: own });
+  assert.deepEqual(made.map((read) => read.request), [{ category: 'test', item: 'a' }]);
+  assert.equal(h.pebble.subs.length, 0, 'the schedule asks no plugin itself');
+  assert.deepEqual(stored(READ), { source: 'a', at: NOON, failures: 0, until: null }, 'stamped as it starts');
+  made[0].done({ text: '87%' }, null);
+  assert.deepEqual(own.value(), { source: 'a', text: '87%', at: NOON });
+  assert.equal(owed, 1);
+});
+
+test('join reads now, its read not due and inside the Night battery saver\'s window: the plugin runs for another read anyway', () => {
+  const h = boot({ settings: SAVER_ON, clock: NIGHT });
+  h.settings = Object.assign({}, WANT_A, SAVER_ON);
+  schedule.refresh();
+  h.pebble.subs[0].push({ text: '87%' });
+  h.clock = NIGHT + 30 * MIN;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 1, 'neither due nor outside the window');
+  schedule.join();
+  assert.equal(h.pebble.subs.length, 2, 'read with the other');
+  assert.deepEqual(stored(READ), { source: 'a', at: NIGHT + 30 * MIN, failures: 0, until: null },
+    'its next read waits from now');
+  h.pebble.subs[1].push({ text: '86%' });
+  assert.equal(schedule.value().text, '86%');
+  assert.deepEqual([owed, waited], [2, 1], 'the save\'s answer is one the user waits for, the joined read\'s is not');
+});
+
+test('join that times out earns no read again at the next tick: the user did not ask for it', () => {
+  const h = boot();
+  h.pebble.subs[0].push({ text: '87%' });
+  h.clock += 10 * MIN;
+  schedule.join();
+  h.pebble.subs[1].fail('TIMEOUT');
+  assert.deepEqual(stored(READ), { source: 'a', at: NOON + 10 * MIN, failures: 1, until: null });
+  assert.equal(schedule.value().text, '87%', 'the value kept');
+  h.clock += MIN;
+  schedule.onTick();
+  assert.equal(h.pebble.subs.length, 2, 'the wait after a failure');
+});
+
+test('join reads nothing while a read is under way, once stopped, or with nothing to read', () => {
+  let h = boot();
+  schedule.join();
+  assert.equal(h.pebble.subs.length, 1, 'a read under way');
+  h.pebble.subs[0].push({ text: '87%' });
+  schedule.stop();
+  schedule.join();
+  assert.equal(h.pebble.subs.length, 1, 'stopped');
+  h = boot({ settings: {} });
+  schedule.join();
+  assert.equal(h.pebble.subs.length, 0, 'nothing wanted');
+  assert.deepEqual(writes, []);
+  const empty = pluginReadSchedule.create(Object.assign({}, SPEC, {
+    wanted: (settings) => (settings && settings.want ? { key: settings.want, request: null } : null)
+  }));
+  h = boot({ schedule: empty });
+  writes.length = 0;
+  h.clock += 10 * MIN;
+  empty.join();
+  assert.deepEqual(writes, [], 'a key with nothing to read under it: its look stamps it, not join');
+});

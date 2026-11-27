@@ -72,6 +72,9 @@ function answer(properties, extra) {
     extra || {});
 }
 
+/** The Phone plugin's battery level and network type, in one answer. */
+const BOTH = Object.assign({ cell: { shortText: { text: 'LTE' } } }, LEVEL);
+
 /**
  * Boot the source with its re-baker, every dependency injected: a PKJS start.
  * @param {Object} [opts] {settings, pebble, clock, keepStorage, watchInfo, complications,
@@ -510,12 +513,11 @@ test('the value is never logged: it is another app\'s data', () => {
 test('the settings page gets each value last heard whole, by its source, while a slot shows it', () => {
   const h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' })) });
   assert.deepEqual(pluginValueSource.forPage(null), {}, 'none yet');
-  h.pebble.subs[0].push(answer(null, { validUntilMs: NOON + 2 * HOUR }));
+  h.pebble.subs[0].push(answer(BOTH, { validUntilMs: NOON + 2 * HOUR }));
   const value = { source: KEY, reading: reading({ short: '87%', number: 87, unit: '%' }), at: NOON,
     validUntil: NOON + 2 * HOUR };
-  assert.deepEqual(pluginValueSource.forPage(null), { [KEY]: value });
-  h.pebble.subs[1].push(answer({ cell: { shortText: { text: 'LTE' } } }));
   assert.deepEqual(Object.keys(pluginValueSource.forPage(null)), [KEY, CELL_KEY], 'each its own');
+  assert.deepEqual(pluginValueSource.forPage(null)[KEY], value);
   assert.equal(pluginValueSource.forPage(null)[CELL_KEY].reading.short, 'LTE');
   h.settings = SLOT;
   pluginValueSource.refresh();
@@ -524,12 +526,13 @@ test('the settings page gets each value last heard whole, by its source, while a
 
 // --- several values -----------------------------------------------------------------------
 
-test('two slots with two values: each is read and kept on its own, and each slot shows its own', () => {
+test('two values of one plugin\'s item are one read for both: each is kept on its own, and each slot shows its own', () => {
   const h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' })) });
-  assert.deepEqual(h.pebble.subs.map((sub) => sub.request.properties), [['battery_level'], ['cell']],
-    'both asked at start, in the bars\' order');
-  h.pebble.subs[1].push(answer({ cell: { shortText: { text: 'LTE' } } }));
-  h.pebble.subs[0].push(answer());
+  assert.equal(h.pebble.subs.length, 1, 'the plugin runs once for both');
+  assert.deepEqual(h.pebble.subs[0].request, { category: 'phone', item: 'phone_state',
+    properties: ['battery_level', 'cell'], plugin: PHONE, limit: 1 }, 'both asked for, in the bars\' order');
+  h.pebble.subs[0].push(answer(BOTH));
+  assert.equal(h.pebble.subs[0].unsubscribed, 1);
   assert.deepEqual(Object.keys(stored(KEYS.PLUGIN_VALUES)).sort(), [CELL_KEY, KEY].sort());
   assert.equal(storedRead(KEY).source, KEY);
   assert.equal(storedRead(CELL_KEY).source, CELL_KEY);
@@ -578,28 +581,115 @@ test('a second slot that shows a value already shown: the watch is owed what bot
 
 test('a value no slot picks any more goes at the save; the other slot\'s stays and is not read again', () => {
   const h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' })) });
-  h.pebble.subs[0].push(answer());
-  h.pebble.subs[1].push(answer({ cell: { shortText: { text: 'LTE' } } }));
+  h.pebble.subs[0].push(answer(BOTH));
   h.clock += 10 * MIN;
   h.settings = Object.assign({}, SLOT, { statusTopRight: 'aqi' });
   pluginValueSource.refresh();
   assert.equal(storedValue(CELL_KEY), null);
   assert.equal(storedRead(CELL_KEY), null);
   assert.equal(storedValue(KEY).reading.short, '87%');
-  assert.equal(h.pebble.subs.length, 2, 'the battery level is not due');
+  assert.equal(h.pebble.subs.length, 1, 'the battery level is not due');
   h.settings = Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' }));
   pluginValueSource.refresh();
-  assert.equal(h.pebble.subs.length, 3, 'picked again: read at once');
+  assert.equal(h.pebble.subs.length, 2, 'picked again: read at once');
 });
 
 test('a value no slot picks any more while it is read: the answer goes nowhere, the other read lands', () => {
   const h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' })) });
   h.settings = SLOT;
   pluginValueSource.refresh();
-  h.pebble.subs[1].push(answer({ cell: { shortText: { text: 'LTE' } } }));
-  h.pebble.subs[0].push(answer());
+  h.pebble.subs[0].push(answer(BOTH));
   assert.deepEqual(Object.keys(stored(KEYS.PLUGIN_VALUES)), [KEY]);
   assert.equal(storedRead(CELL_KEY), null);
+  assert.equal(h.pebble.subs.length, 1, 'and nothing is read again');
+});
+
+// --- one read for the values of one plugin's item ---------------------------------------------
+
+test('a value of the item read now is read with it, though its own read is not due: they go together from then on', () => {
+  const h = boot();
+  h.pebble.subs[0].push(answer());
+  h.clock = NOON + 20 * MIN;
+  h.settings = Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' }));
+  pluginValueSource.refresh();
+  assert.equal(h.pebble.subs.length, 2, 'one read for the value picked and the one shown');
+  assert.deepEqual(h.pebble.subs[1].request.properties, ['cell', 'battery_level'], 'the battery level joins');
+  h.pebble.subs[1].push(answer(BOTH));
+  assert.equal(storedRead(KEY).at, NOON + 20 * MIN, 'the battery level read anew');
+  assert.equal(storedValue(CELL_KEY).reading.short, 'LTE');
+  h.clock = NOON + HOUR;
+  minute();
+  assert.equal(h.pebble.subs.length, 2, 'not at the hour it was due before');
+  h.clock = NOON + 20 * MIN + HOUR;
+  minute();
+  assert.equal(h.pebble.subs.length, 3, 'an hour after the read they shared');
+  assert.deepEqual(h.pebble.subs[2].request.properties, ['battery_level', 'cell'], 'together again');
+});
+
+test('a value of the item whose read is under way does not join another: it is not read twice at once', () => {
+  const h = boot();
+  h.clock = NOON + 20 * MIN;
+  h.settings = Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' }));
+  pluginValueSource.refresh();
+  assert.equal(h.pebble.subs.length, 2);
+  assert.deepEqual(h.pebble.subs[1].request.properties, ['cell'], 'the battery level is read already');
+});
+
+test('one read waits for the answer that brings every value asked for: the network type a moment after the battery level', () => {
+  const h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' })) });
+  h.pebble.subs[0].push(answer());
+  assert.equal(h.pebble.subs[0].unsubscribed, 0, 'still listening: the network type may follow');
+  assert.equal(storedValue(KEY), null, 'nothing kept yet');
+  h.pebble.subs[0].push(answer(Object.assign({ cell: { shortText: { text: '5G' } } }, LEVEL)));
+  assert.equal(h.pebble.subs[0].unsubscribed, 1);
+  assert.equal(storedValue(KEY).reading.short, '87%');
+  assert.equal(storedValue(CELL_KEY).reading.short, '5G');
+});
+
+test('one read that no fuller answer follows: each value takes what the answer brings of it', () => {
+  const h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' })) });
+  h.pebble.subs[0].push(answer());
+  h.timers.filter((t) => t.ms === pluginReader.FULLER_ANSWER_MS).forEach((t) => t.fn());
+  assert.equal(h.pebble.subs[0].unsubscribed, 1, 'the read is over');
+  assert.equal(storedValue(KEY).reading.short, '87%');
+  assert.equal(storedValue(CELL_KEY), null, 'an answer of nothing for the network type');
+  assert.equal(storedRead(CELL_KEY).failures, 0);
+});
+
+test('one read that fails fails for each value: each counts it, and keeps the value it had', () => {
+  const h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { id: 'phone/phone_state/cell' })) });
+  h.pebble.subs[0].push(answer(BOTH));
+  h.clock = NOON + HOUR;
+  minute();
+  h.pebble.subs[1].fail('TIMEOUT');
+  assert.deepEqual([storedRead(KEY).failures, storedRead(CELL_KEY).failures], [1, 1]);
+  assert.deepEqual([storedValue(KEY).reading.short, storedValue(CELL_KEY).reading.short], ['87%', 'LTE']);
+});
+
+test('values of two plugins are two reads, and so are a complication and a pick of the same item: the Pebble app picks the complication\'s plugin', () => {
+  const OTHER = 'ffffffff-0000-0000-0000-000000000001';
+  let h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { plugin: OTHER, id: 'phone/phone_state/cell' })) });
+  assert.deepEqual(h.pebble.subs.map((sub) => [sub.request.plugin, sub.request.properties]),
+    [[PHONE, ['battery_level']], [OTHER, ['cell']]]);
+  h = boot({ settings: Object.assign({}, SECOND, slot('statusTopRight', { id: 'phone/phone_state/cell' })),
+    complications: [CHARGE], permissions: PERMS,
+    pebble: fakePebble(PLUGINS.concat([{ uuid: PHONE, name: 'Phone', sources: [{ category: 'phone', items: ['phone_state'] }] }])) });
+  assert.deepEqual(h.pebble.subs.map((sub) => [sub.request.plugin, sub.request.properties]),
+    [[undefined, ['battery_level']], [PHONE, ['cell']]]);
+});
+
+test('two complications of one source are one read, for as many instances as the furthest place names', () => {
+  const first = { position: 0, category: 'weather', item: 'location', index: 0, property: 'temperature' };
+  const FIRST = slot('statusTopRight', { plugin: PREFERENCES, id: 'preferences/complications/0' });
+  const h = boot({ settings: Object.assign({}, SECOND, FIRST), complications: [first, TEMPERATURE],
+    permissions: PERMS, pebble: fakePebble(PLUGINS) });
+  assert.equal(h.pebble.subs.length, 1);
+  assert.deepEqual(h.pebble.subs[0].request, { category: 'weather', item: 'location', properties: ['temperature'],
+    limit: 2 });
+  h.pebble.subs[0].push(weather(['21\u00b0', '4\u00b0']));
+  minute();
+  const cells = decodeLine(h.sends[h.sends.length - 1].STATUS_LINE_3_UINT8);
+  assert.deepEqual([cells[0].text, cells[2].text], ['4\u00b0', '21\u00b0'], 'each place its own location\'s');
 });
 
 test('a start keeps only the values of the sources a slot picks', () => {
@@ -939,4 +1029,18 @@ test('a value of a plugin\'s own that asks for a permission this app never decla
   const h = boot({ permissions: PERMS, pebble: fakePebble([{ uuid: PHONE, name: 'Phone', sources: [{ category: 'phone',
     items: ['phone_state'], callerPermissions: ['Contacts'] }] }]) });
   assert.equal(h.pebble.subs.length, 0);
+});
+
+test('the reads an answer makes again are one read too: both places changed while their one read was under way', () => {
+  const first = { position: 0, category: 'weather', item: 'location', index: 0, property: 'temperature' };
+  const FIRST = slot('statusTopRight', { plugin: PREFERENCES, id: 'preferences/complications/0' });
+  const h = boot({ settings: Object.assign({}, SECOND, FIRST), complications: [first, TEMPERATURE],
+    permissions: PERMS, pebble: fakePebble(PLUGINS) });
+  h.complications = [Object.assign({}, CHARGE, { position: 0 }), Object.assign({}, CHARGE, { property: 'cell' })];
+  pluginValueSource.complicationsChanged();
+  assert.equal(h.pebble.subs.length, 1, 'the read under way is waited for');
+  h.pebble.subs[0].push(weather(['21°', '4°']));
+  assert.equal(h.pebble.subs.length, 2, 'then one read for both new readings');
+  assert.deepEqual(h.pebble.subs[1].request, { category: 'phone', item: 'phone_state',
+    properties: ['cell', 'battery_level'], limit: 1 });
 });

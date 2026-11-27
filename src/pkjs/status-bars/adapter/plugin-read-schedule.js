@@ -26,6 +26,10 @@
 //   - One read at a time. An answer that comes after what is wanted changed is dropped, and
 //     what changed it, which that read held up, reads then: as from a save where a save did.
 //   - A clock that went back starts the wait again from now (plugin-reads.js clockWentBack).
+//   - A reader may make its reads itself (the spec's readOnce): the Plugin value slots make the
+//     reads of one plugin's item that come at once one read (plugin-value-source.js), and have
+//     each of its other values read with it (join), whatever its own wait or the Night battery
+//     saver's window: the plugin's script runs for the one read either way.
 //   - Inside the Night battery saver's window only a read that a settings save asks for, with
 //     none before it or after the first that failed, goes ahead, and the read again a read the
 //     user waits for earned: the user is at the phone, waiting to see the value. Any other waits
@@ -84,6 +88,10 @@ var pluginReader = require('./plugin-reader.js');
  * @property {function(?Object, ?Object, number): *} shown What the slot shows of a value under
  *   the settings at an instant; null for nothing.
  * @property {function(*, *): boolean} sameShown Whether two of what shown hands back are the same.
+ * @property {function(Object, function(?Object, ?Object): void): void} [readOnce] How a read is
+ *   made: with the request and the callback of plugin-reader.js readOnce, which it calls once
+ *   with the answer. Without it, each read is made alone, through the environment's Pebble and
+ *   timers.
  */
 
 /** The environment before init: no settings, so nothing is wanted. */
@@ -111,10 +119,10 @@ function checkOptions(options, name) {
  * A reader's schedule.
  * @param {PluginReadSpec} spec The reader's rules.
  * @returns {{init: function(Object): void, load: function(Object): void, onTick: function(): void,
- *   refresh: function(): void, stop: function(): void, value: function(): ?Object}} init wires it
- *   up and takes the first look, load wires it up without one, onTick and refresh read when a
- *   read is due, stop ends its reads and keeps what storage holds, and value is the value last
- *   heard.
+ *   refresh: function(): void, join: function(): void, stop: function(): void,
+ *   value: function(): ?Object}} init wires it up and takes the first look, load wires it up
+ *   without one, onTick and refresh read when a read is due, join reads with another read of the
+ *   plugin, stop ends its reads and keeps what storage holds, and value is the value last heard.
  */
 function create(spec) {
     var deps = INERT;
@@ -214,6 +222,16 @@ function create(spec) {
     }
 
     /**
+     * A read made alone (the spec's readOnce where it has none).
+     * @param {Object} request The read (plugin-reader.js PluginRequest).
+     * @param {function(?Object, ?Object): void} done Its answer's callback.
+     * @returns {void}
+     */
+    function readAlone(request, done) {
+        pluginReader.readOnce(pluginReader.pebbleOf(deps), request, done, deps.timers);
+    }
+
+    /**
      * Ask the plugin, once (a request of null asks nothing: an answer of nothing, at once).
      * @param {{key: ?string, request: ?Object}} want What is wanted (spec.wanted).
      * @param {number} at Now, in epoch milliseconds.
@@ -243,7 +261,7 @@ function create(spec) {
         // Stamped before the plugin answers: a read that PKJS ends before the answer still counts,
         // or leaving the watchface and coming back every few seconds would read at every start.
         stamp(want.key, at, failures, time);
-        pluginReader.readOnce(pluginReader.pebbleOf(deps), want.request, function (envelope, fail) {
+        (spec.readOnce || readAlone)(want.request, function (envelope, fail) {
             var heard;
             var held = heldUp;
             inFlight = false;
@@ -269,7 +287,7 @@ function create(spec) {
             heard = spec.heard(envelope, want, nowMs());
             stamp(want.key, at, 0, heard.time);
             keep(heard.value, waitedFor);
-        }, deps.timers);
+        });
     }
 
     /**
@@ -325,6 +343,21 @@ function create(spec) {
         if (record && !asked && at < spec.nextReadAt(record)) { return; }
         if (!asked && batterySaver.isWithinSleepWindow(new Date(at), settings)) { return; }
         read(want, at, fromSave || againAtTick || renewed);
+    }
+
+    /**
+     * Read now, with another read of the same plugin (plugin-value-source.js): the plugin's
+     * script runs once for both, so neither the reader's wait nor the Night battery saver's
+     * window holds it. Only when the look just taken left it idle: a read under way, a schedule
+     * stopped, or a key with nothing to read under it reads nothing. The user waits for it as at
+     * a look: only as the first read of another key (renewed).
+     * @returns {void}
+     */
+    function join() {
+        var want;
+        if (stopped || inFlight || !available()) { return; }
+        want = spec.wanted(deps.getSettings(), deps.getWatchInfo(), deps);
+        if (want && want.request) { read(want, nowMs(), renewed); }
     }
 
     /**
@@ -389,6 +422,7 @@ function create(spec) {
         load: load,
         onTick: function () { consider(false); },
         refresh: function () { consider(true); },
+        join: join,
         stop: stop,
         value: lastValue
     };

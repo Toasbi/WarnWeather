@@ -61,6 +61,10 @@ var FULLER_ANSWER_MS = 3000;
  * @property {number} [instance] Which instance's properties the read is for, 0 (the first) by
  *   default: what makes an answer the one asked for (readOnce) and what a reading reads
  *   (readingOf). Never sent.
+ * @property {Array<{property: string, instance: number}>} [reads] For a read of several
+ *   readings at once (plugin-value-source.js reads the values of one plugin's item together),
+ *   each reading it is for, in place of `instance`: an answer is the one asked for only when it
+ *   brings them all (readOnce). Never sent.
  * @property {string[]} [permissions] What this app declares, as the Pebble app keys it
  *   (plugin-reads.js declaredKeys), for a read that must never ask the user for a permission
  *   it did not: it starts only where the phone's list of plugins says no plugin that may answer
@@ -198,19 +202,23 @@ function watch(pebble, request, onData, onFailure) {
  * @param {?Object} envelope A source update.
  * @param {PluginRequest} request The request it answers.
  * @returns {boolean} Whether it brings a property the request asks for, in the instance it is
- *   for: any update does where the request names none.
+ *   for: any update does where the request names none. For a read of several readings, whether
+ *   it brings every one of them.
  */
 function bringsAsked(envelope, request) {
     var asked = request.properties;
+    if (Array.isArray(request.reads)) {
+        return request.reads.every(function (read) { return shapesOf(envelope, read.property, read.instance) !== null; });
+    }
     if (!Array.isArray(asked) || !asked.length) { return true; }
     return asked.some(function (property) { return shapesOf(envelope, property, request.instance) !== null; });
 }
 
 /**
- * Read a source once: its first answer that brings a property the request asks for, or a
- * failure, ends the subscription. An answer that brings none is held FULLER_ANSWER_MS for a
- * fuller one, and is the answer when none comes, a failure after it included. A plugin that
- * never answers fails as TIMEOUT.
+ * Read a source once: its first answer that brings a property the request asks for (each
+ * reading, for a read of several: PluginRequest reads), or a failure, ends the subscription. An
+ * answer that falls short is held FULLER_ANSWER_MS for a fuller one, and is the answer when none
+ * comes, a failure after it included. A plugin that never answers fails as TIMEOUT.
  *
  * @param {?Object} pebble The Pebble object.
  * @param {PluginRequest} request The source to read.
