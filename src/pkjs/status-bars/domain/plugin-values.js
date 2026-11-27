@@ -53,12 +53,43 @@
 
     /**
      * What a slot picks where it keeps no setting of its own (PluginValuePick): no plugin, the
-     * text alone, the Switch for the Looks with an icon, no label and the Updates a slot starts
-     * on. Its dialog's rows show these and never store them
+     * first of the source's instances, the text alone, the Switch for the Looks with an icon, no
+     * label and the Updates a slot starts on. Its dialog's rows show these and never store them
      * (page/status-bars/plugin-value-schema.js).
      */
-    var PICK_DEFAULTS = { plugin: '', id: '', look: LOOK_DEFAULT, icon: ICON_DEFAULT, label: '',
+    var PICK_DEFAULTS = { plugin: '', id: '', instance: '', look: LOOK_DEFAULT, icon: ICON_DEFAULT, label: '',
         every: EVERY_DEFAULT };
+
+    /**
+     * The instances a slot's read brings of a source that serves more than one (a Hue room, a
+     * Google Home device, a weather location), whose ids and names its dialog's Which row lists
+     * (plugin-reader.js instancesOf), and the longest id and name kept: longer than any real one.
+     */
+    var MAX_INSTANCES = 16;
+    var MAX_INSTANCE_ID = 64;
+    var MAX_INSTANCE_NAME = 32;
+
+    /**
+     * The most characters of the settings page's URL the instances kept of one item may cost
+     * (plugin-value-list.js urlCost), each slot's item at most once: more than sixteen rooms with
+     * uuids for ids and names of a dozen letters cost (1,600), and the whole page's share bounded,
+     * whatever another app's plugin sends (test/settings/adapter/settings-url-budget.test.js).
+     */
+    var MAX_INSTANCES_COST = 2000;
+
+    /**
+     * The property whose short text names one of a source's instances, as the plugin guide has
+     * every source name its instances, which a list of them shows: the Which row's names
+     * (plugin-reader.js instancesOf).
+     */
+    var INSTANCE_NAME = 'name';
+
+    /**
+     * What goes between a source's plugin and the instance it picks in the source's key (sourceOf):
+     * no uuid has it, and the instance's id is written after it as a URI component, so it holds
+     * no '/' and the key's parts stay where every reader of it looks (plugin-value-reads.js pathOf).
+     */
+    var INSTANCE_MARK = '#';
 
     /**
      * Why the Value row greys out a complication: no plugin serving it offers it in a form the
@@ -111,6 +142,8 @@
      * @typedef {Object} PluginValuePick
      * @property {*} plugin The plugin's uuid ('' or absent for none).
      * @property {*} id The value of it (valueId's, or complicationId's).
+     * @property {*} instance The id of the instance of its source it shows ('' or absent for the
+     *   first, whichever it is), as the plugin names it: the Which row's choice.
      * @property {*} look The Look row's choice (a LOOKS entry).
      * @property {*} icon The Icon row's choice (an ICON_FORMS name).
      * @property {*} label The Label row's text, as the user typed it.
@@ -131,24 +164,53 @@
     }
 
     /**
-     * The source a slot picks (its plugin, and the value of it: valueId's).
+     * The source a slot picks (its plugin, the value of it: valueId's, and which of the source's
+     * instances).
      * @param {?PluginValuePick} pick What the slot picks (pickOf).
      * @returns {?{plugin: string, id: string, category: string, item: string, property: string,
-     *   key: string, complication: ?number}} The source, or null while none is picked. `key`
-     *   names it whole, plugin and value, for the records kept of it. `complication` is the place
-     *   of the complication it picks (complicationId), or null for a value of a plugin's own.
+     *   instance: string, key: string, complication: ?number}} The source, or null while none is
+     *   picked. `instance` is the id of the instance it picks, '' for the first, whichever it is,
+     *   and for a complication, which names its own. `key` names it whole, plugin, instance and
+     *   value, for the records kept of it. `complication` is the place of the complication it
+     *   picks (complicationId), or null for a value of a plugin's own.
      */
     function sourceOf(pick) {
         var plugin = pick && pick.plugin;
         var id = pick && pick.id;
         var parts = typeof id === 'string' ? id.split('/') : [];
+        var complication;
+        var instance;
         if (typeof plugin !== 'string' || !plugin || parts.length !== 3
                 || !parts[0] || !parts[1] || !parts[2]) {
             return null;
         }
+        complication = plugin.toLowerCase() === PREFERENCES && id === complicationId(parts[2])
+            && /^[0-9]$/.test(parts[2]) ? Number(parts[2]) : null;
+        instance = complication === null && typeof pick.instance === 'string'
+            && pick.instance.length <= MAX_INSTANCE_ID ? pick.instance : '';
         return { plugin: plugin, id: id, category: parts[0], item: parts[1], property: parts[2],
-            key: plugin + '/' + id, complication: plugin.toLowerCase() === PREFERENCES
-                && id === complicationId(parts[2]) && /^[0-9]$/.test(parts[2]) ? Number(parts[2]) : null };
+            instance: instance, complication: complication,
+            key: plugin + (instance ? INSTANCE_MARK + encodeURIComponent(instance) : '') + '/' + id };
+    }
+
+    /**
+     * @param {string} text A name.
+     * @param {number} max The most characters it keeps.
+     * @returns {string} It, cut to max characters with an ellipsis the last of them, a character
+     *   outside the BMP (two UTF-16 units) whole.
+     */
+    function cutName(text, max) {
+        var chars = utf8.codePoints(text);
+        return chars.length > max ? chars.slice(0, max - 1).join('') + '\u2026' : text;
+    }
+
+    /**
+     * @param {Object} source A source (sourceOf) of a plugin's own value.
+     * @returns {string} The plugin's item it is a value of, as the instances a read brings of it
+     *   are kept (plugin-reader.js itemOf): 'plugin/category/item', the plugin's uuid in lower case.
+     */
+    function itemKeyOf(source) {
+        return source.plugin.toLowerCase() + '/' + source.category + '/' + source.item;
     }
 
     /**
@@ -438,15 +500,22 @@
         ICON_FORMS: ICON_FORMS,
         ICON_DEFAULT: ICON_DEFAULT,
         PICK_DEFAULTS: PICK_DEFAULTS,
+        MAX_INSTANCES: MAX_INSTANCES,
+        MAX_INSTANCE_ID: MAX_INSTANCE_ID,
+        MAX_INSTANCE_NAME: MAX_INSTANCE_NAME,
+        MAX_INSTANCES_COST: MAX_INSTANCES_COST,
+        INSTANCE_NAME: INSTANCE_NAME,
         PREFERENCES: PREFERENCES,
         UNPRINTABLE: UNPRINTABLE,
         valueId: valueId,
         complicationId: complicationId,
         pickOf: pickOf,
         sourceOf: sourceOf,
+        itemKeyOf: itemKeyOf,
         readFrom: readFrom,
         everyMs: everyMs,
         oneLine: oneLine,
+        cutName: cutName,
         textFor: textFor,
         lookOf: lookOf,
         drawsIcon: drawsIcon,

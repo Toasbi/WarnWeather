@@ -16,19 +16,20 @@ const UUID = '6c7e0e4a-1b2c-4d5e-8f90-a1b2c3d4e5f6';
 // What a slot picks (pv.pickOf): Muninn's days left.
 const PICK = { plugin: UUID, id: 'muninn/stats/daysRemaining' };
 
-test('pickOf: a slot\'s own plugin, value, Look, icon, label and Updates, each as stored', () => {
+test('pickOf: a slot\'s own plugin, value, instance, Look, icon, label and Updates, each as stored', () => {
   const settings = { statusTopRightPluginValuePlugin: UUID, statusTopRightPluginValueId: 'a/b/c',
-    statusTopRightPluginValueLook: 'both', statusTopRightPluginValueIcon: 'wifi',
-    statusTopRightPluginValueLabel: 'Lamp', statusTopRightPluginValueEvery: '15', statusTopLeftPluginValuePlugin: 'x' };
+    statusTopRightPluginValueInstance: 'room-2', statusTopRightPluginValueLook: 'both',
+    statusTopRightPluginValueIcon: 'wifi', statusTopRightPluginValueLabel: 'Lamp', statusTopRightPluginValueEvery: '15',
+    statusTopLeftPluginValuePlugin: 'x' };
   assert.deepEqual(pv.pickOf(settings, 'statusTopRight'),
-    { plugin: UUID, id: 'a/b/c', look: 'both', icon: 'wifi', label: 'Lamp', every: '15' });
-  assert.deepEqual(pv.pickOf(settings, 'statusTopMid'), { plugin: undefined, id: undefined, look: undefined,
-    icon: undefined, label: undefined, every: undefined }, 'a slot that keeps none');
+    { plugin: UUID, id: 'a/b/c', instance: 'room-2', look: 'both', icon: 'wifi', label: 'Lamp', every: '15' });
+  assert.deepEqual(pv.pickOf(settings, 'statusTopMid'), { plugin: undefined, id: undefined, instance: undefined,
+    look: undefined, icon: undefined, label: undefined, every: undefined }, 'a slot that keeps none');
   assert.deepEqual(pv.pickOf(null, 'statusTopRight').plugin, undefined);
   const keys = catalog.pluginValueKeys('statusBar5Mid');
   assert.deepEqual(pv.pickOf({ [keys.plugin]: UUID, [keys.id]: 'a/b/c' }, 'statusBar5Mid'),
-    { plugin: UUID, id: 'a/b/c', look: undefined, icon: undefined, label: undefined, every: undefined },
-    'bars 4 to 6 too');
+    { plugin: UUID, id: 'a/b/c', instance: undefined, look: undefined, icon: undefined, label: undefined,
+      every: undefined }, 'bars 4 to 6 too');
   assert.equal(pv.sourceOf(pv.pickOf(settings, 'statusTopMid')), null);
   assert.equal(pv.everyMs(pv.pickOf(settings, 'statusTopMid')), HOUR);
   assert.equal(pv.lookOf(pv.pickOf(settings, 'statusTopMid')), 'text');
@@ -36,7 +37,8 @@ test('pickOf: a slot\'s own plugin, value, Look, icon, label and Updates, each a
 });
 
 test('PICK_DEFAULTS: what a slot that keeps none picks, as the rest of the rules read it', () => {
-  assert.deepEqual(pv.PICK_DEFAULTS, { plugin: '', id: '', look: 'text', icon: 'switch', label: '', every: '60' });
+  assert.deepEqual(pv.PICK_DEFAULTS,
+    { plugin: '', id: '', instance: '', look: 'text', icon: 'switch', label: '', every: '60' });
   assert.equal(pv.labelText(pv.PICK_DEFAULTS), pv.labelText({}));
   assert.equal(pv.sourceOf(pv.PICK_DEFAULTS), null);
   assert.equal(pv.lookOf(pv.PICK_DEFAULTS), pv.lookOf({}));
@@ -46,7 +48,8 @@ test('PICK_DEFAULTS: what a slot that keeps none picks, as the rest of the rules
 
 test('sourceOf: the plugin and the value a slot picks, null while either is missing', () => {
   assert.deepEqual(pv.sourceOf(PICK), { plugin: UUID, id: 'muninn/stats/daysRemaining', category: 'muninn',
-    item: 'stats', property: 'daysRemaining', key: UUID + '/muninn/stats/daysRemaining', complication: null });
+    item: 'stats', property: 'daysRemaining', instance: '', key: UUID + '/muninn/stats/daysRemaining',
+    complication: null });
   [null, {}, { plugin: UUID }, { id: 'a/b/c' },
     { plugin: '', id: 'a/b/c' }, { plugin: UUID, id: '' },
     { plugin: UUID, id: 'a/b' }, { plugin: UUID, id: 'a/b/c/d' },
@@ -57,7 +60,30 @@ test('sourceOf: the plugin and the value a slot picks, null while either is miss
 test('valueId: the id a slot keeps a value under, which sourceOf takes apart', () => {
   assert.equal(pv.valueId('muninn', 'stats', 'daysRemaining'), 'muninn/stats/daysRemaining');
   assert.deepEqual(pv.sourceOf({ plugin: UUID, id: pv.valueId('c', 'i', 'p') }),
-    { plugin: UUID, id: 'c/i/p', category: 'c', item: 'i', property: 'p', key: UUID + '/c/i/p', complication: null });
+    { plugin: UUID, id: 'c/i/p', category: 'c', item: 'i', property: 'p', instance: '', key: UUID + '/c/i/p',
+      complication: null });
+});
+
+test('sourceOf: the instance a slot picks, written into the key where no reader of it looks', () => {
+  const lamp = pv.sourceOf({ plugin: UUID, id: 'home/light/on', instance: 'hue/light 3' });
+  assert.equal(lamp.instance, 'hue/light 3');
+  assert.equal(lamp.key, UUID + '#hue%2Flight%203/home/light/on', 'the id as a URI component: no \'/\' in it');
+  assert.deepEqual(lamp.key.split('/').slice(-3), ['home', 'light', 'on'], 'the value\'s parts, last, where they were');
+  assert.notEqual(lamp.key, pv.sourceOf({ plugin: UUID, id: 'home/light/on' }).key, 'the first\'s is another');
+  assert.notEqual(lamp.key, pv.sourceOf({ plugin: UUID, id: 'home/light/on', instance: 'hue/light 4' }).key);
+  [undefined, null, 5, '', 'x'.repeat(pv.MAX_INSTANCE_ID + 1)].forEach((instance) =>
+    assert.deepEqual(pv.sourceOf({ plugin: UUID, id: 'home/light/on', instance: instance }),
+      pv.sourceOf({ plugin: UUID, id: 'home/light/on' }), 'the first: ' + String(instance).slice(0, 8)));
+  assert.equal(pv.sourceOf({ plugin: UUID, id: 'home/light/on', instance: 'x'.repeat(pv.MAX_INSTANCE_ID) }).instance
+    .length, pv.MAX_INSTANCE_ID, 'the longest id kept');
+  assert.equal(pv.itemKeyOf(pv.sourceOf({ plugin: UUID.toUpperCase(), id: 'home/light/on', instance: 'a' })),
+    UUID + '/home/light', 'the item it is of, by the uuid in lower case');
+});
+
+test('cutName: a name cut to its characters, the ellipsis the last, a character outside the BMP whole', () => {
+  assert.equal(pv.cutName('Kitchen', 7), 'Kitchen');
+  assert.equal(pv.cutName('Kitchens', 7), 'Kitche\u2026');
+  assert.equal(pv.cutName('\ud83d\udca1\ud83d\udca1\ud83d\udca1', 2), '\ud83d\udca1\u2026');
 });
 
 test('a complication: the Preferences plugin\'s, by its place in the user\'s list', () => {
@@ -66,7 +92,9 @@ test('a complication: the Preferences plugin\'s, by its place in the user\'s lis
   assert.equal(pv.complicationId(0), 'preferences/complications/0');
   assert.deepEqual(pv.sourceOf({ plugin: PREFS, id: pv.complicationId(2) }),
     { plugin: PREFS, id: 'preferences/complications/2', category: 'preferences', item: 'complications',
-      property: '2', key: PREFS + '/preferences/complications/2', complication: 2 });
+      property: '2', instance: '', key: PREFS + '/preferences/complications/2', complication: 2 });
+  assert.deepEqual(pv.sourceOf({ plugin: PREFS, id: pv.complicationId(2), instance: 'x' }),
+    pv.sourceOf({ plugin: PREFS, id: pv.complicationId(2) }), 'a complication names its own instance');
   assert.equal(pv.sourceOf({ plugin: PREFS.toUpperCase(), id: pv.complicationId(9) }).complication,
     9, 'the uuid in either case; the tenth place');
   [['another plugin', UUID, 'preferences/complications/0'], ['not a place', PREFS, 'preferences/complications/x'],

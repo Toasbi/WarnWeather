@@ -1,13 +1,13 @@
 // src/pkjs/page/status-bars/plugin-value-schema.js — ES5, PKJS-parsed. The Plugin value slots'
 // dialogs (status-line-catalog.js 'pluginValue'), split out of schema.js like
-// weather-sources-schema.js: the plugin, which of its values the slot shows, its Look (the text,
-// an icon before it or the icon alone), the icon, the label for a value that is on or off and how
-// often it is read, then the line with the value read last. The rows' lists, their hints,
-// the icons' pictures and that line are plugin-value-page.js'. Plain CommonJS: the schema is built
-// in PKJS and reaches the page as data.
+// weather-sources-schema.js: the plugin, which of its values the slot shows and of which thing
+// where it offers it for more than one, its Look (the text, an icon before it or the icon alone),
+// the icon, the label for a value that is on or off and how often it is read, then the line with
+// the value read last. The rows' lists, their hints, the icons' pictures and that line are
+// plugin-value-page.js'. Plain CommonJS: the schema is built in PKJS and reaches the page as data.
 //
 // A dialog for each slot, as the phone battery's (schema.js phoneBatterySlotSheet): a slot's
-// plugin, value, Look, icon, label and Updates are its own (status-line-catalog.js
+// plugin, value, instance, Look, icon, label and Updates are its own (status-line-catalog.js
 // pluginValueKeys), so each slot that holds the item shows a value of its own. The engine hands a
 // dialog's rows no word of the slot that opened it, so each names its slot to its resolvers and
 // its change's hooks (args.slotKey, onChangeArgs), and the slot's Edit button opens its own
@@ -25,7 +25,7 @@ var boldOnlyRow = require('../alerts/level-rows-schema.js').boldOnlyRow;
 
 /**
  * One slot's Plugin value dialog: the note while Muninn is picked, then the Plugin, the Value of
- * it, its Look, Icon, Label and Updates, the value read last, and Bold. Each list opens over the
+ * it, Which, its Look, Icon, Label and Updates, the value read last, and Bold. Each list opens over the
  * dialog (engine renderPickSheet): a phone can list a dozen plugins and each up to 24 values
  * (plugin-value-list.js).
  * @param {function(string, string, Object[], string): Object} sheetOf schema.js sheetOf: a slot
@@ -74,6 +74,18 @@ function slotDialog(sheetOf, slotKey) {
         onChange: 'pluginValueIdPicked',
         onChangeArgs: slot,
         showWhen: picked
+    }, {
+        // Which of the source's instances the slot shows, for a value the plugin offers for more
+        // than one thing (a room's lights, a stock): the first, whichever it is, or one by its
+        // name, as the slot's last read named them (plugin-value-page.js whichShown).
+        type: 'select',
+        messageKey: keys.instance,
+        label: 'Which',
+        defaultValue: DEFAULTS.instance,
+        sticky: false,
+        optionsFrom: {resolver: 'pluginValueInstances', args: slot},
+        hintFrom: {resolver: 'pluginValueInstanceHint', args: slot},
+        showWhen: {when: 'pluginValueWhichShown', args: slot}
     }, {
         // As the other slots' Look rows offer it (plugin-values.js LOOKS). The icon alone is for
         // a value that is on or off, which an icon that turns shows by itself.

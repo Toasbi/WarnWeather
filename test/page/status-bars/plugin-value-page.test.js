@@ -42,7 +42,7 @@ const SLOT = 'statusTopLeft';
 const KEYS = catalog.pluginValueKeys(SLOT);
 /** A pick's parts, in the catalog's order, and what each is on where the slot starts. */
 const PARTS = Object.keys(KEYS);
-const PARTS_AT_START = ['', '', 'text', 'switch', '', '60'];
+const PARTS_AT_START = ['', '', '', 'text', 'switch', '', '60'];
 /** The Phone plugin's Wi-Fi, a value that is on or off, with the Switch beside its text. */
 const WIFI_BOTH = { plugin: PHONE, id: 'phone/phone_state/wifi', look: 'both', icon: 'switch' };
 
@@ -295,11 +295,115 @@ test('a value WarnWeather supports starts the slot on its Look and icon, where t
     'where any slot starts, but not where the value before starts it: the user\'s pick');
 });
 
-test('the Value row says when the plugin offers the value for more than one thing', (t) => {
-  userData(t, { plugins: PLUGINS });
-  assert.equal(valueHint(pickIn({ plugin: MUNINN, id: 'muninn/estimate/batteryLife' })),
-    'The plugin offers this for more than one thing. The slot shows the first.');
+test('the Value row says when the plugin offers the value for more than one thing and the slot shows the first', (t) => {
+  userData(t, { plugins: MUNINN_NAMED.concat([CALENDAR]) });
+  const FIRST = 'The plugin offers this for more than one thing. The slot shows the first.';
+  assert.equal(valueHint(pickIn({ plugin: CAL, id: 'calendar/event/starts_at' })), FIRST, 'the next event: no Which');
+  assert.equal(valueHint(pickIn({ plugin: CAL, id: 'calendar/event/name' })), FIRST);
+  assert.equal(valueHint(pickIn({ plugin: MUNINN, id: 'muninn/estimate/name' })), FIRST, 'an instance\'s name: no Which');
+  assert.equal(valueHint(pickIn({ plugin: MUNINN, id: 'muninn/estimate/batteryLife' })), null, 'the Which row says it');
   assert.equal(valueHint(pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining' })), null);
+});
+
+// --- Which -----------------------------------------------------------------------
+
+/** A calendar, whose events come by their start: the next is the first (known-values.js firstOnly). */
+const CAL = 'ca1e0000-0000-0000-0000-000000000001';
+const CALENDAR = { uuid: CAL, name: 'Calendar', items: [
+  { category: 'calendar', item: 'event', multiple: true, properties: ['name', 'starts_at'] }] };
+/** Muninn as the phone lists it with its estimates' drain and names too (PLUGINS), and its phones. */
+const MUNINN_NAMED = PLUGINS.map((p) => (p.uuid !== MUNINN ? p : Object.assign({}, p, { items: [p.items[0],
+  Object.assign({}, p.items[1], { properties: ['batteryLife', 'lastWeekRate', 'name'] }),
+  { category: 'muninn', item: 'phones', multiple: true, properties: ['drain'] }] })));
+/** Muninn's estimates, one per watch, by the item, and the names the last read brought of them. */
+const ESTIMATES = MUNINN + '/muninn/estimate';
+const NAMED = { [ESTIMATES]: [{ id: 'w-1', name: 'Time 2' }, { id: 'w-2', name: 'Pebble 2 Duo' }] };
+const DAYS = { plugin: MUNINN, id: 'muninn/estimate/batteryLife' };
+const whichShown = inSlot(page.whichShown);
+const instanceOptions = inSlot(page.instanceOptions);
+const instanceHint = inSlot(page.instanceHint);
+
+test('the Which row: for a value the plugin offers for more than one thing, but where the first is the one that matters', (t) => {
+  userData(t, { plugins: MUNINN_NAMED.concat([CALENDAR]) });
+  assert.equal(whichShown(pickIn(DAYS)), true);
+  [['one thing', { plugin: MUNINN, id: 'muninn/stats/daysRemaining' }],
+    ['the next event', { plugin: CAL, id: 'calendar/event/starts_at' }],
+    ['an instance\'s name, which labels it', { plugin: MUNINN, id: 'muninn/estimate/name' }],
+    ['no value', { plugin: MUNINN, id: '' }], ['no plugin', {}],
+    ['a value the plugin offers no more', { plugin: MUNINN, id: 'muninn/estimate/gone' }],
+    ['a complication', { plugin: PREFERENCES, id: 'preferences/complications/0', instance: 'w-1' }]]
+    .forEach(([why, pick]) => assert.equal(whichShown(pickIn(pick)), false, why));
+  assert.equal(whichShown(pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', instance: 'w-1' })), true,
+    'wherever the slot picks an instance, so the row can put it back on the first');
+  assert.equal(whichShown(pickIn({ plugin: 'gone', id: 'a/b/c', instance: 'w-1' })), true, 'a plugin not on the phone too');
+});
+
+test('the Which row lists the first, then each instance the last read brought, by its name; then the slot\'s own', (t) => {
+  userData(t, { plugins: PLUGINS, pluginInstances: NAMED });
+  assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: 'Time 2 at the last read' }],
+    ['Time 2', 'w-1'], ['Pebble 2 Duo', 'w-2']]);
+  assert.deepEqual(instanceOptions(pickIn(Object.assign({ instance: 'w-2' }, DAYS))), instanceOptions(pickIn(DAYS)),
+    'one it lists');
+  assert.deepEqual(instanceOptions(pickIn(Object.assign({ instance: 'w-9' }, DAYS))).slice(-1), [['Your pick', 'w-9']],
+    'one the last read did not bring');
+  assert.equal(instanceHint(pickIn(Object.assign({ instance: 'w-9' }, DAYS))),
+    'The plugin no longer sends this one. Until it does, the slot shows --.');
+  assert.equal(instanceHint(pickIn(DAYS)), null);
+  assert.equal(instanceHint(pickIn(Object.assign({ instance: 'w-2' }, DAYS))), null);
+  const upper = { [ESTIMATES.toUpperCase().replace('/MUNINN/ESTIMATE', '/muninn/estimate')]: NAMED[ESTIMATES] };
+  userData(t, { plugins: PLUGINS, pluginInstances: upper });
+  assert.equal(instanceOptions(pickIn(DAYS)).length, 1, 'the item\'s names are kept by its uuid in lower case');
+});
+
+test('the Which row before a read brought any names, or where the plugin sends none', (t) => {
+  userData(t, { plugins: PLUGINS });
+  const NONE_YET = 'The names come with the slot\'s first read, about a minute after you save. '
+    + 'Open the settings again then to pick one.';
+  assert.deepEqual(instanceOptions(pickIn(DAYS)), [['The first', '', { desc: 'Whichever the plugin lists first' }]]);
+  assert.equal(instanceHint(pickIn(DAYS)), NONE_YET);
+  assert.deepEqual(instanceOptions(pickIn(Object.assign({ instance: 'w-1' }, DAYS))).slice(-1), [['Your pick', 'w-1']]);
+  assert.equal(instanceHint(pickIn(Object.assign({ instance: 'w-1' }, DAYS))), NONE_YET, 'not gone: not read yet');
+  userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [] } });
+  assert.equal(instanceHint(pickIn(DAYS)), 'The plugin sends no names to pick from, so the slot shows the first.');
+  userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: [null, { id: '', name: 'x' }, { id: 5, name: 'x' },
+    { id: 'w-3' }, { id: 'w-1', name: 'Time 2' }] } });
+  assert.deepEqual(instanceOptions(pickIn(DAYS)).slice(1), [['Time 2', 'w-1']], 'one without an id or a name is left out');
+  userData(t, { plugins: PLUGINS, pluginInstances: { [ESTIMATES]: 'w-1' } });
+  assert.equal(instanceHint(pickIn(DAYS)), NONE_YET, 'a list that is none');
+});
+
+test('another plugin, or a value of another item, starts on the first; another value of the item keeps its instance', (t) => {
+  userData(t, { plugins: MUNINN_NAMED, pluginInstances: NAMED });
+  const S = pickIn(Object.assign({ instance: 'w-2' }, DAYS));
+  S[KEYS.id] = 'muninn/estimate/lastWeekRate';
+  changed(S, KEYS.id, DAYS.id, S[KEYS.id]);
+  assert.equal(S[KEYS.instance], 'w-2', 'the same item\'s');
+  S[KEYS.id] = 'muninn/estimate/name';
+  changed(S, KEYS.id, 'muninn/estimate/lastWeekRate', S[KEYS.id]);
+  assert.equal(S[KEYS.instance], '', 'its name, which offers no Which row');
+  S[KEYS.instance] = 'w-2';
+  S[KEYS.id] = 'muninn/phones/drain';
+  changed(S, KEYS.id, 'muninn/estimate/batteryLife', S[KEYS.id]);
+  assert.equal(S[KEYS.instance], '', 'another item\'s, though it offers Which too');
+  S[KEYS.instance] = 'w-2';
+  S[KEYS.id] = 'muninn/stats/daysRemaining';
+  changed(S, KEYS.id, 'muninn/estimate/batteryLife', S[KEYS.id]);
+  assert.equal(S[KEYS.instance], '', 'one that offers no Which');
+  S[KEYS.id] = DAYS.id;
+  S[KEYS.instance] = 'w-2';
+  picked(S, MUNINN, PHONE);
+  assert.equal(S[KEYS.instance], '', 'another plugin\'s');
+});
+
+test('the Which row sits right below the Value row and keeps nothing it does not pick', () => {
+  const row = rowOf(KEYS.instance);
+  assert.equal(row.label, 'Which');
+  assert.equal(row.sticky, false);
+  assert.equal(row.defaultValue, '');
+  assert.deepEqual(row.showWhen, { when: 'pluginValueWhichShown', args: { slotKey: SLOT } });
+  const rows = [];
+  PConf.schemaWalk.eachItem(schema, (it) => { if (it.messageKey) { rows.push(it.messageKey); } });
+  assert.equal(rows.indexOf(KEYS.instance), rows.indexOf(KEYS.id) + 1);
 });
 
 test('a new plugin starts on its first value; None on none', (t) => {
@@ -671,8 +775,8 @@ function defaultOf(key) {
   return found ? PConf.engine.storedDefault(found, BASALT) : undefined;
 }
 
-test('Reset status bars puts each slot\'s Plugin value source, Look, icon, label and Updates back', () => {
-  const S = Object.assign(pickIn({ every: '360', look: 'both', icon: 'wifi', label: 'Lamp' }), LEVEL,
+test('Reset status bars puts each slot\'s Plugin value source, instance, Look, icon, label and Updates back', () => {
+  const S = Object.assign(pickIn({ every: '360', look: 'both', icon: 'wifi', label: 'Lamp', instance: 'room-2' }), LEVEL,
     pickIn({ plugin: MUNINN, id: 'muninn/stats/daysRemaining', look: 'icon', icon: 'plug', every: '15' },
       'statusHealthRight'));
   PConf.actions.resetStatusSlots(null, S, BASALT, defaultOf);
@@ -704,16 +808,19 @@ test('a save stores a slot\'s picks alone: never a row\'s default, and nothing o
   const S = slotSettings(LEVEL);
   const stored = (state) => PConf.engine.serialize(schema, state, BASALT);
   const keys = catalog.everySlotKey().reduce((all, slotKey) => all.concat(catalog.pluginValueKeyList(slotKey)), []);
-  assert.equal(keys.length, 126, 'six for each of the 21 slots');
+  assert.equal(keys.length, 147, 'seven for each of the 21 slots');
   keys.forEach((key) => assert.ok(key in S, key + ': the page holds every row\'s value'));
   const blob = stored(S);
   assert.deepEqual(keys.filter((key) => key in blob), [KEYS.plugin, KEYS.id], 'the slot\'s plugin and value');
+  S[KEYS.instance] = 'room-2';
   S[KEYS.look] = 'both';
   S[KEYS.icon] = 'wifi';
   S[KEYS.label] = 'Lamp';
   S[KEYS.every] = '15';
   assert.deepEqual(keys.filter((key) => key in stored(S)),
-    [KEYS.plugin, KEYS.id, KEYS.look, KEYS.icon, KEYS.label, KEYS.every], 'a Look, an icon, a label and Updates picked are stored');
+    [KEYS.plugin, KEYS.id, KEYS.instance, KEYS.look, KEYS.icon, KEYS.label, KEYS.every],
+    'an instance, a Look, an icon, a label and Updates picked are stored');
+  S[KEYS.instance] = '';
   S[KEYS.look] = 'text';
   S[KEYS.icon] = 'switch';
   S[KEYS.label] = '';

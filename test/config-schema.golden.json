@@ -9742,6 +9742,31 @@
                 }
               },
               {
+                "type": "select",
+                "messageKey": "statusForecastLeftPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusForecastLeft"
+                  }
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "statusForecastLeftPluginValueLook",
                 "label": "Look",
@@ -9982,6 +10007,31 @@
                 "showWhen": {
                   "key": "statusForecastMidPluginValuePlugin",
                   "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusForecastMidPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusForecastMid"
+                  }
                 }
               },
               {
@@ -10228,6 +10278,31 @@
                 }
               },
               {
+                "type": "select",
+                "messageKey": "statusForecastRightPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusForecastRight"
+                  }
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "statusForecastRightPluginValueLook",
                 "label": "Look",
@@ -10468,6 +10543,31 @@
                 "showWhen": {
                   "key": "statusRadarLeftPluginValuePlugin",
                   "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarLeftPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusRadarLeft"
+                  }
                 }
               },
               {
@@ -10714,6 +10814,31 @@
                 }
               },
               {
+                "type": "select",
+                "messageKey": "statusRadarMidPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusRadarMid"
+                  }
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "statusRadarMidPluginValueLook",
                 "label": "Look",
@@ -10954,6 +11079,31 @@
                 "showWhen": {
                   "key": "statusRadarRightPluginValuePlugin",
                   "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarRightPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusRadarRight"
+                  }
                 }
               },
               {
@@ -11200,6 +11350,31 @@
                 }
               },
               {
+                "type": "select",
+                "messageKey": "statusTopLeftPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusTopLeft"
+                  }
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "statusTopLeftPluginValueLook",
                 "label": "Look",
@@ -11440,6 +11615,31 @@
                 "showWhen": {
                   "key": "statusTopMidPluginValuePlugin",
                   "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopMidPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusTopMid"
+                  }
                 }
               },
               {
@@ -11686,6 +11886,31 @@
                 }
               },
               {
+                "type": "select",
+                "messageKey": "statusTopRightPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusTopRight"
+                  }
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "statusTopRightPluginValueLook",
                 "label": "Look",
@@ -11926,6 +12151,31 @@
                 "showWhen": {
                   "key": "statusHealthLeftPluginValuePlugin",
                   "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthLeftPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusHealthLeft"
+                  }
                 }
               },
               {
@@ -12172,6 +12422,31 @@
                 }
               },
               {
+                "type": "select",
+                "messageKey": "statusHealthMidPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusHealthMid"
+                  }
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "statusHealthMidPluginValueLook",
                 "label": "Look",
@@ -12412,6 +12687,31 @@
                 "showWhen": {
                   "key": "statusHealthRightPluginValuePlugin",
                   "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthRightPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusHealthRight"
+                  }
                 }
               },
               {
@@ -12658,6 +12958,31 @@
                 }
               },
               {
+                "type": "select",
+                "messageKey": "statusBar4LeftPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusBar4Left"
+                  }
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "statusBar4LeftPluginValueLook",
                 "label": "Look",
@@ -12898,6 +13223,31 @@
                 "showWhen": {
                   "key": "statusBar4MidPluginValuePlugin",
                   "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar4MidPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusBar4Mid"
+                  }
                 }
               },
               {
@@ -13144,6 +13494,31 @@
                 }
               },
               {
+                "type": "select",
+                "messageKey": "statusBar4RightPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusBar4Right"
+                  }
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "statusBar4RightPluginValueLook",
                 "label": "Look",
@@ -13384,6 +13759,31 @@
                 "showWhen": {
                   "key": "statusBar5LeftPluginValuePlugin",
                   "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5LeftPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusBar5Left"
+                  }
                 }
               },
               {
@@ -13630,6 +14030,31 @@
                 }
               },
               {
+                "type": "select",
+                "messageKey": "statusBar5MidPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusBar5Mid"
+                  }
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "statusBar5MidPluginValueLook",
                 "label": "Look",
@@ -13870,6 +14295,31 @@
                 "showWhen": {
                   "key": "statusBar5RightPluginValuePlugin",
                   "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar5RightPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusBar5Right"
+                  }
                 }
               },
               {
@@ -14116,6 +14566,31 @@
                 }
               },
               {
+                "type": "select",
+                "messageKey": "statusBar6LeftPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusBar6Left"
+                  }
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "statusBar6LeftPluginValueLook",
                 "label": "Look",
@@ -14359,6 +14834,31 @@
                 }
               },
               {
+                "type": "select",
+                "messageKey": "statusBar6MidPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusBar6Mid"
+                  }
+                }
+              },
+              {
                 "type": "segmented",
                 "messageKey": "statusBar6MidPluginValueLook",
                 "label": "Look",
@@ -14599,6 +15099,31 @@
                 "showWhen": {
                   "key": "statusBar6RightPluginValuePlugin",
                   "ne": ""
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusBar6RightPluginValueInstance",
+                "label": "Which",
+                "defaultValue": "",
+                "sticky": false,
+                "optionsFrom": {
+                  "resolver": "pluginValueInstances",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "pluginValueInstanceHint",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
+                },
+                "showWhen": {
+                  "when": "pluginValueWhichShown",
+                  "args": {
+                    "slotKey": "statusBar6Right"
+                  }
                 }
               },
               {

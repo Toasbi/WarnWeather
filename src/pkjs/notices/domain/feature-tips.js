@@ -49,10 +49,12 @@ var TIPS = [
         since: '3.5.0',
         title: 'More than one plugin value',
         // Each slot's Plugin value is its own, set in the slot's own dialog
-        // (page/status-bars/plugin-value-schema.js), and a bar may hold the item in several slots
-        // (status-line-catalog.js repeatsInBar).
+        // (page/status-bars/plugin-value-schema.js), a bar may hold the item in several slots
+        // (status-line-catalog.js repeatsInBar), and its Which row picks one of several things a
+        // plugin offers the value for (plugin-value-page.js whichShown).
         html: 'Each Plugin value slot now shows a value of its own, and one bar can hold several. Set ' +
-            'another slot to Plugin value and tap its Edit button to pick what it shows.',
+            'another slot to Plugin value and tap its Edit button to pick what it shows. Where a plugin ' +
+            'offers it for several things, such as rooms, pick one under Which.',
         open: { tab: 'watch' },
         when: pluginValueOffered
     },

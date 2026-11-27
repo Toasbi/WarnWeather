@@ -24,7 +24,6 @@
 //
 // Pure. ES5 only (aplite PKJS).
 
-var utf8 = require('../../lib/utf8.js');
 var complications = require('./complications.js');
 var pluginReads = require('./plugin-reads.js');
 var pluginValueReads = require('./plugin-value-reads.js');
@@ -52,8 +51,7 @@ var LIST_COST = 4000;
  *   units) whole.
  */
 function capped(text) {
-    var chars = utf8.codePoints(text);
-    return chars.length > MAX_NAME ? chars.slice(0, MAX_NAME - 1).join('') + '\u2026' : text;
+    return pluginValues.cutName(text, MAX_NAME);
 }
 
 /**
@@ -132,7 +130,7 @@ function notAValue(category, item, property, multiple) {
     var words = wordsOf(property);
     var whole = words.join(' ');
     return plumbing(category, item) || NOT_A_VALUE_ENDS.indexOf(words[words.length - 1]) !== -1
-        || NOT_A_VALUE_NAMES.indexOf(whole) !== -1 || (!multiple && whole === 'name');
+        || NOT_A_VALUE_NAMES.indexOf(whole) !== -1 || (!multiple && whole === pluginValues.INSTANCE_NAME);
 }
 
 /**

@@ -3,7 +3,8 @@
 // weather plugins all serve weather/location): each one's name in the Plugin value dialog's Value
 // row, and the ones it supports (SUPPORTED), which the row lists first, with the Look and the icon
 // a slot starts on for each. plugin-value-page.js labelOf names every other value after its
-// property, and the row lists those as raw values: the plugin's own, as it sends them.
+// property, and the row lists those as raw values: the plugin's own, as it sends them. The items
+// whose first instance is the one that matters (FIRST_ONLY) get no Which row.
 //
 // A value is supported where WarnWeather has checked what it prints, and it says something the
 // watchface shows nowhere else that changes slowly enough for the slot's Updates (every 15 minutes
@@ -51,6 +52,13 @@
     var RAW_NAMES = {
         'muninn/stats/daysRemaining': 'Days left'
     };
+
+    /**
+     * The items, by 'category/item', whose instances come in the order of time, the first the
+     * one that matters: the next event, the newest notification, the song heard last. The slot
+     * shows the first, and its dialog offers no other (plugin-value-page.js whichOffered).
+     */
+    var FIRST_ONLY = ['calendar/event', 'notifications/notification', 'music/identified'];
 
     /**
      * @param {string} category A value's source's category.
@@ -106,7 +114,17 @@
         return value ? { look: value.look, icon: value.icon } : null;
     }
 
-    var api = { SUPPORTED: SUPPORTED, supported: supported, nameOf: nameOf, startOf: startOf };
+    /**
+     * @param {string} category A source's category.
+     * @param {string} item Its item.
+     * @returns {boolean} Whether its instances come in the order of time, the first the one that
+     *   matters (FIRST_ONLY).
+     */
+    function firstOnly(category, item) {
+        return FIRST_ONLY.indexOf(category + '/' + item) !== -1;
+    }
+
+    var api = { SUPPORTED: SUPPORTED, supported: supported, nameOf: nameOf, startOf: startOf, firstOnly: firstOnly };
 
     // Dual-context export, the tail of status-line-catalog.js.
     if (typeof module !== 'undefined' && module.exports) {

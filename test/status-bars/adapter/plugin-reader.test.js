@@ -515,6 +515,74 @@ test('readingOf: the first instance, or the one it is asked for, in the order th
   assert.equal(pluginReader.readingOf(two, 'v', 2), null, 'an instance the plugin did not send');
 });
 
+test('readingOf: the instance by its id, wherever the plugin sent it, and none where it sent it not', () => {
+  const two = withShapes({ shortText: { text: 'first' } });
+  two.instances.push({ instanceId: 'b', properties: { v: { shortText: { text: 'second' } } } });
+  assert.equal(pluginReader.readingOf(two, 'v', 0, 'b').short, 'second', 'the id, over the place');
+  assert.equal(pluginReader.readingOf(two, 'v', undefined, 'a').short, 'first');
+  assert.equal(pluginReader.readingOf(two, 'v', 0, 'gone'), null, 'never the first in its place');
+  assert.equal(pluginReader.readingOf(two, 'v', 1, '').short, 'second', 'an empty id names none: the place counts');
+  two.instances.unshift(null);
+  assert.equal(pluginReader.readingOf(two, 'v', 0, 'b').short, 'second', 'past an instance that is none');
+});
+
+test('readOnce: an answer is the one asked for of an instance by its id when any instance brings the property', () => {
+  const fake = fakePebble();
+  const timers = fakeTimers();
+  const calls = [];
+  const lights = (properties) => ({ pluginUuid: 'h', instances: [{ instanceId: 'kitchen', properties: properties }] });
+  // As plugin-value-source.js reads it: every read of an item through together.
+  const request = pluginReader.together([{ category: 'home', item: 'room_lights', properties: ['on', 'name'],
+    plugin: 'h', limit: 16, instanceId: 'hall' }]);
+  assert.deepEqual(request.reads, [{ property: 'on', instance: 0, instanceId: 'hall' }]);
+  pluginReader.readOnce(fake.pebble, request, (e, f) => calls.push([e, f]), timers);
+  assert.equal(fake.requests[0].instanceId, undefined, 'never sent');
+  assert.deepEqual(fake.requests[0].properties, ['on', 'name']);
+  fake.push(lights({ name: { shortText: { text: 'Kitchen' } } }));
+  assert.deepEqual(calls, [], 'the names alone: held for a fuller answer');
+  const kitchen = lights({ on: { boolean: { value: true } } });
+  const hall = (properties) => ({ instanceId: 'hall', properties: properties });
+  const hallNamed = { pluginUuid: 'h', instances: kitchen.instances.concat([hall({ name: { shortText: { text: 'Hall' } } })]) };
+  fake.push(hallNamed);
+  assert.deepEqual(calls, [], 'the hall without its value: held, though the kitchen brings one');
+  const hallOn = { pluginUuid: 'h', instances: [lights({}).instances[0], hall({ on: { boolean: { value: false } } })] };
+  fake.push(hallOn);
+  assert.deepEqual(calls, [[hallOn, null]], 'the hall\'s value, wherever it comes');
+  const gone = [];
+  pluginReader.readOnce(fake.pebble, request, (e, f) => gone.push([e, f]), timers);
+  fake.push(kitchen);
+  assert.deepEqual(gone, [[kitchen, null]], 'without the hall: it is gone, which the reading says');
+  const both = [];
+  pluginReader.readOnce(fake.pebble, pluginReader.together([
+    { category: 'home', item: 'room_lights', properties: ['on', 'name'], plugin: 'h', limit: 16, instanceId: 'hall' },
+    { category: 'home', item: 'room_lights', properties: ['on', 'name'], plugin: 'h', limit: 16, instance: 1 }]),
+  (e, f) => both.push([e, f]), timers);
+  fake.push(kitchen);
+  assert.deepEqual(both, [], 'together: the second place is missing');
+});
+
+test('instancesOf: each instance\'s id and name, in the plugin\'s order, the first 16, none without both', () => {
+  const one = (id, name) => ({ instanceId: id, properties: name === undefined ? {} : { name: { shortText: { text: name } } } });
+  assert.deepEqual(pluginReader.instancesOf({ instances: [one('k', 'Kitchen'), one('h', ' Hall\n')] }),
+    [{ id: 'k', name: 'Kitchen' }, { id: 'h', name: 'Hall' }], 'the name on one line');
+  assert.deepEqual(pluginReader.instancesOf({ instances: [one('', 'x'), one(5, 'x'), one('a'), one('b', ''),
+    null, one('i'.repeat(65), 'x'), one('i'.repeat(64), 'Long')] }), [{ id: 'i'.repeat(64), name: 'Long' }],
+  'no id, no name, or an id longer than 64');
+  assert.equal(pluginReader.instancesOf({ instances: Array.from({ length: 20 }, (_, i) => one('r' + i, 'Room ' + i)) })
+    .length, 16);
+  assert.equal(pluginReader.instancesOf({ instances: [one('l', 'L'.repeat(40))] })[0].name, 'L'.repeat(31) + '\u2026',
+    'a name cut to 32 characters');
+  const dear = Array.from({ length: 16 }, (_, i) => one(String(i).padStart(4, '0') + '\u{1F4A1}'.repeat(30),
+    '\u{1F4A1}'.repeat(32)));
+  const kept = pluginReader.instancesOf({ instances: dear });
+  assert.ok(kept.length < 16 && kept.reduce((sum, e) => sum + encodeURIComponent(JSON.stringify(e)).length, 0) <= 2000,
+    'no more than 2,000 characters of the settings page\'s URL');
+  assert.deepEqual(pluginReader.instancesOf({ instances: dear.slice(0, 3).concat([one('k', 'Kitchen')]) })
+    .map((e) => e.id), [dear[0].instanceId, dear[1].instanceId, 'k'],
+  'one that would cost more is left out, the next cheaper one kept');
+  [null, {}, { instances: 'x' }].forEach((e) => assert.deepEqual(pluginReader.instancesOf(e), []));
+});
+
 test('readOnce: an answer is the one asked for when the instance asked for brings the property', () => {
   const fake = fakePebble();
   const timers = fakeTimers();

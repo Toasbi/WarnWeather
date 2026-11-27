@@ -53,7 +53,9 @@ var storedJson = require('./stored-json.js');
 var NAME = 'plugin-value';
 
 /**
- * What a lane reads for its source, whether a bar shows it or not. Nothing of the Preferences
+ * What a lane reads for its source, whether a bar shows it or not: its property of the instance
+ * it picks (the first, whichever it is, where it picks none), and the names of the source's
+ * first instances, which its dialog's Which row lists (keepInstances). Nothing of the Preferences
  * plugin's but a complication: its own readings are the user's position and plumbing, which
  * this app never reads (plugin-reads.js neverRead), and a pick of one from before the
  * complications (3.4.0 listed them) shows nothing.
@@ -67,10 +69,14 @@ var NAME = 'plugin-value';
  *   complication); no request for one of the Preferences plugin's own readings.
  */
 function readOf(source, list, permissions) {
+    var request;
     if (source.complication !== null) { return complications.wantOf(source, list, permissions); }
     if (source.plugin.toLowerCase() === pluginValues.PREFERENCES) { return { key: source.key, request: null }; }
-    return { key: source.key, request: { category: source.category, item: source.item,
-        properties: [source.property], plugin: source.plugin, limit: 1, permissions: permissions } };
+    request = { category: source.category, item: source.item, properties: [source.property], plugin: source.plugin,
+        limit: pluginValues.MAX_INSTANCES, permissions: permissions };
+    if (source.property !== pluginValues.INSTANCE_NAME) { request.properties.push(pluginValues.INSTANCE_NAME); }
+    if (source.instance) { request.instanceId = source.instance; }
+    return { key: source.key, request: request };
 }
 
 /**
@@ -213,9 +219,25 @@ function callEach(list, fn) {
 }
 
 /**
- * Make the reads of one plugin's item as one read (plugin-reader.js together), and hand its answer
- * to each (callEach); the reads the answer makes go at the flush after it, whatever another
- * value did with it.
+ * Keep the instances an answer brings of a plugin's item, by their ids and names
+ * (plugin-reader.js instancesOf), for its slots' dialogs (instancesForPage), where its read
+ * names the plugin: a complication's names none, and its place names its instance. Written only
+ * when they changed. Another app's data: never logged.
+ * @param {Object} request The read (plugin-reader.js together).
+ * @param {Object} envelope Its answer.
+ * @returns {void}
+ */
+function keepInstances(request, envelope) {
+    var entry;
+    if (!request.plugin) { return; }
+    entry = storedJson.entryOf(KEYS.PLUGIN_INSTANCES, pluginReader.itemOf(request));
+    entry.write(pluginReader.instancesOf(envelope), entry.read(), NAME + ': the instances');
+}
+
+/**
+ * Make the reads of one plugin's item as one read (plugin-reader.js together), keep the
+ * instances its answer brings (keepInstances), and hand the answer to each (callEach); the reads
+ * the answer makes go at the flush after it, whatever another value did with it.
  * @param {Array<{request: Object, done: function(?Object, ?Object): void}>} reads Reads held
  *   (pending), of one item.
  * @returns {void}
@@ -224,6 +246,7 @@ function readTogether(reads) {
     var request = pluginReader.together(reads.map(function (read) { return read.request; }));
     pluginReader.readOnce(pluginReader.pebbleOf(deps), request, function (envelope, fail) {
         try {
+            if (envelope) { keepInstances(request, envelope); }
             callEach(reads, function (read) { read.done(envelope, fail); });
         }
         finally {
@@ -277,7 +300,8 @@ function laneSpec(lane) {
             var until = pluginReader.validUntilOf(envelope);
             // Checked as a stored value is, once: valueOf.
             return { time: until, value: pluginValueReads.valueOf({ source: want.key,
-                reading: pluginReader.readingOf(envelope, want.request.properties[0], want.request.instance),
+                reading: pluginReader.readingOf(envelope, want.request.properties[0], want.request.instance,
+                    want.request.instanceId),
                 at: nowMs, validUntil: until }) };
         },
         valueOf: pluginValueReads.valueOf,
@@ -290,14 +314,18 @@ function laneSpec(lane) {
 
 /**
  * Keep in storage only the values and the reads of the sources a slot picks (status-lines.js
- * pickedPluginValues), shown or not.
+ * pickedPluginValues), shown or not, and the instances of their plugins' items.
  * @param {Array<{source: Object}>} picked The slots that pick a source.
  * @returns {void}
  */
 function keepPicked(picked) {
     var keys = Object.keys(groupBy(picked, sourceKeyOf));
+    var items;
     storedJson.keepOnly(KEYS.PLUGIN_VALUES, keys, NAME + ': the values');
     storedJson.keepOnly(KEYS.PLUGIN_VALUE_READS, keys, NAME + ': the times of the reads');
+    items = picked.filter(function (slot) { return slot.source.complication === null; })
+        .map(function (slot) { return pluginValues.itemKeyOf(slot.source); });
+    storedJson.keepOnly(KEYS.PLUGIN_INSTANCES, items, NAME + ': the instances');
 }
 
 /**
@@ -430,6 +458,17 @@ function forPage(list) {
     return out;
 }
 
+/**
+ * The instances the reads brought last of the plugins' items the slots pick, for the settings
+ * page (userData.pluginInstances): by the item (plugin-values.js itemKeyOf), each one's id and
+ * name, which a slot's dialog's Which row lists.
+ * @returns {Object<string, Array<{id: string, name: string}>>} The instances; {} for none.
+ */
+function instancesForPage() {
+    var map = storedJson.read(KEYS.PLUGIN_INSTANCES);
+    return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+}
+
 module.exports = {
     init: init,
     // Per-minute hook, driven by the channel scheduler's 60 s tick: reads a value again once its
@@ -441,5 +480,6 @@ module.exports = {
     // now is read at once, as a tick reads (outside the Night battery saver's window).
     complicationsChanged: function () { sync(false); },
     bakeFacts: bakeFacts,
-    forPage: forPage
+    forPage: forPage,
+    instancesForPage: instancesForPage
 };

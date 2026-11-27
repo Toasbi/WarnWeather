@@ -67,10 +67,11 @@ function source(category, permissions) {
  * @param {Object} t The test context.
  * @param {string} platform The watch.
  * @param {boolean} plugins Whether the Pebble app reads plugins (subscribeToSource).
- * @param {Object} [seed] {settings, values, reads, old}: the settings stored (default PICKED),
- *   the values read last by their slots' source (default VALUE, under KEY), the records of their
- *   reads (default a read of each a minute ago, so none is due) and the one value and read kept
- *   before 3.5.0 ({value, read}; default none).
+ * @param {Object} [seed] {settings, values, reads, old, instances}: the settings stored (default
+ *   PICKED), the values read last by their slots' source (default VALUE, under KEY), the records
+ *   of their reads (default a read of each a minute ago, so none is due), the one value and read
+ *   kept before 3.5.0 ({value, read}; default none) and the instances the reads brought, by
+ *   their item (default none).
  * @returns {{listeners: Object, opened: Array<string>, store: Object, subs: Array<Object>}} The
  *   handlers index.js added, the URLs it opened, the storage and each subscribeToSource config.
  */
@@ -103,6 +104,7 @@ function boot(t, platform, plugins, seed) {
     store[KEYS.PLUGIN_VALUE] = JSON.stringify(seed.old.value);
     store[KEYS.PLUGIN_VALUE_READ] = JSON.stringify(seed.old.read);
   }
+  if (seed && seed.instances) { store[KEYS.PLUGIN_INSTANCES] = JSON.stringify(seed.instances); }
   store[KEYS.COMPLICATIONS] = JSON.stringify(COMPLICATIONS);
   const listeners = {};
   const opened = [];
@@ -184,6 +186,18 @@ test('settings open hands the page the plugins the slots can read, the user\'s c
     + 'for which the Pebble app would ask the user); the Preferences plugin with the complications kept, each with '
     + 'why this app may not read it');
   assert.deepEqual(ud.pluginValues, { [KEY]: VALUE }, 'the value read last, by the source a slot shows');
+});
+
+test('settings open hands the page the instances the reads brought of each item a slot picks, for its Which row', (t) => {
+  const names = [{ id: 'bonn', name: 'Bonn' }, { id: 'oslo', name: 'Oslo' }];
+  const ud = openedUserData(t, 'basalt', true, { instances: { [WEATHER + '/weather/now']: names,
+    [WEATHER + '/weather/later']: names } });
+  assert.deepEqual(ud.pluginInstances, { [WEATHER + '/weather/now']: names },
+    'the item a slot picks; an item no slot picks went at the start');
+});
+
+test('settings open hands the page no instances before a read brought any', (t) => {
+  assert.deepEqual(openedUserData(t, 'basalt', true).pluginInstances, {});
 });
 
 /** The Watch bar's left slot picking the user's first complication. */

@@ -247,12 +247,14 @@ Pebble.addEventListener('showConfiguration', function(e) {
     userData.featureTips = featureTipsSeen.forPage(offer);
     // The Plugin value slots' dialogs (page/status-bars/plugin-value-page.js), where the status
     // lists offer the slot: the plugins on the phone with a value it can show (listing them runs
-    // no plugin), the Pebble app's Preferences plugin with the user's complications, and the
-    // values read last, by their source, while a slot shows it.
+    // no plugin), the Pebble app's Preferences plugin with the user's complications, the
+    // values read last, by their source, while a slot shows it, and the instances the reads
+    // brought of the plugins' items the slots pick, which their Which rows list.
     if (pluginValueOffered(offer)) {
         userData.plugins = pluginValueList.listOf(pluginReader.plugins(Pebble), declaredPermissions(),
             pkg.pebble.uuid, complicationList.current());
         userData.pluginValues = pluginValueSource.forPage(complicationList.current());
+        userData.pluginInstances = pluginValueSource.instancesForPage();
     }
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see page/settings/index.js options).

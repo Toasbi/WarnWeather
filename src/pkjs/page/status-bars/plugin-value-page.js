@@ -1,18 +1,25 @@
 // src/pkjs/page/status-bars/plugin-value-page.js — ES5. The Plugin value slots' dialogs on the
 // settings page (plugin-value-schema.js), one per slot, each naming its slot to these resolvers
-// and hooks (args.slotKey): the Plugin, Value, Look, Icon, Label and Updates rows' lists and hints,
-// Bold's hints, the Icon row's pictures, the line with the value read last, the Muninn note, and
-// the rows' changes: the Plugin row's starts a new plugin on its first value, each fits the Look
-// and the icon to the value (fitSlot), and another value takes no label typed for the one before
-// (dropLabel). The lists are the plugins the phone listed as the page opened (userData.plugins,
-// plugin-value-list.js listOf): the page reads no plugin itself, since a read
-// costs the user (plugin-reader.js). The phone sends each plugin's items with their properties'
-// names, and the page makes each value's id (plugin-values.js valueId) and label (valueName: the
-// name WarnWeather knows it by, known-values.js, else its property's, labelOf) of them. The
-// values read last (userData.pluginValues, by their source's key, checked on the phone, which
-// hands each only while a slot shows its source: plugin-value-source.js forPage)
-// are judged against the source a slot's rows pick right then, as a bake judges them
-// (plugin-values.js shownReading); the bars' pictures print them through barText.
+// and hooks (args.slotKey): the Plugin, Value, Which, Look, Icon, Label and Updates rows' lists
+// and hints, Bold's hints, the Icon row's pictures, the line with the value read last, the Muninn
+// note, and the rows' changes: the Plugin row's starts a new plugin on its first value, each fits
+// the Look and the icon to the value (fitSlot), and another value takes no label typed for the one
+// before (dropLabel), nor an instance of another item (keepInstance). The lists are the plugins
+// the phone listed as the page opened (userData.plugins, plugin-value-list.js listOf): the page
+// reads no plugin itself, since a read costs the user (plugin-reader.js). The phone sends each
+// plugin's items with their properties' names, and the page makes each value's id
+// (plugin-values.js valueId) and label (valueName: the name WarnWeather knows it by,
+// known-values.js, else its property's, labelOf) of them. The values read last
+// (userData.pluginValues, by their source's key, checked on the phone, which hands each only while
+// a slot shows its source: plugin-value-source.js forPage) are judged against the source a slot's
+// rows pick right then, as a bake judges them (plugin-values.js shownReading); the bars' pictures
+// print them through barText.
+//
+// A value the plugin offers for more than one thing (its source serves several instances: a
+// room's lights, a stock) gets the Which row: the first, whichever it is, or one of the instances
+// the item's last read brought, by its name (userData.pluginInstances, plugin-value-source.js
+// instancesForPage). The page reads no plugin for them, so a value picked now has its names after
+// the save's read, the next time the page opens (instanceHint).
 //
 // A plugin or a value a slot holds that the phone no longer lists stays in its row's list,
 // said as such: the engine would otherwise move the row onto another option as soon as it is
@@ -84,6 +91,20 @@
     // WarnWeather supports (known-values.js), then the plugin's others, as it sends them.
     var VALUE_GROUPS = [{label: 'Supported', value: '__hdr_supported', supported: true},
         {label: 'Raw values', value: '__hdr_raw', supported: false}];
+    // The Value row's hint for a value the plugin offers for more than one thing where the slot
+    // shows the first all the same (whichOffered).
+    var FIRST_HINT = 'The plugin offers this for more than one thing. The slot shows the first.';
+    // The Which row's choice while the slot picks none of its source's instances: the first the
+    // plugin sends, whichever it is (plugin-values.js PICK_DEFAULTS), and the one it picks where
+    // the item's last read did not bring it.
+    var FIRST_LABEL = 'The first';
+    var HELD_LABEL = 'Your pick';
+    // The Which row's hints: the names come with a read after the save, the plugin sends none, or
+    // it no longer sends the one the slot picks.
+    var NAMES_LATER = 'The names come with the slot\'s first read, about a minute after you save. '
+        + 'Open the settings again then to pick one.';
+    var NO_NAMES = 'The plugin sends no names to pick from, so the slot shows the first.';
+    var INSTANCE_GONE = 'The plugin no longer sends this one. Until it does, the slot shows ' + NONE_SHOWN + '.';
     // The Look row's choices (plugin-values.js LOOKS, in its order), by name, as the other slots
     // name theirs.
     var LOOK_LABELS = {both: 'Icon + text', text: 'Text', icon: 'Icon'};
@@ -379,8 +400,9 @@
 
     /**
      * The Value row's hint: the plugin no longer offers the value, or offers it for more than
-     * one thing (its source serves several instances, and the slot reads the first). Else none.
-     * The Preferences plugin's is complicationHint.
+     * one thing (its source serves several instances) where the dialog offers no Which row, and
+     * the slot shows the first (FIRST_HINT). Else none. The Preferences plugin's is
+     * complicationHint.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @param {{slotKey: string}} args The dialog's slot.
@@ -393,7 +415,99 @@
         if (offersComplications(plugin)) { return complicationHint(pick, value); }
         if (!plugin || !pick.id) { return null; }
         if (!value) { return NOT_OFFERED; }
-        return value.multiple ? 'The plugin offers this for more than one thing. The slot shows the first.' : null;
+        return value.multiple && !whichOffered(pick) ? FIRST_HINT : null;
+    }
+
+    /**
+     * @param {Object} pick What a slot picks (plugin-values.js pickOf).
+     * @returns {boolean} Whether its dialog offers the Which row: for a value of a plugin's own
+     *   that the phone lists for more than one thing, but the instance's name, which labels it,
+     *   and a value of an item whose first instance is the one that matters (known-values.js
+     *   firstOnly).
+     */
+    function whichOffered(pick) {
+        var source = pluginValues.sourceOf(pick);
+        var value = source && source.complication === null ? valueIn(pluginOf(source.plugin), source.id) : null;
+        return Boolean(value) && value.multiple && source.property !== pluginValues.INSTANCE_NAME
+            && !knownValues.firstOnly(source.category, source.item);
+    }
+
+    /**
+     * Whether a slot's dialog shows the Which row (when resolver 'pluginValueWhichShown'): where
+     * it offers it (whichOffered), and wherever the slot picks an instance, so the row can put
+     * it back on the first.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
+     * @returns {boolean}
+     */
+    function whichShown(S, env, args) {
+        var pick = pluginValues.pickOf(S, args.slotKey);
+        var source = pluginValues.sourceOf(pick);
+        return whichOffered(pick) || Boolean(source && source.instance);
+    }
+
+    /**
+     * @param {?Object} source A source a slot picks (plugin-values.js sourceOf), or null.
+     * @returns {?Array<{id: string, name: string}>} The instances the last read of its item
+     *   brought (userData.pluginInstances, by plugin-values.js itemKeyOf), each with an id and a
+     *   name; null where no read has brought any yet, or for a complication or none.
+     */
+    function instancesOf(source) {
+        var map = userData().pluginInstances;
+        var key = source && source.complication === null ? pluginValues.itemKeyOf(source) : null;
+        var list = key && map && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null;
+        return Array.isArray(list) ? list.filter(function (one) {
+            return Boolean(one) && typeof one.id === 'string' && one.id !== '' && typeof one.name === 'string';
+        }) : null;
+    }
+
+    /**
+     * @param {Array<{id: string}>} instances Instances (instancesOf).
+     * @param {string} id An instance's id.
+     * @returns {boolean} Whether one of them has it.
+     */
+    function listsInstance(instances, id) {
+        return instances.some(function (one) { return one.id === id; });
+    }
+
+    /**
+     * The Which row's list: the first, whichever it is, with the one it was at the item's last
+     * read, then each instance that read brought, by its name, in the plugin's order, then the
+     * one the slot picks where that read did not bring it.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
+     * @returns {Array<Array>} [label, value, meta?] options.
+     */
+    function instanceOptions(S, env, args) {
+        var source = pluginValues.sourceOf(pluginValues.pickOf(S, args.slotKey));
+        var instances = instancesOf(source) || [];
+        var out = [[FIRST_LABEL, pluginValues.PICK_DEFAULTS.instance,
+            {desc: instances.length ? instances[0].name + ' at the last read' : 'Whichever the plugin lists first'}]];
+        instances.forEach(function (one) { out.push([one.name, one.id]); });
+        if (source && source.instance && !listsInstance(instances, source.instance)) {
+            out.push([HELD_LABEL, source.instance]);
+        }
+        return out;
+    }
+
+    /**
+     * The Which row's hint: the names come with a read after the save (NAMES_LATER), the plugin
+     * no longer sends the instance the slot picks (INSTANCE_GONE), or it sends no names
+     * (NO_NAMES). Else none.
+     * @param {Object} S Settings.
+     * @param {Object} env Platform env.
+     * @param {{slotKey: string}} args The dialog's slot.
+     * @returns {?string} HTML (plain text), or null for none.
+     */
+    function instanceHint(S, env, args) {
+        var source = pluginValues.sourceOf(pluginValues.pickOf(S, args.slotKey));
+        var instances = instancesOf(source);
+        if (!source || source.complication !== null) { return null; }
+        if (!instances) { return NAMES_LATER; }
+        if (source.instance && !listsInstance(instances, source.instance)) { return INSTANCE_GONE; }
+        return instances.length ? null : NO_NAMES;
     }
 
     /**
@@ -532,6 +646,30 @@
     }
 
     /**
+     * @param {*} id A value's id ('category/item/property').
+     * @returns {string} Its item ('category/item'), or '' for none.
+     */
+    function itemOfId(id) {
+        return typeof id === 'string' ? id.split('/').slice(0, 2).join('/') : '';
+    }
+
+    /**
+     * A slot's new value keeps the instance the slot picks only where it is a value of the same
+     * item that the Which row is offered for (whichOffered): the instance is one of the item's.
+     * Else the slot shows the first again.
+     * @param {Object} S Settings (mutated).
+     * @param {string} slotKey The slot's settings key.
+     * @param {*} before The value's id before.
+     * @returns {void}
+     */
+    function keepInstance(S, slotKey, before) {
+        var pick = pluginValues.pickOf(S, slotKey);
+        if (itemOfId(before) !== itemOfId(pick.id) || !whichOffered(pick)) {
+            S[catalog.pluginValueKeys(slotKey).instance] = pluginValues.PICK_DEFAULTS.instance;
+        }
+    }
+
+    /**
      * onChange of the Look row: fitSlot for the slot whose row changed.
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The choice before. @param {string} newV The choice now.
@@ -545,9 +683,9 @@
     }
 
     /**
-     * onChange of the Value row: another value with no label (dropLabel) and on its own Look and
-     * icon where the slot holds the ones the value before started it on (restartSlot), and the
-     * Look and the icon fit to it (fitSlot).
+     * onChange of the Value row: another value with no label (dropLabel), no instance of another
+     * item (keepInstance), and on its own Look and icon where the slot holds the ones the value
+     * before started it on (restartSlot), and the Look and the icon fit to it (fitSlot).
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The value before. @param {string} newV The value now.
      * @param {Object} env Platform env.
@@ -558,6 +696,7 @@
     function valuePicked(S, oldV, newV, env, key, args) {
         if (oldV !== newV) {
             dropLabel(S, args.slotKey);
+            keepInstance(S, args.slotKey, oldV);
             restartSlot(S, args.slotKey, valueIn(pluginOf(pluginValues.pickOf(S, args.slotKey).plugin), oldV));
         }
         fitSlot(S, args.slotKey);
@@ -565,10 +704,11 @@
 
     /**
      * onChange of the Plugin row: a new plugin starts on its first value WarnWeather can read
-     * (one it supports first: readValues), None on none, with no label, on the value's own Look
-     * and icon where the slot holds the ones the value before started it on (restartSlot), and a
-     * Look and an icon that fit it (fitSlot). Plugin None puts the Look and the icon back on where
-     * a slot starts too: it hides their rows, where they could be changed.
+     * (one it supports first: readValues), None on none, with no label, on the first instance,
+     * on the value's own Look and icon where the slot holds the ones the value before started it
+     * on (restartSlot), and a Look and an icon that fit it (fitSlot). Plugin None puts the Look
+     * and the icon back on where a slot starts too: it hides their rows, where they could be
+     * changed.
      * @param {Object} S Settings (mutated).
      * @param {string} oldV The plugin before.
      * @param {string} newV The plugin now.
@@ -585,6 +725,7 @@
         if (oldV !== newV) {
             before = valueIn(pluginOf(oldV), S[keys.id]);
             S[keys.id] = first ? first.id : '';
+            S[keys.instance] = pluginValues.PICK_DEFAULTS.instance;
             dropLabel(S, slotKey);
             restartSlot(S, slotKey, before);
             if (!newV) {
@@ -787,13 +928,17 @@
         PConf.hintResolvers.register('pluginValueBoldHint', boldHint);
         PConf.whenResolvers.register('pluginValueLabelShown', labelShown);
         PConf.hintResolvers.register('pluginValueLabelHint', function () { return LABEL_HINT; });
+        PConf.optionsResolvers.register('pluginValueInstances', instanceOptions);
+        PConf.hintResolvers.register('pluginValueInstanceHint', instanceHint);
+        PConf.whenResolvers.register('pluginValueWhichShown', whichShown);
     }
 
     var api = { MUNINN_NOTE: MUNINN_NOTE, labelOf: labelOf, pluginOptions: pluginOptions,
         valueOptions: valueOptions, pluginHint: pluginHint, valueHint: valueHint, lastLine: lastLine,
         fromMuninn: fromMuninn, pluginPicked: pluginPicked, labelShown: labelShown, iconOptions: iconOptions,
         lookOptions: lookOptions, iconHint: iconHint, iconPicture: iconPicture, boldHint: boldHint,
-        everyOptions: everyOptions,
+        everyOptions: everyOptions, whichShown: whichShown, instanceOptions: instanceOptions,
+        instanceHint: instanceHint,
         barText: barText, barDrawing: barDrawing, barGlyph: barGlyph };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PluginValuePage = api; }

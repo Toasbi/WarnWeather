@@ -162,11 +162,11 @@ function storedRead(source) {
   return map && Object.prototype.hasOwnProperty.call(map, source) ? map[source] : null;
 }
 
-test('wanted and never read: the plugin picked is asked at start, for the one value', () => {
+test('wanted and never read: the plugin picked is asked at start, for the one value and the instances\' names', () => {
   const h = boot();
   assert.equal(h.pebble.subs.length, 1);
   assert.deepEqual(h.pebble.subs[0].request, { category: 'phone', item: 'phone_state',
-    properties: ['battery_level'], plugin: PHONE, limit: 1 });
+    properties: ['battery_level', 'name'], plugin: PHONE, limit: 16 });
 });
 
 test('not wanted: nothing is read', () => {
@@ -471,7 +471,7 @@ test('picking another value forgets the old one\'s read and value, and the save 
   h.settings = CELL;
   pluginValueSource.refresh();
   assert.equal(h.pebble.subs.length, 2);
-  assert.deepEqual(h.pebble.subs[1].request.properties, ['cell']);
+  assert.deepEqual(h.pebble.subs[1].request.properties, ['cell', 'name']);
   assert.equal(storedValue(KEY), null, 'the old value is gone');
   assert.equal(storedRead(KEY), null, 'and its read');
   statusRebake.resendStatus('config-close');
@@ -548,13 +548,78 @@ test('the settings page gets each value last heard whole, by its source, while a
   assert.deepEqual(Object.keys(pluginValueSource.forPage(null)), [KEY], 'a source no slot shows any more: gone');
 });
 
+// --- which instance ---------------------------------------------------------------------
+
+/** A home plugin's rooms, each with its lights, as it sends them: the kitchen first. */
+const HOME = 'aaaaaaaa-0000-0000-0000-00000000000a';
+const ROOMS = (rooms) => ({ pluginUuid: HOME, instances: rooms.map(([id, name, on]) => ({ instanceId: id,
+  properties: { name: { shortText: { text: name } }, on: { boolean: { value: on }, shortText: { text: on ? 'On' : 'Off' } } } })) });
+const LIGHTS = { plugin: HOME, id: 'home/room_lights/on' };
+const ITEM = HOME + '/home/room_lights';
+
+test('a slot that picks an instance shows that one\'s value, wherever the plugin sends it, by a key of its own', () => {
+  const h = boot({ settings: slot('statusTopLeft', Object.assign({ instance: 'hall/2' }, LIGHTS)) });
+  assert.deepEqual(h.pebble.subs[0].request, { category: 'home', item: 'room_lights', properties: ['on', 'name'],
+    plugin: HOME, limit: 16 }, 'the instance asked for is never sent: the read brings the first 16');
+  h.pebble.subs[0].push(ROOMS([['kitchen', 'Kitchen', true], ['hall/2', 'Hall', false]]));
+  const key = HOME + '#hall%2F2/home/room_lights/on';
+  assert.equal(storedValue(key).reading.short, 'Off', 'the hall\'s');
+  assert.equal(storedValue(HOME + '/home/room_lights/on'), null, 'nothing kept for the first');
+  minute();
+  assert.equal(sentText(h), 'Off');
+});
+
+test('an instance the plugin no longer sends shows --, never the first in its place', () => {
+  const h = boot({ settings: slot('statusTopLeft', Object.assign({ instance: 'hall' }, LIGHTS)) });
+  h.pebble.subs[0].push(ROOMS([['kitchen', 'Kitchen', true]]));
+  assert.equal(storedValue(HOME + '#hall/home/room_lights/on'), null, 'nothing kept for it');
+  statusRebake.resendStatus('fetch');
+  assert.equal(sentText(h), '--');
+});
+
+test('two slots, the first room and the hall, are one read, each showing its own', () => {
+  const h = boot({ settings: Object.assign({}, slot('statusTopLeft', LIGHTS),
+    slot('statusTopRight', Object.assign({ instance: 'hall' }, LIGHTS))) });
+  assert.equal(h.pebble.subs.length, 1);
+  h.pebble.subs[0].push(ROOMS([['kitchen', 'Kitchen', true], ['hall', 'Hall', false]]));
+  minute();
+  const cells = decodeLine(h.sends[h.sends.length - 1].STATUS_LINE_3_UINT8);
+  assert.deepEqual([cells[0].text, cells[2].text], ['On', 'Off']);
+});
+
+test('the instances a read brings are kept by the item for the page, and go once no slot picks a value of it', () => {
+  const h = boot({ settings: slot('statusTopLeft', LIGHTS) });
+  assert.deepEqual(pluginValueSource.instancesForPage(), {}, 'none yet');
+  h.pebble.subs[0].push(ROOMS([['kitchen', 'Kitchen', true], ['hall', 'Hall', false]]));
+  const names = [{ id: 'kitchen', name: 'Kitchen' }, { id: 'hall', name: 'Hall' }];
+  assert.deepEqual(pluginValueSource.instancesForPage(), { [ITEM]: names });
+  assert.deepEqual(stored(KEYS.PLUGIN_INSTANCES), { [ITEM]: names });
+  h.settings = slot('statusTopLeft', { plugin: HOME, id: 'home/room_lights/brightness' });
+  pluginValueSource.refresh();
+  assert.deepEqual(pluginValueSource.instancesForPage(), { [ITEM]: names }, 'another value of the item: kept');
+  h.settings = SLOT;
+  pluginValueSource.refresh();
+  assert.deepEqual(pluginValueSource.instancesForPage(), {}, 'no slot picks the item: gone');
+  storage[KEYS.PLUGIN_INSTANCES] = '[1]';
+  assert.deepEqual(pluginValueSource.instancesForPage(), {}, 'what is stored that is none');
+});
+
+test('a complication\'s read keeps no instances: the Pebble app picks its plugin, and its place its instance', () => {
+  const h = boot({ settings: SECOND, complications: [TEMPERATURE], permissions: PERMS, pebble: fakePebble(PLUGINS) });
+  const named = weather(['21\u00b0', '4\u00b0']);
+  named.instances.forEach((one, i) => { one.properties.name = { shortText: { text: 'Place ' + i } }; });
+  h.pebble.subs[0].push(named);
+  assert.equal(storedValue(SECOND_KEY).reading.short, '4\u00b0', 'read');
+  assert.equal(stored(KEYS.PLUGIN_INSTANCES), null);
+});
+
 // --- several values -----------------------------------------------------------------------
 
 test('two values of one plugin\'s item are one read for both: each is kept on its own, and each slot shows its own', () => {
   const h = boot({ settings: LEVEL_AND_CELL });
   assert.equal(h.pebble.subs.length, 1, 'the plugin runs once for both');
   assert.deepEqual(h.pebble.subs[0].request, { category: 'phone', item: 'phone_state',
-    properties: ['battery_level', 'cell'], plugin: PHONE, limit: 1 }, 'both asked for, in the bars\' order');
+    properties: ['battery_level', 'name', 'cell'], plugin: PHONE, limit: 16 }, 'both asked for, in the bars\' order');
   h.pebble.subs[0].push(answer(BOTH));
   assert.equal(h.pebble.subs[0].unsubscribed, 1);
   assert.deepEqual(Object.keys(stored(KEYS.PLUGIN_VALUES)).sort(), [CELL_KEY, KEY].sort());
@@ -637,7 +702,7 @@ test('a value of the item read now is read with it, though its own read is not d
   h.settings = LEVEL_AND_CELL;
   pluginValueSource.refresh();
   assert.equal(h.pebble.subs.length, 2, 'one read for the value picked and the one shown');
-  assert.deepEqual(h.pebble.subs[1].request.properties, ['cell', 'battery_level'], 'the battery level joins');
+  assert.deepEqual(h.pebble.subs[1].request.properties, ['cell', 'name', 'battery_level'], 'the battery level joins');
   h.pebble.subs[1].push(answer(BOTH));
   assert.equal(storedRead(KEY).at, NOON + 20 * MIN, 'the battery level read anew');
   assert.equal(storedValue(CELL_KEY).reading.short, 'LTE');
@@ -647,7 +712,7 @@ test('a value of the item read now is read with it, though its own read is not d
   h.clock = NOON + 20 * MIN + HOUR;
   minute();
   assert.equal(h.pebble.subs.length, 3, 'an hour after the read they shared');
-  assert.deepEqual(h.pebble.subs[2].request.properties, ['battery_level', 'cell'], 'together again');
+  assert.deepEqual(h.pebble.subs[2].request.properties, ['battery_level', 'name', 'cell'], 'together again');
 });
 
 test('a value of the item whose read is under way does not join another: it is not read twice at once', () => {
@@ -656,7 +721,7 @@ test('a value of the item whose read is under way does not join another: it is n
   h.settings = LEVEL_AND_CELL;
   pluginValueSource.refresh();
   assert.equal(h.pebble.subs.length, 2);
-  assert.deepEqual(h.pebble.subs[1].request.properties, ['cell'], 'the battery level is read already');
+  assert.deepEqual(h.pebble.subs[1].request.properties, ['cell', 'name'], 'the battery level is read already');
 });
 
 test('one read waits for the answer that brings every value asked for: the network type a moment after the battery level', () => {
@@ -694,12 +759,12 @@ test('values of two plugins are two reads, and so are a complication and a pick 
   const OTHER = 'ffffffff-0000-0000-0000-000000000001';
   let h = boot({ settings: Object.assign({}, SLOT, slot('statusTopRight', { plugin: OTHER, id: 'phone/phone_state/cell' })) });
   assert.deepEqual(h.pebble.subs.map((sub) => [sub.request.plugin, sub.request.properties]),
-    [[PHONE, ['battery_level']], [OTHER, ['cell']]]);
+    [[PHONE, ['battery_level', 'name']], [OTHER, ['cell', 'name']]]);
   h = boot({ settings: Object.assign({}, SECOND, slot('statusTopRight', { id: 'phone/phone_state/cell' })),
     complications: [CHARGE], permissions: PERMS,
     pebble: fakePebble(PLUGINS.concat([{ uuid: PHONE, name: 'Phone', sources: [{ category: 'phone', items: ['phone_state'] }] }])) });
   assert.deepEqual(h.pebble.subs.map((sub) => [sub.request.plugin, sub.request.properties]),
-    [[undefined, ['battery_level']], [PHONE, ['cell']]]);
+    [[undefined, ['battery_level']], [PHONE, ['cell', 'name']]]);
 });
 
 test('two complications of one source are one read, for as many instances as the furthest place names', () => {
@@ -748,7 +813,8 @@ test('an answer that throws for one value reaches the other values of its read a
   h.clock = NOON + HOUR;
   minute();
   assert.equal(h.pebble.subs.length, 2);
-  assert.deepEqual(h.pebble.subs[1].request.properties, ['battery_level', 'cell'], 'neither waits for an answer any more');
+  assert.deepEqual(h.pebble.subs[1].request.properties, ['battery_level', 'name', 'cell'],
+    'neither waits for an answer any more');
 });
 
 test('an answer that throws for one value still makes at once the reads the others ask for', () => {

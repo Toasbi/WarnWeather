@@ -190,6 +190,7 @@ test('the several values tip names the page\'s own words: the item, and the Edit
   assert.ok(tip.html.indexOf('Each ' + label + ' slot now shows a value of its own') === 0, tip.html);
   assert.ok(tip.html.indexOf('Set another slot to ' + label + ' and tap its Edit button') !== -1, tip.html);
   assert.equal(catalog.byCode('pluginValue').repeatsInBar, true, 'one bar can hold several, as the tip says');
+  assert.ok(tip.html.indexOf('pick one under ' + row('statusTopLeftPluginValueInstance').label + '.') !== -1, tip.html);
   assert.equal(tip.since, '3.5.0');
 });
 

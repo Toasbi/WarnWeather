@@ -125,23 +125,34 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
         items: ['item'], properties: props, supportsMultiple: true }], actions: [] });
   }
   // The three screens show all seven bars (bars 4 to 6 made), and each slot picks a source of
-  // its own: the page gets a value only while a slot shows its source (plugin-value-source.js
-  // forPage).
+  // its own, a value of an item of its own: the page gets a value only while a slot shows its
+  // source (plugin-value-source.js forPage), and the instances of each item a slot picks, each
+  // item's as many as cost the URL what an item's may (plugin-reader.js instancesOf: sixteen
+  // instances, each with the longest id and name kept, in characters that cost the most).
   const settings = { layoutPreset: 'custom', radarMode: 'graph', viewCount: '3',
     viewTop0: 'cal', viewBody0: 'forecast', viewTop1: 'none', viewBody1: 'forecast', viewTop2: 'none',
     viewBody2: 'forecast', viewUpper0: 'weather', viewLower0: 'radar', viewUpper1: 'health', viewLower1: 'bar4',
     viewUpper2: 'bar5', viewLower2: 'bar6', statusBar4Made: true, statusBar5Made: true, statusBar6Made: true };
+  const pluginReader = require('../../../src/pkjs/status-bars/adapter/plugin-reader.js');
+  const pluginValues = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
   const values = {};
   const reads = {};
+  const instances = {};
   const slotKeys = slotCatalog.everySlotKey();
+  const dear = (n) => '\u{1F4A1}"'.repeat(n);
   slotKeys.forEach((slotKey, i) => {
-    Object.assign(settings, pluginValueSlot(slotKey, { plugin: 'x', id: 'cat/item/v' + i }));
-    values['x/cat/item/v' + i] = { source: 'x/cat/item/v' + i, at: now, validUntil: null,
+    Object.assign(settings, pluginValueSlot(slotKey, { plugin: 'x', id: 'cat/item' + i + '/v' }));
+    values['x/cat/item' + i + '/v'] = { source: 'x/cat/item' + i + '/v', at: now, validUntil: null,
       reading: { short: 's'.repeat(5000), long: 'l'.repeat(5000), unit: 'u'.repeat(5000), number: 1 } };
-    reads['x/cat/item/v' + i] = { source: 'x/cat/item/v' + i, at: now, failures: 0, validUntil: null };
+    reads['x/cat/item' + i + '/v'] = { source: 'x/cat/item' + i + '/v', at: now, failures: 0, validUntil: null };
+    instances['x/cat/item' + i] = pluginReader.instancesOf({ instances: Array.from({ length: 20 }, (_, n) => ({
+      instanceId: String(n).padStart(4, '0') + dear(20), properties: { name: { shortText: { text: dear(40) } } } })) });
   });
+  assert.equal(instances['x/cat/item0'][0].id.length, pluginValues.MAX_INSTANCE_ID, 'the longest id kept');
+  assert.ok(instances['x/cat/item0'].length < pluginValues.MAX_INSTANCES, 'the cost cuts the list short');
   store[KEYS.PLUGIN_VALUES] = JSON.stringify(values);
   store[KEYS.PLUGIN_VALUE_READS] = JSON.stringify(reads);
+  store[KEYS.PLUGIN_INSTANCES] = JSON.stringify(instances);
   store['clay-settings'] = JSON.stringify(settings);
 
   const listeners = {};
@@ -196,8 +207,10 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
     + c.position) !== -1 && decoded.indexOf("why:'A_permission_with_a_long_name_" + c.position) !== -1,
   'complication ' + c.position + ' really rode along, with why'));
   assert.equal(slotKeys.length, 21);
-  slotKeys.forEach((slotKey, i) => assert.ok(decoded.indexOf("'x/cat/item/v" + i + "':{source:'x/cat/item/v" + i + "'") !== -1,
+  slotKeys.forEach((slotKey, i) => assert.ok(decoded.indexOf("'x/cat/item" + i + "/v':{source:'x/cat/item" + i + "/v'") !== -1,
     'the value ' + slotKey + ' shows really rode along'));
+  slotKeys.forEach((slotKey, i) => assert.ok(decoded.indexOf("'x/cat/item" + i + "':[{id:") !== -1,
+    'the instances of the item ' + slotKey + ' picks really rode along'));
   assert.ok(url.length <= URL_CAP - HEADROOM,
     'settings URL is ' + url.length + ' chars; Android WebView refuses more than ' + URL_CAP
     + ' (keep ' + HEADROOM + ' spare)');

@@ -29,7 +29,9 @@
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.
 
 var pluginReads = require('../domain/plugin-reads.js');
+var pluginValueList = require('../domain/plugin-value-list.js');
 var pluginValueReads = require('../domain/plugin-value-reads.js');
+var pluginValues = require('../domain/plugin-values.js');
 
 /**
  * How long readOnce waits for a plugin's answer before it gives up. Longer than the Pebble app
@@ -61,9 +63,14 @@ var FULLER_ANSWER_MS = 3000;
  * @property {number} [instance] Which instance's properties the read is for, 0 (the first) by
  *   default: what makes an answer the one asked for (readOnce) and what a reading reads
  *   (readingOf). Never sent.
- * @property {Array<{property: string, instance: number}>} [reads] For a read that stands for
- *   several (together), each reading it is for, in place of `instance`: an answer is the one
- *   asked for only when it brings them all (readOnce). Never sent.
+ * @property {string} [instanceId] The id of the instance the read is for, in place of
+ *   `instance`, as the plugin names it (a slot's Which row picks it). An answer that brings the
+ *   property in any instance is the one asked for: one without that instance says the plugin
+ *   has it no more. Never sent.
+ * @property {Array<{property: string, instance: number, instanceId: (string|undefined)}>} [reads]
+ *   For a read that stands for several (together), each reading it is for, in place of
+ *   `instance` and `instanceId`: an answer is the one asked for only when it brings them all
+ *   (readOnce). Never sent.
  * @property {string[]} [permissions] What this app declares, as the Pebble app keys it
  *   (plugin-reads.js declaredKeys), for a read that must never ask the user for a permission
  *   it did not: it starts only where the phone's list of plugins says no plugin that may answer
@@ -83,8 +90,9 @@ function itemOf(request) {
 /**
  * The one read that stands for several reads of a plugin's item (itemOf), each of one property
  * of one instance (plugin-value-source.js reads the values of one item at once): every property
- * they ask for, as many instances as the furthest of theirs, and the readings it is for (reads),
- * so its answer is the one asked for only when it brings them all (readOnce).
+ * they ask for, as many instances as the furthest of theirs, and the readings it is for (reads:
+ * each one's first property, of its instance), so its answer is the one asked for only when it
+ * brings them all (readOnce).
  * @param {Array<PluginRequest>} requests The reads, of one item, at least one.
  * @returns {PluginRequest} The read.
  */
@@ -94,10 +102,11 @@ function together(requests) {
         permissions: first.permissions, reads: [] };
     if (first.plugin) { request.plugin = first.plugin; }
     requests.forEach(function (r) {
-        var property = r.properties[0];
-        if (request.properties.indexOf(property) === -1) { request.properties.push(property); }
+        r.properties.forEach(function (property) {
+            if (request.properties.indexOf(property) === -1) { request.properties.push(property); }
+        });
         request.limit = Math.max(request.limit, r.limit || 1);
-        request.reads.push({ property: property, instance: r.instance || 0 });
+        request.reads.push({ property: r.properties[0], instance: r.instance || 0, instanceId: r.instanceId });
     });
     return request;
 }
@@ -239,10 +248,29 @@ function watch(pebble, request, onData, onFailure) {
 function bringsAsked(envelope, request) {
     var asked = request.properties;
     if (Array.isArray(request.reads)) {
-        return request.reads.every(function (read) { return shapesOf(envelope, read.property, read.instance) !== null; });
+        return request.reads.every(function (read) { return brings(envelope, read.property, read); });
     }
     if (!Array.isArray(asked) || !asked.length) { return true; }
-    return asked.some(function (property) { return shapesOf(envelope, property, request.instance) !== null; });
+    return asked.some(function (property) { return brings(envelope, property, request); });
+}
+
+/**
+ * @param {?Object} envelope A source update.
+ * @param {string} property A property asked for.
+ * @param {{instance: (number|undefined), instanceId: (string|undefined)}} which The instance it
+ *   is asked of (PluginRequest).
+ * @returns {boolean} Whether the update brings it: in that instance; for an instance named by
+ *   its id that the update leaves out, in any (the plugin answered, and has it no more).
+ */
+function brings(envelope, property, which) {
+    var instances = envelope && Array.isArray(envelope.instances) ? envelope.instances : [];
+    var sent = named(which.instanceId) && instances.some(function (one) {
+        return Boolean(one) && one.instanceId === which.instanceId;
+    });
+    if (!named(which.instanceId) || sent) {
+        return shapesOf(envelope, property, which.instance, which.instanceId) !== null;
+    }
+    return instances.some(function (one, i) { return shapesOf(envelope, property, i) !== null; });
 }
 
 /**
@@ -314,6 +342,14 @@ function readOnce(pebble, request, done, timers) {
 }
 
 /**
+ * @param {*} instanceId An instance's id as a request names it (PluginRequest instanceId).
+ * @returns {boolean} Whether it names one: a text that is not empty.
+ */
+function named(instanceId) {
+    return typeof instanceId === 'string' && instanceId !== '';
+}
+
+/**
  * A property's shapes in one of the envelope's instances: {shortText: {text}, numericValue:
  * {value, unit}, longText: {text}, ...} as the plugin sent them.
  *
@@ -321,12 +357,16 @@ function readOnce(pebble, request, done, timers) {
  * @param {string} property The property's name.
  * @param {number} [index] Which instance, in the order the plugin sent them: 0 (the first) by
  *   default.
+ * @param {string} [instanceId] Which instance by its id, in place of the index: the one the
+ *   plugin names so, wherever it sent it.
  * @returns {?Object} The shapes, or null where the plugin did not send the property (a
  *   missing property means the plugin cannot serve it right now), or not that instance.
  */
-function shapesOf(envelope, property, index) {
+function shapesOf(envelope, property, index, instanceId) {
     var instances = envelope && Array.isArray(envelope.instances) ? envelope.instances : [];
-    var instance = instances[typeof index === 'number' ? index : 0];
+    var instance = named(instanceId) ? instances.filter(function (one) {
+        return Boolean(one) && one.instanceId === instanceId;
+    })[0] : instances[typeof index === 'number' ? index : 0];
     var shapes = instance && instance.properties && instance.properties[property];
     return shapes && typeof shapes === 'object' ? shapes : null;
 }
@@ -371,10 +411,11 @@ function numberOf(envelope, property) {
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
  * @param {number} [index] Which instance (shapesOf).
+ * @param {string} [instanceId] Which instance by its id, in place of the index (shapesOf).
  * @returns {?PluginReading} The reading, or null where the plugin did not send the property.
  */
-function readingOf(envelope, property, index) {
-    var shapes = shapesOf(envelope, property, index);
+function readingOf(envelope, property, index, instanceId) {
+    var shapes = shapesOf(envelope, property, index, instanceId);
     var reading = {};
     if (!shapes) { return null; }
     pluginValueReads.FIELDS.forEach(function (f) {
@@ -382,6 +423,40 @@ function readingOf(envelope, property, index) {
         reading[f.name] = shape ? shape[f.part] : null;
     });
     return reading;
+}
+
+/**
+ * The instances an update brings, as a slot's Which row names them (plugin-value-source.js
+ * keeps them): each one's id, as the plugin names it, and its name (the short text of
+ * plugin-values.js INSTANCE_NAME, on one line, cut to MAX_INSTANCE_NAME characters), in the
+ * order the plugin sent them, the first MAX_INSTANCES, while they cost the settings page's URL
+ * no more than MAX_INSTANCES_COST characters (plugin-value-list.js urlCost). One without an id,
+ * or with a longer one than MAX_INSTANCE_ID, or without a name, is left out: the row could not
+ * keep it, or name it; so is one that would cost more. They are another app's data, never
+ * logged.
+ * @param {?Object} envelope A source update.
+ * @returns {Array<{id: string, name: string}>} The instances; [] for none.
+ */
+function instancesOf(envelope) {
+    var instances = envelope && Array.isArray(envelope.instances) ? envelope.instances : [];
+    var out = [];
+    var cost = 0;
+    instances.forEach(function (one, i) {
+        var shapes = shapesOf(envelope, pluginValues.INSTANCE_NAME, i);
+        var name = pluginValues.oneLine(shapes && shapes.shortText ? shapes.shortText.text : null);
+        var entry;
+        var more;
+        if (out.length < pluginValues.MAX_INSTANCES && one && typeof one.instanceId === 'string' && one.instanceId
+                && one.instanceId.length <= pluginValues.MAX_INSTANCE_ID && name) {
+            entry = { id: one.instanceId, name: pluginValues.cutName(name, pluginValues.MAX_INSTANCE_NAME) };
+            more = pluginValueList.urlCost(entry);
+            if (cost + more <= pluginValues.MAX_INSTANCES_COST) {
+                out.push(entry);
+                cost += more;
+            }
+        }
+    });
+    return out;
 }
 
 /**
@@ -429,6 +504,7 @@ module.exports = {
     readOnce: readOnce,
     numberOf: numberOf,
     readingOf: readingOf,
+    instancesOf: instancesOf,
     validUntilOf: validUntilOf,
     plugins: plugins
 };
