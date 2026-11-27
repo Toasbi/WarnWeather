@@ -257,8 +257,9 @@ A slot item that shows one value another app's plugin serves, such as the Phone 
 network type. Each slot that holds it has a dialog of its own, which picks the plugin, which of
 its values and how often it is read (`plugin-values.js` pickOf, sourceOf, everyMs), so each slot
 can show another value; the slots that pick one source share its read, and the values of one
-plugin's item are read in one read, so its plugin runs once for them all
-(`plugin-value-source.js`). The dialog lists what the phone's plugins serve, from
+plugin's item are read in one read, so its plugin runs once for them all. A value picked while
+that read is under way is read beside it (`plugin-value-source.js`). The dialog lists what the
+phone's plugins serve, from
 `Pebble.enumeratePlugins()`, which runs no plugin (`plugin-value-list.js` listOf): each
 property a source declares as a text, a timestamp, a number or a boolean, of a source this app
 may read without being asked for a permission it never declared (judged by the Pebble app's
