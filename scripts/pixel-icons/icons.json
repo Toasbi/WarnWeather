@@ -36,6 +36,7 @@
     {"key": "SWITCH_OFF", "ids": ["STATUS_ICON_PV_SWITCH_OFF"]},
     {"key": "WIFI", "ids": ["STATUS_ICON_PV_WIFI"]},
     {"key": "WIFI_OFF", "ids": ["STATUS_ICON_PV_WIFI_OFF"]},
-    {"key": "PLUG", "ids": ["STATUS_ICON_PV_PLUG"]}
+    {"key": "PLUG", "ids": ["STATUS_ICON_PV_PLUG"]},
+    {"key": "TIDE", "ids": ["STATUS_ICON_PV_TIDE"]}
   ]
 }

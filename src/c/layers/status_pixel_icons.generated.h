@@ -14,7 +14,7 @@
 
 #if defined(PBL_PLATFORM_EMERY)
 // emery: the Pebble Time 2's sizes (13, 15 and 17 rows for a weather icon).
-#define STATUS_PIXEL_ICON_COUNT 120
+#define STATUS_PIXEL_ICON_COUNT 123
 static const StatusPixelIcon s_status_pixel_icons[] = {
     { STATUS_ICON_COND_SUN, 13, PX_RES(PX_SUN_EMERY_13) },
     { STATUS_ICON_COND_SUN, 15, PX_RES(PX_SUN_EMERY_15) },
@@ -136,11 +136,14 @@ static const StatusPixelIcon s_status_pixel_icons[] = {
     { STATUS_ICON_PV_PLUG, 13, PX_RES(PX_PLUG_EMERY_13) },
     { STATUS_ICON_PV_PLUG, 15, PX_RES(PX_PLUG_EMERY_15) },
     { STATUS_ICON_PV_PLUG, 17, PX_RES(PX_PLUG_EMERY_17) },
+    { STATUS_ICON_PV_TIDE, 13, PX_RES(PX_TIDE_EMERY_13) },
+    { STATUS_ICON_PV_TIDE, 15, PX_RES(PX_TIDE_EMERY_15) },
+    { STATUS_ICON_PV_TIDE, 17, PX_RES(PX_TIDE_EMERY_17) },
 };
 #elif defined(PBL_BW)
 // The black and white watches (Pebble 2, Pebble 2 Duo): every size's pixel drawing, as they have
 // no grey pixels to smooth a slanted line with.
-#define STATUS_PIXEL_ICON_COUNT 78
+#define STATUS_PIXEL_ICON_COUNT 80
 static const StatusPixelIcon s_status_pixel_icons[] = {
     { STATUS_ICON_COND_SUN, 11, PX_RES(PX_SUN_BASALT_11_BW) },
     { STATUS_ICON_COND_SUN, 13, PX_RES(PX_SUN_BASALT_13_BW) },
@@ -220,9 +223,11 @@ static const StatusPixelIcon s_status_pixel_icons[] = {
     { STATUS_ICON_PV_WIFI_OFF, 13, PX_RES(PX_WIFI_OFF_BASALT_13_BW) },
     { STATUS_ICON_PV_PLUG, 11, PX_RES(PX_PLUG_BASALT_11_BW) },
     { STATUS_ICON_PV_PLUG, 13, PX_RES(PX_PLUG_BASALT_13_BW) },
+    { STATUS_ICON_PV_TIDE, 11, PX_RES(PX_TIDE_BASALT_11_BW) },
+    { STATUS_ICON_PV_TIDE, 13, PX_RES(PX_TIDE_BASALT_13_BW) },
 };
 #else
-#define STATUS_PIXEL_ICON_COUNT 78
+#define STATUS_PIXEL_ICON_COUNT 80
 static const StatusPixelIcon s_status_pixel_icons[] = {
     { STATUS_ICON_COND_SUN, 11, PX_RES(PX_SUN_BASALT_11) },
     { STATUS_ICON_COND_SUN, 13, PX_RES(PX_SUN_BASALT_13) },
@@ -302,5 +307,7 @@ static const StatusPixelIcon s_status_pixel_icons[] = {
     { STATUS_ICON_PV_WIFI_OFF, 13, PX_RES(PX_WIFI_OFF_BASALT_13) },
     { STATUS_ICON_PV_PLUG, 11, PX_RES(PX_PLUG_BASALT_11) },
     { STATUS_ICON_PV_PLUG, 13, PX_RES(PX_PLUG_BASALT_13) },
+    { STATUS_ICON_PV_TIDE, 11, PX_RES(PX_TIDE_BASALT_11) },
+    { STATUS_ICON_PV_TIDE, 13, PX_RES(PX_TIDE_BASALT_13) },
 };
 #endif

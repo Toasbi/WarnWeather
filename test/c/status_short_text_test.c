@@ -175,6 +175,7 @@ static void other_readings(void) {
     no_family("plugin value phone", SLOT_TEXT, STATUS_ICON_PV_PHONE, "31%");
     no_family("plugin value calendar", SLOT_TEXT, STATUS_ICON_PV_CALENDAR, "12d");
     no_family("plugin value wifi", SLOT_TEXT, STATUS_ICON_PV_WIFI, "12 / 30kph");
+    no_family("plugin value tide", SLOT_TEXT, STATUS_ICON_PV_TIDE, "1.8 m");
 }
 
 static void live_kinds(void) {

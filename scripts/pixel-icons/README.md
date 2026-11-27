@@ -13,7 +13,7 @@ creator (WarnWeatherTools) draws and tunes them, and exports them here.
 | `icons.json` | The icons: each one's key and the watch icon ids its drawings serve |
 | `gen_watch_icons.js` | Builds the drawings into the watch |
 | `pixel-paths.js` | Writes a drawing's pixels as PDC paths, in as few bytes as it finds |
-| `THIRD_PARTY.md` | The licences of the two icon libraries some drawings started from |
+| `THIRD_PARTY.md` | The licences of the two icon libraries some drawings started from, and where the tide icon's came from |
 
 ## Changing an icon
 

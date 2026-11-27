@@ -61,10 +61,10 @@
     PLUGIN_TEXT: 35,
     // The Plugin value slot's icons, before its text or alone (its Look; status_line.h
     // STATUS_ICON_PV_*). Each pair's off form while the value is off: Switch, Wi-Fi and
-    // Bluetooth. Plug, Phone and Calendar stay the same. Like PLUGIN_TEXT, each takes the
+    // Bluetooth. Plug, Phone, Calendar and Tide stay the same. Like PLUGIN_TEXT, each takes the
     // Plugin value's bold kind and no other slot's short form.
     PV_SWITCH: 36, PV_SWITCH_OFF: 37, PV_WIFI: 38, PV_WIFI_OFF: 39, PV_BT: 40, PV_BT_OFF: 41,
-    PV_PLUG: 42, PV_PHONE: 43, PV_CALENDAR: 44
+    PV_PLUG: 42, PV_PHONE: 43, PV_CALENDAR: 44, PV_TIDE: 45
   };
   // A TEXT slot's short form rides after this byte (status_line.h STATUS_TEXT_ALT_SEP).
   var ALT_SEP = '\u001f';

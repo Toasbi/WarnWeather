@@ -46,7 +46,8 @@
         SWITCH_OFF: '~d!0.0.1ks.1ky.37d.36x.37d.1ky.1ks.0.0~h!0.0.cmw.11xi.pde.1eo9.1eo9.1eo9.pde.11xi.cmw.0.0~2~k!0.0.1ek0.47po.5m9u.5mcy.b8nd.b8nd.b8nd.5mcy.5m9u.47po.1ek0.0.0~n!0.0.b8j4.xpn0.18y6a.18yci.2hwk1.2hwqx.2hwqx.2hwqx.2hwk1.18yci.18y6a.xpn0.b8j4.0.0',
         WIFI: '~d!0.s8.sk.1ky.3jl.eg.sk.68.7k.0.1s~f!0.rk.5jw.6bm.cn5.1kg.1l4.35w.cg.f4.0.3k.0~2~h!0.6b4.6bs.cn8.paa.1hpd.368.6bs.0.ow.u8.1ls.0.74.0~l!0.cjk.2gkw.2t54.guti.mh35.64g.j40.23w0.0.64g.6f4.0.0.0.sg.0',
         WIFI_OFF: '~d!2.ro.ss.1le.3e9.g8.w4.dc.ls.sg.1mo~f!2.ro.5jg.6c2.co1.19s.1oo.3d0.qo.17k.1kw.39c.6bk~2~h!2.6as.6bs.cno.pb6.1hep.39s.6iw.e8.1hc.2f4.4rk.6bk.cu8.pa8~l!4.cjs.2gi8.2t60.guva.mh6p.4xs.ji8.24og.1kw.64g.6f4.cn4.pa8.1ekg.2txc.5m9s',
-        PLUG: '~9!1w.1w.1w.e7.3m.3m.1w.1k.g.g.g~9!1w.1w.1w.1w.e7.3m.3m.3m.1w.1k.g.g.g~2~b!3s.3s.3s.3s.1kv.ea.ea.ea.78.b0.34.w.w.w.w~d!7k.7k.7k.7k.7k.6bj.1ky.1ky.1ky.sk.sk.m0.68.1s.1s.1s.1s'
+        PLUG: '~9!1w.1w.1w.e7.3m.3m.1w.1k.g.g.g~9!1w.1w.1w.1w.e7.3m.3m.3m.1w.1k.g.g.g~2~b!3s.3s.3s.3s.1kv.ea.ea.ea.78.b0.34.w.w.w.w~d!7k.7k.7k.7k.7k.6bj.1ky.1ky.1ky.sk.sk.m0.68.1s.1s.1s.1s',
+        TIDE: '~d!dc.eo.ug.x0.mc.y.1u.1hd.0.pa.5m9~f!qo.2e8.368.6mg.6rs.5l0.1w.3m.76.5xd.0.jny.5m9~2~h!328.9j4.co0.s28.snc.vt4.cuc.78.ea.si.1kx.1bep.0.258u.nw1~j!64g.j40.pb4.1ekw.1hc8.1hxk.vt0.cuc.ea.si.1ky.35t.5fy9.0.4ydq.6a5t.0'
     };
     var ICONS = {};
     Object.keys(PACKED).forEach(function (key) {
@@ -98,7 +99,8 @@
         STATUS_ICON_PV_SWITCH_OFF: 'SWITCH_OFF',
         STATUS_ICON_PV_WIFI: 'WIFI',
         STATUS_ICON_PV_WIFI_OFF: 'WIFI_OFF',
-        STATUS_ICON_PV_PLUG: 'PLUG'
+        STATUS_ICON_PV_PLUG: 'PLUG',
+        STATUS_ICON_PV_TIDE: 'TIDE'
     };
     var api = {icons: ICONS, ids: IDS};
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

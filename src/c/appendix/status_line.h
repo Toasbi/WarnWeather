@@ -189,12 +189,13 @@ typedef enum {
     // The Plugin value slot's icons (its dialog's Icon row), drawn before the value's text, or
     // alone in the Icon look, which the phone sends with no text. The
     // phone sends a pair's off form while the value is off, too old or not read: Switch, Wi-Fi
-    // and Bluetooth turn with a value that is on or off. Plug, Phone and Calendar stay the same.
+    // and Bluetooth turn with a value that is on or off. Plug, Phone, Calendar and Tide stay the
+    // same.
     // Bluetooth, Phone and Calendar draw the watch's Bluetooth, phone and countdown drawings
     // under ids of their own (scripts/pixel-icons/icons.json), so the slot takes none of those
     // slots' bold kinds or short forms (status_short_text.h): every id here is the Plugin
     // value's, as PLUGIN_TEXT is (status_icon_is_plugin_value). An icon added later goes
-    // right after PV_CALENDAR, where that range ends.
+    // right after PV_TIDE, where that range ends.
     STATUS_ICON_PV_SWITCH = 36,
     STATUS_ICON_PV_SWITCH_OFF = 37,
     STATUS_ICON_PV_WIFI = 38,
@@ -204,13 +205,14 @@ typedef enum {
     STATUS_ICON_PV_PLUG = 42,
     STATUS_ICON_PV_PHONE = 43,
     STATUS_ICON_PV_CALENDAR = 44,
+    STATUS_ICON_PV_TIDE = 45,
 } StatusIconId;
 // Id 6 (STATUS_ICON_PRECIP, removed in 3dae9f4) is a retired hole: never reuse it —
 // a pre-3dae9f4 install can still hold a persisted blob referencing it. So is id 17
 // (STATUS_ICON_PHONE_BATTERY_CHG, the glyph of a phone that charges: the phone packed it
 // in place of id 16 while it charged, until the slot came to show the charge alone). A
 // line stored with it draws its text without a glyph until the phone's next bake.
-#define STATUS_ICON_MAX STATUS_ICON_PV_CALENDAR
+#define STATUS_ICON_MAX STATUS_ICON_PV_TIDE
 
 // Whether a slot draws the Watch battery's glyph: alone (SLOT_LIVE_BATTERY, the Icon look), or
 // before its charge as text (SLOT_LIVE_BATTERY_PCT with STATUS_ICON_DRAWN_BATTERY, the Icon +
@@ -248,7 +250,7 @@ static inline bool status_icon_is_condition(uint8_t icon) {
 // Whether a SLOT_TEXT slot's icon byte is the Plugin value slot's: its text-only id or one of
 // its icons, which run on from it.
 static inline bool status_icon_is_plugin_value(uint8_t icon) {
-    return icon >= STATUS_ICON_PLUGIN_TEXT && icon <= STATUS_ICON_PV_CALENDAR;
+    return icon >= STATUS_ICON_PLUGIN_TEXT && icon <= STATUS_ICON_PV_TIDE;
 }
 
 // The glyph an icon byte draws: the id without the city's bit.

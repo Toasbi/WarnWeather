@@ -534,7 +534,7 @@ static void alt_tests(void) {
     expect("alt.mid-len", v[1].value_len, (int)strlen(both));
     // The short form ends in a letter, never in a wind sentinel.
     expect("alt.no-dir", status_slot_direction(&v[1]), -1);
-    expect("alt.max-icon", STATUS_ICON_MAX, STATUS_ICON_PV_CALENDAR);
+    expect("alt.max-icon", STATUS_ICON_MAX, STATUS_ICON_PV_TIDE);
     n = put_slot(b, 0, SLOT_TEXT, (uint8_t)(STATUS_ICON_MAX + 1), "x");
     n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
     n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
@@ -614,9 +614,10 @@ static void plugin_icon_tests(void) {
     expect("pv.plug", STATUS_ICON_PV_PLUG, 42);
     expect("pv.phone", STATUS_ICON_PV_PHONE, 43);
     expect("pv.calendar", STATUS_ICON_PV_CALENDAR, 44);
+    expect("pv.tide", STATUS_ICON_PV_TIDE, 45);
     uint8_t b[64];
     StatusSlotView v[STATUS_SLOT_COUNT];
-    for (int id = STATUS_ICON_PV_SWITCH; id <= STATUS_ICON_PV_CALENDAR; id++) {
+    for (int id = STATUS_ICON_PV_SWITCH; id <= STATUS_ICON_PV_TIDE; id++) {
         char name[32];
         size_t n = put_slot(b, 0, SLOT_TEXT, (uint8_t)id, "Lamp");
         n = put_slot(b, n, SLOT_TEXT, (uint8_t)id, "Off");

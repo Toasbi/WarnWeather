@@ -4,8 +4,9 @@
 
 // The FNV-1a hash of status_threshold_kind_for_slot over every byte pair (kind_tests). The
 // Plugin value's kind changed only its own ids' pairs: with them read as before (-1), the
-// map hashes to the pin before it, 1676948356.
-#define KIND_MAP_PIN 4211972008u
+// map hashes to the pin before it, 1676948356. Its Tide icon (id 45) changed only its own
+// pair: with it read as -1, the map hashes to the pin before this one, 4211972008.
+#define KIND_MAP_PIN 365000138u
 
 static void kind_tests(void) {
     expect("kind.aqi", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_AQI), THRESH_AQI);
@@ -104,14 +105,14 @@ static void kind_tests(void) {
     // row, and its id is what keeps it off TEXT + NONE, the city's. Bluetooth, Phone and
     // Calendar draw the Bluetooth, phone battery and countdown drawings without those slots'
     // bold kinds.
-    for (int id = STATUS_ICON_PLUGIN_TEXT; id <= STATUS_ICON_PV_CALENDAR; id++) {
+    for (int id = STATUS_ICON_PLUGIN_TEXT; id <= STATUS_ICON_PV_TIDE; id++) {
         expect("kind.plugin_value", status_threshold_kind_for_slot(SLOT_TEXT, (uint8_t)id),
                THRESH_PLUGIN_VALUE);
     }
     // The range ends at the last icon: the id after it is no slot's, and only a text slot
     // carries the value.
     expect("kind.plugin_value_range_ends",
-           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PV_CALENDAR + 1), -1);
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PV_TIDE + 1), -1);
     expect("kind.plugin_value_needs_text",
            status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_PV_WIFI), -1);
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
