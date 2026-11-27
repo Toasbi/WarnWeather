@@ -78,6 +78,27 @@ function onOff(shapes) {
 }
 
 /**
+ * @param {*} shapes A property's declared shapes.
+ * @returns {boolean} Whether it is declared, in no shape the slot prints: a series or a picture.
+ */
+function unprintable(shapes) {
+    return Array.isArray(shapes) && !printable(shapes);
+}
+
+/**
+ * @param {Array<Object>} sources The sources of the plugins that serve a complication's source
+ *   (plugin-reads.js servingSources).
+ * @param {string} property The complication's property.
+ * @param {function(*): boolean} test Of the property's declared shapes.
+ * @returns {boolean} Whether some plugin serves the source, and each declares the property so.
+ */
+function everyDeclares(sources, property, test) {
+    return sources.length > 0 && sources.every(function (src) {
+        return Boolean(src.properties) && test(src.properties[property]);
+    });
+}
+
+/**
  * @param {*} plugin A plugin as Pebble.enumeratePlugins() lists it, whose uuid is a value id's part.
  * @returns {string} Its name as the dialog lists it.
  */
@@ -89,7 +110,9 @@ function nameOf(plugin) {
  * The user's complications as the dialog lists them, under the Preferences plugin: each one's
  * place, what it shows (its property and its source's category, for its label), whether it is
  * on or off (onOff: as every plugin that serves its source declares its property), and, where
- * this app may not read it, why (complications.js whyNot: the permission it needs, or '').
+ * this app may not read it, why (complications.js whyNot: the permission it needs, or ''), or
+ * where the slot cannot print it, pluginValues.UNPRINTABLE: every plugin that serves its source
+ * declares its property, none in a shape the slot prints.
  * Not the source's item, nor which of its instances: the label needs neither. Each name capped
  * as a plugin's is.
  * @param {?Array<Object>} known The user's complications (complication-list.js current), or
@@ -104,11 +127,8 @@ function complicationsFor(known, plugins, permissions) {
         var why = complications.whyNot(c, plugins, permissions);
         var sources = pluginReads.servingSources(plugins, c.category, c.item);
         var entry = { position: c.position, property: capped(c.property), category: capped(c.category) };
-        if (sources.length && sources.every(function (src) {
-            return Boolean(src.properties) && onOff(src.properties[c.property]);
-        })) {
-            entry.onOff = true;
-        }
+        if (everyDeclares(sources, c.property, onOff)) { entry.onOff = true; }
+        if (why === null && everyDeclares(sources, c.property, unprintable)) { why = pluginValues.UNPRINTABLE; }
         if (why !== null) { entry.why = capped(why); }
         return entry;
     });

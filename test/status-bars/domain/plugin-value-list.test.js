@@ -8,7 +8,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const list = require('../../../src/pkjs/status-bars/domain/plugin-value-list.js');
 const reads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
-const { PREFERENCES } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
+const { PREFERENCES, UNPRINTABLE } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { PERMS, COMPLICATIONS_SOURCE, preferencesPlugin } = require('../../helpers/plugin-host.js');
 
 /**
@@ -113,6 +113,27 @@ test('the Preferences plugin offers the user\'s complications, and nothing else 
     'a Pebble app without complications');
   assert.equal(list.listOf([plugin(PREFERENCES.toUpperCase(), 'Preferences', [COMPLICATIONS_SOURCE])], PERMS, 'own',
     KNOWN)[0].complications.length, 1, 'its uuid in either case');
+});
+
+test('a complication the slot cannot print is greyed out as such: a series or a picture', () => {
+  const weather = plugin('w', 'Weather', [{ category: 'weather', items: ['location'], properties: {
+    temperature: ['shortText'], hourly_temperature: ['series.numericValue', 'series.shortText'] } }]);
+  const music = plugin('m', 'Music', [{ category: 'music', items: ['track'], properties: { artwork: ['image'] },
+    callerPermissions: ['ReadMusic'] }]);
+  const known = [
+    { position: 0, category: 'weather', item: 'location', index: 0, property: 'hourly_temperature' },
+    { position: 1, category: 'music', item: 'track', index: 0, property: 'artwork' },
+    { position: 2, category: 'weather', item: 'location', index: 0, property: 'temperature' },
+    { position: 3, category: 'weather', item: 'location', index: 0, property: 'humidity' }];
+  const whys = (plugins, permissions) => list.listOf([preferencesPlugin()].concat(plugins), permissions, 'own', known)[0]
+    .complications.map((c) => c.why);
+  assert.deepEqual(whys([weather, music], PERMS.concat('ReadMusic')), [UNPRINTABLE, UNPRINTABLE, undefined, undefined],
+    'a series, a picture, a text; one no plugin declares, which the one the user prefers may serve all the same');
+  assert.equal(whys([weather, music], PERMS)[1], 'ReadMusic', 'the permission it needs comes first');
+  const other = plugin('o', 'Other weather', [{ category: 'weather', items: ['location'],
+    properties: { hourly_temperature: ['numericValue'] } }]);
+  assert.equal(whys([weather, other], PERMS)[0], undefined,
+    'another plugin serves it as a number: the user may prefer that one');
 });
 
 test('each complication by its place, what it shows, and why this app may not read it, where it may not', () => {

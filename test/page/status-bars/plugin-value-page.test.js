@@ -18,6 +18,7 @@ const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const { sample, barSlots } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
 const PixelIcon = require('../../../src/pkjs/page/weather/pixel-icon.js');
 const pluginReads = require('../../../src/pkjs/status-bars/domain/plugin-reads.js');
+const { UNPRINTABLE } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { pluginValuePick } = require('../../helpers/status-slots.js');
 const { PREFERENCES, PICK_DEFAULTS } = require('../../../src/pkjs/status-bars/domain/plugin-values.js');
 const { reading } = require('../../helpers/plugin-host.js');
@@ -371,6 +372,10 @@ test('its values are the complications by their places, each by what it shows, n
   global.INJECTED_USERDATA.plugins = withPrefs([{ position: 0, property: 'level', category: 'tides', why: 'Internet' }]);
   assert.equal(valueOptions(PLACE(0))[0][2].desc, 'Needs internet access WarnWeather doesn\'t have',
     'WarnWeather asks for Internet, for its own sites only');
+  global.INJECTED_USERDATA.plugins = withPrefs([{ position: 0, property: 'hourly_temperature', category: 'weather',
+    why: UNPRINTABLE }]);
+  assert.equal(valueOptions(PLACE(0))[0][2].desc, 'WarnWeather can\'t show this kind of value',
+    'a series of hours: the slot prints one reading');
   [[], null, undefined, 'x'].forEach((list) => {
     global.INJECTED_USERDATA.plugins = withPrefs(list);
     assert.deepEqual(valueOptions(PLACE(0)), [['1 · Empty', 'preferences/complications/0']], String(list));

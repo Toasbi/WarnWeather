@@ -60,6 +60,13 @@
     var PICK_DEFAULTS = { plugin: '', id: '', look: LOOK_DEFAULT, icon: ICON_DEFAULT, label: '',
         every: EVERY_DEFAULT };
 
+    /**
+     * Why the Value row greys out a complication: no plugin serving it offers it in a form the
+     * slot prints (plugin-value-list.js complicationsFor), such as a series or a picture. Neither
+     * a permission's name nor plugin-reads.js ANOTHER_APPS, the other reasons.
+     */
+    var UNPRINTABLE = '#';
+
     /** A value shows for three Updates intervals after it was read, and at least this long. */
     var SHOWN_AT_LEAST_MS = 3 * HOUR_MS;
 
@@ -432,6 +439,7 @@
         ICON_DEFAULT: ICON_DEFAULT,
         PICK_DEFAULTS: PICK_DEFAULTS,
         PREFERENCES: PREFERENCES,
+        UNPRINTABLE: UNPRINTABLE,
         valueId: valueId,
         complicationId: complicationId,
         pickOf: pickOf,

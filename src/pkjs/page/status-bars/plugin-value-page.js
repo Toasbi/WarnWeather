@@ -20,9 +20,10 @@
 // The Pebble app's Preferences plugin offers the user's complications in the Pebble app in
 // place of values of its own (its entry's complications, plugin-value-list.js complicationsFor).
 // The Plugin row lists it as Complications, right after None, and the Value row lists each by
-// its place and what it shows ('1 · Temperature (weather)'). One that WarnWeather may not read
-// stays in the list, greyed out with the reason (whyText), so the places keep the numbers the
-// Pebble app gives them, and is never picked for the user (pluginPicked, valueOptions).
+// its place and what it shows ('1 · Temperature (weather)'). One that WarnWeather may not read,
+// or cannot show (a series or a picture), stays in the list, greyed out with the reason
+// (whyText), so the places keep the numbers the Pebble app gives them, and is never picked for
+// the user (pluginPicked, valueOptions).
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
 // page (scripts/build-config-page.js APP_FILES, after plugin-values.js and pixel-icon.js, which it
@@ -144,12 +145,14 @@
      * @param {string} why Why WarnWeather may not read a complication, as the phone lists it
      *   (plugin-value-list.js complicationsFor): the permission it needs, which WarnWeather
      *   never asks for (Internet: for a site, or for all, it has no access to); ANOTHER_APPS
-     *   for one another app's plugin defines; '' where nothing on the phone lets it read it.
+     *   for one another app's plugin defines; pluginValues.UNPRINTABLE for one the slot cannot
+     *   print, such as a series or a picture; '' where nothing on the phone lets it read it.
      * @returns {string} The reason the Value row greys it out with.
      */
     function whyText(why) {
         if (why === ANOTHER_APPS) { return 'Needs a permission of another app'; }
         if (why === 'Internet') { return 'Needs internet access WarnWeather doesn\'t have'; }
+        if (why === pluginValues.UNPRINTABLE) { return 'WarnWeather can\'t show this kind of value'; }
         return why ? 'Needs the ' + labelOf(why) + ' permission, which WarnWeather never asks for'
             : 'WarnWeather cannot read it here';
     }
