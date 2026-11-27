@@ -26,13 +26,14 @@
 //   - One read at a time. An answer that comes after what is wanted changed is dropped, and
 //     what changed it, which that read held up, reads then: as from a save where a save did.
 //   - A clock that went back starts the wait again from now (plugin-reads.js clockWentBack).
-//   - A reader may make its reads itself (the spec's readOnce): the Plugin value slots make the
-//     reads of one plugin's item that come at once one read (plugin-value-source.js), and have
-//     each of its other values read with it (join), whatever its own wait or the Night battery
-//     saver's window: the plugin's script runs for the one read either way.
+//   - A reader may make its reads itself (the spec's readOnce), and have a read join another
+//     read of the same plugin (join): it goes ahead whatever its wait, as the plugin's script
+//     runs for the other read either way (plugin-value-source.js reads the values of one plugin's
+//     item so).
 //   - Inside the Night battery saver's window only a read that a settings save asks for, with
 //     none before it or after the first that failed, goes ahead, and the read again a read the
-//     user waits for earned: the user is at the phone, waiting to see the value. Any other waits
+//     user waits for earned: the user is at the phone, waiting to see the value. So does a read
+//     that joins another, which runs the plugin's script anyway. Any other waits
 //     for the first tick after the window. The window keeps the watch's link quiet, and a read
 //     is not quiet: a permission the plugin's app asked for comes back to the watch with it.
 //   - A plugin that is not there is an answer of nothing, and the value kept is dropped; a key
@@ -292,13 +293,16 @@ function create(spec) {
 
     /**
      * Read when a read is due, and only while the value is wanted. The one step behind a start,
-     * a tick and a settings save.
+     * a tick, a settings save and a join.
      * @param {boolean} fromSave Whether the settings were just saved. Only then does a read with
      *   none before it, or after the first one that failed, go ahead before it is due and inside
      *   the Night battery saver's window.
+     * @param {boolean} [joined] Whether the reader has this read join another read of the same
+     *   plugin (join): it goes ahead too, unless one is under way or the key has nothing to read
+     *   under it.
      * @returns {void}
      */
-    function consider(fromSave) {
+    function consider(fromSave, joined) {
         var settings;
         var want;
         var at;
@@ -337,27 +341,13 @@ function create(spec) {
         }
         // A save asks for a read when there is none before it, or after the first one that
         // failed (the header says why only then), and so does the read again a failed read
-        // earned (againAtTick; another key forgot it above). Neither the wait after a
-        // failure nor the Night battery saver's window holds it.
-        asked = againAtTick || (fromSave && (!record || record.failures === 1));
+        // earned (againAtTick; another key forgot it above), and a read that joins another.
+        // Neither the wait after a failure nor the Night battery saver's window holds it.
+        asked = againAtTick || (joined === true && Boolean(want.request))
+            || (fromSave && (!record || record.failures === 1));
         if (record && !asked && at < spec.nextReadAt(record)) { return; }
         if (!asked && batterySaver.isWithinSleepWindow(new Date(at), settings)) { return; }
         read(want, at, fromSave || againAtTick || renewed);
-    }
-
-    /**
-     * Read now, with another read of the same plugin (plugin-value-source.js): the plugin's
-     * script runs once for both, so neither the reader's wait nor the Night battery saver's
-     * window holds it. Only when the look just taken left it idle: a read under way, a schedule
-     * stopped, or a key with nothing to read under it reads nothing. The user waits for it as at
-     * a look: only as the first read of another key (renewed).
-     * @returns {void}
-     */
-    function join() {
-        var want;
-        if (stopped || inFlight || !available()) { return; }
-        want = spec.wanted(deps.getSettings(), deps.getWatchInfo(), deps);
-        if (want && want.request) { read(want, nowMs(), renewed); }
     }
 
     /**
@@ -422,7 +412,7 @@ function create(spec) {
         load: load,
         onTick: function () { consider(false); },
         refresh: function () { consider(true); },
-        join: join,
+        join: function () { consider(false, true); },
         stop: stop,
         value: lastValue
     };
