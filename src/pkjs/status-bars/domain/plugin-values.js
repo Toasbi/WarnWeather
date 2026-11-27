@@ -262,9 +262,11 @@
 
     /**
      * The properties, whole (wordsOf), that are no value to show: how sure a position is, a
-     * machine's words for what something is or can do, and a place's offset from UTC.
+     * machine's words for what something is or can do (a weather station's module: 'outdoor'),
+     * and a place's offset from UTC.
      */
-    var NOT_A_VALUE_NAMES = ['accuracy', 'accuracy meters', 'type', 'kind', 'capabilities', 'utc offset'];
+    var NOT_A_VALUE_NAMES = ['accuracy', 'accuracy meters', 'type', 'kind', 'module type', 'capabilities',
+        'utc offset'];
 
     /**
      * @param {string} name A property's name.

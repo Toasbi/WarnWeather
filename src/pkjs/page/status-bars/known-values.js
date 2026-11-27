@@ -7,9 +7,10 @@
 //
 // A value is supported where WarnWeather has checked what it prints, and it says something the
 // watchface shows nowhere else that changes slowly enough for the slot's Updates (every 15 minutes
-// at most). So not the weather WarnWeather draws itself (the temperature, the condition, the UV
-// index, the wind, the sun), nor a value that changes by the minute (the phone's battery, a
-// stock's price, the song playing), nor Muninn's days left, which the Watch battery slot shows.
+// at most). So not the weather WarnWeather draws itself (the forecast's temperature, condition, UV
+// index, wind and sun; a weather station's own readings are not that), nor a value that changes
+// by the minute (the phone's battery, the song playing), nor Muninn's days left, which the Watch
+// battery slot shows. A share price is the owner's call: it shows as of the slot's last read.
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
 // page (scripts/build-config-page.js APP_FILES, after plugin-values.js, which it binds while its
@@ -44,7 +45,17 @@
         'home/device/on': { name: 'Device on', look: 'icon', icon: 'switch' },
         'home/device/locked': { name: 'Device locked', look: 'icon', icon: 'switch' },
         'home/device/ambient_temperature': { name: 'Room temperature' },
-        'home/device/setpoint': { name: 'Thermostat setting' }
+        'home/device/setpoint': { name: 'Thermostat setting' },
+        'weather/netatmo/temperature': { name: 'Temperature' },
+        'weather/netatmo/humidity': { name: 'Humidity' },
+        'weather/netatmo/co2': { name: 'CO\u2082' },
+        'weather/netatmo/pressure': { name: 'Air pressure' },
+        'weather/netatmo/rain_1h': { name: 'Rain in the last hour' },
+        'weather/netatmo/rain_today': { name: 'Rain today' },
+        'weather/netatmo/high': { name: 'Today\'s high' },
+        'weather/netatmo/low': { name: 'Today\'s low' },
+        'finance/stock/price': { name: 'Share price' },
+        'finance/stock/day_change_percent': { name: 'Today\'s change in %' }
     };
 
     /**
@@ -52,7 +63,11 @@
      * property's own says too little.
      */
     var RAW_NAMES = {
-        'muninn/stats/daysRemaining': 'Days left'
+        'muninn/stats/daysRemaining': 'Days left',
+        'weather/netatmo/battery': 'Module battery',
+        'weather/netatmo/reachable': 'Module online',
+        'weather/netatmo/updated': 'Measured at',
+        'finance/stock/day_change': 'Today\'s change'
     };
 
 

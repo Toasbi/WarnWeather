@@ -249,7 +249,7 @@ test('the Value row lists the values WarnWeather supports under Supported, then 
   const weather = { uuid: 'w', name: 'Weather', items: [{ category: 'weather', item: 'location', multiple: true,
     properties: ['temperature', 'humidity', 'uv_index', 'high'] }] };
   const stocks = { uuid: 's', name: 'Stocks', items: [{ category: 'finance', item: 'stock', multiple: true,
-    properties: ['price'] }] };
+    properties: ['day_change'] }] };
   userData(t, { plugins: [weather, stocks] });
   assert.deepEqual(valueOptions(pickIn({ plugin: 'w', id: 'weather/location/high' })), [
     ['Supported', '__hdr_supported', { disabled: true, groupHeader: true }],
@@ -259,8 +259,8 @@ test('the Value row lists the values WarnWeather supports under Supported, then 
     ['Temperature', 'weather/location/temperature', { groupChild: true, groupEnd: false }],
     ['UV index', 'weather/location/uv_index', { groupChild: true, groupEnd: true }]],
   'each group in the plugin\'s order; the weather WarnWeather draws itself is raw');
-  assert.deepEqual(valueOptions(pickIn({ plugin: 's', id: 'finance/stock/price' })).map((o) => o[1]),
-    ['__hdr_raw', 'finance/stock/price'], 'a group with none is left out: a price changes by the minute');
+  assert.deepEqual(valueOptions(pickIn({ plugin: 's', id: 'finance/stock/day_change' })).map((o) => o[1]),
+    ['__hdr_raw', 'finance/stock/day_change'], 'a group with none is left out');
 });
 
 test('a value WarnWeather supports starts the slot on its Look and icon, where the slot holds the ones the '

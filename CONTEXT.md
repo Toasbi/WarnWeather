@@ -313,7 +313,8 @@ _Avoid_: custom slot; complication, which is one of the user's in the Pebble app
 A Plugin value WarnWeather has checked, by the shared vocabulary's category, item and property
 whichever plugin serves it (`page/status-bars/known-values.js` SUPPORTED): it says something
 the watchface shows nowhere else, and changes slowly enough for the slot's Updates, such as
-Wi-Fi, today's high or the next event. Each has WarnWeather's name for it, and the Look and the
+Wi-Fi, today's high, the next event or a weather station's own readings (Netatmo's), and a share
+price, the owner's call, which shows as of the slot's last read. Each has WarnWeather's name for it, and the Look and the
 icon a slot starts on for it (Wi-Fi: its icon alone), which a new value takes in place of the
 ones the value before started the slot on, never of the user's own. Every other value the
 dialog lists is a raw value, under Raw values: named after its property, starting on the text

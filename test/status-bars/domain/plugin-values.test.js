@@ -272,6 +272,7 @@ test('a property\'s words, as the Value row names it, and whether it is no value
   assert.equal(pv.notAValue('weather', 'current', 'condition_code', true), true, 'a code');
   assert.equal(pv.notAValue('phone', 'phone_state', 'stationId', true), true, 'an id, camelCase');
   assert.equal(pv.notAValue('weather', 'current', 'utc_offset', true), true);
+  assert.equal(pv.notAValue('weather', 'netatmo', 'module_type', true), true, 'a weather station module\'s kind: outdoor');
   assert.equal(pv.notAValue('notes', 'inbox', 'title', true), true, 'the Index\'s plumbing');
   assert.equal(pv.notAValue('weather', 'current', 'temperature', false), false);
   assert.equal(pv.notAValue('rooms', 'lights', 'name', false), true, 'the name of one instance labels it');
