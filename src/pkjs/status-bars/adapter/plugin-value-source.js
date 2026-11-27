@@ -241,7 +241,7 @@ function callEach(list, fn) {
 function keepInstances(request, envelope) {
     var entry;
     if (!request.plugin || request.limit <= 1) { return; }
-    entry = storedJson.entryOf(KEYS.PLUGIN_INSTANCES, pluginReader.itemOf(request));
+    entry = storedJson.entryOf(KEYS.PLUGIN_INSTANCES, pluginValues.itemKeyOf(request));
     entry.write(pluginValueList.instancesKept(pluginReader.instancesOf(envelope)), entry.read(),
         NAME + ': the instances');
 }

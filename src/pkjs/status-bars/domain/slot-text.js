@@ -200,11 +200,11 @@
         return hourText + ':' + pad2(m) + marker;
     }
 
-    /** The months as a moment's date names them, three letters each ('24 Nov'). */
-    var MONTHS = 'JanFebMarAprMayJunJulAugSepOctNovDec';
+    /** The months as a date names them, three letters each ('24 Nov'), January first. */
+    var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-    /** The weekdays as a day in the coming week is named, three letters each ('Sat'), Sunday first. */
-    var WEEKDAYS = 'SunMonTueWedThuFriSat';
+    /** The weekdays as a day is named, three letters each ('Sat'), Sunday first. */
+    var WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     /** The days ahead a weekday names a day: tomorrow up to six days on (weekdayAhead). */
     var WEEK_AHEAD = 6;
@@ -222,7 +222,7 @@
      * @returns {string} The date as a moment's date names it: '24 Nov'.
      */
     function dateText(day, month) {
-        return day + ' ' + MONTHS.substr(month * 3, 3);
+        return day + ' ' + MONTHS[month];
     }
 
     /**
@@ -247,7 +247,7 @@
         var now = new Date(nowMs);
         var day = new Date(year, month, date);
         var ahead = daysBetween(new Date(now.getFullYear(), now.getMonth(), now.getDate()), day);
-        return ahead > 0 && ahead <= WEEK_AHEAD ? WEEKDAYS.substr(day.getDay() * 3, 3) : null;
+        return ahead > 0 && ahead <= WEEK_AHEAD ? WEEKDAYS[day.getDay()] : null;
     }
 
     /**
@@ -482,6 +482,8 @@
         clockText: clockText,
         compassPoint: compassPoint,
         dateText: dateText,
+        MONTHS: MONTHS,
+        WEEKDAYS: WEEKDAYS,
         dayText: dayText,
         momentText: momentText,
         formatCountdown: formatCountdown,

@@ -136,9 +136,15 @@
     var INSTANCE_MARK = '#';
 
     /**
-     * Why the Value row greys out a complication: no plugin serving it offers it in a form the
-     * slot prints (plugin-value-list.js complicationsFor), such as a series or a picture. Neither
-     * a permission's name nor plugin-reads.js ANOTHER_APPS, the other reasons.
+     * Why the Value row greys out a complication (plugin-value-list.js complicationsFor), besides
+     * a permission's name: a permission another app's plugin defines (the Pebble app keys it
+     * '<uuid>:<Name>', plugin-reads.js undeclared), which this app can never declare.
+     */
+    var ANOTHER_APPS = ':';
+
+    /**
+     * And where no plugin serving it offers it in a form the slot prints, such as a series or a
+     * picture.
      */
     var UNPRINTABLE = '#';
 
@@ -298,9 +304,11 @@
     }
 
     /**
-     * @param {Object} source A source (sourceOf) of a plugin's own value.
-     * @returns {string} The plugin's item it is a value of, as the instances a read brings of it
-     *   are kept (plugin-reader.js itemOf): 'plugin/category/item', the plugin's uuid in lower case.
+     * @param {{plugin: string, category: string, item: string}} source A source (sourceOf) of a
+     *   plugin's own value, or a read of it that names its plugin.
+     * @returns {string} The plugin's item it is a value of, the one key the instances a read
+     *   brings of it are kept by (plugin-value-source.js keepInstances), pruned by and read by on
+     *   the page: 'plugin/category/item', the plugin's uuid in lower case.
      */
     function itemKeyOf(source) {
         return source.plugin.toLowerCase() + '/' + source.category + '/' + source.item;
@@ -722,6 +730,7 @@
         MAX_INSTANCE_ID: MAX_INSTANCE_ID,
         INSTANCE_NAME: INSTANCE_NAME,
         PREFERENCES: PREFERENCES,
+        ANOTHER_APPS: ANOTHER_APPS,
         UNPRINTABLE: UNPRINTABLE,
         valueId: valueId,
         complicationId: complicationId,

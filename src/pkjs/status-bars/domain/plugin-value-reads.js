@@ -25,6 +25,7 @@
 // ES5 only (aplite's JavaScriptCore): var + function.
 
 var utf8 = require('../../lib/utf8.js');
+var batteryDays = require('./battery-days.js');
 var pluginReads = require('./plugin-reads.js');
 var pluginValues = require('./plugin-values.js');
 var slotText = require('./slot-text.js');
@@ -103,11 +104,12 @@ function namesMoment(name) {
 }
 
 /**
- * Muninn's stats (its plugin, muninn/stats), which send -1 while Muninn has no estimate: before
- * a week of data, or for an estimate of 0. A negative number of them is no reading, as the
- * Watch battery slot takes Muninn's days left (battery-days.js estimateOf).
+ * Muninn's stats (its plugin's stats item, battery-days.js MUNINN_CATEGORY), which send -1 while
+ * Muninn has no estimate: before a week of data, or for an estimate of 0. A negative number of
+ * them is no reading, as the Watch battery slot takes Muninn's days left (battery-days.js
+ * estimateOf).
  */
-var MUNINN_STATS = 'muninn/stats/';
+var MUNINN_STATS = batteryDays.MUNINN_CATEGORY + '/stats/';
 
 /** Muninn's drain rate, which it sends in '%' though it is the charge used in a day. */
 var MUNINN_RATE = MUNINN_STATS + 'lastWeekRate';

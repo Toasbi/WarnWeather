@@ -30,8 +30,9 @@
         return v < 10 ? '0' + v : String(v);
     }
 
-    var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    // The day and month names, as the status bars' slots print them (slot-text.js).
+    var DAYS = slotText.WEEKDAYS;
+    var MONTHS = slotText.MONTHS;
 
     /**
      * How long ago an instant was, in the words a person would use: the
@@ -54,8 +55,7 @@
         if (sec < 3600) { return Math.floor(sec / 60) + ' min ago'; }
         if (sec < 86400) { return Math.floor(sec / 3600) + ' h ago'; }
         var d = new Date(atMs);
-        return d.getDate() + ' ' + MONTHS[d.getMonth()]
-            + ' ' + two(d.getHours()) + ':' + two(d.getMinutes());
+        return slotText.dateText(d.getDate(), d.getMonth()) + ' ' + two(d.getHours()) + ':' + two(d.getMinutes());
     }
 
     /**

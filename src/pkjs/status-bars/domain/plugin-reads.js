@@ -19,6 +19,8 @@
 //
 // ES5 only (aplite's JavaScriptCore): var + function.
 
+var pluginValues = require('./plugin-values.js');
+
 var HOUR_MS = 60 * 60 * 1000;
 
 /** How long the first read after a failed one waits. Each further failure doubles it. */
@@ -72,9 +74,9 @@ var HOSTNAME = /^[a-z0-9-]+(\.[a-z0-9-]+)*$/;
 
 /**
  * How undeclared names a permission another app's plugin defines (the Pebble app keys it
- * '<uuid>:<Name>'): one this app can never declare.
+ * '<uuid>:<Name>'): one this app can never declare. The settings page reads it there too.
  */
-var ANOTHER_APPS = ':';
+var ANOTHER_APPS = pluginValues.ANOTHER_APPS;
 
 /**
  * A permission's keys, as the Pebble app makes them of a declaration (PermissionRegistry.kt

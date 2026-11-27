@@ -68,9 +68,6 @@
     // And while it holds one that is no value to show, which the phone never reads
     // (plugin-values.js notAValue): an id, a link, a code.
     var NO_VALUE = 'WarnWeather can\'t show this kind of value, so the slot shows ' + NONE_SHOWN + '.';
-    // Why a complication is greyed out, for a permission another app's plugin defines
-    // (plugin-reads.js ANOTHER_APPS), which WarnWeather can never declare.
-    var ANOTHER_APPS = ':';
     // The Updates row's choices (plugin-values.js EVERY_CHOICES, in minutes).
     var EVERY_LABELS = {'15': 'Every 15 minutes', '30': 'Every 30 minutes', '60': 'Every hour', '180': 'Every 3 hours',
         '360': 'Every 6 hours'};
@@ -189,13 +186,14 @@
     /**
      * @param {string} why Why WarnWeather may not read a complication, as the phone lists it
      *   (plugin-value-list.js complicationsFor): the permission it needs, which WarnWeather
-     *   never asks for (Internet: for a site, or for all, it has no access to); ANOTHER_APPS
-     *   for one another app's plugin defines; pluginValues.UNPRINTABLE for one the slot cannot
-     *   print, such as a series or a picture; '' where nothing on the phone lets it read it.
+     *   never asks for (Internet: for a site, or for all, it has no access to);
+     *   pluginValues.ANOTHER_APPS for one another app's plugin defines; pluginValues.UNPRINTABLE
+     *   for one the slot cannot print, such as a series or a picture; '' where nothing on the
+     *   phone lets it read it.
      * @returns {string} The reason the Value row greys it out with.
      */
     function whyText(why) {
-        if (why === ANOTHER_APPS) { return 'Needs a permission of another app'; }
+        if (why === pluginValues.ANOTHER_APPS) { return 'Needs a permission of another app'; }
         if (why === 'Internet') { return 'Needs internet access WarnWeather doesn\'t have'; }
         if (why === pluginValues.UNPRINTABLE) { return 'WarnWeather can\'t show this kind of value'; }
         return why ? 'Needs the ' + labelOf(why) + ' permission, which WarnWeather never asks for'

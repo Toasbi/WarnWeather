@@ -438,7 +438,17 @@ function numberOf(envelope, property) {
  * @returns {?PluginReading} The reading, or null where the plugin did not send the property.
  */
 function readingOf(envelope, property, index, instanceId) {
-    var shapes = shapesOf(envelope, property, index, instanceId);
+    return readingIn(instanceIn(envelope, index, instanceId), property);
+}
+
+/**
+ * @param {*} instance One of an update's instances, or undefined.
+ * @param {string} property The property's name.
+ * @returns {?PluginReading} Its reading of the property (readingOf), or null where it does not
+ *   bring the property.
+ */
+function readingIn(instance, property) {
+    var shapes = shapesIn(instance, property);
     var reading = {};
     if (!shapes) { return null; }
     pluginValueReads.FIELDS.forEach(function (f) {
@@ -458,9 +468,8 @@ function readingOf(envelope, property, index, instanceId) {
  */
 function instancesOf(envelope) {
     return instancesIn(envelope).map(function (one) {
-        var shapes = shapesIn(one, pluginValues.INSTANCE_NAME);
-        var name = shapes && shapes.shortText ? shapes.shortText.text : null;
-        return { id: one ? one.instanceId : undefined, name: pluginValues.oneLine(name) };
+        var name = readingIn(one, pluginValues.INSTANCE_NAME);
+        return { id: one ? one.instanceId : undefined, name: pluginValues.oneLine(name ? name.short : null) };
     });
 }
 
