@@ -238,6 +238,7 @@ test('the label: in place of a value that is on or off, beside an icon that turn
   assert.equal(text({ label: ' \t ' }, reading({ state: false })), 'off', 'a label of blanks is none');
   assert.equal(text({ label: 'Wohnzimmerlampe' }, ON, 8), 'Wohnzimm', 'cut to the slot, as any text');
   assert.equal(text({ label: 'K\u00fcche\u00fc' }, ON, 6), 'K\u00fcche', 'at a character\'s edge');
+  assert.equal(text({ label: 'Kitchen lamp' }, ON, 8), 'Kitchen', 'no blank left where it is cut');
   assert.equal(pv.labelText(Object.assign({}, lamp, { label: ' Garden\n lamp ' })), 'Garden lamp', 'on one line');
   [null, {}, { look: 'both', icon: 'switch', label: 7 }].forEach((pick) => assert.equal(pv.labelText(pick), '', JSON.stringify(pick)));
   assert.deepEqual([pv.showsLabel(lamp), pv.showsLabel({ look: 'both', icon: 'wifi' }), pv.showsLabel({ look: 'both' }),

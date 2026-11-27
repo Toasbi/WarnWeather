@@ -355,7 +355,8 @@
      */
     function slotTextOf(pick, reading, cap, settings, nowMs) {
         var label = reading && typeof reading.state === 'boolean' ? labelText(pick) : '';
-        if (label) { return utf8.truncateToByteCap(label, cap).str; }
+        // Cut after a word: no blank left at the end.
+        if (label) { return oneLine(utf8.truncateToByteCap(label, cap).str); }
         return printsText(pick) || !reading ? textFor(reading, cap, settings, nowMs) : '';
     }
 
