@@ -372,10 +372,10 @@ function conditionNow(payload, nowSec) {
 
 /**
  * @param {number} slotIndex 0..2
- * @returns {number} the slot's text byte cap
+ * @returns {number} the slot's text byte cap (status-line-catalog.js textCapAt)
  */
 function textCap(slotIndex) {
-  return slotIndex === 1 ? catalog.CAPS.MID_TEXT_MAX : catalog.CAPS.EDGE_TEXT_MAX;
+  return catalog.textCapAt(slotIndex);
 }
 
 /**

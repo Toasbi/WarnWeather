@@ -103,13 +103,13 @@ function slotDialog(sheetOf, slotKey) {
     }, {
         // The user's word for a value that is on or off, which the slot prints beside an icon
         // that turns in place of the value's text (plugin-values.js labelText): the row shows
-        // only there (plugin-value-page.js labelShown).
+        // only there (plugin-value-page.js labelShown), and takes no more than the slot prints.
         type: 'text',
         messageKey: keys.label,
         label: 'Label',
         defaultValue: DEFAULTS.label,
         sticky: false,
-        attributes: {maxlength: catalog.CAPS.MID_TEXT_MAX},
+        attributes: {maxlength: catalog.textCapOf(slotKey)},
         hintFrom: {resolver: 'pluginValueLabelHint'},
         showWhen: {when: 'pluginValueLabelShown', args: slot}
     }, {

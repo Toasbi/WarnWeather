@@ -9815,7 +9815,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -10301,7 +10301,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -10544,7 +10544,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -11030,7 +11030,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -11273,7 +11273,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -11759,7 +11759,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -12002,7 +12002,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -12488,7 +12488,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -12731,7 +12731,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -13217,7 +13217,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -13460,7 +13460,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -13946,7 +13946,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -14189,7 +14189,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"
@@ -14675,7 +14675,7 @@
                 "defaultValue": "",
                 "sticky": false,
                 "attributes": {
-                  "maxlength": 19
+                  "maxlength": 8
                 },
                 "hintFrom": {
                   "resolver": "pluginValueLabelHint"

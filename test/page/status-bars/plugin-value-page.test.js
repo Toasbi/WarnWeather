@@ -849,7 +849,10 @@ test('the Label row shows where the slot prints it: Icon + text with an icon tha
   const S = slotSettings(pickIn(WIFI_BOTH));
   assert.ok(dialogHtml(S).indexOf('>Label<') !== -1, 'in the dialog');
   assert.equal(dialogHtml(slotSettings(pickIn(Object.assign({}, WIFI_BOTH, { look: 'text' })))).indexOf('>Label<'), -1);
-  assert.equal(rowOf(KEYS.label).attributes.maxlength, catalog.CAPS.MID_TEXT_MAX, 'no longer than the widest slot prints');
+  assert.deepEqual([rowOf(KEYS.label).attributes.maxlength,
+    rowOf(catalog.pluginValueKeys('statusTopMid').label).attributes.maxlength,
+    rowOf(catalog.pluginValueKeys('statusBar6Right').label).attributes.maxlength],
+  [catalog.CAPS.EDGE_TEXT_MAX, catalog.CAPS.MID_TEXT_MAX, catalog.CAPS.EDGE_TEXT_MAX], 'no longer than its slot prints');
 });
 
 test('another value or plugin takes no label typed for the one before; another Look keeps it', (t) => {

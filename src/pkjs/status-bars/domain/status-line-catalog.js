@@ -500,6 +500,24 @@
   }
 
   /**
+   * @param {number} slotIndex A slot's place in its bar: 0 left, 1 middle, 2 right.
+   * @returns {number} The most bytes of text a slot there prints (CAPS): the middle's the most.
+   */
+  function textCapAt(slotIndex) {
+    return slotIndex === 1 ? CAPS.MID_TEXT_MAX : CAPS.EDGE_TEXT_MAX;
+  }
+
+  /**
+   * @param {string} slotKey A slot's settings key.
+   * @returns {number} The most bytes of text it prints (textCapAt): what a text row for the slot
+   *   alone takes at most (plugin-value-schema.js, the Label).
+   */
+  function textCapOf(slotKey) {
+    var line = lineOf(slotKey);
+    return textCapAt(line ? line.slots.indexOf(slotKey) : 0);
+  }
+
+  /**
    * Whether another slot of slotKey's own line already shows `code`. Non-slot
    * keys belong to no line and always answer false. THE row-sibling scan: the
    * wizard's policy guard, the availability resets and the pick-dedupe hook
@@ -797,7 +815,7 @@
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
     fourBarSlotKeys: fourBarSlotKeys, everySlotKey: everySlotKey, slotDefault: slotDefault,
-    lineOf: lineOf, siblingHolds: siblingHolds, healthSlots: healthSlots,
+    lineOf: lineOf, textCapAt: textCapAt, textCapOf: textCapOf, siblingHolds: siblingHolds, healthSlots: healthSlots,
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
