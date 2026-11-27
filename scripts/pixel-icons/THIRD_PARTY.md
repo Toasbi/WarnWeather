@@ -2,8 +2,8 @@
 
 Some drawings in `resources/pixel-icons.json` started from two open-source icon libraries: their
 `source` says `lucide` or `tabler`. They are adapted from that library's icons and carry its
-licence below. The tide icon's drawings (`TIDE`, whose `source` says `drawn`) started from another
-app's icon: see the last section.
+licence below. The tide icon's drawings (`TIDE`) were redrawn from another app's icon: see the
+last section.
 
 ## Lucide (lucide-static 1.72.0), https://lucide.dev
 
@@ -81,6 +81,7 @@ SOFTWARE.
 
 ## Tide (Limmat Studios)
 
-The Plugin value's tide icon (`TIDE`), every drawing of it:
-Tide's app icon (Limmat Studios), licence unknown, redrawn at the owner's request.
-Neither that icon nor a copy of it is in this repository.
+The Plugin value's tide icon (`TIDE`), every drawing of it, and the settings page's outline of it
+(`tide` in `src/pkjs/page/status-bars/status-slot-icons.js`), drawn after those drawings: redrawn
+from Tide's app icon (Limmat Studios) at the owner's request. No licence or permission for that
+icon is on record. The icon's own files are not in this repository.
