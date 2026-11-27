@@ -176,7 +176,8 @@ const settingsSchema = z
     // Whether a bar the watch is sent shows a Plugin value slot with a source picked, how many
     // slots do, the Looks they take ('both', 'text', 'icon') and the icons they draw in the Looks
     // with one ('switch', 'wifi', ...), each once, comma separated: the app's own choices, and
-    // whether one prints a label of the user's (never the label: it is free text).
+    // whether one keeps a label of the user's for its Look, printed while the value is on or off
+    // (never the label: it is free text).
     // Never which plugin or what it serves: those are another app's. Absent on aplite.
     // z.string() per threshPhoneBatteryBoldMode's rule above, so a Look or an icon added later
     // passes. 21 slots: seven bars of three.

@@ -439,11 +439,12 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         batterySlotLook: isAplite ? undefined : slotText.batteryLook(safe),
         batterySlotDisplay: isAplite ? undefined : batteryDays.display(safe),
         // The Plugin value slots: whether a bar the watch is sent shows one with a source picked
-        // (pluginSlots), how many do, their Looks, the icons they draw and whether one prints a
-        // label of the user's (plugin-values.js labelText). The settings alone, as with the
-        // days left: counted too on a Pebble app that cannot read plugins, which draws no such
-        // slot. Never a plugin or what it serves: those are another app's and never leave the
-        // phone. Never a label either: it is free text. Absent on aplite, which has no such slot.
+        // (pluginSlots), how many do, their Looks, the icons they draw and whether one keeps a
+        // label of the user's for its Look (plugin-values.js labelText), which it prints while
+        // the value is on or off. The settings alone, as with the days left, whatever value was
+        // read: counted too on a Pebble app that cannot read plugins, which draws no such slot.
+        // Never a plugin or what it serves: those are another app's and never leave the phone.
+        // Never a label either: it is free text. Absent on aplite, which has no such slot.
         // Lockstep with handler.ts -- deploy it first.
         pluginValue: pluginSlots ? pluginSlots.length > 0 : undefined,
         pluginValueSlots: pluginSlots ? pluginSlots.length : undefined,
