@@ -32,9 +32,9 @@
 // at a start and at a save, what storage keeps of a source no slot picks goes, so a value picked
 // again is read at once (keepPicked). A bake shows a value only in a slot whose source it was
 // read from, and drops it once it is too old for that slot (plugin-values.js shownReading); when
-// what the slots show changes, with a read or with the time (that, or a moment's day at a
-// midnight after it, or an icon turning: shownSlots), the watch is owed the status that shows
-// it. The settings page gets each value only while a slot shows its source, and for a
+// what the slots show changes, with a read or with the time (that, a midnight, which can change
+// how a moment's day prints, its weekday in the coming week or its date beyond, or an icon
+// turning: shownSlots), the watch is owed the status that shows it. The settings page gets each value only while a slot shows its source, and for a
 // complication only while its place names the reading it was read from (forPage).
 //
 // ES5 only (aplite's JavaScriptCore): var + function, and never *construct* a Promise.

@@ -292,8 +292,11 @@ their off form while it is off, too old or not read; Plug, Phone and Calendar st
 (`plugin-values.js` iconId). Beside one that turns, in Icon + text, the slot prints the user's
 label in place of a value that is on or off ("Lamp" where on or off was: its dialog's Label row,
 `labelText`); telemetry records only whether a slot prints one. With no value to show, every
-Look prints -- (`slotTextOf`). The text is the reading's short
-text, else its moment as a clock time in the user's 12/24 h setting, as the sun slot prints
+Look prints -- (`slotTextOf`). The text is the reading's short text, but beside a moment: a
+short text that is only the moment's clock time here prints as the moment does (below), and
+words beside a moment of another day print that day ("Sat", "30 Nov"), as they would say the
+same of every day ("All day"; `shortBesideMoment`). Without a short text, it is the
+moment as a clock time in the user's 12/24 h setting, as the sun slot prints
 sunrise, on another day than the one the slot is baked for after its weekday in the coming six
 days ("Sat 9:15") and else with its date after it ("23:10 4 Dec"; the day alone where the slot
 has no room for both, `slot-text.js` momentText), else its number with its unit where the slot
@@ -311,8 +314,9 @@ the watchface shows nowhere else, and changes slowly enough for the slot's Updat
 Wi-Fi, today's high or the next event. Each has WarnWeather's name for it, and the Look and the
 icon a slot starts on for it (Wi-Fi: its icon alone), which a new value takes in place of the
 ones the value before started the slot on, never of the user's own. Every other value the
-dialog lists is a raw value: named after its property, printed as the plugin sends it, under
-Raw values.
+dialog lists is a raw value, under Raw values: named after its property, starting on the text
+alone, and printed by the slot's own rules (Plugin value: a number that does not fit rounded, a
+text cut with an ellipsis, a bearing as its compass point, Muninn's -1 as --).
 _Avoid_: official value, built-in value.
 
 **Complication**:
@@ -323,9 +327,10 @@ which of its instances, read from whichever plugin the Pebble app picks for that
 (`complications.js`). The Plugin value can show one by its place. Its dialog lists the
 Preferences plugin as Complications, right after None, with the complications in place of values
 of its own, each by its place and what it shows ("1 · Temperature (weather)"), and one this app
-may not read greyed out with why
+may not read or show greyed out with why
 (`plugin-value-list.js` complicationsFor): its source would ask for a permission this app never
-declared, or reading it does something. None of the Preferences plugin's own readings, which
+declared, reading it does something, or the slot cannot show it (a series, a picture, or what
+is no value to show: `plugin-values.js` notAValue). None of the Preferences plugin's own readings, which
 this app never reads (`plugin-reads.js` neverRead): its units are plumbing, and its weather
 locations' coordinates are the user's position; a pick of one from before the complications
 shows --. The phone watches the list where the slot is offered, a built-in source that sends
