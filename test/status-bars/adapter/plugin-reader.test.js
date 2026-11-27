@@ -453,15 +453,16 @@ const STATION = { pluginUuid: 'n', instances: [
     pressure: { shortText: { text: '1013hPa' }, numericValue: { value: 1013.4, unit: 'hPa' } } } },
   { instanceId: 'rain', properties: { rain_today: { shortText: { text: '3.1mm' } } } }] };
 
-test('numberOf reads the numericValue of the first instance that brings it', () => {
+test('numberOf reads the numericValue of the first instance', () => {
   assert.equal(pluginReader.numberOf(envelope(84), 'battery_level'), 84);
   assert.equal(pluginReader.numberOf(envelope(0), 'battery_level'), 0, 'zero is a number');
   assert.equal(pluginReader.numberOf(envelope(-3.5), 'battery_level'), -3.5);
   const two = envelope(10);
   two.instances.push({ instanceId: 'other',
     properties: { battery_level: { numericValue: { value: 99 } } } });
-  assert.equal(pluginReader.numberOf(two, 'battery_level'), 10, 'the first instance that brings it');
-  assert.equal(pluginReader.numberOf(STATION, 'pressure'), 1013.4, 'past one that does not');
+  assert.equal(pluginReader.numberOf(two, 'battery_level'), 10, 'the first instance');
+  assert.equal(pluginReader.numberOf(STATION, 'pressure'), null,
+    'only the first, so the numbers read from one answer come from one entry');
 });
 
 test('numberOf is null for anything that is not a number', () => {

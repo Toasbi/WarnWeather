@@ -395,15 +395,15 @@ function finite(value) {
 }
 
 /**
- * A property's number: its numericValue in the envelope's first instance that brings it
- * (instanceFor).
+ * A property's number: its numericValue in the envelope's first instance, so the numbers a
+ * reader takes from one answer come from one entry (Muninn's days left and when it made them).
  *
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
  * @returns {?number} The number, or null where the plugin did not send one.
  */
 function numberOf(envelope, property) {
-    var shapes = shapesIn(instanceFor(envelope, property), property);
+    var shapes = shapesIn(instanceFor(envelope, property, 0), property);
     return finite(shapes && shapes.numericValue ? shapes.numericValue.value : null);
 }
 
