@@ -29,11 +29,12 @@ var storedJson = require('./stored-json.js');
 var pluginReader = require('./plugin-reader.js');
 
 /**
- * What is read of Muninn: its source of the estimate and the properties read from it. A
- * reader of one thing, so its key is null.
+ * What is read of Muninn: its source of the estimate and the properties read from it, in its
+ * first entry, where heard reads both numbers (plugin-reader.js numberOf), so an answer counts
+ * only where that entry brings them. A reader of one thing, so its key is null.
  */
-var MUNINN = { key: null,
-    request: { category: batteryDays.MUNINN_CATEGORY, item: 'stats', properties: ['daysRemaining', 'updatedAt'] } };
+var MUNINN = { key: null, request: { category: batteryDays.MUNINN_CATEGORY, item: 'stats',
+    properties: ['daysRemaining', 'updatedAt'], instance: 0 } };
 
 var schedule = pluginReadSchedule.create({
     name: 'battery-estimate',

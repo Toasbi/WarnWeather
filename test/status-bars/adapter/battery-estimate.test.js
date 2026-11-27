@@ -150,6 +150,17 @@ test('an estimate is kept, ends the subscription, and reaches the watch with the
   assert.equal(h.sends.length, 1, 'once');
 });
 
+test('the days and when Muninn made them come from its first entry: an answer with them in another alone waits for a fuller one', () => {
+  const h = boot();
+  const full = stats(5, h.clock - HOUR);
+  h.pebble.subs[0].push({ pluginUuid: full.pluginUuid, instances: [{ instanceId: 'old', properties: {} }]
+    .concat(full.instances) });
+  assert.equal(h.pebble.subs[0].unsubscribed, 0, 'not the answer asked for: held for a fuller one');
+  h.pebble.subs[0].push(full);
+  assert.equal(h.pebble.subs[0].unsubscribed, 1);
+  assert.deepEqual(JSON.parse(storage[KEYS.BATTERY_ESTIMATE]), { days: 5, updatedAt: h.clock - HOUR });
+});
+
 test('a message that goes out before the tick carries the estimate, and the tick then sends nothing new', () => {
   const h = boot();
   h.pebble.subs[0].push(stats(5, h.clock));
