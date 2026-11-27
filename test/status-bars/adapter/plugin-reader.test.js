@@ -443,14 +443,25 @@ test('readOnce survives a throwing unsubscribe', () => {
 
 // --- numberOf ----------------------------------------------------------------
 
-test('numberOf reads the numericValue of the first instance', () => {
+/**
+ * A weather station's answer, one instance per module, as Netatmo Weather sends it: the outdoor
+ * module first, though only the indoor one measures the pressure and only the rain gauge the rain.
+ */
+const STATION = { pluginUuid: 'n', instances: [
+  { instanceId: 'outdoor', properties: { temperature: { shortText: { text: '3.4°C' } }, name: { shortText: { text: 'Outdoor' } } } },
+  { instanceId: 'indoor', properties: { temperature: { shortText: { text: '21.5°C' } },
+    pressure: { shortText: { text: '1013hPa' }, numericValue: { value: 1013.4, unit: 'hPa' } } } },
+  { instanceId: 'rain', properties: { rain_today: { shortText: { text: '3.1mm' } } } }] };
+
+test('numberOf reads the numericValue of the first instance that brings it', () => {
   assert.equal(pluginReader.numberOf(envelope(84), 'battery_level'), 84);
   assert.equal(pluginReader.numberOf(envelope(0), 'battery_level'), 0, 'zero is a number');
   assert.equal(pluginReader.numberOf(envelope(-3.5), 'battery_level'), -3.5);
   const two = envelope(10);
   two.instances.push({ instanceId: 'other',
     properties: { battery_level: { numericValue: { value: 99 } } } });
-  assert.equal(pluginReader.numberOf(two, 'battery_level'), 10, 'only the first instance');
+  assert.equal(pluginReader.numberOf(two, 'battery_level'), 10, 'the first instance that brings it');
+  assert.equal(pluginReader.numberOf(STATION, 'pressure'), 1013.4, 'past one that does not');
 });
 
 test('numberOf is null for anything that is not a number', () => {
@@ -506,7 +517,7 @@ test('readingOf: a timestamp\'s moment in epoch seconds, and a boolean\'s state,
     reading({ time: '1795453201', state: undefined }), 'unchecked: valueOf\'s to check');
 });
 
-test('readingOf: the first instance, or the one it is asked for, in the order the plugin sent them', () => {
+test('readingOf: the instance asked for by its place, in the order the plugin sent them', () => {
   const two = withShapes({ shortText: { text: 'first' } });
   two.instances.push({ instanceId: 'b', properties: { v: { shortText: { text: 'second' } } } });
   assert.equal(pluginReader.readingOf(two, 'v').short, 'first');
@@ -516,31 +527,23 @@ test('readingOf: the first instance, or the one it is asked for, in the order th
 });
 
 test('readingOf: with no instance asked for, the first that brings the property, as a weather station lists its modules', () => {
-  // Netatmo Weather sends one instance per module, the outdoor one first: only the indoor one
-  // measures the pressure, only the rain gauge the rain.
-  const station = { pluginUuid: 'n', instances: [
-    { instanceId: 'outdoor', properties: { temperature: { shortText: { text: '3.4°C' } }, name: { shortText: { text: 'Outdoor' } } } },
-    { instanceId: 'indoor', properties: { temperature: { shortText: { text: '21.5°C' } }, pressure: { shortText: { text: '1013hPa' } } } },
-    { instanceId: 'rain', properties: { rain_today: { shortText: { text: '3.1mm' } } } }] };
-  assert.equal(pluginReader.readingOf(station, 'temperature').short, '3.4°C', 'the first, where it brings it');
-  assert.equal(pluginReader.readingOf(station, 'pressure').short, '1013hPa');
-  assert.equal(pluginReader.readingOf(station, 'rain_today').short, '3.1mm');
-  assert.equal(pluginReader.readingOf(station, 'wind_speed'), null, 'none brings it');
-  assert.equal(pluginReader.readingOf(station, 'pressure', 0), null, 'an instance asked for by its place, as it is');
-  assert.equal(pluginReader.readingOf(station, 'pressure', undefined, 'outdoor'), null, 'and by its id');
+  assert.equal(pluginReader.readingOf(STATION, 'temperature').short, '3.4°C', 'the first, where it brings it');
+  assert.equal(pluginReader.readingOf(STATION, 'pressure').short, '1013hPa');
+  assert.equal(pluginReader.readingOf(STATION, 'rain_today').short, '3.1mm');
+  assert.equal(pluginReader.readingOf(STATION, 'wind_speed'), null, 'none brings it');
+  assert.equal(pluginReader.readingOf(STATION, 'pressure', 0), null, 'an instance asked for by its place, as it is');
+  assert.equal(pluginReader.readingOf(STATION, 'pressure', undefined, 'outdoor'), null, 'and by its id');
 });
 
 test('readOnce: with no instance asked for, an answer that brings the property in any instance is the one asked for', () => {
   const fake = fakePebble();
   const timers = fakeTimers();
   const calls = [];
-  const station = { pluginUuid: 'n', instances: [{ instanceId: 'outdoor', properties: { name: { shortText: { text: 'Outdoor' } } } },
-    { instanceId: 'indoor', properties: { pressure: { shortText: { text: '1013hPa' } } } }] };
   const request = pluginReader.together([{ category: 'weather', item: 'netatmo', properties: ['pressure', 'name'],
     plugin: 'n', limit: 16 }]);
   pluginReader.readOnce(fake.pebble, request, (e, f) => calls.push([e, f]), timers);
-  fake.push(station);
-  assert.deepEqual(calls, [[station, null]], 'no wait for a fuller answer');
+  fake.push(STATION);
+  assert.deepEqual(calls, [[STATION, null]], 'no wait for a fuller answer');
   assert.equal(timers.set.length, 1);
 });
 

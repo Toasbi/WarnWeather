@@ -265,8 +265,8 @@ function bringsAsked(envelope, request) {
  */
 function brings(envelope, property, which) {
     var one = instanceFor(envelope, property, which.instance, which.instanceId);
-    if (one || !named(which.instanceId)) { return shapesIn(one, property) !== null; }
-    return instancesIn(envelope).some(function (other) { return shapesIn(other, property) !== null; });
+    if (!one && named(which.instanceId)) { one = instanceFor(envelope, property); }
+    return shapesIn(one, property) !== null;
 }
 
 /**
@@ -346,23 +346,6 @@ function named(instanceId) {
 }
 
 /**
- * A property's shapes in one of the envelope's instances: {shortText: {text}, numericValue:
- * {value, unit}, longText: {text}, ...} as the plugin sent them.
- *
- * @param {?Object} envelope A source update.
- * @param {string} property The property's name.
- * @param {number} [index] Which instance, in the order the plugin sent them: 0 (the first) by
- *   default.
- * @param {string} [instanceId] Which instance by its id, in place of the index: the one the
- *   plugin names so, wherever it sent it.
- * @returns {?Object} The shapes, or null where the plugin did not send the property (a
- *   missing property means the plugin cannot serve it right now), or not that instance.
- */
-function shapesOf(envelope, property, index, instanceId) {
-    return shapesIn(instanceIn(envelope, index, instanceId), property);
-}
-
-/**
  * @param {?Object} envelope A source update.
  * @returns {Array<*>} Its instances, as the plugin sent them; [] for none.
  */
@@ -371,45 +354,32 @@ function instancesIn(envelope) {
 }
 
 /**
- * @param {?Object} envelope A source update.
- * @param {number} [index] Which instance, in the order the plugin sent them: 0 by default.
- * @param {string} [instanceId] Which instance by its id, in place of the index.
- * @returns {*} The instance, or undefined where the update brings none so.
- */
-function instanceIn(envelope, index, instanceId) {
-    var instances = instancesIn(envelope);
-    var i;
-    if (!named(instanceId)) { return instances[typeof index === 'number' ? index : 0]; }
-    for (i = 0; i < instances.length; i++) {
-        if (instances[i] && instances[i].instanceId === instanceId) { return instances[i]; }
-    }
-    return undefined;
-}
-
-/**
- * The instance a property is read from: the one asked for, by its id or its place (instanceIn),
- * and where none is, the first that brings the property, else the first. A weather station's
- * plugin lists its outdoor module first, and only its indoor one measures the pressure.
+ * The instance a property is read from: the one asked for, by its id, else by its place, and
+ * where neither is asked for, the first that brings the property. A weather station's plugin
+ * lists its outdoor module first, and only its indoor one measures the pressure.
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
  * @param {number} [index] Which instance, in the order the plugin sent them.
- * @param {string} [instanceId] Which instance by its id, in place of the index.
+ * @param {string} [instanceId] Which instance by its id, in place of the index: the one the
+ *   plugin names so, wherever it sent it.
  * @returns {*} The instance, or undefined where the update brings none so.
  */
 function instanceFor(envelope, property, index, instanceId) {
     var instances = instancesIn(envelope);
-    var i;
-    if (named(instanceId) || typeof index === 'number') { return instanceIn(envelope, index, instanceId); }
-    for (i = 0; i < instances.length; i++) {
-        if (shapesIn(instances[i], property) !== null) { return instances[i]; }
+    if (named(instanceId)) {
+        return instances.find(function (one) { return Boolean(one) && one.instanceId === instanceId; });
     }
-    return instances[0];
+    if (typeof index === 'number') { return instances[index]; }
+    return instances.find(function (one) { return shapesIn(one, property) !== null; });
 }
 
 /**
- * @param {*} instance One of an update's instances, or undefined.
+ * A property's shapes in one of an update's instances: {shortText: {text}, numericValue:
+ * {value, unit}, longText: {text}, ...} as the plugin sent them.
+ * @param {*} instance The instance (instanceFor), or undefined.
  * @param {string} property A property's name.
- * @returns {?Object} The property's shapes in it (shapesOf), or null.
+ * @returns {?Object} The shapes, or null where the plugin did not send the property in it (a
+ *   missing property means the plugin cannot serve it right now), or for no instance.
  */
 function shapesIn(instance, property) {
     var shapes = instance && instance.properties && instance.properties[property];
@@ -425,14 +395,15 @@ function finite(value) {
 }
 
 /**
- * A property's number: the numericValue of the envelope's first instance.
+ * A property's number: its numericValue in the envelope's first instance that brings it
+ * (instanceFor).
  *
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
  * @returns {?number} The number, or null where the plugin did not send one.
  */
 function numberOf(envelope, property) {
-    var shapes = shapesOf(envelope, property);
+    var shapes = shapesIn(instanceFor(envelope, property), property);
     return finite(shapes && shapes.numericValue ? shapes.numericValue.value : null);
 }
 
@@ -455,8 +426,8 @@ function numberOf(envelope, property) {
  *
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
- * @param {number} [index] Which instance (shapesOf).
- * @param {string} [instanceId] Which instance by its id, in place of the index (shapesOf).
+ * @param {number} [index] Which instance (instanceFor).
+ * @param {string} [instanceId] Which instance by its id, in place of the index (instanceFor).
  * @returns {?PluginReading} The reading, or null where the plugin did not send the property.
  */
 function readingOf(envelope, property, index, instanceId) {

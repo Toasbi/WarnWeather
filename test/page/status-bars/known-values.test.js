@@ -30,9 +30,8 @@ test('none of what changes by the minute, nor what WarnWeather draws itself, is 
     assert.equal(known.startOf(...v), null, v.join('/')));
 });
 
-test('a weather station\'s own readings are supported, the forecast\'s are not; a share price is the owner\'s call', () => {
+test('a weather station\'s own readings are supported, and a share price, the owner\'s call', () => {
   assert.equal(known.nameOf('weather', 'netatmo', 'temperature'), 'Temperature');
-  assert.equal(known.startOf('weather', 'location', 'temperature'), null, 'the forecast\'s, which WarnWeather draws');
   assert.equal(known.nameOf('weather', 'netatmo', 'co2'), 'CO\u2082');
   assert.equal(known.nameOf('weather', 'netatmo', 'rain_1h'), 'Rain in the last hour');
   assert.equal(known.nameOf('weather', 'netatmo', 'battery'), 'Module battery', 'a raw value: the module\'s, not the watch\'s');

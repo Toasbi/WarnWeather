@@ -56,9 +56,11 @@ var NAME = 'plugin-value';
 
 /**
  * What a lane reads for its source, whether a bar shows it or not: its property of the instance
- * it picks (the first that brings it, where it picks none), and, where its dialog may offer the
- * Which row (plugin-values.js whichMayOffer) or it picks an instance, the names of the source's
- * first instances, which the row lists (keepInstances); else the first instance alone. Nothing
+ * it picks, and, where its dialog may offer the Which row (plugin-values.js whichMayOffer) or it
+ * picks an instance, the names of the source's first instances, which the row lists
+ * (keepInstances). Where it picks none, the first instance that brings the property, where the
+ * Which row may offer others; else the first instance alone, whatever it brings (the next
+ * event), even where the plugin sends more. Nothing
  * of the Preferences plugin's but a complication: its own readings are the user's position and
  * plumbing, which this app never reads (plugin-reads.js neverRead), and a pick of one from before
  * the complications (3.4.0 listed them) shows nothing. Nor a value that is no value to show
@@ -88,6 +90,7 @@ function readOf(source, list, permissions) {
         if (source.property !== pluginValues.INSTANCE_NAME) { request.properties.push(pluginValues.INSTANCE_NAME); }
     }
     if (source.instance) { request.instanceId = source.instance; }
+    else if (!pluginValues.whichMayOffer(source)) { request.instance = 0; }
     return { key: source.key, request: request };
 }
 

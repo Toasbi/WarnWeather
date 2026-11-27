@@ -578,13 +578,13 @@ test('an instance the plugin no longer sends shows --, never the first in its pl
 });
 
 test('a slot on the first shows the first instance that has its value: a weather station\'s pressure from its indoor module', () => {
-  // Netatmo Weather sends one instance per module, the outdoor one first, which measures no pressure.
   const STATION = 'bbbbbbbb-0000-0000-0000-00000000000b';
-  const module = (id, name, props) => ({ instanceId: id, properties: Object.assign({ name: { shortText: { text: name } } }, props) });
+  const moduleOf = (id, name, props) => ({ instanceId: id,
+    properties: Object.assign({ name: { shortText: { text: name } } }, props) });
   const h = boot({ settings: slot('statusTopLeft', { plugin: STATION, id: 'weather/netatmo/pressure' }) });
   assert.deepEqual(h.pebble.subs[0].request.properties, ['pressure', 'name']);
-  h.pebble.subs[0].push({ pluginUuid: STATION, instances: [module('02:00:00:aa:bb:01', 'Home - Outdoor', {}),
-    module('70:ee:50:aa:bb:02', 'Home - Indoor', { pressure: { shortText: { text: '1013hPa' } } })] });
+  h.pebble.subs[0].push({ pluginUuid: STATION, instances: [moduleOf('02:00:00:aa:bb:01', 'Home - Outdoor', {}),
+    moduleOf('70:ee:50:aa:bb:02', 'Home - Indoor', { pressure: { shortText: { text: '1013hPa' } } })] });
   assert.equal(storedValue(STATION + '/weather/netatmo/pressure').reading.short, '1013hPa');
   minute();
   assert.equal(sentText(h), '1013hPa');
@@ -638,6 +638,21 @@ test('a read asks for the names only where the Which row can list them: never fo
   assert.deepEqual([storedValue(HOME + '/home/room_lights/name').reading.short,
     storedValue(CALENDAR + '/calendar/event/title').reading.short], ['Kitchen', 'Standup']);
   assert.equal(stored(KEYS.PLUGIN_INSTANCES), null, 'no names kept where no row lists them');
+});
+
+test('the next event is the first the plugin sends, whatever it brings, even where it sends more than asked for', () => {
+  // A Pebble app from before 2.0.0 sends every event, whatever the limit (plugin-reader.js PluginRequest).
+  const CALENDAR = 'bbbbbbbb-0000-0000-0000-00000000000b';
+  const h = boot({ settings: slot('statusTopLeft', { plugin: CALENDAR, id: 'calendar/event/location' }) });
+  assert.equal(h.pebble.subs[0].request.limit, 1);
+  h.pebble.subs[0].push({ pluginUuid: CALENDAR, instances: [
+    { instanceId: 'e1', properties: { title: { shortText: { text: 'Standup' } } } },
+    { instanceId: 'e2', properties: { location: { shortText: { text: 'Room 4' } } } }] });
+  h.timers.filter((t) => t.ms === pluginReader.FULLER_ANSWER_MS).forEach((t) => t.fn());
+  assert.equal(h.pebble.subs[0].unsubscribed, 1, 'the read is over');
+  assert.equal(storedValue(CALENDAR + '/calendar/event/location'), null, 'never a later event\'s');
+  statusRebake.resendStatus('fetch');
+  assert.equal(sentText(h), '--');
 });
 
 test('the names kept are those the Which row can list: an instance without an id a slot can pick, or a name, is left out', () => {

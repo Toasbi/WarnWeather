@@ -303,7 +303,7 @@ test('a value WarnWeather supports starts the slot on its Look and icon, where t
 
 test('the Value row says when the plugin offers the value for more than one thing and the slot shows the first', (t) => {
   userData(t, { plugins: MUNINN_NAMED.concat([CALENDAR]) });
-  const FIRST = 'The plugin offers this for more than one thing. The slot shows the first that has it.';
+  const FIRST = 'The plugin offers this for more than one thing. The slot shows the first.';
   assert.equal(valueHint(pickIn({ plugin: CAL, id: 'calendar/event/starts_at' })), FIRST, 'the next event: no Which');
   assert.equal(valueHint(pickIn({ plugin: CAL, id: 'calendar/event/name' })), FIRST);
   assert.equal(valueHint(pickIn({ plugin: MUNINN, id: 'muninn/estimate/name' })), FIRST, 'an instance\'s name: no Which');
