@@ -714,6 +714,49 @@ test('the next event is the first the plugin sends, whatever it brings, even whe
   assert.equal(sentText(h), '--');
 });
 
+test('a slot on the first shows what its dialog says: the first with the value where it offers Which, the first listed where it says so', (t) => {
+  // The dialog (plugin-value-page.js whichShown, valueHint) and the read (readOf) each decide
+  // whether a slot that picks no instance shows the first instance that has its value or the first
+  // the plugin lists. Each answer here lists one without the value, then one with it.
+  const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
+  const CALENDAR = 'cccccccc-0000-0000-0000-00000000000c';
+  const held = global.INJECTED_USERDATA;
+  t.after(() => { global.INJECTED_USERDATA = held; });
+  // What the phone lists of each plugin, as the page reads it (plugin-value-list.js listOf).
+  global.INJECTED_USERDATA = { plugins: [
+    { uuid: CALENDAR, name: 'Calendar', items: [{ category: 'calendar', item: 'event', multiple: true,
+      properties: ['name', 'location'] }] },
+    { uuid: HOME, name: 'Home', items: [{ category: 'home', item: 'room_lights', multiple: true,
+      properties: ['name', 'on'] }] },
+    { uuid: PHONE, name: 'Phone', items: [{ category: 'phone', item: 'phone_state', multiple: false,
+      properties: ['cell'] }] }] };
+  const ARGS = { slotKey: 'statusTopLeft' };
+  [['the next event\'s place', { plugin: CALENDAR, id: 'calendar/event/location' }, 'first listed'],
+    ['a room\'s name', { plugin: HOME, id: 'home/room_lights/name' }, 'first listed'],
+    ['whether a room\'s lights are on', LIGHTS, 'first with it'],
+    ['the network type, which the phone has one of', { plugin: PHONE, id: 'phone/phone_state/cell' }, 'its own']]
+    .forEach(([what, pick, shows]) => {
+      const settings = slot('statusTopLeft', pick);
+      const property = pick.id.split('/')[2];
+      const which = page.whichShown(settings, {}, ARGS);
+      const hint = page.valueHint(settings, {}, ARGS);
+      const h = boot({ settings: settings });
+      h.pebble.subs[0].push({ pluginUuid: pick.plugin, instances: [
+        { instanceId: 'a', properties: { other: { shortText: { text: 'A' } } } },
+        { instanceId: 'b', properties: { [property]: { shortText: { text: 'B' } } } }] });
+      h.timers.filter((one) => one.ms === pluginReader.FULLER_ANSWER_MS).forEach((one) => one.fn());
+      const value = storedValue(pick.plugin + '/' + pick.id);
+      const read = value ? value.reading.short : null;
+      if (shows === 'its own') {
+        assert.deepEqual([which, hint, read], [false, null, 'B'], what + ': nothing to pick, nothing to say');
+        return;
+      }
+      assert.equal(which, shows === 'first with it', what + ': the Which row');
+      assert.equal(hint === page.FIRST_HINT, shows === 'first listed', what + ': the hint that it shows the first');
+      assert.equal(read, which ? 'B' : null, what + ': the read takes ' + shows);
+    });
+});
+
 test('the names kept are those the Which row can list: an instance without an id a slot can pick, or a name, is left out', () => {
   const h = boot({ settings: slot('statusTopLeft', LIGHTS) });
   h.pebble.subs[0].push(ROOMS([['kitchen', 'Kitchen', true], ['', 'Nowhere', true], ['hall', '', false],
