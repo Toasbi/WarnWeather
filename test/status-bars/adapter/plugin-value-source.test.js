@@ -714,6 +714,19 @@ test('the next event is the first the plugin sends, whatever it brings, even whe
   assert.equal(sentText(h), '--');
 });
 
+test('a slot on the first reads the instance that brings its value where two share an id, and keeps no id', () => {
+  // A plugin that names its rooms by their names, with two bedrooms: the second has its lights.
+  const h = boot({ settings: slot('statusTopLeft', LIGHTS) });
+  const bedroom = (more) => ({ instanceId: 'Bedroom', properties: Object.assign({ name: { shortText: { text: 'Bedroom' } } },
+    more) });
+  h.pebble.subs[0].push({ pluginUuid: HOME, instances: [bedroom({}),
+    bedroom({ on: { boolean: { value: true }, shortText: { text: 'On' } } })] });
+  assert.equal(storedValue(HOME + '/home/room_lights/on').reading.short, 'On', 'never -- for the first bedroom');
+  assert.equal(stored(KEYS.PLUGIN_FIRSTS), null, 'no id that names one instance alone');
+  minute();
+  assert.equal(sentText(h), 'On');
+});
+
 test('a slot on the first shows what its dialog says: the first with the value where it offers Which, the first listed where it says so', (t) => {
   // The dialog (plugin-value-page.js whichShown, valueHint) and the read (readOf) each decide
   // whether a slot that picks no instance shows the first instance that has its value or the first

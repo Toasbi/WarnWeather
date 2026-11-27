@@ -354,10 +354,21 @@ function instancesIn(envelope) {
 }
 
 /**
+ * @param {Array<*>} instances An update's instances (instancesIn).
+ * @param {*} id An instance's id.
+ * @returns {boolean} Whether it names one of them alone, as the id of the instance read from last
+ *   must (firstOf): where a plugin gives two instances one id, The first reads the first that
+ *   brings the value each time.
+ */
+function namesOne(instances, id) {
+    return named(id) && instances.filter(function (one) { return Boolean(one) && one.instanceId === id; }).length === 1;
+}
+
+/**
  * The instance a property is read from: the one asked for, by its id, else by its place. Where
  * neither is asked for, the first that brings a value of it a slot can print (printable), or the
- * one named kept where the update lists that one first (firstOf). A weather station's plugin
- * lists its outdoor module first, and only its indoor one measures the pressure.
+ * one named kept where the update lists that one first, and alone by that id (firstOf). A weather
+ * station's plugin lists its outdoor module first, and only its indoor one measures the pressure.
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
  * @param {number} [index] Which instance, in the order the plugin sent them.
@@ -372,25 +383,27 @@ function instanceFor(envelope, property, index, instanceId, kept) {
         return instances.find(function (one) { return Boolean(one) && one.instanceId === instanceId; });
     }
     if (typeof index === 'number') { return instances[index]; }
+    var keep = namesOne(instances, kept);
     return instances.find(function (one) {
-        return printable(one, property) || (named(kept) && Boolean(one) && one.instanceId === kept);
+        return printable(one, property) || (keep && Boolean(one) && one.instanceId === kept);
     });
 }
 
 /**
- * The id of the instance a read that asks for none reads (The first): the first the update lists
- * that brings a value of the property a slot can print, or the one the value was read from last
- * where the update lists that one first. An outdoor module that cannot measure right now is
- * still listed, so its temperature shows --, never the indoor one's; once it is no longer listed,
- * the first that brings the property is.
+ * The id of the instance a read that asks for none reads (The first), to read again next time:
+ * the first the update lists that brings a value of the property a slot can print, or the one the
+ * value was read from last where the update lists that one first (instanceFor). An outdoor module
+ * that cannot measure right now is still listed, so its temperature shows --, never the indoor
+ * one's; once it is no longer listed, the first that brings the property is.
  * @param {?Object} envelope A source update.
  * @param {string} property The property's name.
  * @param {*} kept The id of the instance the value was read from last, or null for none.
- * @returns {?string} The instance's id; null where the update lists none so, or it has no id.
+ * @returns {?string} The instance's id; null where the update lists none so, or it has no id that
+ *   names it alone (namesOne).
  */
 function firstOf(envelope, property, kept) {
     var one = instanceFor(envelope, property, undefined, undefined, kept);
-    return one && named(one.instanceId) ? one.instanceId : null;
+    return one && namesOne(instancesIn(envelope), one.instanceId) ? one.instanceId : null;
 }
 
 /**
@@ -459,10 +472,11 @@ function numberOf(envelope, property) {
  * @param {string} property The property's name.
  * @param {number} [index] Which instance (instanceFor).
  * @param {string} [instanceId] Which instance by its id, in place of the index (instanceFor).
+ * @param {*} [kept] Where neither is asked for, the id of the instance read from last (firstOf).
  * @returns {?PluginReading} The reading, or null where the plugin did not send the property.
  */
-function readingOf(envelope, property, index, instanceId) {
-    return readingIn(instanceFor(envelope, property, index, instanceId), property);
+function readingOf(envelope, property, index, instanceId, kept) {
+    return readingIn(instanceFor(envelope, property, index, instanceId, kept), property);
 }
 
 /**

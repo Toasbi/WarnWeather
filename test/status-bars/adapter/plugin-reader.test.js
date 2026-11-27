@@ -566,6 +566,18 @@ test('firstOf: the one read from last while the update lists it first, so a modu
     'one without an id');
 });
 
+test('firstOf: an id two instances share is never kept, and reads the first that brings the value', () => {
+  // A plugin that names its rooms by their names, with two bedrooms: the second has its lights.
+  const room = (props) => ({ instanceId: 'Bedroom', properties: props });
+  const ROOMS = { instances: [room({ name: { shortText: { text: 'Bedroom' } } }), room({ on: { boolean: { value: true } } })] };
+  assert.equal(pluginReader.firstOf(ROOMS, 'on', null), null, 'no id that names it alone');
+  assert.equal(pluginReader.readingOf(ROOMS, 'on', undefined, undefined, null).state, true, 'read as the first that brings it');
+  assert.equal(pluginReader.readingOf(ROOMS, 'on', undefined, undefined, 'Bedroom').state, true,
+    'an id kept from an update that named one bedroom: the first that brings it all the same');
+  assert.equal(pluginReader.readingOf(OUTDOOR_OFF, 'temperature', undefined, undefined, 'outdoor'), null,
+    'an id that names one instance alone: that one\'s');
+});
+
 test('readOnce: with no instance asked for, an answer that brings the property in any instance is the one asked for', () => {
   const fake = fakePebble();
   const timers = fakeTimers();

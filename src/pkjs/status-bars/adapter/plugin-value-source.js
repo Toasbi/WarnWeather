@@ -333,10 +333,12 @@ function laneSpec(lane) {
             var property = want.request.properties[0];
             var first = firstAt(want.key, want.request);
             var kept = first ? first.read() : null;
-            var from = first ? pluginReader.firstOf(envelope, property, kept) : null;
-            var reading = pluginReader.readingOf(envelope, property, want.request.instance,
-                from || want.request.instanceId);
-            if (from && reading) { first.write(from, kept, NAME + ': the first'); }
+            var reading = pluginReader.readingOf(envelope, property, want.request.instance, want.request.instanceId,
+                kept);
+            // The instance it was read from, to read again while the plugin lists it.
+            if (first && reading) {
+                first.write(pluginReader.firstOf(envelope, property, kept), kept, NAME + ': the first');
+            }
             // Checked as a stored value is, once: valueOf.
             return { time: until, value: pluginValueReads.valueOf({ source: want.key, reading: reading, at: nowMs,
                 validUntil: until }) };
