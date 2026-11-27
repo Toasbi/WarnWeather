@@ -128,7 +128,7 @@ test('the catalog: three extra lines, their wire keys and slots, empty until New
   assert.equal(catalog.lineById('forecast'), catalog.LINES.find((l) => l.id === 'forecast'));
   assert.equal(catalog.lineById('nope'), null);
   assert.equal(catalog.lineOf('statusBar6Right').id, 'bar6');
-  assert.equal(catalog.fourBarSlotKeys().length, 12, 'the twelve stay twelve (telemetry, the migration)');
+  assert.equal(catalog.LINES.flatMap((line) => line.slots).length, 12, 'the four bars keep their twelve slots');
   // The bake sends a bar 4 to 6's line while a screen shows it, which only a made bar on a
   // watch that has them can be.
   const extra = (s, env) => catalog.bakedLines(s, env).map((l) => l.id).filter((id) => /^bar/.test(id));

@@ -94,7 +94,7 @@ const LINES = [
  */
 function slots(picks) {
   const out = {};
-  catalog.fourBarSlotKeys().forEach((k) => { out[k] = 'empty'; });
+  catalog.everySlotKey().forEach((k) => { out[k] = 'empty'; });
   return Object.assign(out, picks);
 }
 const SLOTS = [

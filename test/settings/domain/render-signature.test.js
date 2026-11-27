@@ -186,7 +186,7 @@ test('the Show unit toggles are independent of each other', () => {
 // watch keeps the old count until the next scheduled fetch. Signed only while the slot
 // shows the countdown: the page hydrates every slot's date to today, so signing the
 // unused ones would buy a needless fetch on the first save that writes them.
-const SLOT_KEYS = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js').fourBarSlotKeys();
+const SLOT_KEYS = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js').LINES.flatMap((line) => line.slots);
 // The default screens show the Forecast, Radar and Watch bars; healthMode 'status' adds the
 // Health bar, so every one of the twelve slots bakes (and signs).
 const ALL_BARS = { healthMode: 'status' };

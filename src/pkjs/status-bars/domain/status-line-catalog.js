@@ -434,29 +434,12 @@
   }
 
   /**
-   * @param {Object[]} lines LINES entries, or EXTRA_LINES ones.
-   * @returns {string[]} Their slots' settings keys, in line order.
-   */
-  function slotKeysOf(lines) {
-    return lines.reduce(function (keys, line) { return keys.concat(line.slots); }, []);
-  }
-
-  /**
-   * @returns {string[]} The four bars' slot settings keys (12), in line order: the slots
-   *   telemetry's fixed fields and the 2.6 migration count. Every bar's slots, bars 4 to 6's
-   *   too, are everySlotKey's.
-   */
-  function fourBarSlotKeys() {
-    return slotKeysOf(LINES);
-  }
-
-  /**
    * @returns {string[]} Every bar's slot settings keys, the four bars' and bars 4 to 6's (21), in
    *   line order: the slots whose own settings and dialogs (pluginValueKeys, phoneBatterySheet)
    *   the page and the migrations go through.
    */
   function everySlotKey() {
-    return slotKeysOf(ALL_LINES);
+    return ALL_LINES.reduce(function (keys, line) { return keys.concat(line.slots); }, []);
   }
 
   /**
@@ -814,7 +797,7 @@
     EXTRA_LINES: EXTRA_LINES, ALL_LINES: ALL_LINES, lineById: lineById, bakedLines: bakedLines,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
-    fourBarSlotKeys: fourBarSlotKeys, everySlotKey: everySlotKey, slotDefault: slotDefault,
+    everySlotKey: everySlotKey, slotDefault: slotDefault,
     lineOf: lineOf, textCapAt: textCapAt, textCapOf: textCapOf, siblingHolds: siblingHolds, healthSlots: healthSlots,
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
     unitToggleAbsent: unitToggleAbsent,
