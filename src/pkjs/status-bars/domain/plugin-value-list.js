@@ -8,7 +8,9 @@
 // shape the slot prints (a text, a timestamp, a number or a boolean), of an item this app may
 // read from the plugin as the slot reads it (plugin-reads.js refusal: never one that does
 // something when it is read, and never one that would ask the user for a permission this app
-// never declared), of any plugin but this app's own. The Pebble app's Preferences plugin offers the user's
+// never declared), of any plugin but this app's own. Never what is no value to show (notAValue:
+// an identifier, a link, an account, a position, a machine's code, the Index's plumbing).
+// The Pebble app's Preferences plugin offers the user's
 // complications instead (complications.js), which its entry carries (complicationsFor): the
 // rest of what it serves is the Pebble app's own plumbing (the user's units, and the weather
 // locations' coordinates, which are the user's own position), never a value to show, nor read
@@ -78,6 +80,62 @@ function onOff(shapes) {
 }
 
 /**
+ * The categories whose every item is the Index's plumbing: where a plugin offers the Index a
+ * place for notes, reminders or chats (the plugin guide's destinations). So is an item named
+ * PLUMBING_ITEM: whether such a place is set up.
+ */
+var PLUMBING_CATEGORIES = ['notes', 'reminders', 'agent'];
+var PLUMBING_ITEM = 'configured';
+
+/**
+ * The last words (wordsOf) of a property that is no value to show: an identifier, a link, a
+ * file's path, an app's package, an account, a secret, a position, or a machine's code.
+ */
+var NOT_A_VALUE_ENDS = ['id', 'ids', 'uuid', 'url', 'uri', 'link', 'href', 'path', 'package', 'account', 'email',
+    'token', 'key', 'address', 'coordinates', 'latitude', 'longitude', 'lat', 'lon', 'lng', 'code'];
+
+/**
+ * The properties, whole (wordsOf), that are no value to show: how sure a position is, a
+ * machine's words for what something is or can do, and a place's offset from UTC.
+ */
+var NOT_A_VALUE_NAMES = ['accuracy', 'accuracy meters', 'type', 'kind', 'capabilities', 'utc offset'];
+
+/**
+ * @param {string} name A property's name.
+ * @returns {string[]} Its words, in lower case: split at '_', '-', blanks and the capital of
+ *   a camelCase word ('accuracyMeters' is 'accuracy', 'meters').
+ */
+function wordsOf(name) {
+    return String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+        .toLowerCase().split(/[\s_\-]+/).filter(Boolean);
+}
+
+/**
+ * @param {string} category A source's category. @param {string} item One of its items.
+ * @returns {boolean} Whether the item is the Index's plumbing (PLUMBING_CATEGORIES,
+ *   PLUMBING_ITEM), no value to show.
+ */
+function plumbing(category, item) {
+    return PLUMBING_CATEGORIES.indexOf(category) !== -1 || item === PLUMBING_ITEM;
+}
+
+/**
+ * @param {string} category A source's category. @param {string} item One of its items.
+ * @param {string} property One of its properties.
+ * @param {boolean} multiple Whether the source serves more than one instance.
+ * @returns {boolean} Whether the property is no value to show: the Index's plumbing
+ *   (plumbing), one whose name says it is none (NOT_A_VALUE_ENDS, NOT_A_VALUE_NAMES), or the
+ *   name of a source's one instance, which labels it, the same text always (the plugin guide:
+ *   an instance's name is what to show for it in a list of them).
+ */
+function notAValue(category, item, property, multiple) {
+    var words = wordsOf(property);
+    var whole = words.join(' ');
+    return plumbing(category, item) || NOT_A_VALUE_ENDS.indexOf(words[words.length - 1]) !== -1
+        || NOT_A_VALUE_NAMES.indexOf(whole) !== -1 || (!multiple && whole === 'name');
+}
+
+/**
  * @param {*} shapes A property's declared shapes.
  * @returns {boolean} Whether it is declared, in no shape the slot prints: a series or a picture.
  */
@@ -111,9 +169,10 @@ function nameOf(plugin) {
  * place, what it shows (its property, and its source's category and item, for its label),
  * whether it is on or off (onOff: as every plugin that serves its source declares its property),
  * and, where this app may not read it, why (complications.js whyNot: the permission it needs, or
- * ''), or where the slot cannot print it, pluginValues.UNPRINTABLE: every plugin that serves its
- * source declares its property, none in a shape the slot prints. Not which of the source's
- * instances: the label needs none. Each name capped as a plugin's is.
+ * ''), or where the slot cannot print it, pluginValues.UNPRINTABLE: it is no value to show
+ * (notAValue, a source of more than one instance where some plugin that serves it says so), or
+ * every plugin that serves its source declares its property, none in a shape the slot prints.
+ * Not which of the source's instances: the label needs none. Each name capped as a plugin's is.
  * @param {?Array<Object>} known The user's complications (complication-list.js current), or
  *   null while they are not known.
  * @param {Array<*>} plugins What Pebble.enumeratePlugins() returned.
@@ -128,7 +187,11 @@ function complicationsFor(known, plugins, permissions) {
         var entry = { position: c.position, property: capped(c.property), category: capped(c.category),
             item: capped(c.item) };
         if (everyDeclares(sources, c.property, onOff)) { entry.onOff = true; }
-        if (why === null && everyDeclares(sources, c.property, unprintable)) { why = pluginValues.UNPRINTABLE; }
+        var multiple = sources.some(function (src) { return Boolean(src.supportsMultiple); });
+        if (why === null && (notAValue(c.category, c.item, c.property, multiple)
+                || everyDeclares(sources, c.property, unprintable))) {
+            why = pluginValues.UNPRINTABLE;
+        }
         if (why !== null) { entry.why = capped(why); }
         return entry;
     });
@@ -173,17 +236,19 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
             var item = src.items[i];
             var kept = [];
             var bits = 0;
-            // An item no id can hold offers nothing, and takes none of the values' room; nor one
-            // this app may not read from the plugin, as the Pebble app judges it: by the first of
-            // the plugin's sources that serves it.
-            if (!complications.idPart(item) || pluginReads.refusal([plugin], { category: src.category, item: item,
-                plugin: plugin.uuid, permissions: permissions }) !== null) {
+            // An item no id can hold offers nothing, and takes none of the values' room; nor the
+            // Index's plumbing, nor one this app may not read from the plugin, as the Pebble app
+            // judges it: by the first of the plugin's sources that serves it.
+            if (!complications.idPart(item) || plumbing(src.category, item)
+                    || pluginReads.refusal([plugin], { category: src.category, item: item,
+                        plugin: plugin.uuid, permissions: permissions }) !== null) {
                 continue;
             }
             for (var n = 0; n < names.length && count < MAX_VALUES; n++) {
                 var id = pluginValues.valueId(src.category, item, names[n]);
                 if (complications.idPart(names[n]) && id.length <= MAX_ID && seen[id] !== true
-                        && printable(props[names[n]])) {
+                        && printable(props[names[n]])
+                        && !notAValue(src.category, item, names[n], Boolean(src.supportsMultiple))) {
                     seen[id] = true;
                     count += 1;
                     if (onOff(props[names[n]])) { bits |= 1 << kept.length; }

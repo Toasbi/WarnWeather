@@ -57,8 +57,31 @@ test('a source that does something when it is read is never listed: Find My Phon
 
 test('a source this app never reads is never listed, whoever serves it: the user\'s weather locations and units', () => {
   assert.deepEqual(list.listOf([plugin('u', 'Units', [{ category: 'preferences',
-    items: ['units', 'weather_location', 'other'], properties: { name: ['shortText'] } }])], PERMS, 'own')[0].items
+    items: ['units', 'weather_location', 'other'], properties: { label: ['shortText'] } }])], PERMS, 'own')[0].items
     .map((it) => it.item), ['other']);
+});
+
+test('what is no value to show is never listed: an id, a link, an account, a position, a code, the Index\'s plumbing', () => {
+  const home = plugin('h', 'Home', [{ category: 'home', items: ['device'], supportsMultiple: true, properties: {
+    name: ['shortText'], id: ['longText'], deviceId: ['shortText'], room: ['shortText'], type: ['shortText'],
+    capabilities: ['longText'], on: ['boolean', 'shortText'], url: ['longText'], web_link: ['longText'],
+    latitude: ['numericValue'], home_lng: ['numericValue'], accuracyMeters: ['numericValue'], address: ['shortText'],
+    condition_code: ['longText'], conditionCode: ['longText'], utc_offset: ['numericValue'], email: ['shortText'],
+    api_key: ['shortText'], package: ['longText'], path: ['shortText'], account: ['shortText'],
+    typeface: ['shortText'], keyboard: ['shortText'] } },
+  { category: 'home', items: ['home_lights'], properties: { name: ['shortText'], on: ['boolean', 'shortText'] } }]);
+  assert.deepEqual(list.listOf([home], PERMS, 'own')[0].items.map((it) => [it.item, it.properties]), [
+    ['device', ['name', 'room', 'on', 'typeface', 'keyboard']], ['home_lights', ['on']]],
+  'an instance\'s name only where the source serves more than one, which it labels; a word that only starts as '
+    + 'one of them is no such name');
+  const index = plugin('n', 'Notes', [{ category: 'notes', items: ['destination'], properties: { title: ['shortText'] } },
+    { category: 'reminders', items: ['list'], supportsMultiple: true, properties: { title: ['shortText'] } },
+    { category: 'agent', items: ['chats'], supportsMultiple: true, properties: { title: ['shortText'] } },
+    { category: 'tasks', items: ['configured', 'today'], properties: { count: ['numericValue'] } }]);
+  assert.deepEqual(list.listOf([index], PERMS, 'own')[0].items.map((it) => it.item), ['today'],
+    'the places a plugin offers the Index for notes, reminders and chats, and whether one is set up');
+  assert.deepEqual(list.listOf([plugin('i', 'Index only', [{ category: 'agent', items: ['chats'],
+    properties: { title: ['shortText'] } }])], PERMS, 'own'), [], 'a plugin of nothing but that is not listed');
 });
 
 test('every item of every source, each value once, in the order the plugin declares them', () => {
@@ -134,6 +157,24 @@ test('a complication the slot cannot print is greyed out as such: a series or a 
     properties: { hourly_temperature: ['numericValue'] } }]);
   assert.equal(whys([weather, other], PERMS)[0], undefined,
     'another plugin serves it as a number: the user may prefer that one');
+});
+
+test('a complication that is no value to show is greyed out as the slot cannot show it', () => {
+  const people = plugin('p', 'People', [{ category: 'people', items: ['location'], supportsMultiple: true,
+    properties: { name: ['shortText'], latitude: ['numericValue'], place: ['shortText'] } }]);
+  const hue = plugin('h', 'Hue', [{ category: 'home', items: ['home_lights'], properties: { name: ['shortText'] } }]);
+  const known = [
+    { position: 0, category: 'people', item: 'location', index: 0, property: 'latitude' },
+    { position: 1, category: 'people', item: 'location', index: 0, property: 'name' },
+    { position: 2, category: 'home', item: 'home_lights', index: 0, property: 'name' },
+    { position: 3, category: 'notes', item: 'destination', index: 0, property: 'title' }];
+  const notes = plugin('n', 'Notes', [{ category: 'notes', items: ['destination'], properties: { title: ['shortText'] } }]);
+  assert.deepEqual(list.listOf([preferencesPlugin(), people, hue, notes], PERMS, 'own', known)[0].complications
+    .map((c) => c.why), [UNPRINTABLE, undefined, UNPRINTABLE, UNPRINTABLE],
+  'a position; the name of one of several, which says which; the name of the one instance, the same always; '
+    + 'the Index\'s plumbing');
+  assert.equal(list.listOf([preferencesPlugin(), people, hue], PERMS, 'own', known)[0].complications[3].why, '',
+    'where no plugin serves it, that is said first');
 });
 
 test('each complication by its place, what it shows, and why this app may not read it, where it may not', () => {
