@@ -287,46 +287,20 @@ test('no two catalog icon ids collide (a shared id merges two slots\' bold modes
     'icon id 6 is retired and must stay unused');
 });
 
-test('pollen is a DWD-only TEXT item: selectable for DWD, visible-but-disabled elsewhere', () => {
+test('pollen is a TEXT item every Provider offers: its pollen source follows the Provider', () => {
   const item = catalog.byCode('pollen');
   assert.ok(item, 'pollen item exists');
   assert.equal(item.kind, catalog.KINDS.TEXT);
   assert.equal(item.icon, catalog.ICONS.POLLEN);
   assert.equal(catalog.ICONS.POLLEN, 12);
-  assert.equal(item.needsProvider, 'dwd');
-  assert.equal(item.label, 'Pollen (DWD)', 'the label names the providing service');
-
-  // An item failing ONLY the provider gate stays in the dropdown as a disabled
-  // row (the user learns the option exists) instead of vanishing.
-  const providerCodes = ['wunderground', 'openweathermap', 'dwd', 'openmeteo', 'metno'];
-  providerCodes.forEach(provider => {
+  assert.equal(item.label, 'Pollen', 'no source in the name: the slot dialog names the one in use');
+  ['wunderground', 'openweathermap', 'dwd', 'openmeteo', 'metno', undefined].forEach(provider => {
     const opts = catalog.slotOptions({ provider }, ENV_BASALT,
       { slotKey: 'statusForecastLeft', position: 'left' });
-    const row = opts.find(o => o[1] === 'pollen');
-    assert.ok(row, 'pollen row present under ' + provider);
-    assert.equal(row[0], 'Pollen (DWD)', provider);
-    assert.equal(Boolean(row[2] && row[2].disabled), provider !== 'dwd',
-      provider + ' disabled flag');
+    assert.deepEqual(opts.find(o => o[1] === 'pollen'), ['Pollen', 'pollen', { groupChild: true, groupEnd: false }],
+      String(provider));
+    assert.equal(catalog.resolveSelection('pollen', { provider }, ENV_BASALT), 'pollen', String(provider));
   });
-});
-
-test('a disabled provider-gated row still carries its group-child metadata', () => {
-  // The weather category has several items, so pollen rides inside the group:
-  // the disabled flag must merge with (not replace) the child indentation meta.
-  const opts = catalog.slotOptions({ provider: 'openmeteo' }, ENV_BASALT,
-    { slotKey: 'statusForecastLeft', position: 'left' });
-  const row = opts.find(o => o[1] === 'pollen');
-  assert.equal(row[2].disabled, true);
-  assert.equal(row[2].groupChild, true);
-  assert.equal(typeof row[2].groupEnd, 'boolean');
-});
-
-test('pollen defensively resolves to empty unless the weather provider is DWD', () => {
-  assert.equal(catalog.resolveSelection('pollen', { provider: 'dwd' }, ENV_BASALT), 'pollen');
-  ['wunderground', 'openweathermap', 'openmeteo', 'metno'].forEach(provider => {
-    assert.equal(catalog.resolveSelection('pollen', { provider }, ENV_BASALT), 'empty', provider);
-  });
-  assert.equal(catalog.resolveSelection('pollen', {}, ENV_BASALT), 'empty', 'missing provider');
 });
 
 test('week is a LIVE_WEEK item offered on all platforms (aplite gets it as phone-baked text)', () => {
@@ -503,8 +477,6 @@ test('the phone battery is a TEXT item with its own icon id and no position pinn
     assert.equal(item.notAplite, true, item.code + ' aplite gate');
     // These carry their own icon (or deliberately none) and belong in any slot.
     assert.equal(item.middleOnly, undefined, item.code + ' must not be middle-only');
-    // A provider gate would render a DISABLED row; the phone gate must omit.
-    assert.equal(item.needsProvider, undefined, item.code + ' must not be provider-gated');
   });
   assert.equal(iconed.icon, catalog.ICONS.PHONE_BATTERY);
   // The Text look's icon id (18) is packed by the bake, never TEXT + ICON_NONE: that is
@@ -517,7 +489,7 @@ test('the phone battery is OMITTED, not shown disabled, without env.phoneBattery
   // iOS, the emulator, and a first run before the detector has answered all look
   // the same: no env.phoneBattery. There is no setting the user could change to
   // earn the item, so it must vanish (the notAplite path) rather than appear as
-  // a greyed-out row (the needsProvider path, e.g. "Pollen (DWD)").
+  // a greyed-out row.
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   [ENV_BASALT, ENV_EMERY, ENV_DIORITE].forEach((env) => {
     ALL_SLOT_CTXS.forEach((ctx) => {

@@ -157,9 +157,9 @@ function dialogSections(keyRow) {
             messageKey: 'provider',
             label: 'Provider',
             defaultValue: 'wunderground',
-            // The pollen source follows the provider (blocks.js); a value picked to the new
-            // Provider, or left at the old one, comes from the Provider (weather-sources-page.js).
-            onChange: ['clearPollenForProvider', 'weatherProviderPicked'],
+            // A value picked to the new Provider, or left at the old one, comes from the
+            // Provider (weather-sources-page.js).
+            onChange: ['weatherProviderPicked'],
             // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no,
             // else→Open-Meteo), reading the same country→provider map the wizard uses. See
             // blocks.js recommend resolvers.

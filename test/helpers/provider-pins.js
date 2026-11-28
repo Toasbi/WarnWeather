@@ -35,7 +35,7 @@ const WATCHES = {
 // on a Pebble Time, and on an emery's long span every other reading a fetch can ask a
 // provider for: the cloud, UV, dew point and air pressure lines, the feels-like with the
 // Steadman formula, the dew point and the weather condition in the Forecast bar, the pollen
-// (DWD only; another provider leaves it empty), the wind with its direction and the gusts
+// (the DWD's index with DWD, the CAMS forecast with the rest), the wind with its direction and the gusts
 // in the Watch bar. A fresh install already asks for UV, air quality and the day max of UV,
 // wind, gusts and air quality (the On demand items).
 const SCENARIOS = {

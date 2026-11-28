@@ -258,7 +258,7 @@ function pollenBand(raw) {
 }
 
 /**
- * Today's DWD pollen reading (POLLEN_TODAY), see pollenBand.
+ * Today's pollen reading (POLLEN_TODAY), see pollenBand.
  * @param {Object} payload weather payload (pre-transform)
  * @returns {?{band: string, level: number}}
  */
@@ -267,11 +267,11 @@ function pollenToday(payload) {
 }
 
 /**
- * Tomorrow's DWD pollen reading (POLLEN_TOMORROW, from the same request as
+ * Tomorrow's pollen reading (POLLEN_TOMORROW, from the same request as
  * today's), see pollenBand. Only an alert that looks ahead reads it.
  * @param {Object} payload weather payload (pre-transform)
- * @returns {?{band: string, level: number}} null when DWD has not issued
- *     tomorrow's band (or no pollen was fetched)
+ * @returns {?{band: string, level: number}} null when the pollen source has no
+ *     band for tomorrow (or no pollen was fetched)
  */
 function pollenTomorrow(payload) {
   return pollenBand(payload.POLLEN_TOMORROW);
@@ -395,7 +395,7 @@ function alertReading(code, payload, settings) {
 /**
  * What a metric alert that looks ahead judges and prints for TOMORROW: a day-max
  * kind's peak (wire-units' dayMaxTomorrow — the slot's "»8" number, in the
- * user's wind unit), pollen tomorrow's DWD band. Never the current reading, and
+ * user's wind unit), pollen tomorrow's band. Never the current reading, and
  * only a value above 0 — the slot never marks a "»0" either, and a warn of 0
  * must not raise an alert about a quiet tomorrow.
  * @param {string} code An ALERT_KINDS code.

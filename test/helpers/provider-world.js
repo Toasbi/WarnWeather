@@ -1,7 +1,7 @@
 // test/helpers/provider-world.js — one fixed morning in Berlin, answered the way each weather
 // service answers it. Every request a weather fetch makes (the seven forecast providers, the
-// city lookup, DWD's UV from Open-Meteo, air quality, DWD's pollen) gets a response in that
-// service's own shape and units, all built from one set of hourly readings, so two providers
+// city lookup, DWD's UV from Open-Meteo, air quality, the DWD's or the CAMS pollen) gets a
+// response in that service's own shape and units, all built from one set of hourly readings, so two providers
 // asked about the same hour describe the same weather.
 //
 // The provider pins (provider-pins.js) fetch through it end to end. Each answer follows the
@@ -38,6 +38,9 @@ const UV = [0, 0, 0, 0, 0.1, 0.4, 1.0, 2.0, 3.3, 4.6, 5.7, 6.4, 6.6, 6.2, 5.3, 4
   0.2, 0, 0, 0, 0];
 const PRESSURE_STEP = [0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 1.8, 1.5, 1.2, 0.9];
 const AQI_STEP = [0, 2, 4, 6, 8, 10, 12, 14, 16, 14, 12, 10];
+// The CAMS forecast's grass pollen (grains per cubic meter) by local hour: a day's mean of 13,
+// medium, and 20 more every day after, so tomorrow's is high.
+const GRASS = [2, 2, 2, 2, 3, 5, 9, 14, 20, 26, 30, 32, 32, 30, 26, 20, 14, 9, 6, 4, 3, 2, 2, 2];
 
 /**
  * @param {Array} list Values per hour.
@@ -288,6 +291,21 @@ const SERVICES = [
     answer: (url) => {
       const time = openMeteoTimes(url);
       return { hourly: { time: time, uv_index: time.map((t) => before(t).uv) } };
+    }
+  },
+  {
+    // The CAMS pollen forecast from Open-Meteo's air quality API: every type by the hour from
+    // the place's midnight (timezone=auto), grass alone above 0.
+    match: (url) => url.indexOf('https://air-quality-api.open-meteo.com/v1/air-quality?') === 0
+      && /_pollen/.test(query(url).get('hourly')),
+    answer: (url) => {
+      const days = Number(query(url).get('forecast_days'));
+      const time = Array.from({ length: days * 24 }, (_, k) => DAY0 - BERLIN_OFFSET + k * HOUR);
+      const hourly = { time: time };
+      query(url).get('hourly').split(',').forEach((field) => {
+        hourly[field] = time.map((t, k) => (field === 'grass_pollen' ? cycled(GRASS, k) + Math.floor(k / 24) * 20 : 0));
+      });
+      return { hourly: hourly };
     }
   },
   {

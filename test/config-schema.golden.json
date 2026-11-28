@@ -22236,7 +22236,6 @@
                 "label": "Provider",
                 "defaultValue": "wunderground",
                 "onChange": [
-                  "clearPollenForProvider",
                   "weatherProviderPicked"
                 ],
                 "recommendFrom": "recommendedWeatherProvider",

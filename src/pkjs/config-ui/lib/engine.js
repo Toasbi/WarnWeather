@@ -615,8 +615,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           + '<span class="ssel-opt-desc">' + (recLead ? '<b class="ssel-rec">Recommended</b> · ' : '')
           + esc(meta.desc) + '</span></span>'
         : '<span>' + esc(o[0]) + rec + '</span>';
-      // A non-header disabled option — per-option meta.disabled (a provider-gated
-      // slot item, e.g. "Pollen (DWD)" under another provider) or an
+      // A non-header disabled option — per-option meta.disabled (e.g. a weather provider
+      // whose key is not stored, in a value's source list) or an
       // optionDisabledWhen gate resolved by the caller — stays visible but inert:
       // no data-select-pick, so the delegated pick handler can never match, plus
       // the disabled attribute against taps/keyboard. Muted inline — .ssel-opt

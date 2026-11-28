@@ -334,13 +334,14 @@ test('needsAqi is true when a status slot selects aqi; the Watch bar defaults to
   assert.equal(needsAqi(bare({ statusTopLeft: 'empty', statusRadarMid: 'aqi' })), true);
 });
 
-test('needsPollen is true only for DWD with an effective pollen status selection', () => {
+test('needsPollen is true for an effective pollen status selection, whatever the Provider', () => {
   assert.equal(needsPollen(null), false);
   assert.equal(needsPollen({}), false);
-  assert.equal(needsPollen({ provider: 'openmeteo', statusForecastLeft: 'pollen' }), false);
   assert.equal(needsPollen({ provider: 'dwd', statusForecastLeft: 'uv' }), false);
-  assert.equal(needsPollen({ provider: 'dwd', statusForecastLeft: 'pollen' }), true);
-  assert.equal(needsPollen({ provider: 'dwd', statusRadarMid: 'pollen' }), true);
+  ['dwd', 'openmeteo', 'metno', undefined].forEach((provider) => {
+    assert.equal(needsPollen({ provider: provider, statusForecastLeft: 'pollen' }), true, String(provider));
+    assert.equal(needsPollen({ provider: provider, statusRadarMid: 'pollen' }), true, String(provider));
+  });
 });
 
 test('toRenderPayload deletes the transient AQI_TREND key', () => {
@@ -1205,9 +1206,10 @@ test('a placed alert makes UV, AQI and pollen fetch with no slot or line', () =>
   assert.equal(needsUv(on('uv'), { platform: 'aplite' }), false, 'aplite fetches nothing for alerts');
   assert.equal(needsAqi(none), false, 'guard: nothing selects aqi');
   assert.equal(needsAqi(on('aqi')), true);
-  // Pollen stays DWD-only.
+  // Pollen, under every Provider.
+  assert.equal(needsPollen(none), false, 'guard: nothing selects pollen');
   assert.equal(needsPollen(on('pollen', { provider: 'dwd' })), true);
-  assert.equal(needsPollen(on('pollen', { provider: 'openmeteo' })), false);
+  assert.equal(needsPollen(on('pollen', { provider: 'openmeteo' })), true);
   // ...and the day-max kinds' day peaks with them, in every slot display mode.
   assert.deepEqual(dayPeakCodes(none), []);
   assert.deepEqual(dayPeakCodes(on('uv,wind,gust,aqi', { uvSlotDisplay: 'current' })),

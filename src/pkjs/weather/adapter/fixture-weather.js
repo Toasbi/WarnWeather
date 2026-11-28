@@ -145,8 +145,8 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo, now, facts) {
     provider.aqiTrend = (typeof weather.aqi === 'number') ? [weather.aqi]
         : (Array.isArray(weather.aqi) ? weather.aqi.slice(0) : []);
     // Pollen is a status-slot value, not a forecast line: accept the fixture's
-    // native DWD display string (weather.pollen, e.g. '1-2'), or leave null so
-    // the slot renders '--'.
+    // pollen band (weather.pollen, e.g. '1-2'), or leave null so the slot
+    // renders '--'.
     provider.pollenToday = (typeof weather.pollen === 'string') ? weather.pollen : null;
     // ...and tomorrow's band the same way (weather.pollenTomorrow), for a pollen
     // alert that looks ahead.

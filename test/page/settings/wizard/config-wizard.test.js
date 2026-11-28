@@ -37,36 +37,14 @@ test('applyDerived sets wind/distance units, week-start and date format from the
   assert.equal(de.dateSlotFullFormat, 'auto', 'everyone else keeps the dotted dd.mm.yy');
 });
 
-test('applyDerived clears pollen when the wizard derives a non-DWD provider', () => {
-  const S = {
-    holidayCountry: 'US',
-    provider: 'dwd',
-    statusForecastLeft: 'pollen',
-    statusForecastMid: 'wind',
-    statusTopLeft: 'uv'
-  };
-
-  W.applyDerived(S);
-
-  assert.equal(S.provider, 'openmeteo');
-  assert.equal(S.statusForecastLeft, 'empty');
-  assert.equal(S.statusForecastMid, 'wind', 'unrelated slot remains unchanged');
-  assert.equal(S.statusTopLeft, 'uv', 'unrelated slot remains unchanged');
-});
-
-test('applyDerived leaves pollen intact when the wizard derives DWD', () => {
-  const S = {
-    holidayCountry: 'DE',
-    provider: 'openmeteo',
-    statusForecastLeft: 'pollen',
-    statusForecastMid: 'wind'
-  };
-
-  W.applyDerived(S);
-
-  assert.equal(S.provider, 'dwd');
-  assert.equal(S.statusForecastLeft, 'pollen');
-  assert.equal(S.statusForecastMid, 'wind');
+test('applyDerived keeps a pollen slot whatever Provider it derives: every Provider has pollen', () => {
+  [['US', 'dwd', 'openmeteo'], ['DE', 'openmeteo', 'dwd']].forEach(([country, from, to]) => {
+    const S = { holidayCountry: country, provider: from, statusForecastLeft: 'pollen', statusForecastMid: 'wind' };
+    W.applyDerived(S);
+    assert.equal(S.provider, to, country);
+    assert.equal(S.statusForecastLeft, 'pollen', country);
+    assert.equal(S.statusForecastMid, 'wind', country);
+  });
 });
 
 test('buildSteps: Welcome, Forecast, Layout, Screens, Theme, Done; each gated by what the watch has', () => {

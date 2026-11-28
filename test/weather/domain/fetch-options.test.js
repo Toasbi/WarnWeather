@@ -66,7 +66,7 @@ test('build({}) takes UV and AQI from the default slot selection, not from DEFAU
   const out = fetchOptions.build(Object.assign({}, NOTHING_PLACED));
   assert.equal(out.fetchUv, true, 'the radar line\'s left slot defaults to UV');
   assert.equal(out.fetchAqi, true, 'the forecast line\'s right slot defaults to AQI');
-  assert.equal(out.fetchPollen, false, 'pollen is DWD-only');
+  assert.equal(out.fetchPollen, false, 'no default slot shows pollen');
   assert.equal(out.feelsFormula, fetchOptions.DEFAULTS.feelsFormula);
   assert.equal(out.windUnits, fetchOptions.DEFAULTS.windUnits);
   assert.equal(out.aqiScale, fetchOptions.DEFAULTS.aqiScale);
@@ -106,7 +106,10 @@ test('a UV slot flips fetchUv', () => {
 
 test('pollen and the feels work follow their selections', () => {
   assert.equal(fetchOptions.build({ provider: 'dwd', statusRadarMid: 'pollen' }).fetchPollen, true);
-  assert.equal(fetchOptions.build({ provider: 'openmeteo', statusRadarMid: 'pollen' }).fetchPollen, false);
+  assert.equal(fetchOptions.build({ provider: 'openmeteo', statusRadarMid: 'pollen' }).fetchPollen, true,
+    'every Provider has pollen');
+  assert.equal(fetchOptions.build({ provider: 'openmeteo', statusRadarMid: 'wind', statusTopLeft: 'empty' })
+    .fetchPollen, false);
   assert.equal(fetchOptions.build({ tempSlotDisplay: 'both' }).fetchFeels, true);
   assert.equal(fetchOptions.build({ tempSlotDisplay: 'actual' }).fetchFeels, false);
 });

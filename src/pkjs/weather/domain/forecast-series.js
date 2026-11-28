@@ -684,15 +684,14 @@ function needsFeels(settings, watchInfo) {
 }
 
 /**
- * Whether a DWD status slot selects pollen, or its alert is placed. Pollen is
- * DWD-only and status-only.
+ * Whether a status slot selects pollen, or its alert is placed. Pollen is status-only;
+ * every Provider has it, from the pollen source the Provider reads (pollen-days.js sourceOf).
  * @param {Object} settings Clay settings.
  * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
- * @returns {boolean} True when the effective provider and slot selection (or the
- *     pollen alert) need pollen.
+ * @returns {boolean} True when the slot selection (or the pollen alert) needs pollen.
  */
 function needsPollen(settings, watchInfo) {
-    if (!settings || settings.provider !== 'dwd') { return false; }
+    if (!settings) { return false; }
     return metricWanted(settings, 'pollen', watchInfo);
 }
 

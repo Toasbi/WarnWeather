@@ -229,16 +229,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Derive the country's settings onto the shared state, running the provider's cleanup hook the
-     * way the settings control does.
+     * Derive the country's settings onto the shared state.
      * @param {Object} S Live settings.
      * @returns {void}
      */
     function applyDerived(S) {
         var m = CD.mapCountry(S.holidayCountry);
-        var oldProvider = S.provider;
         S.provider = m.provider;
-        PConf.onChange.get('clearPollenForProvider')(S, oldProvider, m.provider);
         // The country's Rainbow pick is "Rainbow (limited)" ('rainbow'); a radar already on
         // "Rainbow (own key)" ('rainbowkey') stays there.
         var ownKey = S.radarProvider === 'rainbowkey' && m.radarProvider === 'rainbow';
@@ -1188,7 +1185,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * A key typed into the Tomorrow.io card: a key makes Tomorrow.io the weather provider, clearing
      * it goes back to the country's (wizard-upsell.js providerFor), written with the provider's own
-     * hook (the pollen cleanup). No re-render on keystrokes (focus would drop); the summary's Weather
+     * hooks. No re-render on keystrokes (focus would drop); the summary's Weather
      * and Forecast lines, whose long span is named by the provider's feed, update in place.
      * @param {*} key The key.
      * @returns {void}

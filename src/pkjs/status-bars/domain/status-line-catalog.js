@@ -82,8 +82,8 @@
     // only hint in the dropdown that this slot has a choice behind it — its edit sheet
     // picks actual, feels-like, or both — and without it the row reads as a fixed
     // reading and those modes go unfound. Reserved forms are out: the catalog's
-    // parentheses mean a unit or source ('Air pressure (hPa)', 'Pollen (DWD)'), not a
-    // list of modes.
+    // parentheses mean a unit ('Air pressure (hPa)', 'Air quality (AQI)'), not a list of
+    // modes.
     { code: 'temp', label: 'Temperature/feels like', kind: KINDS.TEXT, icon: ICONS.TEMP, category: 'weather' },
     { code: 'wind', label: 'Wind speed', kind: KINDS.TEXT, icon: ICONS.WIND, category: 'weather' },
     { code: 'gust', label: 'Wind gusts', kind: KINDS.TEXT, icon: ICONS.GUST, category: 'weather' },
@@ -96,7 +96,8 @@
     // what prints, and wind, gusts and AQI carry the same modes without one either.
     { code: 'uv', label: 'UV index', kind: KINDS.TEXT, icon: ICONS.UV, category: 'weather' },
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.AQI, category: 'weather' },
-    { code: 'pollen', label: 'Pollen (DWD)', kind: KINDS.TEXT, icon: ICONS.POLLEN, needsProvider: 'dwd', category: 'weather' },
+    // Every Provider has pollen: its pollen source follows the Provider (pollen-days.js sourceOf).
+    { code: 'pollen', label: 'Pollen', kind: KINDS.TEXT, icon: ICONS.POLLEN, category: 'weather' },
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'weather' },
     // What the weather is like now (weather/domain/condition.js): its name, or its short form where
     // the slot is short of room, with the condition's glyph; the edit sheet's Look picks icon
@@ -247,9 +248,8 @@
     // The phone's battery is readable only where the PKJS host has a source of it:
     // the Pebble app's Phone plugin, or the Battery Status API of Android's
     // Chromium WebView (phone-battery.js); never the emulator. env.phoneBattery carries that
-    // answer (from the PHONE_BATTERY_SUPPORTED storage key). Like notAplite and
-    // UNLIKE needsProvider, a false gate OMITS the item rather than showing a
-    // disabled row: there is no setting the user could change to earn it.
+    // answer (from the PHONE_BATTERY_SUPPORTED storage key). Like notAplite, a false
+    // gate OMITS the item: there is no setting the user could change to earn it.
     if (item.needsPhoneBattery && (!env || !env.phoneBattery)) { return false; }
     // A value read from another app's plugin needs a Pebble app that reads plugins
     // (plugin-reader.js available): env.plugins, the page's from index.js, the bake's from its
@@ -267,29 +267,7 @@
     if (item.needsRadarOff && (!settings || (settings.radarMode || 'graph') !== 'off')) {
       return false;
     }
-    if (item.needsProvider && (!settings || settings.provider !== item.needsProvider)) {
-      return false;
-    }
     return true;
-  }
-
-  /**
-   * True when the ONLY gate an item fails is needsProvider — i.e. itemAvailable
-   * would answer true if the selected weather provider matched. slotOptions
-   * keeps such an item visible as a DISABLED row (so the user learns the option
-   * exists, e.g. "Pollen (DWD)" under another provider) instead of omitting it.
-   * Selection-side callers (resolveSelection & co.) keep using itemAvailable,
-   * which still treats a provider-mismatched code as unavailable.
-   * @param {Object} item catalog entry
-   * @param {Object} settings Clay settings blob
-   * @param {Object} env platform env
-   * @param {Object} [slotCtx] {slotKey, position} of the slot being resolved
-   * @returns {boolean}
-   */
-  function itemAvailableExceptProvider(item, settings, env, slotCtx) {
-    if (!item || !item.needsProvider) { return false; }
-    var relaxed = Object.assign({}, settings || {}, { provider: item.needsProvider });
-    return itemAvailable(item, relaxed, env, slotCtx);
   }
 
   /**
@@ -305,9 +283,7 @@
 
   /**
    * Option list for one slot dropdown: 'Empty' first, then available items per
-   * category, minus args.excludeCodes but an item a bar may repeat (repeatsInBar). An
-   * item gated ONLY by the weather
-   * provider stays in the list as a non-selectable row with {disabled: true}.
+   * category, minus args.excludeCodes but an item a bar may repeat (repeatsInBar).
    * Multi-item categories emit a non-selectable header with
    * {disabled: true, groupHeader: true}; each child has
    * {groupChild: true, groupEnd: boolean}. Single-item categories collapse to
@@ -331,11 +307,7 @@
         var item = ITEMS[i];
         if (item.category !== CATEGORIES[c][0]
             || (taken[item.code] && !item.repeatsInBar)) { continue; }
-        if (!itemAvailable(item, settings, env, slotCtx)) {
-          if (!itemAvailableExceptProvider(item, settings, env, slotCtx)) { continue; }
-          children.push([optionLabel(item, env), item.code, { disabled: true }]);
-          continue;
-        }
+        if (!itemAvailable(item, settings, env, slotCtx)) { continue; }
         children.push([optionLabel(item, env), item.code]);
       }
       if (!children.length) { continue; }
@@ -346,12 +318,7 @@
       out.push([CATEGORIES[c][1], '__hdr_' + CATEGORIES[c][0],
         { disabled: true, groupHeader: true }]);
       for (i = 0; i < children.length; i++) {
-        // Merge into any existing meta (a disabled provider-gated child) rather
-        // than replacing it.
-        var meta = children[i][2] || {};
-        meta.groupChild = true;
-        meta.groupEnd = i === children.length - 1;
-        children[i][2] = meta;
+        children[i][2] = { groupChild: true, groupEnd: i === children.length - 1 };
         out.push(children[i]);
       }
     }

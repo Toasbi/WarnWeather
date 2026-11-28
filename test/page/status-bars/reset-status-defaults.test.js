@@ -1,7 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  clearPollenForProvider,
   dedupeStatusSlot,
   resetCountdownDate,
   onDemandTick
@@ -23,46 +22,6 @@ function blob(extra) {
     statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'distance'
   }, extra || {});
 }
-
-test('switching to any non-DWD provider clears pollen from every bar\'s slots, bars 4 to 6\'s too', () => {
-  const slotKeys = catalog.everySlotKey();
-  assert.equal(slotKeys.length, 21, 'the four bars and bars 4 to 6');
-  ['wunderground', 'openweathermap', 'openmeteo', 'metno'].forEach(provider => {
-    const S = { provider: provider, healthMode: 'all', radarProvider: 'disabled' };
-    slotKeys.forEach(key => { S[key] = 'pollen'; });
-
-    clearPollenForProvider(S, provider);
-
-    slotKeys.forEach(key => assert.equal(S[key], 'empty', provider + ': ' + key));
-    assert.equal(S.provider, provider, 'provider remains unchanged');
-    assert.equal(S.healthMode, 'all', 'unrelated setting remains unchanged');
-    assert.equal(S.radarProvider, 'disabled', 'unrelated setting remains unchanged');
-  });
-});
-
-test('switching to DWD leaves pollen selections and unrelated slots unchanged', () => {
-  const S = blob({
-    provider: 'dwd',
-    statusForecastLeft: 'pollen',
-    statusForecastMid: 'wind',
-    statusTopLeft: 'uv'
-  });
-
-  clearPollenForProvider(S, 'dwd');
-
-  assert.equal(S.statusForecastLeft, 'pollen');
-  assert.equal(S.statusForecastMid, 'wind');
-  assert.equal(S.statusTopLeft, 'uv');
-});
-
-test('switching weather provider keeps the tomorrow.io API key (never cleared on provider change)', () => {
-  const S = blob({ provider: 'tomorrowio', tomorrowioApiKey: 'secret-key' });
-  clearPollenForProvider(S, 'wunderground');
-  assert.equal(S.tomorrowioApiKey, 'secret-key', 'the entered key survives switching to another provider');
-  // ...and back again — still there (the field just hides via showWhen when unused).
-  clearPollenForProvider(S, 'dwd');
-  assert.equal(S.tomorrowioApiKey, 'secret-key');
-});
 
 test('dedupeStatusSlot: a same-line sibling holding the new code reverts to empty', () => {
   const S = blob({ statusForecastLeft: 'temp', statusForecastMid: 'temp' }); // user just set Mid to temp

@@ -87,8 +87,8 @@ function buildPayload(forecast, nowEpoch) {
         GUST_TREND_UINT8: gusts, // Transient PKJS-only: km/h integers; read by the bake and the series; render-payload removes it before send
         UV_TREND_UINT8: uvs, // Transient PKJS-only: UV tenths; read by the bake and the series; render-payload removes it before send
         AQI_TREND: (forecast.aqiTrend && forecast.aqiTrend.length) ? forecast.aqiTrend.slice(0, numEntries) : [], // Transient PKJS-only: current-window AQI ints; read by the bake and the series; render-payload removes it before send
-        POLLEN_TODAY: forecast.pollenToday, // Transient PKJS-only: native DWD severity; read by the bake and the series; render-payload removes it before send
-        POLLEN_TOMORROW: forecast.pollenTomorrow, // Transient PKJS-only: tomorrow's DWD severity, read by the pollen alert's look-ahead; render-payload removes it before send
+        POLLEN_TODAY: forecast.pollenToday, // Transient PKJS-only: today's pollen band; read by the bake and the series; render-payload removes it before send
+        POLLEN_TOMORROW: forecast.pollenTomorrow, // Transient PKJS-only: tomorrow's pollen band, read by the pollen alert's look-ahead; render-payload removes it before send
         CLOUD_TREND: (forecast.cloudTrend && forecast.cloudTrend.length) ? forecast.cloudTrend.slice(0, numEntries) : [], // Transient PKJS-only: cloud cover %; forecast-series consumes + deletes before send
         PRESSURE_TREND: (forecast.pressureTrend && forecast.pressureTrend.length) ? forecast.pressureTrend.slice(0, numEntries) : [], // Transient PKJS-only: sea-level hPa (no _UINT8 — 950..1050 doesn't fit a byte); read by the bake and the series; render-payload removes it before send
         FORECAST_START: forecast.startTime,

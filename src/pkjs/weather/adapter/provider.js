@@ -74,8 +74,9 @@ var WeatherProvider = function() {
     // reading alone, which says nothing about the day's peak, so the AQI slot's
     // Day max / Both modes only run on the Open-Meteo forecast.
     this.aqiFeedId = null;
-    // Pollen is opt-in and DWD-only; null renders as '--' unless the auxiliary
-    // fetch fills it. Transient: consumed by formatValue, never wired.
+    // Pollen is opt-in, from the pollen source the Provider reads (pollen.js); null
+    // renders as '--' unless the auxiliary fetch fills it. Transient: consumed by
+    // formatValue, never wired.
     this.pollenToday = null;
     // Tomorrow's band from the same response, for a pollen alert that looks
     // ahead (status-wire bakedAlerts). Transient too, never wired.

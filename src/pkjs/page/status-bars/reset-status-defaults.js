@@ -1,7 +1,7 @@
 // src/pkjs/page/status-bars/reset-status-defaults.js — ES5, WebView. Registers the
-// config-ui engine's status-slot onChange hooks (see engine.js's PConf.onChange):
-// pollen cleared off DWD (clearPollenForProvider), one item per line but the ones a bar
-// may repeat (dedupeStatusSlot) and a fresh target date for a slot that turns Date countdown
+// config-ui engine's status-slot onChange hooks (see engine.js's PConf.onChange): one item
+// per line but the ones a bar may repeat (dedupeStatusSlot) and a fresh target date for a
+// slot that turns Date countdown
 // (resetCountdownDate). It also registers the Shows on grids' writer
 // (PConf.checkWriters 'onDemandTick'), which stores each tick through on-demand.js.
 // Pack-time resolveSelection still maps stale/imported invalid codes to empty
@@ -23,21 +23,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The On demand contract (on-demand.js), concatenated ahead of this file.
     var onDemand = (typeof require !== 'undefined')
         ? require('../../status-bars/domain/on-demand.js') : window.OnDemand;
-
-    /**
-     * Clear DWD-only pollen selections after switching to another provider, in every bar's
-     * slots, bars 4 to 6's too (catalog everySlotKey). Mutates S in place.
-     * @param {Object} S live settings state
-     * @param {string} newProvider newly selected weather provider
-     * @returns {void}
-     */
-    function clearPollenForProvider(S, newProvider) {
-        if (newProvider === 'dwd') { return; }
-        var keys = catalog.everySlotKey();
-        for (var i = 0; i < keys.length; i++) {
-            if (S[keys[i]] === 'pollen') { S[keys[i]] = 'empty'; }
-        }
-    }
 
     /**
      * When a slot is set to a code a same-line sibling already holds, clear that
@@ -87,10 +72,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S[catalog.countdownKey(changedKey)] = todayDateValue(new Date());
     }
 
-    PConf.onChange.register('clearPollenForProvider', function (S, oldValue, newValue) {
-        clearPollenForProvider(S, newValue);
-    });
-
     /**
      * One tap in an item's Shows on grid (alerts-schema.js showsOnRows names this writer;
      * config-ui lib/checklist.js), stored by on-demand.js, the side lists' writer: a tick
@@ -117,7 +98,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
-            clearPollenForProvider: clearPollenForProvider,
             dedupeStatusSlot: dedupeStatusSlot,
             resetCountdownDate: resetCountdownDate,
             onDemandTick: onDemandTick

@@ -190,11 +190,12 @@
   },
   "metno@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":true,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
     ],
     "payload": {
       "TEMP_MIN": 52,
@@ -204,8 +205,8 @@
       "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
       "IS_SLEEPING": false,
       "STATUS_LINE_1_UINT8": [1,2,5,49,55,124,49,52,1,15,2,49,49,1,24,11,67,108,111,117,100,121,31,67,76,68,89],
-      "STATUS_LINE_3_UINT8": [0,0,0,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
-      "STATUS_LEVELS_UINT8": [0,0],
+      "STATUS_LINE_3_UINT8": [1,12,1,50,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
+      "STATUS_LEVELS_UINT8": [4,0],
       "ALERT_ENTRIES_UINT8": [135,55],
       "TEMP_TREND_UINT8": [175,200,217,225,233,242,233,233,217,200,183,158,142,125,117,108,108,100,92,92,100,117,133,158,183,200,217,233,242,242,242,233,225,208,183,167,150,133,117,108,108,108,100,100,100,117,142,167,192,208,225,233,250,250,250,242,233,217,192,175,158,150,142,125,117,125,125,133],
       "SECONDARY_LINE_TREND_UINT8": [138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,166,188,200,205,205,194,166,138,113,88,75,70,65,60,55,50,54,58,63],
@@ -299,13 +300,14 @@
   },
   "openmeteo@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":true,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.405&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high&current=temperature_2m,weather_code&temperature_unit=fahrenheit&windspeed_unit=kmh&precipitation_unit=mm&timeformat=unixtime&timezone=GMT&models=ecmwf_ifs025&forecast_days=4",
       "GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.405&hourly=windgusts_10m,apparent_temperature,dew_point_2m,wind_direction_10m&current=apparent_temperature,dew_point_2m,wind_speed_10m&temperature_unit=fahrenheit&windspeed_unit=kmh&timeformat=unixtime&timezone=GMT&forecast_days=4",
       "GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.405&hourly=uv_index&timeformat=unixtime&timezone=GMT&models=ncep_gfs_global&forecast_days=4",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
     ],
     "payload": {
       "TEMP_MIN": 52,
@@ -315,8 +317,8 @@
       "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
       "IS_SLEEPING": false,
       "STATUS_LINE_1_UINT8": [1,2,5,49,55,124,49,52,1,15,2,49,49,1,24,11,67,108,111,117,100,121,31,67,76,68,89],
-      "STATUS_LINE_3_UINT8": [0,0,0,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
-      "STATUS_LEVELS_UINT8": [0,0],
+      "STATUS_LINE_3_UINT8": [1,12,1,50,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
+      "STATUS_LEVELS_UINT8": [4,0],
       "ALERT_ENTRIES_UINT8": [135,55],
       "TEMP_TREND_UINT8": [175,200,217,225,233,242,233,233,217,200,183,158,142,125,117,108,108,100,92,92,100,117,133,158,183,200,217,233,242,242,242,233,225,208,183,167,150,133,117,108,108,108,100,100,100,117,142,167,192,208,225,233,250,250,250,242,233,217,192,175,150,142,125,117,117,108,108,100],
       "SECONDARY_LINE_TREND_UINT8": [138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88],
@@ -405,11 +407,12 @@
   },
   "openweathermap@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":true,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.openweathermap.org/data/3.0/onecall?appid=owm-test-key&lat=52.52&lon=13.405&units=imperial&exclude=alerts,minutely",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
     ],
     "payload": {
       "TEMP_MIN": 52,
@@ -419,8 +422,8 @@
       "SUN_EVENTS": [1,236,234,54,106,180,79,55,106],
       "IS_SLEEPING": false,
       "STATUS_LINE_1_UINT8": [1,2,5,49,55,124,49,52,1,15,2,49,49,1,24,19,77,111,115,116,108,121,32,99,108,111,117,100,121,31,77,67,76,68,89],
-      "STATUS_LINE_3_UINT8": [0,0,0,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
-      "STATUS_LEVELS_UINT8": [0,0],
+      "STATUS_LINE_3_UINT8": [1,12,1,50,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
+      "STATUS_LEVELS_UINT8": [4,0],
       "ALERT_ENTRIES_UINT8": [135,55],
       "TEMP_TREND_UINT8": [181,207,224,233,241,250,241,241,224,207,190,164,147,129,121,112,112,103,95,95,103,121,138,164,190,207,224,241,250,250,250,241,233,216,190,172,155,138,121,112,112,112,103,103,103,121,147,172],
       "SECONDARY_LINE_TREND_UINT8": [138,175,213,238,250,250,225,175,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,175,213,238,250,250,225,175,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100],
@@ -509,11 +512,12 @@
   },
   "tomorrowio@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":true,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.tomorrow.io/v4/timelines?location=52.52,13.405&fields=temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,cloudCover,temperatureApparent,dewPoint,windDirection,humidity,weatherCode&timesteps=1h&units=metric&startTime=2026-06-20T08%3A00%3A00.000Z&endTime=2026-06-23T05%3A00%3A00.000Z&apikey=tio-test-key",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
     ],
     "payload": {
       "TEMP_MIN": 52,
@@ -523,8 +527,8 @@
       "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
       "IS_SLEEPING": false,
       "STATUS_LINE_1_UINT8": [1,2,5,49,55,124,49,52,1,15,2,49,49,1,24,19,77,111,115,116,108,121,32,99,108,111,117,100,121,31,77,67,76,68,89],
-      "STATUS_LINE_3_UINT8": [0,0,0,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
-      "STATUS_LEVELS_UINT8": [0,0],
+      "STATUS_LINE_3_UINT8": [1,12,1,50,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
+      "STATUS_LEVELS_UINT8": [4,0],
       "ALERT_ENTRIES_UINT8": [135,55],
       "TEMP_TREND_UINT8": [175,200,217,225,233,242,233,233,217,200,183,158,142,125,117,108,108,100,92,92,100,117,133,158,183,200,217,233,242,242,242,233,225,208,183,167,150,133,117,108,108,108,100,100,100,117,142,167,192,208,225,233,250,250,250,242,233,217,192,175,150,142,125,117,117,108,108,100],
       "SECONDARY_LINE_TREND_UINT8": [138,175,213,238,250,250,225,175,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,175,213,238,250,250,225,175,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,175,213,238,250,250,225,175,138,113,88,75,63,50,50,50,50,63,75,88],
@@ -619,13 +623,14 @@
   },
   "wunderground@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":true,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://www.wunderground.com/",
       "GET https://api.weather.com/v3/wx/observations/current?language=en-US&units=e&format=json&apiKey=e1f10a1e78da46f5b10a1e78da96f525&geocode=52.52,13.405",
       "GET https://api.weather.com/v1/geocode/52.52/13.405/forecast/hourly/48hour.json?apiKey=e1f10a1e78da46f5b10a1e78da96f525&language=en-US",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
     ],
     "payload": {
       "TEMP_MIN": 52,
@@ -635,8 +640,8 @@
       "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
       "IS_SLEEPING": false,
       "STATUS_LINE_1_UINT8": [1,2,5,49,55,124,49,52,1,15,2,49,51,1,24,19,77,111,115,116,108,121,32,99,108,111,117,100,121,31,77,67,76,68,89],
-      "STATUS_LINE_3_UINT8": [0,0,0,1,4,6,49,56,47,50,54,6,1,5,5,51,52,47,52,55],
-      "STATUS_LEVELS_UINT8": [0,0],
+      "STATUS_LINE_3_UINT8": [1,12,1,50,1,4,6,49,56,47,50,54,6,1,5,5,51,52,47,52,55],
+      "STATUS_LEVELS_UINT8": [4,0],
       "ALERT_ENTRIES_UINT8": [135,55],
       "TEMP_TREND_UINT8": [205,205,223,232,241,250,241,241,223,205,188,161,143,125,116,107,107,98,89,89,98,116,134,161,188,205,223,241,250,250,250,241,232,214,188,170,152,134,116,107,107,107,98,98,98,116,143,170,196],
       "SECONDARY_LINE_TREND_UINT8": [175,175,213,238,250,250,225,175,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,175,213,238,250,250,225,175,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138],
@@ -725,12 +730,13 @@
   },
   "yandex@everything": {
     "outcome": "ok",
-    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":false,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
+    "options": {"fetchUv":true,"fetchAqi":true,"fetchPollen":true,"pollenSource":"cams","fetchFeels":true,"feelsFormula":"steadman","dayPeakCodes":["uv","wind","gust","aqi"],"windUnits":"kph","aqiScale":"european","aqiSource":"waqi","aqicnToken":"","forecastHours":68,"drawn":["dew","windDir","uv","cloud","pressure"],"sources":{"choices":{},"keyed":["openweathermap","tomorrowio","yandex"]},"openMeteoModel":"ecmwf_ifs025"},
     "requests": [
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "POST https://api.weather.yandex.ru/graphql/query {\"query\":\"{ weatherByPoint(request: {lat: 52.52, lon: 13.405}) { now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) condition } forecast { days(limit: 4) { hours { timestamp temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) precProbability prec windSpeed(unit: KILOMETERS_PER_HOUR) windGust(unit: KILOMETERS_PER_HOUR) uvIndex } } } } }\"}",
       "GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.405&hourly=dew_point_2m,wind_direction_10m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,pressure_msl&temperature_unit=fahrenheit&timeformat=unixtime&timezone=GMT&forecast_days=4",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
     ],
     "payload": {
       "TEMP_MIN": 52,
@@ -740,8 +746,8 @@
       "SUN_EVENTS": [1,40,235,54,106,240,79,55,106],
       "IS_SLEEPING": false,
       "STATUS_LINE_1_UINT8": [1,2,5,49,55,124,49,54,1,15,2,49,49,1,24,19,77,111,115,116,108,121,32,99,108,111,117,100,121,31,77,67,76,68,89],
-      "STATUS_LINE_3_UINT8": [0,0,0,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
-      "STATUS_LEVELS_UINT8": [0,0],
+      "STATUS_LINE_3_UINT8": [1,12,1,50,1,4,6,49,53,47,50,54,6,1,5,5,50,57,47,52,55],
+      "STATUS_LEVELS_UINT8": [4,0],
       "ALERT_ENTRIES_UINT8": [135,55],
       "TEMP_TREND_UINT8": [175,200,217,225,233,242,233,233,217,200,183,158,142,125,117,108,108,100,92,92,100,117,133,158,183,200,217,233,242,242,242,233,225,208,183,167,150,133,117,108,108,108,100,100,100,117,142,167,192,208,225,233,250,250,250,242,233,217,192,175,150,142,125,117,117,108,108,100],
       "SECONDARY_LINE_TREND_UINT8": [138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88,75,63,75,100,138,166,188,200,205,205,194,166,138,113,88,75,63,50,50,50,50,63,75,88],

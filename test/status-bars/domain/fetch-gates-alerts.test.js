@@ -59,7 +59,7 @@ const expected = (() => {
       return placed(s, 'aqi', wi) || shown(s, 'aqi', wi);
     },
     needsPollen(s, wi) {
-      if (!s || s.provider !== 'dwd') { return false; }
+      if (!s) { return false; }
       return placed(s, 'pollen', wi) || shown(s, 'pollen', wi);
     },
     dayPeakCodes(s, wi) {

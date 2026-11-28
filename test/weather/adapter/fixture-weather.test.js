@@ -209,19 +209,17 @@ test('fixture without aqi leaves the AQI slot empty (renders --)', () => {
   assert.equal(right.text, '--', 'no fixture aqi -> slot shows --');
 });
 
-test('fixture pollen bakes into the POLLEN status slot', () => {
+test('fixture pollen bakes into the POLLEN status slot, whatever the Provider', () => {
   const fixture = makeFixture({ pollen: '1-2' });
-  // Pollen is DWD-gated in the status catalog (needsProvider: 'dwd'), so the
-  // slot must be pinned AND the provider set to 'dwd' for it to be selected
-  // at all — otherwise the code falls out of selection entirely (not merely
-  // unavailable), matching the plan's "pollen needs DWD provider" constraint.
-  const out = getFixtureWeatherPayload(fixture, {
-    provider: 'dwd', statusForecastLeft: 'pollen', secondaryLine: 'wind', windScale: 'mid', barSource: 'off'
+  ['dwd', 'openmeteo'].forEach((provider) => {
+    const out = getFixtureWeatherPayload(fixture, {
+      provider: provider, statusForecastLeft: 'pollen', secondaryLine: 'wind', windScale: 'mid', barSource: 'off'
+    });
+    const left = decodeLine(out.STATUS_LINE_1_UINT8)[0];
+    assert.equal(left.text, '1-2', provider + ': the Pollen slot renders the fixture value, not --');
+    assert.equal(left.icon, 12, 'Pollen leaf icon (ICONS.POLLEN)');
+    assert.ok(!('POLLEN_TODAY' in out), 'POLLEN_TODAY is transient — consumed by status baking, never wired');
   });
-  const left = decodeLine(out.STATUS_LINE_1_UINT8)[0];
-  assert.equal(left.text, '1-2', 'Pollen slot renders the fixture value, not --');
-  assert.equal(left.icon, 12, 'Pollen leaf icon (ICONS.POLLEN)');
-  assert.ok(!('POLLEN_TODAY' in out), 'POLLEN_TODAY is transient — consumed by status baking, never wired');
 });
 
 test('fixture without pollen leaves the POLLEN slot empty (renders --)', () => {
