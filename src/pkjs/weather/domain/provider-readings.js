@@ -7,8 +7,10 @@
 // checks every row against the adapter's own mapping and requests.
 //
 // Dual-context: a CommonJS module on the phone and in the tests, and a plain <script> on the
-// settings page once it lists it (window.ProviderReadings).
+// settings page once it lists it (window.ProviderReadings), after open-meteo-models.js
+// (window.OpenMeteoModels), which it binds while its body runs.
 (function () {
+    var openMeteoModels = typeof require !== 'undefined' ? require('./open-meteo-models.js') : window.OpenMeteoModels;
     // The readings, in the order the settings list them, each with the mapped key one provider
     // fills for it: first the three of the moment, then the forecast's hourly series.
     // Each provider computes its own feels-like from its own hours' temperature, humidity and
@@ -56,7 +58,9 @@
     // `hours`, where its feed stops short of the long span's full 68 hours
     // (forecast-span-hours.js): OpenWeatherMap's One Call hourly list, Weather Underground's
     // 48-hour endpoint and the hour in progress. Weather Underground fetches its key from
-    // wunderground.com first when it has none.
+    // wunderground.com first when it has none. Open-Meteo's readings and requests follow the
+    // weather model it answers with too (open-meteo-models.js; readingsOf, requests): the row
+    // holds the default's.
     var PROVIDERS = {
         // DWD has no UV. Bright Sky covers Germany and the countries around it (the box of
         // plugins/dwd/src/bright-sky.js, its stand-alone plugin).
@@ -84,14 +88,29 @@
     }
 
     /**
+     * The readings a provider sends: its row's, and for Open-Meteo those of the weather model it
+     * answers with: a model whose chance is not its own sends no precipitation amount (none of
+     * the drawn-only readings, which its other requests bring).
+     * @param {*} providerId A provider id.
+     * @param {string} [model] The Open-Meteo weather model; the default when absent.
+     * @returns {string[]} READINGS ids, in its order; none for an unknown provider
+     */
+    function readingsOf(providerId, model) {
+        var row = rowOf(providerId);
+        if (!row) { return []; }
+        return providerId === openMeteoModels.PROVIDER && !openMeteoModels.bringsAmount(model)
+            ? without(row.readings, ['rainAmount']) : row.readings;
+    }
+
+    /**
      * Whether a provider sends a reading.
      * @param {*} providerId A provider id.
      * @param {string} readingId A READINGS id.
+     * @param {string} [model] The Open-Meteo weather model (readingsOf); the default when absent.
      * @returns {boolean}
      */
-    function serves(providerId, readingId) {
-        var row = rowOf(providerId);
-        return Boolean(row) && row.readings.indexOf(readingId) !== -1;
+    function serves(providerId, readingId, model) {
+        return readingsOf(providerId, model).indexOf(readingId) !== -1;
     }
 
     /**
@@ -140,15 +159,18 @@
     }
 
     /**
-     * The requests one fetch of a provider makes.
+     * The requests one fetch of a provider makes: Open-Meteo's one more for ECMWF's chance with
+     * a weather model that has none.
      * @param {*} providerId A provider id.
      * @param {boolean} withUv Whether the fetch asks for UV.
+     * @param {string} [model] The Open-Meteo weather model; the default when absent.
      * @returns {number} 0 for an unknown provider
      */
-    function requests(providerId, withUv) {
+    function requests(providerId, withUv, model) {
         var row = rowOf(providerId);
         if (!row) { return 0; }
-        return row.requests + (withUv && row.uvRequest ? 1 : 0);
+        return row.requests + (withUv && row.uvRequest ? 1 : 0)
+            + (providerId === openMeteoModels.PROVIDER && openMeteoModels.asksChance(model) ? 1 : 0);
     }
 
     /**
@@ -167,6 +189,7 @@
         DRAWN_ONLY: DRAWN_ONLY,
         NOW: NOW,
         PROVIDERS: PROVIDERS,
+        readingsOf: readingsOf,
         serves: serves,
         keysOf: keysOf,
         keyOf: keyOf,

@@ -10,6 +10,7 @@ const world = require('../../helpers/provider-world.js');
 const readings = require('../../../src/pkjs/weather/domain/provider-readings.js');
 const forecastModel = require('../../../src/pkjs/weather/domain/forecast-model.js');
 const providerFactory = require('../../../src/pkjs/weather/adapter/provider-factory.js');
+const openMeteoModels = require('../../../src/pkjs/weather/domain/open-meteo-models.js');
 
 // The hosts each provider asks.
 const HOSTS = {
@@ -26,15 +27,17 @@ const HOSTS = {
  * One fetch of a provider's own data (withProviderData) in the world.
  * @param {string} id A provider id.
  * @param {boolean} withUv Whether the fetch asks for UV.
+ * @param {string} [model] The Open-Meteo weather model; the default when absent.
  * @returns {{provider: Object, outcome: string, requests: string[]}} The instance after it.
  */
-function fetchOwn(id, withUv) {
+function fetchOwn(id, withUv, model) {
   const own = (url) => HOSTS[id].indexOf(new URL(url).host) !== -1;
   return world.inWorld({ platform: 'basalt' }, ({ mod, requests }) => {
     // A key Weather Underground fetched before, so it asks only for the weather.
     localStorage.setItem(mod('settings/domain/storage-keys.js').WU_API_KEY, 'stored-key');
     const provider = mod('weather/adapter/provider-factory.js').createProvider(id, world.KEYS);
-    provider.options = mod('weather/domain/fetch-options.js').defaults({ fetchUv: withUv, fetchFeels: true, dayPeakCodes: [] });
+    provider.options = mod('weather/domain/fetch-options.js').defaults({ fetchUv: withUv, fetchFeels: true, dayPeakCodes: [],
+      openMeteoModel: model || openMeteoModels.DEFAULT });
     let outcome = 'pending';
     provider.withProviderData(world.PLACE.lat, world.PLACE.lon, false,
       () => { outcome = 'ok'; }, (f) => { outcome = 'failed ' + JSON.stringify(f); });
@@ -97,6 +100,30 @@ providerFactory.PROVIDER_IDS.forEach((id) => {
     if (key) { settings[key] = 'the-key'; }
     assert.equal(providerFactory.createProvider(id, settings).apiKey, key ? 'the-key' : undefined);
   });
+});
+
+openMeteoModels.IDS.forEach((model) => {
+  test('openmeteo with ' + model + ' sends the readings and makes the requests the table says', () => {
+    const { provider, outcome } = fetchOwn('openmeteo', true, model);
+    assert.equal(outcome, 'ok');
+    const sent = readings.READING_IDS.filter((reading) => readings.keysOf(reading)
+      .filter((k) => forecastModel.ADOPTED_KEYS.indexOf(k) !== -1)
+      .every((k) => holdsReading(provider[k])));
+    assert.deepEqual(sent, readings.readingsOf('openmeteo', model));
+    assert.equal(readings.serves('openmeteo', 'rainAmount', model), openMeteoModels.bringsAmount(model));
+    [false, true].forEach((withUv) => {
+      const fetched = fetchOwn('openmeteo', withUv, model);
+      assert.equal(fetched.requests.length, readings.requests('openmeteo', withUv, model),
+        'UV ' + (withUv ? 'on' : 'off') + ':\n' + fetched.requests.join('\n'));
+    });
+  });
+});
+
+test('a weather model changes only what Open-Meteo sends', () => {
+  assert.deepEqual(readings.readingsOf('dwd', 'chmi_aladin_seamless'), readings.PROVIDERS.dwd.readings);
+  assert.equal(readings.requests('metno', false, 'jma_seamless'), 1);
+  assert.deepEqual(readings.readingsOf('openmeteo'), readings.PROVIDERS.openmeteo.readings, 'the default\'s');
+  assert.deepEqual(readings.readingsOf('nope', 'jma_seamless'), []);
 });
 
 test('the settings page\'s key rows name the same key settings as the table, for the same providers', () => {

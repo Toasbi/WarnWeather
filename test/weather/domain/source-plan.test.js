@@ -92,7 +92,23 @@ test('the settings say where the weather comes from: the picks and the stored ke
     { choices: { wind: 'dwd' }, keyed: ['openweathermap'] });
   assert.deepEqual(sourcePlan.sourcesOf(null), { choices: {}, keyed: [] });
   assert.deepEqual(sourcePlan.inputOf({ provider: 'dwd', weatherSourceRainAmount: 'metno' }),
-    { provider: 'dwd', choices: { rainAmount: 'metno' }, keyed: [] }, 'the page\'s input: no place');
+    { provider: 'dwd', model: 'ecmwf_ifs025', choices: { rainAmount: 'metno' }, keyed: [] },
+    'the page\'s input: no place');
+  assert.equal(sourcePlan.inputOf({ provider: 'openmeteo', openMeteoModel: 'chmi_aladin_seamless' }).model,
+    'chmi_aladin_seamless', 'Open-Meteo\'s weather model while it is the Provider');
+});
+
+test('a precipitation amount the Provider\'s weather model leaves out comes from its pick, or from nowhere', () => {
+  const aladin = { provider: 'openmeteo', model: 'chmi_aladin_seamless', keyed: [], choices: {} };
+  assert.equal(sourcePlan.feedsOf(aladin, ALL_DRAWN).rainAmount, 'openmeteo', 'no pick: the Provider\'s, empty');
+  assert.deepEqual(sourcePlan.fillSteps(sourcePlan.feedsOf(aladin, ALL_DRAWN), ALL_DRAWN), [],
+    'no fill brings it');
+  const picked = Object.assign({}, aladin, BERLIN, { choices: { rainAmount: 'dwd' } });
+  assert.equal(sourcePlan.feedsOf(picked, []).rainAmount, 'dwd');
+  assert.deepEqual(partsOf(picked, []), [{ provider: 'dwd', readings: ['rainAmount'] }]);
+  const dwdProvider = { provider: 'dwd', model: 'ecmwf_ifs025', keyed: [], choices: { rainAmount: 'openmeteo' } };
+  assert.equal(sourcePlan.feedsOf(dwdProvider, []).rainAmount, 'openmeteo',
+    'Open-Meteo as a pick answers with the default, which brings one');
 });
 
 test('the settings the sources are read from are every key a read touches', () => {
@@ -193,6 +209,13 @@ test('a refresh asks the Provider, each part\'s provider and the fill request; t
   { metno: 1, dwd: 2, openmeteo: 2 }, 'one fetch for each provider a reading in use comes from');
   assert.deepEqual(sourcePlan.refreshRequests(page({ provider: 'metno', choices: {} }), ALL_DRAWN),
     sourcePlan.refreshRequests(page({ provider: 'metno' }), ALL_DRAWN), 'no pick anywhere: the provider alone');
+});
+
+test('a weather model without a chance costs Open-Meteo one request more a refresh', () => {
+  assert.deepEqual(sourcePlan.refreshRequests(page({ model: 'jma_seamless' }), ['uv']), { openmeteo: 4 });
+  assert.deepEqual(sourcePlan.refreshRequests(page({ model: 'meteofrance_seamless' }), []), { openmeteo: 3 });
+  assert.deepEqual(sourcePlan.refreshRequests(page({ model: 'chmi_aladin_seamless' }), []), { openmeteo: 2 });
+  assert.deepEqual(sourcePlan.callsPerDay(page({ model: 'jma_seamless' }), [], 15, 0), { openmeteo: 288 });
 });
 
 test('a day is the update interval\'s refreshes outside the Battery saver\'s window', () => {

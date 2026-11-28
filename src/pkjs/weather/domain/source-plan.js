@@ -20,6 +20,7 @@
 (function () {
     var node = typeof require !== 'undefined';
     var providerReadings = node ? require('./provider-readings.js') : window.ProviderReadings;
+    var openMeteoModels = node ? require('./open-meteo-models.js') : window.OpenMeteoModels;
 
     // Where a reading the anchor lacks comes from: keyless, worldwide, and it sends every reading.
     var FILL_PROVIDER = 'openmeteo';
@@ -93,12 +94,13 @@
 
     /**
      * The plan's input on the settings page, which does not know the place: the settings'
-     * sources and the Provider.
+     * sources, the Provider and Open-Meteo's weather model (the fetch's openMeteoModel option).
      * @param {?Object} settings Clay settings.
      * @returns {Object} feedsOf()'s input, without a place.
      */
     function inputOf(settings) {
-        return Object.assign({ provider: settings ? settings.provider : undefined }, sourcesOf(settings));
+        return Object.assign({ provider: settings ? settings.provider : undefined,
+            model: openMeteoModels.modelOf(settings) }, sourcesOf(settings));
     }
 
     /**
@@ -187,15 +189,16 @@
      * The steps a refresh runs while no provider fails: `asked`, the providers it asks for their
      * whole forecast (the Provider, then each part's), and the fills for what they leave. A fill
      * whose provider is asked is laid on from its forecast instead of asked (fetch-sources.js).
+     * `model`, Open-Meteo's weather model, which sets what one of its forecasts asks.
      * @param {Object} input feedsOf()'s input, the place left out where it is unknown.
      * @param {string[]} drawn The drawn-only readings the watch draws.
-     * @returns {{asked: string[], fills: Array<Object>}}
+     * @returns {{asked: string[], fills: Array<Object>, model: (string|undefined)}}
      */
     function steadySteps(input, drawn) {
         var feeds = feedsOf(input, drawn);
         var parts = partSteps(feeds, input.provider);
         return { asked: [input.provider].concat(parts.map(function (step) { return step.provider; })),
-            fills: fillSteps(feeds, drawn) };
+            fills: fillSteps(feeds, drawn), model: input.model };
     }
 
     /**
@@ -211,16 +214,17 @@
 
     /**
      * The requests of a refresh's steps (refreshRequests): each provider asked for its forecast,
-     * whose fetch makes its UV request while the watch draws UV (the fetch options' fetchUv),
-     * and the fill request that asks apart.
-     * @param {{asked: string[], fills: Array<Object>}} steps steadySteps().
+     * whose fetch makes its UV request while the watch draws UV (the fetch options' fetchUv)
+     * and Open-Meteo's chance request with a weather model that has none, and the fill request
+     * that asks apart.
+     * @param {{asked: string[], fills: Array<Object>, model: (string|undefined)}} steps steadySteps().
      * @param {string[]} drawn The drawn-only readings the watch draws.
      * @returns {Object<string, number>} provider id → requests
      */
     function requestsOf(steps, drawn) {
         var withUv = drawn.indexOf('uv') !== -1;
         var out = {};
-        steps.asked.forEach(function (id) { out[id] = providerReadings.requests(id, withUv); });
+        steps.asked.forEach(function (id) { out[id] = providerReadings.requests(id, withUv, steps.model); });
         steps.fills.forEach(function (step) {
             if (step.ask !== 'uv' && asksApart(steps, step)) { out[step.provider] = (out[step.provider] || 0) + 1; }
         });

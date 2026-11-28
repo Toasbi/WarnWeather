@@ -14,10 +14,12 @@ var APP_FILES = [
   // country-defaults.js is the same shape (COUNTRY_DEFAULTS global) and must precede its
   // consumers blocks.js (recommend resolvers) and wizard.js (fresh-install derivation).
   path.join(ROOT, 'src/pkjs/settings/domain/country-defaults.js'),
-  // What each weather provider sends (window.ProviderReadings) and the source plan
-  // (window.SourcePlan): the plan binds ProviderReadings while its body runs, and the budgets
-  // below, forecast-span-hours.js and the weather sources' page files bind the plan while
-  // theirs run, so both sit here, ahead of all of those.
+  // Open-Meteo's weather models (window.OpenMeteoModels), what each weather provider sends
+  // (window.ProviderReadings) and the source plan (window.SourcePlan): the table and the plan
+  // bind the models while their bodies run, the plan binds ProviderReadings while its body
+  // runs, and the budgets below, forecast-span-hours.js and the weather sources' page files bind
+  // the plan while theirs run, so all three sit here, ahead of all of those.
+  path.join(ROOT, 'src/pkjs/weather/domain/open-meteo-models.js'),
   path.join(ROOT, 'src/pkjs/weather/domain/provider-readings.js'),
   path.join(ROOT, 'src/pkjs/weather/domain/source-plan.js'),
   path.join(ROOT, 'src/pkjs/layout/domain/view-cycle.js'),

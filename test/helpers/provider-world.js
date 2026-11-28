@@ -11,6 +11,7 @@
 const { installIndexRuntime } = require('./index-runtime.js');
 const { COLORS } = require('./clay-harness.js');
 const { iso } = require('./metno-feed.js');
+const openMeteoModels = require('../../src/pkjs/weather/domain/open-meteo-models.js');
 
 const HOUR = 3600;
 // 10:20 in Berlin (CEST, UTC+2): a summer morning before a midday shower.
@@ -211,12 +212,14 @@ const SERVICES = [
     }
   },
   {
-    // Open-Meteo's main forecast (ECMWF IFS, which leaves the gusts null).
+    // Open-Meteo's main forecast (ECMWF IFS, which leaves the gusts null), from the model the
+    // URL names: one with no chance of its own (open-meteo-models.js asksChance) leaves it null.
     match: (url) => url.indexOf('https://api.open-meteo.com/v1/forecast?') === 0
       && query(url).get('hourly').indexOf('temperature_2m') === 0,
     answer: (url) => {
       const time = openMeteoTimes(url);
       const now = hourAt(HOUR0);
+      const noChance = openMeteoModels.asksChance(query(url).get('models'));
       return {
         latitude: 52.5, longitude: 13.4, utc_offset_seconds: 0, timezone: 'GMT',
         current: { time: NOW - 5 * 60, interval: 900, temperature_2m: fahrenheit(now.tempC),
@@ -224,7 +227,7 @@ const SERVICES = [
         hourly: {
           time: time,
           temperature_2m: time.map((t) => fahrenheit(hourAt(t).tempC)),
-          precipitation_probability: time.map((t) => before(t).chance),
+          precipitation_probability: time.map((t) => (noChance ? null : before(t).chance)),
           precipitation: time.map((t) => before(t).rainMm),
           windspeed_10m: time.map((t) => hourAt(t).windKmh),
           windgusts_10m: time.map(() => null),
@@ -267,6 +270,15 @@ const SERVICES = [
       const hourly = { time: time };
       query(url).get('hourly').split(',').forEach((field) => { hourly[field] = time.map((t) => GAP_FIELDS[field](hourAt(t))); });
       return { hourly: hourly };
+    }
+  },
+  {
+    // ECMWF's chance alone, beside the main request of a model that has none.
+    match: (url) => url.indexOf('https://api.open-meteo.com/v1/forecast?') === 0
+      && query(url).get('hourly') === 'precipitation_probability',
+    answer: (url) => {
+      const time = openMeteoTimes(url);
+      return { hourly: { time: time, precipitation_probability: time.map((t) => before(t).chance) } };
     }
   },
   {

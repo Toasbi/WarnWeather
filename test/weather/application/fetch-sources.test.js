@@ -507,6 +507,24 @@ test('a second fetch in the slot asks nobody, though the first asked every provi
   assert.equal(second.forecast, first.forecast);
 });
 
+test('a weather model without a precipitation amount takes its pick\'s, or leaves it empty', () => {
+  const aladin = { openMeteoModel: 'chmi_aladin_seamless' };
+  const [{ p, outcome, requests }] = fetchesOf('openmeteo', [{ options: picked({ rainAmount: 'dwd' }, aladin) }]);
+  assert.equal(outcome, 'ok');
+  assert.equal(new URL(requests[0].split(' ')[1]).searchParams.get('models'), 'chmi_aladin_seamless');
+  assert.deepEqual(requests.map(endpoint).slice(-2), DWD_HOSTS, 'DWD for the amount');
+  assert.equal(p.feeds.rainAmount, 'dwd');
+  const dwd = fetchesOf('dwd', [{}])[0].p;
+  assert.deepEqual(p.rainTrend, dwd.rainTrend, 'the amount is DWD\'s');
+  assert.ok(p.rainTrend.some((mm) => mm > 0), 'the world\'s shower');
+  const [none] = fetchesOf('openmeteo', [{ options: aladin }]);
+  assert.equal(none.outcome, 'ok');
+  assert.deepEqual(none.p.rainTrend, [], 'no amount: no bars');
+  assert.equal(none.p.feeds.rainAmount, 'openmeteo');
+  assert.deepEqual(none.requests.filter((r) => r.indexOf('api.brightsky.dev') !== -1), []);
+  assert.deepEqual(none.p.precipTrend, p.precipTrend, 'the chance stays the Provider\'s');
+});
+
 test('the Provider failing fails the fetch: a pick never stands in for its forecast', () => {
   const [{ outcome, failure, requests }] = fetchesOf('openweathermap', [{ options: picked({ temperature: 'metno' }) }],
     { answers: (url) => url.indexOf('api.openweathermap.org') === -1 });
@@ -554,7 +572,7 @@ function dayOf(id, options, intervalMin) {
  */
 function plannedDay(id, options, intervalMin) {
   const o = Object.assign({ drawn: ['uv'] }, options);
-  const input = Object.assign({ provider: id }, sourcePlan.sourcesOf(world.KEYS), o.sources);
+  const input = Object.assign({ provider: id, model: o.openMeteoModel }, sourcePlan.sourcesOf(world.KEYS), o.sources);
   return sourcePlan.callsPerDay(input, o.drawn, intervalMin, 0);
 }
 
@@ -573,7 +591,11 @@ test('a day of updates asks each provider what the source plan counts', () => {
     // Yandex's cloud cover comes from the Open-Meteo forecast the rain part already holds.
     ['yandex', picked({ rainChance: 'openmeteo' }, { drawn: ['uv', 'cloud'] }), 15],
     // Every reading its own provider's: one fetch of each, whatever the readings.
-    ['metno', picked({ currentTemp: 'dwd', currentFeels: 'openmeteo', feels: 'dwd', gust: 'openmeteo' }), 15]
+    ['metno', picked({ currentTemp: 'dwd', currentFeels: 'openmeteo', feels: 'dwd', gust: 'openmeteo' }), 15],
+    // A weather model without a chance of its own: ECMWF's is asked beside it.
+    ['openmeteo', { openMeteoModel: 'jma_seamless', drawn: ['uv'] }, 15],
+    // A weather model without a precipitation amount, DWD's picked for it.
+    ['openmeteo', picked({ rainAmount: 'dwd' }, { openMeteoModel: 'chmi_aladin_seamless', drawn: [] }), 30]
   ].forEach(([id, options, intervalMin]) => {
     assert.deepEqual(dayOf(id, options, intervalMin), plannedDay(id, options, intervalMin),
       id + ' ' + JSON.stringify(options) + ' every ' + intervalMin + ' min');

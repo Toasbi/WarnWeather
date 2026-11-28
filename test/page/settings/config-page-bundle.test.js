@@ -898,6 +898,8 @@ test('where the weather comes from: each module is bundled ahead of the ones tha
     'status-bars/domain/status-line-catalog.js', 'alerts/domain/status-thresholds.js'].forEach((file) => {
     assert.ok(idx(file) < idx('weather/domain/drawn-readings.js'), file + ' must precede drawn-readings.js');
   });
+  assert.ok(idx('weather/domain/open-meteo-models.js') < idx('weather/domain/provider-readings.js'),
+    'the table binds the Open-Meteo models while its body runs');
   assert.ok(idx('weather/domain/provider-readings.js') < idx('weather/domain/source-plan.js'));
   ['page/weather/budgets/tomorrowio-budget.js', 'weather/domain/forecast-span-hours.js'].forEach((file) => {
     assert.ok(idx('weather/domain/source-plan.js') < idx(file), file + ' binds the plan while its body runs');
@@ -905,7 +907,8 @@ test('where the weather comes from: each module is bundled ahead of the ones tha
   ['weather/domain/source-plan.js', 'weather/domain/drawn-readings.js'].forEach((file) => {
     assert.ok(idx(file) < idx('page/weather/weather-sources-page.js'), file + ' must precede weather-sources-page.js');
   });
-  [code('window.ProviderReadings = api'), code('window.SourcePlan = api'), code('window.DrawnReadings = api'),
+  [code('window.OpenMeteoModels = api'), code('window.ProviderReadings = api'), code('window.SourcePlan = api'),
+    code('window.DrawnReadings = api'),
     code('window.WeatherSourcesPage = api'), "register('weatherFillNote'"].forEach((s) => {
     assert.ok(page().indexOf(s) !== -1, s + ' is not in the generated page');
   });
