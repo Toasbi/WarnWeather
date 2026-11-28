@@ -181,18 +181,20 @@ test('the dialog shows the pickers\' card under its intro, in the intro card; Hi
 });
 
 test('the pollen cards name only the source the Provider reads', () => {
-  const shown = (provider) => cardsOf('Pollen').filter((c) => showWhen.isVisible(c, { env: {}, provider }))
-    .map((c) => plain(c.text));
-  [shown('dwd')].forEach((cards) => {
-    assert.equal(cards.length, 1);
-    assert.match(cards[0], /DWD/, 'the DWD\'s index with the DWD');
-    assert.match(cards[0], /half level/, 'its half levels');
-    assert.doesNotMatch(cards[0], /CAMS|Open-Meteo/);
-  });
-  [shown('openmeteo'), shown('metno'), shown(undefined)].forEach((cards) => {
-    assert.equal(cards.length, 1);
-    assert.match(cards[0], /CAMS forecast \(Open-Meteo\)/, 'the CAMS forecast with every other Provider');
-    assert.match(cards[0], /whole levels/);
-    assert.doesNotMatch(cards[0], /DWD|German/, 'no word of the DWD');
+  // One card shows for each Provider (the COMBOS test above): the one it reads.
+  const shown = (provider) => plain(cardsOf('Pollen').find((c) => showWhen.isVisible(c, { env: {}, provider })).text);
+  const dwd = shown('dwd');
+  assert.match(dwd, /DWD/, 'the DWD\'s index with the DWD');
+  assert.match(dwd, /half level/, 'its half levels');
+  assert.doesNotMatch(dwd, /CAMS|Open-Meteo/);
+  // The CAMS card's example is the classes the levels come from (pollen-days.js CAMS_TYPES).
+  const mediumMax = (field) => pollenDays.CAMS_TYPES.find((type) => type.field === field).mediumMax;
+  const example = 'more than ' + mediumMax('birch_pollen') + ' birch or ' + mediumMax('grass_pollen') + ' grass';
+  ['openmeteo', 'metno', undefined].forEach((provider) => {
+    const cams = shown(provider);
+    assert.match(cams, /CAMS forecast \(Open-Meteo\)/, 'the CAMS forecast with every other Provider');
+    assert.match(cams, /whole levels/);
+    assert.ok(cams.indexOf(example) !== -1, example);
+    assert.doesNotMatch(cams, /DWD|German/, 'no word of the DWD');
   });
 });

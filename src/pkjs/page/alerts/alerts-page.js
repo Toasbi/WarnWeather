@@ -197,11 +197,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Whether a placed item cannot show, wherever it is placed: Rain while the radar is off.
      * @param {Object} S Live settings state.
      * @param {string} code An on-demand.js ITEMS code.
-     * @returns {?string} Why it cannot show, or null when it can.
+     * @returns {boolean} True when it cannot show (alerts-schema.js rainRadarOffNote says why).
      */
     function onDemandBlocked(S, code) {
-        if (code === 'rain' && radarOff(S)) { return 'Needs the rain radar (Setup › Data sources)'; }
-        return null;
+        return code === 'rain' && radarOff(S);
     }
 
     /**
@@ -219,7 +218,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {Array<Array>} [label, value, meta] options.
      */
     function onDemandBars(S, env, args) {
-        var inert = onDemandBlocked(S, args.code) !== null;
+        var inert = onDemandBlocked(S, args.code);
         var out = [];
         onDemand.PAGE_BARS.forEach(function (b) {
             var bar = b.bar;
@@ -277,7 +276,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var icons = '';
             onDemand.parse((S || {})[onDemand.itemsKey(args.bar, side)]).forEach(function (code) {
                 placed = true;
-                if (onDemandBlocked(S, code) !== null) { return; }
+                if (onDemandBlocked(S, code)) { return; }
                 var item = onDemand.ITEMS[onDemand.itemIndex(code)];
                 var svg = PConf.icons ? PConf.icons.get(item.icon) : null;
                 if (svg) {

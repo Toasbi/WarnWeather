@@ -8,6 +8,9 @@
 // unguarded require(), like schema.js itself (custom-layout-schema.js's precedent): the
 // schema is evaluated in PKJS and injected into the page as data, never concatenated into
 // it as a flat browser file.
+// The pollen sources (pollenSourceWhen below): the fetch's own module, a leaf.
+var pollenDays = require('../../weather/domain/pollen-days.js');
+
 // "A health item can appear in some status slot" — the gate for settings that are
 // inert otherwise (the health threshold sub-sections). Mirrors the availability rule
 // the slot catalog itself applies (statusLineCatalog.itemAvailable: needsHealth items
@@ -169,6 +172,21 @@ function noteCards(title, text, when) {
     ];
 }
 
+/**
+ * "The Provider reads this pollen source" as a showWhen predicate: the page's rule
+ * (when-resolvers.js pollenSource) asks the fetch's own (pollen-days.js sourceOf). The pollen
+ * slot's and alert's dialogs describe only the source in use with it. A fresh object per call,
+ * like every item.
+ * @param {string} source A pollen source id (pollen-days.js SOURCES).
+ * @returns {Object} The showWhen predicate.
+ */
+function pollenSourceWhen(source) {
+    // Runs once at load: a source pollen-days.js does not know fails the build/tests here
+    // rather than shipping a text that never shows.
+    if (!pollenDays.isSource(source)) { throw new Error('pollenSourceWhen: no pollen source ' + source); }
+    return {when: 'pollenSource', args: source};
+}
+
 // "This Pebble app can read plugins": what gates a setting that shows another app's
 // reading (index.js passes env.plugins; plugin-reader.js available). An older Pebble app
 // has no plugins, and the setting would change nothing there.
@@ -186,6 +204,7 @@ module.exports = {
     HEALTH_BAR_WHEN: HEALTH_BAR_WHEN,
     EXTRA_BARS_WHEN: EXTRA_BARS_WHEN,
     extraBarWhen: extraBarWhen,
+    pollenSourceWhen: pollenSourceWhen,
     COLOR_THEME_WHEN: COLOR_THEME_WHEN,
     LINE_STYLES_WHEN: LINE_STYLES_WHEN,
     EMERY_WHEN: EMERY_WHEN,

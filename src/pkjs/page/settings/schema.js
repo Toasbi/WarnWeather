@@ -40,6 +40,7 @@ var HEALTH_SLOT_WHEN = gates.HEALTH_SLOT_WHEN;
 var HR_SLOT_WHEN = gates.HR_SLOT_WHEN;
 var PLUGINS_WHEN = gates.PLUGINS_WHEN;
 var THRESHOLD_WHEN = gates.THRESHOLD_WHEN;
+var pollenSourceWhen = gates.pollenSourceWhen;
 var ON_DEMAND_WHEN = gates.ON_DEMAND_WHEN;
 var BOLD_MASTER_WHEN = gates.BOLD_MASTER_WHEN;
 var RADAR_BAR_WHEN = gates.RADAR_BAR_WHEN;
@@ -79,7 +80,6 @@ var BT_ICON_OPTIONS = alertsSchema.BT_ICON_OPTIONS;
 var alertCodeOf = alertsSchema.alertCodeOf;
 var onDemandPlacedWhen = alertsSchema.onDemandPlacedWhen;
 var onDemandRow = alertsSchema.onDemandRow;
-var pollenSourceWhen = alertsSchema.pollenSourceWhen;
 // The Forecast tab's line rows (page/forecast-graphs/forecast-lines-schema.js): the rows each metric
 // picker carries (Line style, Draw from, the graph scales, Visible values), the metric
 // pickers' derived hint and the two stripe styles the Area fill row reads.
@@ -2111,7 +2111,7 @@ module.exports = {
             }
         }, '42', '58')),
         // The pollen slot's dialog says what the slot shows, from the pollen source the Provider
-        // reads, and names only that one (alerts-schema.js pollenSourceWhen): its intro, then
+        // reads, and names only that one (schema-gates.js pollenSourceWhen): its intro, then
         // the source's note in the same card (engine.js dialogIntroHtml).
         Object.assign(alertSlotSheet('Pollen'), {
             intro: 'Today’s highest pollen level, from 0 (none) to 3 (high).',

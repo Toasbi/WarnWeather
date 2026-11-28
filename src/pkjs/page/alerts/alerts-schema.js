@@ -18,6 +18,7 @@ var ON_DEMAND_WHEN = gates.ON_DEMAND_WHEN;
 var FINE_BATTERY_WHEN = gates.FINE_BATTERY_WHEN;
 var tabLink = gates.tabLink;
 var linkRow = gates.linkRow;
+var pollenSourceWhen = gates.pollenSourceWhen;
 var levelRowsSchema = require('./level-rows-schema.js');
 var ALERT_VOICE = levelRowsSchema.ALERT_VOICE;
 var nextDayMarkOptions = levelRowsSchema.nextDayMarkOptions;
@@ -324,17 +325,6 @@ function scaleVariantWhen(variant) {
     if (variant === 'us') { return {not: eu}; }
     // Runs once at load: a variant scaleVariant never answers fails the build/tests here.
     throw new Error('scaleVariantWhen: no gate for ' + variant);
-}
-/**
- * "The Provider reads this pollen source" as a showWhen predicate: the page's rule
- * (when-resolvers.js pollenSource) asks the fetch's own (pollen-days.js sourceOf). The pollen
- * slot's and alert's dialogs describe only the source in use with it. A fresh object per call,
- * like every item.
- * @param {string} source 'dwd' | 'cams'.
- * @returns {Object} The showWhen predicate.
- */
-function pollenSourceWhen(source) {
-    return {when: 'pollenSource', args: source};
 }
 /**
  * A reference link in an alert-level card: opens outside the settings page, like the
@@ -771,7 +761,6 @@ module.exports = {
     BT_ICON_OPTIONS: BT_ICON_OPTIONS,
     alertCodeOf: alertCodeOf,
     onDemandPlacedWhen: onDemandPlacedWhen,
-    pollenSourceWhen: pollenSourceWhen,
     onDemandRow: onDemandRow,
     cardSections: cardSections,
     sheetSections: sheetSections

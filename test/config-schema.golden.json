@@ -22259,9 +22259,7 @@
                 "messageKey": "provider",
                 "label": "Provider",
                 "defaultValue": "wunderground",
-                "onChange": [
-                  "weatherProviderPicked"
-                ],
+                "onChange": "weatherProviderPicked",
                 "recommendFrom": "recommendedWeatherProvider",
                 "hintByValue": {
                   "dwd": "Germany's national weather service, with the most accurate forecasts in Germany and decent ones across Central Europe (ICON model). No API key needed.",

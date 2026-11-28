@@ -161,11 +161,13 @@ test('tempAxisLineDrawn is forecast-axis.js\' own reading, and a leaf asks it', 
 test('pollenSource holds for the pollen source the Provider reads, the fetch\'s own rule', () => {
   assert.equal(global.PConf.whenResolvers.get('pollenSource'), WR.pollenSource);
   const leaf = (source) => ({ when: 'pollenSource', args: source });
+  const sources = Object.keys(pollenDays.SOURCES);
+  assert.ok(sources.length > 1, 'premise: more than one source');
   Object.keys(providerReadings.PROVIDERS).concat([undefined]).forEach((provider) => {
     const S = Object.assign({ env: BASALT }, provider === undefined ? {} : { provider });
-    const source = pollenDays.sourceOf(provider);
-    assert.equal(showWhen.evaluate(leaf(source), S), true, provider + ': ' + source);
-    assert.equal(showWhen.evaluate(leaf(source === 'dwd' ? 'cams' : 'dwd'), S), false, provider + ': one source');
+    sources.forEach((source) => {
+      assert.equal(showWhen.evaluate(leaf(source), S), source === pollenDays.sourceOf(provider), provider + ': ' + source);
+    });
   });
   assert.equal(showWhen.evaluate(leaf('dwd'), { env: BASALT, provider: 'dwd' }), true, 'guard: the DWD reads its own');
 });
