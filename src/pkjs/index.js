@@ -584,13 +584,14 @@ function declaredPermissions() {
 }
 
 /**
- * What every status-line bake reads of the two batteries and the Plugin value slot
- * (status-lines.js BakeFacts): a fetch's, the fixture's and a re-bake's.
- * @returns {{phone: Object, watch: Object, plugin: Object}}
+ * What every status-line bake reads of the two batteries, the Plugin value slot and the sky
+ * (status-lines.js BakeFacts): a fetch's, the fixture's and a re-bake's. The sun and moon slots
+ * see the sky from the place the weather is for, as the automatic theme does (themeCoords).
+ * @returns {{phone: Object, watch: Object, plugin: Object, sky: Object}}
  */
 function bakeFacts() {
     return { phone: phoneBattery.bakeFacts(), watch: batteryEstimate.bakeFacts(),
-        plugin: pluginValueSource.bakeFacts() };
+        plugin: pluginValueSource.bakeFacts(), sky: { position: themeCoords } };
 }
 
 /**

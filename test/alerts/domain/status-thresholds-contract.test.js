@@ -203,6 +203,21 @@ test('kind indices are in lockstep with the ThreshKind enum', () => {
   assert.equal(Object.keys(names).length, cDefine('THRESH_KIND_COUNT'));
 });
 
+// The sun and moon slots worked out on the phone have no kind of their own: they take the
+// Sunrise/sunset slot's, as the watch maps their icons (status_threshold.c status_icon_is_sky), so
+// its one Bold row sets all four and neither the wire nor the Clay message grows.
+test('Dawn/dusk, Day length and the Moon phase take the Sun\'s kind; every other item its own', () => {
+  const sun = th.KINDS.findIndex((k) => k.code === 'sun');
+  assert.equal(sun, cEnum('THRESH_SUN'));
+  ['twilight', 'dayLength', 'moon'].forEach((code) => {
+    assert.equal(th.itemKindId(code), sun, code);
+    assert.ok(!th.KINDS.some((k) => k.code === code), code + ' adds no kind');
+  });
+  th.KINDS.forEach((k, i) => assert.equal(th.itemKindId(k.code), i, k.code));
+  assert.equal(th.itemKindId('empty'), -1);
+  assert.equal(th.itemKindId(undefined), -1);
+});
+
 // The phone battery is TWO kinds sharing ONE settings key: the iconed variant
 // (icon 16) and the no-icon variant
 // (icon 18). Kind 19 exists for exactly the reason kind 14 (pressure) had to be

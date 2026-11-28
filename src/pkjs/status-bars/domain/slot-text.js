@@ -1,7 +1,7 @@
 // src/pkjs/status-bars/domain/slot-text.js — how a phone-baked status slot prints its numbers: the
 // per-kind unit (and whether it fits), the temperature slot's three modes, the day-max
-// kinds' text, the sun slot's clock, a plugin's moment, the countdown's days and the calendar
-// week.
+// kinds' text, the sun slot's clock, the sun and moon slots' texts, a plugin's moment, the
+// countdown's days and the calendar week.
 // status-lines.js formats every slot through it, and the settings page loads it too
 // (window.SlotText), so the Status bars tab's preview prints a sample exactly the
 // way the bake prints the real reading.
@@ -291,6 +291,138 @@
         return texts.filter(function (text) { return utf8.byteLength(text) <= cap; })[0] || day;
     }
 
+    /** How far ahead a dawn or dusk prints as its clock time alone (twilightText). */
+    var CLOCK_AHEAD_MS = 24 * 60 * 60 * 1000;
+
+    /** A minute, in milliseconds: the sun and moon slots print their times to it. */
+    var MINUTE_MS = 60 * 1000;
+
+    /**
+     * Dawn/dusk's text: the next dawn's or dusk's clock time to the nearest minute, as the
+     * Sunrise/sunset slot prints the next sunrise or sunset, while it is less than a day ahead.
+     * Further ahead, which only happens far north, with its day too (momentText: 'Sat 9:15'), as
+     * the clock time alone would read as the next one's. '--' for none.
+     * @param {?Date} at The dawn's or dusk's time; null with none (no place known yet, or none
+     *   within two days: sun-events.js nextTwilight).
+     * @param {number} nowMs Now, in epoch milliseconds.
+     * @param {Object} settings Clay settings blob (clockText's).
+     * @param {number} cap The slot's byte cap.
+     * @returns {string} e.g. '7:11', '16:40', 'Sat 9:15', '--'
+     */
+    function twilightText(at, nowMs, settings, cap) {
+        if (!at) { return '--'; }
+        var shown = new Date(Math.round(at.getTime() / MINUTE_MS) * MINUTE_MS);
+        return at.getTime() - nowMs < CLOCK_AHEAD_MS ? clockText(shown.getHours(), shown.getMinutes(), settings)
+            : momentText(shown.getTime(), nowMs, settings, cap);
+    }
+
+    /** A day's minutes: Day length's '24h' (dayLengthText). */
+    var DAY_MINUTES = 24 * 60;
+
+    /**
+     * Day length's text: how long the sun is up today, in hours and minutes.
+     * @param {number} minutes From sunrise to sunset (sun-events.js dayLengthMinutes): a day's
+     *   worth where the sun does not set, 0 where it does not rise.
+     * @returns {string} e.g. '11h38', '8h05'; '24h' all day, '0h' none of it
+     */
+    function dayLengthText(minutes) {
+        if (minutes >= DAY_MINUTES) { return '24h'; }
+        if (minutes <= 0) { return '0h'; }
+        return Math.floor(minutes / 60) + 'h' + pad2(minutes % 60);
+    }
+
+    /**
+     * The moon's eight phases by their index (moon.js phaseOfDay: new moon 0, first quarter 2,
+     * full moon 4, last quarter 6, the phases between them odd): the name and its short form,
+     * which fits an edge slot's 8 bytes.
+     */
+    var MOON_NAMES = [
+        { full: 'New moon', short: 'New' },
+        { full: 'Waxing crescent', short: 'Wax cres' },
+        { full: 'First quarter', short: '1st qtr' },
+        { full: 'Waxing gibbous', short: 'Wax gib' },
+        { full: 'Full moon', short: 'Full' },
+        { full: 'Waning gibbous', short: 'Wan gib' },
+        { full: 'Last quarter', short: 'Last qtr' },
+        { full: 'Waning crescent', short: 'Wan cres' }
+    ];
+
+    /**
+     * The Moon phase slot's Look (its dialog's moonSlotLook): 'both', the moon as it looks
+     * tonight and its text (the default, and what anything unknown reads as), 'text' or 'icon'.
+     * @param {Object} settings Settings.
+     * @returns {string} 'both', 'text' or 'icon'
+     */
+    function moonLook(settings) {
+        var look = settings && settings.moonSlotLook;
+        return look === 'text' || look === 'icon' ? look : 'both';
+    }
+
+    /**
+     * What the Moon phase slot's text shows (moonSlotShows): the phase's name ('phase', the
+     * default, and what anything unknown reads as), how much of the moon is lit ('lit') or the
+     * day of the next full moon ('full').
+     * @param {Object} settings Settings.
+     * @returns {string} 'phase', 'lit' or 'full'
+     */
+    function moonShows(settings) {
+        var shows = settings && settings.moonSlotShows;
+        return shows === 'lit' || shows === 'full' ? shows : 'phase';
+    }
+
+    /**
+     * The phase's name in the Moon phase slot (moonSlotName): 'short' (the default, and what
+     * anything unknown reads as) or 'full'.
+     * @param {Object} settings Settings.
+     * @returns {string} 'short' or 'full'
+     */
+    function moonName(settings) {
+        return settings && settings.moonSlotName === 'full' ? 'full' : 'short';
+    }
+
+    /**
+     * The day of the next full moon as the Moon phase slot prints it: 'Today', its weekday in the
+     * coming week or its date (dayText). Where the slot has the room it says what the day is:
+     * the middle slot always ('Full Thu', 'Full today', 'Full 24 Dec'), an edge slot in the Text
+     * look where it fits ('Full Thu'). Beside the full moon's picture an edge needs no more.
+     * @param {Date} day The full moon's day, its local midnight (moon.js nextDayOf).
+     * @param {string} look moonLook().
+     * @param {number} cap The slot's byte cap.
+     * @param {number} nowMs Now, in epoch milliseconds: its local date is today's.
+     * @returns {string}
+     */
+    function fullMoonText(day, look, cap, nowMs) {
+        var today = day.toDateString() === new Date(nowMs).toDateString();
+        var bare = today ? 'Today' : dayText(day.getFullYear(), day.getMonth(), day.getDate(), nowMs);
+        var said = 'Full ' + (today ? 'today' : bare);
+        return (cap > catalog.CAPS.EDGE_TEXT_MAX || look === 'text') && utf8.byteLength(said) <= cap ? said : bare;
+    }
+
+    /**
+     * The Moon phase slot's text, by its Look and what it Shows: none in the Icon look, whose
+     * picture alone shows tonight's moon; the phase's name (its short form, or under Name Full the
+     * name where it fits the slot: 'Waning gibbous' in the middle, 'New moon' anywhere); how much
+     * of the moon is lit now ('89%', '89% lit' in the Text look); or the day of the next full
+     * moon (fullMoonText).
+     * @param {{phase: number, lit: number, fullDay: Date}} moon Tonight's phase (moon.js
+     *   phaseOfDay), the share of the moon lit now (litShare) and the next full moon's day.
+     * @param {Object} settings Settings.
+     * @param {number} cap The slot's byte cap.
+     * @param {number} nowMs Now, in epoch milliseconds.
+     * @returns {string} e.g. 'Wan gib', 'Waning gibbous', '89%', '89% lit', 'Thu', 'Full 24 Dec', ''
+     */
+    function moonText(moon, settings, cap, nowMs) {
+        var look = moonLook(settings);
+        var shows = moonShows(settings);
+        var names = MOON_NAMES[moon.phase];
+        if (look === 'icon') { return ''; }
+        if (shows === 'lit') {
+            return withUnit(Math.round(moon.lit * 100) + '%', look === 'text' ? ' lit' : '', cap);
+        }
+        if (shows === 'full') { return fullMoonText(moon.fullDay, look, cap, nowMs); }
+        return moonName(settings) === 'full' && utf8.byteLength(names.full) <= cap ? names.full : names.short;
+    }
+
     /**
      * Parse YYYY-MM-DD at local midnight, returning fallback for malformed or
      * normalized-away dates such as 2028-02-31.
@@ -488,6 +620,14 @@
         WEEKDAYS: WEEKDAYS,
         dayText: dayText,
         momentText: momentText,
+        CLOCK_AHEAD_MS: CLOCK_AHEAD_MS,
+        twilightText: twilightText,
+        dayLengthText: dayLengthText,
+        MOON_NAMES: MOON_NAMES,
+        moonLook: moonLook,
+        moonShows: moonShows,
+        moonName: moonName,
+        moonText: moonText,
         formatCountdown: formatCountdown,
         isoWeek: isoWeek,
         conditionLook: conditionLook,

@@ -105,12 +105,21 @@
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.AQI, category: 'weather' },
     // Every Provider has pollen: its pollen source follows the Provider (pollen-days.js sourceOf).
     { code: 'pollen', label: 'Pollen', kind: KINDS.TEXT, icon: ICONS.POLLEN, category: 'weather' },
-    { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'weather' },
     // What the weather is like now (weather/domain/condition.js): its name, or its short form where
     // the slot is short of room, with the condition's glyph; the edit sheet's Look picks icon
     // and text, text alone or the icon alone. The baked icon varies (status-lines.js
     // iconFor); COND_TEXT is the id of the text-only look.
     { code: 'condition', label: 'Weather condition', kind: KINDS.TEXT, icon: ICONS.COND_TEXT, category: 'weather' },
+    // Sun and moon. Sunrise/sunset prints the forecast's next sun event (SUN_EVENTS); the other
+    // three are worked out on the phone from the clock and the place (sky-slots.js), so they need
+    // no weather fetch, and a bake between fetches turns them at dawn, dusk and midnight
+    // (status-rebake.js onTick). Their baked icons vary (status-lines.js iconFor): these are the
+    // ones they start from. None on aplite, whose feature set is frozen.
+    { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'sky' },
+    { code: 'twilight', label: 'Dawn/dusk', kind: KINDS.TEXT, icon: ICONS.DUSK, notAplite: true, category: 'sky' },
+    { code: 'dayLength', label: 'Day length', kind: KINDS.TEXT, icon: ICONS.DAY_LENGTH, notAplite: true,
+      category: 'sky' },
+    { code: 'moon', label: 'Moon phase', kind: KINDS.TEXT, icon: ICONS.MOON_FULL, notAplite: true, category: 'sky' },
     // Any position since custom layouts: the calendar can sit anywhere or be absent
     // now, so the date is a first-class slot like City (the middle-only gate was a
     // leftover from when it was hard-wired into the strip's centre; the watch's
@@ -167,9 +176,10 @@
   // orphan heading. 'battery' holds two items: the WATCH's and the PHONE's, which
   // exists only where the phone can report its charge (needsPhoneBattery) and never on
   // aplite. The labels carry the Watch/Phone qualifier because both otherwise read as
-  // "battery". Plugin comes first, right under Empty (the owner's, 2026-11-23).
+  // "battery". Plugin comes first, right under Empty (the owner's, 2026-11-23). Sun and moon
+  // follows Weather, with Sunrise/sunset in it (3.6.0); on aplite it holds Sunrise/sunset alone.
   var CATEGORIES = [
-    ['plugin', 'Plugin'], ['weather', 'Weather'], ['datelocation', 'Date and location'],
+    ['plugin', 'Plugin'], ['weather', 'Weather'], ['sky', 'Sun and moon'], ['datelocation', 'Date and location'],
     ['health', 'Health'], ['battery', 'Battery']
   ];
 

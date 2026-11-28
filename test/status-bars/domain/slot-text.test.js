@@ -153,3 +153,98 @@ test('a moment\'s date names its month in three letters, every month of the year
   months.forEach((name, m) => assert.equal(slotText.momentText(new Date(2027, m, 5, 10, 0).getTime(), BAKED, {}, 8),
     '5 ' + name));
 });
+
+// The sun and moon slots worked out on the phone (sky-slots.js) print through these.
+const SLOT_TEXT = require.resolve('../../../src/pkjs/status-bars/domain/slot-text.js');
+const EDGE = catalog.CAPS.EDGE_TEXT_MAX;
+const MID = catalog.CAPS.MID_TEXT_MAX;
+
+test('Day length prints hours and minutes: 24h when the sun never sets, 0h when it never rises', () => {
+  assert.deepEqual([698, 490, 485, 60, 1439, 1440, 0].map(slotText.dayLengthText),
+    ['11h38', '8h10', '8h05', '1h00', '23h59', '24h', '0h']);
+});
+
+test('every moon phase has its name and a short form that fits an edge slot', () => {
+  assert.deepEqual(slotText.MOON_NAMES.map((n) => n.short),
+    ['New', 'Wax cres', '1st qtr', 'Wax gib', 'Full', 'Wan gib', 'Last qtr', 'Wan cres']);
+  assert.deepEqual(slotText.MOON_NAMES.map((n) => n.full),
+    ['New moon', 'Waxing crescent', 'First quarter', 'Waxing gibbous', 'Full moon', 'Waning gibbous',
+      'Last quarter', 'Waning crescent']);
+  slotText.MOON_NAMES.forEach((n) => {
+    assert.ok(Buffer.byteLength(n.short) <= EDGE, n.short);
+    assert.ok(Buffer.byteLength(n.full) <= MID, n.full);
+  });
+});
+
+test('the Moon phase prints the short name by default, and under Full the name where the slot holds it', () => {
+  const NOW = Date.UTC(2026, 10, 28, 12);
+  const moon = (phase) => ({ phase: phase, lit: 0.89, fullDay: new Date(2026, 11, 24) });
+  assert.equal(slotText.moonText(moon(5), {}, EDGE, NOW), 'Wan gib');
+  assert.equal(slotText.moonText(moon(5), {}, MID, NOW), 'Wan gib', 'Short in every slot');
+  const full = { moonSlotName: 'full' };
+  assert.equal(slotText.moonText(moon(5), full, MID, NOW), 'Waning gibbous');
+  assert.equal(slotText.moonText(moon(5), full, EDGE, NOW), 'Wan gib', 'an edge has no room for it');
+  assert.equal(slotText.moonText(moon(0), full, EDGE, NOW), 'New moon', 'a name that fits an edge');
+  assert.equal(slotText.moonText(moon(4), full, EDGE, NOW), 'Full', 'Full moon is 9 bytes');
+  assert.equal(slotText.moonText(moon(5), { moonSlotLook: 'text' }, EDGE, NOW), 'Wan gib');
+  // The Icon look draws tonight's moon alone, whatever it is set to show.
+  assert.equal(slotText.moonText(moon(5), { moonSlotLook: 'icon', moonSlotShows: 'lit' }, MID, NOW), '');
+  // Anything unknown reads as the defaults.
+  assert.equal(slotText.moonText(moon(5), { moonSlotLook: 'x', moonSlotShows: 'y', moonSlotName: 'z' }, MID, NOW),
+    'Wan gib');
+  assert.deepEqual([slotText.moonLook(null), slotText.moonShows(null), slotText.moonName(null)],
+    ['both', 'phase', 'short']);
+});
+
+test('how much of the moon is lit prints as a share, with lit after it in the Text look', () => {
+  const NOW = Date.UTC(2026, 10, 28, 12);
+  const at = (lit) => ({ phase: 5, lit: lit, fullDay: new Date(2026, 11, 24) });
+  const lit = { moonSlotShows: 'lit' };
+  const litText = { moonSlotShows: 'lit', moonSlotLook: 'text' };
+  assert.equal(slotText.moonText(at(0.89), lit, EDGE, NOW), '89%');
+  assert.equal(slotText.moonText(at(0.886), lit, MID, NOW), '89%');
+  assert.equal(slotText.moonText(at(0.89), litText, EDGE, NOW), '89% lit');
+  assert.equal(slotText.moonText(at(1), litText, EDGE, NOW), '100% lit', 'eight bytes: still an edge\'s');
+  assert.equal(slotText.moonText(at(0.004), lit, EDGE, NOW), '0%');
+});
+
+test('the next full moon prints its day: Today, a weekday in the coming week, else its date; Full where there is room', () => {
+  const got = inZone('Europe/Berlin', { slotText: SLOT_TEXT }, ({ slotText }) => {
+    const now = new Date(2026, 10, 28, 12).getTime();
+    const texts = (day) => {
+      const moon = { phase: 5, lit: 0.89, fullDay: day };
+      return [
+        slotText.moonText(moon, { moonSlotShows: 'full' }, 8, now),
+        slotText.moonText(moon, { moonSlotShows: 'full' }, 19, now),
+        slotText.moonText(moon, { moonSlotShows: 'full', moonSlotLook: 'text' }, 8, now)
+      ];
+    };
+    return [texts(new Date(2026, 11, 24)), texts(new Date(2026, 11, 1)), texts(new Date(2026, 10, 28))];
+  });
+  assert.deepEqual(got, [
+    // An edge beside the full moon's picture, the middle slot, an edge in the Text look.
+    ['24 Dec', 'Full 24 Dec', '24 Dec'],
+    ['Tue', 'Full Tue', 'Full Tue'],
+    ['Today', 'Full today', 'Today']
+  ]);
+});
+
+test('Dawn/dusk prints its clock time to the minute, with its day when it is a day or more ahead', () => {
+  const got = inZone('Europe/Berlin', { slotText: SLOT_TEXT }, ({ slotText }) => {
+    const now = new Date(2026, 10, 28, 12).getTime();
+    const at = (d, h, m, s) => new Date(2026, 10, d, h, m, s);
+    const h12 = { axisTimeFormat: '12h', timeShowAmPm: true };
+    return [
+      slotText.twilightText(at(28, 16, 40, 19), now, {}, 8),
+      slotText.twilightText(at(29, 7, 12, 36), now, {}, 8),
+      slotText.twilightText(at(28, 16, 40, 19), now, h12, 8),
+      // 23 h 59 min ahead: still the clock alone, as the next one cannot be another.
+      slotText.twilightText(at(29, 11, 59, 0), now, {}, 8),
+      // A day ahead and more, as far north: its day too.
+      slotText.twilightText(at(29, 12, 0, 0), now, {}, 19),
+      slotText.twilightText(at(29, 18, 0, 0), now, {}, 8),
+      slotText.twilightText(null, now, {}, 8)
+    ];
+  });
+  assert.deepEqual(got, ['16:40', '7:13', '4:40p', '11:59', 'Sun 12:00', 'Su 18:00', '--']);
+});

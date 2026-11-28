@@ -8,9 +8,10 @@
 // (resendStatus). The triggers: a battery reading that moved (the phone's charge,
 // the days the watch has left), every settings save (channel-scheduler's config
 // close), which is how a status-only edit — an alert switched off, a level
-// moved, a Look — reaches the watch at once, network or not, and a sunrise or
+// moved, a Look — reaches the watch at once, network or not, a sunrise or
 // sunset (onTick), which turns the weather condition's and the city's icon
-// between sun and moon without a fetch. A battery reading can wait: inside the
+// between sun and moon without a fetch, and a sky turn (onTick): the dawn, dusk or
+// midnight at which a sun and moon slot changes. A battery reading can wait: inside the
 // Night battery saver's window the phone's charge is owed its send, and the
 // days the watch has left always are (resendStatusAwake, oweStatus). The first
 // tick that may send pays what is owed. A send the watch NACKs is owed again, its
@@ -67,10 +68,11 @@
 //   * The `sun` slot formats the epoch frozen in SUN_EVENTS, not the clock, so
 //     an old snapshot re-renders the identical string -- stale in precisely the
 //     way the watch is already stale, never differently stale.
-//   * Besides that glyph, three things read the clock during a bake, and all
-//     three re-derive FORWARD rather than going stale: the countdown slot and aplite's
-//     phone-baked ISO week (both from the `now` the re-bake passes in, this
-//     module's clock), and the LIVE_* kinds (date, week, hr, steps,
+//   * Besides that glyph, four things read the clock during a bake, and all
+//     four re-derive FORWARD rather than going stale: the countdown slot, aplite's
+//     phone-baked ISO week and the sun and moon slots worked out on the phone (all from the
+//     `now` the re-bake passes in, this module's clock, and the sky's place from the bake's
+//     facts), and the LIVE_* kinds (date, week, hr, steps,
 //     distance), which carry no baked text at all -- the watch draws them
 //     itself from the kind byte. A snapshot restored across midnight therefore
 //     pushes "3d" where the watch still shows "4d": the value the next fetch
@@ -128,6 +130,9 @@ var snapshot = null;  // last bake inputs ({payload, watchInfo}) from THIS PKJS 
 var restored = null;  // the same shape, read back from flash at init: the restart backstop
 var lastWritten = null;   // last serialized snapshot, to skip no-op flash writes
 var bakedNight;           // day or night of the last bake (undefined: nothing baked yet)
+var bakedSkyTurn;         // when a sun and moon slot of the last bake changes (status-lines.js
+                          // skyTurnAt), in epoch ms; null for never; undefined while a restored
+                          // snapshot waits for the first tick to count as baked
 var owed = null;          // the send the watch is owed (oweStatus): {steps, waitedFor}, each
                           // trigger's step before it and whether the user waits for it at the
                           // phone; null = nothing is owed
@@ -349,8 +354,8 @@ function bakeInputs() {
  *
  * @param {Object} payload Weather payload, still carrying its transient bake keys.
  * @param {Object|null} watchInfo getActiveWatchInfo() result, or null.
- * @param {Date} [now] The instant the bake that follows runs at (its day or night is
- *   latched here); absent = the rebaker's clock.
+ * @param {Date} [now] The instant the bake that follows runs at (its day or night, and its
+ *   sky's next turn, are latched here); absent = the rebaker's clock.
  * @returns {void}
  */
 function rememberBakeInputs(payload, watchInfo, now) {
@@ -359,7 +364,9 @@ function rememberBakeInputs(payload, watchInfo, now) {
         payload: shallowClone(payload),
         watchInfo: watchInfo
     };
-    bakedNight = nightAt(payload, now ? now.getTime() / 1000 : nowSec());
+    var at = now ? now.getTime() : nowMs();
+    bakedNight = nightAt(payload, at / 1000);
+    bakedSkyTurn = statusLines.skyTurnAt(currentSettings(), watchInfo, new Date(at), bakeFacts());
     persistSnapshot(payload, watchInfo);
 }
 
@@ -518,10 +525,12 @@ function payOwed(reason) {
 /**
  * Per-minute hook (the channel scheduler's tick). Two things wait for it:
  *
- * - Day turning to night or back since the last bake: the status is re-baked, so the sun
- *   and moon icons follow the sky between fetches. After a restart the restored snapshot
- *   counts as baked on the side of the sky it is now: the fetch that runs on the return
- *   brings the rest, and a resend before it would carry the old snapshot's values.
+ * - Day turning to night or back since the last bake, or the sky turning for a sun and moon
+ *   slot (a dawn, a dusk, a midnight: status-lines.js skyTurnAt): the status is re-baked, so
+ *   the sun and moon icons and slots follow the sky between fetches. After a restart the
+ *   restored snapshot counts as baked on the side of the sky it is now, and at the first tick
+ *   as baked then for the sky's turns: the fetch that runs on the return brings the rest, and a
+ *   resend before it would carry the old snapshot's values.
  * - A send that is owed: one the Night battery saver's window swallowed
  *   (resendStatusAwake), one that was never urgent (oweStatus), or one the watch NACKed,
  *   which waits out the backoff (nack-backoff.js).
@@ -539,12 +548,20 @@ function payOwed(reason) {
  */
 function onTick(fetchInFlight) {
     var src = snapshot || restored;
-    var night = src ? nightNow(src.payload) : bakedNight;
+    var at = nowMs();
+    var night = src ? nightAt(src.payload, at / 1000) : bakedNight;
     var turned = night !== bakedNight;
-    if (!turned && !owed) { return false; }
+    var skyTurned;
+    if (src && typeof bakedSkyTurn === 'undefined') {
+        bakedSkyTurn = statusLines.skyTurnAt(currentSettings(), src.watchInfo, new Date(at), bakeFacts());
+    }
+    skyTurned = typeof bakedSkyTurn === 'number' && at >= bakedSkyTurn;
+    if (!turned && !skyTurned && !owed) { return false; }
     if (retry.waitTick() || fetchInFlight || (saverWindowOpen() && !(owed && owed.waitedFor))) { return false; }
     bakedNight = night;
-    return payOwed(turned ? (night ? 'sunset' : 'sunrise') : 'owed');
+    // The re-bake latches the sky's next turn; one that bakes nothing leaves none to repeat.
+    if (skyTurned) { bakedSkyTurn = null; }
+    return payOwed(turned ? (night ? 'sunset' : 'sunrise') : (skyTurned ? 'sky' : 'owed'));
 }
 
 /**
@@ -635,7 +652,7 @@ function bakeStatus(phone) {
 
 /**
  * Re-bake a fresh clone of the bake inputs and pick the status category's keys, latching
- * the day or night it was baked at.
+ * the day or night it was baked at and the sky's next turn after it.
  *
  * @param {?Object} [phone] Battery facts to bake in place of the supplier's (bakeStatus).
  * @returns {{status: ?Object, error: ?Error}} The status keys (null without bake inputs),
@@ -652,11 +669,13 @@ function rebake(phone) {
         return { status: null, error: null };
     }
     payload = shallowClone(inputs.payload);
-    var at = nowMs();   // one instant for the latch and the bake
+    var at = nowMs();   // one instant for the latches and the bake
+    var facts = bakeFacts(phone);
     bakedNight = nightAt(payload, at / 1000);
     build = deps.buildStatusLines || statusLines.buildStatusLines;
     try {
-        build(payload, inputs.settings, inputs.watchInfo, new Date(at), bakeFacts(phone));
+        build(payload, inputs.settings, inputs.watchInfo, new Date(at), facts);
+        bakedSkyTurn = statusLines.skyTurnAt(inputs.settings, inputs.watchInfo, new Date(at), facts);
     }
     catch (ex) {
         return { status: null, error: ex };
@@ -694,8 +713,9 @@ function invalidatePersisted() {
  * @param {function():(Date|number)} options.now Clock for the day/night check and the re-bake.
  * @param {?{getItem: Function, setItem: Function, removeItem: Function}} [options.storage] Where the
  *   restart backstop lives (localStorage); absent = no backstop.
- * @param {function():?Object} [options.getBakeFacts] The two batteries' facts for the re-bake
- *   (status-lines.js BakeFacts); absent = a host that can read neither.
+ * @param {function():?Object} [options.getBakeFacts] The two batteries' facts, the Plugin value
+ *   slots' and the sky's place for the re-bake (status-lines.js BakeFacts); absent = a host that
+ *   can read none of them.
  * @param {function(Function, number):*} [options.setTimeout] The host's timer, for a debt the
  *   user waits for (paySoon); absent = the tick pays it.
  * @param {function():boolean} [options.fetchInFlight] Whether a weather fetch is running, as
@@ -712,11 +732,17 @@ function init(options) {
     snapshot = null;
     lastWritten = null;
     bakedNight = undefined;
+    bakedSkyTurn = null;
     owed = null;
     soonTimer = null;
     retry = nackBackoff.createNackBackoff();
     restored = restoreSnapshot();
-    if (restored) { bakedNight = nightNow(restored.payload); }
+    if (restored) {
+        bakedNight = nightNow(restored.payload);
+        // The sky's turn is latched at the first tick (onTick): the facts its place comes from
+        // are set up after this.
+        bakedSkyTurn = undefined;
+    }
 }
 
 module.exports = {

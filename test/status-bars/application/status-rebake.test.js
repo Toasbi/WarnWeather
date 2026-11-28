@@ -251,6 +251,138 @@ test('a tick with a fetch in flight leaves the sunset to that fetch\'s bake', ()
   assert.equal(sends.length, 1);
 });
 
+// The sun and moon slots worked out on the phone turn by themselves: at a dawn or dusk, and at
+// midnight for the day length and the moon (status-lines.js skyTurnAt). The moon needs no place,
+// so these run on the moon alone and turn at the phone's own midnight, whatever its zone.
+const MOON_SETTINGS = { statusTopMid: 'moon' };
+const BASALT = { platform: 'basalt' };
+
+/**
+ * @param {number} d A day of November 2026. @param {number} h Its hour. @param {number} m Its minute.
+ * @returns {number} That local time, in epoch ms.
+ */
+function nov(d, h, m) {
+  return new Date(2026, 10, d, h, m).getTime();
+}
+
+/**
+ * Run `work` with console.log recording the re-bake's sends' reasons.
+ * @param {Function} work What to run.
+ * @returns {string[]} The reasons of the micro-sends it made.
+ */
+function sendReasons(work) {
+  const reasons = [];
+  const quiet = console.log;
+  console.log = (line) => {
+    const m = /status micro-send \((.*)\)/.exec(String(line));
+    if (m) { reasons.push(m[1]); }
+  };
+  try { work(); } finally { console.log = quiet; }
+  return reasons;
+}
+
+test('a sun and moon slot re-bakes at its turn, once, as a sky turn', () => {
+  storage = {};
+  let now = nov(28, 20, 0);
+  const sends = [];
+  const reasons = sendReasons(() => {
+    statusRebake.init(withHost({ getSettings: () => MOON_SETTINGS, sendWeather: (p) => sends.push(p),
+      buildStatusLines: fakeBake, now: () => now }));
+    statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, BASALT);
+    assert.equal(statusRebake.onTick(), false, 'the evening the fetch baked');
+    now = nov(28, 23, 59);
+    assert.equal(statusRebake.onTick(), false);
+    now = nov(29, 0, 0);
+    assert.equal(statusRebake.onTick(), true, 'midnight: the new day\'s moon');
+    now = nov(29, 0, 1);
+    assert.equal(statusRebake.onTick(), false, 'once a midnight');
+    now = nov(30, 0, 0);
+    assert.equal(statusRebake.onTick(), true, 'and the next one');
+  });
+  assert.equal(sends.length, 2);
+  assert.deepEqual(reasons, ['sky', 'sky']);
+});
+
+test('without a sun and moon slot nothing turns at midnight', () => {
+  storage = {};
+  let now = nov(28, 20, 0);
+  const sends = [];
+  statusRebake.init(withHost({ getSettings: () => ({ statusTopMid: 'sun' }), sendWeather: (p) => sends.push(p),
+    buildStatusLines: fakeBake, now: () => now }));
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, BASALT);
+  now = nov(29, 0, 0);
+  assert.equal(statusRebake.onTick(), false);
+  assert.equal(sends.length, 0);
+});
+
+test('the battery saver: a sky turn inside its window waits for the window\'s end', () => {
+  storage = {};
+  let now = nov(28, 20, 0);
+  const sends = [];
+  const settings = Object.assign({ sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' }, MOON_SETTINGS);
+  statusRebake.init(withHost({ getSettings: () => settings, sendWeather: (p) => sends.push(p),
+    buildStatusLines: fakeBake, now: () => now }));
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, BASALT);
+  now = nov(29, 0, 0);
+  assert.equal(statusRebake.onTick(false), false, 'midnight inside [0, 7): nothing goes out');
+  now = nov(29, 6, 59);
+  assert.equal(statusRebake.onTick(false), false);
+  now = nov(29, 7, 0);
+  assert.equal(statusRebake.onTick(false), true, 'the window over, the new day\'s moon shows');
+  assert.equal(statusRebake.onTick(false), false, 'once');
+  assert.equal(sends.length, 1);
+});
+
+test('a fetch in flight at a sky turn bakes it; a resend for another reason latches the next one', () => {
+  storage = {};
+  let now = nov(28, 20, 0);
+  const sends = [];
+  statusRebake.init(withHost({ getSettings: () => MOON_SETTINGS, sendWeather: (p) => sends.push(p),
+    buildStatusLines: fakeBake, now: () => now }));
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, BASALT);
+  now = nov(29, 0, 0);
+  assert.equal(statusRebake.onTick(true), false, 'the fetch in flight bakes the new day');
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, BASALT, new Date(now));   // ...and it did
+  assert.equal(statusRebake.onTick(false), false, 'nothing left to turn');
+  now = nov(30, 0, 5);
+  statusRebake.resendStatus('config-close');
+  assert.equal(sends.length, 1);
+  assert.equal(statusRebake.onTick(false), false, 'the save\'s resend baked the new day');
+  assert.equal(sends.length, 1);
+});
+
+test('a sky turn whose re-bake throws is not tried again every minute', () => {
+  storage = {};
+  let now = nov(28, 20, 0);
+  let bakes = 0;
+  statusRebake.init(withHost({ getSettings: () => MOON_SETTINGS, sendWeather: () => {},
+    buildStatusLines: () => { bakes += 1; throw new Error('boom'); }, now: () => now }));
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, BASALT);
+  now = nov(29, 0, 0);
+  assert.equal(statusRebake.onTick(), false, 'nothing went out');
+  now = nov(29, 0, 1);
+  statusRebake.onTick();
+  now = nov(29, 0, 2);
+  statusRebake.onTick();
+  assert.equal(bakes, 1, 'it would throw again: the turn is spent');
+});
+
+test('after a restart the first tick counts as the sky\'s bake; the next turn re-bakes', () => {
+  storage = {};
+  let now = nov(28, 20, 0);
+  const sends = [];
+  const opts = { getSettings: () => MOON_SETTINGS, sendWeather: (p) => sends.push(p),
+    buildStatusLines: fakeBake, now: () => now };
+  statusRebake.init(withHost(opts));
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, BASALT);
+  now = nov(29, 0, 30);
+  statusRebake.init(withHost(opts));   // PKJS restarted, past the turn its last life latched
+  assert.equal(statusRebake.onTick(), false, 'no resend of the old snapshot on the return');
+  now = nov(30, 0, 0);
+  assert.equal(statusRebake.onTick(), true, 'the next midnight turns it');
+  assert.equal(sends.length, 1);
+});
+
 test('the scheduler\'s minute tick runs the re-bake\'s, told whether a fetch is in flight', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
   const body = src.slice(src.indexOf('function onSchedulerTick() {'));
@@ -268,9 +400,10 @@ test('index.js hands the re-bake the host\'s timer and the channel\'s state, whi
     .forEach((wired) => { assert.ok(options.indexOf(wired) > 0, wired); });
 });
 
-test('index.js composes the batteries\' and the Plugin value\'s facts once: the fetch\'s bake, the re-bake\'s and the fixture\'s read the same', () => {
+test('index.js composes the batteries\', the Plugin value\'s and the sky\'s facts once: the fetch\'s bake, the re-bake\'s and the fixture\'s read the same', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '../src/pkjs/index.js'), 'utf8');
-  assert.match(src, /function bakeFacts\(\) \{\n    return \{ phone: phoneBattery\.bakeFacts\(\), watch: batteryEstimate\.bakeFacts\(\),\n        plugin: pluginValueSource\.bakeFacts\(\) \};\n\}/);
+  // The sky's place is the one the automatic theme reads (themeCoords), read only when a bake asks.
+  assert.match(src, /function bakeFacts\(\) \{\n    return \{ phone: phoneBattery\.bakeFacts\(\), watch: batteryEstimate\.bakeFacts\(\),\n        plugin: pluginValueSource\.bakeFacts\(\), sky: \{ position: themeCoords \} \};\n\}/);
   assert.equal((src.match(/getBakeFacts: bakeFacts,/g) || []).length, 2, 'the fetch cycle and the re-bake');
   assert.ok(src.indexOf('facts: bakeFacts() });') > 0, 'the fixture send');
 });

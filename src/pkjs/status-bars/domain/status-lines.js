@@ -16,6 +16,7 @@ var onDemand = require('./on-demand.js');
 var condition = require('../../weather/domain/condition.js');
 var batteryDays = require('./battery-days.js');
 var pluginValues = require('./plugin-values.js');
+var skySlots = require('./sky-slots.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
 var POSITIONS = catalog.SLOT_POSITIONS;
@@ -146,9 +147,18 @@ var isoWeek = slotText.isoWeek;
  */
 
 /**
+ * The sun and moon slots' facts (index.js bakeFacts): where the sky is seen from.
+ * @typedef {Object} SkyFacts
+ * @property {function(): ?{lat: number, lon: number}} position Reads the place the weather is
+ *   for, as the fetch would find it without asking the phone (index.js themeCoords); null before
+ *   any is known. Called once per bake, only when a bar it bakes shows a sun and moon slot
+ *   (sky-slots.js).
+ */
+
+/**
  * What a bake reads that neither the payload nor the settings hold: the two batteries'
- * facts and the Plugin value slots'. The app composes them once (index.js bakeFacts) for
- * every bake: a fetch's, the fixture's and a re-bake's.
+ * facts, the Plugin value slots' and the sun and moon slots'. The app composes them once
+ * (index.js bakeFacts) for every bake: a fetch's, the fixture's and a re-bake's.
  * @typedef {Object} BakeFacts
  * @property {?PhoneBattery} [phone] The phone's battery facts; absent = a host that cannot
  *   read the phone's battery.
@@ -156,6 +166,7 @@ var isoWeek = slotText.isoWeek;
  *   days it has left.
  * @property {?PluginValueFacts} [plugin] The Plugin value slots' facts; absent = a host that
  *   cannot read plugins.
+ * @property {?SkyFacts} [sky] The sun and moon slots' facts; absent = no place known.
  */
 
 /**
@@ -172,6 +183,8 @@ var isoWeek = slotText.isoWeek;
  *   daysLeft); null when it shows the percentage alone.
  * @property {Object<string, ?Object>} pluginReadings The reading each Plugin value slot shows
  *   (plugin-values.js shownReading), by its settings key; a slot without one shows none.
+ * @property {?Object} sky What the sun and moon slots the bake shows read (sky-slots.js
+ *   readingsAt); null while it shows none.
  */
 
 /**
@@ -181,11 +194,13 @@ var isoWeek = slotText.isoWeek;
  * @param {?number} [days] The watch battery's days left to show, or null.
  * @param {?Object<string, ?Object>} [pluginReadings] Each Plugin value slot's reading, by its
  *   settings key, or none.
+ * @param {?Object} [sky] The sun and moon slots' readings (sky-slots.js readingsAt), or null.
  * @returns {BakeEnv}
  */
-function bakeEnv(now, phone, days, pluginReadings) {
+function bakeEnv(now, phone, days, pluginReadings, sky) {
   return { now: now, nowSec: now.getTime() / 1000, phone: phone || null,
-    batteryDays: typeof days === 'number' ? days : null, pluginReadings: pluginReadings || {} };
+    batteryDays: typeof days === 'number' ? days : null, pluginReadings: pluginReadings || {},
+    sky: sky || null };
 }
 
 /**
@@ -218,8 +233,8 @@ function pluginReadingOf(bake, slotKey) {
  *   for the direction arrow only where packLine will draw one (arrowSector).
  *   Absent = a watch with the arrow (not aplite).
  * @param {BakeEnv} bake The time and the phone's battery (bakeEnv). Required: the
- *   countdown, the weather condition and the phone-battery items read it, and a call
- *   without it throws on those.
+ *   countdown, the weather condition, the phone-battery and the sun and moon items read it, and
+ *   a call without it throws on those.
  * @returns {string} display text, '--' when the value is unavailable
  */
 function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, bake) {
@@ -253,6 +268,8 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax, alert, env, 
     var ev = decodeFirstSunEvent(payload.SUN_EVENTS);
     return ev ? formatSunTime(ev.epoch, settings) : '--';
   }
+  // Dawn/dusk, Day length and the Moon phase, from the clock and the place (sky-slots.js).
+  if (skySlots.isSky(code)) { return skySlots.textOf(code, bake.sky, settings, cap, bake.now); }
   if (wireUnits.isDayMaxKind(code)) {
     // The day-max kinds' global per-kind display mode (each kind's Edit sheet),
     // the temp slot's pattern: absent = 'current'. 'max' is the day's peak
@@ -444,13 +461,14 @@ function arrowSector(code, payload, settings, env, dayMax) {
 /**
  * The icon id to pack for one resolved item.
  *
- * Every other item packs the static `icon` off its catalog entry. Five items choose
+ * Every other item packs the static `icon` off its catalog entry. Seven items choose
  * theirs PER BAKE, inside a byte the slot already pays for -- no wire field: 'condition'
  * draws the glyph of the weather now, by day or night, 'city' may draw it before its name,
  * 'phoneBattery' packs the id of its Text look, which draws none, 'battery' in its
  * Icon + text look the id of the battery the watch draws before its text (status_line.h
- * status_slot_draws_battery), and 'pluginValue' the icon picked for it, in the form its
- * value takes (plugin-values.js iconId).
+ * status_slot_draws_battery), 'pluginValue' the icon picked for it, in the form its
+ * value takes (plugin-values.js iconId), 'twilight' the dawn or dusk that comes next and
+ * 'moon' tonight's moon (sky-slots.js iconOf).
  *
  * Resolved into a local exactly like `kind` is for the imperial distance slot --
  * the catalog entry itself is shared and must never be mutated.
@@ -494,6 +512,7 @@ function iconFor(code, item, payload, settings, env, bake, slotKey) {
   if (code === 'pluginValue') {
     return pluginValues.iconId(pluginValues.pickOf(settings, slotKey), pluginReadingOf(bake, slotKey));
   }
+  if (skySlots.isSky(code)) { return skySlots.iconOf(code, bake.sky, settings); }
   return item.icon;
 }
 
@@ -560,6 +579,60 @@ function showsItem(lines, settings, env, code) {
     }
   }
   return false;
+}
+
+/**
+ * The sun and moon slots worked out on the phone (sky-slots.js CODES) that the given lines
+ * show, each once.
+ * @param {Array<Object>} lines catalog line definitions
+ * @param {Object} settings Clay settings blob
+ * @param {Object} env platform environment
+ * @returns {string[]} In the lines' order.
+ */
+function shownSkyCodes(lines, settings, env) {
+  var out = [];
+  for (var l = 0; l < lines.length; l++) {
+    for (var s = 0; s < 3; s++) {
+      var code = slotCode(lines[l], s, settings, env);
+      if (skySlots.isSky(code) && out.indexOf(code) === -1) { out.push(code); }
+    }
+  }
+  return out;
+}
+
+/**
+ * The sun and moon slots' readings for one bake: none while its lines show no such slot, and the
+ * place read only when they do (SkyFacts).
+ * @param {Array<Object>} lines catalog line definitions the bake bakes
+ * @param {Object} settings Clay settings blob
+ * @param {Object} env platform environment
+ * @param {Date} now The bake's instant.
+ * @param {?BakeFacts} facts The bake's facts.
+ * @returns {?Object} sky-slots.js readingsAt's, or null.
+ */
+function skyReadings(lines, settings, env, now, facts) {
+  var codes = shownSkyCodes(lines, settings, env);
+  var sky = facts && facts.sky;
+  if (!codes.length) { return null; }
+  return skySlots.readingsAt(codes, now, sky && typeof sky.position === 'function' ? sky.position() : null);
+}
+
+/**
+ * The next instant at which a sun and moon slot of the bars a bake at `now` sends changes by
+ * itself (sky-slots.js turnAt): when status-rebake.js bakes again without a fetch.
+ * @param {?Object} settings Clay settings blob
+ * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
+ * @param {Date} now The bake's instant.
+ * @param {?BakeFacts} [facts] The bake's facts: the sky's place.
+ * @returns {?number} Epoch milliseconds; null while no such slot is sent, or none changes.
+ */
+function skyTurnAt(settings, watchInfo, now, facts) {
+  var env;
+  var sky;
+  if (!settings) { return null; }
+  env = platformLib.computeEnv(watchInfo);
+  sky = skyReadings(catalog.bakedLines(settings, env), settings, env, now, facts);
+  return sky ? skySlots.turnAt(sky, now) : null;
 }
 
 /**
@@ -777,10 +850,10 @@ function widenEdgeConditions(bytes, starts, wide) {
  * @param {Object} payload weather payload (mutated)
  * @param {Object} settings Clay settings blob
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
- * @param {Date} now The current time: the countdown, aplite's ISO week and whether it is
- *   night now read it, one instant for the whole bake.
- * @param {?BakeFacts} [facts] The two batteries' facts and the Plugin value slots'; absent =
- *   none.
+ * @param {Date} now The current time: the countdown, aplite's ISO week, the sun and moon
+ *   slots and whether it is night now read it, one instant for the whole bake.
+ * @param {?BakeFacts} [facts] The two batteries' facts, the Plugin value slots' and the sky's
+ *   place; absent = none.
  * @returns {Object} the same payload
  */
 function buildStatusLines(payload, settings, watchInfo, now, facts) {
@@ -822,7 +895,9 @@ function buildStatusLines(payload, settings, watchInfo, now, facts) {
       readings[slot.slotKey] = pluginValues.shownReading(plugin.valueOf(slot.source), slot.pick, now.getTime());
     });
   }
-  var bake = bakeEnv(now, reading, batteryDays.daysLeft(estimate, now.getTime()), readings);
+  // And the sun and moon slots' readings, each worked out once for every slot that shows it.
+  var bake = bakeEnv(now, reading, batteryDays.daysLeft(estimate, now.getTime()), readings,
+    skyReadings(lines, settings, env, now, facts));
   for (var l = 0; l < lines.length; l++) {
     var line = lines[l];
     payload[line.wireKey] = packLine(line, payload, settings, env, alerts, bake);
@@ -887,6 +962,7 @@ module.exports = {
   wantsBatteryDays: wantsBatteryDays,
   wantedPluginValues: wantedPluginValues,
   pickedPluginValues: pickedPluginValues,
+  skyTurnAt: skyTurnAt,
   isNightNow: isNightNow,
   SOURCE_KEYS: SOURCE_KEYS,
   packLine: packLine,

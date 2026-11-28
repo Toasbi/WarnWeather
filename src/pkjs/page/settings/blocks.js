@@ -163,7 +163,8 @@ if (typeof require !== 'undefined') {
     // for the slot's CURRENT value, when that value is a threshold kind, whatever its Look
     // (the Look is the dialog's first row). The catalog's slot codes and the threshold
     // contract's KINDS codes are the same vocabulary ('wind', 'aqi', 'steps', ...), so the
-    // contract IS the mapping — no hand-copied list to drift. The phone battery's and the
+    // contract IS the mapping — no hand-copied list to drift; the sun and moon slots worked out
+    // on the phone open the Sunrise/sunset slot's, whose kind they take. The phone battery's and the
     // Plugin value's dialogs are their slot's own, since their Look and source are
     // (status-line-catalog.js phoneBatterySheet, pluginValueSheet): a dialog is told nothing
     // of the slot that opened it, but this resolver is. env gate mirrors the sheets' own
@@ -178,18 +179,15 @@ if (typeof require !== 'undefined') {
     });
 
     /**
-     * The threshold kind a slot's item opens a dialog for: the contract's index of its code,
+     * The threshold kind a slot's item opens a dialog for: the contract's index of the kind its
+     * slot takes (thresholds.itemKindId: the sun and moon slots take the Sunrise/sunset slot's),
      * -1 for an item without one and on a watch without dialogs (aplite).
      * @param {Object} env Platform env.
      * @param {*} code The slot's item code.
      * @returns {number} Index into thresholds.KINDS, or -1.
      */
     function slotKindIndex(env, code) {
-        if (!env || !env.thresholds) { return -1; }
-        for (var i = 0; i < thresholds.KINDS.length; i++) {
-            if (thresholds.KINDS[i].code === code) { return i; }
-        }
-        return -1;
+        return env && env.thresholds ? thresholds.itemKindId(code) : -1;
     }
 
     // --- threshold sliders (the per-slot edit sheets' controls) ------------------

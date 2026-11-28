@@ -377,7 +377,7 @@ test('slotOptions marks multi-item groups and collapses single-item groups', () 
   const weatherHeader = opts.find(o => o[1] === '__hdr_weather');
   assert.deepEqual(weatherHeader[2], { disabled: true, groupHeader: true });
   const weatherChildren = opts.filter(o => o[2] && o[2].groupChild
-    && ['temp', 'wind', 'gust', 'uv', 'aqi', 'sun', 'condition'].indexOf(o[1]) >= 0);
+    && ['temp', 'wind', 'gust', 'uv', 'aqi', 'condition'].indexOf(o[1]) >= 0);
   assert.equal(weatherChildren[0][0], 'Temperature/feels like', 'no label-space indentation');
   assert.equal(weatherChildren[0][2].groupEnd, false);
   assert.equal(weatherChildren[weatherChildren.length - 1][2].groupEnd, true);
@@ -392,6 +392,34 @@ test('slotOptions marks multi-item groups and collapses single-item groups', () 
   assert.ok(edge.some(o => o[1] === 'city'), 'city is offered');
   assert.ok(edge.some(o => o[1] === 'week'), 'week is offered on aplite too');
   assert.ok(edge.some(o => o[1] === '__hdr_datelocation'), 'multi-item group gets a header');
+});
+
+test('Sun and moon follows Weather: Sunrise/sunset, Dawn/dusk, Day length, Moon phase; aplite keeps Sunrise/sunset', () => {
+  ALL_SLOT_CTXS.forEach((ctx) => {
+    const opts = catalog.slotOptions({}, ENV_BASALT, ctx);
+    const codes = opts.map((o) => o[1]);
+    const header = codes.indexOf('__hdr_sky');
+    assert.equal(opts[header][0], 'Sun and moon', ctx.slotKey);
+    assert.deepEqual(codes.slice(header + 1, header + 5), ['sun', 'twilight', 'dayLength', 'moon'], ctx.slotKey);
+    assert.deepEqual(opts.slice(header + 1, header + 5).map((o) => o[2].groupEnd), [false, false, false, true]);
+    assert.ok(codes.indexOf('__hdr_weather') < header && header < codes.indexOf('__hdr_datelocation'), ctx.slotKey);
+    assert.deepEqual(opts.slice(header + 1, header + 5).map((o) => o[0]),
+      ['Sunrise/sunset', 'Dawn/dusk', 'Day length', 'Moon phase']);
+  });
+  // aplite draws none of the three (their icons are not on it): Sunrise/sunset is the group's
+  // one item, so it stands alone, and a stored one resolves to nothing.
+  ALL_SLOT_CTXS.forEach((ctx) => {
+    const opts = catalog.slotOptions({}, ENV_APLITE, ctx);
+    assert.ok(!opts.some((o) => o[1] === '__hdr_sky'), ctx.slotKey);
+    assert.deepEqual(opts.filter((o) => o[1] === 'sun'), [['Sunrise/sunset', 'sun']], ctx.slotKey);
+    ['twilight', 'dayLength', 'moon'].forEach((code) => {
+      assert.equal(catalog.resolveSelection(code, {}, ENV_APLITE, ctx), 'empty', code);
+      assert.equal(catalog.resolveSelection(code, {}, ENV_DIORITE, ctx), code, code + ' on the B/W Pebble 2');
+    });
+  });
+  ['twilight', 'dayLength', 'moon'].forEach((code) => {
+    assert.equal(catalog.byCode(code).kind, catalog.KINDS.TEXT, code + ' is phone-baked text');
+  });
 });
 
 test('the watch battery is one LIVE_BATTERY item for both looks; the retired batteryPct is gone', () => {

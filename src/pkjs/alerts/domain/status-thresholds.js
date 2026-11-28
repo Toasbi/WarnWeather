@@ -542,6 +542,21 @@
     return -1;
   }
 
+  // The slot items that take another item's kind: the sun and moon slots worked out on the phone
+  // take the Sunrise/sunset slot's, so its one Bold row sets all four (the watch maps their icons
+  // to THRESH_SUN alike: status_threshold.c status_icon_is_sky). No kind of their own, so the
+  // wire and the Clay message stay as they are.
+  var KIND_OF_ITEM = { twilight: 'sun', dayLength: 'sun', moon: 'sun' };
+
+  /**
+   * @param {*} code A status slot item's code.
+   * @returns {number} The wire kind id of the kind its slot takes: its own, or the one it shares
+   *   (KIND_OF_ITEM); -1 for an item with none.
+   */
+  function itemKindId(code) {
+    return kindId(Object.prototype.hasOwnProperty.call(KIND_OF_ITEM, code) ? KIND_OF_ITEM[code] : code);
+  }
+
   /**
    * @param {*} code A status item code.
    * @returns {?Object} its ALERT_KINDS entry; null for a code with no alert
@@ -659,6 +674,7 @@
 
   var api = {
     KINDS: KINDS,
+    itemKindId: itemKindId,
     WARN_LOOKS: WARN_LOOKS,
     warnLookDefault: warnLookDefault,
     warnLookFor: warnLookFor,

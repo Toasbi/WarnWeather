@@ -2174,6 +2174,15 @@ test('the slot pencil resolves the bold-only sheet for every new kind', () => {
     { messageKey: 'statusLine1Left' }), null, 'the env gate still applies');
 });
 
+test('the slot pencil of Dawn/dusk, Day length and the Moon phase opens the Sun\'s, whose Bold they share', () => {
+  const resolve = PC.sheetResolvers.get('statusSlotEditSheet');
+  ['sun', 'twilight', 'dayLength', 'moon'].forEach((code) => {
+    assert.equal(resolve({ statusLine1Left: code }, ENV, { messageKey: 'statusLine1Left' }), 'threshSun', code);
+  });
+  assert.equal(resolve({ statusLine1Left: 'moon' }, { thresholds: false },
+    { messageKey: 'statusLine1Left' }), null, 'no dialogs where the watch has none (aplite)');
+});
+
 test('bold-only BoldMode keys hydrate their default and ride the save blob', () => {
   const S = PC.engine.hydrate(schema, {}, ENV);
   const blob = PC.engine.serialize(schema, S);
