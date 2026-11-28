@@ -13,6 +13,7 @@ FORECAST
 - Day/night shading
 - Weather from one provider, or a provider of its own for any reading
 - Open-Meteo with the weather model you pick, such as your country's own
+- Pollen with every provider: across Europe, or in Germany with DWD
 
 ALERTS*
 Icons that appear only when something needs your attention:
