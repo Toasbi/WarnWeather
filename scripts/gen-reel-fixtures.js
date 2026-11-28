@@ -87,7 +87,7 @@ function themeSegments() {
       { layoutPreset: THEME_PRESET[theme] },
     );
     if (theme === 'light' || theme === 'bw-light') { clay.colorTime = '#000000'; }
-    // bw-light's forecast-left slot is pollen (see THEME_SLOTS) — needs DWD, like status-3.
+    // bw-light's forecast-left slot is pollen (see THEME_SLOTS), beside the DWD radar, like status-3.
     if (theme === 'bw-light') { clay.radarProvider = 'dwd'; }
     segs.push({
       id: 'theme-' + (theme === 'bw-light' ? 'bwlight' : theme),

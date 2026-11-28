@@ -402,8 +402,8 @@ function alertReading(code, payload, settings) {
  * @param {Object} payload weather payload (pre-transform)
  * @param {Object} settings Clay settings blob (windUnits)
  * @returns {?{value: number, text: string}} null when tomorrow is unknown (a
- *     forecast that stops short of its end, WAQI's current-only AQI, a band DWD
- *     has not issued) or not above 0
+ *     forecast that stops short of its end, WAQI's current-only AQI, a pollen
+ *     band not issued yet) or not above 0
  */
 function alertTomorrowReading(code, payload, settings) {
   if (code === 'pollen') {

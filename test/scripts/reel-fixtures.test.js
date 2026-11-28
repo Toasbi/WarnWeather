@@ -56,7 +56,7 @@ test('theme-bwlight and status-3 bake pollen data; other segments leave it unset
   assert.strictEqual(byName['reel-theme-bwlight'].weather.pollen, '1-2');
   assert.strictEqual(byName['reel-status-3'].weather.pollen, '1-2');
   assert.strictEqual(byName['reel-theme-bwlight'].claySettings.radarProvider, 'dwd',
-    'bw-light pollen slot needs the DWD provider, like status-3');
+    'bw-light shows the DWD radar beside its pollen slot, like status-3');
   assert.strictEqual(byName['reel-theme-dark'].weather.pollen, undefined,
     'a theme without a pollen slot should not carry baked pollen data');
 });

@@ -180,10 +180,10 @@ test('the middle slot, the far side and Wind speed beside a gust alert never mer
     ['', '', '40/90kph']);
 });
 
-test('a pollen alert merges into the pollen slot on its side (DWD)', () => {
+test('a pollen alert merges into the pollen slot on its side', () => {
   // Today's band 1, tomorrow's 3 reaches warn: the alert looks ahead.
   const p = { POLLEN_TODAY: '1', POLLEN_TOMORROW: '3' };
-  const look = { provider: 'dwd', alertPollenDisplay: 'value', alertPollenDays: 'tomorrow' };
+  const look = { alertPollenDisplay: 'value', alertPollenDays: 'tomorrow' };
   const right = placeOn(Object.assign({}, look, NOTHING_PLACED), 'top', 'right', 'pollen');
   const left = placeOn(Object.assign({}, look, NOTHING_PLACED), 'top', 'left', 'pollen');
   assert.deepEqual(topTexts(p, topSettings('empty', 'empty', 'pollen', right)).slots,

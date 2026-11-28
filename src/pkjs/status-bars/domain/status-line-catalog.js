@@ -249,7 +249,7 @@
     // the Pebble app's Phone plugin, or the Battery Status API of Android's
     // Chromium WebView (phone-battery.js); never the emulator. env.phoneBattery carries that
     // answer (from the PHONE_BATTERY_SUPPORTED storage key). Like notAplite, a false
-    // gate OMITS the item: there is no setting the user could change to earn it.
+    // gate omits the item.
     if (item.needsPhoneBattery && (!env || !env.phoneBattery)) { return false; }
     // A value read from another app's plugin needs a Pebble app that reads plugins
     // (plugin-reader.js available): env.plugins, the page's from index.js, the bake's from its

@@ -358,7 +358,7 @@ test('a tick places the item; ticking the other side moves it; unticking leaves 
   assert.equal(page.S.statusTopOnDemandLeftItems, 'qt,snooze,rain');
   assert.equal(page.S.statusTopOnDemandRightItems, 'bt,gust,uv,aqi,wind');
   assert.equal(ticked(page.modal.innerHTML, 'top'), 'none');
-  // Pollen (DWD here) ticks from nothing onto the right alone.
+  // Pollen ticks from nothing onto the right alone.
   place(page, 'top', 'right', 'pollen');
   assert.equal(page.S.statusTopOnDemandRightItems, 'bt,gust,uv,aqi,pollen,wind');
   assert.equal(page.S.statusTopOnDemandLeftItems, 'qt,snooze,rain', 'the left list is not touched');

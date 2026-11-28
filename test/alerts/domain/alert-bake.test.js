@@ -420,7 +420,7 @@ test('the alert entries: values only for the kinds whose Look is value, printed 
   });
   const e = decodeAlerts(packedAlerts(ALL_ALERTING, s));
   assert.deepEqual(e.map(x => x.value), ['90', '8', '152', '2', '']);
-  // Pollen prints its DWD band, as the pollen slot does.
+  // Pollen prints its band, a half level too, as the pollen slot does.
   const half = decodeAlerts(packedAlerts({ POLLEN_TODAY: '2-3' },
     on(['pollen'], { alertPollenDisplay: 'value' })));
   assert.deepEqual(half, [{ kind: 1, level: 1, value: '2-3' }]);
@@ -576,7 +576,7 @@ test('look-ahead: AQI needs day peaks — Open-Meteo looks ahead, WAQI judges th
     [{ kind: 0, level: 2, value: '120', mark: 'raquo' }], 'European scale: 120 is past danger 80');
 });
 
-test('look-ahead: pollen judges tomorrow\'s DWD band (POLLEN_TOMORROW)', () => {
+test('look-ahead: pollen judges tomorrow\'s band (POLLEN_TOMORROW)', () => {
   const s = on(['pollen'], { alertPollenDisplay: 'value' });
   const pollen = (today, tomorrow) => ({ POLLEN_TODAY: today, POLLEN_TOMORROW: tomorrow });
   assert.deepEqual(decodeAlerts(packedAlerts(pollen('1', '2-3'), s)),
@@ -586,7 +586,7 @@ test('look-ahead: pollen judges tomorrow\'s DWD band (POLLEN_TOMORROW)', () => {
   assert.deepEqual(decodeAlerts(packedAlerts(pollen('2', '3'), s)),
     [{ kind: 1, level: 1, value: '2' }], 'today wins');
   assert.deepEqual(packedAlerts(pollen('1', '1-2'), s), [], 'tomorrow below warn');
-  assert.deepEqual(packedAlerts(pollen('1', null), s), [], 'DWD has not issued tomorrow');
+  assert.deepEqual(packedAlerts(pollen('1', null), s), [], 'no band for tomorrow yet');
   assert.deepEqual(packedAlerts(pollen(null, 'n/a'), s), [], 'no known band');
   assert.deepEqual(decodeAlerts(packedAlerts(pollen('1', '0'), Object.assign({
     threshPollenWarn: '0', threshPollenDanger: '0' }, s))), [{ kind: 1, level: 2, value: '1' }],

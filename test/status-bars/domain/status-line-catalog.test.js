@@ -485,11 +485,9 @@ test('the phone battery is a TEXT item with its own icon id and no position pinn
   assert.notEqual(catalog.ICONS.PHONE_BATTERY_PLAIN, iconed.icon);
 });
 
-test('the phone battery is OMITTED, not shown disabled, without env.phoneBattery', () => {
+test('the phone battery is left out of the slot lists without env.phoneBattery', () => {
   // iOS, the emulator, and a first run before the detector has answered all look
-  // the same: no env.phoneBattery. There is no setting the user could change to
-  // earn the item, so it must vanish (the notAplite path) rather than appear as
-  // a greyed-out row.
+  // the same: no env.phoneBattery, and the item is left out (the notAplite path).
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   [ENV_BASALT, ENV_EMERY, ENV_DIORITE].forEach((env) => {
     ALL_SLOT_CTXS.forEach((ctx) => {
@@ -497,7 +495,7 @@ test('the phone battery is OMITTED, not shown disabled, without env.phoneBattery
         'phoneBattery must be unavailable on ' + env.platform + ' / ' + ctx.slotKey);
       const row = catalog.slotOptions(s, env, ctx).find(o => o[1] === 'phoneBattery');
       assert.equal(row, undefined,
-        'phoneBattery must be absent from the ' + ctx.slotKey + ' dropdown, not disabled');
+        'phoneBattery must be absent from the ' + ctx.slotKey + ' dropdown');
     });
   });
   // An env object missing entirely is the same answer.
@@ -520,7 +518,7 @@ test('the Plugin value is offered only where the Pebble app reads plugins, never
       const where = env.platform + ' / ' + ctx.slotKey;
       assert.ok(!catalog.itemAvailable(item, s, env, ctx), where);
       assert.equal(catalog.slotOptions(s, env, ctx).find((o) => o[1] === 'pluginValue'), undefined,
-        'absent, not disabled: ' + where);
+        'absent: ' + where);
       assert.ok(catalog.itemAvailable(item, s, withPlugins, ctx), where);
       const options = catalog.slotOptions(s, withPlugins, ctx);
       assert.deepEqual(options.slice(0, 2), [['Empty', 'empty'], ['Plugin value', 'pluginValue']],
