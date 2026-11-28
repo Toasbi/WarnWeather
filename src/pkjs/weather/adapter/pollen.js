@@ -1,9 +1,21 @@
+// src/pkjs/weather/adapter/pollen.js — ES5, watch runtime.
+//
+// Today's and tomorrow's pollen band for the Pollen slot and the pollen alert, from the pollen
+// source the Provider reads (weather/domain/pollen-days.js sourceOf): the DWD's index, or the
+// CAMS forecast through Open-Meteo's air quality API. The bands' rules are in pollen-days.js;
+// this file asks the source, and keeps the last good answer for a refresh that brings none
+// (pollen-store.js).
+
 // Leaf http helper (no provider cycle): call through the module object so
 // tests can stub http.request at runtime.
 var http = require('./http.js');
+var airQuality = require('./air-quality.js');
+var pollenStore = require('./pollen-store.js');
+var pollenDays = require('../domain/pollen-days.js');
 
 var WFS_URL = 'https://maps.dwd.de/geoserver/dwd/Pollenflug/wfs';
-var POLLEN_DISPLAYS = ['0', '0-1', '1', '1-2', '2', '2-3', '3'];
+// Each source's name in the log.
+var LOG_NAMES = { dwd: 'DWD', cams: 'CAMS' };
 
 /**
  * Build the DWD WFS point lookup URL. EPSG:4326 uses latitude-first axis order
@@ -26,116 +38,98 @@ function buildUrl(lat, lon) {
 }
 
 /**
- * Format a Date using its local calendar components.
- * @param {Date} date Local date to format.
- * @returns {string} Date key in YYYY-MM-DD form.
+ * Build the Open-Meteo air quality request for the CAMS forecast's pollen: every type it
+ * holds, by the hour, over the place's today and tomorrow.
+ * @param {number|string} lat Latitude in decimal degrees.
+ * @param {number|string} lon Longitude in decimal degrees.
+ * @returns {string} Fully formed request URL.
  */
-function localDateKey(date) {
-    var month = date.getMonth() + 1;
-    var day = date.getDate();
-    return date.getFullYear()
-        + '-' + (month < 10 ? '0' : '') + month
-        + '-' + (day < 10 ? '0' : '') + day;
+function buildCamsUrl(lat, lon) {
+    return airQuality.AIR_QUALITY_BASE
+        + '?latitude=' + pollenDays.roundPlace(lat)
+        + '&longitude=' + pollenDays.roundPlace(lon)
+        + '&hourly=' + pollenDays.CAMS_TYPES.map(function (type) { return type.field; }).join(',')
+        + '&timeformat=unixtime'
+        + '&timezone=auto'
+        + '&forecast_days=2';
 }
 
 /**
- * The worst valid native DWD pollen ordinal on one local day: today's for the
- * pollen slot and alert, tomorrow's for an alert that looks ahead. The response
- * carries every forecast day, so both come from the one request.
- * @param {Object} json Parsed WFS GeoJSON response.
- * @param {string} dateKey Local date key in YYYY-MM-DD form.
- * @returns {string|null} Native DWD display value, or null when unavailable.
- */
-function worstToday(json, dateKey) {
-    var features = json && json.features;
-    if (!Array.isArray(features)) { return null; }
-
-    var worst = -1;
-    var i;
-    for (i = 0; i < features.length; i += 1) {
-        var properties = features[i] && features[i].properties;
-        var forecastDate = properties && properties.FORECAST_DATE;
-        var pollenInt = properties && properties.POLLENINT;
-        if (typeof forecastDate !== 'string'
-                || forecastDate.slice(0, 10) !== dateKey
-                || forecastDate.charAt(10) !== 'T'
-                || typeof pollenInt !== 'number'
-                || pollenInt % 1 !== 0
-                || pollenInt < 0
-                || pollenInt >= POLLEN_DISPLAYS.length) {
-            continue;
-        }
-        if (pollenInt > worst) { worst = pollenInt; }
-    }
-    return worst < 0 ? null : POLLEN_DISPLAYS[worst];
-}
-
-/**
- * The local calendar day after `date`, as a Date at its local midnight — built
- * from the calendar fields, so a 23 or 25 h DST day needs no special case.
- * @param {Date} date Local date.
- * @returns {Date} The next local day.
- */
-function nextLocalDay(date) {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
-}
-
-/**
- * Fetch today's and tomorrow's worst native DWD pollen severity into a weather
- * provider (tomorrow's is what a pollen alert that looks ahead judges; DWD may
- * not have issued it yet, which leaves it unset).
- * Failures and no-data responses are non-fatal; done is always called once.
- * @param {Object} provider Active provider (reads .options.fetchPollen, writes
- *     .pollenToday and .pollenTomorrow).
+ * Fetch today's and tomorrow's pollen band into a weather provider, from the source the
+ * Provider reads (options.pollenSource). The CAMS forecast is not asked outside its area. A
+ * refresh that brings no band for today, failed or empty, takes the last good answer's bands
+ * for both days when it came from the same source at the same place. A band nothing brings
+ * leaves its property as it is. Failures are non-fatal; done is always called once.
+ * @param {Object} provider Active provider (reads .options.fetchPollen and .pollenSource,
+ *     writes .pollenToday and .pollenTomorrow).
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {Function} done Continuation called exactly once.
  * @returns {void}
  */
 function fetchPollenInto(provider, lat, lon, done) {
+    var options = provider.options;
     // A provider without options skips the request (fail-safe, like day-peaks' wanted/recall).
-    if (!(provider.options && provider.options.fetchPollen)) { done(); return; }
-
+    if (!(options && options.fetchPollen)) { done(); return; }
+    var source = options.pollenSource;
+    var name = LOG_NAMES[source];
+    var now = new Date();
+    var days = [pollenDays.localDateKey(now), pollenDays.localDateKey(pollenDays.nextLocalDay(now))];
     var completed = false;
-    function complete() {
+
+    /**
+     * Take an answer's bands, or the stand-in's, and hand on.
+     * @param {?Object<string, string>} bands The answer's bands; null when none came.
+     * @returns {void}
+     */
+    function complete(bands) {
         if (completed) { return; }
         completed = true;
+        if (bands && pollenDays.bandOn(bands, days[0]) !== null) {
+            pollenStore.write(pollenDays.recordOf(source, lat, lon, bands, days));
+        } else {
+            bands = pollenDays.standIn(pollenStore.read(), source, lat, lon);
+            if (pollenDays.bandOn(bands, days[0]) !== null) {
+                console.log('Pollen: showing the last ' + name + ' answer');
+            }
+        }
+        var today = pollenDays.bandOn(bands, days[0]);
+        var tomorrow = pollenDays.bandOn(bands, days[1]);
+        if (today !== null) { provider.pollenToday = today; }
+        if (tomorrow !== null) { provider.pollenTomorrow = tomorrow; }
         done();
     }
 
+    if (source === 'cams' && !pollenDays.inCamsArea(lat, lon)) {
+        complete(null);
+        return;
+    }
     try {
-        http.request(buildUrl(lat, lon), 'GET', function(response) {
+        http.request(source === 'dwd' ? buildUrl(lat, lon) : buildCamsUrl(lat, lon), 'GET', function(response) {
             if (completed) { return; }
-            var severity = null;
-            var tomorrow = null;
+            var bands = null;
             try {
                 var json = JSON.parse(response);
-                var now = new Date();
-                severity = worstToday(json, localDateKey(now));
-                tomorrow = worstToday(json, localDateKey(nextLocalDay(now)));
+                bands = source === 'dwd' ? pollenDays.dwdBands(json) : pollenDays.camsBands(json);
             } catch (ex) {
-                console.log('[!] DWD pollen response parse failed');
+                console.log('[!] ' + name + ' pollen response parse failed');
             }
-            if (severity !== null) { provider.pollenToday = severity; }
-            if (tomorrow !== null) { provider.pollenTomorrow = tomorrow; }
-            complete();
+            complete(bands);
         }, function(error) {
             if (completed) { return; }
-            console.log('[!] DWD pollen request failed: ' + JSON.stringify(error));
-            complete();
+            console.log('[!] ' + name + ' pollen request failed: ' + JSON.stringify(error));
+            complete(null);
         });
     } catch (ex) {
         if (!completed) {
-            console.log('[!] DWD pollen request failed before completion');
+            console.log('[!] ' + name + ' pollen request failed before completion');
         }
-        complete();
+        complete(null);
     }
 }
 
 module.exports = {
     buildUrl: buildUrl,
-    localDateKey: localDateKey,
-    nextLocalDay: nextLocalDay,
-    worstToday: worstToday,
+    buildCamsUrl: buildCamsUrl,
     fetchPollenInto: fetchPollenInto
 };

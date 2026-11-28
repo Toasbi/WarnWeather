@@ -236,15 +236,15 @@ function buildExtraCells(settings, env) {
 
 // ── the weather levels (STATUS_LEVELS_UINT8) ─────────────────────────────────
 
-// DWD pollen reaches the phone as one of these display BANDS (a string, see
-// src/pkjs/weather/adapter/pollen.js), NOT a 0-3 number — Number('2-3') is NaN.
-// pollenToday maps a band to its numeric level (index i -> i/2) so half-bands
-// compare on the same 0 / 0.5 / 1 / 1.5 / 2 / 2.5 / 3 scale the threshold is
-// entered on.
-var POLLEN_BANDS = ['0', '0-1', '1', '1-2', '2', '2-3', '3'];
+// Pollen reaches the phone as one of the DWD index's bands (a string,
+// weather/domain/pollen-days.js BANDS; the CAMS forecast's whole levels are every
+// second one), NOT a 0-3 number — Number('2-3') is NaN. pollenToday maps a band to
+// its numeric level (index i -> i/2) so half-bands compare on the same
+// 0 / 0.5 / 1 / 1.5 / 2 / 2.5 / 3 scale the threshold is entered on.
+var POLLEN_BANDS = require('../../weather/domain/pollen-days.js').BANDS;
 
 /**
- * A DWD pollen reading, a POLLEN_BANDS string, with its level (the band's
+ * A pollen reading, a POLLEN_BANDS string, with its level (the band's
  * index / 2 — 7 bands -> 0, 0.5, 1, ... 3).
  * @param {*} raw POLLEN_TODAY or POLLEN_TOMORROW
  * @returns {?{band: string, level: number}} the band as the pollen slot prints

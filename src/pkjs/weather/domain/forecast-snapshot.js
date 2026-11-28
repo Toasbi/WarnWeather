@@ -39,8 +39,8 @@ var SAME_PLACE_KM = weatherTabModel.SAME_PLACE_KM;
 // changes the request. What the watch draws (drawn) names the readings a fill asks for, which
 // its own request holds; where the weather comes from (sources: the reading picks and the
 // stored keys) picks which provider is asked, which the snapshot names.
-var ANSWER_NEUTRAL = ['fetchAqi', 'fetchPollen', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'drawn',
-    'sources'];
+var ANSWER_NEUTRAL = ['fetchAqi', 'fetchPollen', 'pollenSource', 'windUnits', 'aqiScale', 'aqiSource',
+    'aqicnToken', 'drawn', 'sources'];
 var UV_KEYS = providerReadings.keysOf('uv');
 
 /**

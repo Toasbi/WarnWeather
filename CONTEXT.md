@@ -492,6 +492,17 @@ ICON answer only inside theirs: elsewhere the fetch takes the default's forecast
 the place.
 _Avoid_: best match, seamless (Open-Meteo's names for its blends; the ids keep `_seamless`).
 
+**Pollen source**:
+Where the Pollen slot and the pollen alert get today's and tomorrow's pollen band
+(`pollenSource`; `src/pkjs/weather/domain/pollen-days.js` `sourceOf`). It follows the Provider:
+with DWD it is the DWD's pollen index for Germany, which names each type's band in half steps
+like "1-2"; with every other Provider it is the CAMS forecast for Europe, which Open-Meteo
+serves. A CAMS type's band is its mean over the day put on the DWD's classes for that type
+(olive's on the Spanish Aerobiology Network's), so it comes in whole levels. The band shown is
+the worst type's. A refresh that brings no band takes the last good answer's, from the same
+source at the same place.
+_Avoid_: pollen provider (the Provider is the weather's).
+
 **Source plan**:
 What one fetch asks for, in order (`src/pkjs/weather/domain/source-plan.js`): its steps. The
 Provider (the Weather dialog's first picker) is the fetch's anchor: its instance holds every reading at the end,

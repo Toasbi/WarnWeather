@@ -9,14 +9,14 @@ const assert = require('node:assert/strict');
 const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
 const forecastSeries = require('../../../src/pkjs/weather/domain/forecast-series.js');
 
-const KNOBS = ['fetchUv', 'fetchAqi', 'fetchPollen', 'fetchFeels', 'feelsFormula',
+const KNOBS = ['fetchUv', 'fetchAqi', 'fetchPollen', 'pollenSource', 'fetchFeels', 'feelsFormula',
   'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours', 'drawn', 'sources',
   'openMeteoModel'];
 
 test('DEFAULTS names every knob with its fail-safe default', () => {
   assert.deepEqual(Object.keys(fetchOptions.DEFAULTS).sort(), KNOBS.slice().sort());
   assert.deepEqual(fetchOptions.DEFAULTS, {
-    fetchUv: false, fetchAqi: false, fetchPollen: false, fetchFeels: true,
+    fetchUv: false, fetchAqi: false, fetchPollen: false, pollenSource: 'cams', fetchFeels: true,
     feelsFormula: 'provider', dayPeakCodes: null, windUnits: 'kph',
     aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24, drawn: [],
     sources: { choices: {}, keyed: [] }, openMeteoModel: 'ecmwf_ifs025'
@@ -159,6 +159,14 @@ test('build() carries the Open-Meteo weather model while Open-Meteo is the Provi
     'ecmwf_ifs025', 'a model the table does not hold (one Open-Meteo retired) is the default');
   assert.equal(fetchOptions.build({ provider: 'openmeteo' }).openMeteoModel, 'ecmwf_ifs025', 'none stored');
   assert.equal(fetchOptions.build(null).openMeteoModel, 'ecmwf_ifs025', 'no settings');
+});
+
+test('build() asks the pollen source the Provider reads: the DWD\'s index with DWD, else the CAMS forecast', () => {
+  assert.equal(fetchOptions.build({ provider: 'dwd' }).pollenSource, 'dwd');
+  ['openmeteo', 'metno', 'yandex'].forEach((provider) => {
+    assert.equal(fetchOptions.build({ provider: provider }).pollenSource, 'cams', provider);
+  });
+  assert.equal(fetchOptions.build(null).pollenSource, 'cams', 'no settings');
 });
 
 test('build() names the drawn readings (drawn-readings.js), and asks for UV exactly when it is one', () => {

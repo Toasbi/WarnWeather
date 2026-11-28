@@ -106,6 +106,11 @@ module.exports = {
     // answers no reading (a WAQI '-' or no station, a timeout) within 2 h
     // (weather/adapter/air-quality.js). Stays on the phone.
     LAST_AQI_KEY: 'lastAqi',
+    // The last good pollen answer ({source, lat, lon, bands: {date: band}};
+    // weather/domain/pollen-days.js recordOf): today's and tomorrow's band stand in for a
+    // refresh that brings none, at the same place, from the same source
+    // (weather/adapter/pollen.js). Stays on the phone.
+    LAST_POLLEN_KEY: 'lastPollen',
     NEWS_CACHE_KEY: 'newsCache',
     NOTICES_KEY: 'notices',
     // The ids of the new-feature tips this install has seen (feature-tips-seen.js): a JSON

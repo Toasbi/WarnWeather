@@ -375,6 +375,7 @@ function fetchAqiInto(provider, lat, lon, done) {
 }
 
 module.exports = {
+    AIR_QUALITY_BASE: AIR_QUALITY_BASE,
     buildAqiUrl: buildAqiUrl,
     mapAqi: mapAqi,
     buildWaqiUrl: buildWaqiUrl,

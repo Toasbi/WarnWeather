@@ -1,3 +1,16 @@
+// Install a localStorage mock BEFORE any watch module loads: the last good pollen answer
+// (pollen-store.js) stands in for a refresh that brings none.
+global.localStorage = (function () {
+  const store = {};
+  return {
+    writes: 0,
+    getItem: (k) => (k in store ? store[k] : null),
+    setItem: function (k, v) { this.writes += 1; store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; },
+    clear: () => { Object.keys(store).forEach((k) => delete store[k]); }
+  };
+})();
+
 const { testPorts } = require('../../helpers/source-ports.js');
 const test = require('node:test');
 // The time every bake in this file runs at, where the test does not care which it is.
@@ -8,7 +21,15 @@ const http = require('../../../src/pkjs/weather/adapter/http.js');
 const assert = require('node:assert/strict');
 
 const pollen = require('../../../src/pkjs/weather/adapter/pollen.js');
+const pollenDays = require('../../../src/pkjs/weather/domain/pollen-days.js');
 const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
+const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
+
+// Every test starts without a last good answer: one test's must not stand in for another's.
+test.beforeEach(() => { localStorage.clear(); });
+
+const DWD = fetchOptions.defaults({ fetchPollen: true, pollenSource: 'dwd' });
+const CAMS = fetchOptions.defaults({ fetchPollen: true, pollenSource: 'cams' });
 
 function feature(date, pollenInt, species) {
   return {
@@ -36,77 +57,6 @@ test('buildUrl targets the DWD pollen WFS with a latitude-first point', () => {
   assert.match(decoded, /CQL_FILTER=INTERSECTS\(THE_GEOM,POINT\(52\.52 13\.405\)\)/i);
 });
 
-test('localDateKey uses the local calendar date with zero-padded month and day', () => {
-  const localDate = new Date(2026, 1, 3, 23, 45);
-  assert.equal(pollen.localDateKey(localDate), '2026-02-03');
-});
-
-test('worstToday maps every native POLLENINT ordinal', () => {
-  const displays = ['0', '0-1', '1', '1-2', '2', '2-3', '3'];
-
-  displays.forEach((display, pollenInt) => {
-    assert.equal(
-      pollen.worstToday({ features: [feature('2026-07-19T00:00:00Z', pollenInt)] }, '2026-07-19'),
-      display,
-      'POLLENINT ' + pollenInt
-    );
-  });
-});
-
-test('worstToday chooses the maximum across all eight species', () => {
-  const species = ['Hasel', 'Erle', 'Esche', 'Birke', 'Graeser', 'Roggen', 'Beifuss', 'Ambrosia'];
-  const features = species.map((name, index) => feature('2026-07-19T00:00:00Z', index === 6 ? 5 : index % 5, name));
-
-  assert.equal(pollen.worstToday({ type: 'FeatureCollection', features }, '2026-07-19'), '2-3');
-});
-
-test('worstToday ignores other dates and accepts adjacent-region duplicates', () => {
-  const features = [
-    feature('2026-07-18T00:00:00Z', 6, 'Birke'),
-    feature('2026-07-19T00:00:00Z', 2, 'Birke'),
-    feature('2026-07-19T00:00:00Z', 4, 'Birke'),
-    feature('2026-07-20T00:00:00Z', 6, 'Birke')
-  ];
-
-  assert.equal(pollen.worstToday({ features }, '2026-07-19'), '2');
-});
-
-test('worstToday ignores invalid values and malformed features', () => {
-  const features = [
-    feature('2026-07-19', -1),
-    feature('2026-07-19', 7),
-    feature('2026-07-19', 1.5),
-    feature('2026-07-19', '6'),
-    { type: 'Feature' },
-    { type: 'Feature', properties: { FORECAST_DATE: '2026-07-19' } },
-    null,
-    feature('2026-07-19T00:00:00Z', 3)
-  ];
-
-  assert.equal(pollen.worstToday({ features }, '2026-07-19'), '1-2');
-});
-
-test('worstToday requires an exact date-time day boundary', () => {
-  const features = [
-    feature('2026-07-190T00:00:00Z', 6),
-    feature('2026-07-19', 6),
-    feature('2026-07-19 00:00:00Z', 6),
-    feature('2026-07-19T00:00:00Z', 2)
-  ];
-
-  assert.equal(pollen.worstToday({ features }, '2026-07-19'), '1');
-});
-
-test('worstToday returns null for malformed envelopes or no valid today data', () => {
-  [null, {}, { features: null }, { features: {} }, { features: [] }].forEach(json => {
-    assert.equal(pollen.worstToday(json, '2026-07-19'), null);
-  });
-  assert.equal(
-    pollen.worstToday({ features: [feature('2026-07-18', 6), feature('2026-07-19', -1)] }, '2026-07-19'),
-    null
-  );
-});
-
 test('fetchPollenInto skips the request when pollen fetching is disabled', () => {
   const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
@@ -125,8 +75,8 @@ test('fetchPollenInto skips the request when pollen fetching is disabled', () =>
 test('fetchPollenInto writes valid today data and calls done exactly once', () => {
   const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
-  const today = pollen.localDateKey(new Date());
-  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
+  const today = pollenDays.localDateKey(new Date());
+  const provider = { options: DWD, pollenToday: null };
   let requestedUrl;
   let requestedMethod;
   let doneCalls = 0;
@@ -149,7 +99,7 @@ test('fetchPollenInto writes valid today data and calls done exactly once', () =
 test('fetchPollenInto leaves pollen unchanged when the response has no today data', () => {
   const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
-  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
+  const provider = { options: DWD, pollenToday: 'existing' };
   let doneCalls = 0;
   http.request = function(url, method, onSuccess) {
     onSuccess(JSON.stringify({ features: [feature('1999-01-01', 6)] }));
@@ -166,7 +116,7 @@ test('fetchPollenInto leaves pollen unchanged when the response has no today dat
 test('fetchPollenInto treats parse failures as non-fatal and calls done once', () => {
   const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
-  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
+  const provider = { options: DWD, pollenToday: 'existing' };
   let doneCalls = 0;
   http.request = function(url, method, onSuccess) { onSuccess('{invalid'); };
   try {
@@ -181,7 +131,7 @@ test('fetchPollenInto treats parse failures as non-fatal and calls done once', (
 test('fetchPollenInto treats transport failures as non-fatal and calls done once', () => {
   const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
-  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
+  const provider = { options: DWD, pollenToday: 'existing' };
   let doneCalls = 0;
   http.request = function(url, method, onSuccess, onError) {
     onError({ code: 500 });
@@ -198,8 +148,8 @@ test('fetchPollenInto treats transport failures as non-fatal and calls done once
 test('fetchPollenInto ignores duplicate success callbacks after completing once', () => {
   const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
-  const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
-  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
+  const today = pollenDays.localDateKey(new Date()) + 'T00:00:00Z';
+  const provider = { options: DWD, pollenToday: null };
   let doneCalls = 0;
   http.request = function(url, method, onSuccess) {
     onSuccess(JSON.stringify({ features: [feature(today, 2)] }));
@@ -217,8 +167,8 @@ test('fetchPollenInto ignores duplicate success callbacks after completing once'
 test('fetchPollenInto ignores an error callback after success', () => {
   const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
-  const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
-  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
+  const today = pollenDays.localDateKey(new Date()) + 'T00:00:00Z';
+  const provider = { options: DWD, pollenToday: null };
   let doneCalls = 0;
   http.request = function(url, method, onSuccess, onError) {
     onSuccess(JSON.stringify({ features: [feature(today, 4)] }));
@@ -236,7 +186,7 @@ test('fetchPollenInto ignores an error callback after success', () => {
 test('fetchPollenInto treats a synchronous request throw as non-fatal', () => {
   const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const originalRequest = http.request;
-  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
+  const provider = { options: DWD, pollenToday: 'existing' };
   let doneCalls = 0;
   http.request = function() { throw new Error('open failed'); };
   try {
@@ -375,20 +325,12 @@ test('a failed second pollen refresh packs -- instead of the previous severity a
   assert.equal(successCalls, 2);
 });
 
-// Tomorrow's band — what a pollen alert that looks ahead judges — comes from the same
-// DWD response as today's, keyed by the next LOCAL calendar day.
-test('nextLocalDay steps one local calendar day, across a month end and a DST change', () => {
-  assert.equal(pollen.localDateKey(pollen.nextLocalDay(new Date(2026, 0, 31, 23, 50))), '2026-02-01');
-  assert.equal(pollen.localDateKey(pollen.nextLocalDay(new Date(2026, 2, 29, 0, 30))), '2026-03-30');
-  assert.equal(pollen.localDateKey(pollen.nextLocalDay(new Date(2026, 9, 25, 12, 0))), '2026-10-26');
-});
-
 test('fetchPollenInto writes tomorrow\'s worst band beside today\'s, from one request', () => {
   const originalRequest = http.request;
   const now = new Date();
-  const today = pollen.localDateKey(now) + 'T00:00:00Z';
-  const tomorrow = pollen.localDateKey(pollen.nextLocalDay(now)) + 'T00:00:00Z';
-  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null, pollenTomorrow: null };
+  const today = pollenDays.localDateKey(now) + 'T00:00:00Z';
+  const tomorrow = pollenDays.localDateKey(pollenDays.nextLocalDay(now)) + 'T00:00:00Z';
+  const provider = { options: DWD, pollenToday: null, pollenTomorrow: null };
   let requests = 0;
   http.request = function(url, method, onSuccess) {
     requests += 1;
@@ -407,8 +349,8 @@ test('fetchPollenInto writes tomorrow\'s worst band beside today\'s, from one re
 
 test('fetchPollenInto leaves tomorrow unset while DWD has not issued it', () => {
   const originalRequest = http.request;
-  const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
-  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null, pollenTomorrow: null };
+  const today = pollenDays.localDateKey(new Date()) + 'T00:00:00Z';
+  const provider = { options: DWD, pollenToday: null, pollenTomorrow: null };
   http.request = function(url, method, onSuccess) {
     onSuccess(JSON.stringify({ features: [feature(today, 4)] }));
   };
@@ -471,4 +413,106 @@ test('each fetch cycle resets tomorrow\'s band: a refresh without it composes nu
     outbox.sendWeather = originalSend;
   }
   assert.deepEqual(composed, ['3', null]);
+});
+
+/**
+ * A CAMS answer around now: every type 0 but grass, at `grass` grains on today's hours and
+ * `grassTomorrow` on tomorrow's.
+ * @param {number} grass Today's grass value.
+ * @param {number} grassTomorrow Tomorrow's grass value.
+ * @returns {string} The answer as the request hands it on.
+ */
+function camsAnswer(grass, grassTomorrow) {
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+  const time = Array.from({ length: 48 }, (_, i) => midnight + i * 3600);
+  const hourly = { time: time };
+  pollenDays.CAMS_TYPES.forEach((type) => {
+    hourly[type.field] = time.map((_, i) => (type.field !== 'grass_pollen' ? 0 : i < 24 ? grass : grassTomorrow));
+  });
+  return JSON.stringify({ hourly: hourly });
+}
+
+/**
+ * One pollen fetch with every request answered by `answer`.
+ * @param {Object} options The fetch options.
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {function(string, Function, Function)} answer Answers a request: (url, onSuccess, onError).
+ * @returns {{provider: Object, urls: string[], done: number}}
+ */
+function fetchWith(options, lat, lon, answer) {
+  const originalRequest = http.request;
+  const provider = { options: options, pollenToday: null, pollenTomorrow: null };
+  const urls = [];
+  let done = 0;
+  http.request = function (url, method, onSuccess, onError) {
+    urls.push(url);
+    answer(url, onSuccess, onError);
+  };
+  try {
+    pollen.fetchPollenInto(provider, lat, lon, function () { done += 1; });
+  } finally {
+    http.request = originalRequest;
+  }
+  return { provider: provider, urls: urls, done: done };
+}
+
+test('buildCamsUrl asks Open-Meteo for every CAMS type by the hour, over the place\'s today and tomorrow', () => {
+  const url = pollen.buildCamsUrl('48.85661', 2.35222);
+  assert.equal(url, 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=48.86&longitude=2.35'
+    + '&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen'
+    + '&timeformat=unixtime&timezone=auto&forecast_days=2');
+});
+
+test('with the CAMS source the fetch writes today\'s and tomorrow\'s worst band in whole levels', () => {
+  const run = fetchWith(CAMS, 48.86, 2.35, (url, onSuccess) => onSuccess(camsAnswer(40, 4)));
+  assert.deepEqual(run.urls, [pollen.buildCamsUrl(48.86, 2.35)]);
+  assert.equal(run.provider.pollenToday, '3', 'grass at 40: high');
+  assert.equal(run.provider.pollenTomorrow, '1', 'grass at 4: low');
+  assert.equal(run.done, 1);
+});
+
+test('outside the CAMS forecast\'s area the fetch asks nothing', () => {
+  const run = fetchWith(CAMS, 40.71, -74.01, () => assert.fail('no request'));
+  assert.deepEqual(run.urls, []);
+  assert.equal(run.provider.pollenToday, null);
+  assert.equal(run.done, 1);
+});
+
+test('a refresh that brings no band keeps the last answer\'s bands for the day', () => {
+  fetchWith(CAMS, 48.86, 2.35, (url, onSuccess) => onSuccess(camsAnswer(4, 40)));
+  const failures = {
+    'a failed request': (url, onSuccess, onError) => onError({ stage: 'provider_data', code: 'timeout' }),
+    'an answer that does not parse': (url, onSuccess) => onSuccess('{not json'),
+    'an answer with no hours': (url, onSuccess) => onSuccess(JSON.stringify({ hourly: { time: [] } })),
+    'a request that throws': () => { throw new Error('open failed'); }
+  };
+  Object.keys(failures).forEach((name) => {
+    const run = fetchWith(CAMS, 48.88, 2.33, failures[name]);
+    assert.equal(run.provider.pollenToday, '1', name + ': today\'s band, from a place within 0.05°');
+    assert.equal(run.provider.pollenTomorrow, '3', name + ': and tomorrow\'s');
+    assert.equal(run.done, 1, name);
+  });
+});
+
+test('the stand-in comes only from the same source at the same place', () => {
+  fetchWith(CAMS, 48.86, 2.35, (url, onSuccess) => onSuccess(camsAnswer(4, 40)));
+  const fail = (url, onSuccess, onError) => onError({ stage: 'provider_data', code: 'timeout' });
+  assert.equal(fetchWith(CAMS, 48.95, 2.35, fail).provider.pollenToday, null, 'another place');
+  assert.equal(fetchWith(DWD, 48.86, 2.35, fail).provider.pollenToday, null, 'another source');
+});
+
+test('only a good answer is kept, and only when it changed', () => {
+  const ok = (url, onSuccess) => onSuccess(camsAnswer(4, 40));
+  localStorage.writes = 0;
+  fetchWith(CAMS, 48.86, 2.35, ok);
+  const stored = JSON.parse(localStorage.getItem(KEYS.LAST_POLLEN_KEY));
+  assert.equal(stored.source, 'cams');
+  assert.deepEqual([stored.lat, stored.lon], [48.86, 2.35]);
+  assert.deepEqual(Object.keys(stored.bands).map((day) => stored.bands[day]), ['1', '3'], 'today\'s and tomorrow\'s');
+  fetchWith(CAMS, 48.861, 2.351, ok);
+  assert.equal(localStorage.writes, 1, 'the same answer at the same place, to 2 decimals: no write');
+  fetchWith(CAMS, 48.86, 2.35, (url, onSuccess, onError) => onError({ stage: 'provider_data', code: 'timeout' }));
+  assert.equal(localStorage.writes, 1, 'a failed refresh writes nothing');
 });

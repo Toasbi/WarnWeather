@@ -110,7 +110,8 @@ test('every fetch option either changes the request or is one no answer depends 
   // Each provider's forecast: an option outside ANSWER_NEUTRAL changes every provider's request,
   // or only the requests of those whose own answer depends on it (provider-readings.js
   // answerOptions: Open-Meteo's weather model).
-  const changed = { fetchUv: false, fetchAqi: true, fetchPollen: true, fetchFeels: false, feelsFormula: 'steadman',
+  const changed = { fetchUv: false, fetchAqi: true, fetchPollen: true, pollenSource: 'dwd', fetchFeels: false,
+    feelsFormula: 'steadman',
     dayPeakCodes: ['wind'], windUnits: 'mph', aqiScale: 'us', aqiSource: 'openmeteo', aqicnToken: 'x', forecastHours: 68,
     drawn: ['cloud'], sources: { choices: { wind: 'dwd' }, keyed: ['yandex'] }, openMeteoModel: 'chmi_aladin_seamless' };
   assert.deepEqual(Object.keys(changed).sort(), Object.keys(fetchOptions.defaults()).sort(),

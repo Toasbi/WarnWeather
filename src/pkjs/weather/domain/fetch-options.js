@@ -26,6 +26,8 @@ var drawnReadings = require('./drawn-readings.js');
 var sourcePlan = require('./source-plan.js');
 // The Open-Meteo weather models: a leaf.
 var openMeteoModels = require('./open-meteo-models.js');
+// The pollen bands' rules: a leaf.
+var pollenDays = require('./pollen-days.js');
 // forecast-span.js requires hourly-window.js (a leaf), forecast-axis.js (line-style.js, as
 // forecast-series.js already does) and forecast-span-hours.js (that and view-cycle.js, a
 // leaf), so the invariant above holds.
@@ -42,8 +44,11 @@ var DEFAULTS = {
     fetchUv: false,
     // Spend the AQI request (air-quality.js). Opt-in: AQI is status-slot only.
     fetchAqi: false,
-    // Spend the DWD pollen request (pollen.js). Opt-in: DWD- and status-slot only.
+    // Spend the pollen request (pollen.js). Opt-in: status-slot and alert only.
     fetchPollen: false,
+    // Which pollen source it asks ('dwd' | 'cams'; pollen-days.js sourceOf): the one the
+    // Provider reads, the CAMS forecast for every Provider but DWD.
+    pollenSource: pollenDays.sourceOf(null),
     // Whether to do the apparent-temperature work at all. Unlike fetchUv/fetchAqi/
     // fetchPollen this defaults to TRUE, because it gates no request — only
     // per-hour arithmetic on a response already in hand. Fail-safe direction: a
@@ -158,6 +163,7 @@ function build(settings, watchInfo, env) {
         sources: sourcePlan.sourcesOf(settings),
         fetchAqi: forecastSeries.needsAqi(settings, watchInfo),
         fetchPollen: forecastSeries.needsPollen(settings, watchInfo),
+        pollenSource: pollenDays.sourceOf(settings && settings.provider),
         // Apparent temperature: no provider spends an extra REQUEST on it (it always
         // rides a response already being fetched). This is adoptMapped's semantic
         // gate on every adapter; DWD's per-hour Steadman and Open-Meteo's
