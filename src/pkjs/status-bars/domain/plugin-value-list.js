@@ -21,11 +21,12 @@
 // it is written short and capped: each plugin's items with their properties' names, from which
 // the page makes each value's id and label, and which of them are on or off (onOff: the Icon
 // row offers the icons that turn only for one), at most MAX_PLUGINS plugins of MAX_VALUES values
-// each, every value WarnWeather supports among them (keptValues), and LIST_COST characters of the
-// URL in all.
+// each, every value a slot holds and every value WarnWeather supports among them (keptValues),
+// and LIST_COST characters of the URL in all.
 //
 // Pure. ES5 only (aplite PKJS).
 
+var catalog = require('./status-line-catalog.js');
 var complications = require('./complications.js');
 var knownValues = require('./known-values.js');
 var pluginReads = require('./plugin-reads.js');
@@ -165,12 +166,13 @@ function complicationsFor(known, plugins, permissions) {
  * @param {string[]} permissions What this app declares (plugin-reads.js declaredKeys).
  * @param {string} ownUuid This app's uuid.
  * @param {Array<Object>} theirs The user's complications as the dialog lists them (complicationsFor).
+ * @param {Object<string, string[]>} held The value ids the settings' slots hold, by plugin (heldOf).
  * @returns {?{uuid: string, name: string, items: Array<{category: string, item: string,
  *   multiple: boolean, properties: string[], onOff: (number|undefined)}>,
  *   complications: (Array<Object>|undefined)}} The plugin, or null when it offers nothing the
  *   slot can show.
  */
-function entryOf(plugin, permissions, ownUuid, theirs) {
+function entryOf(plugin, permissions, ownUuid, theirs, held) {
     var sources = plugin && Array.isArray(plugin.sources) ? plugin.sources : [];
     var found = [];
     var seen = {};
@@ -206,21 +208,20 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
                         && printable(props[names[n]])
                         && !pluginValues.notAValue(src.category, item, names[n], Boolean(src.supportsMultiple))) {
                     seen[id] = true;
-                    values.push(names[n]);
+                    values.push({ name: names[n], id: id });
                 }
             }
             if (values.length) {
                 found.push({ category: src.category, item: item, multiple: Boolean(src.supportsMultiple),
-                    props: props, names: values });
+                    props: props, values: values });
             }
         }
     }
-    var kept = keptValues(found);
+    var kept = keptValues(found, held[plugin.uuid.toLowerCase()] || []);
     var items = [];
     found.forEach(function (one) {
-        var listed = one.names.filter(function (name) {
-            return kept[pluginValues.valueId(one.category, one.item, name)] === true;
-        });
+        var listed = one.values.filter(function (value) { return kept[value.id] === true; })
+            .map(function (value) { return value.name; });
         var bits = 0;
         listed.forEach(function (name, at) {
             if (onOff(one.props[name])) { bits |= 1 << at; }
@@ -235,29 +236,48 @@ function entryOf(plugin, permissions, ownUuid, theirs) {
 }
 
 /**
- * Which of a plugin's values the dialog lists (entryOf): MAX_VALUES at most, every one
- * WarnWeather supports first (known-values.js supports), then the others in the plugin's order,
- * so the cap never drops a supported value, however late the plugin declares it.
- * @param {Array<{category: string, item: string, names: string[]}>} found Each item's values the
- *   slot can show, in the plugin's order.
+ * Which of a plugin's values the dialog lists (entryOf): MAX_VALUES at most. First those a slot
+ * holds, then every one WarnWeather supports (known-values.js supports), then the others, each in
+ * the plugin's order: the cap drops neither a slot's value, which its dialog would call one the
+ * plugin no longer offers, nor a supported one, however late the plugin declares it.
+ * @param {Array<{category: string, item: string, values: Array<{name: string, id: string}>}>} found
+ *   Each item's values the slot can show, each once, in the plugin's order.
+ * @param {string[]} held The value ids the settings' slots hold of the plugin (heldOf).
  * @returns {Object<string, boolean>} Those kept, by value id (plugin-values.js valueId).
  */
-function keptValues(found) {
-    var kept = {};
-    var room = MAX_VALUES;
-    [true, false].forEach(function (supported) {
-        found.forEach(function (one) {
-            one.names.forEach(function (name) {
-                var id = pluginValues.valueId(one.category, one.item, name);
-                if (room > 0 && kept[id] !== true
-                        && knownValues.supports(one.category, one.item, name) === supported) {
-                    kept[id] = true;
-                    room -= 1;
-                }
-            });
+function keptValues(found, held) {
+    var first = [];
+    var supported = [];
+    var others = [];
+    found.forEach(function (one) {
+        one.values.forEach(function (value) {
+            var group = held.indexOf(value.id) !== -1 ? first
+                : knownValues.supports(one.category, one.item, value.name) ? supported : others;
+            group.push(value.id);
         });
     });
+    var kept = {};
+    first.concat(supported, others).slice(0, MAX_VALUES).forEach(function (id) { kept[id] = true; });
     return kept;
+}
+
+/**
+ * The values the settings' Plugin value slots hold, by plugin: the list keeps them past its cap
+ * (keptValues). Every slot's, whether or not a bar the watch is sent shows it: its dialog lists
+ * the plugin's values all the same.
+ * @param {?Object} settings Clay settings.
+ * @returns {Object<string, string[]>} Value ids (a pick's id), by the plugin's uuid in lower case.
+ */
+function heldOf(settings) {
+    var held = {};
+    catalog.everySlotKey().forEach(function (slotKey) {
+        var pick = settings && settings[slotKey] === 'pluginValue' ? pluginValues.pickOf(settings, slotKey) : null;
+        if (pick && typeof pick.plugin === 'string' && typeof pick.id === 'string' && pick.id) {
+            var uuid = pick.plugin.toLowerCase();
+            held[uuid] = (held[uuid] || []).concat([pick.id]);
+        }
+    });
+    return held;
 }
 
 /**
@@ -305,16 +325,18 @@ function instancesKept(instances) {
  * @param {string} ownUuid This app's uuid.
  * @param {?Array<Object>} known The user's complications (complication-list.js current), or
  *   null while they are not known: the Preferences plugin's entry lists them.
+ * @param {?Object} settings Clay settings: the values their slots hold stay listed (heldOf).
  * @returns {Array<Object>} The plugins (entryOf), in the phone's order.
  */
-function listOf(plugins, permissions, ownUuid, known) {
+function listOf(plugins, permissions, ownUuid, known, settings) {
     var out = [];
     var cost = 0;
     var list = Array.isArray(plugins) ? plugins : [];
     var uuids = [];
     var theirs = complicationsFor(known, list, permissions);
+    var held = heldOf(settings);
     for (var p = 0; p < list.length && out.length < MAX_PLUGINS; p++) {
-        var entry = entryOf(list[p], permissions, ownUuid, theirs);
+        var entry = entryOf(list[p], permissions, ownUuid, theirs, held);
         var more = entry ? urlCost(entry) : 0;
         if (entry && uuids.indexOf(entry.uuid) === -1 && cost + more <= LIST_COST) {
             out.push(entry);

@@ -67,11 +67,11 @@ function source(category, permissions) {
  * @param {Object} t The test context.
  * @param {string} platform The watch.
  * @param {boolean} plugins Whether the Pebble app reads plugins (subscribeToSource).
- * @param {Object} [seed] {settings, values, reads, old, instances}: the settings stored (default
- *   PICKED), the values read last by their slots' source (default VALUE, under KEY), the records
- *   of their reads (default a read of each a minute ago, so none is due), the one value and read
- *   kept before 3.5.0 ({value, read}; default none) and the instances the reads brought, by
- *   their item (default none).
+ * @param {Object} [seed] {settings, values, reads, old, instances, more}: the settings stored
+ *   (default PICKED), the values read last by their slots' source (default VALUE, under KEY), the
+ *   records of their reads (default a read of each a minute ago, so none is due), the one value
+ *   and read kept before 3.5.0 ({value, read}; default none), the instances the reads brought, by
+ *   their item (default none), and more plugins on the phone (default none).
  * @returns {{listeners: Object, opened: Array<string>, store: Object, subs: Array<Object>}} The
  *   handlers index.js added, the URLs it opened, the storage and each subscribeToSource config.
  */
@@ -124,7 +124,7 @@ function boot(t, platform, plugins, seed) {
       { uuid: 'aaaaaaaa-0000-0000-0000-000000000004', name: 'Stocks',
         sources: [source('stocks', [internet('query1.finance.yahoo.com')])] },
       { uuid: 'aaaaaaaa-0000-0000-0000-000000000005', name: 'Forecast', sources: [source('forecast', [internet('api.met.no')])] },
-      preferencesPlugin()],
+      preferencesPlugin()].concat((seed && seed.more) || []),
   }, plugins ? { subscribeToSource: (config) => {
     subs.push(config);
     return { unsubscribe: () => {} };
@@ -186,6 +186,18 @@ test('settings open hands the page the plugins the slots can read, the user\'s c
     + 'for which the Pebble app would ask the user); the Preferences plugin with the complications kept, each with '
     + 'why this app may not read it');
   assert.deepEqual(ud.pluginValues, { [KEY]: VALUE }, 'the value read last, by the source a slot shows');
+});
+
+test('settings open keeps the value a slot holds on the list, past the 24 values a plugin lists', (t) => {
+  const LONG = 'aaaaaaaa-0000-0000-0000-000000000009';
+  const properties = {};
+  for (let i = 0; i < 30; i++) { properties['v' + String(i).padStart(2, '0')] = ['shortText']; }
+  const ud = openedUserData(t, 'basalt', true, { settings: slot('statusTopLeft', LONG, 'long/now/v27'),
+    more: [{ uuid: LONG, name: 'Long', sources: [{ category: 'long', items: ['now'], properties: properties,
+      callerPermissions: [] }] }] });
+  const listed = ud.plugins.find((p) => p.uuid === LONG).items[0].properties;
+  assert.equal(listed.length, 24);
+  assert.deepEqual(listed.slice(22), ['v22', 'v27'], 'the slot\'s value, in the room of the last of the first 24');
 });
 
 test('settings open hands the page the instances the reads brought of each item a slot picks, for its Which row', (t) => {

@@ -252,7 +252,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
     // brought of the plugins' items the slots pick, which their Which rows list.
     if (pluginValueOffered(offer)) {
         userData.plugins = pluginValueList.listOf(pluginReader.plugins(Pebble), declaredPermissions(),
-            pkg.pebble.uuid, complicationList.current());
+            pkg.pebble.uuid, complicationList.current(), values);
         userData.pluginValues = pluginValueSource.forPage(complicationList.current());
         userData.pluginInstances = pluginValueSource.instancesForPage();
     }

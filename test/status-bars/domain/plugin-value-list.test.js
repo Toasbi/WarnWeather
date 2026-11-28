@@ -252,6 +252,27 @@ test('the values WarnWeather supports are kept first: the 24-value cap never dro
     'a later source\'s supported value too, while its raw one waits behind the first source\'s');
 });
 
+test('a value a slot holds stays listed past the cap: its dialog never calls it one the plugin no longer offers', () => {
+  const props = {};
+  for (let i = 0; i < 30; i++) { props['v' + String(i).padStart(2, '0')] = ['shortText']; }
+  props.on = ['boolean'];
+  const lamp = plugin('L-1', 'Lamp', [{ category: 'home', items: ['light'], properties: props }]);
+  // Two slots, one of them in a bar no screen may show: each holds a raw value past the room the
+  // supported 'on' leaves, the uuid as the slot stored it.
+  const settings = { statusForecastLeft: 'pluginValue', statusForecastLeftPluginValuePlugin: 'l-1',
+    statusForecastLeftPluginValueId: 'home/light/v27', statusRadarLeft: 'pluginValue',
+    statusRadarLeftPluginValuePlugin: 'L-1', statusRadarLeftPluginValueId: 'home/light/v29',
+    // A slot set to another item keeps its Plugin value settings, which hold nothing then.
+    statusForecastMid: 'temp', statusForecastMidPluginValuePlugin: 'L-1', statusForecastMidPluginValueId: 'home/light/v28' };
+  const item = list.listOf([lamp], PERMS, 'own', null, settings)[0].items[0];
+  assert.equal(item.properties.length, 24);
+  assert.deepEqual(item.properties.slice(20), ['v20', 'v27', 'v29', 'on'], 'in the plugin\'s order');
+  assert.equal(item.properties.indexOf('v28'), -1);
+  assert.equal(item.onOff, 1 << 23);
+  assert.deepEqual(list.listOf([lamp], PERMS, 'own', null, null)[0].items[0].properties.slice(21),
+    ['v21', 'v22', 'on'], 'no settings: no value held');
+});
+
 test('an item no value id can hold takes none of the 24 values\' room', () => {
   const props = {};
   for (let i = 0; i < 20; i++) { props['v' + i] = ['shortText']; }
