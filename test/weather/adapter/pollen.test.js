@@ -294,7 +294,7 @@ test('WeatherProvider initializes and transiently exposes pollenTomorrow', () =>
   assert.equal(provider.getPayload().POLLEN_TOMORROW, '3');
 });
 
-test('fetchWithCoordinates completes AQI then pollen before composing the payload', () => {
+test('fetchWithCoordinates asks for air quality and pollen side by side, and composes once both are done', () => {
   const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
   const airQuality = require('../../../src/pkjs/weather/adapter/air-quality.js');
   const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
@@ -303,6 +303,7 @@ test('fetchWithCoordinates completes AQI then pollen before composing the payloa
   const originalSend = outbox.sendWeather;
   const provider = new WeatherProvider();
   const order = [];
+  const answer = {};
   let composedPollen = null;
 
   provider.withCityName = function(lat, lon, done) { done('Berlin', 'DE'); };
@@ -314,14 +315,15 @@ test('fetchWithCoordinates completes AQI then pollen before composing the payloa
     composedPollen = provider.pollenToday;
     return {};
   };
+  // Both answer only when the test says so.
   airQuality.fetchAqiInto = function(p, lat, lon, done) {
     order.push('aqi');
-    done();
+    answer.aqi = done;
   };
   pollen.fetchPollenInto = function(p, lat, lon, done) {
     order.push('pollen');
     p.pollenToday = '3';
-    done();
+    answer.pollen = done;
   };
   outbox.sendWeather = function(payload, done) {
     order.push('send');
@@ -330,12 +332,18 @@ test('fetchWithCoordinates completes AQI then pollen before composing the payloa
 
   try {
     provider.fetchWithCoordinates(52.52, 13.405, function() {}, assert.fail, false, {}, null, undefined, testPorts());
+    assert.deepEqual(order, ['aqi', 'pollen'], 'pollen is asked before air quality answers');
+    answer.pollen();
+    answer.pollen();
+    assert.deepEqual(order, ['aqi', 'pollen'], 'pollen alone composes nothing, however often it calls back');
+    answer.aqi();
+    answer.aqi();
   } finally {
     airQuality.fetchAqiInto = originalAqi;
     pollen.fetchPollenInto = originalPollen;
     outbox.sendWeather = originalSend;
   }
-  assert.deepEqual(order, ['aqi', 'pollen', 'compose', 'send']);
+  assert.deepEqual(order, ['aqi', 'pollen', 'compose', 'send'], 'composed and sent once');
   assert.equal(composedPollen, '3');
 });
 

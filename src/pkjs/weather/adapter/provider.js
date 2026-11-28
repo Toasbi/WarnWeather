@@ -597,64 +597,77 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 this.cityName = cityName;
                 this.sunEvents = sunEvents;
                 // Fetch AQI (keyless, shared, gated by options.fetchAqi) using startTime
-                // set by withProviderData, then compose + send. Non-fatal: a
-                // failed AQI call still sends the forecast. Reset it per
-                // cycle, like pollen below: the provider instance is reused
-                // across fetches, and a failed, no-station or '-' lookup must
-                // not keep the previous cycle's series (an Open-Meteo window
-                // aligned to the previous startTime). Such a lookup shows the
-                // last good reading at the same place and scale from the last
-                // 2 h instead (air-quality.js settleAqi), and '--' only when
-                // there is none.
+                // set by withProviderData, and pollen beside it, then compose + send.
+                // Non-fatal: a failed AQI or pollen call still sends the forecast.
+                // Reset both per cycle: the provider instance is reused across
+                // fetches, and a failed, no-station or '-' lookup must not keep the
+                // previous cycle's series (an Open-Meteo window aligned to the
+                // previous startTime). Such a lookup shows the last good reading at
+                // the same place and scale from the last 2 h instead (air-quality.js
+                // settleAqi), and '--' only when there is none; pollen keeps the
+                // day's last good band the same way (pollen-days.js settle).
                 var self = this;
                 self.aqiTrend = [];
                 self.aqiFeedId = null;
-                airQuality.fetchAqiInto(this, lat, lon, function() {
-                    self.pollenToday = null;
-                    self.pollenTomorrow = null;
-                    pollen.fetchPollenInto(self, lat, lon, function() {
-                        // The day records only refine the slots' day max: a storage
-                        // failure leaves that on its plain rule, never the fetch
-                        // failed.
-                        var recalled = dayPeaks.recall(self, lat, lon, Math.floor(Date.now() / 1000), dayPeaksStore.load);
-                        self.earlierPeaks = recalled.earlier;
-                        // This runs inside an XHR callback: a throw here would
-                        // escape every try and leave the fetch unfinished, so it
-                        // is reported as a failure instead.
-                        var payload;
-                        try {
-                            payload = self.composeWeatherPayload(extraPayload, payloadTransform);
+                self.pollenToday = null;
+                self.pollenTomorrow = null;
+                // The two often ask different hosts: they run side by side, so the
+                // payload waits for the slower one, not their sum. Each counts once.
+                var aqiDone = false;
+                var pollenDone = false;
+                function composeAndSend() {
+                    if (!aqiDone || !pollenDone) { return; }
+                    // The day records only refine the slots' day max: a storage
+                    // failure leaves that on its plain rule, never the fetch
+                    // failed.
+                    var recalled = dayPeaks.recall(self, lat, lon, Math.floor(Date.now() / 1000), dayPeaksStore.load);
+                    self.earlierPeaks = recalled.earlier;
+                    // This runs inside an XHR callback: a throw here would
+                    // escape every try and leave the fetch unfinished, so it
+                    // is reported as a failure instead.
+                    var payload;
+                    try {
+                        payload = self.composeWeatherPayload(extraPayload, payloadTransform);
+                    }
+                    catch (exCompose) {
+                        console.log('[!] Composing the weather payload threw: ' + exCompose.message);
+                        onFailure(failure('compose', 'exception'));
+                        return;
+                    }
+                    // A fetch its caller already gave up on must not put its
+                    // stale payload on the half-duplex channel, where a newer
+                    // fetch may be sending.
+                    if (typeof isCurrent === 'function' && !isCurrent()) {
+                        console.log('Dropping the payload of an abandoned weather fetch.');
+                        return;
+                    }
+                    // Only a current fetch's series join the records: an
+                    // abandoned one's are older than what a newer fetch stores.
+                    dayPeaksStore.saveAll(recalled.records);
+                    // The outbox sends only the categories that changed since
+                    // the last ACKed message — possibly nothing, which still
+                    // counts as a successful fetch.
+                    outbox.sendWeather(
+                        payload,
+                        function() {
+                            console.log('Weather info sent to Pebble successfully!');
+                            onSuccess();
+                        },
+                        function(e) {
+                            console.log('Error sending weather info to Pebble!');
+                            onFailure(failure('app_message', 'nack'));
                         }
-                        catch (exCompose) {
-                            console.log('[!] Composing the weather payload threw: ' + exCompose.message);
-                            onFailure(failure('compose', 'exception'));
-                            return;
-                        }
-                        // A fetch its caller already gave up on must not put its
-                        // stale payload on the half-duplex channel, where a newer
-                        // fetch may be sending.
-                        if (typeof isCurrent === 'function' && !isCurrent()) {
-                            console.log('Dropping the payload of an abandoned weather fetch.');
-                            return;
-                        }
-                        // Only a current fetch's series join the records: an
-                        // abandoned one's are older than what a newer fetch stores.
-                        dayPeaksStore.saveAll(recalled.records);
-                        // The outbox sends only the categories that changed since
-                        // the last ACKed message — possibly nothing, which still
-                        // counts as a successful fetch.
-                        outbox.sendWeather(
-                            payload,
-                            function() {
-                                console.log('Weather info sent to Pebble successfully!');
-                                onSuccess();
-                            },
-                            function(e) {
-                                console.log('Error sending weather info to Pebble!');
-                                onFailure(failure('app_message', 'nack'));
-                            }
-                        );
-                    });
+                    );
+                }
+                airQuality.fetchAqiInto(self, lat, lon, function() {
+                    if (aqiDone) { return; }
+                    aqiDone = true;
+                    composeAndSend();
+                });
+                pollen.fetchPollenInto(self, lat, lon, function() {
+                    if (pollenDone) { return; }
+                    pollenDone = true;
+                    composeAndSend();
                 });
             }).bind(this), function(sunFailure) {
                 onFailure(sunFailure || failure('sun_events', 'unknown_error'));

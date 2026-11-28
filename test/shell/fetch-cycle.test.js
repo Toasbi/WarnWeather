@@ -1953,9 +1953,10 @@ test('the watchdog outlasts the longest chain a healthy fetch makes, the reading
     // refused key (its page, then its two requests again).
     const others = (left) => Object.keys(providerReadings.PROVIDERS).filter((id) => id !== left)
         .reduce((n, id) => n + providerReadings.requests(id, true), 0) + 3;
-    // The fix, the radar (twice), the city, the two fills, air quality (twice), pollen, the ACK.
+    // The fix, the radar (twice), the city, the two fills, air quality (twice, with pollen's one
+    // beside it), the ACK.
     const fills = 2;
-    const around = 1 + 2 + 1 + fills + 2 + 1 + 1;
+    const around = 1 + 2 + 1 + fills + 2 + 1;
     const chains = {
         'every provider, the default model': others(null) + around,
         // Open-Meteo as the Provider with its most asking weather model (ECMWF's chance first),
@@ -1964,7 +1965,7 @@ test('the watchdog outlasts the longest chain a healthy fetch makes, the reading
         'Open-Meteo with a model that falls back': Math.max(...openMeteoModels.IDS.map((id) =>
             providerReadings.requests('openmeteo', true, id))) + 1 + others('openmeteo') + around - fills
     };
-    assert.deepEqual(Object.values(chains), [24, 24]);
+    assert.deepEqual(Object.values(chains), [23, 23]);
     Object.keys(chains).forEach((name) => assert.ok(chains[name] * http.XHR_TIMEOUT_MS < WATCHDOG_MS, name));
 });
 
