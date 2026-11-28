@@ -201,6 +201,9 @@ test('renderRow: stacked for text/radio/open-color, wrap when multi-line hinted,
   assert.ok(narrowSeg.indexOf('class="row wrap"') >= 0 && narrowSeg.indexOf('segwide') === -1);
   const byVal = E.renderRow({ type: 'toggle', messageKey: 'flag', label: 'F', hint: 'base', hintByValue: { 'on': 'special' } }, { value: 'on' });
   assert.ok(byVal.indexOf('special') >= 0 && byVal.indexOf('base') === -1);
+  const odd = E.renderRow({ type: 'select', messageKey: 'm', label: 'M', hint: 'base', hintByValue: { a: 'special' },
+    options: [['A', 'a']] }, { value: 'constructor' });
+  assert.ok(odd.indexOf('base') >= 0 && odd.indexOf('function') === -1, 'a stored value named like an Object member');
 });
 
 test('renderTabBar/renderBody: env-hidden tab produces no button and no body', () => {

@@ -742,7 +742,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {(string|undefined)} Hint HTML, or undefined.
    */
   function staticHintOf(item, value) {
-    return item.hintByValue ? (item.hintByValue[value] || item.hint) : item.hint;
+    // Its own entries only: a stored value named like an Object member ('constructor') has none.
+    var own = item.hintByValue && Object.prototype.hasOwnProperty.call(item.hintByValue, value);
+    return own ? (item.hintByValue[value] || item.hint) : item.hint;
   }
 
   /**
