@@ -82,6 +82,22 @@ const ROUNDS = [];
 for (let i = 0; i < ALL.length; i += featureTips.MAX_SHOWN) { ROUNDS.push(ALL.slice(i, i + featureTips.MAX_SHOWN)); }
 /** The stored settings of an install from before the tips. */
 const EXISTING = { 'clay-settings': JSON.stringify({ provider: 'openmeteo', onboardingDone: true }) };
+/**
+ * The tips above the first of 3.5.0's, the releases' after it: an install that has seen them
+ * starts its card at the plugin and watch battery tips whose rules the tests below check, however
+ * many tips later releases put on top.
+ */
+const NEWER = ALL.slice(0, ALL.indexOf('pluginValues'));
+
+/**
+ * The store of an install from before the tips that has seen the newer releases' tips.
+ * @returns {Object}
+ */
+function seenNewer() {
+  const store = Object.assign({}, EXISTING);
+  store[require('../../src/pkjs/settings/domain/storage-keys.js').FEATURE_TIPS_SEEN_KEY] = JSON.stringify(NEWER);
+  return store;
+}
 
 /**
  * Save the settings page with some of its keys set, as its Save does.
@@ -148,21 +164,22 @@ test('Reset watchface leaves a fresh install: it has seen every tip, whatever is
 });
 
 test('a phone or watch that cannot use a feature is not handed its tip, and keeps it for later', (t) => {
+  assert.ok(NEWER.length > 0 && NEWER.indexOf('pluginValues') === -1, 'the card starts at 3.5.0\'s tips');
   // No plugins in this Pebble app: no days left and no Plugin value to try. The battery's Icon +
   // text needs none.
-  const h = boot(t, Object.assign({}, EXISTING));
+  const h = boot(t, seenNewer());
   h.listeners.showConfiguration({});
   assert.deepEqual(userDataOf(h.opened[0]).featureTips.map((tip) => tip.id),
-    ['openMeteoModel', 'weatherFrom', 'batteryIconText']);
+    ['weatherFrom', 'batteryIconText', 'blackTheme']);
   save(h, { featureTipsAck: true });
-  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['openMeteoModel', 'weatherFrom', 'batteryIconText'],
-    'only the tips it showed');
+  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]),
+    NEWER.concat(['weatherFrom', 'batteryIconText', 'blackTheme']), 'only the tips it showed');
 });
 
 test('aplite is handed no tip for the watch battery or a plugin\'s value, plugins or not', (t) => {
   [PLUGINS, undefined].forEach((extras) => {
-    const h = boot(t, Object.assign({}, EXISTING), extras, 'aplite');
+    const h = boot(t, seenNewer(), extras, 'aplite');
     h.listeners.showConfiguration({});
-    assert.deepEqual(userDataOf(h.opened[0]).featureTips.map((tip) => tip.id), ['openMeteoModel', 'weatherFrom', 'blackTheme']);
+    assert.deepEqual(userDataOf(h.opened[0]).featureTips.map((tip) => tip.id), ['weatherFrom', 'blackTheme']);
   });
 });
