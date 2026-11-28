@@ -566,6 +566,21 @@ function slotCode(line, s, settings, env) {
 }
 
 /**
+ * What every slot of the given lines shows, each slot resolved once.
+ * @param {Array<Object>} lines catalog line definitions
+ * @param {Object} settings Clay settings blob
+ * @param {Object} env platform environment
+ * @returns {string[]} The slots' item codes, in line and slot order.
+ */
+function shownCodes(lines, settings, env) {
+  var codes = [];
+  for (var l = 0; l < lines.length; l++) {
+    for (var s = 0; s < 3; s++) { codes.push(slotCode(lines[l], s, settings, env)); }
+  }
+  return codes;
+}
+
+/**
  * Whether any slot of the given lines shows an item.
  * @param {Array<Object>} lines catalog line definitions
  * @param {Object} settings Clay settings blob
@@ -574,12 +589,7 @@ function slotCode(line, s, settings, env) {
  * @returns {boolean}
  */
 function showsItem(lines, settings, env, code) {
-  for (var l = 0; l < lines.length; l++) {
-    for (var s = 0; s < 3; s++) {
-      if (slotCode(lines[l], s, settings, env) === code) { return true; }
-    }
-  }
-  return false;
+  return shownCodes(lines, settings, env).indexOf(code) !== -1;
 }
 
 /**
@@ -591,7 +601,8 @@ function showsItem(lines, settings, env, code) {
  * @returns {string[]} In CODES' order.
  */
 function shownSkyCodes(lines, settings, env) {
-  return skySlots.CODES.filter(function (code) { return showsItem(lines, settings, env, code); });
+  var shown = shownCodes(lines, settings, env);
+  return skySlots.CODES.filter(function (code) { return shown.indexOf(code) !== -1; });
 }
 
 /**

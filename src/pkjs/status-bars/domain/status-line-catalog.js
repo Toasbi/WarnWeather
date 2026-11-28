@@ -666,8 +666,8 @@
    * battery's Look, phoneBatteryLookKey; the Plugin value's, pluginValueKeys) has one per slot,
    * since a dialog cannot tell which slot opened it.
    * @param {*} code A slot's item code.
-   * @param {string} [slotKey] The slot's settings key, e.g. 'statusForecastLeft', for an item with
-   *   a dialog per slot.
+   * @param {string} [slotKey] The slot's settings key, e.g. 'statusForecastLeft': needed for an
+   *   item with a dialog per slot (sheetPerSlot), unread for any other.
    * @returns {?string} The dialog's sheet id, e.g. 'threshMoon' or 'threshPluginValueForecastLeft';
    *   null for an item that opens its kind's dialog, or none.
    */

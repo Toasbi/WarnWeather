@@ -826,8 +826,9 @@ int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size) {
     return read_present_blob(THRESHOLD_SETTINGS, buffer, buffer_size);
 }
 
-// Past 48 B the blob outgrows a status line: the compare buffer must take it whole, or every
-// save would skip the compare and write flash.
+// The compare buffer must take the thresholds blob whole, or every save would skip the compare
+// and write flash. SIZED_COMPARE_BYTES is the longer of it and a status line; this holds the
+// macro to that if it is ever written another way.
 _Static_assert(THRESH_SETTINGS_BYTES <= SIZED_COMPARE_BYTES,
                "the thresholds blob must fit the sized blob compare buffer");
 

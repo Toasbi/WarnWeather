@@ -53,9 +53,11 @@ function skySlotsOffered(env) {
 }
 
 /**
- * Where the Alerts tab and its items are (platform.js isOnDemandPlatform, the page's
- * env.onDemand): every watch but aplite, whose feature set is frozen.
- * @param {?Object} env The page's env.
+ * Where the Alerts tab and its items are: every watch but aplite, whose feature set is frozen.
+ * Read off the platform (platform.js isOnDemandPlatform, the fact the page holds as
+ * env.onDemand), since the tips' env names only the platform and the plugins (index.js
+ * offerEnv); a watch the page cannot name reads as capable, as it does on the page.
+ * @param {?Object} env The tips' env.
  * @returns {boolean}
  */
 function onDemandOffered(env) {
