@@ -585,7 +585,10 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // went with the dusk/dawn lines, and the night-fill flag had no reader.
   // 520 unchanged when the graph styles joined (3.0.0): their records ride a known emery's
   // bundle alone (below).
-  assert.equal(size, 520,'update the recorded Clay message size when its wire contract changes');
+  // 520 -> 521 in 3.6.0 when the threshold blob widened 48 -> 49: the Moon phase item's cell
+  // byte. The moon it shows rides the weather message's levels word (0 B). Headroom (vs
+  // aplite's 536 B) 16 -> 15 B.
+  assert.equal(size, 521,'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
@@ -593,20 +596,20 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
 // bundle alone, measured against its own 1280 B inbox: three empty tuples (3 x 7 B) while the
 // first style alone is shown, which clear the watch's records, and at their heaviest three
 // records of 7 B header + 41 B (HEAVIEST_STYLES). Beside them bars 4 to 6's On demand cells
-// (CLAY_OD_EXTRA_UINT8: 7 B header + 10 B, one per item), sent on every known emery.
-test('the graph styles\' records ride emery\'s Clay bundle, at most 681 B of its 1280 B', () => {
+// (CLAY_OD_EXTRA_UINT8: 7 B header + 11 B, one per item), sent on every known emery.
+test('the graph styles\' records ride emery\'s Clay bundle, at most 683 B of its 1280 B', () => {
   const inbox = readInboxSize('emery');
   const plain = buildHeaviestClayMessage({ platform: 'emery' });
   assert.deepEqual([plain.CLAY_GRAPH_STYLE_1_UINT8, plain.CLAY_GRAPH_STYLE_2_UINT8,
     plain.CLAY_GRAPH_STYLE_3_UINT8], [[], [], []], 'the first style alone: three empty tuples');
-  assert.equal(plain.CLAY_OD_EXTRA_UINT8.length, 10, 'bars 4 to 6\'s cells, one byte per item');
-  assert.equal(dictSize(plain), 520 + 3 * 7 + 7 + 10);
+  assert.equal(plain.CLAY_OD_EXTRA_UINT8.length, 11, 'bars 4 to 6\'s cells, one byte per item');
+  assert.equal(dictSize(plain), 521 + 3 * 7 + 7 + 11);
   const styled = buildHeaviestClayMessage({ platform: 'emery' }, HEAVIEST_STYLES);
   ['CLAY_GRAPH_STYLE_1_UINT8', 'CLAY_GRAPH_STYLE_2_UINT8', 'CLAY_GRAPH_STYLE_3_UINT8'].forEach((k) =>
     assert.equal(styled[k].length, 41, k + ': a whole record with a 5-stop palette'));
   const size = dictSize(styled);
   console.log(`heaviest emery Clay message: ${size} B of ${inbox} B (headroom ${inbox - size})`);
-  assert.equal(size, 681, 'update the recorded size when the records change');
+  assert.equal(size, 683, 'update the recorded size when the records change');
   assert.ok(inbox - size >= 10, 'emery: the 10 B floor');
   // Every other watch, and an unknown one, is never sent them.
   ['basalt', 'diorite', 'flint', 'aplite', null].forEach((platform) => {
@@ -622,9 +625,9 @@ test('the graph styles\' records ride emery\'s Clay bundle, at most 681 B of its
 // session — the accepted trade-off), so the capable bundles all stay at their recorded
 // size, and aplite's is unchanged by On demand.
 test('CLAY_BATTERY_LOW_ONLY rides aplite\'s Clay bundle only; the per-platform sizes', () => {
-  // emery's 38 B more: the graph styles' three empty record tuples and bars 4 to 6's cells
+  // emery's 39 B more: the graph styles' three empty record tuples and bars 4 to 6's cells
   // (the test above).
-  const sizes = { emery: 558, basalt: 520, diorite: 496, flint: 496, aplite: 399 };
+  const sizes = { emery: 560, basalt: 521, diorite: 497, flint: 497, aplite: 399 };
   Object.keys(sizes).forEach((platform) => {
     const payload = buildHeaviestClayMessage({ platform });
     assert.equal(dictSize(payload), sizes[platform], platform);
@@ -633,7 +636,7 @@ test('CLAY_BATTERY_LOW_ONLY rides aplite\'s Clay bundle only; the per-platform s
     assert.ok(readInboxSize(platform) - dictSize(payload) >= 10, platform + ': the 10 B floor');
   });
   const unknown = buildHeaviestClayMessage(null);
-  assert.equal(dictSize(unknown), 520, 'an unknown platform: the capable shape');
+  assert.equal(dictSize(unknown), 521, 'an unknown platform: the capable shape');
   assert.equal(Object.prototype.hasOwnProperty.call(unknown, 'CLAY_BATTERY_LOW_ONLY'), false);
   // Measured against the smallest inbox, aplite's 536 B, as the conservative floor.
   assert.ok(readInboxSize('aplite') - dictSize(unknown) >= 10, 'unknown: the 10 B floor against 536 B');

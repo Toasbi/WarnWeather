@@ -1,8 +1,9 @@
 // src/pkjs/page/alerts/alerts-schema.js — ES5, PKJS-parsed. The Alerts tab's part of the
 // settings schema, split out of schema.js: the About alerts card (its intro, its reset
 // link row and the Default view note) and the item rows under it, the sheet behind every
-// row (Battery, Bluetooth, Quiet time, Sleep, Rain and the five metric alerts, each leading
-// with its Shows on grid), the alert-level cards, every bar's side lists' hidden items, and
+// row (Battery, Bluetooth, Quiet time, Sleep, Rain, the five metric alerts and the Moon
+// phase, each leading with its Shows on grid), the alert-level cards, every bar's side
+// lists' hidden items, and
 // the pieces the other tabs show: a bar's Alerts row (Status bars tab) and the Bluetooth
 // icon's choices (aplite's Watch Status Bar). schema.js's alert slot sheets
 // read the kinds, their contract codes and the placement leaf from here.
@@ -32,12 +33,27 @@ var RAIN_WINDOW_OPTIONS = [['Within 30 min', '30'], ['Within 60 min', '60'], ['W
 var RAIN_WINDOW_SEGMENTS = [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']];
 var RAIN_LOOK_OPTIONS = [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']];
 
-// The note under every Shows on grid: the two side rules a user can act on (one side per
-// bar; the make-room order drops the lowest-priority item first, and on-demand.js ITEMS
-// priority is the Alerts tab's row order). The per-bar Alerts sheet's intro said
-// them until the grids replaced it.
-var SHOWS_ON_NOTE = 'On each bar, the alert can show on the left or the right, not both. When a bar runs out of '
-    + 'room, the alerts lower in the Alerts tab’s list are hidden first.';
+/**
+ * The note under every Shows on grid: the two side rules a user can act on (one side per
+ * bar; the make-room order drops the lowest-priority item first, and on-demand.js ITEMS
+ * priority is the Alerts tab's row order). The per-bar Alerts sheet's intro said
+ * them until the grids replaced it.
+ * @param {string} noun What the item is called (itemNoun).
+ * @returns {string} The note.
+ */
+function showsOnNote(noun) {
+    return 'On each bar, the ' + noun + ' can show on the left or the right, not both. When a bar runs out of '
+        + 'room, the ' + noun + 's lower in the Alerts tab’s list are hidden first.';
+}
+/**
+ * What an item's dialog calls it: 'icon' for the Sky card's Moon phase, which shows what the
+ * day brings and warns of nothing, 'alert' for every other item.
+ * @param {string} code An on-demand.js ITEMS code.
+ * @returns {string} 'alert' | 'icon'
+ */
+function itemNoun(code) {
+    return ON_DEMAND.ITEMS[ON_DEMAND.itemIndex(code)].group === 'sky' ? 'icon' : 'alert';
+}
 /**
  * An item's Shows on grid and its note, the first rows of its sheet (under the sheet's
  * intro): one row per status bar the watch draws, each with a Left and a Right tick
@@ -55,10 +71,11 @@ function showsOnRows(code, merge, notes) {
     // The dialog's Shows on card: its title is the grid's name, the side rules its info
     // text (the card's intro), the grid itself under the Left / Right captions, then
     // any boxed notes on why the item may not show (the caller's, and the Default view's).
+    var noun = itemNoun(code);
     return [{
         type: 'subheader',
         text: 'Shows on',
-        intro: SHOWS_ON_NOTE + (merge ? ' If the status slot on the same side shows ' + merge
+        intro: showsOnNote(noun) + (merge ? ' If the status slot on the same side shows ' + merge
             + ', the alert shows in that slot, in the alert’s colors, instead of adding its icon.' : '')
     }].concat(notes || [], [{
         type: 'checklist',
@@ -68,18 +85,19 @@ function showsOnRows(code, merge, notes) {
         writeWith: 'onDemandTick',
         columns: [{label: 'Left'}, {label: 'Right'}],
         optionsFrom: {resolver: 'onDemandBars', args: {code: code}}
-    }, defaultViewNote()]);
+    }, defaultViewNote(noun)]);
 }
 /**
  * Under a Shows on grid while the Default view shows no bar with Alerts on it
  * (when-resolvers.js defaultViewLacksOnDemand): where the fix is. A fresh object per call.
+ * @param {string} noun What the item is called (itemNoun).
  * @returns {Object} The info-box staticText.
  */
-function defaultViewNote() {
+function defaultViewNote(noun) {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'Your Default screen has no Watch bar, so this alert won’t show there. Tick a bar that screen shows.',
+        text: 'Your Default screen has no Watch bar, so this ' + noun + ' won’t show there. Tick a bar that screen shows.',
         showWhen: {when: 'defaultViewLacksOnDemand'}
     };
 }
@@ -638,6 +656,65 @@ function placementSheet(sheetId, title, code, intro) {
         items: showsOnRows(code)
     };
 }
+// The Moon phase's Show, named once: its sheet's row offers them and the card row's hint
+// (alerts-page.js onDemandMoonText) prints the picked one by its label. The values are the
+// contract's (on-demand.js MOON_SHOWS, pinned by a test).
+var MOON_SHOW_OPTIONS = [['Always', 'always'], ['At full moon', 'full'], ['At new moon', 'new'],
+    ['At new and full moon', 'both']];
+// Its Days: 'tomorrow' is "Today + tomorrow", never tomorrow alone (on-demand.js MOON_DAYS):
+// today's moon always wins (moon-item.js shownMoon).
+var MOON_DAYS_OPTIONS = [['Today', 'today'], ['Today + tomorrow', 'tomorrow']];
+/**
+ * The Moon phase item's sheet (sheetId odMoon), opened from its row in the Alerts tab's Sky
+ * card: its Shows on grid and note, then When: the days it shows on (Show), whether the day
+ * before a full or new moon shows that moon (Days) and the mark it then carries on its left
+ * (Tomorrow's mark, the watch's STATUS_ALERT_MARK_* codes, drawn left of the moon whatever the
+ * mark: status_on_demand.c paint_item). The phone works the moon out from the date and bakes it
+ * into the levels word (moon-item.js shownMoon), so these ride renderSignature, not the Clay
+ * message. Each default is the contract's (on-demand.js DEFAULTS).
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function moonSheet() {
+    return {
+        sheetOnly: true,
+        sheetId: 'odMoon',
+        showWhen: ON_DEMAND_WHEN,
+        title: 'Moon phase',
+        intro: 'Shows tonight’s moon phase at the edge of a status bar.',
+        items: showsOnRows('moon').concat([{type: 'subheader', text: 'When'}, {
+            type: 'select',
+            messageKey: 'moonItemShow',
+            label: 'Show',
+            defaultValue: ON_DEMAND.DEFAULTS.moonItemShow,
+            options: MOON_SHOW_OPTIONS,
+            hintByValue: {
+                always: 'Shows tonight’s moon phase every day.'
+            }
+        }, {
+            type: 'segmented',
+            messageKey: 'moonItemDays',
+            label: 'Days',
+            defaultValue: ON_DEMAND.DEFAULTS.moonItemDays,
+            options: MOON_DAYS_OPTIONS,
+            hintByValue: {
+                tomorrow: 'On the day before a full or new moon, the icon shows that moon instead, with the mark set '
+                    + 'in Tomorrow’s mark on its left.'
+            }
+        }, {
+            // The marks alone: the watch draws each left of the moon, the star too.
+            type: 'select',
+            messageKey: 'moonItemNextDayMark',
+            label: 'Tomorrow\'s mark',
+            defaultValue: ON_DEMAND.DEFAULTS.moonItemNextDayMark,
+            options: nextDayMarkOptions(''),
+            hintByValue: {
+                none: 'Tomorrow’s moon shows without a mark.'
+            },
+            joinPrevious: true,
+            showWhen: {key: 'moonItemDays', eq: 'tomorrow'}
+        }])
+    };
+}
 /**
  * One Alerts-tab nav row that opens a sheet: a badged `sheet` row (icon + label, the
  * item's live state under the label, its colours as dots where it has any, a chevron).
@@ -658,13 +735,13 @@ function onDemandSheetRow(sheetId, label, icon, hintFrom, editBadgeFrom) {
 // Each Alerts-tab row's on-demand.js ITEMS code, by the sheet it opens.
 var ON_DEMAND_CODES = {odBattery: 'battery', odBluetooth: 'bt', odQuiet: 'qt', odSleep: 'snooze',
     alertRain: 'rain', alertGust: 'gust', alertUv: 'uv', alertAqi: 'aqi', alertPollen: 'pollen',
-    alertWind: 'wind'};
+    alertWind: 'wind', odMoon: 'moon'};
 /**
  * The Alerts tab's item rows, under the About alerts card: System info (Battery,
- * Bluetooth, Quiet time and Sleep) and Weather alerts (Rain, then the five metric alerts),
- * every row opening its item's sheet, which leads with where the item shows (its Shows on
- * grid). Every row prints its item's live state. Each sub-header opens a card of its own
- * (engine.js splits the section at it), so each group is one card.
+ * Bluetooth, Quiet time and Sleep), Weather alerts (Rain, then the five metric alerts) and
+ * Sky (the Moon phase), every row opening its item's sheet, which leads with where the item
+ * shows (its Shows on grid). Every row prints its item's live state. Each sub-header opens a
+ * card of its own (engine.js splits the section at it), so each group is one card.
  * @returns {Object[]} The section's items, in order.
  */
 function onDemandCardItems() {
@@ -689,7 +766,11 @@ function onDemandCardItems() {
         return onDemandSheetRow('alert' + k.keyStem, k.label, k.icon,
             {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem, days: ALERT_DAYS_OPTIONS}},
             {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}});
-    }));
+    }), [
+        {type: 'subheader', text: 'Sky'},
+        onDemandSheetRow('odMoon', 'Moon phase', 'moon',
+            {resolver: 'onDemandMoonText', args: {shows: MOON_SHOW_OPTIONS, days: MOON_DAYS_OPTIONS}}, null)
+    ]);
 }
 // The About alerts card's intro (the owner's wording, 2026-10-01; its last sentence the
 // owner's of 2026-10-02): when an alert shows, then examples, then where they are placed
@@ -709,8 +790,8 @@ var ON_DEMAND_INTRO = 'An alert shows at the edge of a status bar only when it r
  * The Alerts tab's cards: About alerts (the intro behind its '?', the card's reset — the
  * items' settings and where each shows, blocks.js resetOnDemand — and the note while the
  * Default view shows no bar with Alerts on it), then the rows (onDemandCardItems), each
- * subheader a card of its own (System info, Weather alerts). They store nothing; the rows
- * open the sheets sheetSections builds.
+ * subheader a card of its own (System info, Weather alerts, Sky). They store nothing; the
+ * rows open the sheets sheetSections builds.
  * @returns {Object[]} Schema sections.
  */
 function cardSections() {
@@ -731,7 +812,7 @@ function cardSections() {
             showWhen: {when: 'defaultViewLacksOnDemand'}
         }]
     }, {
-        // System info, then Weather alerts: each subheader opens a card of its own.
+        // System info, Weather alerts, then Sky: each subheader opens a card of its own.
         id: 'onDemandItems',
         showWhen: ON_DEMAND_WHEN,
         items: onDemandCardItems()
@@ -741,8 +822,8 @@ function cardSections() {
  * The sections behind the card's rows, in the card's order: every bar's side lists' hidden
  * items (onDemandListsSection), then one sheet per item: Battery, Bluetooth, Quiet time,
  * Sleep, Rain, then one per metric alert kind (ALERT_KINDS) holding its Shows on grid,
- * levels, Look and Days (the levels' one home). schema.js ends the Alerts tab's section
- * list with them, after the cards (cardSections).
+ * levels, Look and Days (the levels' one home), then the Moon phase. schema.js ends the
+ * Alerts tab's section list with them, after the cards (cardSections).
  * @returns {Object[]} Schema sections (sheetOnly).
  */
 function sheetSections() {
@@ -753,12 +834,14 @@ function sheetSections() {
             'Shows the sleep icon at the edge of a status bar during the Battery saver hours (Watchface › Theme & night).'),
         rainAlertSheet()].concat(ALERT_KINDS.map(function (k) {
         return alertSheet(k);
-    }));
+    }), [moonSheet()]);
 }
 
 module.exports = {
     ALERT_KINDS: ALERT_KINDS,
     ALERT_DAYS_OPTIONS: ALERT_DAYS_OPTIONS,
+    MOON_SHOW_OPTIONS: MOON_SHOW_OPTIONS,
+    MOON_DAYS_OPTIONS: MOON_DAYS_OPTIONS,
     BT_ICON_OPTIONS: BT_ICON_OPTIONS,
     alertCodeOf: alertCodeOf,
     onDemandPlacedWhen: onDemandPlacedWhen,

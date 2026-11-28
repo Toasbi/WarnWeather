@@ -756,7 +756,7 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
   const at = appFiles.findIndex((f) => f.endsWith('/status-slot-icons.js'));
   assert.notEqual(at, -1, 'status-slot-icons.js is not in APP_FILES');
   const src = page();
-  const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze',
+  const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze', 'moon',
     'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun', 'condition',
     'switchOn', 'switchOff', 'wifi', 'wifiOff', 'bluetoothOff', 'plug', 'tide'];
   IDS.forEach((id) => {

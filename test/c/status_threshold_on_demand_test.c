@@ -10,14 +10,15 @@
 
 // The On demand cells [38 + item]: one byte per OdItem, 2 bits per bar at bits
 // 2 * bar (top 0-1, forecast 2-3, radar 4-5, health 6-7), 0 none / 1 left / 2 right
-// / 3 reserved (none). A 48-B blob honours every cell, an explicit none too.
+// / 3 reserved (none). A 49-B blob honours every cell, an explicit none too.
 static void on_demand_cell_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
     int n = sizeof(blob);
     expect("cells.offset_pinned", THRESH_ON_DEMAND_OFFSET, 38);
     expect("cells.bars", THRESH_BAR_COUNT, 4);
-    expect("cells.items", OD_ITEM_COUNT, 10);
+    expect("cells.items", OD_ITEM_COUNT, 11);
+    expect("cells.moon_last", OD_MOON, OD_ITEM_COUNT - 1);
     expect("cells.side_values", OD_SIDE_NONE * 100 + OD_SIDE_LEFT * 10 + OD_SIDE_RIGHT, 12);
     // All zero: nothing anywhere, the Watch Status Bar too.
     for (int bar = 0; bar < THRESH_BAR_COUNT; bar++) {
@@ -35,12 +36,22 @@ static void on_demand_cell_tests(void) {
     // Each item reads its own byte: its neighbours stay none.
     expect("cells.sleep_untouched", side_of(blob, n, THRESH_BAR_TOP, OD_SLEEP), OD_SIDE_NONE);
     expect("cells.gust_untouched", side_of(blob, n, THRESH_BAR_TOP, OD_GUST), OD_SIDE_NONE);
-    // The first and the last cell byte.
+    // The first and the last cell byte, and the one before the last.
     blob[THRESH_ON_DEMAND_OFFSET + OD_BATTERY] = OD_SIDE_LEFT;
     blob[THRESH_ON_DEMAND_OFFSET + OD_WIND] = (uint8_t)(OD_SIDE_LEFT << 6);
+    blob[THRESH_ON_DEMAND_OFFSET + OD_MOON] = (uint8_t)(OD_SIDE_RIGHT << 2);
     expect("cells.battery_top_left", side_of(blob, n, THRESH_BAR_TOP, OD_BATTERY), OD_SIDE_LEFT);
     expect("cells.wind_health_left", side_of(blob, n, THRESH_BAR_HEALTH, OD_WIND), OD_SIDE_LEFT);
     expect("cells.wind_top_none", side_of(blob, n, THRESH_BAR_TOP, OD_WIND), OD_SIDE_NONE);
+    expect("cells.moon_forecast_right", side_of(blob, n, THRESH_BAR_FORECAST, OD_MOON),
+           OD_SIDE_RIGHT);
+    expect("cells.moon_last_byte", THRESH_ON_DEMAND_OFFSET + OD_MOON, THRESH_SETTINGS_BYTES - 1);
+    // A pre-moon blob has no cell byte for it: the moon sits on no bar, the others as
+    // stored.
+    expect("cells.pre_moon_none", side_of(blob, THRESH_SETTINGS_BYTES_PRE_MOON,
+                                          THRESH_BAR_FORECAST, OD_MOON), OD_SIDE_NONE);
+    expect("cells.pre_moon_wind_kept", side_of(blob, THRESH_SETTINGS_BYTES_PRE_MOON,
+                                               THRESH_BAR_HEALTH, OD_WIND), OD_SIDE_LEFT);
     // Out of range: none, never a read past the end.
     expect("cells.oob_bar_neg", side_of(blob, n, -1, OD_RAIN), OD_SIDE_NONE);
 #if defined(PBL_PLATFORM_EMERY)
@@ -191,6 +202,9 @@ static void extra_cell_tests(void) {
     expect("extra.wind_bar4", extra_side_of(blob, extra, THRESH_BAR_4, OD_WIND), OD_SIDE_RIGHT);
     expect("extra.wind_bar6_high_bits", extra_side_of(blob, extra, THRESH_BAR_6, OD_WIND),
            OD_SIDE_NONE);
+    extra[OD_MOON] = (uint8_t)(OD_SIDE_LEFT << 2);
+    expect("extra.moon_bar5", extra_side_of(blob, extra, THRESH_BAR_5, OD_MOON), OD_SIDE_LEFT);
+    expect("extra.moon_bar4_none", extra_side_of(blob, extra, THRESH_BAR_4, OD_MOON), OD_SIDE_NONE);
     // Neither array reads the other's bytes.
     memset(blob + THRESH_ON_DEMAND_OFFSET, OD_SIDE_LEFT * 0x55, OD_ITEM_COUNT);   // every bar left
     memset(extra, 0, sizeof(extra));

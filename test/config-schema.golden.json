@@ -15647,6 +15647,57 @@
                     }
                   }
                 }
+              },
+              {
+                "type": "subheader",
+                "text": "Sky"
+              },
+              {
+                "type": "sheet",
+                "sheetId": "odMoon",
+                "label": "Moon phase",
+                "icon": "moon",
+                "hintFrom": {
+                  "resolver": "onDemandMoonText",
+                  "args": {
+                    "shows": [
+                      [
+                        "Always",
+                        "always"
+                      ],
+                      [
+                        "At full moon",
+                        "full"
+                      ],
+                      [
+                        "At new moon",
+                        "new"
+                      ],
+                      [
+                        "At new and full moon",
+                        "both"
+                      ]
+                    ],
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "summaryFaintFrom": {
+                  "not": {
+                    "when": "onDemandPlaced",
+                    "args": {
+                      "code": "moon"
+                    }
+                  }
+                }
               }
             ]
           },
@@ -17622,6 +17673,137 @@
                     "bw",
                     "bw-light"
                   ]
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "odMoon",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "Moon phase",
+            "intro": "Shows tonight’s moon phase at the edge of a status bar.",
+            "items": [
+              {
+                "type": "subheader",
+                "text": "Shows on",
+                "intro": "On each bar, the icon can show on the left or the right, not both. When a bar runs out of room, the icons lower in the Alerts tab’s list are hidden first."
+              },
+              {
+                "type": "checklist",
+                "label": "Shows on",
+                "captionsOnly": true,
+                "check": "moon",
+                "writeWith": "onDemandTick",
+                "columns": [
+                  {
+                    "label": "Left"
+                  },
+                  {
+                    "label": "Right"
+                  }
+                ],
+                "optionsFrom": {
+                  "resolver": "onDemandBars",
+                  "args": {
+                    "code": "moon"
+                  }
+                }
+              },
+              {
+                "type": "staticText",
+                "style": "info",
+                "text": "Your Default screen has no Watch bar, so this icon won’t show there. Tick a bar that screen shows.",
+                "showWhen": {
+                  "when": "defaultViewLacksOnDemand"
+                }
+              },
+              {
+                "type": "subheader",
+                "text": "When"
+              },
+              {
+                "type": "select",
+                "messageKey": "moonItemShow",
+                "label": "Show",
+                "defaultValue": "full",
+                "options": [
+                  [
+                    "Always",
+                    "always"
+                  ],
+                  [
+                    "At full moon",
+                    "full"
+                  ],
+                  [
+                    "At new moon",
+                    "new"
+                  ],
+                  [
+                    "At new and full moon",
+                    "both"
+                  ]
+                ],
+                "hintByValue": {
+                  "always": "Shows tonight’s moon phase every day."
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "moonItemDays",
+                "label": "Days",
+                "defaultValue": "today",
+                "options": [
+                  [
+                    "Today",
+                    "today"
+                  ],
+                  [
+                    "Today + tomorrow",
+                    "tomorrow"
+                  ]
+                ],
+                "hintByValue": {
+                  "tomorrow": "On the day before a full or new moon, the icon shows that moon instead, with the mark set in Tomorrow’s mark on its left."
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "moonItemNextDayMark",
+                "label": "Tomorrow's mark",
+                "defaultValue": "raquo",
+                "options": [
+                  [
+                    "»",
+                    "raquo"
+                  ],
+                  [
+                    ">",
+                    "gt"
+                  ],
+                  [
+                    "+",
+                    "plus"
+                  ],
+                  [
+                    "*",
+                    "star"
+                  ],
+                  [
+                    "No mark",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "none": "Tomorrow’s moon shows without a mark."
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "moonItemDays",
+                  "eq": "tomorrow"
                 }
               }
             ]

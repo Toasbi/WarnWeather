@@ -10,10 +10,10 @@ require('../../../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../../../src/pkjs/config-ui/lib/engine.js');
 const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
 
-// The six weather glyphs, the Alert settings card's four System info glyphs (also the
-// Status slots tab's read-only Alerts rows, by on-demand.js ITEMS icon), and the rest of
-// the slot items the watch draws a glyph for.
-const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze',
+// The six weather glyphs, the Alert settings card's four System info glyphs and the Sky
+// card's moon (also the Status slots tab's read-only Alerts rows, by on-demand.js ITEMS
+// icon), and the rest of the slot items the watch draws a glyph for.
+const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze', 'moon',
   'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun'];
 // The Plugin value's icons the slots above have none of (plugin-value-page.js OUTLINE_NAMES).
 const PLUGIN_VALUE = ['switchOn', 'switchOff', 'wifi', 'wifiOff', 'bluetoothOff', 'plug', 'tide'];
@@ -76,7 +76,7 @@ test('every Alerts item names a registered glyph (an unknown id would print noth
     assert.equal(global.PConf.icons.get(item.icon), ICONS[item.icon], item.code + ': registered');
   });
   assert.deepEqual(OD.ITEMS.map((i) => i.icon), ['battery', 'bluetooth', 'quiet', 'snooze', 'rain', 'gust', 'uv',
-    'aqi', 'pollen', 'wind']);
+    'aqi', 'pollen', 'wind', 'moon']);
 });
 
 test('every slot item the watch draws a glyph for has the page copy, and no other item has one', () => {
@@ -147,7 +147,8 @@ test('each slot item names the drawing the watch pictures draw at a bar\'s box, 
   Object.keys(preview.SLOT_DRAWINGS).forEach((code) => {
     assert.ok(STATUS.icons[preview.SLOT_DRAWINGS[code]], code + ': ' + preview.SLOT_DRAWINGS[code] + ' is a drawing');
   });
+  // The moon is the Alerts item's outline: the watch draws the day's phase in its place.
   assert.deepEqual(Object.keys(preview.SLOT_DRAWINGS).sort(),
-    IDS.filter((id) => ['battery', 'snooze', 'sun'].indexOf(id) === -1).concat(['condition']).sort(),
-    'every glyph but the three drawn in code');
+    IDS.filter((id) => ['battery', 'snooze', 'sun', 'moon'].indexOf(id) === -1).concat(['condition']).sort(),
+    'every glyph but the three drawn in code and the moon');
 });

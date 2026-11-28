@@ -100,8 +100,8 @@ typedef struct {
 typedef struct {
     AlertEntry entry[ALERT_SET_MAX];
 } AlertSet;
-_Static_assert(ALERT_SET_MAX == OD_ITEM_COUNT - OD_GUST && OD_GUST > OD_RAIN,
-               "AlertSet holds one entry per metric item, the items from OD_GUST on");
+_Static_assert(ALERT_SET_MAX == OD_WIND + 1 - OD_GUST && OD_GUST > OD_RAIN,
+               "AlertSet holds one entry per metric item, OD_GUST to OD_WIND");
 
 // The On demand item (an OdItem) a metric kind's entry is; -1 for a kind that is
 // not an alert kind (the health trio, the bold-only kinds, out of range), which
@@ -115,7 +115,7 @@ uint8_t alert_set_item_icon(int item);
 // The entry of On demand item `item`; NULL when the item has none, and for every item
 // that is no metric item.
 static inline const AlertEntry *alert_set_entry(const AlertSet *set, int item) {
-    if (item < OD_GUST || item >= OD_ITEM_COUNT) { return NULL; }
+    if (!od_item_is_metric(item)) { return NULL; }
     const AlertEntry *e = &set->entry[item - OD_GUST];
     return e->level != 0 ? e : NULL;
 }

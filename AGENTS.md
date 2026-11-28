@@ -149,8 +149,8 @@ README.md.
     and a scalar costs 7 B + 4, so packing several values into one array is the cheaper
     shape.
   - The Clay message also ships to aplite and is tight: its heaviest form is sized against
-    aplite's 536 B inbox as the conservative floor. It includes the 48 B thresholds blob, which carries the rain alert's look, the On demand Battery item, the
-    per-kind warn look and the ten On demand cells. `CLAY_BATTERY_LOW_ONLY` rides only a
+    aplite's 536 B inbox as the conservative floor. It includes the 49 B thresholds blob, which carries the rain alert's look, the On demand Battery item, the
+    per-kind warn look and the eleven On demand cells. `CLAY_BATTERY_LOW_ONLY` rides only a
     known aplite's bundle. Only a known emery's bundle carries the graph styles' records
     (`CLAY_GRAPH_STYLE_1..3_UINT8`) and bars 4 to 6's On demand cells
     (`CLAY_OD_EXTRA_UINT8`). Check `test/repo/inbox-size.test.js` either way.

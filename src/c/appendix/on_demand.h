@@ -6,7 +6,8 @@
 
 // On demand: the items a status bar shows at its left and right edges only while
 // they matter — Battery, Bluetooth, Quiet time and Sleep (System info), then the
-// weather alerts (rain, gusts, UV, AQI, pollen, wind). This is the pure half: the
+// weather alerts (rain, gusts, UV, AQI, pollen, wind), then the Moon phase. This is the
+// pure half: the
 // two-side layout and its make-room ladder, which decides how a bar's three slots
 // give way to the items. Deliberately no <pebble.h>, so the module host-compiles
 // (scripts/test-c.sh) with the row layout it places slots through. The SDK half —
@@ -32,7 +33,8 @@ typedef enum {
     OD_AQI = 7,
     OD_POLLEN = 8,
     OD_WIND = 9,
-    OD_ITEM_COUNT = 10,
+    OD_MOON = 10,
+    OD_ITEM_COUNT = 11,
 } OdItem;
 
 // The form a slot takes. Numerically ordered by how much it gives up, so the
@@ -69,10 +71,48 @@ typedef enum { OD_SIDE_NONE = 0, OD_SIDE_LEFT = 1, OD_SIDE_RIGHT = 2 } OdSide;
 // The pure decisions of the SDK half (layers/status_on_demand.c), header-inline so
 // its calls cost what they did there, and here so the host tests pin them.
 
+// Whether `item` is a metric alert (gusts, UV, AQI, pollen, wind): an entry the phone
+// baked (alert_set.h), at a level.
+static inline bool od_item_is_metric(int item) {
+    return item >= OD_GUST && item <= OD_WIND;
+}
+
 // A metric alert is boxed at its level, so its padding is part of its footprint;
-// rain and the system items are never boxed.
+// rain, the system items and the Moon phase are never boxed.
 static inline bool od_item_boxed(int item) {
-    return item >= OD_GUST;
+    return od_item_is_metric(item);
+}
+
+// Whether `item` prints its text before its glyph: the Moon phase's tomorrow mark sits on
+// the moon's left ("»" then the moon). Every other item prints after its glyph.
+static inline bool od_item_text_first(int item) {
+    return item == OD_MOON;
+}
+
+// The Moon phase item: bits 10-15 of the status levels word (STATUS_LEVELS_UINT8,
+// status_threshold.h), which the phone bakes for the day. 0 while there is no moon to show
+// (the item sits on no bar, or the day is none its Show names); else 1 + the moon's picture
+// + 8 x its day. The picture is the phase as the place sees it, 0 new moon .. 7 waning
+// crescent (status_line.h STATUS_ICON_MOON_NEW + picture); the day is alert_set.h's day
+// code: STATUS_ALERT_DAY_TODAY for today's moon, else tomorrow's, as its mark's
+// STATUS_ALERT_MARK_* code.
+#define OD_MOON_SHIFT 10
+#define OD_MOON_MASK 0x3F
+#define OD_MOON_DAYS 6   // STATUS_ALERT_DAY_TODAY .. STATUS_ALERT_MARK_NONE
+
+typedef struct {
+    uint8_t picture;   // 0..7
+    uint8_t day;       // 0..OD_MOON_DAYS - 1
+} OdMoon;
+
+// The moon the levels word `levels_word` shows into `out`; false (and `out` untouched) for
+// none, and for a value past the last day code.
+static inline bool od_moon_of(int levels_word, OdMoon *out) {
+    const int v = (levels_word >> OD_MOON_SHIFT) & OD_MOON_MASK;
+    if (v == 0 || v > 8 * OD_MOON_DAYS) { return false; }
+    out->picture = (uint8_t)((v - 1) & 7);
+    out->day = (uint8_t)((v - 1) >> 3);
+    return true;
 }
 
 // The Rain item's look — bits 0-1 of the thresholds blob's alerts byte
@@ -141,7 +181,7 @@ typedef struct {
     // 1 + the index of the weather alert the side's own slot merged (that slot shows
     // the alert's metric, so it shows the alert's value and look itself): left out
     // while the slot shows, standing in at its place in the run where the layout hides
-    // the slot. 0: none. (Here, in the byte the alignment of w leaves free.)
+    // the slot. 0: none.
     uint8_t merged;
     int16_t w[OD_LANES][OD_SIDE_MAX];     // its footprint per lane (> 0)
 } OdSideIn;

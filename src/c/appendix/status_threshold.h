@@ -21,7 +21,9 @@
 //  - STATUS_LEVELS_UINT8 (weather message, 2 bytes LE): packed per-kind levels
 //    for the weather kinds, 2 bits each — kinds 0..3 at bits 2k..2k+1, UV
 //    (appended as kind 7) at bits 8..9. Computed phone-side (the watch has no
-//    raw ints for AQI/pollen/wind/gust/UV).
+//    raw ints for AQI/pollen/wind/gust/UV). Bits 10..15 carry the On demand Moon
+//    phase item's moon for the day (on_demand.h od_moon_of), baked with the levels
+//    because a tuple of its own would not fit the inbox.
 //  - CLAY_THRESHOLDS_UINT8 (Clay message, THRESH_SETTINGS_BYTES):
 //      [0]              enabled bitmask (bit k = kind k enabled) — exactly the
 //                       8 PAIRED kinds; bold-only kinds (8..15) have no bit
@@ -83,6 +85,7 @@
 //      - 1.24.0: 48 B, the rain look, the Battery item byte, the two warn-look
 //        bytes, which cover the 8 PAIRED kinds only (a ninth paired kind would
 //        need a third byte — asserted below), and the ten On demand cells.
+//      - 3.6.0: 49 B, the Moon phase item's cell byte (OD_MOON), the eleventh.
 //    The alert bytes sit right behind the full bold area, so kinds 20 and 21 (the
 //    weather condition, the Plugin value) each took two spare bits of the alerts
 //    byte instead of a sixth bold byte, and the blob kept its 48 B. A kind 22 has no
@@ -91,8 +94,8 @@
 //    new accepted length and a reader that knows every position). The
 //    _Static_asserts below the offsets turn that into a compile error instead of a
 //    bold cell silently aliasing the rain look.
-//    Exactly four lengths are accepted: the current 48, the pre-alerts 34, the
-//    16-kind 33 and the pre-bold 29. The interim 31-byte (8-kind bold), 35-, 36-
+//    Exactly five lengths are accepted: the current 49, the pre-moon 48, the
+//    pre-alerts 34, the 16-kind 33 and the pre-bold 29. The interim 31-byte (8-kind bold), 35-, 36-
 //    and 38-byte formats never shipped, so they validate as garbage, not as
 //    legacy. The UV step (27 -> 29) SHIFTED the health offsets, so a 27-byte blob
 //    would be misread and is rejected; every step since only APPENDS, so a
@@ -114,7 +117,7 @@
 // the paired accessors by this is correctness, not tidiness; only the bold
 // cells run to THRESH_KIND_COUNT.
 #define THRESH_PAIRED_KIND_COUNT 8
-#define THRESH_SETTINGS_BYTES 48
+#define THRESH_SETTINGS_BYTES 49
 #define THRESH_COLORS_OFFSET 1
 #define THRESH_HEALTH_OFFSET 17
 #define THRESH_BOLD_OFFSET 29
@@ -137,6 +140,9 @@
 // The length before the alert, Battery, warn-look and On demand bytes were
 // appended — still accepted (every install at upgrade time).
 #define THRESH_SETTINGS_BYTES_PRE_ALERTS 34
+// The length before the Moon phase item's cell byte was appended (3.6.0): every 1.24.0
+// to 3.5.x install at upgrade time.
+#define THRESH_SETTINGS_BYTES_PRE_MOON 48
 
 typedef enum {
     THRESH_AQI = 0,
@@ -211,14 +217,14 @@ _Static_assert(THRESH_BATTERY_OFFSET == THRESH_ALERTS_OFFSET + 1
 _Static_assert(THRESH_ON_DEMAND_OFFSET
                == THRESH_WARN_LOOK_OFFSET + (THRESH_PAIRED_KIND_COUNT + 3) / 4,
                "a paired kind past 7 needs a third warn-look byte (layout change)");
-// One cell byte per On demand item ends the blob, and a byte holds every bar.
+// One cell byte per On demand item ends the blob, and a byte holds every bar: a new item
+// appends its cell byte, a new accepted length (status_threshold_normalize).
 _Static_assert(THRESH_SETTINGS_BYTES == THRESH_ON_DEMAND_OFFSET + OD_ITEM_COUNT,
-               "an On demand item past the tenth needs a new cell byte (layout change)");
-// At 48 B the blob exactly fills persist's no-op-write compare buffer
-// (write_sized_data_if_changed): one byte more and every save would skip the compare
-// and write flash.
-_Static_assert(THRESH_SETTINGS_BYTES <= STATUS_LINE_MAX_BYTES,
-               "the blob must fit persist's compare buffer");
+               "each On demand item has a cell byte, the last one ends the blob");
+_Static_assert(THRESH_SETTINGS_BYTES_PRE_MOON == THRESH_ON_DEMAND_OFFSET + OD_MOON,
+               "the Moon phase's cell byte is the one the pre-moon blob lacks");
+// persist.c sizes its no-op-write compare buffer (write_sized_data_if_changed) to hold the
+// blob, or every save would skip the compare and write flash.
 
 // The health trio computes its levels ON the watch from live health values; every
 // other kind (0..3 and UV) is phone-computed via the packed levels wire value.
@@ -267,17 +273,18 @@ int status_threshold_health_value(int kind, int steps, int sleep_seconds,
 // store's judge; a reader judges through status_threshold_normalize().
 bool status_threshold_settings_validate(const uint8_t *blob, size_t len);
 
-// Turn a stored blob into the full 48-byte layout, in place, ONCE per load: every
+// Turn a stored blob into the full 49-byte layout, in place, ONCE per load: every
 // accessor below reads that layout and nothing else. `stored_len` is what persist
 // read into `blob` (0 or negative: nothing stored). An accepted shorter blob keeps
 // its bytes and gets what it lacks as the watch drew before those bytes existed —
-// the default bold mode for a kind without a cell (16..19 at 33 B, all at 29 B), the
+// the Moon phase on no bar (48 B), the default bold mode for a kind without a cell
+// (16..19 at 33 B, all at 29 B), the
 // rain look Text, the warn look from the warn color byte (0x00 none, any colour
 // an outline), the Battery item at 10 %, Icon, and the On demand cells as the
 // compiled defaults (the phone's defaults for the Watch Status Bar, nothing on any
 // other bar). An invalid length, or nothing stored, reads those defaults with
 // nothing enabled, no warn box and opaque-white colours. Upgrading watches hold
-// 34, 33 or 29 B until the phone resends its settings — and the phone only
+// 48, 34, 33 or 29 B until the phone resends its settings — and the phone only
 // force-resends when the watch reports NO config at all, so rejecting an old length
 // would blank an existing user's highlighting until they opened the settings page.
 void status_threshold_normalize(uint8_t blob[THRESH_SETTINGS_BYTES], int stored_len);

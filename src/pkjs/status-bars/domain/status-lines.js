@@ -17,6 +17,7 @@ var condition = require('../../weather/domain/condition.js');
 var batteryDays = require('./battery-days.js');
 var pluginValues = require('./plugin-values.js');
 var skySlots = require('./sky-slots.js');
+var moonItem = require('./moon-item.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
 var POSITIONS = catalog.SLOT_POSITIONS;
@@ -601,38 +602,61 @@ function shownSkyCodes(lines, settings, env) {
 }
 
 /**
+ * The sky's place for one bake (SkyFacts position), read at the first ask and at most once: the
+ * sun and moon slots and the Moon phase item share it.
+ * @param {?BakeFacts} facts The bake's facts.
+ * @returns {function(): ?{lat: number, lon: number}} The reader; null before a place is known.
+ */
+function placeOnce(facts) {
+  var sky = facts && facts.sky;
+  var read = false;
+  var place = null;
+  return function () {
+    if (!read) {
+      read = true;
+      place = sky && typeof sky.position === 'function' ? sky.position() : null;
+    }
+    return place;
+  };
+}
+
+/**
  * The sun and moon slots' readings for one bake: none while its lines show no such slot, and the
- * place read only when they do (SkyFacts).
+ * place read only when they do.
  * @param {Array<Object>} lines catalog line definitions the bake bakes
  * @param {Object} settings Clay settings blob
  * @param {Object} env platform environment
  * @param {Date} now The bake's instant.
- * @param {?BakeFacts} facts The bake's facts.
+ * @param {function(): ?{lat: number, lon: number}} place The bake's place (placeOnce).
  * @returns {?Object} sky-slots.js readingsAt's, or null.
  */
-function skyReadings(lines, settings, env, now, facts) {
+function skyReadings(lines, settings, env, now, place) {
   var codes = shownSkyCodes(lines, settings, env);
-  var sky = facts && facts.sky;
-  if (!codes.length) { return null; }
-  return skySlots.readingsAt(codes, now, sky && typeof sky.position === 'function' ? sky.position() : null);
+  return codes.length ? skySlots.readingsAt(codes, now, place()) : null;
 }
 
 /**
  * The next instant at which a sun and moon slot of the bars a bake at `now` sends changes by
- * itself (sky-slots.js turnAt): when status-rebake.js bakes again without a fetch.
+ * itself (sky-slots.js turnAt), or the Moon phase item's moon may (moon-item.js turnAt): when
+ * status-rebake.js bakes again without a fetch.
  * @param {?Object} settings Clay settings blob
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
  * @param {Date} now The bake's instant.
  * @param {?BakeFacts} [facts] The bake's facts: the sky's place.
- * @returns {?number} Epoch milliseconds; null while no such slot is sent, or none changes.
+ * @returns {?number} Epoch milliseconds; null while neither is sent, or none changes.
  */
 function skyTurnAt(settings, watchInfo, now, facts) {
   var env;
   var sky;
+  var slots;
+  var item;
   if (!settings) { return null; }
   env = platformLib.computeEnv(watchInfo);
-  sky = skyReadings(catalog.bakedLines(settings, env), settings, env, now, facts);
-  return sky ? skySlots.turnAt(sky, now) : null;
+  sky = skyReadings(catalog.bakedLines(settings, env), settings, env, now, placeOnce(facts));
+  slots = sky ? skySlots.turnAt(sky, now) : null;
+  // The item rides the levels word, which only a watch with the highlight is sent.
+  item = env.thresholds ? moonItem.turnAt(settings, env, now) : null;
+  return slots === null || (item !== null && item < slots) ? item : slots;
 }
 
 /**
@@ -895,9 +919,11 @@ function buildStatusLines(payload, settings, watchInfo, now, facts) {
       readings[slot.slotKey] = pluginValues.shownReading(plugin.valueOf(slot.source), slot.pick, now.getTime());
     });
   }
-  // And the sun and moon slots' readings, each worked out once for every slot that shows it.
+  // And the sun and moon slots' readings, each worked out once for every slot that shows it,
+  // from the place read at most once for the bake.
+  var place = placeOnce(facts);
   var bake = bakeEnv(now, reading, batteryDays.daysLeft(estimate, now.getTime()), readings,
-    skyReadings(lines, settings, env, now, facts));
+    skyReadings(lines, settings, env, now, place));
   for (var l = 0; l < lines.length; l++) {
     var line = lines[l];
     payload[line.wireKey] = packLine(line, payload, settings, env, alerts, bake);
@@ -910,7 +936,10 @@ function buildStatusLines(payload, settings, watchInfo, now, facts) {
   // read and discarded. The 'status' category still carries the Watch bar's line
   // (always baked), so the change detector is unaffected.
   if (env.thresholds) {
-    payload.STATUS_LEVELS_UINT8 = statusWire.packWeatherLevels(payload, settings);
+    // With the Moon phase item's moon for the day in the word's spare bits: On demand is on
+    // exactly the platforms the highlight is (see below).
+    payload.STATUS_LEVELS_UINT8 = statusWire.packWeatherLevels(payload, settings,
+      moonItem.shownMoon(settings, env, now, place));
     // The weather alerts' metric entries, judged here for the same reason. Its own
     // tuple in the 'status' category, so it rides (and is change-detected) with
     // the lines; [] when nothing is alerting, which clears the watch's stored

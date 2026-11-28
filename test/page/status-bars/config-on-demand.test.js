@@ -59,7 +59,7 @@ function cardStarts(html) {
 
 // Each item's dialog, the one its Alerts-tab row opens.
 const SHEET = { battery: 'odBattery', bt: 'odBluetooth', qt: 'odQuiet', snooze: 'odSleep', rain: 'alertRain',
-  gust: 'alertGust', uv: 'alertUv', aqi: 'alertAqi', pollen: 'alertPollen', wind: 'alertWind' };
+  gust: 'alertGust', uv: 'alertUv', aqi: 'alertAqi', pollen: 'alertPollen', wind: 'alertWind', moon: 'odMoon' };
 const CODES = OD.ITEMS.map((i) => i.code);
 // The grid's rows by name, in the page's order (the Status bars tab's).
 const BAR_NAMES = { top: 'Watch bar', forecast: 'Forecast bar', health: 'Health bar', radar: 'Radar bar' };
@@ -295,14 +295,18 @@ test('a tap on a bar dialog\'s Alerts row closes the dialog and brings the Alert
 
 // --- the Shows on grids -------------------------------------------------------------
 const CAPS = '<span class="chk-caps" aria-hidden="true"><span>Left</span><span>Right</span></span>';
-const NOTE = 'On each bar, the alert can show on the left or the right, not both. When a bar runs out of'
-  + ' room, the alerts lower in the Alerts tab’s list are hidden first.';
+// The Moon phase warns of nothing: its dialog calls it an icon.
+const NOTE = (code) => {
+  const noun = code === 'moon' ? 'icon' : 'alert';
+  return 'On each bar, the ' + noun + ' can show on the left or the right, not both. When a bar runs out of'
+    + ' room, the ' + noun + 's lower in the Alerts tab’s list are hidden first.';
+};
 // A metric alert's note adds the merge into the slot that shows its value.
 const MERGE = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air quality index',
   pollen: 'the pollen level', wind: 'the wind speed' };
-// Where the defaults put each item on the Watch bar ('none': Pollen).
+// Where the defaults put each item on the Watch bar ('none': Pollen and the Moon phase).
 const TOP_SIDE = { battery: 'right', bt: 'left', qt: 'left', snooze: 'left', rain: 'left', gust: 'right',
-  uv: 'right', aqi: 'right', pollen: 'none', wind: 'right' };
+  uv: 'right', aqi: 'right', pollen: 'none', wind: 'right', moon: 'none' };
 
 test('every item dialog opens on its Shows on card: a row per status bar, a Left and a Right tick, then the note', () => {
   const page = alertsTab();
@@ -335,7 +339,7 @@ test('every item dialog opens on its Shows on card: a row per status bar, a Left
     });
     // The note is the card's intro, in view right above the grid: the merge sentence for a
     // metric alert alone.
-    assert.ok(sheet.indexOf('<div class="intro">' + NOTE
+    assert.ok(sheet.indexOf('<div class="intro">' + NOTE(code)
       + (MERGE[code] ? ' If the status slot on the same side shows ' + MERGE[code] + ', the alert shows in that'
         + ' slot, in the alert’s colors, instead of adding its icon.' : '')
       + '</div><div class="row stack chk-row">', card) !== -1, code + ': the note leads the grid');
@@ -566,7 +570,7 @@ const ON_DEMAND_INTRO = 'An alert shows at the edge of a status bar only when it
   + ' data-goto-tab="graphs" data-goto-pane="forecast">Graphs › Forecast › a graph</button>), and the line shows only in the'
   + ' hours that reach the warn level.</p>';
 
-test('the Alerts tab sits between Status bars and Graphs: About alerts, then the System info and Weather alerts cards', () => {
+test('the Alerts tab sits between Status bars and Graphs: About alerts, then the System info, Weather alerts and Sky cards', () => {
   const page = alertsTab();
   assert.deepEqual((page.tabs.innerHTML.match(/data-tab="[^"]*"/g) || []).map((a) => a.slice(10, -1)),
     ['weather', 'watchface', 'watch', 'alerts', 'graphs', 'setup']);
@@ -575,7 +579,7 @@ test('the Alerts tab sits between Status bars and Graphs: About alerts, then the
   const about = html.indexOf('<span class="ttl">About alerts</span>');
   assert.ok(about !== -1, 'a titled card');
   assert.equal(cardStarts(html).filter((s) => s < about).length, 1, 'it leads the tab');
-  assert.equal(cardStarts(html).length, 3, 'About alerts, System info, Weather alerts');
+  assert.equal(cardStarts(html).length, 4, 'About alerts, System info, Weather alerts, Sky');
   // The owner's text C, its last sentence the owner's of 2026-10-02, in view as the card's
   // intro; the reset a text-link row of the card, under it.
   assert.equal(html.indexOf('info-q'), -1, 'no \'?\' by default');
@@ -587,6 +591,8 @@ test('the Alerts tab sits between Status bars and Graphs: About alerts, then the
     + ' data-action="resetOnDemand">Reset alert settings to defaults</button></div>');
   assert.ok(reset > html.indexOf(ON_DEMAND_INTRO) && reset < system, 'the reset: a link row in About alerts, under the intro');
   assert.ok(html.indexOf('<span class="ttl">Weather alerts</span>') > system, 'System info, then Weather alerts');
+  assert.ok(html.indexOf('<span class="ttl">Sky</span>') > html.indexOf('<span class="ttl">Weather alerts</span>'),
+    'then Sky');
   // Not on the tabs that took General's rows (the page opens on Watchface), nor on Status bars.
   ['watchface', 'setup', 'watch'].forEach((tab) => {
     const other = onTab(tab).scroll.innerHTML;
@@ -668,7 +674,7 @@ test('the Quiet time and Sleep dialogs: their intro, then the Shows on card alon
     assert.equal(sheet.split('<div class="row').length - 1, 1 + PAGE_BARS.length, id + ': the grid\'s rows alone');
     assert.equal(sheet.indexOf('more-row'), -1, id + ': nothing behind More options');
     assert.ok(sheet.indexOf('data-check="' + code + '"') !== -1, id + ': ticks its own item');
-    assert.ok(sheet.indexOf('<div class="intro">' + NOTE + '</div><div class="row stack chk-row">') !== -1,
+    assert.ok(sheet.indexOf('<div class="intro">' + NOTE(code) + '</div><div class="row stack chk-row">') !== -1,
       id + ': the note leads the grid');
     // Onto the Forecast bar's right.
     tick(page, OD.itemsKey('forecast', 'right'), code);
@@ -748,6 +754,49 @@ test('Bluetooth, Quiet time and Sleep: their rules, the vibration, the Battery s
   assert.equal(sleep(state({ sleepNightEnabled: false }), ENV.basalt),
     'Battery saver is off (Watchface › Theme & night)');
   assert.equal(sleep(state({ statusTopOnDemandLeftItems: 'bt' }), ENV.basalt), 'Not in any status bar');
+});
+
+test('Moon phase: the days its Show names, Today + tomorrow when picked, where it shows', () => {
+  const t = hint('onDemandMoonText');
+  const ARGS = { shows: [['Always', 'always'], ['At full moon', 'full'], ['At new moon', 'new'],
+    ['At new and full moon', 'both']], days: [['Today', 'today'], ['Today + tomorrow', 'tomorrow']] };
+  const placed = (S) => state(Object.assign({ statusForecastOnDemandRightItems: 'moon' }, S));
+  assert.equal(t(state({}), ENV.basalt, ARGS), 'Not in any status bar', 'the defaults place it nowhere');
+  assert.equal(t(placed({}), ENV.basalt, ARGS), 'At full moon · Forecast bar, right', 'the mockup\'s row');
+  ARGS.shows.forEach(([label, value]) =>
+    assert.equal(t(placed({ moonItemShow: value }), ENV.basalt, ARGS), label + ' · Forecast bar, right', value));
+  assert.equal(t(placed({ moonItemShow: 'always', moonItemDays: 'tomorrow' }), ENV.basalt, ARGS),
+    'Always · Today + tomorrow · Forecast bar, right');
+  assert.equal(t(placed({ moonItemShow: 'half', moonItemDays: 'never' }), ENV.basalt, ARGS),
+    'At full moon · Forecast bar, right', 'an unknown value reads as the default the phone bakes with');
+});
+
+test('the Moon phase dialog: its intro, the Shows on card, then When: Show, Days, and the mark once Days looks ahead', () => {
+  const page = alertsTab();
+  page.openEditSheet('odMoon');
+  let sheet = page.modal.innerHTML;
+  assert.ok(sheet.indexOf('id="esheet-ttl-odMoon">Moon phase</span>') !== -1, 'the title');
+  assert.ok(sheet.indexOf('<div class="card nohdr dlg-intro"><div class="intro">Shows tonight’s moon phase at the edge'
+    + ' of a status bar.</div></div>') !== -1, 'the intro');
+  const when = sheet.indexOf('<span class="ttl">When</span>');
+  assert.ok(when > sheet.indexOf('<span class="ttl">Shows on</span>'), 'When after Shows on');
+  // A select's trigger names its key in data-select, a segmented control's buttons in data-k.
+  const at = (k) => Math.max(sheet.indexOf('data-k="' + k + '"'), sheet.indexOf('data-select="' + k + '"'));
+  assert.ok(at('moonItemShow') > when && at('moonItemDays') > at('moonItemShow'), 'Show, then Days');
+  assert.equal(at('moonItemNextDayMark'), -1, 'Today: no mark row');
+  assert.equal(sheet.indexOf('more-row'), -1, 'nothing behind More options');
+  // Today + tomorrow: the mark row, labelled by the marks alone, the watch drawing each left of the moon.
+  page.S.moonItemDays = 'tomorrow';
+  page.doneDialog();
+  page.openEditSheet('odMoon');
+  sheet = page.modal.innerHTML;
+  assert.ok(sheet.indexOf('data-select="moonItemNextDayMark"') > sheet.indexOf('data-k="moonItemDays"'), 'the mark row');
+  assert.ok(sheet.indexOf('aria-label="Tomorrow&#39;s mark: »"') !== -1, 'on », the default');
+  const item = SCHEMA.tabs.find((tb) => tb.id === 'alerts').sections.find((s) => s.sheetId === 'odMoon').items
+    .find((i) => i.messageKey === 'moonItemNextDayMark');
+  assert.deepEqual(item.options, [['»', 'raquo'], ['>', 'gt'], ['+', 'plus'], ['*', 'star'], ['No mark', 'none']]);
+  assert.deepEqual(item.options.map((o) => o[1]), OD.NEXT_DAY_MARKS, 'the contract\'s marks, in its order');
+  page.doneDialog();
 });
 
 test('the Alerts row\'s icons, resolver by resolver', () => {
@@ -910,12 +959,14 @@ test('both resets restore where each item shows; the card\'s reset also the item
   const moved = { statusTopOnDemandLeftItems: 'uv', statusTopOnDemandRightItems: 'rain',
     statusForecastOnDemandRightItems: 'bt' };
   const page = alertsTab(Object.assign({ alertUvDisplay: 'icon', rainAlertDisplay: 'icon', batteryLowLevel: '30',
-    btIcons: 'none' }, moved));
+    btIcons: 'none', moonItemShow: 'always', moonItemDays: 'tomorrow', moonItemNextDayMark: 'star' }, moved));
   act(page, 'resetOnDemand');
   assert.equal(page.S.alertUvDisplay, 'value', 'the Look back to Icon + value');
   assert.equal(page.S.rainAlertDisplay, 'text');
   assert.equal(page.S.batteryLowLevel, '10');
   assert.equal(page.S.btIcons, 'disconnected');
+  assert.deepEqual([page.S.moonItemShow, page.S.moonItemDays, page.S.moonItemNextDayMark], ['full', 'today', 'raquo'],
+    'the Moon phase\'s When');
   LIST_KEYS.forEach((k) => assert.equal(page.S[k], OD.DEFAULTS[k], k + ': back where the defaults put it'));
   const slots = watchTab(moved);
   act(slots, 'resetStatusSlots');

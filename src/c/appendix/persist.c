@@ -4,6 +4,7 @@
 #include "persist_store.h"
 #include "config.h"
 #include "status_line.h"
+#include "status_threshold.h"   // THRESH_SETTINGS_BYTES, the compare buffer's longest blob
 #include "graph_style.h"
 #include "theme.h"
 
@@ -212,12 +213,18 @@ static bool write_data_if_changed(const uint32_t key, const void *data, const si
     return true;
 }
 
+// The compare buffer of write_sized_data_if_changed: as long as the longest blob it is
+// handed, a status line or the thresholds blob. A longer one would skip the compare and
+// write flash on every save.
+#define SIZED_COMPARE_BYTES (THRESH_SETTINGS_BYTES > STATUS_LINE_MAX_BYTES \
+    ? THRESH_SETTINGS_BYTES : STATUS_LINE_MAX_BYTES)
+
 // write_data_if_changed compares only the first `size` bytes, so a new blob
 // that prefixes the stored one would be skipped; blobs of varying length
 // need the stored size compared too.
 static bool write_sized_data_if_changed(const uint32_t key, const void *data,
                                         const size_t size) {
-    uint8_t current[STATUS_LINE_MAX_BYTES];
+    uint8_t current[SIZED_COMPARE_BYTES];
     if (size <= sizeof(current)
             && store_exists(key)
             && store_get_size(key) == (int) size
@@ -639,7 +646,7 @@ bool persist_set_radar_notice(const char *text) {
 
 #if defined(PBL_PLATFORM_EMERY)
 // emery: the records ride write_present_blob's compare buffer (write_sized_data_if_changed).
-_Static_assert(GRAPH_STYLE_MAX_BYTES <= STATUS_LINE_MAX_BYTES,
+_Static_assert(GRAPH_STYLE_MAX_BYTES <= SIZED_COMPARE_BYTES,
                "a graph style record must fit the sized blob compare buffer");
 
 int persist_get_graph_style(uint8_t k, uint8_t *buffer, size_t cap) {

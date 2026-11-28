@@ -44,7 +44,7 @@ test('the duplicated PhoneBattery key writes ONE bold mode into BOTH cells', () 
   // kind 19 -> byte 33, bits 2 * (19 & 3) = 6-7
   Object.keys(th.BOLD_MODES).forEach((mode) => {
     const blob = wire.buildSettingsBlob({ threshPhoneBatteryBoldMode: mode });
-    assert.equal(blob.length, 48, mode + ': the duplicate must not widen the blob');
+    assert.equal(blob.length, 49, mode + ': the duplicate must not widen the blob');
     assert.equal((blob[33] >> 4) & 3, th.BOLD_MODES[mode], mode + ': phoneBattery cell (kind 18)');
     assert.equal((blob[33] >> 6) & 3, th.BOLD_MODES[mode], mode + ': phoneBatteryPlain cell (kind 19)');
     // The byte-mates (battery % and dew) keep the warn default.
@@ -66,7 +66,7 @@ test('the phone-battery cells share byte 33 with battery % and dew without bleed
     threshDewBoldMode: 'off',             // kind 17 -> bits 2-3
     threshPhoneBatteryBoldMode: 'off'     // kinds 18 AND 19 -> bits 4-5, 6-7
   });
-  assert.equal(blob.length, 48, 'byte 33 was already paid for — no widening');
+  assert.equal(blob.length, 49, 'byte 33 was already paid for — no widening');
   assert.equal(blob[33], (2 << 0) | (1 << 2) | (1 << 4) | (1 << 6));
   assert.deepEqual(blob.slice(wire.BOLD_OFFSET, 33), [0, 0, 0, 0],
     'the earlier bold bytes stay at the warn default');
@@ -426,7 +426,7 @@ test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health threshol
     // An ordered pair with the toggle off sets no bit (wind, kind 2).
     threshWindOn: false, threshWindWarn: '30', threshWindDanger: '50'
   });
-  assert.equal(blob.length, 48);
+  assert.equal(blob.length, 49);
   assert.equal(blob[0], (1 << 0) | (1 << 4) | (1 << 5) | (1 << 6));
   assert.equal(blob[1], 0xF8);   // rgbToGColor8(0xFFAA00)
   assert.equal(blob[2], 0xF0);   // rgbToGColor8(0xFF0000)
@@ -570,10 +570,11 @@ test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds',
   // defaults: aqi/pollen/wind/gust fill (0xAA), steps/sleep/distance outline + uv fill
   // (0x95), then the On demand cells at their defaults: the Watch Status Bar's
   // Battery right (2), Bluetooth, Quiet time, Sleep and Rain left (1), Wind gusts,
-  // UV index and Air quality right, Pollen nowhere, Wind speed right.
+  // UV index and Air quality right, Pollen nowhere, Wind speed right, the Moon phase
+  // nowhere.
   assert.deepEqual(blob.slice(17),
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 10, 0xAA, 0x95,
-      2, 1, 1, 1, 1, 2, 2, 2, 0, 2]);
+      2, 1, 1, 1, 1, 2, 2, 2, 0, 2, 0]);
 });
 
 // Bytes 36..37: the warn look per PAIRED kind, 2 bits each in KINDS order (0 none,
@@ -684,7 +685,7 @@ test('buildSettingsBlob: goal u16s carry the SEED when the toggle is on over a b
 // so a never-configured kind reproduces the shipped bold-from-warn behaviour.
 test('buildSettingsBlob: unset bold modes pack as warn (all-zero bold bytes)', () => {
   const blob = wire.buildSettingsBlob({});
-  assert.equal(blob.length, 48);
+  assert.equal(blob.length, 49);
   assert.deepEqual(blob.slice(wire.BOLD_OFFSET, wire.ALERTS_OFFSET), [0, 0, 0, 0, 0]);
 });
 
@@ -827,7 +828,7 @@ test('packing with statusBoldAll "all" does not mutate the stored per-kind modes
 // (blob bytes 31/32), byte 29 + (k >> 2) at bits 2 * (k & 3).
 test('buildSettingsBlob: battery % (kind 16) packs its bold cell into byte 33', () => {
   const blob = wire.buildSettingsBlob({ threshBatteryPctBoldMode: 'always' });
-  assert.equal(blob.length, 48);
+  assert.equal(blob.length, 49);
   assert.equal(blob[33], 2 << 0, 'batteryPct always in byte 33 bits 0-1');
   assert.deepEqual(blob.slice(wire.BOLD_OFFSET, 33), [0, 0, 0, 0],
     'the other bold bytes stay at the warn default');

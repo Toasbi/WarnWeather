@@ -13,13 +13,15 @@
 //             what the row should match, rather than a second wind curl)
 //   aqi    -> STATUS_AQI.pdc     (leaf)
 //   pollen -> STATUS_POLLEN.pdc  (four-petal flower on a curved stem)
-// and the Alert settings card's System info rows (all ten also draw the Status slots
-// tab's read-only Alerts rows, by on-demand.js ITEMS icon):
+// and the Alert settings card's System info rows (these and the Sky card's moon also draw
+// the Status slots tab's read-only Alerts rows, by on-demand.js ITEMS icon):
 //   battery   -> battery_item.c (a battery body with its nub and a low charge bar;
 //                the watch draws it procedurally, filled by the charge)
 //   bluetooth -> STATUS_BT.pdc      (the Bluetooth rune)
 //   quiet     -> STATUS_QUIET.pdc   (a muted speaker, struck through)
 //   snooze    -> snooze_draw        (two Z's, the Battery saver hours' glyph)
+//   moon      -> Tabler's moon      (a crescent: the Moon phase item, whose watch drawing
+//                                    is the phase of the day, STATUS_ICON_MOON_*)
 // and the rest of the slot items the watch draws a glyph for, so the Status bars tab's
 // preview shows every one of them. The pictures of the watch (preview-watch.js) draw the
 // watch's own drawings instead (pixel-icon.js), at each bar's box and seat. These
@@ -120,6 +122,8 @@
         snooze: svg24(OUTLINE,
             '<path d="M4 12h6l-6 8h6"/>'
             + '<path d="M14 4h6l-6 8h6"/>'),
+        moon: svg24(OUTLINE,
+            '<path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/>'),
         // The slot glyphs the watch draws from its PDCs (see the header): their own
         // polylines, so a slot in the preview shows the picture the watch puts there.
         temp: svg24(OUTLINE,
@@ -225,6 +229,7 @@
         P.icons.register('bluetooth', ICONS.bluetooth);
         P.icons.register('quiet', ICONS.quiet);
         P.icons.register('snooze', ICONS.snooze);
+        P.icons.register('moon', ICONS.moon);
         P.icons.register('temp', ICONS.temp);
         P.icons.register('dew', ICONS.dew);
         P.icons.register('countdown', ICONS.countdown);

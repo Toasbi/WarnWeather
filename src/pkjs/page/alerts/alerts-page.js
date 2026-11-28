@@ -391,4 +391,27 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + hourText(st.sleepEndHour, 7), st, 'snooze', env);
     }
     PConf.hintResolvers.register('onDemandSleepText', onDemandSleepText);
+
+    /**
+     * The Moon phase row's live text: the days it shows on by the Show label its sheet offers
+     * ("At full moon"), then " · Today + tomorrow" by its Days label when the day before such a
+     * moon shows it too (the default, Today, adds nothing), then where it shows. The settings are
+     * the contract's reading (on-demand.js moonItem), so an unknown value reads as the default
+     * the phone bakes with; only the schema's option labels are interpolated (the engine prints
+     * hints as raw HTML).
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{shows: Array<Array<string>>, days: Array<Array<string>>}} args The sheet's option
+     *     lists (alerts-schema.js MOON_SHOW_OPTIONS, MOON_DAYS_OPTIONS).
+     * @returns {string} The hint.
+     */
+    function onDemandMoonText(S, env, args) {
+        var st = S || {};
+        if (!onDemand.placedAnywhere(st, 'moon', env)) { return NOT_PLACED; }
+        var moon = onDemand.moonItem(st);
+        var text = optionLabel(args.shows, moon.show);
+        if (moon.days !== onDemand.DEFAULTS.moonItemDays) { text += ' · ' + optionLabel(args.days, moon.days); }
+        return withPlacement(text, st, 'moon', env);
+    }
+    PConf.hintResolvers.register('onDemandMoonText', onDemandMoonText);
 })();

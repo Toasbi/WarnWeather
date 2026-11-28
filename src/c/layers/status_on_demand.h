@@ -37,6 +37,10 @@
 //                 slot shows it instead (alert_set_merge): the phone baked both
 //                 values into its text, the row draws it at the entry's level, and
 //                 the item stands in only where the layout hides the slot.
+//  - Moon phase   the moon the phone baked into the levels word for the day
+//                 (on_demand.h od_moon_of): tonight's, or the full or new moon its Show
+//                 names, tomorrow's with the tomorrow mark on its left ("»" then the
+//                 moon). Never boxed, never bold.
 // Each metric alert draws as a MINI STATUS SLOT, `[icon][gap][text?]`, styled like a
 // highlighted slot of its kind at the entry's level (status_threshold_look) — the
 // kind's warn look at WARN (none, outline or fill), filled at DANGER with the glyph
@@ -57,8 +61,8 @@ typedef struct StatusOnDemandCache StatusOnDemandCache;
 
 // A status row's On demand state, embedded in the row.
 typedef struct {
-    // The glyph cache (Quiet time, one Bluetooth variant, rain and the five metric
-    // glyphs): created by the first draw with an item to show, freed by
+    // The glyph cache (Quiet time, one Bluetooth variant, rain, the five metric
+    // glyphs and the moon): created by the first draw with an item to show, freed by
     // status_on_demand_release() — when a refresh finds nothing assigned to the bar,
     // and with the row. Its glyphs come and go with their items, so an idle bar keeps
     // only the cache struct.
@@ -109,6 +113,8 @@ typedef struct {
     bool battery_value;                        // Look Icon + value
     bool rain_replaces;                        // the rain alert takes its side's slot
                                                // while it shows (on_demand.h)
+    uint8_t moon_day;                          // the Moon phase's day code, while it
+                                               // shows (on_demand.h od_moon_of)
 } StatusOnDemandState;
 
 // One draw's On demand pass, filled by status_on_demand_layout() and read by

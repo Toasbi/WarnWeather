@@ -27,7 +27,7 @@ uint8_t alert_set_item_icon(int item) {
         [OD_POLLEN - OD_GUST] = STATUS_ICON_POLLEN,
         [OD_WIND - OD_GUST] = STATUS_ICON_WIND,
     };
-    return item >= OD_GUST && item < OD_ITEM_COUNT ? ICON[item - OD_GUST] : STATUS_ICON_NONE;
+    return od_item_is_metric(item) ? ICON[item - OD_GUST] : STATUS_ICON_NONE;
 }
 
 bool alert_set_bytes_ok(const uint8_t *bytes, size_t len) {

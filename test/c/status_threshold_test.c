@@ -142,11 +142,11 @@ static void kind_tests(void) {
     expect("kind.every_pair", every == KIND_MAP_PIN, 1);
 }
 
-// The judge on the wire (app_message.c) and in store (normalize): exactly the four
-// lengths that shipped — 48, the pre-alerts 34, the 16-kind 33 and the pre-bold 29.
-// The interim 31-byte (8-kind bold), 35-, 36- and 38-byte formats existed only on
-// feature branches, so they are garbage, not legacy; 27 is the pre-UV layout whose
-// health offsets moved; 49 and up a FUTURE, wider format, rejected until such a
+// The judge on the wire (app_message.c) and in store (normalize): exactly the five
+// lengths that shipped — 49, the pre-moon 48, the pre-alerts 34, the 16-kind 33 and the
+// pre-bold 29. The interim 31-byte (8-kind bold), 35-, 36- and 38-byte formats existed
+// only on feature branches, so they are garbage, not legacy; 27 is the pre-UV layout
+// whose health offsets moved; 50 and up a FUTURE, wider format, rejected until such a
 // widening actually happens.
 static void validate_tests(void) {
     uint8_t wide[64];
@@ -155,22 +155,28 @@ static void validate_tests(void) {
         char name[32];
         snprintf(name, sizeof(name), "validate.len%d", len);
         expect(name, status_threshold_settings_validate(wide, (size_t)len),
-               len == 48 || len == 34 || len == 33 || len == 29);
+               len == 49 || len == 48 || len == 34 || len == 33 || len == 29);
     }
     expect("validate.null", status_threshold_settings_validate(NULL, THRESH_SETTINGS_BYTES), 0);
     expect("validate.lengths", THRESH_SETTINGS_BYTES_PRE_ALERTS * 10000
            + THRESH_SETTINGS_BYTES_PRE_KIND16 * 100 + THRESH_SETTINGS_BYTES_PRE_BOLD, 343329);
+    expect("validate.pre_moon", THRESH_SETTINGS_BYTES_PRE_MOON, 48);
 }
 
 // normalize() is the one place a stored length means anything: what it hands every
-// accessor is the full 48-byte layout, whatever the scratch held before.
+// accessor is the full 49-byte layout, whatever the scratch held before.
 static void normalize_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     for (int i = 0; i < THRESH_SETTINGS_BYTES; i++) { blob[i] = (uint8_t)(i * 37 + 11); }
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND] = 0;   // wind: the no-box warn colour
-    // A 48-B blob is read exactly as stored.
+    // A 49-B blob is read exactly as stored.
     expect("norm.full_as_stored", memcmp(load(blob, THRESH_SETTINGS_BYTES), blob,
                                          THRESH_SETTINGS_BYTES), 0);
+    // A pre-moon 48-B blob too, all but the Moon phase's cell byte, which it lacks: the
+    // moon on no bar. No default, no derived warn look, no Battery byte fills in.
+    const uint8_t *pre_moon = load(blob, THRESH_SETTINGS_BYTES_PRE_MOON);
+    expect("norm.pre_moon_keeps", memcmp(pre_moon, blob, THRESH_SETTINGS_BYTES_PRE_MOON), 0);
+    expect("norm.pre_moon_cell", pre_moon[THRESH_ON_DEMAND_OFFSET + OD_MOON], 0);
     // Nothing stored: all zero — no switch on, no pair, the default bold ladder, the
     // rain look Text, no warn box — but opaque-white colours, the Battery item at
     // 10 %, Icon, and the compiled On demand cells (on_demand_default_tests).
@@ -184,7 +190,7 @@ static void normalize_tests(void) {
     // Every length that is not accepted reads exactly as nothing stored — the
     // never-shipped 38 included: a watch that ran the 1.24.0 development build shows
     // the defaults until the first settings send of 1.24.0 lands.
-    int bad[] = { -1, 1, 27, 28, 30, 31, 32, 35, 36, 37, 38, 39, 47, 49 };
+    int bad[] = { -1, 1, 27, 28, 30, 31, 32, 35, 36, 37, 38, 39, 47, 50 };
     for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
         expect("norm.invalid_is_none", memcmp(load(blob, bad[i]), none, sizeof(none)), 0);
     }
@@ -380,11 +386,11 @@ static void bold_tests(void) {
     expect("bold.phone_battery_pair_leaves_dew", mode_of(blob, n, THRESH_DEW), THRESH_BOLD_WARN);
 
     // The blob width is pinned: byte 33's four cells cover kinds 16..19, and
-    // the only widening since is 1.24.0's 34 -> 48 (the rain look, the Battery
-    // item byte, the two warn-look bytes and the ten On demand cells) — every
-    // extra byte rides the Clay message on every settings send (see
-    // test/repo/inbox-size.test.js).
-    expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 48);
+    // the widenings since are 1.24.0's 34 -> 48 (the rain look, the Battery
+    // item byte, the two warn-look bytes and the ten On demand cells) and 3.6.0's
+    // 48 -> 49 (the Moon phase's cell byte) — every extra byte rides the Clay message
+    // on every settings send (see test/repo/inbox-size.test.js).
+    expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 49);
     // Byte 33 is FULL — kinds 16..19 claim all four cells — and the alert bytes
     // sit right after it, so the kinds past it keep their cells in the alerts byte, and
     // one more is a layout change, not an append: status_threshold.h's _Static_asserts

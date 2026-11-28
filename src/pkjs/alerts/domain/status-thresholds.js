@@ -516,16 +516,14 @@
   var ALERT_DAYS = ['today', 'tomorrow'];
   var ALERT_DAYS_DEFAULT = 'tomorrow';
 
-  // alert<Key>NextDayMark: how a tomorrow entry marks its day, the choices of the
-  // slot's "Tomorrow's peak mark" (status-pair.js NEXT_DAY_MARKS, pinned to these by
-  // a test: '»8', '>8', '+8', '8*', or none). THIS order is the wire's: a tomorrow
-  // entry carries its mark as the index here + 1 (0 marks today's entry — see
-  // status-wire.js ALERT_DAY_SHIFT), and alert_set.h's STATUS_ALERT_MARK_* codes
-  // mirror it. Kept here rather than read off status-pair.js: that module is
-  // phone-only (no window export), and the settings page reads this contract.
-  // Absent or unknown reads as the default, the slot's own default.
-  var ALERT_NEXT_DAY_MARKS = ['raquo', 'gt', 'plus', 'star', 'none'];
-  var ALERT_NEXT_DAY_MARK_DEFAULT = 'raquo';
+  // alert<Key>NextDayMark: how a tomorrow entry marks its day, on-demand.js NEXT_DAY_MARKS,
+  // which the Moon phase item's mark shares. THIS order is the wire's: a tomorrow entry
+  // carries its mark as the index here + 1 (0 marks today's entry — see status-wire.js
+  // ALERT_DAY_SHIFT). Read off on-demand.js rather than status-pair.js: that module is
+  // phone-only (no window export), and the settings page reads this contract. Absent or
+  // unknown reads as the default, the slot's own default.
+  var ALERT_NEXT_DAY_MARKS = onDemand.NEXT_DAY_MARKS;
+  var ALERT_NEXT_DAY_MARK_DEFAULT = onDemand.NEXT_DAY_MARK_DEFAULT;
 
   // The rain alert's window while none is stored or it does not parse, in minutes.
   // Its look default sits in rainAlert, the one reading of both.

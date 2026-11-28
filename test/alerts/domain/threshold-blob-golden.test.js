@@ -31,7 +31,9 @@
 // blob equals the previous digest. Re-recorded when the Plugin value got its Bold (kind 21,
 // bits 5-6 of byte 34) the same way: the generator skips its bold mode too, the same 1322
 // blobs moved by Always in those two bits, and with them masked every blob equals the
-// previous digest.
+// previous digest. Re-recorded for 3.6.0's Moon phase cell byte (49 B, byte 48): no list
+// the generator draws ticks the moon and its default is no side, so every blob is the
+// previous packer's 48 bytes and a 0, and its first 48 bytes give the previous digest.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -41,7 +43,7 @@ const wire = require('../../../src/pkjs/alerts/domain/status-wire.js');
 const OD = require('../../../src/pkjs/status-bars/domain/on-demand.js');
 
 const COMBOS = 4000;
-const GOLDEN_SHA256 = '73de400d15a198a91b3d70d0759c76b702123dacae55b15887e06553b868729a';
+const GOLDEN_SHA256 = '6e9508e264d0d6a1dbdfe7d90cdd232023ca7bb4352d5c9e24f2f6c01ace43a8';
 // The kinds there were at the recording: the generator draws the bold modes of these only, so
 // a kind appended since keeps the PRNG sequence (and the digest) as it was.
 const RECORDED_KINDS = 20;

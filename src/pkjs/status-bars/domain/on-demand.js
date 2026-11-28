@@ -1,6 +1,6 @@
 /**
  * On demand: THE one reading of which items each status bar shows at its edges, and of
- * the Battery item's settings. Loaded on the phone (require) and in the settings page
+ * the Battery and Moon phase items' settings. Loaded on the phone (require) and in the settings page
  * (window.OnDemand), so the watch's wire bytes, the fetch gates, telemetry and the page's
  * summaries all read the settings the same way.
  *
@@ -41,7 +41,8 @@
     {code: 'uv', group: 'weather', label: 'UV index', icon: 'uv'},
     {code: 'aqi', group: 'weather', label: 'Air quality', icon: 'aqi'},
     {code: 'pollen', group: 'weather', label: 'Pollen', icon: 'pollen'},
-    {code: 'wind', group: 'weather', label: 'Wind speed', icon: 'wind'}
+    {code: 'wind', group: 'weather', label: 'Wind speed', icon: 'wind'},
+    {code: 'moon', group: 'sky', label: 'Moon phase', icon: 'moon'}
   ];
 
   // The status bars, in the watch's ThreshBar order (the 2-bit cell order in a cell byte).
@@ -116,13 +117,16 @@
   // Bluetooth, Quiet time, Sleep and the rain alert on its left, and the battery with the
   // weather alerts Wind gusts, UV index, Air quality and Wind speed on its right (Pollen
   // off; the battery takes the place of the old top-right low-battery warning); every
-  // other bar starts with nothing ticked. seedDefaults writes these into every install,
-  // upgraded ones included.
+  // other bar starts with nothing ticked (the Moon phase on none). seedDefaults writes these
+  // into every install, upgraded ones included.
   var DEFAULTS = {
     statusTopOnDemandLeftItems: 'bt,qt,snooze,rain',
     statusTopOnDemandRightItems: 'battery,gust,uv,aqi,wind',
     batteryLowLevel: '10',
-    batteryLowDisplay: 'icon'
+    batteryLowDisplay: 'icon',
+    moonItemShow: 'full',
+    moonItemDays: 'today',
+    moonItemNextDayMark: 'raquo'
   };
   (function () {
     for (var b = 1; b < BARS.length; b++) {
@@ -138,6 +142,21 @@
   var BATTERY_LEVEL_MAX = 30;
   var BATTERY_LEVEL_DEFAULT = 10;
   var BATTERY_DISPLAYS = ['icon', 'value'];
+
+  // How an item that looks ahead marks tomorrow's (the metric alerts' alert<Key>NextDayMark
+  // and the Moon phase's moonItemNextDayMark), the choices of the slot's "Tomorrow's peak
+  // mark" (status-pair.js NEXT_DAY_MARKS, pinned to these by a test: '»8', '>8', '+8',
+  // '8*', or none). THIS order is the wire's: a tomorrow's item carries its mark as the
+  // index here + 1 (0 marks today's), and alert_set.h's STATUS_ALERT_MARK_* codes mirror it.
+  var NEXT_DAY_MARKS = ['raquo', 'gt', 'plus', 'star', 'none'];
+  var NEXT_DAY_MARK_DEFAULT = 'raquo';
+
+  // The Moon phase item's Show (moonItemShow): the days it shows on, tonight's moon on every
+  // day ('always'), or only on the day of a full moon, of a new moon, or of either. Its Days
+  // (moonItemDays): 'today' judges the day alone; 'tomorrow' ("Today + tomorrow") also shows
+  // on the day before such a moon, that moon with the mark (moon-item.js shownMoon).
+  var MOON_SHOWS = ['always', 'full', 'new', 'both'];
+  var MOON_DAYS = ['today', 'tomorrow'];
 
   /**
    * @param {*} code Candidate item code.
@@ -194,6 +213,9 @@
     if (key === 'batteryLowDisplay') {
       return BATTERY_DISPLAYS.indexOf(v) >= 0 ? v : DEFAULTS[key];
     }
+    if (key === 'moonItemShow') { return MOON_SHOWS.indexOf(v) >= 0 ? v : DEFAULTS[key]; }
+    if (key === 'moonItemDays') { return MOON_DAYS.indexOf(v) >= 0 ? v : DEFAULTS[key]; }
+    if (key === 'moonItemNextDayMark') { return NEXT_DAY_MARKS.indexOf(v) >= 0 ? v : DEFAULTS[key]; }
     return v === undefined ? DEFAULTS[key] : v;
   }
 
@@ -379,29 +401,55 @@
   function batteryShowsValue(S) { return read(S, 'batteryLowDisplay') === 'value'; }
 
   /**
-   * The telemetry code: 40 characters, the first four bars in BARS order (bars 4 to 6 are
-   * not in it) and within a bar the items in ITEMS order. 'L'/'R' = ticked on a side of an
-   * existing bar, 'l'/'r' = ticked on a bar the modes remove, '-' = not ticked. An untouched
-   * install reads 'RLLLLRRR-R' followed by 30 '-'.
+   * The Moon phase item's settings, each read the one way (read).
+   * @param {Object} S Settings blob.
+   * @returns {{show: string, days: string, mark: string}} a MOON_SHOWS value, a MOON_DAYS value
+   *   and a NEXT_DAY_MARKS key
+   */
+  function moonItem(S) {
+    return { show: read(S, 'moonItemShow'), days: read(S, 'moonItemDays'),
+      mark: read(S, 'moonItemNextDayMark') };
+  }
+
+  // The items of the telemetry code's first part, read bar by bar: the ten items 1.24.0
+  // shipped, so the code's first 40 characters keep their places. Each later item follows
+  // with its four bars.
+  var TELEMETRY_BAR_ITEMS = 10;
+
+  /**
+   * The telemetry code: the first four bars in BARS order (bars 4 to 6 are not in it), within
+   * a bar the first TELEMETRY_BAR_ITEMS items in ITEMS order; then each item past those, the
+   * Moon phase, with its four bars. 'L'/'R' = ticked on a side of an existing bar, 'l'/'r' =
+   * ticked on a bar the modes remove, '-' = not ticked. An untouched install reads
+   * 'RLLLLRRR-R' followed by 34 '-'.
    * @param {Object} S Settings blob.
    * @param {Object} [env] Platform env (omitted = capable).
    * @returns {(string|undefined)} undefined on a watch without On demand (aplite)
    */
   function telemetryCode(S, env) {
     if (!facts(env).onDemand) { return undefined; }
-    var out = '';
-    for (var b = 0; b < BLOB_BARS.length; b++) {
-      var exists = barExists(S, BLOB_BARS[b].bar, env);
-      for (var i = 0; i < ITEMS.length; i++) {
-        var ch = '-';
-        for (var s = 0; s < SIDES.length && ch === '-'; s++) {
-          if (parse(read(S, itemsKey(BLOB_BARS[b].bar, SIDES[s]))).indexOf(ITEMS[i].code) >= 0) {
-            ch = SIDES[s] === 'left' ? 'l' : 'r';
-            if (exists) { ch = ch.toUpperCase(); }
-          }
+    var exists = BLOB_BARS.map(function (b) { return barExists(S, b.bar, env); });
+    /**
+     * @param {number} b A BLOB_BARS index. @param {number} i An ITEMS index.
+     * @returns {string} the item's character on that bar
+     */
+    function charOf(b, i) {
+      for (var s = 0; s < SIDES.length; s++) {
+        if (parse(read(S, itemsKey(BLOB_BARS[b].bar, SIDES[s]))).indexOf(ITEMS[i].code) >= 0) {
+          var ch = SIDES[s] === 'left' ? 'l' : 'r';
+          return exists[b] ? ch.toUpperCase() : ch;
         }
-        out += ch;
       }
+      return '-';
+    }
+    var out = '';
+    var b;
+    var i;
+    for (b = 0; b < BLOB_BARS.length; b++) {
+      for (i = 0; i < TELEMETRY_BAR_ITEMS; i++) { out += charOf(b, i); }
+    }
+    for (i = TELEMETRY_BAR_ITEMS; i < ITEMS.length; i++) {
+      for (b = 0; b < BLOB_BARS.length; b++) { out += charOf(b, i); }
     }
     return out;
   }
@@ -417,6 +465,10 @@
     BATTERY_LEVEL_MIN: BATTERY_LEVEL_MIN,
     BATTERY_LEVEL_MAX: BATTERY_LEVEL_MAX,
     BATTERY_LEVEL_DEFAULT: BATTERY_LEVEL_DEFAULT,
+    NEXT_DAY_MARKS: NEXT_DAY_MARKS,
+    NEXT_DAY_MARK_DEFAULT: NEXT_DAY_MARK_DEFAULT,
+    MOON_SHOWS: MOON_SHOWS,
+    MOON_DAYS: MOON_DAYS,
     itemIndex: itemIndex,
     prefixOf: prefixOf,
     itemsKey: itemsKey,
@@ -435,6 +487,7 @@
     placeRainForCountdown: placeRainForCountdown,
     batteryLevel: batteryLevel,
     batteryShowsValue: batteryShowsValue,
+    moonItem: moonItem,
     telemetryCode: telemetryCode
   };
 

@@ -144,17 +144,20 @@ var GOAL_VOICE = {
     }
 };
 /**
- * The next-day mark options — the day-max slots' "Tomorrow's peak mark" and each metric
- * alert's "Tomorrow's mark", one list so the two cannot drift — labelled on a sample
- * peak of 6 from the formatter's own table, so each label shows where its mark lands
- * (three lead the number, the star trails it). 'none' would print a bare 6, which
+ * The next-day mark options — the day-max slots' "Tomorrow's peak mark", each metric
+ * alert's "Tomorrow's mark" and the Moon phase's, one list so they cannot drift — labelled
+ * on a sample peak of 6 from the formatter's own table, so each label shows where its mark
+ * lands (three lead the number, the star trails it). 'none' would print a bare 6, which
  * reads as no choice at all, so it is spelled out.
+ * @param {string} [sample] What each label puts the mark beside: '6' when omitted, '' for the
+ *     mark alone (the Moon phase's, which the watch draws left of the moon whatever the mark).
  * @returns {Array<Array<string>>} [label, value] pairs, the formatter's order.
  */
-function nextDayMarkOptions() {
+function nextDayMarkOptions(sample) {
     var marks = STATUS_PAIR.NEXT_DAY_MARKS;
+    var beside = sample === undefined ? '6' : sample;
     return Object.keys(marks).map(function (value) {
-        return [value === 'none' ? 'No mark' : marks[value].pre + '6' + marks[value].post, value];
+        return [value === 'none' ? 'No mark' : marks[value].pre + beside + marks[value].post, value];
     });
 }
 // A kind's Alert levels (or Goals) group — the part of a level edit sheet that

@@ -25,12 +25,12 @@
 
 #if defined(WW_ON_DEMAND)
 
-// Glyph keys: the metric icons are their StatusIconId (to STATUS_ICON_MAX), the system
-// glyphs and Heavy rain their in-memory ids (status_icon_size.h); the rain alert's glyph is
-// its bucket's (status_rain_glyph), so drizzle -> rain swaps the glyph, and a Rain alert
-// shares the condition icon's drawing.
-// Quiet time, one Bluetooth variant, rain and the five metric kinds.
-#define GLYPH_SLOTS 8
+// Glyph keys: the metric icons and the moons are their StatusIconId (to STATUS_ICON_MAX), the
+// system glyphs and Heavy rain their in-memory ids (status_icon_size.h); the rain alert's glyph
+// is its bucket's (status_rain_glyph), so drizzle -> rain swaps the glyph, and a Rain alert
+// shares the condition icon's drawing; the Moon phase item shares the Moon phase slot's.
+// Quiet time, one Bluetooth variant, rain, the five metric kinds and the moon.
+#define GLYPH_SLOTS 9
 
 struct StatusOnDemandCache {
     GDrawCommandImage *images[GLYPH_SLOTS];
@@ -116,11 +116,11 @@ static GDrawCommandImage *image_for(const StatusOnDemandCache *cache, uint8_t ke
 // Everything that decides what the bar's items draw: which item sits on which side
 // of `bar`, which of them are active, what they show and the glyph each draws (the
 // Bluetooth rune or its crossed one, Quiet time's, the rain's drops by their bucket, a
-// metric alert's icon; none for the drawn Battery and Sleep). Beside the battery state
-// (the Battery item's charge, and whether the slots' battery glyph keeps its bolt
-// lane), only what an assigned item needs is read — the link for Bluetooth, the radar
-// cache for Rain, the entries for a metric alert — so a bar without items costs ten
-// cell reads and a battery peek.
+// metric alert's icon, the moon's picture; none for the drawn Battery and Sleep). Beside
+// the battery state (the Battery item's charge, and whether the slots' battery glyph keeps
+// its bolt lane), only what an assigned item needs is read — the link for Bluetooth, the
+// radar cache for Rain, the entries for a metric alert, the levels word for the Moon phase
+// — so a bar without items costs a cell read per item and a battery peek.
 // The rain alert comes from the cache rain_countdown_refresh() keeps, every pass —
 // O(1) and flash-free — which is why a bar with items is refreshed on the minute tick
 // and after a radar rescan; the metric alerts from the stored tuple (one flash read —
@@ -133,6 +133,7 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SC
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
     s->battery_value = false;
     s->rain_replaces = status_threshold_rain_replaces(blob);
+    s->moon_day = 0;
     BatteryChargeState bs = watch_services_battery_state();
     s->charge = bs.charge_percent;
     s->charging = bs.is_charging || bs.is_plugged;
@@ -140,7 +141,7 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SC
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         s->side[item] = (uint8_t)status_threshold_on_demand_side(blob, bar, item);
         s->active[item] = false;
-        if (s->side[item] != OD_SIDE_NONE) { assigned |= item >= OD_GUST ? 3 : 1; }
+        if (s->side[item] != OD_SIDE_NONE) { assigned |= od_item_is_metric(item) ? 3 : 1; }
     }
     if (s->side[OD_BATTERY] != OD_SIDE_NONE) {
         s->battery_value = status_threshold_battery_value(blob);
@@ -166,10 +167,20 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SC
         s->active[OD_RAIN] = rain_countdown_get(&s->rain, watch_services_now());
         s->key[OD_RAIN] = s->active[OD_RAIN] ? status_rain_glyph(s->rain.bucket) : 0;
     }
+    if (s->side[OD_MOON] != OD_SIDE_NONE) {
+        // The phone baked the day's moon into the levels word, which it judges with the
+        // levels (status_threshold.h).
+        OdMoon moon;
+        s->active[OD_MOON] = od_moon_of(persist_get_status_levels(), &moon);
+        if (s->active[OD_MOON]) {
+            s->key[OD_MOON] = (uint8_t)(STATUS_ICON_MOON_NEW + moon.picture);
+            s->moon_day = moon.day;
+        }
+    }
     if (!(assigned & 2)) { return assigned - 1; }   // no metric item: 0, or -1 for none
     const int n = persist_get_alert_entries(s->bytes, sizeof(s->bytes));   // >= 0
     alert_set_parse(s->bytes, (size_t)n, &s->set);
-    for (int item = OD_GUST; item < OD_ITEM_COUNT; item++) {
+    for (int item = OD_GUST; item <= OD_WIND; item++) {
         const AlertEntry *e = alert_set_entry(&s->set, item);
         s->active[item] = s->side[item] != OD_SIDE_NONE && e;
         s->key[item] = s->active[item] ? alert_set_item_icon(item) : 0;
@@ -179,10 +190,11 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SC
 
 // The active item's text on `lane` into `buf` ("" = none), and the font it prints in:
 // the Battery's "8%" with the Look Icon + value (off with the values), the rain
-// alert's text or its minutes (alert_set_rain_text), and a metric entry's
+// alert's text or its minutes (alert_set_rain_text), a metric entry's
 // alert_set_lane — its value inside tomorrow's mark, in bold when its look says so
-// (danger, warn per the kind's Bold mode, 'Always'). Bluetooth, Quiet time and Sleep
-// have no text; the rain text never bolds.
+// (danger, warn per the kind's Bold mode, 'Always') — and the Moon phase's tomorrow mark,
+// on every lane: a mark is no value. Bluetooth, Quiet time and Sleep have no text; the
+// rain text and the mark never bold.
 static GFont item_text(const StatusOnDemandState *s, int item, int lane,
                        const StatusOnDemandEnv *env, char *buf, size_t cap) {
     buf[0] = '\0';
@@ -197,6 +209,12 @@ static GFont item_text(const StatusOnDemandState *s, int item, int lane,
         if (rd != THRESH_RAIN_DISPLAY_ICON) {
             alert_set_rain_text(&s->rain, rd == THRESH_RAIN_DISPLAY_MINUTES, buf, cap);
         }
+        return env->fonts[0];
+    }
+    if (item == OD_MOON) {
+        // The mark alone: an entry of the moon's day with no value bytes.
+        const AlertEntry mark = { .day = s->moon_day };
+        alert_set_lane(&mark, false, buf, cap);
         return env->fonts[0];
     }
     const AlertEntry *e = alert_set_entry(&s->set, item);
@@ -260,11 +278,11 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
     const bool batt = s.active[OD_BATTERY];
     const bool rain = s.active[OD_RAIN];
     const bool text = rain && s.rain_display != THRESH_RAIN_DISPLAY_ICON;
-    uint8_t live[10] = { (uint8_t)batt, s.key[OD_BLUETOOTH], (uint8_t)s.active[OD_QUIET_TIME],
+    uint8_t live[12] = { (uint8_t)batt, s.key[OD_BLUETOOTH], (uint8_t)s.active[OD_QUIET_TIME],
                          (uint8_t)s.active[OD_SLEEP], (uint8_t)rain,
                          batt ? s.charge : 0, (uint8_t)(batt && s.charging),
                          rain ? s.rain.bucket : 0, text ? s.rain.mins : 0,
-                         (uint8_t)(text && s.rain.raining) };
+                         (uint8_t)(text && s.rain.raining), s.key[OD_MOON], s.moon_day };
     sig = sig_fold(sig, live, sizeof(live));
     return sig_fold(sig, s.bytes, (size_t)n);
 }
@@ -417,6 +435,13 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
     // the measure took the footprint from this same text in this draw.
     int16_t text_w = buf[0] == '\0' ? 0 : (int16_t)(x + w - text_x - (od_item_boxed(item)
         ? STATUS_ON_DEMAND_BOX_PAD_X - OD_TEXT_TRAIL_SPACING : 0));
+    if (od_item_text_first(item) && text_w > 0) {
+        // The text first, then the glyph at the footprint's end: the same footprint the
+        // other way round (such an item is never boxed).
+        text_x = x;
+        icon_x = (int16_t)(x + w - icon_w);
+        text_w = (int16_t)(icon_x - x - (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
+    }
     int16_t icon_top = (int16_t)(env->glyph_cy - env->icon_h / 2);
     StatusPaint paint = status_paint_theme();
     // A metric entry is boxed at DANGER always (filled) and at WARN per its kind's

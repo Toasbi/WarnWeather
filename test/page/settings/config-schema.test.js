@@ -591,7 +591,7 @@ test('the Alerts tab: between Status bars and Graphs, hidden on aplite, holding 
   // Everything else on the tab is a dialog the items' rows open.
   assert.deepEqual(tab.sections.filter((s) => s.sheetOnly).map((s) => s.sheetId),
     ['odLists', 'odBattery', 'odBluetooth', 'odQuiet', 'odSleep', 'alertRain']
-      .concat(ALERT_STEMS.map((stem) => 'alert' + stem)));
+      .concat(ALERT_STEMS.map((stem) => 'alert' + stem), ['odMoon']));
 });
 
 test('the Theme & night card sits between the screens\' cards and Time, and opens on the theme pickers', () => {
@@ -2137,7 +2137,7 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
     .map((s) => s.title).filter(Boolean);
   assert.deepEqual(alertTitles,
     ['Battery', 'Bluetooth', 'Quiet time', 'Battery saver', 'Rain alert', 'Wind gusts alert', 'UV index alert',
-      'Air quality (AQI) alert', 'Pollen alert', 'Wind speed alert'],
+      'Air quality (AQI) alert', 'Pollen alert', 'Wind speed alert', 'Moon phase'],
     'the item sheets close the Alerts tab, in the card\'s order');
   // Time and Calendar close the Watchface tab (order Time, Calendar) — the Status bars
   // tab holds nothing but slot config.
@@ -2296,7 +2296,7 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
   const it = rowsSec.items;
   assert.deepEqual(it.map((i) => i.sheetId || i.label || i.text || i.type), [
     'System info', 'odBattery', 'odBluetooth', 'odQuiet', 'odSleep', 'Weather alerts',
-    'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind']);
+    'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind', 'Sky', 'odMoon']);
   // A row whose alert is on no bar reads dimmed: its summary goes faint while the item is
   // placed nowhere.
   const faint = (code) => ({ not: placedWhenOf(code) });
@@ -2335,6 +2335,17 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
     assert.deepEqual(it[7 + k], row, stem + ' row: shown with every Provider');
     assert.deepEqual(it[7 + k].hintFrom.args.days, byKey('alert' + stem + 'Days').options, stem);
   });
+  // The Sky card: the Moon phase, whose hint prints its Show and Days by its sheet's labels.
+  assert.deepEqual(it[12], { type: 'subheader', text: 'Sky' });
+  assert.deepEqual(it[13], {
+    type: 'sheet', sheetId: 'odMoon', label: 'Moon phase', icon: 'moon',
+    hintFrom: { resolver: 'onDemandMoonText', args: {
+      shows: [['Always', 'always'], ['At full moon', 'full'], ['At new moon', 'new'], ['At new and full moon', 'both']],
+      days: [['Today', 'today'], ['Today + tomorrow', 'tomorrow']] } },
+    summaryFaintFrom: faint('moon')
+  });
+  assert.deepEqual(it[13].hintFrom.args.shows, byKey('moonItemShow').options);
+  assert.deepEqual(it[13].hintFrom.args.days, byKey('moonItemDays').options);
   assert.ok(!sec.items.concat(it).some((r) => r.messageKey), 'no control on the cards: every row reads or opens a sheet');
 });
 
@@ -2538,7 +2549,7 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   const odSheets = schema.tabs.find((t) => t.id === 'alerts').sections.filter((s) => s.sheetOnly);
   assert.deepEqual(odSheets.map((s) => s.sheetId),
     ['odLists', 'odBattery', 'odBluetooth', 'odQuiet', 'odSleep',
-      'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind']);
+      'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind', 'odMoon']);
   odSheets.forEach((s) => {
     assert.deepEqual(s.showWhen, { env: 'onDemand' }, s.sheetId + ' is On demand-gated');
     assert.equal(showWhen.isVisible(s, { radarMode: 'graph', healthMode: 'all',

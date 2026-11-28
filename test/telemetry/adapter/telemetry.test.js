@@ -232,12 +232,12 @@ test('snapshot carries the twelve status slot selections', () => {
   assert.equal(snap.statusHealthRight, 'hr');
 });
 
-// On demand: where each item is ticked, 40 letters read like the bake reads the sides
+// On demand: where each item is ticked, 44 letters read like the bake reads the sides
 // (on-demand.js telemetryCode, pinned in test/status-bars/domain/on-demand.test.js); the Battery item's
 // warn level as stored and its look.
 test('snapshot reports onDemand, batteryLowLevel and batteryLowDisplay', () => {
   const fresh = buildSettingsSnapshot({});
-  assert.equal(fresh.onDemand, 'RLLLLRRR-R' + '-'.repeat(30),
+  assert.equal(fresh.onDemand, 'RLLLLRRR-R' + '-'.repeat(34),
     'untouched: the default ticks, all on the Watch Status Bar');
   assert.equal(fresh.batteryLowLevel, undefined, 'unseeded: absent, read as the default');
   assert.equal(fresh.batteryLowDisplay, undefined);

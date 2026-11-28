@@ -6,14 +6,14 @@ const assert = require('node:assert');
 const OD = require('../../../src/pkjs/status-bars/domain/on-demand.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 
-const CODES = ['battery', 'bt', 'qt', 'snooze', 'rain', 'gust', 'uv', 'aqi', 'pollen', 'wind'];
+const CODES = ['battery', 'bt', 'qt', 'snooze', 'rain', 'gust', 'uv', 'aqi', 'pollen', 'wind', 'moon'];
 
-test('ITEMS: the ten items in priority order, system info first', () => {
+test('ITEMS: the eleven items in priority order, system info first, the Moon phase last', () => {
   assert.deepEqual(OD.ITEMS.map((i) => i.code), CODES);
   assert.deepEqual(OD.ITEMS.map((i) => i.group),
-    ['system', 'system', 'system', 'system', 'weather', 'weather', 'weather', 'weather', 'weather', 'weather']);
+    ['system', 'system', 'system', 'system', 'weather', 'weather', 'weather', 'weather', 'weather', 'weather', 'sky']);
   assert.deepEqual(OD.ITEMS.map((i) => i.label), ['Battery', 'Bluetooth', 'Quiet time', 'Battery saver', 'Rain',
-    'Wind gusts', 'UV index', 'Air quality', 'Pollen', 'Wind speed']);
+    'Wind gusts', 'UV index', 'Air quality', 'Pollen', 'Wind speed', 'Moon phase']);
   assert.deepEqual(OD.BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health', 'bar4', 'bar5', 'bar6']);
   assert.deepEqual(OD.BLOB_BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health']);
   assert.deepEqual(OD.PAGE_BARS.map((b) => b.name),
@@ -32,7 +32,24 @@ test('DEFAULTS: the Watch bar carries the defaults, every other bar is empty', (
   }));
   assert.equal(OD.DEFAULTS.batteryLowLevel, '10');
   assert.equal(OD.DEFAULTS.batteryLowDisplay, 'icon');
-  assert.equal(Object.keys(OD.DEFAULTS).length, 16, 'the fourteen side lists + the two Battery keys');
+  assert.equal(OD.DEFAULTS.moonItemShow, 'full');
+  assert.equal(OD.DEFAULTS.moonItemDays, 'today');
+  assert.equal(OD.DEFAULTS.moonItemNextDayMark, 'raquo');
+  assert.equal(Object.keys(OD.DEFAULTS).length, 19,
+    'the fourteen side lists + the two Battery keys + the three Moon phase keys');
+});
+
+test('moonItem: Show, Days and Tomorrow\'s mark, each read the one way', () => {
+  assert.deepEqual(OD.moonItem({}), { show: 'full', days: 'today', mark: 'raquo' }, 'the defaults');
+  assert.deepEqual(OD.moonItem(null), { show: 'full', days: 'today', mark: 'raquo' });
+  OD.MOON_SHOWS.forEach((show) => OD.MOON_DAYS.forEach((days) => OD.NEXT_DAY_MARKS.forEach((mark) => {
+    assert.deepEqual(OD.moonItem({ moonItemShow: show, moonItemDays: days, moonItemNextDayMark: mark }),
+      { show, days, mark });
+  })));
+  assert.deepEqual(OD.MOON_SHOWS, ['always', 'full', 'new', 'both']);
+  assert.deepEqual(OD.MOON_DAYS, ['today', 'tomorrow']);
+  assert.deepEqual(OD.moonItem({ moonItemShow: 'half', moonItemDays: 7, moonItemNextDayMark: '»' }),
+    { show: 'full', days: 'today', mark: 'raquo' }, 'an unknown value reads the default');
 });
 
 test('parse: canonical order, unknown codes and duplicates dropped', () => {
@@ -208,17 +225,19 @@ test('computeEnv: fineBattery on emery only, false for an unknown watch', () => 
   assert.equal(platform.computeEnv(null).fineBattery, false);
 });
 
-test('telemetryCode: 40 letters, upper case only while the item shows', () => {
-  assert.equal(OD.telemetryCode({}), 'RLLLLRRR-R' + '-'.repeat(30), 'an untouched install');
+test('telemetryCode: 44 letters, upper case only while the item shows', () => {
+  assert.equal(OD.telemetryCode({}), 'RLLLLRRR-R' + '-'.repeat(34), 'an untouched install');
   const S = {
     statusTopOnDemandLeftItems: '',
-    statusForecastOnDemandRightItems: 'rain',
-    statusRadarOnDemandLeftItems: 'uv', radarMode: 'off'
+    statusForecastOnDemandRightItems: 'rain,moon',
+    statusRadarOnDemandLeftItems: 'uv,moon', radarMode: 'off'
   };
   const code = OD.telemetryCode(S);
-  assert.equal(code.length, 40);
+  assert.equal(code.length, 44);
   assert.equal(code.slice(0, 10), 'R----RRR-R', 'nothing ticked on the left');
   assert.equal(code.slice(10, 20), '----R-----', 'forecast: rain right');
   assert.equal(code.slice(20, 30), '------l---', 'a bar the mode removes reads lower case');
+  // The first 40 keep 1.24.0's places (ten items a bar); the Moon phase follows with its bars.
+  assert.equal(code.slice(40), '-Rl-', 'the Moon phase: forecast right, radar left (removed)');
   assert.equal(OD.telemetryCode({}, platform.computeEnv({platform: 'aplite'})), undefined);
 });

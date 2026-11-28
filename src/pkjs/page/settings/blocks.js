@@ -759,7 +759,8 @@ if (typeof require !== 'undefined') {
     // schema defaults, via the engine's resolver like resetStatusSlots above — the Battery
     // item's warn level and Look, the Bluetooth item's Show and vibration, the rain alert's
     // window, look and Replaces the slot, each metric alert's Look, Days and tomorrow mark (the contract's
-    // ALERT_KINDS, the five the tab lists) — and where each item shows: every bar's side
+    // ALERT_KINDS, the five the tab lists), the Moon phase's Show, Days and tomorrow mark —
+    // and where each item shows: every bar's side
     // lists (on-demand.js BARS × SIDES), which its sheets' Shows on grids write (the Status
     // bars reset restores those too, as its bars' Alerts rows show them). Deliberately
     // untouched: the levels, warn looks and colours (each sheet's Alert levels header has its
@@ -775,7 +776,8 @@ if (typeof require !== 'undefined') {
     PConf.actions.resetOnDemand = function (arg, S, env, defaultOf) {
         if (!S || !defaultOf) { return false; }
         var keys = ['batteryLowLevel', 'batteryLowDisplay', 'btIcons', 'vibe',
-            'rainCountdownHorizon', 'rainAlertDisplay', 'rainAlertReplacesSlot'];
+            'rainCountdownHorizon', 'rainAlertDisplay', 'rainAlertReplacesSlot',
+            'moonItemShow', 'moonItemDays', 'moonItemNextDayMark'];
         for (var k = 0; k < thresholds.ALERT_KINDS.length; k++) {
             var stem = thresholds.ALERT_KINDS[k].key;
             keys.push('alert' + stem + 'Display', 'alert' + stem + 'Days',

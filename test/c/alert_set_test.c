@@ -68,7 +68,7 @@ static void parse_tests(void) {
     // No pollen entry; and only the metric items have entries at all.
     expect("parse.pollen.none", alert_set_entry(&set, OD_POLLEN) == NULL, 1);
     for (int item = -1; item <= OD_ITEM_COUNT; item++) {
-        if (item >= OD_GUST && item < OD_ITEM_COUNT) { continue; }
+        if (od_item_is_metric(item)) { continue; }
         char name[32];
         snprintf(name, sizeof(name), "parse.item%d.none", item);
         expect(name, alert_set_entry(&set, item) == NULL, 1);
@@ -243,6 +243,7 @@ static void icon_tests(void) {
         snprintf(name, sizeof(name), "icon.item%d", item);
         expect(name, alert_set_item_icon(item), STATUS_ICON_NONE);
     }
+    expect("icon.moon", alert_set_item_icon(OD_MOON), STATUS_ICON_NONE);
     expect("icon.past_end", alert_set_item_icon(OD_ITEM_COUNT), STATUS_ICON_NONE);
 }
 
@@ -263,7 +264,7 @@ static void item_tests(void) {
                                 || kind == THRESH_POLLEN || kind == THRESH_WIND);
         if (item >= 0) {
             snprintf(name, sizeof(name), "item.kind%d.metric", kind);
-            expect(name, item >= OD_GUST && item < OD_ITEM_COUNT, 1);
+            expect(name, od_item_is_metric(item), 1);
             items |= 1 << item;
         }
     }
@@ -494,8 +495,62 @@ static void rain_text_tests(void) {
     expect_str("rain.cap0_untouched", out, "junk");
 }
 
+// The Moon phase item (on_demand.h): its moon rides bits 10-15 of the levels word, 0 for
+// none, else 1 + the picture + 8 x the day; it is no metric item, never boxed, and prints
+// its text, the tomorrow mark alone, before the moon.
+static void moon_tests(void) {
+    expect("moon.item", OD_MOON, OD_WIND + 1);
+    expect("moon.not_metric", od_item_is_metric(OD_MOON), 0);
+    expect("moon.not_boxed", od_item_boxed(OD_MOON), 0);
+    expect("moon.text_first", od_item_text_first(OD_MOON), 1);
+    for (int item = 0; item < OD_MOON; item++) {
+        char name[32];
+        snprintf(name, sizeof(name), "moon.item%d.text_after", item);
+        expect(name, od_item_text_first(item), 0);
+    }
+    expect("moon.days", OD_MOON_DAYS, STATUS_ALERT_MARK_NONE + 1);
+    // Every value of the six bits: 0 and past the last day none, the rest one moon each.
+    for (int v = 0; v <= OD_MOON_MASK; v++) {
+        char name[32];
+        OdMoon moon = { .picture = 0xAA, .day = 0xAA };
+        // The levels below and above the moon's bits play no part.
+        const int word = (v << OD_MOON_SHIFT) | 0x3FF | (1 << 16);
+        const bool shown = od_moon_of(word, &moon);
+        snprintf(name, sizeof(name), "moon.v%d.shown", v);
+        expect(name, shown, v >= 1 && v <= 8 * OD_MOON_DAYS);
+        if (!shown) {
+            snprintf(name, sizeof(name), "moon.v%d.untouched", v);
+            expect(name, moon.picture == 0xAA && moon.day == 0xAA, 1);
+            continue;
+        }
+        snprintf(name, sizeof(name), "moon.v%d.value", v);
+        expect(name, 1 + moon.picture + 8 * moon.day, v);
+    }
+    OdMoon full = { 0 };
+    expect("moon.full_today", od_moon_of((1 + 4) << OD_MOON_SHIFT, &full), 1);
+    expect("moon.full_today.picture", STATUS_ICON_MOON_NEW + full.picture, STATUS_ICON_MOON_FULL);
+    expect("moon.full_today.day", full.day, STATUS_ALERT_DAY_TODAY);
+    OdMoon next = { 0 };
+    expect("moon.new_tomorrow", od_moon_of((1 + 0 + 8 * STATUS_ALERT_MARK_RAQUO) << OD_MOON_SHIFT,
+                                           &next), 1);
+    expect("moon.new_tomorrow.day", next.day, STATUS_ALERT_MARK_RAQUO);
+    // Its text is the mark of its day, whatever the lane: "" today, the mark tomorrow.
+    static const char *const MARKS[OD_MOON_DAYS] = { "", "\xC2\xBB", ">", "+", "*", "" };
+    for (int day = 0; day < OD_MOON_DAYS; day++) {
+        char name[32];
+        char out[ALERT_SET_LANE_CAP];
+        const AlertEntry mark = { .day = (uint8_t)day };
+        for (int values = 0; values <= 1; values++) {
+            alert_set_lane(&mark, values, out, sizeof(out));
+            snprintf(name, sizeof(name), "moon.mark%d.values%d", day, values);
+            expect_str(name, out, MARKS[day]);
+        }
+    }
+}
+
 int main(void) {
     parse_tests();
+    moon_tests();
     bytes_ok_tests();
     icon_tests();
     item_tests();

@@ -94,6 +94,7 @@ bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
     // status_threshold.h).
     return blob != NULL
         && (len == THRESH_SETTINGS_BYTES
+            || len == THRESH_SETTINGS_BYTES_PRE_MOON
             || len == THRESH_SETTINGS_BYTES_PRE_ALERTS
             || len == THRESH_SETTINGS_BYTES_PRE_KIND16
             || len == THRESH_SETTINGS_BYTES_PRE_BOLD);
@@ -102,9 +103,9 @@ bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
 // The compiled On demand defaults: the Watch Status Bar's cells as the phone's
 // defaults (src/pkjs/status-bars/domain/on-demand.js DEFAULTS) write them for a fresh install — left
 // Bluetooth, Quiet time, Sleep, Rain; right Battery, Wind gusts, UV index, Air
-// quality, Wind speed; Pollen on no side. Every other bar has no item. The Watch
-// Status Bar's cell is bits 0-1, so each side is its item's whole cell byte: these
-// are bytes 38..47 of a blob without the cells.
+// quality, Wind speed; Pollen and the Moon phase on no side. Every other bar has no
+// item. The Watch Status Bar's cell is bits 0-1, so each side is its item's whole cell
+// byte: these are bytes 38..48 of a blob without the cells.
 _Static_assert(THRESH_BAR_TOP == 0, "OD_DEFAULT_TOP's sides are the cell bytes as they stand");
 static const uint8_t OD_DEFAULT_TOP[OD_ITEM_COUNT] = {
     [OD_BATTERY]    = OD_SIDE_RIGHT,
@@ -117,6 +118,7 @@ static const uint8_t OD_DEFAULT_TOP[OD_ITEM_COUNT] = {
     [OD_AQI]        = OD_SIDE_RIGHT,
     [OD_POLLEN]     = OD_SIDE_NONE,
     [OD_WIND]       = OD_SIDE_RIGHT,
+    [OD_MOON]       = OD_SIDE_NONE,
 };
 
 void status_threshold_normalize(uint8_t blob[THRESH_SETTINGS_BYTES], int stored_len) {
@@ -124,8 +126,10 @@ void status_threshold_normalize(uint8_t blob[THRESH_SETTINGS_BYTES], int stored_
         && status_threshold_settings_validate(blob, (size_t)stored_len)) ? (size_t)stored_len : 0;
     if (keep == THRESH_SETTINGS_BYTES) { return; }
     // Everything the stored bytes lack reads 0: no enable bit, no health pair, the
-    // default bold ladder, the rain look Text, no warn box.
+    // default bold ladder, the rain look Text, no warn box, the Moon phase on no bar.
     memset(blob + keep, 0, THRESH_SETTINGS_BYTES - keep);
+    // A pre-moon blob lacks only the Moon phase's cell byte: the rest is as stored.
+    if (keep == THRESH_SETTINGS_BYTES_PRE_MOON) { return; }
     if (keep == 0) {
         // Nothing stored: no colour either — the opaque-white fallback.
         memset(blob + THRESH_COLORS_OFFSET, 0xFF, 2 * THRESH_PAIRED_KIND_COUNT);

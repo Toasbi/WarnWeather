@@ -419,9 +419,9 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // aplite only (isAplite above): its quiet-time icon and low-battery-only toggles.
         showQt: isAplite ? Boolean(safe.showQt) : undefined,
         batteryLowOnly: isAplite ? Boolean(safe.batteryLowOnly) : undefined,
-        // On demand: 40 letters, the ten items of each bar (top, forecast, radar, health)
-        // in the On demand order — L/R ticked on a side of a bar that shows, l/r
-        // ticked on a bar the layout leaves out, '-' not ticked.
+        // On demand: 44 letters, the first ten items of each bar (top, forecast, radar, health)
+        // in the On demand order, then the Moon phase's four bars — L/R ticked on a side of a
+        // bar that shows, l/r ticked on a bar the layout leaves out, '-' not ticked.
         // Absent on a known aplite, which has no On demand: showQt and batteryLowOnly
         // above are what aplite reads, and only aplite reports them.
         onDemand: onDemandCode,

@@ -6,9 +6,9 @@
  *    thresholds (the watch levels those kinds itself), every kind's 2-bit bold cell,
  *    the rain alert's look, the On demand Battery item, each paired kind's warn look
  *    and the On demand cells;
- *  - the weather kinds' levels (STATUS_LEVELS_UINT8, packWeatherLevels) and the
- *    weather alerts' metric entries (ALERT_ENTRIES_UINT8, bakedAlerts and packAlerts), both judged at
- *    weather-bake time.
+ *  - the weather kinds' levels (STATUS_LEVELS_UINT8, packWeatherLevels), with the Moon phase
+ *    item's moon for the day in the word's spare bits, and the weather alerts' metric entries
+ *    (ALERT_ENTRIES_UINT8, bakedAlerts and packAlerts), both judged at weather-bake time.
  *
  * Phone-only: plain CommonJS, and NOT in the settings page's APP_FILES
  * (scripts/build-config-page.js). The page reads the model (status-thresholds.js,
@@ -41,9 +41,10 @@ var weatherKindOf = thresholds.weatherKindOf;
 
 // One widening per release that shipped a new length, each appended to the
 // 29-byte pre-bold layout: 1.11.0 shipped 33 (the bold area for kinds 0..15);
-// 1.12.0 shipped 34 (battery %, kind 16, opened byte 33); 1.24.0 ships 48 (the
+// 1.12.0 shipped 34 (battery %, kind 16, opened byte 33); 1.24.0 shipped 48 (the
 // rain look, the On demand Battery item, the two warn-look bytes and the ten On
-// demand cells). The watch also accepts 34, 33 and 29; the interim 31-, 35-, 36-
+// demand cells); 3.6.0 ships 49 (the Moon phase item's cell byte, the eleventh). The
+// watch also accepts 48, 34, 33 and 29; the interim 31-, 35-, 36-
 // and 38-byte formats never shipped — they existed only on feature branches — so
 // they validate as garbage, not as legacy (see status_threshold.h). Byte 33
 // holds FOUR 2-bit cells (kinds 16..19): dew point (17) and the two
@@ -53,7 +54,7 @@ var weatherKindOf = thresholds.weatherKindOf;
 // cells in two spare bits each of the alerts byte (boldCell). A kind past them is no
 // plain append any more: it needs a sixth bold byte AND everything behind it
 // relocated, a layout change on both ends (the C header's _Static_assert trips).
-var SETTINGS_BYTES = 48;
+var SETTINGS_BYTES = 49;
 var COLORS_OFFSET = 1;
 var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
 var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3) — bytes 29..33
@@ -84,7 +85,7 @@ var BATTERY_VALUE_BIT = 0x40;
 // values are WARN_LOOKS (status-thresholds.js).
 var WARN_LOOK_OFFSET = 36;
 // The On demand cells: one byte per item (on-demand.js ITEMS, the watch's OdItem
-// order), 2 bits per bar (on-demand.js BARS, its ThreshBar order) — bytes 38..47.
+// order), 2 bits per bar (on-demand.js BARS, its ThreshBar order) — bytes 38..48.
 var ON_DEMAND_OFFSET = 38;
 
 /**
@@ -148,7 +149,7 @@ function healthWire(kindIndex, v, settings) {
  * @param {{color: boolean, fineBattery: boolean}} [env] platform env (config-ui
  *     platform.js computeEnv); absent = a colour watch with 10 % battery steps
  *     that draws On demand
- * @returns {number[]} SETTINGS_BYTES-long array (48 bytes)
+ * @returns {number[]} SETTINGS_BYTES-long array (49 bytes)
  */
 function buildSettingsBlob(settings, env) {
   var blob = [];
@@ -322,6 +323,21 @@ function weatherLevelShift(k) {
   return k <= 3 ? 2 * k : 8;
 }
 
+// Bits 10-15 of the levels value: the On demand Moon phase item's moon for the day
+// (moon-item.js shownMoon; on_demand.h od_moon_of): 0 for none, else 1 + its picture + 8 x its
+// day, 0 for today's moon, else tomorrow's mark code (markCode). In the levels word because a
+// tuple of its own (8 B) would leave a full weather message on the 640 B watches under the
+// 10 B headroom floor (test/repo/inbox-size.test.js).
+var MOON_SHIFT = 10;
+
+/**
+ * @param {?{picture: number, mark: ?string}} shown moon-item.js shownMoon's moon, or null.
+ * @returns {number} Its 6 bits of the levels value: 0..48.
+ */
+function moonBits(shown) {
+  return shown ? 1 + shown.picture + 8 * (shown.mark === null ? 0 : markCode(shown.mark)) : 0;
+}
+
 /**
  * A weather kind's level for a number, against the kind's resolved pair (seeds
  * when blank) — toggle-agnostic: the level says how high the value is, the
@@ -343,7 +359,8 @@ function levelOf(code, value, settings) {
 
 /**
  * Pack the weather-kind levels into the STATUS_LEVELS_UINT8 wire bytes, LE
- * (kinds 0..3 in byte 0 at bits 2k; UV in byte 1 at bits 0-1). Every weather
+ * (kinds 0..3 in byte 0 at bits 2k; UV in byte 1 at bits 0-1), and the Moon phase
+ * item's moon into byte 1's bits 2-7 (MOON_SHIFT). Every weather
  * kind packs its level whether or not its highlight is on — only missing data
  * stays Normal. That is watch-safe: status_threshold_slot_level checks the
  * kind's blob[0] enable bit (Clay message) BEFORE it reads this level, so an
@@ -352,10 +369,12 @@ function levelOf(code, value, settings) {
  * (sent immediately), so it needs no re-bake and stays out of renderSignature.
  * @param {Object} payload weather payload (pre-transform)
  * @param {Object} settings Clay settings blob
+ * @param {?{picture: number, mark: ?string}} [moon] moon-item.js shownMoon's moon; absent or
+ *     null for none
  * @returns {number[]} two-element byte array (2 wire bytes)
  */
-function packWeatherLevels(payload, settings) {
-  var packed = 0;
+function packWeatherLevels(payload, settings, moon) {
+  var packed = moonBits(moon || null) << MOON_SHIFT;
   for (var k = 0; k < KINDS.length; k++) {
     if (!isWeatherKind(KINDS[k])) { continue; }
     var code = KINDS[k].code;
@@ -472,6 +491,17 @@ var ALERT_LEN_MAX = 7;
 var ALERT_ENTRIES_MAX_BYTES = 20;
 
 /**
+ * A tomorrow's day code: its mark's code, the ALERT_NEXT_DAY_MARKS index + 1 (alert_set.h
+ * STATUS_ALERT_MARK_*); 0 is today's.
+ * @param {string} mark An ALERT_NEXT_DAY_MARKS key; anything else codes as the default.
+ * @returns {number} 1..ALERT_NEXT_DAY_MARKS.length
+ */
+function markCode(mark) {
+  var idx = ALERT_NEXT_DAY_MARKS.indexOf(mark);
+  return 1 + (idx < 0 ? ALERT_NEXT_DAY_MARKS.indexOf(ALERT_NEXT_DAY_MARK_DEFAULT) : idx);
+}
+
+/**
  * The header byte of one entry.
  * @param {number} kind the entry's ThreshKind (its KINDS index)
  * @param {number} level 1 warn / 2 danger
@@ -480,11 +510,7 @@ var ALERT_ENTRIES_MAX_BYTES = 20;
  * @returns {number} the byte
  */
 function alertHeader(kind, level, mark) {
-  var day = 0;
-  if (mark !== null) {
-    var idx = ALERT_NEXT_DAY_MARKS.indexOf(mark);
-    day = 1 + (idx < 0 ? ALERT_NEXT_DAY_MARKS.indexOf(ALERT_NEXT_DAY_MARK_DEFAULT) : idx);
-  }
+  var day = mark === null ? 0 : markCode(mark);
   return ALERT_HEADER | kind | (level >= 2 ? ALERT_DANGER : 0) | (day << ALERT_DAY_SHIFT);
 }
 
@@ -562,6 +588,7 @@ module.exports = {
   ON_DEMAND_OFFSET: ON_DEMAND_OFFSET,
   buildSettingsBlob: buildSettingsBlob,
   buildExtraCells: buildExtraCells,
+  MOON_SHIFT: MOON_SHIFT,
   packWeatherLevels: packWeatherLevels,
   ALERT_HEADER: ALERT_HEADER,
   ALERT_DANGER: ALERT_DANGER,

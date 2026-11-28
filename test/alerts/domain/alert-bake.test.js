@@ -81,13 +81,14 @@ test('buildSettingsBlob: bit 2 of byte 34 is the Rain alert\'s "Replaces the slo
   off.forEach((b, i) => { if (i !== A) { assert.equal(on[i], b, 'byte ' + i); } });
 });
 
-test('buildSettingsBlob: bytes 38-47 carry the On demand cells, effective values only', () => {
+test('buildSettingsBlob: bytes 38-48 carry the On demand cells, effective values only', () => {
   const O = wire.ON_DEMAND_OFFSET;
   assert.equal(O, 38);
   const OD = require('../../../src/pkjs/status-bars/domain/on-demand.js');
   // One byte per item, 2 bits per bar (1 left, 2 right). The defaults: the Watch Status
-  // Bar only — Bluetooth, Quiet time, Sleep and Rain on its left, the rest but Pollen right.
-  assert.deepEqual(wire.buildSettingsBlob({}).slice(O), [2, 1, 1, 1, 1, 2, 2, 2, 0, 2], 'the defaults');
+  // Bar only — Bluetooth, Quiet time, Sleep and Rain on its left, the rest but Pollen and
+  // the Moon phase right.
+  assert.deepEqual(wire.buildSettingsBlob({}).slice(O), [2, 1, 1, 1, 1, 2, 2, 2, 0, 2, 0], 'the defaults');
   const S = placeOn(placeOn(Object.assign({ radarMode: 'status' }, NOTHING_PLACED), 'forecast', 'left', 'uv,bt'),
     'radar', 'right', 'uv');
   const cells = wire.buildSettingsBlob(S).slice(O);
@@ -95,10 +96,10 @@ test('buildSettingsBlob: bytes 38-47 carry the On demand cells, effective values
   assert.equal(cells[OD.itemIndex('bt')], 1 << 2);
   assert.equal(cells[OD.itemIndex('battery')], 0);
   // A watch without On demand gets zeros (it never gets the blob, but the packer agrees).
-  assert.deepEqual(wire.buildSettingsBlob(S, { onDemand: false }).slice(O), [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  assert.deepEqual(wire.buildSettingsBlob(S, { onDemand: false }).slice(O), [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
   assert.deepEqual(wire.buildSettingsBlob({}, platform.computeEnv({ platform: 'aplite' })).slice(O),
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'aplite');
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'aplite');
   // A side that ticks nothing is zeros, on a bar that exists (health) as on one already
   // placed.
   const health = placeOn(Object.assign({ healthMode: 'all' }, S), 'health', 'left', '');
@@ -109,6 +110,20 @@ test('buildSettingsBlob: bytes 38-47 carry the On demand cells, effective values
   // A bar the modes remove is zeros too.
   S.radarMode = 'off';
   assert.equal(wire.buildSettingsBlob(S).slice(O)[OD.itemIndex('uv')], 0, 'no radar bar');
+});
+
+// The Moon phase is the eleventh item: its cell byte is the blob's last, which a 3.5 watch
+// never read (status_threshold.h THRESH_SETTINGS_BYTES_PRE_MOON).
+test('buildSettingsBlob: the Moon phase\'s cell is byte 48, the last', () => {
+  const OD = require('../../../src/pkjs/status-bars/domain/on-demand.js');
+  assert.equal(wire.ON_DEMAND_OFFSET + OD.itemIndex('moon'), 48);
+  assert.equal(wire.SETTINGS_BYTES, 49);
+  const S = placeOn(placeOn(Object.assign({ radarMode: 'status' }, NOTHING_PLACED), 'forecast', 'right', 'moon'),
+    'radar', 'left', 'moon,bt');
+  const blob = wire.buildSettingsBlob(S);
+  assert.equal(blob[48], (2 << 2) | (1 << 4), 'forecast right, radar left');
+  assert.deepEqual(blob.slice(0, 48), wire.buildSettingsBlob(placeOn(placeOn(Object.assign({ radarMode: 'status' },
+    NOTHING_PLACED), 'forecast', 'right', ''), 'radar', 'left', 'bt')).slice(0, 48), 'no other byte moves');
 });
 
 // --- the weather alerts: which are on, and how each reads -----------------------

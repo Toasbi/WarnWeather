@@ -145,11 +145,11 @@ const settingsSchema = z
     // low-battery-only toggles, which every other watch replaced with On demand below.
     showQt: z.boolean().optional(),
     batteryLowOnly: z.boolean().optional(),
-    // On demand (src/pkjs/status-bars/domain/on-demand.js telemetryCode): 40 letters, the ten items of
+    // On demand (src/pkjs/status-bars/domain/on-demand.js telemetryCode): 44 letters, the ten items of
     // each bar (top, forecast, radar, health) in the On demand order (battery, bt, qt,
-    // snooze, rain, gust, uv, aqi, pollen, wind) — L/R ticked on a side of a bar that
-    // shows, l/r ticked on a hidden bar, '-' not ticked
-    // (e.g. 'RLLLLRRR-R' + 30 '-', an untouched install). Absent on aplite, whose
+    // snooze, rain, gust, uv, aqi, pollen, wind), then the Moon phase's four bars (3.6.0) —
+    // L/R ticked on a side of a bar that shows, l/r ticked on a hidden bar, '-' not ticked
+    // (e.g. 'RLLLLRRR-R' + 34 '-', an untouched install; 40 letters before 3.6.0). Absent on aplite, whose
     // showQt/batteryLowOnly above say what it draws. z.string() with no length bound, like
     // alerts and warnLooks: a future item lengthens the code and must not 400 the batch.
     // DEPLOY-ORDERING: ship this function before the app release that sends these, or

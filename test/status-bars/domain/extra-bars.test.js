@@ -256,7 +256,7 @@ test('on-demand.js: a bar 4 to 6 exists where a screen shows it, so an item plac
   assert.equal(OD.barExists(S, 'bar5', EMERY), false, 'not made, not shown');
   assert.equal(OD.placedAnywhere(S, 'uv', EMERY), true);
   assert.equal(OD.placedAnywhere(S, 'uv', BASALT), false);
-  assert.equal(OD.telemetryCode(S, EMERY).length, 40, 'telemetry keeps the four bars');
+  assert.equal(OD.telemetryCode(S, EMERY).length, 44, 'telemetry keeps the four bars');
   assert.deepEqual(OD.BLOB_BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health']);
   assert.deepEqual(OD.PAGE_BARS.map((b) => b.name),
     ['Watch bar', 'Forecast bar', 'Health bar', 'Radar bar', 'Status bar 4', 'Status bar 5', 'Status bar 6']);
