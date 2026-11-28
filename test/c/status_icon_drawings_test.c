@@ -55,7 +55,11 @@ static const Tier TIERS[] = { { 14 * 6 / 9, false }, { 18 * 5 / 9, true }, { 18 
     X(STATUS_ICON_COND_WIND) X(STATUS_ROW_ICON_QUIET) X(STATUS_ROW_ICON_BT) X(STATUS_ROW_ICON_BT_OFF) \
     X(STATUS_ICON_PV_SWITCH) X(STATUS_ICON_PV_SWITCH_OFF) X(STATUS_ICON_PV_WIFI) X(STATUS_ICON_PV_WIFI_OFF) \
     X(STATUS_ICON_PV_BT) X(STATUS_ICON_PV_BT_OFF) X(STATUS_ICON_PV_PLUG) X(STATUS_ICON_PV_PHONE) \
-    X(STATUS_ICON_PV_CALENDAR) X(STATUS_ICON_PV_TIDE)
+    X(STATUS_ICON_PV_CALENDAR) X(STATUS_ICON_PV_TIDE) \
+    X(STATUS_ICON_MOON_NEW) X(STATUS_ICON_MOON_WAX_CRES) X(STATUS_ICON_MOON_FIRST_QTR) \
+    X(STATUS_ICON_MOON_WAX_GIB) X(STATUS_ICON_MOON_FULL) X(STATUS_ICON_MOON_WAN_GIB) \
+    X(STATUS_ICON_MOON_LAST_QTR) X(STATUS_ICON_MOON_WAN_CRES) X(STATUS_ICON_DAWN) X(STATUS_ICON_DUSK) \
+    X(STATUS_ICON_DAY_LENGTH)
 #define AS_ID(id) id,
 #define AS_NAME(id) #id,
 static const uint8_t DRAWN[] = { DRAWN_IDS(AS_ID) };
@@ -71,7 +75,7 @@ static const char *glyph_name(uint8_t id) {
 }
 static const uint8_t TEXT_ONLY[] = {
     STATUS_ICON_NONE, STATUS_ICON_DRAWN_SUN, STATUS_ICON_PRESSURE, STATUS_ICON_PHONE_BATTERY_PLAIN,
-    STATUS_ICON_COND_TEXT, STATUS_ICON_DRAWN_BATTERY, STATUS_ICON_PLUGIN_TEXT,
+    STATUS_ICON_COND_TEXT, STATUS_ICON_DRAWN_BATTERY, STATUS_ICON_PLUGIN_TEXT, STATUS_ICON_MOON_TEXT,
 };
 #define RETIRED_ICON_ID 6   // STATUS_ICON_PRECIP's hole (status_line.h)
 #define RETIRED_CHG_ICON_ID 17   // the phone-charging glyph's hole (status_line.h)
@@ -96,6 +100,8 @@ static void every_id_classified(void) {
     int nd = (int)sizeof(DRAWN), nt = (int)sizeof(TEXT_ONLY);
     for (int id = 0; id <= STATUS_ROW_ICON_HEAVY_RAIN; id++) {
         if (id == RETIRED_ICON_ID || id == RETIRED_CHG_ICON_ID) { continue; }
+        // Kept for the Plugin value's icons to come (status_line.h): no slot's yet.
+        if (id > STATUS_ICON_PV_TIDE && id < STATUS_ICON_MOON_NEW) { continue; }
         char name[48];
         snprintf(name, sizeof(name), "classified.id%d", id);
         // Heavy rain is the rain alert's alone: the rain check below covers it.

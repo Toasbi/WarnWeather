@@ -2327,6 +2327,446 @@
           "targetPlatforms": [
             "emery"
           ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_NEW_BASALT_11",
+          "file": "data/PX_MOON_NEW_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_NEW_BASALT_13",
+          "file": "data/PX_MOON_NEW_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_NEW_EMERY_13",
+          "file": "data/PX_MOON_NEW_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_NEW_EMERY_15",
+          "file": "data/PX_MOON_NEW_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_NEW_EMERY_17",
+          "file": "data/PX_MOON_NEW_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAX_CRES_BASALT_11",
+          "file": "data/PX_MOON_WAX_CRES_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAX_CRES_BASALT_13",
+          "file": "data/PX_MOON_WAX_CRES_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAX_CRES_EMERY_13",
+          "file": "data/PX_MOON_WAX_CRES_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAX_CRES_EMERY_15",
+          "file": "data/PX_MOON_WAX_CRES_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAX_CRES_EMERY_17",
+          "file": "data/PX_MOON_WAX_CRES_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_FIRST_QTR_BASALT_11",
+          "file": "data/PX_MOON_FIRST_QTR_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_FIRST_QTR_BASALT_13",
+          "file": "data/PX_MOON_FIRST_QTR_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_FIRST_QTR_EMERY_13",
+          "file": "data/PX_MOON_FIRST_QTR_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_FIRST_QTR_EMERY_15",
+          "file": "data/PX_MOON_FIRST_QTR_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_FIRST_QTR_EMERY_17",
+          "file": "data/PX_MOON_FIRST_QTR_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAX_GIB_BASALT_11",
+          "file": "data/PX_MOON_WAX_GIB_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAX_GIB_BASALT_13",
+          "file": "data/PX_MOON_WAX_GIB_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAX_GIB_EMERY_13",
+          "file": "data/PX_MOON_WAX_GIB_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAX_GIB_EMERY_15",
+          "file": "data/PX_MOON_WAX_GIB_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAX_GIB_EMERY_17",
+          "file": "data/PX_MOON_WAX_GIB_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_FULL_BASALT_11",
+          "file": "data/PX_MOON_FULL_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_FULL_BASALT_13",
+          "file": "data/PX_MOON_FULL_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_FULL_EMERY_13",
+          "file": "data/PX_MOON_FULL_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_FULL_EMERY_15",
+          "file": "data/PX_MOON_FULL_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_FULL_EMERY_17",
+          "file": "data/PX_MOON_FULL_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAN_GIB_BASALT_11",
+          "file": "data/PX_MOON_WAN_GIB_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAN_GIB_BASALT_13",
+          "file": "data/PX_MOON_WAN_GIB_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAN_GIB_EMERY_13",
+          "file": "data/PX_MOON_WAN_GIB_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAN_GIB_EMERY_15",
+          "file": "data/PX_MOON_WAN_GIB_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAN_GIB_EMERY_17",
+          "file": "data/PX_MOON_WAN_GIB_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_LAST_QTR_BASALT_11",
+          "file": "data/PX_MOON_LAST_QTR_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_LAST_QTR_BASALT_13",
+          "file": "data/PX_MOON_LAST_QTR_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_LAST_QTR_EMERY_13",
+          "file": "data/PX_MOON_LAST_QTR_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_LAST_QTR_EMERY_15",
+          "file": "data/PX_MOON_LAST_QTR_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_LAST_QTR_EMERY_17",
+          "file": "data/PX_MOON_LAST_QTR_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAN_CRES_BASALT_11",
+          "file": "data/PX_MOON_WAN_CRES_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAN_CRES_BASALT_13",
+          "file": "data/PX_MOON_WAN_CRES_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAN_CRES_EMERY_13",
+          "file": "data/PX_MOON_WAN_CRES_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAN_CRES_EMERY_15",
+          "file": "data/PX_MOON_WAN_CRES_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_MOON_WAN_CRES_EMERY_17",
+          "file": "data/PX_MOON_WAN_CRES_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DAWN_BASALT_11",
+          "file": "data/PX_DAWN_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DAWN_BASALT_13",
+          "file": "data/PX_DAWN_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DAWN_EMERY_13",
+          "file": "data/PX_DAWN_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DAWN_EMERY_15",
+          "file": "data/PX_DAWN_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DAWN_EMERY_17",
+          "file": "data/PX_DAWN_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DUSK_BASALT_11",
+          "file": "data/PX_DUSK_BASALT_11.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DUSK_BASALT_13",
+          "file": "data/PX_DUSK_BASALT_13.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DUSK_EMERY_13",
+          "file": "data/PX_DUSK_EMERY_13.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DUSK_EMERY_15",
+          "file": "data/PX_DUSK_EMERY_15.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "PX_DUSK_EMERY_17",
+          "file": "data/PX_DUSK_EMERY_17.pdc",
+          "targetPlatforms": [
+            "emery"
+          ]
         }
       ]
     },

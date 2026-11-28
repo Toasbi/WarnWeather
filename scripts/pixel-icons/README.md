@@ -1,7 +1,7 @@
 # Pixel icons
 
-The status icons (weather, weather values, phone and health, Bluetooth and quiet time) and the
-rain alert's icons, drawn once for every box the watch draws them in. A drawing the watch shows
+The status icons (weather, weather values, the sun and moon, phone and health, Bluetooth and quiet
+time) and the rain alert's icons, drawn once for every box the watch draws them in. A drawing the watch shows
 at its own size is crisp: nothing gets scaled, so no line lands between two pixels and turns grey.
 Each drawing carries its size and its seat: the watch centres it on the text and knows nothing
 else about it ([ADR 0006](../../docs/adr/0006-status-icons-carry-their-size-and-seat.md)). The icon

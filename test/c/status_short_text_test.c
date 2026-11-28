@@ -176,6 +176,13 @@ static void other_readings(void) {
     no_family("plugin value calendar", SLOT_TEXT, STATUS_ICON_PV_CALENDAR, "12d");
     no_family("plugin value wifi", SLOT_TEXT, STATUS_ICON_PV_WIFI, "12 / 30kph");
     no_family("plugin value tide", SLOT_TEXT, STATUS_ICON_PV_TIDE, "1.8 m");
+    // The sun and moon slots stay whole: a time, a length or a phase's name.
+    no_family("dawn", SLOT_TEXT, STATUS_ICON_DAWN, "6:52p");
+    no_family("dusk", SLOT_TEXT, STATUS_ICON_DUSK, "18:52");
+    no_family("day length", SLOT_TEXT, STATUS_ICON_DAY_LENGTH, "11h38");
+    no_family("moon phase", SLOT_TEXT, STATUS_ICON_MOON_WAN_GIB, "Wan gib");
+    no_family("moon lit", SLOT_TEXT, STATUS_ICON_MOON_FULL, "100%");
+    no_family("moon text", SLOT_TEXT, STATUS_ICON_MOON_TEXT, "89% lit");
 }
 
 static void live_kinds(void) {

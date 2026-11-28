@@ -534,7 +534,7 @@ static void alt_tests(void) {
     expect("alt.mid-len", v[1].value_len, (int)strlen(both));
     // The short form ends in a letter, never in a wind sentinel.
     expect("alt.no-dir", status_slot_direction(&v[1]), -1);
-    expect("alt.max-icon", STATUS_ICON_MAX, STATUS_ICON_PV_TIDE);
+    expect("alt.max-icon", STATUS_ICON_MAX, STATUS_ICON_DAY_LENGTH);
     n = put_slot(b, 0, SLOT_TEXT, (uint8_t)(STATUS_ICON_MAX + 1), "x");
     n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
     n = put_slot(b, n, SLOT_EMPTY, 0, NULL);
@@ -632,6 +632,43 @@ static void plugin_icon_tests(void) {
     }
 }
 
+// The sun and moon slots' ids (status_line.h): wire values from 64, past the Plugin value's
+// room, each a text slot's id like any other. Only they are the sky's.
+static void sky_icon_tests(void) {
+    expect("sky.moon-new", STATUS_ICON_MOON_NEW, 64);
+    expect("sky.moon-wax-cres", STATUS_ICON_MOON_WAX_CRES, 65);
+    expect("sky.moon-first-qtr", STATUS_ICON_MOON_FIRST_QTR, 66);
+    expect("sky.moon-wax-gib", STATUS_ICON_MOON_WAX_GIB, 67);
+    expect("sky.moon-full", STATUS_ICON_MOON_FULL, 68);
+    expect("sky.moon-wan-gib", STATUS_ICON_MOON_WAN_GIB, 69);
+    expect("sky.moon-last-qtr", STATUS_ICON_MOON_LAST_QTR, 70);
+    expect("sky.moon-wan-cres", STATUS_ICON_MOON_WAN_CRES, 71);
+    expect("sky.moon-text", STATUS_ICON_MOON_TEXT, 72);
+    expect("sky.dawn", STATUS_ICON_DAWN, 73);
+    expect("sky.dusk", STATUS_ICON_DUSK, 74);
+    expect("sky.day-length", STATUS_ICON_DAY_LENGTH, 75);
+    uint8_t b[64];
+    StatusSlotView v[STATUS_SLOT_COUNT];
+    for (int id = 0; id <= (int)STATUS_ICON_CITY_GLYPH; id++) {
+        char name[32];
+        bool sky = id >= STATUS_ICON_MOON_NEW && id <= STATUS_ICON_DAY_LENGTH;
+        snprintf(name, sizeof(name), "sky.only.id%d", id);
+        expect(name, status_icon_is_sky((uint8_t)id), sky);
+        if (!sky) { continue; }
+        size_t n = put_slot(b, 0, SLOT_TEXT, (uint8_t)id, "18:52");
+        n = put_slot(b, n, SLOT_TEXT, (uint8_t)id, "Waning gibbous");
+        n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+        snprintf(name, sizeof(name), "sky.valid.id%d", id);
+        expect(name, status_line_validate(b, n), 1);
+        snprintf(name, sizeof(name), "sky.icon.id%d", id);
+        expect(name, status_line_slots(b, n, v) == STATUS_SLOT_COUNT && v[0].icon == id, 1);
+        snprintf(name, sizeof(name), "sky.plain.id%d", id);
+        expect(name, status_icon_is_city((uint8_t)id) + status_icon_is_condition((uint8_t)id)
+                         + status_icon_is_plugin_value((uint8_t)id)
+                         + status_slot_draws_battery(SLOT_LIVE_BATTERY_PCT, (uint8_t)id), 0);
+    }
+}
+
 int main(void) {
     validate_tests();
     slot_tests();
@@ -640,6 +677,7 @@ int main(void) {
     alt_tests();
     plugin_text_tests();
     plugin_icon_tests();
+    sky_icon_tests();
     if (s_failures) { printf("%d status_line failure(s)\n", s_failures); return 1; }
     printf("status_line OK\n");
     return 0;

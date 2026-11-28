@@ -64,7 +64,14 @@
     // Bluetooth. Plug, Phone, Calendar and Tide stay the same. Like PLUGIN_TEXT, each takes the
     // Plugin value's bold kind and no other slot's short form.
     PV_SWITCH: 36, PV_SWITCH_OFF: 37, PV_WIFI: 38, PV_WIFI_OFF: 39, PV_BT: 40, PV_BT_OFF: 41,
-    PV_PLUG: 42, PV_PHONE: 43, PV_CALENDAR: 44, PV_TIDE: 45
+    PV_PLUG: 42, PV_PHONE: 43, PV_CALENDAR: 44, PV_TIDE: 45,
+    // The sun and moon slots (status_line.h, from 64: 46 to 63 are kept for the Plugin value's
+    // icons). The Moon phase's eight phases as the user sees the moon, and MOON_TEXT, its Text
+    // look, which loads no glyph; Dawn/dusk's two; Day length's, the Clear sun's drawing. Each
+    // takes the Sun slot's bold kind and no short form.
+    MOON_NEW: 64, MOON_WAX_CRES: 65, MOON_FIRST_QTR: 66, MOON_WAX_GIB: 67, MOON_FULL: 68,
+    MOON_WAN_GIB: 69, MOON_LAST_QTR: 70, MOON_WAN_CRES: 71, MOON_TEXT: 72,
+    DAWN: 73, DUSK: 74, DAY_LENGTH: 75
   };
   // A TEXT slot's short form rides after this byte (status_line.h STATUS_TEXT_ALT_SEP).
   var ALT_SEP = '\u001f';

@@ -47,7 +47,17 @@
         WIFI: '~d!0.s8.sk.1ky.3jl.eg.sk.68.7k.0.1s~f!0.rk.5jw.6bm.cn5.1kg.1l4.35w.cg.f4.0.3k.0~2~h!0.6b4.6bs.cn8.paa.1hpd.368.6bs.0.ow.u8.1ls.0.74.0~l!0.cjk.2gkw.2t54.guti.mh35.64g.j40.23w0.0.64g.6f4.0.0.0.sg.0',
         WIFI_OFF: '~d!2.ro.ss.1le.3e9.g8.w4.dc.ls.sg.1mo~f!2.ro.5jg.6c2.co1.19s.1oo.3d0.qo.17k.1kw.39c.6bk~2~h!2.6as.6bs.cno.pb6.1hep.39s.6iw.e8.1hc.2f4.4rk.6bk.cu8.pa8~l!4.cjs.2gi8.2t60.guva.mh6p.4xs.ji8.24og.1kw.64g.6f4.cn4.pa8.1ekg.2txc.5m9s',
         PLUG: '~9!1w.1w.1w.e7.3m.3m.1w.1k.g.g.g~9!1w.1w.1w.1w.e7.3m.3m.3m.1w.1k.g.g.g~2~b!3s.3s.3s.3s.1kv.ea.ea.ea.78.b0.34.w.w.w.w~d!7k.7k.7k.7k.7k.6bj.1ky.1ky.1ky.sk.sk.m0.68.1s.1s.1s.1s',
-        TIDE: '~d!dc.eo.ug.x0.mc.y.1u.1hd.0.pa.5m9~f!qo.2e8.368.6mg.6rs.5l0.1w.3m.76.5xd.0.jny.5m9~2~h!328.9j4.co0.s28.snc.vt4.cuc.78.ea.si.1kx.1bep.0.258u.nw1~j!64g.j40.pb4.1ekw.1hc8.1hxk.vt0.cuc.ea.si.1ky.35t.5fy9.0.4ydq.6a5t.0'
+        TIDE: '~d!dc.eo.ug.x0.mc.y.1u.1hd.0.pa.5m9~f!qo.2e8.368.6mg.6rs.5l0.1w.3m.76.5xd.0.jny.5m9~2~h!328.9j4.co0.s28.snc.vt4.cuc.78.ea.si.1kx.1bep.0.258u.nw1~j!64g.j40.pb4.1ekw.1hc8.1hxk.vt0.cuc.ea.si.1ky.35t.5fy9.0.4ydq.6a5t.0',
+        MOON_NEW: '~9!0.14.3m.0.75.0.75.0.3m.14.0~b!0.4o.0.ea.0.sh.0.sh.0.ea.0.4o.0~2~d!0.9c.sk.0.1ky.0.35t.0.35t.0.1ky.0.sk.9c.0~f!0.io.1l4.0.6bm.0.cn5.0.cn5.0.cn5.0.6bm.0.1l4.io.0',
+        MOON_WAX_CRES: '~9!0.1k.5i.5e.ap.ap.ap.5e.5i.1k.0~b!0.6w.as.le.1dt.1dt.1dt.1dt.1dt.le.as.6w.0~2~d!0.ds.170.2rm.2rm.5j5.5j5.5j5.5j5.5j5.2rm.2rm.170.ds.0~f!0.rk.2e0.5j8.b2a.b2a.npd.npd.npd.npd.npd.b2a.b2a.5j8.2e0.rk.0',
+        MOON_FIRST_QTR: '~9!0.1k.6u.6q.dt.dt.dt.6q.6u.1k.0~b!0.6w.dg.rm.1k1.1k1.1k1.1k1.1k1.rm.dg.6w.0~2~d!0.ds.1jg.342.342.69t.69t.69t.69t.69t.342.342.1jg.ds.0~f!0.rk.32w.684.cjm.cjm.p6p.p6p.p6p.p6p.p6p.cjm.cjm.684.32w.rk.0',
+        MOON_WAX_GIB: '~9!0.1k.72.6y.e1.e1.e1.6y.72.1k.0~b!0.6w.dw.s2.1kp.1kp.1kp.1kp.1kp.s2.dw.6w.0~2~d!0.ds.1kc.35e.35e.6b5.6b5.6b5.6b5.6b5.35e.35e.1kc.ds.0~f!0.rk.34o.6as.cma.cma.p9t.p9t.p9t.p9t.p9t.cma.cma.6as.34o.rk.0',
+        MOON_FULL: '~9!0.1k.72.72.e7.e7.e7.72.72.1k.0~b!0.6w.e4.se.1kv.1kv.1kv.1kv.1kv.se.e4.6w.0~2~d!0.ds.1ks.35q.35q.6bj.6bj.6bj.6bj.6bj.35q.35q.1ks.ds.0~f!0.rk.35k.6bg.cn2.cn2.pa7.pa7.pa7.pa7.pa7.cn2.cn2.6bg.35k.rk.0',
+        MOON_WAN_GIB: '~9!0.1k.72.5a.8v.8v.8v.5a.72.1k.0~b!0.6w.ak.hq.zj.zj.zj.zj.zj.hq.ak.6w.0~2~d!0.ds.1do.1z2.1z2.3jz.3jz.3jz.3jz.3jz.1z2.1z2.1do.ds.0~f!0.rk.2rc.3y4.73y.73y.e7z.e7z.e7z.e7z.e7z.73y.73y.3y4.2rc.rk.0',
+        MOON_LAST_QTR: '~9!0.1k.66.4e.7z.7z.7z.4e.66.1k.0~b!0.6w.8s.fy.u7.u7.u7.u7.u7.fy.8s.6w.0~2~d!0.ds.1a4.1oe.1oe.39b.39b.39b.39b.39b.1oe.1oe.1a4.ds.0~f!0.rk.2k8.3cs.6im.6im.cu7.cu7.cu7.cu7.cu7.6im.6im.3cs.2k8.rk.0',
+        MOON_WAN_CRES: '~9!0.1k.5i.3q.77.77.77.3q.5i.1k.0~b!0.6w.7g.ee.sn.sn.sn.sn.sn.ee.7g.6w.0~2~d!0.ds.170.1la.1la.35z.35z.35z.35z.35z.1la.1la.170.ds.0~f!0.rk.2e0.36k.6by.6by.cnj.cnj.cnj.cnj.cnj.6by.6by.36k.2e0.rk.0',
+        DAWN: '~d!1s.68.9c.1s.0.68.7k.eg.557.0.6bj~f!3k.cg.io.3k.3k.0.cg.180.sw.1l4.kjv.0.pa7~2~h!74.ow.11c.1sw.74.74.0.1j4.1ls.368.6bs.6bs.2a6j.0.2t4v~j!e8.1ds.22o.3ls.e8.e8.e8.0.328.9k0.cnk.cnk.pag.pag.94p7.0.b8jj',
+        DUSK: '~d!1s.9c.68.1s.0.68.7k.eg.557.0.6bj~f!3k.3k.io.cg.3k.0.cg.180.sw.1l4.kjv.0.pa7~2~h!74.74.1sw.11c.ow.74.0.1j4.1ls.368.6bs.6bs.2a6j.0.2t4v~j!e8.e8.e8.3ls.22o.1ds.e8.0.328.9k0.cnk.cnk.pag.pag.94p7.0.b8jj'
     };
     var ICONS = {};
     Object.keys(PACKED).forEach(function (key) {
@@ -61,6 +71,7 @@
     });
     var IDS = {
         STATUS_ICON_COND_SUN: 'SUN',
+        STATUS_ICON_DAY_LENGTH: 'SUN',
         STATUS_ICON_COND_MOON: 'MOON',
         STATUS_ICON_COND_SUN_CLOUD: 'SUN_CLOUD',
         STATUS_ICON_COND_MOON_CLOUD: 'MOON_CLOUD',
@@ -100,7 +111,17 @@
         STATUS_ICON_PV_WIFI: 'WIFI',
         STATUS_ICON_PV_WIFI_OFF: 'WIFI_OFF',
         STATUS_ICON_PV_PLUG: 'PLUG',
-        STATUS_ICON_PV_TIDE: 'TIDE'
+        STATUS_ICON_PV_TIDE: 'TIDE',
+        STATUS_ICON_MOON_NEW: 'MOON_NEW',
+        STATUS_ICON_MOON_WAX_CRES: 'MOON_WAX_CRES',
+        STATUS_ICON_MOON_FIRST_QTR: 'MOON_FIRST_QTR',
+        STATUS_ICON_MOON_WAX_GIB: 'MOON_WAX_GIB',
+        STATUS_ICON_MOON_FULL: 'MOON_FULL',
+        STATUS_ICON_MOON_WAN_GIB: 'MOON_WAN_GIB',
+        STATUS_ICON_MOON_LAST_QTR: 'MOON_LAST_QTR',
+        STATUS_ICON_MOON_WAN_CRES: 'MOON_WAN_CRES',
+        STATUS_ICON_DAWN: 'DAWN',
+        STATUS_ICON_DUSK: 'DUSK'
     };
     var api = {icons: ICONS, ids: IDS};
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

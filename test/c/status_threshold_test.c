@@ -5,8 +5,10 @@
 // The FNV-1a hash of status_threshold_kind_for_slot over every byte pair (kind_tests). The
 // Plugin value's kind changed only its own ids' pairs: with them read as before (-1), the
 // map hashes to the pin before it, 1676948356. Its Tide icon (id 45) changed only its own
-// pair: with it read as -1, the map hashes to the pin before this one, 4211972008.
-#define KIND_MAP_PIN 365000138u
+// pair: with it read as -1, the map hashes to the pin before, 4211972008. The sun and moon
+// slots' ids (64 to 75) changed only their own pairs: with them read as -1, the map hashes to
+// the pin before this one, 365000138.
+#define KIND_MAP_PIN 2073076158u
 
 static void kind_tests(void) {
     expect("kind.aqi", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_AQI), THRESH_AQI);
@@ -115,6 +117,15 @@ static void kind_tests(void) {
            status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PV_TIDE + 1), -1);
     expect("kind.plugin_value_needs_text",
            status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_PV_WIFI), -1);
+    // The sun and moon slots share the Sun slot's Bold row: the Moon phase in every look,
+    // Dawn/dusk and Day length. The ids between the Plugin value's and theirs are no slot's.
+    for (int id = STATUS_ICON_MOON_NEW; id <= STATUS_ICON_DAY_LENGTH; id++) {
+        expect("kind.sky", status_threshold_kind_for_slot(SLOT_TEXT, (uint8_t)id), THRESH_SUN);
+    }
+    expect("kind.sky_starts", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_MOON_NEW - 1), -1);
+    expect("kind.sky_range_ends",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_DAY_LENGTH + 1), -1);
+    expect("kind.sky_needs_text", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_MOON_FULL), -1);
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
     expect("kind.empty", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_NONE), -1);
     // The whole map, holes included: every (slot kind, icon) byte pair, folded into one

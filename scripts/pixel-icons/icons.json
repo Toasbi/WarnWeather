@@ -1,7 +1,7 @@
 {
   "about": "The status icons, as gen_watch_icons.js reads them (README.md here): per icon its key in resources/pixel-icons.json and the watch icon ids its drawings serve (status_line.h, status_icon_size.h).",
   "icons": [
-    {"key": "SUN", "ids": ["STATUS_ICON_COND_SUN"]},
+    {"key": "SUN", "ids": ["STATUS_ICON_COND_SUN", "STATUS_ICON_DAY_LENGTH"]},
     {"key": "MOON", "ids": ["STATUS_ICON_COND_MOON"]},
     {"key": "SUN_CLOUD", "ids": ["STATUS_ICON_COND_SUN_CLOUD"]},
     {"key": "MOON_CLOUD", "ids": ["STATUS_ICON_COND_MOON_CLOUD"]},
@@ -37,6 +37,16 @@
     {"key": "WIFI", "ids": ["STATUS_ICON_PV_WIFI"]},
     {"key": "WIFI_OFF", "ids": ["STATUS_ICON_PV_WIFI_OFF"]},
     {"key": "PLUG", "ids": ["STATUS_ICON_PV_PLUG"]},
-    {"key": "TIDE", "ids": ["STATUS_ICON_PV_TIDE"]}
+    {"key": "TIDE", "ids": ["STATUS_ICON_PV_TIDE"]},
+    {"key": "MOON_NEW", "ids": ["STATUS_ICON_MOON_NEW"]},
+    {"key": "MOON_WAX_CRES", "ids": ["STATUS_ICON_MOON_WAX_CRES"]},
+    {"key": "MOON_FIRST_QTR", "ids": ["STATUS_ICON_MOON_FIRST_QTR"]},
+    {"key": "MOON_WAX_GIB", "ids": ["STATUS_ICON_MOON_WAX_GIB"]},
+    {"key": "MOON_FULL", "ids": ["STATUS_ICON_MOON_FULL"]},
+    {"key": "MOON_WAN_GIB", "ids": ["STATUS_ICON_MOON_WAN_GIB"]},
+    {"key": "MOON_LAST_QTR", "ids": ["STATUS_ICON_MOON_LAST_QTR"]},
+    {"key": "MOON_WAN_CRES", "ids": ["STATUS_ICON_MOON_WAN_CRES"]},
+    {"key": "DAWN", "ids": ["STATUS_ICON_DAWN"]},
+    {"key": "DUSK", "ids": ["STATUS_ICON_DUSK"]}
   ]
 }

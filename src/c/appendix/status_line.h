@@ -195,7 +195,7 @@ typedef enum {
     // under ids of their own (scripts/pixel-icons/icons.json), so the slot takes none of those
     // slots' bold kinds or short forms (status_short_text.h): every id here is the Plugin
     // value's, as PLUGIN_TEXT is (status_icon_is_plugin_value). An icon added later goes
-    // right after PV_TIDE, where that range ends.
+    // right after PV_TIDE, where that range ends: 46 to 63 are kept for them.
     STATUS_ICON_PV_SWITCH = 36,
     STATUS_ICON_PV_SWITCH_OFF = 37,
     STATUS_ICON_PV_WIFI = 38,
@@ -206,13 +206,32 @@ typedef enum {
     STATUS_ICON_PV_PHONE = 43,
     STATUS_ICON_PV_CALENDAR = 44,
     STATUS_ICON_PV_TIDE = 45,
+    // The sun and moon slots (status-line-catalog.js 'moon', 'twilight', 'dayLength'):
+    // phone-baked SLOT_TEXT, worked out on the phone at every bake. Each shares the Sun slot's
+    // bold kind (status_icon_is_sky) and has no short form (status_short_text.h).
+    // The Moon phase slot draws the phase as the user sees the moon (the phone mirrors it south
+    // of the equator), or none in its Text look (MOON_TEXT, which keeps it off TEXT + NONE).
+    STATUS_ICON_MOON_NEW = 64,
+    STATUS_ICON_MOON_WAX_CRES = 65,
+    STATUS_ICON_MOON_FIRST_QTR = 66,
+    STATUS_ICON_MOON_WAX_GIB = 67,
+    STATUS_ICON_MOON_FULL = 68,
+    STATUS_ICON_MOON_WAN_GIB = 69,
+    STATUS_ICON_MOON_LAST_QTR = 70,
+    STATUS_ICON_MOON_WAN_CRES = 71,
+    STATUS_ICON_MOON_TEXT = 72,
+    // The Dawn/dusk slot: the next civil dawn or dusk, its drawing saying which. Day length
+    // draws the Clear sun's drawing under an id of its own (scripts/pixel-icons/icons.json).
+    STATUS_ICON_DAWN = 73,
+    STATUS_ICON_DUSK = 74,
+    STATUS_ICON_DAY_LENGTH = 75,
 } StatusIconId;
 // Id 6 (STATUS_ICON_PRECIP, removed in 3dae9f4) is a retired hole: never reuse it —
 // a pre-3dae9f4 install can still hold a persisted blob referencing it. So is id 17
 // (STATUS_ICON_PHONE_BATTERY_CHG, the glyph of a phone that charges: the phone packed it
 // in place of id 16 while it charged, until the slot came to show the charge alone). A
 // line stored with it draws its text without a glyph until the phone's next bake.
-#define STATUS_ICON_MAX STATUS_ICON_PV_TIDE
+#define STATUS_ICON_MAX STATUS_ICON_DAY_LENGTH
 
 // Whether a slot draws the Watch battery's glyph: alone (SLOT_LIVE_BATTERY, the Icon look), or
 // before its charge as text (SLOT_LIVE_BATTERY_PCT with STATUS_ICON_DRAWN_BATTERY, the Icon +
@@ -251,6 +270,12 @@ static inline bool status_icon_is_condition(uint8_t icon) {
 // its icons, which run on from it.
 static inline bool status_icon_is_plugin_value(uint8_t icon) {
     return icon >= STATUS_ICON_PLUGIN_TEXT && icon <= STATUS_ICON_PV_TIDE;
+}
+
+// Whether a SLOT_TEXT slot's icon byte is a sun or moon slot's: the Moon phase's, Dawn/dusk's or
+// Day length's, which run from the new moon to the day length.
+static inline bool status_icon_is_sky(uint8_t icon) {
+    return icon >= STATUS_ICON_MOON_NEW && icon <= STATUS_ICON_DAY_LENGTH;
 }
 
 // The glyph an icon byte draws: the id without the city's bit.

@@ -44,6 +44,8 @@ int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
         // The Plugin value: its text-only id and every icon of its own, some of which draw
         // another slot's drawing without taking that slot's kind (status_line.h).
         if (status_icon_is_plugin_value(icon)) { return THRESH_PLUGIN_VALUE; }
+        // The sun and moon slots share the Sun slot's Bold row (status_line.h).
+        if (status_icon_is_sky(icon)) { return THRESH_SUN; }
         return icon < sizeof(TEXT_KIND) ? TEXT_KIND[icon] - 1 : -1;
     }
     return slot_kind < sizeof(LIVE_KIND) ? LIVE_KIND[slot_kind] - 1 : -1;

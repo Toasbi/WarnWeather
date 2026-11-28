@@ -96,8 +96,28 @@ test('icon ids are in lockstep with status_line.h', () => {
     assert.equal(catalog.ICONS[name], cEnum('STATUS_ICON_' + name), name + ' is STATUS_ICON_' + name);
   });
   assert.equal(Math.max.apply(null, Object.keys(catalog.ICONS).map((k) => catalog.ICONS[k])),
-    cEnum('STATUS_ICON_PV_TIDE'), 'the highest id is the last appended');
-  assert.match(header, /#define\s+STATUS_ICON_MAX\s+STATUS_ICON_PV_TIDE\b/, 'STATUS_ICON_MAX is the last id');
+    cEnum('STATUS_ICON_DAY_LENGTH'), 'the highest id is the last appended');
+  assert.match(header, /#define\s+STATUS_ICON_MAX\s+STATUS_ICON_DAY_LENGTH\b/, 'STATUS_ICON_MAX is the last id');
+});
+
+// Appended at 64, past the room kept for the Plugin value's icons: the sun and moon slots' ids,
+// each the same number on both sides, each loading its drawing but the Moon phase's Text look.
+test('the sun and moon icons are ids 64 to 75 on both sides of the wire, each drawn but the text look', () => {
+  const gen = require('../../../scripts/pixel-icons/gen_watch_icons.js');
+  const names = ['MOON_NEW', 'MOON_WAX_CRES', 'MOON_FIRST_QTR', 'MOON_WAX_GIB', 'MOON_FULL', 'MOON_WAN_GIB',
+    'MOON_LAST_QTR', 'MOON_WAN_CRES', 'MOON_TEXT', 'DAWN', 'DUSK', 'DAY_LENGTH'];
+  const drawn = { MOON_TEXT: null, DAY_LENGTH: 'SUN' };
+  names.forEach((name, i) => {
+    assert.equal(cEnum('STATUS_ICON_' + name), 64 + i, name + ' in the C enum');
+    assert.equal(catalog.ICONS[name], 64 + i, name + ' on the phone');
+    const key = name in drawn ? drawn[name] : name;
+    const keys = Object.keys(gen.ICON_IDS).filter((k) => gen.ICON_IDS[k].indexOf('STATUS_ICON_' + name) !== -1);
+    assert.deepEqual(keys, key ? [key] : [], name + (key ? ' draws ' + key : ' draws nothing'));
+  });
+  // Nothing between the Plugin value's last icon and the sky's first.
+  Object.keys(catalog.ICONS).forEach((k) => {
+    assert.ok(catalog.ICONS[k] <= 45 || catalog.ICONS[k] >= 64, k + ' is outside the kept ids');
+  });
 });
 
 // Appended after the Plugin value's text-only id: the icons its dialog offers, each the same
