@@ -24,8 +24,6 @@ const LINE_SHEETS = ['lineMain', 'lineSecond', 'lineThird', 'lineFourth'];
 const graphsTab = (s) => (s || schema).tabs.find((t) => t.id === 'graphs');
 const { graphDialog, dialogCards, dialogCard } = require('../../helpers/graph-dialog.js');
 const lineSheetById = (id, s) => graphsTab(s).sections.find((sec) => sec.sheetId === id);
-// A dialog by its sheet id, in whichever tab holds it.
-const sectionBySheet = (id) => schema.tabs.reduce((found, t) => found || t.sections.find((sec) => sec.sheetId === id), null);
 function forecastItems(s) { return LINE_SHEETS.reduce((acc, id) => acc.concat(lineSheetById(id, s).items), []); }
 
 // Threshold highlighting adds six keys per kind (7 kinds: the toggle, the pair, the
@@ -2930,7 +2928,7 @@ test('resetStatusSlots restores the Moon phase slot\'s Look, Shows and Name', ()
 // open, says what the three show and holds their Bold; the Moon phase's leads with its Look, and
 // Shows and Name show only where they print something.
 test('the Sun slot\'s dialog: what the three sun slots show, then the Bold they share', () => {
-  const sun = sectionBySheet('threshSun');
+  const sun = sheetById('threshSun');
   assert.equal(sun.title, 'Sun slot');
   assert.equal(sun.intro, 'Sunrise/sunset shows the next sunrise or sunset. Dawn/dusk shows the next dawn or dusk: '
     + 'when it gets light in the morning and dark in the evening. Day length shows how long the sun is up today. '
@@ -2940,7 +2938,7 @@ test('the Sun slot\'s dialog: what the three sun slots show, then the Bold they 
 });
 
 test('the Moon phase slot\'s dialog: Look, Shows while it prints text, Name for the phase, Bold, every phase', () => {
-  const moon = sectionBySheet('threshMoon');
+  const moon = sheetById('threshMoon');
   assert.equal(moon.title, 'Moon phase slot');
   assert.equal(moon.pinBlock, 'statusBarsPreview', 'the bars pinned above it, as every slot dialog');
   const rows = moon.items;

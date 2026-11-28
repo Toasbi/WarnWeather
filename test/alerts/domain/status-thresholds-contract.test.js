@@ -26,11 +26,10 @@ function cEnum(name, text = header, file = 'status_threshold.h') {
   return Number(m[1]);
 }
 
-// The 49-B blob of 3.6.0: the watch reads the Battery item byte and the eleven On demand
-// cells from it.
+// The blob the watch reads, the Battery item byte and the On demand cells too.
 test('kind count and blob layout are in lockstep with status_threshold.h', () => {
   assert.equal(th.KINDS.length, cDefine('THRESH_KIND_COUNT'));
-  assert.equal(wire.SETTINGS_BYTES, cDefine('THRESH_SETTINGS_BYTES'), 'the phone sends the full 49-B shape');
+  assert.equal(wire.SETTINGS_BYTES, cDefine('THRESH_SETTINGS_BYTES'), 'the phone sends the full shape');
   assert.equal(wire.COLORS_OFFSET, cDefine('THRESH_COLORS_OFFSET'));
   assert.equal(wire.HEALTH_OFFSET, cDefine('THRESH_HEALTH_OFFSET'));
   assert.equal(wire.BOLD_OFFSET, cDefine('THRESH_BOLD_OFFSET'));
@@ -64,8 +63,9 @@ test('the bold-only kinds sharing byte 33 never widen the blob', () => {
   assert.equal(cEnum('THRESH_DEW'), 17, 'dew is the second cell of byte 33');
   assert.equal(wire.BOLD_OFFSET + (cEnum('THRESH_DEW') >> 2), 33,
     'the dew bold cell shares byte 33 with battery %');
+  // The blob's width, pinned here once (the first test ties the watch's to it): every other
+  // test reads it as wire.SETTINGS_BYTES.
   assert.equal(wire.SETTINGS_BYTES, 49, 'the alert, Battery, warn-look and On demand bytes are the widening past 34');
-  assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 49);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_MOON'), 48);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_ALERTS'), 34);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
@@ -149,12 +149,11 @@ test('the bars are in lockstep with ThreshBar', () => {
   assert.match(header, /_Static_assert\(THRESH_BATTERY_OFFSET == THRESH_ALERTS_OFFSET \+ 1/);
 });
 
-// The 49-B blob's tail: the Battery item byte at 35 and one cell byte per On demand
-// item from 38, in the item order on_demand.h pins (the priority order).
-test('the Battery byte and the On demand cells close the 49-B blob', () => {
+// The blob's tail: the Battery item byte at 35 and one cell byte per On demand item from 38,
+// in the item order on_demand.h pins (the priority order).
+test('the Battery byte and the On demand cells close the blob', () => {
   assert.equal(cDefine('THRESH_BATTERY_OFFSET'), 35);
   assert.equal(cDefine('THRESH_ON_DEMAND_OFFSET'), 38);
-  assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 49);
   assert.equal(cDefine('THRESH_BATTERY_LEVEL_DEFAULT'), 10);
   const onDemand = onDemandHeader;
   const items = ['OD_BATTERY', 'OD_BLUETOOTH', 'OD_QUIET_TIME', 'OD_SLEEP', 'OD_RAIN',
@@ -163,6 +162,7 @@ test('the Battery byte and the On demand cells close the 49-B blob', () => {
     assert.match(onDemand, new RegExp(name + '\\s*=\\s*' + i + ','), name + ' is item ' + i);
   });
   assert.match(onDemand, /OD_ITEM_COUNT = 11/);
+  assert.equal(wire.SETTINGS_BYTES, cDefine('THRESH_ON_DEMAND_OFFSET') + items.length, 'the last cell closes it');
   assert.match(header, /_Static_assert\(THRESH_SETTINGS_BYTES == THRESH_ON_DEMAND_OFFSET \+ OD_ITEM_COUNT/);
   assert.match(header, /_Static_assert\(THRESH_SETTINGS_BYTES_PRE_MOON == THRESH_ON_DEMAND_OFFSET \+ OD_MOON/);
 });
@@ -250,9 +250,7 @@ test('the phone-battery kinds are 18/19 and share one settings key', () => {
 // which added exactly one accepted length for upgrading watches: 34, pre-alerts, and 48,
 // pre-moon. 1.24.0's interim 35-, 36- and 38-byte steps never shipped.
 test('kinds 18/19 fill byte 33; 1.24.0 and 3.6.0 add one accepted length each', () => {
-  assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 49);
-  assert.equal(wire.SETTINGS_BYTES, 49);
-  assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_MOON'), 48);
+  assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_MOON'), wire.SETTINGS_BYTES - 1, 'the Moon phase\'s cell');
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_ALERTS'), 34);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
   assert.equal(cDefine('THRESH_BOLD_OFFSET'), 29);

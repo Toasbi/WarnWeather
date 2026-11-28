@@ -12,6 +12,7 @@ const path = require('node:path');
 const OD = require('../../../src/pkjs/status-bars/domain/on-demand.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const { cEnum } = require('../../helpers/c-source.js');
+const { levelsWord } = require('../../helpers/weather-levels.js');
 
 const ROOT = path.join(__dirname, '..', '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -116,17 +117,16 @@ test('the Moon phase\'s 6 bits of the levels word: one shift, one mask, one set 
     assert.equal(OD.NEXT_DAY_MARKS[i], name.toLowerCase(), name);
     assert.match(alertSetH, new RegExp('#define STATUS_ALERT_MARK_' + name + ' ' + (i + 1) + '\\b'), name);
   });
-  const word = (bytes) => bytes[0] | (bytes[1] << 8);
   // A payload that sets levels below: UV 7 (warn, bits 8-9), AQI 120 (warn), pollen 3 (danger).
   const payload = { UV_TREND_UINT8: [70], AQI_TREND: [120], POLLEN_TODAY: '3' };
-  const levels = word(wire.packWeatherLevels(payload, {}));
+  const levels = levelsWord(wire.packWeatherLevels(payload, {}));
   assert.notEqual(levels, 0, 'premise: the payload sets levels');
   assert.equal(levels >> wire.MOON_SHIFT, 0, 'no moon: the bits stay 0');
-  assert.equal(word(wire.packWeatherLevels(payload, {}, null)), levels);
+  assert.equal(levelsWord(wire.packWeatherLevels(payload, {}, null)), levels);
   const seen = new Set();
   for (let picture = 0; picture < 8; picture++) {
     [null].concat(OD.NEXT_DAY_MARKS).forEach((mark) => {
-      const w = word(wire.packWeatherLevels(payload, {}, { picture, mark }));
+      const w = levelsWord(wire.packWeatherLevels(payload, {}, { picture, mark }));
       const v = w >> wire.MOON_SHIFT;
       assert.equal(w & ((1 << wire.MOON_SHIFT) - 1), levels, 'the levels keep their bits');
       assert.equal(v, 1 + picture + 8 * (mark === null ? 0 : OD.NEXT_DAY_MARKS.indexOf(mark) + 1), picture + ' ' + mark);

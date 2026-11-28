@@ -1,11 +1,30 @@
-// test/helpers/weather-levels.js — read a weather kind's highlight off the public
-// wire (status-wire's packWeatherLevels, the STATUS_LEVELS_UINT8 bytes) rather
-// than through the module's internals. Shared by test/alerts/domain/status-thresholds.test.js and
-// test/weather/domain/day-max-slots.test.js, which both pin what the highlight judges.
+// test/helpers/weather-levels.js — read the levels word off the public wire (status-wire's
+// packWeatherLevels, the STATUS_LEVELS_UINT8 bytes) rather than through the module's internals:
+// a weather kind's highlight, shared by test/alerts/domain/status-thresholds.test.js and
+// test/weather/domain/day-max-slots.test.js, which both pin what the highlight judges, and the
+// On demand Moon phase item's bits.
 'use strict';
 const assert = require('node:assert/strict');
 const th = require('../../src/pkjs/alerts/domain/status-thresholds.js');
 const wire = require('../../src/pkjs/alerts/domain/status-wire.js');
+
+/**
+ * @param {number[]} bytes The levels word's two bytes (STATUS_LEVELS_UINT8), low byte first.
+ * @returns {number} The word.
+ */
+function levelsWord(bytes) {
+  return bytes[0] | (bytes[1] << 8);
+}
+
+/**
+ * The On demand Moon phase item's bits of the levels word (status-wire.js moonBits, from
+ * wire.MOON_SHIFT): 0 for no moon, else 1 + the picture + 8 x the day's code.
+ * @param {number[]} bytes The levels word's two bytes.
+ * @returns {number}
+ */
+function moonOf(bytes) {
+  return levelsWord(bytes) >> wire.MOON_SHIFT;
+}
 
 /**
  * One weather kind's 2-bit level off packWeatherLevels' wire bytes: kinds 0..3 at
@@ -17,8 +36,7 @@ const wire = require('../../src/pkjs/alerts/domain/status-wire.js');
  */
 function packedLevel(code, payload, settings) {
   const k = th.KINDS.findIndex((x) => x.code === code);
-  const bytes = wire.packWeatherLevels(payload, settings);
-  return ((bytes[0] | (bytes[1] << 8)) >> (k <= 3 ? 2 * k : 8)) & 3;
+  return (levelsWord(wire.packWeatherLevels(payload, settings)) >> (k <= 3 ? 2 * k : 8)) & 3;
 }
 
 /**
@@ -43,4 +61,4 @@ function judged(code, payload, settings) {
   return assert.fail(code + ': the judged number is off the 0..1000 grid');
 }
 
-module.exports = { packedLevel, judged };
+module.exports = { levelsWord, moonOf, packedLevel, judged };

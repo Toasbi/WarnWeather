@@ -117,7 +117,7 @@ test('buildSettingsBlob: bytes 38-48 carry the On demand cells, effective values
 test('buildSettingsBlob: the Moon phase\'s cell is byte 48, the last', () => {
   const OD = require('../../../src/pkjs/status-bars/domain/on-demand.js');
   assert.equal(wire.ON_DEMAND_OFFSET + OD.itemIndex('moon'), 48);
-  assert.equal(wire.SETTINGS_BYTES, 49);
+  assert.equal(wire.SETTINGS_BYTES, 48 + 1, 'the last');
   const S = placeOn(placeOn(Object.assign({ radarMode: 'status' }, NOTHING_PLACED), 'forecast', 'right', 'moon'),
     'radar', 'left', 'moon,bt');
   const blob = wire.buildSettingsBlob(S);

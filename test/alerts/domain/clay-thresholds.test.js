@@ -23,11 +23,11 @@ const BASE = {
   healthMode: 'all', theme: 'dark'
 };
 
-test('Clay payload carries the 49-byte threshold settings blob', () => {
+test('Clay payload carries the threshold settings blob, at its full width', () => {
   const payload = buildClayPayload(BASE, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
   assert.ok(Array.isArray(payload.CLAY_THRESHOLDS_UINT8));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 49);
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, wire.SETTINGS_BYTES);
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[0], 0); // nothing configured
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[34], wire.RAIN_REPLACE_BIT); // rain look text; Replaces the slot on
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[35], 10); // the Battery item: 10 %, Icon
@@ -99,8 +99,8 @@ test('the blob matches buildSettingsBlob for configured settings', () => {
 
 test('aplite gets no threshold blob at all (it compiles the highlight out)', () => {
   // aplite has no WW_THRESHOLD_HIGHLIGHT: its status-row twin cannot draw the
-  // highlight and its inbox handler for this tuple is gone, so the 56 B
-  // (49-byte blob + 7 B tuple header) must not ride its Clay bundle.
+  // highlight and its inbox handler for this tuple is gone, so the blob and its
+  // 7 B tuple header must not ride its Clay bundle.
   const payload = buildClayPayload(BASE, { platform: 'aplite' },
     new Date('2026-07-22T00:00:00Z'));
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'CLAY_THRESHOLDS_UINT8'), false);
@@ -116,7 +116,7 @@ test('the dew bold cell fits byte 33 without widening the blob', () => {
   const s = Object.assign({}, BASE, { threshDewBoldMode: 'always' });
   const payload = buildClayPayload(s, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 49,
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, wire.SETTINGS_BYTES,
     'kinds 17-19 share byte 33 with kind 16 — no widening');
   assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, wire.buildSettingsBlob(s));
   // The cell lands where the contract says, and leaves its byte-mates alone.
@@ -149,7 +149,7 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
   const s = Object.assign({}, BASE, { threshPhoneBatteryBoldMode: 'always' });
   const payload = buildClayPayload(s, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 49,
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, wire.SETTINGS_BYTES,
     'the phone battery must not grow the Clay bundle by a byte');
   assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, wire.buildSettingsBlob(s));
   const byte33 = payload.CLAY_THRESHOLDS_UINT8[33];
@@ -165,7 +165,7 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
   });
   const fullPayload = buildClayPayload(full, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8.length, 49);
+  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8.length, wire.SETTINGS_BYTES);
   assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[33], 0xAA, 'all four cells = always');
   assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[34], wire.RAIN_REPLACE_BIT,
     'no bold cell spills into the alerts byte');
@@ -174,7 +174,7 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
 test('an unknown/absent watchInfo still gets the blob (never hide a real feature)', () => {
   [null, undefined, {}].forEach((wi) => {
     const payload = buildClayPayload(BASE, wi, new Date('2026-07-22T00:00:00Z'));
-    assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 49, String(wi));
+    assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, wire.SETTINGS_BYTES, String(wi));
     // Unknown platform = colour, like every capability: the colour defaults, and a
     // watch that draws On demand (the cells at their defaults).
     assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36), [0xAA, 0x95, 2, 1, 1, 1, 1, 2, 2, 2, 0, 2, 0], String(wi));

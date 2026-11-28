@@ -9,6 +9,8 @@ const assert = require('node:assert/strict');
 const statusLines = require('../../../src/pkjs/status-bars/domain/status-lines.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
 const { inZone } = require('../../helpers/in-zone.js');
+const { moonOf } = require('../../helpers/weather-levels.js');
+const { NOTHING_PLACED, placedOnly } = require('../../helpers/on-demand.js');
 
 const LINES = require.resolve('../../../src/pkjs/status-bars/domain/status-lines.js');
 const BYTES = require.resolve('../../helpers/status-line-bytes.js');
@@ -26,10 +28,10 @@ const WATCH_BAR = { statusTopLeft: 'twilight', statusTopMid: 'moon', statusTopRi
  * @param {number} [hour] The local hour of 28 Nov 2026 the bake runs at (default noon).
  * @returns {{slots: Array<Object>, reads: number, turn: ?string, moon: ?number}} The Watch bar's
  *   slots, how often the place was read, the sky's next turn as a local time, and the levels
- *   word's moon bits (null without the word).
+ *   word's moon bits (moonOf; null without the word).
  */
 function bakeInBerlin(settings, platform, place, hour) {
-  return inZone('Europe/Berlin', { lines: LINES, bytes: BYTES }, ({ lines, bytes }, { settings, platform, place, hour }) => {
+  const got = inZone('Europe/Berlin', { lines: LINES, bytes: BYTES }, ({ lines, bytes }, { settings, platform, place, hour }) => {
     let reads = 0;
     const facts = { sky: { position: () => { reads += 1; return place; } } };
     const now = new Date(2026, 10, 28, hour, 0);
@@ -40,8 +42,9 @@ function bakeInBerlin(settings, platform, place, hour) {
     const levels = payload.STATUS_LEVELS_UINT8;
     return { slots: bytes.decodeLine(payload.STATUS_LINE_3_UINT8), reads: baked,
       turn: turn === null ? null : new Date(turn).toTimeString().slice(0, 8),
-      moon: levels ? (levels[0] | (levels[1] << 8)) >> 10 : null };
+      levels: levels ? Array.from(levels) : null };
   }, { settings, platform, place, hour: hour === undefined ? 12 : hour });
+  return { slots: got.slots, reads: got.reads, turn: got.turn, moon: got.levels ? moonOf(got.levels) : null };
 }
 
 test('a bar bakes Dawn/dusk, the Moon phase and Day length from the clock and the place', () => {
@@ -96,7 +99,7 @@ test('skyTurnAt without settings, or without the sky\'s facts, still answers', (
 
 // --- the On demand Moon phase item: its moon in the levels word ---------------------------
 // 28 Nov 2026, noon in Berlin: a waning gibbous moon (phase 5), the full moon four days gone.
-const ITEM_ALWAYS = { statusTopOnDemandRightItems: 'moon', moonItemShow: 'always' };
+const ITEM_ALWAYS = placedOnly('moon', { moonItemShow: 'always' });
 const PLAIN_BAR = { statusTopLeft: 'temp', statusTopMid: 'city', statusTopRight: 'sun' };
 
 test('the On demand Moon phase rides the levels word, the place read once with the slots', () => {
@@ -114,7 +117,7 @@ test('the item alone reads the place for its picture and turns at midnight', () 
   assert.equal(south.moon, 1 + 3);
   // At full moon, the default, today shows nothing and reads no place; the item still turns at
   // midnight, when the day may bring one.
-  const full = bakeInBerlin(Object.assign({}, PLAIN_BAR, { statusTopOnDemandRightItems: 'moon' }), 'emery', BERLIN);
+  const full = bakeInBerlin(Object.assign({}, PLAIN_BAR, placedOnly('moon')), 'emery', BERLIN);
   assert.deepEqual([full.moon, full.reads, full.turn], [0, 0, '00:00:00']);
 });
 
@@ -125,7 +128,7 @@ test('after dusk the item\'s midnight comes before the next dawn', () => {
 });
 
 test('placed on no bar the item adds no bits and no turn; aplite has no levels word at all', () => {
-  const none = bakeInBerlin(Object.assign({}, PLAIN_BAR, { moonItemShow: 'always' }), 'basalt', BERLIN);
+  const none = bakeInBerlin(Object.assign({}, PLAIN_BAR, NOTHING_PLACED, { moonItemShow: 'always' }), 'basalt', BERLIN);
   assert.deepEqual([none.moon, none.reads, none.turn], [0, 0, null]);
   const aplite = bakeInBerlin(Object.assign({}, PLAIN_BAR, ITEM_ALWAYS), 'aplite', BERLIN);
   assert.deepEqual([aplite.moon, aplite.reads, aplite.turn], [null, 0, null]);

@@ -10,12 +10,13 @@ const moonItem = require('../../../src/pkjs/status-bars/domain/moon-item.js');
 const moon = require('../../../src/pkjs/weather/domain/moon.js');
 const platformLib = require('../../../src/pkjs/config-ui/lib/platform.js');
 const { inZone } = require('../../helpers/in-zone.js');
+const { placeOn, placedOnly } = require('../../helpers/on-demand.js');
 
 const ITEM = require.resolve('../../../src/pkjs/status-bars/domain/moon-item.js');
 const PLATFORM = require.resolve('../../../src/pkjs/config-ui/lib/platform.js');
 const env = (platform) => platformLib.computeEnv({ platform });
-// The item on the Watch bar's right, as a tick there stores it.
-const PLACED = { statusTopOnDemandRightItems: 'moon' };
+// The item on the Watch bar's right, and nothing else anywhere.
+const PLACED = placedOnly('moon');
 const SYDNEY = { lat: -33.87, lon: 151.21 };
 const BERLIN = { lat: 52.52, lon: 13.40 };
 
@@ -42,7 +43,7 @@ const today = (picture) => ({ picture, mark: null });
 
 test('placed nowhere, or on a watch without On demand, the item shows no moon', () => {
   const days = [8, 9, 23, 24];
-  assert.deepEqual(moons(shown({ statusTopOnDemandRightItems: '', moonItemShow: 'always' }, days)),
+  assert.deepEqual(moons(shown(placeOn({ moonItemShow: 'always' }, 'top', 'right', ''), days)),
     [null, null, null, null], 'on no bar (the defaults leave it off every bar)');
   assert.deepEqual(moons(shown({ moonItemShow: 'always' }, days, BERLIN, 'aplite')), [null, null, null, null],
     'aplite');
